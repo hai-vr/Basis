@@ -340,6 +340,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // between, per-quality deltas against that keyframe on DeltaAvatarChannel. When off, every
         // frame is a keyframe (legacy behavior).
         public static bool EnableAvatarDeltaCompression = true;
+        // Accept uplink STREAM frames (v49). Mirrors Configuration.EnableUplinkAvatarStream, which is
+        // also what the client is told in its metadata; kept as a server-side gate too so turning it
+        // off actually rejects the frames rather than trusting clients to stop sending them.
+        public static bool EnableUplinkAvatarStream = true;
         public static int AvatarDeltaKeyframeIntervalMs = 500;
         // Ceiling for the adaptive keyframe stretch (0 or <= base disables stretching). While a
         // sender's High deltas stay tiny the periodic keyframe interval doubles up to this cap;
@@ -917,6 +921,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             public byte BaselineSeq;
             public bool Has;
             public long LastNackTicks;
+            // v49: reconstruction state for uplink STREAM frames. Seeded from the same keyframes that
+            // set Baseline, then advanced by every stream frame. Null until this sender sends one.
+            public BasisAvatarStreamState Stream;
         }
         private static readonly ConcurrentDictionary<int, UplinkDeltaState> _uplinkStates = new();
         private static readonly long NackMinIntervalTicks = Stopwatch.Frequency; // 1/s per sender
@@ -935,6 +942,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             Buffer.BlockCopy(payload, 0, st.Baseline, 0, size);
             st.BaselineSeq = sequence;
             st.Has = true;
+            // A keyframe re-seeds the stream reconstruction too: it is the bootstrap for a sender that
+            // has just connected or been told to re-key, and the two must not drift apart.
+            st.Stream ??= new BasisAvatarStreamState(BitQuality.High);
+            st.Stream.SeedFrom(st.Baseline);
         }
 
         private static void NackUplink(NetPeer peer, UplinkDeltaState st)
@@ -988,22 +999,39 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
             bool hasAdditional = BasisNetworkCommons.DeltaHeaderHasAdditionalData(header);
-            if (!reader.TryGetByte(out byte sequence) || !reader.TryGetByte(out byte baseSeq))
+            bool isStream = BasisNetworkCommons.DeltaHeaderIsStream(header);
+            if (!reader.TryGetByte(out byte sequence))
+            {
+                reader.Recycle();
+                return;
+            }
+            // A stream frame carries no baseline reference — it is predictive against the running
+            // reconstruction, which is why it has no baseSeq to read.
+            byte baseSeq = 0;
+            if (!isStream && !reader.TryGetByte(out baseSeq))
             {
                 reader.Recycle();
                 return;
             }
 
             _uplinkStates.TryGetValue(fromPeer.Id, out UplinkDeltaState st);
-            if (st == null || !st.Has || st.BaselineSeq != baseSeq)
+            if (st == null || !st.Has || (!isStream && st.BaselineSeq != baseSeq))
             {
                 // Missing/stale baseline (lost keyframe or reorder) — ask for a fresh keyframe.
                 NackUplink(fromPeer, st);
                 reader.Recycle();
                 return;
             }
+            if (isStream && (!EnableUplinkAvatarStream || st.Stream == null || !st.Stream.HasBaseline))
+            {
+                NackUplink(fromPeer, st);
+                reader.Recycle();
+                return;
+            }
 
-            int bodyLen = BasisAvatarDeltaCompression.DeltaBodyLength(reader.RawData, reader.Position, reader.AvailableBytes, BitQuality.High);
+            int bodyLen = isStream
+                ? BasisAvatarStreamCodec.FrameLength(reader.RawData, reader.Position, reader.AvailableBytes, BitQuality.High)
+                : BasisAvatarDeltaCompression.DeltaBodyLength(reader.RawData, reader.Position, reader.AvailableBytes, BitQuality.High);
             if (bodyLen < 0 || bodyLen > reader.AvailableBytes)
             {
                 reader.Recycle();
@@ -1019,7 +1047,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 message.AvatarMessage.array = new byte[payloadSize];
             }
 
-            if (!BasisAvatarDeltaCompression.TryApplyDelta(st.Baseline, reader.RawData, reader.Position, bodyLen, BitQuality.High, message.AvatarMessage.array))
+            bool ok = isStream
+                ? BasisAvatarStreamCodec.Decode(st.Stream, reader.RawData, reader.Position, bodyLen, sequence, message.AvatarMessage.array)
+                : BasisAvatarDeltaCompression.TryApplyDelta(st.Baseline, reader.RawData, reader.Position, bodyLen, BitQuality.High, message.AvatarMessage.array);
+            if (!ok)
             {
                 QueuedMessagePool.Return(message);
                 reader.Recycle();
@@ -2439,8 +2470,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
         /// <summary>
         /// Carries the position from the high-quality source into all lower quality arrays.
-        /// High stores float32 (12B); lower tiers store int24 millimetres (9B), so the first
-        /// non-null lower array transcodes and the rest copy its 9 bytes.
+        /// Every tier stores the same int24-millimetre form, so this is a straight 9-byte copy.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CopyPositionToLowerQualities(
@@ -2449,23 +2479,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             ref LocalAvatarSyncMessage low,
             ref LocalAvatarSyncMessage veryLow)
         {
-            int lowerPos = BasisAvatarBitPacking.WritePositionQuantized;
-            byte[] first = null;
-            if (medium.array != null)
-            {
-                BasisAvatarBitPacking.TranscodePositionToQuantized(highArray, medium.array);
-                first = medium.array;
-            }
-            if (low.array != null)
-            {
-                if (first != null) Buffer.BlockCopy(first, 0, low.array, 0, lowerPos);
-                else { BasisAvatarBitPacking.TranscodePositionToQuantized(highArray, low.array); first = low.array; }
-            }
-            if (veryLow.array != null)
-            {
-                if (first != null) Buffer.BlockCopy(first, 0, veryLow.array, 0, lowerPos);
-                else BasisAvatarBitPacking.TranscodePositionToQuantized(highArray, veryLow.array);
-            }
+            int posBytes = BasisAvatarBitPacking.WritePosition;
+            if (medium.array != null) Buffer.BlockCopy(highArray, 0, medium.array, 0, posBytes);
+            if (low.array != null) Buffer.BlockCopy(highArray, 0, low.array, 0, posBytes);
+            if (veryLow.array != null) Buffer.BlockCopy(highArray, 0, veryLow.array, 0, posBytes);
         }
 
         private static void ProcessMessage(QueuedMessage message)

@@ -4,50 +4,56 @@ using System.Runtime.CompilerServices;
 namespace Basis.Network.Core.Compression
 {
     /// <summary>
-    /// Server→client avatar delta compression. A keyframe is the full fixed-size payload
-    /// (<see cref="BasisBoneRotationCompression.ConvertToSize"/>). A delta encodes only the fields
-    /// that changed since the last keyframe, each carrying its absolute value, preceded by a
-    /// per-field dirty mask. Reconstructing a full payload = copy the baseline keyframe, then
-    /// overwrite the dirty fields. Pure C#; shared by the server (encode) and client (decode).
+    /// Avatar delta compression against a keyframe baseline. A keyframe is the full fixed-size payload
+    /// (<see cref="BasisBoneRotationCompression.ConvertToSize"/>). A delta encodes only the fields that
+    /// changed since the last keyframe, preceded by a per-field dirty mask. Reconstructing a full
+    /// payload = copy the baseline keyframe, then rewrite the dirty fields. Pure C#; shared by the
+    /// server (encode) and client (decode), and used on the uplink in both directions.
     ///
-    /// Fields: [0]=position, [1..31]=the rotation region's 31 wire fields (21 explicit bone
-    /// rotations then 10 finger curl/splay channels, all bit-packed), then scale, body rotation,
-    /// hips delta, hips rotation and the end-effector block.
+    /// Fields: [0]=position, [1..31]=the rotation region's 31 wire fields (21 explicit bone rotations
+    /// then 10 finger curl/splay channels), then scale, body rotation, hips delta, hips rotation and
+    /// the end-effector block.
+    ///
+    /// <para><b>Deltas reference the keyframe, never the previous frame.</b> That is the property the
+    /// whole fan-out depends on: the reduction system throttles each receiver to its own distance-derived
+    /// send rate, so one sender's frames reach different receivers on different subsampling schedules.
+    /// A single delta must therefore reconstruct the full pose on its own, regardless of which
+    /// intermediate frames a given receiver was never sent or lost.</para>
+    ///
+    /// <para><b>Body encoding — per-channel residuals.</b> Each dirty field is decomposed into its
+    /// channels (<see cref="BasisAvatarChannelMap"/>) and each quantized channel is sent as the
+    /// zig-zag Exponential-Golomb code of its difference from the baseline. Unchanged channels cost one
+    /// bit, small motion three to seven. This is what buys per-component granularity: previously a bone
+    /// whose single dominant axis moved by one quantization step cost its entire 38-bit field, and
+    /// hinge joints — elbows, knees, every finger — move on one axis nearly all the time.</para>
+    ///
+    /// <para>Residuals are EXACT here, never companded. There is no closed loop against a keyframe
+    /// baseline to absorb approximation error, so the reconstruction is bit-identical to the sender's
+    /// payload. Exponential-Golomb can exceed a narrow channel's raw width, so every field also carries
+    /// a mode bit and the encoder picks whichever encoding is shorter — bounding a field at its own
+    /// verbatim size plus one bit, and with it the whole delta.</para>
     ///
     /// Delta body layout:
-    ///   [dirtyMask:DirtyMaskBytes][changed byte-fields in field order][changed rotation sub-bitstream]
-    /// The byte-aligned fields (position/scale/rots) are copied verbatim; the dirty rotation fields
-    /// are packed contiguously into a byte-aligned sub-bitstream via the existing WriteBits.
-    ///
-    /// Giving each finger its own field is what makes a still hand free in a delta: the ten channels
-    /// are independent, so a player moving one finger pays for one.
+    ///   [dirtyMask : DirtyMaskBytes][bitstream, LSB-first]
+    /// and within the bitstream, for each dirty field in field order:
+    ///   [1 bit mode][raw: every channel verbatim | residual: Raw channels verbatim, Delta channels as se(v)]
+    /// The body is byte-padded at the end. Unlike the fixed-width scheme this replaces, the body length
+    /// is not derivable from the mask alone — <see cref="DeltaBodyLength"/> parses to find it.
     /// </summary>
     public static class BasisAvatarDeltaCompression
     {
         public const int BoneFieldStart = 1;
-        public const int FieldCount = 1 + BasisBoneRotationCompression.RotationFieldCount + 5; // 37 (incl. end-effector block)
+        public const int FieldCount = 1 + BasisBoneRotationCompression.RotationFieldCount + 5; // 37 (incl. end-effector)
         public const int DirtyMaskBytes = (FieldCount + 7) >> 3;                               // 5
 
-        private const int FieldPosition = 0;
-        private const int FieldScale = 1 + BasisBoneRotationCompression.RotationFieldCount; // 32
-        private const int FieldBodyRot = FieldScale + 1;                                    // 33
-        private const int FieldHipsDelta = FieldScale + 2;                                  // 34
-        private const int FieldHipsRot = FieldScale + 3;                                    // 35
-        private const int FieldEndEffector = FieldScale + 4;                                // 36 (High only)
+        private const int ModeResidual = 0;
+        private const int ModeRaw = 1;
 
         private sealed class QualityGeometry
         {
-            public int PosBytes;          // 12 on High (float32), 9 otherwise (int24 mm)
-            public int RotBytes;
+            public BasisAvatarChannelLayout Layout;
             public int PayloadSize;
-            public int ScaleOffset;
-            public int BodyRotOffset;
-            public int HipsDeltaOffset;
-            public int HipsRotOffset;
-            public int EndEffectorOffset;
-            public int EndEffectorBytes;  // 39 on High, 0 otherwise
-            public int[] BoneBitOffset;   // RotationFieldCount, relative to the rotation region start
-            public int[] BoneWidth;       // RotationFieldCount
+            public int MaxDeltaSize;
         }
 
         private static readonly QualityGeometry[] Geo = new QualityGeometry[4];
@@ -57,27 +63,15 @@ namespace Basis.Network.Core.Compression
             for (int qi = 0; qi < 4; qi++)
             {
                 var q = (BasisAvatarBitPacking.BitQuality)qi;
-                int n = BasisBoneRotationCompression.RotationFieldCount;
-                int[] offsets = new int[n];
-                BasisBoneRotationCompression.BuildRotationFieldOffsets(q, offsets);
-                int[] widths = BasisBoneRotationCompression.BuildRotationFieldWidths(q);
-
-                int posBytes = BasisAvatarBitPacking.PositionBytes(q);
-                int rotBytes = BasisBoneRotationCompression.RotationBytes(q);
-                int tailStart = posBytes + rotBytes;
+                var layout = BasisAvatarChannelMap.For(q);
+                // Raw mode caps every field at its own verbatim width, so the worst case is one mode
+                // bit per field plus the whole payload — five bytes over the old fixed bound.
+                int maxBodyBits = FieldCount + layout.TotalChannelBits;
                 Geo[qi] = new QualityGeometry
                 {
-                    PosBytes = posBytes,
-                    RotBytes = rotBytes,
-                    PayloadSize = BasisBoneRotationCompression.ConvertToSize(q),
-                    ScaleOffset = tailStart,
-                    BodyRotOffset = tailStart + BasisBoneRotationCompression.WriteScale,
-                    HipsDeltaOffset = tailStart + BasisBoneRotationCompression.WriteScale + BasisBoneRotationCompression.WriteRotation,
-                    HipsRotOffset = tailStart + BasisBoneRotationCompression.WriteScale + BasisBoneRotationCompression.WriteRotation + BasisBoneRotationCompression.WriteHipsDelta,
-                    EndEffectorOffset = tailStart + BasisBoneRotationCompression.TailBytes,   // right after the 22B tail
-                    EndEffectorBytes = BasisBoneRotationCompression.EndEffectorBytes(q),
-                    BoneBitOffset = offsets,
-                    BoneWidth = widths,
+                    Layout = layout,
+                    PayloadSize = layout.PayloadBytes,
+                    MaxDeltaSize = DirtyMaskBytes + ((maxBodyBits + 7) >> 3),
                 };
             }
         }
@@ -85,9 +79,9 @@ namespace Basis.Network.Core.Compression
         public static int PayloadSize(BasisAvatarBitPacking.BitQuality q) => Geo[(int)q].PayloadSize;
 
         /// <summary>
-        /// Worst-case delta body length for a quality (full mask). Callers size scratch buffers with this.
+        /// Worst-case delta body length for a quality. Callers size scratch buffers with this.
         /// </summary>
-        public static int MaxDeltaSize(BasisAvatarBitPacking.BitQuality q) => DirtyMaskBytes + Geo[(int)q].PayloadSize;
+        public static int MaxDeltaSize(BasisAvatarBitPacking.BitQuality q) => Geo[(int)q].MaxDeltaSize;
 
         /// <summary>
         /// Builds a delta of <paramref name="current"/> against <paramref name="keyframe"/> into
@@ -101,63 +95,72 @@ namespace Basis.Network.Core.Compression
             var g = Geo[(int)q];
             if (keyframe == null || current == null || dst == null) return -1;
             if (keyframe.Length < g.PayloadSize || current.Length < g.PayloadSize) return -1;
-            if (dst.Length - dstStart < DirtyMaskBytes + g.PayloadSize) return -1;
+            if (dstStart < 0 || dst.Length - dstStart < g.MaxDeltaSize) return -1;
+
+            var layout = g.Layout;
+            var channels = layout.Channels;
 
             Span<byte> mask = stackalloc byte[DirtyMaskBytes];
             mask.Clear();
 
-            if (!SpanEqual(current, 0, keyframe, 0, g.PosBytes))
-                SetBit(mask, FieldPosition);
-
-            int boneBaseBit = g.PosBytes * 8;
-            for (int s = 0; s < g.BoneBitOffset.Length; s++)
+            for (int f = 0; f < FieldCount; f++)
             {
-                int a = boneBaseBit + g.BoneBitOffset[s];
-                int b = a;
-                ulong cur = BasisBoneRotationCompression.ReadBits(current, ref a, g.BoneWidth[s]);
-                ulong kf = BasisBoneRotationCompression.ReadBits(keyframe, ref b, g.BoneWidth[s]);
-                if (cur != kf) SetBit(mask, BoneFieldStart + s);
+                int start = layout.FieldChannelStart(f), end = layout.FieldChannelEnd(f);
+                for (int c = start; c < end; c++)
+                {
+                    if (ReadChannel(current, channels[c]) != ReadChannel(keyframe, channels[c]))
+                    {
+                        SetBit(mask, f);
+                        break;
+                    }
+                }
             }
 
-            if (!SpanEqual(current, g.ScaleOffset, keyframe, g.ScaleOffset, BasisBoneRotationCompression.WriteScale))
-                SetBit(mask, FieldScale);
-            if (!SpanEqual(current, g.BodyRotOffset, keyframe, g.BodyRotOffset, BasisBoneRotationCompression.WriteRotation))
-                SetBit(mask, FieldBodyRot);
-            if (!SpanEqual(current, g.HipsDeltaOffset, keyframe, g.HipsDeltaOffset, BasisBoneRotationCompression.WriteHipsDelta))
-                SetBit(mask, FieldHipsDelta);
-            if (!SpanEqual(current, g.HipsRotOffset, keyframe, g.HipsRotOffset, BasisBoneRotationCompression.WriteHipsRotation))
-                SetBit(mask, FieldHipsRot);
-            if (g.EndEffectorBytes > 0 && !SpanEqual(current, g.EndEffectorOffset, keyframe, g.EndEffectorOffset, g.EndEffectorBytes))
-                SetBit(mask, FieldEndEffector);
+            for (int i = 0; i < DirtyMaskBytes; i++) dst[dstStart + i] = mask[i];
 
-            int o = dstStart;
-            for (int i = 0; i < DirtyMaskBytes; i++) dst[o++] = mask[i];
+            var w = new BasisResidualCodec.BitWriter(dst, (dstStart + DirtyMaskBytes) * 8);
+            int bodyStartBit = w.BitPosition;
 
-            if (GetBit(mask, FieldPosition)) { Buffer.BlockCopy(current, 0, dst, o, g.PosBytes); o += g.PosBytes; }
-            if (GetBit(mask, FieldScale)) { Buffer.BlockCopy(current, g.ScaleOffset, dst, o, BasisBoneRotationCompression.WriteScale); o += BasisBoneRotationCompression.WriteScale; }
-            if (GetBit(mask, FieldBodyRot)) { Buffer.BlockCopy(current, g.BodyRotOffset, dst, o, BasisBoneRotationCompression.WriteRotation); o += BasisBoneRotationCompression.WriteRotation; }
-            if (GetBit(mask, FieldHipsDelta)) { Buffer.BlockCopy(current, g.HipsDeltaOffset, dst, o, BasisBoneRotationCompression.WriteHipsDelta); o += BasisBoneRotationCompression.WriteHipsDelta; }
-            if (GetBit(mask, FieldHipsRot)) { Buffer.BlockCopy(current, g.HipsRotOffset, dst, o, BasisBoneRotationCompression.WriteHipsRotation); o += BasisBoneRotationCompression.WriteHipsRotation; }
-            if (GetBit(mask, FieldEndEffector)) { Buffer.BlockCopy(current, g.EndEffectorOffset, dst, o, g.EndEffectorBytes); o += g.EndEffectorBytes; }
-
-            int boneBits = 0;
-            for (int s = 0; s < g.BoneWidth.Length; s++)
-                if (GetBit(mask, BoneFieldStart + s)) boneBits += g.BoneWidth[s];
-            int boneBytes = (boneBits + 7) >> 3;
-            for (int i = 0; i < boneBytes; i++) dst[o + i] = 0; // WriteBits ORs — clear first
-
-            int subBit = o * 8;
-            for (int s = 0; s < g.BoneWidth.Length; s++)
+            for (int f = 0; f < FieldCount; f++)
             {
-                if (!GetBit(mask, BoneFieldStart + s)) continue;
-                int rp = boneBaseBit + g.BoneBitOffset[s];
-                ulong val = BasisBoneRotationCompression.ReadBits(current, ref rp, g.BoneWidth[s]);
-                BasisBoneRotationCompression.WriteBits(dst, subBit, val, g.BoneWidth[s]);
-                subBit += g.BoneWidth[s];
-            }
-            o += boneBytes;
+                if (!GetBit(mask, f)) continue;
+                int start = layout.FieldChannelStart(f), end = layout.FieldChannelEnd(f);
 
-            return o - dstStart;
+                int residualBits = 0, rawBits = 0;
+                for (int c = start; c < end; c++)
+                {
+                    var ch = channels[c];
+                    rawBits += ch.Width;
+                    if (ch.Kind == BasisChannelKind.Raw) { residualBits += ch.Width; continue; }
+                    int diff = BasisResidualCodec.WrapSigned(
+                        (int)ReadChannel(current, ch) - (int)ReadChannel(keyframe, ch), ch.Width);
+                    residualBits += BasisResidualCodec.SignedEgBits(diff);
+                }
+
+                bool raw = rawBits < residualBits;
+                w.WriteBit(raw ? ModeRaw : ModeResidual);
+
+                for (int c = start; c < end; c++)
+                {
+                    var ch = channels[c];
+                    uint cur = ReadChannel(current, ch);
+                    if (raw || ch.Kind == BasisChannelKind.Raw)
+                    {
+                        w.WriteBits(cur, ch.Width);
+                        continue;
+                    }
+                    int diff = BasisResidualCodec.WrapSigned((int)cur - (int)ReadChannel(keyframe, ch), ch.Width);
+                    w.WriteSignedEg(diff);
+                }
+            }
+
+            // Zero the unused bits of the final partial byte: the body is compared and hashed
+            // elsewhere, and dst is a reused scratch buffer that is not guaranteed clean.
+            int bodyBits = w.BitPosition - bodyStartBit;
+            int pad = (8 - (bodyBits & 7)) & 7;
+            if (pad > 0) w.WriteBits(0UL, pad);
+
+            return DirtyMaskBytes + ((bodyBits + 7) >> 3);
         }
 
         /// <summary>
@@ -172,61 +175,111 @@ namespace Basis.Network.Core.Compression
             if (baseline == null || baseline.Length < g.PayloadSize) return false;
             if (outFull == null || outFull.Length < g.PayloadSize) return false;
             if (delta == null || deltaLen < DirtyMaskBytes) return false;
-            if (deltaStart < 0 || deltaStart + deltaLen > delta.Length) return false;
+            if (deltaStart < 0 || deltaLen < 0 || deltaStart + deltaLen > delta.Length) return false;
 
+            var layout = g.Layout;
+            var channels = layout.Channels;
             var mask = new ReadOnlySpan<byte>(delta, deltaStart, DirtyMaskBytes);
-
-            int expected = ExpectedBodyLength(mask, g);
-            if (deltaLen != expected) return false;
 
             Buffer.BlockCopy(baseline, 0, outFull, 0, g.PayloadSize);
 
-            int o = deltaStart + DirtyMaskBytes;
-            if (GetBit(mask, FieldPosition)) { Buffer.BlockCopy(delta, o, outFull, 0, g.PosBytes); o += g.PosBytes; }
-            if (GetBit(mask, FieldScale)) { Buffer.BlockCopy(delta, o, outFull, g.ScaleOffset, BasisBoneRotationCompression.WriteScale); o += BasisBoneRotationCompression.WriteScale; }
-            if (GetBit(mask, FieldBodyRot)) { Buffer.BlockCopy(delta, o, outFull, g.BodyRotOffset, BasisBoneRotationCompression.WriteRotation); o += BasisBoneRotationCompression.WriteRotation; }
-            if (GetBit(mask, FieldHipsDelta)) { Buffer.BlockCopy(delta, o, outFull, g.HipsDeltaOffset, BasisBoneRotationCompression.WriteHipsDelta); o += BasisBoneRotationCompression.WriteHipsDelta; }
-            if (GetBit(mask, FieldHipsRot)) { Buffer.BlockCopy(delta, o, outFull, g.HipsRotOffset, BasisBoneRotationCompression.WriteHipsRotation); o += BasisBoneRotationCompression.WriteHipsRotation; }
-            if (GetBit(mask, FieldEndEffector)) { Buffer.BlockCopy(delta, o, outFull, g.EndEffectorOffset, g.EndEffectorBytes); o += g.EndEffectorBytes; }
+            var r = new BasisResidualCodec.BitReader(delta,
+                (deltaStart + DirtyMaskBytes) * 8, (deltaStart + deltaLen) * 8);
 
-            int boneBaseBit = g.PosBytes * 8;
-            int subBit = o * 8;
-            for (int s = 0; s < g.BoneWidth.Length; s++)
+            for (int f = 0; f < FieldCount; f++)
             {
-                if (!GetBit(mask, BoneFieldStart + s)) continue;
-                ulong val = BasisBoneRotationCompression.ReadBits(delta, ref subBit, g.BoneWidth[s]);
-                WriteBitsOverwrite(outFull, boneBaseBit + g.BoneBitOffset[s], val, g.BoneWidth[s]);
+                if (!GetBit(mask, f)) continue;
+                bool raw = r.ReadBit() == ModeRaw;
+                int start = layout.FieldChannelStart(f), end = layout.FieldChannelEnd(f);
+                for (int c = start; c < end; c++)
+                {
+                    var ch = channels[c];
+                    if (raw || ch.Kind == BasisChannelKind.Raw)
+                    {
+                        uint v = (uint)r.ReadBits(ch.Width);
+                        if (r.Failed) return false;
+                        WriteChannel(outFull, ch, v);
+                        continue;
+                    }
+                    int diff = r.ReadSignedEg();
+                    if (r.Failed) return false;
+                    WriteChannel(outFull, ch, (uint)((int)ReadChannel(baseline, ch) + diff) & ch.Mask);
+                }
             }
-            return true;
+            if (r.Failed) return false;
+
+            // The body must occupy exactly the bytes it was given: a length that disagrees with what
+            // the mask and codes describe is a corrupt or mis-split frame, not a decodable one.
+            int consumed = r.BitPosition - (deltaStart + DirtyMaskBytes) * 8;
+            return DirtyMaskBytes + ((consumed + 7) >> 3) == deltaLen;
         }
 
         /// <summary>
-        /// Reads the dirty mask at the start of a delta body and returns the total body length in bytes
-        /// (mask + changed fields), or -1 if fewer than DirtyMaskBytes are available. The receive path
-        /// uses this to split a delta frame's body from any trailing additional-data section.
+        /// Reads the dirty mask and codes at the start of a delta body and returns the total body length
+        /// in bytes (mask + encoded fields), or -1 if the body is truncated or malformed. The receive
+        /// path uses this to split a delta frame's body from any trailing additional-data section.
         /// </summary>
         public static int DeltaBodyLength(byte[] delta, int start, int available, BasisAvatarBitPacking.BitQuality q)
         {
-            if (delta == null || available < DirtyMaskBytes || start < 0 || start + DirtyMaskBytes > delta.Length)
-                return -1;
+            if (delta == null || available < DirtyMaskBytes || start < 0) return -1;
+            if (start + DirtyMaskBytes > delta.Length) return -1;
+
+            int limit = Math.Min(available, delta.Length - start);
+            var g = Geo[(int)q];
+            var layout = g.Layout;
+            var channels = layout.Channels;
             var mask = new ReadOnlySpan<byte>(delta, start, DirtyMaskBytes);
-            return ExpectedBodyLength(mask, Geo[(int)q]);
+
+            var r = new BasisResidualCodec.BitReader(delta, (start + DirtyMaskBytes) * 8, (start + limit) * 8);
+
+            for (int f = 0; f < FieldCount; f++)
+            {
+                if (!GetBit(mask, f)) continue;
+                bool raw = r.ReadBit() == ModeRaw;
+                int cs = layout.FieldChannelStart(f), ce = layout.FieldChannelEnd(f);
+                for (int c = cs; c < ce; c++)
+                {
+                    var ch = channels[c];
+                    if (raw || ch.Kind == BasisChannelKind.Raw) r.ReadBits(ch.Width);
+                    else r.ReadSignedEg();
+                    if (r.Failed) return -1;
+                }
+            }
+            if (r.Failed) return -1;
+
+            int consumed = r.BitPosition - (start + DirtyMaskBytes) * 8;
+            return DirtyMaskBytes + ((consumed + 7) >> 3);
         }
 
-        private static int ExpectedBodyLength(ReadOnlySpan<byte> mask, QualityGeometry g)
+        // ────────────────────────────────────────────────────────────
+        //  Channel access
+        // ────────────────────────────────────────────────────────────
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static uint ReadChannel(byte[] payload, in BasisAvatarChannel ch)
         {
-            int expected = DirtyMaskBytes;
-            if (GetBit(mask, FieldPosition)) expected += g.PosBytes;
-            if (GetBit(mask, FieldScale)) expected += BasisBoneRotationCompression.WriteScale;
-            if (GetBit(mask, FieldBodyRot)) expected += BasisBoneRotationCompression.WriteRotation;
-            if (GetBit(mask, FieldHipsDelta)) expected += BasisBoneRotationCompression.WriteHipsDelta;
-            if (GetBit(mask, FieldHipsRot)) expected += BasisBoneRotationCompression.WriteHipsRotation;
-            if (GetBit(mask, FieldEndEffector)) expected += g.EndEffectorBytes;
-            int boneBits = 0;
-            for (int s = 0; s < g.BoneWidth.Length; s++)
-                if (GetBit(mask, BoneFieldStart + s)) boneBits += g.BoneWidth[s];
-            expected += (boneBits + 7) >> 3;
-            return expected;
+            int bit = ch.BitOffset;
+            return (uint)BasisBoneRotationCompression.ReadBits(payload, ref bit, ch.Width);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void WriteChannel(byte[] payload, in BasisAvatarChannel ch, uint value)
+        {
+            int bitPos = ch.BitOffset, bytePos = bitPos >> 3, inByte = bitPos & 7, left = ch.Width;
+            uint v = value;
+            while (left > 0)
+            {
+                int room = 8 - inByte;
+                int take = left < room ? left : room;
+                int lowMask = (1 << take) - 1;
+                int clear = lowMask << inByte;
+                byte chunk = (byte)(((int)(v & (uint)lowMask)) << inByte);
+                payload[bytePos] = (byte)((payload[bytePos] & ~clear) | chunk);
+                v >>= take;
+                left -= take;
+                bytePos++;
+                inByte = 0;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -234,34 +287,5 @@ namespace Basis.Network.Core.Compression
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool GetBit(ReadOnlySpan<byte> mask, int field) => (mask[field >> 3] & (1 << (field & 7))) != 0;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool SpanEqual(byte[] a, int aOff, byte[] b, int bOff, int len)
-        {
-            for (int i = 0; i < len; i++) if (a[aOff + i] != b[bOff + i]) return false;
-            return true;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteBitsOverwrite(byte[] dst, int bitPos, ulong value, int bitCount)
-        {
-            int bytePos = bitPos >> 3;
-            int bitInByte = bitPos & 7;
-            ulong v = value;
-            int bitsLeft = bitCount;
-            while (bitsLeft > 0)
-            {
-                int room = 8 - bitInByte;
-                int take = bitsLeft < room ? bitsLeft : room;
-                int lowMask = (1 << take) - 1;
-                int clearMask = lowMask << bitInByte;
-                byte chunk = (byte)((int)(v & (ulong)lowMask) << bitInByte);
-                dst[bytePos] = (byte)((dst[bytePos] & ~clearMask) | chunk);
-                v >>= take;
-                bitsLeft -= take;
-                bytePos++;
-                bitInByte = 0;
-            }
-        }
     }
 }

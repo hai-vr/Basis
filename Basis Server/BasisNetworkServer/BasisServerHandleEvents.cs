@@ -665,6 +665,7 @@ namespace BasisServerHandle
                     SlowestSendRate = Config.BSRSlowestSendRate,
                     PeerLimit = Config.PeerLimit,
                     UplinkDeltaEnabled = Config.EnableUplinkAvatarDelta,
+                    UplinkStreamEnabled = Config.EnableUplinkAvatarStream,
                 };
                 ServerMetaDataMessage.SetPermissions(PermissionIntegration.Manager.GetAllAllowedRules(UUID), PermissionIntegration.Manager.GetAllDeniedRules(UUID));
                 NetDataWriter Writer = NetworkServer.RentWriter();
@@ -1173,11 +1174,10 @@ namespace BasisServerHandle
                 // player's quality tier; a zero here simply means everyone is measured from the origin,
                 // which is the same answer the reduction system would reach a tick later.
                 Basis.Scripts.Networking.Compression.Vector3 viewerPosition = default;
-                // Only High carries the position as 3 float32; the lower tiers use int24 millimetres,
-                // which would decode as garbage here and produce nonsense distances. Clients send High,
-                // so anything else means fall back to the origin (and therefore to High for everyone).
+                // Every quality tier carries the position in the same int24-millimetre form, so
+                // this decodes correctly whatever tier the joiner's pose arrived on. A short/absent
+                // payload falls back to the origin (and therefore to High for everyone).
                 if (joinerPose.array != null
-                    && joinerPose.DataQualityLevel == (byte)Basis.Network.Core.Compression.BasisAvatarBitPacking.BitQuality.High
                     && joinerPose.array.Length >= Basis.Network.Core.Compression.BasisAvatarBitPacking.WritePosition)
                 {
                     byte[] poseBytes = joinerPose.array;

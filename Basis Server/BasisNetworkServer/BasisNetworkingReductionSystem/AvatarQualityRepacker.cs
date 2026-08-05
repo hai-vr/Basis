@@ -26,12 +26,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         static readonly int LowRotBytes  = MuscleBytes(BitQuality.Low);
         static readonly int VLowRotBytes = MuscleBytes(BitQuality.VeryLow);
 
-        // Cache payload sizes. High reads float32 position (12B); lower tiers write int24-mm (9B).
-        static readonly int LowerPosBytes = PositionBytes(BitQuality.Medium);
-        static readonly int HighPayloadSize = WritePosition + HighRotBytes + TailBytes;
-        static readonly int MedPayloadSize  = LowerPosBytes + MedRotBytes  + TailBytes;
-        static readonly int LowPayloadSize  = LowerPosBytes + LowRotBytes  + TailBytes;
-        static readonly int VLowPayloadSize = LowerPosBytes + VLowRotBytes + TailBytes;
+        // Cache payload sizes. Every tier carries int24-mm position (9B), so the field is a
+        // straight copy rather than a transcode.
+        static readonly int PosBytes = WritePosition;
+        static readonly int HighPayloadSize = PosBytes + HighRotBytes + TailBytes;
+        static readonly int MedPayloadSize  = PosBytes + MedRotBytes  + TailBytes;
+        static readonly int LowPayloadSize  = PosBytes + LowRotBytes  + TailBytes;
+        static readonly int VLowPayloadSize = PosBytes + VLowRotBytes + TailBytes;
 
         // Cache per-bone bit offsets for each quality
         static readonly int[] HighOffs = BuildBitOffsets(BitQuality.High);
@@ -62,13 +63,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             EnsureBuffer(ref low, BitQuality.Low, LowPayloadSize);
             EnsureBuffer(ref veryLow, BitQuality.VeryLow, VLowPayloadSize);
 
-            // Position: float32 in the High source, int24-mm in every lower tier
-            TranscodePositionToQuantized(srcHigh.array, medium.array);
-            Buffer.BlockCopy(medium.array, 0, low.array, 0, LowerPosBytes);
-            Buffer.BlockCopy(medium.array, 0, veryLow.array, 0, LowerPosBytes);
+            // Position: int24-mm at every tier, so it copies across untouched
+            Buffer.BlockCopy(srcHigh.array, 0, medium.array, 0, PosBytes);
+            Buffer.BlockCopy(srcHigh.array, 0, low.array, 0, PosBytes);
+            Buffer.BlockCopy(srcHigh.array, 0, veryLow.array, 0, PosBytes);
 
-            int srcRotBase = WritePosition;
-            int rotBase = LowerPosBytes;
+            int srcRotBase = PosBytes;
+            int rotBase = PosBytes;
 
             // Clear rotation regions (BitWriter ORs into bytes)
             Array.Clear(medium.array, rotBase, MedRotBytes);
@@ -117,7 +118,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             // Copy tail (scale + body rotation)
-            int srcTailOffset = WritePosition + HighRotBytes;
+            int srcTailOffset = PosBytes + HighRotBytes;
             Buffer.BlockCopy(srcHigh.array, srcTailOffset, medium.array, rotBase + MedRotBytes, TailBytes);
             Buffer.BlockCopy(srcHigh.array, srcTailOffset, low.array, rotBase + LowRotBytes, TailBytes);
             Buffer.BlockCopy(srcHigh.array, srcTailOffset, veryLow.array, rotBase + VLowRotBytes, TailBytes);

@@ -154,6 +154,7 @@ public static class NetworkServer
         BasisServerReductionSystemEvents.AvatarBundleMinMessages = Configuration.AvatarBundleMinMessages;
         BasisServerReductionSystemEvents.AvatarBundleMinBytes = Configuration.AvatarBundleMinBytes;
         BasisServerReductionSystemEvents.EnableAvatarDeltaCompression = Configuration.EnableAvatarDeltaCompression;
+        BasisServerReductionSystemEvents.EnableUplinkAvatarStream = Configuration.EnableUplinkAvatarStream;
         BasisServerReductionSystemEvents.AvatarDeltaKeyframeIntervalMs = Configuration.AvatarDeltaKeyframeIntervalMs;
         BasisServerReductionSystemEvents.AvatarDeltaKeyframeMaxIntervalMs = Configuration.AvatarDeltaKeyframeMaxIntervalMs;
         BasisServerReductionSystemEvents.StripAdditionalDataAtLowQuality = Configuration.StripAdditionalDataAtLowQuality;

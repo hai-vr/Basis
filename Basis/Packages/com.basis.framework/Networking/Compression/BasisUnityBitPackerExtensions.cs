@@ -17,10 +17,6 @@ namespace Basis.Scripts.Networking.Compression
         private static bool IsFinite(float v) => math.isfinite(v);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool IsFinite3(float a, float b, float c) =>
-            IsFinite(a) & IsFinite(b) & IsFinite(c);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool IsFinite4(float a, float b, float c, float d) =>
             IsFinite(a) & IsFinite(b) & IsFinite(c) & IsFinite(d);
 
@@ -92,23 +88,11 @@ namespace Basis.Scripts.Networking.Compression
         public static bool TryReadPosition(ref byte[] buffer, ref int offset, out Unity.Mathematics.float3 position)
         {
             position = default;
-            if (!EnsureSpace(buffer, offset, 12)) return false;
+            if (!EnsureSpace(buffer, offset, BasisAvatarBitPacking.WritePosition)) return false;
 
-            float x, y, z;
-            unsafe
-            {
-                fixed (byte* src = &buffer[offset])
-                {
-                    float* fSrc = (float*)src;
-                    x = fSrc[0];
-                    y = fSrc[1];
-                    z = fSrc[2];
-                }
-            }
+            BasisAvatarBitPacking.DecodePosition(buffer, offset, out float x, out float y, out float z);
 
-            if (!IsFinite3(x, y, z)) return false;
-
-            offset += 12;
+            offset += BasisAvatarBitPacking.WritePosition;
             position = new Unity.Mathematics.float3(x, y, z);
             return true;
         }
@@ -145,18 +129,11 @@ namespace Basis.Scripts.Networking.Compression
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WritePosition(UnityEngine.Vector3 position, ref byte[] buffer, ref int offset)
         {
-            EnsureSpace(buffer, offset, 12);
-            unsafe
-            {
-                fixed (byte* dst = &buffer[offset])
-                {
-                    float* fDst = (float*)dst;
-                    fDst[0] = Sanitize(position.x, 0f);
-                    fDst[1] = Sanitize(position.y, 0f);
-                    fDst[2] = Sanitize(position.z, 0f);
-                }
-            }
-            offset += 12;
+            EnsureSpace(buffer, offset, BasisAvatarBitPacking.WritePosition);
+            // EncodeAxisMm already maps NaN to 0 and saturates ±Inf to the envelope, so the
+            // Sanitize pass the float32 form needed is folded into the quantizer.
+            BasisAvatarBitPacking.EncodePosition(position.x, position.y, position.z, buffer, offset);
+            offset += BasisAvatarBitPacking.WritePosition;
         }
         public static void CompressScale(float scale, ref LocalAvatarSyncMessage message, ref int offset)
         {
@@ -309,12 +286,12 @@ namespace Basis.Scripts.Networking.Compression
         }
 
         /// <summary>
-        /// Encodes a hips local-position delta (vs TPose) as 3 signed shorts
-        /// (transmitted as ushorts) clamped to ±<see cref="BasisAvatarBitPacking.HipsDeltaRange"/>
-        /// meters per axis. 6 bytes total — rides in the avatar packet tail so
-        /// seated/IK hips overrides reach remotes. Signed encoding means a
-        /// zero-byte tail (e.g. from a test client that doesn't fill the field)
-        /// decodes to zero delta rather than a clamped extreme.
+        /// Encodes a hips local-position delta (vs TPose) as 3 signed 13-bit axes clamped to
+        /// ±<see cref="BasisAvatarBitPacking.HipsDeltaRange"/> metres, packed into
+        /// <see cref="BasisAvatarBitPacking.WriteHipsDelta"/> bytes — it rides in the avatar
+        /// packet tail so seated/IK hips overrides reach remotes. Two's complement, so a
+        /// zero-byte tail (e.g. from a test client that doesn't fill the field) decodes to zero
+        /// delta rather than a clamped extreme.
         ///
         /// Takes this namespace's own <c>float3</c>
         /// (<see cref="Basis.Scripts.Networking.Compression.float3"/>) — kept as a
@@ -325,19 +302,13 @@ namespace Basis.Scripts.Networking.Compression
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void CompressHipsDelta(Basis.Scripts.Networking.Compression.float3 delta, ref byte[] buffer, ref int offset)
         {
-            float r = BasisAvatarBitPacking.HipsDeltaRange;
-            float scale = 32767f / r;
-            short sx = (short)math.clamp((int)math.round(Sanitize(delta.x, 0f) * scale), -32767, 32767);
-            short sy = (short)math.clamp((int)math.round(Sanitize(delta.y, 0f) * scale), -32767, 32767);
-            short sz = (short)math.clamp((int)math.round(Sanitize(delta.z, 0f) * scale), -32767, 32767);
-
-            WriteUShort((ushort)sx, ref buffer, ref offset);
-            WriteUShort((ushort)sy, ref buffer, ref offset);
-            WriteUShort((ushort)sz, ref buffer, ref offset);
+            EnsureSpace(buffer, offset, BasisAvatarBitPacking.WriteHipsDelta);
+            BasisAvatarBitPacking.EncodeHipsDelta(delta.x, delta.y, delta.z, buffer, offset);
+            offset += BasisAvatarBitPacking.WriteHipsDelta;
         }
 
         /// <summary>
-        /// Decodes the 3 signed shorts written by <see cref="CompressHipsDelta"/>
+        /// Decodes the 3 signed 13-bit axes written by <see cref="CompressHipsDelta"/>
         /// back into this namespace's <c>float3</c> POD struct. Unity-side callers
         /// convert into <see cref="Unity.Mathematics.float3"/> at the call site.
         /// </summary>
@@ -345,17 +316,11 @@ namespace Basis.Scripts.Networking.Compression
         public static bool TryReadHipsDelta(ref byte[] buffer, ref int offset, out Basis.Scripts.Networking.Compression.float3 delta)
         {
             delta = default;
-            if (!TryReadUShort(ref buffer, ref offset, out ushort ux)) return false;
-            if (!TryReadUShort(ref buffer, ref offset, out ushort uy)) return false;
-            if (!TryReadUShort(ref buffer, ref offset, out ushort uz)) return false;
+            if (!EnsureSpace(buffer, offset, BasisAvatarBitPacking.WriteHipsDelta)) return false;
 
-            float scale = BasisAvatarBitPacking.HipsDeltaRange / 32767f;
-            delta = new Basis.Scripts.Networking.Compression.float3
-            {
-                x = (short)ux * scale,
-                y = (short)uy * scale,
-                z = (short)uz * scale,
-            };
+            BasisAvatarBitPacking.DecodeHipsDelta(buffer, offset, out float x, out float y, out float z);
+            offset += BasisAvatarBitPacking.WriteHipsDelta;
+            delta = new Basis.Scripts.Networking.Compression.float3 { x = x, y = y, z = z };
             return true;
         }
         private const float InvSqrt2 = 0.7071067811865475f; // 1/sqrt(2)

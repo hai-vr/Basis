@@ -30,6 +30,37 @@ namespace Basis.Network.Core
         //     153 -> 109, Low 128 -> 93, VeryLow 109 -> 83. The delta dirty mask also shrinks
         //     (57 fields -> 37, 8 mask bytes -> 5) and each finger becomes independently dirty.
         //     Wire-incompatible in both directions: a v46 peer reads the finger block as bone bits.
-        public static ushort ServerVersion = 47;
+        // 48: the two over-precise fields in the fixed part of the payload are cut to the precision
+        //     the deadbands were already written against. Hips world position becomes int24
+        //     millimetres at HIGH too (it was 3 x float32 there, 3 x int24-mm on every lower tier),
+        //     and the hips local-position delta drops from 3 x int16 to 3 x signed 13-bit packed
+        //     into 5 bytes. High packet 181 -> 177 bytes, Medium 109 -> 108, Low 93 -> 92,
+        //     VeryLow 83 -> 82; the tail is 22 -> 21 and position is now uniform across the ladder.
+        //     The bandwidth that matters is not the 4 bytes: the delta codec compares position as
+        //     raw bytes, so float32 mantissa churn marked it dirty on EVERY frame of a standing
+        //     player and shipped 12 bytes with it. At 1 mm steps that field goes quiet. Positions
+        //     also stop being transcoded during the server's per-tier repack — they copy.
+        //     Wire-incompatible in both directions: a v47 peer reads position and the whole tail
+        //     at the wrong offsets.
+        // 49: the delta body stops carrying changed fields verbatim and carries per-CHANNEL residuals
+        //     instead — the Exponential-Golomb code of each quantized component's difference from the
+        //     baseline, with a per-field escape to raw when that is shorter. Field granularity becomes
+        //     component granularity: a bone whose one dominant axis moved by a step used to cost its
+        //     whole 38-bit field, and hinge joints (elbows, knees, every finger) move on one axis
+        //     nearly all the time. Measured at High: a micro-motion frame is 53 B against the previous
+        //     scheme's 174 B, and the saving now scales with how far things moved instead of
+        //     collapsing to zero the moment anything moves at all.
+        //     The dirty mask, the field partition and the whole keyframe/baseline protocol are
+        //     UNCHANGED — deltas still reference a keyframe, which is what lets the reduction system
+        //     keep decimating them per receiver.
+        //     Also adds an UPLINK-ONLY stream frame (DeltaAvatarChannel header bit 4,
+        //     BasisAvatarStreamCodec): closed-loop predictive coding against the receiver's
+        //     reconstruction plus a Gray-code bit-plane sweep that re-converges after packet loss with
+        //     no acknowledgement and no keyframe, so the periodic uplink keyframe is gone. Client
+        //     falls back to keyframe+delta when the server disables it, and whenever it holds a P2P
+        //     session — a predictive chain cannot be decimated and the P2P path throttles the server.
+        //     Wire-incompatible in both directions: a v48 peer parses a v49 delta body as verbatim
+        //     field bytes and reconstructs garbage.
+        public static ushort ServerVersion = 49;
     }
 }

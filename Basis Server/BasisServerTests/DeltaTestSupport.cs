@@ -6,15 +6,24 @@ namespace BasisServerTests;
 
 /// <summary>
 /// Shared helpers for the avatar delta codec tests: payload construction (random and realistic),
-/// field/bone geometry accessors that mirror <see cref="BasisAvatarDeltaCompression"/>'s private
-/// layout, and build/apply round-trip assertions.
+/// field geometry accessors, and build/apply round-trip assertions.
+///
+/// "Bone" here means a ROTATION WIRE FIELD, of which there are
+/// <see cref="BasisBoneRotationCompression.RotationFieldCount"/> = 31: the 21 explicit bone slots
+/// followed by the 10 finger curl/splay channels. It does NOT mean one of the 51 legacy bone slots —
+/// since v47 the wire has not carried thirty of those as rotations at all, and building payloads
+/// against the old 51-slot geometry wrote past the end of every sub-High payload.
 /// </summary>
 public static class DeltaTestSupport
 {
     public static readonly BitQuality[] AllQualities =
         { BitQuality.VeryLow, BitQuality.Low, BitQuality.Medium, BitQuality.High };
 
-    public const int BoneCount = BasisBoneRotationCompression.SyncBoneCount; // 51
+    /// <summary>Number of addressable rotation wire fields (21 bone slots + 10 finger channels).</summary>
+    public const int BoneCount = BasisBoneRotationCompression.RotationFieldCount; // 31
+    /// <summary>Of those, how many are true bone slots carrying a smallest-three rotation.</summary>
+    public const int WireBoneSlots = BasisBoneRotationCompression.WireBoneSlotCount; // 21
+
     public static int PosBytes(BitQuality q) => BasisAvatarBitPacking.PositionBytes(q);
     public static int BoneBaseBit(BitQuality q) => PosBytes(q) * 8;
 
@@ -28,6 +37,8 @@ public static class DeltaTestSupport
     public static int EndEffectorOffset(BitQuality q) => TailStart(q) + BasisBoneRotationCompression.TailBytes;
     public static int EndEffectorBytes(BitQuality q) => BasisBoneRotationCompression.EndEffectorBytes(q);
 
+    public static BasisAvatarChannelLayout Layout(BitQuality q) => BasisAvatarChannelMap.For(q);
+
     /// <summary>Flip every byte of the end-effector block (High only), guaranteeing it differs.</summary>
     public static void FlipEndEffector(byte[] payload, BitQuality q)
     {
@@ -35,27 +46,32 @@ public static class DeltaTestSupport
         for (int i = 0; i < n; i++) payload[off + i] ^= 0xFF;
     }
 
+    /// <summary>Raw per-slot bits-per-component table (51 entries; only the first 21 reach the wire).</summary>
     public static byte[] Bpc(BitQuality q) => BasisBoneRotationCompression.GetBpcTable(q);
-    public static int BoneWidth(BitQuality q, int slot) => 2 + 3 * Bpc(q)[slot];
 
+    /// <summary>Bit width of rotation wire field <paramref name="field"/> (0..30).</summary>
+    public static int BoneWidth(BitQuality q, int field) => RotationFieldWidths(q)[field];
+
+    public static int[] RotationFieldWidths(BitQuality q) => BasisBoneRotationCompression.BuildRotationFieldWidths(q);
+
+    /// <summary>Start bit of each rotation wire field, relative to the rotation region.</summary>
     public static int[] BoneBitOffsets(BitQuality q)
     {
-        var bpc = Bpc(q);
-        var offs = new int[bpc.Length];
-        BasisBoneRotationCompression.ComputeBitOffsets(bpc, offs);
+        var offs = new int[BasisBoneRotationCompression.RotationFieldCount];
+        BasisBoneRotationCompression.BuildRotationFieldOffsets(q, offs);
         return offs;
     }
 
-    public static ulong GetBone(byte[] payload, BitQuality q, int slot)
+    public static ulong GetBone(byte[] payload, BitQuality q, int field)
     {
-        int pos = BoneBaseBit(q) + BoneBitOffsets(q)[slot];
-        return BasisBoneRotationCompression.ReadBits(payload, ref pos, BoneWidth(q, slot));
+        int pos = BoneBaseBit(q) + BoneBitOffsets(q)[field];
+        return BasisBoneRotationCompression.ReadBits(payload, ref pos, BoneWidth(q, field));
     }
 
-    public static void SetBone(byte[] payload, BitQuality q, int slot, ulong value)
+    public static void SetBone(byte[] payload, BitQuality q, int field, ulong value)
     {
-        int offset = BoneBaseBit(q) + BoneBitOffsets(q)[slot];
-        int width = BoneWidth(q, slot);
+        int offset = BoneBaseBit(q) + BoneBitOffsets(q)[field];
+        int width = BoneWidth(q, field);
         for (int i = 0; i < width; i++)
         {
             int b = offset + i, bytePos = b >> 3, bit = b & 7;
@@ -64,49 +80,68 @@ public static class DeltaTestSupport
         }
     }
 
-    /// <summary>Flip every bit of a bone's field, guaranteeing it differs from its current value.</summary>
-    public static void FlipBone(byte[] payload, BitQuality q, int slot)
+    /// <summary>Flip every bit of a rotation field, guaranteeing it differs from its current value.</summary>
+    public static void FlipBone(byte[] payload, BitQuality q, int field)
     {
-        ulong maxv = (1UL << BoneWidth(q, slot)) - 1UL;
-        SetBone(payload, q, slot, GetBone(payload, q, slot) ^ maxv);
+        ulong maxv = (1UL << BoneWidth(q, field)) - 1UL;
+        SetBone(payload, q, field, GetBone(payload, q, field) ^ maxv);
     }
 
-    /// <summary>Valid quantized payload: random position/tail bytes + random bone bits (padding stays 0).</summary>
+    /// <summary>Valid quantized payload: random position/tail bytes + random rotation-field bits.</summary>
     public static byte[] MakePayload(BitQuality q, Random rng)
     {
-        int size = PayloadSize(q);
-        var arr = new byte[size];
-        rng.NextBytes(new Span<byte>(arr, 0, PosBytes(q)));
-        rng.NextBytes(new Span<byte>(arr, TailStart(q), BasisBoneRotationCompression.TailBytes));
-        if (EndEffectorBytes(q) > 0) rng.NextBytes(new Span<byte>(arr, EndEffectorOffset(q), EndEffectorBytes(q)));
-        var bpc = Bpc(q);
+        var arr = new byte[PayloadSize(q)];
+        FillNonRotation(arr, q, rng);
+        var widths = RotationFieldWidths(q);
         var offs = BoneBitOffsets(q);
-        for (int s = 0; s < bpc.Length; s++)
+        for (int f = 0; f < widths.Length; f++)
         {
-            int width = 2 + 3 * bpc[s];
-            ulong maxv = (1UL << width) - 1UL;
-            BasisBoneRotationCompression.WriteBits(arr, BoneBaseBit(q) + offs[s], (ulong)rng.NextInt64() & maxv, width);
+            ulong maxv = widths[f] >= 64 ? ulong.MaxValue : (1UL << widths[f]) - 1UL;
+            BasisBoneRotationCompression.WriteBits(arr, BoneBaseBit(q) + offs[f], (ulong)rng.NextInt64() & maxv, widths[f]);
         }
         return arr;
     }
 
-    /// <summary>Realistic payload: bones are true smallest-three encodings of random unit quaternions.</summary>
+    /// <summary>
+    /// Realistic payload: the 21 bone slots are true smallest-three encodings of random unit
+    /// quaternions, the 10 finger channels are quantized curl/splay pairs.
+    /// </summary>
     public static byte[] MakeRealisticPayload(BitQuality q, Random rng)
     {
-        int size = PayloadSize(q);
-        var arr = new byte[size];
+        var arr = new byte[PayloadSize(q)];
+        FillNonRotation(arr, q, rng);
+        var bpc = Bpc(q);
+        var offs = BoneBitOffsets(q);
+
+        for (int slot = 0; slot < WireBoneSlots; slot++)
+        {
+            var (x, y, z, w) = RandomQuat(rng);
+            ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(
+                x, y, z, w, bpc[slot], BasisBoneRotationCompression.MAX_COMPONENT[slot]);
+            BasisBoneRotationCompression.WriteBits(arr, BoneBaseBit(q) + offs[slot], packed, 2 + 3 * bpc[slot]);
+        }
+
+        int curlBits = BasisBoneRotationCompression.CurlBits(q);
+        int splayBits = BasisBoneRotationCompression.SplayBits(q);
+        for (int f = 0; f < BasisBoneRotationCompression.FingerChannelCount; f++)
+        {
+            uint curl = BasisBoneRotationCompression.EncodeSignedUnit((float)(rng.NextDouble() * 2 - 1), curlBits);
+            uint splay = BasisBoneRotationCompression.EncodeSignedUnit((float)(rng.NextDouble() * 2 - 1), splayBits);
+            int b = BoneBaseBit(q) + offs[WireBoneSlots + f];
+            BasisBoneRotationCompression.WriteBits(arr, b, curl, curlBits);
+            BasisBoneRotationCompression.WriteBits(arr, b + curlBits, splay, splayBits);
+        }
+        return arr;
+    }
+
+    // Position and the tail (scale / body rot / hips delta / hips rot / effector block) are opaque
+    // byte regions to these tests; random bytes exercise the codec just as well as real ones and
+    // keep the builders independent of the tail's internal encodings.
+    private static void FillNonRotation(byte[] arr, BitQuality q, Random rng)
+    {
         rng.NextBytes(new Span<byte>(arr, 0, PosBytes(q)));
         rng.NextBytes(new Span<byte>(arr, TailStart(q), BasisBoneRotationCompression.TailBytes));
         if (EndEffectorBytes(q) > 0) rng.NextBytes(new Span<byte>(arr, EndEffectorOffset(q), EndEffectorBytes(q)));
-        var bpc = Bpc(q);
-        var offs = BoneBitOffsets(q);
-        for (int s = 0; s < bpc.Length; s++)
-        {
-            var (x, y, z, w) = RandomQuat(rng);
-            ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(x, y, z, w, bpc[s], BasisBoneRotationCompression.MAX_COMPONENT[s]);
-            BasisBoneRotationCompression.WriteBits(arr, BoneBaseBit(q) + offs[s], packed, 2 + 3 * bpc[s]);
-        }
-        return arr;
     }
 
     public static (float x, float y, float z, float w) RandomQuat(Random rng)

@@ -28,12 +28,12 @@ namespace Basis.Network.Core.Compression
         public const float InvSqrt2 = 0.70710678118f;
 
         // Reuse position/scale/rotation sizes from BasisAvatarBitPacking
-        public const int WritePosition = BasisAvatarBitPacking.WritePosition;   // 12
+        public const int WritePosition = BasisAvatarBitPacking.WritePosition;   // 9
         public const int WriteScale    = BasisAvatarBitPacking.WriteScale;      // 2
         public const int WriteRotation = BasisAvatarBitPacking.WriteRotation;   // 7
-        public const int WriteHipsDelta = BasisAvatarBitPacking.WriteHipsDelta; // 6
+        public const int WriteHipsDelta = BasisAvatarBitPacking.WriteHipsDelta; // 5
         public const int WriteHipsRotation = BasisAvatarBitPacking.WriteHipsRotation; // 7
-        public const int TailBytes     = BasisAvatarBitPacking.TailBytes;       // 22
+        public const int TailBytes     = BasisAvatarBitPacking.TailBytes;       // 21
 
         // ────────────────────────────────────────────────────────────
         //  Bone write order: HumanBodyBones enum values (excluding Hips=0)

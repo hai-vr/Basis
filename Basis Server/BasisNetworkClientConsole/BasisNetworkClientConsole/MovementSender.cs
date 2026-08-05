@@ -23,15 +23,15 @@ namespace Basis.Network
         private static readonly Stopwatch AnimTimer = Stopwatch.StartNew();
 
         // Precomputed byte offsets into the packet for High quality
-        private static readonly int RotationRegionOffset = BasisAvatarBitPacking.WritePosition; // 12
+        private static readonly int RotationRegionOffset = BasisAvatarBitPacking.WritePosition; // 9
         private static readonly int ScaleOffset = BasisAvatarBitPacking.WritePosition
             + BasisBoneRotationCompression.RotationBytes(BitQuality.High);
         // After flip: this is the HIPS WORLD rotation slot (was "body rotation"
         // = root world rotation). 7-byte smallest-three quaternion.
         private static readonly int HipsRotationOffset = ScaleOffset + BasisAvatarBitPacking.WriteScale;
-        // 6 bytes — 3 signed shorts at ±1m. Default zero bytes already decode
-        // to zero delta thanks to the signed encoding, so we don't need to
-        // write anything synthetic here for fake clients.
+        // 5 bytes — 3 signed 13-bit axes at ±1m. Default zero bytes already decode
+        // to zero delta thanks to the two's-complement encoding, so we don't need
+        // to write anything synthetic here for fake clients.
         private static readonly int HipsLocalDeltaOffset = HipsRotationOffset + BasisAvatarBitPacking.WriteRotation;
         // 7-byte smallest-three quaternion for hips local-rotation delta.
         // Default zero bytes do NOT decode to identity (the encoding treats
@@ -736,17 +736,8 @@ namespace Basis.Network
 
         public static void WritePosition(Scripts.Networking.Compression.Vector3 position, ref byte[] buffer, ref int offset)
         {
-            unsafe
-            {
-                fixed (byte* dst = &buffer[offset])
-                {
-                    float* f = (float*)dst;
-                    f[0] = position.x;
-                    f[1] = position.y;
-                    f[2] = position.z;
-                }
-            }
-            offset += 12;
+            BasisAvatarBitPacking.EncodePosition(position.x, position.y, position.z, buffer, offset);
+            offset += BasisAvatarBitPacking.WritePosition;
         }
 
         public unsafe static void WriteQuaternionToBytes(Quaternion q, ref byte[] bytes, ref int offset)

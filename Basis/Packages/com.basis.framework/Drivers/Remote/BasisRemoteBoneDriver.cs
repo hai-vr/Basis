@@ -748,7 +748,8 @@ public static class RemoteBoneJobSystem
         public quaternion TposeHeadRot;
         public quaternion TposeHipsRot;
         public float3 TposeHipsLocalPos;
-        public quaternion TposeHipsLocalRot;
+        public quaternion HipsDecodePre;
+        public quaternion HipsDecodePost;
         public Transform Root;
         public Transform Head;
         public Transform Hips;
@@ -917,7 +918,7 @@ public static class RemoteBoneJobSystem
     /// measured from this avatar's own crown by
     /// <see cref="Basis.Scripts.UI.NamePlate.BasisNamePlateAnchorMath"/>.</param>
     /// <returns>The provided <paramref name="key"/>.</returns>
-    public static int AddRemotePlayer(int key, Transform remotePlayerRoot, Transform head, Transform hips,BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips, float3 tposeHipsLocalPos, quaternion tposeHipsLocalRot, float3 authoredCenterEyeLocal,float3 authoredMouthLocal, float3 tposeHeadWorld, float3 tposeRootScale, Transform NamePlate, Transform AvatarScale, Transform MouthTransform,float namePlateHeightAboveHipsModel,
+    public static int AddRemotePlayer(int key, Transform remotePlayerRoot, Transform head, Transform hips,BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips, float3 tposeHipsLocalPos, quaternion hipsDecodePre, quaternion hipsDecodePost, float3 authoredCenterEyeLocal,float3 authoredMouthLocal, float3 tposeHeadWorld, float3 tposeRootScale, Transform NamePlate, Transform AvatarScale, Transform MouthTransform,float namePlateHeightAboveHipsModel,
         NativeArray<quaternion> boneDecodePre = default, NativeArray<quaternion> boneDecodePost = default,
         Transform[] boneTransforms = null)
     {
@@ -985,7 +986,8 @@ public static class RemoteBoneJobSystem
             TposeHeadRot = (quaternion)tposeHead.rotation,
             TposeHipsRot = (quaternion)tposeHips.rotation,
             TposeHipsLocalPos = tposeHipsLocalPos,
-            TposeHipsLocalRot = tposeHipsLocalRot,
+            HipsDecodePre = hipsDecodePre,
+            HipsDecodePost = hipsDecodePost,
             Root = remotePlayerRoot,
             Head = head,
             Hips = hips,
@@ -1031,18 +1033,6 @@ public static class RemoteBoneJobSystem
     }
 
     /// <summary>
-    /// Derives the hips generic→rig decode pair from the two rest rotations the registration
-    /// already carries: <c>TposeHipsLocalRot</c> is the parent-relative rest rotation (T) and
-    /// <c>TposeHipsRot</c> is the root-relative one (F, taken from TposeFromRoot[Hips]). Both
-    /// come from the same calibration capture, so the pair always describes one rest pose.
-    /// </summary>
-    static void BuildHipsDecodeOperators(in PendingAdd p, out quaternion pre, out quaternion post)
-    {
-        Basis.Scripts.Networking.NetworkedAvatar.BasisGenericBoneRotationUtils.BuildDecodeOperators(
-            p.TposeHipsRot, p.TposeHipsLocalRot, out pre, out post);
-    }
-
-    /// <summary>
     /// Re-points an already-registered row at a new avatar's transforms without touching the
     /// container lengths: same index, same skeleton slots, no add/remove churn and no reshuffle of
     /// sKeyToIndex. Caller must have fenced the bone jobs. Returns false when the incoming
@@ -1069,9 +1059,8 @@ public static class RemoteBoneJobSystem
         sTPoseHeadRot[idx] = p.TposeHeadRot;
         sTPoseHipsRot[idx] = p.TposeHipsRot;
         sTPoseHipsLocalPos[idx] = p.TposeHipsLocalPos;
-        BuildHipsDecodeOperators(p, out quaternion hipsDecodePre, out quaternion hipsDecodePost);
-        sHipsDecodePre[idx] = hipsDecodePre;
-        sHipsDecodePost[idx] = hipsDecodePost;
+        sHipsDecodePre[idx] = p.HipsDecodePre;
+        sHipsDecodePost[idx] = p.HipsDecodePost;
 
         sRoots[idx] = p.Root;
         sHeads[idx] = p.Head;
@@ -1141,9 +1130,8 @@ public static class RemoteBoneJobSystem
         sTPoseHeadRot.Add(p.TposeHeadRot);
         sTPoseHipsRot.Add(p.TposeHipsRot);
         sTPoseHipsLocalPos.Add(p.TposeHipsLocalPos);
-        BuildHipsDecodeOperators(p, out quaternion hipsDecodePre, out quaternion hipsDecodePost);
-        sHipsDecodePre.Add(hipsDecodePre);
-        sHipsDecodePost.Add(hipsDecodePost);
+        sHipsDecodePre.Add(p.HipsDecodePre);
+        sHipsDecodePost.Add(p.HipsDecodePost);
 
         sRoots.Add(p.Root);
 

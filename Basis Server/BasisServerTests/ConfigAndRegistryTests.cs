@@ -107,6 +107,7 @@ public class ServerConfigurationDefaultsTests
         Assert.Equal(2000, cfg.AvatarDeltaKeyframeMaxIntervalMs);
         Assert.True(cfg.StripAdditionalDataAtLowQuality);
         Assert.True(cfg.EnableUplinkAvatarDelta);
+        Assert.True(cfg.EnableUplinkAvatarStream);
     }
 
     [Fact]
@@ -162,7 +163,8 @@ public class ServerConfigurationDefaultsTests
     [Fact]
     public void Defaults_VersioningAndFolderConstants()
     {
-        Assert.Equal(4, Configuration.CurrentConfigVersion);
+        // 5: added EnableUplinkAvatarStream, so existing files get rewritten with its doc comment.
+        Assert.Equal(5, Configuration.CurrentConfigVersion);
         Assert.Equal(0, new Configuration().ConfigVersion);
         Assert.Equal("config", Configuration.ConfigFolderName);
         Assert.Equal("logs", Configuration.LogsFolderName);

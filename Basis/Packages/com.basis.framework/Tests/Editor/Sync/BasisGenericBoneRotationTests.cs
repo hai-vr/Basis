@@ -567,6 +567,128 @@ namespace Basis.Tests.Sync
         }
 
         // ────────────────────────────────────────────────────────────
+        //  5b. The character basis — rigs whose ROOTS are authored differently
+        // ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The bug this basis exists to fix, reproduced end to end.
+        ///
+        /// TposeFromRoot divides out where the avatar is STANDING, but not the rotation an
+        /// exporter baked between the animator transform and the skeleton — a Blender Z-up
+        /// conversion node, an `Armature` child rotated −90° about X, a model authored facing −Z.
+        /// All are legal humanoid rigs (Unity's Avatar constrains the rig definition, not the
+        /// GameObject hierarchy above it) and each puts a different constant inside F.
+        ///
+        /// That constant cancels whenever both ends wear the same rig, which is why it stayed
+        /// hidden: the ONLY time a pose is decoded on a foreign rig is the avatar-swap window,
+        /// where the old avatar stays worn while the new one downloads and the far end is already
+        /// streaming the new one. Reported as limbs twisting AND the whole avatar offsetting for a
+        /// few frames, then snapping correct once the new avatar landed.
+        ///
+        /// Here rig B's root is turned 90° about Y relative to rig A's — the same character,
+        /// exported facing a different way. Without the basis normalisation the retarget is wrong
+        /// by that 90°; with it, the two agree.
+        /// </summary>
+        [Test]
+        public void RigsWithDifferentRootFacing_StillTransfer()
+        {
+            // Same anatomical character; only the frame the rig was authored in differs.
+            quaternion rootSkewB = AxisAngle(new float3(0, 1, 0), 90f);
+
+            quaternion parentA = AxisAngle(new float3(0, 1, 0), 25f);
+            quaternion boneA = math.mul(parentA, AxisAngle(new float3(1, 0, 0), 90f));
+
+            // B's every root-space rest rotation carries the exporter's extra turn...
+            quaternion parentB = math.mul(rootSkewB, math.mul(AxisAngle(new float3(0, 0, 1), -70f), AxisAngle(new float3(0, 1, 0), 15f)));
+            quaternion boneB = math.mul(parentB, AxisAngle(new float3(0, 0, 1), 55f));
+
+            // ...and so does its measured anatomical frame, which is what cancels it back out.
+            quaternion basisA = BasisGenericBoneRotationUtils.GetCharacterBasis(
+                new float3(0, 0, 1), new float3(0, 1, 0));
+            quaternion basisB = BasisGenericBoneRotationUtils.GetCharacterBasis(
+                math.mul(rootSkewB, new float3(0, 0, 1)), math.mul(rootSkewB, new float3(0, 1, 0)));
+
+            quaternion restFrameA = BasisGenericBoneRotationUtils.NormalizeRestFrame(boneA, basisA);
+            quaternion restFrameB = BasisGenericBoneRotationUtils.NormalizeRestFrame(boneB, basisB);
+            quaternion restLocalA = math.mul(math.conjugate(parentA), boneA);
+            quaternion restLocalB = math.mul(math.conjugate(parentB), boneB);
+
+            BasisGenericBoneRotationUtils.BuildEncodeOperators(restFrameA, restLocalA, out quaternion ePre, out quaternion ePost);
+            BasisGenericBoneRotationUtils.BuildDecodeOperators(restFrameB, restLocalB, out quaternion dPre, out quaternion dPost);
+
+            Seed(24u);
+            float worst = 0f, worstRaw = 0f;
+            for (int i = 0; i < 500; i++)
+            {
+                // A rotation stated in ANATOMICAL axes — "raise the arm", not "turn about the
+                // root's +X" — which is the only thing two differently-authored rigs can agree on.
+                quaternion anatomical = RndQ();
+
+                quaternion charA = math.mul(math.mul(basisA, anatomical), math.conjugate(basisA));
+                quaternion currentA = math.mul(math.conjugate(parentA), math.mul(charA, boneA));
+
+                quaternion g = math.mul(math.mul(ePre, currentA), ePost);
+                quaternion currentB = math.mul(math.mul(dPre, g), dPost);
+
+                // What B's joint actually did, expressed back in B's anatomical axes.
+                quaternion charB = math.mul(math.mul(parentB, currentB), math.conjugate(boneB));
+                quaternion recovered = math.mul(math.mul(math.conjugate(basisB), charB), basisB);
+                worst = math.max(worst, AngleBetween(recovered, anatomical));
+
+                // The same trip with RAW root-space rest frames — v46's behaviour.
+                BasisGenericBoneRotationUtils.BuildEncodeOperators(boneA, restLocalA, out quaternion rPre, out quaternion rPost);
+                BasisGenericBoneRotationUtils.BuildDecodeOperators(boneB, restLocalB, out quaternion rdPre, out quaternion rdPost);
+                quaternion rawB = math.mul(math.mul(rdPre, math.mul(math.mul(rPre, currentA), rPost)), rdPost);
+                quaternion rawChar = math.mul(math.mul(parentB, rawB), math.conjugate(boneB));
+                quaternion rawRecovered = math.mul(math.mul(math.conjugate(basisB), rawChar), basisB);
+                worstRaw = math.max(worstRaw, AngleBetween(rawRecovered, anatomical));
+            }
+
+            Assert.That(worst, Is.LessThan(0.01f),
+                $"basis-normalised rest frames must cancel the root-facing difference; drifted {worst}°");
+            Assert.That(worstRaw, Is.GreaterThan(30f),
+                "raw root-space rest frames are expected to FAIL this — if they pass, the two rigs " +
+                "no longer differ in root facing and this test is proving nothing");
+        }
+
+        /// <summary>
+        /// Degenerate or unmeasurable T-pose geometry must fall back to identity, i.e. to the raw
+        /// root frame. RecordPoses already defaults AvatarForwards/Upwards to +Z/+Y when
+        /// TryComputeForwardUpFromTpose fails, and a basis of identity reproduces exactly the
+        /// behaviour that existed before this normalisation — a known state, not a random one.
+        /// </summary>
+        [Test]
+        public void CharacterBasis_FallsBackToIdentityOnUnusableGeometry()
+        {
+            Assert.That(AngleDeg(BasisGenericBoneRotationUtils.GetCharacterBasis(float3.zero, new float3(0, 1, 0))),
+                Is.LessThan(0.01f), "zero forward must fall back to identity");
+            Assert.That(AngleDeg(BasisGenericBoneRotationUtils.GetCharacterBasis(new float3(0, 0, 1), float3.zero)),
+                Is.LessThan(0.01f), "zero up must fall back to identity");
+            Assert.That(AngleDeg(BasisGenericBoneRotationUtils.GetCharacterBasis(new float3(0, 0, 1), new float3(0, 1, 0))),
+                Is.LessThan(0.01f), "the canonical forward/up pair IS identity");
+
+            // Colinear forward/up has no well-defined basis; it must not produce NaN.
+            quaternion colinear = BasisGenericBoneRotationUtils.GetCharacterBasis(new float3(0, 1, 0), new float3(0, 1, 0));
+            Assert.That(math.all(math.isfinite(colinear.value)), Is.True, "colinear axes produced a non-finite basis");
+        }
+
+        /// <summary>
+        /// A basis of identity must leave the rest frame untouched, so every fallback path lands on
+        /// the raw root frame rather than on some third behaviour.
+        /// </summary>
+        [Test]
+        public void IdentityBasis_LeavesRestFrameUnchanged()
+        {
+            Seed(4141u);
+            for (int i = 0; i < 300; i++)
+            {
+                quaternion f = RndQ();
+                Assert.That(AngleBetween(BasisGenericBoneRotationUtils.NormalizeRestFrame(f, quaternion.identity), f),
+                    Is.LessThan(0.01f));
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
         //  6. Hips — carried in the packet tail, same space
         // ────────────────────────────────────────────────────────────
 

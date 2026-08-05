@@ -86,6 +86,12 @@ public static class BasisNetworkHandleAvatarDelta
             return true;
         }
 
+        // Stream frames are uplink-only (client→server). Neither the server's fan-out nor a P2P peer
+        // ever emits one, because both deliver a sender's frames to different receivers at different
+        // rates and a predictive chain cannot be decimated. Seeing one here means a peer is running a
+        // build that disagrees with ours about that, so drop it rather than parse it as a delta.
+        if (BasisNetworkCommons.DeltaHeaderIsStream(header)) return true;
+
         byte quality = BasisNetworkCommons.DeltaHeaderQuality(header);
         var q = (BasisAvatarBitPacking.BitQuality)quality;
         if (!BasisAvatarBitPacking.IsValidQuality(q)) return true;

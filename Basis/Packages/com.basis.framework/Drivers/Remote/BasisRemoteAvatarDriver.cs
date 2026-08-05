@@ -442,25 +442,28 @@ namespace Basis.Scripts.Drivers
             // AddRemotePlayer still falls back to a real remove if the incoming transforms are
             // unusable, so a dying hierarchy can never stay registered.
 
-            // TPose hips localPosition + localRotation feed the per-frame
+            // TPose hips localPosition + the hips decode pair feed the per-frame
             // BulkCopyHipsAndDeriveJob (the inline inverse derivation that
             // turns the received hips world pose into a derived root world
             // pose). Hips world itself is then applied directly via
             // ApplyHipsWorldJob, which is hierarchy-agnostic — these TPose
             // values are only used for the (best-effort) root derivation,
             // not for writing the hips bone's local transform anymore.
-            float3 tposeHipsLocalPos;
-            quaternion tposeHipsLocalRot;
-            if (References.TposeLocal.TryGetValue(HumanBodyBones.Hips, out var hipsTposeLocal))
-            {
-                tposeHipsLocalPos = hipsTposeLocal.position;
-                tposeHipsLocalRot = hipsTposeLocal.rotation;
-            }
-            else
-            {
-                tposeHipsLocalPos = float3.zero;
-                tposeHipsLocalRot = quaternion.identity;
-            }
+            float3 tposeHipsLocalPos = References.TposeLocal.TryGetValue(HumanBodyBones.Hips, out var hipsTposeLocal)
+                ? (float3)hipsTposeLocal.position
+                : float3.zero;
+
+            // Hips rides in the packet tail rather than the bone block, but it is carried in the
+            // same rig-neutral space, so it needs the same decode pair. Built here rather than
+            // inside AddRemotePlayer because the rest frame has to be normalised by this avatar's
+            // character basis first — the raw TposeFromRoot rotation the registration already
+            // carries is in the animator root's frame, which is not shared between rigs. Getting
+            // this one wrong tilts hipsLocalRot, which the job divides out of the hips world pose
+            // to derive the root, so the whole avatar shifts rather than just its pelvis.
+            BasisGenericBoneRotationUtils.BuildDecodeOperators(
+                BasisGenericBoneRotationUtils.GetRestFrame(References, HumanBodyBones.Hips),
+                BasisGenericBoneRotationUtils.GetRestLocal(References, HumanBodyBones.Hips),
+                out quaternion hipsDecodePre, out quaternion hipsDecodePost);
 
             // Initialize this player's interpolation slot before registering it with the bone
             // job system. The bone Schedule reads _filtered*[playerId] earlier in LateUpdate than
@@ -489,7 +492,8 @@ namespace Basis.Scripts.Drivers
                     tposeHead: References.TposeFromRoot[HumanBodyBones.Head],
                     tposeHips: References.TposeFromRoot[HumanBodyBones.Hips],
                     tposeHipsLocalPos: tposeHipsLocalPos,
-                    tposeHipsLocalRot: tposeHipsLocalRot,
+                    hipsDecodePre: hipsDecodePre,
+                    hipsDecodePost: hipsDecodePost,
                     // Handed over in the frame the authored Vector2 is already in: (height, forward)
                     // above the animator root, root-relative RENDERED metres. These used to be pushed
                     // through the translation-only ConvertFromLocalSpace overload into "world" and
@@ -527,8 +531,11 @@ namespace Basis.Scripts.Drivers
             receiver.GetLatestNetworkPose(out var hipsWorldPos, out var hipsWorldRot, out var networkScale);
             animatorRoot.localScale = networkScale;
             BasisRemoteNetworkDriver.SeedScaleState(receiver.playerId, networkScale);
-            // conjugate, not inverse — unit quaternions only.
-            quaternion rootRot = math.mul(hipsWorldRot, math.conjugate(tposeHipsLocalRot));
+            // conjugate, not inverse — unit quaternions only. The rest hips LOCAL rotation, not a
+            // generic-space value: this snap has no network rotation to decode, it just backs the
+            // root out of the hips world pose with the avatar at rest.
+            quaternion rootRot = math.mul(hipsWorldRot,
+                math.conjugate(BasisGenericBoneRotationUtils.GetRestLocal(References, HumanBodyBones.Hips)));
             float3 scaledLocal = (float3)networkScale * tposeHipsLocalPos;
             float3 rootPos = (float3)hipsWorldPos - math.mul(rootRot, scaledLocal);
             animatorRoot.SetPositionAndRotation(rootPos, rootRot);
@@ -716,6 +723,16 @@ namespace Basis.Scripts.Drivers
             quaternion[] restLocalByBone = hasCachedRest ? cacheEntry.TposeLocal.Rotations : null;
             quaternion[] restFrameByBone = hasCachedRest ? cacheEntry.TposeFromRoot.Rotations : null;
 
+            // The rest frames on both sides of this branch are RAW root-space rotations, which are
+            // not a shared frame between two differently-authored rigs — see
+            // BasisGenericBoneRotationUtils.GetCharacterBasis. The cached forward/up belongs to the
+            // same capture as the cached rotations, so take the basis from whichever source the
+            // rotations came from rather than always from the live mapping.
+            quaternion characterBasis = hasCachedRest
+                ? BasisGenericBoneRotationUtils.GetCharacterBasis(
+                    cacheEntry.TposeFromRoot.AvatarForward, cacheEntry.TposeFromRoot.AvatarUp)
+                : BasisGenericBoneRotationUtils.GetCharacterBasis(References);
+
             for (int slot = 0; slot < boneCount; slot++)
             {
                 int boneEnum = writeOrder[slot];
@@ -739,12 +756,12 @@ namespace Basis.Scripts.Drivers
                 if (hasCachedRest)
                 {
                     restLocal = restLocalByBone[boneEnum];
-                    restFrame = restFrameByBone[boneEnum];
+                    restFrame = BasisGenericBoneRotationUtils.NormalizeRestFrame(restFrameByBone[boneEnum], characterBasis);
                 }
                 else
                 {
                     restLocal = BasisGenericBoneRotationUtils.GetRestLocal(References, humanbone);
-                    restFrame = BasisGenericBoneRotationUtils.GetRestFrame(References, humanbone);
+                    restFrame = BasisGenericBoneRotationUtils.GetRestFrame(References, humanbone, characterBasis);
                 }
 
                 if (slot >= BasisBoneRotationCompression.WireBoneSlotCount)

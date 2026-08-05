@@ -115,17 +115,17 @@ namespace Basis.Tests.Sync
             Assert.AreEqual(expectedBytes, BasisAvatarBitPacking.MuscleBytes(quality));
         }
 
-        [TestCase(Q.High, 181)]
-        [TestCase(Q.Medium, 109)]
-        [TestCase(Q.Low, 93)]
-        [TestCase(Q.VeryLow, 83)]
+        [TestCase(Q.High, 177)]
+        [TestCase(Q.Medium, 108)]
+        [TestCase(Q.Low, 92)]
+        [TestCase(Q.VeryLow, 82)]
         public void Packet_IsExactlyThisManyBytes(Q quality, int expected)
         {
             Assert.AreEqual(expected, BasisAvatarBitPacking.ConvertToSize(quality));
             Assert.AreEqual(expected, BasisBoneRotationCompression.ConvertToSize(quality));
         }
 
-        [TestCase(Q.High, 12, 35)]
+        [TestCase(Q.High, 9, 35)]
         [TestCase(Q.Medium, 9, 0)]
         [TestCase(Q.Low, 9, 0)]
         [TestCase(Q.VeryLow, 9, 0)]
@@ -133,7 +133,7 @@ namespace Basis.Tests.Sync
         {
             Assert.AreEqual(posBytes, BasisAvatarBitPacking.PositionBytes(quality));
             Assert.AreEqual(effectorBytes, BasisBoneRotationCompression.EndEffectorBytes(quality));
-            Assert.AreEqual(22, BasisAvatarBitPacking.TailBytes);
+            Assert.AreEqual(21, BasisAvatarBitPacking.TailBytes);
 
             int sum = posBytes + BasisBoneRotationCompression.RotationBytes(quality)
                 + BasisAvatarBitPacking.TailBytes + effectorBytes;

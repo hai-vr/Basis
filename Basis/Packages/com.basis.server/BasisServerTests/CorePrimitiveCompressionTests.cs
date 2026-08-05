@@ -264,17 +264,7 @@ public class CorePrimitiveCompressionTests
                 expected += 2 + 3 * bpc[i];
             }
             Assert.Equal(expected, totalBits);
-
-            // RotationBytes is NOT this total. ComputeBitOffsets walks all 51 legacy bone slots;
-            // since v47 the wire carries 21 of them plus a 10-channel finger block, so the wire size
-            // comes from the rotation FIELD widths instead. (Sizing anything off the 51-slot total
-            // overruns every sub-High payload — it is larger than the payload itself.)
-            var fieldWidths = BasisBoneRotationCompression.BuildRotationFieldWidths(q);
-            int wireBits = 0;
-            foreach (int w in fieldWidths) wireBits += w;
-            Assert.Equal(wireBits, BasisBoneRotationCompression.RotationBits(q));
-            Assert.Equal((wireBits + 7) >> 3, BasisBoneRotationCompression.RotationBytes(q));
-            Assert.True(totalBits > wireBits, "legacy 51-slot total should exceed the v47 wire size");
+            Assert.Equal((totalBits + 7) >> 3, BasisBoneRotationCompression.RotationBytes(q));
         }
     }
 

@@ -17,18 +17,44 @@ namespace BasisNetworkClientConsole
         private const float Deg2Rad = MathF.PI / 180f;
         private const float TwoPi = MathF.PI * 2f;
         private const float InvSqrt2 = 0.70710678118f;
-        private const int BoneCount = BasisBoneRotationCompression.SyncBoneCount; // 51
 
-        // Base natural standing pose: 51 quaternions stored as flat float array.
+        /// <summary>
+        /// Slots the wire still carries as explicit rotations. Since v47 the thirty finger joints
+        /// are no longer rotations at all — they are ten curl/splay channels, written by
+        /// <see cref="WriteFingerChannels"/>. Walking all 51 BPC entries as if they were bones (as
+        /// this generator used to) emits the pre-v47 1302-bit stream into a 896-bit region and
+        /// overruns the packet's own tail.
+        /// </summary>
+        private const int WireBoneCount = BasisBoneRotationCompression.WireBoneSlotCount; // 21
+        private const int FingerCount = BasisBoneRotationCompression.FingerChannelCount;  // 10
+
+        // Base natural standing pose: one quaternion per wire bone slot, flat float array.
         // Layout: [slot * 4 + 0] = x, [slot * 4 + 1] = y, [slot * 4 + 2] = z, [slot * 4 + 3] = w
         // These are T-pose-relative delta quaternions — identity means T-pose, non-identity means deviation.
         private static readonly float[] BasePose;
 
+        // Rotation-field bit offsets per quality, built once — a load-test sender runs this per
+        // client per send, so it must not allocate.
+        private static readonly int[][] FieldOffsetsByQuality = BuildFieldOffsets();
+
         static FakePoseGenerator()
         {
-            BasePose = new float[BoneCount * 4];
+            BasePose = new float[WireBoneCount * 4];
             BuildNaturalStandingPose();
         }
+
+        private static int[][] BuildFieldOffsets()
+        {
+            var all = new int[4][];
+            for (int q = 0; q < 4; q++)
+            {
+                all[q] = new int[BasisBoneRotationCompression.RotationFieldCount];
+                BasisBoneRotationCompression.BuildRotationFieldOffsets((BitQuality)q, all[q]);
+            }
+            return all;
+        }
+
+        private static int[] FieldOffsets(BitQuality quality) => FieldOffsetsByQuality[(int)quality];
 
         // ────────────────────────────────────────────────────────────
         //  Natural standing pose definition
@@ -39,15 +65,14 @@ namespace BasisNetworkClientConsole
         //   9:LLowerArm  10:RLowerArm  11:LLowerLeg  12:RLowerLeg
         //  13:LShoulder  14:RShoulder  15:LHand  16:RHand  17:LFoot  18:RFoot
         //  19:LToes  20:RToes
-        //  21-30: Finger proximal (L-Thumb,L-Index,L-Mid,L-Ring,L-Little, R-same)
-        //  31-40: Finger intermediate
-        //  41-50: Finger distal
+        //  Fingers are not slots here — ten curl/splay channels follow the bone block instead,
+        //  ordered L thumb→little then R thumb→little.
         // ────────────────────────────────────────────────────────────
 
         private static void BuildNaturalStandingPose()
         {
-            // Initialize all 51 bones to identity (T-pose)
-            for (int i = 0; i < BoneCount; i++)
+            // Initialize every wire bone slot to identity (T-pose)
+            for (int i = 0; i < WireBoneCount; i++)
                 SetQuat(i, 0f, 0f, 0f, 1f);
 
             // ── Spine chain: natural S-curve ──
@@ -90,18 +115,8 @@ namespace BasisNetworkClientConsole
             // ── Toes: flat on ground (identity) ──
             // Slots 19-20 already identity
 
-            // ── Fingers: relaxed/slightly curled ──
-            // Proximal bones: ~20 degree curl (includes thumb which has different axis)
-            for (int i = 21; i <= 30; i++)
-                SetAxisAngle(i, 1, 0, 0, 20f);
-
-            // Intermediate bones: ~30 degree curl
-            for (int i = 31; i <= 40; i++)
-                SetAxisAngle(i, 1, 0, 0, 30f);
-
-            // Distal bones: ~15 degree curl
-            for (int i = 41; i <= 50; i++)
-                SetAxisAngle(i, 1, 0, 0, 15f);
+            // ── Fingers: see WriteFingerChannels — a relaxed hand is a curl/splay pair per
+            //    finger now, not thirty joint rotations.
         }
 
         // ────────────────────────────────────────────────────────────
@@ -109,11 +124,12 @@ namespace BasisNetworkClientConsole
         // ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Writes all 51 bone rotations (base pose + idle animation) into the packet buffer
-        /// using smallest-three compression. Clears the rotation region before writing.
+        /// Writes the whole rotation region — the explicit bone rotations (base pose + idle
+        /// animation, smallest-three) followed by the ten finger curl/splay channels. Clears the
+        /// region before writing, since WriteBits ORs into bytes.
         /// </summary>
         /// <param name="dst">Packet byte array.</param>
-        /// <param name="byteOffset">Start of the bone rotation region (after position bytes).</param>
+        /// <param name="byteOffset">Start of the rotation region (after position bytes).</param>
         /// <param name="quality">Compression quality level.</param>
         /// <param name="timeSec">Elapsed time in seconds (for animation).</param>
         /// <param name="phase">Per-player phase offset (prevents synchronized animation).</param>
@@ -126,9 +142,12 @@ namespace BasisNetworkClientConsole
             int rotBytes = BasisBoneRotationCompression.RotationBytes(quality);
             Array.Clear(dst, byteOffset, rotBytes);
 
-            int bitPos = byteOffset << 3;
+            // Field starts come from the codec rather than a running counter, so this generator
+            // cannot drift out of step with the wire layout the way it did across v47.
+            int[] offsets = FieldOffsets(quality);
+            int baseBit = byteOffset << 3;
 
-            for (int slot = 0; slot < BoneCount; slot++)
+            for (int slot = 0; slot < WireBoneCount; slot++)
             {
                 int bitsPerComp = bpc[slot];
                 int totalBits = 2 + 3 * bitsPerComp;
@@ -145,8 +164,41 @@ namespace BasisNetworkClientConsole
 
                 ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(rx, ry, rz, rw, bitsPerComp, ranges[slot]);
 
-                BasisBoneRotationCompression.WriteBits(dst, bitPos, packed, totalBits);
-                bitPos += totalBits;
+                BasisBoneRotationCompression.WriteBits(dst, baseBit + offsets[slot], packed, totalBits);
+            }
+
+            WriteFingerChannels(dst, baseBit, offsets, quality, timeSec, phase);
+        }
+
+        /// <summary>
+        /// Writes the ten finger channels: one curl and one splay scalar per finger in [-1, 1],
+        /// ordered L thumb→little then R thumb→little, packed [curl][splay] exactly as
+        /// BasisBoneDeltaAndCompressJob does on the real client.
+        ///
+        /// Amplitudes and rates are sized so both scalars cross their quantization step every send
+        /// at the ~11 Hz load-test cadence (High curl is 8 bits ⇒ 0.0078/step, splay 6 ⇒ 0.032),
+        /// so a fake hand keeps producing fresh bits instead of deadbanding into silence.
+        /// </summary>
+        private static void WriteFingerChannels(byte[] dst, int baseBit, int[] offsets, BitQuality quality, double timeSec, float phase)
+        {
+            int curlBits = BasisBoneRotationCompression.CurlBits(quality);
+            int splayBits = BasisBoneRotationCompression.SplayBits(quality);
+
+            for (int finger = 0; finger < FingerCount; finger++)
+            {
+                // Per-finger phase spread so a hand ripples rather than clenching as one block.
+                float fp = phase * 1.1f + finger * 0.73f;
+
+                // Relaxed hand sits partly curled; grip slowly tightens and releases.
+                float curl = 0.30f + 0.35f * MathF.Sin((float)(timeSec * 0.50 * TwoPi + fp));
+                float splay = 0.25f * MathF.Sin((float)(timeSec * 0.37 * TwoPi + fp * 1.4f));
+
+                ulong qCurl = BasisBoneRotationCompression.EncodeSignedUnit(curl, curlBits);
+                ulong qSplay = BasisBoneRotationCompression.EncodeSignedUnit(splay, splayBits);
+
+                int field = WireBoneCount + finger;
+                BasisBoneRotationCompression.WriteBits(dst, baseBit + offsets[field],
+                    qCurl | (qSplay << curlBits), curlBits + splayBits);
             }
         }
 
@@ -288,15 +340,13 @@ namespace BasisNetworkClientConsole
                     // Every remaining slot oscillates continuously, with amplitude × frequency
                     // sized so the per-send angular step crosses that bone group's quantization
                     // step at the ~11 Hz send rate (coarser BPC ⇒ bigger, faster motion):
-                    //   12-BPC body/limb bones need only ~0.04°/frame; 5-6-BPC extremities need
-                    //   degrees per frame before their bits change at all.
+                    //   12-BPC body/limb bones need only ~0.04°/frame; the 5-BPC toes need
+                    //   degrees per frame before their bits change at all. (Fingers are no longer
+                    //   slots — see WriteFingerChannels.)
                     float amplitude;
                     float frequency;
-                    if (slot >= 41)      { amplitude = 14f; frequency = 0.50f; } // finger distal (5 BPC)
-                    else if (slot >= 31) { amplitude = 12f; frequency = 0.50f; } // finger intermediate (5-6 BPC)
-                    else if (slot >= 21) { amplitude = 12f; frequency = 0.45f; } // finger proximal (5-6 BPC)
-                    else if (slot >= 19) { amplitude = 16f; frequency = 0.50f; } // toes (5 BPC, tight range)
-                    else                 { amplitude = 2f;  frequency = 0.30f + 0.05f * (slot % 5); } // 12-BPC body/limbs
+                    if (slot >= 19) { amplitude = 16f; frequency = 0.50f; } // toes (5 BPC, tight range)
+                    else            { amplitude = 2f;  frequency = 0.30f + 0.05f * (slot % 5); } // 12-BPC body/limbs
 
                     // Slot-seeded frequency jitter + phase spread so bones (and players) desync.
                     frequency *= 1f + 0.07f * (slot % 3);

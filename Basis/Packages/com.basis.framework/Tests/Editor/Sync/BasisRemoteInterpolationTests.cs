@@ -283,11 +283,12 @@ namespace Basis.Tests.Sync
         {
             // Body/limb joints (slots 0..18) at 12 bits, toes 5 — 19×(2+36) + 2×(2+15) = 756 bits.
             // v47 replaced the thirty finger rotations (546 bits, 41.9% of the old stream) with ten
-            // 14-bit curl/splay channels = 140 bits, so 896 bits = 112 rotation bytes;
-            // +12 pos +22 tail +35 effector = 181 (was 232).
+            // 14-bit curl/splay channels = 140 bits, so 896 bits = 112 rotation bytes.
+            // v48 quantized position at High (12 → 9, int24 mm) and the hips local delta
+            // (6 → 5, signed 13-bit), so the tail is 21: 9 + 112 + 21 + 35 effector = 177.
             Assert.That(BasisBoneRotationCompression.RotationBytes(BasisAvatarBitPacking.BitQuality.High), Is.EqualTo(112),
                 "High rotation-byte count changed — wire format + ServerVersion must move together");
-            Assert.That(BasisAvatarBitPacking.ConvertToSize(BasisAvatarBitPacking.BitQuality.High), Is.EqualTo(181));
+            Assert.That(BasisAvatarBitPacking.ConvertToSize(BasisAvatarBitPacking.BitQuality.High), Is.EqualTo(177));
         }
 
         [Test]
