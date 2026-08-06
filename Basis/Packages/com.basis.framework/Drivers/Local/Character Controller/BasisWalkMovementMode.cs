@@ -1,5 +1,6 @@
 using Basis.Scripts.Drivers;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Basis.Scripts.BasisCharacterController
@@ -68,8 +69,13 @@ namespace Basis.Scripts.BasisCharacterController
                 move.z = 0;
             }
 
-            ctx.Flags = ctx.characterController.Move(move);
-            ctx.BasisLocalPlayerTransform.GetPositionAndRotation(out ctx.CurrentPosition, out ctx.CurrentRotation);
+            using (BasisLocalCharacterDriver.MovePhysicsMarker.Auto())
+            {
+                ctx.Flags = ctx.characterController.Move(move);
+            }
+            // PhysX writes the root transform directly; the pose cache cannot observe it.
+            BasisLocalPose.InvalidateAll();
+            ctx.BasisLocalPlayerTransform.GetPose(out ctx.CurrentPosition, out ctx.CurrentRotation);
         }
     }
 }

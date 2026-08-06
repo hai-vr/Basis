@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 using Basis.Scripts.Profiler;
 using K4os.Compression.LZ4;
 using System;
@@ -9,11 +10,22 @@ using System;
 /// as if it had been received on its original quality channel.
 ///
 /// Wire format (must match BasisServerReductionSystemEvents on the server):
-///   [count:1][rawLen:2-LE][LZ4 block( [origChannel:1][msgLen:2-LE][bytes]* )]
+///   [count:1][rawLen:2-LE][LZ4 block( group* )]
+///   group := [origChannel:1][n:1][msgLen:2-LE] x n [bodies]
 ///
-/// rawLen is authoritative — count is just a sanity hint. Each inner [bytes] is exactly
-/// what the server would have sent on origChannel individually, so quality / additional-data
-/// presence / id-size are all derived from origChannel by the existing handler.
+/// rawLen is authoritative — count is just a sanity hint. Each inner body is exactly what the
+/// server would have sent on origChannel individually, so quality / additional-data presence /
+/// id-size are all derived from origChannel by the existing handler.
+///
+/// v50 groups entries by channel: one channel byte per RUN rather than per entry. The server
+/// channel-sorts a receiver's pending messages first, so runs are long, but nothing here assumes
+/// that — a stream of one-entry groups decodes identically.
+///
+/// The DeltaAvatarChannel group's bodies are COLUMN-TRANSPOSED (byte j of every body, then byte
+/// j+1 of every body). Delta bodies are short and field-aligned, so interleaving them puts the
+/// same field from different players adjacent and gives LZ4 something to match — worth -13.9%
+/// on the wire. Only that group is transposed; doing it to the fixed-size quality groups is a
+/// net loss. See BundleCompressionExperiment in the server tests.
 /// </summary>
 public static class BasisNetworkHandleCompressedBundle
 {
@@ -63,17 +75,31 @@ public static class BasisNetworkHandleCompressedBundle
             _scratchReader = inner;
         }
 
+        // Ungroup and un-transpose into the flat [channel][len:2][body]* stream this walk expects.
+        int flatCap = BasisAvatarBundleCodec.MaxFlatSize(decoded);
+        byte[] flat = _flat;
+        if (flat == null || flat.Length < flatCap)
+        {
+            flat = new byte[System.Math.Max(flatCap, 8192)];
+            _flat = flat;
+        }
+        if (!BasisAvatarBundleCodec.TryFlatten(scratch.AsSpan(0, decoded), flat.AsSpan(0, flatCap), out int flatLen))
+        {
+            // Corrupt or truncated bundle — drop it.
+            return;
+        }
+
         // Walk [origChannel:1][msgLen:2-LE][bytes] entries.
         int offset = 0;
-        while (offset + 3 <= decoded)
+        while (offset + 3 <= flatLen)
         {
-            byte innerChannel = scratch[offset];
-            ushort msgLen = (ushort)(scratch[offset + 1] | (scratch[offset + 2] << 8));
+            byte innerChannel = flat[offset];
+            ushort msgLen = (ushort)(flat[offset + 1] | (flat[offset + 2] << 8));
             offset += 3;
-            if (msgLen == 0 || offset + msgLen > decoded) break;
+            if (msgLen == 0 || offset + msgLen > flatLen) break;
 
-            // Window the scratch buffer over just this entry's bytes; SetSource is alloc-free.
-            inner.SetSource(scratch, offset, offset + msgLen);
+            // Window the flat buffer over just this entry's bytes; SetSource is alloc-free.
+            inner.SetSource(flat, offset, offset + msgLen);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, msgLen);
             if (innerChannel == BasisNetworkCommons.DeltaAvatarChannel)
                 BasisNetworkHandleAvatarDelta.Handle(inner);
@@ -82,4 +108,6 @@ public static class BasisNetworkHandleCompressedBundle
             offset += msgLen;
         }
     }
+
+    [ThreadStatic] private static byte[] _flat;
 }

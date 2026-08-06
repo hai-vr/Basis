@@ -170,8 +170,9 @@ namespace Basis.Network
 
         /// <summary>
         /// Decodes one channel-52 bundle exactly like the Unity client
-        /// (BasisNetworkHandleCompressedBundle): [count:1][rawLen:2-LE][LZ4([chan:1][len:2-LE][bytes]*)],
-        /// then routes each inner message through the same keyframe/delta sniffers.
+        /// (BasisNetworkHandleCompressedBundle): [count:1][rawLen:2-LE][LZ4(group*)], flattened
+        /// through the shared BasisAvatarBundleCodec, then routes each inner message through the
+        /// same keyframe/delta sniffers.
         /// </summary>
         private static void SniffBundle(int clientIndex, NetPacketReader reader)
         {
@@ -184,9 +185,17 @@ namespace Basis.Network
                 int compressedLen = reader.AvailableBytes - 3;
                 if (rawLen == 0 || compressedLen <= 0) return;
 
-                byte[] scratch = new byte[rawLen];
-                int decoded = LZ4Codec.Decode(raw.AsSpan(pos + 3, compressedLen), scratch.AsSpan(0, rawLen));
+                byte[] grouped = new byte[rawLen];
+                int decoded = LZ4Codec.Decode(raw.AsSpan(pos + 3, compressedLen), grouped.AsSpan(0, rawLen));
                 if (decoded != rawLen)
+                {
+                    Interlocked.Increment(ref ParseFailures);
+                    return;
+                }
+
+                // Ungroup and un-transpose into the flat [chan][len:2][bytes]* stream below.
+                byte[] scratch = new byte[BasisAvatarBundleCodec.MaxFlatSize(decoded)];
+                if (!BasisAvatarBundleCodec.TryFlatten(grouped.AsSpan(0, decoded), scratch, out decoded))
                 {
                     Interlocked.Increment(ref ParseFailures);
                     return;

@@ -21,7 +21,7 @@ public class Configuration
     /// </summary>
     // 5: EnableUplinkAvatarStream added; bumped so existing config.xml files are rewritten with its
     //    doc comment rather than only silently gaining the field.
-    public const int CurrentConfigVersion = 5;
+    public const int CurrentConfigVersion = 6;
     /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
     public int ConfigVersion = 0;
 
@@ -128,6 +128,21 @@ public class Configuration
     /// profile shows the send loop itself saturating.
     /// </summary>
     public int BSRMaxDegreeOfParallelism = 0;
+    /// <summary>
+    /// Furthest the reduction system may slice its roster under load. 0 = scale with population.
+    ///
+    /// Slicing is the last-resort lever: at slice N each tick serves only 1/N of the receivers, so
+    /// everyone's update rate drops uniformly. The cap decides how far the server is allowed to
+    /// degrade before it stops degrading and simply overruns its tick instead.
+    ///
+    /// It was a fixed 32, chosen when 2000 was a large instance. At 8000 players a cap of 32 still
+    /// leaves 250 receivers per tick, so a struggling server reaches the ceiling with nowhere left
+    /// to go and starts missing the period — which is the failure slicing exists to prevent.
+    /// Automatic holds the per-tick fan-out roughly flat as population grows.
+    ///
+    /// Set a positive value only to pin it; higher caps trade update rate for keeping the tick.
+    /// </summary>
+    public int BSRMaxSliceCount = 0;
     /// <summary>
     /// Opus voice frame duration pushed to every client (20 or 40 ms). 20 is the low-latency
     /// default; 40 halves the voice packet rate (25/s instead of 50/s) and with it the

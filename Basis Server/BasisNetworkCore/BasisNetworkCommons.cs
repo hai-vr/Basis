@@ -1153,10 +1153,16 @@ namespace Basis.Network.Core
         /// <summary>
         /// Server-only outbound channel carrying multiple avatar quality messages
         /// to a single receiver, LZ4-compressed into one UDP datagram that fits the peer MTU.
-        /// Wire format:
-        ///   [count:1][rawLen:2-LE][LZ4 block( [origChannel:1][msgLen:2-LE][bytes]* )]
-        /// Each inner [origChannel] is the byte-id or ushort-id avatar quality channel
-        /// the message would have been sent on individually (channels 6-13 / 41-48).
+        /// Wire format (v50):
+        ///   [count:1][rawLen:2-LE][LZ4 block( group* )]
+        ///   group := [origChannel:1][n:1][msgLen:2-LE] x n [bodies]
+        /// Each [origChannel] is the byte-id or ushort-id avatar quality channel the message would
+        /// have been sent on individually (channels 6-13 / 41-48), or DeltaAvatarChannel. One
+        /// channel byte per RUN, not per entry — the server channel-sorts a receiver's pending
+        /// messages first so the runs are long, but decoding does not depend on that.
+        /// The DeltaAvatarChannel group's bodies are COLUMN-TRANSPOSED (byte j of every body, then
+        /// byte j+1 of every body); no other group is. See BasisAvatarBundleCodec, which is the
+        /// shared reader, and BundleCompressionExperiment for why.
         /// Compression: LZ4Codec.Encode at LZ4Level.L00_FAST (K4os.Compression.LZ4 1.3.x).
         /// </summary>
         public const byte CompressedAvatarBundleChannel = 52;

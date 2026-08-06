@@ -91,20 +91,57 @@ namespace LiteNetLib
         /// </summary>
         private int _effectivePoolCap = 1000;
 
-        /// <summary><see cref="PacketPoolSize"/> is the floor; peer count raises it up to <see cref="PacketPoolSizeMax"/>.</summary>
+        /// <summary>
+        /// Host hook: given the connected peer count, returns the packet pool ceiling to use.
+        ///
+        /// Null by default, which keeps <see cref="PacketPoolSizeMax"/> governing exactly as it did
+        /// — LiteNetLib on its own has no opinion about how big the host's box is. Basis injects a
+        /// resolver that sizes this against available memory instead of a shipped constant.
+        /// </summary>
+        public System.Func<int, int> ResolvePacketPoolMax;
+
+        /// <summary>
+        /// Host hook: given the connected peer count, returns the per-peer unreliable queue bound.
+        /// Null keeps <see cref="MaxUnreliableQueuePerPeer"/>, the standalone behaviour.
+        /// </summary>
+        public System.Func<int, int> ResolveUnreliableQueuePerPeer;
+
+        /// <summary>
+        /// Resolved per-peer unreliable bound, refreshed by <see cref="RecomputePoolCap"/>.
+        ///
+        /// Cached as a plain field for the same reason <see cref="_effectivePoolCap"/> is: the
+        /// enqueue path reads it on every unreliable send — millions of times a second at a few
+        /// thousand players — and must not pay for a delegate call or a peer-count read there.
+        /// </summary>
+        public int EffectiveUnreliableQueuePerPeer = 256;
+
+        /// <summary><see cref="PacketPoolSize"/> is the floor; peer count raises it up to the resolved ceiling.</summary>
         internal void RecomputePoolCap()
         {
+            int peers = ConnectedPeersCount;
+
+            // Both ceilings move with population, and this is the one place that already runs on
+            // every join and leave — so they are refreshed together rather than each growing its
+            // own trigger.
+            var queueResolver = ResolveUnreliableQueuePerPeer;
+            EffectiveUnreliableQueuePerPeer = queueResolver != null
+                ? queueResolver(peers)
+                : MaxUnreliableQueuePerPeer;
+
+            var poolResolver = ResolvePacketPoolMax;
+            int poolMax = poolResolver != null ? poolResolver(peers) : PacketPoolSizeMax;
+
             if (PacketPoolSizePerPeer <= 0)
             {
                 _effectivePoolCap = PacketPoolSize;
                 return;
             }
 
-            long scaled = (long)ConnectedPeersCount * PacketPoolSizePerPeer;
+            long scaled = (long)peers * PacketPoolSizePerPeer;
             if (scaled < PacketPoolSize)
                 scaled = PacketPoolSize;
-            if (PacketPoolSizeMax > 0 && scaled > PacketPoolSizeMax)
-                scaled = PacketPoolSizeMax;
+            if (poolMax > 0 && scaled > poolMax)
+                scaled = poolMax;
             _effectivePoolCap = (int)scaled;
         }
 

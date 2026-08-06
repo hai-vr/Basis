@@ -1251,7 +1251,7 @@ namespace Basis.Scripts.Drivers
         /// <returns>Point expressed in avatar-local coordinates.</returns>
         public static Vector3 ConvertToAvatarSpaceInitial(Transform Transform, Vector3 WorldSpace)
         {
-            Transform.GetPositionAndRotation(out Vector3 origin, out Quaternion rotation);
+            Transform.GetPose(out Vector3 origin, out Quaternion rotation);
             return BasisHelpers.ConvertToLocalSpace(WorldSpace, origin, rotation);
         }
         /// <summary>

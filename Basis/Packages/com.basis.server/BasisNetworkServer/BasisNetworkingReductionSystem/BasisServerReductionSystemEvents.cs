@@ -170,6 +170,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Avoids per-tick allocations in the deflate path. Sized by the flush logic.
         public byte[] BundleRawScratch;
         public byte[] BundleCompressedScratch;
+        /// <summary>
+        /// Destination for the channel counting-sort that runs before bundling. Cleared after each
+        /// sort so it does not keep a second set of Source references reachable between flushes —
+        /// same reason the flush path nulls PendingSends[i].Source rather than just resetting count.
+        /// </summary>
+        public PendingAvatarSend[] PendingSortScratch;
 
         // EMA of compressed/raw ratio observed for this receiver's bundles. Used by
         // FlushPendingForReceiver to predict how many messages fit in one MTU-sized chunk
@@ -579,6 +585,18 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     $"[CPU] send {parallelOptions.MaxDegreeOfParallelism}/{BasisCpuBudget.ReductionSendCap} workers, " +
                     $"peer-update {peerWorkers}/{BasisCpuBudget.PeerUpdateCap} workers " +
                     $"(pass {lnl?.PeerUpdatePassMs ?? 0:F1} ms, target {LiteNetLib.NetManager.PeerPassTargetMs:F0} ms), machine {BasisCpuBudget.Utilization * 100:F0}% of {BasisCpuBudget.TotalCores} cores.");
+
+                // The delivery side of the same question. Undeliverable packets used to be visible
+                // only on the health endpoint, so a server shedding a third of its output looked
+                // identical in the log to one running clean — this is the line that would have made
+                // that obvious. Drop pressure is per player per control window; sustained values
+                // above 1 are what drive the shedding shown alongside.
+                int pop = NetworkServer.Server?.ConnectedPeersCount ?? 0;
+                BNL.Log(
+                    $"[POP] {pop} peers: drop pressure {_dropsPerPlayerWindow:F2}/player " +
+                    $"(escalate above {DropEscalatePerPlayer:F2}), slicing {_sliceCount}/{MaxSliceCount()}, " +
+                    $"shed tier {_loadShedTier} ({LoadShedTierName(_loadShedTier)}), " +
+                    $"unreliable queue {(lnl != null ? lnl.EffectiveUnreliableQueuePerPeer : 0)}/peer.");
             }
         }
 
@@ -791,6 +809,40 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static int _tickOverrunCount;
         private static double _tickOverrunRatio;
         private static bool _tickControlReady;
+
+        // ── Second control signal: packets the TRANSPORT could not deliver ────────────────────
+        // Tick time alone is not enough, and relying on it alone produced the worst failure this
+        // controller has had. When a peer's unreliable queue is over budget the transport discards
+        // the oldest packet, and discarding is far cheaper than sending — so the harder the server
+        // overshot what it could deliver, the FASTER its ticks became. The controller read that as
+        // spare capacity, unwound its shedding, and produced still more. Measured at 2000 players:
+        // shed tier sat at "none" and slicing unwound to 4-6 while the transport was destroying
+        // 5.2 million packets a second, about half of everything produced.
+        //
+        // Tick overrun answers "can I compute this?". This answers "can I deliver it?" — a
+        // different limit with a different bottleneck, and on a small or slow box it is usually the
+        // one that binds first. Having both is what lets one build adapt from a 4-core VPS to a
+        // 32-thread host without a tuned constant per machine.
+        private static long _lastUnreliableDropped;
+        private static bool _dropBaselineReady;
+        private static double _dropsPerPlayerWindow;
+
+        // Escalate above one lost packet per player per control window (~0.32 s), recover below an
+        // eighth of that. A wide hysteresis band on purpose: a handful of drops during a join burst
+        // is normal and must not ratchet the whole instance down.
+        private const double DropEscalatePerPlayer = 1.0;
+        private const double DropRecoverPerPlayer = 0.125;
+
+        /// <summary>
+        /// How far slicing may go, from config or scaled to the connected population.
+        ///
+        /// Recomputed rather than cached because the population it depends on moves, and this runs
+        /// twice per control window (~3 times a second) — far too rarely to be worth a cache.
+        /// </summary>
+        private static int MaxSliceCount() =>
+            BasisPopulationScale.SliceCap(
+                NetworkServer.Configuration?.BSRMaxSliceCount ?? 0,
+                NetworkServer.Server?.ConnectedPeersCount ?? 0);
 
         // Distance-ordered load shedding. 0 = send everything. 1 = drop VeryLow pairs (the furthest),
         // 2 = also drop Low, 3 = High only. Raised before slicing because slicing degrades everyone
@@ -1257,6 +1309,30 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 _tickWindowCount = 0;
                 _tickOverrunCount = 0;
                 _tickControlReady = true;
+
+                // Sample undeliverable packets over the same window. Normalised per player so one
+                // threshold works from 50 players to 8000 — the raw count is meaningless without
+                // knowing how many receivers produced it.
+                var transport = NetworkServer.Server;
+                long droppedNow = transport?.UnreliableDropped ?? 0;
+                int population = transport?.ConnectedPeersCount ?? 0;
+
+                if (!_dropBaselineReady)
+                {
+                    // First window has no previous sample to difference against; seeding it against
+                    // 0 would read the whole join burst as one window of catastrophic loss.
+                    _lastUnreliableDropped = droppedNow;
+                    _dropBaselineReady = true;
+                    _dropsPerPlayerWindow = 0;
+                }
+                else
+                {
+                    long delta = droppedNow - _lastUnreliableDropped;
+                    _lastUnreliableDropped = droppedNow;
+                    // The counter is monotonic, but a transport swap or restart resets it.
+                    if (delta < 0) delta = 0;
+                    _dropsPerPlayerWindow = population > 0 ? delta / (double)population : 0;
+                }
             }
 
             if (!_tickControlReady)
@@ -1269,9 +1345,22 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // period costs nothing while it stays under the shortest send interval, and it directly
             // buys back parallel efficiency (bigger batches, fewer barriers). Only once the period is
             // maxed out do we start shedding distant pairs, and only after that do we slice.
-            bool overloaded = _tickOverrunRatio > OverrunEscalateRatio;
-            bool comfortable = _tickOverrunRatio < OverrunRecoverRatio;
-            int escalationSteps = _tickOverrunRatio > OverrunPanicRatio ? PanicEscalationSteps : 1;
+            // Either limit being hit means overloaded; BOTH must be clear to give capacity back.
+            // Asymmetric on purpose — a server that is delivering everything but missing its period
+            // and a server that holds its period only by discarding half its output are both
+            // overloaded, and only the first is visible in tick time.
+            bool droppingHard = _dropsPerPlayerWindow > DropEscalatePerPlayer;
+            bool deliveringCleanly = _dropsPerPlayerWindow < DropRecoverPerPlayer;
+
+            bool overloaded = _tickOverrunRatio > OverrunEscalateRatio || droppingHard;
+            bool comfortable = _tickOverrunRatio < OverrunRecoverRatio && deliveringCleanly;
+
+            // Sustained loss is as much an emergency as a collapsing tick: at 8x the escalate
+            // threshold the instance is shedding faster than one step per window can correct.
+            bool dropPanic = _dropsPerPlayerWindow > DropEscalatePerPlayer * 8.0;
+            int escalationSteps = _tickOverrunRatio > OverrunPanicRatio || dropPanic
+                ? PanicEscalationSteps
+                : 1;
             int previousSliceCount = _sliceCount;
             int previousShedTier = _loadShedTier;
             long previousInterval = intervalMs;
@@ -1305,9 +1394,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 {
                     _loadShedTier = Math.Min(MaxLoadShedTier, _loadShedTier + escalationSteps);
                 }
-                else if (_sliceCount < 32)
+                else if (_sliceCount < MaxSliceCount())
                 {
-                    _sliceCount = Math.Min(32, _sliceCount + escalationSteps);
+                    _sliceCount = Math.Min(MaxSliceCount(), _sliceCount + escalationSteps);
                 }
             }
             else if (comfortable)
@@ -2020,6 +2109,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int cursor = 0;
             if (bundleThisFlush)
             {
+                // Group the receiver's messages by channel before chunking, so each bundle carries
+                // a handful of long runs rather than an interleaved one-channel-byte-per-entry
+                // stream. Only worth the pass when we are actually about to bundle.
+                SortPendingByChannel(stateI, pending, count);
                 cursor = EmitGreedyBundles(stateI, peer, pending, count, ref bundleCount, ref bundleBytes);
 
                 // LastBundleRatio is an EMA over what we just emitted, so this reflects real
@@ -2200,7 +2293,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int rawAccum = 0;
             while (chunkEnd < hardEnd)
             {
-                int entrySize = 3 + pending[chunkEnd].Length; // [chan:1][len:2][bytes]
+                // v50 grouped layout: [len:2][bytes] per entry, plus a [chan:1][n:1] header each
+                // time the channel changes. Pending is channel-sorted, so on a sorted array this
+                // charges the header once per run; on an unsorted one it degrades to the old
+                // 4-bytes-per-entry and merely picks smaller chunks.
+                int entrySize = 2 + pending[chunkEnd].Length;
+                if (chunkEnd == cursor || pending[chunkEnd].Channel != pending[chunkEnd - 1].Channel) entrySize += 2;
                 // Always include at least one entry so the chunk grows; only break once
                 // adding the next would exceed the predicted budget.
                 if (chunkEnd > cursor && rawAccum + entrySize > targetRaw) break;
@@ -2211,14 +2309,34 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
 
         /// <summary>
-        /// Writes <c>[origChannel:1][len:2-LE][bytes (interval-patched)]</c> for each
-        /// pending entry in <c>[start, end)</c> into <c>stateI.BundleRawScratch</c>
-        /// (grown on demand) and returns the total bytes written.
+        /// Writes the v50 grouped bundle body for <c>[start, end)</c> into
+        /// <c>stateI.BundleRawScratch</c> (grown on demand) and returns the bytes written.
+        ///
+        /// <code>
+        ///   group*  where group := [origChannel:1][n:1][len:2-LE] x n [bodies]
+        /// </code>
+        ///
+        /// One channel byte per RUN instead of per entry. Pending is channel-sorted before
+        /// bundling (see SortPendingByChannel) so runs are long, but correctness does not depend
+        /// on that — an unsorted array simply produces more, shorter groups.
+        ///
+        /// Bodies of the DeltaAvatarChannel group are COLUMN-TRANSPOSED: byte j of every body,
+        /// then byte j+1 of every body. Delta bodies are short and field-aligned, so this puts the
+        /// same field from different players next to each other, which is where the correlation
+        /// is. Measured -13.9% wire bytes on a resting crowd against the previous format.
+        /// It is applied to the delta group ONLY — transposing the fixed-size quality groups is a
+        /// LOSS, because idle players emit near-identical whole payloads there and transposing
+        /// shatters the long matches LZ4 was living on. See BundleCompressionExperiment.
+        ///
+        /// Per-entry lengths are kept even though the quality channels imply them. Deriving them
+        /// would save nothing on the delta path (those bodies are genuinely variable) and would
+        /// make the decoder depend on reproducing the serializer's exact geometry.
         /// </summary>
         private static int BuildRawForRange(PlayerState stateI, PendingAvatarSend[] pending, int start, int end)
         {
+            // 4 not 3: worst case is one group per entry ([ch][n]) plus its [len:2].
             int upperBound = 0;
-            for (int i = start; i < end; i++) upperBound += 3 + pending[i].Length;
+            for (int i = start; i < end; i++) upperBound += 4 + pending[i].Length;
 
             byte[] raw = stateI.BundleRawScratch;
             if (raw == null || raw.Length < upperBound)
@@ -2229,21 +2347,116 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             int rawPos = 0;
-            for (int i = start; i < end; i++)
+            int i2 = start;
+            while (i2 < end)
             {
-                ref PendingAvatarSend p = ref pending[i];
-                int len = p.Length;
-                if (len <= p.IntervalOffset) continue;
+                byte channel = pending[i2].Channel;
 
-                raw[rawPos++] = p.Channel;
-                BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(rawPos, 2), (ushort)len);
-                rawPos += 2;
-                Buffer.BlockCopy(p.Source, 0, raw, rawPos, len);
-                // Patch the per-receiver interval byte in our copy (source is shared).
-                raw[rawPos + p.IntervalOffset] = p.Interval;
-                rawPos += len;
+                // Extend the run while the channel holds, counting only entries that will actually
+                // be emitted. n is a byte on the wire, so a run is capped at 255 and simply
+                // continues as a second group with the same channel.
+                int runEnd = i2;
+                int n = 0;
+                while (runEnd < end && pending[runEnd].Channel == channel && n < byte.MaxValue)
+                {
+                    if (pending[runEnd].Length > pending[runEnd].IntervalOffset) n++;
+                    runEnd++;
+                }
+                if (n == 0) { i2 = runEnd; continue; }
+
+                raw[rawPos++] = channel;
+                raw[rawPos++] = (byte)n;
+
+                for (int k = i2; k < runEnd; k++)
+                {
+                    ref PendingAvatarSend p = ref pending[k];
+                    if (p.Length <= p.IntervalOffset) continue;
+                    BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(rawPos, 2), (ushort)p.Length);
+                    rawPos += 2;
+                }
+
+                if (channel != BasisNetworkCommons.DeltaAvatarChannel)
+                {
+                    for (int k = i2; k < runEnd; k++)
+                    {
+                        ref PendingAvatarSend p = ref pending[k];
+                        if (p.Length <= p.IntervalOffset) continue;
+                        Buffer.BlockCopy(p.Source, 0, raw, rawPos, p.Length);
+                        // Patch the per-receiver interval byte in our copy (source is shared).
+                        raw[rawPos + p.IntervalOffset] = p.Interval;
+                        rawPos += p.Length;
+                    }
+                }
+                else
+                {
+                    int maxLen = 0;
+                    for (int k = i2; k < runEnd; k++)
+                    {
+                        ref PendingAvatarSend p = ref pending[k];
+                        if (p.Length > p.IntervalOffset && p.Length > maxLen) maxLen = p.Length;
+                    }
+                    // The interval patch is applied as the column is written — the byte the
+                    // receiver must see at logical offset IntervalOffset is this receiver's
+                    // interval, not whatever the shared Source holds.
+                    for (int j = 0; j < maxLen; j++)
+                    {
+                        for (int k = i2; k < runEnd; k++)
+                        {
+                            ref PendingAvatarSend p = ref pending[k];
+                            if (p.Length <= p.IntervalOffset || j >= p.Length) continue;
+                            raw[rawPos++] = j == p.IntervalOffset ? p.Interval : p.Source[j];
+                        }
+                    }
+                }
+                i2 = runEnd;
             }
             return rawPos;
+        }
+
+        /// <summary>Highest channel id the counting sort histogram covers. Avatar channels top out at 48.</summary>
+        private const int ChannelHistogramSize = 64;
+
+        /// <summary>
+        /// Counting-sorts <c>pending[0, count)</c> by channel so BuildRawForRange emits few, long
+        /// groups. One O(n) pass over a 64-slot histogram rather than a comparison sort.
+        ///
+        /// This is purely an optimization: an unsorted array still encodes and decodes correctly,
+        /// just with more group headers. So the bail-outs below are safe — they cost bytes, never
+        /// correctness. Entry order carries no meaning; the send loop emits at most one message
+        /// per sender per receiver per tick, and each is dispatched independently on arrival.
+        /// </summary>
+        private static void SortPendingByChannel(PlayerState stateI, PendingAvatarSend[] pending, int count)
+        {
+            if (count < 2) return;
+
+            Span<int> offsets = stackalloc int[ChannelHistogramSize];
+            offsets.Clear();
+            for (int i = 0; i < count; i++)
+            {
+                byte c = pending[i].Channel;
+                if (c >= ChannelHistogramSize) return;   // not an avatar channel — leave as-is
+                offsets[c]++;
+            }
+
+            int running = 0;
+            for (int c = 0; c < ChannelHistogramSize; c++)
+            {
+                int n = offsets[c];
+                offsets[c] = running;
+                running += n;
+            }
+
+            PendingAvatarSend[] dst = stateI.PendingSortScratch;
+            if (dst == null || dst.Length < count)
+            {
+                dst = new PendingAvatarSend[Math.Max(count, 64)];
+                stateI.PendingSortScratch = dst;
+            }
+
+            for (int i = 0; i < count; i++) dst[offsets[pending[i].Channel]++] = pending[i];
+            Array.Copy(dst, pending, count);
+            // Drop the scratch's copy of the Source references; see the field's doc comment.
+            Array.Clear(dst, 0, count);
         }
 
         /// <summary>
@@ -3063,6 +3276,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// </summary>
         internal static int TestOnly_BuildRawForRange(PlayerState state, PendingAvatarSend[] pending, int start, int end)
             => BuildRawForRange(state, pending, start, end);
+
+        /// <summary>
+        /// Test seam (InternalsVisibleTo BasisServerTests): channel-sorts a pending range the way
+        /// the flush path does before bundling, so tests can exercise grouping on a realistically
+        /// interleaved array rather than one that happens to arrive already ordered.
+        /// </summary>
+        internal static void TestOnly_SortPendingByChannel(PlayerState state, PendingAvatarSend[] pending, int count)
+            => SortPendingByChannel(state, pending, count);
 
         /// <summary>
         /// Queues a receiver's request for a fresh keyframe from a sender (DeltaControlKeyframeRequest).

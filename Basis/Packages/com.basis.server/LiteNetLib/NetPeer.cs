@@ -454,7 +454,9 @@ namespace LiteNetLib
             // silently disable the bound if the limit were ever raised at runtime.
             int depth = Interlocked.Increment(ref _unreliableCount);
 
-            int limit = NetManager.MaxUnreliableQueuePerPeer;
+            // Resolved from population and box size on the last join/leave, not the raw config
+            // field — see NetManager.RecomputePoolCap.
+            int limit = NetManager.EffectiveUnreliableQueuePerPeer;
             if (limit <= 0 || depth <= limit) return;
 
             // Over budget: the producer is outrunning the send loop. Drop from the front until we

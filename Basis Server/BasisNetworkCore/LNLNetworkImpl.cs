@@ -221,6 +221,13 @@ namespace Basis.Network.Core
                 PeerUpdateWorkerCap = BasisCpuBudget.PeerUpdateCap,
                 PeersPerUpdateWorker = lnl.PeerUpdatePeersPerWorker > 0 ? lnl.PeerUpdatePeersPerWorker : 128,
                 MaxUnreliableQueuePerPeer = lnl.MaxUnreliableQueuePerPeer,
+                // Both ceilings below move with the connected population, so they are resolved on
+                // every join/leave rather than pinned here. A configured value wins; 0 means
+                // "size me for this box", which is the default.
+                ResolveUnreliableQueuePerPeer =
+                    peers => BasisPopulationScale.UnreliableQueuePerPeer(lnl.MaxUnreliableQueuePerPeer, peers),
+                ResolvePacketPoolMax =
+                    peers => BasisPopulationScale.PacketPoolMax(lnl.PacketPoolSizeMax, peers, lnl.PacketPoolSizePerPeer),
                 ChannelsCount = BasisNetworkCommons.TotalChannels,
                 EnableStatistics = configuration.EnableStatistics,
                 IPv6Enabled = lnl.IPv6Enabled,

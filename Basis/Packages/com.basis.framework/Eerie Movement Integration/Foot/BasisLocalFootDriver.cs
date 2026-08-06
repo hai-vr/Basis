@@ -431,7 +431,7 @@ public partial class BasisLocalFootDriver
 
         var hc = BasisLocalBoneDriver.HeadControl;
         Vector3 headPos = hc.OutgoingWorldData.position;
-        Vector3 bodyFwd = avatarTransform.forward;
+        Vector3 bodyFwd = BasisLocalPose.GetRotation(BasisPoseSlot.AvatarRoot, avatarTransform) * Vector3.forward;
         Vector3 bodyRight = Vector3.Cross(cachedPlayerUp, bodyFwd).normalized;
 
         // Allocate job NativeArrays
@@ -909,7 +909,7 @@ public partial class BasisLocalFootDriver
         if (f.bone == null) return;
 
         Vector3 origin = f.bone.position + cachedPlayerUp * (hipToFoot * 0.33f);
-        if (GroundCast(origin, -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(hips.position, cachedPlayerUp), out RaycastHit hit))
+        if (GroundCast(origin, -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), cachedPlayerUp), out RaycastHit hit))
         {
             Vector3 snapped = hit.point + hit.normal * footHeightOffset;
             f.currentPos = f.plantedPos = f.idealPos = snapped;
@@ -944,7 +944,7 @@ public partial class BasisLocalFootDriver
         var headData = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
         var hipsData = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
         var chestCtrl = BasisLocalBoneDriver.ChestControl;
-        Vector3 hipsPosition = hips.position;
+        Vector3 hipsPosition = BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips);
         float hipsUpComponent = Vector3.Dot(hipsPosition, cachedPlayerUp);
         bool groundHit = GroundCast(hipsPosition, -cachedPlayerUp, rayCastRange, 0f, hipsUpComponent, out RaycastHit ch);
         LastGroundHit = groundHit;
@@ -961,7 +961,7 @@ public partial class BasisLocalFootDriver
         }
 
         // ── 2. Pack input (write in place; no job is in flight here) ──
-        Quaternion avatarRotation = avatarTransform.rotation;
+        Quaternion avatarRotation = BasisLocalPose.GetRotation(BasisPoseSlot.AvatarRoot, avatarTransform);
         ref BasisFootSimInput inputSlot = ref UnsafeUtility.ArrayElementAsRef<BasisFootSimInput>(_nativeInput.GetUnsafePtr(), 0);
         inputSlot = new BasisFootSimInput
         {
@@ -1064,7 +1064,7 @@ public partial class BasisLocalFootDriver
         // read as a real step rather than a scuff is that the body is turning at all, which is what yawFrac tracks.
         f.stepArcScale = BasisFootSimulateJob.TurnStepArcFloor * yawPacing;
 
-        float hipsUpComp = Vector3.Dot(hips.position, cachedPlayerUp);
+        float hipsUpComp = Vector3.Dot(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), cachedPlayerUp);
         Vector3 targetXZ = f.predictedTargetXZ;
         Vector3 rayOrig = targetXZ + cachedPlayerUp * rayCastRange * 0.5f;
         if (GroundCast(rayOrig, -cachedPlayerUp, rayCastRange, raySphereRadius, hipsUpComp, out RaycastHit hit))
@@ -1091,7 +1091,7 @@ public partial class BasisLocalFootDriver
         Vector3 stp = f.stepTargetPos;
         // Project hips onto the same up-level as the step target
         float stpUpComp = Vector3.Dot(stp, cachedPlayerUp);
-        Vector3 hipsFlat = ProjectHorizontal(hips.position);
+        Vector3 hipsFlat = ProjectHorizontal(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips));
         Vector3 hGround = hipsFlat + cachedPlayerUp * stpUpComp;
         EnforceSide(ref stp, hGround, rawR, f.sideSign, stanceWidth * stepTargetSideFraction);
         f.stepTargetPos = stp;
@@ -1207,7 +1207,7 @@ public partial class BasisLocalFootDriver
             ballD = footLength * k_BallProbeFrac,
             toeD = footLength * k_ToeProbeFrac,
             halfW = footLength * k_FootHalfWidthFrac,
-            hipsUpComp = Vector3.Dot(hips.position, cachedPlayerUp),
+            hipsUpComp = Vector3.Dot(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), cachedPlayerUp),
         };
 
         // Same origin convention as FinalizeStep: start half the ray range above so a step riser cannot be
@@ -1448,7 +1448,7 @@ public partial class BasisLocalFootDriver
                 return accumulated.normalized;
         }
 
-        return avatarTransform.forward;
+        return BasisLocalPose.GetRotation(BasisPoseSlot.AvatarRoot, avatarTransform) * Vector3.forward;
     }
 
     /// <summary>
@@ -1472,11 +1472,13 @@ public partial class BasisLocalFootDriver
         footAlignRight = Quaternion.identity;
         if (avatarTransform == null) return;
 
-        Quaternion restFrame = BuildFootFrame(avatarTransform.forward, avatarTransform.up, avatarTransform.up);
+        Quaternion avatarRot = BasisLocalPose.GetRotation(BasisPoseSlot.AvatarRoot, avatarTransform);
+        Vector3 avatarUp = avatarRot * Vector3.up;
+        Quaternion restFrame = BuildFootFrame(avatarRot * Vector3.forward, avatarUp, avatarUp);
         Quaternion invRest = Quaternion.Inverse(restFrame);
 
-        if (lf != null) footAlignLeft = invRest * lf.rotation;
-        if (rf != null) footAlignRight = invRest * rf.rotation;
+        if (lf != null) footAlignLeft = invRest * lf.GetRotation();
+        if (rf != null) footAlignRight = invRest * rf.GetRotation();
     }
 
     /// <summary>
@@ -1569,7 +1571,7 @@ public partial class BasisLocalFootDriver
     {
         if (hips != null && left.bone != null && right.bone != null)
         {
-            float hipsAlongUp = Vector3.Dot(hips.position, cachedPlayerUp);
+            float hipsAlongUp = Vector3.Dot(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), cachedPlayerUp);
             float feetAlongUp = (Vector3.Dot(left.bone.position, cachedPlayerUp) + Vector3.Dot(right.bone.position, cachedPlayerUp)) * 0.5f;
             hipToFoot = Mathf.Max(0.15f, Mathf.Abs(hipsAlongUp - feetAlongUp));
         }
@@ -1602,7 +1604,7 @@ public partial class BasisLocalFootDriver
         }
 
         Vector3 bp = f.bone.position;
-        if (GroundCast(bp + cachedPlayerUp * (hipToFoot * 0.33f), -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(hips.position, cachedPlayerUp), out RaycastHit hit))
+        if (GroundCast(bp + cachedPlayerUp * (hipToFoot * 0.33f), -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), cachedPlayerUp), out RaycastHit hit))
         {
             f.currentPos = f.plantedPos = f.idealPos = hit.point + hit.normal * footHeightOffset;
             f.filteredNormal = hit.normal;
@@ -1612,10 +1614,10 @@ public partial class BasisLocalFootDriver
             f.currentPos = f.plantedPos = f.idealPos = bp;
             f.filteredNormal = cachedPlayerUp;
         }
-        Vector3 fwd = avatarTransform != null ? avatarTransform.forward : Vector3.forward;
+        Vector3 fwd = avatarTransform != null ? BasisLocalPose.GetRotation(BasisPoseSlot.AvatarRoot, avatarTransform) * Vector3.forward : Vector3.forward;
         f.currentRot = f.plantedRot = f.stepStartRot = FootRotation(fwd, f.filteredNormal, f.sideSign < 0 ? footAlignLeft : footAlignRight);
         f.phase = BasisFootPhase.Planted;
-        f.kneeHint = (hips.position + f.currentPos) * 0.5f + fwd * (f.thighLen > 0 ? f.thighLen * 0.4f : 0.12f);
+        f.kneeHint = (BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips) + f.currentPos) * 0.5f + fwd * (f.thighLen > 0 ? f.thighLen * 0.4f : 0.12f);
     }
     /// <summary>
     /// Vertical hip offset for the walk bob. RISES at mid-swing -- mid-swing of one leg is mid-STANCE of the
@@ -1670,7 +1672,7 @@ public partial class BasisLocalFootDriver
     public Vector3 RightStepTarget => right.stepTargetPos;
     public Vector3 SmoothedVelocity => smoothedVelocity;
     public float Speed => smoothedVelocity.magnitude;
-    public Vector3 HipsPosition => hips.position;
+    public Vector3 HipsPosition => BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips);
     public float CalibratedStanceWidth => stanceWidth;
     public float CalibratedHipToFoot => hipToFoot;
     public float CalibratedLeftLeg => leftLegLen;
@@ -1714,7 +1716,7 @@ public partial class BasisLocalFootDriver
 
         if (hips != null)
         {
-            Vector3 hp = hips.position;
+            Vector3 hp = BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips);
             Vector3 bf = BodyForward();
             BasisGizmoManager.UpdateLineGizmo(_gBodyForward, hp, hp + bf * 0.4f);
             BasisGizmoManager.SetGizmoActive(_gBodyForward, true);
@@ -1788,7 +1790,7 @@ public partial class BasisLocalFootDriver
 
         if (hips != null)
         {
-            BasisGizmoManager.UpdateLineGizmo(_gHipFoot[slot], hips.position, f.currentPos);
+            BasisGizmoManager.UpdateLineGizmo(_gHipFoot[slot], BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), f.currentPos);
             BasisGizmoManager.UpdateGizmoColor(_gHipFoot[slot], c * 0.3f);
             BasisGizmoManager.SetGizmoActive(_gHipFoot[slot], true);
         }

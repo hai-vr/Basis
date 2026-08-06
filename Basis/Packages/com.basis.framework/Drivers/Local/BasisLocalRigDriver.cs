@@ -1557,7 +1557,7 @@ namespace Basis.Scripts.Drivers
             if (control == null) return;
             if (has && bone != null)
             {
-                bone.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
+                bone.GetPose(out Vector3 position, out Quaternion rotation);
                 control.SetIKWorldData(position, rotation);
             }
             else

@@ -5,6 +5,26 @@ using System.Xml.Serialization;
 
 namespace Basis.Network.Core
 {
+    /// <summary>
+    /// Implemented by a transport config that needs to change values it has already written to
+    /// disc, not merely gain new ones.
+    ///
+    /// The normal upgrade path deliberately preserves every value already in the file — an operator
+    /// who set something meant it. That is the wrong behaviour exactly once: when a shipped default
+    /// turns out to be harmful, every existing install is carrying it explicitly and would never
+    /// receive the fix. A migration may then replace that specific value, and must leave anything
+    /// else alone.
+    /// </summary>
+    public interface IBasisTransportConfigMigration
+    {
+        /// <summary>
+        /// Called immediately after deserialisation with the version found in the file, before the
+        /// missing-settings upgrade runs. Implementations must be idempotent and must only touch
+        /// values they can recognise as the old default.
+        /// </summary>
+        void MigrateFrom(int loadedVersion);
+    }
+
     public static class BasisTransportConfigStore
     {
         public const string TransportsFolderName = "transports";
@@ -116,6 +136,15 @@ namespace Basis.Network.Core
                     using (StreamReader reader = new StreamReader(path))
                     {
                         loaded = serializer.Deserialize(reader);
+                    }
+
+                    // Retire values a newer build knows are harmful, before the upgrade below
+                    // re-saves the file. Adding settings is not enough here: a bad default already
+                    // written to disc is indistinguishable from a deliberate choice unless the
+                    // config itself says which it was.
+                    if (loaded is IBasisTransportConfigMigration migratable)
+                    {
+                        migratable.MigrateFrom(BasisConfigXmlDocs.ReadVersion(loaded));
                     }
 
                     // Heal an older sidecar: re-save when it predates the current schema version

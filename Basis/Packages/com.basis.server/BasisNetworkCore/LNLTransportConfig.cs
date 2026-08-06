@@ -3,10 +3,40 @@ using System;
 namespace Basis.Network.Core
 {
     [Serializable]
-    public sealed class LNLTransportConfig
+    public sealed class LNLTransportConfig : IBasisTransportConfigMigration
     {
         /// <summary>Bump to force existing files to be rewritten; newly-added fields are healed automatically on load.</summary>
-        public const int CurrentConfigVersion = 7;
+        public const int CurrentConfigVersion = 8;
+
+        /// <summary>Values written by version 7 and earlier that version 8 replaces with auto-scaling.</summary>
+        private const int LegacyMaxUnreliableQueuePerPeer = 256;
+        private const int LegacyPacketPoolSizeMax = 262144;
+
+        /// <summary>
+        /// Version 8 turned two fixed ceilings into auto-scaled ones. Both were written explicitly
+        /// into every existing file, so the normal "add missing settings" upgrade would have left
+        /// every deployed server on the old values — including the 256-packet queue bound that was
+        /// measured discarding roughly half of all avatar updates at 2000 players.
+        ///
+        /// Only the exact shipped defaults are retired. An operator who pinned 512, or 1024, meant
+        /// it and keeps it.
+        /// </summary>
+        public void MigrateFrom(int loadedVersion)
+        {
+            if (loadedVersion >= 8) return;
+
+            if (MaxUnreliableQueuePerPeer == LegacyMaxUnreliableQueuePerPeer)
+            {
+                MaxUnreliableQueuePerPeer = 0;
+                BNL.Log("[Config] MaxUnreliableQueuePerPeer was the old fixed 256, which sheds heavily past ~1000 players; switching it to automatic sizing.");
+            }
+
+            if (PacketPoolSizeMax == LegacyPacketPoolSizeMax)
+            {
+                PacketPoolSizeMax = 0;
+                BNL.Log("[Config] PacketPoolSizeMax was the old fixed 262144, which caps the pool from ~5400 peers upward; switching it to automatic sizing.");
+            }
+        }
         /// <summary>Schema version stamped into the file; 0 = pre-versioning, upgraded on load.</summary>
         public int ConfigVersion = 0;
 
@@ -64,7 +94,16 @@ namespace Basis.Network.Core
         /// </summary>
         public int MaxSendSockets = 0;
         public int PacketPoolSizePerPeer = 48;
-        public int PacketPoolSizeMax = 262144;
+
+        /// <summary>
+        /// Ceiling on the peer-scaled packet pool. <b>0 = scale automatically</b> from population
+        /// and available memory.
+        ///
+        /// It was a fixed 262144, which is the wall from roughly 5400 peers upward: at 8000 the
+        /// per-peer rule asks for 384000 and every recycle past the cap is discarded for the GC to
+        /// re-allocate. Set a positive value only to pin it.
+        /// </summary>
+        public int PacketPoolSizeMax = 0;
 
         /// <summary>
         /// How long (ms) a partly-filled merge buffer may wait for more data before being sent.
@@ -111,13 +150,23 @@ namespace Basis.Network.Core
         public int PeerUpdatePeersPerWorker = 0;
 
         /// <summary>
-        /// Maximum unreliable packets queued per peer before the oldest are dropped. 0 = unbounded.
+        /// Maximum unreliable packets queued per peer before the oldest are dropped.
+        /// <b>0 = scale automatically from population and available memory</b> (recommended).
         ///
         /// This is the backstop that keeps an overloaded server alive. Unbounded, a server that
         /// cannot drain its send queue grows the backlog instead — measured at 2000 players, the
         /// queue reached ~40 GB before every peer timed out and the instance was lost. Bounded, the
         /// same overload costs dropped position updates and everyone stays connected.
+        ///
+        /// ⚠️ It was a fixed 256, and that was too small to be only a backstop. At 2000 players the
+        /// reduction system's per-tick fan-out exceeded it, so roughly <b>half of every avatar
+        /// update was destroyed here</b> — and because dropping is far cheaper than sending, the
+        /// producer saw fast ticks, concluded it had spare capacity, and increased its output.
+        /// Raising it to 4096 on the same load measured zero drops, 22% more delivered bytes and
+        /// 21% LESS CPU. Auto now sizes it per box; see <c>BasisPopulationScale</c>.
+        ///
+        /// Set a positive value only to pin it for a reproducible measurement.
         /// </summary>
-        public int MaxUnreliableQueuePerPeer = 256;
+        public int MaxUnreliableQueuePerPeer = 0;
     }
 }

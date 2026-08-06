@@ -1,6 +1,7 @@
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers; // for BasisLocalInputActions
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Basis.Scripts.BasisCharacterController
@@ -43,8 +44,13 @@ namespace Basis.Scripts.BasisCharacterController
 
             if (ctx.MovementLock) move = Vector3.zero;
 
-            ctx.Flags = ctx.characterController.Move(move);
-            ctx.BasisLocalPlayerTransform.GetPositionAndRotation(out ctx.CurrentPosition, out ctx.CurrentRotation);
+            using (BasisLocalCharacterDriver.MovePhysicsMarker.Auto())
+            {
+                ctx.Flags = ctx.characterController.Move(move);
+            }
+            // PhysX writes the root transform directly; the pose cache cannot observe it.
+            BasisLocalPose.InvalidateAll();
+            ctx.BasisLocalPlayerTransform.GetPose(out ctx.CurrentPosition, out ctx.CurrentRotation);
 
             // Flight state
             ctx.groundedPlayer = false;

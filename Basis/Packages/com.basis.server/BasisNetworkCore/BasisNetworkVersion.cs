@@ -61,6 +61,23 @@ namespace Basis.Network.Core
         //     session — a predictive chain cannot be decimated and the P2P path throttles the server.
         //     Wire-incompatible in both directions: a v48 peer parses a v49 delta body as verbatim
         //     field bytes and reconstructs garbage.
-        public static ushort ServerVersion = 49;
+        // 50: the compressed avatar bundle (channel 52) groups its entries by channel instead of
+        //     repeating the channel byte on every one. Body becomes
+        //     [origChannel:1][n:1][msgLen:2-LE] x n [bodies] per group, and the server channel-sorts
+        //     a receiver's pending messages (counting sort, one O(n) pass) so the runs are long.
+        //     The DeltaAvatarChannel group's bodies are additionally COLUMN-TRANSPOSED — byte j of
+        //     every body, then byte j+1 of every body. Delta bodies are short and field-aligned, so
+        //     interleaving them puts the same field from different players adjacent, which is the
+        //     only correlation left in a stream that is already quantized, bit-packed and
+        //     delta-coded. Measured -13.9% wire bytes on a resting crowd and -4.5% on a moving one
+        //     against v49; keyframe bundles are -1.1%. Transposition is applied to the delta group
+        //     ONLY: doing it to the fixed-size quality groups is a LOSS, because idle players emit
+        //     near-identical whole payloads there and transposing shatters the long matches LZ4 was
+        //     living on. See BundleCompressionExperiment in BasisServerTests for the corpus and
+        //     the full table, including why per-entry lengths are still sent verbatim rather than
+        //     derived from the channel (worth 1.6pp on keyframes, zero on deltas, and it would make
+        //     the decoder depend on reproducing the serializer's exact byte geometry).
+        //     Wire-incompatible in both directions: a v49 peer reads the [n] byte as a length.
+        public static ushort ServerVersion = 50;
     }
 }

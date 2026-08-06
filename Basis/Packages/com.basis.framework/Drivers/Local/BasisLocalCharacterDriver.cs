@@ -113,6 +113,12 @@ namespace Basis.Scripts.BasisCharacterController
         private bool _sizeCache_HasEye;
         private float _sizeCache_Radius;
         private bool _sizeCache_Valid;
+
+        private float _appliedRadius = float.NaN;
+        private float _appliedSkinWidth = float.NaN;
+        private float _appliedHeight = float.NaN;
+        private Vector3 _appliedCenter = new Vector3(float.NaN, float.NaN, float.NaN);
+        private float _appliedStepOffset = float.NaN;
         public Vector2 MovementVector { get; private set; }
         /// <summary>
         /// A value between 0 and 1 representing the relative speed of player movement.
@@ -171,7 +177,7 @@ namespace Basis.Scripts.BasisCharacterController
             BasisLocalPlayerTransform = localPlayer.transform;
             LocalAnimatorDriver = localPlayer.LocalAnimatorDriver;
             characterController.minMoveDistance = 0;
-            characterController.skinWidth = 0.01f;
+            ApplySkinWidth(0.01f);
             if (!HasEvents)
             {
                 HasEvents = true;
@@ -204,6 +210,7 @@ namespace Basis.Scripts.BasisCharacterController
         static readonly ProfilerMarker sMarkerMoveSize = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Size");
         static readonly ProfilerMarker sMarkerMoveMode = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Mode");
         static readonly ProfilerMarker sMarkerMoveTurn = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Turn");
+        public static readonly ProfilerMarker MovePhysicsMarker = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Physics");
 
         public void SimulateMovement(float DeltaTime)
         {
@@ -211,8 +218,8 @@ namespace Basis.Scripts.BasisCharacterController
             {
 
                 // If you want basis localToWorld using the *new* pose:
-                BasisLocalPlayerTransform.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
-                BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(Position, Rotation, BasisLocalPlayerTransform.lossyScale);
+                BasisLocalPose.GetPose(BasisPoseSlot.PlayerRoot, BasisLocalPlayerTransform, out Vector3 Position, out Quaternion Rotation);
+                BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(Position, Rotation, BasisLocalPose.GetLossyScale(BasisPoseSlot.PlayerRoot, BasisLocalPlayerTransform));
                 return;
             }
             sMarkerMoveSize.Begin();
@@ -279,31 +286,39 @@ namespace Basis.Scripts.BasisCharacterController
             }
 
 
-            // Get the current rotation and position of the player
-            Vector3 pivot = BasisLocalBoneDriver.EyeControl.OutgoingWorldData.position;
-            Vector3 upAxis = Vector3.up;
+            Vector3 newPos;
+            Quaternion newRot;
+            if (rotationAmount != 0f)
+            {
+                // Get the current rotation and position of the player
+                Vector3 pivot = BasisLocalBoneDriver.EyeControl.OutgoingWorldData.position;
+                Vector3 upAxis = Vector3.up;
 
-            // Calculate direction from the pivot to the current position
-            Vector3 directionToPivot = CurrentPosition - pivot;
+                // Calculate direction from the pivot to the current position
+                Vector3 directionToPivot = CurrentPosition - pivot;
 
-            // Calculate rotation quaternion based on the rotation amount and axis
-            Quaternion rotation = Quaternion.AngleAxis(rotationAmount, upAxis);
+                // Calculate rotation quaternion based on the rotation amount and axis
+                Quaternion rotation = Quaternion.AngleAxis(rotationAmount, upAxis);
 
-            // Apply rotation to the direction vector
-            Vector3 rotatedDirection = rotation * directionToPivot;
+                // Apply rotation to the direction vector
+                Vector3 rotatedDirection = rotation * directionToPivot;
 
-            Vector3 FinalRotation = pivot + rotatedDirection;
+                newPos = pivot + rotatedDirection;
+                newRot = rotation * CurrentRotation;
 
-            BasisLocalPlayerTransform.SetPositionAndRotation(FinalRotation, rotation * CurrentRotation);
+                BasisLocalPlayerTransform.SetPose(newPos, newRot);
+            }
+            else
+            {
+                newPos = CurrentPosition;
+                newRot = CurrentRotation;
+            }
 
-            float HeightOffset = (characterController.height / 2) - characterController.radius;
-            bottomPointLocalSpace = FinalRotation + (characterController.center - new Vector3(0, HeightOffset, 0));
-
-            Quaternion newRot = rotation * CurrentRotation;
-            Vector3 newPos = FinalRotation;
+            float HeightOffset = (_appliedHeight / 2) - radius;
+            bottomPointLocalSpace = newPos + (_appliedCenter - new Vector3(0, HeightOffset, 0));
 
             // If you want basis localToWorld using the *new* pose:
-            BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(newPos, newRot, BasisLocalPlayerTransform.lossyScale);
+            BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(newPos, newRot, BasisLocalPose.GetLossyScale(BasisPoseSlot.PlayerRoot, BasisLocalPlayerTransform));
             sMarkerMoveTurn.End();
         }
 
@@ -478,7 +493,9 @@ namespace Basis.Scripts.BasisCharacterController
 
             // Move character
             Flags = characterController.Move(totalMoveDirection);
-            BasisLocalPlayerTransform.GetPositionAndRotation(out CurrentPosition, out CurrentRotation);
+            // PhysX writes the root transform directly; the pose cache cannot observe it.
+            BasisLocalPose.InvalidateAll();
+            BasisLocalPlayerTransform.GetPose(out CurrentPosition, out CurrentRotation);
         }
         // Authored (unscaled) capsule dimensions, captured once. CalculateCharacterSize writes
         // avatar-scaled values back onto the controller, so re-reading the controller on a later
@@ -524,8 +541,44 @@ namespace Basis.Scripts.BasisCharacterController
                 _authoredStepOffset = characterController.stepOffset;
             }
 
-            characterController.radius = radius;
+            ApplyRadius(radius);
         }
+
+        private void ApplyRadius(float value)
+        {
+            if (_appliedRadius == value) return;
+            _appliedRadius = value;
+            characterController.radius = value;
+        }
+
+        private void ApplySkinWidth(float value)
+        {
+            if (_appliedSkinWidth == value) return;
+            _appliedSkinWidth = value;
+            characterController.skinWidth = value;
+        }
+
+        private void ApplyHeight(float value)
+        {
+            if (_appliedHeight == value) return;
+            _appliedHeight = value;
+            characterController.height = value;
+        }
+
+        private void ApplyCenter(Vector3 value)
+        {
+            if (_appliedCenter.x == value.x && _appliedCenter.y == value.y && _appliedCenter.z == value.z) return;
+            _appliedCenter = value;
+            characterController.center = value;
+        }
+
+        private void ApplyStepOffset(float value)
+        {
+            if (_appliedStepOffset == value) return;
+            _appliedStepOffset = value;
+            characterController.stepOffset = value;
+        }
+
         public void CalculateCharacterSize()
         {
             bool hasEye = BasisLocalBoneDriver.HasEye;
@@ -574,41 +627,41 @@ namespace Basis.Scripts.BasisCharacterController
 
             if (_authoredRadius > 0f)
             {
-                characterController.radius = radius;
-                characterController.skinWidth = _authoredSkinWidth * sizeRatio;
+                ApplyRadius(radius);
+                ApplySkinWidth(_authoredSkinWidth * sizeRatio);
             }
 
             // Ensure height is valid relative to radius
             float minHeight = 2f * radius + 0.001f;
             float finalHeight = Mathf.Max(rawEyeHeight, minHeight);
 
-            characterController.height = finalHeight;
+            ApplyHeight(finalHeight);
 
             float halfHeight = finalHeight * 0.5f;
 
             // Offset the capsule down by skinWidth so the collider bottom
             // (including its skin shell) sits flush with the floor instead
             // of hovering skinWidth above it.
-            float skinCompensation = characterController.skinWidth;
+            float skinCompensation = _appliedSkinWidth;
 
             if (hasEye)
             {
-                characterController.center = new Vector3(eyePos.x, halfHeight - skinCompensation, eyePos.z);
+                ApplyCenter(new Vector3(eyePos.x, halfHeight - skinCompensation, eyePos.z));
             }
             else
             {
-                characterController.center = new Vector3(0f, halfHeight - skinCompensation, 0f);
+                ApplyCenter(new Vector3(0f, halfHeight - skinCompensation, 0f));
             }
 
             // Clamp stepOffset to something sane relative to height
-            float maxStep = (finalHeight + 2f * characterController.radius) - 0.001f;
+            float maxStep = (finalHeight + 2f * radius) - 0.001f;
             maxStep = Mathf.Max(0f, maxStep);
             maxStep = Mathf.Min(maxStep, finalHeight * 0.25f);
 
             // Assignment, not Min-against-itself: Mathf.Min is monotonic decreasing, so shrinking the
             // avatar and growing it back left stepOffset stuck at the small value for the whole session.
             float desiredStep = _authoredStepOffset > 0f ? _authoredStepOffset * sizeRatio : maxStep;
-            characterController.stepOffset = Mathf.Min(desiredStep, maxStep);
+            ApplyStepOffset(Mathf.Min(desiredStep, maxStep));
 
             _sizeCache_HasEye = hasEye;
             _sizeCache_EyePos = eyePos;

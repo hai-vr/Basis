@@ -801,9 +801,11 @@ public class AdditionalDataPipelineTests : IDisposable
     [Fact]
     public void BundlePath_KeyframeAndDelta_WithFaceData_RoundTripLosslessly()
     {
-        // Channel-52 bundles: the server packs [chan:1][len:2-LE][bytes]* and LZ4s the block;
-        // the client inflates and re-dispatches by inner channel. Face data and the per-receiver
-        // interval patch must survive; the patch must not bleed into the additional tail.
+        // Channel-52 bundles: the server packs [chan:1][n:1][len:2-LE]xn[bodies] groups and LZ4s
+        // the block; the client inflates, flattens via BasisAvatarBundleCodec and re-dispatches by
+        // inner channel. Face data and the per-receiver interval patch must survive; the patch must
+        // not bleed into the additional tail. The delta group is column-transposed on the way out,
+        // so this also covers the un-transpose against a real serialized delta.
         var rng = new Random(1019);
         byte[] kfPayload = S.MakeRealisticPayload(BitQuality.High, rng);
         LocalAvatarSyncMessage kfIngested = IngestKeyframe(WriteUplinkKeyframe(1, kfPayload, MakeAdditional()), true, out _);
@@ -856,10 +858,14 @@ public class AdditionalDataPipelineTests : IDisposable
         Assert.True(reader.TryGetByte(out _));
         Assert.True(reader.TryGetUShort(out ushort parsedRawLen));
         Assert.Equal(rawLen, parsedRawLen);
-        byte[] scratch = new byte[parsedRawLen];
+        byte[] grouped = new byte[parsedRawLen];
         int decoded = K4os.Compression.LZ4.LZ4Codec.Decode(
-            reader.RawData.AsSpan(reader.Position, reader.AvailableBytes), scratch.AsSpan(0, parsedRawLen));
+            reader.RawData.AsSpan(reader.Position, reader.AvailableBytes), grouped.AsSpan(0, parsedRawLen));
         Assert.Equal(parsedRawLen, decoded);
+
+        // Ungroup + un-transpose exactly like the client does before dispatching.
+        byte[] scratch = new byte[BasisAvatarBundleCodec.MaxFlatSize(decoded)];
+        Assert.True(BasisAvatarBundleCodec.TryFlatten(grouped.AsSpan(0, decoded), scratch, out decoded));
 
         int offset = 0;
         int innerSeen = 0;

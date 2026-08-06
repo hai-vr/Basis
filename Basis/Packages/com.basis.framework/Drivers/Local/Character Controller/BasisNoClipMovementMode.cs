@@ -70,13 +70,14 @@ namespace Basis.Scripts.BasisCharacterController
             if (ctx.MovementLock) move = Vector3.zero;
 
             // Ghost move: translate transform directly
-            ctx.BasisLocalPlayerTransform.position += move;
+            Vector3 ghostPosition = ctx.BasisLocalPlayerTransform.GetPosition() + move;
+            ctx.BasisLocalPlayerTransform.SetPosition(ghostPosition);
 
             // Keep trigger probe perfectly aligned with the player
             if (_triggerBody != null)
             {
-                _triggerBody.position = ctx.BasisLocalPlayerTransform.position;
-                _triggerBody.rotation = ctx.BasisLocalPlayerTransform.rotation;
+                _triggerBody.position = ghostPosition;
+                _triggerBody.rotation = ctx.BasisLocalPlayerTransform.GetRotation();
             }
             var cc = ctx.characterController;
             if (cc != null && _triggerCapsule != null)

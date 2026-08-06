@@ -160,6 +160,11 @@ namespace Basis.Network.Server
                         // updates because it cannot drain what it produces — the one number that
                         // distinguishes "busy" from "past capacity", and there was no way to see it.
                         $"\"droppedUnreliable\":{NetworkServer.Server.UnreliableDropped}," +
+                        // The bound those drops are measured against. Without it the drop count is
+                        // unreadable — you cannot tell a server that is genuinely past capacity from
+                        // one whose queue is simply sized too small, which is exactly the confusion
+                        // that let a fixed 256 shed half of all avatar updates unnoticed.
+                        $"\"queuePerPeer\":{(NetworkServer.Server as LNLNetManager)?.manager?.EffectiveUnreliableQueuePerPeer ?? 0}," +
                         $"\"currentTime\":\"{nowUtc:O}\"," +
                         $"\"startTime\":\"{startTimeUtc:O}\"," +
                         $"\"version\":\"{BasisNetworkVersion.ServerVersion}\"" +

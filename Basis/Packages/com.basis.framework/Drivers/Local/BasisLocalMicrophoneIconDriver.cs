@@ -96,7 +96,7 @@ namespace Basis.Scripts.Drivers
             if (SpriteRendererIcon != null)
             {
                 SpriteRendererIconTransform = SpriteRendererIcon.transform;
-                StartingScale = SpriteRendererIconTransform.localScale;
+                StartingScale = SpriteRendererIconTransform.GetLocalScale();
                 largerScale = StartingScale * 1.2f;
             }
 
@@ -229,7 +229,7 @@ namespace Basis.Scripts.Drivers
         private static void PlayMicClickOneShot(AudioClip clip, Vector3 position, float volume)
         {
             GameObject go = new GameObject("MicClickOneShot");
-            go.transform.position = position;
+            go.transform.SetPosition(position);
             AudioSource src = go.AddComponent<AudioSource>();
             src.clip = clip;
             src.spatialBlend = 0f;
@@ -363,7 +363,7 @@ namespace Basis.Scripts.Drivers
             {
                 // If hidden, you can choose what scale to keep.
                 // Usually safest to reset to starting so next show is clean.
-                SpriteRendererIconTransform.localScale = StartingScale;
+                SpriteRendererIconTransform.SetLocalScale(StartingScale);
                 StopScaleBounce();
                 return;
             }
@@ -371,7 +371,7 @@ namespace Basis.Scripts.Drivers
             if (!isScaling)
             {
                 // Ensure idle scale is consistent (especially after hide/show)
-                SpriteRendererIconTransform.localScale = StartingScale;
+                SpriteRendererIconTransform.SetLocalScale(StartingScale);
                 return;
             }
 
@@ -380,22 +380,22 @@ namespace Basis.Scripts.Drivers
 
             if (scalingUp)
             {
-                SpriteRendererIconTransform.localScale = Vector3.Lerp(StartingScale, largerScale, t);
+                SpriteRendererIconTransform.SetLocalScale(Vector3.Lerp(StartingScale, largerScale, t));
 
                 if (t >= 1f)
                 {
-                    SpriteRendererIconTransform.localScale = largerScale;
+                    SpriteRendererIconTransform.SetLocalScale(largerScale);
                     scalingUp = false;
                     scaleTime = 0f;
                 }
             }
             else
             {
-                SpriteRendererIconTransform.localScale = Vector3.Lerp(largerScale, StartingScale, t);
+                SpriteRendererIconTransform.SetLocalScale(Vector3.Lerp(largerScale, StartingScale, t));
 
                 if (t >= 1f)
                 {
-                    SpriteRendererIconTransform.localScale = StartingScale;
+                    SpriteRendererIconTransform.SetLocalScale(StartingScale);
                     isScaling = false;
                 }
             }

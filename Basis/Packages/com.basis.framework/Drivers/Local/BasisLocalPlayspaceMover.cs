@@ -5,6 +5,7 @@ using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
+using Basis.Scripts.BasisCharacterController;
 using UnityEngine;
 
 namespace Basis.Scripts.Drivers
@@ -195,7 +196,7 @@ namespace Basis.Scripts.Drivers
                 drag.y = 0f;
                 if (drag.sqrMagnitude > 1e-10f)
                 {
-                    player.transform.GetPositionAndRotation(out Vector3 hpos, out Quaternion hrot);
+                    BasisLocalPose.GetPose(BasisPoseSlot.PlayerRoot, player.transform, out Vector3 hpos, out Quaternion hrot);
                     Apply(player, hpos, hpos + drag, hrot);
                 }
             }
@@ -241,7 +242,7 @@ namespace Basis.Scripts.Drivers
                 _prevRightRawY = rightRawY;
             }
 
-            player.transform.GetPositionAndRotation(out Vector3 pcur, out Quaternion qcur);
+            BasisLocalPose.GetPose(BasisPoseSlot.PlayerRoot, player.transform, out Vector3 pcur, out Quaternion qcur);
 
             Vector3 newPos;
             Quaternion newRot;
@@ -322,7 +323,7 @@ namespace Basis.Scripts.Drivers
             var player = BasisLocalPlayer.Instance;
             if (player != null && _offsetPos.sqrMagnitude > 1e-8f)
             {
-                player.transform.GetPositionAndRotation(out Vector3 p, out Quaternion r);
+                BasisLocalPose.GetPose(BasisPoseSlot.PlayerRoot, player.transform, out Vector3 p, out Quaternion r);
                 player.Teleport(p - _offsetPos, r);
             }
             _offsetPos = Vector3.zero;
@@ -530,16 +531,21 @@ namespace Basis.Scripts.Drivers
                     delta.y = -Mathf.Max(driver.characterController.skinWidth * 4f, 0.02f);
                 }
 
-                driver.characterController.Move(delta);
-                t.rotation = newRot;
+                using (BasisLocalCharacterDriver.MovePhysicsMarker.Auto())
+                {
+                    driver.characterController.Move(delta);
+                }
+                // PhysX writes the root transform directly; the pose cache cannot observe it.
+                BasisLocalPose.InvalidateAll();
+                t.SetRotation(newRot);
             }
             else
             {
-                t.SetPositionAndRotation(newPos, newRot);
+                t.SetPose(newPos, newRot);
             }
 
-            t.GetPositionAndRotation(out Vector3 finalPos, out Quaternion finalRot);
-            BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(finalPos, finalRot, t.lossyScale);
+            t.GetPose(out Vector3 finalPos, out Quaternion finalRot);
+            BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(finalPos, finalRot, BasisLocalPose.GetLossyScale(BasisPoseSlot.PlayerRoot, t));
             driver.CurrentPosition = finalPos;
             driver.CurrentRotation = finalRot;
 

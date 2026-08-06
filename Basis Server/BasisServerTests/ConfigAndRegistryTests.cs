@@ -164,7 +164,8 @@ public class ServerConfigurationDefaultsTests
     public void Defaults_VersioningAndFolderConstants()
     {
         // 5: added EnableUplinkAvatarStream, so existing files get rewritten with its doc comment.
-        Assert.Equal(5, Configuration.CurrentConfigVersion);
+        // 6: added BSRMaxSliceCount.
+        Assert.Equal(6, Configuration.CurrentConfigVersion);
         Assert.Equal(0, new Configuration().ConfigVersion);
         Assert.Equal("config", Configuration.ConfigFolderName);
         Assert.Equal("logs", Configuration.LogsFolderName);
@@ -312,10 +313,12 @@ public class TransportConfigStoreTests
         var cfg = new LNLTransportConfig();
         // 7: added MergeHoldMs, PeerUpdateParallelism, MaxUnreliableQueuePerPeer,
         // PeerUpdatePeersPerWorker and MaxSendSockets, so existing files get rewritten with them.
-        Assert.Equal(7, LNLTransportConfig.CurrentConfigVersion);
+        // 8: MaxUnreliableQueuePerPeer and PacketPoolSizeMax became 0 = auto-scaled, and the old
+        // fixed values are actively migrated away because they were harmful at scale.
+        Assert.Equal(8, LNLTransportConfig.CurrentConfigVersion);
         Assert.Equal(0, cfg.MaxSendSockets);   // 0 = auto: half the cores, 4 to 64
         Assert.Equal(0, cfg.PeerUpdatePeersPerWorker);
-        Assert.Equal(256, cfg.MaxUnreliableQueuePerPeer);
+        Assert.Equal(0, cfg.MaxUnreliableQueuePerPeer);   // 0 = auto from population + memory
         Assert.Equal(0, cfg.ConfigVersion);
         Assert.Equal(3f, cfg.MergeHoldMs);
         Assert.Equal(0, cfg.PeerUpdateParallelism);
@@ -342,7 +345,7 @@ public class TransportConfigStoreTests
         // Packet pool scales with peer count rather than sitting at a fixed ceiling; the floor
         // stays PacketPoolSize, so small servers behave exactly as before.
         Assert.Equal(48, cfg.PacketPoolSizePerPeer);
-        Assert.Equal(262144, cfg.PacketPoolSizeMax);
+        Assert.Equal(0, cfg.PacketPoolSizeMax);   // 0 = auto from population + memory
     }
 
     [Fact]

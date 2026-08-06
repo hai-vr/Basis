@@ -574,6 +574,10 @@ namespace Basis.Scripts.BasisSdk.Players
 
         public void Simulate(float DeltaTime)
         {
+            // Opens this frame's transform snapshot. Nothing cached can survive it, so a missed
+            // invalidation is bounded to a single frame.
+            BasisLocalPose.BeginFrame();
+
             // Kick the locomotion pose job first: when active it fills the IK stream on a worker
             // while everything below runs, and is joined inside SimulateIKDestinations.
             using (sMarkerLocoPoseSchedule.Auto())
@@ -644,19 +648,19 @@ namespace Basis.Scripts.BasisSdk.Players
             }
             BasisFiniteWatchdog.Checkpoint("LocalSim/PostIKDestinations");
 
-            // Apply Animator Weights using most current data and outside movement effectors.
-            using (sMarkerAnimator.Auto())
-            {
-                LocalAnimatorDriver.SimulateAnimator(DeltaTime);
-            }
-            BasisFiniteWatchdog.Checkpoint("LocalSim/PostAnimatorWeights");
-
             // schedule finger slerp job (completed by Apply in BasisEventDriver)
             using (sMarkerHandDriver.Auto())
             {
                 LocalHandDriver.Simulate(DeltaTime);
             }
             BasisFiniteWatchdog.Checkpoint("LocalSim/PostHandSchedule");
+
+            // Apply Animator Weights using most current data and outside movement effectors.
+            using (sMarkerAnimator.Auto())
+            {
+                LocalAnimatorDriver.SimulateAnimator(DeltaTime);
+            }
+            BasisFiniteWatchdog.Checkpoint("LocalSim/PostAnimatorWeights");
         }
 
         /// <summary>
