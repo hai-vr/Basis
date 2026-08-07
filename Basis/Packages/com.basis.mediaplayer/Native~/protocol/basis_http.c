@@ -33,6 +33,10 @@ static int lead_take(http_ctx* h, uint8_t* dst, int len) {
  * is treated as hostile rather than merely long. */
 #define HTTP_LINE_DISCARD_MAX 8192
 
+/* Ceilings on one response's header block. Same values as the RTSP reader uses. */
+#define HTTP_MAX_HEADERS      100
+#define HTTP_MAX_HEADER_BYTES (16 * 1024)
+
 /* read one line (up to CRLF) using leftover + socket; returns line length w/o CRLF */
 static int read_line(http_ctx* h, char* out, int cap) {
     int n = 0, dropped = 0;
@@ -73,7 +77,11 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms) {
     h->io = basis_io_connect(url->host, url->port, timeout_ms);
     if (!h->io) { free(h); return NULL; }
 
-    char req[2048];
+    /* Sized to hold the largest request the URL parser can produce: the fixed
+     * part is 96 bytes, basis_url_t carries path[2048] and host[256], so 2400 is
+     * the ceiling. At 2048 this buffer could not represent a legal request at all,
+     * and every over-long one truncated. */
+    char req[4096];
     int rl = snprintf(req, sizeof(req),
         "GET %s HTTP/1.1\r\n"
         "Host: %s\r\n"
@@ -82,6 +90,16 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms) {
         "Connection: keep-alive\r\n"
         "\r\n",
         url->path[0] ? url->path : "/", url->host);
+    /* snprintf answers the length the output *would* have needed, not what it
+     * wrote, so on truncation rl runs past the end of req -- and it was handed
+     * straight to the write as a length, sending the adjacent stack to the far
+     * end. Both ends are checked: a negative return is an encoding error, and
+     * anything at or past the buffer size did not fit. The size above means
+     * neither can happen from a parsed URL; they are checked because the cost of
+     * being wrong is a remote memory disclosure. */
+    if (rl < 0 || rl >= (int)sizeof(req)) {
+        basis_io_close(h->io); free(h); return NULL;
+    }
     if (basis_io_write_full(h->io, (const uint8_t*)req, rl) != rl) {
         basis_io_close(h->io); free(h); return NULL;
     }
@@ -93,8 +111,25 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms) {
     { const char* sp = strchr(line, ' '); if (sp) code = atoi(sp + 1); }
     if (code < 200 || code >= 400) { basis_io_close(h->io); free(h); return NULL; }
 
-    /* headers */
+    /* headers
+     *
+     * Bounded on both count and volume. The loop used to end only on a blank line
+     * or a socket failure, and SO_RCVTIMEO is a per-read idle timeout that every
+     * arriving byte resets -- so a server answering with an endless run of
+     * "X: y\r\n" kept it turning forever, with no memory growth to show for it and
+     * nothing to make it stop. That is on the demux thread, which close joins with
+     * no timeout of its own.
+     *
+     * Same numbers as the RTSP reader, deliberately: the two are the same defect on
+     * two protocols and a reader who has seen one should recognise the other. The
+     * byte count is of stored header text; read_line separately bounds what one
+     * over-long line may discard, so the two caps together bound the total read.
+     *
+     * No is_running check, unlike RTSP: this entry point has no sink to ask. The
+     * caps alone end the loop, which is what closes the hang; cooperative
+     * cancellation here would mean changing the byte-source signature. */
     h->has_length = 0; h->chunked = 0; h->remaining = -1;
+    int nheaders = 0, hbytes = 0;
     for (;;) {
         int ll = read_line(h, line, sizeof(line));
         /* read_line answers -1 for a dead socket and 0 for the blank line that
@@ -103,6 +138,9 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms) {
          * against whatever Content-Length had been seen so far. */
         if (ll < 0) { basis_io_close(h->io); free(h); return NULL; }
         if (ll == 0) break;
+        if (++nheaders > HTTP_MAX_HEADERS) { basis_io_close(h->io); free(h); return NULL; }
+        hbytes += ll;
+        if (hbytes > HTTP_MAX_HEADER_BYTES) { basis_io_close(h->io); free(h); return NULL; }
         /* lowercase the header name for comparison */
         char low[256]; int i = 0;
         for (; line[i] && line[i] != ':' && i < (int)sizeof(low) - 1; ++i) low[i] = (char)tolower((unsigned char)line[i]);
