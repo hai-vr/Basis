@@ -55,32 +55,43 @@ mis-configured feed wastes far more time than the 30 seconds a probe takes.
 
 | Rule | Effect on testing |
 | --- | --- |
-| Loopback allowed **in the Editor only** | `localhost` streams work for fast in-editor iteration; the same URL is refused in a build |
-| Non-global-unicast addresses always blocked | RFC1918 (`192.168.*`, `10.*`, `172.16-31.*`), CGNAT, loopback, link-local, and the IANA special-use reserves (TEST-NET, benchmarking, 6to4 relay). LAN servers never work, Editor included — don't bother |
+| Loopback: **Editor only, and only with the opt-in** | `localhost` works for fast in-editor iteration *if* `BASIS_MEDIA_ALLOW_LOCAL` is set for that Editor process (see the native re-check row below). Without it, or in a build, it is refused — and that refusal is correct, not a regression |
+| Every other non-global-unicast address: **always blocked** | RFC1918 (`192.168.*`, `10.*`, `172.16-31.*`), CGNAT, link-local, and the IANA special-use reserves (TEST-NET, benchmarking, 6to4 relay). No env var relaxes the C# gate for these, so LAN servers never work, Editor included — don't bother. Loopback is the one exception, and only as described in the row above |
 | Hostnames are DNS-validated, fail-closed | A name that resolves to any of the above (or doesn't resolve) is refused |
 | Scheme allowlist | `http`, `https`, `rtsp`, `rtspt`, `rtmp`, `rtmps`, `rist` — anything else (incl. `file://`) is refused. Passing the gate isn't the same as playable, though: `rtmps` (RTMP-over-TLS) is allowlisted but the player rejects it (use `rtmp://`, or an https fMP4/TS URL), and `rist` only works in the opt-in `-DBASIS_WITH_RIST=ON` build |
 
 Practical consequences:
 
 - **Editor iteration:** point at a public endpoint, or run your own server (RTSP/RTMP/HTTP) locally
-  and use `localhost` URLs.
-- **Builds, Quest, multi-client tests:** the stream must come from a **public host with real DNS** —
-  a public endpoint below, or your own content on any cheap VPS.
+  and use `localhost` URLs. A local server needs `BASIS_MEDIA_ALLOW_LOCAL` set for the Editor
+  process before you launch it — on every transport, not just the native ones. Without it the
+  refusal is correct behaviour, and it reads exactly like a transport regression if you aren't
+  expecting it.
+- **Builds, Quest, multi-client tests:** the stream must come from a **publicly reachable host, or a
+  public IP literal** — a public endpoint below, or your own content on any cheap VPS. Where a
+  *hostname* is used it must resolve in real DNS (the gate is fail-closed on lookup). A bare public
+  IP literal is legitimate and is required by one of the redirect rows below, so don't read "real
+  DNS" as "a name is mandatory".
 - **Quest/Android:** the OS cleartext policy blocks plain `http://` on the JNI fetch path —
   HTTP-TS and HLS lanes need `https://` with a certificate chain the device actually trusts
   (serve the full chain; standalone headsets are missing more roots than desktop browsers).
   `rtsp://` is unaffected.
-- **Native local-address re-check (RTSP/RTMP/HLS):** the C# gate above is the first line and is
+- **Native local-address re-check (every transport):** the C# gate above is the first line and is
   **not** affected by the env var below — a top-level RFC1918 URL stays refused by C# regardless,
   and a top-level `localhost` URL works only in the Editor (the C# rule). Behind it, the native
-  layer independently re-checks resolved addresses for the transports it opens directly — RTSP/RTMP
-  (via `basis_io`) and every HLS playlist/segment fetch (the SSRF re-check that stops a hostile
-  playlist steering a sub-resource URI at an internal host). That native re-check has no Editor
+  layer independently re-checks resolved addresses for everything it opens: RTSP/RTMP (via
+  `basis_io`), every HLS playlist/segment fetch (the SSRF re-check that stops a hostile playlist
+  steering a sub-resource URI at an internal host), plain HTTP(S) MP4/TS through the platform
+  stack, and **every redirect hop** on those HTTP(S) lanes. That native re-check has no Editor
   concept, so it refuses `localhost` (and any private address it is handed directly, e.g. an HLS
   segment URI the C# gate never saw) unless `BASIS_MEDIA_ALLOW_LOCAL` is set (any non-empty value).
   Setting it relaxes **only** that native re-check, not the C# gate — so its practical use is
-  running your own RTSP/RTMP/HLS server at `localhost` in the Editor. Plain HTTP(S) MP4/TS via the
-  platform stack (WinHTTP/JNI) has no native re-check and needs no opt-in.
+  running your own server at `localhost` in the Editor, on any transport including plain HTTP(S).
+  **Scope it to the Editor session that needs it.** Any non-empty value turns the re-check off for
+  every transport and every redirect hop, and a process inherits it from whatever launched it — so
+  set it per-run, never machine-wide, and never for a player build or a CI job. Every negative test
+  in the security rows below must run with it **unset**, or it passes for the wrong reason: check
+  the environment first if a gate that should refuse lets something through.
 - The separate world-content trust allowlist (`BasisDefaultTrustedUrls`, https-only) gates the
   sandboxed `VideoPlayer` shim path, not this package — but streams hosted on already-trusted
   domains spare testers a consent prompt when worlds use the same URL.
@@ -349,10 +360,10 @@ not broken.
 
 **Security gates** — negative tests matter: `http://192.168.1.10/x.ts` must refuse with a
 clear reason on every platform (that RFC1918 refusal is the C# gate and holds regardless of any
-env var); a plain HTTP(S) `localhost` MP4/TS URL must refuse **in a build** and work in the
-Editor; `file:///` must refuse. On the native-transport lanes (HLS, RTSP, RTMP) even the Editor
-`localhost` case is refused unless `BASIS_MEDIA_ALLOW_LOCAL` relaxes the native re-check (see the
-security-gates section above) — a refusal there without the opt-in is correct, not a regression.
+env var); a plain HTTP(S) `localhost` MP4/TS URL must refuse **in a build**; `file:///` must
+refuse. `localhost` in the Editor is refused on every lane — HTTP(S) as well as HLS, RTSP and
+RTMP — unless `BASIS_MEDIA_ALLOW_LOCAL` relaxes the native re-check (see the security-gates
+section above); a refusal there without the opt-in is correct, not a regression.
 A regression that *opens* a gate is a security bug — flag it as such, not as a playback bug.
 
 **HLS sub-resource SSRF** — the URL gate only sees the top-level playlist, so the native
@@ -363,6 +374,75 @@ fail rather than issue that fetch (watch the target server's logs — the intern
 request). A playlist that reaches an internal host is a security regression, not a broken-stream
 bug. (Editor testing of the legitimate localhost lane needs `BASIS_MEDIA_ALLOW_LOCAL` — see the
 security-gates section above.)
+
+**Redirect SSRF** — the C# gate only ever sees the entry URL, so the native source re-validates
+the target of every `3xx` hop. Serve a public URL that answers `302 Location:` pointing at an
+internal target: playback must fail and the internal listener must see **no connection at all**.
+That is a refusal you can only confirm by watching the target, since a followed-then-failed hop
+looks identical from the client — judge on the listener, never on the error message.
+
+Cover both address families, because they go through different branches of the guard and the
+platform URL parsers hand an IPv6 host back in brackets where an IPv4 one has none:
+
+| Redirect target | Catches |
+| --- | --- |
+| `https://127.0.0.1:PORT/…` | IPv4 loopback |
+| `http://192.168.x.x/…` | RFC1918 |
+| `http://169.254.169.254/…` | link-local / cloud metadata |
+| `https://[::1]:PORT/…` | IPv6 loopback |
+| `https://[fd00::1]/…` | IPv6 ULA |
+| `https://[fe80::1]/…` | IPv6 link-local — **confirmatory only, see below** |
+| a public hostname resolving to a private address | resolved-address checking, not string matching |
+| a hostname answering with **both** a public and a private address | any private answer must block the name outright |
+| `file:///C:/Windows/win.ini` as the `Location` | the scheme allow-list, which runs **after** the hop is resolved |
+| `ftp://ftp.example.com/x.ts` as the `Location` | the same, on a scheme that is neither local nor http |
+| an `https` entry URL answering `302 Location: http://public-host/…` | the transport downgrade — the body must not silently fall back to plaintext |
+
+The two scheme rows look redundant against a guard that only ever fetches over HTTP, and they are
+not: both platforms resolve a hop with the OS URL machinery (`UrlCombineW`, `java.net.URL`), and
+both will carry a foreign scheme straight through from a `Location` that supplies one. The
+allow-list therefore has to run after the resolve, and nothing else in this matrix exercises that
+ordering — a regression in it would pass every other row here.
+
+The downgrade row needs its own witness, because a plaintext target is an ordinary public host that
+the address policy is right to allow — nothing about the refusal is visible from the client. Point
+the `Location` at a plain-HTTP listener you control and watch it: a connection means the hop was
+followed and the media would have travelled in the clear. Note that an `http` *entry* URL is still
+allowed; it is only the https→http transition that must be refused.
+
+The two IPv6 link-local and ULA rows are **confirmatory, not discriminating**, and should be
+recorded as such. Neither address is routable from a test machine — `fe80::1` has no zone index, so
+it cannot be reached even by a client with no guard at all — which means a refusal proves the
+request stopped, not that the address policy is what stopped it. Adding an RFC 6874 zone
+(`https://[fe80::1%25<zone>]/…`) would make it routable and therefore discriminating, but the zone
+is host-specific and differs between Windows and Android, so there is no portable fixture. Check
+these against the guard directly instead: it refuses the bare, raw-zone (`fe80::1%1`) and
+percent-encoded (`fe80::1%251`) forms alike, which is the part a regression would break.
+
+The mixed-answer row needs a zone you can edit: give one name a working public `A` and a private
+`AAAA` at the same time. **Watch both addresses and require that neither is contacted.** Watching
+only the private one makes the result depend on connection order — an implementation that stops at
+the first usable answer could connect to the *public* address and the private listener would stay
+silent, which reads as a pass. It isn't: the rule is that any private answer blocks the whole name,
+so a correct client contacts neither. The public side is easy to watch if you own the host — its
+own access log is the witness. It is worth the setup, because it is the row a plausible-looking
+guard fails. If you can't set it up, say so rather than ticking it.
+
+The mirror case — a **public** IPv6 literal must still be allowed, since it fails closed if bracket
+handling regresses — is worth covering end-to-end where you can. `https://[2606:…]/` needs a host on
+a public IPv6 address serving over a certificate with an IP SAN. Let's Encrypt has issued those for
+both IPv4 and IPv6 since January 2026, under its short-lived (~6 day) profile, so the certificate is
+no longer the obstacle: an IPv6-reachable host is. Standing one up exercises bracket parsing, the
+address policy, TLS and the hop loop together, which nothing else in this matrix does. Where no such
+host is available, check that case against the guard directly and record that the stream lane was
+skipped — a guard check does not cover the TLS and parsing half.
+
+Legitimate redirects must still play, which is the half that catches an over-tight fix: check an
+absolute **same-host, same-scheme** `302`, a two-hop chain, and a relative `Location` (both `/path`
+and `../path`). Same-scheme is load-bearing in that sentence — "same host" alone would include the
+https→http case the row above requires to be refused. An `http`→`https` **upgrade** is allowed and
+is worth checking separately; only the downgrade is refused. A self-redirect must terminate rather
+than spin.
 
 **A/V sync judgement** — use real footage with **visible speech**; synthetic patterns hide sync
 drift, and Big Buck Bunny has no dialogue at all. A CC-BY Blender open

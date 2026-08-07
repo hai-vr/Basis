@@ -10,6 +10,7 @@
  */
 
 #include "basis_jni_https.h"
+#include "../protocol/basis_io.h"
 
 #include <jni.h>
 #include <android/log.h>
@@ -27,7 +28,10 @@ static JavaVM* g_jvm = NULL;
 static struct {
     jclass  url_cls;            /* java/net/URL                                  */
     jmethodID url_ctor;         /* URL(String)                                   */
+    jmethodID url_ctor_rel;     /* URL(URL, String) — resolves a relative spec   */
     jmethodID url_open;         /* openConnection() -> URLConnection             */
+    jmethodID url_protocol;     /* getProtocol() -> String                       */
+    jmethodID url_host;         /* getHost() -> String                           */
 
     jclass  conn_cls;           /* java/net/URLConnection                        */
     jmethodID conn_set_ct;      /* setConnectTimeout(int)                        */
@@ -71,7 +75,10 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
     g_ids.is_cls        = (jclass)(*env)->NewGlobalRef(env, is);
 
     g_ids.url_ctor       = (*env)->GetMethodID(env, g_ids.url_cls, "<init>", "(Ljava/lang/String;)V");
+    g_ids.url_ctor_rel   = (*env)->GetMethodID(env, g_ids.url_cls, "<init>", "(Ljava/net/URL;Ljava/lang/String;)V");
     g_ids.url_open       = (*env)->GetMethodID(env, g_ids.url_cls, "openConnection", "()Ljava/net/URLConnection;");
+    g_ids.url_protocol   = (*env)->GetMethodID(env, g_ids.url_cls, "getProtocol", "()Ljava/lang/String;");
+    g_ids.url_host       = (*env)->GetMethodID(env, g_ids.url_cls, "getHost", "()Ljava/lang/String;");
     g_ids.conn_set_ct    = (*env)->GetMethodID(env, g_ids.conn_cls, "setConnectTimeout", "(I)V");
     g_ids.conn_set_rt    = (*env)->GetMethodID(env, g_ids.conn_cls, "setReadTimeout", "(I)V");
     g_ids.conn_set_req   = (*env)->GetMethodID(env, g_ids.conn_cls, "setRequestProperty", "(Ljava/lang/String;Ljava/lang/String;)V");
@@ -142,32 +149,182 @@ typedef struct {
     int timeout_ms;
 } https_ctx;
 
-/* Reads a response header into buf; returns 0 when absent. */
+/* Copies a NUL-terminated java string into buf. Returns 0 when it is absent,
+ * unreadable, or too long to hold: snprintf would leave a truncated value that
+ * still looks like a successful read, and a prefix of a header or a URL is not
+ * the thing the request will act on. Every caller here feeds either the address
+ * policy or the next hop's target, so a silent prefix is the wrong answer to
+ * hand back. */
+static int copy_jstring(JNIEnv* env, jstring val, char* buf, int cap) {
+    if (!val || cap <= 0) return 0;
+    const char* c = (*env)->GetStringUTFChars(env, val, NULL);
+    if (!c) {
+        /* Only ever NULL with an OutOfMemoryError already thrown; leaving it
+         * pending would poison every later JNI call on this thread. */
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        return 0;
+    }
+    int n = snprintf(buf, (size_t)cap, "%s", c);
+    (*env)->ReleaseStringUTFChars(env, val, c);
+    return (n >= 0 && n < cap);
+}
+
+/* Reads a response header into buf; returns 0 when absent or over-long. */
 static int get_header(JNIEnv* env, jobject conn, const char* name, char* buf, int cap) {
     jstring key = (*env)->NewStringUTF(env, name);
+    if (!key) {
+        /* Allocation failed, so an OutOfMemoryError is already pending and the
+         * call below would be a JNI call made with an exception outstanding. */
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        return 0;
+    }
     jstring val = (jstring)(*env)->CallObjectMethod(env, conn, g_ids.conn_get_hdr, key);
     (*env)->DeleteLocalRef(env, key);
     if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); return 0; }
     if (!val) return 0;
-    const char* c = (*env)->GetStringUTFChars(env, val, NULL);
-    int ok = 0;
-    if (c) { snprintf(buf, (size_t)cap, "%s", c); ok = 1; (*env)->ReleaseStringUTFChars(env, val, c); }
+    int ok = copy_jstring(env, val, buf, cap);
     (*env)->DeleteLocalRef(env, val);
     return ok;
 }
 
+/* Host of `url`, for log lines. A media URL routinely carries a signed query
+ * token or userinfo, and logcat is persisted and swept up by bug reports, so a
+ * failure names the host it was talking to rather than the whole URL. Purely a
+ * logging aid: nothing decides anything on this, so it does not need to agree
+ * with the platform's parse the way the address guard does. */
+static void url_host_for_log(const char* url, char* out, size_t cap) {
+    if (!out || cap == 0) return;
+    out[0] = '\0';
+    if (!url) return;
+    const char* p = strstr(url, "://");
+    p = p ? p + 3 : url;
+    const char* end = p;
+    while (*end && *end != '/' && *end != '?' && *end != '#') end++;
+    /* Last '@' in the authority, not the first: a password may carry one, and
+     * stopping at the first would leave the tail of the credential in the log. */
+    for (const char* at = end; at > p; at--)
+        if (at[-1] == '@') { p = at; break; }
+    size_t n = (size_t)(end - p);
+    if (n >= cap) n = cap - 1;
+    memcpy(out, p, n);
+    out[n] = '\0';
+}
+
+/* setRequestProperty with both strings checked, 0 on failure. NewStringUTF
+ * returns NULL when the JVM cannot allocate, leaving an OutOfMemoryError
+ * pending, and setRequestProperty(null, …) would raise an NPE on top of it.
+ * Neither can be left to surface at the next check: a JNI call made while an
+ * exception is pending is illegal, and CheckJNI aborts the process for it
+ * rather than returning an error. */
+static int set_request_header(JNIEnv* env, jobject conn, const char* key, const char* value) {
+    jstring k = (*env)->NewStringUTF(env, key);
+    jstring v = k ? (*env)->NewStringUTF(env, value) : NULL;
+    int ok = 0;
+    if (k && v) {
+        (*env)->CallVoidMethod(env, conn, g_ids.conn_set_req, k, v);
+        ok = !(*env)->ExceptionCheck(env);
+    }
+    /* Deleting a local ref is one of the few calls allowed with an exception
+     * pending, so this cleanup is safe on every path. */
+    if (v) (*env)->DeleteLocalRef(env, v);
+    if (k) (*env)->DeleteLocalRef(env, k);
+    return ok;
+}
+
+/* Copies a java String result into buf, consuming the local ref; 0 if it was
+ * null, a pending exception made it unreadable, or it did not fit. */
+static int take_jstring(JNIEnv* env, jstring val, char* buf, int cap) {
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        if (val) (*env)->DeleteLocalRef(env, val);
+        return 0;
+    }
+    int ok = copy_jstring(env, val, buf, cap);
+    if (val) (*env)->DeleteLocalRef(env, val);
+    return ok;
+}
+
+enum { MAX_REDIRECTS = 10 };
+
+static int is_redirect_status(jint code) {
+    return code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
+}
+
+/* The address policy, applied to the URL this hop is about to fetch. The managed
+ * gate only ever sees the entry URL, so without this a redirect walks straight
+ * past it. getHost() leaves an IPv6 literal in its brackets, which the guard
+ * accepts. */
+/* `entry_secure` carries the entry URL's transport across the hop loop: -1 on the
+ * first call, then 0/1. Turning off setInstanceFollowRedirects means the JRE no
+ * longer refuses the hop that leaves TLS behind, so that has to be refused here
+ * — a plaintext target can be an ordinary public host, which the address guard
+ * passes, and the body would then travel readable and rewritable in transit. An
+ * http entry URL stays allowed; it is the downgrade that is refused. Kept
+ * deliberately identical to the WinHTTP source's rule. */
+static int url_target_allowed(JNIEnv* env, jobject urlObj, int* entry_secure) {
+    char scheme[16] = {0}, host[256] = {0};
+
+    if (!take_jstring(env, (jstring)(*env)->CallObjectMethod(env, urlObj, g_ids.url_protocol),
+                      scheme, sizeof(scheme))) {
+        LOGE("basis_jni_https: refusing URL with an unreadable or over-long scheme");
+        return 0;
+    }
+    if (strcasecmp(scheme, "http") != 0 && strcasecmp(scheme, "https") != 0) {
+        LOGE("basis_jni_https: refusing scheme %s", scheme);
+        return 0;
+    }
+    {
+        int secure = (strcasecmp(scheme, "https") == 0);
+        if (*entry_secure < 0) *entry_secure = secure;
+        else if (*entry_secure && !secure) {
+            LOGE("basis_jni_https: refusing https -> http downgrade on a redirect");
+            return 0;
+        }
+    }
+
+    if (!take_jstring(env, (jstring)(*env)->CallObjectMethod(env, urlObj, g_ids.url_host),
+                      host, sizeof(host))) {
+        LOGE("basis_jni_https: refusing URL with an unreadable or over-long host");
+        return 0;
+    }
+    if (basis_io_host_is_blocked(host)) {
+        LOGE("basis_jni_https: refusing blocked host %s", host);
+        return 0;
+    }
+    return 1;
+}
+
 /* Opens a connected HttpURLConnection GET for `url` with the given Range header
- * value, following redirects. On success returns a local ref to the connection
- * and writes the HTTP status to *out_code (0 for a non-HTTP connection); the
- * caller reads headers / getInputStream and owns the ref. Returns NULL on any
- * failure, with the java exception cleared. Shared by open and reseek so the
- * connect sequence lives in one place. */
+ * value. On success returns a local ref to the connection and writes the HTTP
+ * status to *out_code; the caller reads headers / getInputStream and owns the
+ * ref. Returns NULL on any failure, with the java exception cleared. Shared by
+ * open and reseek so the connect sequence lives in one place.
+ *
+ * Redirects are followed here rather than by HttpURLConnection. Its own
+ * following is transparent — the same-protocol hop is taken inside the JRE and
+ * getResponseCode() reports the final 2xx — so the target of that hop is never
+ * offered to the address policy, and a public origin that passes the entry check
+ * can answer 302 Location: http://192.168.1.1/… from a headset sitting on the
+ * user's LAN. With following off the 3xx surfaces here, and each hop is resolved
+ * against the URL that produced it, held to http(s), and put through the same
+ * guard as the entry URL. Mirrors the WinHTTP source, deliberately: a redirect
+ * rule that differs per platform is a rule one platform doesn't have.
+ *
+ * `range_val` is required, not optional: it reaches NewStringUTF, which is
+ * undefined on NULL and aborts the VM under CheckJNI rather than failing the
+ * open. Both callers pass one. An unranged GET would need a guard here first. */
 static jobject https_connect(JNIEnv* env, const char* url, int timeout_ms,
                              const char* range_val, jint* out_code) {
     *out_code = 0;
 
+    char loghost[256];
+    url_host_for_log(url, loghost, sizeof(loghost));
+
     jstring jurl = (*env)->NewStringUTF(env, url);
-    if (!jurl) return NULL;
+    if (!jurl) {
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        return NULL;
+    }
     jobject urlObj = (*env)->NewObject(env, g_ids.url_cls, g_ids.url_ctor, jurl);
     (*env)->DeleteLocalRef(env, jurl);
     if ((*env)->ExceptionCheck(env) || !urlObj) {
@@ -176,59 +333,131 @@ static jobject https_connect(JNIEnv* env, const char* url, int timeout_ms,
         return NULL;
     }
 
-    jobject conn = (*env)->CallObjectMethod(env, urlObj, g_ids.url_open);
-    (*env)->DeleteLocalRef(env, urlObj);
-    if ((*env)->ExceptionCheck(env) || !conn) {
-        log_and_clear_pending(env, "openConnection");
-        if (conn) (*env)->DeleteLocalRef(env, conn);
-        return NULL;
-    }
+    int entry_secure = -1;
+    for (int hop = 0; ; hop++) {
+        if (!url_target_allowed(env, urlObj, &entry_secure)) {
+            (*env)->DeleteLocalRef(env, urlObj);
+            return NULL;
+        }
 
-    if (timeout_ms > 0) {
-        (*env)->CallVoidMethod(env, conn, g_ids.conn_set_ct, (jint)timeout_ms);
-        (*env)->CallVoidMethod(env, conn, g_ids.conn_set_rt, (jint)timeout_ms);
-    }
-    jstring agent_key = (*env)->NewStringUTF(env, "User-Agent");
-    jstring agent_val = (*env)->NewStringUTF(env, "BasisMediaPlayer/1.0");
-    (*env)->CallVoidMethod(env, conn, g_ids.conn_set_req, agent_key, agent_val);
-    (*env)->DeleteLocalRef(env, agent_key);
-    (*env)->DeleteLocalRef(env, agent_val);
+        /* Re-taken per hop, so a failure names the host it actually happened
+         * against. Computed once from the entry URL, every message after a redirect
+         * pointed at the origin the user asked for rather than the one that failed,
+         * which is the wrong end of the chain to be looking at during an incident.
+         * Safe to read from the URL object here: the target has just passed the
+         * address policy, so this is a host we have already agreed to contact. */
+        if (hop > 0 &&
+            !take_jstring(env, (jstring)(*env)->CallObjectMethod(env, urlObj, g_ids.url_host),
+                          loghost, sizeof(loghost))) {
+            if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+            snprintf(loghost, sizeof(loghost), "<hop %d>", hop);
+        }
 
-    jstring range_key = (*env)->NewStringUTF(env, "Range");
-    jstring range_str = (*env)->NewStringUTF(env, range_val);
-    (*env)->CallVoidMethod(env, conn, g_ids.conn_set_req, range_key, range_str);
-    (*env)->DeleteLocalRef(env, range_key);
-    (*env)->DeleteLocalRef(env, range_str);
+        jobject conn = (*env)->CallObjectMethod(env, urlObj, g_ids.url_open);
+        if ((*env)->ExceptionCheck(env) || !conn) {
+            log_and_clear_pending(env, "openConnection");
+            if (conn) (*env)->DeleteLocalRef(env, conn);
+            (*env)->DeleteLocalRef(env, urlObj);
+            return NULL;
+        }
 
-    /* HttpURLConnection (and its HttpsURLConnection subclass) gets redirect + status APIs. */
-    if ((*env)->IsInstanceOf(env, conn, g_ids.http_conn_cls))
-        (*env)->CallVoidMethod(env, conn, g_ids.http_set_follow, JNI_TRUE);
+        if (timeout_ms > 0) {
+            (*env)->CallVoidMethod(env, conn, g_ids.conn_set_ct, (jint)timeout_ms);
+            (*env)->CallVoidMethod(env, conn, g_ids.conn_set_rt, (jint)timeout_ms);
+        }
+        /* Checked before the request is sent, and before any further JNI call:
+         * the setters above can throw, and everything from here to
+         * getResponseCode assumes a clean thread. */
+        if ((*env)->ExceptionCheck(env) ||
+            !set_request_header(env, conn, "User-Agent", "BasisMediaPlayer/1.0") ||
+            !set_request_header(env, conn, "Range", range_val)) {
+            log_and_clear_pending(env, "request headers");
+            (*env)->DeleteLocalRef(env, conn);
+            (*env)->DeleteLocalRef(env, urlObj);
+            return NULL;
+        }
 
-    (*env)->CallVoidMethod(env, conn, g_ids.conn_connect);
-    if ((*env)->ExceptionCheck(env)) {
-        log_and_clear_pending(env, "connect");
-        (*env)->DeleteLocalRef(env, conn);
-        return NULL;
-    }
+        /* url_target_allowed has already held the scheme to http(s), so the
+         * connection is always an HttpURLConnection (or its HttpsURLConnection
+         * subclass) and the redirect + status APIs are there to use. Anything
+         * else would leave the status unchecked, so refuse it. */
+        if (!(*env)->IsInstanceOf(env, conn, g_ids.http_conn_cls)) {
+            LOGE("basis_jni_https: not an HttpURLConnection at hop %d of %s", hop, loghost);
+            (*env)->DeleteLocalRef(env, conn);
+            (*env)->DeleteLocalRef(env, urlObj);
+            return NULL;
+        }
+        (*env)->CallVoidMethod(env, conn, g_ids.http_set_follow, JNI_FALSE);
+        if ((*env)->ExceptionCheck(env)) {
+            log_and_clear_pending(env, "setInstanceFollowRedirects");
+            (*env)->DeleteLocalRef(env, conn);
+            (*env)->DeleteLocalRef(env, urlObj);
+            return NULL;
+        }
 
-    if ((*env)->IsInstanceOf(env, conn, g_ids.http_conn_cls)) {
+        (*env)->CallVoidMethod(env, conn, g_ids.conn_connect);
+        if ((*env)->ExceptionCheck(env)) {
+            log_and_clear_pending(env, "connect");
+            (*env)->DeleteLocalRef(env, conn);
+            (*env)->DeleteLocalRef(env, urlObj);
+            return NULL;
+        }
+
         jint code = (*env)->CallIntMethod(env, conn, g_ids.http_get_code);
-        if ((*env)->ExceptionCheck(env)) { log_and_clear_pending(env, "getResponseCode"); code = 0; }
-        *out_code = code;
-        /* Reject 3xx, not just 4xx/5xx: setInstanceFollowRedirects handles
-         * same-protocol redirects transparently (getResponseCode returns the
-         * final 2xx), so a surviving 3xx is a redirect HttpURLConnection won't
-         * follow — a cross-protocol http<->https hop. getInputStream would then
-         * return the redirect page, not the media; fail cleanly instead. */
+        if ((*env)->ExceptionCheck(env)) {
+            log_and_clear_pending(env, "getResponseCode");
+            (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
+            if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+            (*env)->DeleteLocalRef(env, conn);
+            (*env)->DeleteLocalRef(env, urlObj);
+            return NULL;
+        }
+
+        if (is_redirect_status(code)) {
+            /* Past the cap the chain is either hostile or broken — a self-redirect
+             * loops here forever otherwise. URL(URL, String) does the relative
+             * resolution, so a Location of "/seg/1.ts" or "../b.ts" lands where the
+             * server meant it to. */
+            jobject nextUrl = NULL;
+            char loc[2048];
+            if (hop < MAX_REDIRECTS && get_header(env, conn, "Location", loc, sizeof(loc)) && loc[0]) {
+                jstring jloc = (*env)->NewStringUTF(env, loc);
+                if (jloc) {
+                    nextUrl = (*env)->NewObject(env, g_ids.url_cls, g_ids.url_ctor_rel, urlObj, jloc);
+                    (*env)->DeleteLocalRef(env, jloc);
+                    if ((*env)->ExceptionCheck(env)) {
+                        log_and_clear_pending(env, "resolve Location");
+                        nextUrl = NULL;
+                    }
+                } else if ((*env)->ExceptionCheck(env)) {
+                    /* Allocation failed. The disconnect below is a JNI call, so
+                     * the pending OutOfMemoryError cannot be carried into it. */
+                    (*env)->ExceptionClear(env);
+                }
+            }
+            (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
+            if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+            (*env)->DeleteLocalRef(env, conn);
+            (*env)->DeleteLocalRef(env, urlObj);
+            if (!nextUrl) {
+                LOGE("basis_jni_https: HTTP %d not followed at hop %d of %s", (int)code, hop, loghost);
+                return NULL;
+            }
+            urlObj = nextUrl;
+            continue;
+        }
+
+        (*env)->DeleteLocalRef(env, urlObj);
         if (code < 200 || code >= 300) {
-            LOGE("basis_jni_https: HTTP %d for %s", (int)code, url);
+            LOGE("basis_jni_https: HTTP %d at hop %d of %s", (int)code, hop, loghost);
             (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
             if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
             (*env)->DeleteLocalRef(env, conn);
             return NULL;
         }
+        *out_code = code;
+        return conn; /* local ref */
     }
-    return conn; /* local ref */
 }
 
 void* basis_jni_https_open(const char* url, int timeout_ms) {
@@ -286,7 +515,11 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
     (*env)->DeleteLocalRef(env, is);
     (*env)->DeleteLocalRef(env, conn);
 
-    LOGI("basis_jni_https: open ok for %s", url);
+    {
+        char okhost[256];
+        url_host_for_log(url, okhost, sizeof(okhost));
+        LOGI("basis_jni_https: open ok for %s", okhost);
+    }
     jenv_release(&L);
     return h;
 }

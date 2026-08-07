@@ -1,14 +1,17 @@
 /* WinHTTP byte source — OS TLS/HTTP, no third-party deps. */
 #include "basis_win_http.h"
+#include "../protocol/basis_io.h"
 
 #include <windows.h>
 #include <winhttp.h>
+#include <shlwapi.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <wchar.h>
 
 #pragma comment(lib, "winhttp.lib")
+#pragma comment(lib, "shlwapi.lib")
 
 typedef struct {
     HINTERNET session;
@@ -18,8 +21,7 @@ typedef struct {
     int seekable;            /* finite Content-Length + Accept-Ranges: bytes (VOD) */
     int range_ok;            /* server answered the bytes=0- probe with a 206 */
     long long content_length;/* body size, or -1 when unknown/chunked/live */
-    wchar_t* path;           /* request path, kept for ranged re-requests */
-    DWORD open_flags;        /* WINHTTP_FLAG_SECURE when https */
+    wchar_t* url;            /* URL as opened, kept for ranged re-requests */
 } win_http_t;
 
 /* Whole-field unsigned parse, or -1 for anything that isn't one. _wcstoi64 would
@@ -84,27 +86,158 @@ static wchar_t* to_w(const char* s) {
     return w;
 }
 
+enum {
+    URL_MAX = 4096,       /* wide chars, including the terminator */
+    MAX_REDIRECTS = 10    /* WinHTTP's own default cap when it follows them itself */
+};
+
+/* WinHttpCrackUrl keeps an IPv6 literal's brackets and hands back UTF-16; the
+ * address guard is C and takes UTF-8. Fail closed on a host that won't convert. */
+static int host_is_blocked_w(const wchar_t* host) {
+    char utf8[1024];
+    if (!WideCharToMultiByte(CP_UTF8, 0, host, -1, utf8, (int)sizeof(utf8), NULL, NULL)) return 1;
+    return basis_io_host_is_blocked(utf8);
+}
+
+static int is_redirect_status(DWORD code) {
+    return code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
+}
+
+typedef struct {
+    wchar_t cur[URL_MAX];    /* the URL this hop is fetching   */
+    wchar_t next[URL_MAX];   /* Location resolved against cur  */
+    wchar_t location[URL_MAX];
+    wchar_t path[URL_MAX];
+    wchar_t host[256];
+} follow_bufs;
+
+/* GETs `url` with `range_header`, following redirects by hand, and hands back the
+ * connect + request handles for the response that ends the chain.
+ *
+ * Redirects have to be followed here rather than by WinHTTP because the address
+ * policy is only ever applied to a URL we can see. WinHTTP's default policy,
+ * DISALLOW_HTTPS_TO_HTTP, covers the downgrade hop and nothing else, so an origin
+ * that passes the entry check can answer 302 Location: https://127.0.0.1/… and
+ * the connection is made before anything gets a chance to look at the target.
+ * REDIRECT_POLICY_NEVER surfaces the 3xx instead, and each hop is then cracked,
+ * held to http(s), and put through the same guard as the entry URL.
+ *
+ * A relative Location is resolved with UrlCombineW, which also normalises the
+ * result and collapses dot segments; it will happily produce a file: or
+ * javascript: URL from a Location that carries its own scheme, which is why the
+ * scheme check sits after the combine rather than before it.
+ *
+ * Returns 0 with *out_connect / *out_request / *out_code set, or -1 having
+ * released everything it opened. */
+static int http_request_follow(HINTERNET session, const wchar_t* url,
+                               const wchar_t* range_header,
+                               HINTERNET* out_connect, HINTERNET* out_request,
+                               DWORD* out_code) {
+    *out_connect = NULL; *out_request = NULL; *out_code = 0;
+    if (!session || !url || wcslen(url) >= URL_MAX) return -1;
+
+    follow_bufs* b = (follow_bufs*)malloc(sizeof(follow_bufs));
+    if (!b) return -1;
+    wcscpy_s(b->cur, URL_MAX, url);
+
+    int rc = -1;
+    /* Taking the redirect loop off WinHTTP means taking on the one thing its
+     * default policy did cover: DISALLOW_HTTPS_TO_HTTP refuses a hop that leaves
+     * TLS behind. Nothing else here would catch it — a plaintext target can be a
+     * perfectly ordinary public host, so the address guard passes it — and the
+     * body would then travel readable and rewritable by anyone on the path. An
+     * http entry URL stays allowed; it is the downgrade that is refused. */
+    int entry_secure = -1;
+    for (int hop = 0; ; hop++) {
+        URL_COMPONENTS uc;
+        memset(&uc, 0, sizeof(uc));
+        uc.dwStructSize = sizeof(uc);
+        b->host[0] = 0; b->path[0] = 0;
+        uc.lpszHostName = b->host; uc.dwHostNameLength = (DWORD)(_countof(b->host) - 1);
+        uc.lpszUrlPath = b->path; uc.dwUrlPathLength = URL_MAX - 1;
+        /* No ExtraInfo buffer on purpose: WinHTTP then leaves the query in the path,
+         * which is exactly what the request object wants. Splitting it out would
+         * drop the query from every signed CDN URL. */
+        if (!WinHttpCrackUrl(b->cur, 0, 0, &uc)) break;
+        if (uc.nScheme != INTERNET_SCHEME_HTTP && uc.nScheme != INTERNET_SCHEME_HTTPS) break;
+        int secure = (uc.nScheme == INTERNET_SCHEME_HTTPS);
+        if (entry_secure < 0) entry_secure = secure;
+        else if (entry_secure && !secure) break;   /* https -> http downgrade */
+        if (host_is_blocked_w(b->host)) break;
+
+        HINTERNET conn = WinHttpConnect(session, b->host, uc.nPort, 0);
+        if (!conn) break;
+
+        DWORD flags = (uc.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0;
+        HINTERNET req = WinHttpOpenRequest(conn, L"GET", b->path[0] ? b->path : L"/", NULL,
+                                           WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+        if (!req) { WinHttpCloseHandle(conn); break; }
+
+        DWORD redirectPolicy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
+        /* Caps the wait for response headers separately from the data-read timeout, so
+         * a host that accepts and then goes quiet can be bounded without shortening the
+         * gap a live stream is allowed between segments. WinHTTP evaluates this as data
+         * arrives rather than as an absolute deadline, so a server that sends nothing at
+         * all can still fall through to the receive timeout — untested here. */
+        DWORD responseTimeout = 10000;
+        if (!WinHttpSetOption(req, WINHTTP_OPTION_REDIRECT_POLICY,
+                              &redirectPolicy, sizeof(redirectPolicy)) ||
+            !WinHttpSetOption(req, WINHTTP_OPTION_RECEIVE_RESPONSE_TIMEOUT,
+                              &responseTimeout, sizeof(responseTimeout)) ||
+            !WinHttpSendRequest(req, range_header, (DWORD)-1L,
+                                WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
+            !WinHttpReceiveResponse(req, NULL)) {
+            WinHttpCloseHandle(req); WinHttpCloseHandle(conn); break;
+        }
+
+        DWORD code = 0, sz = sizeof(code);
+        if (!WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                                 WINHTTP_HEADER_NAME_BY_INDEX, &code, &sz, WINHTTP_NO_HEADER_INDEX)) {
+            WinHttpCloseHandle(req); WinHttpCloseHandle(conn); break;
+        }
+
+        if (!is_redirect_status(code)) {
+            *out_connect = conn; *out_request = req; *out_code = code;
+            rc = 0;
+            break;
+        }
+
+        /* Past the cap the chain is either hostile or broken — a self-redirect
+         * loops here forever otherwise. */
+        int followed = 0;
+        if (hop < MAX_REDIRECTS) {
+            DWORD lsz = sizeof(b->location);
+            DWORD nsz = URL_MAX;
+            b->location[0] = 0;
+            if (WinHttpQueryHeaders(req, WINHTTP_QUERY_LOCATION, WINHTTP_HEADER_NAME_BY_INDEX,
+                                    b->location, &lsz, WINHTTP_NO_HEADER_INDEX) &&
+                b->location[0] &&
+                SUCCEEDED(UrlCombineW(b->cur, b->location, b->next, &nsz, 0))) {
+                wcscpy_s(b->cur, URL_MAX, b->next);
+                followed = 1;
+            }
+        }
+        WinHttpCloseHandle(req);
+        WinHttpCloseHandle(conn);
+        if (!followed) break;
+    }
+
+    free(b);
+    return rc;
+}
+
 extern "C" void* basis_win_http_open(const char* url) {
     if (!url) return NULL;
     win_http_t* h = (win_http_t*)calloc(1, sizeof(win_http_t));
     if (!h) return NULL;
 
-    wchar_t* wurl = to_w(url);
-    if (!wurl) { free(h); return NULL; }
-
-    URL_COMPONENTS uc;
-    memset(&uc, 0, sizeof(uc));
-    uc.dwStructSize = sizeof(uc);
-    wchar_t host[256] = {0};
-    wchar_t path[2048] = {0};
-    uc.lpszHostName = host; uc.dwHostNameLength = 255;
-    uc.lpszUrlPath = path; uc.dwUrlPathLength = 2047;
-    if (!WinHttpCrackUrl(wurl, 0, 0, &uc)) { free(wurl); free(h); return NULL; }
+    h->url = to_w(url);
+    if (!h->url) { free(h); return NULL; }
 
     h->session = WinHttpOpen(L"BasisMediaPlayer/1.0",
                              WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                              WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!h->session) { free(wurl); free(h); return NULL; }
+    if (!h->session) { free(h->url); free(h); return NULL; }
 
     /* Bound every phase of the open. basis_media_close joins this thread from the
      * Unity main thread, so an open that stalls freezes the client for as long as
@@ -125,60 +258,23 @@ extern "C" void* basis_win_http_open(const char* url) {
      * guarded against, so failing to set them is a failure to open. */
     if (!WinHttpSetTimeouts(h->session, 5000 /*resolve*/, 5000 /*connect*/,
                                         10000 /*send*/, 30000 /*receive data*/)) {
-        WinHttpCloseHandle(h->session); free(wurl); free(h); return NULL;
-    }
-
-    h->connect = WinHttpConnect(h->session, host, uc.nPort, 0);
-    if (!h->connect) { WinHttpCloseHandle(h->session); free(wurl); free(h); return NULL; }
-
-    DWORD flags = (uc.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0;
-    h->open_flags = flags;
-    h->path = _wcsdup(path);
-    h->request = WinHttpOpenRequest(h->connect, L"GET", path, NULL,
-                                    WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
-    if (!h->request) {
-        WinHttpCloseHandle(h->connect); WinHttpCloseHandle(h->session);
-        free(h->path); free(wurl); free(h); return NULL;
-    }
-
-    /* SSRF: never let a public URL redirect down to plaintext (the classic
-     * https://public -> http://127.0.0.1 downgrade). Same-scheme redirects still
-     * follow, but a private https target has no valid cert and fails the TLS check. */
-    DWORD redirectPolicy = WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP;
-    WinHttpSetOption(h->request, WINHTTP_OPTION_REDIRECT_POLICY, &redirectPolicy, sizeof(redirectPolicy));
-
-    /* Caps the wait for response headers separately from the data-read timeout, so
-     * a host that accepts and then goes quiet can be bounded without shortening the
-     * gap a live stream is allowed between segments. WinHTTP evaluates this as data
-     * arrives rather than as an absolute deadline, so a server that sends nothing at
-     * all can still fall through to the receive timeout — untested here. */
-    DWORD responseTimeout = 10000;
-    if (!WinHttpSetOption(h->request, WINHTTP_OPTION_RECEIVE_RESPONSE_TIMEOUT,
-                          &responseTimeout, sizeof(responseTimeout))) {
-        WinHttpCloseHandle(h->request); WinHttpCloseHandle(h->connect); WinHttpCloseHandle(h->session);
-        free(h->path); free(wurl); free(h); return NULL;
+        WinHttpCloseHandle(h->session); free(h->url); free(h); return NULL;
     }
 
     /* The bytes=0- probe: identical body, but a server that really implements
      * ranges answers 206. Only that proves a later ranged re-request will be
      * honoured — Accept-Ranges alone is advertisement (Python's SimpleHTTP
      * handler, for one, advertises it and then serves 200 + the whole file). */
-    if (!WinHttpSendRequest(h->request, L"Range: bytes=0-", (DWORD)-1L,
-                            WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
-        !WinHttpReceiveResponse(h->request, NULL)) {
-        WinHttpCloseHandle(h->request); WinHttpCloseHandle(h->connect); WinHttpCloseHandle(h->session);
-        free(h->path); free(wurl); free(h); return NULL;
+    DWORD code = 0;
+    if (http_request_follow(h->session, h->url, L"Range: bytes=0-",
+                            &h->connect, &h->request, &code) != 0) {
+        basis_win_http_close(h);
+        return NULL;
     }
 
-    /* check status code */
-    DWORD code = 0, sz = sizeof(code);
-    WinHttpQueryHeaders(h->request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                        WINHTTP_HEADER_NAME_BY_INDEX, &code, &sz, WINHTTP_NO_HEADER_INDEX);
-    free(wurl);
-    if (code < 200 || code >= 400) {
-        WinHttpCloseHandle(h->request); WinHttpCloseHandle(h->connect); WinHttpCloseHandle(h->session);
-        free(h->path); free(h); return NULL;
-    }
+    /* 2xx only. A 3xx surviving the hop loop is one that was refused or ran past
+     * the cap, and its body is a redirect page rather than media. */
+    if (code < 200 || code >= 300) { basis_win_http_close(h); return NULL; }
     h->range_ok = (code == 206);
 
     /* Seekability (for live-vs-VOD auto-detection): a finite, range-fetchable
@@ -280,42 +376,35 @@ extern "C" void basis_win_http_abort(void* ctx) {
  * report EOF. */
 extern "C" int basis_win_http_reseek(void* ctx, long long offset) {
     win_http_t* h = (win_http_t*)ctx;
-    if (!h || !h->seekable || !h->range_ok || !h->path || offset < 0) return -1;
+    if (!h || !h->seekable || !h->range_ok || !h->url || offset < 0) return -1;
 
-    HINTERNET old_req = h->request;
+    /* Re-issued against the URL the caller opened, not against whatever the first
+     * response's chain ended on, so a redirector handing out short-lived signed
+     * targets still works after a seek — and every hop is re-validated. The
+     * connect handle goes with it because the chain may land somewhere else this
+     * time; WinHTTP pools the underlying connection per session, so re-opening
+     * one against the same host does not mean a fresh TCP/TLS handshake. */
+    HINTERNET old_req = h->request, old_conn = h->connect;
     h->request = NULL;
+    h->connect = NULL;
     if (old_req) WinHttpCloseHandle(old_req);
-
-    HINTERNET req = WinHttpOpenRequest(h->connect, L"GET", h->path, NULL,
-                                       WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, h->open_flags);
-    if (!req) return -1;
-    DWORD redirectPolicy = WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP;
-    WinHttpSetOption(req, WINHTTP_OPTION_REDIRECT_POLICY, &redirectPolicy, sizeof(redirectPolicy));
-    DWORD responseTimeout = 10000;   /* per-request, so a reseek gets the same cap as the open */
-    if (!WinHttpSetOption(req, WINHTTP_OPTION_RECEIVE_RESPONSE_TIMEOUT,
-                          &responseTimeout, sizeof(responseTimeout))) {
-        WinHttpCloseHandle(req);
-        return -1;
-    }
+    if (old_conn) WinHttpCloseHandle(old_conn);
 
     wchar_t range[64];
     swprintf(range, 64, L"Range: bytes=%lld-", offset);
-    if (!WinHttpSendRequest(req, range, (DWORD)-1L, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
-        !WinHttpReceiveResponse(req, NULL)) {
-        WinHttpCloseHandle(req);
-        return -1;
-    }
+
+    HINTERNET conn = NULL, req = NULL;
+    DWORD code = 0;
+    if (http_request_follow(h->session, h->url, range, &conn, &req, &code) != 0) return -1;
 
     /* 206 = ranged body starting at offset. A 200 means the server ignored the
      * Range and restarted at byte 0 — the bytes would be silently misaligned. */
-    DWORD code = 0, sz = sizeof(code);
-    WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                        WINHTTP_HEADER_NAME_BY_INDEX, &code, &sz, WINHTTP_NO_HEADER_INDEX);
     if (code != 206 && !(code == 200 && offset == 0)) {
-        WinHttpCloseHandle(req);
+        WinHttpCloseHandle(req); WinHttpCloseHandle(conn);
         return -1;
     }
 
+    h->connect = conn;
     h->request = req;
     h->response_complete = 0;
     return 0;
@@ -327,6 +416,6 @@ extern "C" void basis_win_http_close(void* ctx) {
     if (h->request) WinHttpCloseHandle(h->request);
     if (h->connect) WinHttpCloseHandle(h->connect);
     if (h->session) WinHttpCloseHandle(h->session);
-    free(h->path);
+    free(h->url);
     free(h);
 }

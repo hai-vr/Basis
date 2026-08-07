@@ -136,6 +136,19 @@ int basis_io_host_is_blocked(const char* host) {
     if (!host || !host[0]) return 1;
     if (local_allowed()) return 0;
 
+    /* Callers hand over whatever the URL's authority carried, and an IPv6 literal
+     * is written there in brackets. getaddrinfo wants the bare address, so a
+     * bracketed host would otherwise fail to resolve and be refused as unknown —
+     * safe, but it would make every IPv6-literal URL unplayable. */
+    char bare[256];
+    size_t hl = strlen(host);
+    if (host[0] == '[') {
+        if (hl < 3 || host[hl - 1] != ']' || hl - 2 >= sizeof(bare)) return 1;
+        memcpy(bare, host + 1, hl - 2);
+        bare[hl - 2] = 0;
+        host = bare;
+    }
+
     struct addrinfo hints, *res = NULL, *ai;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;

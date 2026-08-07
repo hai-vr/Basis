@@ -61,7 +61,11 @@ int basis_io_poll_read(basis_io_t** ios, int n, int timeout_ms);
  * non-global-unicast guard basis_io_connect enforces. Resolves the name and
  * returns 1 if it is empty, unresolvable (fail-closed), or resolves to any
  * non-global-unicast address (loopback / RFC1918 / link-local / ULA /
- * multicast). Honours the same BASIS_MEDIA_ALLOW_LOCAL escape hatch. */
+ * multicast). Honours the same BASIS_MEDIA_ALLOW_LOCAL escape hatch.
+ * An IPv6 literal may be passed either bare or in the brackets a URL writes it
+ * with. Call it for the entry URL and again for every redirect hop — the
+ * platform stacks re-resolve names when they connect, so this bounds which
+ * targets are attempted, not which address a later lookup returns. */
 int basis_io_host_is_blocked(const char* host);
 
 /* Process-wide one-time init/teardown (WSAStartup on Windows; no-op elsewhere). */

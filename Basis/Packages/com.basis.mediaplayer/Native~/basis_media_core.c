@@ -956,6 +956,17 @@ static void run_hls(demux_ctx_t* c) {
 }
 
 static void run_http_like(demux_ctx_t* c) {
+    /* Re-check the address policy natively rather than trusting the managed gate
+     * alone. That gate runs once, in C#, against the entry URL string. It sits
+     * above every leg below — including the OS extractor, which fetches the URL
+     * itself — so no path out of this function reaches the network without it.
+     * Loopback and RFC1918 targets need BASIS_MEDIA_ALLOW_LOCAL, as they do
+     * everywhere else in this file. */
+    if (basis_io_host_is_blocked(c->parts->host)) {
+        c->sink->on_error(c->sink->user, "blocked host (non-global address)");
+        return;
+    }
+
     /* HLS playlists are not a single continuous stream — hand off to the HLS
      * source before the OS-extractor attempt (which can't stitch segments) and
      * the plain TS/fMP4 byte-source path. (.m3u8 may carry a query.) */
@@ -1650,10 +1661,12 @@ BASIS_API uint64_t BASIS_CALL basis_media_get_frame_counter(basis_media_engine_t
 }
 
 /* The two audio-thread entry points validate `e` against the registry before the
- * first dereference and hold g_audio_lock across the call, so close blocks until
- * an in-flight pull returns and every later one is a no-op against a freed
- * engine. The decoder is loaded once into a local: a second fetch could observe
- * a different value than the one the NULL check passed. */
+ * first dereference and hold the engine's audio slot lock across the call, so
+ * close blocks until an in-flight pull returns and every later one is a no-op
+ * against a freed engine. g_audio_lock covers only the scan that claims the slot,
+ * per the two-tier design above. The decoder is loaded once into a local: a
+ * second fetch could observe a different value than the one the NULL check
+ * passed. */
 BASIS_API int BASIS_CALL basis_media_get_audio_format(basis_media_engine_t* e, int* rate, int* ch) {
     if (!e || !registry_ready()) return -1;
     int idx = audio_slot_acquire(e);

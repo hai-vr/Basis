@@ -19,10 +19,15 @@
  *     the Unity audio thread. They are safe to call concurrently with
  *     basis_media_close: a pull already under way when close begins completes
  *     against a live engine, because close blocks for its duration. The host
- *     does not have to quiesce the audio thread first. A pull that starts after
- *     close has begun is validated against an internal registry before the
- *     engine is dereferenced, so it returns 0/-1 instead of touching freed
- *     memory.
+ *     does not have to quiesce the audio thread first.
+ *
+ *     A pull that starts after close has begun is validated against an internal
+ *     registry before the engine is dereferenced, and returns instead of
+ *     touching freed memory — read_audio returns 0 and get_audio_format returns
+ *     -1. Those are the same values an empty ring and an unknown format give,
+ *     and that is deliberate: a caller has no use for the distinction, since
+ *     both mean "no audio this callback" and the correct response to either is
+ *     silence.
  *
  *     That second property is a safety net, not a licence to keep the handle.
  *     The registry matches on the pointer, so once the engine is freed a later
