@@ -1017,9 +1017,17 @@ static void run_hls(demux_ctx_t* c) {
 
 static void run_http_like(demux_ctx_t* c) {
     /* Re-check the address policy natively rather than trusting the managed gate
-     * alone. That gate runs once, in C#, against the entry URL string. It sits
-     * above every leg below — including the OS extractor, which fetches the URL
-     * itself — so no path out of this function reaches the network without it.
+     * alone. That gate runs once, in C#, against the entry URL string. This sits
+     * above every leg below, so each of them starts from a checked entry host.
+     *
+     * The entry host is all it checks. The byte sources below re-validate every
+     * redirect hop against the same policy before connecting, but the OS
+     * extractor leg issues its own HTTP and follows its own redirects, so its
+     * hops go unchecked: an origin that passes here can still redirect it to an
+     * internal address. Closing that means either routing the extractor through
+     * the JNI source or dropping the URL fast-path, both of which change which
+     * demuxer runs and need a device pass behind them.
+     *
      * Loopback and RFC1918 targets need BASIS_MEDIA_ALLOW_LOCAL, as they do
      * everywhere else in this file. */
     if (basis_io_host_is_blocked(c->parts->host)) {

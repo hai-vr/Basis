@@ -39,7 +39,25 @@ typedef struct {
  * cancel a synchronous WinHttpReadData), then wait for every reader holding a
  * copy to return. Returning before that is what lets the next open reuse the
  * handle value out from under them. The wait terminates because the close above
- * fails the pending read; the alternative to waiting is the use-after-free. */
+ * fails the pending read; the alternative to waiting is the use-after-free.
+ *
+ * The close has to precede the drain, since it is what makes the pending read
+ * return, so a reader that has claimed but not yet entered WinHttpReadData can
+ * still call it on a closed handle.
+ *
+ * That read cannot be mistaken for a current one, and the ordering here is what
+ * guarantees it, so it is worth spelling out. `request` is cleared under the lock
+ * above, before the close. Any reopen happens only after this function returns,
+ * which is after the drain, which is after the reader has taken the lock again for
+ * its own staleness check. At that check `request` is therefore NULL and cannot
+ * equal the handle the reader copied, whatever value WinHTTP has since recycled.
+ * A generation counter beside `request` would be comparing a field that already
+ * cannot match.
+ *
+ * What the ordering does not fix is such a read consuming bytes from whichever
+ * request WinHTTP handed the value to next — the loss lands on that other request,
+ * which no bookkeeping in this struct can see. Closing that needs asynchronous
+ * WinHTTP, where cancellation is defined. */
 static void detach_request_and_drain(win_http_t* h) {
     EnterCriticalSection(&h->lock);
     HINTERNET req = h->request;

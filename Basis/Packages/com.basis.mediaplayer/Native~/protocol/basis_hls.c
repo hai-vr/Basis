@@ -273,12 +273,17 @@ static int resolve_url(const char* base, const char* ref, char* out, int outsz) 
  * http(s) and its host must not resolve to a non-global-unicast address. The
  * platform HTTP stacks (WinHTTP / JNI) don't apply this guard themselves.
  *
- * This is a pre-check: it blocks literal internal addresses and hosts that resolve
- * private. It does NOT close two provider-side bypasses — active DNS rebinding (the
- * platform stack re-resolves the name when it connects) and an allowed URL that
- * redirects to an internal host (WinHTTP/JNI follow redirects). Fully closing those
- * needs connect-by-pinned-IP plus per-redirect re-validation and connected-peer
- * verification at the HTTP-provider boundary — tracked as a follow-up. */
+ * This is a pre-check on the name: it blocks literal internal addresses and hosts
+ * that resolve private. A URL that passes here and then redirects to an internal
+ * host is refused by the provider, which re-validates every hop against this same
+ * policy before connecting. Active DNS rebinding is not closed, because the
+ * platform stack re-resolves the name when it connects; that needs
+ * connect-by-pinned-IP plus connected-peer verification at the provider boundary.
+ *
+ * Scheme is judged per URI rather than against the playlist's. An https playlist
+ * may therefore list http segments, and they are fetched in the clear: the
+ * providers' https->http refusal covers a redirect chain inside one request, not
+ * the step from playlist to segment. */
 /* out_blocked (nullable) distinguishes a deterministic policy rejection (bad
  * scheme/host — retrying can never succeed) from a transient provider open
  * failure, so a caller can terminate on the former instead of busy-looping. */
