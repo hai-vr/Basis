@@ -32,6 +32,7 @@
 struct basis_io {
     sock_t fd;
     int read_timeout_ms;   /* last SO_RCVTIMEO set, 0 = untimed; bounds the EINTR retry */
+    int send_timeout_ms;   /* last SO_SNDTIMEO set; bounds the EINTR retry in write_full */
 };
 
 void basis_io_global_init(void) {
@@ -95,6 +96,30 @@ void basis_io_set_read_timeout(basis_io_t* io, int timeout_ms) {
     tv.tv_sec = timeout_ms / 1000;
     tv.tv_usec = (timeout_ms % 1000) * 1000;
     setsockopt(io->fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+#endif
+}
+
+/* Bound how long a write may block. With no send timeout, a peer that stops reading
+ * fills the send buffer and send() then waits for the connection to die — which a
+ * peer advertising a zero window and still answering keepalives never lets happen.
+ * That wait is on the demux thread, and close joins that thread with no timeout of
+ * its own, so it is a client freeze rather than a stalled stream.
+ *
+ * Ten seconds matches the send timeout the WinHTTP source already sets. Everything
+ * written through here is a small request, so there is no legitimate reason to wait
+ * longer; the read timeout is the one that has to tolerate a live source going quiet
+ * between segments, which is why the two are not the same number. */
+#define BASIS_SEND_TIMEOUT_MS 10000
+
+static void set_send_timeout(sock_t fd, int timeout_ms) {
+#if defined(_WIN32)
+    DWORD tv = (DWORD)timeout_ms;
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof(tv));
+#else
+    struct timeval tv;
+    tv.tv_sec = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 #endif
 }
 
@@ -258,10 +283,12 @@ basis_io_t* basis_io_connect(const char* host, int port, int timeout_ms) {
 
     int one = 1;
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (const char*)&one, sizeof(one));
+    set_send_timeout(fd, BASIS_SEND_TIMEOUT_MS);
 
     basis_io_t* io = (basis_io_t*)calloc(1, sizeof(*io));
     if (!io) { closesock(fd); return NULL; }
     io->fd = fd;
+    io->send_timeout_ms = BASIS_SEND_TIMEOUT_MS;   /* matches the option set above */
     basis_io_set_read_timeout(io, timeout_ms > 0 ? timeout_ms : 15000);
     return io;
 }
@@ -327,10 +354,33 @@ int basis_io_read_full(basis_io_t* io, uint8_t* buf, int len) {
 int basis_io_write_full(basis_io_t* io, const uint8_t* buf, int len) {
     if (!io || io->fd == BASIS_INVALID_SOCK || !buf) return -1;
     int sent = 0;
+#if !defined(_WIN32)
+    /* Same rule as basis_io_read, on the other direction. An interrupted send moved
+     * nothing, so reissuing it is the correct response — and every caller here
+     * treats a short write as a dead connection, so not retrying tears down a
+     * working session over a signal. Bounded against the send deadline so a
+     * repeating signal cannot turn a timed write into an untimed one. */
+    struct timespec t0;
+    int clock_ok = (clock_gettime(CLOCK_MONOTONIC, &t0) == 0);
+#endif
     while (sent < len) {
         int n = (int)send(io->fd, (const char*)buf + sent, len - sent, BASIS_SEND_FLAGS);
-        if (n <= 0) return -1;
-        sent += n;
+        if (n > 0) { sent += n; continue; }
+#if !defined(_WIN32)
+        if (n < 0 && errno == EINTR) {
+            struct timespec t1;
+            if (!clock_ok || clock_gettime(CLOCK_MONOTONIC, &t1) != 0) return -1;
+            long elapsed_ms = (long)((t1.tv_sec - t0.tv_sec) * 1000 +
+                                     (t1.tv_nsec - t0.tv_nsec) / 1000000);
+            /* The recorded deadline, not the default: a caller that shortens it
+             * means the whole write, and this retry loop is part of the write. */
+            int budget = io->send_timeout_ms > 0 ? io->send_timeout_ms
+                                                 : BASIS_SEND_TIMEOUT_MS;
+            if (elapsed_ms >= budget) return -1;
+            continue;
+        }
+#endif
+        return -1;
     }
     return sent;
 }
