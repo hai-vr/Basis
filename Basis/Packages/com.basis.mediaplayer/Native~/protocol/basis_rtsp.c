@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <errno.h>
 
 #if defined(_WIN32)
   #define strncasecmp _strnicmp
@@ -59,7 +60,11 @@ static int b64dec(const char* in, int inlen, uint8_t* out, int outcap) {
     const char* a = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     for (int i = 0; i < 64; ++i) tab[(unsigned char)a[i]] = (int8_t)i;
 
-    int val = 0, bits = 0, op = 0;
+    /* Unsigned accumulator: the shift runs the whole input through, so a signed
+     * one walks into the sign bit on any sprop blob past a few characters. Only
+     * the low bits are ever read back out, so the wrap is harmless. */
+    uint32_t val = 0;
+    int bits = 0, op = 0;
     for (int i = 0; i < inlen; ++i) {
         int c = (unsigned char)in[i];
         if (c == '=' || tab[c] < 0) continue;
@@ -88,9 +93,33 @@ typedef struct {
     char rtp_info[1024];   /* last RTP-Info header (PLAY: per-track rtptime) */
     char transport[512];   /* last Transport header (SETUP: server_port/source) */
     int  sess_timeout_s;   /* Session header timeout= (0 = server sent none) */
+    basis_media_sink_t* sink; /* for is_running: the handshake runs before any
+                               * cancellable session loop is entered */
 } rtsp_t;
 
-static int rtsp_send(rtsp_t* r, const char* method, const char* url, const char* extra) {
+/* Ceilings on a response header block. Without them the reader has no terminating
+ * condition but a blank line, and the per-line truncation below means an endless
+ * header stream costs the peer nothing and grows nothing — it simply never
+ * returns. The byte count deliberately counts every byte read, including the ones
+ * truncation discards. */
+#define RTSP_MAX_HEADERS      100
+#define RTSP_MAX_HEADER_BYTES (16 * 1024)
+#define RTSP_MAX_BODY         (256 * 1024)
+
+/* `after_stop` lets one caller through the cancellation gate below. */
+static int rtsp_send_ex(rtsp_t* r, const char* method, const char* url,
+                        const char* extra, int after_stop) {
+    /* A write to a peer that has stopped reading blocks until the send deadline
+     * expires, on the demux thread, which close joins. So a request issued after
+     * cancellation can hold teardown open, and nothing issued after a stop is
+     * worth that -- with one exception, which is why this is a parameter.
+     *
+     * TEARDOWN on an established session is the exception: it releases the
+     * server's session, and a server that limits concurrent sessions (one or two
+     * is normal on cameras) will refuse the next connect until its own timeout
+     * expires. Suppressing it turns a stop/start into a failed restart. */
+    if (!after_stop && r->sink && !r->sink->is_running(r->sink->user)) return -1;
+
     char req[2048];
     int n = snprintf(req, sizeof(req),
         "%s %s RTSP/1.0\r\nCSeq: %d\r\nUser-Agent: BasisMediaPlayer/1.0\r\n",
@@ -100,6 +129,10 @@ static int rtsp_send(rtsp_t* r, const char* method, const char* url, const char*
     if (extra) n += snprintf(req + n, sizeof(req) - n, "%s", extra);
     n += snprintf(req + n, sizeof(req) - n, "\r\n");
     return basis_io_write_full(r->io, (const uint8_t*)req, n) == n ? 0 : -1;
+}
+
+static int rtsp_send(rtsp_t* r, const char* method, const char* url, const char* extra) {
+    return rtsp_send_ex(r, method, url, extra, 0);
 }
 
 /* Reads an RTSP response: status + headers, then body by Content-Length.
@@ -113,22 +146,61 @@ static int rtsp_recv(rtsp_t* r, char* body, int bodycap, int* bodylen) {
     r->location[0] = 0;
     r->transport[0] = 0;
     /* header lines until blank */
+    int nheaders = 0, hbytes = 0;
     for (;;) {
         li = 0;
         for (;;) {
             uint8_t c;
+            /* Checked per byte, not per line: this runs on the demux thread before
+             * any is_running-guarded loop is reached, and close joins that thread
+             * with an infinite wait from the caller's thread. A peer that keeps
+             * dribbling bytes would otherwise hold the join open. */
+            if (r->sink && !r->sink->is_running(r->sink->user)) return -1;
             if (basis_io_read_full(r->io, &c, 1) != 1) return -1;
+            if (++hbytes > RTSP_MAX_HEADER_BYTES) return -1;
             if (c == '\n') break;
             if (c != '\r' && li < (int)sizeof(line) - 1) line[li++] = (char)c;
         }
         line[li] = 0;
         if (li == 0) break; /* end of headers */
-        if (code < 0 && strncmp(line, "RTSP/1.0", 8) == 0) {
-            code = atoi(line + 9);
+        /* Counted here, past the terminator check, so the cap is a bound on real
+         * header lines rather than on the framing. */
+        if (++nheaders > RTSP_MAX_HEADERS) return -1;
+        /* Exactly three digits, then the line end or a space. Two reasons, and
+         * the second is the one the Content-Length parse below already answers:
+         * on a bare "RTSP/1.0" the terminator lands at [8], so [9] onwards is
+         * whatever a previous, longer header line left in this reused buffer;
+         * and atoi is undefined past INT_MAX, which a status line of digits
+         * reaches as easily as any other field. An absent reason phrase is
+         * still accepted — the separator is required, the phrase is not. */
+        if (nheaders == 1) {
+            /* The status line is required to be the first line, not merely the
+             * first line that looks like one. Accepting it anywhere let a response
+             * put Content-Length ahead of it and still be taken as well-formed,
+             * which is the peer choosing the framing rather than the parser. */
+            if (!(li >= 12 && line[8] == ' ' && strncmp(line, "RTSP/1.0", 8) == 0 &&
+                  line[9]  >= '0' && line[9]  <= '9' &&
+                  line[10] >= '0' && line[10] <= '9' &&
+                  line[11] >= '0' && line[11] <= '9' &&
+                  (line[12] == 0 || line[12] == ' '))) return -1;
+            code = (line[9] - '0') * 100 + (line[10] - '0') * 10 + (line[11] - '0');
             strncpy(r->last_status, line, sizeof(r->last_status) - 1);
             r->last_status[sizeof(r->last_status) - 1] = 0;
         }
-        else if (strncasecmp(line, "Content-Length:", 15) == 0) content_len = atoi(line + 15);
+        else if (strncasecmp(line, "Content-Length:", 15) == 0) {
+            /* atoi would take a numeric prefix ("1x" -> 1, leaving body bytes on the
+             * socket) and is undefined on a value past INT_MAX, so parse the whole
+             * token and reject anything that is not a clean non-negative decimal
+             * within the ceiling — the drain below reads the declared length off the
+             * socket, so an unchecked value is a stall in its own right. */
+            const char* v = line + 15; while (*v == ' ' || *v == '\t') v++;
+            char* end = NULL; errno = 0;
+            long parsed = strtol(v, &end, 10);
+            if (errno == ERANGE || end == v || parsed < 0 || parsed > RTSP_MAX_BODY) return -1;
+            while (*end == ' ' || *end == '\t') end++;
+            if (*end != 0) return -1;
+            content_len = (int)parsed;
+        }
         else if (strncasecmp(line, "WWW-Authenticate:", 17) == 0) {
             const char* v = line + 17; while (*v == ' ') v++;
             strncpy(r->www_auth, v, sizeof(r->www_auth) - 1);
@@ -160,13 +232,27 @@ static int rtsp_recv(rtsp_t* r, char* body, int bodycap, int* bodylen) {
     if (bodylen) *bodylen = 0;
     if (content_len > 0) {
         int want = body ? (content_len < bodycap ? content_len : bodycap) : 0;
-        int got = want > 0 ? basis_io_read_full(r->io, (uint8_t*)body, want) : 0;
+        /* Read the wanted body in bounded chunks, checking is_running each time, for
+         * the same reason as the drain: a single read of the whole body would block
+         * against a slow peer with no way for close to interrupt it. */
+        int got = 0;
+        while (got < want) {
+            if (r->sink && !r->sink->is_running(r->sink->user)) return -1;
+            int chunk = want - got; if (chunk > 256) chunk = 256;
+            /* A short read is a truncated response, not a valid short body — the
+             * declared Content-Length was not delivered. Fail rather than hand a
+             * partial body up as if the status code stood; the socket framing is
+             * unusable past it anyway. */
+            if (basis_io_read_full(r->io, (uint8_t*)body + got, chunk) != chunk) return -1;
+            got += chunk;
+        }
         if (bodylen) *bodylen = got;
         /* drain whatever the caller's buffer didn't take, so an ignored or
          * oversized body can't desynchronise the next reply on the socket */
         for (int rest = content_len - got; rest > 0; ) {
+            if (r->sink && !r->sink->is_running(r->sink->user)) return -1;
             uint8_t tmp[256]; int t = rest < (int)sizeof(tmp) ? rest : (int)sizeof(tmp);
-            if (basis_io_read_full(r->io, tmp, t) != t) break;
+            if (basis_io_read_full(r->io, tmp, t) != t) return -1;   /* truncated body */
             rest -= t;
         }
     }
@@ -897,6 +983,7 @@ static int udp_read_loop(rtsp_t* r, depkt_t* d, udp_state_t* u, const char* base
  * should retry the whole session over TCP-interleaved. */
 static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use_udp) {
     rtsp_t r; memset(&r, 0, sizeof(r));
+    r.sink = sink;   /* lets the handshake reads honour a stop */
     char base_url[1024];
     snprintf(base_url, sizeof(base_url), "rtsp://%s:%d%s", url->host, url->port, url->path);
 
@@ -918,6 +1005,9 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
         r.authb64[o] = 0;
     }
 
+    /* A stop that arrives before the connection opens is a clean stop, not a
+     * transport failure — don't dial out on a stopping engine. */
+    if (!sink->is_running(sink->user)) return 0;
     r.io = basis_io_connect(url->host, url->port, 10000);
     if (!r.io) { sink->on_error(sink->user, "RTSP: TCP connect failed"); return -1; }
 
@@ -930,8 +1020,10 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
     int desc_send = rtsp_send(&r, "DESCRIBE", base_url, "Accept: application/sdp\r\n");
     int code = (desc_send == 0) ? rtsp_recv(&r, body, sizeof(body) - 1, &blen) : -2;
 
-    /* one reconnect retry if the first request didn't land (transient/half-open) */
-    if (desc_send != 0 || code < 0) {
+    /* one reconnect retry if the first request didn't land (transient/half-open) —
+     * but a negative code can also be a stop honoured inside rtsp_recv, and a
+     * stopping engine has nothing to retry for. */
+    if ((desc_send != 0 || code < 0) && sink->is_running(sink->user)) {
         basis_io_close(r.io);
         r.io = basis_io_connect(url->host, url->port, 10000);
         if (r.io) {
@@ -943,6 +1035,9 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
     }
 
     if (code != 200 || blen <= 0) {
+        /* A stop during the handshake surfaces here as a non-200; report it as a
+         * clean stop rather than firing on_error into a host that is tearing down. */
+        if (!sink->is_running(sink->user)) { if (r.io) basis_io_close(r.io); return 0; }
         char emsg[800];
         snprintf(emsg, sizeof(emsg),
                  "RTSP: DESCRIBE failed (desc_send=%d desc='%s' code=%d body=%dB auth='%s' loc='%s' url=%s)",
@@ -1021,6 +1116,16 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
         } while (0);
 
         if (fell) {
+            /* A stop honoured inside rtsp_recv reaches here as a non-200, exactly
+             * like a server refusing UDP. Falling back on it would send a TEARDOWN
+             * to a server we are abandoning and then reconnect over TCP, on the
+             * thread close is already waiting to join. Same re-check as the
+             * DESCRIBE and SETUP paths. */
+            if (!sink->is_running(sink->user)) {
+                udp_state_close(&u);
+                basis_io_close(r.io);
+                return 0;
+            }
             rtsp_send(&r, "TEARDOWN", base_url, NULL);
             udp_state_close(&u);
             basis_io_close(r.io);
@@ -1032,6 +1137,11 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
         snprintf(extra, sizeof(extra), "Transport: RTP/AVP/TCP;unicast;interleaved=%d-%d\r\n", interleave, interleave + 1);
         rtsp_send(&r, "SETUP", v_url, extra);
         if (rtsp_recv(&r, NULL, 0, NULL) != 200) {
+            /* rtsp_recv reports a stop honoured mid-read as a negative code, the
+             * same as a transport failure, so re-check before reporting — as the
+             * DESCRIBE path above does — rather than firing on_error into a host
+             * that is tearing down. */
+            if (!sink->is_running(sink->user)) { basis_io_close(r.io); return 0; }
             char e[360]; snprintf(e, sizeof(e), "RTSP: SETUP video failed (status='%s' url=%s)", r.last_status, v_url);
             sink->on_error(sink->user, e); basis_io_close(r.io); return -1;
         }
@@ -1047,6 +1157,7 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
     r.rtp_info[0] = 0;
     rtsp_send(&r, "PLAY", base_url, "Range: npt=0.000-\r\n");
     if (rtsp_recv(&r, NULL, 0, NULL) != 200) {
+        if (!sink->is_running(sink->user)) { basis_io_close(r.io); return 0; }
         char e[320]; snprintf(e, sizeof(e), "RTSP: PLAY failed (status='%s')", r.last_status);
         sink->on_error(sink->user, e); basis_io_close(r.io); return -1;
     }
@@ -1123,8 +1234,12 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
 
     if (rc != 1 && d.au_len > 0) deliver_au(&d);
 
-    /* TEARDOWN best-effort */
-    rtsp_send(&r, "TEARDOWN", base_url, NULL);
+    /* TEARDOWN best-effort, and sent even after a stop. The usual reason the read
+     * loops above exit is the running flag clearing, so gating this on it would
+     * mean a user-initiated stop never released the session -- see the note in
+     * rtsp_send_ex. The handshake paths above skip TEARDOWN deliberately, but they
+     * are abandoning a session that was never established; this one was. */
+    rtsp_send_ex(&r, "TEARDOWN", base_url, NULL, 1);
 
     free(pkt); free(d.au); free(d.fu); free(d.afrag);
     udp_state_close(&u);

@@ -516,7 +516,13 @@ Two outcomes to test against, in priority order:
   an ordinary `ffmpeg`-produced file: an HEVC elementary stream that reaches the decoder with
   no frame size made the Windows Store HEVC MFT dereference a null pointer on its own worker
   thread. The parser must refuse a sizeless or otherwise under-specified track **before** it
-  hands bytes to the decoder, not let it fail somewhere downstream.
+  hands bytes to the decoder, not let it fail somewhere downstream. DoS also covers *resource*
+  exhaustion, not just crashes: a size or length field the peer declares must be bounded before
+  it drives an allocation or a read loop. The RTMP chunk length, the RTMP per-session buffer
+  total, and the RTSP header block and Content-Length are all attacker-declared and now capped;
+  a hang counts too — an RTSP server that dribbles an endless header block used to wedge the
+  demux thread and, through it, `basis_media_close`. These are exercised by the `fuzz_rtmp` /
+  `fuzz_rtsp` targets (allocation-limit and endless-header A/B), not by the playback matrix.
 - **Memory corruption** — the worst case, and the reason this is a security boundary and not
   just a stability one. Hand-rolled parsers with untrusted lengths are exactly where
   out-of-bounds reads and writes live. Treat *any* out-of-bounds access as a security bug,
