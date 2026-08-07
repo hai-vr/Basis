@@ -35,8 +35,8 @@ build_target() {
 
 want="${1:-all}"
 case "$want" in
-    all|ts|mp4|webm|caption|ogg|mp3|url|hls|rtsp|rtmp) ;;
-    *) echo "unknown fuzz target: $want (expected: all ts mp4 webm caption ogg mp3 url hls rtsp rtmp)" >&2; exit 2 ;;
+    all|ts|mp4|webm|caption|ogg|mp3|wav|url|hls|rtsp|rtmp) ;;
+    *) echo "unknown fuzz target: $want (expected: all ts mp4 webm caption ogg mp3 wav url hls rtsp rtmp)" >&2; exit 2 ;;
 esac
 if [ "$want" = "all" ] || [ "$want" = "ts" ]; then
     build_target ts \
@@ -67,6 +67,10 @@ fi
 if [ "$want" = "all" ] || [ "$want" = "mp3" ]; then
     build_target mp3 \
         "$native/protocol/basis_mp3.c"
+fi
+if [ "$want" = "all" ] || [ "$want" = "wav" ]; then
+    build_target wav \
+        "$native/protocol/basis_wav.c"
 fi
 if [ "$want" = "all" ] || [ "$want" = "url" ]; then
     build_target url \

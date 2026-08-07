@@ -469,7 +469,7 @@ third-party libs). The optional RIST transport (`-DBASIS_WITH_RIST=ON`)
 statically links prebuilt librist (which vendors its own mbedTLS) from
 `Native~/third_party/`. Build that archive with `Native~/build-librist.ps1`
 (Windows) or `build-librist.sh` (Linux/Android), or download it from the
-**media-native (RIST)** CI workflow's artifacts — see
+**media-native** CI workflow's artifacts — see
 `Native~/third_party/README.md`. Then add `-DBASIS_WITH_RIST=ON` to the cmake
 configure step below. You also need Unity's PluginAPI headers — see
 `Native~/unity/README.md`.
