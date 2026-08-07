@@ -94,7 +94,7 @@ fine for interactive test sessions, not for soak loops.
 | --- | --- | --- |
 | `rtsp://stream.vrcdn.live/live/vrcdn` | RTSP live, H.264 720p + AAC 2.0 @ 48 kHz | VRCDN's own 24/7 channel; the primary PC low-latency lane; host is on the default trust list |
 | `https://stream.vrcdn.live/live/vrcdn.live.ts` | MPEG-TS over HTTPS, live | Same channel, the standalone-friendly lane (https, so Quest-safe) |
-| `https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v` | Progressive MP4 VOD, range/`206` | Official Blender hosting of the full 10-minute film, H.264 + AAC (`.m4v` is recognised as an MP4 extension). Good for seek/pause and delivery auto-detect testing |
+| `https://www2.iis.fraunhofer.de/AAC/ChID-BLITS-EBU.mp4` | Progressive MP4 VOD, range/`206` | 800x600 (4:3), H.264 + AAC 5.1 @ 44.1 kHz, ~47 s. The seek/pause and delivery auto-detect lane. Doubles as the non-16:9 case — the aspect ratio must be preserved, not stretched to the quad — and as a non-48 kHz source, so it exercises the resample path |
 | `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8` | HLS VOD, multi-variant master | Exercises the panel's bitrate dropdown |
 | [Fraunhofer AAC multichannel page](https://www2.iis.fraunhofer.de/AAC/multichannel.html) | AAC 5.1/7.1 VOD fixtures | Includes adversarial layouts: PCE-signalled 7.1 must fail **gracefully** on Windows (muted audio or a clean error — never a crash) |
 
@@ -157,7 +157,7 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | RTSP forced TCP | `rtspt://` form of any RTSP URL | No UDP attempt at all (no UDP `SETUP` in the server log); Console logs `RTSP over TCP` |
 | HTTP-TS live | VRCDN `.live.ts`, or your own `ffmpeg`-served TS | Same checks over plain TS; on Quest use the https lane |
 | HLS VOD | Mux master, or your own HLS packaging | Variant switch via panel bitrate dropdown mid-play |
-| Progressive/fMP4 MP4 | Big Buck Bunny | `Delivery=Auto` detects OnDemand (needs the 206); seek slider works |
+| Progressive/fMP4 MP4 | Fraunhofer ChID-BLITS, or your own MP4 with *working* byte ranges — a `Range` request must answer `206` with a valid `Content-Range`, not merely advertise `Accept-Ranges: bytes` | `Delivery=Auto` detects OnDemand; seek slider works; 4:3 source keeps its aspect on the quad rather than stretching. Advertising alone still reads as on-demand for pacing but refuses to seek, so a host that advertises and then serves `200` looks like a player bug and isn't. Integrated fMP4 has its own `global_sidx` recipe under **Seek (integrated fMP4)** below |
 | RTMP | your own RTMP server (e.g. MediaMTX) | Minimal client — plain `rtmp://` pull only |
 | RIST plain + AES | your own RIST sender (ffmpeg/librist) | Requires RIST-enabled plugin build; loss recovery under induced packet loss |
 | WAV audio-only | your own WAV over HTTP | 16/24-bit, up to 8 ch; no video track is not an error |
@@ -166,7 +166,7 @@ Run the rows your change plausibly touches; run everything before a release-boun
 ### Content and codecs
 
 No public host carries every codec in every container flavour, so generate these from a CC
-clip — Big Buck Bunny (full URL in the endpoints table above) or any Blender open movie — with
+clip — any Blender open movie, from [Blender Studio's films](https://studio.blender.org/films/) — with
 the `ffmpeg` recipe in each row. `in.mp4` below is that source clip. For higher-res / 4K masters,
 [media.xiph.org](https://media.xiph.org/) mirrors the Blender films losslessly (e.g. Sintel 4K at
 `https://media.xiph.org/sintel/sintel-4k.y4m.xz`, and `sintel-4k-png/` frame sets) — grab one and
@@ -365,7 +365,7 @@ bug. (Editor testing of the legitimate localhost lane needs `BASIS_MEDIA_ALLOW_L
 security-gates section above.)
 
 **A/V sync judgement** — use real footage with **visible speech**; synthetic patterns hide sync
-drift, and Big Buck Bunny (the baseline endpoint) has no dialogue at all. A CC-BY Blender open
+drift, and Big Buck Bunny has no dialogue at all. A CC-BY Blender open
 movie with clear lip-sync is a good source — Sintel and Spring both work; download from
 [Blender Studio films](https://studio.blender.org/films/) and re-encode/serve as needed. Watch a
 full minute at the live edge, not five seconds. For anything subtle, capture diagnostics (below)
