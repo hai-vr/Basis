@@ -313,6 +313,38 @@ extern "C" void* basis_win_http_open(const char* url) {
         basis_win_http_close(h); return NULL;
     }
 
+    /* A protocol floor. Without one the set follows whatever the host's WinHTTP
+     * policy still permits, which on an unmanaged machine can include TLS 1.0.
+     * TLS 1.3's flag is newer than some SDK/OS pairs, so ask for both and fall
+     * back to 1.2 alone rather than let an unknown bit fail the whole option. */
+    {
+        DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+        int set_ok = 0;
+#if defined(WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3)
+        /* Kept as its own attempt rather than a conditional arm of the one below,
+         * so no brace pair straddles the #if and the block reads the same before
+         * and after preprocessing. */
+        DWORD with13 = protocols | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
+        set_ok = WinHttpSetOption(h->session, WINHTTP_OPTION_SECURE_PROTOCOLS,
+                                  &with13, sizeof(with13)) ? 1 : 0;
+#endif
+        if (!set_ok &&
+            !WinHttpSetOption(h->session, WINHTTP_OPTION_SECURE_PROTOCOLS,
+                              &protocols, sizeof(protocols))) {
+            basis_win_http_close(h); return NULL;
+        }
+    }
+
+    /* Revocation checking is off unless asked for, so a revoked certificate is
+     * accepted by default. Not fail-closed like the two above: this one can refuse
+     * a legitimate stream when the revocation endpoint is unreachable rather than
+     * when the certificate is bad, and a client that cannot reach OCSP should still
+     * play. Enabling it is the improvement; requiring the enable to succeed is not. */
+    {
+        DWORD feature = WINHTTP_ENABLE_SSL_REVOCATION;
+        WinHttpSetOption(h->session, WINHTTP_OPTION_ENABLE_FEATURE, &feature, sizeof(feature));
+    }
+
     /* The bytes=0- probe: identical body, but a server that really implements
      * ranges answers 206. Only that proves a later ranged re-request will be
      * honoured — Accept-Ranges alone is advertisement (Python's SimpleHTTP
