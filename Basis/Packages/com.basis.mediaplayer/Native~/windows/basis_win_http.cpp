@@ -106,6 +106,28 @@ extern "C" void* basis_win_http_open(const char* url) {
                              WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!h->session) { free(wurl); free(h); return NULL; }
 
+    /* Bound every phase of the open. basis_media_close joins this thread from the
+     * Unity main thread, so an open that stalls freezes the client for as long as
+     * it takes — and WinHTTP's own defaults give an attacker-chosen URL a very long
+     * lever: the resolve timeout defaults to 0, meaning no timeout at all, and a
+     * blackholed SYN parks in WinHttpSendRequest for the TCP stack's ~21 s. Every
+     * other transport here already bounds its connect (basis_io.c uses a
+     * non-blocking connect with select(); the Android path sets connect/read
+     * timeouts), so this only brings Windows into line. Data reads keep the 30 s
+     * default — a live stream may legitimately go quiet between segments.
+     *
+     * These bound WinHTTP's own waits, not the TCP stack's: the connect value does
+     * not override SYN/ACK retransmission, so treat it as the usual case rather
+     * than a guarantee. Measured against a blackholed port it does hold — teardown
+     * tracks the connect value exactly, plus a fixed ~2.9 s of unrelated teardown.
+     *
+     * Fail closed: running on the default timeouts is the exact condition being
+     * guarded against, so failing to set them is a failure to open. */
+    if (!WinHttpSetTimeouts(h->session, 5000 /*resolve*/, 5000 /*connect*/,
+                                        10000 /*send*/, 30000 /*receive data*/)) {
+        WinHttpCloseHandle(h->session); free(wurl); free(h); return NULL;
+    }
+
     h->connect = WinHttpConnect(h->session, host, uc.nPort, 0);
     if (!h->connect) { WinHttpCloseHandle(h->session); free(wurl); free(h); return NULL; }
 
@@ -124,6 +146,18 @@ extern "C" void* basis_win_http_open(const char* url) {
      * follow, but a private https target has no valid cert and fails the TLS check. */
     DWORD redirectPolicy = WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP;
     WinHttpSetOption(h->request, WINHTTP_OPTION_REDIRECT_POLICY, &redirectPolicy, sizeof(redirectPolicy));
+
+    /* Caps the wait for response headers separately from the data-read timeout, so
+     * a host that accepts and then goes quiet can be bounded without shortening the
+     * gap a live stream is allowed between segments. WinHTTP evaluates this as data
+     * arrives rather than as an absolute deadline, so a server that sends nothing at
+     * all can still fall through to the receive timeout — untested here. */
+    DWORD responseTimeout = 10000;
+    if (!WinHttpSetOption(h->request, WINHTTP_OPTION_RECEIVE_RESPONSE_TIMEOUT,
+                          &responseTimeout, sizeof(responseTimeout))) {
+        WinHttpCloseHandle(h->request); WinHttpCloseHandle(h->connect); WinHttpCloseHandle(h->session);
+        free(h->path); free(wurl); free(h); return NULL;
+    }
 
     /* The bytes=0- probe: identical body, but a server that really implements
      * ranges answers 206. Only that proves a later ranged re-request will be
@@ -257,6 +291,12 @@ extern "C" int basis_win_http_reseek(void* ctx, long long offset) {
     if (!req) return -1;
     DWORD redirectPolicy = WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP;
     WinHttpSetOption(req, WINHTTP_OPTION_REDIRECT_POLICY, &redirectPolicy, sizeof(redirectPolicy));
+    DWORD responseTimeout = 10000;   /* per-request, so a reseek gets the same cap as the open */
+    if (!WinHttpSetOption(req, WINHTTP_OPTION_RECEIVE_RESPONSE_TIMEOUT,
+                          &responseTimeout, sizeof(responseTimeout))) {
+        WinHttpCloseHandle(req);
+        return -1;
+    }
 
     wchar_t range[64];
     swprintf(range, 64, L"Range: bytes=%lld-", offset);
