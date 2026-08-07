@@ -38,10 +38,11 @@ case "$TARGET" in
     android-arm64)
         : "${ANDROID_NDK_ROOT:?set ANDROID_NDK_ROOT to your NDK path}"
         TC="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin"
+        CC="$TC/aarch64-linux-android29-clang"
         CROSS="$WORK/android-arm64.ini"
         cat > "$CROSS" <<EOF
 [binaries]
-c = '$TC/aarch64-linux-android29-clang'
+c = '$CC'
 cpp = '$TC/aarch64-linux-android29-clang++'
 ar = '$TC/llvm-ar'
 strip = '$TC/llvm-strip'
@@ -51,6 +52,58 @@ cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
 EOF
+        # Hardening has to be spelled out here. This archive is built by meson
+        # against the cross file above, so it inherits nothing from the plugin's
+        # CMake target options and nothing from the NDK's CMake toolchain file —
+        # the clang driver on its own defines no _FORTIFY_SOURCE. librist parses
+        # the RIST transport's wire bytes and links straight into the client, so
+        # it wants the same treatment as the rest of the core.
+        #
+        # -mbranch-protection additionally has to *match* the plugin's own flag:
+        # lld emits the AArch64 BTI/PAC property note only when every input
+        # object carries it, so an archive built without it drops BTI from the
+        # linked .so. The -U mirrors the plugin build, so a future NDK that
+        # starts predefining _FORTIFY_SOURCE cannot turn this into a
+        # macro-redefinition warning.
+        #
+        # The set matches what CMakeLists.txt applies to the plugin target, and
+        # each flag is probed the same way it is there. ANDROID_NDK_ROOT is
+        # whatever the caller points at and there is no version floor, so the
+        # compiler genuinely varies: -ftrivial-auto-var-init=zero needs a separate
+        # enabling option on the clang in NDK r25 (LLVM 14) and only became
+        # unconditional in clang 16, so passing it blind fails that toolchain
+        # outright and no archive gets staged.
+        #
+        # A rejected flag is reported rather than swallowed. -mbranch-protection
+        # especially: lld emits the BTI/PAC property note only when every input
+        # object carries it, so losing it here silently de-hardens the linked .so
+        # with nothing in the output to say so.
+        C_ARGS=()
+        for flag in -mbranch-protection=standard \
+                    -fstack-protector-strong \
+                    -ftrivial-auto-var-init=zero; do
+            if printf 'int main(void) { return 0; }\n' |
+                   "$CC" -Werror "$flag" \
+                       -x c -c -o /dev/null - >/dev/null 2>&1; then
+                C_ARGS+=("$flag")
+            else
+                echo "warning: $CC rejected $flag; librist.a is built without it" >&2
+            fi
+        done
+        # Preprocessor defines, accepted by every clang the above can select.
+        C_ARGS+=(-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
+
+        # Appended to the cross file as a real array rather than passed as
+        # -Dc_args on the command line: meson splits that form on whitespace, so
+        # any joining character collapses the whole set into one argument and the
+        # first flag swallows the rest as its value.
+        {
+            printf '[built-in options]\nc_args = ['
+            sep=''
+            for a in "${C_ARGS[@]}"; do printf "%s'%s'" "$sep" "$a"; sep=', '; done
+            printf ']\n'
+        } >> "$CROSS"
+
         meson setup "$SRC/build" "$SRC" --cross-file "$CROSS" \
             --default-library=static --buildtype=release
         ;;

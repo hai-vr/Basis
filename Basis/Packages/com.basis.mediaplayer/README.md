@@ -485,6 +485,7 @@ cmake --build Native~/build --config Release
 cmake -S Native~ -B Native~/build-android \
   -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
   -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 \
+  -DCMAKE_BUILD_TYPE=Release \
   -DUNITY_PLUGIN_API_DIR=<UnityEditor>/Editor/Data/PluginAPI
 cmake --build Native~/build-android --config Release
 ```
