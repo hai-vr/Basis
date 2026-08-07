@@ -19,6 +19,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdio.h>
+#include <errno.h>
 
 #define LOG_TAG "basis_media"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -570,9 +571,28 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
         int rangeable = h->range_ok;
         if (!rangeable && get_header(env, conn, "Accept-Ranges", ranges, sizeof(ranges)))
             rangeable = strcasecmp(ranges, "bytes") == 0;
+        /* atoll takes a numeric prefix, answers 0 for anything unparseable and is
+         * undefined past LLONG_MAX, on a header the server chooses. The portable
+         * source parses this field the same strict way: digits and nothing else,
+         * with errno checked. A value that fails leaves len at 0, which is already
+         * the "unknown length" answer below — a stream rather than a seekable body,
+         * which is the safe reading of a Content-Length we could not understand. */
         long long len = 0;
-        if (get_header(env, conn, "Content-Length", clen, sizeof(clen)))
-            len = atoll(clen);
+        if (get_header(env, conn, "Content-Length", clen, sizeof(clen))) {
+            char* cl_end = NULL;
+            errno = 0;
+            long long v = strtoll(clen, &cl_end, 10);
+            /* Recorded before the skip, exactly as the portable source does it and
+             * for the same reason: strtoll skips leading whitespace itself, so on a
+             * value of just a tab the skip below would move cl_end off clen and the
+             * emptiness test would pass on a field with no digits. Harmless here,
+             * because len stays 0 and that is already the unknown-length answer —
+             * but the two parsers are supposed to agree, and a reader checking that
+             * should not have to work out that one of them is accidentally safe. */
+            int had_digits = (cl_end != clen);
+            while (*cl_end == ' ' || *cl_end == '\t') ++cl_end;
+            if (had_digits && !*cl_end && errno != ERANGE && v >= 0) len = v;
+        }
         h->seekable = (rangeable && len > 0) ? 1 : 0;
         h->content_length = len > 0 ? len : -1;
     }

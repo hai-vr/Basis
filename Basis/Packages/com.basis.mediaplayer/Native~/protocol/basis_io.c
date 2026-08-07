@@ -47,18 +47,29 @@ void basis_io_global_shutdown(void) {
 #endif
 }
 
-/* Keep the socket out of any child process. The client spawns helpers (the URL
- * resolver among them), and a descriptor open at that moment is inherited and
- * stays open for the child's whole life — an in-flight stream fetch or an RTSP
- * control connection held by a process that has no idea it owns one. Set as
- * close-on-exec right after creation; SOCK_CLOEXEC would close the window
- * between the two calls, but it is not portable, and nothing here forks. */
-static void set_cloexec(sock_t fd) {
+/* Per-socket settings that must hold from the moment the descriptor exists:
+ * close-on-exec, and SIGPIPE suppression on the platforms that want it as a socket
+ * option rather than a send flag. Named for both, since it does both.
+ *
+ * Close-on-exec keeps the socket out of any child process. The client spawns
+ * helpers (the URL resolver among them), and a descriptor open at that moment is
+ * inherited and stays open for the child's whole life — an in-flight stream fetch
+ * or an RTSP control connection held by a process that has no idea it owns one.
+ * Set right after creation; SOCK_CLOEXEC would close the window between the two
+ * calls, but it is not portable, and nothing here forks. */
+static void configure_new_socket(sock_t fd) {
 #if defined(_WIN32)
     SetHandleInformation((HANDLE)fd, HANDLE_FLAG_INHERIT, 0);
 #else
     int flags = fcntl(fd, F_GETFD, 0);
     if (flags >= 0) fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+#endif
+    /* Apple has no MSG_NOSIGNAL, so the SIGPIPE suppression the send paths get from
+     * that flag has to be a socket option here instead. Set alongside close-on-exec
+     * because both want to be true from the moment the descriptor exists. */
+#if defined(SO_NOSIGPIPE)
+    int on = 1;
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, (const char*)&on, sizeof(on));
 #endif
 }
 
@@ -202,7 +213,7 @@ basis_io_t* basis_io_connect(const char* host, int port, int timeout_ms) {
         if (!allow_local && sockaddr_is_blocked(ai->ai_addr)) continue;
         fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (fd == BASIS_INVALID_SOCK) continue;
-        set_cloexec(fd);
+        configure_new_socket(fd);
 
         /* non-blocking connect with select() timeout */
         set_blocking(fd, 0);
@@ -301,11 +312,23 @@ int basis_io_read_full(basis_io_t* io, uint8_t* buf, int len) {
     return got;
 }
 
+/* A write must not be able to raise SIGPIPE. The default disposition terminates the
+ * process, and a peer that half-closes or resets the connection chooses when that
+ * happens — so on the RTSP and RTMP control connections it is a remote kill of the
+ * whole client, not just the stream. Linux and Android take a per-send flag; Apple
+ * has no such flag and uses SO_NOSIGPIPE on the socket instead (set at connect);
+ * Winsock has no SIGPIPE at all. */
+#if defined(MSG_NOSIGNAL)
+#define BASIS_SEND_FLAGS MSG_NOSIGNAL
+#else
+#define BASIS_SEND_FLAGS 0
+#endif
+
 int basis_io_write_full(basis_io_t* io, const uint8_t* buf, int len) {
     if (!io || io->fd == BASIS_INVALID_SOCK || !buf) return -1;
     int sent = 0;
     while (sent < len) {
-        int n = (int)send(io->fd, (const char*)buf + sent, len - sent, 0);
+        int n = (int)send(io->fd, (const char*)buf + sent, len - sent, BASIS_SEND_FLAGS);
         if (n <= 0) return -1;
         sent += n;
     }
@@ -332,7 +355,7 @@ int basis_io_peer_addr(basis_io_t* io, char* buf, int cap) {
 static sock_t udp_bind_one(int family, int local_port) {
     sock_t fd = socket(family, SOCK_DGRAM, IPPROTO_UDP);
     if (fd == BASIS_INVALID_SOCK) return BASIS_INVALID_SOCK;
-    set_cloexec(fd);
+    configure_new_socket(fd);
 
     struct sockaddr_storage local;
     memset(&local, 0, sizeof(local));
@@ -433,7 +456,7 @@ int basis_io_udp_connect(basis_io_t* io, const char* host, int port) {
 
 int basis_io_send(basis_io_t* io, const uint8_t* buf, int len) {
     if (!io || io->fd == BASIS_INVALID_SOCK || !buf || len < 0) return -1;
-    return (int)send(io->fd, (const char*)buf, len, 0);
+    return (int)send(io->fd, (const char*)buf, len, BASIS_SEND_FLAGS);
 }
 
 int basis_io_poll_read(basis_io_t** ios, int n, int timeout_ms) {

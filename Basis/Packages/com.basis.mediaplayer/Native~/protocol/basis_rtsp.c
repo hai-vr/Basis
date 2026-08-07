@@ -360,7 +360,11 @@ static int parse_sdp(const char* sdp, int len, sdp_media_t* video, sdp_media_t* 
             if (strncmp(a, "rtpmap:", 7) == 0) {
                 int pt = 0; char name[64] = {0}; int clk = 0, ch = 0;
                 sscanf(a + 7, "%d %63[^/]/%d/%d", &pt, name, &clk, &ch);
-                if (clk) cur->clock = clk;
+                /* The SDP names the clock rate, and it divides every timestamp this
+                 * track produces — a rate of 1 scales them by a million. Keep it
+                 * inside the range real payload types use and fall back to the
+                 * media default rather than take the server's word for it. */
+                if (clk >= 1000 && clk <= 1000000) cur->clock = clk;
                 if (ch) cur->channels = ch;
                 if (strncasecmp(name, "H265", 4) == 0 || strncasecmp(name, "HEVC", 4) == 0) cur->codec = BASIS_CODEC_H265;
                 else if (strncasecmp(name, "H264", 4) == 0) cur->codec = BASIS_CODEC_H264;
@@ -459,7 +463,20 @@ static void au_append_nal(depkt_t* d, const uint8_t* nal, int len) {
     memcpy(d->au + d->au_len, nal, len); d->au_len += len;
 }
 
-static int64_t rtp_ts_to_us(int64_t ts, int clock) { return clock > 0 ? ts * 1000000 / clock : ts; }
+/* Largest timestamp the microsecond conversion can scale without overflowing. */
+#define RTP_TS_SCALE_MAX (INT64_MAX / 1000000)
+
+/* `ts` arrives as an extended RTP timestamp — a 32-bit wire field carried across
+ * wraps — so a chosen run of wraps takes it past the point where ts * 1000000
+ * overflows int64. The clock guard covers only the division. Saturate rather than
+ * reject: the value stays ordered against its neighbours, which is what the PTS
+ * arithmetic downstream cares about. */
+static int64_t rtp_ts_to_us(int64_t ts, int clock) {
+    if (clock <= 0) return ts;
+    if (ts >  RTP_TS_SCALE_MAX) ts =  RTP_TS_SCALE_MAX;
+    if (ts < -RTP_TS_SCALE_MAX) ts = -RTP_TS_SCALE_MAX;
+    return ts * 1000000 / clock;
+}
 
 /* True when one URL is a full suffix of the other (handles relative vs
  * absolute control URLs without prefix-collision false positives, e.g.

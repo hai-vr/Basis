@@ -400,6 +400,10 @@ void basis_engine_render_event(basis_media_engine_t* e, int event_id) {
  * Lead stays under the decode ring's span, so no ring backpressure is needed. No-op unless
  * pace_delivery is set (VOD, or live HLS — whose own byte-rate metering is disabled). */
 #define BASIS_PACE_LEAD_US 400000
+/* The furthest past its own anchor an access unit is allowed to claim to be before
+ * the gate stops believing it. An hour is orders of magnitude beyond anything a
+ * real stream produces, and the arithmetic below stays in range under it. */
+#define BASIS_PACE_MAX_SPAN_US (3600 * 1000000LL)
 
 static void pace_gate(basis_media_engine_t* e, int64_t pts_us) {
     if (!e->pace_delivery) return;
@@ -416,10 +420,24 @@ static void pace_gate(basis_media_engine_t* e, int64_t pts_us) {
     wall0 = e->pace_wall0_us;
     base = e->pace_base_pts;
     mutex_unlock(&e->lock);
+    /* Work from a bounded offset against the anchor rather than the raw timestamp.
+     * Both values are container metadata, so `pts_us - base` can overflow int64,
+     * which is undefined — and the 50 ms clamp below only ever bounded how long one
+     * iteration slept, not the arithmetic deciding it. The subtraction is done
+     * unsigned so the wrap is defined, then range-tested before it is trusted.
+     *
+     * An out-of-range span delivers without pacing instead of holding: that is the
+     * same outcome as any access unit that is not ahead of the clock, whereas
+     * holding on a fabricated timestamp stalls the stream for as long as the peer
+     * likes. */
+    uint64_t span = (uint64_t)pts_us - (uint64_t)base;
+    if (pts_us <= base || span > (uint64_t)BASIS_PACE_MAX_SPAN_US) return;
+    int64_t rel = (int64_t)span;
+
     while (e->running) {
-        int64_t media_now = base + (now_us() - wall0);
-        int64_t ahead = pts_us - (media_now + BASIS_PACE_LEAD_US);
-        if (ahead <= 0) return;
+        int64_t elapsed = now_us() - wall0;
+        if (rel <= elapsed + BASIS_PACE_LEAD_US) return;
+        int64_t ahead = rel - elapsed - BASIS_PACE_LEAD_US;
         int ms = (int)(ahead / 1000);
         if (ms > 50) ms = 50;   /* cap so a stop is observed promptly */
         if (ms < 1) ms = 1;

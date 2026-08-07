@@ -990,7 +990,22 @@ int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) {
     }
     d->vconfigured = 1;
 
-    pthread_create(&d->worker, NULL, url_worker, d);
+    if (pthread_create(&d->worker, NULL, url_worker, d) != 0) {
+        /* worker_started must not be set without a thread behind it: teardown
+         * joins on it, and pthread_join against an uninitialised pthread_t is
+         * undefined. Nothing would ever feed the codecs either, so unwind to the
+         * same state the no-decodable-video path leaves and decline the URL. */
+        __android_log_print(ANDROID_LOG_ERROR, "basis_media",
+            "worker thread creation failed; falling back to JNI HTTPS + portable demuxers");
+        if (d->vcodec) { AMediaCodec_delete(d->vcodec); d->vcodec = NULL; }
+        if (d->acodec) { AMediaCodec_delete(d->acodec); d->acodec = NULL; }
+        d->vconfigured = 0;
+        d->aconfigured = 0;
+        d->asr = 0; d->ach = 0;
+        d->video_track = d->audio_track = -1;
+        url_src_release(d);
+        return 0;
+    }
     d->worker_started = 1;
     return 1; /* took ownership of the URL */
 }

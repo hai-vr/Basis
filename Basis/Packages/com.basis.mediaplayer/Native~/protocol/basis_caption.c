@@ -329,17 +329,22 @@ static void parse_user_data(basis_caption_ctx_t* c, const uint8_t* d, int len, i
 static void scan_sei_rbsp(basis_caption_ctx_t* c, const uint8_t* rbsp, int rlen, int64_t pts_us) {
     int p = 0;
     while (p + 2 <= rlen) {
-        int type = 0;
+        /* Both run-length accumulators are int64: each loop can run to rlen, so a
+         * plain int overflows on a long enough run of 0xFF. That overflow is
+         * undefined, which is what let the compiler treat a "did it go negative"
+         * test as unreachable -- the guard on the payload below is written against
+         * the space actually left instead, where both sides are already bounded. */
+        int64_t type = 0;
         while (p < rlen && rbsp[p] == 0xFF) { type += 255; p++; }
         if (p >= rlen) break;
         type += rbsp[p++];
-        int size = 0;
+        int64_t size = 0;
         while (p < rlen && rbsp[p] == 0xFF) { size += 255; p++; }
         if (p >= rlen) break;
         size += rbsp[p++];
-        if (size < 0 || p + size > rlen) break;
-        if (type == 4) parse_user_data(c, rbsp + p, size, pts_us);
-        p += size;
+        if (size > (int64_t)(rlen - p)) break;
+        if (type == 4) parse_user_data(c, rbsp + p, (int)size, pts_us);
+        p += (int)size;
         if (p < rlen && rbsp[p] == 0x80) break;     /* rbsp_trailing_bits */
     }
 }

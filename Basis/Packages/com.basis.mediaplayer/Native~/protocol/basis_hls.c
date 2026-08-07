@@ -219,12 +219,63 @@ static long attr_long(const char* line, const char* key, long def) {
     return def;
 }
 
-/* Seconds (possibly fractional, e.g. "0.33334") to milliseconds. */
+/* Upper bound on any duration a playlist may declare. Generous against real
+ * content; the point is that the value is bounded before it is converted. */
+#define HLS_MAX_DURATION_SEC 86400L
+
+/* Seconds (possibly fractional, e.g. "0.33334") to milliseconds, or `def` when the
+ * playlist did not supply a usable number. These durations feed the VOD duration
+ * and the seek index, so a value taken on trust does not crash — it produces seek
+ * targets outside the media, with nothing reporting why. */
+static long secs_to_ms(const char* s, long def) {
+    /* Parsed by hand rather than with strtod, because strtod takes its radix
+     * character from LC_NUMERIC while the playlist grammar fixes it as '.'. In a
+     * comma-radix locale — which the host process can set without this code being
+     * consulted — strtod("9.009") stops at the point and answers 9, far enough
+     * along that a "did anything parse" check still passes. That yields a silently
+     * wrong duration rather than a rejected one, which is the failure these bounds
+     * exist to prevent. Integer arithmetic throughout, so there is no rounding
+     * question beyond the explicit one below. */
+    while (*s == ' ' || *s == '\t') ++s;
+    int digits = 0;
+    long whole = 0;
+    while (*s >= '0' && *s <= '9') {
+        int d = *s++ - '0';
+        /* Tested against the ceiling BEFORE the multiply. Checking afterwards means
+         * computing `whole * 10` on a value already near the top, and signed
+         * overflow is undefined, so the check would be reading a result the
+         * standard says nothing about. This ceiling is small enough that the other
+         * order could not actually overflow, but that is a property of the constant
+         * rather than of the code, and raising it should not make this unsafe. */
+        if (whole > HLS_MAX_DURATION_SEC / 10 ||
+            (whole == HLS_MAX_DURATION_SEC / 10 && d > HLS_MAX_DURATION_SEC % 10)) return def;
+        whole = whole * 10 + d;
+        digits = 1;
+    }
+    long frac_ms = 0;
+    if (*s == '.') {
+        ++s;
+        for (int i = 0; i < 3; ++i) {
+            frac_ms *= 10;
+            if (*s >= '0' && *s <= '9') { frac_ms += *s++ - '0'; digits = 1; }
+        }
+        if (*s >= '5' && *s <= '9') ++frac_ms;   /* round on the fourth place */
+        while (*s >= '0' && *s <= '9') ++s;
+    }
+    /* A sign, a bare point, or anything else non-numeric leaves no digits, and a
+     * playlist that supplies one of those is not one to guess at. */
+    if (!digits) return def;
+    /* The whole-second check above admits a value exactly at the ceiling, so a
+     * fraction on top of that would carry the total past it. Cheaper to refuse than
+     * to leave the stated bound off by a fraction of a second. */
+    if (whole == HLS_MAX_DURATION_SEC && frac_ms) return def;
+    return whole * 1000 + frac_ms;
+}
+
 static long attr_ms(const char* line, const char* key, long def) {
     char buf[64];
     if (!attr_str(line, key, buf, sizeof(buf))) return def;
-    double s = atof(buf);
-    return (long)(s * 1000.0 + 0.5);
+    return secs_to_ms(buf, def);
 }
 
 /* Resolve `ref` against the absolute base URL `base` into `out`.
@@ -441,7 +492,7 @@ static void parse_media_playlist(const char* base, const char* text, hls_playlis
 
         if (starts_with(line, "#EXT-X-TARGETDURATION")) {
             const char* c = strchr(line, ':');
-            if (c) pl->target_duration_ms = atol(c + 1) * 1000;
+            if (c) pl->target_duration_ms = secs_to_ms(c + 1, pl->target_duration_ms);
         } else if (starts_with(line, "#EXT-X-MEDIA-SEQUENCE")) {
             const char* c = strchr(line, ':');
             if (c) pl->media_seq_base = atol(c + 1);
@@ -484,7 +535,7 @@ static void parse_media_playlist(const char* base, const char* text, hls_playlis
         } else if (starts_with(line, "#EXTINF")) {
             /* #EXTINF:<seconds>,  — capture the duration for real-time pacing */
             long extinf_ms = 0;
-            { const char* c = strchr(line, ':'); if (c) extinf_ms = (long)(atof(c + 1) * 1000.0 + 0.5); }
+            { const char* c = strchr(line, ':'); if (c) extinf_ms = secs_to_ms(c + 1, 0); }
             /* the segment URI is the next non-comment line */
             const char* q = nl ? nl + 1 : p + llen;
             while (*q) {
