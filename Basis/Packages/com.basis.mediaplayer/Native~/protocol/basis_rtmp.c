@@ -19,6 +19,15 @@
 #define RTMP_DEFAULT_CHUNK 128
 #define MAX_CSID 64
 
+/* Ceilings on the sizes the peer declares. The message length is a 24-bit field,
+ * so the wire format alone permits 16 MiB per chunk stream and the table holds 64
+ * of them — none of which are freed until the session ends. Real FLV tags and AMF
+ * commands are orders of magnitude below these. Siblings carry the same kind of
+ * bound: TS_MAX_PES, WEBM_MAX_BLOCK, MP4_MAX_BOX, RTP_MAX_BUF. */
+#define RTMP_MAX_MSG   (4 * 1024 * 1024)    /* one reassembled message */
+#define RTMP_MAX_TOTAL (16 * 1024 * 1024)   /* summed across every chunk stream */
+#define RTMP_MAX_CHUNK (64 * 1024)          /* peer's Set Chunk Size */
+
 typedef struct {
     int      type;
     uint32_t ts;
@@ -41,6 +50,7 @@ typedef struct {
     basis_codec_t video_codec;
     int audio_announced;
     int audio_sr, audio_ch, audio_obj;
+    size_t   alloc_total;     /* bytes currently held across cs[].buf, against RTMP_MAX_TOTAL */
     uint32_t window_ack_size; /* server's Window Ack Size (type 5); 0 = unset */
     uint32_t bytes_in;        /* bytes received, reported in our Acknowledgement (type 3) */
     uint32_t bytes_acked;     /* bytes_in at the last Acknowledgement we sent */
@@ -124,7 +134,16 @@ static int rtmp_read_message(rtmp_t* r) {
     if (fmt <= 1) {
         if (basis_io_read_full(r->io, mh, 4) != 4) return -1; /* msg len(3) + type(1) */
         c->len = (mh[0]<<16)|(mh[1]<<8)|mh[2];
+        /* Bounded here, where it enters, rather than at the allocation below: the
+         * buffer is grown to the declared length before any payload arrives, so a
+         * peer that only ever sends headers still drives the allocation. */
+        if (c->len > RTMP_MAX_MSG) return -1;
         c->type = mh[3];
+        /* Set Chunk Size is a fixed 4-byte body. Rejecting any other length here
+         * keeps a short one from being dropped without changing the size the
+         * stream is then framed with, and an over-long one from being allocated
+         * and consumed for four bytes of payload. */
+        if (c->type == 1 && c->len != 4) return -1;
     }
     if (fmt == 0) {
         uint8_t sid[4]; if (basis_io_read_full(r->io, sid, 4) != 4) return -1;
@@ -153,8 +172,15 @@ static int rtmp_read_message(rtmp_t* r) {
     if ((int)c->len > c->cap) {
         int nc = c->cap ? c->cap : 4096;
         while (nc < (int)c->len) nc *= 2;
+        /* A per-message ceiling alone does not bound the table: 64 slots that are
+         * never shrunk still add up, and a peer can address every one of them. The
+         * growth is charged against a session budget so the total is bounded too;
+         * a real session uses a handful of chunk streams. */
+        size_t grow = (size_t)(nc - c->cap);
+        if (r->alloc_total + grow > RTMP_MAX_TOTAL) return -1;
         uint8_t* nb = (uint8_t*)realloc(c->buf, (size_t)nc);
         if (!nb) return -1;
+        r->alloc_total += grow;
         c->buf = nb; c->cap = nc;
     }
 
@@ -309,6 +335,7 @@ int basis_rtmp_run(basis_media_sink_t* sink, const basis_url_t* url) {
 
     sink->on_state(sink->user, BASIS_MEDIA_STATE_BUFFERING);
 
+    int fatal = 0;
     while (sink->is_running(sink->user)) {
         int csid = rtmp_read_message(&r);
         if (csid < 0) break;
@@ -324,7 +351,19 @@ int basis_rtmp_run(basis_media_sink_t* sink, const basis_url_t* url) {
 
         switch (c->type) {
             case 1: /* Set Chunk Size */
-                if (c->have >= 4) r.in_chunk_size = ((c->buf[0]&0x7F)<<24)|(c->buf[1]<<16)|(c->buf[2]<<8)|c->buf[3];
+                /* The size the server announces applies to every subsequent chunk, so
+                 * one we cannot honour is not something to ignore: keeping the old
+                 * size would read the wrong number of bytes per chunk and desync the
+                 * stream, feeding payload back through the header parser. Fail the
+                 * session instead. The full 32-bit value is validated (bit 31 must be
+                 * zero per spec; a value with it set is far above the ceiling and so
+                 * rejected here rather than masked into a small number), and 0 is
+                 * refused because it would stall reassembly. */
+                if (c->have >= 4) {
+                    uint32_t cs = ((uint32_t)c->buf[0]<<24)|((uint32_t)c->buf[1]<<16)|((uint32_t)c->buf[2]<<8)|c->buf[3];
+                    if (cs < 1 || cs > RTMP_MAX_CHUNK) { fatal = 1; break; }
+                    r.in_chunk_size = (int)cs;
+                }
                 break;
             case 4: /* User Control — answer PingRequest(6) with PingResponse(7) so the
                      * server's keepalive doesn't time out and drop the connection. */
@@ -373,6 +412,7 @@ int basis_rtmp_run(basis_media_sink_t* sink, const basis_url_t* url) {
             case 18: break; /* onMetaData — ignored */
             default: break;
         }
+        if (fatal) break; /* malformed control message — drop the session */
         c->have = 0; /* consume */
     }
 
