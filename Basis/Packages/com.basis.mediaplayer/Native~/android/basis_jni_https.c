@@ -14,6 +14,7 @@
 
 #include <jni.h>
 #include <android/log.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -135,10 +136,25 @@ static void log_and_clear_pending(JNIEnv* env, const char* where) {
 
 /* ---- context ------------------------------------------------------------ */
 
+/* `conn` and `is` are shared between the read-ahead reader thread and the demux
+ * thread, which disconnects and re-creates them for a reseek. Deleting a global
+ * ref the reader is still calling through is a use-after-free in the JVM's ref
+ * table, so `lock` covers the fields, `inflight` counts readers holding a copy,
+ * and `idle` lets a detaching thread wait them out before anything is deleted.
+ * Mirrors the WinHTTP source's handling of its request handle. */
 typedef struct {
     jobject conn;       /* global ref: HttpURLConnection                    */
     jobject is;         /* global ref: InputStream                          */
+    /* Single-reader only. `inflight` is a counter because a claim is cheaper to
+     * count than to prove unique, but this buffer is shared and unsynchronised
+     * (ensure_scratch mutates it and scratch_cap outside `lock`), so two
+     * concurrent readers would overwrite each other. Exactly one thread reads
+     * today: the read-ahead reader, or the demux thread when read-ahead is off.
+     * Give each reader its own scratch before adding a second. */
     jbyteArray scratch; /* global ref: reusable byte[scratch_cap]           */
+    pthread_mutex_t lock;
+    pthread_cond_t idle;
+    int inflight;
     int scratch_cap;
     int eof;
     int seekable;       /* finite, byte-range-fetchable body (VOD detect)   */
@@ -148,6 +164,68 @@ typedef struct {
     char* url;          /* kept for ranged re-requests (reseek)             */
     int timeout_ms;
 } https_ctx;
+
+/* Drop a reader's claim on the stream. `set_eof` records end-of-stream, but only
+ * for the response still installed — a read that raced a reseek must not mark the
+ * new one finished. Returns non-zero when the claim went stale, i.e. the caller's
+ * bytes belong to a response that has been replaced. */
+static int https_release_inflight_advance(https_ctx* h, jobject is, int set_eof, int advance) {
+    pthread_mutex_lock(&h->lock);
+    int stale = (h->is != is);
+    if (!stale) {
+        if (set_eof) h->eof = 1;
+        /* Inside the same critical section as the staleness test on purpose.
+         * Dropping the claim first would let a reseek waiting on `idle` wake,
+         * install its stream and set the cursor to the new offset, only for this
+         * thread to add its byte count on top — leaving the cursor reporting a
+         * position the stream is not at. It only feeds the diagnostics, which is
+         * exactly where a quietly wrong number does its damage. */
+        h->total_bytes += advance;
+    }
+    if (--h->inflight == 0) pthread_cond_broadcast(&h->idle);
+    pthread_mutex_unlock(&h->lock);
+    return stale;
+}
+
+static int https_release_inflight(https_ctx* h, jobject is, int set_eof) {
+    return https_release_inflight_advance(h, is, set_eof, 0);
+}
+
+/* Unblock whatever read is in flight and wait for it to return, so the caller can
+ * delete the global refs it was using. Disconnecting closes the socket, which makes
+ * a blocked InputStream.read() throw — that is what bounds the wait. Returning
+ * before the reader is out is the use-after-free this exists to prevent. */
+static void https_quiesce(https_ctx* h, JNIEnv* env) {
+    pthread_mutex_lock(&h->lock);
+    h->eof = 1;                       /* stop a fresh read starting mid-teardown */
+    /* The disconnect runs under the lock rather than against a snapshot taken and
+     * then released. reseek and close clear these fields under this same lock and
+     * delete the global refs immediately after, so a snapshot used outside it can
+     * be called through after the ref is gone — a reference-table use-after-free,
+     * and an abort can run concurrently with a reseek whenever the two come from
+     * different threads. Holding the lock across the call makes both orders safe:
+     * either this runs first and the other waits, or the field is already NULL and
+     * there is nothing to disconnect.
+     *
+     * Blocking a reader that is trying to start is the intent. One already inside
+     * InputStream.read does not hold this lock, and the cond_wait below releases it
+     * anyway, so the reader can always finish and be counted out. */
+    if (h->conn && (*env)->IsInstanceOf(env, h->conn, g_ids.http_conn_cls)) {
+        (*env)->CallVoidMethod(env, h->conn, g_ids.http_disconnect);
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+    }
+
+    while (h->inflight > 0) pthread_cond_wait(&h->idle, &h->lock);
+    pthread_mutex_unlock(&h->lock);
+}
+
+/* Releases a context that never got as far as installing a stream. */
+static void https_ctx_free(https_ctx* h) {
+    pthread_cond_destroy(&h->idle);
+    pthread_mutex_destroy(&h->lock);
+    free(h->url);
+    free(h);
+}
 
 /* Copies a NUL-terminated java string into buf. Returns 0 when it is absent,
  * unreadable, or too long to hold: snprintf would leave a truncated value that
@@ -469,6 +547,8 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
 
     https_ctx* h = (https_ctx*)calloc(1, sizeof(*h));
     if (!h) { jenv_release(&L); return NULL; }
+    pthread_mutex_init(&h->lock, NULL);
+    pthread_cond_init(&h->idle, NULL);
 
     /* The bytes=0- probe: identical body, but a server that really implements
      * ranges answers 206 — the seekability signal the live-vs-VOD delivery
@@ -476,7 +556,7 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
      * on 206 responses, so the status is the only proof there). */
     jint code = 0;
     jobject conn = https_connect(env, url, timeout_ms, "bytes=0-", &code);
-    if (!conn) { free(h); jenv_release(&L); return NULL; }
+    if (!conn) { https_ctx_free(h); jenv_release(&L); return NULL; }
 
     /* Seekability (live-vs-VOD auto-detect): a finite, range-fetchable body is
      * on-demand. Range support is proven by the probe answering 206 or by an
@@ -504,12 +584,43 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
             (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
         log_and_clear_pending(env, "disconnect");
         (*env)->DeleteLocalRef(env, conn);
-        free(h); jenv_release(&L); return NULL;
+        https_ctx_free(h); jenv_release(&L); return NULL;
     }
 
     h->conn = (*env)->NewGlobalRef(env, conn);
     h->is   = (*env)->NewGlobalRef(env, is);
+    /* Same reason the reseek path checks: a NULL stream with the eof flag clear
+     * is reported by the reader as a permanent -1 rather than an end of stream,
+     * and the connection would sit open until close. Fail the open instead. */
+    if (!h->conn || !h->is) {
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        if (h->conn) (*env)->DeleteGlobalRef(env, h->conn);
+        if (h->is)   (*env)->DeleteGlobalRef(env, h->is);
+        h->conn = NULL; h->is = NULL;
+        if ((*env)->IsInstanceOf(env, conn, g_ids.http_conn_cls))
+            (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
+        log_and_clear_pending(env, "disconnect");
+        (*env)->DeleteLocalRef(env, is);
+        (*env)->DeleteLocalRef(env, conn);
+        https_ctx_free(h); jenv_release(&L); return NULL;
+    }
     h->url  = strdup(url);
+    /* Without the URL every reseek refuses at its own guard, so an allocation
+     * failure would surface as a source that cannot seek — a different fault,
+     * reported at a different time, from the one that actually happened. The
+     * disconnect matters for the same reason it does above: dropping the refs
+     * alone leaves the connection open until the JVM finalises it. */
+    if (!h->url) {
+        (*env)->DeleteGlobalRef(env, h->conn);
+        (*env)->DeleteGlobalRef(env, h->is);
+        h->conn = NULL; h->is = NULL;
+        if ((*env)->IsInstanceOf(env, conn, g_ids.http_conn_cls))
+            (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
+        log_and_clear_pending(env, "disconnect");
+        (*env)->DeleteLocalRef(env, is);
+        (*env)->DeleteLocalRef(env, conn);
+        https_ctx_free(h); jenv_release(&L); return NULL;
+    }
     h->timeout_ms = timeout_ms;
 
     (*env)->DeleteLocalRef(env, is);
@@ -559,15 +670,10 @@ void basis_jni_https_abort(void* ctx) {
     https_ctx* h = (https_ctx*)ctx;
     if (!h) return;
     jenv_lease L; if (jenv_acquire(&L) != 0) return;
-    JNIEnv* env = L.env;
-    /* Disconnecting closes the underlying socket, so a read blocked in
-     * InputStream.read() on the reader thread throws and returns at once (the
-     * counterpart to closing the WinHTTP request handle). The read path sets eof
-     * on that exception; reseek clears it when it installs the new stream. */
-    if (h->conn && (*env)->IsInstanceOf(env, h->conn, g_ids.http_conn_cls)) {
-        (*env)->CallVoidMethod(env, h->conn, g_ids.http_disconnect);
-        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
-    }
+    /* Waits the reader out as well as unblocking it: the caller is free to reseek
+     * the moment this returns, and reseek deletes the refs the reader holds.
+     * reseek clears eof when it installs the new stream. */
+    https_quiesce(h, L.env);
     jenv_release(&L);
 }
 
@@ -578,24 +684,34 @@ int basis_jni_https_reseek(void* ctx, long long offset) {
     jenv_lease L; if (jenv_acquire(&L) != 0) return -1;
     JNIEnv* env = L.env;
 
-    /* Tear down the old response (abort may already have disconnected it). */
-    if (h->is) {
-        (*env)->CallVoidMethod(env, h->is, g_ids.is_close);
+    /* Tear down the old response. The quiesce is what makes the deletes below
+     * safe — http_reseek aborts first, but this must not depend on its caller
+     * having done so. */
+    https_quiesce(h, env);
+
+    pthread_mutex_lock(&h->lock);
+    jobject old_is = h->is, old_conn = h->conn;
+    h->is = NULL;
+    h->conn = NULL;
+    pthread_mutex_unlock(&h->lock);
+
+    if (old_is) {
+        (*env)->CallVoidMethod(env, old_is, g_ids.is_close);
         if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
-        (*env)->DeleteGlobalRef(env, h->is); h->is = NULL;
+        (*env)->DeleteGlobalRef(env, old_is);
     }
-    if (h->conn) {
-        if ((*env)->IsInstanceOf(env, h->conn, g_ids.http_conn_cls))
-            (*env)->CallVoidMethod(env, h->conn, g_ids.http_disconnect);
+    if (old_conn) {
+        if ((*env)->IsInstanceOf(env, old_conn, g_ids.http_conn_cls))
+            (*env)->CallVoidMethod(env, old_conn, g_ids.http_disconnect);
         if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
-        (*env)->DeleteGlobalRef(env, h->conn); h->conn = NULL;
+        (*env)->DeleteGlobalRef(env, old_conn);
     }
 
     char range[64];
     snprintf(range, sizeof(range), "bytes=%lld-", offset);
     jint code = 0;
     jobject conn = https_connect(env, h->url, h->timeout_ms, range, &code);
-    if (!conn) { h->eof = 1; jenv_release(&L); return -1; }
+    if (!conn) { jenv_release(&L); return -1; }   /* quiesce already set eof */
 
     /* 206 = ranged body starting at offset. A 200 means the server ignored the
      * Range and restarted at byte 0 — the bytes would be silently misaligned. */
@@ -603,7 +719,7 @@ int basis_jni_https_reseek(void* ctx, long long offset) {
         (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
         if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
         (*env)->DeleteLocalRef(env, conn);
-        h->eof = 1; jenv_release(&L); return -1;
+        jenv_release(&L); return -1;   /* quiesce already set eof */
     }
 
     jobject is = (*env)->CallObjectMethod(env, conn, g_ids.conn_get_is);
@@ -612,13 +728,31 @@ int basis_jni_https_reseek(void* ctx, long long offset) {
         (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
         if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
         (*env)->DeleteLocalRef(env, conn);
-        h->eof = 1; jenv_release(&L); return -1;
+        jenv_release(&L); return -1;   /* quiesce already set eof */
     }
 
-    h->conn = (*env)->NewGlobalRef(env, conn);
-    h->is   = (*env)->NewGlobalRef(env, is);
+    jobject new_conn = (*env)->NewGlobalRef(env, conn);
+    jobject new_is   = (*env)->NewGlobalRef(env, is);
+    /* A global ref is NULL when the JVM cannot allocate. Installing one would
+     * leave `is` NULL with `eof` clear, which the reader reports as a permanent
+     * -1 rather than an end of stream, and would strand the connection until
+     * close. Fail the reseek instead, the same as every other path here. */
+    if (!new_conn || !new_is) {
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        if (new_conn) (*env)->DeleteGlobalRef(env, new_conn);
+        if (new_is) (*env)->DeleteGlobalRef(env, new_is);
+        (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        (*env)->DeleteLocalRef(env, is);
+        (*env)->DeleteLocalRef(env, conn);
+        jenv_release(&L); return -1;   /* quiesce already set eof */
+    }
+    pthread_mutex_lock(&h->lock);
+    h->conn = new_conn;
+    h->is   = new_is;
     h->eof  = 0;
     h->total_bytes = offset;
+    pthread_mutex_unlock(&h->lock);
     (*env)->DeleteLocalRef(env, is);
     (*env)->DeleteLocalRef(env, conn);
     jenv_release(&L);
@@ -627,23 +761,39 @@ int basis_jni_https_reseek(void* ctx, long long offset) {
 
 int basis_jni_https_read(void* ctx, uint8_t* buf, int len) {
     https_ctx* h = (https_ctx*)ctx;
-    if (!h || h->eof || !buf || len <= 0) return 0;
+    if (!h || !buf || len <= 0) return 0;
 
-    jenv_lease L; if (jenv_acquire(&L) != 0) return -1;
+    /* Claim the stream before using it, so a reseek or teardown cannot delete
+     * the global ref underneath this call. `is` is a copy: the fields may be
+     * replaced while the read blocks, which the staleness check below catches. */
+    pthread_mutex_lock(&h->lock);
+    jobject is = h->is;
+    if (h->eof || !is) {
+        int done = h->eof;
+        pthread_mutex_unlock(&h->lock);
+        return done ? 0 : -1;
+    }
+    h->inflight++;
+    pthread_mutex_unlock(&h->lock);
+
+    jenv_lease L;
+    if (jenv_acquire(&L) != 0) { https_release_inflight(h, is, 1); return -1; }
     JNIEnv* env = L.env;
 
-    if (ensure_scratch(env, h, len) != 0) { jenv_release(&L); return -1; }
+    if (ensure_scratch(env, h, len) != 0) {
+        jenv_release(&L); https_release_inflight(h, is, 1); return -1;
+    }
 
     int want = len < h->scratch_cap ? len : h->scratch_cap;
     jint n = 0;
     int zero_reads = 0;
     for (;;) {
-        n = (*env)->CallIntMethod(env, h->is, g_ids.is_read, h->scratch, 0, want);
+        n = (*env)->CallIntMethod(env, is, g_ids.is_read, h->scratch, 0, want);
         if ((*env)->ExceptionCheck(env)) {
             log_and_clear_pending(env, "InputStream.read");
             LOGE("basis_jni_https: read exception after %lld bytes", h->total_bytes);
-            h->eof = 1;
             jenv_release(&L);
+            https_release_inflight(h, is, 1);
             return -1;
         }
         if (n != 0) break;
@@ -656,18 +806,25 @@ int basis_jni_https_read(void* ctx, uint8_t* buf, int len) {
          * to the engine's error path rather than a fake clean EOF. */
         if (++zero_reads >= 1000) {
             LOGE("basis_jni_https: persistent zero-byte reads after %lld bytes", h->total_bytes);
-            h->eof = 1;
             jenv_release(&L);
+            https_release_inflight(h, is, 1);
             return -1;
         }
     }
     if (n < 0) {
         LOGI("basis_jni_https: clean EOF after %lld bytes", h->total_bytes);
-        h->eof = 1; jenv_release(&L); return 0;
+        jenv_release(&L);
+        https_release_inflight(h, is, 1);
+        return 0;
     }
     (*env)->GetByteArrayRegion(env, h->scratch, 0, n, (jbyte*)buf);
-    h->total_bytes += n;
     jenv_release(&L);
+
+    /* Bytes from a response that has since been replaced belong to the pre-seek
+     * stream and must not reach the ring. The cursor advances under the same
+     * lock, so a reseek waiting to install a new stream cannot have its position
+     * overwritten afterwards. */
+    if (https_release_inflight_advance(h, is, 0, (int)n) != 0) return -1;
     return (int)n;
 }
 
@@ -678,20 +835,33 @@ void basis_jni_https_close(void* ctx) {
     jenv_lease L;
     if (jenv_acquire(&L) == 0) {
         JNIEnv* env = L.env;
-        if (h->is) {
-            (*env)->CallVoidMethod(env, h->is, g_ids.is_close);
+        /* The core joins the reader before it gets here, so this is normally a
+         * no-op — but it is the only thing between a reader that outlived its
+         * join and the frees below. */
+        https_quiesce(h, env);
+        /* Detach under the lock before deleting, as reseek does: a quiesce racing
+         * this must find NULL rather than a reference that is about to go. */
+        pthread_mutex_lock(&h->lock);
+        jobject old_is = h->is, old_conn = h->conn;
+        h->is = NULL;
+        h->conn = NULL;
+        pthread_mutex_unlock(&h->lock);
+        if (old_is) {
+            (*env)->CallVoidMethod(env, old_is, g_ids.is_close);
             if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
-            (*env)->DeleteGlobalRef(env, h->is);
+            (*env)->DeleteGlobalRef(env, old_is);
         }
-        if (h->conn) {
-            if ((*env)->IsInstanceOf(env, h->conn, g_ids.http_conn_cls))
-                (*env)->CallVoidMethod(env, h->conn, g_ids.http_disconnect);
+        if (old_conn) {
+            if ((*env)->IsInstanceOf(env, old_conn, g_ids.http_conn_cls))
+                (*env)->CallVoidMethod(env, old_conn, g_ids.http_disconnect);
             if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
-            (*env)->DeleteGlobalRef(env, h->conn);
+            (*env)->DeleteGlobalRef(env, old_conn);
         }
         if (h->scratch) (*env)->DeleteGlobalRef(env, h->scratch);
         jenv_release(&L);
     }
+    pthread_cond_destroy(&h->idle);
+    pthread_mutex_destroy(&h->lock);
     free(h->url);
     free(h);
 }

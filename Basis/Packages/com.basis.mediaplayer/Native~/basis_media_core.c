@@ -742,7 +742,8 @@ typedef struct {
     int eof;                      /* producer done (reader hit EOF/error) */
     int closing;                  /* consumer done (tells the reader to stop) */
     volatile int reseek_park;     /* consumer repositioning: reader must park */
-    volatile int reader_parked;   /* reader acknowledged the park */
+    volatile int park_epoch;      /* bumped by each park request */
+    volatile int parked_epoch;    /* the epoch the reader last parked for */
     volatile int* running;        /* engine running flag, for prompt stop */
     basis_mutex_t lock;
 } byte_ring_t;
@@ -762,6 +763,34 @@ static void ring_free(byte_ring_t* r) {
 
 /* Producer: copy n bytes in, blocking while the ring is full. Bails if the engine
  * stops or the consumer is closing. */
+/* Both handshake flags are read and written under the ring lock, on both sides.
+ * Mixing a locked write with an unlocked read gives the reading thread no
+ * ordering against the writer's release on a weakly ordered target, and leaves
+ * the load free to be hoisted out of a poll loop — the sleep between iterations
+ * is the only thing preventing that today, which is luck rather than a rule. */
+static int ring_flag(byte_ring_t* r, const volatile int* flag) {
+    mutex_lock(&r->lock);
+    int v = *flag;
+    mutex_unlock(&r->lock);
+    return v;
+}
+
+static void ring_set_flag(byte_ring_t* r, volatile int* flag, int v) {
+    mutex_lock(&r->lock);
+    *flag = v;
+    mutex_unlock(&r->lock);
+}
+
+/* Acknowledge the park request that is live right now. Reading the epoch and
+ * storing it under one lock is what makes the acknowledgement belong to a
+ * specific request: a boolean here could be left set by one reposition and read
+ * as consent by the next, which would let it run against a woken reader. */
+static void ring_ack_park(byte_ring_t* r) {
+    mutex_lock(&r->lock);
+    r->parked_epoch = r->park_epoch;
+    mutex_unlock(&r->lock);
+}
+
 static void ring_write(byte_ring_t* r, const uint8_t* data, int n, volatile int* running) {
     int off = 0;
     while (off < n) {
@@ -779,7 +808,7 @@ static void ring_write(byte_ring_t* r, const uint8_t* data, int n, volatile int*
         int closing = r->closing;
         mutex_unlock(&r->lock);
         if (off < n) {
-            if (!*running || closing || r->reseek_park) return; /* parked writes drop pre-seek bytes */
+            if (!*running || closing || ring_flag(r, &r->reseek_park)) return; /* parked writes drop pre-seek bytes */
             sleep_ms(2);   /* full: wait for the demuxer to drain */
         }
     }
@@ -818,19 +847,25 @@ typedef struct {
 
 static void reader_body(reader_args_t* a) {
     uint8_t tmp[65536];
-    while (*a->running && !a->ring->closing) {
-        if (a->ring->reseek_park) {
+    /* `closing` and `eof` go through the lock like the park flags: every write to
+     * them is made under it, so an unlocked load here would have no ordering
+     * against that write on a weak memory model. `running` is the engine's own
+     * flag, not the ring's, and stays a direct volatile read. */
+    while (*a->running && !ring_flag(a->ring, &a->ring->closing)) {
+        if (ring_flag(a->ring, &a->ring->reseek_park)) {
             /* The demuxer is repositioning the source underneath us: acknowledge
-             * and idle until it finishes (http_reseek aborts a parked read, so a
-             * blocked net_read also lands here via n <= 0). */
-            a->ring->reader_parked = 1;
+             * the request that is live and idle until it finishes (http_reseek
+             * aborts a parked read, so a blocked net_read also lands here via
+             * n <= 0). Re-acknowledged on every pass, so a request raised while
+             * this thread was already parked is picked up too. */
+            ring_ack_park(a->ring);
             sleep_ms(2);
             continue;
         }
-        if (a->ring->eof) { sleep_ms(5); continue; } /* drained; stay alive for a reseek */
+        if (ring_flag(a->ring, &a->ring->eof)) { sleep_ms(5); continue; } /* drained; stay alive for a reseek */
         int n = a->net_read(a->net_ctx, tmp, (int)sizeof(tmp));
         if (n <= 0) {
-            if (a->ring->reseek_park) continue;  /* aborted for a reseek, not EOF */
+            if (ring_flag(a->ring, &a->ring->reseek_park)) continue;  /* aborted for a reseek, not EOF */
             mutex_lock(&a->ring->lock);
             a->ring->eof = 1;
             mutex_unlock(&a->ring->lock);
@@ -867,9 +902,35 @@ typedef struct {
 static int http_reseek(void* ctx, int64_t abs_offset) {
     http_seek_src_t* s = (http_seek_src_t*)ctx;
     if (s->ring) {
+        /* Raise the request and stamp it, in one critical section so the reader
+         * cannot acknowledge a number this call never asked for. */
+        int epoch;
+        mutex_lock(&s->ring->lock);
+        epoch = ++s->ring->park_epoch;
         s->ring->reseek_park = 1;
-        s->abort_fn(s->http);            /* unblock a read the reader is parked in */
-        while (!s->ring->reader_parked && *s->running) sleep_ms(1);
+        mutex_unlock(&s->ring->lock);
+        /* Unblocks a read the reader is parked in and waits it out, so the
+         * reposition below cannot swap the source's handles under it. */
+        s->abort_fn(s->http);
+        /* Wait for an acknowledgement of *this* request. The previous
+         * reposition's acknowledgement carries an older epoch and cannot satisfy
+         * it, which is what stops a reader that has woken but not yet re-parked
+         * from reading as still parked. A stopping engine is not permission to
+         * proceed either: there is nothing worth repositioning for once the
+         * engine is going away. */
+        /* `closing` is tested as well as `running`, because the reader leaves on
+         * that flag without acknowledging the park. Today the demuxer is the only
+         * caller and it has returned before closing is ever set, so this cannot
+         * spin — but that is an ordering the call sites happen to have rather than
+         * one this loop enforces, and enforcing it here is cheaper than relying on
+         * nobody reseeking during teardown later. */
+        while (ring_flag(s->ring, &s->ring->parked_epoch) != epoch) {
+            if (!*s->running || ring_flag(s->ring, &s->ring->closing)) {
+                ring_set_flag(s->ring, &s->ring->reseek_park, 0);
+                return -1;
+            }
+            sleep_ms(1);
+        }
     } else {
         s->abort_fn(s->http);            /* demux thread is the only reader */
     }
@@ -879,9 +940,8 @@ static int http_reseek(void* ctx, int64_t abs_offset) {
         mutex_lock(&s->ring->lock);
         s->ring->head = s->ring->tail = s->ring->count = 0;
         s->ring->eof = (rc != 0);            /* failed reseek reads as end-of-stream */
+        s->ring->reseek_park = 0;            /* the acknowledged epoch stands; the next request bumps past it */
         mutex_unlock(&s->ring->lock);
-        s->ring->reader_parked = 0;
-        s->ring->reseek_park = 0;
     }
     return rc;
 }
@@ -1133,12 +1193,15 @@ static void run_http_like(demux_ctx_t* c) {
 
     if (use_readahead) {
         mutex_lock(&ring.lock); ring.closing = 1; mutex_unlock(&ring.lock); /* tell the reader to stop */
+        /* The reader may be parked in a blocking read; abort so it returns at once
+         * and the join can't stall on a stalled socket (src is the byte source). */
 #if defined(_WIN32)
-        /* The reader may be parked in WinHttpReadData; abort the request so the read returns
-         * at once and the join can't stall on a stalled socket (src is the WinHTTP handle). */
         basis_win_http_abort(src);
         WaitForSingleObject(reader, INFINITE); CloseHandle(reader);
 #else
+#if defined(__ANDROID__)
+        basis_jni_https_abort(src);
+#endif
         pthread_join(reader, NULL);
 #endif
         ring_free(&ring);
