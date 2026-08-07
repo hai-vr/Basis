@@ -445,6 +445,25 @@ https→http case the row above requires to be refused. An `http`→`https` **up
 is worth checking separately; only the downgrade is refused. A self-redirect must terminate rather
 than spin.
 
+**Android's OS-extractor leg is inside this matrix, and the fixture extension decides whether you
+are testing it.** On Android a URL that is not `.m3u8`, `.m2ts` or `.mts` goes to `AMediaExtractor`
+first, and only falls through to the JNI source plus the portable demuxers if the extractor declines
+it. The extractor reads through the JNI source rather than fetching the URL itself, so the hop loop
+covers both legs — but they are different code, and a `.ts` fixture only ever exercises the fallback.
+Run at least the loopback, DNS-to-loopback and downgrade rows against an `.mp4` fixture on Android
+so the extractor leg is the one under test, and record which extension each row used. The client-side
+gate is a second reason to be careful here: `BasisMediaUrlRouter.IsDirectlyPlayable` requires the URI
+path to end in a media extension once the query is stripped, so an extensionless redirect fixture is
+rejected in C# and never reaches native at all.
+
+**Android extractor playback and seek** — the extractor's byte source is the JNI HTTP source, so any
+change to either wants a plain regression pass behind it: play a large progressive `.mp4` over
+https, seek forwards and backwards several times, and confirm the position tracks and audio stays in
+sync. A source that cannot be re-requested by range is declined up front and falls through to the
+portable demuxers, so a fixture served without `Accept-Ranges` should still play — just not through
+the extractor. Worth confirming both outcomes rather than only the happy one, since a regression that
+silently pushes everything down the fallback path looks identical from the sofa.
+
 **A/V sync judgement** — use real footage with **visible speech**; synthetic patterns hide sync
 drift, and Big Buck Bunny has no dialogue at all. A CC-BY Blender open
 movie with clear lip-sync is a good source — Sintel and Spring both work; download from

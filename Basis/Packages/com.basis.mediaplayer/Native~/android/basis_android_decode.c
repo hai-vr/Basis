@@ -15,8 +15,10 @@
 
 #include "../basis_media_internal.h"
 #include "basis_android_vk.h"
+#include "basis_jni_https.h"
 
 #include <media/NdkMediaCodec.h>
+#include <media/NdkMediaDataSource.h>
 #include <media/NdkMediaExtractor.h>
 #include <media/NdkMediaFormat.h>
 #include <media/NdkImageReader.h>
@@ -32,6 +34,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <time.h>
+#include <limits.h>
 
 /* ---- monotonic clock ---------------------------------------------------- */
 
@@ -234,6 +237,8 @@ struct basis_decoder {
     AMediaCodec* vcodec;
     AMediaCodec* acodec;
     AMediaExtractor* extractor;
+    AMediaDataSource* urlSrc;   /* the extractor's byte source, see url_src_read_at */
+    struct url_src_s* urlSrcState;
     int video_track, audio_track;
 
     basis_codec_t vc;
@@ -772,13 +777,21 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     return d;
 }
 
+static void url_src_abort(basis_decoder_t* d);
+static void url_src_release(basis_decoder_t* d);
+
 void basis_decoder_destroy(basis_decoder_t* d) {
     if (!d) return;
+    /* Abort before joining. The worker can be parked in readAt waiting on a
+     * socket, and the join below is INFINITE — the read only comes back once the
+     * source is disconnected, so ordering these the other way hangs teardown on
+     * the thread the client is waiting for. */
+    url_src_abort(d);
     if (d->worker_started) pthread_join(d->worker, NULL);
     basis_decoder_render_release(d);
     if (d->vcodec) { AMediaCodec_stop(d->vcodec); AMediaCodec_delete(d->vcodec); }
     if (d->acodec) { AMediaCodec_stop(d->acodec); AMediaCodec_delete(d->acodec); }
-    if (d->extractor) AMediaExtractor_delete(d->extractor);
+    url_src_release(d);
     /* Release any frames still held in the video ring before the reader they
      * belong to (the worker is already joined, so nothing enqueues concurrently). */
     for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
@@ -790,16 +803,154 @@ void basis_decoder_destroy(basis_decoder_t* d) {
     free(d);
 }
 
+/* ---- the extractor's byte source ----------------------------------------
+ * Handing AMediaExtractor a URL makes it do its own HTTP, which follows
+ * redirects with no address policy applied — so an origin that passes the entry
+ * check can still steer it at a host on the user's LAN. Feeding it through
+ * basis_jni_https instead keeps the hardware demux and puts every hop back
+ * behind basis_io_host_is_blocked, which that source already applies per hop.
+ *
+ * readAt is random access; the source is a stream with a ranged-refetch hook. A
+ * sequential request is served straight from the open response, which is the
+ * common case and must stay cheap — only a jump pays for a new ranged GET. */
+struct url_src_s {
+    void*     http;
+    long long pos;     /* offset the open response is positioned at */
+    long long size;    /* content length, or -1 when unknown */
+    pthread_mutex_t lock;
+};
+
+static ssize_t url_src_read_at(void* userdata, off64_t offset, void* buffer, size_t size) {
+    struct url_src_s* s = (struct url_src_s*)userdata;
+    if (!s || !s->http || offset < 0) return -1;
+    if (size == 0) return 0;
+    if (s->size >= 0 && offset >= s->size) return 0;   /* wholly past the end */
+
+    /* The framework may call this from more than one of its own threads, and the
+     * source is single-reader: serialise here rather than relying on it. */
+    pthread_mutex_lock(&s->lock);
+    if (offset != s->pos) {
+        if (basis_jni_https_reseek(s->http, offset) != 0) {
+            pthread_mutex_unlock(&s->lock);
+            return -1;
+        }
+        s->pos = offset;
+    }
+    size_t got = 0;
+    int failed = 0;
+    while (got < size) {
+        size_t want = size - got;
+        int n = basis_jni_https_read(s->http, (uint8_t*)buffer + got,
+                                     want > (size_t)INT_MAX ? INT_MAX : (int)want);
+        if (n < 0) { failed = 1; break; }
+        if (n == 0) break;   /* end of stream */
+        got += (size_t)n;
+        s->pos += n;
+    }
+    /* A failed read leaves the response in an unknown state, so the recorded
+     * position can no longer be trusted to describe it. Left alone it would still
+     * match the offset the framework retries at, the fast path above would take
+     * it, and the next read would run against the same broken response -- every
+     * retry failing identically while the ranged refetch that exists to recover
+     * from exactly this never runs. -1 cannot match a valid offset, so the retry
+     * is forced through the reseek. */
+    if (failed) s->pos = -1;
+    pthread_mutex_unlock(&s->lock);
+
+    /* A partial read is legal — the framework asks again for the rest. Zero has
+     * to keep reporting end-of-stream separately from failure, because a source
+     * with no declared length cannot be range-checked above and would otherwise
+     * have its clean EOF delivered as an I/O error. */
+    if (got) return (ssize_t)got;
+    return failed ? -1 : 0;
+}
+
+static ssize_t url_src_get_size(void* userdata) {
+    struct url_src_s* s = (struct url_src_s*)userdata;
+    if (!s || s->size < 0) return -1;   /* -1 tells the framework to treat it as a stream */
+    /* The callback returns ssize_t, which is 32-bit on the 32-bit ABIs, so a body
+     * past that would come back truncated — negative and read as unknown, or
+     * positive and small enough that the extractor treats a whole file as a cut-off
+     * one. Reporting unknown is the honest answer. Only arm64 is built today, where
+     * this cannot trigger; the range check in url_src_read_at uses off64_t and is
+     * unaffected either way. */
+    if (s->size > (long long)SSIZE_MAX) return -1;
+    return (ssize_t)s->size;
+}
+
+static void url_src_close(void* userdata) {
+    /* Unblock a read the extractor is parked in. Deliberately does not free: the
+     * framework can call this while AMediaDataSource_delete is still running, so
+     * the context is released by url_src_release once the delete has returned. */
+    struct url_src_s* s = (struct url_src_s*)userdata;
+    if (s && s->http) basis_jni_https_abort(s->http);
+}
+
+/* Unblock a reader parked on the socket without tearing anything down, so a
+ * thread can be joined before the objects it touches are released. */
+static void url_src_abort(basis_decoder_t* d) {
+    if (d->urlSrcState && d->urlSrcState->http) basis_jni_https_abort(d->urlSrcState->http);
+}
+
+/* Tear the extractor and its source down in dependency order: the extractor
+ * stops calling readAt, then the data source goes, then the bytes behind it. */
+static void url_src_release(basis_decoder_t* d) {
+    if (d->extractor) { AMediaExtractor_delete(d->extractor); d->extractor = NULL; }
+    if (d->urlSrc)    { AMediaDataSource_delete(d->urlSrc);   d->urlSrc = NULL; }
+    if (d->urlSrcState) {
+        if (d->urlSrcState->http) basis_jni_https_close(d->urlSrcState->http);
+        pthread_mutex_destroy(&d->urlSrcState->lock);
+        free(d->urlSrcState);
+        d->urlSrcState = NULL;
+    }
+}
+
 int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) {
     /* Android: try AMediaExtractor first (HW demux of seekable containers).
      * On failure (live TS, HLS/DASH manifest, etc.) return 0 so the core falls
      * back to basis_jni_https + the portable basis_ts/basis_mp4 demuxer. */
+
+    /* Same read timeout as the fallback leg uses, and for the same reason: a
+     * brief stall mid-stream is not a dead socket. */
+    void* http = basis_jni_https_open(url, 60000);
+    if (!http) return 0;
+    /* The extractor needs random access. A body that cannot be re-requested by
+     * range (live, chunked) is the portable demuxers' case anyway, so decline it
+     * here rather than let the extractor discover it the expensive way. */
+    if (!basis_jni_https_can_reseek(http)) {
+        basis_jni_https_close(http);
+        return 0;
+    }
+
+    struct url_src_s* s = (struct url_src_s*)calloc(1, sizeof(*s));
+    if (!s) { basis_jni_https_close(http); return 0; }
+    /* Checked for the same reason ring_init checks it: readAt locks this on every
+     * call, and locking one that was never initialised is undefined. Taken before
+     * anything is published so the failure path is a plain free. */
+    if (pthread_mutex_init(&s->lock, NULL) != 0) {
+        free(s);
+        basis_jni_https_close(http);
+        return 0;
+    }
+    s->http = http;
+    s->pos  = 0;
+    s->size = basis_jni_https_content_length(http);
+    d->urlSrcState = s;
+
+    d->urlSrc = AMediaDataSource_new();
+    if (!d->urlSrc) { url_src_release(d); return 0; }
+    AMediaDataSource_setUserdata(d->urlSrc, s);
+    AMediaDataSource_setReadAt(d->urlSrc, url_src_read_at);
+    AMediaDataSource_setGetSize(d->urlSrc, url_src_get_size);
+    AMediaDataSource_setClose(d->urlSrc, url_src_close);
+
     d->extractor = AMediaExtractor_new();
-    media_status_t st = AMediaExtractor_setDataSource(d->extractor, url);
+    if (!d->extractor) { url_src_release(d); return 0; }
+    media_status_t st = AMediaExtractor_setDataSourceCustom(d->extractor, d->urlSrc);
     if (st != AMEDIA_OK) {
         __android_log_print(ANDROID_LOG_INFO, "basis_media",
             "AMediaExtractor rejected url (code %d); falling back to JNI HTTPS + TS/MP4 demuxer", (int)st);
-        AMediaExtractor_delete(d->extractor); d->extractor = NULL;
+        url_src_release(d);
         return 0;
     }
     size_t n = AMediaExtractor_getTrackCount(d->extractor);
@@ -834,7 +985,7 @@ int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) {
         d->aconfigured = 0;
         d->asr = 0; d->ach = 0;
         d->video_track = d->audio_track = -1;
-        AMediaExtractor_delete(d->extractor); d->extractor = NULL;
+        url_src_release(d);
         return 0;
     }
     d->vconfigured = 1;

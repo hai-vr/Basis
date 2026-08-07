@@ -1020,13 +1020,12 @@ static void run_http_like(demux_ctx_t* c) {
      * alone. That gate runs once, in C#, against the entry URL string. This sits
      * above every leg below, so each of them starts from a checked entry host.
      *
-     * The entry host is all it checks. The byte sources below re-validate every
-     * redirect hop against the same policy before connecting, but the OS
-     * extractor leg issues its own HTTP and follows its own redirects, so its
-     * hops go unchecked: an origin that passes here can still redirect it to an
-     * internal address. Closing that means either routing the extractor through
-     * the JNI source or dropping the URL fast-path, both of which change which
-     * demuxer runs and need a device pass behind them.
+     * The entry host is all this call checks. Every leg below re-validates each
+     * redirect hop against the same policy before connecting: the byte sources do
+     * it directly, and the Android OS-extractor leg does it too, because
+     * basis_decoder_try_open_url hands the extractor an AMediaDataSource backed by
+     * basis_jni_https rather than the URL. An extractor given the URL would run its
+     * own HTTP and follow hops nothing here can see.
      *
      * Loopback and RFC1918 targets need BASIS_MEDIA_ALLOW_LOCAL, as they do
      * everywhere else in this file. */
