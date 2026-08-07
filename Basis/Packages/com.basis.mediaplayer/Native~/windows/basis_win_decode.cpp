@@ -99,6 +99,9 @@ struct PcmRing {
      * trimmed to the target — re-anchoring on the discontinuity rather than
      * discarding real-time delivery forever. */
     static const int64_t TRIM_LATE_US = 150000;
+    /* Ceiling on the lag the trim arithmetic will act on, so a hostile timestamp
+     * cannot overflow it. Any real trim is orders of magnitude below this. */
+    static const int64_t TRIM_MAX_US = 60 * 1000000LL;
 
     void init(int floats) { cap = floats; buf = (float*)malloc(sizeof(float) * cap); InitializeCriticalSection(&cs); }
     void destroy() { free(buf); buf = nullptr; DeleteCriticalSection(&cs); }
@@ -170,10 +173,24 @@ struct PcmRing {
         EnterCriticalSection(&cs);
         int64_t srr = sr > 0 ? sr : 48000;
         if (target_us != INT64_MIN && ccount > 0) {
-            int64_t late = target_us - chunks[chead].pts;
-            if (late > TRIM_LATE_US) {
-                drop_oldest((int)(late * srr / 1000000LL) * frame);
-                trims++;
+            /* The gap is the remote side's to pick, so every step of this is
+             * hostile input. Order the operands and subtract unsigned: the chunk
+             * timestamp comes from the container, and `target_us - pts` overflows
+             * int64 on its own if that timestamp sits near INT64_MIN — before any
+             * cap below could apply. Then cap the span, because `late * srr`
+             * overflows too, and the narrowing to int wraps a third time; and
+             * finally clamp against what the ring holds, since dropping more than
+             * the fill is the same as dropping all of it. */
+            int64_t headPts = chunks[chead].pts;
+            if (target_us > headPts) {
+                uint64_t late = (uint64_t)target_us - (uint64_t)headPts;
+                if (late > (uint64_t)TRIM_LATE_US) {
+                    int64_t span = late > (uint64_t)TRIM_MAX_US ? TRIM_MAX_US : (int64_t)late;
+                    int64_t want = span * srr / 1000000LL * frame;
+                    int have = fill();
+                    drop_oldest(want > (int64_t)have ? have : (int)want);
+                    trims++;
+                }
             }
         }
         int got = 0;
@@ -1258,8 +1275,13 @@ static void drain_audio(basis_decoder* d) {
         MFT_OUTPUT_STREAM_INFO si = {};
         d->adec->GetOutputStreamInfo(0, &si);
         IMFSample* sample = nullptr; IMFMediaBuffer* mb = nullptr;
-        MFCreateSample(&sample);
-        MFCreateMemoryBuffer(si.cbSize ? si.cbSize : 65536, &mb);
+        /* Checked the same way as the video drain above: both calls allocate, and
+         * a failure here would be dereferenced immediately. */
+        if (FAILED(MFCreateSample(&sample)) ||
+            FAILED(MFCreateMemoryBuffer(si.cbSize ? si.cbSize : 65536, &mb))) {
+            SAFE_RELEASE(sample); SAFE_RELEASE(mb);
+            break;
+        }
         sample->AddBuffer(mb);
 
         MFT_OUTPUT_DATA_BUFFER ob = {}; ob.pSample = sample; DWORD status = 0;

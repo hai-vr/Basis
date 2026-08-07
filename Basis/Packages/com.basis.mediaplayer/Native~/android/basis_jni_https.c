@@ -860,8 +860,5 @@ void basis_jni_https_close(void* ctx) {
         if (h->scratch) (*env)->DeleteGlobalRef(env, h->scratch);
         jenv_release(&L);
     }
-    pthread_cond_destroy(&h->idle);
-    pthread_mutex_destroy(&h->lock);
-    free(h->url);
-    free(h);
+    https_ctx_free(h);
 }

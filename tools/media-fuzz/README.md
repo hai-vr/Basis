@@ -112,8 +112,14 @@ NULL). A sink missing them faults inside the parser and reads as a false parser 
 
 Every crash the fuzzer finds is pinned here as a regression input, so a re-run confirms the
 fix and guards against reintroduction. Replay one with `build/fuzz_<name>.exe testcases/...`.
-The three SPS repros exercise the shared Exp-Golomb reader, so they guard the MP4 and WebM
-paths that call it as well as TS.
+The three SPS repros run through `fuzz_ts`, which guards the shared Exp-Golomb reader itself —
+a regression in `gb_ue` or the bit-position accounting fails here. They do **not** enter
+`basis_mp4_run` or `basis_webm_run`, so a bug specific to how those containers call the reader
+is not covered by replaying them.
+
+A repro that proves a *bound* rather than a crash needs libFuzzer told what the bound is, or
+the replay passes whether or not the bound still exists. Those flags live in
+`testcases/<target>/replay-opts`, which `ci-replay.sh` reads and excludes from the repro list.
 
 - `ts/pat_pmt_section_len_oob.ts` — out-of-bounds read in `parse_pat`/`parse_pmt`: the 12-bit
   `section_len` (and PMT `prog_info_len`) is trusted and walked up to ~4 KB past the ~184-byte
@@ -135,6 +141,11 @@ paths that call it as well as TS.
   reaches the sign bit a few characters into any `sprop-*` blob the server chooses. Fixed by
   accumulating in `uint32_t`; only the low bits are read back out, so the defined wrap is
   harmless.
+- `rtmp/msg_len_alloc_bomb.bin` — the RTMP per-message allocation cap (`RTMP_MAX_MSG`). A
+  12-byte fmt-0 chunk header declaring a 24-bit message length of `0xFFFFFF` grew the buffer to
+  16 MiB before a single payload byte arrived. Replayed under `-malloc_limit_mb=8`: with the cap
+  the header is refused, without it libFuzzer reports `out-of-memory (malloc(16777216))`. Unlike
+  the crash repros, this one only means anything with that flag, hence `rtmp/replay-opts`.
 - `rtmp/chunk_streamid_shift_ub.bin` — the same signed-shift UB in the RTMP chunk stream id
   (`sid[3] << 24`, `rtmp_read_message`), which the RTP repro above doesn't reach. A 12-byte fmt-0
   chunk header with the stream-id MSB set trips it; fixed by shifting through `uint32_t`.

@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <stdarg.h>
 #include <errno.h>
 
 #if defined(_WIN32)
@@ -106,6 +107,24 @@ typedef struct {
 #define RTSP_MAX_HEADER_BYTES (16 * 1024)
 #define RTSP_MAX_BODY         (256 * 1024)
 
+/* Appends one printf-formatted field to req, advancing *n. Returns 0, or -1 if
+ * the field did not fit. snprintf answers with the length it WANTED, so an
+ * unchecked accumulation walks *n past the buffer, after which `req + *n` points
+ * outside it and `sizeof(req) - *n` underflows to a huge size_t — the next call
+ * would then write out of bounds. The field sizes today keep the total under
+ * 2 KiB, so this is a guard on the arithmetic rather than a fix for a reachable
+ * overflow; it stops being safe the moment any of the inputs grows. */
+static int req_append(char* req, size_t cap, int* n, const char* fmt, ...) {
+    if (*n < 0 || (size_t)*n >= cap) return -1;
+    va_list ap;
+    va_start(ap, fmt);
+    int m = vsnprintf(req + *n, cap - (size_t)*n, fmt, ap);
+    va_end(ap);
+    if (m < 0 || (size_t)m >= cap - (size_t)*n) return -1;
+    *n += m;
+    return 0;
+}
+
 /* `after_stop` lets one caller through the cancellation gate below. */
 static int rtsp_send_ex(rtsp_t* r, const char* method, const char* url,
                         const char* extra, int after_stop) {
@@ -121,13 +140,16 @@ static int rtsp_send_ex(rtsp_t* r, const char* method, const char* url,
     if (!after_stop && r->sink && !r->sink->is_running(r->sink->user)) return -1;
 
     char req[2048];
-    int n = snprintf(req, sizeof(req),
-        "%s %s RTSP/1.0\r\nCSeq: %d\r\nUser-Agent: BasisMediaPlayer/1.0\r\n",
-        method, url, ++r->cseq);
-    if (r->session[0]) n += snprintf(req + n, sizeof(req) - n, "Session: %s\r\n", r->session);
-    if (r->authb64[0]) n += snprintf(req + n, sizeof(req) - n, "Authorization: Basic %s\r\n", r->authb64);
-    if (extra) n += snprintf(req + n, sizeof(req) - n, "%s", extra);
-    n += snprintf(req + n, sizeof(req) - n, "\r\n");
+    int n = 0;
+    if (req_append(req, sizeof(req), &n,
+                   "%s %s RTSP/1.0\r\nCSeq: %d\r\nUser-Agent: BasisMediaPlayer/1.0\r\n",
+                   method, url, ++r->cseq) != 0) return -1;
+    if (r->session[0] &&
+        req_append(req, sizeof(req), &n, "Session: %s\r\n", r->session) != 0) return -1;
+    if (r->authb64[0] &&
+        req_append(req, sizeof(req), &n, "Authorization: Basic %s\r\n", r->authb64) != 0) return -1;
+    if (extra && req_append(req, sizeof(req), &n, "%s", extra) != 0) return -1;
+    if (req_append(req, sizeof(req), &n, "\r\n") != 0) return -1;
     return basis_io_write_full(r->io, (const uint8_t*)req, n) == n ? 0 : -1;
 }
 
@@ -1095,7 +1117,10 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
         do {
             if (basis_io_udp_open_pair(udp_host, &u.v_rtp, &u.v_rtcp, &lp) != 0) { fell = 1; break; }
             snprintf(extra, sizeof(extra), "Transport: RTP/AVP;unicast;client_port=%d-%d\r\n", lp, lp + 1);
-            rtsp_send(&r, "SETUP", v_url, extra);
+            /* A send that reports failure put no bytes on the wire, so the read
+             * below would only ever come back on the receive timeout. Fail here
+             * instead of paying that wait to learn the same thing. */
+            if (rtsp_send(&r, "SETUP", v_url, extra) != 0) { fell = 1; break; }
             if (rtsp_recv(&r, NULL, 0, NULL) != 200 ||
                 parse_transport_udp(r.transport, &sp_rtp, &sp_rtcp, source, sizeof(source)) != 0) { fell = 1; break; }
             {
@@ -1110,7 +1135,7 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
             if (audio.pt >= 0) {
                 if (basis_io_udp_open_pair(udp_host, &u.a_rtp, &u.a_rtcp, &lp) != 0) { fell = 1; break; }
                 snprintf(extra, sizeof(extra), "Transport: RTP/AVP;unicast;client_port=%d-%d\r\n", lp, lp + 1);
-                rtsp_send(&r, "SETUP", a_url, extra);
+                if (rtsp_send(&r, "SETUP", a_url, extra) != 0) { fell = 1; break; }
                 if (rtsp_recv(&r, NULL, 0, NULL) != 200 ||
                     parse_transport_udp(r.transport, &sp_rtp, &sp_rtcp, source, sizeof(source)) != 0) { fell = 1; break; }
                 {
@@ -1146,8 +1171,11 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
         /* SETUP video on interleaved channels 0-1 */
         char extra[128];
         snprintf(extra, sizeof(extra), "Transport: RTP/AVP/TCP;unicast;interleaved=%d-%d\r\n", interleave, interleave + 1);
-        rtsp_send(&r, "SETUP", v_url, extra);
-        if (rtsp_recv(&r, NULL, 0, NULL) != 200) {
+        /* Nothing reached the peer if the send failed, so the read would sit out
+         * the receive timeout before reporting the same thing. `last_status` is
+         * empty in that case, which is what distinguishes it in the message. */
+        int v_sent = rtsp_send(&r, "SETUP", v_url, extra);
+        if (v_sent != 0 || rtsp_recv(&r, NULL, 0, NULL) != 200) {
             /* rtsp_recv reports a stop honoured mid-read as a negative code, the
              * same as a transport failure, so re-check before reporting — as the
              * DESCRIBE path above does — rather than firing on_error into a host
@@ -1160,17 +1188,24 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
 
         if (audio.pt >= 0) {
             snprintf(extra, sizeof(extra), "Transport: RTP/AVP/TCP;unicast;interleaved=%d-%d\r\n", interleave, interleave + 1);
-            rtsp_send(&r, "SETUP", a_url, extra);
-            if (rtsp_recv(&r, NULL, 0, NULL) == 200) { a_channel = interleave; interleave += 2; }
+            /* Audio is optional here, so a failed send only costs the track --
+             * but skip the read rather than spend the receive timeout proving it. */
+            if (rtsp_send(&r, "SETUP", a_url, extra) == 0 &&
+                rtsp_recv(&r, NULL, 0, NULL) == 200) { a_channel = interleave; interleave += 2; }
         }
     }
 
     r.rtp_info[0] = 0;
-    rtsp_send(&r, "PLAY", base_url, "Range: npt=0.000-\r\n");
-    if (rtsp_recv(&r, NULL, 0, NULL) != 200) {
-        if (!sink->is_running(sink->user)) { basis_io_close(r.io); return 0; }
+    int play_sent = rtsp_send(&r, "PLAY", base_url, "Range: npt=0.000-\r\n");
+    if (play_sent != 0 || rtsp_recv(&r, NULL, 0, NULL) != 200) {
+        /* The UDP sockets and reorder buffers are set up before PLAY, so both
+         * exits here own them — a server that refuses PLAY is remote-repeatable,
+         * and without this each attempt strands four sockets and two ~66 KB
+         * buffers. Safe on the TCP path too: `u` is zeroed at declaration and
+         * every field is closed conditionally. */
+        if (!sink->is_running(sink->user)) { udp_state_close(&u); basis_io_close(r.io); return 0; }
         char e[320]; snprintf(e, sizeof(e), "RTSP: PLAY failed (status='%s')", r.last_status);
-        sink->on_error(sink->user, e); basis_io_close(r.io); return -1;
+        sink->on_error(sink->user, e); udp_state_close(&u); basis_io_close(r.io); return -1;
     }
 
     basis_io_set_read_timeout(r.io, 10000);

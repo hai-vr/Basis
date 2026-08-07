@@ -661,15 +661,21 @@ uint64_t basis_vk_get_image(basis_vk_present* v, int* w, int* h) {
 uint64_t basis_vk_frame_counter(basis_vk_present* v) { return v ? v->frameCounter : 0; }
 
 void basis_vk_release(basis_vk_present* v) {
-    if (!v || !v->device) return;
+    if (!v) return;
+    /* The pending buffer is claimed by the decode side and does not depend on a
+     * Vulkan device existing, so it is released before the device-gated teardown
+     * below can return early. The lock is created with the struct, so it is safe
+     * to take here whether or not a device was ever acquired. */
+    pthread_mutex_lock(&v->lock);
+    if (v->pending) { AHardwareBuffer_release(v->pending); v->pending = NULL; }
+    pthread_mutex_unlock(&v->lock);
+
+    if (!v->device) return;
     /* destroy_format_objects waits the in-flight fences before touching slots */
     destroy_format_objects(v);   /* also destroys ring slots */
     destroy_unity_fbo(v);
     destroy_cmd_objects(v);
     v->unityNativeTex = NULL;
-    pthread_mutex_lock(&v->lock);
-    if (v->pending) { AHardwareBuffer_release(v->pending); v->pending = NULL; }
-    pthread_mutex_unlock(&v->lock);
 }
 
 void basis_vk_destroy(basis_vk_present* v) {

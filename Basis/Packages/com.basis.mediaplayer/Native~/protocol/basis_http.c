@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <errno.h>
 
 typedef struct {
     basis_io_t* io;
@@ -28,16 +29,37 @@ static int lead_take(http_ctx* h, uint8_t* dst, int len) {
     return n;
 }
 
+/* Bytes past the caller's buffer that a single line may discard before the line
+ * is treated as hostile rather than merely long. */
+#define HTTP_LINE_DISCARD_MAX 8192
+
 /* read one line (up to CRLF) using leftover + socket; returns line length w/o CRLF */
 static int read_line(http_ctx* h, char* out, int cap) {
-    int n = 0;
-    while (n < cap - 1) {
+    int n = 0, dropped = 0;
+    for (;;) {
         uint8_t c;
         int got = lead_take(h, &c, 1);
         if (got == 0) got = basis_io_read(h->io, &c, 1);
-        if (got <= 0) return n > 0 ? n : -1;
+        /* No newline was reached, so whatever is buffered is a fragment of a
+         * line rather than a line. Returning it would hand the caller a
+         * half-received header as though it were complete, which is the case a
+         * boundary-aligned check misses. */
+        if (got <= 0) return -1;
         if (c == '\n') break;
-        if (c != '\r') out[n++] = (char)c;
+        if (c == '\r') continue;
+        /* Read to the newline whatever the length, and drop the excess, rather
+         * than stopping at the buffer end. Stopping there left the newline
+         * unconsumed, so the tail of an over-long line was returned as the next
+         * header -- one field the server wrote becoming two the parser sees,
+         * which is the peer choosing our framing rather than our parser
+         * choosing it.
+         *
+         * Truncating rather than failing keeps a legitimately long header (a
+         * signed URL echoed back, a fat CDN trace field) playable, since none of
+         * those are fields this parser acts on. The discard is bounded so a
+         * single endless line cannot spin here forever. */
+        if (n < cap - 1) out[n++] = (char)c;
+        else if (++dropped > HTTP_LINE_DISCARD_MAX) return -1;
     }
     out[n] = 0;
     return n;
@@ -75,14 +97,43 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms) {
     h->has_length = 0; h->chunked = 0; h->remaining = -1;
     for (;;) {
         int ll = read_line(h, line, sizeof(line));
-        if (ll <= 0) break; /* blank line ends headers (ll==0) or error (<0) */
+        /* read_line answers -1 for a dead socket and 0 for the blank line that
+         * ends the block. Folding them together accepted a response that was cut
+         * off mid-headers as a complete one, and the body read below then ran
+         * against whatever Content-Length had been seen so far. */
+        if (ll < 0) { basis_io_close(h->io); free(h); return NULL; }
+        if (ll == 0) break;
         /* lowercase the header name for comparison */
         char low[256]; int i = 0;
         for (; line[i] && line[i] != ':' && i < (int)sizeof(low) - 1; ++i) low[i] = (char)tolower((unsigned char)line[i]);
         low[i] = 0;
         const char* val = strchr(line, ':');
         if (val) { val++; while (*val == ' ') val++; }
-        if (strcmp(low, "content-length") == 0 && val) { h->has_length = 1; h->remaining = atoll(val); }
+        if (strcmp(low, "content-length") == 0 && val) {
+            /* Same strictness as the chunk size below, and for the same reason.
+             * atoll takes a numeric prefix, answers 0 for anything unparseable,
+             * and is undefined past LLONG_MAX — so a malformed value set the
+             * length flag with nothing behind it and the body read reported a
+             * clean end of stream for a response the server never terminated. */
+            char* cl_end = NULL;
+            errno = 0;
+            long long cl = strtoll(val, &cl_end, 10);
+            /* Whether anything parsed is recorded BEFORE the trailing-space skip.
+             * strtoll leaves cl_end == val when it converts nothing, but it also
+             * skips leading whitespace of its own — so for a value of just a tab
+             * the skip below would walk cl_end off val and onto the terminator, and
+             * the "did anything parse" test would then pass on a field with no
+             * digits in it at all. That framed the body at zero and reported a
+             * clean end of stream for a response the server said had one. */
+            int had_digits = (cl_end != val);
+            /* The field is digits and nothing else (RFC 7230 puts 1*DIGIT here),
+             * so a numeric prefix is not enough: "5junk" must fail rather than
+             * frame the body at 5. Only trailing spacing is tolerated. */
+            while (*cl_end == ' ' || *cl_end == '\t') ++cl_end;
+            if (!had_digits || *cl_end || errno == ERANGE || cl < 0) { basis_io_close(h->io); free(h); return NULL; }
+            h->has_length = 1;
+            h->remaining = cl;
+        }
         else if (strcmp(low, "transfer-encoding") == 0 && val && strstr(val, "chunked")) { h->chunked = 1; }
     }
 
@@ -101,8 +152,27 @@ static int next_chunk(http_ctx* h) {
         ll = read_line(h, line, sizeof(line));
         if (ll < 0) return -1;
     }
-    long sz = strtol(line, NULL, 16);
-    if (sz <= 0) { h->eof = 1; return 0; }
+    /* Only a well-formed size is a size. Unchecked, a line with no hex digits at
+     * all parsed as 0 and was taken for the terminal chunk, so a corrupted or
+     * truncated response was delivered as a complete one. A chunk-extension
+     * (";name=value") legitimately follows the digits, so the parse stops there
+     * rather than requiring the line to end.
+     *
+     * Both ends are tested because strtol is more permissive than the grammar.
+     * At base 16 it skips whitespace and accepts a sign and an 0x prefix, so
+     * "-0" parses to 0 and would be taken for the terminal chunk while passing
+     * the negative test; and it stops at the first character it cannot use, so
+     * "5junk" would frame a chunk at 5. The grammar is hex digits, then either a
+     * chunk-extension or the end of the line, so require exactly that. */
+    if (!isxdigit((unsigned char)line[0])) return -1;
+    if (line[0] == '0' && (line[1] == 'x' || line[1] == 'X')) return -1;
+    char* end = NULL;
+    errno = 0;
+    long sz = strtol(line, &end, 16);
+    if (end == line || errno == ERANGE || sz < 0) return -1;
+    while (*end == ' ' || *end == '\t') ++end;
+    if (*end && *end != ';') return -1;
+    if (sz == 0) { h->eof = 1; return 0; }
     h->remaining = sz;
     return 1;
 }

@@ -74,6 +74,9 @@ typedef struct {
  * burst, post-stall backlog, PTS jump) is trimmed to the target — re-anchoring
  * on the discontinuity rather than discarding real-time delivery forever. */
 #define PCM_TRIM_LATE_US     150000LL
+/* Ceiling on the lag the trim arithmetic will act on, so a hostile timestamp
+ * cannot overflow it. Any real trim is orders of magnitude below this. */
+#define PCM_TRIM_MAX_US      (60 * 1000000LL)
 
 static void ring_init(pcm_ring* r, int floats) { r->buf = malloc(sizeof(float) * floats); r->cap = floats; r->head = r->tail = 0; r->frame = 2; r->sr = 48000; r->chead = r->ccount = 0; r->trims = 0; r->lastTrimFloats = 0; r->playedUs = INT64_MIN; pthread_mutex_init(&r->m, NULL); }
 static void ring_free(pcm_ring* r) { free(r->buf); r->buf = NULL; pthread_mutex_destroy(&r->m); }
@@ -137,11 +140,22 @@ static int ring_read(pcm_ring* r, float* out, int n, int64_t target_us, int64_t 
     pthread_mutex_lock(&r->m);
     int srr = r->sr > 0 ? r->sr : 48000;
     if (target_us != INT64_MIN && r->ccount > 0) {
-        int64_t late = target_us - r->chunks[r->chead].pts;
-        if (late > PCM_TRIM_LATE_US) {
-            int drop = (int)(late * srr / 1000000LL) * r->frame;
-            ring_drop_oldest(r, drop);
-            r->trims++; r->lastTrimFloats = drop;
+        /* Bounded the same way as the Windows ring, and for the same three
+         * reasons: the subtraction is ordered and unsigned because the container
+         * timestamp can overflow it on its own, the span is capped because the
+         * multiply overflows, and the result is clamped against the fill because
+         * the narrowing to int wraps. */
+        int64_t headPts = r->chunks[r->chead].pts;
+        if (target_us > headPts) {
+            uint64_t late = (uint64_t)target_us - (uint64_t)headPts;
+            if (late > (uint64_t)PCM_TRIM_LATE_US) {
+                int64_t span = late > (uint64_t)PCM_TRIM_MAX_US ? PCM_TRIM_MAX_US : (int64_t)late;
+                int64_t want = span * srr / 1000000LL * r->frame;
+                int have = ring_fill(r);
+                int drop = want > (int64_t)have ? have : (int)want;
+                ring_drop_oldest(r, drop);
+                r->trims++; r->lastTrimFloats = drop;
+            }
         }
     }
     int got = 0;

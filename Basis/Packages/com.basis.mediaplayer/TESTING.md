@@ -522,7 +522,17 @@ Two outcomes to test against, in priority order:
   total, and the RTSP header block and Content-Length are all attacker-declared and now capped;
   a hang counts too — an RTSP server that dribbles an endless header block used to wedge the
   demux thread and, through it, `basis_media_close`. These are exercised by the `fuzz_rtmp` /
-  `fuzz_rtsp` targets (allocation-limit and endless-header A/B), not by the playback matrix.
+  `fuzz_rtsp` targets, not by the playback matrix. **Exactly one of them is gated in CI: the
+  RTMP per-message length cap.** `testcases/rtmp/msg_len_alloc_bomb.bin` is replayed under
+  `-malloc_limit_mb=8`, and losing that cap turns the run red. **The per-session buffer total
+  is *not* gated by it, and the flag cannot gate it**: `-malloc_limit_mb` bounds a single
+  allocation, while the session total is only ever reached by accumulating many separate
+  `realloc` calls across the 64 chunk-stream slots, none of which need cross 8 MiB. Removing
+  `RTMP_MAX_TOTAL` therefore leaves CI green — re-check it by hand when touching the chunk
+  reassembler. The **endless-header hang is local-only** for a related reason — the fuzz stub
+  is finite and cannot reproduce a hang, which is why it was verified with a standalone server
+  harness. Re-run that by hand when touching the RTSP header reader; nothing in CI will catch
+  a regression there.
 - **Memory corruption** — the worst case, and the reason this is a security boundary and not
   just a stability one. Hand-rolled parsers with untrusted lengths are exactly where
   out-of-bounds reads and writes live. Treat *any* out-of-bounds access as a security bug,
