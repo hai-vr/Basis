@@ -124,6 +124,14 @@ elseif(ANDROID)
 else()
     # Stub backend (Win-ARM64, Linux, macOS, iOS, anything else).
     list(APPEND PLATFORM_SOURCES other/basis_decoder_stub.c)
+    if(WIN32)
+        # Windows ARM64 keeps the WinHTTP byte source even with a stub decoder:
+        # run_http_like selects it on _WIN32, not on which decoder backend is in
+        # play, so omitting it is an unresolved symbol at link time rather than a
+        # smaller binary. It needs nothing from the decode side, and the link line
+        # below already expects it.
+        list(APPEND PLATFORM_SOURCES windows/basis_win_http.cpp)
+    endif()
     if(IOS OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
         # iOS Unity plugins must be static archives.
         set(BASIS_LIBRARY_TYPE STATIC)
