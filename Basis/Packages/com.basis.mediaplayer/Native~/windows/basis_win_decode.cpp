@@ -289,6 +289,7 @@ struct basis_decoder {
     ID3D11DeviceContext* ctxUnity = nullptr;
     ID3D11Texture2D* outTexD11 = nullptr;   /* CreateExternalTexture target (D3D11) */
     void* outTexD12 = nullptr;              /* ID3D12Resource* (D3D12 path) */
+    IUnknown* handoutTex[2] = {};           /* references held on the last two pointers get_texture returned */
     ID3D11Texture2D* outSharedD12 = nullptr;       /* D3D12 path: typeless shared copy target (decode device) */
     IDXGIKeyedMutex* outSharedD12Mutex = nullptr;
     HANDLE outSharedD12Handle = nullptr;
@@ -2126,23 +2127,74 @@ extern "C" void basis_decoder_render_release(basis_decoder_t* d) {
     EnterCriticalSection(&d->presentLock);
     release_shared_locked(d);
     d->sharedW = d->sharedH = 0;
+    for (int i = 0; i < 2; ++i)
+        if (d->handoutTex[i]) { d->handoutTex[i]->Release(); d->handoutTex[i] = nullptr; }
     LeaveCriticalSection(&d->presentLock);
 }
 
+/* The pointer and the size it was built at must come from one locked snapshot:
+ * read apart, the caller can pair a rebuilt texture with the previous, larger
+ * dimensions and wrap an allocation that is smaller than the view it creates. */
 extern "C" void* basis_decoder_get_texture(basis_decoder_t* d, int* w, int* h) {
     if (!d) return nullptr;
+    EnterCriticalSection(&d->presentLock);
     if (w) *w = d->sharedW;
     if (h) *h = d->sharedH;
-    if (d->api == BASIS_GFX_D3D12) return d->outTexD12;
-    return d->outTexD11;
+    /* The typed pointer is what the caller binds; `t` exists only so the retention
+     * below can be written once for both APIs. They are the same address on any COM
+     * implementation, single inheritance putting the IUnknown vtable at offset zero,
+     * but the caller should not be handed a pointer that depends on that. */
+    void*     ret = (d->api == BASIS_GFX_D3D12) ? d->outTexD12 : (void*)d->outTexD11;
+    IUnknown* t   = (d->api == BASIS_GFX_D3D12) ? (IUnknown*)(ID3D12Resource*)d->outTexD12
+                                                : (IUnknown*)d->outTexD11;
+    /* Keep the handed-out object alive past the lock. A visible-size change on the
+     * demux thread runs release_shared_locked, whose Release is the final one, so
+     * the caller would otherwise bind a pointer that died between this return and
+     * the bind.
+     *
+     * Two are retained, not one. A consumer that wraps this pointer typically
+     * drops its previous wrapper in the same call that takes the new pointer, and
+     * that drop can be deferred to the end of its frame — so releasing the
+     * previous texture as soon as a new one is handed out could still retire it
+     * while the old wrapper is live and sampling. Holding it one hand-out longer
+     * puts the release a full cycle behind the swap, and bounds the retention at
+     * two however often the stream resizes.
+     *
+     * Comparing pointers is sound precisely because holding these references is
+     * what stops an address being recycled under us.
+     *
+     * A null hand-out (the no-output interval during a rebuild — routine on D3D12,
+     * where the shared output is opened lazily on the render thread) must not
+     * rotate: doing so would push the live texture into the release slot, so the
+     * next real hand-out would free it while a consumer that ignored the null and
+     * kept its previous wrapper is still sampling it. Leave the slots untouched
+     * until a genuinely new texture arrives. */
+    if (t && t != d->handoutTex[0]) {
+        /* Retain before releasing, so the rotation stands on its own reference. If
+         * a rebuild ever handed back an address still held in the release slot,
+         * releasing first would drop the last retention reference on the very
+         * object being retained. The decoder also owns t through outTexD11/D12,
+         * which is what makes the other order survive — but that is a reference
+         * this function does not hold and should not be leaning on. */
+        t->AddRef();
+        if (d->handoutTex[1]) d->handoutTex[1]->Release();
+        d->handoutTex[1] = d->handoutTex[0];
+        d->handoutTex[0] = t;
+    }
+    LeaveCriticalSection(&d->presentLock);
+    return ret;
 }
 
 extern "C" uint64_t basis_decoder_get_frame_counter(basis_decoder_t* d) {
     return d ? (uint64_t)d->frameCounter : 0;
 }
 extern "C" int basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) {
-    if (!d || d->sharedW <= 0) return -1;
-    if (w) *w = d->sharedW; if (h) *h = d->sharedH; return 0;
+    if (!d) return -1;
+    EnterCriticalSection(&d->presentLock);
+    int sw = d->sharedW, sh = d->sharedH;
+    LeaveCriticalSection(&d->presentLock);
+    if (sw <= 0 || sh <= 0) return -1;   /* both, so a caller can size off either */
+    if (w) *w = sw; if (h) *h = sh; return 0;
 }
 extern "C" int basis_decoder_get_frame_origin(basis_decoder_t* d) { return d ? (int)d->frameTopLeft : 0; }
 
