@@ -83,6 +83,15 @@ static void mutex_unlock(basis_mutex_t* m) {
     pthread_mutex_unlock(m);
 #endif
 }
+/* Non-zero when the lock was taken. Lets a caller holding an outer lock avoid
+ * blocking on an inner one — see audio_slot_acquire. */
+static int mutex_try_lock(basis_mutex_t* m) {
+#if defined(_WIN32)
+    return TryEnterCriticalSection(m) != 0;
+#else
+    return pthread_mutex_trylock(m) == 0;
+#endif
+}
 static void sleep_ms(int ms) {
 #if defined(_WIN32)
     Sleep((DWORD)ms);
@@ -248,36 +257,134 @@ int basis_engine_is_paced(basis_media_engine_t* e) { return e ? e->paced : 0; }
  * (a C# ABI change) — deliberately out of scope here. */
 #define BASIS_MAX_ENGINES 64
 static basis_mutex_t g_registry_lock;
-static int           g_registry_ready;
+static basis_mutex_t g_audio_lock;
+static basis_mutex_t g_audio_slot_locks[BASIS_MAX_ENGINES];
+/* Claim attempts before an audio pull gives up and serves silence for the buffer. */
+#define AUDIO_SLOT_SPINS 64
 static basis_media_engine_t* g_engines[BASIS_MAX_ENGINES];
 
+/* Written once on the main thread, read on the audio and render threads, so it
+ * is published release/acquire: a reader that observes the flag set must also
+ * see the initialised mutexes. A plain int would let the store sink past
+ * mutex_init on a weakly ordered target and hand a reader an uninitialised lock.
+ * Not <stdatomic.h> — MSVC gates C11 atomics behind /experimental:c11atomics. */
+#if defined(_WIN32)
+static volatile LONG g_registry_ready;
+#define registry_ready()     (InterlockedCompareExchange(&g_registry_ready, 0, 0) != 0)
+#define registry_ready_set() ((void)InterlockedExchange(&g_registry_ready, 1))
+#else
+static int g_registry_ready;
+#define registry_ready()     __atomic_load_n(&g_registry_ready, __ATOMIC_ACQUIRE)
+#define registry_ready_set() __atomic_store_n(&g_registry_ready, 1, __ATOMIC_RELEASE)
+#endif
+
+/* Separate locks for the render and audio legs. The render leg holds
+ * g_registry_lock across basis_decoder_render_update — present-clock work and a
+ * GPU publish — and the Unity audio callback has a hard deadline it cannot miss
+ * waiting on that, so the audio leg never touches g_registry_lock.
+ *
+ * The audio leg is itself two-tier. g_audio_lock covers only the table scan, a
+ * bounded pointer compare, and the decoder call runs under the engine's own slot
+ * lock. Unity may service AudioSources on more than one thread and each player
+ * has its own splitter, so two engines can be pulled at once; a single audio lock
+ * would serialise unrelated players behind each other's ring copy.
+ *
+ * Ordering is registry -> audio -> slot throughout, and no leg ever takes them in
+ * another order, so there is no cycle.
+ *
+ * The rule that keeps the split meaningful: g_audio_lock is never held across a
+ * wait on a slot lock. A slot lock is held for as long as a decoder read takes,
+ * so anything waiting on one while holding g_audio_lock stalls every other
+ * engine's table scan too, and the two tiers collapse back into one. */
 /* opens run on Unity's main thread, so first-use init needs no extra guard. */
 static void registry_ensure(void) {
-    if (!g_registry_ready) { mutex_init(&g_registry_lock); g_registry_ready = 1; }
+    if (!registry_ready()) {
+        mutex_init(&g_registry_lock);
+        mutex_init(&g_audio_lock);
+        for (int i = 0; i < BASIS_MAX_ENGINES; ++i) mutex_init(&g_audio_slot_locks[i]);
+        registry_ready_set();
+    }
+}
+static int registry_is_live(basis_media_engine_t* e) {   /* caller holds g_registry_lock or g_audio_lock */
+    for (int i = 0; i < BASIS_MAX_ENGINES; ++i) if (g_engines[i] == e) return 1;
+    return 0;
+}
+static int registry_index(basis_media_engine_t* e) {     /* caller holds g_audio_lock */
+    for (int i = 0; i < BASIS_MAX_ENGINES; ++i) if (g_engines[i] == e) return i;
+    return -1;
+}
+/* Claim the engine's audio slot: scan and take the slot lock under g_audio_lock,
+ * then drop it so an unrelated engine can be pulled concurrently. Holding the
+ * slot lock is what stops close freeing this engine underneath the caller. */
+static int audio_slot_acquire(basis_media_engine_t* e) {
+    /* try_lock, because a plain lock here would break the rule above: two pulls
+     * on the *same* engine (read_audio on the audio thread against
+     * get_audio_format from another) would park the second under g_audio_lock for
+     * the length of a decoder read, and every unrelated engine's table scan would
+     * queue behind it. The retry re-scans deliberately — the engine may have been
+     * removed while the slot was busy, and a stale index must not be reused. */
+    /* Bounded, because this runs on the audio callback thread against a deadline.
+     * That thread is raised above normal priority, and a yield of zero only gives
+     * up the rest of the slice to threads at or above the yielder's priority — it
+     * cannot schedule a lower-priority holder, so a loaded or single-core machine
+     * can spin here for a whole quantum. Giving up costs one buffer: both callers
+     * treat a failed claim as transient (silence, or no format read this frame),
+     * which is cheaper for audio than missing the deadline. */
+    for (int spins = 0; spins < AUDIO_SLOT_SPINS; ++spins) {
+        mutex_lock(&g_audio_lock);
+        int idx = registry_index(e);
+        if (idx < 0) { mutex_unlock(&g_audio_lock); return -1; }
+        if (mutex_try_lock(&g_audio_slot_locks[idx])) {
+            mutex_unlock(&g_audio_lock);
+            return idx;
+        }
+        mutex_unlock(&g_audio_lock);
+        sleep_ms(0);   /* yield; the holder is one decoder read from done */
+    }
+    return -1;
+}
+static void audio_slot_release(int idx) {
+    mutex_unlock(&g_audio_slot_locks[idx]);
 }
 static int registry_add(basis_media_engine_t* e) {
     registry_ensure();
     int ok = 0;
     mutex_lock(&g_registry_lock);
+    mutex_lock(&g_audio_lock);
     for (int i = 0; i < BASIS_MAX_ENGINES; ++i) if (!g_engines[i]) { g_engines[i] = e; ok = 1; break; }
+    mutex_unlock(&g_audio_lock);
     mutex_unlock(&g_registry_lock);
     return ok;   /* 0 => registry full */
 }
 static void registry_remove(basis_media_engine_t* e) {
-    if (!g_registry_ready) return;
+    if (!registry_ready()) return;
     mutex_lock(&g_registry_lock);
-    for (int i = 0; i < BASIS_MAX_ENGINES; ++i) if (g_engines[i] == e) { g_engines[i] = NULL; break; }
+    mutex_lock(&g_audio_lock);
+    int idx = registry_index(e);
+    if (idx >= 0) g_engines[idx] = NULL;
+    mutex_unlock(&g_audio_lock);
+
+    /* Drain with g_audio_lock dropped. Clearing the table entry above is what
+     * makes that safe: audio_slot_acquire looks the engine up and takes the slot
+     * lock in one go under g_audio_lock, so once the entry is gone no further
+     * pull can claim this slot and the wait below covers only the one already in
+     * flight. Holding g_audio_lock across this wait instead would park it for the
+     * length of a decoder read, and any other engine's audio callback would queue
+     * behind that on its own table scan — the exact cross-engine stall the
+     * two-tier split above exists to avoid. */
+    if (idx >= 0) {
+        mutex_lock(&g_audio_slot_locks[idx]);
+        mutex_unlock(&g_audio_slot_locks[idx]);
+    }
     mutex_unlock(&g_registry_lock);
 }
 
 void basis_engine_render_event(basis_media_engine_t* e, int event_id) {
-    if (!e || !g_registry_ready) return;
+    if (!e || !registry_ready()) return;
     mutex_lock(&g_registry_lock);
-    int live = 0;
-    for (int i = 0; i < BASIS_MAX_ENGINES; ++i) if (g_engines[i] == e) { live = 1; break; }
     /* Dispatch under the lock so registry_remove (in close) blocks until this
      * returns — the decoder can't be freed while a render event is using it. */
-    if (live && e->decoder) {
+    if (registry_is_live(e) && e->decoder) {
         if (event_id == BASIS_RENDER_UPDATE) basis_decoder_render_update(e->decoder);
         else if (event_id == BASIS_RENDER_RELEASE) basis_decoder_render_release(e->decoder);
     }
@@ -1372,9 +1479,12 @@ BASIS_API void BASIS_CALL basis_media_close(basis_media_engine_t* e) {
     if (!e) return;
 
     /* Deregister first, before anything is torn down: this blocks until any
-     * in-flight render event returns and makes every later one a no-op, so no
-     * render callback can touch the decoder while the demux threads are still
-     * exiting or the decoder is being freed. */
+     * in-flight render event or audio pull returns and makes every later one a
+     * no-op, so neither can touch the decoder while the demux threads are still
+     * exiting or the decoder is being freed. The host cannot provide that
+     * guarantee for the audio thread — Unity keeps servicing the audio graph for
+     * a frame or more after the managed source is dropped — so it is enforced
+     * here rather than assumed. */
     registry_remove(e);
 
     /* Stop the demux threads so nothing submits while we tear down. Both legs
@@ -1539,15 +1649,30 @@ BASIS_API uint64_t BASIS_CALL basis_media_get_frame_counter(basis_media_engine_t
     return basis_decoder_get_frame_counter(e->decoder);
 }
 
+/* The two audio-thread entry points validate `e` against the registry before the
+ * first dereference and hold g_audio_lock across the call, so close blocks until
+ * an in-flight pull returns and every later one is a no-op against a freed
+ * engine. The decoder is loaded once into a local: a second fetch could observe
+ * a different value than the one the NULL check passed. */
 BASIS_API int BASIS_CALL basis_media_get_audio_format(basis_media_engine_t* e, int* rate, int* ch) {
-    if (!e || !e->decoder) return -1;
-    return basis_decoder_get_audio_format(e->decoder, rate, ch);
+    if (!e || !registry_ready()) return -1;
+    int idx = audio_slot_acquire(e);
+    if (idx < 0) return -1;
+    basis_decoder_t* d = e->decoder;
+    int r = d ? basis_decoder_get_audio_format(d, rate, ch) : -1;
+    audio_slot_release(idx);
+    return r;
 }
 
 BASIS_API int BASIS_CALL basis_media_read_audio(basis_media_engine_t* e, float* out, int max_floats) {
-    if (!e || !e->decoder || !out || max_floats <= 0) return 0;
-    if (e->paused) return 0; /* silence while paused */
-    return basis_decoder_read_audio(e->decoder, out, max_floats);
+    if (!e || !out || max_floats <= 0 || !registry_ready()) return 0;
+    int idx = audio_slot_acquire(e);
+    if (idx < 0) return 0;
+    basis_decoder_t* d = e->decoder;
+    int n = (d && !e->paused) /* silence while paused */
+          ? basis_decoder_read_audio(d, out, max_floats) : 0;
+    audio_slot_release(idx);
+    return n;
 }
 
 /* The render-event function lives in the platform glue (basis_unity_plugin.cpp);
