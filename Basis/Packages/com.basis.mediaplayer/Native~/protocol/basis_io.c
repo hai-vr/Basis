@@ -31,6 +31,7 @@
 
 struct basis_io {
     sock_t fd;
+    int read_timeout_ms;   /* last SO_RCVTIMEO set, 0 = untimed; bounds the EINTR retry */
 };
 
 void basis_io_global_init(void) {
@@ -43,6 +44,21 @@ void basis_io_global_init(void) {
 void basis_io_global_shutdown(void) {
 #if defined(_WIN32)
     WSACleanup();
+#endif
+}
+
+/* Keep the socket out of any child process. The client spawns helpers (the URL
+ * resolver among them), and a descriptor open at that moment is inherited and
+ * stays open for the child's whole life — an in-flight stream fetch or an RTSP
+ * control connection held by a process that has no idea it owns one. Set as
+ * close-on-exec right after creation; SOCK_CLOEXEC would close the window
+ * between the two calls, but it is not portable, and nothing here forks. */
+static void set_cloexec(sock_t fd) {
+#if defined(_WIN32)
+    SetHandleInformation((HANDLE)fd, HANDLE_FLAG_INHERIT, 0);
+#else
+    int flags = fcntl(fd, F_GETFD, 0);
+    if (flags >= 0) fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
 #endif
 }
 
@@ -59,6 +75,7 @@ static void set_blocking(sock_t fd, int blocking) {
 
 void basis_io_set_read_timeout(basis_io_t* io, int timeout_ms) {
     if (!io || io->fd == BASIS_INVALID_SOCK) return;
+    io->read_timeout_ms = timeout_ms;
 #if defined(_WIN32)
     DWORD tv = (DWORD)timeout_ms;
     setsockopt(io->fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
@@ -185,6 +202,7 @@ basis_io_t* basis_io_connect(const char* host, int port, int timeout_ms) {
         if (!allow_local && sockaddr_is_blocked(ai->ai_addr)) continue;
         fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (fd == BASIS_INVALID_SOCK) continue;
+        set_cloexec(fd);
 
         /* non-blocking connect with select() timeout */
         set_blocking(fd, 0);
@@ -210,8 +228,11 @@ basis_io_t* basis_io_connect(const char* host, int port, int timeout_ms) {
             if (sel > 0) {
                 int err = 0;
                 socklen_t elen = sizeof(err);
-                getsockopt(fd, SOL_SOCKET, SO_ERROR, (char*)&err, &elen);
-                if (err == 0) {
+                /* The return matters as much as the value it writes: err is
+                 * pre-zeroed, so a failed call would otherwise read as a
+                 * successful connect and hand back a socket that never came up. */
+                int got = getsockopt(fd, SOL_SOCKET, SO_ERROR, (char*)&err, &elen);
+                if (got == 0 && err == 0) {
                     set_blocking(fd, 1);
                     break;
                 }
@@ -236,8 +257,38 @@ basis_io_t* basis_io_connect(const char* host, int port, int timeout_ms) {
 
 int basis_io_read(basis_io_t* io, uint8_t* buf, int len) {
     if (!io || io->fd == BASIS_INVALID_SOCK || !buf || len <= 0) return -1;
-    int n = (int)recv(io->fd, (char*)buf, len, 0);
-    return n;
+#if defined(_WIN32)
+    return (int)recv(io->fd, (char*)buf, len, 0);   /* Winsock has no EINTR */
+#else
+    /* A signal delivered without SA_RESTART interrupts the wait and returns
+     * -1/EINTR on a socket that is perfectly healthy, which callers read as a
+     * dead peer and abandon the stream over. So retry — but bounded, because
+     * each retry re-arms SO_RCVTIMEO and a repeating signal would otherwise turn
+     * a read the caller asked to be timed into an untimed one. Same rule as
+     * basis_io_poll_read, and giving up looks exactly like the timeout that was
+     * asked for. An untimed socket has no deadline to preserve, so it retries.
+     *
+     * The deadline is tested after recv returns, and the retry gets a fresh
+     * SO_RCVTIMEO rather than the remainder, so a signal arriving just short of
+     * the deadline can take the total to ~2x read_timeout_ms. Callers sizing
+     * their own deadlines off this value should treat it as the bound. Re-arming
+     * with the remainder would tighten it at the cost of a setsockopt per
+     * signal, which is the wrong trade for a path that exists to absorb a rare
+     * interruption. */
+    struct timespec t0;
+    int clock_ok = (clock_gettime(CLOCK_MONOTONIC, &t0) == 0);
+    for (;;) {
+        int n = (int)recv(io->fd, (char*)buf, len, 0);
+        if (n >= 0 || errno != EINTR) return n;
+        if (io->read_timeout_ms > 0) {
+            struct timespec t1;
+            if (!clock_ok || clock_gettime(CLOCK_MONOTONIC, &t1) != 0) return -1;
+            long elapsed_ms = (long)((t1.tv_sec - t0.tv_sec) * 1000 +
+                                     (t1.tv_nsec - t0.tv_nsec) / 1000000);
+            if (elapsed_ms >= io->read_timeout_ms) { errno = EAGAIN; return -1; }
+        }
+    }
+#endif
 }
 
 int basis_io_read_full(basis_io_t* io, uint8_t* buf, int len) {
@@ -281,6 +332,7 @@ int basis_io_peer_addr(basis_io_t* io, char* buf, int cap) {
 static sock_t udp_bind_one(int family, int local_port) {
     sock_t fd = socket(family, SOCK_DGRAM, IPPROTO_UDP);
     if (fd == BASIS_INVALID_SOCK) return BASIS_INVALID_SOCK;
+    set_cloexec(fd);
 
     struct sockaddr_storage local;
     memset(&local, 0, sizeof(local));
@@ -425,8 +477,33 @@ int basis_io_poll_read(basis_io_t** ios, int n, int timeout_ms) {
         np++;
     }
     if (np == 0) return 0;
-    int rc = poll(pf, (nfds_t)np, timeout_ms);
-    if (rc < 0) return -1;
+    /* An interrupted wait is not a failure, and here it costs more than a lost
+     * read: the RTSP session loop reads -1 from this as a socket error and gives
+     * up on UDP for the whole host. Retry on what is left of the caller's
+     * deadline, so repeated signals cannot extend the wait either. */
+    struct timespec t0;
+    int clock_ok = (clock_gettime(CLOCK_MONOTONIC, &t0) == 0);
+    int remaining = timeout_ms;
+    int rc;
+    for (;;) {
+        rc = poll(pf, (nfds_t)np, remaining);
+        if (rc >= 0) break;
+        if (errno != EINTR) return -1;
+        if (timeout_ms > 0) {
+            /* Without a clock there is no way to retry inside the caller's
+             * deadline, and re-arming the full timeout on every signal would
+             * extend a wait that is meant to be bounded. Report the interruption
+             * as an expiry instead: callers poll again, so nothing is lost but
+             * one round trip. */
+            struct timespec t1;
+            if (!clock_ok || clock_gettime(CLOCK_MONOTONIC, &t1) != 0) return 0;
+            long elapsed_ms = (long)((t1.tv_sec - t0.tv_sec) * 1000 +
+                                     (t1.tv_nsec - t0.tv_nsec) / 1000000);
+            remaining = timeout_ms - (int)elapsed_ms;
+            if (remaining <= 0) return 0;
+        }
+        /* timeout_ms <= 0 is an unbounded wait, so there is no deadline to keep. */
+    }
     if (rc == 0) return 0;
     int mask = 0;
     for (int i = 0; i < np; ++i)

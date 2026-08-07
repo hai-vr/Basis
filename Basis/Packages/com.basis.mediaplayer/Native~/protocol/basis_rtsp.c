@@ -920,27 +920,38 @@ static int udp_read_loop(rtsp_t* r, depkt_t* d, udp_state_t* u, const char* base
         int64_t now = now_ms();
         if (mask < 0) return 1;
 
+        /* These four are datagram sockets, where a read of 0 is an empty datagram
+         * rather than a disconnect — zero-as-disconnect is a stream-socket rule,
+         * and the TCP read below is where it applies. Treating it as an error here
+         * would let one empty packet abandon UDP and, through udp_neg_add, skip it
+         * for every later load of this host. Only a negative return is a failure;
+         * an empty datagram carries no media, so it is ignored rather than counted
+         * as traffic against the no-data deadlines. */
         if (mask & (1 << 1)) {
             int n = basis_io_read(u->v_rtp, pkt, (int)sizeof(pkt));
-            if (n <= 0) return 1;   /* ICMP refusal / socket error: instant fallback */
-            last_rtp = last_any = now;
-            reorder_push(u->v_rb, pkt, n, now, udp_deliver_video, udp_gap_video, d);
+            if (n < 0) return 1;   /* ICMP refusal / socket error: instant fallback */
+            if (n > 0) {
+                last_rtp = last_any = now;
+                reorder_push(u->v_rb, pkt, n, now, udp_deliver_video, udp_gap_video, d);
+            }
         }
         if ((mask & (1 << 3)) && u->a_rtp) {
             int n = basis_io_read(u->a_rtp, pkt, (int)sizeof(pkt));
-            if (n <= 0) return 1;
-            last_rtp = last_any = now;
-            reorder_push(u->a_rb, pkt, n, now, udp_deliver_audio, udp_gap_audio, d);
+            if (n < 0) return 1;
+            if (n > 0) {
+                last_rtp = last_any = now;
+                reorder_push(u->a_rb, pkt, n, now, udp_deliver_audio, udp_gap_audio, d);
+            }
         }
         if (mask & (1 << 2)) {
             int n = basis_io_read(u->v_rtcp, pkt, (int)sizeof(pkt));
-            if (n <= 0) return 1;
-            last_any = now;   /* sender reports prove the path before media flows */
+            if (n < 0) return 1;
+            if (n > 0) last_any = now;   /* sender reports prove the path before media flows */
         }
         if ((mask & (1 << 4)) && u->a_rtcp) {
             int n = basis_io_read(u->a_rtcp, pkt, (int)sizeof(pkt));
-            if (n <= 0) return 1;
-            last_any = now;
+            if (n < 0) return 1;
+            if (n > 0) last_any = now;
         }
         if (mask & 1) {
             int n = basis_io_read(r->io, pkt, (int)sizeof(pkt));
