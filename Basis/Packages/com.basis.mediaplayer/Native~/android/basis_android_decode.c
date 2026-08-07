@@ -81,7 +81,26 @@ typedef struct {
  * cannot overflow it. Any real trim is orders of magnitude below this. */
 #define PCM_TRIM_MAX_US      (60 * 1000000LL)
 
-static void ring_init(pcm_ring* r, int floats) { r->buf = malloc(sizeof(float) * floats); r->cap = floats; r->head = r->tail = 0; r->frame = 2; r->sr = 48000; r->chead = r->ccount = 0; r->trims = 0; r->lastTrimFloats = 0; r->playedUs = INT64_MIN; pthread_mutex_init(&r->m, NULL); }
+/* Reports failure rather than absorbing it: the ring is written through unguarded
+ * once it exists, and the tempting shortcut of leaving a capacity behind a null
+ * buffer is worse than the null dereference it replaces, because ring_fill takes
+ * `% cap` and a zero capacity turns that into a divide by zero. On failure nothing
+ * is initialised -- no buffer, no capacity, no mutex to have to destroy -- and the
+ * caller gives up. Returns 0 on success. */
+static int ring_init(pcm_ring* r, int floats) {
+    if (floats <= 0) return -1;
+    /* Both resources are acquired before either is published, because
+     * pthread_mutex_init is allowed to fail on resource exhaustion and reporting
+     * success with a buffer but no usable lock would just move the defect. The
+     * buffer is held in a local until the lock is up, so the failure path frees it
+     * and leaves the ring exactly as it found it. */
+    float* buf = (float*)malloc(sizeof(float) * (size_t)floats);
+    if (!buf) return -1;
+    if (pthread_mutex_init(&r->m, NULL) != 0) { free(buf); return -1; }
+    r->buf = buf;
+    r->cap = floats; r->head = r->tail = 0; r->frame = 2; r->sr = 48000; r->chead = r->ccount = 0; r->trims = 0; r->lastTrimFloats = 0; r->playedUs = INT64_MIN;
+    return 0;
+}
 static void ring_free(pcm_ring* r) { free(r->buf); r->buf = NULL; pthread_mutex_destroy(&r->m); }
 static void ring_set_frame(pcm_ring* r, int frame, int sr) {
     pthread_mutex_lock(&r->m);
@@ -755,11 +774,14 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     d->engine = engine;
     d->video_track = d->audio_track = -1;
     d->lastPtsUs = -1;
-    d->vk = basis_vk_create();
-    ring_init(&d->pcm, 48000 * 8 * 4); /* ~4s at 8ch — the PTS-gated serve banks
+    /* Before anything that would need unwinding, so a failure here is a plain
+     * free rather than a teardown path of its own. */
+    if (ring_init(&d->pcm, 48000 * 8 * 4) != 0) { free(d); return NULL; }
+                                       /* ~4s at 8ch — the PTS-gated serve banks
                                         * mux lead + the jitter cushion in the
                                         * ring, so capacity holds both at full
                                         * width */
+    d->vk = basis_vk_create();
 
     pthread_mutex_init(&d->vm, NULL);
     d->lastPresentedPts = INT64_MIN;

@@ -16,6 +16,12 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms);
 int   basis_http_read(void* ctx, uint8_t* buf, int len);   /* basis_read_fn-compatible */
 void  basis_http_close(void* ctx);
 
+/* Interrupts a read parked on another thread so it returns at once, matching what
+ * the WinHTTP and JNI sources offer. Without it a teardown that joins the reader
+ * waits out the socket's read timeout instead of returning promptly. Does not free
+ * the context; the caller still closes it. */
+void  basis_http_abort(void* ctx);
+
 #ifdef __cplusplus
 }
 #endif

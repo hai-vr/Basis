@@ -391,6 +391,28 @@ void basis_io_close(basis_io_t* io) {
     free(io);
 }
 
+void basis_io_set_send_timeout(basis_io_t* io, int timeout_ms) {
+    if (!io || io->fd == BASIS_INVALID_SOCK) return;
+    /* Recorded as well as applied: SO_SNDTIMEO bounds one send() call, while the
+     * EINTR retry in basis_io_write_full bounds the whole write, and a caller that
+     * shortens the deadline means both. */
+    io->send_timeout_ms = timeout_ms;
+    set_send_timeout(io->fd, timeout_ms);
+}
+
+void basis_io_shutdown(basis_io_t* io) {
+    if (!io || io->fd == BASIS_INVALID_SOCK) return;
+    /* Deliberately not a close: the reader is about to be joined and would then be
+     * holding a freed descriptor, or a recycled one. A shutdown makes the parked
+     * read return immediately and leaves the descriptor valid until its owner
+     * closes it on the normal path. */
+#if defined(_WIN32)
+    shutdown(io->fd, SD_BOTH);
+#else
+    shutdown(io->fd, SHUT_RDWR);
+#endif
+}
+
 int basis_io_peer_addr(basis_io_t* io, char* buf, int cap) {
     if (!io || io->fd == BASIS_INVALID_SOCK || !buf || cap <= 0) return -1;
     struct sockaddr_storage ss;

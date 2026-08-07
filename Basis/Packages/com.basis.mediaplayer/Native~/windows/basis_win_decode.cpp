@@ -103,7 +103,20 @@ struct PcmRing {
      * cannot overflow it. Any real trim is orders of magnitude below this. */
     static const int64_t TRIM_MAX_US = 60 * 1000000LL;
 
-    void init(int floats) { cap = floats; buf = (float*)malloc(sizeof(float) * cap); InitializeCriticalSection(&cs); }
+    /* Reports failure rather than absorbing it: the ring is written through
+     * unguarded once it exists, and the tempting shortcut of leaving a capacity
+     * behind a null buffer is worse than the null dereference it replaces, because
+     * fill() takes `% cap` and a zero capacity turns that into a divide by zero.
+     * Nothing is initialised on the failure path -- in particular the critical
+     * section is not, so destroy() must not run against a ring that failed here. */
+    bool init(int floats) {
+        if (floats <= 0) return false;
+        buf = (float*)malloc(sizeof(float) * (size_t)floats);
+        if (!buf) return false;
+        cap = floats;
+        InitializeCriticalSection(&cs);
+        return true;
+    }
     void destroy() { free(buf); buf = nullptr; DeleteCriticalSection(&cs); }
 
     int fill() const { return (tail - head + cap) % cap; }
@@ -1347,6 +1360,21 @@ extern "C" basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     if (!mfStarted) { CoInitializeEx(nullptr, COINIT_MULTITHREADED); MFStartup(MF_VERSION); mfStarted = true; }
 
     basis_decoder* d = new basis_decoder();
+    /* Before anything that would need unwinding — no COM references taken, no
+     * critical section initialised — so a failure here is a plain delete rather
+     * than a teardown path of its own. destroy() cannot be used to clean up a ring
+     * that failed to initialise, which is what makes the ordering load-bearing. */
+    if (!d->pcm.init(48000 * 8 * 4)) {
+        /* Named, like the decode-device failure below: a bare null leaves the
+         * managed layer reporting that the player would not open and nothing about
+         * why. */
+        basis_engine_set_error(engine, "failed to allocate the audio ring");
+        delete d;
+        return nullptr;
+    }
+                               /* ~4s at 8ch — the PTS-gated serve banks mux lead
+                                * + the jitter cushion in the ring, so capacity
+                                * must hold both at full width */
     d->engine = engine;
     d->api = basis_gfx_get_api();
     d->devUnity = (ID3D11Device*)basis_gfx_get_d3d11_device();
@@ -1355,9 +1383,6 @@ extern "C" basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     QueryPerformanceFrequency(&d->qpcFreq);
     QueryPerformanceCounter(&d->createQpc);
     for (int i = 0; i < basis_decoder::RING; ++i) d->ringPts[i] = INT64_MIN;
-    d->pcm.init(48000 * 8 * 4); /* ~4s at 8ch — the PTS-gated serve banks mux
-                                 * lead + the jitter cushion in the ring, so
-                                 * capacity must hold both at full width */
 
     if (!create_decode_device(d)) {
         basis_engine_set_error(engine, "failed to create DXVA D3D11 decode device");

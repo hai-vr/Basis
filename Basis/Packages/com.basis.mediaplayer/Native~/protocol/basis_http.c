@@ -249,6 +249,12 @@ int basis_http_read(void* ctx, uint8_t* buf, int len) {
     return got;
 }
 
+void basis_http_abort(void* ctx) {
+    http_ctx* h = (http_ctx*)ctx;
+    if (!h) return;
+    if (h->io) basis_io_shutdown(h->io);
+}
+
 void basis_http_close(void* ctx) {
     http_ctx* h = (http_ctx*)ctx;
     if (!h) return;

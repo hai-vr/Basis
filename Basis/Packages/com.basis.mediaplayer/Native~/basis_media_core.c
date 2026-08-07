@@ -1226,6 +1226,11 @@ static void run_http_like(demux_ctx_t* c) {
 #else
 #if defined(__ANDROID__)
         basis_jni_https_abort(src);
+#else
+        /* The portable source needs the same courtesy: without it the join waits
+         * out the socket's read timeout rather than returning at once, which is
+         * the whole reason the other two abort here. */
+        basis_http_abort(src);
 #endif
         pthread_join(reader, NULL);
 #endif

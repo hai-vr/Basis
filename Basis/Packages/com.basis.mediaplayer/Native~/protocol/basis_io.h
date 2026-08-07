@@ -30,6 +30,16 @@ void basis_io_set_read_timeout(basis_io_t* io, int timeout_ms);
 
 void basis_io_close(basis_io_t* io);
 
+/* Unblocks a read parked on this socket, without freeing anything: the descriptor
+ * stays valid so the reader can return through its own error path and the owner
+ * still closes it. For interrupting a reader before joining its thread. */
+void basis_io_shutdown(basis_io_t* io);
+
+/* Overrides the default write deadline on this socket. For a last write on a path
+ * that must not hold a thread up — the default is sized for a request that matters,
+ * not for one sent on the way out. */
+void basis_io_set_send_timeout(basis_io_t* io, int timeout_ms);
+
 /* Numeric peer address of a connected socket (e.g. "203.0.113.7"), for reusing
  * one validated resolution across further connections. Returns 0 on success. */
 int basis_io_peer_addr(basis_io_t* io, char* buf, int cap);

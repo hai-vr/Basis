@@ -213,9 +213,39 @@ static int attr_str(const char* line, const char* key, char* out, int outsz) {
     return 0;
 }
 
-static long attr_long(const char* line, const char* key, long def) {
+/* Ceilings on the two whole-number playlist fields. Both are picked to keep the
+ * arithmetic they feed inside a 32-bit long, which is what Windows has: the
+ * sequence base has a segment index added to it, and the bandwidth is only ever
+ * compared. Real playlists sit orders of magnitude below either. */
+#define HLS_MAX_SEQUENCE  1000000000L
+#define HLS_MAX_BANDWIDTH 2000000000L
+
+/* Whole non-negative integer, or `def` when the playlist did not supply a usable
+ * one. atol is the same trap atof was on the durations: it cannot report failure,
+ * answers 0 for anything it cannot read, and is undefined past LONG_MAX — on a
+ * type that is 32 bits on Windows, which a playlist reaches without trying. The
+ * ceiling is per caller because what counts as absurd differs between the two. */
+static long parse_whole(const char* s, long max, long def) {
+    while (*s == ' ' || *s == '\t') ++s;
+    if (*s < '0' || *s > '9') return def;
+    long v = 0;
+    while (*s >= '0' && *s <= '9') {
+        int digit = *s++ - '0';
+        /* Tested against the ceiling BEFORE the multiply, the same way the duration
+         * parser above does it. Checking afterwards means computing `v * 10` on a
+         * value already near the top, and signed overflow is undefined — so the
+         * check would be reading a result the standard says nothing about. These
+         * ceilings are large enough for that to bite: `long` is 32 bits on Windows,
+         * and ten digits reach it. */
+        if (v > max / 10 || (v == max / 10 && digit > max % 10)) return def;
+        v = v * 10 + digit;
+    }
+    return v;
+}
+
+static long attr_long(const char* line, const char* key, long max, long def) {
     char buf[64];
-    if (attr_str(line, key, buf, sizeof(buf))) return atol(buf);
+    if (attr_str(line, key, buf, sizeof(buf))) return parse_whole(buf, max, def);
     return def;
 }
 
@@ -418,7 +448,7 @@ static int master_pick_variant(basis_hls_t* h, const char* base, const char* tex
         if (llen && line[llen - 1] == '\r') line[llen - 1] = 0;
 
         if (starts_with(line, "#EXT-X-STREAM-INF")) {
-            long bw = attr_long(line, "BANDWIDTH", 0);
+            long bw = attr_long(line, "BANDWIDTH", HLS_MAX_BANDWIDTH, 0);
             /* the variant URI is the next non-comment, non-empty line */
             const char* q = nl ? nl + 1 : p + llen;
             while (*q) {
@@ -495,7 +525,10 @@ static void parse_media_playlist(const char* base, const char* text, hls_playlis
             if (c) pl->target_duration_ms = secs_to_ms(c + 1, pl->target_duration_ms);
         } else if (starts_with(line, "#EXT-X-MEDIA-SEQUENCE")) {
             const char* c = strchr(line, ':');
-            if (c) pl->media_seq_base = atol(c + 1);
+            /* Bounded because a segment index is added to this and the sum reaches
+             * the fetch cursor and the request URL, so an unchecked value is signed
+             * overflow before it is anything else. */
+            if (c) pl->media_seq_base = parse_whole(c + 1, HLS_MAX_SEQUENCE, pl->media_seq_base);
         } else if (starts_with(line, "#EXT-X-SERVER-CONTROL")) {
             char v[16];
             if (attr_str(line, "CAN-BLOCK-RELOAD", v, sizeof(v)) && ci_eq_n(v, "yes", 3))

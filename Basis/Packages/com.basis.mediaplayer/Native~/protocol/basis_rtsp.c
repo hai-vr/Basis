@@ -1301,7 +1301,15 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
      * loops above exit is the running flag clearing, so gating this on it would
      * mean a user-initiated stop never released the session -- see the note in
      * rtsp_send_ex. The handshake paths above skip TEARDOWN deliberately, but they
-     * are abandoning a session that was never established; this one was. */
+     * are abandoning a session that was never established; this one was.
+     *
+     * The write deadline is cut right down first. This is the one request that can
+     * be issued after a stop, it runs on the demux thread, and close joins that
+     * thread without a timeout of its own -- so on the default deadline a peer that
+     * simply stops reading turns a user stop into a ten-second stall. A second is
+     * ample for a request this size against any peer still behaving, and a peer
+     * that is not gets abandoned rather than waited for. */
+    basis_io_set_send_timeout(r.io, 1000);
     rtsp_send_ex(&r, "TEARDOWN", base_url, NULL, 1);
 
     free(pkt); free(d.au); free(d.fu); free(d.afrag);
