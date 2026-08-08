@@ -11,6 +11,7 @@ typedef struct {
     basis_io_t* io;
     int chunked;
     int has_length;
+    int te_seen;    /* a Transfer-Encoding header was seen (reject a second) */
     long long remaining;   /* content-length remaining, or current chunk remaining */
     int eof;
 
@@ -128,7 +129,7 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms) {
      * No is_running check, unlike RTSP: this entry point has no sink to ask. The
      * caps alone end the loop, which is what closes the hang; cooperative
      * cancellation here would mean changing the byte-source signature. */
-    h->has_length = 0; h->chunked = 0; h->remaining = -1;
+    h->has_length = 0; h->chunked = 0; h->te_seen = 0; h->remaining = -1;
     int nheaders = 0, hbytes = 0;
     for (;;) {
         int ll = read_line(h, line, sizeof(line));
@@ -177,20 +178,20 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms) {
             h->remaining = cl;
         }
         else if (strcmp(low, "transfer-encoding") == 0 && val) {
-            /* The final transfer-coding must be exactly "chunked" (RFC 7230
-             * §3.3.1). A substring match also takes "x-chunked" and a non-final
-             * "chunked", framing chunks the peer never sent. */
-            const char* last = strrchr(val, ',');
-            last = last ? last + 1 : val;
-            while (*last == ' ' || *last == '\t') ++last;
-            size_t ln = strlen(last);
-            while (ln && (last[ln - 1] == ' ' || last[ln - 1] == '\t' ||
-                          last[ln - 1] == '\r' || last[ln - 1] == '\n')) --ln;
+            /* A repeated Transfer-Encoding is a framing conflict, like a repeated
+             * Content-Length. And the whole value must be exactly "chunked": we
+             * strip chunk framing but decode no other coding, so "gzip, chunked"
+             * (last token chunked, still gzip-compressed underneath) would hand
+             * the demuxer a body it can't read. Refuse anything but bare chunked. */
+            if (h->te_seen++) { basis_io_close(h->io); free(h); return NULL; }
+            const char* s = val;
+            while (*s == ' ' || *s == '\t') ++s;
+            size_t ln = strlen(s);
+            while (ln && (s[ln - 1] == ' ' || s[ln - 1] == '\t' ||
+                          s[ln - 1] == '\r' || s[ln - 1] == '\n')) --ln;
             int is_chunked = ln == 7;
             for (size_t i = 0; is_chunked && i < 7; ++i)
-                if (tolower((unsigned char)last[i]) != "chunked"[i]) is_chunked = 0;
-            /* Anything else is a coding we can't frame or can't decode (identity,
-             * gzip, ...) — refuse rather than feed the demuxer the raw body. */
+                if (tolower((unsigned char)s[i]) != "chunked"[i]) is_chunked = 0;
             if (!is_chunked) { basis_io_close(h->io); free(h); return NULL; }
             h->chunked = 1;
         }

@@ -162,15 +162,17 @@ struct basis_media_engine {
      * resolves paced/pace_delivery once it has inspected the source (run_http_like/run_hls).
      * The pace anchor (first AU's wall time + PTS) is engine-wide so a split source's two
      * legs pace against one timeline.
-     * Thread-safety: paced/pace_delivery/paced_hint are resolved once, on the primary demux
-     * thread's run setup (run_http_like/run_hls, guarded by demux_ctx.is_primary), then only
-     * read — including by the split-source audio leg, which never writes them. A single writer
-     * and aligned-int reads make the cross-thread read benign. The anchor (pace_started/wall0/
-     * base_pts) is initialised and read under e->lock in pace_gate, so a split source's two
-     * demux threads share one timeline correctly on any memory model. */
-    int paced;
-    int pace_delivery;
-    int paced_hint;
+     * Thread-safety: paced/pace_delivery are resolved once, on the primary demux thread's run
+     * setup (run_http_like/run_hls, guarded by demux_ctx.is_primary), then only read — including
+     * by the split-source audio leg, which never writes them. volatile like running/paused (the
+     * engine's other cross-thread flags), so a reader can't cache a stale value; a split-audio
+     * leg that reads before the primary resolves them just starts unpaced and picks up the paced
+     * clock once the value lands (pace_gate re-reads pace_delivery per AU). The anchor
+     * (pace_started/wall0/base_pts) is initialised and read under e->lock in pace_gate, so a
+     * split source's two demux threads share one timeline correctly on any memory model. */
+    volatile int paced;
+    volatile int pace_delivery;
+    int paced_hint;   /* set at play setup, before either demux thread starts */
     int pace_started;
     int64_t pace_wall0_us;
     int64_t pace_base_pts;

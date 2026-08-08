@@ -266,6 +266,50 @@ static int get_header(JNIEnv* env, jobject conn, const char* name, char* buf, in
     return ok;
 }
 
+/* Strict unsigned decimal from *sp up to `delim`: digits only (no sign, no
+ * whitespace), overflow-checked, and the delimiter must follow. Advances *sp
+ * past it and returns the value, or -1 on any malformation. Mirrors
+ * basis_win_http's parse_u64_exact — strtoll would take a leading '+' and needs
+ * an errno dance for overflow. */
+static long long parse_u64_until(const char** sp, char delim) {
+    const char* s = *sp;
+    if (*s < '0' || *s > '9') return -1;
+    unsigned long long v = 0;
+    for (; *s >= '0' && *s <= '9'; ++s) {
+        unsigned d = (unsigned)(*s - '0');
+        if (v > (0x7FFFFFFFFFFFFFFFULL - d) / 10ULL) return -1;
+        v = v * 10ULL + d;
+    }
+    if (*s != delim) return -1;
+    *sp = s + 1;
+    return (long long)v;
+}
+
+/* Parse a Content-Range "bytes first-last/total" strictly (only outer padding
+ * tolerated), writing the first-byte-position and returning 0, or -1 on any
+ * malformation. Mirrors basis_win_http's parse_content_range. */
+static int parse_content_range_first(const char* s, long long* out_first) {
+    while (*s == ' ' || *s == '\t') ++s;
+    if (strncasecmp(s, "bytes", 5) != 0) return -1;
+    s += 5;
+    while (*s == ' ' || *s == '\t') ++s;
+    long long first = parse_u64_until(&s, '-');
+    long long last  = parse_u64_until(&s, '/');
+    if (first < 0 || last < 0) return -1;
+    /* total runs to the end (trailing padding aside), so parse it inline. */
+    if (*s < '0' || *s > '9') return -1;
+    unsigned long long total = 0;
+    for (; *s >= '0' && *s <= '9'; ++s) {
+        unsigned d = (unsigned)(*s - '0');
+        if (total > (0x7FFFFFFFFFFFFFFFULL - d) / 10ULL) return -1;
+        total = total * 10ULL + d;
+    }
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') ++s;
+    if (*s || last < first || total == 0 || (unsigned long long)last >= total) return -1;
+    *out_first = first;
+    return 0;
+}
+
 /* Host of `url`, for log lines. A media URL routinely carries a signed query
  * token or userinfo, and logcat is persisted and swept up by bug reports, so a
  * failure names the host it was talking to rather than the whole URL. Purely a
@@ -742,23 +786,14 @@ int basis_jni_https_reseek(void* ctx, long long offset) {
         jenv_release(&L); return -1;   /* quiesce already set eof */
     }
     /* 206 status alone doesn't say where the part starts — a range-rewriting proxy
-     * or a multipart/byteranges answer is also a 206. Confirm Content-Range begins
-     * at the offset we asked for, or the bytes land at the wrong stream position. */
+     * or a multipart/byteranges answer is also a 206. Confirm the full
+     * "bytes first-last/total" grammar and that first is the offset we asked for,
+     * or the bytes land at the wrong stream position. */
     if (code == 206) {
         char cr[128];
-        long long first = -1;
-        if (get_header(env, conn, "Content-Range", cr, sizeof(cr))) {
-            const char* p = cr;
-            while (*p == ' ' || *p == '\t') ++p;
-            if (strncasecmp(p, "bytes", 5) == 0) {
-                p += 5;
-                while (*p == ' ' || *p == '\t') ++p;
-                char* e2 = NULL;
-                long long v = strtoll(p, &e2, 10);
-                if (e2 != p && *e2 == '-' && v >= 0) first = v;
-            }
-        }
-        if (first != offset) {
+        long long first;
+        if (!get_header(env, conn, "Content-Range", cr, sizeof(cr)) ||
+            parse_content_range_first(cr, &first) != 0 || first != offset) {
             (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
             if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
             (*env)->DeleteLocalRef(env, conn);
