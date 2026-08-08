@@ -162,11 +162,12 @@ struct basis_media_engine {
      * resolves paced/pace_delivery once it has inspected the source (run_http_like/run_hls).
      * The pace anchor (first AU's wall time + PTS) is engine-wide so a split source's two
      * legs pace against one timeline.
-     * Thread-safety: paced/pace_delivery/paced_hint are set during run setup (run_http_like/
-     * run_hls) before the demux and audio threads start, then only read — effectively
-     * immutable while pacing (thread creation publishes them to the new threads). The anchor
-     * (pace_started/wall0/base_pts) is initialised and read under e->lock in pace_gate, so a
-     * split source's two demux threads share one timeline correctly on any memory model. */
+     * Thread-safety: paced/pace_delivery/paced_hint are resolved once, on the primary demux
+     * thread's run setup (run_http_like/run_hls, guarded by demux_ctx.is_primary), then only
+     * read — including by the split-source audio leg, which never writes them. A single writer
+     * and aligned-int reads make the cross-thread read benign. The anchor (pace_started/wall0/
+     * base_pts) is initialised and read under e->lock in pace_gate, so a split source's two
+     * demux threads share one timeline correctly on any memory model. */
     int paced;
     int pace_delivery;
     int paced_hint;
@@ -405,9 +406,10 @@ void basis_engine_render_event(basis_media_engine_t* e, int event_id) {
  * pace_delivery is set (VOD, or live HLS — whose own byte-rate metering is disabled). */
 #define BASIS_PACE_LEAD_US 400000
 /* The furthest past its own anchor an access unit is allowed to claim to be before
- * the gate stops believing it. An hour is orders of magnitude beyond anything a
- * real stream produces, and the arithmetic below stays in range under it. */
-#define BASIS_PACE_MAX_SPAN_US (3600 * 1000000LL)
+ * the gate stops believing it. Measured from the run's first PTS, so it has to
+ * span a whole title, not one inter-AU gap — 30 days is beyond any real media
+ * timeline while keeping the arithmetic below well inside int64. */
+#define BASIS_PACE_MAX_SPAN_US (30LL * 24 * 3600 * 1000000LL)
 
 static void pace_gate(basis_media_engine_t* e, int64_t pts_us) {
     if (!e->pace_delivery) return;
@@ -710,6 +712,9 @@ typedef struct {
     const char* url;
     basis_url_t* parts;
     basis_media_sink_t* sink;
+    int is_primary; /* 1 = main leg; 0 = split-stream audio leg. Only the primary
+                     * resolves the engine-wide pacing flags, so the two legs don't
+                     * race to write them. */
 } demux_ctx_t;
 
 /* Prefix-replay byte source: serves a small sniffed prefix first, then delegates to
@@ -999,7 +1004,7 @@ static void run_hls(demux_ctx_t* c) {
     /* Auto delivery (hint 0): a playlist carrying EXT-X-ENDLIST is a finished VOD
      * playlist (all segments available at once) and must be paced; a live playlist
      * has no endlist. A forced hint skips this. */
-    if (c->e->paced_hint == 0 && basis_hls_is_vod(hls))
+    if (c->is_primary && c->e->paced_hint == 0 && basis_hls_is_vod(hls))
         c->e->paced = 1;
     /* Report the timeline only when seeks will actually work (a non-zero
      * duration is the managed layer's seekability signal): TS-segment VOD.
@@ -1013,7 +1018,7 @@ static void run_hls(demux_ctx_t* c) {
      * even for live (paced=0), which still presents at and converges to the live edge.
      * This replaces basis_hls.c's byte-rate token bucket (disabled there) with PTS-exact
      * AU pacing that tracks VBR and recovers from stalls. */
-    c->e->pace_delivery = 1;
+    if (c->is_primary) c->e->pace_delivery = 1;
     c->sink->on_state(c->sink->user, BASIS_MEDIA_STATE_BUFFERING);
     /* Seeks reposition inside the HLS source (segment granularity) via
      * basis_media_seek_us -> basis_hls_request_seek. There is no byte-level
@@ -1129,11 +1134,15 @@ static void run_http_like(demux_ctx_t* c) {
 #else
     int http_seekable = basis_jni_https_is_seekable(src);
 #endif
-    if (c->e->paced_hint == 0 && http_seekable)
-        c->e->paced = 1;
-    c->e->pace_delivery = c->e->paced; /* VOD over HTTP paces delivery; open-ended live doesn't */
-    BASIS_LOGI("http VOD detect: seekable=%d hint=%d paced=%d pace_delivery=%d",
-               http_seekable, c->e->paced_hint, c->e->paced, c->e->pace_delivery);
+    /* Only the primary leg resolves the engine-wide pacing flags; the split-stream
+     * audio leg reads what the primary set (see the field comment on `paced`). */
+    if (c->is_primary) {
+        if (c->e->paced_hint == 0 && http_seekable)
+            c->e->paced = 1;
+        c->e->pace_delivery = c->e->paced; /* VOD over HTTP paces delivery; open-ended live doesn't */
+    }
+    BASIS_LOGI("http VOD detect: primary=%d seekable=%d hint=%d paced=%d pace_delivery=%d",
+               c->is_primary, http_seekable, c->e->paced_hint, c->e->paced, c->e->pace_delivery);
 #endif
 
     /* Paced (VOD): drain the network into a read-ahead ring on a reader thread and
@@ -1285,7 +1294,7 @@ static void demux_body(basis_media_engine_t* e) {
     int attempt = 0;
     const int MAX_ATTEMPTS = 6; /* ~500ms..8s capped: several retries before giving up */
 
-    demux_ctx_t c = { e, e->url, &e->parts, &e->sink };
+    demux_ctx_t c = { e, e->url, &e->parts, &e->sink, 1 };
 
     while (e->running) {
         basis_engine_set_state(e, BASIS_MEDIA_STATE_CONNECTING);
@@ -1370,7 +1379,7 @@ static void audio_demux_body(basis_media_engine_t* e) {
     int attempt = 0;
     const int MAX_ATTEMPTS = 6;
 
-    demux_ctx_t c = { e, e->url_audio, &e->parts_audio, &e->audio_sink };
+    demux_ctx_t c = { e, e->url_audio, &e->parts_audio, &e->audio_sink, 0 };
 
     while (e->running) {
         long aus_before = e->audio_frame_count;

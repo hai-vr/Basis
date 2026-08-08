@@ -176,7 +176,24 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms) {
             h->has_length = 1;
             h->remaining = cl;
         }
-        else if (strcmp(low, "transfer-encoding") == 0 && val && strstr(val, "chunked")) { h->chunked = 1; }
+        else if (strcmp(low, "transfer-encoding") == 0 && val) {
+            /* The final transfer-coding must be exactly "chunked" (RFC 7230
+             * §3.3.1). A substring match also takes "x-chunked" and a non-final
+             * "chunked", framing chunks the peer never sent. */
+            const char* last = strrchr(val, ',');
+            last = last ? last + 1 : val;
+            while (*last == ' ' || *last == '\t') ++last;
+            size_t ln = strlen(last);
+            while (ln && (last[ln - 1] == ' ' || last[ln - 1] == '\t' ||
+                          last[ln - 1] == '\r' || last[ln - 1] == '\n')) --ln;
+            int is_chunked = ln == 7;
+            for (size_t i = 0; is_chunked && i < 7; ++i)
+                if (tolower((unsigned char)last[i]) != "chunked"[i]) is_chunked = 0;
+            /* Anything else is a coding we can't frame or can't decode (identity,
+             * gzip, ...) — refuse rather than feed the demuxer the raw body. */
+            if (!is_chunked) { basis_io_close(h->io); free(h); return NULL; }
+            h->chunked = 1;
+        }
     }
 
     /* Content-Length with Transfer-Encoding is the same conflict across two

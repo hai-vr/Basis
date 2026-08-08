@@ -106,7 +106,7 @@ static long long parse_u64_field(const wchar_t* s) {
  * be coherent, and first must be 0, because that is what the probe asked for: a body
  * starting anywhere else is not the one the caller believes it is reading. Either "*"
  * form reports unknown. */
-static long long parse_content_range_total(const wchar_t* s) {
+static int parse_content_range(const wchar_t* s, long long* first, long long* last, long long* total) {
     if (!s) return -1;
     const wchar_t* end = s + wcslen(s);
     while (s < end && (*s == L' ' || *s == L'\t')) s++;
@@ -120,10 +120,18 @@ static long long parse_content_range_total(const wchar_t* s) {
     const wchar_t* slash = wcschr(s, L'/');
     if (!dash || !slash || dash >= slash || slash >= end) return -1;
 
-    long long first = parse_u64_exact(s, dash);
-    long long last = parse_u64_exact(dash + 1, slash);
-    long long total = parse_u64_exact(slash + 1, end);
-    if (first != 0 || last < 0 || total <= 0 || last >= total) return -1;
+    long long f = parse_u64_exact(s, dash);
+    long long l = parse_u64_exact(dash + 1, slash);
+    long long t = parse_u64_exact(slash + 1, end);
+    if (f < 0 || l < f || t <= 0 || l >= t) return -1;
+    *first = f; *last = l; *total = t;
+    return 0;
+}
+
+static long long parse_content_range_total(const wchar_t* s) {
+    long long first, last, total;
+    if (parse_content_range(s, &first, &last, &total) != 0) return -1;
+    if (first != 0) return -1;   /* the initial probe asked for bytes=0- */
     return total;
 }
 
@@ -509,6 +517,19 @@ extern "C" int basis_win_http_reseek(void* ctx, long long offset) {
     if (code != 206 && !(code == 200 && offset == 0)) {
         WinHttpCloseHandle(req); WinHttpCloseHandle(conn);
         return -1;
+    }
+    /* 206 status alone doesn't say where the part starts — a range-rewriting proxy
+     * or a multipart/byteranges answer is also a 206. Confirm Content-Range begins
+     * at the offset we asked for, or the bytes land at the wrong stream position. */
+    if (code == 206) {
+        wchar_t cr[128] = {0}; DWORD crsz = sizeof(cr);
+        long long first, last, total;
+        if (!WinHttpQueryHeaders(req, WINHTTP_QUERY_CONTENT_RANGE, WINHTTP_HEADER_NAME_BY_INDEX,
+                                 cr, &crsz, WINHTTP_NO_HEADER_INDEX) ||
+            parse_content_range(cr, &first, &last, &total) != 0 || first != offset) {
+            WinHttpCloseHandle(req); WinHttpCloseHandle(conn);
+            return -1;
+        }
     }
 
     EnterCriticalSection(&h->lock);

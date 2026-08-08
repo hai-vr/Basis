@@ -741,6 +741,30 @@ int basis_jni_https_reseek(void* ctx, long long offset) {
         (*env)->DeleteLocalRef(env, conn);
         jenv_release(&L); return -1;   /* quiesce already set eof */
     }
+    /* 206 status alone doesn't say where the part starts — a range-rewriting proxy
+     * or a multipart/byteranges answer is also a 206. Confirm Content-Range begins
+     * at the offset we asked for, or the bytes land at the wrong stream position. */
+    if (code == 206) {
+        char cr[128];
+        long long first = -1;
+        if (get_header(env, conn, "Content-Range", cr, sizeof(cr))) {
+            const char* p = cr;
+            while (*p == ' ' || *p == '\t') ++p;
+            if (strncasecmp(p, "bytes", 5) == 0) {
+                p += 5;
+                while (*p == ' ' || *p == '\t') ++p;
+                char* e2 = NULL;
+                long long v = strtoll(p, &e2, 10);
+                if (e2 != p && *e2 == '-' && v >= 0) first = v;
+            }
+        }
+        if (first != offset) {
+            (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
+            if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+            (*env)->DeleteLocalRef(env, conn);
+            jenv_release(&L); return -1;
+        }
+    }
 
     jobject is = (*env)->CallObjectMethod(env, conn, g_ids.conn_get_is);
     if ((*env)->ExceptionCheck(env) || !is) {
