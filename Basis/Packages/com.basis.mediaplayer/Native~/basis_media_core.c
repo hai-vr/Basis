@@ -1136,8 +1136,14 @@ static void run_http_like(demux_ctx_t* c) {
 #else
     int http_seekable = basis_jni_https_is_seekable(src);
 #endif
-    /* Only the primary leg resolves the engine-wide pacing flags; the split-stream
-     * audio leg reads what the primary set (see the field comment on `paced`). */
+    /* This leg's own pacing view, for the read-ahead and reseek decisions below
+     * — those are taken once, off THIS source's seekability. The engine-wide
+     * flags stay primary-only (pace_gate reads them, shared timeline), but the
+     * audio leg can't read them here: it may reach this point before the primary
+     * resolves them, and would then run permanently without read-ahead or a
+     * reseek hook. Mirrors the primary's resolution: forced on-demand (hint 2,
+     * pre-set) or auto over a seekable body. */
+    int leg_paced = (c->e->paced_hint == 2) || (c->e->paced_hint == 0 && http_seekable);
     if (c->is_primary) {
         if (c->e->paced_hint == 0 && http_seekable)
             c->e->paced = 1;
@@ -1145,13 +1151,15 @@ static void run_http_like(demux_ctx_t* c) {
     }
     BASIS_LOGI("http VOD detect: primary=%d seekable=%d hint=%d paced=%d pace_delivery=%d",
                c->is_primary, http_seekable, c->e->paced_hint, c->e->paced, c->e->pace_delivery);
+#else
+    int leg_paced = c->e->paced;   /* no http_seekable here; paced is the pre-set hint value */
 #endif
 
     /* Paced (VOD): drain the network into a read-ahead ring on a reader thread and
      * demux from the ring at the paced rate, so bursty CDN delivery doesn't starve
      * playback. Live: demux straight off the network read (no added latency). */
     byte_ring_t ring;
-    int use_readahead = c->e->paced && ring_init(&ring, BASIS_READAHEAD_CAP);
+    int use_readahead = leg_paced && ring_init(&ring, BASIS_READAHEAD_CAP);
     basis_read_fn demux_read = prefix_read;
     void* demux_ctx = &ps;
     basis_thread_t reader;
@@ -1178,7 +1186,7 @@ static void run_http_like(demux_ctx_t* c) {
 #if defined(_WIN32)
     http_seek_src_t seek_src = { src, use_readahead ? &ring : NULL, &ps, &c->e->running,
                                  basis_win_http_abort, basis_win_http_reseek };
-    if (c->e->paced && basis_win_http_can_reseek(src)) {
+    if (leg_paced && basis_win_http_can_reseek(src)) {
         reseek = http_reseek;
         reseek_ctx = &seek_src;
         stream_size = basis_win_http_content_length(src);
@@ -1186,7 +1194,7 @@ static void run_http_like(demux_ctx_t* c) {
 #elif defined(__ANDROID__)
     http_seek_src_t seek_src = { src, use_readahead ? &ring : NULL, &ps, &c->e->running,
                                  basis_jni_https_abort, basis_jni_https_reseek };
-    if (c->e->paced && basis_jni_https_can_reseek(src)) {
+    if (leg_paced && basis_jni_https_can_reseek(src)) {
         reseek = http_reseek;
         reseek_ctx = &seek_src;
         stream_size = basis_jni_https_content_length(src);

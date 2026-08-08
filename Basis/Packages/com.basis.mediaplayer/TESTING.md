@@ -578,7 +578,7 @@ crash, hang, or corrupt does.
   these and how you prove one is gone. An unsanitised "it didn't crash this time" is not proof.
   Fuzzing corrupt input is the single highest-value test this code has; a parser change that
   ships without a fuzz pass is under-tested. When you add a parser, add a `fuzz_<name>.c` target
-  beside the others. Targets exist for the container demuxers (TS/MP4/WebM/Ogg/MP3), the caption
+  beside the others. Targets exist for the container demuxers (TS/MP4/WebM/Ogg/MP3/WAV), the caption
   scanner, the URL parser (`fuzz_url`), the HLS playlist source (`fuzz_hls`), and the RTSP/RTMP
   parsers (`fuzz_rtsp`/`fuzz_rtmp` — their harness `#include`s the real `.c` and stubs `basis_io`,
   byte-serving the read paths; `parse_sdp`/`depkt_*`/`amf_*`/FLV tag parsers are driven directly).
