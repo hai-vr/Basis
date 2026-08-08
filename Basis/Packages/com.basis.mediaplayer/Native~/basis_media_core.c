@@ -232,6 +232,10 @@ void basis_engine_set_error(basis_media_engine_t* e, const char* msg) {
     mutex_unlock(&e->lock);
 }
 
+void basis_engine_set_duration(basis_media_engine_t* e, int64_t duration_us) {
+    if (e && duration_us > 0) e->duration_us = duration_us;
+}
+
 basis_decoder_t* basis_engine_get_decoder(basis_media_engine_t* e) { return e ? e->decoder : NULL; }
 int basis_engine_is_paused(basis_media_engine_t* e) { return e ? e->paused : 0; }
 int basis_engine_is_running(basis_media_engine_t* e) { return e ? e->running : 0; }
@@ -706,7 +710,6 @@ typedef struct {
     const char* url;
     basis_url_t* parts;
     basis_media_sink_t* sink;
-    int allow_os_demux; /* Android OS-extractor fast path; primary leg only */
 } demux_ctx_t;
 
 /* Prefix-replay byte source: serves a small sniffed prefix first, then delegates to
@@ -1039,12 +1042,7 @@ static void run_http_like(demux_ctx_t* c) {
      * above every leg below, so each of them starts from a checked entry host.
      *
      * The entry host is all this call checks. Every leg below re-validates each
-     * redirect hop against the same policy before connecting: the byte sources do
-     * it directly, and the Android OS-extractor leg does it too, because
-     * basis_decoder_try_open_url hands the extractor an AMediaDataSource backed by
-     * basis_jni_https rather than the URL. An extractor given the URL would run its
-     * own HTTP and follow hops nothing here can see.
-     *
+     * redirect hop against the same policy in the byte source before connecting.
      * Loopback and RFC1918 targets need BASIS_MEDIA_ALLOW_LOCAL, as they do
      * everywhere else in this file. */
     if (basis_io_host_is_blocked(c->parts->host)) {
@@ -1053,25 +1051,9 @@ static void run_http_like(demux_ctx_t* c) {
     }
 
     /* HLS playlists are not a single continuous stream — hand off to the HLS
-     * source before the OS-extractor attempt (which can't stitch segments) and
-     * the plain TS/fMP4 byte-source path. (.m3u8 may carry a query.) */
+     * source before the plain byte-source path. (.m3u8 may carry a query.) */
     if (contains_ci(c->parts->path, ".m3u8")) {
         run_hls(c);
-        return;
-    }
-
-    /* Android: the OS extractor can demux the URL itself (TLS included). Primary
-     * leg only — an audio-only leg must feed the shared decoder's audio path, not
-     * hand a whole muxed file to the OS extractor. m2ts is also kept away from
-     * it: that container exists here to carry HDMV LPCM (stream_type 0x80),
-     * which the extractor doesn't surface — it would play the video with the
-     * audio silently missing, where the portable TS demuxer + LPCM bypass play
-     * both. */
-    int os_demux = c->allow_os_demux &&
-                   !ends_with_ci(c->parts->path, ".m2ts") && !ends_with_ci(c->parts->path, ".mts");
-    if (os_demux && basis_decoder_try_open_url(c->e->decoder, c->url)) {
-        c->sink->on_state(c->sink->user, BASIS_MEDIA_STATE_BUFFERING);
-        while (c->e->running) sleep_ms(20);
         return;
     }
 
@@ -1082,20 +1064,15 @@ static void run_http_like(demux_ctx_t* c) {
     src = basis_win_http_open(c->url);   /* WinHTTP: handles http + https/TLS */
     rd = basis_win_http_read;
 #elif defined(__ANDROID__)
-    /* AMediaExtractor either took the URL (already returned above) or rejected
-     * it (unsupported live container, etc). Fall back to a JNI-backed Java
-     * HttpsURLConnection feeding the portable TS/MP4 demuxers — same path used
-     * for RTSP/RTMP. Works for both http:// and https://.
-     *
-     * Read timeout is 60s, not 15s: live streams can have brief stalls (key-
-     * frame intervals, network jitter, server buffering) that a short timeout
-     * would mistake for a dead socket. Connect timeout stays implicitly short
-     * (the open call). */
+    /* JNI-backed Java HttpsURLConnection feeding the portable demuxers, for both
+     * http:// and https://. Read timeout is 60s, not 15s: live streams stall
+     * briefly (keyframe intervals, jitter, server buffering) and a short timeout
+     * would read that as a dead socket. */
     src = basis_jni_https_open(c->url, 60000);
     rd = basis_jni_https_read;
 #else
     if (c->parts->tls) {
-        c->sink->on_error(c->sink->user, "https requires the platform TLS stack (WinHTTP/AMediaExtractor); not available on this build.");
+        c->sink->on_error(c->sink->user, "https requires the platform TLS stack (WinHTTP/JNI); not available on this build.");
         return;
     }
     src = basis_http_open(c->parts, 15000);
@@ -1106,23 +1083,6 @@ static void run_http_like(demux_ctx_t* c) {
         c->sink->on_error(c->sink->user, "failed to open HTTP byte source");
         return;
     }
-
-#if defined(_WIN32) || defined(__ANDROID__)
-    /* Auto delivery (hint 0): a finite, byte-range-seekable HTTP body (known
-     * Content-Length + Accept-Ranges, or a 206 probe answer) is on-demand and
-     * arrives faster than real time, so pace it; an open-ended response is
-     * live. Set before the read-ahead gate and the first AU, so pacing is in
-     * force from the start. A forced hint skips this. Without the detection a
-     * VOD file plays at delivery speed — synchronised fast-forward. */
-#if defined(_WIN32)
-    int http_seekable = basis_win_http_is_seekable(src);
-#else
-    int http_seekable = basis_jni_https_is_seekable(src);
-#endif
-    if (c->e->paced_hint == 0 && http_seekable)
-        c->e->paced = 1;
-    c->e->pace_delivery = c->e->paced; /* VOD over HTTP paces delivery; open-ended live doesn't */
-#endif
 
     c->sink->on_state(c->sink->user, BASIS_MEDIA_STATE_BUFFERING);
 
@@ -1156,6 +1116,25 @@ static void run_http_like(demux_ctx_t* c) {
         is_ogg = ends_with_ci(c->parts->path, ".opus") || ends_with_ci(c->parts->path, ".ogg");
         is_mp3 = ends_with_ci(c->parts->path, ".mp3");
     }
+
+#if defined(_WIN32) || defined(__ANDROID__)
+    /* Auto delivery (hint 0): a finite, byte-range-seekable HTTP body (known
+     * Content-Length + Accept-Ranges, or a 206 probe answer) is on-demand and
+     * arrives faster than real time, so pace it; an open-ended response is
+     * live. Set before the read-ahead gate and the first AU, so pacing is in
+     * force from the start. A forced hint skips this. Without the detection a
+     * VOD file plays at delivery speed — synchronised fast-forward. */
+#if defined(_WIN32)
+    int http_seekable = basis_win_http_is_seekable(src);
+#else
+    int http_seekable = basis_jni_https_is_seekable(src);
+#endif
+    if (c->e->paced_hint == 0 && http_seekable)
+        c->e->paced = 1;
+    c->e->pace_delivery = c->e->paced; /* VOD over HTTP paces delivery; open-ended live doesn't */
+    BASIS_LOGI("http VOD detect: seekable=%d hint=%d paced=%d pace_delivery=%d",
+               http_seekable, c->e->paced_hint, c->e->paced, c->e->pace_delivery);
+#endif
 
     /* Paced (VOD): drain the network into a read-ahead ring on a reader thread and
      * demux from the ring at the paced rate, so bursty CDN delivery doesn't starve
@@ -1306,7 +1285,7 @@ static void demux_body(basis_media_engine_t* e) {
     int attempt = 0;
     const int MAX_ATTEMPTS = 6; /* ~500ms..8s capped: several retries before giving up */
 
-    demux_ctx_t c = { e, e->url, &e->parts, &e->sink, 1 };
+    demux_ctx_t c = { e, e->url, &e->parts, &e->sink };
 
     while (e->running) {
         basis_engine_set_state(e, BASIS_MEDIA_STATE_CONNECTING);
@@ -1391,7 +1370,7 @@ static void audio_demux_body(basis_media_engine_t* e) {
     int attempt = 0;
     const int MAX_ATTEMPTS = 6;
 
-    demux_ctx_t c = { e, e->url_audio, &e->parts_audio, &e->audio_sink, 0 };
+    demux_ctx_t c = { e, e->url_audio, &e->parts_audio, &e->audio_sink };
 
     while (e->running) {
         long aus_before = e->audio_frame_count;

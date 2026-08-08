@@ -58,6 +58,21 @@ void basis_io_global_shutdown(void) {
  * or an RTSP control connection held by a process that has no idea it owns one.
  * Set right after creation; SOCK_CLOEXEC would close the window between the two
  * calls, but it is not portable, and nothing here forks. */
+/* Windows: WSASocketW sets non-inheritance at creation, closing the window the
+ * post-hoc SetHandleInformation in configure_new_socket leaves and the LSP-owned
+ * case it can fail on. WSA_FLAG_OVERLAPPED must be passed explicitly — socket()
+ * implies it, WSASocketW does not. */
+static sock_t create_socket(int family, int type, int proto) {
+#if defined(_WIN32)
+    sock_t fd = WSASocketW(family, type, proto, NULL, 0,
+                           WSA_FLAG_OVERLAPPED | WSA_FLAG_NO_HANDLE_INHERIT);
+    if (fd != BASIS_INVALID_SOCK) return fd;
+    return socket(family, type, proto);   /* flag rejected; configure_new_socket clears inheritance instead */
+#else
+    return socket(family, type, proto);
+#endif
+}
+
 static void configure_new_socket(sock_t fd) {
 #if defined(_WIN32)
     SetHandleInformation((HANDLE)fd, HANDLE_FLAG_INHERIT, 0);
@@ -236,7 +251,7 @@ basis_io_t* basis_io_connect(const char* host, int port, int timeout_ms) {
     int allow_local = local_allowed();
     for (ai = res; ai; ai = ai->ai_next) {
         if (!allow_local && sockaddr_is_blocked(ai->ai_addr)) continue;
-        fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        fd = create_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (fd == BASIS_INVALID_SOCK) continue;
         configure_new_socket(fd);
 
@@ -425,7 +440,7 @@ int basis_io_peer_addr(basis_io_t* io, char* buf, int cap) {
 /* One UDP socket bound to local_port in the given family. Fails (returns
  * invalid) on bind conflicts so the caller can try another local pair. */
 static sock_t udp_bind_one(int family, int local_port) {
-    sock_t fd = socket(family, SOCK_DGRAM, IPPROTO_UDP);
+    sock_t fd = create_socket(family, SOCK_DGRAM, IPPROTO_UDP);
     if (fd == BASIS_INVALID_SOCK) return BASIS_INVALID_SOCK;
     configure_new_socket(fd);
 

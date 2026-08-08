@@ -39,11 +39,12 @@ case "$TARGET" in
         : "${ANDROID_NDK_ROOT:?set ANDROID_NDK_ROOT to your NDK path}"
         TC="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin"
         CC="$TC/aarch64-linux-android29-clang"
+        CXX="$TC/aarch64-linux-android29-clang++"
         CROSS="$WORK/android-arm64.ini"
         cat > "$CROSS" <<EOF
 [binaries]
 c = '$CC'
-cpp = '$TC/aarch64-linux-android29-clang++'
+cpp = '$CXX'
 ar = '$TC/llvm-ar'
 strip = '$TC/llvm-strip'
 [host_machine]
@@ -78,31 +79,34 @@ EOF
         # especially: lld emits the BTI/PAC property note only when every input
         # object carries it, so losing it here silently de-hardens the linked .so
         # with nothing in the output to say so.
+        # Probed against BOTH drivers because the set is written to c_args and
+        # cpp_args alike: a flag the C++ driver rejects would fail every C++
+        # translation unit meson compiles, the opposite of the graceful-degrade
+        # intent. Keep only flags both accept.
         C_ARGS=()
         for flag in -mbranch-protection=standard \
                     -fstack-protector-strong \
                     -ftrivial-auto-var-init=zero; do
             if printf 'int main(void) { return 0; }\n' |
-                   "$CC" -Werror "$flag" \
-                       -x c -c -o /dev/null - >/dev/null 2>&1; then
+                   "$CC" -Werror "$flag" -x c -c -o /dev/null - >/dev/null 2>&1 &&
+               printf 'int main() { return 0; }\n' |
+                   "$CXX" -Werror "$flag" -x c++ -c -o /dev/null - >/dev/null 2>&1; then
                 C_ARGS+=("$flag")
             else
-                echo "warning: $CC rejected $flag; librist.a is built without it" >&2
+                echo "warning: $CC or $CXX rejected $flag; librist.a is built without it" >&2
             fi
         done
         # Preprocessor defines, accepted by every clang the above can select.
         C_ARGS+=(-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
 
-        # Appended to the cross file as a real array rather than passed as
-        # -Dc_args on the command line: meson splits that form on whitespace, so
-        # any joining character collapses the whole set into one argument and the
-        # first flag swallows the rest as its value.
-        {
-            printf '[built-in options]\nc_args = ['
-            sep=''
-            for a in "${C_ARGS[@]}"; do printf "%s'%s'" "$sep" "$a"; sep=', '; done
-            printf ']\n'
-        } >> "$CROSS"
+        # A real array in the cross file, not -Dc_args on the command line: meson
+        # splits the command-line form on whitespace and the first flag swallows the
+        # rest. cpp_args gets the identical set — BTI needs -mbranch-protection on
+        # every object, C++ ones included (both drivers are probed above).
+        args=''
+        sep=''
+        for a in "${C_ARGS[@]}"; do args="$args$sep'$a'"; sep=', '; done
+        printf '[built-in options]\nc_args = [%s]\ncpp_args = [%s]\n' "$args" "$args" >> "$CROSS"
 
         meson setup "$SRC/build" "$SRC" --cross-file "$CROSS" \
             --default-library=static --buildtype=release

@@ -1,11 +1,10 @@
 /*
- * basis_android_decode.c — Android/Quest OS-codec backend (implements basis_decoder_*).
+ * basis_android_decode.c — Android/Quest MediaCodec backend (implements basis_decoder_*).
  *
- * Two entry paths:
- *   try_open_url  — https TS/MP4: AMediaExtractor (TLS+demux) -> AMediaCodec.
- *                   A worker thread pumps samples and renders to a Surface.
- *   submit_video  — rtsp/rtmp: the core demuxer feeds Annex-B AUs; we create the
- *                   codec from the SPS/PPS extradata and queue AUs directly.
+ * The core demuxes every container (portable basis_mp4/ts/webm/... over
+ * basis_jni_https) and feeds coded access units through submit_video/
+ * submit_audio; this backend creates the MediaCodec from the codec + extradata
+ * and queues the AUs.
  *
  * Video output goes to an AImageReader Surface in HardwareBuffer mode; each
  * decoded AHardwareBuffer is handed to the Vulkan present (basis_android_vk),
@@ -18,8 +17,6 @@
 #include "basis_jni_https.h"
 
 #include <media/NdkMediaCodec.h>
-#include <media/NdkMediaDataSource.h>
-#include <media/NdkMediaExtractor.h>
 #include <media/NdkMediaFormat.h>
 #include <media/NdkImageReader.h>
 #include <media/NdkImage.h>
@@ -255,10 +252,6 @@ struct basis_decoder {
 
     AMediaCodec* vcodec;
     AMediaCodec* acodec;
-    AMediaExtractor* extractor;
-    AMediaDataSource* urlSrc;   /* the extractor's byte source, see url_src_read_at */
-    struct url_src_s* urlSrcState;
-    int video_track, audio_track;
 
     basis_codec_t vc;
     int vw, vh;               /* coded frame dims (buffer size, macroblock-padded) */
@@ -277,9 +270,6 @@ struct basis_decoder {
     int lpcmBufCap;
 
     basis_vk_present* vk;
-
-    pthread_t worker;
-    int worker_started;
 
     int64_t lastPtsUs;      /* video decode edge: PTS of the newest decoded video frame
                              * (set only on the video path; stays -1 for audio-only) */
@@ -441,10 +431,14 @@ static void on_image(void* ctx, AImageReader* reader) {
         AImageCropRect cr; int haveImgCrop = (AImage_getCropRect(img, &cr) == AMEDIA_OK);
         if (fcv) {
             /* MediaFormat crop right/bottom are inclusive (w = right-left+1);
-             * fall back to exclusive if the inclusive read overshoots the buffer. */
-            int rw = fr - fl + 1, rh = fb - ft + 1;
-            if (rw <= 0 || rw > bufW) rw = fr - fl;
-            if (rh <= 0 || rh > bufH) rh = fb - ft;
+             * fall back to exclusive if the inclusive read overshoots the buffer.
+             * The rect comes from the container, so the extents are computed in
+             * 64-bit: fr - fl + 1 on hostile int32 corners is signed overflow. */
+            int64_t rw64 = (int64_t)fr - fl + 1, rh64 = (int64_t)fb - ft + 1;
+            if (rw64 <= 0 || rw64 > bufW) rw64 = (int64_t)fr - fl;
+            if (rh64 <= 0 || rh64 > bufH) rh64 = (int64_t)fb - ft;
+            int rw = (rw64 > 0 && rw64 <= bufW) ? (int)rw64 : 0;
+            int rh = (rh64 > 0 && rh64 <= bufH) ? (int)rh64 : 0;
             /* Require the whole rectangle inside the buffer: a non-zero offset
              * plus the extent must not run past the edge. */
             if (rw > 0 && rh > 0 && fl >= 0 && ft >= 0 && fl <= bufW - rw && ft <= bufH - rh) {
@@ -617,12 +611,14 @@ int basis_decoder_presentation_pending(basis_decoder_t* d) {
     return pending;
 }
 
-static void drain_audio_output(basis_decoder_t* d) {
-    if (!d->acodec) return;
+static int drain_audio_output(basis_decoder_t* d) {
+    if (!d->acodec) return 0;
+    int eos = 0;
     for (;;) {
         AMediaCodecBufferInfo info;
         ssize_t oi = AMediaCodec_dequeueOutputBuffer(d->acodec, &info, 0);
         if (oi >= 0) {
+            if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) eos = 1;
             size_t cap = 0;
             uint8_t* buf = AMediaCodec_getOutputBuffer(d->acodec, oi, &cap);
             if (buf && info.size >= 2) {
@@ -671,6 +667,7 @@ static void drain_audio_output(basis_decoder_t* d) {
             AMediaFormat_delete(f);
         } else break;
     }
+    return eos;
 }
 
 /* Ask the audio decoder for the stream's full channel layout: AAC decoders on
@@ -681,65 +678,6 @@ static void drain_audio_output(basis_decoder_t* d) {
 static void request_full_channel_output(AMediaFormat* fmt) {
     AMediaFormat_setInt32(fmt, "max-output-channel-count", 99);
     AMediaFormat_setInt32(fmt, "aac-max-output-channel_count", 99);
-}
-
-/* ---- URL path: extractor + worker thread -------------------------------- */
-
-static AMediaCodec* create_codec_for_track(basis_decoder_t* d, AMediaFormat* fmt, int video) {
-    const char* mime = NULL;
-    if (!AMediaFormat_getString(fmt, AMEDIAFORMAT_KEY_MIME, &mime) || !mime) return NULL;
-    AMediaCodec* c = AMediaCodec_createDecoderByType(mime);
-    if (!c) return NULL;
-    ANativeWindow* surface = NULL;
-    if (!video) request_full_channel_output(fmt);
-    if (video) {
-        int32_t w = 1280, h = 720;
-        AMediaFormat_getInt32(fmt, AMEDIAFORMAT_KEY_WIDTH, &w);
-        AMediaFormat_getInt32(fmt, AMEDIAFORMAT_KEY_HEIGHT, &h);
-        if (ensure_reader(d, w, h) != 0) { AMediaCodec_delete(c); return NULL; }
-        surface = d->window;
-    }
-    if (AMediaCodec_configure(c, fmt, surface, NULL, 0) != AMEDIA_OK) { AMediaCodec_delete(c); return NULL; }
-    if (AMediaCodec_start(c) != AMEDIA_OK) { AMediaCodec_delete(c); return NULL; }
-    return c;
-}
-
-static void feed_extractor_sample(basis_decoder_t* d, AMediaCodec* codec, int track) {
-    ssize_t ii = AMediaCodec_dequeueInputBuffer(codec, 0);
-    if (ii < 0) return;
-    size_t cap = 0;
-    uint8_t* buf = AMediaCodec_getInputBuffer(codec, ii, &cap);
-    if (!buf) { AMediaCodec_queueInputBuffer(codec, ii, 0, 0, 0, 0); return; }
-    ssize_t sz = AMediaExtractor_readSampleData(d->extractor, buf, cap);
-    if (sz < 0) {
-        AMediaCodec_queueInputBuffer(codec, ii, 0, 0, 0, AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
-    } else {
-        int64_t pts = AMediaExtractor_getSampleTime(d->extractor);
-        AMediaCodec_queueInputBuffer(codec, ii, 0, sz, pts, 0);
-        AMediaExtractor_advance(d->extractor);
-    }
-}
-
-static void* url_worker(void* arg) {
-    basis_decoder_t* d = (basis_decoder_t*)arg;
-    basis_engine_set_state(d->engine, BASIS_MEDIA_STATE_PLAYING);
-    while (basis_engine_is_running(d->engine)) {
-        if (basis_engine_is_paused(d->engine)) { usleep(10000); continue; }
-        /* No seek support on this path (no seekTo, no flush), but the drain's
-         * frame tag reads videoSeekGen — keep it tracking seekGen so a seek
-         * request can't leave every subsequent frame tagged stale. */
-        d->videoSeekGen = __atomic_load_n(&d->seekGen, __ATOMIC_ACQUIRE);
-
-        int track = AMediaExtractor_getSampleTrackIndex(d->extractor);
-        if (track == d->video_track && d->vcodec) feed_extractor_sample(d, d->vcodec, track);
-        else if (track == d->audio_track && d->acodec) feed_extractor_sample(d, d->acodec, track);
-        else if (track < 0) { usleep(5000); } /* EOS or none ready */
-        else AMediaExtractor_advance(d->extractor);
-
-        drain_video_output(d);
-        drain_audio_output(d);
-    }
-    return NULL;
 }
 
 /* ---- internal API ------------------------------------------------------- */
@@ -772,7 +710,6 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     basis_decoder_t* d = (basis_decoder_t*)calloc(1, sizeof(*d));
     if (!d) return NULL;
     d->engine = engine;
-    d->video_track = d->audio_track = -1;
     d->lastPtsUs = -1;
     /* Before anything that would need unwinding, so a failure here is a plain
      * free rather than a teardown path of its own. */
@@ -783,7 +720,15 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
                                         * width */
     d->vk = basis_vk_create();
 
-    pthread_mutex_init(&d->vm, NULL);
+    /* Checked for the same reason ring_init checks it: on_image and
+     * present_select lock this from the listener and render threads, and locking
+     * one that was never initialised is undefined. */
+    if (pthread_mutex_init(&d->vm, NULL) != 0) {
+        if (d->vk) basis_vk_destroy(d->vk);
+        ring_free(&d->pcm);
+        free(d);
+        return NULL;
+    }
     d->lastPresentedPts = INT64_MIN;
     d->presentedPosUs = -1;
     d->vPrerollCutUs = INT64_MIN;
@@ -799,23 +744,11 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     return d;
 }
 
-static void url_src_abort(basis_decoder_t* d);
-static void url_src_release(basis_decoder_t* d);
-
 void basis_decoder_destroy(basis_decoder_t* d) {
     if (!d) return;
-    /* Abort before joining. The worker can be parked in readAt waiting on a
-     * socket, and the join below is INFINITE — the read only comes back once the
-     * source is disconnected, so ordering these the other way hangs teardown on
-     * the thread the client is waiting for. */
-    url_src_abort(d);
-    if (d->worker_started) pthread_join(d->worker, NULL);
     basis_decoder_render_release(d);
     if (d->vcodec) { AMediaCodec_stop(d->vcodec); AMediaCodec_delete(d->vcodec); }
     if (d->acodec) { AMediaCodec_stop(d->acodec); AMediaCodec_delete(d->acodec); }
-    url_src_release(d);
-    /* Release any frames still held in the video ring before the reader they
-     * belong to (the worker is already joined, so nothing enqueues concurrently). */
     for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
     if (d->reader) AImageReader_delete(d->reader);
     if (d->vk) basis_vk_destroy(d->vk);
@@ -823,213 +756,6 @@ void basis_decoder_destroy(basis_decoder_t* d) {
     ring_free(&d->pcm);
     free(d->lpcmBuf);
     free(d);
-}
-
-/* ---- the extractor's byte source ----------------------------------------
- * Handing AMediaExtractor a URL makes it do its own HTTP, which follows
- * redirects with no address policy applied — so an origin that passes the entry
- * check can still steer it at a host on the user's LAN. Feeding it through
- * basis_jni_https instead keeps the hardware demux and puts every hop back
- * behind basis_io_host_is_blocked, which that source already applies per hop.
- *
- * readAt is random access; the source is a stream with a ranged-refetch hook. A
- * sequential request is served straight from the open response, which is the
- * common case and must stay cheap — only a jump pays for a new ranged GET. */
-struct url_src_s {
-    void*     http;
-    long long pos;     /* offset the open response is positioned at */
-    long long size;    /* content length, or -1 when unknown */
-    pthread_mutex_t lock;
-};
-
-static ssize_t url_src_read_at(void* userdata, off64_t offset, void* buffer, size_t size) {
-    struct url_src_s* s = (struct url_src_s*)userdata;
-    if (!s || !s->http || offset < 0) return -1;
-    if (size == 0) return 0;
-    if (s->size >= 0 && offset >= s->size) return 0;   /* wholly past the end */
-
-    /* The framework may call this from more than one of its own threads, and the
-     * source is single-reader: serialise here rather than relying on it. */
-    pthread_mutex_lock(&s->lock);
-    if (offset != s->pos) {
-        if (basis_jni_https_reseek(s->http, offset) != 0) {
-            pthread_mutex_unlock(&s->lock);
-            return -1;
-        }
-        s->pos = offset;
-    }
-    size_t got = 0;
-    int failed = 0;
-    while (got < size) {
-        size_t want = size - got;
-        int n = basis_jni_https_read(s->http, (uint8_t*)buffer + got,
-                                     want > (size_t)INT_MAX ? INT_MAX : (int)want);
-        if (n < 0) { failed = 1; break; }
-        if (n == 0) break;   /* end of stream */
-        got += (size_t)n;
-        s->pos += n;
-    }
-    /* A failed read leaves the response in an unknown state, so the recorded
-     * position can no longer be trusted to describe it. Left alone it would still
-     * match the offset the framework retries at, the fast path above would take
-     * it, and the next read would run against the same broken response -- every
-     * retry failing identically while the ranged refetch that exists to recover
-     * from exactly this never runs. -1 cannot match a valid offset, so the retry
-     * is forced through the reseek. */
-    if (failed) s->pos = -1;
-    pthread_mutex_unlock(&s->lock);
-
-    /* A partial read is legal — the framework asks again for the rest. Zero has
-     * to keep reporting end-of-stream separately from failure, because a source
-     * with no declared length cannot be range-checked above and would otherwise
-     * have its clean EOF delivered as an I/O error. */
-    if (got) return (ssize_t)got;
-    return failed ? -1 : 0;
-}
-
-static ssize_t url_src_get_size(void* userdata) {
-    struct url_src_s* s = (struct url_src_s*)userdata;
-    if (!s || s->size < 0) return -1;   /* -1 tells the framework to treat it as a stream */
-    /* The callback returns ssize_t, which is 32-bit on the 32-bit ABIs, so a body
-     * past that would come back truncated — negative and read as unknown, or
-     * positive and small enough that the extractor treats a whole file as a cut-off
-     * one. Reporting unknown is the honest answer. Only arm64 is built today, where
-     * this cannot trigger; the range check in url_src_read_at uses off64_t and is
-     * unaffected either way. */
-    if (s->size > (long long)SSIZE_MAX) return -1;
-    return (ssize_t)s->size;
-}
-
-static void url_src_close(void* userdata) {
-    /* Unblock a read the extractor is parked in. Deliberately does not free: the
-     * framework can call this while AMediaDataSource_delete is still running, so
-     * the context is released by url_src_release once the delete has returned. */
-    struct url_src_s* s = (struct url_src_s*)userdata;
-    if (s && s->http) basis_jni_https_abort(s->http);
-}
-
-/* Unblock a reader parked on the socket without tearing anything down, so a
- * thread can be joined before the objects it touches are released. */
-static void url_src_abort(basis_decoder_t* d) {
-    if (d->urlSrcState && d->urlSrcState->http) basis_jni_https_abort(d->urlSrcState->http);
-}
-
-/* Tear the extractor and its source down in dependency order: the extractor
- * stops calling readAt, then the data source goes, then the bytes behind it. */
-static void url_src_release(basis_decoder_t* d) {
-    if (d->extractor) { AMediaExtractor_delete(d->extractor); d->extractor = NULL; }
-    if (d->urlSrc)    { AMediaDataSource_delete(d->urlSrc);   d->urlSrc = NULL; }
-    if (d->urlSrcState) {
-        if (d->urlSrcState->http) basis_jni_https_close(d->urlSrcState->http);
-        pthread_mutex_destroy(&d->urlSrcState->lock);
-        free(d->urlSrcState);
-        d->urlSrcState = NULL;
-    }
-}
-
-int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) {
-    /* Android: try AMediaExtractor first (HW demux of seekable containers).
-     * On failure (live TS, HLS/DASH manifest, etc.) return 0 so the core falls
-     * back to basis_jni_https + the portable basis_ts/basis_mp4 demuxer. */
-
-    /* Same read timeout as the fallback leg uses, and for the same reason: a
-     * brief stall mid-stream is not a dead socket. */
-    void* http = basis_jni_https_open(url, 60000);
-    if (!http) return 0;
-    /* The extractor needs random access. A body that cannot be re-requested by
-     * range (live, chunked) is the portable demuxers' case anyway, so decline it
-     * here rather than let the extractor discover it the expensive way. */
-    if (!basis_jni_https_can_reseek(http)) {
-        basis_jni_https_close(http);
-        return 0;
-    }
-
-    struct url_src_s* s = (struct url_src_s*)calloc(1, sizeof(*s));
-    if (!s) { basis_jni_https_close(http); return 0; }
-    /* Checked for the same reason ring_init checks it: readAt locks this on every
-     * call, and locking one that was never initialised is undefined. Taken before
-     * anything is published so the failure path is a plain free. */
-    if (pthread_mutex_init(&s->lock, NULL) != 0) {
-        free(s);
-        basis_jni_https_close(http);
-        return 0;
-    }
-    s->http = http;
-    s->pos  = 0;
-    s->size = basis_jni_https_content_length(http);
-    d->urlSrcState = s;
-
-    d->urlSrc = AMediaDataSource_new();
-    if (!d->urlSrc) { url_src_release(d); return 0; }
-    AMediaDataSource_setUserdata(d->urlSrc, s);
-    AMediaDataSource_setReadAt(d->urlSrc, url_src_read_at);
-    AMediaDataSource_setGetSize(d->urlSrc, url_src_get_size);
-    AMediaDataSource_setClose(d->urlSrc, url_src_close);
-
-    d->extractor = AMediaExtractor_new();
-    if (!d->extractor) { url_src_release(d); return 0; }
-    media_status_t st = AMediaExtractor_setDataSourceCustom(d->extractor, d->urlSrc);
-    if (st != AMEDIA_OK) {
-        __android_log_print(ANDROID_LOG_INFO, "basis_media",
-            "AMediaExtractor rejected url (code %d); falling back to JNI HTTPS + TS/MP4 demuxer", (int)st);
-        url_src_release(d);
-        return 0;
-    }
-    size_t n = AMediaExtractor_getTrackCount(d->extractor);
-    for (size_t i = 0; i < n; ++i) {
-        AMediaFormat* f = AMediaExtractor_getTrackFormat(d->extractor, i);
-        const char* mime = NULL;
-        AMediaFormat_getString(f, AMEDIAFORMAT_KEY_MIME, &mime);
-        if (mime && strncmp(mime, "video/", 6) == 0 && d->video_track < 0) {
-            d->video_track = (int)i;
-            AMediaExtractor_selectTrack(d->extractor, i);
-            d->vcodec = create_codec_for_track(d, f, 1);
-        } else if (mime && strncmp(mime, "audio/", 6) == 0 && d->audio_track < 0) {
-            d->audio_track = (int)i;
-            AMediaExtractor_selectTrack(d->extractor, i);
-            AMediaFormat_getInt32(f, AMEDIAFORMAT_KEY_SAMPLE_RATE, &d->asr);
-            AMediaFormat_getInt32(f, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &d->ach);
-            if (d->ach > 0) ring_set_frame(&d->pcm, d->ach, d->asr);
-            d->acodec = create_codec_for_track(d, f, 0);
-            d->aconfigured = 1;
-        }
-        AMediaFormat_delete(f);
-    }
-    if (!d->vcodec) {
-        /* No decodable video: audio-only containers (WAV, audio-only MP4) go to
-         * the portable demuxers instead, which share the audio-only state
-         * handling (PLAYING / unsupported-format error) with the other
-         * platforms. Undo whatever the track scan configured and decline the
-         * URL so the core falls back. */
-        __android_log_print(ANDROID_LOG_INFO, "basis_media",
-            "AMediaExtractor found no decodable video track; falling back to JNI HTTPS + portable demuxers");
-        if (d->acodec) { AMediaCodec_delete(d->acodec); d->acodec = NULL; }
-        d->aconfigured = 0;
-        d->asr = 0; d->ach = 0;
-        d->video_track = d->audio_track = -1;
-        url_src_release(d);
-        return 0;
-    }
-    d->vconfigured = 1;
-
-    if (pthread_create(&d->worker, NULL, url_worker, d) != 0) {
-        /* worker_started must not be set without a thread behind it: teardown
-         * joins on it, and pthread_join against an uninitialised pthread_t is
-         * undefined. Nothing would ever feed the codecs either, so unwind to the
-         * same state the no-decodable-video path leaves and decline the URL. */
-        __android_log_print(ANDROID_LOG_ERROR, "basis_media",
-            "worker thread creation failed; falling back to JNI HTTPS + portable demuxers");
-        if (d->vcodec) { AMediaCodec_delete(d->vcodec); d->vcodec = NULL; }
-        if (d->acodec) { AMediaCodec_delete(d->acodec); d->acodec = NULL; }
-        d->vconfigured = 0;
-        d->aconfigured = 0;
-        d->asr = 0; d->ach = 0;
-        d->video_track = d->audio_track = -1;
-        url_src_release(d);
-        return 0;
-    }
-    d->worker_started = 1;
-    return 1; /* took ownership of the URL */
 }
 
 int basis_decoder_set_video_format(basis_decoder_t* d, basis_codec_t codec,

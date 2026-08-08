@@ -1364,6 +1364,8 @@ extern "C" basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
      * critical section initialised — so a failure here is a plain delete rather
      * than a teardown path of its own. destroy() cannot be used to clean up a ring
      * that failed to initialise, which is what makes the ordering load-bearing. */
+    /* ~4s at 8ch — the PTS-gated serve banks mux lead + the jitter cushion in the
+     * ring, so capacity must hold both at full width. */
     if (!d->pcm.init(48000 * 8 * 4)) {
         /* Named, like the decode-device failure below: a bare null leaves the
          * managed layer reporting that the player would not open and nothing about
@@ -1372,9 +1374,6 @@ extern "C" basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
         delete d;
         return nullptr;
     }
-                               /* ~4s at 8ch — the PTS-gated serve banks mux lead
-                                * + the jitter cushion in the ring, so capacity
-                                * must hold both at full width */
     d->engine = engine;
     d->api = basis_gfx_get_api();
     d->devUnity = (ID3D11Device*)basis_gfx_get_d3d11_device();
@@ -1805,11 +1804,6 @@ extern "C" int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* dat
     return 0;
 }
 
-extern "C" int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) {
-    (void)d; (void)url;
-    return 0; /* Windows always uses the core demuxers + WinHTTP */
-}
-
 /* ---- render thread ------------------------------------------------------ */
 
 /* Block until the decode-device copy into outSharedD12 has retired on the GPU, so the
@@ -2236,6 +2230,7 @@ extern "C" uint64_t basis_decoder_get_frame_counter(basis_decoder_t* d) {
     return d ? (uint64_t)d->frameCounter : 0;
 }
 extern "C" int basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) {
+    if (w) *w = 0; if (h) *h = 0;   /* defined on every failure path, so a caller that ignores the return can't read indeterminate locals */
     if (!d) return -1;
     EnterCriticalSection(&d->presentLock);
     int sw = d->sharedW, sh = d->sharedH;

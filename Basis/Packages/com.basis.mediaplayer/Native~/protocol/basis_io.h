@@ -1,6 +1,6 @@
 /* Blocking TCP client sockets (Winsock / BSD). No TLS — plaintext rtsp/rtmp and
  * plaintext http only. TLS streams use the platform stacks (WinHTTP on Windows,
- * AMediaExtractor on Android). */
+ * JNI HttpsURLConnection on Android). */
 #ifndef BASIS_IO_H
 #define BASIS_IO_H
 

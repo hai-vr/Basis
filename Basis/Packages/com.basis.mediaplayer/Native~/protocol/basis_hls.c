@@ -240,6 +240,10 @@ static long parse_whole(const char* s, long max, long def) {
         if (v > max / 10 || (v == max / 10 && digit > max % 10)) return def;
         v = v * 10 + digit;
     }
+    /* Reject digits-then-junk ("12x" is malformed, not 12); attr_str already cut
+     * the attribute-list comma, so only trailing whitespace is legitimate. */
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') ++s;
+    if (*s) return def;
     return v;
 }
 
@@ -292,9 +296,11 @@ static long secs_to_ms(const char* s, long def) {
         if (*s >= '5' && *s <= '9') ++frac_ms;   /* round on the fourth place */
         while (*s >= '0' && *s <= '9') ++s;
     }
-    /* A sign, a bare point, or anything else non-numeric leaves no digits, and a
-     * playlist that supplies one of those is not one to guess at. */
+    /* No digits (a sign or bare point), or trailing junk ("1x"), is malformed —
+     * not a value to guess at. The EXTINF caller cut its ",<title>" tail first. */
     if (!digits) return def;
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') ++s;
+    if (*s) return def;
     /* The whole-second check above admits a value exactly at the ceiling, so a
      * fraction on top of that would carry the total past it. Cheaper to refuse than
      * to leave the stated bound off by a fraction of a second. */
@@ -568,7 +574,18 @@ static void parse_media_playlist(const char* base, const char* text, hls_playlis
         } else if (starts_with(line, "#EXTINF")) {
             /* #EXTINF:<seconds>,  — capture the duration for real-time pacing */
             long extinf_ms = 0;
-            { const char* c = strchr(line, ':'); if (c) extinf_ms = secs_to_ms(c + 1, 0); }
+            { const char* c = strchr(line, ':');
+              if (c) {
+                  /* EXTINF is "<duration>[,<title>]": cut the title before the
+                   * strict numeric parse. */
+                  char dur[32]; int di = 0;
+                  const char* q = c + 1;
+                  for (; *q && *q != ',' && di < (int)sizeof(dur) - 1; ++q) dur[di++] = *q;
+                  dur[di] = 0;
+                  /* Only parse if the copy reached the comma or line end; a token
+                   * past 31 bytes is a truncated prefix, so leave extinf_ms 0. */
+                  if (*q == ',' || *q == 0) extinf_ms = secs_to_ms(dur, 0);
+              } }
             /* the segment URI is the next non-comment line */
             const char* q = nl ? nl + 1 : p + llen;
             while (*q) {

@@ -1,6 +1,6 @@
 /* Minimal plaintext HTTP/1.1 GET byte source over basis_io (handles chunked
  * transfer-encoding). Used for http:// live streams on every platform. https://
- * uses the platform TLS stacks instead (WinHTTP on Windows, AMediaExtractor on
+ * uses the platform TLS stacks instead (WinHTTP on Windows, JNI HttpsURLConnection on
  * Android), so this module is plaintext-only. */
 #ifndef BASIS_HTTP_H
 #define BASIS_HTTP_H
@@ -19,7 +19,9 @@ void  basis_http_close(void* ctx);
 /* Interrupts a read parked on another thread so it returns at once, matching what
  * the WinHTTP and JNI sources offer. Without it a teardown that joins the reader
  * waits out the socket's read timeout instead of returning promptly. Does not free
- * the context; the caller still closes it. */
+ * the context; the caller still closes it. Serialise against basis_http_close:
+ * abort first, join the reader, then close. Calling abort during or after close
+ * touches a freed context — a use-after-free. */
 void  basis_http_abort(void* ctx);
 
 #ifdef __cplusplus

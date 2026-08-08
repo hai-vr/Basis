@@ -1,11 +1,9 @@
 /*
  * basis_jni_https.h — Android HTTPS byte source backed by java.net.HttpsURLConnection.
  *
- * AMediaExtractor handles the easy case (seekable container files over HTTPS).
- * Live MPEG-TS streams are rejected by AMediaExtractor with UNSUPPORTED, so the
- * core falls back to the portable basis_ts demuxer — and needs an HTTPS byte
- * source the demuxer can read from. NDK has no TLS API of its own; the smallest
- * dependency-free option is to bridge to Java via JNI.
+ * The portable demuxers read every https container through this source. NDK has
+ * no TLS API of its own; the smallest dependency-free option is to bridge to
+ * Java via JNI.
  *
  * Same contract as protocol/basis_http: open returns an opaque ctx, read fills a
  * caller buffer (bytes read; 0 = EOF; <0 = error), close frees it. Read is called

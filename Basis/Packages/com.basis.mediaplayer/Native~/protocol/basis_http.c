@@ -148,6 +148,10 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms) {
         const char* val = strchr(line, ':');
         if (val) { val++; while (*val == ' ') val++; }
         if (strcmp(low, "content-length") == 0 && val) {
+            /* A second Content-Length is a framing conflict (RFC 7230 §3.3.3),
+             * not a value to overwrite: a proxy and this client can then frame
+             * two different bodies from one response. Refuse rather than pick. */
+            if (h->has_length) { basis_io_close(h->io); free(h); return NULL; }
             /* Same strictness as the chunk size below, and for the same reason.
              * atoll takes a numeric prefix, answers 0 for anything unparseable,
              * and is undefined past LLONG_MAX — so a malformed value set the
@@ -174,6 +178,10 @@ void* basis_http_open(const basis_url_t* url, int timeout_ms) {
         }
         else if (strcmp(low, "transfer-encoding") == 0 && val && strstr(val, "chunked")) { h->chunked = 1; }
     }
+
+    /* Content-Length with Transfer-Encoding is the same conflict across two
+     * fields (RFC 7230 §3.3.3) — refuse rather than let chunking silently win. */
+    if (h->chunked && h->has_length) { basis_io_close(h->io); free(h); return NULL; }
 
     /* For chunked, remaining starts at 0 meaning "read next chunk size". */
     if (h->chunked) h->remaining = 0;

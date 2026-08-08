@@ -256,7 +256,11 @@ if(MSVC)
     # the build would still look clean. A link probe cannot tell the two apart for
     # the same reason: the probe link succeeds either way. Hence a version test,
     # and a warning rather than a quiet no-op.
-    if(CMAKE_C_COMPILER_ARCHITECTURE_ID STREQUAL "x64")
+    # Compared case-folded: a CMake that spells the id "X64" instead of "x64"
+    # would otherwise fail an exact match, drop /CETCOMPAT, and warn about
+    # nothing — the same silent de-hardening the version test above guards against.
+    string(TOLOWER "${CMAKE_C_COMPILER_ARCHITECTURE_ID}" _basis_msvc_arch)
+    if(_basis_msvc_arch STREQUAL "x64")
         if(MSVC_VERSION GREATER_EQUAL 1927)
             target_link_options(basis_media_native PRIVATE /CETCOMPAT)
         else()
@@ -285,6 +289,9 @@ else()
         check_c_compiler_flag(${_flag} ${_have})
         if(${_have})
             target_compile_options(basis_media_native PRIVATE ${_flag})
+            # On the link line too: under LTO codegen happens at link, so a
+            # compile-only mitigation flag would be lost.
+            target_link_options(basis_media_native PRIVATE ${_flag})
         endif()
     endforeach()
     cmake_pop_check_state()
@@ -296,7 +303,10 @@ else()
     target_compile_options(basis_media_native PRIVATE
         "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
 
-    if(NOT APPLE)
+    # ELF-only linker hardening. Excludes Apple (Mach-O) and Windows: a non-MSVC
+    # Windows toolchain (MinGW, clang *-windows-gnu) reaches this non-MSVC branch
+    # too, and its PE linker rejects -z relro/now/noexecstack.
+    if(NOT APPLE AND NOT WIN32)
         target_link_options(basis_media_native PRIVATE
             -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack)
     endif()

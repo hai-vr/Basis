@@ -33,7 +33,6 @@ int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* a, int l, int6
 int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* a, int l, int64_t p) {
     (void)d;(void)a;(void)l;(void)p; return 0;
 }
-int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) { (void)d;(void)url; return 0; }
 
 int  basis_decoder_render_update(basis_decoder_t* d) { (void)d; return 0; }
 void basis_decoder_render_release(basis_decoder_t* d) { (void)d; }

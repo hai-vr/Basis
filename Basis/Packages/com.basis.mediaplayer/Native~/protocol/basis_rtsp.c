@@ -168,7 +168,7 @@ static int rtsp_recv(rtsp_t* r, char* body, int bodycap, int* bodylen) {
     r->location[0] = 0;
     r->transport[0] = 0;
     /* header lines until blank */
-    int nheaders = 0, hbytes = 0;
+    int nheaders = 0, hbytes = 0, content_len_seen = 0;
     for (;;) {
         li = 0;
         for (;;) {
@@ -210,6 +210,10 @@ static int rtsp_recv(rtsp_t* r, char* body, int bodycap, int* bodylen) {
             r->last_status[sizeof(r->last_status) - 1] = 0;
         }
         else if (strncasecmp(line, "Content-Length:", 15) == 0) {
+            /* A second Content-Length makes the body boundary ambiguous and can
+             * desync the next response on the same connection — refuse it rather
+             * than silently take the last value. */
+            if (content_len_seen++) return -1;
             /* atoi would take a numeric prefix ("1x" -> 1, leaving body bytes on the
              * socket) and is undefined on a value past INT_MAX, so parse the whole
              * token and reject anything that is not a clean non-negative decimal
