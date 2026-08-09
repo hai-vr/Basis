@@ -19,7 +19,7 @@
     "com.unity.toolchain.linux-x86_64-linux": "1.1.0",
     "com.unity.toolchain.win-x86_64-linux": "1.1.0",
     "com.unity.visualeffectgraph": "17.5.0",
-    "com.unity.xr.hands": "1.8.0",
+    "com.unity.xr.hands": "1.8.1",
     "com.unity.xr.management": "4.5.4",
     "com.unity.xr.openxr": "1.17.1",
     "com.valvesoftware.openxr.utils": "https://github.com/ValveSoftware/Unity.git?path=com.valvesoftware.openxr.utils#28c3b8d9a4ecd7a128906e11c398944d3c8524dc",
