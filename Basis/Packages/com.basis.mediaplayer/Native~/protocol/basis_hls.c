@@ -213,18 +213,105 @@ static int attr_str(const char* line, const char* key, char* out, int outsz) {
     return 0;
 }
 
-static long attr_long(const char* line, const char* key, long def) {
+/* Ceilings on the two whole-number playlist fields. Both are picked to keep the
+ * arithmetic they feed inside a 32-bit long, which is what Windows has: the
+ * sequence base has a segment index added to it, and the bandwidth is only ever
+ * compared. Real playlists sit orders of magnitude below either. */
+#define HLS_MAX_SEQUENCE  1000000000L
+#define HLS_MAX_BANDWIDTH 2000000000L
+
+/* Whole non-negative integer, or `def` when the playlist did not supply a usable
+ * one. atol is the same trap atof was on the durations: it cannot report failure,
+ * answers 0 for anything it cannot read, and is undefined past LONG_MAX — on a
+ * type that is 32 bits on Windows, which a playlist reaches without trying. The
+ * ceiling is per caller because what counts as absurd differs between the two. */
+static long parse_whole(const char* s, long max, long def) {
+    while (*s == ' ' || *s == '\t') ++s;
+    if (*s < '0' || *s > '9') return def;
+    long v = 0;
+    while (*s >= '0' && *s <= '9') {
+        int digit = *s++ - '0';
+        /* Tested against the ceiling BEFORE the multiply, the same way the duration
+         * parser above does it. Checking afterwards means computing `v * 10` on a
+         * value already near the top, and signed overflow is undefined — so the
+         * check would be reading a result the standard says nothing about. These
+         * ceilings are large enough for that to bite: `long` is 32 bits on Windows,
+         * and ten digits reach it. */
+        if (v > max / 10 || (v == max / 10 && digit > max % 10)) return def;
+        v = v * 10 + digit;
+    }
+    /* Reject digits-then-junk ("12x" is malformed, not 12); attr_str already cut
+     * the attribute-list comma, so only trailing whitespace is legitimate. */
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') ++s;
+    if (*s) return def;
+    return v;
+}
+
+static long attr_long(const char* line, const char* key, long max, long def) {
     char buf[64];
-    if (attr_str(line, key, buf, sizeof(buf))) return atol(buf);
+    if (attr_str(line, key, buf, sizeof(buf))) return parse_whole(buf, max, def);
     return def;
 }
 
-/* Seconds (possibly fractional, e.g. "0.33334") to milliseconds. */
+/* Upper bound on any duration a playlist may declare. Generous against real
+ * content; the point is that the value is bounded before it is converted. */
+#define HLS_MAX_DURATION_SEC 86400L
+
+/* Seconds (possibly fractional, e.g. "0.33334") to milliseconds, or `def` when the
+ * playlist did not supply a usable number. These durations feed the VOD duration
+ * and the seek index, so a value taken on trust does not crash — it produces seek
+ * targets outside the media, with nothing reporting why. */
+static long secs_to_ms(const char* s, long def) {
+    /* Parsed by hand rather than with strtod, because strtod takes its radix
+     * character from LC_NUMERIC while the playlist grammar fixes it as '.'. In a
+     * comma-radix locale — which the host process can set without this code being
+     * consulted — strtod("9.009") stops at the point and answers 9, far enough
+     * along that a "did anything parse" check still passes. That yields a silently
+     * wrong duration rather than a rejected one, which is the failure these bounds
+     * exist to prevent. Integer arithmetic throughout, so there is no rounding
+     * question beyond the explicit one below. */
+    while (*s == ' ' || *s == '\t') ++s;
+    int digits = 0;
+    long whole = 0;
+    while (*s >= '0' && *s <= '9') {
+        int d = *s++ - '0';
+        /* Tested against the ceiling BEFORE the multiply. Checking afterwards means
+         * computing `whole * 10` on a value already near the top, and signed
+         * overflow is undefined, so the check would be reading a result the
+         * standard says nothing about. This ceiling is small enough that the other
+         * order could not actually overflow, but that is a property of the constant
+         * rather than of the code, and raising it should not make this unsafe. */
+        if (whole > HLS_MAX_DURATION_SEC / 10 ||
+            (whole == HLS_MAX_DURATION_SEC / 10 && d > HLS_MAX_DURATION_SEC % 10)) return def;
+        whole = whole * 10 + d;
+        digits = 1;
+    }
+    long frac_ms = 0;
+    if (*s == '.') {
+        ++s;
+        for (int i = 0; i < 3; ++i) {
+            frac_ms *= 10;
+            if (*s >= '0' && *s <= '9') { frac_ms += *s++ - '0'; digits = 1; }
+        }
+        if (*s >= '5' && *s <= '9') ++frac_ms;   /* round on the fourth place */
+        while (*s >= '0' && *s <= '9') ++s;
+    }
+    /* No digits (a sign or bare point), or trailing junk ("1x"), is malformed —
+     * not a value to guess at. The EXTINF caller cut its ",<title>" tail first. */
+    if (!digits) return def;
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') ++s;
+    if (*s) return def;
+    /* The whole-second check above admits a value exactly at the ceiling, so a
+     * fraction on top of that would carry the total past it. Cheaper to refuse than
+     * to leave the stated bound off by a fraction of a second. */
+    if (whole == HLS_MAX_DURATION_SEC && frac_ms) return def;
+    return whole * 1000 + frac_ms;
+}
+
 static long attr_ms(const char* line, const char* key, long def) {
     char buf[64];
     if (!attr_str(line, key, buf, sizeof(buf))) return def;
-    double s = atof(buf);
-    return (long)(s * 1000.0 + 0.5);
+    return secs_to_ms(buf, def);
 }
 
 /* Resolve `ref` against the absolute base URL `base` into `out`.
@@ -273,12 +360,17 @@ static int resolve_url(const char* base, const char* ref, char* out, int outsz) 
  * http(s) and its host must not resolve to a non-global-unicast address. The
  * platform HTTP stacks (WinHTTP / JNI) don't apply this guard themselves.
  *
- * This is a pre-check: it blocks literal internal addresses and hosts that resolve
- * private. It does NOT close two provider-side bypasses — active DNS rebinding (the
- * platform stack re-resolves the name when it connects) and an allowed URL that
- * redirects to an internal host (WinHTTP/JNI follow redirects). Fully closing those
- * needs connect-by-pinned-IP plus per-redirect re-validation and connected-peer
- * verification at the HTTP-provider boundary — tracked as a follow-up. */
+ * This is a pre-check on the name: it blocks literal internal addresses and hosts
+ * that resolve private. A URL that passes here and then redirects to an internal
+ * host is refused by the provider, which re-validates every hop against this same
+ * policy before connecting. Active DNS rebinding is not closed, because the
+ * platform stack re-resolves the name when it connects; that needs
+ * connect-by-pinned-IP plus connected-peer verification at the provider boundary.
+ *
+ * Scheme is judged per URI rather than against the playlist's. An https playlist
+ * may therefore list http segments, and they are fetched in the clear: the
+ * providers' https->http refusal covers a redirect chain inside one request, not
+ * the step from playlist to segment. */
 /* out_blocked (nullable) distinguishes a deterministic policy rejection (bad
  * scheme/host — retrying can never succeed) from a transient provider open
  * failure, so a caller can terminate on the former instead of busy-looping. */
@@ -362,7 +454,7 @@ static int master_pick_variant(basis_hls_t* h, const char* base, const char* tex
         if (llen && line[llen - 1] == '\r') line[llen - 1] = 0;
 
         if (starts_with(line, "#EXT-X-STREAM-INF")) {
-            long bw = attr_long(line, "BANDWIDTH", 0);
+            long bw = attr_long(line, "BANDWIDTH", HLS_MAX_BANDWIDTH, 0);
             /* the variant URI is the next non-comment, non-empty line */
             const char* q = nl ? nl + 1 : p + llen;
             while (*q) {
@@ -436,10 +528,13 @@ static void parse_media_playlist(const char* base, const char* text, hls_playlis
 
         if (starts_with(line, "#EXT-X-TARGETDURATION")) {
             const char* c = strchr(line, ':');
-            if (c) pl->target_duration_ms = atol(c + 1) * 1000;
+            if (c) pl->target_duration_ms = secs_to_ms(c + 1, pl->target_duration_ms);
         } else if (starts_with(line, "#EXT-X-MEDIA-SEQUENCE")) {
             const char* c = strchr(line, ':');
-            if (c) pl->media_seq_base = atol(c + 1);
+            /* Bounded because a segment index is added to this and the sum reaches
+             * the fetch cursor and the request URL, so an unchecked value is signed
+             * overflow before it is anything else. */
+            if (c) pl->media_seq_base = parse_whole(c + 1, HLS_MAX_SEQUENCE, pl->media_seq_base);
         } else if (starts_with(line, "#EXT-X-SERVER-CONTROL")) {
             char v[16];
             if (attr_str(line, "CAN-BLOCK-RELOAD", v, sizeof(v)) && ci_eq_n(v, "yes", 3))
@@ -479,7 +574,18 @@ static void parse_media_playlist(const char* base, const char* text, hls_playlis
         } else if (starts_with(line, "#EXTINF")) {
             /* #EXTINF:<seconds>,  — capture the duration for real-time pacing */
             long extinf_ms = 0;
-            { const char* c = strchr(line, ':'); if (c) extinf_ms = (long)(atof(c + 1) * 1000.0 + 0.5); }
+            { const char* c = strchr(line, ':');
+              if (c) {
+                  /* EXTINF is "<duration>[,<title>]": cut the title before the
+                   * strict numeric parse. */
+                  char dur[32]; int di = 0;
+                  const char* q = c + 1;
+                  for (; *q && *q != ',' && di < (int)sizeof(dur) - 1; ++q) dur[di++] = *q;
+                  dur[di] = 0;
+                  /* Only parse if the copy reached the comma or line end; a token
+                   * past 31 bytes is a truncated prefix, so leave extinf_ms 0. */
+                  if (*q == ',' || *q == 0) extinf_ms = secs_to_ms(dur, 0);
+              } }
             /* the segment URI is the next non-comment line */
             const char* q = nl ? nl + 1 : p + llen;
             while (*q) {

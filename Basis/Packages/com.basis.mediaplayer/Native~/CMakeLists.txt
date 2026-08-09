@@ -38,6 +38,7 @@
 #     cmake -S . -B build-android-arm64 ^
 #           -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake ^
 #           -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 ^
+#           -DCMAKE_BUILD_TYPE=Release ^
 #           -DBASIS_WITH_RIST=ON ^
 #           -DUNITY_PLUGIN_API_DIR=<UnityEditor>/Editor/Data/PluginAPI
 #     cmake --build build-android-arm64 --config Release
@@ -123,6 +124,14 @@ elseif(ANDROID)
 else()
     # Stub backend (Win-ARM64, Linux, macOS, iOS, anything else).
     list(APPEND PLATFORM_SOURCES other/basis_decoder_stub.c)
+    if(WIN32)
+        # Windows ARM64 keeps the WinHTTP byte source even with a stub decoder:
+        # run_http_like selects it on _WIN32, not on which decoder backend is in
+        # play, so omitting it is an unresolved symbol at link time rather than a
+        # smaller binary. It needs nothing from the decode side, and the link line
+        # below already expects it.
+        list(APPEND PLATFORM_SOURCES windows/basis_win_http.cpp)
+    endif()
     if(IOS OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
         # iOS Unity plugins must be static archives.
         set(BASIS_LIBRARY_TYPE STATIC)
@@ -218,8 +227,87 @@ if(BASIS_WITH_RIST)
     endif()
 endif()
 
+# ---------------------------------------------------------------------------
+# Warnings and exploit mitigations.
+#
+# The demux core parses remote containers in-process inside the Unity client,
+# so the mitigations are requested explicitly instead of left to toolchain
+# defaults: MSVC supplies a subset (/GS, /DYNAMICBASE, /NXCOMPAT) and clang
+# supplies none of them for the bare targets the stub platforms build against.
+# ---------------------------------------------------------------------------
 if(MSVC)
-    target_compile_options(basis_media_native PRIVATE /W3)
+    # /guard:cf has to reach both the compiler and the linker to take effect.
+    # /Qspectre is deliberately absent: MSBuild fails the build outright
+    # (MSB8040) unless the Spectre-mitigated libraries component is installed,
+    # and a speculative side channel buys an attacker nothing here — the plugin
+    # already runs in-process with the client's full privileges.
+    target_compile_options(basis_media_native PRIVATE /W3 /guard:cf)
+    target_link_options(basis_media_native PRIVATE /guard:cf /DYNAMICBASE /NXCOMPAT)
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        target_link_options(basis_media_native PRIVATE /HIGHENTROPYVA)
+    endif()
+    # /CETCOMPAT applies to x64 only. CMAKE_GENERATOR_PLATFORM is the obvious
+    # test but only the Visual Studio generators set it, so an ARM64 Ninja build
+    # would slip through; the compiler's own target id holds for any generator.
+    #
+    # It also needs the linker to know the option at all — it arrived in VS 2019
+    # 16.7 (19.27). An older link.exe answers an unknown switch with LNK4044 and
+    # carries on, so without this test the mitigation would drop out silently and
+    # the build would still look clean. A link probe cannot tell the two apart for
+    # the same reason: the probe link succeeds either way. Hence a version test,
+    # and a warning rather than a quiet no-op.
+    # Compared case-folded: a CMake that spells the id "X64" instead of "x64"
+    # would otherwise fail an exact match, drop /CETCOMPAT, and warn about
+    # nothing — the same silent de-hardening the version test above guards against.
+    string(TOLOWER "${CMAKE_C_COMPILER_ARCHITECTURE_ID}" _basis_msvc_arch)
+    if(_basis_msvc_arch STREQUAL "x64")
+        if(MSVC_VERSION GREATER_EQUAL 1927)
+            target_link_options(basis_media_native PRIVATE /CETCOMPAT)
+        else()
+            message(WARNING
+                "MSVC ${MSVC_VERSION} predates /CETCOMPAT (19.27 / VS 2019 16.7): "
+                "linking basis_media_native without CET shadow-stack compatibility.")
+        endif()
+    endif()
 else()
-    target_compile_options(basis_media_native PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    include(CheckCCompilerFlag)
+    include(CMakePushCheckState)
+
+    target_compile_options(basis_media_native PRIVATE
+        -Wall -Wextra -Wno-unused-parameter -Wformat -Wformat-security)
+
+    # Probed, not assumed: this tree is built by Apple clang, NDK clang and gcc,
+    # and each rejects a different subset (PAC/BTI is aarch64, CET is x86_64).
+    # Appended rather than assigned: a toolchain file may already have put flags
+    # here that a test compile needs, and dropping them would fail every probe and
+    # silently take the whole set of mitigations with it.
+    cmake_push_check_state()
+    string(APPEND CMAKE_REQUIRED_FLAGS " -Werror")
+    foreach(_flag -fstack-protector-strong -fcf-protection=full
+                  -mbranch-protection=standard -ftrivial-auto-var-init=zero)
+        string(MAKE_C_IDENTIFIER "BASIS_HAS${_flag}" _have)
+        check_c_compiler_flag(${_flag} ${_have})
+        if(${_have})
+            target_compile_options(basis_media_native PRIVATE ${_flag})
+            # On the link line too: under LTO codegen happens at link, so a
+            # compile-only mitigation flag would be lost.
+            target_link_options(basis_media_native PRIVATE ${_flag})
+        endif()
+    endforeach()
+    cmake_pop_check_state()
+
+    # Optimised configurations only: Bionic gates FORTIFY on __OPTIMIZE__ and
+    # glibc warns when it is defined without -O, and an unset CMAKE_BUILD_TYPE
+    # compiles unoptimised. -U first because the NDK already defines it. A custom
+    # optimised configuration has to be added here to get FORTIFY.
+    target_compile_options(basis_media_native PRIVATE
+        "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
+
+    # ELF-only linker hardening. Excludes Apple (Mach-O) and Windows: a non-MSVC
+    # Windows toolchain (MinGW, clang *-windows-gnu) reaches this non-MSVC branch
+    # too, and its PE linker rejects -z relro/now/noexecstack.
+    if(NOT APPLE AND NOT WIN32)
+        target_link_options(basis_media_native PRIVATE
+            -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack)
+    endif()
 endif()

@@ -99,8 +99,24 @@ struct PcmRing {
      * trimmed to the target — re-anchoring on the discontinuity rather than
      * discarding real-time delivery forever. */
     static const int64_t TRIM_LATE_US = 150000;
+    /* Ceiling on the lag the trim arithmetic will act on, so a hostile timestamp
+     * cannot overflow it. Any real trim is orders of magnitude below this. */
+    static const int64_t TRIM_MAX_US = 60 * 1000000LL;
 
-    void init(int floats) { cap = floats; buf = (float*)malloc(sizeof(float) * cap); InitializeCriticalSection(&cs); }
+    /* Reports failure rather than absorbing it: the ring is written through
+     * unguarded once it exists, and the tempting shortcut of leaving a capacity
+     * behind a null buffer is worse than the null dereference it replaces, because
+     * fill() takes `% cap` and a zero capacity turns that into a divide by zero.
+     * Nothing is initialised on the failure path -- in particular the critical
+     * section is not, so destroy() must not run against a ring that failed here. */
+    bool init(int floats) {
+        if (floats <= 0) return false;
+        buf = (float*)malloc(sizeof(float) * (size_t)floats);
+        if (!buf) return false;
+        cap = floats;
+        InitializeCriticalSection(&cs);
+        return true;
+    }
     void destroy() { free(buf); buf = nullptr; DeleteCriticalSection(&cs); }
 
     int fill() const { return (tail - head + cap) % cap; }
@@ -170,10 +186,24 @@ struct PcmRing {
         EnterCriticalSection(&cs);
         int64_t srr = sr > 0 ? sr : 48000;
         if (target_us != INT64_MIN && ccount > 0) {
-            int64_t late = target_us - chunks[chead].pts;
-            if (late > TRIM_LATE_US) {
-                drop_oldest((int)(late * srr / 1000000LL) * frame);
-                trims++;
+            /* The gap is the remote side's to pick, so every step of this is
+             * hostile input. Order the operands and subtract unsigned: the chunk
+             * timestamp comes from the container, and `target_us - pts` overflows
+             * int64 on its own if that timestamp sits near INT64_MIN — before any
+             * cap below could apply. Then cap the span, because `late * srr`
+             * overflows too, and the narrowing to int wraps a third time; and
+             * finally clamp against what the ring holds, since dropping more than
+             * the fill is the same as dropping all of it. */
+            int64_t headPts = chunks[chead].pts;
+            if (target_us > headPts) {
+                uint64_t late = (uint64_t)target_us - (uint64_t)headPts;
+                if (late > (uint64_t)TRIM_LATE_US) {
+                    int64_t span = late > (uint64_t)TRIM_MAX_US ? TRIM_MAX_US : (int64_t)late;
+                    int64_t want = span * srr / 1000000LL * frame;
+                    int have = fill();
+                    drop_oldest(want > (int64_t)have ? have : (int)want);
+                    trims++;
+                }
             }
         }
         int got = 0;
@@ -289,6 +319,7 @@ struct basis_decoder {
     ID3D11DeviceContext* ctxUnity = nullptr;
     ID3D11Texture2D* outTexD11 = nullptr;   /* CreateExternalTexture target (D3D11) */
     void* outTexD12 = nullptr;              /* ID3D12Resource* (D3D12 path) */
+    IUnknown* handoutTex[2] = {};           /* references held on the last two pointers get_texture returned */
     ID3D11Texture2D* outSharedD12 = nullptr;       /* D3D12 path: typeless shared copy target (decode device) */
     IDXGIKeyedMutex* outSharedD12Mutex = nullptr;
     HANDLE outSharedD12Handle = nullptr;
@@ -1257,8 +1288,13 @@ static void drain_audio(basis_decoder* d) {
         MFT_OUTPUT_STREAM_INFO si = {};
         d->adec->GetOutputStreamInfo(0, &si);
         IMFSample* sample = nullptr; IMFMediaBuffer* mb = nullptr;
-        MFCreateSample(&sample);
-        MFCreateMemoryBuffer(si.cbSize ? si.cbSize : 65536, &mb);
+        /* Checked the same way as the video drain above: both calls allocate, and
+         * a failure here would be dereferenced immediately. */
+        if (FAILED(MFCreateSample(&sample)) ||
+            FAILED(MFCreateMemoryBuffer(si.cbSize ? si.cbSize : 65536, &mb))) {
+            SAFE_RELEASE(sample); SAFE_RELEASE(mb);
+            break;
+        }
         sample->AddBuffer(mb);
 
         MFT_OUTPUT_DATA_BUFFER ob = {}; ob.pSample = sample; DWORD status = 0;
@@ -1324,6 +1360,20 @@ extern "C" basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     if (!mfStarted) { CoInitializeEx(nullptr, COINIT_MULTITHREADED); MFStartup(MF_VERSION); mfStarted = true; }
 
     basis_decoder* d = new basis_decoder();
+    /* Before anything that would need unwinding — no COM references taken, no
+     * critical section initialised — so a failure here is a plain delete rather
+     * than a teardown path of its own. destroy() cannot be used to clean up a ring
+     * that failed to initialise, which is what makes the ordering load-bearing. */
+    /* ~4s at 8ch — the PTS-gated serve banks mux lead + the jitter cushion in the
+     * ring, so capacity must hold both at full width. */
+    if (!d->pcm.init(48000 * 8 * 4)) {
+        /* Named, like the decode-device failure below: a bare null leaves the
+         * managed layer reporting that the player would not open and nothing about
+         * why. */
+        basis_engine_set_error(engine, "failed to allocate the audio ring");
+        delete d;
+        return nullptr;
+    }
     d->engine = engine;
     d->api = basis_gfx_get_api();
     d->devUnity = (ID3D11Device*)basis_gfx_get_d3d11_device();
@@ -1332,9 +1382,6 @@ extern "C" basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     QueryPerformanceFrequency(&d->qpcFreq);
     QueryPerformanceCounter(&d->createQpc);
     for (int i = 0; i < basis_decoder::RING; ++i) d->ringPts[i] = INT64_MIN;
-    d->pcm.init(48000 * 8 * 4); /* ~4s at 8ch — the PTS-gated serve banks mux
-                                 * lead + the jitter cushion in the ring, so
-                                 * capacity must hold both at full width */
 
     if (!create_decode_device(d)) {
         basis_engine_set_error(engine, "failed to create DXVA D3D11 decode device");
@@ -1757,11 +1804,6 @@ extern "C" int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* dat
     return 0;
 }
 
-extern "C" int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) {
-    (void)d; (void)url;
-    return 0; /* Windows always uses the core demuxers + WinHTTP */
-}
-
 /* ---- render thread ------------------------------------------------------ */
 
 /* Block until the decode-device copy into outSharedD12 has retired on the GPU, so the
@@ -2126,23 +2168,75 @@ extern "C" void basis_decoder_render_release(basis_decoder_t* d) {
     EnterCriticalSection(&d->presentLock);
     release_shared_locked(d);
     d->sharedW = d->sharedH = 0;
+    for (int i = 0; i < 2; ++i)
+        if (d->handoutTex[i]) { d->handoutTex[i]->Release(); d->handoutTex[i] = nullptr; }
     LeaveCriticalSection(&d->presentLock);
 }
 
+/* The pointer and the size it was built at must come from one locked snapshot:
+ * read apart, the caller can pair a rebuilt texture with the previous, larger
+ * dimensions and wrap an allocation that is smaller than the view it creates. */
 extern "C" void* basis_decoder_get_texture(basis_decoder_t* d, int* w, int* h) {
     if (!d) return nullptr;
+    EnterCriticalSection(&d->presentLock);
     if (w) *w = d->sharedW;
     if (h) *h = d->sharedH;
-    if (d->api == BASIS_GFX_D3D12) return d->outTexD12;
-    return d->outTexD11;
+    /* The typed pointer is what the caller binds; `t` exists only so the retention
+     * below can be written once for both APIs. They are the same address on any COM
+     * implementation, single inheritance putting the IUnknown vtable at offset zero,
+     * but the caller should not be handed a pointer that depends on that. */
+    void*     ret = (d->api == BASIS_GFX_D3D12) ? d->outTexD12 : (void*)d->outTexD11;
+    IUnknown* t   = (d->api == BASIS_GFX_D3D12) ? (IUnknown*)(ID3D12Resource*)d->outTexD12
+                                                : (IUnknown*)d->outTexD11;
+    /* Keep the handed-out object alive past the lock. A visible-size change on the
+     * demux thread runs release_shared_locked, whose Release is the final one, so
+     * the caller would otherwise bind a pointer that died between this return and
+     * the bind.
+     *
+     * Two are retained, not one. A consumer that wraps this pointer typically
+     * drops its previous wrapper in the same call that takes the new pointer, and
+     * that drop can be deferred to the end of its frame — so releasing the
+     * previous texture as soon as a new one is handed out could still retire it
+     * while the old wrapper is live and sampling. Holding it one hand-out longer
+     * puts the release a full cycle behind the swap, and bounds the retention at
+     * two however often the stream resizes.
+     *
+     * Comparing pointers is sound precisely because holding these references is
+     * what stops an address being recycled under us.
+     *
+     * A null hand-out (the no-output interval during a rebuild — routine on D3D12,
+     * where the shared output is opened lazily on the render thread) must not
+     * rotate: doing so would push the live texture into the release slot, so the
+     * next real hand-out would free it while a consumer that ignored the null and
+     * kept its previous wrapper is still sampling it. Leave the slots untouched
+     * until a genuinely new texture arrives. */
+    if (t && t != d->handoutTex[0]) {
+        /* Retain before releasing, so the rotation stands on its own reference. If
+         * a rebuild ever handed back an address still held in the release slot,
+         * releasing first would drop the last retention reference on the very
+         * object being retained. The decoder also owns t through outTexD11/D12,
+         * which is what makes the other order survive — but that is a reference
+         * this function does not hold and should not be leaning on. */
+        t->AddRef();
+        if (d->handoutTex[1]) d->handoutTex[1]->Release();
+        d->handoutTex[1] = d->handoutTex[0];
+        d->handoutTex[0] = t;
+    }
+    LeaveCriticalSection(&d->presentLock);
+    return ret;
 }
 
 extern "C" uint64_t basis_decoder_get_frame_counter(basis_decoder_t* d) {
     return d ? (uint64_t)d->frameCounter : 0;
 }
 extern "C" int basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) {
-    if (!d || d->sharedW <= 0) return -1;
-    if (w) *w = d->sharedW; if (h) *h = d->sharedH; return 0;
+    if (w) *w = 0; if (h) *h = 0;   /* defined on every failure path, so a caller that ignores the return can't read indeterminate locals */
+    if (!d) return -1;
+    EnterCriticalSection(&d->presentLock);
+    int sw = d->sharedW, sh = d->sharedH;
+    LeaveCriticalSection(&d->presentLock);
+    if (sw <= 0 || sh <= 0) return -1;   /* both, so a caller can size off either */
+    if (w) *w = sw; if (h) *h = sh; return 0;
 }
 extern "C" int basis_decoder_get_frame_origin(basis_decoder_t* d) { return d ? (int)d->frameTopLeft : 0; }
 

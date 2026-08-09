@@ -85,7 +85,7 @@ int basis_url_parse(const char* url, basis_url_t* out) {
     /* scheme normalisation + default ports + TLS */
     if (strcmp(out->scheme, "rtspt") == 0) {
         /* rtspt = RTSP with RTP pinned to the TCP control channel (no UDP attempt). */
-        strcpy(out->scheme, "rtsp");
+        memcpy(out->scheme, "rtsp", sizeof("rtsp"));
         if (out->port == 0) out->port = 554;
         out->tls = 0;
         out->force_tcp = 1;

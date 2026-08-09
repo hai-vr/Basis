@@ -25,6 +25,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <stdarg.h>
+#include <errno.h>
 
 #if defined(_WIN32)
   #define strncasecmp _strnicmp
@@ -59,7 +61,11 @@ static int b64dec(const char* in, int inlen, uint8_t* out, int outcap) {
     const char* a = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     for (int i = 0; i < 64; ++i) tab[(unsigned char)a[i]] = (int8_t)i;
 
-    int val = 0, bits = 0, op = 0;
+    /* Unsigned accumulator: the shift runs the whole input through, so a signed
+     * one walks into the sign bit on any sprop blob past a few characters. Only
+     * the low bits are ever read back out, so the wrap is harmless. */
+    uint32_t val = 0;
+    int bits = 0, op = 0;
     for (int i = 0; i < inlen; ++i) {
         int c = (unsigned char)in[i];
         if (c == '=' || tab[c] < 0) continue;
@@ -88,18 +94,67 @@ typedef struct {
     char rtp_info[1024];   /* last RTP-Info header (PLAY: per-track rtptime) */
     char transport[512];   /* last Transport header (SETUP: server_port/source) */
     int  sess_timeout_s;   /* Session header timeout= (0 = server sent none) */
+    basis_media_sink_t* sink; /* for is_running: the handshake runs before any
+                               * cancellable session loop is entered */
 } rtsp_t;
 
-static int rtsp_send(rtsp_t* r, const char* method, const char* url, const char* extra) {
+/* Ceilings on a response header block. Without them the reader has no terminating
+ * condition but a blank line, and the per-line truncation below means an endless
+ * header stream costs the peer nothing and grows nothing — it simply never
+ * returns. The byte count deliberately counts every byte read, including the ones
+ * truncation discards. */
+#define RTSP_MAX_HEADERS      100
+#define RTSP_MAX_HEADER_BYTES (16 * 1024)
+#define RTSP_MAX_BODY         (256 * 1024)
+
+/* Appends one printf-formatted field to req, advancing *n. Returns 0, or -1 if
+ * the field did not fit. snprintf answers with the length it WANTED, so an
+ * unchecked accumulation walks *n past the buffer, after which `req + *n` points
+ * outside it and `sizeof(req) - *n` underflows to a huge size_t — the next call
+ * would then write out of bounds. The field sizes today keep the total under
+ * 2 KiB, so this is a guard on the arithmetic rather than a fix for a reachable
+ * overflow; it stops being safe the moment any of the inputs grows. */
+static int req_append(char* req, size_t cap, int* n, const char* fmt, ...) {
+    if (*n < 0 || (size_t)*n >= cap) return -1;
+    va_list ap;
+    va_start(ap, fmt);
+    int m = vsnprintf(req + *n, cap - (size_t)*n, fmt, ap);
+    va_end(ap);
+    if (m < 0 || (size_t)m >= cap - (size_t)*n) return -1;
+    *n += m;
+    return 0;
+}
+
+/* `after_stop` lets one caller through the cancellation gate below. */
+static int rtsp_send_ex(rtsp_t* r, const char* method, const char* url,
+                        const char* extra, int after_stop) {
+    /* A write to a peer that has stopped reading blocks until the send deadline
+     * expires, on the demux thread, which close joins. So a request issued after
+     * cancellation can hold teardown open, and nothing issued after a stop is
+     * worth that -- with one exception, which is why this is a parameter.
+     *
+     * TEARDOWN on an established session is the exception: it releases the
+     * server's session, and a server that limits concurrent sessions (one or two
+     * is normal on cameras) will refuse the next connect until its own timeout
+     * expires. Suppressing it turns a stop/start into a failed restart. */
+    if (!after_stop && r->sink && !r->sink->is_running(r->sink->user)) return -1;
+
     char req[2048];
-    int n = snprintf(req, sizeof(req),
-        "%s %s RTSP/1.0\r\nCSeq: %d\r\nUser-Agent: BasisMediaPlayer/1.0\r\n",
-        method, url, ++r->cseq);
-    if (r->session[0]) n += snprintf(req + n, sizeof(req) - n, "Session: %s\r\n", r->session);
-    if (r->authb64[0]) n += snprintf(req + n, sizeof(req) - n, "Authorization: Basic %s\r\n", r->authb64);
-    if (extra) n += snprintf(req + n, sizeof(req) - n, "%s", extra);
-    n += snprintf(req + n, sizeof(req) - n, "\r\n");
+    int n = 0;
+    if (req_append(req, sizeof(req), &n,
+                   "%s %s RTSP/1.0\r\nCSeq: %d\r\nUser-Agent: BasisMediaPlayer/1.0\r\n",
+                   method, url, ++r->cseq) != 0) return -1;
+    if (r->session[0] &&
+        req_append(req, sizeof(req), &n, "Session: %s\r\n", r->session) != 0) return -1;
+    if (r->authb64[0] &&
+        req_append(req, sizeof(req), &n, "Authorization: Basic %s\r\n", r->authb64) != 0) return -1;
+    if (extra && req_append(req, sizeof(req), &n, "%s", extra) != 0) return -1;
+    if (req_append(req, sizeof(req), &n, "\r\n") != 0) return -1;
     return basis_io_write_full(r->io, (const uint8_t*)req, n) == n ? 0 : -1;
+}
+
+static int rtsp_send(rtsp_t* r, const char* method, const char* url, const char* extra) {
+    return rtsp_send_ex(r, method, url, extra, 0);
 }
 
 /* Reads an RTSP response: status + headers, then body by Content-Length.
@@ -113,22 +168,65 @@ static int rtsp_recv(rtsp_t* r, char* body, int bodycap, int* bodylen) {
     r->location[0] = 0;
     r->transport[0] = 0;
     /* header lines until blank */
+    int nheaders = 0, hbytes = 0, content_len_seen = 0;
     for (;;) {
         li = 0;
         for (;;) {
             uint8_t c;
+            /* Checked per byte, not per line: this runs on the demux thread before
+             * any is_running-guarded loop is reached, and close joins that thread
+             * with an infinite wait from the caller's thread. A peer that keeps
+             * dribbling bytes would otherwise hold the join open. */
+            if (r->sink && !r->sink->is_running(r->sink->user)) return -1;
             if (basis_io_read_full(r->io, &c, 1) != 1) return -1;
+            if (++hbytes > RTSP_MAX_HEADER_BYTES) return -1;
             if (c == '\n') break;
             if (c != '\r' && li < (int)sizeof(line) - 1) line[li++] = (char)c;
         }
         line[li] = 0;
         if (li == 0) break; /* end of headers */
-        if (code < 0 && strncmp(line, "RTSP/1.0", 8) == 0) {
-            code = atoi(line + 9);
+        /* Counted here, past the terminator check, so the cap is a bound on real
+         * header lines rather than on the framing. */
+        if (++nheaders > RTSP_MAX_HEADERS) return -1;
+        /* Exactly three digits, then the line end or a space. Two reasons, and
+         * the second is the one the Content-Length parse below already answers:
+         * on a bare "RTSP/1.0" the terminator lands at [8], so [9] onwards is
+         * whatever a previous, longer header line left in this reused buffer;
+         * and atoi is undefined past INT_MAX, which a status line of digits
+         * reaches as easily as any other field. An absent reason phrase is
+         * still accepted — the separator is required, the phrase is not. */
+        if (nheaders == 1) {
+            /* The status line is required to be the first line, not merely the
+             * first line that looks like one. Accepting it anywhere let a response
+             * put Content-Length ahead of it and still be taken as well-formed,
+             * which is the peer choosing the framing rather than the parser. */
+            if (!(li >= 12 && line[8] == ' ' && strncmp(line, "RTSP/1.0", 8) == 0 &&
+                  line[9]  >= '0' && line[9]  <= '9' &&
+                  line[10] >= '0' && line[10] <= '9' &&
+                  line[11] >= '0' && line[11] <= '9' &&
+                  (line[12] == 0 || line[12] == ' '))) return -1;
+            code = (line[9] - '0') * 100 + (line[10] - '0') * 10 + (line[11] - '0');
             strncpy(r->last_status, line, sizeof(r->last_status) - 1);
             r->last_status[sizeof(r->last_status) - 1] = 0;
         }
-        else if (strncasecmp(line, "Content-Length:", 15) == 0) content_len = atoi(line + 15);
+        else if (strncasecmp(line, "Content-Length:", 15) == 0) {
+            /* A second Content-Length makes the body boundary ambiguous and can
+             * desync the next response on the same connection — refuse it rather
+             * than silently take the last value. */
+            if (content_len_seen++) return -1;
+            /* atoi would take a numeric prefix ("1x" -> 1, leaving body bytes on the
+             * socket) and is undefined on a value past INT_MAX, so parse the whole
+             * token and reject anything that is not a clean non-negative decimal
+             * within the ceiling — the drain below reads the declared length off the
+             * socket, so an unchecked value is a stall in its own right. */
+            const char* v = line + 15; while (*v == ' ' || *v == '\t') v++;
+            char* end = NULL; errno = 0;
+            long parsed = strtol(v, &end, 10);
+            if (errno == ERANGE || end == v || parsed < 0 || parsed > RTSP_MAX_BODY) return -1;
+            while (*end == ' ' || *end == '\t') end++;
+            if (*end != 0) return -1;
+            content_len = (int)parsed;
+        }
         else if (strncasecmp(line, "WWW-Authenticate:", 17) == 0) {
             const char* v = line + 17; while (*v == ' ') v++;
             strncpy(r->www_auth, v, sizeof(r->www_auth) - 1);
@@ -160,13 +258,27 @@ static int rtsp_recv(rtsp_t* r, char* body, int bodycap, int* bodylen) {
     if (bodylen) *bodylen = 0;
     if (content_len > 0) {
         int want = body ? (content_len < bodycap ? content_len : bodycap) : 0;
-        int got = want > 0 ? basis_io_read_full(r->io, (uint8_t*)body, want) : 0;
+        /* Read the wanted body in bounded chunks, checking is_running each time, for
+         * the same reason as the drain: a single read of the whole body would block
+         * against a slow peer with no way for close to interrupt it. */
+        int got = 0;
+        while (got < want) {
+            if (r->sink && !r->sink->is_running(r->sink->user)) return -1;
+            int chunk = want - got; if (chunk > 256) chunk = 256;
+            /* A short read is a truncated response, not a valid short body — the
+             * declared Content-Length was not delivered. Fail rather than hand a
+             * partial body up as if the status code stood; the socket framing is
+             * unusable past it anyway. */
+            if (basis_io_read_full(r->io, (uint8_t*)body + got, chunk) != chunk) return -1;
+            got += chunk;
+        }
         if (bodylen) *bodylen = got;
         /* drain whatever the caller's buffer didn't take, so an ignored or
          * oversized body can't desynchronise the next reply on the socket */
         for (int rest = content_len - got; rest > 0; ) {
+            if (r->sink && !r->sink->is_running(r->sink->user)) return -1;
             uint8_t tmp[256]; int t = rest < (int)sizeof(tmp) ? rest : (int)sizeof(tmp);
-            if (basis_io_read_full(r->io, tmp, t) != t) break;
+            if (basis_io_read_full(r->io, tmp, t) != t) return -1;   /* truncated body */
             rest -= t;
         }
     }
@@ -252,7 +364,11 @@ static int parse_sdp(const char* sdp, int len, sdp_media_t* video, sdp_media_t* 
             if (strncmp(a, "rtpmap:", 7) == 0) {
                 int pt = 0; char name[64] = {0}; int clk = 0, ch = 0;
                 sscanf(a + 7, "%d %63[^/]/%d/%d", &pt, name, &clk, &ch);
-                if (clk) cur->clock = clk;
+                /* The SDP names the clock rate, and it divides every timestamp this
+                 * track produces — a rate of 1 scales them by a million. Keep it
+                 * inside the range real payload types use and fall back to the
+                 * media default rather than take the server's word for it. */
+                if (clk >= 1000 && clk <= 1000000) cur->clock = clk;
                 if (ch) cur->channels = ch;
                 if (strncasecmp(name, "H265", 4) == 0 || strncasecmp(name, "HEVC", 4) == 0) cur->codec = BASIS_CODEC_H265;
                 else if (strncasecmp(name, "H264", 4) == 0) cur->codec = BASIS_CODEC_H264;
@@ -351,7 +467,20 @@ static void au_append_nal(depkt_t* d, const uint8_t* nal, int len) {
     memcpy(d->au + d->au_len, nal, len); d->au_len += len;
 }
 
-static int64_t rtp_ts_to_us(int64_t ts, int clock) { return clock > 0 ? ts * 1000000 / clock : ts; }
+/* Largest timestamp the microsecond conversion can scale without overflowing. */
+#define RTP_TS_SCALE_MAX (INT64_MAX / 1000000)
+
+/* `ts` arrives as an extended RTP timestamp — a 32-bit wire field carried across
+ * wraps — so a chosen run of wraps takes it past the point where ts * 1000000
+ * overflows int64. The clock guard covers only the division. Saturate rather than
+ * reject: the value stays ordered against its neighbours, which is what the PTS
+ * arithmetic downstream cares about. */
+static int64_t rtp_ts_to_us(int64_t ts, int clock) {
+    if (clock <= 0) return ts;
+    if (ts >  RTP_TS_SCALE_MAX) ts =  RTP_TS_SCALE_MAX;
+    if (ts < -RTP_TS_SCALE_MAX) ts = -RTP_TS_SCALE_MAX;
+    return ts * 1000000 / clock;
+}
 
 /* True when one URL is a full suffix of the other (handles relative vs
  * absolute control URLs without prefix-collision false positives, e.g.
@@ -834,27 +963,38 @@ static int udp_read_loop(rtsp_t* r, depkt_t* d, udp_state_t* u, const char* base
         int64_t now = now_ms();
         if (mask < 0) return 1;
 
+        /* These four are datagram sockets, where a read of 0 is an empty datagram
+         * rather than a disconnect — zero-as-disconnect is a stream-socket rule,
+         * and the TCP read below is where it applies. Treating it as an error here
+         * would let one empty packet abandon UDP and, through udp_neg_add, skip it
+         * for every later load of this host. Only a negative return is a failure;
+         * an empty datagram carries no media, so it is ignored rather than counted
+         * as traffic against the no-data deadlines. */
         if (mask & (1 << 1)) {
             int n = basis_io_read(u->v_rtp, pkt, (int)sizeof(pkt));
-            if (n <= 0) return 1;   /* ICMP refusal / socket error: instant fallback */
-            last_rtp = last_any = now;
-            reorder_push(u->v_rb, pkt, n, now, udp_deliver_video, udp_gap_video, d);
+            if (n < 0) return 1;   /* ICMP refusal / socket error: instant fallback */
+            if (n > 0) {
+                last_rtp = last_any = now;
+                reorder_push(u->v_rb, pkt, n, now, udp_deliver_video, udp_gap_video, d);
+            }
         }
         if ((mask & (1 << 3)) && u->a_rtp) {
             int n = basis_io_read(u->a_rtp, pkt, (int)sizeof(pkt));
-            if (n <= 0) return 1;
-            last_rtp = last_any = now;
-            reorder_push(u->a_rb, pkt, n, now, udp_deliver_audio, udp_gap_audio, d);
+            if (n < 0) return 1;
+            if (n > 0) {
+                last_rtp = last_any = now;
+                reorder_push(u->a_rb, pkt, n, now, udp_deliver_audio, udp_gap_audio, d);
+            }
         }
         if (mask & (1 << 2)) {
             int n = basis_io_read(u->v_rtcp, pkt, (int)sizeof(pkt));
-            if (n <= 0) return 1;
-            last_any = now;   /* sender reports prove the path before media flows */
+            if (n < 0) return 1;
+            if (n > 0) last_any = now;   /* sender reports prove the path before media flows */
         }
         if ((mask & (1 << 4)) && u->a_rtcp) {
             int n = basis_io_read(u->a_rtcp, pkt, (int)sizeof(pkt));
-            if (n <= 0) return 1;
-            last_any = now;
+            if (n < 0) return 1;
+            if (n > 0) last_any = now;
         }
         if (mask & 1) {
             int n = basis_io_read(r->io, pkt, (int)sizeof(pkt));
@@ -897,6 +1037,7 @@ static int udp_read_loop(rtsp_t* r, depkt_t* d, udp_state_t* u, const char* base
  * should retry the whole session over TCP-interleaved. */
 static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use_udp) {
     rtsp_t r; memset(&r, 0, sizeof(r));
+    r.sink = sink;   /* lets the handshake reads honour a stop */
     char base_url[1024];
     snprintf(base_url, sizeof(base_url), "rtsp://%s:%d%s", url->host, url->port, url->path);
 
@@ -918,6 +1059,9 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
         r.authb64[o] = 0;
     }
 
+    /* A stop that arrives before the connection opens is a clean stop, not a
+     * transport failure — don't dial out on a stopping engine. */
+    if (!sink->is_running(sink->user)) return 0;
     r.io = basis_io_connect(url->host, url->port, 10000);
     if (!r.io) { sink->on_error(sink->user, "RTSP: TCP connect failed"); return -1; }
 
@@ -930,8 +1074,10 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
     int desc_send = rtsp_send(&r, "DESCRIBE", base_url, "Accept: application/sdp\r\n");
     int code = (desc_send == 0) ? rtsp_recv(&r, body, sizeof(body) - 1, &blen) : -2;
 
-    /* one reconnect retry if the first request didn't land (transient/half-open) */
-    if (desc_send != 0 || code < 0) {
+    /* one reconnect retry if the first request didn't land (transient/half-open) —
+     * but a negative code can also be a stop honoured inside rtsp_recv, and a
+     * stopping engine has nothing to retry for. */
+    if ((desc_send != 0 || code < 0) && sink->is_running(sink->user)) {
         basis_io_close(r.io);
         r.io = basis_io_connect(url->host, url->port, 10000);
         if (r.io) {
@@ -943,6 +1089,9 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
     }
 
     if (code != 200 || blen <= 0) {
+        /* A stop during the handshake surfaces here as a non-200; report it as a
+         * clean stop rather than firing on_error into a host that is tearing down. */
+        if (!sink->is_running(sink->user)) { if (r.io) basis_io_close(r.io); return 0; }
         char emsg[800];
         snprintf(emsg, sizeof(emsg),
                  "RTSP: DESCRIBE failed (desc_send=%d desc='%s' code=%d body=%dB auth='%s' loc='%s' url=%s)",
@@ -989,7 +1138,10 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
         do {
             if (basis_io_udp_open_pair(udp_host, &u.v_rtp, &u.v_rtcp, &lp) != 0) { fell = 1; break; }
             snprintf(extra, sizeof(extra), "Transport: RTP/AVP;unicast;client_port=%d-%d\r\n", lp, lp + 1);
-            rtsp_send(&r, "SETUP", v_url, extra);
+            /* A send that reports failure put no bytes on the wire, so the read
+             * below would only ever come back on the receive timeout. Fail here
+             * instead of paying that wait to learn the same thing. */
+            if (rtsp_send(&r, "SETUP", v_url, extra) != 0) { fell = 1; break; }
             if (rtsp_recv(&r, NULL, 0, NULL) != 200 ||
                 parse_transport_udp(r.transport, &sp_rtp, &sp_rtcp, source, sizeof(source)) != 0) { fell = 1; break; }
             {
@@ -1004,7 +1156,7 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
             if (audio.pt >= 0) {
                 if (basis_io_udp_open_pair(udp_host, &u.a_rtp, &u.a_rtcp, &lp) != 0) { fell = 1; break; }
                 snprintf(extra, sizeof(extra), "Transport: RTP/AVP;unicast;client_port=%d-%d\r\n", lp, lp + 1);
-                rtsp_send(&r, "SETUP", a_url, extra);
+                if (rtsp_send(&r, "SETUP", a_url, extra) != 0) { fell = 1; break; }
                 if (rtsp_recv(&r, NULL, 0, NULL) != 200 ||
                     parse_transport_udp(r.transport, &sp_rtp, &sp_rtcp, source, sizeof(source)) != 0) { fell = 1; break; }
                 {
@@ -1021,6 +1173,16 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
         } while (0);
 
         if (fell) {
+            /* A stop honoured inside rtsp_recv reaches here as a non-200, exactly
+             * like a server refusing UDP. Falling back on it would send a TEARDOWN
+             * to a server we are abandoning and then reconnect over TCP, on the
+             * thread close is already waiting to join. Same re-check as the
+             * DESCRIBE and SETUP paths. */
+            if (!sink->is_running(sink->user)) {
+                udp_state_close(&u);
+                basis_io_close(r.io);
+                return 0;
+            }
             rtsp_send(&r, "TEARDOWN", base_url, NULL);
             udp_state_close(&u);
             basis_io_close(r.io);
@@ -1030,8 +1192,16 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
         /* SETUP video on interleaved channels 0-1 */
         char extra[128];
         snprintf(extra, sizeof(extra), "Transport: RTP/AVP/TCP;unicast;interleaved=%d-%d\r\n", interleave, interleave + 1);
-        rtsp_send(&r, "SETUP", v_url, extra);
-        if (rtsp_recv(&r, NULL, 0, NULL) != 200) {
+        /* Nothing reached the peer if the send failed, so the read would sit out
+         * the receive timeout before reporting the same thing. `last_status` is
+         * empty in that case, which is what distinguishes it in the message. */
+        int v_sent = rtsp_send(&r, "SETUP", v_url, extra);
+        if (v_sent != 0 || rtsp_recv(&r, NULL, 0, NULL) != 200) {
+            /* rtsp_recv reports a stop honoured mid-read as a negative code, the
+             * same as a transport failure, so re-check before reporting — as the
+             * DESCRIBE path above does — rather than firing on_error into a host
+             * that is tearing down. */
+            if (!sink->is_running(sink->user)) { basis_io_close(r.io); return 0; }
             char e[360]; snprintf(e, sizeof(e), "RTSP: SETUP video failed (status='%s' url=%s)", r.last_status, v_url);
             sink->on_error(sink->user, e); basis_io_close(r.io); return -1;
         }
@@ -1039,16 +1209,24 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
 
         if (audio.pt >= 0) {
             snprintf(extra, sizeof(extra), "Transport: RTP/AVP/TCP;unicast;interleaved=%d-%d\r\n", interleave, interleave + 1);
-            rtsp_send(&r, "SETUP", a_url, extra);
-            if (rtsp_recv(&r, NULL, 0, NULL) == 200) { a_channel = interleave; interleave += 2; }
+            /* Audio is optional here, so a failed send only costs the track --
+             * but skip the read rather than spend the receive timeout proving it. */
+            if (rtsp_send(&r, "SETUP", a_url, extra) == 0 &&
+                rtsp_recv(&r, NULL, 0, NULL) == 200) { a_channel = interleave; interleave += 2; }
         }
     }
 
     r.rtp_info[0] = 0;
-    rtsp_send(&r, "PLAY", base_url, "Range: npt=0.000-\r\n");
-    if (rtsp_recv(&r, NULL, 0, NULL) != 200) {
+    int play_sent = rtsp_send(&r, "PLAY", base_url, "Range: npt=0.000-\r\n");
+    if (play_sent != 0 || rtsp_recv(&r, NULL, 0, NULL) != 200) {
+        /* The UDP sockets and reorder buffers are set up before PLAY, so both
+         * exits here own them — a server that refuses PLAY is remote-repeatable,
+         * and without this each attempt strands four sockets and two ~66 KB
+         * buffers. Safe on the TCP path too: `u` is zeroed at declaration and
+         * every field is closed conditionally. */
+        if (!sink->is_running(sink->user)) { udp_state_close(&u); basis_io_close(r.io); return 0; }
         char e[320]; snprintf(e, sizeof(e), "RTSP: PLAY failed (status='%s')", r.last_status);
-        sink->on_error(sink->user, e); basis_io_close(r.io); return -1;
+        sink->on_error(sink->user, e); udp_state_close(&u); basis_io_close(r.io); return -1;
     }
 
     basis_io_set_read_timeout(r.io, 10000);
@@ -1123,8 +1301,20 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
 
     if (rc != 1 && d.au_len > 0) deliver_au(&d);
 
-    /* TEARDOWN best-effort */
-    rtsp_send(&r, "TEARDOWN", base_url, NULL);
+    /* TEARDOWN best-effort, and sent even after a stop. The usual reason the read
+     * loops above exit is the running flag clearing, so gating this on it would
+     * mean a user-initiated stop never released the session -- see the note in
+     * rtsp_send_ex. The handshake paths above skip TEARDOWN deliberately, but they
+     * are abandoning a session that was never established; this one was.
+     *
+     * The write deadline is cut right down first. This is the one request that can
+     * be issued after a stop, it runs on the demux thread, and close joins that
+     * thread without a timeout of its own -- so on the default deadline a peer that
+     * simply stops reading turns a user stop into a ten-second stall. A second is
+     * ample for a request this size against any peer still behaving, and a peer
+     * that is not gets abandoned rather than waited for. */
+    basis_io_set_send_timeout(r.io, 1000);
+    rtsp_send_ex(&r, "TEARDOWN", base_url, NULL, 1);
 
     free(pkt); free(d.au); free(d.fu); free(d.afrag);
     udp_state_close(&u);

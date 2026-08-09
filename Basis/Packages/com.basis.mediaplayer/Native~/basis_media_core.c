@@ -83,6 +83,15 @@ static void mutex_unlock(basis_mutex_t* m) {
     pthread_mutex_unlock(m);
 #endif
 }
+/* Non-zero when the lock was taken. Lets a caller holding an outer lock avoid
+ * blocking on an inner one — see audio_slot_acquire. */
+static int mutex_try_lock(basis_mutex_t* m) {
+#if defined(_WIN32)
+    return TryEnterCriticalSection(m) != 0;
+#else
+    return pthread_mutex_trylock(m) == 0;
+#endif
+}
 static void sleep_ms(int ms) {
 #if defined(_WIN32)
     Sleep((DWORD)ms);
@@ -153,14 +162,17 @@ struct basis_media_engine {
      * resolves paced/pace_delivery once it has inspected the source (run_http_like/run_hls).
      * The pace anchor (first AU's wall time + PTS) is engine-wide so a split source's two
      * legs pace against one timeline.
-     * Thread-safety: paced/pace_delivery/paced_hint are set during run setup (run_http_like/
-     * run_hls) before the demux and audio threads start, then only read — effectively
-     * immutable while pacing (thread creation publishes them to the new threads). The anchor
+     * Thread-safety: paced/pace_delivery are resolved once, on the primary demux thread's run
+     * setup (run_http_like/run_hls, guarded by demux_ctx.is_primary), then only read — including
+     * by the split-source audio leg, which never writes them. volatile like running/paused (the
+     * engine's other cross-thread flags), so a reader can't cache a stale value; a split-audio
+     * leg that reads before the primary resolves them just starts unpaced and picks up the paced
+     * clock once the value lands (pace_gate re-reads pace_delivery per AU). The anchor
      * (pace_started/wall0/base_pts) is initialised and read under e->lock in pace_gate, so a
      * split source's two demux threads share one timeline correctly on any memory model. */
-    int paced;
-    int pace_delivery;
-    int paced_hint;
+    volatile int paced;
+    volatile int pace_delivery;
+    int paced_hint;   /* set at play setup, before either demux thread starts */
     int pace_started;
     int64_t pace_wall0_us;
     int64_t pace_base_pts;
@@ -223,6 +235,10 @@ void basis_engine_set_error(basis_media_engine_t* e, const char* msg) {
     mutex_unlock(&e->lock);
 }
 
+void basis_engine_set_duration(basis_media_engine_t* e, int64_t duration_us) {
+    if (e && duration_us > 0) e->duration_us = duration_us;
+}
+
 basis_decoder_t* basis_engine_get_decoder(basis_media_engine_t* e) { return e ? e->decoder : NULL; }
 int basis_engine_is_paused(basis_media_engine_t* e) { return e ? e->paused : 0; }
 int basis_engine_is_running(basis_media_engine_t* e) { return e ? e->running : 0; }
@@ -248,36 +264,134 @@ int basis_engine_is_paced(basis_media_engine_t* e) { return e ? e->paced : 0; }
  * (a C# ABI change) — deliberately out of scope here. */
 #define BASIS_MAX_ENGINES 64
 static basis_mutex_t g_registry_lock;
-static int           g_registry_ready;
+static basis_mutex_t g_audio_lock;
+static basis_mutex_t g_audio_slot_locks[BASIS_MAX_ENGINES];
+/* Claim attempts before an audio pull gives up and serves silence for the buffer. */
+#define AUDIO_SLOT_SPINS 64
 static basis_media_engine_t* g_engines[BASIS_MAX_ENGINES];
 
+/* Written once on the main thread, read on the audio and render threads, so it
+ * is published release/acquire: a reader that observes the flag set must also
+ * see the initialised mutexes. A plain int would let the store sink past
+ * mutex_init on a weakly ordered target and hand a reader an uninitialised lock.
+ * Not <stdatomic.h> — MSVC gates C11 atomics behind /experimental:c11atomics. */
+#if defined(_WIN32)
+static volatile LONG g_registry_ready;
+#define registry_ready()     (InterlockedCompareExchange(&g_registry_ready, 0, 0) != 0)
+#define registry_ready_set() ((void)InterlockedExchange(&g_registry_ready, 1))
+#else
+static int g_registry_ready;
+#define registry_ready()     __atomic_load_n(&g_registry_ready, __ATOMIC_ACQUIRE)
+#define registry_ready_set() __atomic_store_n(&g_registry_ready, 1, __ATOMIC_RELEASE)
+#endif
+
+/* Separate locks for the render and audio legs. The render leg holds
+ * g_registry_lock across basis_decoder_render_update — present-clock work and a
+ * GPU publish — and the Unity audio callback has a hard deadline it cannot miss
+ * waiting on that, so the audio leg never touches g_registry_lock.
+ *
+ * The audio leg is itself two-tier. g_audio_lock covers only the table scan, a
+ * bounded pointer compare, and the decoder call runs under the engine's own slot
+ * lock. Unity may service AudioSources on more than one thread and each player
+ * has its own splitter, so two engines can be pulled at once; a single audio lock
+ * would serialise unrelated players behind each other's ring copy.
+ *
+ * Ordering is registry -> audio -> slot throughout, and no leg ever takes them in
+ * another order, so there is no cycle.
+ *
+ * The rule that keeps the split meaningful: g_audio_lock is never held across a
+ * wait on a slot lock. A slot lock is held for as long as a decoder read takes,
+ * so anything waiting on one while holding g_audio_lock stalls every other
+ * engine's table scan too, and the two tiers collapse back into one. */
 /* opens run on Unity's main thread, so first-use init needs no extra guard. */
 static void registry_ensure(void) {
-    if (!g_registry_ready) { mutex_init(&g_registry_lock); g_registry_ready = 1; }
+    if (!registry_ready()) {
+        mutex_init(&g_registry_lock);
+        mutex_init(&g_audio_lock);
+        for (int i = 0; i < BASIS_MAX_ENGINES; ++i) mutex_init(&g_audio_slot_locks[i]);
+        registry_ready_set();
+    }
+}
+static int registry_is_live(basis_media_engine_t* e) {   /* caller holds g_registry_lock or g_audio_lock */
+    for (int i = 0; i < BASIS_MAX_ENGINES; ++i) if (g_engines[i] == e) return 1;
+    return 0;
+}
+static int registry_index(basis_media_engine_t* e) {     /* caller holds g_audio_lock */
+    for (int i = 0; i < BASIS_MAX_ENGINES; ++i) if (g_engines[i] == e) return i;
+    return -1;
+}
+/* Claim the engine's audio slot: scan and take the slot lock under g_audio_lock,
+ * then drop it so an unrelated engine can be pulled concurrently. Holding the
+ * slot lock is what stops close freeing this engine underneath the caller. */
+static int audio_slot_acquire(basis_media_engine_t* e) {
+    /* try_lock, because a plain lock here would break the rule above: two pulls
+     * on the *same* engine (read_audio on the audio thread against
+     * get_audio_format from another) would park the second under g_audio_lock for
+     * the length of a decoder read, and every unrelated engine's table scan would
+     * queue behind it. The retry re-scans deliberately — the engine may have been
+     * removed while the slot was busy, and a stale index must not be reused. */
+    /* Bounded, because this runs on the audio callback thread against a deadline.
+     * That thread is raised above normal priority, and a yield of zero only gives
+     * up the rest of the slice to threads at or above the yielder's priority — it
+     * cannot schedule a lower-priority holder, so a loaded or single-core machine
+     * can spin here for a whole quantum. Giving up costs one buffer: both callers
+     * treat a failed claim as transient (silence, or no format read this frame),
+     * which is cheaper for audio than missing the deadline. */
+    for (int spins = 0; spins < AUDIO_SLOT_SPINS; ++spins) {
+        mutex_lock(&g_audio_lock);
+        int idx = registry_index(e);
+        if (idx < 0) { mutex_unlock(&g_audio_lock); return -1; }
+        if (mutex_try_lock(&g_audio_slot_locks[idx])) {
+            mutex_unlock(&g_audio_lock);
+            return idx;
+        }
+        mutex_unlock(&g_audio_lock);
+        sleep_ms(0);   /* yield; the holder is one decoder read from done */
+    }
+    return -1;
+}
+static void audio_slot_release(int idx) {
+    mutex_unlock(&g_audio_slot_locks[idx]);
 }
 static int registry_add(basis_media_engine_t* e) {
     registry_ensure();
     int ok = 0;
     mutex_lock(&g_registry_lock);
+    mutex_lock(&g_audio_lock);
     for (int i = 0; i < BASIS_MAX_ENGINES; ++i) if (!g_engines[i]) { g_engines[i] = e; ok = 1; break; }
+    mutex_unlock(&g_audio_lock);
     mutex_unlock(&g_registry_lock);
     return ok;   /* 0 => registry full */
 }
 static void registry_remove(basis_media_engine_t* e) {
-    if (!g_registry_ready) return;
+    if (!registry_ready()) return;
     mutex_lock(&g_registry_lock);
-    for (int i = 0; i < BASIS_MAX_ENGINES; ++i) if (g_engines[i] == e) { g_engines[i] = NULL; break; }
+    mutex_lock(&g_audio_lock);
+    int idx = registry_index(e);
+    if (idx >= 0) g_engines[idx] = NULL;
+    mutex_unlock(&g_audio_lock);
+
+    /* Drain with g_audio_lock dropped. Clearing the table entry above is what
+     * makes that safe: audio_slot_acquire looks the engine up and takes the slot
+     * lock in one go under g_audio_lock, so once the entry is gone no further
+     * pull can claim this slot and the wait below covers only the one already in
+     * flight. Holding g_audio_lock across this wait instead would park it for the
+     * length of a decoder read, and any other engine's audio callback would queue
+     * behind that on its own table scan — the exact cross-engine stall the
+     * two-tier split above exists to avoid. */
+    if (idx >= 0) {
+        mutex_lock(&g_audio_slot_locks[idx]);
+        mutex_unlock(&g_audio_slot_locks[idx]);
+    }
     mutex_unlock(&g_registry_lock);
 }
 
 void basis_engine_render_event(basis_media_engine_t* e, int event_id) {
-    if (!e || !g_registry_ready) return;
+    if (!e || !registry_ready()) return;
     mutex_lock(&g_registry_lock);
-    int live = 0;
-    for (int i = 0; i < BASIS_MAX_ENGINES; ++i) if (g_engines[i] == e) { live = 1; break; }
     /* Dispatch under the lock so registry_remove (in close) blocks until this
      * returns — the decoder can't be freed while a render event is using it. */
-    if (live && e->decoder) {
+    if (registry_is_live(e) && e->decoder) {
         if (event_id == BASIS_RENDER_UPDATE) basis_decoder_render_update(e->decoder);
         else if (event_id == BASIS_RENDER_RELEASE) basis_decoder_render_release(e->decoder);
     }
@@ -293,6 +407,11 @@ void basis_engine_render_event(basis_media_engine_t* e, int event_id) {
  * Lead stays under the decode ring's span, so no ring backpressure is needed. No-op unless
  * pace_delivery is set (VOD, or live HLS — whose own byte-rate metering is disabled). */
 #define BASIS_PACE_LEAD_US 400000
+/* The furthest past its own anchor an access unit is allowed to claim to be before
+ * the gate stops believing it. Measured from the run's first PTS, so it has to
+ * span a whole title, not one inter-AU gap — 30 days is beyond any real media
+ * timeline while keeping the arithmetic below well inside int64. */
+#define BASIS_PACE_MAX_SPAN_US (30LL * 24 * 3600 * 1000000LL)
 
 static void pace_gate(basis_media_engine_t* e, int64_t pts_us) {
     if (!e->pace_delivery) return;
@@ -309,10 +428,24 @@ static void pace_gate(basis_media_engine_t* e, int64_t pts_us) {
     wall0 = e->pace_wall0_us;
     base = e->pace_base_pts;
     mutex_unlock(&e->lock);
+    /* Work from a bounded offset against the anchor rather than the raw timestamp.
+     * Both values are container metadata, so `pts_us - base` can overflow int64,
+     * which is undefined — and the 50 ms clamp below only ever bounded how long one
+     * iteration slept, not the arithmetic deciding it. The subtraction is done
+     * unsigned so the wrap is defined, then range-tested before it is trusted.
+     *
+     * An out-of-range span delivers without pacing instead of holding: that is the
+     * same outcome as any access unit that is not ahead of the clock, whereas
+     * holding on a fabricated timestamp stalls the stream for as long as the peer
+     * likes. */
+    uint64_t span = (uint64_t)pts_us - (uint64_t)base;
+    if (pts_us <= base || span > (uint64_t)BASIS_PACE_MAX_SPAN_US) return;
+    int64_t rel = (int64_t)span;
+
     while (e->running) {
-        int64_t media_now = base + (now_us() - wall0);
-        int64_t ahead = pts_us - (media_now + BASIS_PACE_LEAD_US);
-        if (ahead <= 0) return;
+        int64_t elapsed = now_us() - wall0;
+        if (rel <= elapsed + BASIS_PACE_LEAD_US) return;
+        int64_t ahead = rel - elapsed - BASIS_PACE_LEAD_US;
         int ms = (int)(ahead / 1000);
         if (ms > 50) ms = 50;   /* cap so a stop is observed promptly */
         if (ms < 1) ms = 1;
@@ -581,7 +714,9 @@ typedef struct {
     const char* url;
     basis_url_t* parts;
     basis_media_sink_t* sink;
-    int allow_os_demux; /* Android OS-extractor fast path; primary leg only */
+    int is_primary; /* 1 = main leg; 0 = split-stream audio leg. Only the primary
+                     * resolves the engine-wide pacing flags, so the two legs don't
+                     * race to write them. */
 } demux_ctx_t;
 
 /* Prefix-replay byte source: serves a small sniffed prefix first, then delegates to
@@ -635,7 +770,8 @@ typedef struct {
     int eof;                      /* producer done (reader hit EOF/error) */
     int closing;                  /* consumer done (tells the reader to stop) */
     volatile int reseek_park;     /* consumer repositioning: reader must park */
-    volatile int reader_parked;   /* reader acknowledged the park */
+    volatile int park_epoch;      /* bumped by each park request */
+    volatile int parked_epoch;    /* the epoch the reader last parked for */
     volatile int* running;        /* engine running flag, for prompt stop */
     basis_mutex_t lock;
 } byte_ring_t;
@@ -655,6 +791,34 @@ static void ring_free(byte_ring_t* r) {
 
 /* Producer: copy n bytes in, blocking while the ring is full. Bails if the engine
  * stops or the consumer is closing. */
+/* Both handshake flags are read and written under the ring lock, on both sides.
+ * Mixing a locked write with an unlocked read gives the reading thread no
+ * ordering against the writer's release on a weakly ordered target, and leaves
+ * the load free to be hoisted out of a poll loop — the sleep between iterations
+ * is the only thing preventing that today, which is luck rather than a rule. */
+static int ring_flag(byte_ring_t* r, const volatile int* flag) {
+    mutex_lock(&r->lock);
+    int v = *flag;
+    mutex_unlock(&r->lock);
+    return v;
+}
+
+static void ring_set_flag(byte_ring_t* r, volatile int* flag, int v) {
+    mutex_lock(&r->lock);
+    *flag = v;
+    mutex_unlock(&r->lock);
+}
+
+/* Acknowledge the park request that is live right now. Reading the epoch and
+ * storing it under one lock is what makes the acknowledgement belong to a
+ * specific request: a boolean here could be left set by one reposition and read
+ * as consent by the next, which would let it run against a woken reader. */
+static void ring_ack_park(byte_ring_t* r) {
+    mutex_lock(&r->lock);
+    r->parked_epoch = r->park_epoch;
+    mutex_unlock(&r->lock);
+}
+
 static void ring_write(byte_ring_t* r, const uint8_t* data, int n, volatile int* running) {
     int off = 0;
     while (off < n) {
@@ -672,7 +836,7 @@ static void ring_write(byte_ring_t* r, const uint8_t* data, int n, volatile int*
         int closing = r->closing;
         mutex_unlock(&r->lock);
         if (off < n) {
-            if (!*running || closing || r->reseek_park) return; /* parked writes drop pre-seek bytes */
+            if (!*running || closing || ring_flag(r, &r->reseek_park)) return; /* parked writes drop pre-seek bytes */
             sleep_ms(2);   /* full: wait for the demuxer to drain */
         }
     }
@@ -711,19 +875,25 @@ typedef struct {
 
 static void reader_body(reader_args_t* a) {
     uint8_t tmp[65536];
-    while (*a->running && !a->ring->closing) {
-        if (a->ring->reseek_park) {
+    /* `closing` and `eof` go through the lock like the park flags: every write to
+     * them is made under it, so an unlocked load here would have no ordering
+     * against that write on a weak memory model. `running` is the engine's own
+     * flag, not the ring's, and stays a direct volatile read. */
+    while (*a->running && !ring_flag(a->ring, &a->ring->closing)) {
+        if (ring_flag(a->ring, &a->ring->reseek_park)) {
             /* The demuxer is repositioning the source underneath us: acknowledge
-             * and idle until it finishes (http_reseek aborts a parked read, so a
-             * blocked net_read also lands here via n <= 0). */
-            a->ring->reader_parked = 1;
+             * the request that is live and idle until it finishes (http_reseek
+             * aborts a parked read, so a blocked net_read also lands here via
+             * n <= 0). Re-acknowledged on every pass, so a request raised while
+             * this thread was already parked is picked up too. */
+            ring_ack_park(a->ring);
             sleep_ms(2);
             continue;
         }
-        if (a->ring->eof) { sleep_ms(5); continue; } /* drained; stay alive for a reseek */
+        if (ring_flag(a->ring, &a->ring->eof)) { sleep_ms(5); continue; } /* drained; stay alive for a reseek */
         int n = a->net_read(a->net_ctx, tmp, (int)sizeof(tmp));
         if (n <= 0) {
-            if (a->ring->reseek_park) continue;  /* aborted for a reseek, not EOF */
+            if (ring_flag(a->ring, &a->ring->reseek_park)) continue;  /* aborted for a reseek, not EOF */
             mutex_lock(&a->ring->lock);
             a->ring->eof = 1;
             mutex_unlock(&a->ring->lock);
@@ -760,9 +930,35 @@ typedef struct {
 static int http_reseek(void* ctx, int64_t abs_offset) {
     http_seek_src_t* s = (http_seek_src_t*)ctx;
     if (s->ring) {
+        /* Raise the request and stamp it, in one critical section so the reader
+         * cannot acknowledge a number this call never asked for. */
+        int epoch;
+        mutex_lock(&s->ring->lock);
+        epoch = ++s->ring->park_epoch;
         s->ring->reseek_park = 1;
-        s->abort_fn(s->http);            /* unblock a read the reader is parked in */
-        while (!s->ring->reader_parked && *s->running) sleep_ms(1);
+        mutex_unlock(&s->ring->lock);
+        /* Unblocks a read the reader is parked in and waits it out, so the
+         * reposition below cannot swap the source's handles under it. */
+        s->abort_fn(s->http);
+        /* Wait for an acknowledgement of *this* request. The previous
+         * reposition's acknowledgement carries an older epoch and cannot satisfy
+         * it, which is what stops a reader that has woken but not yet re-parked
+         * from reading as still parked. A stopping engine is not permission to
+         * proceed either: there is nothing worth repositioning for once the
+         * engine is going away. */
+        /* `closing` is tested as well as `running`, because the reader leaves on
+         * that flag without acknowledging the park. Today the demuxer is the only
+         * caller and it has returned before closing is ever set, so this cannot
+         * spin — but that is an ordering the call sites happen to have rather than
+         * one this loop enforces, and enforcing it here is cheaper than relying on
+         * nobody reseeking during teardown later. */
+        while (ring_flag(s->ring, &s->ring->parked_epoch) != epoch) {
+            if (!*s->running || ring_flag(s->ring, &s->ring->closing)) {
+                ring_set_flag(s->ring, &s->ring->reseek_park, 0);
+                return -1;
+            }
+            sleep_ms(1);
+        }
     } else {
         s->abort_fn(s->http);            /* demux thread is the only reader */
     }
@@ -772,9 +968,8 @@ static int http_reseek(void* ctx, int64_t abs_offset) {
         mutex_lock(&s->ring->lock);
         s->ring->head = s->ring->tail = s->ring->count = 0;
         s->ring->eof = (rc != 0);            /* failed reseek reads as end-of-stream */
+        s->ring->reseek_park = 0;            /* the acknowledged epoch stands; the next request bumps past it */
         mutex_unlock(&s->ring->lock);
-        s->ring->reader_parked = 0;
-        s->ring->reseek_park = 0;
     }
     return rc;
 }
@@ -811,7 +1006,7 @@ static void run_hls(demux_ctx_t* c) {
     /* Auto delivery (hint 0): a playlist carrying EXT-X-ENDLIST is a finished VOD
      * playlist (all segments available at once) and must be paced; a live playlist
      * has no endlist. A forced hint skips this. */
-    if (c->e->paced_hint == 0 && basis_hls_is_vod(hls))
+    if (c->is_primary && c->e->paced_hint == 0 && basis_hls_is_vod(hls))
         c->e->paced = 1;
     /* Report the timeline only when seeks will actually work (a non-zero
      * duration is the managed layer's seekability signal): TS-segment VOD.
@@ -825,7 +1020,7 @@ static void run_hls(demux_ctx_t* c) {
      * even for live (paced=0), which still presents at and converges to the live edge.
      * This replaces basis_hls.c's byte-rate token bucket (disabled there) with PTS-exact
      * AU pacing that tracks VBR and recovers from stalls. */
-    c->e->pace_delivery = 1;
+    if (c->is_primary) c->e->pace_delivery = 1;
     c->sink->on_state(c->sink->user, BASIS_MEDIA_STATE_BUFFERING);
     /* Seeks reposition inside the HLS source (segment granularity) via
      * basis_media_seek_us -> basis_hls_request_seek. There is no byte-level
@@ -849,26 +1044,23 @@ static void run_hls(demux_ctx_t* c) {
 }
 
 static void run_http_like(demux_ctx_t* c) {
-    /* HLS playlists are not a single continuous stream — hand off to the HLS
-     * source before the OS-extractor attempt (which can't stitch segments) and
-     * the plain TS/fMP4 byte-source path. (.m3u8 may carry a query.) */
-    if (contains_ci(c->parts->path, ".m3u8")) {
-        run_hls(c);
+    /* Re-check the address policy natively rather than trusting the managed gate
+     * alone. That gate runs once, in C#, against the entry URL string. This sits
+     * above every leg below, so each of them starts from a checked entry host.
+     *
+     * The entry host is all this call checks. Every leg below re-validates each
+     * redirect hop against the same policy in the byte source before connecting.
+     * Loopback and RFC1918 targets need BASIS_MEDIA_ALLOW_LOCAL, as they do
+     * everywhere else in this file. */
+    if (basis_io_host_is_blocked(c->parts->host)) {
+        c->sink->on_error(c->sink->user, "blocked host (non-global address)");
         return;
     }
 
-    /* Android: the OS extractor can demux the URL itself (TLS included). Primary
-     * leg only — an audio-only leg must feed the shared decoder's audio path, not
-     * hand a whole muxed file to the OS extractor. m2ts is also kept away from
-     * it: that container exists here to carry HDMV LPCM (stream_type 0x80),
-     * which the extractor doesn't surface — it would play the video with the
-     * audio silently missing, where the portable TS demuxer + LPCM bypass play
-     * both. */
-    int os_demux = c->allow_os_demux &&
-                   !ends_with_ci(c->parts->path, ".m2ts") && !ends_with_ci(c->parts->path, ".mts");
-    if (os_demux && basis_decoder_try_open_url(c->e->decoder, c->url)) {
-        c->sink->on_state(c->sink->user, BASIS_MEDIA_STATE_BUFFERING);
-        while (c->e->running) sleep_ms(20);
+    /* HLS playlists are not a single continuous stream — hand off to the HLS
+     * source before the plain byte-source path. (.m3u8 may carry a query.) */
+    if (contains_ci(c->parts->path, ".m3u8")) {
+        run_hls(c);
         return;
     }
 
@@ -879,20 +1071,15 @@ static void run_http_like(demux_ctx_t* c) {
     src = basis_win_http_open(c->url);   /* WinHTTP: handles http + https/TLS */
     rd = basis_win_http_read;
 #elif defined(__ANDROID__)
-    /* AMediaExtractor either took the URL (already returned above) or rejected
-     * it (unsupported live container, etc). Fall back to a JNI-backed Java
-     * HttpsURLConnection feeding the portable TS/MP4 demuxers — same path used
-     * for RTSP/RTMP. Works for both http:// and https://.
-     *
-     * Read timeout is 60s, not 15s: live streams can have brief stalls (key-
-     * frame intervals, network jitter, server buffering) that a short timeout
-     * would mistake for a dead socket. Connect timeout stays implicitly short
-     * (the open call). */
+    /* JNI-backed Java HttpsURLConnection feeding the portable demuxers, for both
+     * http:// and https://. Read timeout is 60s, not 15s: live streams stall
+     * briefly (keyframe intervals, jitter, server buffering) and a short timeout
+     * would read that as a dead socket. */
     src = basis_jni_https_open(c->url, 60000);
     rd = basis_jni_https_read;
 #else
     if (c->parts->tls) {
-        c->sink->on_error(c->sink->user, "https requires the platform TLS stack (WinHTTP/AMediaExtractor); not available on this build.");
+        c->sink->on_error(c->sink->user, "https requires the platform TLS stack (WinHTTP/JNI); not available on this build.");
         return;
     }
     src = basis_http_open(c->parts, 15000);
@@ -903,23 +1090,6 @@ static void run_http_like(demux_ctx_t* c) {
         c->sink->on_error(c->sink->user, "failed to open HTTP byte source");
         return;
     }
-
-#if defined(_WIN32) || defined(__ANDROID__)
-    /* Auto delivery (hint 0): a finite, byte-range-seekable HTTP body (known
-     * Content-Length + Accept-Ranges, or a 206 probe answer) is on-demand and
-     * arrives faster than real time, so pace it; an open-ended response is
-     * live. Set before the read-ahead gate and the first AU, so pacing is in
-     * force from the start. A forced hint skips this. Without the detection a
-     * VOD file plays at delivery speed — synchronised fast-forward. */
-#if defined(_WIN32)
-    int http_seekable = basis_win_http_is_seekable(src);
-#else
-    int http_seekable = basis_jni_https_is_seekable(src);
-#endif
-    if (c->e->paced_hint == 0 && http_seekable)
-        c->e->paced = 1;
-    c->e->pace_delivery = c->e->paced; /* VOD over HTTP paces delivery; open-ended live doesn't */
-#endif
 
     c->sink->on_state(c->sink->user, BASIS_MEDIA_STATE_BUFFERING);
 
@@ -954,11 +1124,42 @@ static void run_http_like(demux_ctx_t* c) {
         is_mp3 = ends_with_ci(c->parts->path, ".mp3");
     }
 
+#if defined(_WIN32) || defined(__ANDROID__)
+    /* Auto delivery (hint 0): a finite, byte-range-seekable HTTP body (known
+     * Content-Length + Accept-Ranges, or a 206 probe answer) is on-demand and
+     * arrives faster than real time, so pace it; an open-ended response is
+     * live. Set before the read-ahead gate and the first AU, so pacing is in
+     * force from the start. A forced hint skips this. Without the detection a
+     * VOD file plays at delivery speed — synchronised fast-forward. */
+#if defined(_WIN32)
+    int http_seekable = basis_win_http_is_seekable(src);
+#else
+    int http_seekable = basis_jni_https_is_seekable(src);
+#endif
+    /* This leg's own pacing view, for the read-ahead and reseek decisions below
+     * — those are taken once, off THIS source's seekability. The engine-wide
+     * flags stay primary-only (pace_gate reads them, shared timeline), but the
+     * audio leg can't read them here: it may reach this point before the primary
+     * resolves them, and would then run permanently without read-ahead or a
+     * reseek hook. Mirrors the primary's resolution: forced on-demand (hint 2,
+     * pre-set) or auto over a seekable body. */
+    int leg_paced = (c->e->paced_hint == 2) || (c->e->paced_hint == 0 && http_seekable);
+    if (c->is_primary) {
+        if (c->e->paced_hint == 0 && http_seekable)
+            c->e->paced = 1;
+        c->e->pace_delivery = c->e->paced; /* VOD over HTTP paces delivery; open-ended live doesn't */
+    }
+    BASIS_LOGI("http VOD detect: primary=%d seekable=%d hint=%d paced=%d pace_delivery=%d",
+               c->is_primary, http_seekable, c->e->paced_hint, c->e->paced, c->e->pace_delivery);
+#else
+    int leg_paced = c->e->paced;   /* no http_seekable here; paced is the pre-set hint value */
+#endif
+
     /* Paced (VOD): drain the network into a read-ahead ring on a reader thread and
      * demux from the ring at the paced rate, so bursty CDN delivery doesn't starve
      * playback. Live: demux straight off the network read (no added latency). */
     byte_ring_t ring;
-    int use_readahead = c->e->paced && ring_init(&ring, BASIS_READAHEAD_CAP);
+    int use_readahead = leg_paced && ring_init(&ring, BASIS_READAHEAD_CAP);
     basis_read_fn demux_read = prefix_read;
     void* demux_ctx = &ps;
     basis_thread_t reader;
@@ -985,7 +1186,7 @@ static void run_http_like(demux_ctx_t* c) {
 #if defined(_WIN32)
     http_seek_src_t seek_src = { src, use_readahead ? &ring : NULL, &ps, &c->e->running,
                                  basis_win_http_abort, basis_win_http_reseek };
-    if (c->e->paced && basis_win_http_can_reseek(src)) {
+    if (leg_paced && basis_win_http_can_reseek(src)) {
         reseek = http_reseek;
         reseek_ctx = &seek_src;
         stream_size = basis_win_http_content_length(src);
@@ -993,7 +1194,7 @@ static void run_http_like(demux_ctx_t* c) {
 #elif defined(__ANDROID__)
     http_seek_src_t seek_src = { src, use_readahead ? &ring : NULL, &ps, &c->e->running,
                                  basis_jni_https_abort, basis_jni_https_reseek };
-    if (c->e->paced && basis_jni_https_can_reseek(src)) {
+    if (leg_paced && basis_jni_https_can_reseek(src)) {
         reseek = http_reseek;
         reseek_ctx = &seek_src;
         stream_size = basis_jni_https_content_length(src);
@@ -1015,12 +1216,20 @@ static void run_http_like(demux_ctx_t* c) {
 
     if (use_readahead) {
         mutex_lock(&ring.lock); ring.closing = 1; mutex_unlock(&ring.lock); /* tell the reader to stop */
+        /* The reader may be parked in a blocking read; abort so it returns at once
+         * and the join can't stall on a stalled socket (src is the byte source). */
 #if defined(_WIN32)
-        /* The reader may be parked in WinHttpReadData; abort the request so the read returns
-         * at once and the join can't stall on a stalled socket (src is the WinHTTP handle). */
         basis_win_http_abort(src);
         WaitForSingleObject(reader, INFINITE); CloseHandle(reader);
 #else
+#if defined(__ANDROID__)
+        basis_jni_https_abort(src);
+#else
+        /* The portable source needs the same courtesy: without it the join waits
+         * out the socket's read timeout rather than returning at once, which is
+         * the whole reason the other two abort here. */
+        basis_http_abort(src);
+#endif
         pthread_join(reader, NULL);
 #endif
         ring_free(&ring);
@@ -1372,9 +1581,12 @@ BASIS_API void BASIS_CALL basis_media_close(basis_media_engine_t* e) {
     if (!e) return;
 
     /* Deregister first, before anything is torn down: this blocks until any
-     * in-flight render event returns and makes every later one a no-op, so no
-     * render callback can touch the decoder while the demux threads are still
-     * exiting or the decoder is being freed. */
+     * in-flight render event or audio pull returns and makes every later one a
+     * no-op, so neither can touch the decoder while the demux threads are still
+     * exiting or the decoder is being freed. The host cannot provide that
+     * guarantee for the audio thread — Unity keeps servicing the audio graph for
+     * a frame or more after the managed source is dropped — so it is enforced
+     * here rather than assumed. */
     registry_remove(e);
 
     /* Stop the demux threads so nothing submits while we tear down. Both legs
@@ -1539,15 +1751,32 @@ BASIS_API uint64_t BASIS_CALL basis_media_get_frame_counter(basis_media_engine_t
     return basis_decoder_get_frame_counter(e->decoder);
 }
 
+/* The two audio-thread entry points validate `e` against the registry before the
+ * first dereference and hold the engine's audio slot lock across the call, so
+ * close blocks until an in-flight pull returns and every later one is a no-op
+ * against a freed engine. g_audio_lock covers only the scan that claims the slot,
+ * per the two-tier design above. The decoder is loaded once into a local: a
+ * second fetch could observe a different value than the one the NULL check
+ * passed. */
 BASIS_API int BASIS_CALL basis_media_get_audio_format(basis_media_engine_t* e, int* rate, int* ch) {
-    if (!e || !e->decoder) return -1;
-    return basis_decoder_get_audio_format(e->decoder, rate, ch);
+    if (!e || !registry_ready()) return -1;
+    int idx = audio_slot_acquire(e);
+    if (idx < 0) return -1;
+    basis_decoder_t* d = e->decoder;
+    int r = d ? basis_decoder_get_audio_format(d, rate, ch) : -1;
+    audio_slot_release(idx);
+    return r;
 }
 
 BASIS_API int BASIS_CALL basis_media_read_audio(basis_media_engine_t* e, float* out, int max_floats) {
-    if (!e || !e->decoder || !out || max_floats <= 0) return 0;
-    if (e->paused) return 0; /* silence while paused */
-    return basis_decoder_read_audio(e->decoder, out, max_floats);
+    if (!e || !out || max_floats <= 0 || !registry_ready()) return 0;
+    int idx = audio_slot_acquire(e);
+    if (idx < 0) return 0;
+    basis_decoder_t* d = e->decoder;
+    int n = (d && !e->paused) /* silence while paused */
+          ? basis_decoder_read_audio(d, out, max_floats) : 0;
+    audio_slot_release(idx);
+    return n;
 }
 
 /* The render-event function lives in the platform glue (basis_unity_plugin.cpp);

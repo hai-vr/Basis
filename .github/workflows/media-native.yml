@@ -1,17 +1,19 @@
-# Builds librist from source — the only third-party native dependency of the Media
-# Player's optional RIST transport (-DBASIS_WITH_RIST=ON). librist vendors its own
-# mbedTLS and links it into a single static archive, so each job produces one lib.
-# The statics are never committed; this workflow keeps the from-source build green
-# on every change under Native~/ and publishes the archives as downloadable artifacts.
+# CI for the Media Player's native core, in two halves: two jobs build librist from
+# source, and two gate the plugin's own parsers (fuzz and conformance, documented at
+# their job definitions below).
 #
-# Scope is librist only, not the plugin binary: basis_media_native's real backends
+# librist is the only third-party native dependency, and only of the optional RIST
+# transport (-DBASIS_WITH_RIST=ON). It vendors its own mbedTLS and links it into a
+# single static archive, so each build job produces one lib. The statics are never
+# committed; those jobs keep the from-source build green and publish the archives as
+# downloadable artifacts. Both run the same build-librist scripts a developer runs
+# locally, so the recipe has one home.
+#
+# The plugin binary itself is not built here: basis_media_native's real backends
 # include Unity's PluginAPI headers, which ship with the editor and aren't available
-# here, so the plugin (.dll/.so) is still built on a Unity-equipped machine. Both jobs
-# run the same build-librist scripts a developer runs locally — the recipe has one home.
-#
-# Note: workflow_dispatch only appears in the Actions UI once this file is on the
-# default branch; until then the pull_request trigger exercises it on PRs.
-name: media-native (RIST)
+# on a runner, so the .dll/.so is still built on a Unity-equipped machine. The gate
+# jobs reach the parser layer instead — plain C, no Unity dependency.
+name: media-native
 
 on:
   workflow_dispatch:

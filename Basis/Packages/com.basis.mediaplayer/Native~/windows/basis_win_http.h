@@ -1,6 +1,8 @@
 /* WinHTTP byte source for http:// and https:// live streams on Windows.
- * Handles TLS, redirects and chunked transfer transparently; the demuxers just
- * pull bytes via basis_win_http_read (basis_read_fn-compatible). */
+ * Handles TLS and chunked transfer transparently; the demuxers just pull bytes
+ * via basis_win_http_read (basis_read_fn-compatible). Redirects are followed
+ * here rather than by WinHTTP so each hop's target goes through the same address
+ * policy as the entry URL. */
 #ifndef BASIS_WIN_HTTP_H
 #define BASIS_WIN_HTTP_H
 
@@ -34,8 +36,8 @@ int   basis_win_http_can_reseek(void* ctx);
  * the Content-Length captured at open; used by the Ogg demuxer for granule seek. */
 long long basis_win_http_content_length(void* ctx);
 
-/* Continues the stream from an absolute byte offset by issuing a ranged GET on the
- * same connection (requires a 206 response; a server that ignores Range fails the
+/* Continues the stream from an absolute byte offset by re-issuing the opened URL
+ * as a ranged GET (requires a 206 response; a server that ignores Range fails the
  * call rather than silently restarting at 0). Only valid on a seekable body, with
  * no basis_win_http_read concurrently in flight — park or abort the reading thread
  * first (a prior basis_win_http_abort is fine; this opens a fresh request).

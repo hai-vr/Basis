@@ -25,13 +25,34 @@ for tcdir in "$here"/testcases/*/; do
     shopt -s nullglob
     cases=("$tcdir"*)
     shopt -u nullglob
+    # A repro that proves a *bound* rather than a crash needs libFuzzer told what
+    # the bound is: replaying an allocation cap without -malloc_limit_mb passes
+    # whether or not the cap still exists. Targets that need such flags carry
+    # them in testcases/<target>/replay-opts, which is not itself a repro.
+    opts=()
+    if [ -f "$tcdir/replay-opts" ]; then
+        # One option per line into an array, and the case list filtered by a
+        # loop: a command substitution would word-split and glob any testcase
+        # name carrying whitespace or a metacharacter, handing libFuzzer
+        # something other than the repro.
+        while IFS= read -r opt || [ -n "$opt" ]; do
+            opt="${opt%$'\r'}"   # a Windows checkout gives this file CRLF
+            [[ "$opt" =~ ^[[:space:]]*($|#) ]] && continue
+            opts+=("$opt")
+        done < "$tcdir/replay-opts"
+        keep=()
+        for c in "${cases[@]}"; do
+            [ "$(basename "$c")" = "replay-opts" ] || keep+=("$c")
+        done
+        cases=("${keep[@]}")
+    fi
     [ ${#cases[@]} -eq 0 ] && continue
     echo "fuzz_${target}: replaying ${#cases[@]} repro(s)"
     for c in "${cases[@]}"; do
         total=$((total + 1))
         # -timeout so a non-crashing parser loop fails fast instead of hanging
         # the gate for libFuzzer's default 1200 s.
-        if "$exe" -timeout=30 "$c" >/tmp/fuzz_replay.log 2>&1; then
+        if "$exe" -timeout=30 "${opts[@]}" "$c" >/tmp/fuzz_replay.log 2>&1; then
             echo "  ok    $(basename "$c")"
         else
             echo "  CRASH $(basename "$c")"

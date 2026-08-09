@@ -15,7 +15,27 @@
  * Threading contract:
  *   - basis_media_open/close/play/pause/stop and all getters are safe to call
  *     from the Unity main thread.
- *   - basis_media_read_audio is called from the Unity audio thread only.
+ *   - basis_media_read_audio and basis_media_get_audio_format are called from
+ *     the Unity audio thread. They are safe to call concurrently with
+ *     basis_media_close: a pull already under way when close begins completes
+ *     against a live engine, because close blocks for its duration. The host
+ *     does not have to quiesce the audio thread first.
+ *
+ *     A pull that starts after close has begun is validated against an internal
+ *     registry before the engine is dereferenced, and returns instead of
+ *     touching freed memory — read_audio returns 0 and get_audio_format returns
+ *     -1. Those are the same values an empty ring and an unknown format give,
+ *     and that is deliberate: a caller has no use for the distinction, since
+ *     both mean "no audio this callback" and the correct response to either is
+ *     silence.
+ *
+ *     That second property is a safety net, not a licence to keep the handle.
+ *     The registry matches on the pointer, so once the engine is freed a later
+ *     basis_media_open can hand back the same address, and a call still using
+ *     the stale handle would be accepted as belonging to the new engine. Drop
+ *     the handle when close returns, as any C API requires; the net is there to
+ *     make the audio thread's own in-flight window safe, not to support calls
+ *     issued after the host has moved on.
  *   - The function returned by basis_media_get_render_event_func runs on the
  *     Unity render thread only (issued via CommandBuffer.IssuePluginEventAndData).
  *   - basis_media_get_texture returns a handle that is only valid to bind after
@@ -221,7 +241,21 @@ BASIS_API int BASIS_CALL basis_media_get_audio_format(basis_media_engine_t* engi
 
 /* Pull up to max_floats interleaved float samples [-1,1] into `out`. Returns the
  * number of floats actually written; the caller zero-fills the remainder. Never
- * blocks. */
+ * waits on the network, and never waits on another engine's pull — but it does
+ * hold this engine's audio slot across one decoder read. A second concurrent pull
+ * on the same engine does not wait for that read: it retries the slot a bounded
+ * number of times and then serves silence for that buffer. The brief drain in
+ * close does wait for the read.
+ * Size an audio-callback deadline on that, not on "never blocks". The fence is
+ * two-tier and close touches both tiers: it holds the shared registry lock across
+ * the table write that removes the engine *and* the drain that follows it, and it
+ * is the shared audio lock that it releases before draining. So close can block
+ * this call for the table write; past that the entry is cleared, so the call
+ * returns immediately rather than waiting on the drain. An unrelated engine's
+ * pull is never held behind the drain either, which waits only on this engine's
+ * own audio slot. A render event, which takes the registry lock,
+ * does wait for the drain's full duration. close never waits on a render event
+ * while holding either. */
 BASIS_API int BASIS_CALL basis_media_read_audio(basis_media_engine_t* engine, float* out, int max_floats);
 
 /* ---- Unity render-thread entry ------------------------------------------ */
