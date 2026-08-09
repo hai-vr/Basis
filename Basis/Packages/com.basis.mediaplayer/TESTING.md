@@ -445,24 +445,39 @@ https→http case the row above requires to be refused. An `http`→`https` **up
 is worth checking separately; only the downgrade is refused. A self-redirect must terminate rather
 than spin.
 
-**Android's OS-extractor leg is inside this matrix, and the fixture extension decides whether you
-are testing it.** On Android a URL that is not `.m3u8`, `.m2ts` or `.mts` goes to `AMediaExtractor`
-first, and only falls through to the JNI source plus the portable demuxers if the extractor declines
-it. The extractor reads through the JNI source rather than fetching the URL itself, so the hop loop
-covers both legs — but they are different code, and a `.ts` fixture only ever exercises the fallback.
-Run at least the loopback, DNS-to-loopback and downgrade rows against an `.mp4` fixture on Android
-so the extractor leg is the one under test, and record which extension each row used. The client-side
-gate is a second reason to be careful here: `BasisMediaUrlRouter.IsDirectlyPlayable` requires the URI
-path to end in a media extension once the query is stripped, so an extensionless redirect fixture is
-rejected in C# and never reaches native at all.
+**RIST host SSRF** (opt-in `-DBASIS_WITH_RIST=ON` build only) — librist opens and resolves its own
+UDP sockets, so the transport sits outside the `basis_io` connect-time guard the other lanes share.
+`basis_rist_open` closes that by resolving and vetting the host itself and pinning librist to the
+validated address literal. The subtlety when testing it: a `rist://` host is the **entry** URL, so
+the C# gate (`BasisMediaPlayerSecurity`) already refuses a literal private target or a hostname that
+resolves to a private address before native runs — a plain `rist://192.168.x.x` never reaches
+`basis_rist_open` at all, unlike the HLS/redirect lanes where the private target hides in a
+sub-resource the C# gate never sees. The native guard is therefore a rebind backstop, exercised only
+by a target that passes the C# check but is private by the time native resolves: a DNS-rebinding
+fixture whose name answers a public address first and a private one on the next lookup. Point librist
+at it and watch the private listener — it must see **no UDP at all**. `BASIS_MEDIA_ALLOW_LOCAL` is
+not a way in here: it does not relax the C# gate, so it cannot carry a private literal through to
+native. Where no rebind fixture is available, exercise `basis_io_resolve_checked` directly against
+the loopback/RFC1918/link-local set and record that the stream lane was skipped. This whole lane
+only applies to the RIST-enabled build: in the default build `rist://` still passes the scheme
+allowlist (it is listed there), reaches native, and is declined by the stub `basis_rist_open` with
+a clear "RIST is not built into this plugin — rebuild with `-DBASIS_WITH_RIST=ON`" error on the sink;
+playback fails and the SSRF guard above does not exist in that build.
 
-**Android extractor playback and seek** — the extractor's byte source is the JNI HTTP source, so any
-change to either wants a plain regression pass behind it: play a large progressive `.mp4` over
-https, seek forwards and backwards several times, and confirm the position tracks and audio stays in
-sync. A source that cannot be re-requested by range is declined up front and falls through to the
-portable demuxers, so a fixture served without `Accept-Ranges` should still play — just not through
-the extractor. Worth confirming both outcomes rather than only the happy one, since a regression that
-silently pushes everything down the fallback path looks identical from the sofa.
+**The client-side extension gate shapes which redirect fixtures reach native.**
+`BasisMediaUrlRouter.IsDirectlyPlayable` requires the URL path to end in a media extension once the
+query is stripped, so an extensionless redirect fixture is rejected in C# and never reaches the
+native source at all — give the fixture a real media extension on its final path when exercising the
+redirect rows. On Android there is no OS-extractor leg: MP4/WebM demux through the same portable path
+as Windows, fed by the JNI HTTP source, so the extension you pick selects the container under test,
+not a separate code path, and the SSRF hop loop is shared across all of them.
+
+**Android progressive playback and seek** — MP4/WebM demux through the portable path fed by the JNI
+HTTP source, so any change to either wants a plain regression pass behind it: play a large
+progressive `.mp4` over https, seek forwards and backwards several times, and confirm the position
+tracks and audio stays in sync. Use a byte-range server (`206` + a valid `Content-Range`) for the
+seek path; the no-`Accept-Ranges` and trailing-moov cases carry their own expectations in the
+**Trailing-moov progressive MP4** row above.
 
 **A/V sync judgement** — use real footage with **visible speech**; synthetic patterns hide sync
 drift, and Big Buck Bunny has no dialogue at all. A CC-BY Blender open
