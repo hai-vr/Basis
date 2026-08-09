@@ -71,7 +71,7 @@ namespace BasisDidLink
             public Did Did;
             public NetPeer Peer;
 
-            public bool Equals(OnAuth other) => ReferenceEquals(Peer, other.Peer);
+            public bool Equals(OnAuth other) => object.Equals(Peer, other.Peer);
             public override bool Equals(object obj) => obj is OnAuth other && Equals(other);
             public override int GetHashCode() => Peer?.GetHashCode() ?? 0;
         }
@@ -138,7 +138,7 @@ namespace BasisDidLink
                         }
                         return;
                     }
-                    if (AuthIdentity.TryGetValue(newPeer.Id, out OnAuth Stale) && !ReferenceEquals(Stale.Peer, newPeer))
+                    if (AuthIdentity.TryGetValue(newPeer.Id, out OnAuth Stale) && !Equals(Stale.Peer, newPeer))
                     {
                         BNL.Log($"Auth slot {newPeer.Id} still held by a stale connection; releasing it for the incoming peer.");
                         RemoveConnection(newPeer.Id, Stale.Peer);
@@ -317,7 +317,7 @@ namespace BasisDidLink
             else
             {
                 Removed = AuthIdentity.TryGetValue(Id, out Entry)
-                       && ReferenceEquals(Entry.Peer, Expected)
+                       && Equals(Entry.Peer, Expected)
                        && ((ICollection<KeyValuePair<int, OnAuth>>)AuthIdentity)
                               .Remove(new KeyValuePair<int, OnAuth>(Id, Entry));
             }
@@ -421,7 +421,7 @@ namespace BasisDidLink
 
         public bool NetIDToUUID(NetPeer Peer, out string UUID)
         {
-            if (Peer != null && AuthIdentity.TryGetValue(Peer.Id, out OnAuth OnAuth) && ReferenceEquals(OnAuth.Peer, Peer))
+            if (Peer != null && AuthIdentity.TryGetValue(Peer.Id, out OnAuth OnAuth) && Equals(OnAuth.Peer, Peer))
             {
                 UUID = OnAuth.Did.V;
                 return true;

@@ -726,6 +726,26 @@ public class BasisReconnectStateTests
     }
 
     [Fact]
+    public void DisconnectArrivingOnADifferentWrapper_StillTearsThePeerDown()
+    {
+        using var scope = new ServerStaticsScope();
+        InstallServer();
+        MapAuthIdentity identity = (MapAuthIdentity)NetworkServer.AuthIdentity;
+
+        int id = LifecycleSupport.NextPeerId();
+        FakeNetPeer connected = LifecycleSupport.Peer(id);
+        string uuid = LifecycleSupport.NewUuid();
+        identity.Register(uuid, id, connected);
+        BasisServerHandleEvents.OnNetworkAccepted(connected, LifecycleSupport.MakeReady(uuid, "Wrapped"), uuid);
+        Assert.True(NetworkServer.AuthenticatedPeers.ContainsKey(id));
+
+        BasisServerHandleEvents.HandlePeerDisconnected(connected.Wrap(), Info());
+
+        Assert.False(NetworkServer.AuthenticatedPeers.ContainsKey(id));
+        Assert.Contains(id, identity.Released);
+    }
+
+    [Fact]
     public void StaleDisconnect_DoesNotReleaseTheLivePeersAuthState()
     {
         using var scope = new ServerStaticsScope();

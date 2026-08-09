@@ -19,11 +19,32 @@ namespace BasisServerTests;
 
 internal sealed class FakeNetPeer : NetPeer
 {
+    // Stands in for the transport peer the real LNLNetPeer wraps. LNLNetPeer is allocated fresh on
+    // every event — connect, disconnect, each received packet — and gets its identity from this,
+    // not from the wrapper object, so anything comparing peers with ReferenceEquals is always false
+    // in production while looking correct in a test that reuses one instance.
+    private readonly object _connection;
+
     public FakeNetPeer(int id, string address)
     {
         Id = id;
         Address = IPAddress.Parse(address);
+        _connection = new object();
     }
+
+    private FakeNetPeer(int id, IPAddress address, object connection)
+    {
+        Id = id;
+        Address = address;
+        _connection = connection;
+    }
+
+    /// <summary>A distinct wrapper object over the same connection, as the transport hands out.</summary>
+    public FakeNetPeer Wrap() => new(Id, Address, _connection);
+
+    public override bool Equals(object obj) => obj is FakeNetPeer other && ReferenceEquals(_connection, other._connection);
+
+    public override int GetHashCode() => _connection.GetHashCode();
 
     public List<(byte[] Data, byte Channel, DeliveryMethod Method)> Sent { get; } = new();
     public List<byte[]> DisconnectData { get; } = new();
@@ -94,7 +115,7 @@ internal sealed class MapAuthIdentity : IAuthIdentity
 
     public bool RemoveConnection(int Id, NetPeer Expected)
     {
-        if (Expected != null && _owner.TryGetValue(Id, out NetPeer? owner) && !ReferenceEquals(owner, Expected))
+        if (Expected != null && _owner.TryGetValue(Id, out NetPeer? owner) && !Equals(owner, Expected))
         {
             return false;
         }

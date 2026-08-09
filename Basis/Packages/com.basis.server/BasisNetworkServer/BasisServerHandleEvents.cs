@@ -368,7 +368,7 @@ namespace BasisServerHandle
             // owns the slot dismantles the live peer's state instead — the "direct connect works,
             // then dies after a rejoin" symptom. An id held by nobody still cleans up, so a peer
             // rejected before auth completed keeps releasing whatever partial state it made.
-            if (NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer holder) && !ReferenceEquals(holder, peer))
+            if (NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer holder) && !Equals(holder, peer))
             {
                 return false;
             }
@@ -645,7 +645,7 @@ namespace BasisServerHandle
                 // stale because LNL will not hand us two live peers with the same Id —
                 // evict it synchronously and retry the insert.
                 if (NetworkServer.AuthenticatedPeers.TryGetValue(PeerId, out NetPeer stale) &&
-                    !ReferenceEquals(stale, newPeer))
+                    !Equals(stale, newPeer))
                 {
                     BNL.Log($"Reconnect collision on peer id {PeerId}; evicting stale entry and accepting new connection.");
                     CleanupPeerSubsystems(stale, PeerId);

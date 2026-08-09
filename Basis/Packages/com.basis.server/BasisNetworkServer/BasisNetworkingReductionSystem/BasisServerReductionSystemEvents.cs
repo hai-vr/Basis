@@ -2723,7 +2723,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // until the id happened to be reused. Only ever create state for the peer that
             // currently owns the id.
             if (!playerStates.TryGetValue(id, out _) &&
-                (!NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer livePeer) || !ReferenceEquals(livePeer, message.FromPeer)))
+                (!NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer livePeer) || !Equals(livePeer, message.FromPeer)))
             {
                 QueuedMessagePool.Return(message);
                 return;
@@ -2831,7 +2831,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // would never receive avatar data. Refresh the Peer ref and treat the
                 // next frame as the first frame so the sequence-delta check doesn't
                 // drop it against the previous player's last sequence.
-                if (!ReferenceEquals(state.Peer, message.FromPeer))
+                if (!Equals(state.Peer, message.FromPeer))
                 {
                     state.Peer = message.FromPeer;
                     state.HasReceivedFirst = false;
