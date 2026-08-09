@@ -19,6 +19,7 @@
 #include <librist/receiver.h>
 #include <librist/peer.h>
 #include <librist/logging.h>
+#include "basis_io.h"       /* basis_io_resolve_checked (SSRF guard) */
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -119,6 +120,20 @@ void* basis_rist_open(const basis_url_t* parts, basis_media_sink_t* sink) {
     c->sink = sink;
     if (ring_init(&c->ring, BASIS_RIST_RING_BYTES) != 0) { free(c); return NULL; }
 
+    /* librist owns its own sockets and re-resolves the host at connect time, so the
+     * basis_io SSRF gate never runs on this path. Resolve and vet the host here, then
+     * pin librist to the validated literal below so it cannot resolve to a different
+     * (private) address between this check and its connect. Fail closed on a blocked
+     * or unresolvable host, the same policy basis_io_connect applies. */
+    char vetted_ip[64];
+    int vetted_family = 0;
+    if (basis_io_resolve_checked(parts->host, vetted_ip, (int)sizeof(vetted_ip), &vetted_family) != 0) {
+        if (sink && sink->on_error)
+            sink->on_error(sink->user, "RIST: refused blocked or unresolvable host.");
+        basis_rist_close(c);
+        return NULL;
+    }
+
     /* Reconstruct the rist:// URL for librist's parser. It wants
      * "rist://host:port[?query]" with NO path — a trailing '/' makes it mis-parse the
      * host/port entirely. parts->path holds the query (with any leading '/'), so pass
@@ -153,6 +168,16 @@ void* basis_rist_open(const basis_url_t* parts, basis_media_sink_t* sink) {
         return NULL;
     }
     peer_cfg->initiate_conn = 1;  /* caller: open an outbound flow to the broadcaster */
+
+    /* Pin librist to the address vetted above. Setting address_family routes librist
+     * onto its manual-sockdata path, which treats peer_cfg->address as a literal (no
+     * re-resolution, closing the window between the SSRF check and librist's connect)
+     * but takes the port from peer_cfg->physical_port rather than the address string —
+     * and rist_parse_address2 never populates physical_port. Carry the URL port across
+     * explicitly, or librist resolves the literal against port 0 and sends nowhere. */
+    snprintf(peer_cfg->address, sizeof(peer_cfg->address), "%s", vetted_ip);
+    peer_cfg->address_family = vetted_family;
+    peer_cfg->physical_port = (uint16_t)parts->port;
 
     struct rist_peer* peer = NULL;
     int peer_rc = rist_peer_create(c->receiver, &peer, peer_cfg);

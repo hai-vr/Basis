@@ -234,6 +234,43 @@ int basis_io_host_is_blocked(const char* host) {
     return blocked;
 }
 
+int basis_io_resolve_checked(const char* host, char* out_ip, int out_cap, int* out_family) {
+    if (!host || !host[0] || !out_ip || out_cap <= 0) return -1;
+
+    /* Same bracket handling as basis_io_host_is_blocked: a URL authority hands an
+     * IPv6 literal over in brackets, but getaddrinfo wants it bare. */
+    char bare[256];
+    size_t hl = strlen(host);
+    if (host[0] == '[') {
+        if (hl < 3 || host[hl - 1] != ']' || hl - 2 >= sizeof(bare)) return -1;
+        memcpy(bare, host + 1, hl - 2);
+        bare[hl - 2] = 0;
+        host = bare;
+    }
+
+    struct addrinfo hints, *res = NULL, *ai;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    if (getaddrinfo(host, NULL, &hints, &res) != 0 || !res) return -1;
+
+    /* Pick the first allowed address, exactly as basis_io_connect does: skip a
+     * non-global one rather than blocking the whole name, since pinning to the
+     * chosen literal means the skipped address can never be reached. */
+    int allow_local = local_allowed();
+    int rc = -1;
+    for (ai = res; ai; ai = ai->ai_next) {
+        if (!allow_local && sockaddr_is_blocked(ai->ai_addr)) continue;
+        if (getnameinfo(ai->ai_addr, (socklen_t)ai->ai_addrlen, out_ip, (socklen_t)out_cap,
+                        NULL, 0, NI_NUMERICHOST) != 0) continue;
+        if (out_family) *out_family = ai->ai_family;
+        rc = 0;
+        break;
+    }
+    freeaddrinfo(res);
+    return rc;
+}
+
 basis_io_t* basis_io_connect(const char* host, int port, int timeout_ms) {
     if (!host || port <= 0) return NULL;
 
