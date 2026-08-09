@@ -66,11 +66,20 @@ internal sealed class MapAuthIdentity : IAuthIdentity
 {
     private readonly ConcurrentDictionary<string, int> _uuidToId = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<int, string> _idToUuid = new();
+    private readonly ConcurrentDictionary<int, NetPeer> _owner = new();
+
+    public readonly List<int> Released = new();
 
     public void Register(string uuid, int netId)
     {
         _uuidToId[uuid] = netId;
         _idToUuid[netId] = uuid;
+    }
+
+    public void Register(string uuid, int netId, NetPeer owner)
+    {
+        Register(uuid, netId);
+        _owner[netId] = owner;
     }
 
     public void ProcessConnection(Configuration Configuration, ConnectionRequest ConnectionRequest, NetPeer NetPeer)
@@ -81,7 +90,22 @@ internal sealed class MapAuthIdentity : IAuthIdentity
     {
     }
 
-    public void RemoveConnection(int NetPeer) => _idToUuid.TryRemove(NetPeer, out _);
+    public void RemoveConnection(int NetPeer) => RemoveConnection(NetPeer, null);
+
+    public bool RemoveConnection(int Id, NetPeer Expected)
+    {
+        if (Expected != null && _owner.TryGetValue(Id, out NetPeer? owner) && !ReferenceEquals(owner, Expected))
+        {
+            return false;
+        }
+        if (!_idToUuid.TryRemove(Id, out _))
+        {
+            return false;
+        }
+        _owner.TryRemove(Id, out _);
+        lock (Released) { Released.Add(Id); }
+        return true;
+    }
 
     public bool NetIDToUUID(NetPeer Peer, out string UUID)
     {

@@ -64,11 +64,16 @@ namespace BasisDidLink
             return Encoding.UTF8.GetString(compressedBytes, 0, compressedBytes.Length);
         }
 
-        public struct OnAuth
+        public struct OnAuth : IEquatable<OnAuth>
         {
             public ReadyMessage ReadyMessage;
             public Challenge Challenge;
             public Did Did;
+            public NetPeer Peer;
+
+            public bool Equals(OnAuth other) => ReferenceEquals(Peer, other.Peer);
+            public override bool Equals(object obj) => obj is OnAuth other && Equals(other);
+            public override int GetHashCode() => Peer?.GetHashCode() ?? 0;
         }
         public int CheckForDuplicates(Did Did)
         {
@@ -133,6 +138,12 @@ namespace BasisDidLink
                         }
                         return;
                     }
+                    if (AuthIdentity.TryGetValue(newPeer.Id, out OnAuth Stale) && !ReferenceEquals(Stale.Peer, newPeer))
+                    {
+                        BNL.Log($"Auth slot {newPeer.Id} still held by a stale connection; releasing it for the incoming peer.");
+                        RemoveConnection(newPeer.Id, Stale.Peer);
+                    }
+
                     if (Configuration.HowManyDuplicateAuthCanExist <= CheckForDuplicates(playerDid))
                     {
                         BasisServerHandleEvents.RejectWithReason(newPeer, "To Many Auths From this DID!");
@@ -143,7 +154,8 @@ namespace BasisDidLink
                     {
                         Did = playerDid,
                         Challenge = MakeChallenge(playerDid),
-                        ReadyMessage = readyMessage
+                        ReadyMessage = readyMessage,
+                        Peer = newPeer
                     };
 
                     if (AuthIdentity.TryAdd(newPeer.Id, OnAuth))
@@ -206,16 +218,12 @@ namespace BasisDidLink
             try
             {
                 await Task.Delay(GetAuthTimeoutMs(NetworkServer.Server?.ConnectedPeersCount ?? 0), cts.Token);
-                if (!_timeouts.ContainsKey(newPeer.Id)) return;
-                if (AuthIdentity.TryRemove(newPeer.Id, out OnAuth TimedOut))
+                if (!RemoveConnection(newPeer.Id, newPeer))
                 {
-                    ReleaseDid(TimedOut.Did);
+                    return;
                 }
-                _timeouts.TryRemove(newPeer.Id, out _);
-                cts.Dispose();
                 BNL.Log($"Authentication timeout for {UUID}.");
                 BasisServerHandleEvents.RejectWithReason(newPeer, "Authentication timeout");
-                newPeer.Disconnect();
             }
             catch (TaskCanceledException) { }
         }
@@ -295,15 +303,37 @@ namespace BasisDidLink
 
         public void RemoveConnection(int NetPeer)
         {
-            if (AuthIdentity.TryRemove(NetPeer, out var authIdentity))
+            RemoveConnection(NetPeer, null);
+        }
+
+        public bool RemoveConnection(int Id, NetPeer Expected)
+        {
+            bool Removed;
+            OnAuth Entry;
+            if (Expected == null)
             {
-                ReleaseDid(authIdentity.Did);
+                Removed = AuthIdentity.TryRemove(Id, out Entry);
             }
-            if (_timeouts.TryRemove(NetPeer, out var cts))
+            else
+            {
+                Removed = AuthIdentity.TryGetValue(Id, out Entry)
+                       && ReferenceEquals(Entry.Peer, Expected)
+                       && ((ICollection<KeyValuePair<int, OnAuth>>)AuthIdentity)
+                              .Remove(new KeyValuePair<int, OnAuth>(Id, Entry));
+            }
+
+            if (!Removed)
+            {
+                return false;
+            }
+
+            ReleaseDid(Entry.Did);
+            if (_timeouts.TryRemove(Id, out var cts))
             {
                 try { cts.Cancel(); } catch { }
                 cts.Dispose();
             }
+            return true;
         }
         public bool IsNetPeerAdmin(string UUID)
         {
@@ -391,7 +421,7 @@ namespace BasisDidLink
 
         public bool NetIDToUUID(NetPeer Peer, out string UUID)
         {
-            if (AuthIdentity.TryGetValue(Peer.Id, out OnAuth OnAuth))
+            if (Peer != null && AuthIdentity.TryGetValue(Peer.Id, out OnAuth OnAuth) && ReferenceEquals(OnAuth.Peer, Peer))
             {
                 UUID = OnAuth.Did.V;
                 return true;

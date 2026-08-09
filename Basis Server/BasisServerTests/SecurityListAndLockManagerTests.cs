@@ -349,6 +349,7 @@ public class BasisRejoinLockManagerTests
         public void ProcessConnection(Configuration configuration, ConnectionRequest connectionRequest, NetPeer netPeer) { }
         public void DeInitialize() { }
         public void RemoveConnection(int netPeer) { }
+        public bool RemoveConnection(int netPeer, NetPeer expected) => false;
         public bool NetIDToUUID(NetPeer peer, out string uuid)
         {
             uuid = _uuid;

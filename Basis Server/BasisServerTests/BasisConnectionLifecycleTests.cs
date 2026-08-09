@@ -701,4 +701,49 @@ public class BasisReconnectStateTests
             "the live peer was evicted by a stale peer's disconnect (key-only TryRemove)");
         Assert.Same(live, stored);
     }
+
+    [Fact]
+    public void StaleDisconnectAfterReconnectCollision_StillReleasesItsOwnAuthState()
+    {
+        using var scope = new ServerStaticsScope();
+        InstallServer();
+        MapAuthIdentity identity = (MapAuthIdentity)NetworkServer.AuthIdentity;
+
+        int id = LifecycleSupport.NextPeerId();
+        FakeNetPeer stale = LifecycleSupport.Peer(id);
+        FakeNetPeer live = LifecycleSupport.Peer(id);
+
+        identity.Register(LifecycleSupport.NewUuid(), id, stale);
+
+        NetworkServer.AuthenticatedPeers[id] = live;
+        NetworkServer.RebuildPeerSnapshot();
+
+        BasisServerHandleEvents.HandlePeerDisconnected(stale, Info());
+
+        Assert.Contains(id, identity.Released);
+        Assert.True(NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer stored));
+        Assert.Same(live, stored);
+    }
+
+    [Fact]
+    public void StaleDisconnect_DoesNotReleaseTheLivePeersAuthState()
+    {
+        using var scope = new ServerStaticsScope();
+        InstallServer();
+        MapAuthIdentity identity = (MapAuthIdentity)NetworkServer.AuthIdentity;
+
+        int id = LifecycleSupport.NextPeerId();
+        FakeNetPeer stale = LifecycleSupport.Peer(id);
+        FakeNetPeer live = LifecycleSupport.Peer(id);
+
+        identity.Register(LifecycleSupport.NewUuid(), id, live);
+        NetworkServer.AuthenticatedPeers[id] = live;
+        NetworkServer.RebuildPeerSnapshot();
+
+        BasisServerHandleEvents.HandlePeerDisconnected(stale, Info());
+
+        Assert.DoesNotContain(id, identity.Released);
+        Assert.True(identity.NetIDToUUID(live, out string uuid) && !string.IsNullOrEmpty(uuid),
+            "the live peer lost its identity to a stale peer's disconnect");
+    }
 }

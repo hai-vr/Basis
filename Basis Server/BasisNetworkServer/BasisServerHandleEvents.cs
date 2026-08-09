@@ -347,16 +347,6 @@ namespace BasisServerHandle
         /// </summary>
         private static bool CleanupPeerSubsystems(NetPeer peer, int id)
         {
-            // A predecessor's disconnect can land after a reconnect has already taken the same id.
-            // Every teardown below is keyed by id alone, so running it for a peer that no longer
-            // owns the slot dismantles the live peer's state instead — the "direct connect works,
-            // then dies after a rejoin" symptom. An id held by nobody still cleans up, so a peer
-            // rejected before auth completed keeps releasing whatever partial state it made.
-            if (NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer holder) && !ReferenceEquals(holder, peer))
-            {
-                return false;
-            }
-
             // The auth-identity map is the primary UUID source, but it is empty when
             // UseAuthIdentity is off and can already be evicted on a reconnect collision. The
             // stored connect metadata carries the same server-computed UUID (OnNetworkAccepted
@@ -370,6 +360,19 @@ namespace BasisServerHandle
                     uuid = meta.playerUUID;
                 }
             }
+
+            NetworkServer.AuthIdentity.RemoveConnection(id, peer);
+
+            // A predecessor's disconnect can land after a reconnect has already taken the same id.
+            // Every teardown below is keyed by id alone, so running it for a peer that no longer
+            // owns the slot dismantles the live peer's state instead — the "direct connect works,
+            // then dies after a rejoin" symptom. An id held by nobody still cleans up, so a peer
+            // rejected before auth completed keeps releasing whatever partial state it made.
+            if (NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer holder) && !ReferenceEquals(holder, peer))
+            {
+                return false;
+            }
+
             if (!string.IsNullOrEmpty(uuid))
             {
                 PermissionIntegration.RemovePlayerMeta(uuid);
@@ -378,7 +381,6 @@ namespace BasisServerHandle
                 BasisNetworkResourceManagement.RemovePeerResources(uuid);
             }
 
-            NetworkServer.AuthIdentity.RemoveConnection(id);
             BasisNetworkOwnership.RemovePlayerOwnership(id);
             BasisSavedState.RemovePlayer(id);
             BasisServerReductionSystemEvents.RemovePlayer(id);
