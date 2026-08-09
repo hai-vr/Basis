@@ -904,6 +904,35 @@ namespace Basis.Network.Core
         /// 1000 players still get 48,000 packets.
         /// </summary>
         public const int PacketPoolSize = 8192;
+
+        // ── Single-datagram budget ───────────────────────────────────────────
+        /// <summary>
+        /// Largest payload a caller may hand to a send that the transport cannot fragment
+        /// (see <see cref="CanFragment"/>). Over this, the send THROWS rather than truncating or
+        /// dropping, so anything sizing a packet has to check first.
+        ///
+        /// Deliberately derived from the smallest MTU any peer can be at, not the negotiated one.
+        /// A peer starts at its initial MTU and only grows through discovery, and one broadcast
+        /// fans out to peers at different points in that — including P2P links that negotiated
+        /// separately from the server link. Sizing against a live <c>peer.Mtu</c> would produce a
+        /// payload that fits the peer it was measured on and throws on the one still probing.
+        /// The slack absorbs the packet header plus any per-message framing above it.
+        /// </summary>
+        public const int MinimumPeerMtu = 1024;
+        /// <summary>Headroom held back from <see cref="MinimumPeerMtu"/> for transport headers and framing.</summary>
+        public const int UnfragmentedHeadroom = 36;
+        /// <summary>Payload ceiling for one unfragmentable datagram, framing included.</summary>
+        public const int MaxUnfragmentedPayload = MinimumPeerMtu - UnfragmentedHeadroom;
+
+        /// <summary>
+        /// True if the transport will split an over-MTU payload across datagrams for this delivery
+        /// method. Only the two reliable non-sequenced methods can: sequencing is a per-datagram
+        /// property, so a fragmented sequenced packet has no coherent meaning and the transport
+        /// throws instead.
+        /// </summary>
+        public static bool CanFragment(DeliveryMethod method) =>
+            method == DeliveryMethod.ReliableOrdered || method == DeliveryMethod.ReliableUnordered;
+
         /// <summary>
         /// when adding a new message we need to increase this
         /// will function up to 64
@@ -1351,9 +1380,9 @@ namespace Basis.Network.Core
         // The delta channel is a single channel for all quality/id-width/additional combinations;
         // that metadata (which is channel-encoded for keyframes) lives in a 1-byte header instead.
         /// <summary>Packs quality(0-3) + additional + large-id into the DeltaAvatarChannel header byte.</summary>
-        public static byte BuildDeltaHeader(int qualityIndex, bool hasAdditionalData, bool largeId, bool stream = false)
+        public static byte BuildDeltaHeader(int qualityIndex, bool hasAdditionalData, bool largeId)
         {
-            return (byte)((qualityIndex & 0x3) | (hasAdditionalData ? 0x4 : 0) | (largeId ? 0x8 : 0) | (stream ? DeltaHeaderStreamBit : 0));
+            return (byte)((qualityIndex & 0x3) | (hasAdditionalData ? 0x4 : 0) | (largeId ? 0x8 : 0));
         }
         /// <summary>Quality index (0-3) from a DeltaAvatarChannel header byte.</summary>
         public static byte DeltaHeaderQuality(byte header) => (byte)(header & 0x3);
@@ -1361,17 +1390,6 @@ namespace Basis.Network.Core
         public static bool DeltaHeaderHasAdditionalData(byte header) => (header & 0x4) != 0;
         /// <summary>Large (ushort) player-id flag from a DeltaAvatarChannel header byte.</summary>
         public static bool DeltaHeaderLargeId(byte header) => (header & 0x8) != 0;
-
-        /// <summary>
-        /// Marks an UPLINK stream frame: a continuous predictive frame carrying no keyframe reference
-        /// (BasisAvatarStreamCodec) rather than a delta against a baseline. Client→server only. It
-        /// never appears on the downlink or between P2P peers, because both of those deliver a sender's
-        /// frames to different receivers at different rates and a predictive chain cannot be decimated.
-        /// Wire: [hdr|stream][seq][frame body][additional?] — no baseSeq, there is no baseline.
-        /// </summary>
-        public const byte DeltaHeaderStreamBit = 0x10;
-        /// <summary>True when a DeltaAvatarChannel frame is an uplink stream frame.</summary>
-        public static bool DeltaHeaderIsStream(byte header) => (header & DeltaHeaderStreamBit) != 0;
 
         // Control frames on DeltaAvatarChannel (v42): header bit 7 marks a non-delta control
         // message so keyframe recovery is request-driven instead of purely periodic.

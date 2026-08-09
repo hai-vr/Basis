@@ -19,10 +19,6 @@ public static partial class SerializableBasis
         // v42: server accepts client→server avatar deltas on DeltaAvatarChannel. When false the
         // client uploads full keyframes only (legacy behavior).
         public bool UplinkDeltaEnabled;
-        // v49: server accepts client→server avatar STREAM frames (predictive + Gray sweep, no
-        // keyframe reference). Independent of UplinkDeltaEnabled so it can be turned off on its own
-        // without a client redeploy; the client falls back to keyframe+delta when false.
-        public bool UplinkStreamEnabled;
         //want to include what permissions this player has to the client
         public byte[] PermissionsBitset;     // fast, fixed — known nodes as bits
         public string[] ExtraPermissions;    // dynamic fallback — compressed on the wire
@@ -78,7 +74,6 @@ public static partial class SerializableBasis
             }
 
             UplinkDeltaEnabled = Writer.AvailableBytes > 0 && Writer.GetByte() != 0;
-            UplinkStreamEnabled = Writer.AvailableBytes > 0 && Writer.GetByte() != 0;
         }
         public void Serialize(NetDataWriter Writer)
         {
@@ -124,7 +119,6 @@ public static partial class SerializableBasis
             }
 
             Writer.Put(UplinkDeltaEnabled ? (byte)1 : (byte)0);
-            Writer.Put(UplinkStreamEnabled ? (byte)1 : (byte)0);
         }
     }
 }

@@ -107,7 +107,6 @@ public class ServerConfigurationDefaultsTests
         Assert.Equal(2000, cfg.AvatarDeltaKeyframeMaxIntervalMs);
         Assert.True(cfg.StripAdditionalDataAtLowQuality);
         Assert.True(cfg.EnableUplinkAvatarDelta);
-        Assert.False(cfg.EnableUplinkAvatarStream);
     }
 
     [Fact]
@@ -165,7 +164,8 @@ public class ServerConfigurationDefaultsTests
     {
         // 5: added EnableUplinkAvatarStream, so existing files get rewritten with its doc comment.
         // 6: added BSRMaxSliceCount.
-        Assert.Equal(6, Configuration.CurrentConfigVersion);
+        // 7: removed EnableUplinkAvatarStream again.
+        Assert.Equal(7, Configuration.CurrentConfigVersion);
         Assert.Equal(0, new Configuration().ConfigVersion);
         Assert.Equal("config", Configuration.ConfigFolderName);
         Assert.Equal("logs", Configuration.LogsFolderName);

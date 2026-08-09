@@ -128,13 +128,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         static byte[] sUplinkDeltaScratch;
         static volatile bool sUplinkForceKeyframe;
 
-        // Uplink stream state (v49). When the server advertises support and we hold no direct P2P
-        // session, ordinary frames go out as continuous predictive frames instead of deltas against a
-        // periodic keyframe: cheaper per frame, flat rather than spiky, and self-healing after loss
-        // via the Gray sweep, so no periodic keyframe is needed at all.
-        static BasisAvatarStreamState sUplinkStream;
-        static byte[] sUplinkStreamScratch;
-
         /// <summary>
         /// Force the next avatar send to be a full keyframe. Called from the DeltaAvatarChannel
         /// control path when the server or a P2P peer reports a missing uplink baseline (any
@@ -157,7 +150,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             sRawCaptured = false;
             sHasUplinkBaseline = false;
             sUplinkForceKeyframe = true;
-            sUplinkStream = null;
             sTposeLocalRotations = new quaternion[55]; // HumanBodyBones 0..54
             sEncodePre = new quaternion[55];
             sEncodePost = new quaternion[55];
@@ -269,60 +261,30 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             byte seq = sLocalSequence;
             unchecked { sLocalSequence++; }
 
-            // Uplink encoding decision. Two modes, both bootstrapped by a full keyframe:
-            //   stream (v49) — a continuous predictive frame per send, carrying a Gray-code bit-plane
-            //     sweep that lets the receiver re-converge after loss on its own. No periodic keyframe
-            //     at all, because recovery no longer depends on one arriving.
-            //   delta (v42)  — a keyframe every UplinkKeyframeIntervalSeconds with per-field deltas
-            //     against it in between; a receiver that misses the keyframe asks for another via a
-            //     DeltaAvatarChannel control frame.
+            // Uplink encoding decision (v42): a keyframe every UplinkKeyframeIntervalSeconds with
+            // per-field deltas against it in between; a receiver that misses the keyframe asks for
+            // another via a DeltaAvatarChannel control frame.
             // The same frame feeds the server and every P2P peer, so one baseline serves all receivers.
             byte[] payload = transmitter.storedAvatarData.LASM.array;
             int payloadLen = payload.Length;
             bool uplinkDeltasAllowed = BasisNetworkManagement.ServerMetaDataMessage.UplinkDeltaEnabled;
-
-            // Stream mode requires that EVERY frame we produce reaches the receiver — a predictive
-            // chain cannot be decimated. That holds for the server exactly when no P2P session is up:
-            // once one is, the block below throttles the server fan-out to SyncInterval while peers
-            // keep getting every frame, so the server would be decoding against a reconstruction built
-            // from frames it never saw. Keyframe+delta is decimation-safe, so P2P falls back to it.
-            bool streamAllowed = uplinkDeltasAllowed
-                && BasisNetworkManagement.ServerMetaDataMessage.UplinkStreamEnabled
-                && !Basis.Scripts.Networking.BasisP2PManager.HasAnyConnectedSession();
 
             bool keyframe = !uplinkDeltasAllowed
                 || sUplinkForceKeyframe
                 || !sHasUplinkBaseline
                 || sUplinkBaseline == null
                 || sUplinkBaseline.Length != payloadLen
-                // A stream carries its own recovery, so it needs a keyframe only to bootstrap. Deltas
-                // do not: their baseline has to be refreshed on a cadence or a lost keyframe strands
-                // the receiver until it asks for another.
-                || (!streamAllowed && timeAsDouble - sUplinkLastKeyframeTime >= UplinkKeyframeIntervalSeconds)
-                || (streamAllowed && (sUplinkStream == null || !sUplinkStream.HasBaseline));
+                || timeAsDouble - sUplinkLastKeyframeTime >= UplinkKeyframeIntervalSeconds;
 
-            int deltaLen = -1, streamLen = -1;
-            bool useStream = false;
+            int deltaLen = -1;
             if (!keyframe)
             {
-                if (streamAllowed)
-                {
-                    int cap = BasisAvatarStreamCodec.MaxFrameSize(WireQuality);
-                    if (sUplinkStreamScratch == null || sUplinkStreamScratch.Length < cap)
-                        sUplinkStreamScratch = new byte[cap];
-                    streamLen = BasisAvatarStreamCodec.Encode(sUplinkStream, payload, seq, sUplinkStreamScratch, 0);
-                    if (streamLen > 0 && streamLen < payloadLen) useStream = true;
-                    else keyframe = true;   // a frame no smaller than the pose is pointless overhead
-                }
-                else
-                {
-                    int cap = BasisAvatarDeltaCompression.MaxDeltaSize(WireQuality);
-                    if (sUplinkDeltaScratch == null || sUplinkDeltaScratch.Length < cap)
-                        sUplinkDeltaScratch = new byte[cap];
-                    deltaLen = BasisAvatarDeltaCompression.BuildDelta(sUplinkBaseline, payload, WireQuality, sUplinkDeltaScratch, 0);
-                    // Promotion: a delta that isn't smaller than the keyframe is pointless overhead.
-                    if (deltaLen < 0 || deltaLen >= payloadLen) keyframe = true;
-                }
+                int cap = BasisAvatarDeltaCompression.MaxDeltaSize(WireQuality);
+                if (sUplinkDeltaScratch == null || sUplinkDeltaScratch.Length < cap)
+                    sUplinkDeltaScratch = new byte[cap];
+                deltaLen = BasisAvatarDeltaCompression.BuildDelta(sUplinkBaseline, payload, WireQuality, sUplinkDeltaScratch, 0);
+                // Promotion: a delta that isn't smaller than the keyframe is pointless overhead.
+                if (deltaLen < 0 || deltaLen >= payloadLen) keyframe = true;
             }
 
             if (hasAdditional)
@@ -347,20 +309,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     sHasUplinkBaseline = true;
                     sUplinkLastKeyframeTime = timeAsDouble;
                     sUplinkForceKeyframe = false;
-                    // The keyframe is also the stream's bootstrap: the server seeds its reconstruction
-                    // from exactly these bytes, so ours has to start from them too. This also re-syncs
-                    // after a discarded stream frame above, or after a P2P-driven mode switch.
-                    sUplinkStream ??= new BasisAvatarStreamState(WireQuality);
-                    sUplinkStream.SeedFrom(sUplinkBaseline);
                 }
-            }
-            else if (useStream)
-            {
-                transmitter.AvatarSendWriter.Put(BasisNetworkCommons.BuildDeltaHeader((int)WireQuality, hasAdditional, false, true));
-                transmitter.AvatarSendWriter.Put(seq);
-                transmitter.AvatarSendWriter.Put(sUplinkStreamScratch, 0, streamLen);
-                if (hasAdditional) transmitter.storedAvatarData.LASM.SerializeAdditionalOnly(transmitter.AvatarSendWriter);
-                sendChannel = BasisNetworkCommons.DeltaAvatarChannel;
             }
             else
             {

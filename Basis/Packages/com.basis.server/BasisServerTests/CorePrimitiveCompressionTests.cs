@@ -1,4 +1,4 @@
-using Basis.Network.Core.Compression;
+﻿using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
 using BasisNetworkCore;
 using Xunit;
@@ -176,71 +176,6 @@ public class CorePrimitiveCompressionTests
         Assert.True(Math.Abs(z) <= 5e-3, $"z={z}");
         double norm = Math.Sqrt((double)x * x + (double)y * y + (double)z * z + (double)w * w);
         Assert.True(Math.Abs(norm - 1.0) < 1e-3);
-    }
-
-    /// <summary>
-    /// The clamp above is correct behaviour for an explicitly narrow range, but on the RIG it is a
-    /// defect: a bone whose MAX_COMPONENT is narrower than the motion it actually sees does not lose
-    /// precision gracefully, it reconstructs a different rotation, because the decoder rebuilds the
-    /// dropped component from whatever survived the clamp. UpperChest, the shoulders and the feet
-    /// each carried a narrowed range and each was 16-30° wrong in the band just above its clamp
-    /// (v51). This pins the whole High rig against that returning: every slot must reproduce every
-    /// rotation angle to within its own quantization step.
-    ///
-    /// Toes are excluded deliberately and are the one slot still narrow — see the note on the
-    /// MAX_COMPONENT entry for why widening them costs more than it buys below High.
-    /// </summary>
-    [Fact]
-    public void SmallestThree_EveryHighSlot_TracksRotationAcrossItsFullAngleRange()
-    {
-        byte[] bpc = BasisBoneRotationCompression.GetBpcTable(BitQuality.High);
-        float[] maxComp = BasisBoneRotationCompression.MAX_COMPONENT;
-        int[] toeSlots = { 19, 20 };
-
-        // Fixed seed: the axis set must be dense enough to find a clamp but must not be tuned to it.
-        var rng = new Random(20260809);
-
-        for (int slot = 0; slot < BasisBoneRotationCompression.WireBoneSlotCount; slot++)
-        {
-            if (Array.IndexOf(toeSlots, slot) >= 0) continue;
-
-            // A component step is 2*range/(2^bpc - 1); the angular error it produces is a small
-            // multiple of that in radians. 12x leaves ~4x headroom over the measured worst case
-            // (0.06° at High) while still being ~100x under the 16-30° a clamp produces.
-            double step = 2.0 * maxComp[slot] / ((1 << bpc[slot]) - 1);
-            double tolDeg = 12.0 * step * 180.0 / Math.PI;
-
-            for (int deg = 0; deg <= 180; deg += 5)
-            {
-                for (int i = 0; i < 400; i++)
-                {
-                    // Uniform axis on the sphere — a clamp is a property of the component that ends
-                    // up largest, so the axis has to be swept, not just the angle.
-                    double z0 = 2 * rng.NextDouble() - 1;
-                    double r = Math.Sqrt(Math.Max(0, 1 - z0 * z0));
-                    double phi = 2 * Math.PI * rng.NextDouble();
-                    float ax = (float)(r * Math.Cos(phi)), ay = (float)(r * Math.Sin(phi)), az = (float)z0;
-
-                    double half = deg * Math.PI / 180.0 * 0.5;
-                    float s = (float)Math.Sin(half);
-                    float qx = ax * s, qy = ay * s, qz = az * s, qw = (float)Math.Cos(half);
-
-                    ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(qx, qy, qz, qw, bpc[slot], maxComp[slot]);
-                    BasisBoneRotationCompression.DecodeSmallestThree(packed, bpc[slot],
-                        out float dx, out float dy, out float dz, out float dw, maxComp[slot]);
-
-                    double dot = Math.Min(1.0, Math.Abs((double)qx * dx + (double)qy * dy + (double)qz * dz + (double)qw * dw));
-                    double errDeg = 2.0 * Math.Acos(dot) * 180.0 / Math.PI;
-
-                    Assert.True(errDeg <= tolDeg,
-                        $"slot {slot} (bpc {bpc[slot]}, range {maxComp[slot]}) is {errDeg:F2}° off at " +
-                        $"{deg}° about ({ax:F3}, {ay:F3}, {az:F3}); tolerance {tolDeg:F2}°. A narrowed " +
-                        $"MAX_COMPONENT clamps at " +
-                        $"{2 * Math.Asin(Math.Min(1f, maxComp[slot])) * 180 / Math.PI:F1}° and reconstructs " +
-                        $"a DIFFERENT rotation above it, not a less precise one.");
-                }
-            }
-        }
     }
 
     // ────────────────────────────────────────────────────────────

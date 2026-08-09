@@ -21,7 +21,9 @@ public class Configuration
     /// </summary>
     // 5: EnableUplinkAvatarStream added; bumped so existing config.xml files are rewritten with its
     //    doc comment rather than only silently gaining the field.
-    public const int CurrentConfigVersion = 6;
+    // 7: EnableUplinkAvatarStream removed again; bumped so existing files drop the stale field and
+    //    its doc comment instead of carrying a setting nothing reads.
+    public const int CurrentConfigVersion = 7;
     /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
     public int ConfigVersion = 0;
 
@@ -102,20 +104,6 @@ public class Configuration
     /// When false, clients upload full keyframes only (legacy behavior).
     /// </summary>
     public bool EnableUplinkAvatarDelta = true;
-    /// <summary>
-    /// Accept client→server avatar STREAM frames and advertise support (v49). Instead of a periodic
-    /// full keyframe plus deltas against it, the client sends a continuous predictive stream: each
-    /// frame codes only what changed since the reconstruction the server already holds, plus one
-    /// Gray-code bit per field that lets the server re-converge on its own after packet loss. That
-    /// removes the periodic keyframe entirely (recovery no longer needs one) and cuts uplink avatar
-    /// traffic a further ~15-30% on top of deltas, with a flat per-frame cost instead of a spike
-    /// every half second.
-    ///
-    /// A keyframe is still sent to bootstrap a connection and whenever the server asks for one.
-    /// Clients fall back to keyframe+delta when this is false, and also whenever they hold a direct
-    /// P2P session — see BasisNetworkAvatarCompressor for why.
-    /// </summary>
-    public bool EnableUplinkAvatarStream = false;
     public bool EnableBSRProfiling = false;
     /// <summary>
     /// Worker cap for the BSR tick's parallel phases (send loop, message processing, distance
@@ -357,6 +345,7 @@ public class Configuration
         ApplyEnvironmentalOverridesTo(this);
     }
 
+    /// <summary>Field names whose values must never reach the log.</summary>
     private static bool IsSecretFieldName(string fieldName)
     {
         if (string.IsNullOrEmpty(fieldName)) return false;

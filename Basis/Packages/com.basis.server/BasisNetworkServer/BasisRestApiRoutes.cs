@@ -129,6 +129,11 @@ public sealed class BasisRestApiRoutes
             }
             else if (sp.ValueKind == JsonValueKind.Number && sp.TryGetByte(out byte n))
             {
+                if (!Enum.IsDefined(typeof(LoadStrategy), n))
+                {
+                    BadRequest(res, "unknown strategy");
+                    return;
+                }
                 strategy = (LoadStrategy)n;
             }
         }
@@ -216,7 +221,12 @@ public sealed class BasisRestApiRoutes
     {
         raw = raw.Trim();
         int idx = raw.IndexOf('#');
-        return idx < 0 ? (raw, null) : (raw[..idx], DecodeFragmentPassword(raw[(idx + 1)..]));
+        if (idx >= 0)
+            return (raw[..idx], DecodeFragmentPassword(raw[(idx + 1)..]));
+        idx = raw.IndexOf("%23", StringComparison.OrdinalIgnoreCase);
+        if (idx >= 0)
+            return (raw[..idx], DecodeFragmentPassword(raw[(idx + 3)..]));
+        return (raw, null);
     }
 
     private static string? DecodeFragmentPassword(string fragment)

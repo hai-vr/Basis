@@ -494,12 +494,16 @@ namespace BasisNetworkConsole
         }
         public static void StartConsoleListener()
         {
+            BasisConsoleDriver.Initialize();
             consoleThread = new Thread(() =>
             {
                 while (Program.isRunning)
                 {
-                    string? input = Console.ReadLine()?.Trim();
-                    if (string.IsNullOrEmpty(input)) continue;
+                    string? line = BasisConsoleDriver.ReadLine();
+                    if (line == null) break; // end of input: nothing left to read, don't spin on it
+
+                    string input = line.Trim();
+                    if (input.Length == 0) continue;
 
                     string[] parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     bool matched = false;
@@ -579,7 +583,7 @@ namespace BasisNetworkConsole
         }
         public static void HandleClear(string[] args)
         {
-            BNL.ClearConsole();
+            BasisConsoleDriver.Clear();
         }
         // Command class to store command info
         public class Command

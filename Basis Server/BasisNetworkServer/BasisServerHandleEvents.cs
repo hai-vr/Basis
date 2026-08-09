@@ -678,7 +678,6 @@ namespace BasisServerHandle
                     SlowestSendRate = Config.BSRSlowestSendRate,
                     PeerLimit = Config.PeerLimit,
                     UplinkDeltaEnabled = Config.EnableUplinkAvatarDelta,
-                    UplinkStreamEnabled = Config.EnableUplinkAvatarStream,
                 };
                 ServerMetaDataMessage.SetPermissions(PermissionIntegration.Manager.GetAllAllowedRules(UUID), PermissionIntegration.Manager.GetAllDeniedRules(UUID));
                 NetDataWriter Writer = NetworkServer.RentWriter();

@@ -1380,9 +1380,9 @@ namespace Basis.Network.Core
         // The delta channel is a single channel for all quality/id-width/additional combinations;
         // that metadata (which is channel-encoded for keyframes) lives in a 1-byte header instead.
         /// <summary>Packs quality(0-3) + additional + large-id into the DeltaAvatarChannel header byte.</summary>
-        public static byte BuildDeltaHeader(int qualityIndex, bool hasAdditionalData, bool largeId, bool stream = false)
+        public static byte BuildDeltaHeader(int qualityIndex, bool hasAdditionalData, bool largeId)
         {
-            return (byte)((qualityIndex & 0x3) | (hasAdditionalData ? 0x4 : 0) | (largeId ? 0x8 : 0) | (stream ? DeltaHeaderStreamBit : 0));
+            return (byte)((qualityIndex & 0x3) | (hasAdditionalData ? 0x4 : 0) | (largeId ? 0x8 : 0));
         }
         /// <summary>Quality index (0-3) from a DeltaAvatarChannel header byte.</summary>
         public static byte DeltaHeaderQuality(byte header) => (byte)(header & 0x3);
@@ -1390,17 +1390,6 @@ namespace Basis.Network.Core
         public static bool DeltaHeaderHasAdditionalData(byte header) => (header & 0x4) != 0;
         /// <summary>Large (ushort) player-id flag from a DeltaAvatarChannel header byte.</summary>
         public static bool DeltaHeaderLargeId(byte header) => (header & 0x8) != 0;
-
-        /// <summary>
-        /// Marks an UPLINK stream frame: a continuous predictive frame carrying no keyframe reference
-        /// (BasisAvatarStreamCodec) rather than a delta against a baseline. Client→server only. It
-        /// never appears on the downlink or between P2P peers, because both of those deliver a sender's
-        /// frames to different receivers at different rates and a predictive chain cannot be decimated.
-        /// Wire: [hdr|stream][seq][frame body][additional?] — no baseSeq, there is no baseline.
-        /// </summary>
-        public const byte DeltaHeaderStreamBit = 0x10;
-        /// <summary>True when a DeltaAvatarChannel frame is an uplink stream frame.</summary>
-        public static bool DeltaHeaderIsStream(byte header) => (header & DeltaHeaderStreamBit) != 0;
 
         // Control frames on DeltaAvatarChannel (v42): header bit 7 marks a non-delta control
         // message so keyframe recovery is request-driven instead of purely periodic.

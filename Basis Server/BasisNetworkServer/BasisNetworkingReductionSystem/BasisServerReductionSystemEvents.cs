@@ -346,10 +346,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // between, per-quality deltas against that keyframe on DeltaAvatarChannel. When off, every
         // frame is a keyframe (legacy behavior).
         public static bool EnableAvatarDeltaCompression = true;
-        // Accept uplink STREAM frames (v49). Mirrors Configuration.EnableUplinkAvatarStream, which is
-        // also what the client is told in its metadata; kept as a server-side gate too so turning it
-        // off actually rejects the frames rather than trusting clients to stop sending them.
-        public static bool EnableUplinkAvatarStream = true;
         public static int AvatarDeltaKeyframeIntervalMs = 500;
         // Ceiling for the adaptive keyframe stretch (0 or <= base disables stretching). While a
         // sender's High deltas stay tiny the periodic keyframe interval doubles up to this cap;
@@ -973,9 +969,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             public byte BaselineSeq;
             public bool Has;
             public long LastNackTicks;
-            // v49: reconstruction state for uplink STREAM frames. Seeded from the same keyframes that
-            // set Baseline, then advanced by every stream frame. Null until this sender sends one.
-            public BasisAvatarStreamState Stream;
         }
         private static readonly ConcurrentDictionary<int, UplinkDeltaState> _uplinkStates = new();
         private static readonly long NackMinIntervalTicks = Stopwatch.Frequency; // 1/s per sender
@@ -994,10 +987,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             Buffer.BlockCopy(payload, 0, st.Baseline, 0, size);
             st.BaselineSeq = sequence;
             st.Has = true;
-            // A keyframe re-seeds the stream reconstruction too: it is the bootstrap for a sender that
-            // has just connected or been told to re-key, and the two must not drift apart.
-            st.Stream ??= new BasisAvatarStreamState(BitQuality.High);
-            st.Stream.SeedFrom(st.Baseline);
         }
 
         private static void NackUplink(NetPeer peer, UplinkDeltaState st)
@@ -1051,39 +1040,27 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
             bool hasAdditional = BasisNetworkCommons.DeltaHeaderHasAdditionalData(header);
-            bool isStream = BasisNetworkCommons.DeltaHeaderIsStream(header);
             if (!reader.TryGetByte(out byte sequence))
             {
                 reader.Recycle();
                 return;
             }
-            // A stream frame carries no baseline reference — it is predictive against the running
-            // reconstruction, which is why it has no baseSeq to read.
-            byte baseSeq = 0;
-            if (!isStream && !reader.TryGetByte(out baseSeq))
+            if (!reader.TryGetByte(out byte baseSeq))
             {
                 reader.Recycle();
                 return;
             }
 
             _uplinkStates.TryGetValue(fromPeer.Id, out UplinkDeltaState st);
-            if (st == null || !st.Has || (!isStream && st.BaselineSeq != baseSeq))
+            if (st == null || !st.Has || st.BaselineSeq != baseSeq)
             {
                 // Missing/stale baseline (lost keyframe or reorder) — ask for a fresh keyframe.
                 NackUplink(fromPeer, st);
                 reader.Recycle();
                 return;
             }
-            if (isStream && (!EnableUplinkAvatarStream || st.Stream == null || !st.Stream.HasBaseline))
-            {
-                NackUplink(fromPeer, st);
-                reader.Recycle();
-                return;
-            }
 
-            int bodyLen = isStream
-                ? BasisAvatarStreamCodec.FrameLength(reader.RawData, reader.Position, reader.AvailableBytes, BitQuality.High)
-                : BasisAvatarDeltaCompression.DeltaBodyLength(reader.RawData, reader.Position, reader.AvailableBytes, BitQuality.High);
+            int bodyLen = BasisAvatarDeltaCompression.DeltaBodyLength(reader.RawData, reader.Position, reader.AvailableBytes, BitQuality.High);
             if (bodyLen < 0 || bodyLen > reader.AvailableBytes)
             {
                 reader.Recycle();
@@ -1099,9 +1076,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 message.AvatarMessage.array = new byte[payloadSize];
             }
 
-            bool ok = isStream
-                ? BasisAvatarStreamCodec.Decode(st.Stream, reader.RawData, reader.Position, bodyLen, sequence, message.AvatarMessage.array)
-                : BasisAvatarDeltaCompression.TryApplyDelta(st.Baseline, reader.RawData, reader.Position, bodyLen, BitQuality.High, message.AvatarMessage.array);
+            bool ok = BasisAvatarDeltaCompression.TryApplyDelta(st.Baseline, reader.RawData, reader.Position, bodyLen, BitQuality.High, message.AvatarMessage.array);
             if (!ok)
             {
                 QueuedMessagePool.Return(message);

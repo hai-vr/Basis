@@ -1,4 +1,4 @@
-using Basis.Network.Core.Compression;
+﻿using Basis.Network.Core.Compression;
 using Xunit;
 using BitQuality = Basis.Network.Core.Compression.BasisAvatarBitPacking.BitQuality;
 using S = BasisServerTests.DeltaTestSupport;
@@ -199,76 +199,6 @@ public class ResidualCodecTests
             Assert.True(worst > w, $"w={w}: worst residual {worst} bits should exceed the {w}-bit raw form");
             Assert.True(worst <= 2 * w + 1);
         }
-    }
-
-    // ── Gray code and the sweep ──────────────────────────────────────────────
-
-    [Fact]
-    public void Gray_RoundTrips_AndAdjacentValuesDifferInExactlyOneBit()
-    {
-        for (uint v = 0; v < 70000; v++)
-            Assert.Equal(v, BasisResidualCodec.FromGray(BasisResidualCodec.ToGray(v)));
-
-        for (uint v = 0; v < 70000; v++)
-        {
-            uint diff = BasisResidualCodec.ToGray(v) ^ BasisResidualCodec.ToGray(v + 1);
-            Assert.Equal(1, System.Numerics.BitOperations.PopCount(diff));
-        }
-    }
-
-    /// <summary>
-    /// Gray adjacency must also hold across the wrap for every channel width, because a signed field
-    /// crossing zero moves between the top and bottom of its range. If it did not, a sweep bit near
-    /// the wrap would move the estimate by half the channel instead of one step.
-    /// </summary>
-    [Fact]
-    public void Gray_IsCyclic_ForEveryChannelWidth()
-    {
-        for (int w = 2; w <= BasisResidualCodec.MaxWidth; w++)
-        {
-            uint top = (1u << w) - 1u;
-            uint diff = BasisResidualCodec.ToGray(top) ^ BasisResidualCodec.ToGray(0);
-            Assert.Equal(1, System.Numerics.BitOperations.PopCount(diff));
-        }
-    }
-
-    /// <summary>
-    /// One pass of the sweep must visit every bit position exactly once, for every width. If it were
-    /// not a permutation, some bit would never be published and a receiver could stay permanently
-    /// wrong in that position after a loss — the exact failure the sweep exists to prevent.
-    /// </summary>
-    [Fact]
-    public void SweepBitIndex_IsAPermutationOfEveryWidth()
-    {
-        for (int w = 1; w <= BasisResidualCodec.MaxWidth; w++)
-        {
-            var seen = new bool[w];
-            for (int s = 0; s < w; s++)
-            {
-                int idx = BasisResidualCodec.SweepBitIndex(s, w);
-                Assert.InRange(idx, 0, w - 1);
-                Assert.False(seen[idx], $"width {w}: bit {idx} visited twice within one pass");
-                seen[idx] = true;
-            }
-            Assert.All(seen, Assert.True);
-
-            // Also true starting from any phase, since sequence numbers wrap at 256.
-            for (int phase = 0; phase < 40; phase++)
-            {
-                var seen2 = new bool[w];
-                for (int s = phase; s < phase + w; s++) seen2[BasisResidualCodec.SweepBitIndex(s, w)] = true;
-                Assert.All(seen2, Assert.True);
-            }
-        }
-    }
-
-    [Fact]
-    public void SweepBitIndex_StartsHigh_SoLargeErrorsAreCorrectedFirst()
-    {
-        // The first position of a pass is the top bit: a wrong high bit is a large error, and waiting
-        // a whole pass to fix it is what makes a naive low-to-high sweep feel like a stuck avatar.
-        for (int w = 2; w <= BasisResidualCodec.MaxWidth; w++)
-            Assert.Equal(w - 1, BasisResidualCodec.SweepBitIndex(0, w));
     }
 
     [Fact]

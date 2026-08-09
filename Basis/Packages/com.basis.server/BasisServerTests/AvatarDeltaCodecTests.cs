@@ -40,24 +40,29 @@ public class AvatarDeltaCodecTests
     public void RoundTrip_RealisticSmallMotion(BitQuality q)
     {
         // A small pose nudge: re-encode each bone from a slightly rotated quaternion. Many bones
-        // quantize to the same bits (unchanged), which is the common in-session case.
+        // quantize to the same bits (unchanged), which is the common in-session case — and the
+        // ones that do move mostly move by a step or two, which is what the residual coding is for.
         var rng = new Random(3000 + (int)q);
         var bpc = S.Bpc(q);
-        var offs = S.BoneBitOffsets(q);
         for (int iter = 0; iter < 100; iter++)
         {
             byte[] kf = S.MakeRealisticPayload(q, rng);
             byte[] cur = (byte[])kf.Clone();
-            for (int s = 0; s < bpc.Length; s++)
+            for (int s = 0; s < S.WireBoneSlots; s++)
             {
-                var (x, y, z, w) = S.RandomQuat(rng);
-                float nudge = 0.02f;
+                // Decode what the keyframe actually holds, rotate it slightly, re-encode. Writing a
+                // fresh random quaternion instead (as this test used to) makes every bone a full
+                // change, which is the opposite of the case being covered.
+                BasisBoneRotationCompression.DecodeSmallestThree(
+                    S.GetBone(kf, q, s), bpc[s], out float x, out float y, out float z, out float w,
+                    BasisBoneRotationCompression.MAX_COMPONENT[s]);
+                float nudge = 0.002f;
                 float nx = x + (float)(rng.NextDouble() * 2 - 1) * nudge;
                 float ny = y + (float)(rng.NextDouble() * 2 - 1) * nudge;
                 float nz = z + (float)(rng.NextDouble() * 2 - 1) * nudge;
                 float nw = w + (float)(rng.NextDouble() * 2 - 1) * nudge;
                 ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(nx, ny, nz, nw, bpc[s], BasisBoneRotationCompression.MAX_COMPONENT[s]);
-                BasisBoneRotationCompression.WriteBits(cur, S.BoneBaseBit(q) + offs[s], packed, 2 + 3 * bpc[s]);
+                S.SetBone(cur, q, s, packed);
             }
             S.AssertRoundTrip(kf, cur, q);
         }
@@ -217,7 +222,11 @@ public class AvatarDeltaCodecTests
             int len = BasisAvatarDeltaCompression.BuildDelta(S.MakePayload(q, rng), S.MakePayload(q, rng), q, dst, 0);
             Assert.InRange(len, BasisAvatarDeltaCompression.DirtyMaskBytes, max);
         }
-        // The bound is exactly mask + full payload.
-        Assert.Equal(BasisAvatarDeltaCompression.DirtyMaskBytes + S.PayloadSize(q), max);
+        // Raw mode caps each field at its own verbatim width, so the worst case is the mask plus one
+        // mode bit per field plus the payload itself — five bytes over the old fixed-width bound.
+        int expected = BasisAvatarDeltaCompression.DirtyMaskBytes
+                     + ((BasisAvatarDeltaCompression.FieldCount + S.PayloadSize(q) * 8 + 7) >> 3);
+        Assert.Equal(expected, max);
+        Assert.InRange(max - S.PayloadSize(q), 0, BasisAvatarDeltaCompression.DirtyMaskBytes + 5);
     }
 }

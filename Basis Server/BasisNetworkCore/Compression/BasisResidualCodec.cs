@@ -4,8 +4,8 @@ using System.Runtime.CompilerServices;
 namespace Basis.Network.Core.Compression
 {
     /// <summary>
-    /// Bit-level primitives shared by the avatar delta and stream codecs: a bounds-checked LSB-first
-    /// bit cursor, zig-zag Exponential-Golomb, and reflected Gray code.
+    /// Bit-level primitives used by the avatar delta codec: a bounds-checked LSB-first bit cursor and
+    /// zig-zag Exponential-Golomb.
     ///
     /// <para><b>Exp-Golomb</b> spends bits in proportion to magnitude — 1 bit for zero, 3 for ±1, 5 for
     /// ±2..3, and two more per octave after that. A pose field that did not move therefore costs a
@@ -13,22 +13,16 @@ namespace Basis.Network.Core.Compression
     /// the old codec had to spend a whole bone (38 bits at High) when one of its three components
     /// moved by one step.</para>
     ///
-    /// <para><b>Gray code</b> is what lets a single bit of an absolute value be transmitted safely.
-    /// Adjacent integers differ in exactly one Gray bit, so overwriting one bit of a nearly-correct
-    /// estimate moves it by a bounded amount instead of detonating across a binary carry boundary
-    /// (0111 → 1000 changes four bits at once). Sweeping one bit position per frame therefore
-    /// converges an estimate onto the truth without ever sending the whole value.</para>
-    ///
     /// <para><b>Residuals are never approximated.</b> A previous revision companded them above a small
     /// linear zone to cap the code length on fast motion. It was removed: the approximation produced
-    /// up to a <b>180° single-frame bone error whenever a smallest-three index flipped</b>, and both
-    /// codecs already cap code length correctly by falling back to a verbatim field when residual
+    /// up to a <b>180° single-frame bone error whenever a smallest-three index flipped</b>, and the
+    /// codec already caps code length correctly by falling back to a verbatim field when residual
     /// coding would be longer. Exactness costs about a byte a frame and removes a whole class of
-    /// artefact — see <see cref="BasisAvatarStreamCodec"/>.</para>
+    /// artefact.</para>
     /// </summary>
     public static class BasisResidualCodec
     {
-        /// <summary>Widest channel either codec addresses (the int24 position axes).</summary>
+        /// <summary>Widest channel the codec addresses (the int24 position axes).</summary>
         public const int MaxWidth = 24;
 
         /// <summary>
@@ -42,38 +36,6 @@ namespace Basis.Network.Core.Compression
             if (width >= 32) return diff;
             int shift = 32 - width;
             return (diff << shift) >> shift;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static uint ToGray(uint v) => v ^ (v >> 1);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static uint FromGray(uint g)
-        {
-            g ^= g >> 16;
-            g ^= g >> 8;
-            g ^= g >> 4;
-            g ^= g >> 2;
-            g ^= g >> 1;
-            return g;
-        }
-
-        /// <summary>
-        /// Which bit position a channel of this width publishes on the frame carrying
-        /// <paramref name="sequence"/>. Derived from the wire sequence number, never from a local
-        /// frame counter, so a receiver that missed frames still knows which position it is looking at.
-        ///
-        /// The order interleaves high and low positions (w-1, 0, w-2, 1, ...) rather than counting up:
-        /// a wrong high bit is a large error, so it should be corrected early and often instead of
-        /// waiting a full sweep for the top of the word to come round. It is a permutation of
-        /// [0, width) for every width, so one full pass visits every bit exactly once.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int SweepBitIndex(int sequence, int width)
-        {
-            if (width <= 1) return 0;
-            int v = (sequence % width + width) % width;
-            return (v & 1) != 0 ? (v >> 1) : (width - 1 - (v >> 1));
         }
 
         // ────────────────────────────────────────────────────────────
