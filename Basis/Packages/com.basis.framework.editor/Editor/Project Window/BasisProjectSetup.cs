@@ -72,6 +72,7 @@ public partial class BasisProjectSetup : EditorWindow
     private SceneAsset _sceneInteractables;
 
     // UI state
+    private Vector2 _tabScroll;
     private Tab _tab;
     private PlatformChoice _choice;
     private bool _showFirstRunNotice;
@@ -192,6 +193,7 @@ public partial class BasisProjectSetup : EditorWindow
         }
 
         EditorGUILayout.Space(6);
+        _tabScroll = EditorGUILayout.BeginScrollView(_tabScroll);
         switch (_tab)
         {
             case Tab.BuildModules: DrawTab_BuildModules(); break;
@@ -201,6 +203,7 @@ public partial class BasisProjectSetup : EditorWindow
             case Tab.Scenes: DrawTab_Scenes(); break;
             case Tab.Funding: DrawTab_Funding(); break;
         }
+        EditorGUILayout.EndScrollView();
 
         GUILayout.FlexibleSpace();
         using (new EditorGUILayout.HorizontalScope())
@@ -569,28 +572,17 @@ public partial class BasisProjectSetup : EditorWindow
 
             EditorGUILayout.Space(4);
 
-            // Calculate a sensible height so the scroll is visible but not cramped
-            float maxHeight = Mathf.Clamp(position.height - 220f, 220f, 900f);
-
-            // 🔽 Scrollable area for long snippet lists
-            using (var sv = new EditorGUILayout.ScrollViewScope(_docsSnippetsScroll, GUILayout.MaxHeight(maxHeight)))
-            {
-                _docsSnippetsScroll = sv.scrollPosition;
-
-                DrawSnippet(Tr("projectSetup.docs.snippet.devTeleport", "Teleport on keypress"), Snippet_DevTeleport);
-                DrawSnippet(Tr("projectSetup.docs.snippet.waitForBasis", "Wait for Basis then teleport"), Snippet_WaitForBasis);
-                DrawSnippet(Tr("projectSetup.docs.snippet.listenForSpawn", "Listen for spawn/teleport events"), Snippet_ListenForSpawn);
-                DrawSnippet(Tr("projectSetup.docs.snippet.getTrackedPointOnce", "Get any tracked point once"), Snippet_GetTrackedPointOnce);
-                DrawSnippet(Tr("projectSetup.docs.snippet.followTrackedRole", "Follow a tracked role (world space)"), Snippet_FollowTrackedRole);
-                DrawSnippet(Tr("projectSetup.docs.snippet.followTrackedRoleViaNet", "Follow a tracked role via BasisNetworkPlayer"), Snippet_FollowTrackedRoleViaNet);
-                DrawSnippet(Tr("projectSetup.docs.snippet.haptics", "Play haptics on a role"), Snippet_Haptics);
-                DrawSnippet(Tr("projectSetup.docs.snippet.isUserInVR", "Detect if user is in VR"), Snippet_IsUserInVR);
-            }
+            DrawSnippet(Tr("projectSetup.docs.snippet.devTeleport", "Teleport on keypress"), Snippet_DevTeleport);
+            DrawSnippet(Tr("projectSetup.docs.snippet.waitForBasis", "Wait for Basis then teleport"), Snippet_WaitForBasis);
+            DrawSnippet(Tr("projectSetup.docs.snippet.listenForSpawn", "Listen for spawn/teleport events"), Snippet_ListenForSpawn);
+            DrawSnippet(Tr("projectSetup.docs.snippet.getTrackedPointOnce", "Get any tracked point once"), Snippet_GetTrackedPointOnce);
+            DrawSnippet(Tr("projectSetup.docs.snippet.followTrackedRole", "Follow a tracked role (world space)"), Snippet_FollowTrackedRole);
+            DrawSnippet(Tr("projectSetup.docs.snippet.followTrackedRoleViaNet", "Follow a tracked role via BasisNetworkPlayer"), Snippet_FollowTrackedRoleViaNet);
+            DrawSnippet(Tr("projectSetup.docs.snippet.haptics", "Play haptics on a role"), Snippet_Haptics);
+            DrawSnippet(Tr("projectSetup.docs.snippet.isUserInVR", "Detect if user is in VR"), Snippet_IsUserInVR);
         });
     }
 
-    // NEW: scroll state for the Snippets foldout
-    private Vector2 _docsSnippetsScroll;
     private void DrawSnippet(string title, string code)
     {
         using (new EditorGUILayout.VerticalScope("box"))
@@ -896,16 +888,14 @@ public class ListenForLocalSpawn : MonoBehaviour
         var accent = new Rect(rect.x, rect.y, rect.width, 4);
         EditorGUI.DrawRect(accent, new Color32(239, 18, 55, 255)); // #ef1237
 
-        float ppp = Mathf.Max(1f, EditorGUIUtility.pixelsPerPoint);
         float pad = 12f;
-        float logoSize = 56f * ppp;
+        float logoSize = Mathf.Min(56f, rect.height - pad);
 
         var title = new Rect(rect.x + pad, rect.y + 10, rect.width - (logoSize + pad * 2f), 28);
         var subtitle = new Rect(rect.x + pad, rect.y + 40, rect.width - (logoSize + pad * 2f), 40);
 
         var tStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 16, normal = { textColor = Color.white } };
-        var subtitleColor = EditorGUIUtility.isProSkin ? new Color(0.85f, 0.85f, 0.9f) : new Color(0.15f, 0.15f, 0.2f);
-        var sStyle = new GUIStyle(EditorStyles.label) { fontSize = 11, wordWrap = true, normal = { textColor = subtitleColor } };
+        var sStyle = new GUIStyle(EditorStyles.label) { fontSize = 11, wordWrap = true, normal = { textColor = new Color(0.85f, 0.85f, 0.9f) } };
 
         GUI.Label(title, Tr("projectSetup.header.title", "Basis Project Wizard"), tStyle);
         GUI.Label(subtitle, Tr("projectSetup.header.subtitle", "Creator-First • Creative Freedom\nOpen-Source (MIT) • Networking • Input • Presence"), sStyle);

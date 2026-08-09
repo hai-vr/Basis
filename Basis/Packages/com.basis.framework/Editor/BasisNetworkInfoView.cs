@@ -21,9 +21,10 @@ public static class BasisNetworkInfoView
     private const int RefreshMs = 250;
     private const int MaxElements = 24;
 
-    private static readonly Color Accent = BasisSyncInspectorUI.Accent;
-    private static readonly Color Muted = new Color(0.78f, 0.78f, 0.78f, 1f);
-    private static readonly Color KeyCol = new Color(0.62f, 0.78f, 1f, 1f);
+    private static Color Accent => BasisSyncInspectorUI.Accent;
+    private static Color Muted => BasisEditorUI.Light ? new Color(0.34f, 0.34f, 0.34f, 1f) : new Color(0.78f, 0.78f, 0.78f, 1f);
+    private static Color KeyCol => BasisEditorUI.Light ? new Color(0.12f, 0.34f, 0.66f, 1f) : new Color(0.62f, 0.78f, 1f, 1f);
+    private static Color ValueCol => BasisEditorUI.Light ? new Color(0.10f, 0.10f, 0.10f, 1f) : Color.white;
 
     public static VisualElement Build(UnityEngine.Object target)
     {
@@ -140,7 +141,7 @@ public static class BasisNetworkInfoView
         key.style.textOverflow = TextOverflow.Ellipsis;
 
         Label val = new Label("—");
-        val.style.color = new StyleColor(Color.white);
+        val.style.color = new StyleColor(ValueCol);
         val.style.flexGrow = 1;
         val.style.whiteSpace = WhiteSpace.Normal;
 

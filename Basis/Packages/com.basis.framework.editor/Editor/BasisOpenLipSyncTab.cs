@@ -368,7 +368,7 @@ public sealed class BasisOpenLipSyncTab : BasisEditorTabPage
         EditorGUI.DrawRect(rect, BarBgColor);
         Rect filled = new Rect(rect.x, rect.y, rect.width * fill, rect.height);
         EditorGUI.DrawRect(filled, color ?? BarColor);
-        EditorGUI.LabelField(rect, $"  {label}", EditorStyles.miniLabel);
+        EditorGUI.LabelField(rect, $"  {label}", BasisEditorUI.OnDarkMiniLabel);
     }
 
     private void DrawMiniWaveform(Rect rect, float[] samples)

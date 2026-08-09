@@ -78,6 +78,24 @@ namespace Basis.Network.Core
         //     derived from the channel (worth 1.6pp on keyframes, zero on deltas, and it would make
         //     the decoder depend on reproducing the serializer's exact byte geometry).
         //     Wire-incompatible in both directions: a v49 peer reads the [n] byte as a length.
-        public static ushort ServerVersion = 50;
+        // 51: three of the four bone slots that quantized their smallest-three components into a
+        //     range narrower than InvSqrt2 — UpperChest (0.50), Shoulders (0.50), Feet (0.60) —
+        //     go to the full range. A narrowed range is a hard clamp at 2*asin(range), and clamping
+        //     a component does not shorten the rotation, it changes it: the decoder rebuilds the
+        //     dropped component from the three that survived. Measured with both ends in perfect
+        //     agreement and no loss anywhere, a 0.50 slot is 20° wrong at 80° and 30° wrong at 90°,
+        //     and a 0.60 foot is 16° wrong at 90°. Those are the only slots in the rig that were
+        //     narrowed and the only ones that could be visibly wrong, which is why the symptom read
+        //     as "feet point the wrong way" rather than as general pose noise.
+        //     Same field layout, same widths, same packet size — only the SCALE of three components
+        //     per affected slot changes, so a v50 peer decodes those bones ~18% short and this is
+        //     wire-incompatible in both directions.
+        //     Precision given up at High: 0.06° -> 0.06° on the 12-bit slots, i.e. nothing; a win or
+        //     a wash at every lower tier too. Toes are deliberately NOT widened — at 5/3/3/2 bits
+        //     their error is quantization-dominated, so stretching the same codes over 1.4x the
+        //     range costs more than the clamp does below High. They still carry a 30° cliff and want
+        //     a per-quality range table rather than this one shared one.
+        //     See the MAX_COMPONENT note in BasisBoneRotationCompression for the full table.
+        public static ushort ServerVersion = 51;
     }
 }

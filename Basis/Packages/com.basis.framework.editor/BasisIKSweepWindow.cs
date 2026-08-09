@@ -77,15 +77,25 @@ namespace Basis.IK.Debugging
 
         private static GUIStyle _selectedRow;
         private static GUIStyle _idleRow;
+        private static bool _rowStylesAreLight;
+
+        private static void InvalidateRowStylesOnSkinChange()
+        {
+            if (_selectedRow != null && _rowStylesAreLight == BasisEditorUI.Light) return;
+            _rowStylesAreLight = BasisEditorUI.Light;
+            _selectedRow = null;
+            _idleRow = null;
+        }
 
         private static GUIStyle SelectedRow
         {
             get
             {
+                InvalidateRowStylesOnSkinChange();
                 if (_selectedRow == null)
                 {
                     _selectedRow = new GUIStyle(EditorStyles.label) { padding = new RectOffset(10, 4, 0, 0) };
-                    _selectedRow.normal.textColor = Color.white;
+                    _selectedRow.normal.textColor = BasisEditorUI.Light ? new Color(0.08f, 0.08f, 0.08f) : Color.white;
                 }
                 return _selectedRow;
             }
@@ -95,6 +105,7 @@ namespace Basis.IK.Debugging
         {
             get
             {
+                InvalidateRowStylesOnSkinChange();
                 if (_idleRow == null)
                 {
                     _idleRow = new GUIStyle(EditorStyles.label) { padding = new RectOffset(10, 4, 0, 0) };
@@ -191,7 +202,7 @@ namespace Basis.IK.Debugging
         {
             EditorGUILayout.BeginVertical(GUILayout.Width(SidebarWidth), GUILayout.ExpandHeight(true));
             Rect side = new Rect(0f, 0f, SidebarWidth, position.height);
-            BasisEditorUI.Fill(side, new Color(0f, 0f, 0f, 0.28f), 0f);
+            BasisEditorUI.Fill(side, BasisEditorUI.Light ? new Color(0f, 0f, 0f, 0.09f) : new Color(0f, 0f, 0f, 0.28f), 0f);
 
             GUILayout.Space(6f);
             _search = EditorGUILayout.TextField(_search, EditorStyles.toolbarSearchField);
@@ -214,7 +225,7 @@ namespace Basis.IK.Debugging
 
                 bool active = ReferenceEquals(page, _selected);
                 Rect r = GUILayoutUtility.GetRect(new GUIContent(page.Title), EditorStyles.label, GUILayout.Height(19f));
-                if (active) BasisEditorUI.Fill(r, new Color(1f, 1f, 1f, 0.07f), 3f);
+                if (active) BasisEditorUI.Fill(r, BasisEditorUI.Light ? new Color(0f, 0f, 0f, 0.09f) : new Color(1f, 1f, 1f, 0.07f), 3f);
                 if (active) BasisEditorUI.Fill(new Rect(r.x, r.y + 2f, 2f, r.height - 4f), BasisEditorUI.Accent, 1f);
 
                 if (GUI.Button(r, page.Title, active ? SelectedRow : IdleRow)) Activate(page);

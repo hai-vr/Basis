@@ -226,7 +226,7 @@ public class BasisPoseStreamWindow : EditorWindow
             var style = new GUIStyle(EditorStyles.label);
             if (bad)
             {
-                style.normal.textColor = Color.red;
+                style.normal.textColor = BasisEditorUI.Bad;
             }
 
             using (new EditorGUILayout.HorizontalScope())
@@ -237,7 +237,7 @@ public class BasisPoseStreamWindow : EditorWindow
                 GUILayout.Label(row.Writable ? "*" : "", style, GUILayout.Width(20));
                 float stretch = row.BindLength > 1e-6f ? (row.CurrentLength / row.BindLength - 1f) * 100f : 0f;
                 var stretchStyle = new GUIStyle(style);
-                if (!row.TranslationFree && stretch > 0.5f) { stretchStyle.normal.textColor = new Color(1f, 0.5f, 0f); }
+                if (!row.TranslationFree && stretch > 0.5f) { stretchStyle.normal.textColor = BasisEditorUI.Warn; }
                 GUILayout.Label(row.BindLength.ToString("F4"), style, GUILayout.Width(70));
                 GUILayout.Label(row.CurrentLength.ToString("F4"), style, GUILayout.Width(70));
                 GUILayout.Label(row.TranslationFree ? "free" : stretch.ToString("F2"), stretchStyle, GUILayout.Width(70));

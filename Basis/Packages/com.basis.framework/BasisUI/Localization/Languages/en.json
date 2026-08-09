@@ -4995,6 +4995,22 @@
       "value": "Allow peer-to-peer links with other players. When off, incoming requests are auto-declined and you cannot start one; voice and avatar always go through the server. Existing sessions are not closed."
     },
     {
+      "key": "settings.general.networking.proxyBenchmarkRange",
+      "value": "VPN Compatibility (Fake-IP Proxies)"
+    },
+    {
+      "key": "settings.general.networking.proxyBenchmarkRange.tooltip",
+      "value": "Allow downloads when your system resolver answers with an address in 198.18.0.0/15. Proxies such as Clash and sing-box in TUN mode give every website a placeholder address in that range and carry the connection themselves, which otherwise looks like an unreachable address and blocks every download. Loopback, local network and cloud metadata addresses stay blocked. Leave off unless you use one of these proxies."
+    },
+    {
+      "key": "settings.network.fakeIp.prompt.title",
+      "value": "Downloads blocked by VPN address range"
+    },
+    {
+      "key": "settings.network.fakeIp.prompt.body",
+      "value": "Your system is resolving websites to placeholder addresses in the 198.18.0.0/15 range, which a Fake-IP proxy such as Clash or sing-box uses in TUN mode. Basis blocks that range by default because it is not normally reachable, so worlds and avatars cannot download.\n\nAllow this range so downloads work through your proxy? Local network and cloud metadata addresses stay blocked either way. You can change this later under Settings → General → Networking."
+    },
+    {
       "key": "settings.general.networking.encryption.title",
       "value": "Encryption"
     },

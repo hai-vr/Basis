@@ -172,13 +172,40 @@ namespace Basis.Network.Core.Compression
         /// Values derived from max anatomical rotation, computing sin(maxAngle/2)
         /// for the largest possible remaining component, plus safety margin.
         /// Full InvSqrt2 used for any joint that can approach or exceed 90° from T-pose.
+        ///
+        /// <para><b>A range narrower than InvSqrt2 is a CLIFF, not a graceful loss of precision.</b>
+        /// While the rotation angle stays under 90° the dropped component is w, so the three that
+        /// survive are the vector part and every one of them is bounded by sin(angle/2). A range of
+        /// r therefore encodes exactly up to 2*asin(r) and CLAMPS above it — and clamping a component
+        /// does not shorten the rotation, it changes it, because the decoder rebuilds the dropped
+        /// component as sqrt(1 - a² - b² - c²) from whatever survived. Measured worst case with
+        /// sender and receiver in perfect agreement, no packet loss and no interpolation:
+        ///
+        /// <code>
+        ///   range 0.50 (clamps at 60°):  10° error at 70°, 20° at 80°, 30° at 90°
+        ///   range 0.60 (clamps at 74°):   6° error at 80°, 16° at 90°
+        /// </code>
+        ///
+        /// Past ~100° the error falls away again as a vector component overtakes w and gets dropped
+        /// instead, so the damage is a band just above the clamp — which is exactly where an ankle
+        /// sits when the toes are pointed, and where a clavicle sits on a shrug.</para>
+        ///
+        /// <para>Feet, shoulders, upper chest and toes were the only slots in the rig carrying a
+        /// narrowed range, and they were the only slots that could be visibly wrong on the wire. The
+        /// anatomical ROM figures they were derived from are sound; what they missed is that the
+        /// encoded quantity is the delta from the AVATAR'S OWN rest pose, which does not sit at
+        /// anatomical neutral on every rig, so the real budget needed is the ROM plus whatever the
+        /// bind pose already spent. There is no headroom to be had at 0.50. Feet, shoulders and
+        /// upper chest are InvSqrt2 now, which costs 0.06° -> 0.06° at High (i.e. nothing) and is a
+        /// win or a wash at every lower tier. Toes stay narrow — see the note on that entry.</para>
         /// </summary>
         public static readonly float[] MAX_COMPONENT = new float[]
         {
             // 3-DOF body (9): Spine, Chest, UpperChest, Neck, Head, UpperArms, UpperLegs
             InvSqrt2,               // Spine         full (deep backbend/fold can exceed 90° combined)
             InvSqrt2,               // Chest         full
-            0.50f,                  // UpperChest    thoracic limit ~58° → 1.41x
+            InvSqrt2,               // UpperChest    was 0.50 (~58° thoracic limit): clamped at 60°,
+                                    //               30° wrong at 90°. Costs 0.00° at High to widen.
             InvSqrt2,               // Neck          full (extreme head tilt)
             InvSqrt2,               // Head          full
             InvSqrt2, InvSqrt2,     // UpperArms     full (shoulder has ~180° ROM)
@@ -189,12 +216,27 @@ namespace Basis.Network.Core.Compression
             InvSqrt2, InvSqrt2,     // LowerLegs     full (knee 150°)
 
             // 2-DOF extremities (6): Shoulders, Hands, Feet
-            0.50f, 0.50f,           // Shoulders     clavicle max ~58° (shrug+protract) → 1.41x
+            InvSqrt2, InvSqrt2,     // Shoulders     was 0.50 (~58° clavicle): a shrug+protract lands
+                                    //               in the clamp band. 30° wrong at 90°.
             InvSqrt2, InvSqrt2,     // Hands         full (wrist can circle ~90°)
-            0.60f, 0.60f,           // Feet          ankle max ~70° combined → 1.18x
+            InvSqrt2, InvSqrt2,     // Feet          was 0.60 (~70° ankle): pointed toes, kneeling and
+                                    //               tiptoe all exceed it. 16° wrong at 90°.
 
             // toes (2) — eyes/jaw excluded (driven by face system)
-            0.50f, 0.50f,           // Toes          ~58° curl → 1.41x
+            0.50f, 0.50f,           // Toes          KEPT NARROW, and it is a genuine trade rather
+                                    //               than an oversight. Toes get 5/3/3/2 bits, so
+                                    //               unlike every slot above them their error is
+                                    //               dominated by quantization, not by the clamp.
+                                    //               Widening to InvSqrt2 helps only at High
+                                    //               (worst 30.0° -> 7.4°) and hurts everywhere else
+                                    //               (Medium/Low 3 bits: 15.9° -> 32.9° in-band;
+                                    //               VeryLow 2 bits: 38.4° -> 97.7°), because
+                                    //               stretching the same 4 or 8 codes over 1.4x the
+                                    //               range costs more than the cliff it removes.
+                                    //               Fixing this properly means a per-QUALITY range
+                                    //               table (full range where bits are plentiful,
+                                    //               narrow where they are not), the same way
+                                    //               GetBpcTable already varies by quality.
 
             // finger proximal (10): curl ~90° + spread ~25° → combined ~95°
             // At 95°: axis=0.74, w=0.68. After dropping axis, remaining max=0.68
@@ -338,16 +380,11 @@ namespace Basis.Network.Core.Compression
             return BasisAvatarBitPacking.PositionBytes(q) + RotationBytes(q) + TailBytes + EndEffectorBytes(q);
         }
 
-        public static int ComputeBitOffsets(byte[] bpc, int[] outBitOffsets)
-        {
-            int pos = 0;
-            for (int i = 0; i < bpc.Length; i++)
-            {
-                outBitOffsets[i] = pos;
-                pos += 2 + 3 * bpc[i];
-            }
-            return pos;
-        }
+        // ComputeBitOffsets lived here: it laid out all 51 bone slots as 2 + 3*bpc apiece, which was
+        // the wire format until v47 moved the thirty finger joints to ten curl/splay channels. It had
+        // no callers left but its own test, and that test failed because it compared its total
+        // against RotationBytes, which follows the real layout. BuildRotationFieldOffsets is the
+        // version that models the wire as it is; use that.
 
         // ────────────────────────────────────────────────────────────
         //  Smallest-Three Encode / Decode (pure floats, no Unity types)

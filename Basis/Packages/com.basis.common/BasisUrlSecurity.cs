@@ -7,6 +7,23 @@ namespace Basis.Scripts.Common
 {
     public static class BasisUrlSecurity
     {
+        /// <summary>
+        /// Lets a host that <em>resolves</em> into the RFC 2544 benchmarking range (198.18.0.0/15)
+        /// through the DNS gate. Off by default; driven by the player-facing compatibility setting,
+        /// because only they know a Fake-IP proxy is carrying their traffic. Deliberately narrow:
+        /// it never applies to a literal 198.18.x.x in a URL — a world that names that address is
+        /// asking for it on purpose — and it opens nothing else.
+        /// </summary>
+        public static bool AllowBenchmarkRangeFromDns;
+
+        /// <summary>
+        /// Raised with the host name when a download is refused purely because it resolved into the
+        /// benchmarking range and <see cref="AllowBenchmarkRangeFromDns"/> is off — i.e. the one
+        /// refusal a Fake-IP player can fix. The UI layer uses it to offer the setting instead of
+        /// leaving them staring at a failed world load. Raised off the main thread.
+        /// </summary>
+        public static event Action<string> OnBenchmarkRangeRefused;
+
         public static bool IsHttpUrlAllowed(string url, out string reason)
         {
             reason = null;
@@ -79,8 +96,22 @@ namespace Basis.Scripts.Common
                 return $"host '{host}' could not be validated (DNS returned no addresses).";
 
             foreach (IPAddress ip in addresses)
-                if (IsBlockedAddress(ip, allowLoopback, out string reason))
-                    return $"host '{host}' resolves to a blocked address ({reason}).";
+            {
+                if (!IsBlockedAddress(ip, allowLoopback, out string reason)) continue;
+
+                // A Fake-IP proxy answers every name out of the benchmarking range and carries the
+                // connection itself, so an ordinary public host lands here through no fault of its
+                // own. Opening that one range is the player's call, never ours — see
+                // AllowBenchmarkRangeFromDns. Everything that guards something real (loopback,
+                // RFC1918, CGNAT, 169.254 metadata, ULA) is untouched either way.
+                if (BasisFakeIpDetection.IsBenchmarkRange(ip))
+                {
+                    if (AllowBenchmarkRangeFromDns) continue;
+                    OnBenchmarkRangeRefused?.Invoke(host);
+                }
+
+                return $"host '{host}' resolves to a blocked address ({reason}).";
+            }
             return null;
         }
 

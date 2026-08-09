@@ -16,13 +16,19 @@ public partial class BasisProjectSetup : EditorWindow
     private const string OC_DONATE = "https://opencollective.com/" + OC_SLUG + "/donate";
     private const string OC_PAGE = "https://opencollective.com/" + OC_SLUG;
 
-    private static readonly Color OC_BarBackground = new Color(0.10f, 0.10f, 0.12f, 1f);
-    private static readonly Color OC_BarBorder     = new Color(0.04f, 0.04f, 0.06f, 1f);
-    private static readonly Color OC_CardBg        = new Color(0.18f, 0.18f, 0.20f, 1f);
-    private static readonly Color OC_CardBorder    = new Color(0.08f, 0.08f, 0.10f, 1f);
+    // Cards and tracks flip with the editor skin so they sit on the window background instead of
+    // punching a dark hole in it. The hero, progress fill and donate gradients are brand colour and
+    // carry white text of their own, so they stay put in both skins.
+    private static bool LightSkin => BasisEditorUI.Light;
+
+    private static Color OC_BarBackground => LightSkin ? new Color(0.84f, 0.84f, 0.86f, 1f) : new Color(0.10f, 0.10f, 0.12f, 1f);
+    private static Color OC_BarBorder     => LightSkin ? new Color(0.68f, 0.68f, 0.71f, 1f) : new Color(0.04f, 0.04f, 0.06f, 1f);
+    private static Color OC_CardBg        => LightSkin ? new Color(0.95f, 0.95f, 0.96f, 1f) : new Color(0.18f, 0.18f, 0.20f, 1f);
+    private static Color OC_CardBorder    => LightSkin ? new Color(0.72f, 0.72f, 0.75f, 1f) : new Color(0.08f, 0.08f, 0.10f, 1f);
+    private static Color OC_SupportBg     => LightSkin ? new Color(0.90f, 0.94f, 0.97f, 1f) : new Color(0.13f, 0.18f, 0.22f, 1f);
+
     private static readonly Color OC_HeroStart     = new Color(0.12f, 0.30f, 0.55f, 1f);
     private static readonly Color OC_HeroEnd       = new Color(0.18f, 0.55f, 0.65f, 1f);
-    private static readonly Color OC_SupportBg     = new Color(0.13f, 0.18f, 0.22f, 1f);
     private static readonly Color OC_FillStart     = new Color(0.25f, 0.65f, 1.00f, 1f);
     private static readonly Color OC_FillEnd       = new Color(0.30f, 0.95f, 0.85f, 1f);
     private static readonly Color OC_DonateStart   = new Color(0.95f, 0.30f, 0.45f, 1f);
@@ -35,7 +41,6 @@ public partial class BasisProjectSetup : EditorWindow
     private string _ocStatus = "";
     private DateTime _ocLastFetchedUtc = DateTime.MinValue;
     private string _ocRawJson = "";
-    private Vector2 _ocScroll;
 
     private float[] _ocDisplayedProgress = Array.Empty<float>();
     private float[] _ocTargetProgress = Array.Empty<float>();
@@ -116,8 +121,6 @@ public partial class BasisProjectSetup : EditorWindow
     {
         EnsureFundingStyles();
 
-        _ocScroll = EditorGUILayout.BeginScrollView(_ocScroll);
-
         DrawFundingHero();
         EditorGUILayout.Space(8);
         DrawSupportMessageCard();
@@ -143,8 +146,6 @@ public partial class BasisProjectSetup : EditorWindow
             EditorGUILayout.Space(10);
             DrawFundingFooter();
         }
-
-        EditorGUILayout.EndScrollView();
     }
 
     private void DrawFundingHero()
@@ -226,9 +227,22 @@ public partial class BasisProjectSetup : EditorWindow
     private void DrawPillButton(Rect rect, string label, Action onClick, bool disabled = false)
     {
         bool hover = rect.Contains(Event.current.mousePosition) && !disabled;
-        Color bg = disabled
-            ? new Color(0.18f, 0.18f, 0.20f, 1f)
-            : (hover ? new Color(0.30f, 0.30f, 0.34f, 1f) : new Color(0.24f, 0.24f, 0.27f, 1f));
+        Color bg;
+        Color fg;
+        if (LightSkin)
+        {
+            bg = disabled
+                ? new Color(0.90f, 0.90f, 0.91f, 1f)
+                : (hover ? new Color(0.80f, 0.80f, 0.83f, 1f) : new Color(0.86f, 0.86f, 0.88f, 1f));
+            fg = disabled ? new Color(0.55f, 0.55f, 0.55f, 1f) : new Color(0.12f, 0.12f, 0.12f, 1f);
+        }
+        else
+        {
+            bg = disabled
+                ? new Color(0.18f, 0.18f, 0.20f, 1f)
+                : (hover ? new Color(0.30f, 0.30f, 0.34f, 1f) : new Color(0.24f, 0.24f, 0.27f, 1f));
+            fg = disabled ? new Color(1, 1, 1, 0.4f) : new Color(1, 1, 1, 0.92f);
+        }
         EditorGUI.DrawRect(rect, bg);
         OcDrawBorder(rect, OC_CardBorder);
 
@@ -236,7 +250,7 @@ public partial class BasisProjectSetup : EditorWindow
         {
             alignment = TextAnchor.MiddleCenter,
             fontSize = 12,
-            normal = { textColor = disabled ? new Color(1, 1, 1, 0.4f) : new Color(1, 1, 1, 0.92f) }
+            normal = { textColor = fg }
         };
         GUI.Label(rect, label, s);
 
@@ -472,10 +486,15 @@ public partial class BasisProjectSetup : EditorWindow
 
     // ─────────────────────────── Style init ───────────────────────────
 
+    private static bool _ocStylesAreLight;
+
     private static void EnsureFundingStyles()
     {
-        if (_ocHeroStyle != null) return;
+        if (_ocHeroStyle != null && _ocStylesAreLight == LightSkin) return;
+        _ocStylesAreLight = LightSkin;
 
+        // Text that sits on the hero or the donate gradient stays white in both skins; text on a
+        // card follows the skin.
         _ocHeroStyle = new GUIStyle(EditorStyles.boldLabel)
         {
             fontSize = 22,
@@ -492,29 +511,29 @@ public partial class BasisProjectSetup : EditorWindow
         {
             fontSize = 18,
             alignment = TextAnchor.MiddleCenter,
-            normal = { textColor = new Color(0.65f, 0.95f, 0.85f, 1f) }
+            normal = { textColor = LightSkin ? new Color(0.04f, 0.42f, 0.35f, 1f) : new Color(0.65f, 0.95f, 0.85f, 1f) }
         };
         _ocStatLabelStyle = new GUIStyle(EditorStyles.miniLabel)
         {
             alignment = TextAnchor.MiddleCenter,
             fontSize = 9,
-            normal = { textColor = new Color(1f, 1f, 1f, 0.55f) }
+            normal = { textColor = LightSkin ? new Color(0.28f, 0.28f, 0.28f, 1f) : new Color(1f, 1f, 1f, 0.55f) }
         };
         _ocGoalTitleStyle = new GUIStyle(EditorStyles.boldLabel)
         {
             fontSize = 13,
-            normal = { textColor = new Color(1f, 1f, 1f, 0.95f) }
+            normal = { textColor = LightSkin ? new Color(0.10f, 0.10f, 0.10f, 1f) : new Color(1f, 1f, 1f, 0.95f) }
         };
         _ocGoalTypeStyle = new GUIStyle(EditorStyles.miniLabel)
         {
             alignment = TextAnchor.MiddleRight,
-            normal = { textColor = new Color(1f, 1f, 1f, 0.5f) }
+            normal = { textColor = LightSkin ? new Color(0.38f, 0.38f, 0.38f, 1f) : new Color(1f, 1f, 1f, 0.5f) }
         };
         _ocMessageStyle = new GUIStyle(EditorStyles.label)
         {
             wordWrap = true,
             fontSize = 12,
-            normal = { textColor = new Color(1f, 1f, 1f, 0.88f) }
+            normal = { textColor = LightSkin ? new Color(0.16f, 0.16f, 0.16f, 1f) : new Color(1f, 1f, 1f, 0.88f) }
         };
         _ocDonateLabelStyle = new GUIStyle(EditorStyles.boldLabel)
         {
@@ -524,12 +543,12 @@ public partial class BasisProjectSetup : EditorWindow
         };
         _ocAmountStyle = new GUIStyle(EditorStyles.miniLabel)
         {
-            normal = { textColor = new Color(1f, 1f, 1f, 0.75f) }
+            normal = { textColor = LightSkin ? new Color(0.30f, 0.30f, 0.30f, 1f) : new Color(1f, 1f, 1f, 0.75f) }
         };
         _ocSectionHeaderStyle = new GUIStyle(EditorStyles.boldLabel)
         {
             fontSize = 14,
-            normal = { textColor = new Color(1f, 1f, 1f, 0.92f) }
+            normal = { textColor = LightSkin ? new Color(0.12f, 0.12f, 0.12f, 1f) : new Color(1f, 1f, 1f, 0.92f) }
         };
     }
 

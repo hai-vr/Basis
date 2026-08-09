@@ -14,19 +14,26 @@ using UnityEngine;
 /// </summary>
 public static class BasisEditorUI
 {
-    public static readonly Color Accent = new Color(239f / 255f, 40f / 255f, 90f / 255f);
-    public static readonly Color Good = new Color(0.36f, 0.80f, 0.42f);
-    public static readonly Color Warn = new Color(0.90f, 0.75f, 0.20f);
-    public static readonly Color Bad = new Color(0.90f, 0.36f, 0.36f);
-    public static readonly Color Muted = new Color(0.72f, 0.72f, 0.72f);
-    public static readonly Color Value = new Color(0.90f, 0.90f, 0.90f);
+    /// <summary>
+    /// True while the editor is on the light skin. The identity is the same in both — same pink,
+    /// same layout — with the surfaces and text swapped so a card still lifts off the window
+    /// background and body text still reads against it.
+    /// </summary>
+    public static bool Light => !EditorGUIUtility.isProSkin;
 
-    private static readonly Color CardBg = new Color(0f, 0f, 0f, 0.54f);
-    private static readonly Color HeaderBg = new Color(0f, 0f, 0f, 0.40f);
-    private static readonly Color TrackBg = new Color(0.15f, 0.15f, 0.15f, 1f);
-    private static readonly Color InfoBg = new Color(40f / 255f, 70f / 255f, 100f / 255f, 0.60f);
-    private static readonly Color WarnBg = new Color(110f / 255f, 80f / 255f, 20f / 255f, 0.70f);
-    private static readonly Color ErrorBg = new Color(120f / 255f, 30f / 255f, 30f / 255f, 0.70f);
+    public static Color Accent => Light ? new Color(214f / 255f, 26f / 255f, 78f / 255f) : new Color(239f / 255f, 40f / 255f, 90f / 255f);
+    public static Color Good => Light ? new Color(0.11f, 0.50f, 0.20f) : new Color(0.36f, 0.80f, 0.42f);
+    public static Color Warn => Light ? new Color(0.60f, 0.42f, 0.02f) : new Color(0.90f, 0.75f, 0.20f);
+    public static Color Bad => Light ? new Color(0.72f, 0.15f, 0.15f) : new Color(0.90f, 0.36f, 0.36f);
+    public static Color Muted => Light ? new Color(0.34f, 0.34f, 0.34f) : new Color(0.72f, 0.72f, 0.72f);
+    public static Color Value => Light ? new Color(0.13f, 0.13f, 0.13f) : new Color(0.90f, 0.90f, 0.90f);
+
+    private static Color CardBg => Light ? new Color(1f, 1f, 1f, 0.58f) : new Color(0f, 0f, 0f, 0.54f);
+    private static Color HeaderBg => Light ? new Color(1f, 1f, 1f, 0.75f) : new Color(0f, 0f, 0f, 0.40f);
+    private static Color TrackBg => Light ? new Color(0.78f, 0.78f, 0.78f, 1f) : new Color(0.15f, 0.15f, 0.15f, 1f);
+    private static Color InfoBg => Light ? new Color(205f / 255f, 224f / 255f, 245f / 255f, 0.90f) : new Color(40f / 255f, 70f / 255f, 100f / 255f, 0.60f);
+    private static Color WarnBg => Light ? new Color(250f / 255f, 232f / 255f, 180f / 255f, 0.90f) : new Color(110f / 255f, 80f / 255f, 20f / 255f, 0.70f);
+    private static Color ErrorBg => Light ? new Color(250f / 255f, 210f / 255f, 210f / 255f, 0.90f) : new Color(120f / 255f, 30f / 255f, 30f / 255f, 0.70f);
 
     private const float Radius = 5f;
 
@@ -54,10 +61,40 @@ public static class BasisEditorUI
     private static GUIStyle _reasonFail;
     private static GUIStyle _tabActive;
     private static GUIStyle _tabIdle;
+    private static GUIStyle _onDark;
+
+    /// <summary>
+    /// Mini label for text drawn on top of an always-dark surface — a meter track, a plot canvas.
+    /// It stays light on both skins, where <c>EditorStyles.miniLabel</c> would turn dark-on-dark
+    /// as soon as the user switches to the light theme.
+    /// </summary>
+    public static GUIStyle OnDarkMiniLabel
+    {
+        get
+        {
+            Init();
+            if (_onDark == null)
+            {
+                _onDark = new GUIStyle(EditorStyles.miniLabel);
+                _onDark.normal.textColor = new Color(0.88f, 0.88f, 0.90f);
+            }
+            return _onDark;
+        }
+    }
+
+    private static bool _stylesAreLight;
 
     private static void Init()
     {
-        if (_card != null) return;
+        // Styles bake their colours in, so they have to be rebuilt when the user switches skin.
+        if (_card != null && _stylesAreLight == Light) return;
+        _stylesAreLight = Light;
+        _helpStyles.Clear();
+        _reasonPass = null;
+        _reasonFail = null;
+        _tabActive = null;
+        _tabIdle = null;
+        _onDark = null;
 
         _card = new GUIStyle { padding = new RectOffset(8, 8, 6, 8), margin = new RectOffset(0, 0, 0, 6) };
         _page = new GUIStyle { padding = new RectOffset(8, 8, 8, 8) };
@@ -68,7 +105,7 @@ public static class BasisEditorUI
             fontStyle = FontStyle.Bold,
             wordWrap = true,
         };
-        _title.normal.textColor = Color.white;
+        _title.normal.textColor = Light ? new Color(0.10f, 0.10f, 0.10f) : Color.white;
 
         _subtitle = new GUIStyle(EditorStyles.label) { fontSize = 11, wordWrap = true };
         _subtitle.normal.textColor = Muted;
@@ -77,10 +114,10 @@ public static class BasisEditorUI
         _sectionTitle.normal.textColor = Accent;
 
         _note = new GUIStyle(EditorStyles.label) { fontSize = 10, wordWrap = true };
-        _note.normal.textColor = new Color(0.63f, 0.63f, 0.63f);
+        _note.normal.textColor = Light ? new Color(0.42f, 0.42f, 0.42f) : new Color(0.63f, 0.63f, 0.63f);
 
         _label = new GUIStyle(EditorStyles.label) { wordWrap = false };
-        _label.normal.textColor = new Color(0.78f, 0.78f, 0.78f);
+        _label.normal.textColor = Light ? new Color(0.25f, 0.25f, 0.25f) : new Color(0.78f, 0.78f, 0.78f);
 
         _value = new GUIStyle(EditorStyles.label) { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleRight, wordWrap = true };
         _value.normal.textColor = Value;
@@ -118,6 +155,15 @@ public static class BasisEditorUI
         _primary.active.textColor = Color.white;
 
         _secondary = new GUIStyle(_primary) { fontSize = 11 };
+        if (Light)
+        {
+            // The neutral button is a pale fill on the light skin, so its label has to darken with it.
+            Color secondaryText = new Color(0.13f, 0.13f, 0.13f);
+            _secondary.normal.textColor = secondaryText;
+            _secondary.hover.textColor = secondaryText;
+            _secondary.active.textColor = secondaryText;
+        }
+
         _tab = new GUIStyle(EditorStyles.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 12, padding = new RectOffset(10, 10, 5, 5) };
 
         _help = new GUIStyle(EditorStyles.label)
@@ -142,7 +188,7 @@ public static class BasisEditorUI
     {
         Rect r = GUILayoutUtility.GetRect(1f, 1f, GUILayout.ExpandWidth(true));
         r.y += 2f;
-        Fill(new Rect(r.x, r.y, r.width, 1f), new Color(1f, 1f, 1f, 0.14f), 0f);
+        Fill(new Rect(r.x, r.y, r.width, 1f), Light ? new Color(0f, 0f, 0f, 0.16f) : new Color(1f, 1f, 1f, 0.14f), 0f);
         GUILayout.Space(4f);
     }
 
@@ -251,7 +297,7 @@ public static class BasisEditorUI
         {
             case MessageType.Warning: bg = WarnBg; break;
             case MessageType.Error: bg = ErrorBg; break;
-            case MessageType.None: bg = new Color(0f, 0f, 0f, 0.25f); break;
+            case MessageType.None: bg = Light ? new Color(1f, 1f, 1f, 0.55f) : new Color(0f, 0f, 0f, 0.25f); break;
             default: bg = InfoBg; break;
         }
 
@@ -270,10 +316,10 @@ public static class BasisEditorUI
         Color fg;
         switch (type)
         {
-            case MessageType.Warning: fg = new Color(1f, 0.94f, 0.82f); break;
-            case MessageType.Error: fg = new Color(1f, 0.86f, 0.86f); break;
+            case MessageType.Warning: fg = Light ? new Color(0.36f, 0.26f, 0.02f) : new Color(1f, 0.94f, 0.82f); break;
+            case MessageType.Error: fg = Light ? new Color(0.45f, 0.09f, 0.09f) : new Color(1f, 0.86f, 0.86f); break;
             case MessageType.None: fg = Muted; break;
-            default: fg = new Color(0.86f, 0.90f, 0.94f); break;
+            default: fg = Light ? new Color(0.10f, 0.22f, 0.36f) : new Color(0.86f, 0.90f, 0.94f); break;
         }
         var style = new GUIStyle(_help);
         style.normal.textColor = fg;
@@ -368,7 +414,7 @@ public static class BasisEditorUI
             _reasonPass = new GUIStyle(_help) { padding = new RectOffset(0, 0, 3, 3) };
             _reasonPass.normal.textColor = Muted;
             _reasonFail = new GUIStyle(_reasonPass);
-            _reasonFail.normal.textColor = new Color(1f, 0.80f, 0.80f);
+            _reasonFail.normal.textColor = Light ? new Color(0.62f, 0.10f, 0.10f) : new Color(1f, 0.80f, 0.80f);
         }
         EditorGUILayout.LabelField(reason ?? string.Empty, pass ? _reasonPass : _reasonFail);
         EditorGUILayout.EndHorizontal();
@@ -387,7 +433,7 @@ public static class BasisEditorUI
     public static bool SecondaryButton(string text, float height = 22f, params GUILayoutOption[] options)
     {
         Init();
-        return FlatButton(text, new Color(0.31f, 0.31f, 0.31f), _secondary, height, options);
+        return FlatButton(text, Light ? new Color(0.82f, 0.82f, 0.82f) : new Color(0.31f, 0.31f, 0.31f), _secondary, height, options);
     }
 
     private static bool FlatButton(string text, Color bg, GUIStyle style, float height, GUILayoutOption[] options)
@@ -398,7 +444,9 @@ public static class BasisEditorUI
         Rect r = GUILayoutUtility.GetRect(content, style, opts.ToArray());
 
         bool hover = r.Contains(Event.current.mousePosition);
-        Color tint = GUI.enabled ? (hover ? Color.Lerp(bg, Color.white, 0.12f) : bg) : Color.Lerp(bg, Color.black, 0.45f);
+        Color hovered = Light ? Color.Lerp(bg, Color.black, 0.10f) : Color.Lerp(bg, Color.white, 0.12f);
+        Color off = Color.Lerp(bg, Light ? Color.white : Color.black, 0.45f);
+        Color tint = GUI.enabled ? (hover ? hovered : bg) : off;
         Fill(r, tint, 6f);
         return GUI.Button(r, content, style);
     }
@@ -410,12 +458,12 @@ public static class BasisEditorUI
         if (labels == null || labels.Length == 0) return selected;
 
         Rect strip = GUILayoutUtility.GetRect(10f, 24f, GUILayout.ExpandWidth(true));
-        Fill(strip, new Color(0f, 0f, 0f, 0.30f), 4f);
+        Fill(strip, Light ? new Color(0f, 0f, 0f, 0.09f) : new Color(0f, 0f, 0f, 0.30f), 4f);
 
         if (_tabActive == null)
         {
             _tabActive = new GUIStyle(_tab);
-            _tabActive.normal.textColor = Color.white;
+            _tabActive.normal.textColor = Light ? new Color(0.10f, 0.10f, 0.10f) : Color.white;
             _tabIdle = new GUIStyle(_tab);
             _tabIdle.normal.textColor = Muted;
         }

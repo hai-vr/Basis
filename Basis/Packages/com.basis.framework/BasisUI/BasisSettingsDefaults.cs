@@ -112,6 +112,16 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> HighPlayerCapSuggestions = new("highplayercapsuggestions", new BasisPlatformDefault<bool>(true));
 
         /// <summary>
+        /// Lets downloads proceed when the system resolver answers with an address in the RFC 2544
+        /// benchmarking range (198.18.0.0/15). Off by default. Fake-IP proxies (Clash, sing-box in
+        /// TUN mode) hand every domain a synthetic address out of that range and carry the
+        /// connection themselves, so the security gate that blocks non-routable addresses refuses
+        /// every file. Only that one range is affected — loopback, LAN and cloud-metadata
+        /// addresses stay blocked with this on.
+        /// </summary>
+        public static BasisSettingsBinding<bool> AllowProxyBenchmarkRange = new("allowproxybenchmarkrange", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
         /// Active Performance Mode level: "Off", "Light", "Balanced" or "Aggressive".
         /// See <see cref="BasisPerformanceMode"/> — the level owns a table of graphics,
         /// crowd and avatar-cost settings and restores the player's own values when
@@ -1956,6 +1966,11 @@ namespace Basis.BasisUI
             UseMaxVisibleAvatars.LoadBindingValue();
             MaxVisibleAvatars.LoadBindingValue();
             HighPlayerCapSuggestions.LoadBindingValue();
+            AllowProxyBenchmarkRange.LoadBindingValue();
+            // Pushed here rather than only from BasisFakeIpCompatibilityPrompt's initialiser:
+            // LoadBindingValue deliberately does not raise OnChanged, so a player who turned this
+            // on last session would otherwise start the next one with the gate still closed.
+            Basis.Scripts.Common.BasisUrlSecurity.AllowBenchmarkRangeFromDns = AllowProxyBenchmarkRange.RawValue;
             PerformanceModeLevel.LoadBindingValue();
             PerformanceModeAuto.LoadBindingValue();
             PerformanceModeBaseline.LoadBindingValue();

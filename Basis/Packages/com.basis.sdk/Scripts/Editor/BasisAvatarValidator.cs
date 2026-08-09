@@ -753,7 +753,9 @@ public class BasisAvatarValidator
     private VisualElement CreateCategoryPanel(ValidationCategory category)
     {
         VisualElement panel = new VisualElement();
-        panel.style.backgroundColor = new StyleColor(new Color(0.65098f, 0.63137f, 0.05098f, 0.5f));
+        panel.style.backgroundColor = new StyleColor(BasisEditorUI.Light
+            ? new Color(0.98f, 0.92f, 0.70f, 0.95f)
+            : new Color(0.65098f, 0.63137f, 0.05098f, 0.5f));
         panel.style.marginBottom = 10;
         panel.style.paddingTop = 5;
         panel.style.paddingBottom = 5;
@@ -770,7 +772,7 @@ public class BasisAvatarValidator
 
         Label header = new Label(BasisEditorLocalization.Get("sdk.validator.warnings.header", category));
         header.style.unityFontStyleAndWeight = FontStyle.Bold;
-        header.style.color = new StyleColor(Color.white);
+        header.style.color = new StyleColor(BasisEditorUI.Light ? new Color(0.10f, 0.10f, 0.10f) : Color.white);
         panel.Add(header);
         panel.Add(label);
 

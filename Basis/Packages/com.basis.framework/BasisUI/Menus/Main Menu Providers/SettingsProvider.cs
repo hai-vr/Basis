@@ -767,6 +767,13 @@ namespace Basis.BasisUI
             toggleDirectConnections.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.directConnections.tooltip"));
             toggleDirectConnections.SetValueWithoutNotify(!BasisSettingsDefaults.DisableDirectConnections.RawValue);
 
+            // The in-app prompt turns this on for a player behind a Fake-IP proxy; it lives here so
+            // it can be found (and turned back off) without waiting for a failed download to ask.
+            PanelToggle toggleProxyBenchmarkRange = PanelToggle.CreateNewEntry(container);
+            toggleProxyBenchmarkRange.AssignBinding(BasisSettingsDefaults.AllowProxyBenchmarkRange);
+            toggleProxyBenchmarkRange.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.proxyBenchmarkRange"));
+            toggleProxyBenchmarkRange.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.proxyBenchmarkRange.tooltip"));
+
             PanelSlider sliderP2PRate = PanelSlider.CreateEntryAndBind(
                 container,
                 new PanelSlider.SliderSettings(

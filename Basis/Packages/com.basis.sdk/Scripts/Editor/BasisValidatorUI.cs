@@ -67,7 +67,9 @@ public static class BasisValidatorUI
     public static VisualElement CreateSuggestionPanel(VisualElement rootElement, out Label messageLabel, out VisualElement buttonContainer)
     {
         VisualElement suggestionPanel = new VisualElement();
-        suggestionPanel.style.backgroundColor = new StyleColor(new Color(0.65098f, 0.63137f, 0.05098f, 0.5f));
+        suggestionPanel.style.backgroundColor = new StyleColor(BasisEditorUI.Light
+            ? new Color(0.98f, 0.92f, 0.70f, 0.95f)
+            : new Color(0.65098f, 0.63137f, 0.05098f, 0.5f));
         suggestionPanel.style.paddingTop = 5;
         suggestionPanel.style.flexGrow = 1;
         suggestionPanel.style.paddingBottom = 5;
@@ -84,7 +86,7 @@ public static class BasisValidatorUI
 
         Label header = new Label(BasisEditorLocalization.Get("sdk.validator.suggestions.header"));
         header.style.unityFontStyleAndWeight = FontStyle.Bold;
-        header.style.color = new StyleColor(Color.white);
+        header.style.color = new StyleColor(BasisEditorUI.Light ? new Color(0.10f, 0.10f, 0.10f) : Color.white);
         suggestionPanel.Add(header);
 
         messageLabel = new Label();

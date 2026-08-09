@@ -147,7 +147,7 @@ public class BasisFootDriverPage : Basis.IK.Debugging.BasisIKSweepPage
             EditorGUI.DrawRect(rect, new Color(0.15f, 0.15f, 0.15f));
             EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width * bar, rect.height),
                 Color.Lerp(new Color(0.2f, 0.8f, 0.2f), new Color(0.9f, 0.2f, 0.1f), bar));
-            GUI.Label(rect, $"  drift: {drift * 100f:F1}cm", EditorStyles.miniLabel);
+            GUI.Label(rect, $"  drift: {drift * 100f:F1}cm", BasisEditorUI.OnDarkMiniLabel);
         }
     }
 

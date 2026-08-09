@@ -40,13 +40,17 @@ public sealed class BasisWireSizeModel
 /// <summary>Shared Basis-styled building blocks for the synced-object / synced-transform inspectors.</summary>
 public static class BasisSyncInspectorUI
 {
-    // One source of truth for the Basis pink, shared with the IMGUI windows in BasisEditorUI.
-    public static readonly Color Accent = BasisEditorUI.Accent;
-    private static readonly Color HeaderBg = new Color(0f, 0f, 0f, 0.54f);
-    private static readonly Color CardBg = new Color(0f, 0f, 0f, 0.30f);
-    private static readonly Color Subtle = new Color(0.8f, 0.8f, 0.8f, 1f);
-    private static readonly Color ErrorBg = new Color(1f, 0.5f, 0.5f, 0.5f);
-    private static readonly Color WarnBg = new Color(0.651f, 0.631f, 0.051f, 0.5f);
+    // One source of truth for the Basis pink and the light/dark split, shared with the IMGUI
+    // windows in BasisEditorUI.
+    public static Color Accent => BasisEditorUI.Accent;
+    private static bool Light => BasisEditorUI.Light;
+
+    private static Color HeaderBg => Light ? new Color(1f, 1f, 1f, 0.60f) : new Color(0f, 0f, 0f, 0.54f);
+    private static Color CardBg => Light ? new Color(1f, 1f, 1f, 0.40f) : new Color(0f, 0f, 0f, 0.30f);
+    private static Color Subtle => Light ? new Color(0.32f, 0.32f, 0.32f, 1f) : new Color(0.8f, 0.8f, 0.8f, 1f);
+    private static Color Strong => Light ? new Color(0.10f, 0.10f, 0.10f, 1f) : Color.white;
+    private static Color ErrorBg => Light ? new Color(1f, 0.78f, 0.78f, 0.85f) : new Color(1f, 0.5f, 0.5f, 0.5f);
+    private static Color WarnBg => Light ? new Color(0.98f, 0.92f, 0.70f, 0.85f) : new Color(0.651f, 0.631f, 0.051f, 0.5f);
 
     public static VisualElement Header(string title, string subtitle)
     {
@@ -64,7 +68,7 @@ public static class BasisSyncInspectorUI
         var titleLabel = new Label(title);
         titleLabel.style.fontSize = 15;
         titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-        titleLabel.style.color = new StyleColor(Color.white);
+        titleLabel.style.color = new StyleColor(Strong);
 
         var subtitleLabel = new Label(subtitle);
         subtitleLabel.style.fontSize = 11;
@@ -152,13 +156,13 @@ public static class BasisSyncInspectorUI
         panel.style.paddingRight = 6;
         panel.style.marginBottom = 6;
         panel.style.borderBottomWidth = 2;
-        panel.style.borderBottomColor = new StyleColor(error ? Color.red : Color.yellow);
+        panel.style.borderBottomColor = new StyleColor(error ? BasisEditorUI.Bad : BasisEditorUI.Warn);
         Round(panel, 5);
 
         var label = new Label(string.Join("\n", messages.Select(m => "• " + m)));
         label.style.unityFontStyleAndWeight = FontStyle.Bold;
         label.style.whiteSpace = WhiteSpace.Normal;
-        label.style.color = new StyleColor(Color.white);
+        label.style.color = new StyleColor(Strong);
         panel.Add(label);
         return panel;
     }
@@ -261,7 +265,7 @@ public static class BasisSyncInspectorUI
 
         var divider = new VisualElement();
         divider.style.height = 1;
-        divider.style.backgroundColor = new StyleColor(new Color(1f, 1f, 1f, 0.15f));
+        divider.style.backgroundColor = new StyleColor(Light ? new Color(0f, 0f, 0f, 0.17f) : new Color(1f, 1f, 1f, 0.15f));
         divider.style.marginTop = 4;
         divider.style.marginBottom = 4;
         card.Add(divider);
@@ -278,7 +282,7 @@ public static class BasisSyncInspectorUI
         oversize.style.whiteSpace = WhiteSpace.Normal;
         oversize.style.fontSize = 10;
         oversize.style.marginTop = 4;
-        oversize.style.color = new StyleColor(Color.red);
+        oversize.style.color = new StyleColor(BasisEditorUI.Bad);
         oversize.style.display = DisplayStyle.None;
         card.Add(oversize);
 
@@ -317,7 +321,7 @@ public static class BasisSyncInspectorUI
             float kfHz = model.KeyframeIntervalSeconds > 0f ? 1f / model.KeyframeIntervalSeconds : 0f;
             float bps = deltaBytes * sendHz + Mathf.Max(0, keyframeBytes - deltaBytes) * kfHz;
             bandwidth.text = $"≈ {FormatRate(bps)}  @ {sendHz:0} Hz";
-            bandwidth.style.color = new StyleColor(bps > 2000f ? new Color(0.95f, 0.75f, 0.2f) : Accent);
+            bandwidth.style.color = new StyleColor(bps > 2000f ? BasisEditorUI.Warn : Accent);
 
             int budget = Basis.Network.Core.BasisNetworkCommons.MaxUnfragmentedPayload;
             int worst = Mathf.Max(keyframeBytes, deltaBytes);
@@ -360,7 +364,7 @@ public static class BasisSyncInspectorUI
         v.style.whiteSpace = WhiteSpace.Normal;
         v.style.unityTextAlign = TextAnchor.MiddleRight;
         if (strong) v.style.unityFontStyleAndWeight = FontStyle.Bold;
-        else v.style.color = new StyleColor(new Color(0.78f, 0.78f, 0.78f, 1f));
+        else v.style.color = new StyleColor(Subtle);
 
         row.Add(k);
         row.Add(v);
@@ -464,13 +468,13 @@ public static class BasisSyncInspectorUI
                 if (range <= 0f)
                 {
                     info.text = "! Min must be less than Max — values collapse to a single step.";
-                    info.style.color = new StyleColor(new Color(1f, 0.55f, 0.55f));
+                    info.style.color = new StyleColor(BasisEditorUI.Bad);
                 }
                 else
                 {
                     double step = (double)range / ((1L << bits) - 1L);
                     info.text = $"step ≈ {step:0.######} over {range:0.###}  •  {bits} bit{(bits == 1 ? "" : "s")}  •  {(bits / 8f):0.##} B/axis";
-                    info.style.color = new StyleColor(bits <= 4 ? new Color(0.9f, 0.8f, 0.2f) : Subtle);
+                    info.style.color = new StyleColor(bits <= 4 ? BasisEditorUI.Warn : Subtle);
                 }
             }
             else
