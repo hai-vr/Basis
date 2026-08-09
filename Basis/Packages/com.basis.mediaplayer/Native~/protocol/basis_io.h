@@ -78,6 +78,18 @@ int basis_io_poll_read(basis_io_t** ios, int n, int timeout_ms);
  * targets are attempted, not which address a later lookup returns. */
 int basis_io_host_is_blocked(const char* host);
 
+/* Resolve `host` to a single vetted numeric address literal for a caller that owns
+ * its own sockets (e.g. librist) and would otherwise re-resolve the name at connect
+ * time. Applies the same non-global-unicast guard basis_io_connect uses to the
+ * resolved addresses and writes the first allowed one, in numeric form, to `out_ip`
+ * (at most out_cap bytes incl. the terminator) plus its address family to
+ * *out_family. Returns 0 on success; -1 if the host is empty, unresolvable, or every
+ * resolved address is blocked (fail-closed). Pinning the caller to this literal
+ * closes the DNS-rebind window that basis_io_host_is_blocked alone leaves open.
+ * Honours the same BASIS_MEDIA_ALLOW_LOCAL escape hatch; accepts a bare or
+ * bracketed IPv6 literal like basis_io_host_is_blocked. */
+int basis_io_resolve_checked(const char* host, char* out_ip, int out_cap, int* out_family);
+
 /* Process-wide one-time init/teardown (WSAStartup on Windows; no-op elsewhere). */
 void basis_io_global_init(void);
 void basis_io_global_shutdown(void);
