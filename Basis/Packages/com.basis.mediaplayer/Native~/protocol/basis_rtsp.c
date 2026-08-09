@@ -37,6 +37,15 @@
   #include <time.h>
 #endif
 
+/* -Wformat-security only checks call sites of functions it knows are printf-like,
+ * i.e. libc calls and locals carrying this attribute. Tag our vsnprintf wrapper so
+ * the checker covers it too; expands to nothing where the attribute is unsupported. */
+#if defined(__GNUC__) || defined(__clang__)
+#  define BASIS_PRINTF_FMT(fmt_idx, va_idx) __attribute__((format(printf, fmt_idx, va_idx)))
+#else
+#  define BASIS_PRINTF_FMT(fmt_idx, va_idx)
+#endif
+
 /* UDP transport tuning. The no-data deadlines are deliberately snappy: a
  * false fallback lands on TCP-interleaved, which works wherever UDP does, so
  * over-triggering costs nothing observable while under-triggering stalls the
@@ -114,6 +123,7 @@ typedef struct {
  * would then write out of bounds. The field sizes today keep the total under
  * 2 KiB, so this is a guard on the arithmetic rather than a fix for a reachable
  * overflow; it stops being safe the moment any of the inputs grows. */
+static int req_append(char* req, size_t cap, int* n, const char* fmt, ...) BASIS_PRINTF_FMT(4, 5);
 static int req_append(char* req, size_t cap, int* n, const char* fmt, ...) {
     if (*n < 0 || (size_t)*n >= cap) return -1;
     va_list ap;
