@@ -107,7 +107,7 @@ public class ServerConfigurationDefaultsTests
         Assert.Equal(2000, cfg.AvatarDeltaKeyframeMaxIntervalMs);
         Assert.True(cfg.StripAdditionalDataAtLowQuality);
         Assert.True(cfg.EnableUplinkAvatarDelta);
-        Assert.True(cfg.EnableUplinkAvatarStream);
+        Assert.False(cfg.EnableUplinkAvatarStream);
     }
 
     [Fact]

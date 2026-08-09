@@ -347,6 +347,16 @@ namespace BasisServerHandle
         /// </summary>
         private static bool CleanupPeerSubsystems(NetPeer peer, int id)
         {
+            // A predecessor's disconnect can land after a reconnect has already taken the same id.
+            // Every teardown below is keyed by id alone, so running it for a peer that no longer
+            // owns the slot dismantles the live peer's state instead — the "direct connect works,
+            // then dies after a rejoin" symptom. An id held by nobody still cleans up, so a peer
+            // rejected before auth completed keeps releasing whatever partial state it made.
+            if (NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer holder) && !ReferenceEquals(holder, peer))
+            {
+                return false;
+            }
+
             // The auth-identity map is the primary UUID source, but it is empty when
             // UseAuthIdentity is off and can already be evicted on a reconnect collision. The
             // stored connect metadata carries the same server-computed UUID (OnNetworkAccepted
@@ -381,7 +391,10 @@ namespace BasisServerHandle
             BasisServerMessageRegistry.ClearSubscription(id);
             JoinBroadcast.UnregisterPeer(id);
 
-            return NetworkServer.AuthenticatedPeers.TryRemove(id, out _);
+            // Value-matched, mirroring RejectWithReason(NetPeer): the guard above raced against a
+            // reconnect that may have claimed the id since.
+            return ((ICollection<KeyValuePair<int, NetPeer>>)NetworkServer.AuthenticatedPeers)
+                .Remove(new KeyValuePair<int, NetPeer>(id, peer));
         }
 
         public static void HandlePeerDisconnected(NetPeer peer, DisconnectInfo info)

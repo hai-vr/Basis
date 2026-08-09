@@ -115,7 +115,7 @@ public class Configuration
     /// Clients fall back to keyframe+delta when this is false, and also whenever they hold a direct
     /// P2P session — see BasisNetworkAvatarCompressor for why.
     /// </summary>
-    public bool EnableUplinkAvatarStream = true;
+    public bool EnableUplinkAvatarStream = false;
     public bool EnableBSRProfiling = false;
     /// <summary>
     /// Worker cap for the BSR tick's parallel phases (send loop, message processing, distance
