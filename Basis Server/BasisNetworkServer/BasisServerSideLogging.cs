@@ -58,13 +58,24 @@ namespace Basis.Network
 
             _loggingTask = Task.Run(async () =>
             {
+                // Owned by this one task. Whatever queued up while the previous write was in flight
+                // goes out in a single open/write/close — a burst of lines used to cost a file
+                // handle apiece, which is what made a multi-line report expensive to emit. The
+                // queue is bounded at 200, so a drain is bounded too.
+                StringBuilder batch = new StringBuilder(1024);
                 try
                 {
                     while (!cancellationToken.IsCancellationRequested || !LogQueue.IsCompleted)
                     {
                         if (LogQueue.TryTake(out var logEntry, 50))
                         {
-                            await WriteToFileAsync(logEntry, cancellationToken).ConfigureAwait(false);
+                            batch.Clear();
+                            batch.Append(logEntry).Append(Environment.NewLine);
+                            while (LogQueue.TryTake(out var queued))
+                            {
+                                batch.Append(queued).Append(Environment.NewLine);
+                            }
+                            await WriteToFileAsync(batch.ToString(), cancellationToken).ConfigureAwait(false);
                         }
                     }
                 }
@@ -75,15 +86,16 @@ namespace Basis.Network
             }, cancellationToken);
         }
 
-        private static async Task WriteToFileAsync(string logEntry, CancellationToken cancellationToken)
+        private static async Task WriteToFileAsync(string text, CancellationToken cancellationToken)
         {
+            // Outside the try: a cancelled wait never took the semaphore, and releasing one that was
+            // never acquired hands out a second permit and lets two writers into the file at once.
+            await FileWriteSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await FileWriteSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-
                 using (var stream = new FileStream(CurrentLogFileName, FileMode.Append, FileAccess.Write, FileShare.Read, 4096, true))
                 {
-                    var logData = Encoding.UTF8.GetBytes(logEntry + Environment.NewLine);
+                    var logData = Encoding.UTF8.GetBytes(text);
                     await stream.WriteAsync(logData, 0, logData.Length, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -111,18 +123,65 @@ namespace Basis.Network
                 _cancellationTokenSource?.Dispose();
             }
         }
-        private static string FormatMessage(string level, string message)
+
+        /// <summary>
+        /// A stamp and the two forms it is written in. The stamp has minute resolution, so building
+        /// it per line spent a DateTime.Now — a timezone conversion — and two string allocations
+        /// producing the same characters thousands of times over. Held as one immutable object
+        /// swapped by reference so the minute and its text can never disagree; two threads racing
+        /// here just compute the same value twice.
+        /// </summary>
+        private sealed class MinuteStamp
         {
-            string timestamp = DateTime.Now.ToString("HH:mm");
-            return $"[{timestamp}] [{level}] {message}";
+            public long Minute;
+            public string Plain;     // "10:31"    — the file record
+            public string Bracketed; // "[10:31] " — the console prefix
         }
 
+        private static MinuteStamp _stamp;
+
+        private static MinuteStamp CurrentStamp()
+        {
+            DateTime now = DateTime.Now;
+            long minute = now.Ticks / TimeSpan.TicksPerMinute;
+
+            MinuteStamp cached = Volatile.Read(ref _stamp);
+            if (cached != null && cached.Minute == minute) return cached;
+
+            string plain = now.ToString("HH:mm");
+            MinuteStamp fresh = new MinuteStamp
+            {
+                Minute = minute,
+                Plain = plain,
+                Bracketed = "[" + plain + "] ",
+            };
+            Volatile.Write(ref _stamp, fresh);
+            return fresh;
+        }
+
+        /// <summary>
+        /// Newlines and control characters would break the one-record-per-line shape of the log
+        /// file. Almost every message is already clean, so scan for a character worth replacing
+        /// before committing to a copy — the unconditional rebuild cost a StringBuilder and a string
+        /// on every line the server ever wrote.
+        /// </summary>
         private static string Sanitize(string message)
         {
             if (string.IsNullOrEmpty(message)) return message;
-            StringBuilder sb = new StringBuilder(message.Length);
-            foreach (char c in message)
+
+            int firstBad = -1;
+            for (int i = 0; i < message.Length; i++)
             {
+                char c = message[i];
+                if (c < 0x20 && c != '\t') { firstBad = i; break; }
+            }
+            if (firstBad < 0) return message;
+
+            StringBuilder sb = new StringBuilder(message.Length);
+            sb.Append(message, 0, firstBad);
+            for (int i = firstBad; i < message.Length; i++)
+            {
+                char c = message[i];
                 if (c == '\n' || c == '\r') sb.Append(' ');
                 else if (c < 0x20 && c != '\t') sb.Append('?');
                 else sb.Append(c);
@@ -130,59 +189,33 @@ namespace Basis.Network
             return sb.ToString();
         }
 
-        private static void Log(string message)
+        private static void Log(string message) => Emit("INFO", "[INFO] ", ConsoleColor.DarkMagenta, message);
+
+        public static void LogWarning(string message) => Emit("WARNING", "[WARNING] ", ConsoleColor.DarkYellow, message);
+
+        public static void LogError(string message) => Emit("ERROR", "[ERROR] ", ConsoleColor.DarkRed, message);
+
+        /// <summary>
+        /// The three levels differed only in two labels and a colour. Sharing one body means the
+        /// per-line costs — one timestamp, one sanitise pass, one console lock — are paid once and
+        /// stay described in one place instead of drifting between three copies.
+        /// </summary>
+        private static void Emit(string level, string consoleLabel, ConsoleColor levelColor, string message)
         {
-            if (WriteToScreen || UseLogging)
+            if (!WriteToScreen && !UseLogging) return;
+
+            message = Sanitize(message);
+            MinuteStamp stamp = CurrentStamp();
+
+            WriteScreenLine(stamp.Bracketed, consoleLabel, levelColor, message);
+
+            if (UseLogging)
             {
-                message = Sanitize(message);
-                string formattedMessage = FormatMessage("INFO", message);
-                WriteScreenLine("[INFO] ", ConsoleColor.DarkMagenta, message);
-
-                if (UseLogging)
+                string formattedMessage = $"[{stamp.Plain}] [{level}] {message}";
+                if (!LogQueue.TryAdd(formattedMessage))
                 {
-                    if (!LogQueue.TryAdd(formattedMessage))
-                    {
-                        LogQueue.TryTake(out _); // Drop oldest log if the queue is full
-                        LogQueue.TryAdd(formattedMessage); // Retry adding the new message
-                    }
-                }
-            }
-        }
-        public static void LogWarning(string message)
-        {
-            if (WriteToScreen || UseLogging)
-            {
-                message = Sanitize(message);
-                string formattedMessage = FormatMessage("WARNING", message);
-                WriteScreenLine("[WARNING] ", ConsoleColor.DarkYellow, message);
-
-                if (UseLogging)
-                {
-                    if (!LogQueue.TryAdd(formattedMessage))
-                    {
-                        LogQueue.TryTake(out _); // Drop oldest log if the queue is full
-                        LogQueue.TryAdd(formattedMessage); // Retry adding the new message
-                    }
-                }
-            }
-        }
-
-        public static void LogError(string message)
-        {
-            if (WriteToScreen || UseLogging)
-            {
-                message = Sanitize(message);
-                string formattedMessage = FormatMessage("ERROR", message);
-                WriteScreenLine("[ERROR] ", ConsoleColor.DarkRed, message);
-
-
-                if (UseLogging)
-                {
-                    if (!LogQueue.TryAdd(formattedMessage))
-                    {
-                        LogQueue.TryTake(out _); // Drop oldest log if the queue is full
-                        LogQueue.TryAdd(formattedMessage); // Retry adding the new message
-                    }
+                    LogQueue.TryTake(out _); // Drop oldest log if the queue is full
+                    LogQueue.TryAdd(formattedMessage); // Retry adding the new message
                 }
             }
         }
@@ -190,23 +223,24 @@ namespace Basis.Network
         /// <summary>
         /// Writes one whole log line. The parts have to land together: they share the console's
         /// colour state, so two threads interleaving here mix up both the colours and the text.
+        ///
+        /// Every ForegroundColor assignment is a console attribute call, and saving and restoring
+        /// around each of the three segments paid for six of them where four will do — read the
+        /// incoming colour once, restore it once at the end.
         /// </summary>
-        private static void WriteScreenLine(string level, ConsoleColor levelColor, string message)
+        private static void WriteScreenLine(string stamp, string level, ConsoleColor levelColor, string message)
         {
             lock (ScreenLock)
             {
-                WriteColoredMessage($"[{DateTime.Now:HH:mm}] ", ConsoleColor.DarkCyan);
-                WriteColoredMessage(level, levelColor);
-                WriteColoredMessage($"{message}\n", ConsoleColor.Gray);
+                ConsoleColor original = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.Write(stamp);
+                Console.ForegroundColor = levelColor;
+                Console.Write(level);
+                Console.ForegroundColor = ConsoleColor.Gray;
+                Console.WriteLine(message);
+                Console.ForegroundColor = original;
             }
-        }
-
-        private static void WriteColoredMessage(string message, ConsoleColor color)
-        {
-            var originalColor = Console.ForegroundColor; // Save the original color
-            Console.ForegroundColor = color; // Set the desired color
-            Console.Write(message); // Write the message (without a new line)
-            Console.ForegroundColor = originalColor; // Restore the original color
         }
     }
 }

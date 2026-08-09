@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
 using System.Threading;
 
 namespace BasisNetworkServer.BasisNetworkingReductionSystem
@@ -308,30 +309,45 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             if (!WriteToLog) return;
 
-            BNL.Log($"\n[BSR Profile] {ticks} ticks, {msgs} msgs, {sends} sends, preSer {preSer}/{preSer + preSkip}");
-            BNL.Log($"  drain:    {drain / ticks:F3} ms/tick ({drain / total * 100:F1}%)");
-            BNL.Log($"  process:  {process / ticks:F3} ms/tick ({process / total * 100:F1}%)");
-            BNL.Log($"  distance: {distance / ticks:F3} ms/tick ({distance / total * 100:F1}%)");
-            BNL.Log($"  update:   {update / ticks:F3} ms/tick ({update / total * 100:F1}%)");
-            BNL.Log($"  trigger:  {trigger / ticks:F3} ms/tick ({trigger / total * 100:F1}%)");
-            BNL.Log($"  total:    {total / ticks:F3} ms/tick");
+            // One line, not eleven. A window carries the same 26 figures it always did, but every
+            // BNL.Log costs a console lock, a DateTime.Now, an open/write/close on the log file and
+            // a fistful of console attribute syscalls — the cost of reporting a window was set by
+            // the number of calls, not by anything being measured. Percentages are dropped to whole
+            // numbers where the ms/tick figure they derive from sits beside them.
+            double pctOfTotal = total > 0 ? 100.0 / total : 0;
+
+            StringBuilder line = new StringBuilder(288);
+            AppendInv(line, $"[BSR] {ticks}t {total / ticks:F3}ms/t");
+            AppendPhase(line, "drain", drain, ticks, pctOfTotal);
+            AppendPhase(line, "proc", process, ticks, pctOfTotal);
+            AppendPhase(line, "dist", distance, ticks, pctOfTotal);
+            AppendPhase(line, "upd", update, ticks, pctOfTotal);
+            AppendPhase(line, "trig", trigger, ticks, pctOfTotal);
+            AppendInv(line, $" | {msgs}msg {sends}send preser {preSer}/{preSer + preSkip}");
 
             if (bEmit > 0 || bTail > 0 || bFallback > 0)
             {
                 double ratio = bRaw > 0 ? (double)bComp / bRaw : 0;
-                double avgMsgsPerBundle = bEmit > 0 ? (double)bMsg / bEmit : 0;
-                double avgRawPerBundle = bEmit > 0 ? (double)bRaw / bEmit : 0;
-                double avgCompPerBundle = bEmit > 0 ? (double)bComp / bEmit : 0;
+                double savedPct = bRaw > 0 ? (ratio - 1) * 100.0 : 0; // negative: bundled bytes shrank
                 double deflateMs = bDeflate / MsToTick;
-                double avgDeflateUs = bEmit > 0 ? (deflateMs * 1000.0) / bEmit : 0;
-                double bundlesPerTick = (double)bEmit / ticks;
-                double retryRate = bEmit > 0 ? (double)bRetry / bEmit * 100.0 : 0;
-                long savedBytes = bRaw - bComp; // raw input vs compressed output
-                BNL.Log($"  bundles:  {bEmit} emitted ({bundlesPerTick:F2}/tick), {bMsg} msgs in bundles, {bTail} msgs tail-uncompressed, {bFallback} fallbacks");
-                BNL.Log($"            ratio {ratio:F3} ({(1 - ratio) * 100:F1}% saved on bundled bytes), avg {avgMsgsPerBundle:F1} msgs/bundle ({avgRawPerBundle:F0} B raw → {avgCompPerBundle:F0} B compressed)");
-                BNL.Log($"            deflate {deflateMs / ticks:F3} ms/tick ({deflateMs / total * 100:F1}% of tick), {avgDeflateUs:F1} µs/bundle, retries {bRetry} ({retryRate:F1}%)");
-                BNL.Log($"            saved ~{savedBytes / 1024.0:F1} KB this window before per-message wire overhead");
+                double perBundle = bEmit > 0 ? 1.0 / bEmit : 0;       // 0 collapses every per-bundle average to 0
+
+                AppendInv(line, $" | bundles {bEmit} {bEmit / (double)ticks:F2}/t {bMsg}msg {bTail}tail {bFallback}fb");
+                AppendInv(line, $" {bMsg * perBundle:F1}msg/b {bRaw * perBundle:F0}→{bComp * perBundle:F0}B {ratio:F3} {savedPct:F1}% {(bRaw - bComp) / 1024.0:F1}KB");
+                AppendInv(line, $" deflate {deflateMs / ticks:F3}ms/t {deflateMs * pctOfTotal:F1}% {deflateMs * 1000.0 * perBundle:F1}µs/b retry {bRetry} {bRetry * perBundle * 100.0:F1}%");
             }
+
+            BNL.Log(line.ToString());
         }
+
+        /// <summary>
+        /// Invariant culture so a comma-decimal host still emits numbers a log scraper can read —
+        /// the same reason the health endpoint pins it.
+        /// </summary>
+        private static void AppendInv(StringBuilder sb, FormattableString text) =>
+            sb.Append(FormattableString.Invariant(text));
+
+        private static void AppendPhase(StringBuilder sb, string name, double ms, long ticks, double pctOfTotal) =>
+            AppendInv(sb, $" {name} {ms / ticks:F3} {ms * pctOfTotal:F0}%");
     }
 }

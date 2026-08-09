@@ -571,28 +571,28 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // one machine; on hardware with a different core count or per-core speed this line is
             // what tells an operator whether the shipped default is wrong for them, and which of
             // BSRMaxDegreeOfParallelism / PeerUpdateParallelism to reach for.
+            //
+            // The delivery side rides the same line rather than a second one: undeliverable packets
+            // used to be visible only on the health endpoint, so a server shedding a third of its
+            // output looked identical in the log to one running clean. Drop pressure is per player
+            // per control window; sustained values above the escalate figure are what drive the
+            // shedding shown alongside. Worker counts are what is actually running, not just what
+            // each pool is allowed — the gap between those two is what hid a server using a quarter
+            // of a large host.
             if (WriteLoadLog && nowTick - _lastPoolLoadLogTick >= PoolLoadLogIntervalTicks)
             {
                 _lastPoolLoadLogTick = nowTick;
                 int peerWorkers = lnl?.PeerUpdateWorkers ?? 0;
-                // Workers actually running, not just what each pool is allowed — the gap between
-                // those two is what hid a server using a quarter of a large host.
-                BNL.Log(
-                    $"[CPU] send {parallelOptions.MaxDegreeOfParallelism}/{BasisCpuBudget.ReductionSendCap} workers, " +
-                    $"peer-update {peerWorkers}/{BasisCpuBudget.PeerUpdateCap} workers " +
-                    $"(pass {lnl?.PeerUpdatePassMs ?? 0:F1} ms, target {LiteNetLib.NetManager.PeerPassTargetMs:F0} ms), machine {BasisCpuBudget.Utilization * 100:F0}% of {BasisCpuBudget.TotalCores} cores.");
-
-                // The delivery side of the same question. Undeliverable packets used to be visible
-                // only on the health endpoint, so a server shedding a third of its output looked
-                // identical in the log to one running clean — this is the line that would have made
-                // that obvious. Drop pressure is per player per control window; sustained values
-                // above 1 are what drive the shedding shown alongside.
                 int pop = NetworkServer.Server?.ConnectedPeersCount ?? 0;
                 BNL.Log(
-                    $"[POP] {pop} peers: drop pressure {_dropsPerPlayerWindow:F2}/player " +
-                    $"(escalate above {DropEscalatePerPlayer:F2}), slicing {_sliceCount}/{MaxSliceCount()}, " +
-                    $"shed tier {_loadShedTier} ({LoadShedTierName(_loadShedTier)}), " +
-                    $"unreliable queue {(lnl != null ? lnl.EffectiveUnreliableQueuePerPeer : 0)}/peer.");
+                    $"[CPU/POP] {pop} peers | send {parallelOptions.MaxDegreeOfParallelism}/{BasisCpuBudget.ReductionSendCap} wkr, " +
+                    $"peer-upd {peerWorkers}/{BasisCpuBudget.PeerUpdateCap} wkr " +
+                    $"(pass {lnl?.PeerUpdatePassMs ?? 0:F1}/{LiteNetLib.NetManager.PeerPassTargetMs:F0} ms), " +
+                    $"machine {BasisCpuBudget.Utilization * 100:F0}% of {BasisCpuBudget.TotalCores} cores | " +
+                    $"drops {_dropsPerPlayerWindow:F2}/player (esc {DropEscalatePerPlayer:F2}), " +
+                    $"slice {_sliceCount}/{MaxSliceCount()}, " +
+                    $"tier {_loadShedTier} {LoadShedTierName(_loadShedTier)}, " +
+                    $"unrel q {(lnl != null ? lnl.EffectiveUnreliableQueuePerPeer : 0)}/peer");
             }
         }
 
@@ -781,6 +781,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Smoothed tick duration driving the load controller, and a rate limit for its log line.
         private static double _tickMsEma;
         private static long _lastSliceLogTick;
+        private static bool _loadLegendWritten;
 
         // Overrun-ratio control signal. Evaluated once per window rather than per tick so the
         // controller cannot chatter, and so a single slow tick cannot move it.
@@ -1398,12 +1399,19 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 if (nowLog - _lastSliceLogTick > Stopwatch.Frequency * 5)
                 {
                     _lastSliceLogTick = nowLog;
-                    BNL.Log($"[BSR] Load: {_tickOverrunRatio:P0} of ticks over budget " +
+                    // How to read the line is worth saying once per run, not on every change: it was
+                    // 118 characters of unchanging prose repeated all through a busy session, more
+                    // than the numbers it was explaining.
+                    if (!_loadLegendWritten)
+                    {
+                        _loadLegendWritten = true;
+                        BNL.Log("[BSR] Load legend: period alone is harmless; tier > 0 means distant " +
+                                "players stop updating; slicing > 1 means everyone's rate is reduced.");
+                    }
+                    BNL.Log($"[BSR] Load: {_tickOverrunRatio:P0} ticks over budget " +
                             $"(mean {_tickMsEma:F2} ms), period {intervalMs} ms " +
-                            $"({1000 / Math.Max(1, intervalMs)} Hz), shed tier {_loadShedTier} " +
-                            $"({LoadShedTierName(_loadShedTier)}), slicing {_sliceCount}. " +
-                            $"Period alone is harmless; tier > 0 means distant players stop updating; " +
-                            $"slicing > 1 means everyone's rate is reduced.");
+                            $"({1000 / Math.Max(1, intervalMs)} Hz), " +
+                            $"tier {_loadShedTier} {LoadShedTierName(_loadShedTier)}, slicing {_sliceCount}");
                 }
             }
         }
