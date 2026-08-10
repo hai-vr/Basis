@@ -102,6 +102,16 @@ namespace Basis.BasisUI.HandHeldCamera
         private int _readoutLineCount = -1;
 
         /// <summary>
+        /// This tab's own scroll content, held so a reflow can be aimed at it directly.
+        ///
+        /// <para>The readout is rewritten on the tick whichever tab is on screen, so it cannot use
+        /// the panel's <c>ActivePageContent()</c> — from another tab that is a rect the readout is
+        /// not inside, and walking out of a chain looking for it would rebuild every layout group
+        /// between here and the canvas.</para>
+        /// </summary>
+        private RectTransform _modePageContent;
+
+        /// <summary>
         /// One tintable section: the header bar and the card of rows under it. Both are tinted so a
         /// collapsed section still carries its colour — collapsed is when the colour is doing the
         /// most work, because the rows that would otherwise explain the section are not on screen.
@@ -143,6 +153,8 @@ namespace Basis.BasisUI.HandHeldCamera
         /// </summary>
         private void BuildModeTab(RectTransform parent)
         {
+            _modePageContent = parent;
+
             _modeDropdown = PanelDropdown.CreateNewEntry(parent);
             _modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.modePreset"));
             // A tooltip, not a line of the page. What modes are for is read once; what the current
@@ -488,7 +500,22 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _modeStatus.SetDescription(BasisLocalization.Get(
                 string.IsNullOrEmpty(key) ? "camera.userMode.help" : key));
-            ForceLayoutRebuild(_modeEditorGroup);
+            RebuildModeLayout(_modeEditorGroup);
+        }
+
+        /// <summary>
+        /// Reflows one of this tab's sections after its content changed height.
+        ///
+        /// <para>uGUI layout groups do not follow a child that grew, and the group's own root is
+        /// measured by its parent before its content has resized — so the rebuild has to run
+        /// outward from the rows that actually changed, innermost first, stopping at this page.
+        /// </para>
+        /// </summary>
+        private void RebuildModeLayout(PanelElementDescriptor group)
+        {
+            if (group == null || _modePageContent == null) return;
+
+            PanelElementDescriptor.RebuildLayoutChain(group.ContentParent, _modePageContent);
         }
 
         // ---------- The settings, as text ----------
@@ -535,7 +562,7 @@ namespace Basis.BasisUI.HandHeldCamera
             if (lines == _readoutLineCount) return;
 
             _readoutLineCount = lines;
-            ForceLayoutRebuild(_readoutGroup);
+            RebuildModeLayout(_readoutGroup);
         }
 
         private static int CountLines(string text)
@@ -797,6 +824,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _readoutSection = null;
             _readoutGroup = null;
             _readoutCard = null;
+            _modePageContent = null;
 
             // The card is rebuilt empty on the next open, so a remembered count would skip the one
             // write that actually changes its height — going from nothing to fifty rows.
