@@ -58,7 +58,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     [Range(2f, 12f)]
     public float inertiaDamping = 5f;
 
-    /// <summary>Automatically level pitch toward eye-height.</summary>
+    /// <summary>Automatically level the horizon by easing camera roll toward zero.</summary>
     public bool useAutoLeveling = false;
 
     /// <summary>Strength of the auto-leveling force.</summary>
@@ -1435,11 +1435,6 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             UpdateRotation(rotationDelta, deltaTime);
         }
 
-        if (useAutoLeveling)
-        {
-            ApplyAutoLeveling(deltaTime);
-        }
-
         ApplySmoothedPosition(deltaTime);
     }
 
@@ -1563,18 +1558,18 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         rotationMomentum = Mathf.Lerp(rotationMomentum, rotationSpeed * 0.1f, deltaTime * 5f);
     }
 
-    /// <summary>Gradually levels pitch toward zero (eye level) when enabled.</summary>
-    private void ApplyAutoLeveling(float deltaTime)
+    /// <summary>
+    /// Rebuilds <paramref name="target"/> with its roll eased toward level, keeping the pitch and
+    /// yaw it was aimed at. Roll is measured on <paramref name="applied"/> — the rotation the camera
+    /// was given last frame — so repeated frames converge on a flat horizon rather than shaving a
+    /// fixed fraction off the incoming roll.
+    /// </summary>
+    private Quaternion LevelRoll(Quaternion target, Quaternion applied, float deltaTime)
     {
-        float targetLevelPitch = 0f;
-        float pitchDifference = targetPitch - targetLevelPitch;
+        Vector3 targetEuler = target.eulerAngles;
+        float roll = Mathf.Lerp(NormalizeAngle(applied.eulerAngles.z), 0f, autoLevelStrength * deltaTime);
 
-        if (Mathf.Abs(pitchDifference) > 5f)
-        {
-            float levelingForce = -pitchDifference * autoLevelStrength * deltaTime;
-            targetPitch += levelingForce;
-            targetPitch = Mathf.Clamp(targetPitch, -89.8f, 89.9f);
-        }
+        return Quaternion.Euler(NormalizeAngle(targetEuler.x), NormalizeAngle(targetEuler.y), roll);
     }
 
     /// <summary>
@@ -1591,7 +1586,9 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             // VR: 1:1 controller-to-camera rotation for responsive aiming
             currentPitch = targetPitch;
             currentYaw = targetYaw;
-            smoothedRotation = vrControllerRotation;
+            smoothedRotation = useAutoLeveling
+                ? LevelRoll(vrControllerRotation, smoothedRotation, deltaTime)
+                : vrControllerRotation;
         }
         else
         {
@@ -1652,17 +1649,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         if (useAutoLeveling)
         {
-            Quaternion prevRot = cameraTransform.rotation;
-            Vector3 prevEuler = prevRot.eulerAngles;
-
-            float pitch = NormalizeAngle(prevEuler.x);
-            float yaw = NormalizeAngle(targetWorldRot.eulerAngles.y);
-            float roll = NormalizeAngle(prevEuler.z);
-
-            pitch = Mathf.Lerp(pitch, 0f, autoLevelStrength * Time.deltaTime);
-            roll = Mathf.Lerp(roll, 0f, autoLevelStrength * Time.deltaTime);
-
-            targetWorldRot = Quaternion.Euler(pitch, yaw, roll);
+            targetWorldRot = LevelRoll(targetWorldRot, cameraTransform.rotation, Time.deltaTime);
         }
 
         if (!shouldSmooth)
@@ -1689,9 +1676,9 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             smoothedHandheldWorldRot,
             targetWorldRot,
             vrHandheldRotationSmoothing * dt
-);
+        );
 
-        cameraTransform.SetPositionAndRotation(smoothedHandheldWorldPos, targetWorldRot);
+        cameraTransform.SetPositionAndRotation(smoothedHandheldWorldPos, smoothedHandheldWorldRot);
     }
     /// <summary>
     /// Unsubscribes events, releases locks, destroys highlight artifacts, shuts down fly camera,
