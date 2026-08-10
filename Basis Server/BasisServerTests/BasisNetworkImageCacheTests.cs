@@ -1,9 +1,46 @@
+using Basis.Network.Core;
 using Basis.Network.Server.Generic;
 using BasisNetworkCore;
+using System.Net;
 using System.Text;
 using Xunit;
 
 namespace BasisServerTests;
+
+/// <summary>
+/// Records what the cache actually put on the wire. The channel matters as much as the bytes: a
+/// client routes scene data to a different handler table per channel, so a payload delivered on the
+/// wrong one is silently never dispatched.
+/// </summary>
+internal sealed class ImageCacheRecordingPeer : NetPeer
+{
+    public readonly List<(byte Channel, byte[] Data)> Sent = new();
+
+    public ImageCacheRecordingPeer(int id) => Id = id;
+
+    public int Id { get; }
+    public IPAddress Address => IPAddress.Loopback;
+    public int RemoteId => Id;
+    public int RoundTripTime => 0;
+    public float TimeSinceLastPacket => 0f;
+    public long RemoteTimeDelta => 0;
+    public int Mtu => 1200;
+    public object? Tag { get; set; }
+
+    public void Disconnect() { }
+    public void Disconnect(byte[] b) { }
+    public void DisconnectForce() { }
+
+    public void Send(byte[] data, byte channelNumber, DeliveryMethod deliveryMethod) =>
+        Sent.Add((channelNumber, (byte[])data.Clone()));
+
+    public void Send(NetDataWriter data, byte channelNumber, DeliveryMethod deliveryMethod) =>
+        Sent.Add((channelNumber, data.CopyData()));
+
+    public void SendUnreliableRawMerge(byte[] data, int offset, int length, byte channelNumber, int patchOffset = -1, byte patchValue = 0) { }
+
+    public int GetPacketsCountInQueue(byte channel, DeliveryMethod deliveryMethod) => 0;
+}
 
 /// <summary>
 /// Covers the server-side image buffer: what it retains, when it hands images to a joiner, and the
@@ -30,6 +67,7 @@ public class BasisNetworkImageCacheTests : IDisposable
     private const ushort ManagerNetId = 4242;
 
     private readonly Configuration _previous;
+    private readonly List<int> _registeredPeerIds = new();
 
     public BasisNetworkImageCacheTests()
     {
@@ -50,6 +88,23 @@ public class BasisNetworkImageCacheTests : IDisposable
         BasisNetworkImageCache.Reset();
         BasisNetworkIDDatabase.UshortNetworkDatabase.TryRemove(BasisNetworkImageCache.ImageManagerIdentifier, out _);
         NetworkServer.Configuration = _previous;
+        foreach (int id in _registeredPeerIds)
+        {
+            NetworkServer.AuthenticatedPeers.TryRemove(id, out _);
+        }
+    }
+
+    /// <summary>
+    /// Registers a stand-in peer the cache can reach through <see cref="NetworkServer.AuthenticatedPeers"/>,
+    /// remembering it so teardown removes only what this fixture added — the dictionary is shared with
+    /// every other test in the collection.
+    /// </summary>
+    private ImageCacheRecordingPeer RegisterPeer(int id)
+    {
+        ImageCacheRecordingPeer peer = new ImageCacheRecordingPeer(id);
+        NetworkServer.AuthenticatedPeers[id] = peer;
+        _registeredPeerIds.Add(id);
+        return peer;
     }
 
     // ---- wire helpers: byte-for-byte what BasisImagePickupManager encodes -------------------
@@ -111,8 +166,14 @@ public class BasisNetworkImageCacheTests : IDisposable
         return stream.ToArray();
     }
 
-    private static void Observe(ushort sender, byte[] payload) =>
+    private static void Observe(ushort sender, byte[] payload)
+    {
+        // HandleScene reaches Observe only through IsImageTraffic, which is also what resolves the
+        // manager's network id. Replaying and the owner notice both need that id, so going through
+        // the same gate here keeps the fixture honest about the order the server does it in.
+        BasisNetworkImageCache.IsImageTraffic(ManagerNetId);
         BasisNetworkImageCache.Observe(sender, payload, payload.Length);
+    }
 
     private static Guid ShareImage(ushort owner, int chunks = 2, int chunkBytes = ChunkBytes, string name = "Sharer")
     {
@@ -330,6 +391,90 @@ public class BasisNetworkImageCacheTests : IDisposable
         ShareImage(owner: 7);
 
         Assert.Equal(0, BasisNetworkImageCache.Count);
+    }
+
+    // ---- replay to a joiner ------------------------------------------------------------------
+
+    [Fact]
+    public void AJoinerIsServedTheSpawnAndEveryChunk()
+    {
+        ShareImage(owner: 7, chunks: 3);
+
+        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
+        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+
+        Assert.Equal(4, joiner.Sent.Count);
+    }
+
+    [Fact]
+    public void ReplayedImages_GoOutOnTheChannelTheImageManagerListensOn()
+    {
+        // The image pickup manager registers a *direct* scene handler, so its traffic reaches it
+        // only on DirectSceneServerChannel. Replaying on SceneChannel lands in the other handler
+        // table, where nothing is registered, and the joiner silently sees no image at all.
+        ShareImage(owner: 7, chunks: 2);
+
+        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
+        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+
+        Assert.NotEmpty(joiner.Sent);
+        Assert.All(joiner.Sent, sent => Assert.Equal(BasisNetworkCommons.DirectSceneServerChannel, sent.Channel));
+    }
+
+    [Fact]
+    public void AnIncompleteImage_IsNotReplayed()
+    {
+        Guid id = Guid.NewGuid();
+        Observe(7, EncodeSpawn(id, 7, "Sharer", totalChunks: 3));
+        Observe(7, EncodeChunk(id, 0, ChunkBytes));
+
+        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
+        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+
+        Assert.Empty(joiner.Sent);
+    }
+
+    [Fact]
+    public void WithTheCacheOff_AJoinerIsServedNothing()
+    {
+        ShareImage(owner: 7);
+        NetworkServer.Configuration.ImageCacheEnabled = false;
+
+        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
+        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+
+        Assert.Empty(joiner.Sent);
+    }
+
+    // ---- owner notice ------------------------------------------------------------------------
+
+    [Fact]
+    public void TheOwnerIsToldOnTheSameChannelWhenTheirImageBecomesServable()
+    {
+        // The owner only stops re-uploading to each arrival if this notice reaches its handler,
+        // which is the direct table again.
+        ImageCacheRecordingPeer owner = RegisterPeer(7);
+
+        ShareImage(owner: 7, chunks: 2);
+
+        Assert.NotEmpty(owner.Sent);
+        Assert.All(owner.Sent, sent => Assert.Equal(BasisNetworkCommons.DirectSceneServerChannel, sent.Channel));
+    }
+
+    [Fact]
+    public void EvictingAnImage_TellsItsOwnerTheyAreProvidingItAgain()
+    {
+        ImageCacheRecordingPeer owner = RegisterPeer(5);
+        NetworkServer.Configuration.ImageCacheMaxMegabytes = 1;
+
+        ShareImage(owner: 5, chunks: 1);
+        int afterFirstShare = owner.Sent.Count;
+        for (int index = 0; index < 30; index++)
+        {
+            ShareImage(owner: 5, chunks: 1);
+        }
+
+        Assert.True(owner.Sent.Count > afterFirstShare);
     }
 
     // ---- malformed input --------------------------------------------------------------------

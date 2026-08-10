@@ -662,7 +662,7 @@ namespace Basis.Network.Server.Generic
 
             writer.Reset();
             message.Serialize(writer);
-            NetworkServer.TrySend(peer, writer, BasisNetworkCommons.SceneChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.TrySend(peer, writer, BasisNetworkCommons.DirectSceneServerChannel, DeliveryMethod.ReliableOrdered);
             return 1;
         }
 

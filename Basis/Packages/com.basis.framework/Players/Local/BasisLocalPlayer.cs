@@ -1,5 +1,6 @@
 using Basis.IK;
 using Basis.Scripts.Animator_Driver;
+using Basis.Scripts.Audio;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Helpers;
@@ -558,6 +559,7 @@ namespace Basis.Scripts.BasisSdk.Players
         public void DriveAudioToViseme()
         {
 #if !BASIS_DISABLE_MICROPHONE
+            LocalVisemeDriver.VoiceRms = BasisVoiceLevel.LocalVoiceRms;
             LocalVisemeDriver.ProcessAudioSamples(BasisLocalMicrophoneDriver.processBufferArray,1,BasisLocalMicrophoneDriver.processBufferArray.Length);
 #endif
         }

@@ -89,6 +89,10 @@ namespace Basis.Scripts.Drivers
             // head is pointing.
             if (OwnsVisemeTap(visemeDriver))
             {
+                // Off the receiver, not off `data`: by here the buffer carries the listener's
+                // distance, per-player volume and cone attenuation, and a voice level an avatar
+                // animates has to describe the talker, not how much of them reached you.
+                visemeDriver.VoiceRms = receiver.SourceRms;
                 visemeDriver.ProcessAudioSamples(data, channels, length);
             }
             receiver.ApplySpatialTone(data, channels, length);
