@@ -25,12 +25,18 @@ public class BasisCameraUserMode
     public const int MaxNameLength = 40;
 
     /// <summary>
-    /// What a mode is painted before anyone picks a colour. A mid blue-grey rather than a hue,
-    /// so an unconfigured mode reads as "no colour chosen" next to the built-ins rather than as
-    /// a sixth opinion. Never the zero <see cref="Color"/> — that is transparent black, and the
-    /// section tint blends toward it, so an absent colour would quietly darken the whole page.
+    /// What a mode is painted before anyone picks a colour.
+    ///
+    /// <para>A rose, at the same strength and brightness as the four built-in tints and on a hue
+    /// none of them uses — they sit at roughly orange, cyan, green and violet. The panel offers one
+    /// slider for this, straight through the spectrum, which only moves the hue: so the richness
+    /// baked in here is the richness every mode is painted at, and a muted starting colour would
+    /// quietly mute the whole family.</para>
+    ///
+    /// <para>Never the zero <see cref="Color"/> — that is transparent black, and the section tint
+    /// blends toward it, so an absent colour would darken the page rather than colour it.</para>
     /// </summary>
-    public static readonly Color DefaultTint = new Color(0.55f, 0.70f, 0.86f);
+    public static readonly Color DefaultTint = new Color(0.97f, 0.37f, 0.57f);
 
     public string name;
     public Color tint;
