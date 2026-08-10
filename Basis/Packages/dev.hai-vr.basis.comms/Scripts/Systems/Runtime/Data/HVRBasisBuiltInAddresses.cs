@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
@@ -19,9 +18,9 @@ namespace HVR.Basis.Comms
         private static bool _addressIdsInitialized;
 
         private static readonly Dictionary<HVRAvatarComms, List<HVRBasisBuiltInAddresses>> Required = new();
-        private static readonly Dictionary<HVRAvatarComms, HVRBasisBuiltInAddressesVisemeFlags> Flags = new();
 
         private HVRBasisBuiltInAddressesVisemeFlags requiredFlags = 0;
+        private HVRBasisBuiltInAddressesVisemeFlags aggregatedFlags = 0;
 
         private HVRAvatarComms _comms;
         private BasisAvatar _avatar;
@@ -29,10 +28,7 @@ namespace HVR.Basis.Comms
         private bool _isWearer;
         private BasisNetworkReceiver _remoteReceiver;
 
-        private BasisOpenLipSyncContext _contextNullable;
-        private float[] _lastAppliedRef;
-        private float[] _lastRead;
-        private float _lastMax;
+        private HVRBuiltInAddressPublisher _publisher;
         private bool _firstTick = true;
 
         public HVRBasisBuiltInAddresses(HVRAvatarComms comms, bool isWearer)
@@ -62,10 +58,10 @@ namespace HVR.Basis.Comms
             _comms = comms;
             _avatar = HVRCommsUtil.GetAvatar(_comms);
             _isWearer = isWearer;
+            _publisher = new HVRBuiltInAddressPublisher(_addressIds, _addressMax);
 
             if (!Required.ContainsKey(_comms)) Required[_comms] = new List<HVRBasisBuiltInAddresses>();
             Required[_comms].Add(this);
-            Flags[_comms] = requiredFlags;
             ReaggregateFlags();
         }
 
@@ -78,7 +74,6 @@ namespace HVR.Basis.Comms
             if (list.Count == 0)
             {
                 Required.Remove(_comms);
-                Flags.Remove(_comms);
             }
             else
             {
@@ -88,7 +83,16 @@ namespace HVR.Basis.Comms
 
         private void ReaggregateFlags()
         {
-            Flags[_comms] = Required[_comms].Aggregate((HVRBasisBuiltInAddressesVisemeFlags)0, (current, acquisition) => current | acquisition.requiredFlags);
+            var list = Required[_comms];
+            var aggregate = (HVRBasisBuiltInAddressesVisemeFlags)0;
+            for (var index = 0; index < list.Count; index++)
+            {
+                aggregate |= list[index].requiredFlags;
+            }
+            for (var index = 0; index < list.Count; index++)
+            {
+                list[index].aggregatedFlags = aggregate;
+            }
         }
 
         public static void Simulate()
@@ -121,44 +125,25 @@ namespace HVR.Basis.Comms
 
             if (!_isWearer && _remoteReceiver == null) return;
 
-            _contextNullable ??= _isWearer
-                ? BasisLocalPlayer.Instance.LocalVisemeDriver.openLipSyncContext
-                : _remoteReceiver.AudioReceiverModule.BasisRemoteVisemeAudioDriver.BasisAudioAndVisemeDriver.openLipSyncContext;
-            if (_contextNullable == null) return;
+            _publisher.Publish(variableStore, ResolveContext(), aggregatedFlags);
+        }
 
-            // The context mutates this array in place and never reallocates it, so the reference
-            // is fetched once per resolved context rather than every frame.
-            _lastAppliedRef ??= _contextNullable.LastApplied;
-
-            var flagsForThisComms = Flags[comms];
-
-            _lastRead ??= new float[BasisOpenLipSyncContext.VisemeCount];
-
-            var max = 0f;
-            for (var index = 0; index < _lastRead.Length; index++)
+        private BasisOpenLipSyncContext ResolveContext()
+        {
+            if (_isWearer)
             {
-                var lastApplied = _lastAppliedRef[index];
-                if (index != 0) // Ignore "sil"
-                {
-                    max = Mathf.Max(max, lastApplied);
-                }
-                if ((flagsForThisComms & (HVRBasisBuiltInAddressesVisemeFlags)(1 << index)) != 0)
-                {
-                    var lastRead = _lastRead[index];
-
-                    if (!Mathf.Approximately(lastApplied, lastRead))
-                    {
-                        variableStore.SubmitOrDefineDefaultValue(_addressIds[index], lastApplied / 100f);
-                        _lastRead[index] = lastApplied;
-                    }
-                }
+                var localPlayer = BasisLocalPlayer.Instance;
+                return localPlayer == null ? null : localPlayer.LocalVisemeDriver.openLipSyncContext;
             }
 
-            if ((flagsForThisComms & HVRBasisBuiltInAddressesVisemeFlags.Gain) != 0 && !Mathf.Approximately(max, _lastMax))
-            {
-                variableStore.SubmitOrDefineDefaultValue(_addressMax, max / 100f);
-                _lastMax = max;
-            }
+            var audioReceiver = _remoteReceiver.AudioReceiverModule;
+            if (audioReceiver == null) return null;
+
+            var remoteAudioDriver = audioReceiver.BasisRemoteVisemeAudioDriver;
+            if (remoteAudioDriver == null) return null;
+
+            var visemeDriver = remoteAudioDriver.BasisAudioAndVisemeDriver;
+            return visemeDriver == null ? null : visemeDriver.openLipSyncContext;
         }
 
         public void DeclareAllRequired(HashSet<int> systemAddresses)
@@ -181,6 +166,115 @@ namespace HVR.Basis.Comms
             if (systemAddresses.Contains(_addressIds[14])) requiredFlags |= HVRBasisBuiltInAddressesVisemeFlags.ou;
             if (systemAddresses.Contains(_addressMax)) requiredFlags |= HVRBasisBuiltInAddressesVisemeFlags.Gain;
             ReaggregateFlags();
+        }
+    }
+
+    /// Publishes the viseme weights an OpenLipSync context last wrote to the face mesh out to the
+    /// variable store, deduplicated against what it published previously.
+    ///
+    /// The context reference is NOT stable and must not be cached beyond a single Publish call.
+    /// Remote contexts are pooled: the viseme driver disposes one after a few seconds of silence or
+    /// when the player leaves viseme range, and allocates a fresh instance on their next utterance.
+    /// Holding on to either the context or its LastApplied array leaves this reading a dead,
+    /// all-zero array — which is how voice gain and the viseme addresses came to freeze on remote
+    /// avatars after their first pause, while the wearer, whose context is never released, worked.
+    public class HVRBuiltInAddressPublisher
+    {
+        private readonly int[] _addressIds;
+        private readonly int _addressMax;
+
+        private BasisOpenLipSyncContext _contextNullable;
+        private float[] _lastAppliedRef;
+        private float[] _lastRead;
+        private float _lastMax;
+
+        public HVRBuiltInAddressPublisher(int[] addressIds, int addressMax)
+        {
+            _addressIds = addressIds;
+            _addressMax = addressMax;
+        }
+
+        public BasisOpenLipSyncContext TrackedContext => _contextNullable;
+
+        public void Publish(HVRVariableStore variableStore, BasisOpenLipSyncContext context, HVRBasisBuiltInAddressesVisemeFlags flags)
+        {
+            if (context != _contextNullable)
+            {
+                if (context == null)
+                {
+                    RestAll(variableStore, flags);
+                    return;
+                }
+                _contextNullable = context;
+                _lastAppliedRef = context.LastApplied;
+            }
+            else if (context == null)
+            {
+                return;
+            }
+
+            _lastRead ??= new float[BasisOpenLipSyncContext.VisemeCount];
+
+            var lastAppliedRef = _lastAppliedRef;
+            var lastReadRef = _lastRead;
+
+            var max = 0f;
+            for (var index = 0; index < lastAppliedRef.Length; index++)
+            {
+                var lastApplied = lastAppliedRef[index];
+                if (index != 0 && lastApplied > max) // Ignore "sil"
+                {
+                    max = lastApplied;
+                }
+                if ((flags & (HVRBasisBuiltInAddressesVisemeFlags)(1 << index)) != 0)
+                {
+                    var lastRead = lastReadRef[index];
+
+                    if (!Mathf.Approximately(lastApplied, lastRead))
+                    {
+                        variableStore.SubmitOrDefineDefaultValue(_addressIds[index], lastApplied / 100f);
+                        lastReadRef[index] = lastApplied;
+                    }
+                }
+            }
+
+            if ((flags & HVRBasisBuiltInAddressesVisemeFlags.Gain) != 0 && !Mathf.Approximately(max, _lastMax))
+            {
+                variableStore.SubmitOrDefineDefaultValue(_addressMax, max / 100f);
+                _lastMax = max;
+            }
+        }
+
+        /// Matches the ZeroVisemes the driver runs on its way out, so a mouth shape or an emissive
+        /// glow doesn't stay stuck mid-word for as long as the player is quiet or out of range.
+        private void RestAll(HVRVariableStore variableStore, HVRBasisBuiltInAddressesVisemeFlags flags)
+        {
+            _contextNullable = null;
+            _lastAppliedRef = null;
+
+            var lastReadRef = _lastRead;
+            if (lastReadRef != null)
+            {
+                for (var index = 0; index < lastReadRef.Length; index++)
+                {
+                    if (lastReadRef[index] == 0f) continue;
+
+                    lastReadRef[index] = 0f;
+                    if ((flags & (HVRBasisBuiltInAddressesVisemeFlags)(1 << index)) != 0)
+                    {
+                        variableStore.SubmitOrDefineDefaultValue(_addressIds[index], 0f);
+                    }
+                }
+            }
+
+            if (_lastMax != 0f)
+            {
+                _lastMax = 0f;
+                if ((flags & HVRBasisBuiltInAddressesVisemeFlags.Gain) != 0)
+                {
+                    variableStore.SubmitOrDefineDefaultValue(_addressMax, 0f);
+                }
+            }
         }
     }
 

@@ -36,6 +36,14 @@ namespace Basis.Network.Server.Generic
         private const byte OpAnimationSpawn = 6;
         private const byte OpAnimationChunk = 7;
 
+        /// <summary>
+        /// Server → owner: "I am holding this image" / "I am no longer holding it". The owner skips
+        /// re-sending held images to each arrival, which is the whole point of the buffer. Sent only
+        /// to the owner and stamped with their own player id — the relay never echoes a sender to
+        /// itself, so a message arriving under your own id cannot have come from another client.
+        /// </summary>
+        private const byte OpServerCacheState = 8;
+
         private const int OpcodeBytes = 1;
         private const int GuidBytes = 16;
         private const int HeaderBytes = OpcodeBytes + GuidBytes;
@@ -314,6 +322,7 @@ namespace Basis.Network.Server.Generic
                 return;
             }
 
+            bool becameServable = false;
             lock (Gate)
             {
                 if (!Images.TryGetValue(id, out CachedImage entry) || entry.OwnerId != senderId)
@@ -344,6 +353,13 @@ namespace Basis.Network.Server.Generic
                 }
                 entry.Bytes += cost;
                 System.Threading.Interlocked.Add(ref _totalBytes, cost);
+
+                becameServable = !animation && entry.StillComplete;
+            }
+
+            if (becameServable)
+            {
+                NotifyOwner(senderId, id, held: true);
             }
         }
 
@@ -472,7 +488,41 @@ namespace Basis.Network.Server.Generic
                 return false;
             }
             System.Threading.Interlocked.Add(ref _totalBytes, -entry.Bytes);
+
+            // Tell the owner they are back on the hook for this one. Without it an evicted image
+            // would silently stop reaching new arrivals: the owner still believes we hold it and
+            // skips re-sending, and we no longer have anything to send.
+            if (entry.StillComplete)
+            {
+                NotifyOwner(entry.OwnerId, id, held: false);
+            }
             return true;
+        }
+
+        /// <summary>
+        /// Tells one player whether the server is holding a given image of theirs. Best effort: a
+        /// peer that has already gone simply is not there to tell.
+        /// </summary>
+        private static void NotifyOwner(ushort ownerId, Guid id, bool held)
+        {
+            int managerNetId = System.Threading.Volatile.Read(ref _managerNetId);
+            if (managerNetId < 0)
+            {
+                return;
+            }
+            if (!NetworkServer.AuthenticatedPeers.TryGetValue(ownerId, out NetPeer owner))
+            {
+                return;
+            }
+
+            byte[] payload = new byte[HeaderBytes + 1];
+            payload[0] = OpServerCacheState;
+            Buffer.BlockCopy(id.ToByteArray(), 0, payload, OpcodeBytes, GuidBytes);
+            payload[HeaderBytes] = held ? (byte)1 : (byte)0;
+
+            NetDataWriter writer = NetworkServer.RentWriter();
+            SendPayload(owner, writer, (ushort)managerNetId, ownerId, payload);
+            NetworkServer.ReturnWriter(writer);
         }
 
         /// <summary>

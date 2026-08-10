@@ -97,10 +97,221 @@ public class BasisSDKMirror : MonoBehaviour
         set
         {
             clearFlags = value;
-            Camera refCamera = BasisLocalCameraDriver.Instance.Camera;
+            Camera refCamera = BasisLocalCameraDriver.HasInstance ? BasisLocalCameraDriver.Instance.Camera : null;
             if (LeftCamera) updateCameraClearFlags(LeftCamera, refCamera);
             if (RightCamera) updateCameraClearFlags(RightCamera, refCamera);
         }
+    }
+
+    public int ReflectionWidth
+    {
+        get => XSize;
+        set => SetTargetShape(value, YSize, depth, Antialiasing);
+    }
+
+    public int ReflectionHeight
+    {
+        get => YSize;
+        set => SetTargetShape(XSize, value, depth, Antialiasing);
+    }
+
+    public int DepthBits
+    {
+        get => depth;
+        set => SetTargetShape(XSize, YSize, value, Antialiasing);
+    }
+
+    public int MsaaSamples
+    {
+        get => Antialiasing;
+        set => SetTargetShape(XSize, YSize, depth, value);
+    }
+
+    public int SecondaryViewerResolutionCap
+    {
+        get => SecondaryViewerMaxSize;
+        set
+        {
+            int clamped = Mathf.Clamp(value, MinResolution, MaxResolution);
+            if (clamped == SecondaryViewerMaxSize) return;
+            SecondaryViewerMaxSize = clamped;
+            ReleaseSecondaryViewerTextures();
+        }
+    }
+
+    public float NearClip
+    {
+        get => nearClipLimit;
+        set
+        {
+            nearClipLimit = Mathf.Clamp(value, MinNearClip, MaxNearClip);
+            ApplyCameraOptions();
+        }
+    }
+
+    public float FarClip
+    {
+        get => FarClipPlane;
+        set
+        {
+            FarClipPlane = Mathf.Clamp(value, MinFarClip, MaxFarClip);
+            ApplyCameraOptions();
+        }
+    }
+
+    public float SurfaceClipOffset
+    {
+        get => ClipPlaneOffset;
+        set => ClipPlaneOffset = Mathf.Clamp(value, MinClipPlaneOffset, MaxClipPlaneOffset);
+    }
+
+    public bool UsePostProcessing
+    {
+        get => RenderPostProcessing;
+        set
+        {
+            RenderPostProcessing = value;
+            ApplyCameraOptions();
+        }
+    }
+
+    public bool UseOcclusionCulling
+    {
+        get => OcclusionCulling;
+        set
+        {
+            OcclusionCulling = value;
+            ApplyCameraOptions();
+        }
+    }
+
+    public bool RenderShadows
+    {
+        get => renderShadows;
+        set
+        {
+            renderShadows = value;
+            ApplyCameraOptions();
+        }
+    }
+
+    public int UpdateInterval
+    {
+        get => UpdateEveryNthFrame;
+        set => UpdateEveryNthFrame = Mathf.Clamp(value, MinUpdateInterval, MaxUpdateInterval);
+    }
+
+    public float FullRateRange
+    {
+        get => FullRateDistance;
+        set => FullRateDistance = Mathf.Clamp(value, 0f, MaxRateDistance);
+    }
+
+    public float HalfRateRange
+    {
+        get => HalfRateDistance;
+        set => HalfRateDistance = Mathf.Clamp(value, 0f, MaxRateDistance);
+    }
+
+    public float CullRange
+    {
+        get => CullDistance;
+        set => CullDistance = Mathf.Clamp(value, 0f, MaxRateDistance);
+    }
+
+    public string DisplayName => gameObject != null ? gameObject.name : "(destroyed)";
+
+    public Vector2Int EffectiveResolution
+    {
+        get
+        {
+            GetEffectiveResolution(out int width, out int height);
+            return new Vector2Int(width, height);
+        }
+    }
+
+    public static bool ResolutionIsOverriddenGlobally =>
+        BasisSettingsDefaults.UseMirrorQualityOverride.RawValue;
+
+    public const int MinResolution = 64;
+    public const int MaxResolution = 4096;
+    public const int MinUpdateInterval = 1;
+    public const int MaxUpdateInterval = 8;
+    public const float MinNearClip = 0.001f;
+    public const float MaxNearClip = 1f;
+    public const float MinFarClip = 1f;
+    public const float MaxFarClip = 1000f;
+    public const float MinClipPlaneOffset = 0f;
+    public const float MaxClipPlaneOffset = 0.5f;
+    public const float MaxRateDistance = 200f;
+
+    private void SetTargetShape(int width, int height, int depthBits, int msaa)
+    {
+        int newWidth = Mathf.Clamp(width, MinResolution, MaxResolution);
+        int newHeight = Mathf.Clamp(height, MinResolution, MaxResolution);
+        int newDepth = depthBits >= 24 ? 24 : depthBits >= 16 ? 16 : 0;
+        int newMsaa = msaa >= 8 ? 8 : msaa >= 4 ? 4 : msaa >= 2 ? 2 : 1;
+
+        if (newWidth == XSize && newHeight == YSize && newDepth == depth && newMsaa == Antialiasing) return;
+
+        XSize = newWidth;
+        YSize = newHeight;
+        depth = newDepth;
+        Antialiasing = newMsaa;
+        RebuildReflectionTargets();
+    }
+
+    public void RebuildReflectionTargets()
+    {
+        if (!IsActive) return;
+
+        ReplacePortalTexture(StereoscopicEye.Left, ref PortalTextureLeft, LeftCamera);
+        ReplacePortalTexture(StereoscopicEye.Right, ref PortalTextureRight, RightCamera);
+        ReleaseSecondaryViewerTextures();
+
+        BindReflectionTextures(PortalTextureLeft, PortalTextureRight);
+        primaryBound = true;
+    }
+
+    private void ReplacePortalTexture(StereoscopicEye eye, ref RenderTexture texture, Camera portalCamera)
+    {
+        RenderTexture previous = texture;
+        texture = CreatePortalTexture(eye);
+        if (portalCamera) portalCamera.targetTexture = texture;
+        DestroyTexture(previous);
+    }
+
+    private void ReleaseSecondaryViewerTextures()
+    {
+        foreach (KeyValuePair<Camera, SecondaryViewerState> pair in secondaryViewers)
+        {
+            ReleaseViewerTexture(pair.Value);
+        }
+    }
+
+    private void ApplyCameraOptions()
+    {
+        ApplyCameraOptions(LeftCamera, leftCameraData);
+        ApplyCameraOptions(RightCamera, rightCameraData);
+    }
+
+    private void ApplyCameraOptions(Camera camera, UniversalAdditionalCameraData cameraData)
+    {
+        if (camera == null) return;
+
+        camera.nearClipPlane = Mathf.Max(0.001f, nearClipLimit);
+        camera.farClipPlane = FarClipPlane;
+        camera.cullingMask = ReflectingLayers;
+        camera.useOcclusionCulling = OcclusionCulling;
+
+        if (cameraData == null) return;
+#if UNITY_ANDROID && !UNITY_EDITOR
+        cameraData.allowXRRendering = false;
+#else
+        cameraData.allowXRRendering = allowXRRendering;
+#endif
+        cameraData.renderPostProcessing = RenderPostProcessing;
+        cameraData.renderShadows = renderShadows;
     }
 
     public Color ClearColor
@@ -189,20 +400,26 @@ public class BasisSDKMirror : MonoBehaviour
         BasisSettingsDefaults.UseMirrorQualityOverride.OnChanged += OnMirrorQualityOverrideChanged;
         BasisSettingsDefaults.Antialiasing.OnChanged += OnAntialiasingChanged;
 
+        BasisMirrorSettingsStore.ApplyTo(this);
+
         if (BasisLocalCameraDriver.HasInstance)
             Initialize();
 
         Application.onBeforeRender += OnBeforeRender;
         RenderPipeline.beginCameraRendering += OnBeginCameraRendering;
+
+        BasisMirrorRegistry.Add(this);
     }
 
     private void OnDisable()
     {
+        BasisMirrorRegistry.Remove(this);
         CleanUp();
     }
 
     private void OnDestroy()
     {
+        BasisMirrorRegistry.Remove(this);
         BasisDeviceManagement.OnBootModeChanged -= BootModeChanged;
         BasisSettingsDefaults.MirrorQuality.OnChanged -= OnMirrorQualityChanged;
         BasisSettingsDefaults.UseMirrorQualityOverride.OnChanged -= OnMirrorQualityOverrideChanged;
@@ -251,26 +468,23 @@ public class BasisSDKMirror : MonoBehaviour
         InsideRendering = false;
     }
 
+    private static void DestroyTexture(RenderTexture texture)
+    {
+        if (!texture) return;
+
+        texture.Release();
+#if UNITY_EDITOR
+        if (!Application.isPlaying) DestroyImmediate(texture);
+        else Destroy(texture);
+#else
+        Destroy(texture);
+#endif
+    }
+
     private void DisposePortalResources()
     {
-        if (PortalTextureLeft)
-        {
-#if UNITY_EDITOR
-            if (!Application.isPlaying) DestroyImmediate(PortalTextureLeft);
-            else Destroy(PortalTextureLeft);
-#else
-            Destroy(PortalTextureLeft);
-#endif
-        }
-        if (PortalTextureRight)
-        {
-#if UNITY_EDITOR
-            if (!Application.isPlaying) DestroyImmediate(PortalTextureRight);
-            else Destroy(PortalTextureRight);
-#else
-            Destroy(PortalTextureRight);
-#endif
-        }
+        DestroyTexture(PortalTextureLeft);
+        DestroyTexture(PortalTextureRight);
 
         BasisCullingCameraRegistry.Unregister(LeftCamera);
         if (LeftCamera) Destroy(LeftCamera.gameObject);
@@ -622,7 +836,7 @@ public class BasisSDKMirror : MonoBehaviour
         }
         else
         {
-            portalCamera.nearClipPlane = Mathf.Max(nearClipLimit, portalCamera.nearClipPlane);
+            portalCamera.nearClipPlane = Mathf.Max(0.001f, nearClipLimit);
             portalCamera.farClipPlane = FarClipPlane;
         }
 
@@ -747,7 +961,7 @@ public class BasisSDKMirror : MonoBehaviour
         projection[14] = c.w - projection[15];
     }
 
-    private void CreatePortalCamera(Camera sourceCamera, StereoscopicEye eye, ref Camera portalCamera, ref RenderTexture portalTexture, ref UniversalAdditionalCameraData portalCameraData)
+    private RenderTexture CreatePortalTexture(StereoscopicEye eye)
     {
         GetEffectiveResolution(out int effectiveWidth, out int effectiveHeight);
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -771,12 +985,18 @@ public class BasisSDKMirror : MonoBehaviour
             dimension = TextureDimension.Tex2D
         };
 
-        portalTexture = new RenderTexture(desc)
+        var texture = new RenderTexture(desc)
         {
             name = $"__MirrorReflection{eye}_{GetEntityId()}",
             anisoLevel = 0
         };
-        portalTexture.Create();
+        texture.Create();
+        return texture;
+    }
+
+    private void CreatePortalCamera(Camera sourceCamera, StereoscopicEye eye, ref Camera portalCamera, ref RenderTexture portalTexture, ref UniversalAdditionalCameraData portalCameraData)
+    {
+        portalTexture = CreatePortalTexture(eye);
 
         CreateNewCamera(sourceCamera, out portalCamera, out portalCameraData);
         portalCamera.targetTexture = portalTexture;
@@ -793,25 +1013,16 @@ public class BasisSDKMirror : MonoBehaviour
         newCamera.enabled = false;
 
         newCamera.depth = 2;
-        newCamera.nearClipPlane = Mathf.Max(0.01f, nearClipLimit);
-        newCamera.farClipPlane = FarClipPlane;
-        newCamera.cullingMask = ReflectingLayers;
-        newCamera.useOcclusionCulling = OcclusionCulling;
         newCamera.allowHDR = false;
         newCamera.allowMSAA = true;
         newCamera.stereoTargetEye = StereoTargetEyeMask.None;
         updateCameraClearFlags(newCamera, sourceCamera);
 
         cameraData = newCamera.GetUniversalAdditionalCameraData();
+        ApplyCameraOptions(newCamera, cameraData);
+
         if (cameraData != null)
         {
-#if UNITY_ANDROID && !UNITY_EDITOR
-            cameraData.allowXRRendering = false;
-#else
-            cameraData.allowXRRendering = allowXRRendering;
-#endif
-            cameraData.renderPostProcessing = RenderPostProcessing;
-            cameraData.renderShadows = renderShadows;
             cameraData.requiresColorOption = CameraOverrideOption.Off;
             cameraData.requiresDepthOption = CameraOverrideOption.Off; // refreshed per render below
         }
