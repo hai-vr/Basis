@@ -471,6 +471,11 @@ namespace Basis.Scripts.BasisSdk.Players
                     });
                 }
             }
+
+            // Everyone else resolves this avatar from the address alone, which only works if the
+            // address means something off this machine. Say so now rather than let the player find
+            // out from someone telling them they are a grey dummy.
+            BasisLocalAvatarNetworkNotice.NotifyIfLocalOnly();
         }
 
         /// <summary>

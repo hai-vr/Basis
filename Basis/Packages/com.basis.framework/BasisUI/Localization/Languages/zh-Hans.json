@@ -940,6 +940,8 @@
     { "key": "network.stats.notConnected", "value": "未连接" },
     { "key": "network.stats.noTransmitter", "value": "无活动发送器" },
     { "key": "network.stats.noTransmissionData", "value": "无传输数据" },
+    { "key": "network.avatarLocalOnly.title", "value": "其他人无法加载该虚拟形象" },
+    { "key": "network.avatarLocalOnly.body", "value": "该虚拟形象从你电脑上的文件加载，并未托管在其他玩家能够访问的地方，因此本服务器上的其他人都无法下载它。你自己能正常看到它，但其他所有人只会看到一个占位形象。请将它上传并通过 URL 加载，其他玩家才能看到。内置虚拟形象不受影响——每个客户端都已自带。" },
     { "key": "menu.servers.list.default", "value": "默认 Basis 服务器" },
     { "key": "menu.players.search.byNameOrUuid", "value": "按显示名称或 UUID 筛选。" },
 

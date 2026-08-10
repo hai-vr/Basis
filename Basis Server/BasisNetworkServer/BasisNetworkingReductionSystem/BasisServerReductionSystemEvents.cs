@@ -775,6 +775,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Cursor for the amortized distance-cache sweep: index of the next receiver to refresh.
         private static int _distanceSliceCursor = 0;
         private static int _distanceTickCounter = 0;
+        // Roster the in-progress sweep is running against, pinned at its first slice. A sweep spans
+        // DistanceUpdateIntervalTicks ticks and the position arrays are sized from this array's peer
+        // ids exactly once, so it must not be re-read mid-sweep. See UpdateDistanceCacheSlice.
+        private static (int id, PlayerState state)[] _distanceSweepRoster = Array.Empty<(int, PlayerState)>();
         // Minimum receivers per distance slice. Below roughly this the Parallel.For dispatch costs
         // more than the work it schedules; see UpdateDistanceCacheSlice.
         private const int MinDistanceSliceReceivers = 128;
@@ -1533,10 +1537,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
             }
             var activeCopy = _activePlayersSnapshot;
-            int playerCount = activeCopy.Length;
-            if (playerCount == 0)
+            if (activeCopy.Length == 0)
             {
                 _distanceSliceCursor = 0;
+                _distanceSweepRoster = Array.Empty<(int, PlayerState)>();
                 return false;
             }
 
@@ -1546,6 +1550,21 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             {
                 return false;
             }
+
+            // ⚠️ Pin the roster for the whole sweep instead of re-reading _activePlayersSnapshot each
+            // slice. SnapshotPositions sizes the position arrays from this array's peer ids and runs
+            // only on the first slice, so a player who joined mid-sweep with an id above the
+            // sweep-start maximum indexed past those arrays — an IndexOutOfRangeException thrown
+            // inside the Parallel.For in RunDistanceSlice, which takes down the whole tick. Pinning
+            // also puts the roster on the same single frame the positions were already documented to
+            // use; a mid-sweep joiner is picked up by the next sweep, which is exactly the case the
+            // send path's "not yet in the distance cache" fallback interval already covers.
+            if (_distanceSliceCursor == 0)
+            {
+                _distanceSweepRoster = activeCopy;
+            }
+            activeCopy = _distanceSweepRoster;
+            int playerCount = activeCopy.Length;
 
             // ⚠️ Slice size is bounded BELOW for a reason. This work is a Parallel.For over receivers,
             // so a slice must carry enough receivers to be worth dispatching — sizing it as

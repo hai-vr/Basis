@@ -936,6 +936,8 @@
     { "key": "network.stats.notConnected", "value": "未接続" },
     { "key": "network.stats.noTransmitter", "value": "アクティブな送信機がありません" },
     { "key": "network.stats.noTransmissionData", "value": "送信データがありません" },
+    { "key": "network.avatarLocalOnly.title", "value": "アバターは他の人には読み込まれません" },
+    { "key": "network.avatarLocalOnly.body", "value": "このアバターはあなたのコンピューター上のファイルから読み込まれており、他のプレイヤーが到達できる場所にホストされていないため、このサーバーの他の誰もダウンロードできません。あなたには通常どおり表示されますが、他の全員には代替モデルが表示されます。他のプレイヤーに見せるには、アップロードして URL から読み込んでください。組み込みアバターは影響を受けません — どのクライアントにも最初から入っています。" },
     { "key": "menu.servers.list.default", "value": "既定の Basis サーバー" },
     { "key": "menu.players.search.byNameOrUuid", "value": "表示名またはUUIDでフィルターします。" },
 

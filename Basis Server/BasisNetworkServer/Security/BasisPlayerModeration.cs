@@ -326,6 +326,16 @@ namespace BasisNetworkServer.Security
                         HandleFullQualityBroadcast(peer, reader));
                     break;
 
+                case AdminRequestMode.ForceAvatar:
+                    Require(peer, PermNodes.ModerationForceAvatar, () =>
+                        HandleForceAvatar(peer, reader));
+                    break;
+
+                case AdminRequestMode.ForceAvatarAll:
+                    Require(peer, PermNodes.ModerationForceAvatar, () =>
+                        HandleForceAvatarAll(peer, reader));
+                    break;
+
                 // ===== GLOBAL LOCK =====
                 case AdminRequestMode.GlobalToggleAvatars:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
@@ -838,6 +848,101 @@ namespace BasisNetworkServer.Security
             bool enable = reader.GetBool();
             BasisNetworkServer.BasisNetworkingReductionSystem.BasisServerReductionSystemEvents.SetBypassReduction(id, enable);
             SendBackMessage(peer, $"Full-quality broadcast {(enable ? "ENABLED" : "DISABLED")} for player {id}.");
+        }
+
+        /// <summary>
+        /// Relays a moderator's avatar choice to the one peer it targets. The server never loads or
+        /// validates the bundle itself — it only decides who is allowed to be told to wear it. The
+        /// target's own avatar-change broadcast is what reaches everyone else, so
+        /// <see cref="BasisSavedState"/> stays correct for late joiners with nothing extra here.
+        /// </summary>
+        private static void HandleForceAvatar(NetPeer peer, NetPacketReader reader)
+        {
+            ushort targetId = reader.GetUShort();
+            string url = reader.GetString();
+            string password = reader.GetString();
+            byte embeddedSource = reader.GetByte();
+
+            if (string.IsNullOrEmpty(url))
+            {
+                SendBackMessage(peer, "Avatar url invalid");
+                return;
+            }
+
+            if (!NetworkServer.AuthenticatedPeers.TryGetValue(targetId, out NetPeer targetPeer))
+            {
+                SendBackMessage(peer, "Player not found");
+                return;
+            }
+
+            // Same courtesy Kick/Ban extend: a protected user can't be dressed by another moderator.
+            if (NetworkServer.AuthIdentity.NetIDToUUID(targetPeer, out string targetUUID) && IsProtected(targetUUID))
+            {
+                SendBackMessage(peer, "Target is protected");
+                return;
+            }
+
+            var writer = NetworkServer.RentWriter();
+            new AdminRequest().Serialize(writer, AdminRequestMode.ForceAvatarApply);
+            writer.Put((ushort)peer.Id);
+            writer.Put(url);
+            writer.Put(password ?? string.Empty);
+            writer.Put(embeddedSource);
+            NetworkServer.TrySend(targetPeer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+
+            SendBackMessage(peer, $"Avatar forced on player {targetId}.");
+        }
+
+        /// <summary>
+        /// The crowd version of <see cref="HandleForceAvatar"/> — one avatar, every peer. Sent peer by
+        /// peer rather than through BroadcastMessageToClients because a blanket broadcast has no way to
+        /// exempt <see cref="PermNodes.protection"/> holders, and force-dressing another moderator is
+        /// exactly what that node exists to prevent. The payload is a plain ForceAvatarApply, so the
+        /// client needs no separate receive path for this.
+        /// </summary>
+        private static void HandleForceAvatarAll(NetPeer peer, NetPacketReader reader)
+        {
+            string url = reader.GetString();
+            string password = reader.GetString();
+            byte embeddedSource = reader.GetByte();
+
+            if (string.IsNullOrEmpty(url))
+            {
+                SendBackMessage(peer, "Avatar url invalid");
+                return;
+            }
+
+            var writer = NetworkServer.RentWriter();
+            new AdminRequest().Serialize(writer, AdminRequestMode.ForceAvatarApply);
+            writer.Put((ushort)peer.Id);
+            writer.Put(url);
+            writer.Put(password ?? string.Empty);
+            writer.Put(embeddedSource);
+
+            int sent = 0;
+            int protectedSkipped = 0;
+            foreach (NetPeer target in NetworkServer.PeerSnapshot)
+            {
+                if (target == null || target.Id == peer.Id)
+                {
+                    continue;
+                }
+
+                if (NetworkServer.AuthIdentity.NetIDToUUID(target, out string targetUUID) && IsProtected(targetUUID))
+                {
+                    protectedSkipped++;
+                    continue;
+                }
+
+                NetworkServer.TrySend(target, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+                sent++;
+            }
+            NetworkServer.ReturnWriter(writer);
+
+            SendBackMessage(peer, protectedSkipped > 0
+                ? $"Avatar forced on {sent} player(s); {protectedSkipped} protected player(s) skipped."
+                : $"Avatar forced on {sent} player(s).");
         }
 
         private static void HandleCrashReportingSet(NetPeer peer, NetPacketReader reader)

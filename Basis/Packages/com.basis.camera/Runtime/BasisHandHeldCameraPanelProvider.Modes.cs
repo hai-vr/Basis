@@ -157,9 +157,6 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _modeDropdown = PanelDropdown.CreateNewEntry(parent);
             _modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.modePreset"));
-            // A tooltip, not a line of the page. What modes are for is read once; what the current
-            // one does is read every time, and only one of the two earns the space under the row.
-            _modeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.modePreset.description"));
             RebuildModeList();
             _modeDropdown.OnValueChanged = _ => OnModeSelected();
 
@@ -724,9 +721,9 @@ namespace Basis.BasisUI.HandHeldCamera
                     _modeDropdown.SetValueWithoutNotify(key);
                 }
 
-                // The row's own description, not a card under it: the control already names the
-                // mode, so a second copy of the name and a second paragraph said nothing new.
-                _modeDropdown.Descriptor.SetDescription(BasisLocalization.Get(descriptor.DescriptionKey));
+                // A tooltip, not a line of the page: the control already names the mode, so the
+                // paragraph about it is worth a hover but not the height under every row.
+                _modeDropdown.Descriptor.SetTooltip(BasisLocalization.Get(descriptor.DescriptionKey));
             }
 
             RefreshModeButtons();

@@ -936,6 +936,8 @@
     { "key": "network.stats.notConnected", "value": "कनेक्ट नहीं है" },
     { "key": "network.stats.noTransmitter", "value": "कोई ट्रांसमीटर सक्रिय नहीं" },
     { "key": "network.stats.noTransmissionData", "value": "कोई ट्रांसमिशन डेटा नहीं" },
+    { "key": "network.avatarLocalOnly.title", "value": "अवतार दूसरों के लिए लोड नहीं होगा" },
+    { "key": "network.avatarLocalOnly.body", "value": "यह अवतार आपके कंप्यूटर की एक फ़ाइल से लोड होता है और कहीं ऐसी जगह होस्ट नहीं है जहाँ दूसरे खिलाड़ी पहुँच सकें, इसलिए इस सर्वर पर कोई और इसे डाउनलोड नहीं कर सकता। आपको यह सामान्य रूप से दिखेगा, लेकिन बाकी सभी को एक प्लेसहोल्डर दिखेगा। दूसरे खिलाड़ियों को दिखाने के लिए इसे अपलोड करें और किसी URL से लोड करें। अंतर्निहित अवतार इससे प्रभावित नहीं होते — वे हर क्लाइंट के पास पहले से मौजूद हैं।" },
     { "key": "menu.servers.list.default", "value": "डिफ़ॉल्ट Basis सर्वर" },
     { "key": "menu.players.search.byNameOrUuid", "value": "प्रदर्शन नाम या UUID के अनुसार फ़िल्टर करें।" },
 

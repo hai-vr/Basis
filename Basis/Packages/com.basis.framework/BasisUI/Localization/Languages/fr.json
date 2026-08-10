@@ -936,6 +936,8 @@
     { "key": "network.stats.notConnected", "value": "Non connecté" },
     { "key": "network.stats.noTransmitter", "value": "Aucun émetteur actif" },
     { "key": "network.stats.noTransmissionData", "value": "Aucune donnée de transmission" },
+    { "key": "network.avatarLocalOnly.title", "value": "L'avatar ne se chargera pas pour les autres" },
+    { "key": "network.avatarLocalOnly.body", "value": "Cet avatar est chargé depuis un fichier de votre ordinateur et n'est hébergé nulle part où les autres joueurs peuvent y accéder ; personne d'autre sur ce serveur ne peut donc le télécharger. Vous le verrez normalement, mais tous les autres verront un substitut. Mettez-le en ligne et chargez-le depuis une URL pour que les autres joueurs le voient. Les avatars intégrés ne sont pas concernés : chaque client les possède déjà." },
     { "key": "menu.servers.list.default", "value": "Serveur Basis par défaut" },
     { "key": "menu.players.search.byNameOrUuid", "value": "Filtrer par nom d'affichage ou UUID." },
 

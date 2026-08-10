@@ -936,6 +936,8 @@
     { "key": "network.stats.notConnected", "value": "Не подключено" },
     { "key": "network.stats.noTransmitter", "value": "Нет активного передатчика" },
     { "key": "network.stats.noTransmissionData", "value": "Нет данных передачи" },
+    { "key": "network.avatarLocalOnly.title", "value": "Аватар не загрузится у других" },
+    { "key": "network.avatarLocalOnly.body", "value": "Этот аватар загружается из файла на вашем компьютере и нигде не размещён так, чтобы другие игроки могли его получить, поэтому никто больше на этом сервере не сможет его скачать. Вы будете видеть его как обычно, а все остальные увидят заглушку. Загрузите его в сеть и указывайте URL, чтобы другие игроки его видели. Встроенные аватары не затронуты — они уже есть у каждого клиента." },
     { "key": "menu.servers.list.default", "value": "Сервер Basis по умолчанию" },
     { "key": "menu.players.search.byNameOrUuid", "value": "Фильтр по отображаемому имени или UUID." },
 

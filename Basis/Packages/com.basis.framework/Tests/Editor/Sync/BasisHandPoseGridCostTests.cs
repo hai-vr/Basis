@@ -50,38 +50,51 @@ namespace Basis.Tests.Sync
                 "grid bake got catastrophically slower; it runs on every distinct remote avatar load");
         }
 
+        /// <summary>
+        /// A restore must SHARE the cache's cells, not copy them. Each restore used to allocate its
+        /// own 207 KB Persistent array and rebuild all 13,230 quaternions element by element — per
+        /// remote player and per avatar swap, for bytes identical across everyone in the same
+        /// avatar, and never freed when the player left.
+        /// </summary>
         [Test]
-        public void CacheRestore_IsFarCheaperThanBaking()
+        public void CacheRestore_SharesCellsInsteadOfCopying()
         {
             using var rig = BasisHumanoidRigFixture.Build("cached");
             using var source = new BasisHandPoseGrid();
             Assert.IsTrue(source.TryBake(rig.Animator, BasisHandPoseGrid.DefaultIncrement, out var bake));
+            Assert.IsTrue(source.OwnsCells, "a fresh bake owns its cells until it publishes them");
 
-            var snapshot = new BasisAvatarModelCache.HandPoseGridData
-            {
-                NativeGridSnapshot = source.ToSnapshot(),
-                GridWidth = source.GridWidth,
-                GridHeight = source.GridHeight,
-                FingerStride = source.FingerStride,
-                TotalElements = source.Cells.Length,
-                Increment = source.Increment,
-                InitialPose = bake.RestPose,
-            };
+            var snapshot = new BasisAvatarModelCache.HandPoseGridData { InitialPose = bake.RestPose };
+            source.PublishCellsTo(snapshot);
+            Assert.IsFalse(source.OwnsCells, "publishing hands ownership to the cache entry");
 
+            long before = System.GC.GetTotalMemory(false);
             var sw = Stopwatch.StartNew();
             using var restored = new BasisHandPoseGrid();
             restored.RestoreFrom(snapshot);
             sw.Stop();
+            long allocated = System.GC.GetTotalMemory(false) - before;
 
-            UnityEngine.Debug.Log($"[finger] grid cache restore: {sw.Elapsed.TotalMilliseconds:F2} ms");
+            UnityEngine.Debug.Log(
+                $"[finger] grid cache restore: {sw.Elapsed.TotalMilliseconds:F3} ms, " +
+                $"{snapshot.TotalElements} cells shared ({snapshot.TotalElements * 16 / 1024} KB not copied)");
 
             Assert.IsTrue(restored.IsCreated);
+            Assert.IsFalse(restored.OwnsCells, "a restore is a view; only the cache entry frees the cells");
             Assert.AreEqual(source.Cells.Length, restored.Cells.Length);
-            Assert.Less(sw.Elapsed.TotalMilliseconds, 200.0,
-                "cache restore should be a memcpy-shaped cost; a crowd in matching avatars depends on it");
+            Assert.Less(sw.Elapsed.TotalMilliseconds, 10.0,
+                "cache restore should be a pointer assignment; a crowd in matching avatars depends on it");
+            Assert.Less(allocated, 64 * 1024,
+                "cache restore allocated as if it were still copying the grid");
 
-            // A restore that quietly produced different cells would make one player's hands disagree
-            // with another's while both looked individually plausible.
+            // Proves the aliasing rather than merely equal contents: a restore that quietly copied
+            // would leave one player's hands on a stale grid after a rebake, disagreeing with
+            // everyone else's while looking individually plausible.
+            quaternion original = source.Cells[7];
+            source.Cells[7] = new quaternion(0.5f, 0.5f, 0.5f, 0.5f);
+            Assert.AreEqual(source.Cells[7].value.x, restored.Cells[7].value.x, "restore did not alias the cache cells");
+            source.Cells[7] = original;
+
             for (int i = 0; i < source.Cells.Length; i++)
             {
                 float4 a = source.Cells[i].value;
@@ -91,6 +104,9 @@ namespace Basis.Tests.Sync
                 Assert.AreEqual(a.z, b.z, $"cell {i}.z");
                 Assert.AreEqual(a.w, b.w, $"cell {i}.w");
             }
+
+            snapshot.SharedCells.Dispose();
+            snapshot.SharedCells = default;
         }
 
         /// <summary>

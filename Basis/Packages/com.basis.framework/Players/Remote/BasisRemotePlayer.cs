@@ -171,7 +171,19 @@ namespace Basis.Scripts.BasisSdk.Players
 
         public void SetSafeDisplayname()
         {
-            SafeDisplayName = System.Text.RegularExpressions.Regex.Replace(DisplayName, "<.*?>", string.Empty);
+            SafeDisplayName = BuildSafeDisplayName(DisplayName);
+        }
+
+        /// <summary>
+        /// Strips rich-text tags out of a display name. Static and Unity-free so the avatar load
+        /// thread can run it during join decode instead of the main thread — the regex is the most
+        /// allocating step of <see cref="RemoteInitialize"/>.
+        /// </summary>
+        public static string BuildSafeDisplayName(string displayName)
+        {
+            return displayName == null
+                ? null
+                : System.Text.RegularExpressions.Regex.Replace(displayName, "<.*?>", string.Empty);
         }
 
         public void UpdateFaceVisibility(bool State)
@@ -517,12 +529,14 @@ namespace Basis.Scripts.BasisSdk.Players
         public void RemoteInitialize(
             ClientAvatarChangeMessage cACM,
             ClientMetaDataMessage PlayerMetaDataMessage,
-            string LoadableNamePlatename = "Assets/UI/Prefabs/NamePlate.prefab")
+            string LoadableNamePlatename = "Assets/UI/Prefabs/NamePlate.prefab",
+            string PreparedSafeDisplayName = null)
         {
             CACM = cACM;
             DisplayName = PlayerMetaDataMessage.playerDisplayName;
             PlayerPlatform = PlayerMetaDataMessage.playerPlatform;
-            SetSafeDisplayname();
+            // Non-null when the avatar load thread already stripped the tags off-thread.
+            SafeDisplayName = PreparedSafeDisplayName ?? BuildSafeDisplayName(DisplayName);
             UUID = PlayerMetaDataMessage.playerUUID;
             IsLocal = false;
 
@@ -558,12 +572,16 @@ namespace Basis.Scripts.BasisSdk.Players
         /// This is an async-void method intended to be fire-and-forget on the main thread.
         /// Prefer <see cref="CreateAvatar(byte, BasisLoadableBundle)"/> for awaited flows.
         /// </remarks>
-        public void LoadAvatarFromInitial(ClientAvatarChangeMessage CACM)
+        public void LoadAvatarFromInitial(ClientAvatarChangeMessage CACM, BasisLoadableBundle PreparedBundle = null)
         {
             if (BasisAvatar == null)
             {
                 this.CACM = CACM;
-                BasisLoadableBundle BasisLoadedBundle = BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(CACM.byteArray);
+                // The avatar load thread normally decodes this ahead of us — the blob is a
+                // DeflateStream + BinaryReader round trip per joiner, which is the single most
+                // allocating step left on the spawn path. Fall back for callers that have none.
+                BasisLoadableBundle BasisLoadedBundle = PreparedBundle
+                    ?? BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(CACM.byteArray);
 
                 InAvatarRange = false;
 
@@ -635,16 +653,23 @@ namespace Basis.Scripts.BasisSdk.Players
             bool farInstallPending = false;
             try
             {
-                // Fetch per-player visibility settings.
-                BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
-
-                // The await above is file I/O — the player can disconnect and be destroyed
-                // mid-await. BasisAvatarFactory.CancelPlayerLoad can't help here because the
-                // per-player cancellation token is created inside LoadAvatarRemote, after
-                // this point. Bail before touching any owned members.
-                if (IsDestroyed)
+                // Fetch per-player visibility settings. The cached probe is synchronous and is the
+                // normal case — the join decode thread warms this UUID before the player exists,
+                // and three separate steps of the spawn ask for it. Awaiting anyway allocated a
+                // Task<BasisPlayerSettingsData> plus a state machine on every range commit, and
+                // this method is called once per player per range crossing.
+                if (!BasisPlayerSettingsManager.TryGetCached(UUID, out BasisPlayerSettingsData))
                 {
-                    return;
+                    BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
+
+                    // The await above is file I/O — the player can disconnect and be destroyed
+                    // mid-await. BasisAvatarFactory.CancelPlayerLoad can't help here because the
+                    // per-player cancellation token is created inside LoadAvatarRemote, after
+                    // this point. Bail before touching any owned members.
+                    if (IsDestroyed)
+                    {
+                        return;
+                    }
                 }
 
                 IsBlocked = BasisPlayerSettingsData.IsBlocked;
@@ -825,6 +850,12 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 RemoteFaceDriver.OnDestroy();
             }
+
+            // Nothing dropped this before, so every disconnect leaked whatever the grid held —
+            // a 207 KB Persistent NativeArray per player back when each one allocated its own.
+            // Owned-only: the usual case is a view of the per-model shared cells, which this must
+            // neither free nor null out while the parallel finger expansion may be sampling it.
+            RemoteAvatarDriver?.HandGrid.DisposeOwnedOnly();
 
             // The nameplate self-releases on this event; then drop the mouth marker.
             OnRemotePlayerDestroying?.Invoke();

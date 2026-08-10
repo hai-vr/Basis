@@ -4,9 +4,11 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
+using Basis.Scripts.UI.UI_Panels;
 using BasisNetworkCore.Security;
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 using static BasisNetworkCore.Serializable.SerializableBasis;
 
@@ -144,6 +146,65 @@ public static class BasisNetworkModeration
     {
         SendAdminRequest(AdminRequestMode.TeleportPlayer,
             w => w.Put(uuid));
+    }
+
+    /// <summary>
+    /// Ask the server to put <paramref name="targetId"/> onto a specific avatar. Only the url,
+    /// password and embedded kind travel — the target loads the bundle itself through the same
+    /// path its library uses, so its own avatar-change broadcast is what shows the new avatar to
+    /// everyone else. See <see cref="EncodeEmbeddedSource"/> for the trailing byte.
+    /// </summary>
+    public static void ForceAvatar(ushort targetId, string url, string password, byte embeddedSource)
+    {
+        if (ValidateString(url, nameof(url)))
+        {
+            SendAdminRequest(AdminRequestMode.ForceAvatar,
+                w => w.Put(targetId),
+                w => w.Put(url),
+                w => w.Put(password ?? string.Empty),
+                w => w.Put(embeddedSource));
+        }
+    }
+
+    /// <summary>
+    /// Convenience overload taking the library entry a moderator picked.
+    /// </summary>
+    public static void ForceAvatar(ushort targetId, BasisDataStoreItemKeys.ItemKey item)
+    {
+        if (item == null)
+        {
+            BasisDebug.LogError("ForceAvatar was given no item.");
+            return;
+        }
+        ForceAvatar(targetId, item.Url, item.Pass, EncodeEmbeddedSource(item));
+    }
+
+    /// <summary>
+    /// <see cref="ForceAvatar(ushort, string, string, byte)"/> aimed at the whole instance. The server
+    /// sends it to everyone but the caller and skips players holding basis.protection.
+    /// </summary>
+    public static void ForceAvatarAll(string url, string password, byte embeddedSource)
+    {
+        if (ValidateString(url, nameof(url)))
+        {
+            SendAdminRequest(AdminRequestMode.ForceAvatarAll,
+                w => w.Put(url),
+                w => w.Put(password ?? string.Empty),
+                w => w.Put(embeddedSource));
+        }
+    }
+
+    /// <summary>
+    /// Convenience overload taking the library entry a moderator picked.
+    /// </summary>
+    public static void ForceAvatarAll(BasisDataStoreItemKeys.ItemKey item)
+    {
+        if (item == null)
+        {
+            BasisDebug.LogError("ForceAvatarAll was given no item.");
+            return;
+        }
+        ForceAvatarAll(item.Url, item.Pass, EncodeEmbeddedSource(item));
     }
 
     // ── Server config / allowlist (admin) ────────────────────────────────────
@@ -333,6 +394,10 @@ public static class BasisNetworkModeration
 
             case AdminRequestMode.UserOpusBitrateOverride:
                 HandleUserOpusBitrateOverride(reader);
+                break;
+
+            case AdminRequestMode.ForceAvatarApply:
+                HandleForcedAvatar(reader);
                 break;
 
             case AdminRequestMode.GlobalGetOpusFrameDurationState:
@@ -1599,6 +1664,98 @@ public static class BasisNetworkModeration
         SendAdminRequest(
             AdminRequestMode.SetGlobalOpusFrameDuration,
             w => w.Put((byte)ms));
+    }
+
+    #endregion
+
+    #region Force Avatar
+
+    /// <summary>
+    /// Packs a library entry's embedded flags into the single byte the force-avatar payload
+    /// carries, so the entry rebuilds on the target the same kind it is here. 0 = plain bee url,
+    /// 1 = embedded bee url, 2 = embedded addressable.
+    /// </summary>
+    public static byte EncodeEmbeddedSource(BasisDataStoreItemKeys.ItemKey item)
+    {
+        if (item == null || !item.EmbeddedSettings.IsEmbedded)
+        {
+            return 0;
+        }
+        return item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable ? (byte)2 : (byte)1;
+    }
+
+    private static void HandleForcedAvatar(NetDataReader reader)
+    {
+        ushort initiatorId = reader.GetUShort();
+        string url = reader.GetString();
+        string password = reader.GetString();
+        byte embeddedSource = reader.GetByte();
+
+        if (string.IsNullOrEmpty(url))
+        {
+            BasisDebug.LogError("Forced avatar arrived with no url.", BasisDebug.LogTag.Networking);
+            return;
+        }
+
+        BasisDataStoreItemKeys.ItemKey item = new BasisDataStoreItemKeys.ItemKey
+        {
+            Mode = BundledContentHolder.Mode.Avatar,
+            PlacementType = BundledContentHolder.PlacementType.SpawnAtRaycast,
+            Url = url,
+            Pass = password ?? string.Empty,
+            EmbeddedSettings = embeddedSource switch
+            {
+                1 => BasisDataStoreItemKeys.EmbeddedSettings.BEEUrl,
+                2 => BasisDataStoreItemKeys.EmbeddedSettings.Addressable,
+                _ => BasisDataStoreItemKeys.EmbeddedSettings.Default,
+            },
+            PinnedSettings = BasisDataStoreItemKeys.PinnedSettings.Default,
+        };
+
+        // Named in the popup the target gets, so the fallback has to read as prose rather than as
+        // a raw id — the moderator is a remote player here and should always resolve.
+        string initiator = BasisNetworkPlayers.Players.TryGetValue(initiatorId, out BasisNetworkPlayer moderator)
+            && moderator.Player != null
+            && !string.IsNullOrWhiteSpace(moderator.Player.SafeDisplayName)
+                ? moderator.Player.SafeDisplayName
+                : BasisLocalization.Get("settings.admin.forceAvatar.notice.unknownModerator");
+
+        _ = ApplyForcedAvatar(initiator, item);
+    }
+
+    private static async Task ApplyForcedAvatar(string initiator, BasisDataStoreItemKeys.ItemKey item)
+    {
+        try
+        {
+            // The moderator picked this out of their own library, so this client may never have
+            // seen it. CacheNewItem rather than PreloadMetaDataForItem: the preload path deletes
+            // the stored file and drops the key when a bundle fails to parse, and this entry is
+            // not in our library for it to be dropping.
+            if (!CachedMetaData.ContainsMetaData(item.Url))
+            {
+                CachedMetaData.CacheNewItemResult result = await CachedMetaData.CacheNewItem(item);
+                if (result.Cached == null)
+                {
+                    BasisDebug.LogError(
+                        $"Forced avatar '{item.Url}' could not be fetched{(result.IsTransient ? " (remote unreachable)" : string.Empty)}.",
+                        BasisDebug.LogTag.Networking);
+                    return;
+                }
+                CachedMetaData.SetMetaData(item.Url, result.Cached);
+            }
+
+            await ContentLoader.LoadAvatar(item);
+
+            // Popped after the load, not before: the message names an avatar the wearer is already
+            // wearing, so it can't announce a swap that then fails to happen. DisplayMessage is the
+            // same popup every other moderator action uses, and logs itself to the notification
+            // history on dismiss.
+            DisplayMessage(BasisLocalization.Get("settings.admin.forceAvatar.notice.body", initiator));
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogError($"Forced avatar '{item.Url}' failed to load: {ex.Message}", BasisDebug.LogTag.Networking);
+        }
     }
 
     #endregion

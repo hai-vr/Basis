@@ -19,6 +19,11 @@ public static class BasisNetworkLifeCycle
     {
         BasisDebug.Log($"Initializing Network Connection", BasisDebug.LogTag.Networking);
         BasisNetworkManagement.mainThreadId = Thread.CurrentThread.ManagedThreadId;
+        // Invalidate anything the previous connection left mid-decode, then start (or re-arm) the
+        // join decode thread. Runs here so the main-thread-only statics it touches are warmed from
+        // the main thread rather than from the worker.
+        BasisAvatarLoadThread.Flush();
+        BasisAvatarLoadThread.Initialize();
         BasisRemoteNetworkDriver.Initialize(Unity.Collections.Allocator.Persistent);
         BasisAudioRemoteSource.Initialize();
         BasisNetworkIdResolver.KnownIdMap.Clear();
@@ -81,6 +86,7 @@ public static class BasisNetworkLifeCycle
 #if !UNITY_SERVER
             BasisNetworkPIPCameraDriver.ClearRemotePIPs();
 #endif
+            BasisAvatarLoadThread.Flush();//drop join packets decoded for the connection going away
             BasisNetworkPlayers.ClearAllRegistries();//remove players
             Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources
             Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.DeInitialize();//remove voice recordings
@@ -92,6 +98,7 @@ public static class BasisNetworkLifeCycle
             BasisNetworkManagement.Transmitter = null;
             BasisNetworkConnection.NetworkClient?.Disconnect();//disconnect the local client last.
             BasisNetworkConnection.LocalPlayerIsConnected = false;
+            Basis.Scripts.Avatar.BasisLocalAvatarNetworkNotice.Reset();//the next server warns for itself
             BasisNetworkManagement.LocalAccessTransmitter = null;
             BasisNetworkConnection.LocalPlayerPeer = null;
             if (DisplayReason)
@@ -128,6 +135,7 @@ public static class BasisNetworkLifeCycle
         }
         BasisNetworkManagement.JoinPendingCompute();//join the pipelined compute task before buffers are freed
         BasisRemoteNetworkDriver.Shutdown();//complete in-flight jobs before disposing anything
+        BasisAvatarLoadThread.Flush();//drop join packets decoded for the connection going away
         BasisNetworkPlayers.ClearAllRegistries();//remove players
         Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources
         Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.DeInitialize();//remove voice recordings
@@ -148,6 +156,7 @@ public static class BasisNetworkLifeCycle
         BasisNetworkConnection.LocalPlayerPeer = null;
         BasisNetworkManagement.LocalAccessTransmitter = null;
         BasisNetworkConnection.LocalPlayerIsConnected = false;
+        Basis.Scripts.Avatar.BasisLocalAvatarNetworkNotice.Reset();//the next server warns for itself
         BasisNetworkManagement.NetworkRunning = false;
         BasisNetworkManagement.IsInitialized = false;
         BasisDebug.Log("BasisNetworkManagement has been successfully shutdown.", BasisDebug.LogTag.Networking);

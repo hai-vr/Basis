@@ -64,6 +64,23 @@ namespace Basis.Scripts.Rendering
             if (_cameras.IsCreated) _cameras.Dispose();
             if (_changed.IsCreated) _changed.Dispose();
             _cameraCount = 0;
+            _cameraScratch.Clear();
+            BasisVisibilityDatabase.Dispose();
+        }
+
+        /// <summary>
+        /// Clears anything a disabled domain reload left behind. Mandatory: with reload disabled the
+        /// statics survive exiting play mode, so the persistent arrays would both leak and be handed
+        /// to the next session. <see cref="Enabled"/> is assigned directly rather than through
+        /// <see cref="SetEnabled"/> because the database has just been torn down with it — there are
+        /// no renderers left to restore.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            Dispose();
+            Enabled = false;
+            _handle = default;
         }
 
         public static void CollectCameras()
@@ -118,6 +135,11 @@ namespace Basis.Scripts.Rendering
 
             int count = BasisVisibilityDatabase.Count;
             if (count <= 0)
+            {
+                return dependsOn;
+            }
+
+            if (BasisVisibilityDatabase.CullableCount == 0 && BasisVisibilityDatabase.CulledCount == 0)
             {
                 return dependsOn;
             }
@@ -213,7 +235,7 @@ namespace Basis.Scripts.Rendering
 
                 bool visible = BasisVisibilityDatabase.VisibleMask[slot] != 0u;
                 ApplyToRenderers(BasisVisibilityDatabase.Bindings[slot], visible);
-                BasisVisibilityDatabase.AppliedVisible[slot] = visible ? (byte)1 : (byte)0;
+                BasisVisibilityDatabase.SetApplied(slot, visible);
                 applied++;
             }
 
@@ -245,7 +267,11 @@ namespace Basis.Scripts.Rendering
                 return;
             }
             Enabled = enabled;
-            if (!enabled)
+            if (enabled)
+            {
+                EnsureCreated();
+            }
+            else
             {
                 if (_scheduled)
                 {

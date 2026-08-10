@@ -936,6 +936,8 @@
     { "key": "network.stats.notConnected", "value": "Niet verbonden" },
     { "key": "network.stats.noTransmitter", "value": "Geen zender actief" },
     { "key": "network.stats.noTransmissionData", "value": "Geen verzendgegevens" },
+    { "key": "network.avatarLocalOnly.title", "value": "Avatar laadt niet voor anderen" },
+    { "key": "network.avatarLocalOnly.body", "value": "Deze avatar wordt geladen vanaf een bestand op je computer en staat nergens gehost waar de andere spelers bij kunnen, dus niemand anders op deze server kan hem downloaden. Jij ziet hem gewoon, maar alle anderen zien een tijdelijke figuur. Upload hem en laad hem via een URL zodat andere spelers hem wel zien. Ingebouwde avatars hebben hier geen last van — die heeft elke client al." },
     { "key": "menu.servers.list.default", "value": "Standaard Basis-server" },
     { "key": "menu.players.search.byNameOrUuid", "value": "Filter op weergavenaam of UUID." },
 

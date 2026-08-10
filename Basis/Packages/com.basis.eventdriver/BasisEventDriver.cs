@@ -176,6 +176,7 @@ namespace Basis.EventDriver
                 RemoteBoneJobSystem.Dispose();
                 BasisAuthoredMotionSystem.Dispose();
                 BasisConstraintSystem.Dispose();
+                Basis.Scripts.Rendering.BasisVisibilitySystem.Dispose();
                 BasisAvatarBufferPool.Deinitialize();
             }
             finally

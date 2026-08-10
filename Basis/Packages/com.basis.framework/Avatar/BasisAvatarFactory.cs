@@ -674,6 +674,12 @@ namespace Basis.Scripts.Avatar
                     if (Player.AvatarLoadMode == 1 || Player.AvatarLoadMode == 0)
                     {
                         await BasisLoadHandler.RequestDeIncrementOfBundle(Player.AvatarMetaData);
+                        // The de-increment can drop the last holder and Unload(true) the bundle,
+                        // which destroys the Avatar assets its model cache entries describe. This
+                        // is the only place in the client that knows a bundle may have just gone,
+                        // so it is where the dead entries — and the native memory the shared
+                        // hand-pose grid hangs off them — get released.
+                        BasisAvatarModelCache.SweepDestroyed();
                     }
                     else
                     {

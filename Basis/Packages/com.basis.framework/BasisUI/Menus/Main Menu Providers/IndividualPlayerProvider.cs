@@ -1400,6 +1400,40 @@ namespace Basis.BasisUI
                     }
                 };
 
+                // ---- Force avatar ----
+                // Built once with the page: this panel is rebuilt each time it is opened, so the
+                // list is as fresh as the rest of what's on screen.
+                var forceAvatarGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminGroup.ContentParent);
+                forceAvatarGroup.SetTitle(BasisLocalization.Get("settings.admin.forceAvatar"));
+                forceAvatarGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.forceAvatar.description"));
+
+                List<ForceAvatarCatalog.Entry> avatarEntries = ForceAvatarCatalog.Build();
+
+                PanelDropdown avatarDropdown = PanelDropdown.CreateNewEntry(forceAvatarGroup.ContentParent);
+                avatarDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.forceAvatar.pick"));
+                avatarDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.forceAvatar.pick.tooltip"));
+                ForceAvatarCatalog.Apply(avatarDropdown, avatarEntries);
+
+                PanelButton forceAvatarBtn = PanelButton.CreateNew(forceAvatarGroup.ContentParent);
+                forceAvatarBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.forceAvatar"));
+                forceAvatarBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.forceAvatar.description"));
+                forceAvatarBtn.OnClicked += () =>
+                {
+                    if (!ForceAvatarCatalog.TryResolve(avatarEntries, avatarDropdown.Value, out ForceAvatarCatalog.Entry entry))
+                    {
+                        BasisDebug.LogError("No avatar selected.");
+                        return;
+                    }
+                    if (!BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer np)) return;
+
+                    BasisMainMenu.Instance.OpenDialogue(
+                        BasisLocalization.Get("menu.individualPlayer.forceAvatar.dialog.title"),
+                        BasisLocalization.Get("menu.individualPlayer.forceAvatar.dialog.body", remotePlayer.DisplayName, entry.Label),
+                        BasisLocalization.Get("menu.individualPlayer.forceAvatar"),
+                        BasisLocalization.Get("ui.cancel"),
+                        confirmed => { if (confirmed) BasisNetworkModeration.ForceAvatar(np.playerId, entry.Item); });
+                };
+
                 // ---- Per-user permissions ----
                 var permGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminGroup.ContentParent);
                 permGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.permissions"));
@@ -1418,6 +1452,7 @@ namespace Basis.BasisUI
                     PermNodes.ModerationMessageAll,
                     PermNodes.ModerationTeleport,
                     PermNodes.ModerationShout,
+                    PermNodes.ModerationForceAvatar,
                     PermNodes.PlayerModeration,
                     PermNodes.PermissionsView,
                     PermNodes.PermissionsEdit,

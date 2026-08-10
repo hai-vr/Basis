@@ -909,17 +909,49 @@ namespace Basis.BasisUI
             }
 #endif
 
+            // Global listener state, not per-source — but this stays on the per-source path
+            // because it doubles as the retry that lands the profile once SteamAudioManager's
+            // singleton exists, which it need not when the settings load event fires at startup.
+            // ApplyHrtfProfile only latches on a successful apply, so every call after that one
+            // is a string compare.
             ApplyHrtfProfile();
         }
 
         /// <summary>
-        /// Applies the user-selected HRTF profile to the Steam Audio listener.
+        /// Name of the HRTF profile the last <see cref="ApplyHrtfProfile"/> call actually landed
+        /// on the Steam Audio listener. Latched on success only, so a call made before the
+        /// manager singleton exists — <c>SetActiveHRTF</c> returns false — is retried rather
+        /// than swallowed. Null until the first successful apply.
+        /// </summary>
+#if STEAMAUDIO_ENABLED
+        private static string _appliedHrtfProfile;
+#endif
+
+        /// <summary>
+        /// Applies the user-selected HRTF profile to the Steam Audio listener. Reached once per
+        /// remote source start, so the common case — profile unchanged and already applied — must
+        /// not re-walk the name table: it is a single reference/string compare.
         /// </summary>
         public static void ApplyHrtfProfile()
         {
 #if STEAMAUDIO_ENABLED
-            int index = SteamAudioManager.GetHRTFIndexByName(BasisSettingsDefaults.RAHrtfProfile.RawValue);
-            SteamAudioManager.SetActiveHRTF(index);
+            string requested = BasisSettingsDefaults.RAHrtfProfile.RawValue;
+            if (_appliedHrtfProfile != null && string.Equals(_appliedHrtfProfile, requested, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            int index = SteamAudioManager.GetHRTFIndexByName(requested);
+            bool applied = SteamAudioManager.SetActiveHRTF(index);
+
+            // Latch only once the name table is actually populated. GetHRTFIndexByName cannot
+            // distinguish "matched the first profile" from "found nothing, take 0", so latching
+            // on an empty table would pin us to index 0 and never retry the real profile.
+            string[] names = (SteamAudioManager.Singleton != null) ? SteamAudioManager.Singleton.hrtfNames : null;
+            if (applied && names != null && names.Length > 0)
+            {
+                _appliedHrtfProfile = requested;
+            }
 #endif
         }
 

@@ -936,6 +936,8 @@
     { "key": "network.stats.notConnected", "value": "সংযুক্ত নয়" },
     { "key": "network.stats.noTransmitter", "value": "কোনো ট্রান্সমিটার সক্রিয় নেই" },
     { "key": "network.stats.noTransmissionData", "value": "কোনো ট্রান্সমিশন ডেটা নেই" },
+    { "key": "network.avatarLocalOnly.title", "value": "অন্যদের কাছে অবতার লোড হবে না" },
+    { "key": "network.avatarLocalOnly.body", "value": "এই অবতারটি আপনার কম্পিউটারের একটি ফাইল থেকে লোড হয় এবং অন্য খেলোয়াড়রা পৌঁছাতে পারে এমন কোথাও এটি হোস্ট করা নেই, তাই এই সার্ভারের অন্য কেউ এটি ডাউনলোড করতে পারবে না। আপনি এটি স্বাভাবিকভাবে দেখবেন, কিন্তু বাকি সবাই একটি স্থানধারক দেখবে। অন্য খেলোয়াড়দের দেখাতে হলে এটি আপলোড করে কোনো URL থেকে লোড করুন। অন্তর্নির্মিত অবতার এতে প্রভাবিত হয় না — সেগুলি প্রতিটি ক্লায়েন্টের কাছে আগে থেকেই আছে।" },
     { "key": "menu.servers.list.default", "value": "ডিফল্ট Basis সার্ভার" },
     { "key": "menu.players.search.byNameOrUuid", "value": "প্রদর্শন নাম বা UUID দিয়ে ফিল্টার করুন।" },
 

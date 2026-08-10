@@ -512,7 +512,9 @@ namespace Basis.Scripts.Drivers
                     namePlateHeightAboveHipsModel: NamePlateHeightAboveHipsModel,
                     boneDecodePre: receiver.BoneDecodePre,
                     boneDecodePost: receiver.BoneDecodePost,
-                    boneTransforms: receiver.BoneTransforms
+                    boneTransforms: receiver.BoneTransforms,
+                    cachedDecodePre: receiver.CachedDecodePre,
+                    cachedDecodePost: receiver.CachedDecodePost
                 );
             }
             InBoneDriver = true;
@@ -717,7 +719,7 @@ namespace Basis.Scripts.Drivers
             // a freshly measured F would build an operator pair describing two different rest
             // poses, which is a silent, small, everywhere-at-once pose error.
             EntityId cacheKey = BasisAvatarModelCache.GetKey(animator);
-            var cacheEntry = cacheKey != EntityId.None ? BasisAvatarModelCache.GetOrCreate(cacheKey) : null;
+            var cacheEntry = cacheKey != EntityId.None ? BasisAvatarModelCache.GetOrCreate(cacheKey, animator.avatar) : null;
             bool hasCachedRest = cacheEntry?.TposeLocal != null && cacheEntry.TposeFromRoot != null;
 
             quaternion[] restLocalByBone = hasCachedRest ? cacheEntry.TposeLocal.Rotations : null;
@@ -732,6 +734,32 @@ namespace Basis.Scripts.Drivers
                 ? BasisGenericBoneRotationUtils.GetCharacterBasis(
                     cacheEntry.TposeFromRoot.AvatarForward, cacheEntry.TposeFromRoot.AvatarUp)
                 : BasisGenericBoneRotationUtils.GetCharacterBasis(References);
+
+            // Every input to the operator loop below is model-determined once the rest tables are
+            // cached, so a second wearer of this avatar only needs the per-instance half: the bone
+            // Transforms. The operators come back as one memcpy each, and the managed arrays are
+            // handed to the bone-job registration as its deferred snapshot (see CachedDecodePre).
+            var cachedOperators = hasCachedRest ? cacheEntry.BoneDecodeOperators : null;
+            if (cachedOperators != null)
+            {
+                receiver.BoneDecodePre.CopyFrom(cachedOperators.Pre);
+                receiver.BoneDecodePost.CopyFrom(cachedOperators.Post);
+                receiver.CachedDecodePre = cachedOperators.Pre;
+                receiver.CachedDecodePost = cachedOperators.Post;
+                bool[] hasBone = cachedOperators.HasBone;
+                for (int slot = 0; slot < boneCount; slot++)
+                {
+                    boneTransforms[slot] = hasBone[slot]
+                        && References.GetTransform((HumanBodyBones)writeOrder[slot], out var cachedTransform)
+                        ? cachedTransform
+                        : null;
+                }
+                return;
+            }
+
+            // First wearer of this model: build the operators, and record which slots resolved a
+            // bone so the copy path above reproduces this loop's null-transform decisions exactly.
+            bool[] slotHasBone = cacheEntry != null ? new bool[boneCount] : null;
 
             for (int slot = 0; slot < boneCount; slot++)
             {
@@ -750,6 +778,10 @@ namespace Basis.Scripts.Drivers
                     postOut[slot] = quaternion.identity;
                     boneTransforms[slot] = null;
                     continue;
+                }
+                if (slotHasBone != null)
+                {
+                    slotHasBone[slot] = true;
                 }
 
                 quaternion restLocal, restFrame;
@@ -779,6 +811,40 @@ namespace Basis.Scripts.Drivers
                 BasisGenericBoneRotationUtils.BuildDecodeOperators(restFrame, restLocal,
                     out preOut[slot], out postOut[slot]);
                 boneTransforms[slot] = transform;
+            }
+
+            // Publish the operators for the next wearer, and use the same arrays as this player's
+            // registration snapshot so even the first wearer stops paying two ToArray() copies.
+            // Only when the rest tables they were built from are the cached ones — otherwise the
+            // pair would describe a rest pose the cache does not hold.
+            if (cacheEntry != null && hasCachedRest && cacheEntry.BoneDecodeOperators == null)
+            {
+                var operators = new BasisAvatarModelCache.BoneDecodeOperatorData
+                {
+                    Pre = receiver.BoneDecodePre.ToArray(),
+                    Post = receiver.BoneDecodePost.ToArray(),
+                    HasBone = slotHasBone,
+                };
+                cacheEntry.BoneDecodeOperators = operators;
+                receiver.CachedDecodePre = operators.Pre;
+                receiver.CachedDecodePost = operators.Post;
+            }
+            else
+            {
+                // No Avatar asset to key an entry on, so there is nothing to share. Mirror into
+                // receiver-owned managed arrays rather than letting the registration hold the
+                // NativeArrays: the add is DEFERRED and the receiver disposes those on teardown,
+                // so a held reference would be a use-after-free rather than merely stale. Reused
+                // across recalibrations, exactly like receiver.BoneTransforms.
+                if (receiver.OwnedDecodePre == null || receiver.OwnedDecodePre.Length != boneCount)
+                {
+                    receiver.OwnedDecodePre = new quaternion[boneCount];
+                    receiver.OwnedDecodePost = new quaternion[boneCount];
+                }
+                receiver.BoneDecodePre.CopyTo(receiver.OwnedDecodePre);
+                receiver.BoneDecodePost.CopyTo(receiver.OwnedDecodePost);
+                receiver.CachedDecodePre = receiver.OwnedDecodePre;
+                receiver.CachedDecodePost = receiver.OwnedDecodePost;
             }
 
             // Store both rest tables for other instances of this avatar. StorePosesToCache fills
@@ -881,12 +947,34 @@ namespace Basis.Scripts.Drivers
         private void CaptureBodyFitRestLocal()
         {
             Basis.IK.BasisBodyFitApply.CollectBones(References, _fitBones);
+
+            // Authored bind positions are a property of the model, so the first wearer measures and
+            // everyone after copies. This is not only cheaper — it removes a drift hazard. Reading
+            // the LIVE localPosition means a recalibration of an avatar that already has a fit
+            // applied records the SCALED positions as "rest", and the next apply compounds on top.
+            Animator animator = Player?.BasisAvatar != null ? Player.BasisAvatar.Animator : null;
+            EntityId cacheKey = BasisAvatarModelCache.GetKey(animator);
+            BasisAvatarModelCache.Entry entry = null;
+            if (cacheKey != EntityId.None && BasisAvatarModelCache.TryGet(cacheKey, out entry)
+                && entry.BodyFitRest != null && entry.BodyFitRest.Local.Length == _fitRestLocal.Length)
+            {
+                System.Array.Copy(entry.BodyFitRest.Local, _fitRestLocal, _fitRestLocal.Length);
+                _fitRestCaptured = true;
+                return;
+            }
+
             for (int i = 0; i < _fitBones.Length; i++)
             {
                 Transform bone = _fitBones[i];
                 _fitRestLocal[i] = bone != null ? bone.localPosition : Vector3.zero;
             }
             _fitRestCaptured = true;
+
+            if (cacheKey != EntityId.None)
+            {
+                BasisAvatarModelCache.GetOrCreate(cacheKey, animator.avatar).BodyFitRest =
+                    new BasisAvatarModelCache.BodyFitRestData { Local = (Vector3[])_fitRestLocal.Clone() };
+            }
         }
 
         private void ApplyRemoteBodyFit()
@@ -974,7 +1062,14 @@ namespace Basis.Scripts.Drivers
         {
             RemoveJiggleRigColliders();
             int generation = ++JiggleColliderSetupGeneration;
-            BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(Player.UUID);
+            // Synchronous on a cache hit, which is the normal case by the time calibration runs —
+            // CreateAvatar asked for this same UUID moments ago. The await allocated a
+            // Task<BasisPlayerSettingsData> and a state machine per calibration otherwise, and
+            // every avatar install reaches here.
+            if (!BasisPlayerSettingsManager.TryGetCached(Player.UUID, out BasisPlayerSettingsData BasisPlayerSettingsData))
+            {
+                BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(Player.UUID);
+            }
             if (Player == null || Player.IsDestroyed)
             {
                 return;

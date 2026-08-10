@@ -11,7 +11,22 @@ namespace Basis.Scripts.Networking.Receivers
         public static UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> Loadable;
 
         private static readonly Stack<GameObject> pool = new Stack<GameObject>();
-        private const int MaxPoolSize = 16;
+
+        /// <summary>
+        /// How many voice objects to keep parked for reuse. Sized for the audible crowd, not for
+        /// a handful of speakers: a miss is dramatically more expensive than a hit, and in a busy
+        /// instance the in/out-of-hearing-range set churns continuously.
+        /// </summary>
+        /// <remarks>
+        /// A hit is <c>SetParent</c> + <c>SetActive</c>. A miss Instantiates the prefab, which
+        /// runs Steam Audio's native source creation and — because <c>UnityAudioEngineSource</c>
+        /// wipes its parameter cache to NaN on Initialize — pushes all 31 spatializer parameters,
+        /// each one a DSP graph mutation. A pooled object keeps its audio engine source alive
+        /// across the disable (only OnDestroy tears it down) and its parameter hash unchanged, so
+        /// reuse pushes none of them. At 16 this pool was smaller than a single join burst, so
+        /// every start paid the miss.
+        /// </remarks>
+        public static int MaxPoolSize = 64;
         private static Transform poolRoot;
 
         public static int PoolCount => pool.Count;

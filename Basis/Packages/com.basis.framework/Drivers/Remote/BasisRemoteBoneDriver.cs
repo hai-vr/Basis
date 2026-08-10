@@ -920,7 +920,8 @@ public static class RemoteBoneJobSystem
     /// <returns>The provided <paramref name="key"/>.</returns>
     public static int AddRemotePlayer(int key, Transform remotePlayerRoot, Transform head, Transform hips,BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips, float3 tposeHipsLocalPos, quaternion hipsDecodePre, quaternion hipsDecodePost, float3 authoredCenterEyeLocal,float3 authoredMouthLocal, float3 tposeHeadWorld, float3 tposeRootScale, Transform NamePlate, Transform AvatarScale, Transform MouthTransform,float namePlateHeightAboveHipsModel,
         NativeArray<quaternion> boneDecodePre = default, NativeArray<quaternion> boneDecodePost = default,
-        Transform[] boneTransforms = null)
+        Transform[] boneTransforms = null,
+        quaternion[] cachedDecodePre = null, quaternion[] cachedDecodePost = null)
     {
         if (!sInitialized) Initialize();
 
@@ -970,14 +971,26 @@ public static class RemoteBoneJobSystem
         bool hasBoneSource = boneTransforms != null && boneDecodePre.IsCreated && boneDecodePost.IsCreated;
         bool isUpdate = sInitialized && (uint)key < (uint)sKeyToIndex.Length && sKeyToIndex[key] >= 0;
 
-        // Snapshot the generic->rig decode operators for the DEFERRED path only: the source
-        // NativeArrays are owned by the receiver and may be disposed/recreated on a recalibration
-        // before the add commits, so the references can't be held across the defer. The in-place
-        // update below consumes them synchronously and reads the sources directly, skipping two
-        // SyncBoneCount managed arrays per avatar swap.
-        bool snapshot = hasBoneSource && !isUpdate;
-        quaternion[] decodePre = snapshot ? boneDecodePre.ToArray() : null;
-        quaternion[] decodePost = snapshot ? boneDecodePost.ToArray() : null;
+        // The DEFERRED path takes the caller's MANAGED operator arrays by reference and never
+        // copies. It cannot take the NativeArrays: the receiver owns those and disposes them on
+        // teardown, so holding one across the defer is a use-after-free rather than merely stale.
+        // A managed array is safe to hold for the same reason boneTransforms already is — worst
+        // case a later calibration overwrites it and the pending add commits the newer state.
+        //
+        // Callers supply either BasisAvatarModelCache's per-model array (shared by every wearer of
+        // the avatar, immutable) or the receiver's own reused mirror when the rig has no Avatar
+        // asset. Either way this used to be two SyncBoneCount ToArray() copies per install.
+        bool hasManagedOperators = cachedDecodePre != null && cachedDecodePost != null;
+        bool snapshot = boneTransforms != null && hasManagedOperators && !isUpdate;
+        quaternion[] decodePre = snapshot ? cachedDecodePre : null;
+        quaternion[] decodePost = snapshot ? cachedDecodePost : null;
+        if (!isUpdate && boneTransforms != null && !hasManagedOperators)
+        {
+            // Would register a skeleton with no decode operators, which poses every bone through
+            // an identity round trip instead of this rig's rest frame — visible as a subtly wrong
+            // pose everywhere rather than an outright failure. Say so instead of degrading.
+            BasisDebug.LogError($"Bone registration for {key} has bone transforms but no managed decode operators; skeleton not registered.", BasisDebug.LogTag.Avatar);
+        }
 
         PendingAdd pending = new PendingAdd
         {

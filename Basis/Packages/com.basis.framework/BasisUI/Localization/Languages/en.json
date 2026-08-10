@@ -31,10 +31,6 @@
       "value": "Mode"
     },
     {
-      "key": "camera.modePreset.description",
-      "value": "What this camera is for. Picking a mode sets it up for that job and colours each section below: brightly for settings the mode chose, dimly for ones that do nothing here. Change anything and the mode becomes Custom — nothing is ever locked."
-    },
-    {
       "key": "camera.modePreset.custom",
       "value": "Custom"
     },
@@ -3315,6 +3311,14 @@
       "value": "No transmission data"
     },
     {
+      "key": "network.avatarLocalOnly.title",
+      "value": "Avatar Won't Load For Others"
+    },
+    {
+      "key": "network.avatarLocalOnly.body",
+      "value": "This avatar is loaded from a file on your computer and isn't hosted anywhere the other players can reach, so nobody else on this server can download it. You will see it normally; everyone else will see a placeholder. Upload it and load it from a URL for other players to see it. Built-in avatars are unaffected — every client already has those."
+    },
+    {
       "key": "menu.servers.list.default",
       "value": "Default Basis Server"
     },
@@ -3829,6 +3833,22 @@
     {
       "key": "menu.individualPlayer.kick.dialog.body",
       "value": "Kick {0}?"
+    },
+    {
+      "key": "menu.individualPlayer.forceAvatar",
+      "value": "Force Avatar"
+    },
+    {
+      "key": "menu.individualPlayer.forceAvatar.description",
+      "value": "Put this player onto the selected avatar. They can change back at any time."
+    },
+    {
+      "key": "menu.individualPlayer.forceAvatar.dialog.title",
+      "value": "Force avatar?"
+    },
+    {
+      "key": "menu.individualPlayer.forceAvatar.dialog.body",
+      "value": "Put {0} onto '{1}'?"
     },
     {
       "key": "menu.individualPlayer.ban",
@@ -12393,6 +12413,54 @@
       "value": "Player Voice"
     },
     {
+      "key": "settings.admin.forceAvatar",
+      "value": "Force Avatar"
+    },
+    {
+      "key": "settings.admin.forceAvatar.pick",
+      "value": "Avatar"
+    },
+    {
+      "key": "settings.admin.forceAvatar.pick.tooltip",
+      "value": "Avatars this server provides, followed by your own saved avatars."
+    },
+    {
+      "key": "settings.admin.forceAvatar.refresh",
+      "value": "Refresh Avatar List"
+    },
+    {
+      "key": "settings.admin.forceAvatar.refresh.tooltip",
+      "value": "Re-read the server's avatars and your own library."
+    },
+    {
+      "key": "settings.admin.forceAvatar.apply",
+      "value": "Force Avatar On Target"
+    },
+    {
+      "key": "settings.admin.forceAvatar.apply.tooltip",
+      "value": "Put the selected player onto the selected avatar. They can change back at any time."
+    },
+    {
+      "key": "settings.admin.forceAvatar.applyAll",
+      "value": "Force Avatar On Everyone"
+    },
+    {
+      "key": "settings.admin.forceAvatar.applyAll.tooltip",
+      "value": "Put every player in the instance onto the selected avatar. Protected players are skipped, and anyone can change back at any time."
+    },
+    {
+      "key": "settings.admin.forceAvatar.serverEntry",
+      "value": "[Server] {0}"
+    },
+    {
+      "key": "settings.admin.forceAvatar.notice.body",
+      "value": "{0} changed your avatar. You can change back at any time from your library."
+    },
+    {
+      "key": "settings.admin.forceAvatar.notice.unknownModerator",
+      "value": "A moderator"
+    },
+    {
       "key": "settings.admin.playerOpusBitrate",
       "value": "Voice Bitrate Override"
     },
@@ -12503,6 +12571,30 @@
     {
       "key": "settings.admin.confirm.kick.title",
       "value": "Kick player?"
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatar.body",
+      "value": "Put the selected player onto this avatar? They can change back at any time."
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatar.confirm",
+      "value": "Force Avatar"
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatar.title",
+      "value": "Force avatar?"
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatarAll.body",
+      "value": "Put EVERY player in this instance onto the selected avatar? Protected players are skipped, and anyone can change back at any time."
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatarAll.confirm",
+      "value": "Force On Everyone"
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatarAll.title",
+      "value": "Force avatar on everyone?"
     },
     {
       "key": "settings.admin.confirm.sendAll.body",

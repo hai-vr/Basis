@@ -157,7 +157,7 @@ public class BasisLocalHandDriver
 
         if (cacheKey != EntityId.None)
         {
-            SaveToCache(cacheKey);
+            SaveToCache(cacheKey, OriginalAnimator != null ? OriginalAnimator.avatar : null);
         }
     }
 
@@ -165,18 +165,19 @@ public class BasisLocalHandDriver
     //  Cache save / restore
     // ────────────────────────────────────────────────────────────
 
-    private void SaveToCache(EntityId cacheKey)
+    private void SaveToCache(EntityId cacheKey, Avatar asset)
     {
-        var entry = BasisAvatarModelCache.GetOrCreate(cacheKey);
-        entry.HandPoseGrid = new BasisAvatarModelCache.HandPoseGridData
+        var entry = BasisAvatarModelCache.GetOrCreate(cacheKey, asset);
+        if (entry.HandPoseGrid != null)
         {
-            NativeGridSnapshot = Grid.ToSnapshot(),
-            GridWidth = Grid.GridWidth,
-            GridHeight = Grid.GridHeight,
-            FingerStride = Grid.FingerStride,
-            TotalElements = Grid.Cells.Length,
-            Increment = Grid.Increment,
-
+            // A remote wearing this same avatar already published the cells; share theirs rather
+            // than orphaning them under our view.
+            Grid.Dispose();
+            Grid.RestoreFrom(entry.HandPoseGrid);
+            return;
+        }
+        var data = new BasisAvatarModelCache.HandPoseGridData
+        {
             LeftThumb = (float[])LeftThumb.Clone(),
             LeftIndex = (float[])LeftIndex.Clone(),
             LeftMiddle = (float[])LeftMiddle.Clone(),
@@ -190,6 +191,8 @@ public class BasisLocalHandDriver
 
             InitialPose = Current,
         };
+        Grid.PublishCellsTo(data);
+        entry.HandPoseGrid = data;
     }
 
     private void RestoreFromCache(BasisAvatarModelCache.HandPoseGridData cached)

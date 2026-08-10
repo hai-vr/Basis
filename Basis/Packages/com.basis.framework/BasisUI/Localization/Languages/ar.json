@@ -936,6 +936,8 @@
     { "key": "network.stats.notConnected", "value": "غير متصل" },
     { "key": "network.stats.noTransmitter", "value": "لا يوجد مُرسل نشط" },
     { "key": "network.stats.noTransmissionData", "value": "لا توجد بيانات إرسال" },
+    { "key": "network.avatarLocalOnly.title", "value": "لن يتم تحميل الأفاتار لدى الآخرين" },
+    { "key": "network.avatarLocalOnly.body", "value": "يتم تحميل هذا الأفاتار من ملف على جهازك، وهو غير مستضاف في أي مكان يمكن للاعبين الآخرين الوصول إليه، لذا لا يستطيع أي شخص آخر على هذا الخادم تنزيله. ستراه أنت بشكل طبيعي، أما الجميع فسيرون نموذجًا بديلاً. ارفعه وحمّله من رابط URL لكي يراه اللاعبون الآخرون. الأفاتارات المدمجة غير متأثرة — إذ يمتلكها كل عميل بالفعل." },
     { "key": "menu.servers.list.default", "value": "خادم Basis الافتراضي" },
     { "key": "menu.players.search.byNameOrUuid", "value": "التصفية حسب الاسم المعروض أو UUID." },
 

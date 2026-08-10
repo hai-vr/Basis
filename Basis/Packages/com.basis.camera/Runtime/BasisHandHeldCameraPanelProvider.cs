@@ -869,7 +869,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _focusModeDropdown = PanelDropdown.CreateNewEntry(content);
             _focusModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.focus"));
-            _focusModeDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.focus.description"));
+            _focusModeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.focus.description"));
             _focusModeDropdown.AssignEntries(new List<string>(FocusModeLabels));
             _focusModeDropdown.OnValueChanged = _ =>
             {
@@ -1379,7 +1379,7 @@ namespace Basis.BasisUI.HandHeldCamera
             // which is written down anywhere the user can find.
             _flyToggle = PanelToggle.CreateNewEntry(content);
             _flyToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.flyMode"));
-            _flyToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.flyMode.description"));
+            _flyToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyMode.description"));
             _flyToggle.OnValueChanged = v => _activeCamera?.SetFlyModeEnabled(v);
 
             _autoLevelToggle = PanelToggle.CreateNewEntry(content);

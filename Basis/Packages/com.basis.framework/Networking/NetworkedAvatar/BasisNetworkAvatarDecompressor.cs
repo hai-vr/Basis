@@ -75,29 +75,55 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 throw new ArgumentException("Cannot serialize initial avatar data.");
             }
 
+            if (TryDecodeSpawnPose(avatarSerialization, out BasisAvatarBuffer avatarBuffer))
+            {
+                EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, avatarSerialization);
+            }
+        }
+
+        /// <summary>
+        /// Pure decode half of the spawn pose: validates the payload and unpacks it into a pooled
+        /// buffer. Touches no receiver and no Unity API, so the avatar load thread runs it while
+        /// the receiver itself does not exist yet — pair with <see cref="ApplyDecodedSpawnPose"/>
+        /// once the main thread has built the receiver.
+        /// </summary>
+        public static bool TryDecodeSpawnPose(LocalAvatarSyncMessage avatarSerialization, out BasisAvatarBuffer avatarBuffer)
+        {
+            avatarBuffer = null;
             byte[] data = avatarSerialization.array;
-            int length = data.Length;
+            if (data == null)
+            {
+                return false;
+            }
 
             BasisAvatarBitPacking.BitQuality q = (BasisAvatarBitPacking.BitQuality)avatarSerialization.DataQualityLevel;
             if (!BasisAvatarBitPacking.IsValidQuality(q))
             {
                 BasisDebug.LogError($"Invalid avatar quality level {avatarSerialization.DataQualityLevel}", BasisDebug.LogTag.Networking);
-                return;
+                return false;
             }
-            int expected = BasisAvatarBitPacking.ConvertToSize(q);
 
-            if (length >= expected)
-            {
-                int offset = 0;
-                if (TryCreateAvatarBuffer(data, ref offset, 0.01f, q, out BasisAvatarBuffer avatarBuffer))
-                {
-                    EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, avatarSerialization);
-                }
-            }
-            else
+            if (data.Length < BasisAvatarBitPacking.ConvertToSize(q))
             {
                 BasisDebug.LogError("Data did not have enough for AvatarsyncMessage", BasisDebug.LogTag.Networking);
+                return false;
             }
+
+            int offset = 0;
+            return TryCreateAvatarBuffer(data, ref offset, 0.01f, q, out avatarBuffer);
+        }
+
+        /// <summary>
+        /// Hands a buffer produced by <see cref="TryDecodeSpawnPose"/> to a freshly built receiver
+        /// and runs the additional-data dispatch that needed the receiver to exist.
+        /// </summary>
+        public static void ApplyDecodedSpawnPose(BasisNetworkReceiver baseReceiver, BasisAvatarBuffer avatarBuffer, LocalAvatarSyncMessage avatarSerialization)
+        {
+            if (avatarBuffer == null)
+            {
+                return;
+            }
+            EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, avatarSerialization);
         }
 
         private static bool TryCreateAvatarBuffer(byte[] data, ref int offset, double secondsInterval, BasisAvatarBitPacking.BitQuality quality, out BasisAvatarBuffer basisAvatarBuffer)

@@ -193,6 +193,24 @@ namespace BasisNetworkCore.Serializable
             // from other players' display names and disable TMP rich text on the nameplate.
             // Enforced client-side — nameplate rendering is entirely local.
             GlobalToggleSafeDisplayNames,
+
+            // moderator: put one player onto a specific avatar. The server authorizes and relays
+            // the payload to that single peer, which loads it through the same path the library
+            // uses — so the target's own avatar-change broadcast is what propagates it to everyone
+            // else and updates the server's stored record for late joiners.
+            // Payload: [ushort targetId][string url][string password][byte embeddedSource]
+            // embeddedSource: 0 = plain bee url, 1 = embedded bee url, 2 = embedded addressable.
+            ForceAvatar,
+
+            // server→client: load this avatar now. Same payload as ForceAvatar with the target id
+            // replaced by the initiating moderator's id.
+            ForceAvatarApply,
+
+            // moderator: put EVERY player onto a specific avatar. Same payload as ForceAvatar minus
+            // the target id. The server fans ForceAvatarApply out to every peer except the sender,
+            // skipping anyone holding basis.protection, so the client needs no new receive path.
+            // Payload: [string url][string password][byte embeddedSource]
+            ForceAvatarAll,
         }
     }
 }

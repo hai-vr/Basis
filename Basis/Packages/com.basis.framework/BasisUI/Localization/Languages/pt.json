@@ -931,6 +931,8 @@
     { "key": "network.stats.notConnected", "value": "Não ligado" },
     { "key": "network.stats.noTransmitter", "value": "Nenhum transmissor ativo" },
     { "key": "network.stats.noTransmissionData", "value": "Sem dados de transmissão" },
+    { "key": "network.avatarLocalOnly.title", "value": "O avatar não vai carregar para os outros" },
+    { "key": "network.avatarLocalOnly.body", "value": "Este avatar é carregado de um arquivo no seu computador e não está hospedado em nenhum lugar que os outros jogadores consigam acessar, então mais ninguém neste servidor consegue baixá-lo. Você o verá normalmente, mas todos os outros verão um modelo temporário. Envie-o para a internet e carregue-o a partir de uma URL para que os outros jogadores o vejam. Avatares integrados não são afetados — todo cliente já os tem." },
     { "key": "menu.servers.list.default", "value": "Servidor Basis padrão" },
     { "key": "menu.players.search.byNameOrUuid", "value": "Filtrar por nome de exibição ou UUID." },
     { "key": "menu.players.search.byName", "value": "Filtrar por nome de exibição." },

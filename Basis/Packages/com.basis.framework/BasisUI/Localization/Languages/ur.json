@@ -936,6 +936,8 @@
     { "key": "network.stats.notConnected", "value": "منسلک نہیں" },
     { "key": "network.stats.noTransmitter", "value": "کوئی ٹرانسمیٹر فعال نہیں" },
     { "key": "network.stats.noTransmissionData", "value": "کوئی ٹرانسمیشن ڈیٹا نہیں" },
+    { "key": "network.avatarLocalOnly.title", "value": "اواتار دوسروں کے لیے لوڈ نہیں ہوگا" },
+    { "key": "network.avatarLocalOnly.body", "value": "یہ اواتار آپ کے کمپیوٹر پر موجود ایک فائل سے لوڈ ہوتا ہے اور کہیں ایسی جگہ ہوسٹ نہیں ہے جہاں دوسرے کھلاڑی پہنچ سکیں، اس لیے اس سرور پر کوئی اور اسے ڈاؤن لوڈ نہیں کر سکتا۔ آپ کو یہ معمول کے مطابق نظر آئے گا، لیکن باقی سب کو ایک عارضی شکل نظر آئے گی۔ دوسرے کھلاڑیوں کو دکھانے کے لیے اسے اپ لوڈ کریں اور کسی URL سے لوڈ کریں۔ بلٹ اِن اواتار متاثر نہیں ہوتے — وہ ہر کلائنٹ کے پاس پہلے سے موجود ہوتے ہیں۔" },
     { "key": "menu.servers.list.default", "value": "ڈیفالٹ Basis سرور" },
     { "key": "menu.players.search.byNameOrUuid", "value": "ڈسپلے نام یا UUID کے مطابق فلٹر کریں۔" },
 
