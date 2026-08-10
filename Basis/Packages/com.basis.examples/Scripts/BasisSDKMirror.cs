@@ -118,6 +118,8 @@ public class BasisSDKMirror : MonoBehaviour
     }
 
     private BasisMeshRendererCheck basisMeshRendererCheck;
+    private UniversalAdditionalCameraData leftCameraData;
+    private UniversalAdditionalCameraData rightCameraData;
     private BasisGazeTarget gazeTarget;
     private Vector3 thisPosition;
     private Vector3 normal;
@@ -277,6 +279,7 @@ public class BasisSDKMirror : MonoBehaviour
         PortalTextureLeft = null;
         PortalTextureRight = null;
         LeftCamera = RightCamera = null;
+        leftCameraData = rightCameraData = null;
 
         foreach (KeyValuePair<Camera, SecondaryViewerState> pair in secondaryViewers)
         {
@@ -339,8 +342,8 @@ public class BasisSDKMirror : MonoBehaviour
             return;
         }
 
-        CreatePortalCamera(mainCamera, StereoscopicEye.Left, ref LeftCamera, ref PortalTextureLeft);
-        CreatePortalCamera(mainCamera, StereoscopicEye.Right, ref RightCamera, ref PortalTextureRight);
+        CreatePortalCamera(mainCamera, StereoscopicEye.Left, ref LeftCamera, ref PortalTextureLeft, ref leftCameraData);
+        CreatePortalCamera(mainCamera, StereoscopicEye.Right, ref RightCamera, ref PortalTextureRight, ref rightCameraData);
         BasisCullingCameraRegistry.Register(LeftCamera);
 
         // The reflection textures are bound per-renderer through a MaterialPropertyBlock
@@ -568,9 +571,11 @@ public class BasisSDKMirror : MonoBehaviour
     {
         Camera portalCamera = (eye == MonoOrStereoscopicEye.Right) ? RightCamera : LeftCamera;
         if (!portalCamera) return;
+        if (destination == null) return;
 
         // Portal cameras are shared by every viewer now, so per-render state must be refreshed.
         updateCameraClearFlags(portalCamera, sourceCamera);
+        UpdateAttachmentRequirement((eye == MonoOrStereoscopicEye.Right) ? rightCameraData : leftCameraData, destination);
 
         // --- Eye pose/projection from source camera ---
         Vector3 eyeOriginWS;
@@ -742,7 +747,7 @@ public class BasisSDKMirror : MonoBehaviour
         projection[14] = c.w - projection[15];
     }
 
-    private void CreatePortalCamera(Camera sourceCamera, StereoscopicEye eye, ref Camera portalCamera, ref RenderTexture portalTexture)
+    private void CreatePortalCamera(Camera sourceCamera, StereoscopicEye eye, ref Camera portalCamera, ref RenderTexture portalTexture, ref UniversalAdditionalCameraData portalCameraData)
     {
         GetEffectiveResolution(out int effectiveWidth, out int effectiveHeight);
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -773,11 +778,11 @@ public class BasisSDKMirror : MonoBehaviour
         };
         portalTexture.Create();
 
-        CreateNewCamera(sourceCamera, out portalCamera);
+        CreateNewCamera(sourceCamera, out portalCamera, out portalCameraData);
         portalCamera.targetTexture = portalTexture;
     }
 
-    private void CreateNewCamera(Camera sourceCamera, out Camera newCamera)
+    private void CreateNewCamera(Camera sourceCamera, out Camera newCamera, out UniversalAdditionalCameraData cameraData)
     {
         // Built bare on purpose — CopyFrom(mainCamera) inherits stereoTargetEye = Both and the XR
         // flags that let HMD tracking override the computed reflected pose on Quest multiview
@@ -797,7 +802,7 @@ public class BasisSDKMirror : MonoBehaviour
         newCamera.stereoTargetEye = StereoTargetEyeMask.None;
         updateCameraClearFlags(newCamera, sourceCamera);
 
-        UniversalAdditionalCameraData cameraData = newCamera.GetUniversalAdditionalCameraData();
+        cameraData = newCamera.GetUniversalAdditionalCameraData();
         if (cameraData != null)
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -808,8 +813,25 @@ public class BasisSDKMirror : MonoBehaviour
             cameraData.renderPostProcessing = RenderPostProcessing;
             cameraData.renderShadows = renderShadows;
             cameraData.requiresColorOption = CameraOverrideOption.Off;
-            cameraData.requiresDepthOption = CameraOverrideOption.Off;
+            cameraData.requiresDepthOption = CameraOverrideOption.Off; // refreshed per render below
         }
+    }
+
+    /// <summary>
+    /// With post-processing off and both textures overridden Off, a multisampled target is the only
+    /// thing keeping URP's intermediate colour/depth attachments alive for this camera. Antialiasing
+    /// Off (and the always-single-sampled secondary viewer textures) drops it to rendering straight
+    /// into the shared reflection texture, which comes back holding nothing but URP's background
+    /// clear. Asking for the depth texture restores the attachments — the same graph the mirror runs
+    /// at every MSAA level — for one depth copy on the renders that would otherwise be empty.
+    /// </summary>
+    private static void UpdateAttachmentRequirement(UniversalAdditionalCameraData cameraData, RenderTexture destination)
+    {
+        if (cameraData == null) return;
+
+        cameraData.requiresDepthOption = BasisCameraTargetMsaa.ClampsToSingleSample(destination.antiAliasing)
+            ? CameraOverrideOption.On
+            : CameraOverrideOption.Off;
     }
 
     private void VisibilityFlag(bool isVisible)

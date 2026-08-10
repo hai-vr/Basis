@@ -567,8 +567,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
     /// <summary>
     /// Layers the render-layers UI must not expose, because the camera manages them itself.
-    /// OverlayUI carries the camera's own world markers — the detached preview screen, the
-    /// follow-PIP puck and the dolly waypoints — which would leak the rig into every shot.
+    /// OverlayUI carries the camera's own world markers — the detached preview screen, both
+    /// detached markers (follow-PIP puck and wireframe gizmo) and the dolly waypoints — which
+    /// would leak the rig into every shot.
     /// The UI layer (players' nameplates) is exposed there as its own toggle, so there is no
     /// separate "Show Nameplates" control, and HandHeldCameraUI (the prop's HUD) is exposed
     /// as its own toggle too, off by default.

@@ -96,7 +96,6 @@ namespace Basis.Scripts.UI.UI_Panels
                 return;
             }
             hudSuppressed = suppressed;
-            BasisDebug.Log($"[LoadingBarRoute] SetHudSuppressed {suppressed} hasDisplay:{HasDisplay} listeners:{OnDisplayChanged?.GetInvocationList().Length ?? 0}");
 
             if (suppressed)
             {
@@ -184,8 +183,6 @@ namespace Basis.Scripts.UI.UI_Panels
             CurrentDisplay = display ?? string.Empty;
             CurrentPercentage = percentage;
             HasDisplay = active;
-
-            BasisDebug.Log($"[LoadingBarRoute] SetDisplayState '{CurrentDisplay}' {percentage} active:{active} suppressed:{hudSuppressed} listeners:{OnDisplayChanged?.GetInvocationList().Length ?? 0} hud:{Instance != null}");
 
             if (active && Instance != null)
             {

@@ -26,7 +26,10 @@ public enum BasisCameraGizmoLayers
 /// Drawn through <see cref="BasisGizmoManager"/>, so it costs a batched instanced draw rather
 /// than GameObjects. These are world geometry on <see cref="BasisGizmoManager.RenderLayer"/>
 /// (Default), so every camera that renders that layer sees them — including this camera's own
-/// capture. Turn the layers off before shooting.
+/// capture. Turn the layers off before shooting. That is deliberate: these document the rig for
+/// whoever is reading them, and a frustum you cannot photograph is harder to compare against the
+/// shot it describes. The detached marker, which does have to stay out of the shot, opts out with
+/// <see cref="BasisGizmoManager.SetGizmoLayer"/> instead.
 /// </para>
 /// <para>
 /// Everything drawn is read back from the camera's own state on the frame it was computed; the

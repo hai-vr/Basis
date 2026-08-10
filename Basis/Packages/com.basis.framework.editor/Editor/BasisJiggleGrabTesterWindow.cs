@@ -7,7 +7,7 @@ using UnityEngine;
 /// in the Scene view while in play mode, so the pull can be tuned without a headset, a second
 /// client, or even an avatar (any active JiggleRig in the scene is grabbable).
 ///
-/// The same toggle is appended to every JiggleRig inspector, so this window is optional.
+/// Every JiggleRig inspector gets a button that opens this window.
 /// </summary>
 public sealed class BasisJiggleGrabTesterWindow : EditorWindow
 {

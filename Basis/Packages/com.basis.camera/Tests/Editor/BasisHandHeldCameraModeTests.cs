@@ -165,6 +165,138 @@ namespace Basis.Tests.Camera
             Assert.That(_camera.autoFollowPlayspace, Is.False);
         }
 
+        // ---- Fly mode ---------------------------------------------------------------------
+        // Edit mode reports no boot mode, so IsUserInDesktop() is false and these run the VR path
+        // — the one that has to keep working after the prop has been let go.
+
+        [Test]
+        public void FlyMode_DefaultsOff()
+        {
+            Assert.That(_camera.IsFlyModeEnabled, Is.False);
+            Assert.That(_camera.IsFlying, Is.False);
+        }
+
+        [Test]
+        public void EnableFly_TakesWorldSpace()
+        {
+            _camera.SetFlyModeEnabled(true);
+
+            Assert.That(_camera.IsFlyModeEnabled, Is.True);
+            Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace),
+                "Flying means the camera is out in the world, not on the end of your arm.");
+        }
+
+        [Test]
+        public void DisableFly_ReturnsToHandHeld()
+        {
+            _camera.SetFlyModeEnabled(true);
+            _camera.SetFlyModeEnabled(false);
+
+            Assert.That(_camera.IsFlyModeEnabled, Is.False);
+            Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.HandHeld));
+        }
+
+        [Test]
+        public void EnableFly_StopsAutoFollow()
+        {
+            _camera.SetAutoFollowEnabled(true);
+
+            _camera.SetFlyModeEnabled(true);
+
+            Assert.That(_camera.IsAutoFollowing, Is.False,
+                "Follow and manual flight both drive the world pin; only one can own it.");
+            Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace));
+        }
+
+        [Test]
+        public void EnableAutoFollow_StopsFly()
+        {
+            // The other direction. Follow wins inside MoveCameraFlying either way, so leaving fly
+            // armed held the player's look/move/crouch locks for a stick that steered nothing.
+            _camera.SetFlyModeEnabled(true);
+
+            _camera.SetAutoFollowEnabled(true);
+
+            Assert.That(_camera.IsFlyModeEnabled, Is.False);
+            Assert.That(_camera.IsAutoFollowing, Is.True);
+            Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace),
+                "Follow claims the world pin on the way in, after fly has handed it back.");
+        }
+
+        [Test]
+        public void EnableFly_IsIdempotent()
+        {
+            _camera.SetFlyModeEnabled(true);
+            _camera.SetFlyModeEnabled(true);
+
+            Assert.That(_camera.IsFlyModeEnabled, Is.True);
+            Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace));
+        }
+
+        [Test]
+        public void DisableFly_WhenAlreadyOff_LeavesPinSpaceUntouched()
+        {
+            _camera.PinSpace = CameraPinSpace.PlaySpace;
+
+            _camera.SetFlyModeEnabled(false);
+
+            Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.PlaySpace),
+                "A no-op disable must not run the hand-back path.");
+        }
+
+        [Test]
+        public void RepeatedFlyToggling_ConvergesRatherThanDrifting()
+        {
+            // Every entry takes the player's look/move/crouch locks and every exit gives them back,
+            // so a transition that only balances the first time leaves the player unable to move.
+            for (int Index = 0; Index < 10; Index++)
+            {
+                _camera.SetFlyModeEnabled(true);
+                Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace));
+
+                _camera.SetFlyModeEnabled(false);
+                Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.HandHeld));
+            }
+
+            Assert.That(_camera.IsFlyModeEnabled, Is.False);
+        }
+
+        [Test]
+        public void MiddleClick_IsReservedForFlyRatherThanPickupDragRotate()
+        {
+            // BasisPickupInteractable drag-rotates the held prop on the same Secondary2DAxisClick
+            // that toggles fly here, and both poll every frame. Without the reservation the camera
+            // spins under the mouse on the way into flight.
+            GameObject probeGo = new GameObject("MiddleClickProbe");
+            try
+            {
+                MiddleClickProbe probe = probeGo.AddComponent<MiddleClickProbe>();
+                Assert.That(probe.MiddleClickReserved, Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(probeGo);
+            }
+        }
+
+        /// <summary>Surfaces the protected reservation flag so the test above can read it.</summary>
+        private sealed class MiddleClickProbe : BasisHandHeldCamera
+        {
+            public bool MiddleClickReserved => DesktopMiddleClickReserved;
+        }
+
+        [Test]
+        public void FlyMode_IsNotPersisted()
+        {
+            // Deliberate, and the same call auto-follow makes: a settings file that remembered
+            // flight would have the camera fly out of your hand the moment it spawned.
+            Assert.That(
+                typeof(BasisHandHeldCameraUI.CameraSettings).GetFields(
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance),
+                Has.None.Matches<System.Reflection.FieldInfo>(f => f.Name.ToLowerInvariant().Contains("fly")),
+                "Fly mode is per-session state, not a saved setting.");
+        }
+
         [Test]
         public void CountdownRemaining_StartsIdle()
         {
@@ -175,8 +307,70 @@ namespace Basis.Tests.Camera
         [Test]
         public void FollowTarget_DefaultsToLocalPlayer()
         {
-            Assert.That(_camera.followTargetPlayerId, Is.Zero);
+            Assert.That(_camera.followTargetBound, Is.False);
             Assert.That(_camera.IsFollowingRemotePlayer, Is.False);
+            Assert.That(_camera.TryGetFollowTargetPlayer(out _), Is.False);
+        }
+
+        [Test]
+        public void FollowTargetZero_IsARemote_NotTheLocalPlayer()
+        {
+            // LiteNetLib allocates peer ids from zero up, so the first player to join an instance
+            // is net id 0. While 0 doubled as the "follow me" sentinel they were the one person in
+            // the room the camera would not follow: the selection resolved straight back to local.
+            _camera.SetFollowTargetPlayer(0);
+
+            Assert.That(_camera.IsFollowingRemotePlayer, Is.True);
+            Assert.That(_camera.TryGetFollowTargetPlayer(out ushort bound), Is.True);
+            Assert.That(bound, Is.Zero);
+        }
+
+        [Test]
+        public void ClearFollowTargetPlayer_UnbindsEvenFromNetIdZero()
+        {
+            _camera.SetFollowTargetPlayer(0);
+
+            _camera.ClearFollowTargetPlayer();
+
+            Assert.That(_camera.IsFollowingRemotePlayer, Is.False);
+            Assert.That(_camera.TryGetFollowTargetPlayer(out _), Is.False);
+        }
+
+        [Test]
+        public void FollowingTheFirstPlayerToJoin_ResolvesToThemNotTheLocalPlayer()
+        {
+            const ushort netId = 0;
+            GameObject root = new GameObject("FirstJoinerRootUnderTest");
+            GameObject head = new GameObject("FirstJoinerHeadUnderTest");
+            root.transform.position = new Vector3(-6f, 0f, 3f);
+            head.transform.position = new Vector3(-6f, 1.6f, 3f);
+
+            BasisNetworkPlayers.RemotePlayers[netId] = new BasisRemotePlayer
+            {
+                AvatarAnimatorTransform = root.transform,
+                MouthTransform = head.transform,
+            };
+
+            try
+            {
+                _camera.SetFollowTargetPlayer(netId);
+                _camera.SetAutoFollowEnabled(true);
+
+                Assert.That(_camera.TryGetFollowFocusPoint(out Vector3 point), Is.True);
+                Assert.That(_camera.TryGetFollowTargetPlayer(out ushort bound), Is.True,
+                    "A connected remote must survive the resolve, net id 0 included.");
+                Assert.That(bound, Is.EqualTo(netId));
+                Assert.That(point.x, Is.EqualTo(-6f).Within(0.001f));
+                Assert.That(point.y, Is.EqualTo(1.6f).Within(0.001f));
+                Assert.That(point.z, Is.EqualTo(3f).Within(0.001f),
+                    "Net id 0 is a real remote; the aim point has to be theirs, not the local player's.");
+            }
+            finally
+            {
+                BasisNetworkPlayers.RemotePlayers.TryRemove(netId, out _);
+                Object.DestroyImmediate(head);
+                Object.DestroyImmediate(root);
+            }
         }
 
         [Test]
@@ -184,8 +378,9 @@ namespace Basis.Tests.Camera
         {
             _camera.SetFollowTargetPlayer(42);
 
-            Assert.That(_camera.followTargetPlayerId, Is.EqualTo(42));
             Assert.That(_camera.IsFollowingRemotePlayer, Is.True);
+            Assert.That(_camera.TryGetFollowTargetPlayer(out ushort bound), Is.True);
+            Assert.That(bound, Is.EqualTo(42));
         }
 
         [Test]
@@ -198,8 +393,8 @@ namespace Basis.Tests.Camera
 
             _camera.TryGetFollowFocusPoint(out _);
 
-            Assert.That(_camera.followTargetPlayerId, Is.Zero,
-                "An unresolvable remote target must reset to 0 (local) on the next resolve.");
+            Assert.That(_camera.TryGetFollowTargetPlayer(out _), Is.False,
+                "An unresolvable remote target must unbind back to the local player on the next resolve.");
         }
 
         [Test]
@@ -223,9 +418,10 @@ namespace Basis.Tests.Camera
                 _camera.SetAutoFollowEnabled(true);
 
                 Assert.That(_camera.TryGetFollowFocusPoint(out Vector3 point), Is.True);
-                Assert.That(_camera.followTargetPlayerId, Is.EqualTo(netId),
+                Assert.That(_camera.TryGetFollowTargetPlayer(out ushort bound), Is.True,
                     "A connected remote must survive the resolve. PlayerSelf is only ever assigned " +
                     "for the local player, so gating the remote path on it reset the target every frame.");
+                Assert.That(bound, Is.EqualTo(netId));
                 Assert.That(point.x, Is.EqualTo(12f).Within(0.001f));
                 Assert.That(point.y, Is.EqualTo(1.7f).Within(0.001f), "Aim point is the remote's head.");
                 Assert.That(point.z, Is.EqualTo(-4f).Within(0.001f));
@@ -251,9 +447,10 @@ namespace Basis.Tests.Camera
 
                 _camera.TryGetFollowFocusPoint(out _);
 
-                Assert.That(_camera.followTargetPlayerId, Is.EqualTo(netId),
+                Assert.That(_camera.TryGetFollowTargetPlayer(out ushort bound), Is.True,
                     "A remote between avatars has nothing to read yet but is still connected, so " +
                     "the selection must survive the gap rather than snapping back to the local player.");
+                Assert.That(bound, Is.EqualTo(netId));
             }
             finally
             {
@@ -290,8 +487,9 @@ namespace Basis.Tests.Camera
                     Is.False, "An undriven mouth marker is not a position; the frame must be skipped.");
 
                 _camera.TryGetFollowFocusPoint(out _);
-                Assert.That(_camera.followTargetPlayerId, Is.EqualTo(netId),
+                Assert.That(_camera.TryGetFollowTargetPlayer(out ushort bound), Is.True,
                     "They are still connected, so the selection has to survive the gap.");
+                Assert.That(bound, Is.EqualTo(netId));
             }
             finally
             {

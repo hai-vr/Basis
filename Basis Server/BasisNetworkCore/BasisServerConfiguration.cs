@@ -104,6 +104,24 @@ public class Configuration
     /// When false, clients upload full keyframes only (legacy behavior).
     /// </summary>
     public bool EnableUplinkAvatarDelta = true;
+    /// <summary>
+    /// Hold shared images in server RAM so a joining player is handed them immediately, instead of
+    /// the original sharer having to re-upload every image to each arrival. Costs memory; saves the
+    /// sharer's uplink and gets pictures on the wall far sooner in a busy instance.
+    /// </summary>
+    public bool ImageCacheEnabled = true;
+    /// <summary>
+    /// Ceiling on the image cache, in megabytes. Set 0 to hold nothing (equivalent to disabling the
+    /// cache). This is a hard cap on retained payloads, not a target.
+    /// </summary>
+    public int ImageCacheMaxMegabytes = 512;
+    /// <summary>
+    /// Floor on one player's slice of the cache, in megabytes. The buffer is divided evenly between
+    /// everyone currently holding images so nobody can crowd anyone else out; without a floor a busy
+    /// instance would shrink each share below a single image and cache nothing at all. An owner over
+    /// their share evicts their own oldest image, never another player's.
+    /// </summary>
+    public int ImageCacheMinimumPerOwnerMegabytes = 32;
     public bool EnableBSRProfiling = false;
     /// <summary>
     /// Worker cap for the BSR tick's parallel phases (send loop, message processing, distance

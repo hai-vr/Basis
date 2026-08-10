@@ -363,6 +363,14 @@
       "value": "Sender Name"
     },
     {
+      "key": "camera.flyMode",
+      "value": "Fly Mode"
+    },
+    {
+      "key": "camera.flyMode.description",
+      "value": "Send the camera out into the world and steer it yourself. In VR this switch is the way in and out, and the hand that launched it keeps the controls, so you can let go of the camera and keep flying. On desktop middle click toggles it too, and you fly with the mouse and WASD. Your own movement is held still while it flies."
+    },
+    {
       "key": "camera.follow",
       "value": "Follow"
     },

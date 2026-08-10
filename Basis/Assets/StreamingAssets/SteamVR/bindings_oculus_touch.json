@@ -1,13 +1,6 @@
 {
   "app_key": "application.generated.unity.basisunity.exe",
   "bindings": {
-    "/actions/buggy": {
-      "chords": [],
-      "poses": [],
-      "haptics": [],
-      "sources": [],
-      "skeleton": []
-    },
     "/actions/default": {
       "chords": [],
       "poses": [
@@ -38,6 +31,9 @@
           "inputs": {
             "position": {
               "output": "/actions/default/in/joystick"
+            },
+            "click": {
+              "output": "/actions/default/in/joystickclick"
             }
           }
         },
@@ -48,6 +44,9 @@
           "inputs": {
             "position": {
               "output": "/actions/default/in/joystick"
+            },
+            "click": {
+              "output": "/actions/default/in/joystickclick"
             }
           }
         },
@@ -66,7 +65,7 @@
           "mode": "trigger",
           "parameters": {},
           "inputs": {
-            "click": {
+            "pull": {
               "output": "/actions/default/in/trigger"
             }
           }
@@ -76,7 +75,7 @@
           "mode": "trigger",
           "parameters": {},
           "inputs": {
-            "click": {
+            "pull": {
               "output": "/actions/default/in/trigger"
             }
           }
@@ -98,6 +97,9 @@
           "inputs": {
             "position": {
               "output": "/actions/default/in/joystick"
+            },
+            "click": {
+              "output": "/actions/default/in/joystickclick"
             }
           }
         },
@@ -128,6 +130,9 @@
           "inputs": {
             "position": {
               "output": "/actions/default/in/joystick"
+            },
+            "click": {
+              "output": "/actions/default/in/joystickclick"
             }
           }
         },
@@ -210,6 +215,46 @@
               "output": "/actions/default/in/handtrigger"
             }
           }
+        },
+        {
+          "path": "/user/hand/left/input/application_menu",
+          "mode": "button",
+          "parameters": {},
+          "inputs": {
+            "click": {
+              "output": "/actions/default/in/system"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/application_menu",
+          "mode": "button",
+          "parameters": {},
+          "inputs": {
+            "click": {
+              "output": "/actions/default/in/system"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/system",
+          "mode": "button",
+          "parameters": {},
+          "inputs": {
+            "click": {
+              "output": "/actions/default/in/system"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/system",
+          "mode": "button",
+          "parameters": {},
+          "inputs": {
+            "click": {
+              "output": "/actions/default/in/system"
+            }
+          }
         }
       ],
       "skeleton": [
@@ -222,13 +267,6 @@
           "path": "/user/hand/right/input/skeleton/right"
         }
       ]
-    },
-    "/actions/platformer": {
-      "chords": [],
-      "poses": [],
-      "haptics": [],
-      "sources": [],
-      "skeleton": []
     }
   },
   "controller_type": "oculus_touch",

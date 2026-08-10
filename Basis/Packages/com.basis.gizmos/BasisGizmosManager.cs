@@ -8,7 +8,7 @@ using UnityEngine.Rendering;
 /// Runtime debug-gizmo drawing. The Create/Update/Destroy id API is retained so callers
 /// can hold onto gizmos across frames, but the backend is batched: spheres and lines are
 /// plain data slots submitted once per frame as a handful of draws — instanced meshes for
-/// spheres, a single dynamic ribbon mesh for every line — so cost scales with visible
+/// spheres, one dynamic ribbon mesh per layer for the lines — so cost scales with visible
 /// geometry instead of GameObject count. Text labels stay TextMeshPro objects (pooled),
 /// and only the <see cref="MaxVisibleLabels"/> nearest the viewer render at once, which
 /// bounds the TMP re-tessellation cost regardless of how many labels exist.
@@ -23,6 +23,7 @@ public static class BasisGizmoManager
     /// Layer the batched sphere/line draws submit on. The calibration mirror relay points
     /// this at LocalPlayerAvatar while its cutout mirror is alive so gizmos show up in the
     /// reflection (whose camera culls to that layer), and restores it on teardown.
+    /// Individual gizmos can opt out with <see cref="SetGizmoLayer"/>.
     /// </summary>
     public static int RenderLayer = 0;
 
@@ -81,6 +82,7 @@ public static class BasisGizmoManager
         public Quaternion Rotation;
         public Vector3 Scale;
         public Vector4 Color;
+        public int Layer;          // -1 follows RenderLayer; see SetGizmoLayer
         public bool HasRotation;
         public bool Solid;
         public bool Active;
@@ -102,6 +104,7 @@ public static class BasisGizmoManager
         public Color32 UniformColor;
         public Gradient Gradient;      // null unless SetLineGizmoGradient was used
         public Color32[] PointColors;  // evaluated gradient cache, length == Count
+        public int Layer = -1;         // -1 follows RenderLayer; see SetGizmoLayer
         public bool Loop;
         public bool Active;
     }
@@ -134,6 +137,7 @@ public static class BasisGizmoManager
         s.Rotation = Quaternion.identity;
         s.Scale = Vector3.one * size;
         s.Color = color;
+        s.Layer = -1;
         s.HasRotation = false;
         s.Active = true;
         s.Used = true;
@@ -157,6 +161,7 @@ public static class BasisGizmoManager
         s.Rotation = Quaternion.identity;
         s.Scale = Vector3.one * size;
         s.Color = UnityEngine.Color.white;
+        s.Layer = -1;
         s.HasRotation = false;
         s.Solid = true;
         s.Active = true;
@@ -433,6 +438,9 @@ public static class BasisGizmoManager
         }
         t.position = position;
         component.gameObject.name = gizmoName;
+        // A label that came back from the pool still carries whatever layer SetGizmoLayer put
+        // it on; the next renter has not asked for that, so it starts on the container's layer.
+        component.gameObject.layer = Parent.layer;
         component.ResetContent(text, color);
         component.gameObject.SetActive(true);
         return component;
@@ -569,6 +577,56 @@ public static class BasisGizmoManager
     }
 
     /// <summary>
+    /// Puts one gizmo on a specific Unity layer instead of the shared <see cref="RenderLayer"/>,
+    /// so a camera that culls that layer cannot see it. Pass -1 to hand it back to RenderLayer.
+    /// <para>
+    /// The layer is the only thing that hides a gizmo from a particular camera. Draws are
+    /// submitted for every camera in the frame, and the batch is built from wherever the
+    /// producer last left it — <see cref="Render"/> runs at the tail of LateUpdate, so a
+    /// producer that writes its positions later (in the before-render pass, as the player
+    /// rig and anything parented to it do) is a frame ahead of the geometry being drawn.
+    /// Parking geometry outside a camera's frustum is therefore not a guarantee: the shot is
+    /// taken from this frame's pose while the gizmo still sits at the last one. The handheld
+    /// camera's detached wireframe marker uses this to stay out of its own capture.
+    /// </para>
+    /// <para>
+    /// Text labels are GameObjects rather than batched draws, so for those this writes the
+    /// object's layer there and then — including the -1 case, which resolves to the current
+    /// RenderLayer rather than tracking later changes to it.
+    /// </para>
+    /// </summary>
+    public static bool SetGizmoLayer(int linkedID, int layer)
+    {
+        if (layer < -1 || layer > 31)
+        {
+            BasisDebug.LogError($"Gizmo layer {layer} is out of range; use 0-31 or -1 to follow RenderLayer.", BasisDebug.LogTag.Gizmo);
+            return false;
+        }
+        if (_sphereByID.TryGetValue(linkedID, out int slot))
+        {
+            _spheres[slot].Layer = layer;
+            return true;
+        }
+        if (_linesByID.TryGetValue(linkedID, out LineSlot line))
+        {
+            line.Layer = layer;
+            return true;
+        }
+        if (_textByID.TryGetValue(linkedID, out TextSlot text) && text.Component != null)
+        {
+            text.Component.gameObject.layer = ResolveLayer(layer);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>A slot's own layer, or the shared <see cref="RenderLayer"/> when it has none.</summary>
+    private static int ResolveLayer(int slotLayer)
+    {
+        return slotLayer >= 0 ? slotLayer : RenderLayer;
+    }
+
+    /// <summary>
     /// Toggles a gizmo's visibility without destroying it. Used by sub-toggles that
     /// hide/show subsets of gizmos under the master ShowGizmos.
     /// </summary>
@@ -658,14 +716,14 @@ public static class BasisGizmoManager
         _sphereHighWater = 0;
 
         _linesByID.Clear();
-        if (_lineMesh != null)
+        foreach (KeyValuePair<int, LineBatch> kvp in _lineBatches)
         {
-            UnityEngine.Object.Destroy(_lineMesh);
-            _lineMesh = null;
+            if (kvp.Value.Mesh != null)
+            {
+                UnityEngine.Object.Destroy(kvp.Value.Mesh);
+            }
         }
-        _lineVerts = null;
-        _lineVertexCapacity = 0;
-        _lineIndexCountInUse = -1;
+        _lineBatches.Clear();
 
         DestroyParent();
     }
@@ -695,6 +753,7 @@ public static class BasisGizmoManager
     private static Matrix4x4[] _sphereChunkMatrices;
     private static Vector4[] _sphereChunkColors;
     private static Matrix4x4[] _solidChunkMatrices;
+    private static readonly List<int> _sphereLayerScratch = new List<int>();
     private static readonly List<MaterialPropertyBlock> _sphereChunkBlocks = new List<MaterialPropertyBlock>();
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
 
@@ -753,11 +812,24 @@ public static class BasisGizmoManager
 
     private const MeshUpdateFlags LineMeshFlags = MeshUpdateFlags.DontValidateIndices | MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontNotifyMeshUsers;
 
-    private static Mesh _lineMesh;
+    /// <summary>
+    /// The dynamic ribbon mesh every line on one layer is packed into. There is a single batch
+    /// in the ordinary case; a layer only gets its own once a gizmo is moved onto it, and the
+    /// batch then sticks around unused rather than being torn down and rebuilt as it empties
+    /// and refills (bounded by the 32 layers Unity has).
+    /// </summary>
+    private sealed class LineBatch
+    {
+        public Mesh Mesh;
+        public LineVertex[] Verts;
+        public int VertexCapacity;
+        public int IndexCountInUse = -1;
+    }
+
     private static Material _lineMaterial;
-    private static LineVertex[] _lineVerts;
-    private static int _lineVertexCapacity;
-    private static int _lineIndexCountInUse = -1;
+    private static readonly Dictionary<int, LineBatch> _lineBatches = new Dictionary<int, LineBatch>();
+    private static readonly Dictionary<int, int> _lineSegmentsByLayer = new Dictionary<int, int>();
+    private static readonly List<int> _lineLayerOrder = new List<int>();
 
     private static readonly HashSet<string> _missingShadersLogged = new HashSet<string>();
 
@@ -796,21 +868,54 @@ public static class BasisGizmoManager
         }
 
         bool drawSolid = SolidSphereMaterial != null;
-        int n = 0;
+
+        // Which layers are in play. One entry unless something called SetGizmoLayer, and a
+        // chunk cannot straddle two layers, so each gets its own pass over the slots.
+        _sphereLayerScratch.Clear();
+        for (int i = 0; i < _sphereHighWater; i++)
+        {
+            ref SphereSlot s = ref _spheres[i];
+            if (!IsSphereDrawable(ref s, drawSolid, viewer, maxDistSq))
+            {
+                continue;
+            }
+            int layer = ResolveLayer(s.Layer);
+            if (!_sphereLayerScratch.Contains(layer))
+            {
+                _sphereLayerScratch.Add(layer);
+            }
+        }
+
+        // The chunk counter keeps running across layers: each chunk owns a MaterialPropertyBlock
+        // that has to survive until the frame renders, so two draws must never share one.
         int chunk = 0;
+        for (int Index = 0; Index < _sphereLayerScratch.Count; Index++)
+        {
+            RenderSphereLayer(_sphereLayerScratch[Index], drawSolid, viewer, maxDistSq, ref chunk);
+        }
+    }
+
+    private static bool IsSphereDrawable(ref SphereSlot s, bool drawSolid, Vector3 viewer, float maxDistSq)
+    {
+        if (!s.Used || !s.Active)
+        {
+            return false;
+        }
+        if (s.Solid && !drawSolid)
+        {
+            return false;
+        }
+        return maxDistSq >= float.PositiveInfinity || (s.Position - viewer).sqrMagnitude <= maxDistSq;
+    }
+
+    private static void RenderSphereLayer(int layer, bool drawSolid, Vector3 viewer, float maxDistSq, ref int chunk)
+    {
+        int n = 0;
         int solidCount = 0;
         for (int i = 0; i < _sphereHighWater; i++)
         {
             ref SphereSlot s = ref _spheres[i];
-            if (!s.Used || !s.Active)
-            {
-                continue;
-            }
-            if (s.Solid && !drawSolid)
-            {
-                continue;
-            }
-            if (maxDistSq < float.PositiveInfinity && (s.Position - viewer).sqrMagnitude > maxDistSq)
+            if (!IsSphereDrawable(ref s, drawSolid, viewer, maxDistSq) || ResolveLayer(s.Layer) != layer)
             {
                 continue;
             }
@@ -838,7 +943,7 @@ public static class BasisGizmoManager
                 solidCount++;
                 if (solidCount == SphereChunkSize)
                 {
-                    FlushSolidSphereChunk(solidCount);
+                    FlushSolidSphereChunk(solidCount, layer);
                     solidCount = 0;
                 }
                 continue;
@@ -849,21 +954,21 @@ public static class BasisGizmoManager
             n++;
             if (n == SphereChunkSize)
             {
-                FlushSphereChunk(chunk++, n);
+                FlushSphereChunk(chunk++, n, layer);
                 n = 0;
             }
         }
         if (n > 0)
         {
-            FlushSphereChunk(chunk, n);
+            FlushSphereChunk(chunk++, n, layer);
         }
         if (solidCount > 0)
         {
-            FlushSolidSphereChunk(solidCount);
+            FlushSolidSphereChunk(solidCount, layer);
         }
     }
 
-    private static void FlushSolidSphereChunk(int count)
+    private static void FlushSolidSphereChunk(int count, int layer)
     {
         Material material = SolidSphereMaterial;
         if (!material.enableInstancing)
@@ -871,10 +976,10 @@ public static class BasisGizmoManager
             material.enableInstancing = true;
         }
         Graphics.DrawMeshInstanced(_sphereMesh, 0, material, _solidChunkMatrices, count, null,
-            ShadowCastingMode.On, true, RenderLayer, null, LightProbeUsage.Off);
+            ShadowCastingMode.On, true, layer, null, LightProbeUsage.Off);
     }
 
-    private static void FlushSphereChunk(int chunkIndex, int count)
+    private static void FlushSphereChunk(int chunkIndex, int count, int layer)
     {
         while (_sphereChunkBlocks.Count <= chunkIndex)
         {
@@ -883,7 +988,7 @@ public static class BasisGizmoManager
         MaterialPropertyBlock block = _sphereChunkBlocks[chunkIndex];
         block.SetVectorArray(ColorProperty, _sphereChunkColors);
         Graphics.DrawMeshInstanced(_sphereMesh, 0, _sphereMaterial, _sphereChunkMatrices, count, block,
-            ShadowCastingMode.Off, false, RenderLayer, null, LightProbeUsage.Off);
+            ShadowCastingMode.Off, false, layer, null, LightProbeUsage.Off);
     }
 
     private static void RenderLines(Vector3 viewer, float maxDistSq)
@@ -893,21 +998,51 @@ public static class BasisGizmoManager
             return;
         }
 
-        int totalSegments = 0;
+        // Segment tally per layer. One entry unless something called SetGizmoLayer.
+        _lineSegmentsByLayer.Clear();
+        _lineLayerOrder.Clear();
         foreach (KeyValuePair<int, LineSlot> kvp in _linesByID)
         {
             LineSlot slot = kvp.Value;
-            if (!slot.Active || slot.Count < 2)
+            if (!IsLineDrawable(slot, viewer, maxDistSq))
             {
                 continue;
             }
-            if (maxDistSq < float.PositiveInfinity && (slot.Points[0] - viewer).sqrMagnitude > maxDistSq)
+            int layer = ResolveLayer(slot.Layer);
+            int segments = slot.Count - 1 + (slot.Loop ? 1 : 0);
+            if (_lineSegmentsByLayer.TryGetValue(layer, out int running))
             {
+                _lineSegmentsByLayer[layer] = running + segments;
                 continue;
             }
-            totalSegments += slot.Count - 1 + (slot.Loop ? 1 : 0);
+            _lineSegmentsByLayer.Add(layer, segments);
+            _lineLayerOrder.Add(layer);
         }
-        if (totalSegments == 0 || !EnsureLineResources(totalSegments * 4))
+
+        for (int Index = 0; Index < _lineLayerOrder.Count; Index++)
+        {
+            int layer = _lineLayerOrder[Index];
+            RenderLineLayer(layer, _lineSegmentsByLayer[layer], viewer, maxDistSq);
+        }
+    }
+
+    private static bool IsLineDrawable(LineSlot slot, Vector3 viewer, float maxDistSq)
+    {
+        if (!slot.Active || slot.Count < 2)
+        {
+            return false;
+        }
+        return maxDistSq >= float.PositiveInfinity || (slot.Points[0] - viewer).sqrMagnitude <= maxDistSq;
+    }
+
+    private static void RenderLineLayer(int layer, int totalSegments, Vector3 viewer, float maxDistSq)
+    {
+        if (totalSegments == 0)
+        {
+            return;
+        }
+        LineBatch batch = GetLineBatch(layer);
+        if (!EnsureLineResources(batch, totalSegments * 4))
         {
             return;
         }
@@ -919,11 +1054,7 @@ public static class BasisGizmoManager
         foreach (KeyValuePair<int, LineSlot> kvp in _linesByID)
         {
             LineSlot slot = kvp.Value;
-            if (!slot.Active || slot.Count < 2)
-            {
-                continue;
-            }
-            if (maxDistSq < float.PositiveInfinity && (slot.Points[0] - viewer).sqrMagnitude > maxDistSq)
+            if (!IsLineDrawable(slot, viewer, maxDistSq) || ResolveLayer(slot.Layer) != layer)
             {
                 continue;
             }
@@ -944,27 +1075,37 @@ public static class BasisGizmoManager
                 Color32 colorA = slot.PointColors != null ? slot.PointColors[ia] : slot.UniformColor;
                 Color32 colorB = slot.PointColors != null ? slot.PointColors[ib] : slot.UniformColor;
 
-                AppendSegmentVertices(_lineVerts, ref v, a, b, colorA, colorB, halfWidth);
+                AppendSegmentVertices(batch.Verts, ref v, a, b, colorA, colorB, halfWidth);
 
                 min = Vector3.Min(min, Vector3.Min(a, b));
                 max = Vector3.Max(max, Vector3.Max(a, b));
             }
         }
 
-        _lineMesh.SetVertexBufferData(_lineVerts, 0, 0, v, 0, LineMeshFlags);
+        batch.Mesh.SetVertexBufferData(batch.Verts, 0, 0, v, 0, LineMeshFlags);
         int indexCount = totalSegments * 6;
-        if (indexCount != _lineIndexCountInUse)
+        if (indexCount != batch.IndexCountInUse)
         {
-            _lineMesh.SetSubMesh(0, new SubMeshDescriptor(0, indexCount, MeshTopology.Triangles), LineMeshFlags);
-            _lineIndexCountInUse = indexCount;
+            batch.Mesh.SetSubMesh(0, new SubMeshDescriptor(0, indexCount, MeshTopology.Triangles), LineMeshFlags);
+            batch.IndexCountInUse = indexCount;
         }
         Vector3 pad = new Vector3(maxHalfWidth, maxHalfWidth, maxHalfWidth);
         Bounds bounds = default;
         bounds.SetMinMax(min - pad, max + pad);
-        _lineMesh.bounds = bounds;
+        batch.Mesh.bounds = bounds;
 
-        Graphics.DrawMesh(_lineMesh, Matrix4x4.identity, _lineMaterial, RenderLayer, null, 0, null,
+        Graphics.DrawMesh(batch.Mesh, Matrix4x4.identity, _lineMaterial, layer, null, 0, null,
             ShadowCastingMode.Off, false, null, false);
+    }
+
+    private static LineBatch GetLineBatch(int layer)
+    {
+        if (!_lineBatches.TryGetValue(layer, out LineBatch batch))
+        {
+            batch = new LineBatch();
+            _lineBatches.Add(layer, batch);
+        }
+        return batch;
     }
 
     private static void UpdateLabelVisibility(Vector3 viewer)
@@ -1035,7 +1176,7 @@ public static class BasisGizmoManager
         return true;
     }
 
-    private static bool EnsureLineResources(int vertexCount)
+    private static bool EnsureLineResources(LineBatch batch, int vertexCount)
     {
         if (_lineMaterial == null)
         {
@@ -1051,31 +1192,31 @@ public static class BasisGizmoManager
             }
             _lineMaterial = new Material(shader);
         }
-        if (_lineMesh == null)
+        if (batch.Mesh == null)
         {
-            _lineMesh = new Mesh
+            batch.Mesh = new Mesh
             {
                 name = "BasisGizmoLines",
             };
-            _lineMesh.MarkDynamic();
-            _lineVertexCapacity = 0;
-            _lineIndexCountInUse = -1;
+            batch.Mesh.MarkDynamic();
+            batch.VertexCapacity = 0;
+            batch.IndexCountInUse = -1;
         }
-        if (vertexCount > _lineVertexCapacity)
+        if (vertexCount > batch.VertexCapacity)
         {
             int capacity = Mathf.Max(256, Mathf.NextPowerOfTwo(vertexCount));
-            _lineVerts = new LineVertex[capacity];
-            _lineMesh.SetVertexBufferParams(capacity, LineVertexLayout);
+            batch.Verts = new LineVertex[capacity];
+            batch.Mesh.SetVertexBufferParams(capacity, LineVertexLayout);
 
             int quadCount = capacity / 4;
             int indexCapacity = quadCount * 6;
             uint[] indices = new uint[indexCapacity];
             FillQuadIndices(indices, quadCount);
-            _lineMesh.SetIndexBufferParams(indexCapacity, IndexFormat.UInt32);
-            _lineMesh.SetIndexBufferData(indices, 0, 0, indexCapacity, LineMeshFlags);
-            _lineMesh.subMeshCount = 1;
-            _lineVertexCapacity = capacity;
-            _lineIndexCountInUse = -1;
+            batch.Mesh.SetIndexBufferParams(indexCapacity, IndexFormat.UInt32);
+            batch.Mesh.SetIndexBufferData(indices, 0, 0, indexCapacity, LineMeshFlags);
+            batch.Mesh.subMeshCount = 1;
+            batch.VertexCapacity = capacity;
+            batch.IndexCountInUse = -1;
         }
         return true;
     }

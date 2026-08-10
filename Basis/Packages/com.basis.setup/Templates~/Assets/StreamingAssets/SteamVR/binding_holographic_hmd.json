@@ -1,12 +1,9 @@
 {
+  "app_key": "application.generated.unity.basisunity.exe",
   "bindings": {
     "/actions/default": {
       "chords": [],
       "poses": [
-        {
-          "output": "/actions/default/in/pose",
-          "path": "/user/head/pose/raw"
-        },
         {
           "output": "/actions/default/in/pose",
           "path": "/user/head/pose/raw"

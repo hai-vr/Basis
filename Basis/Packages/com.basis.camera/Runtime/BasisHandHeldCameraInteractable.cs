@@ -142,13 +142,39 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     [Tooltip("Continuously focus depth of field on the follow subject, keeping them sharp as they move.")]
     public bool autoFocusFollowSubject = false;
 
-    [Tooltip("Network id of the remote player to follow. 0 follows the local player.")]
+    [Tooltip("Network id of the remote player to follow. Only meaningful while followTargetBound is set.")]
     public ushort followTargetPlayerId = 0;
 
-    /// <summary>Set the follow target to a remote player, or to the local player when id is 0.</summary>
-    public void SetFollowTargetPlayer(ushort netId) => followTargetPlayerId = netId;
+    /// <summary>
+    /// Whether <see cref="followTargetPlayerId"/> is bound to a networked player. Every net id is a
+    /// valid target — LiteNetLib hands peer ids out from zero up, so the first player to join is id
+    /// 0 — which is why the binding is carried by this flag rather than by a reserved id value.
+    /// Read it through <see cref="TryGetFollowTargetPlayer"/> rather than testing the id.
+    /// </summary>
+    public bool followTargetBound = false;
 
-    public bool IsFollowingRemotePlayer => followTargetPlayerId != 0;
+    /// <summary>Bind the follow target to a networked player.</summary>
+    public void SetFollowTargetPlayer(ushort netId)
+    {
+        followTargetPlayerId = netId;
+        followTargetBound = true;
+    }
+
+    /// <summary>Release the follow target back to the local player.</summary>
+    public void ClearFollowTargetPlayer()
+    {
+        followTargetPlayerId = 0;
+        followTargetBound = false;
+    }
+
+    /// <summary>The net id being followed, when one is bound. False means the local player.</summary>
+    public bool TryGetFollowTargetPlayer(out ushort netId)
+    {
+        netId = followTargetPlayerId;
+        return followTargetBound;
+    }
+
+    public bool IsFollowingRemotePlayer => followTargetBound;
 
     public bool IsAutoFollowing => autoFollowEnabled;
 
@@ -164,8 +190,122 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         public float Scale;         // avatar-to-default scale for offset sizing
     }
 
-    /// <summary>True while the desktop fly controls have the camera, so it is off in the world somewhere.</summary>
-    public bool IsFlying => pauseMove;
+    /// <summary>True while the fly controls have the camera, so it is off in the world somewhere.</summary>
+    public bool IsFlying => pauseMove || isVRFlying;
+
+    /// <inheritdoc/>
+    protected override bool DesktopMiddleClickReserved => true;
+
+    /// <summary>
+    /// Whether fly mode is armed. The panel's toggle reads and writes this, and it is the one
+    /// answer for both platforms — desktop parks the player and hands the camera to the mouse and
+    /// keyboard, VR hands it to a controller.
+    /// </summary>
+    public bool IsFlyModeEnabled => IsFlying;
+
+    /// <summary>
+    /// Arms or disarms fly mode from the settings panel. This is the only way into flight in VR;
+    /// desktop's middle click enters through the same pair of helpers, so however it was started
+    /// the camera lands in one state and the player's locks are balanced.
+    /// </summary>
+    public void SetFlyModeEnabled(bool enabled)
+    {
+        if (enabled)
+        {
+            EnterFlyMode();
+        }
+        else
+        {
+            ExitFlyMode();
+        }
+    }
+
+    /// <summary>
+    /// Takes the camera out into the world and blocks the player's own look, move and crouch, so
+    /// the stick drives the camera rather than the avatar. Shared by desktop's middle click and the
+    /// panel toggle; safe to call while already flying.
+    /// </summary>
+    private void EnterFlyMode()
+    {
+        if (IsFlying) return;
+
+        string className = nameof(BasisHandHeldCameraInteractable);
+
+        autoFollowEnabled = false;
+
+        LookLock.Add(className);
+        MovementLock.Add(className);
+        CrouchingLock.Add(className);
+
+        PinSpace = CameraPinSpace.WorldSpace;
+
+        if (HHC != null && HHC.captureCamera != null)
+        {
+            HHC.captureCamera.transform.GetPositionAndRotation(out smoothedPosition, out smoothedRotation);
+        }
+
+        if (BasisDeviceManagement.IsUserInDesktop())
+        {
+            pauseMove = true;
+            flyCamera?.Enable();
+            return;
+        }
+
+        isVRFlying = true;
+
+        // Latch whichever hand is on the prop now. Once it is released GetActiveVRInput goes quiet,
+        // and this is the only record of who was flying it. Armed from the panel there is no hand
+        // on the prop at all, so the dominant one takes it.
+        if (GetActiveVRInput(out BasisInputWrapper vrInput))
+        {
+            vrFlightRole = vrInput.Role;
+        }
+        else
+        {
+            vrFlightRole = BasisDominantHand.DominantRole;
+        }
+        vrFlightRoleValid = true;
+
+        // Seed the aim from where the camera already points, so arming it does not snap.
+        Vector3 euler = smoothedRotation.eulerAngles;
+        currentPitch = targetPitch = NormalizeAngle(euler.x);
+        currentYaw = targetYaw = NormalizeAngle(euler.y);
+    }
+
+    /// <summary>
+    /// Hands the camera and the player's controls back. Safe to call when not flying.
+    ///
+    /// <para>VR returns the pin to the hand, which is where the prop was left rather than where the
+    /// player is — "Teleport To Me" in the panel is the way back when it was dropped out of reach.
+    /// Desktop leaves the pin in world space, as it always has: the camera stays put and the head
+    /// constraint picks the body back up.</para>
+    /// </summary>
+    private void ExitFlyMode()
+    {
+        if (!IsFlying) return;
+
+        string className = nameof(BasisHandHeldCameraInteractable);
+
+        if (pauseMove)
+        {
+            pauseMove = false;
+            flyCamera?.Disable();
+        }
+
+        if (isVRFlying)
+        {
+            isVRFlying = false;
+            vrFlightRoleValid = false;
+            PinSpace = CameraPinSpace.HandHeld;
+        }
+
+        if (!LookLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove LookLock");
+        if (!MovementLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove MovementLock");
+        if (!CrouchingLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove CrouchingLock");
+
+        velocityMomentum = Vector3.zero;
+        rotationMomentum = 0f;
+    }
 
     /// <summary>
     /// True whenever the camera is not pinned to the hand — flying, following, or world/playspace
@@ -184,6 +324,11 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         if (enabled)
         {
+            // Follow and manual flight both drive the same world pin, and follow wins inside
+            // MoveCameraFlying — so leaving fly armed would hold the player's locks for a stick
+            // that no longer steers anything.
+            ExitFlyMode();
+
             if (HHC != null && HHC.captureCamera != null)
             {
                 HHC.captureCamera.transform.GetPositionAndRotation(out smoothedPosition, out smoothedRotation);
@@ -200,8 +345,11 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     private Vector3 lastFollowAnchor;
     private bool hasLastFollowAnchor;
 
-    /// <summary>Who <see cref="lastFollowAnchor"/> was measured on — 0 for the local player.</summary>
+    /// <summary>Who <see cref="lastFollowAnchor"/> was measured on. Only read alongside <see cref="lastFollowAnchorWasRemote"/>.</summary>
     private ushort lastFollowAnchorSubject;
+
+    /// <summary>Whether <see cref="lastFollowAnchorSubject"/> names a remote, so net id 0 cannot alias the local player.</summary>
+    private bool lastFollowAnchorWasRemote;
 
     /// <summary>Lateral speed above which the camera pulls in fully, in metres/second at default scale.</summary>
     private const float LateralTrackingReferenceSpeed = 1.5f;
@@ -256,8 +404,9 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         // out. That fires on every target switch, and again on every fallback to the local player
         // while a remote is between avatars, which is most of what "follow is temperamental" was.
         ushort subjectId = subject.IsRemote ? followTargetPlayerId : (ushort)0;
-        if (subjectId != lastFollowAnchorSubject)
+        if (subject.IsRemote != lastFollowAnchorWasRemote || subjectId != lastFollowAnchorSubject)
         {
+            lastFollowAnchorWasRemote = subject.IsRemote;
             lastFollowAnchorSubject = subjectId;
             hasLastFollowAnchor = false;
             smoothedLateralSpeed = 0f;
@@ -375,19 +524,19 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     /// </summary>
     private FollowSubject ResolveFollowSubject()
     {
-        if (followTargetPlayerId != 0)
+        if (TryGetFollowTargetPlayer(out ushort netId))
         {
-            if (Basis.Scripts.Networking.BasisNetworkPlayers.RemotePlayers.TryGetValue(followTargetPlayerId, out var remote) &&
+            if (Basis.Scripts.Networking.BasisNetworkPlayers.RemotePlayers.TryGetValue(netId, out var remote) &&
                 remote != null && !remote.IsDestroyed)
             {
-                if (TryResolveRemoteSubject(followTargetPlayerId, remote, out FollowSubject remoteSubject))
+                if (TryResolveRemoteSubject(netId, remote, out FollowSubject remoteSubject))
                 {
                     return remoteSubject;
                 }
             }
             else
             {
-                followTargetPlayerId = 0;
+                ClearFollowTargetPlayer();
             }
         }
 
@@ -764,8 +913,19 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
     // VR fly mode state
     private bool isVRFlying = false;
-    private bool vrThumbstickClickPrev = false;
     private Quaternion vrControllerRotation = Quaternion.identity;
+
+    /// <summary>Last frame's desktop middle-click state, so the toggle fires on the press edge only.</summary>
+    private bool desktopMiddleClickPrev;
+
+    /// <summary>
+    /// The hand flying the camera, kept after the prop is let go so releasing the camera does not
+    /// also release the stick. Stored as a role rather than a <see cref="BasisInputWrapper"/>
+    /// because that is a struct: a copy taken while gripping would keep reporting the state it
+    /// held at launch, so the live one has to be re-read from <see cref="Inputs"/> each frame.
+    /// </summary>
+    private BasisBoneTrackedRole vrFlightRole;
+    private bool vrFlightRoleValid;
 
     private bool selfieRotationEnabled = false;
     /// <summary>Where to pin the camera transform.</summary>
@@ -1088,31 +1248,14 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         bool isMiddleClick = DesktopEye.CurrentInputState.Secondary2DAxisClick;
         bool isRightClickHeld = Mouse.current != null && Mouse.current.rightButton.isPressed;
 
-        // Enter/exit fly mode
-        if (isMiddleClick && !pauseMove)
+        // Enter/exit fly mode on the press edge, so the button is free for WASD and mouse-look once
+        // flight is running. The panel's switch drives the same pair, and either can undo the other.
+        if (isMiddleClick && !desktopMiddleClickPrev)
         {
-            pauseMove = true;
-            autoFollowEnabled = false;
-            LookLock.Add(className);
-            MovementLock.Add(className);
-            CrouchingLock.Add(className);
-
-            PinSpace = CameraPinSpace.WorldSpace;
-            flyCamera.Enable();
-
-            HHC.captureCamera.transform.GetPositionAndRotation(out smoothedPosition, out smoothedRotation);
+            if (IsFlying) ExitFlyMode();
+            else EnterFlyMode();
         }
-        else if (!isMiddleClick && pauseMove)
-        {
-            pauseMove = false;
-            if (!LookLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove LookLock");
-            if (!MovementLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove MovementLock");
-            if (!CrouchingLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove CrouchingLock");
-
-            flyCamera.Disable();
-            velocityMomentum = Vector3.zero;
-            rotationMomentum = 0f;
-        }
+        desktopMiddleClickPrev = isMiddleClick;
 
         // Temporary manual unlock while holding RMB (when not flying)
         if (!pauseMove)
@@ -1132,59 +1275,42 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     }
 
     /// <summary>
-    /// VR fly-mode control: toggles fly mode on thumbstick click (edge-detected)
-    /// and captures controller rotation each frame for camera aiming.
+    /// VR fly-mode control: captures controller rotation each frame for camera aiming.
+    ///
+    /// <para>Arming is deliberately not on the thumbstick click — that button is live during
+    /// ordinary play, and a stray press would throw the camera out into the world. VR enters and
+    /// leaves flight through the camera settings panel's switch alone.</para>
     /// </summary>
     private void PollVRControl()
     {
-        if (GetActiveVRInput(out BasisInputWrapper vrInput))
+        if (!isVRFlying) return;
+        if (!GetFlyVRInput(out BasisInputWrapper vrInput)) return;
+
+        vrControllerRotation = vrInput.BoneControl.OutgoingWorldData.rotation;
+    }
+
+    /// <summary>
+    /// The controller that drives fly mode: whichever hand is on the prop, or — once flight is
+    /// running — the hand that launched it, so the camera stays steerable after it has been let go.
+    ///
+    /// <para><see cref="GetActiveVRInput"/> only ever reports a hand that is actively gripping, so
+    /// on its own it hands the camera back the instant you release the prop and the thumbstick
+    /// stops being read. The latched role is re-resolved every frame rather than cached as a
+    /// wrapper, so a controller that drops out and comes back is picked up again.</para>
+    /// </summary>
+    private bool GetFlyVRInput(out BasisInputWrapper wrapper)
+    {
+        if (GetActiveVRInput(out wrapper)) return true;
+
+        if (isVRFlying && vrFlightRoleValid &&
+            Inputs.TryGetByRole(vrFlightRole, out wrapper) &&
+            wrapper.Source != null && wrapper.BoneControl != null)
         {
-            BasisInputState inputState = vrInput.Source.CurrentInputState;
-            string className = nameof(BasisHandHeldCameraInteractable);
-
-            // Toggle fly mode on thumbstick click (edge detection)
-            bool thumbstickClick = inputState.Primary2DAxisClick;
-            if (thumbstickClick && !vrThumbstickClickPrev)
-            {
-                if (isVRFlying)
-                {
-                    // Exit VR fly mode — return camera to hand
-                    isVRFlying = false;
-                    if (!LookLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove LookLock");
-                    if (!MovementLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove MovementLock");
-                    if (!CrouchingLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove CrouchingLock");
-
-                    PinSpace = CameraPinSpace.HandHeld;
-                    velocityMomentum = Vector3.zero;
-                    rotationMomentum = 0f;
-                }
-                else
-                {
-                    // Enter VR fly mode
-                    isVRFlying = true;
-                    autoFollowEnabled = false;
-                    LookLock.Add(className);
-                    MovementLock.Add(className);
-                    CrouchingLock.Add(className);
-
-                    PinSpace = CameraPinSpace.WorldSpace;
-
-                    HHC.captureCamera.transform.GetPositionAndRotation(out smoothedPosition, out smoothedRotation);
-
-                    // Initialize rotation tracking from current camera orientation
-                    Vector3 euler = smoothedRotation.eulerAngles;
-                    currentPitch = targetPitch = NormalizeAngle(euler.x);
-                    currentYaw = targetYaw = NormalizeAngle(euler.y);
-                }
-            }
-            vrThumbstickClickPrev = thumbstickClick;
-
-            if (isVRFlying)
-            {
-                // Store VR controller rotation for movement direction and camera aim
-                vrControllerRotation = vrInput.BoneControl.OutgoingWorldData.rotation;
-            }
+            return true;
         }
+
+        wrapper = default;
+        return false;
     }
 
     /// <summary>
@@ -1325,8 +1451,9 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         if (isVRFlying)
         {
-            // VR path: read thumbstick from the interacting controller
-            if (!GetActiveVRInput(out BasisInputWrapper vrInput))
+            // VR path: read the thumbstick from the controller flying the camera, which is not
+            // necessarily one holding it — see GetFlyVRInput.
+            if (!GetFlyVRInput(out BasisInputWrapper vrInput))
                 return false;
 
             BasisInputState state = vrInput.Source.CurrentInputState;

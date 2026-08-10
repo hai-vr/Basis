@@ -30,6 +30,14 @@ public partial class BasisHandHeldCamera
     /// <summary>Which marker to show while the camera is detached. Puck by default.</summary>
     public BasisCameraDetachedMarker detachedMarker = BasisCameraDetachedMarker.Puck;
 
+    /// <summary>
+    /// The layer both detached markers live on, or -1 where the project does not define it.
+    /// OverlayUI is what the capture camera culls and what <see cref="ManagedCaptureLayers"/>
+    /// keeps out of the Render Layers list, so nothing on it can reach a photo, a 360 or the
+    /// video feed — while the player, whose camera does render it, still sees the marker.
+    /// </summary>
+    public static int MarkerLayer => LayerMask.NameToLayer("OverlayUI");
+
     private GameObject followPipInstance;
     private AsyncOperationHandle<GameObject> followPipHandle;
     private bool followPipLoading;
@@ -135,9 +143,8 @@ public partial class BasisHandHeldCamera
             followPipInstance.name = "FollowCameraPip";
 
             // Keep the marker out of the shot. The puck sits at the camera position, so the
-            // capture camera would otherwise film it. OverlayUI is the layer the capture camera
-            // already excludes (same one the preview screen uses), and the player still sees it.
-            int overlayUi = LayerMask.NameToLayer("OverlayUI");
+            // capture camera would otherwise film it.
+            int overlayUi = MarkerLayer;
             if (overlayUi >= 0) SetLayerRecursively(followPipInstance, overlayUi);
 
             // Local-only marker: strip the networked-camera identity so nothing treats it as a
@@ -220,9 +227,16 @@ public partial class BasisHandHeldCamera
     }
 
     // ---- Gizmo marker ---------------------------------------------------------------
-    // A wireframe camera drawn through BasisGizmoManager: a small lens quad in front of the
-    // camera plus four cone lines back to it. Rendered whenever active regardless of the debug
-    // gizmo master toggle (BasisGizmoManager.Render is not gated on it), so it works as a marker.
+    // A wireframe camera drawn through BasisGizmoManager: a small lens quad set behind the camera
+    // plus four cone lines from its corners up to the lens. Rendered whenever active regardless of
+    // the debug gizmo master toggle (BasisGizmoManager.Render is not gated on it), so it works as
+    // a marker.
+    //
+    // Like the puck, it is kept out of the shot by living on MarkerLayer — the capture camera
+    // culls it. Sitting behind the lens is not enough on its own: the batch is built at the tail
+    // of LateUpdate from wherever the gizmo was last left, while the pose below is written in the
+    // before-render pass, so the shot is taken one frame ahead of the geometry and any movement
+    // between the two swings the marker into view. A 360 capture sees behind the camera anyway.
 
     private const float DetachedGizmoDepth = 0.18f;
     private const float DetachedGizmoHalfSize = 0.10f;
@@ -242,10 +256,9 @@ public partial class BasisHandHeldCamera
         float depth = DetachedGizmoDepth * scale;
         float half = DetachedGizmoHalfSize * scale;
 
-        // Draw the gizmo BEHIND the lens (negative Z in camera space). The capture frustum only
-        // extends forward from the near plane, so anything at or behind the camera origin is
-        // outside it and never rendered into the shot — while the player's camera still sees it.
-        // Reads naturally too: a small camera icon opening back toward the viewer.
+        // Drawn behind the lens (negative Z in camera space) so it reads as a small camera icon
+        // opening back toward the viewer rather than a cone across the subject. What keeps it out
+        // of the shot is the layer, not the placement — see the note above.
         _gizmoQuad[0] = apex + rot * new Vector3(-half, -half, -depth);
         _gizmoQuad[1] = apex + rot * new Vector3(half, -half, -depth);
         _gizmoQuad[2] = apex + rot * new Vector3(half, half, -depth);
@@ -253,11 +266,16 @@ public partial class BasisHandHeldCamera
 
         if (!_gizmoCreated)
         {
+            // A project without the marker layer hands back -1, which SetGizmoLayer reads as
+            // "stay on the shared gizmo layer" — still a usable marker, just visible to the shot.
+            int markerLayer = MarkerLayer;
             BasisGizmoManager.CreateLineGizmo("CameraDetachedGizmo", out _gizmoQuadId, _gizmoQuad, 0.004f, DetachedGizmoColor, loop: true);
+            BasisGizmoManager.SetGizmoLayer(_gizmoQuadId, markerLayer);
             _gizmoConeIds = new int[4];
             for (int Index = 0; Index < 4; Index++)
             {
                 BasisGizmoManager.CreateLineGizmo("CameraDetachedGizmo", out _gizmoConeIds[Index], apex, _gizmoQuad[Index], 0.003f, DetachedGizmoColor);
+                BasisGizmoManager.SetGizmoLayer(_gizmoConeIds[Index], markerLayer);
             }
             _gizmoCreated = true;
             return;

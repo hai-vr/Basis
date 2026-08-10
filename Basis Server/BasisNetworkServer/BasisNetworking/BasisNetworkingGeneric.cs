@@ -62,6 +62,13 @@ namespace Basis.Network.Server.Generic
             byte[] payload = SceneDataMessage.payload;
             int payloadLength = (payload != null) ? payload.Length : 0;
 
+            // Observe only — the relay below is untouched, so a cache miss, a rejection or a
+            // malformed payload can never interfere with the live send.
+            if (BasisNetworkImageCache.IsImageTraffic(SceneDataMessage.messageIndex))
+            {
+                BasisNetworkImageCache.Observe((ushort)sender.Id, payload, payloadLength);
+            }
+
             ServerSceneDataMessage serverSceneDataMessage = new ServerSceneDataMessage
             {
                 sceneDataMessage = new RemoteSceneDataMessage()

@@ -5,17 +5,17 @@ using UnityEngine;
 using UnityEngine.UIElements;
 
 /// <summary>
-/// Scene-view click-dragging of jiggle chains, shared by the Jiggle Grab Tester window and the
-/// toggle appended to every JiggleRig inspector — so the drag works from either entry point, and
-/// with neither of them open.
+/// Scene-view click-dragging of jiggle chains, driven from the Jiggle Grab Tester window — every
+/// JiggleRig inspector gets a button that opens it, and the drag keeps working with the window
+/// closed.
 ///
 /// The drag drives the real constraint pipeline (driver applied-set → JigglePhysics.SetGrabConstraints
 /// → the fenced drain → the pin in the Burst simulate job) but skips the half that needs a peer:
 /// no hand bone, no permissions, nothing networked.
 ///
 /// Play mode only. JiggleRig has no [ExecuteAlways] and the simulation is pumped by
-/// BasisEventDriver's LateUpdate, so nothing moves in edit mode — the toggle stays visible and
-/// says so rather than silently doing nothing.
+/// BasisEventDriver's LateUpdate, so nothing moves in edit mode — the window says so rather than
+/// silently doing nothing.
 /// </summary>
 [InitializeOnLoad]
 public static class BasisJiggleGrabSceneDrag
@@ -29,8 +29,6 @@ public static class BasisJiggleGrabSceneDrag
 
     private static Plane dragPlane;
     private static int dragControl;
-
-    public static event System.Action EnabledChanged;
 
     static BasisJiggleGrabSceneDrag()
     {
@@ -53,7 +51,6 @@ public static class BasisJiggleGrabSceneDrag
             {
                 BasisJiggleGrabDriver.EndEditorGrab();
             }
-            EnabledChanged?.Invoke();
             SceneView.RepaintAll();
         }
     }
@@ -73,29 +70,9 @@ public static class BasisJiggleGrabSceneDrag
     /// <summary>Appended to every JiggleRig inspector through the package's extension hook.</summary>
     private static void AppendRigInspectorGUI(Component rig, VisualElement container)
     {
-        VisualElement group = new VisualElement();
-        group.style.marginTop = 6;
-
-        Toggle toggle = new Toggle("Scene Drag (test)")
-        {
-            value = Enabled,
-            tooltip = "Left click and drag jiggle chains in the Scene view to test the pull. " +
-                      "Takes over left click in the Scene view while on. Local only — nothing is networked.",
-        };
-        toggle.RegisterValueChangedCallback(evt => Enabled = evt.newValue);
-        EnabledChanged += () => toggle.SetValueWithoutNotify(Enabled);
-        group.Add(toggle);
-
-        if (!Application.isPlaying)
-        {
-            group.Add(new HelpBox("Enter play mode to drag — jiggle only simulates while playing.",
-                HelpBoxMessageType.Info));
-        }
-
         Button openWindow = new Button(BasisJiggleGrabTesterWindow.ShowWindow) { text = "Open Jiggle Grab Tester" };
-        group.Add(openWindow);
-
-        container.Add(group);
+        openWindow.style.marginTop = 6;
+        container.Add(openWindow);
     }
 
     private static void OnSceneGUI(SceneView sceneView)

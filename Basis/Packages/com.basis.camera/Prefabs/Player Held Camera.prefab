@@ -6518,6 +6518,7 @@ MonoBehaviour:
   autoFollowTeleportDistance: 10
   autoFocusFollowSubject: 0
   followTargetPlayerId: 0
+  followTargetBound: 0
   CameraData: {fileID: 3294614558523437359}
   captureCamera: {fileID: 3733254523009507069}
   Renderer: {fileID: 931780104200720558}

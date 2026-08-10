@@ -50,7 +50,22 @@ namespace Basis.ImagePickup
         public bool IsInitialized => _initialized;
         public bool IsHidden => _pickup == null || _pickup.IsHidden;
         internal BasisImagePickupObject Pickup => _pickup;
-        internal ushort OwnerId => _pickup != null ? _pickup.OwnerId : (ushort)0;
+        /// <summary>
+        /// The owning player's net id, and false once the pickup has gone. Every net id is a real
+        /// player — the first to join an instance is id 0 — so a detached player has to report no
+        /// owner rather than fall back on an id that belongs to somebody.
+        /// </summary>
+        internal bool TryGetOwnerId(out ushort ownerId)
+        {
+            if (_pickup != null)
+            {
+                ownerId = _pickup.OwnerId;
+                return true;
+            }
+
+            ownerId = 0;
+            return false;
+        }
         internal bool IsFaceVisible => _faceVisible;
         internal bool HasDecodedData => _data != null;
         public long PlaybackEpochUtcTicks => _playbackEpochUtcTicks;

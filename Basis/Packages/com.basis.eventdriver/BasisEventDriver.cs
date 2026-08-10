@@ -36,7 +36,7 @@ namespace Basis.EventDriver
 #if UNITY_SERVER
         true;
 #else
-            false;
+        false;
 #endif
         private static readonly List<Camera> JiggleCullCameras = new List<Camera>(8);
         // Profiler section IDs live in BasisEventDriverProfileSections (pulled in via `using static`).
