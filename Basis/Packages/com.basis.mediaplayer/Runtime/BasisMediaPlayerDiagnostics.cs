@@ -61,6 +61,13 @@ public sealed class BasisMediaPlayerDiagnostics : MonoBehaviour
         {
             Directory.CreateDirectory(Path.GetDirectoryName(ResolvedLogPath) ?? ".");
             bool fileExists = File.Exists(ResolvedLogPath);
+            string header = BuildHeader();
+            // A file written by an older build carries fewer columns, so appending to it
+            // would slide every value under the wrong heading. An appended file already
+            // contains session markers, so it is read a section at a time — emit the
+            // current header alongside the marker whenever the schema has moved, and the
+            // new section is self-describing without discarding the old one.
+            bool schemaChanged = fileExists && AppendBetweenSessions && !HeaderMatches(header);
             var fs = new FileStream(ResolvedLogPath,
                 AppendBetweenSessions ? FileMode.Append : FileMode.Create,
                 FileAccess.Write,
@@ -68,11 +75,12 @@ public sealed class BasisMediaPlayerDiagnostics : MonoBehaviour
             writer = new StreamWriter(fs, new UTF8Encoding(false));
             if (!fileExists || !AppendBetweenSessions)
             {
-                writer.WriteLine(BuildHeader());
+                writer.WriteLine(header);
             }
             else
             {
                 writer.WriteLine("# --- session " + DateTime.UtcNow.ToString("o") + " ---");
+                if (schemaChanged) writer.WriteLine(header);
             }
             writer.Flush();
             IsLogging = true;
@@ -137,6 +145,34 @@ public sealed class BasisMediaPlayerDiagnostics : MonoBehaviour
         return sandboxed;
     }
 
+    // Compares against the last header in the file, not the first line: an appended file
+    // may already carry several, and the rows being appended sit under the most recent.
+    // Unreadable or headerless counts as a mismatch, which costs one redundant header
+    // line and keeps the section parseable either way.
+    private bool HeaderMatches(string header)
+    {
+        try
+        {
+            // A header line is the only one starting with the first column's name; data
+            // rows start with a timestamp. Keep the last one seen — that is the schema
+            // the rows about to be appended would otherwise be read under.
+            string firstColumn = header.Substring(0, header.IndexOf(','));
+            string lastHeader = null;
+            using (var reader = new StreamReader(new FileStream(ResolvedLogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                    if (line.StartsWith(firstColumn, StringComparison.Ordinal)) lastHeader = line;
+            }
+            return lastHeader == header;
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogWarning($"BasisMediaPlayerDiagnostics: could not read existing header ({ex.Message}); writing a fresh one.", BasisDebug.LogTag.Video);
+            return false;
+        }
+    }
+
     private string BuildHeader()
     {
         return string.Join(",",
@@ -182,6 +218,10 @@ public sealed class BasisMediaPlayerDiagnostics : MonoBehaviour
             "eng_audio_queue_ms",
             "eng_audio_trims",
             "eng_video_queue",
+            "eng_rtp_video_gaps",
+            "eng_rtp_video_drops",
+            "eng_rtp_audio_gaps",
+            "eng_reasm_video_drops",
             "eng_audio_latency_ms",
             "eng_ttff_ms",
             "eng_audio_cfg",
@@ -260,6 +300,10 @@ public sealed class BasisMediaPlayerDiagnostics : MonoBehaviour
         AppendL(engineDebug.AudioQMs);
         AppendL(engineDebug.Trims);
         AppendL(engineDebug.VideoQ);
+        AppendL(engineDebug.VideoGaps);
+        AppendL(engineDebug.VideoDrops);
+        AppendL(engineDebug.AudioGaps);
+        AppendL(engineDebug.ReasmDrops);
         AppendL(engineDebug.AudioLatencyMs);
         AppendL(engineDebug.TtffMs);
         AppendI(engineDebug.AudioCfg);
@@ -334,6 +378,12 @@ public sealed class BasisMediaPlayerDiagnostics : MonoBehaviour
         // the present clock): audio currently queued in ms, clock-gated trims
         // fired, and video frames held in the present ring.
         public long AudioQMs, Trims, VideoQ, AudioLatencyMs;
+        // RTP loss on UDP transports: sequence gaps seen, and video access units
+        // discarded because a gap left them incomplete. Neither shows up in the
+        // queue depths or the present clock, so packet loss is otherwise silent.
+        // ReasmDrops is the other reason an AU is discarded — reassembly failed
+        // locally — which can happen with no loss and on any transport.
+        public long VideoGaps, VideoDrops, AudioGaps, ReasmDrops;
 
         public void Reset()
         {
@@ -341,6 +391,7 @@ public sealed class BasisMediaPlayerDiagnostics : MonoBehaviour
             LagMs = BufMs = TtffMs = AOutCount = 0;
             BufMode = AudioCfg = AudioSr = 0;
             AudioQMs = Trims = VideoQ = AudioLatencyMs = 0;
+            VideoGaps = VideoDrops = AudioGaps = ReasmDrops = 0;
         }
 
         public void ParseFrom(string s)
@@ -403,10 +454,14 @@ public sealed class BasisMediaPlayerDiagnostics : MonoBehaviour
                     if (s[kStart] == 'a' && s[kStart + 1] == 'o' && s[kStart + 2] == 'u' && s[kStart + 3] == 't') { AOutCount = v; return; }
                     if (s[kStart] == 'a' && s[kStart + 1] == 'l' && s[kStart + 3] == 't') { AudioLatencyMs = v; return; } // alat
                     if (s[kStart] == 't' && s[kStart + 1] == 't' && s[kStart + 2] == 'f' && s[kStart + 3] == 'f') { TtffMs = v; return; }
+                    if (s[kStart] == 'v' && s[kStart + 1] == 'g' && s[kStart + 2] == 'a' && s[kStart + 3] == 'p') { VideoGaps = v; return; }
+                    if (s[kStart] == 'a' && s[kStart + 1] == 'g' && s[kStart + 2] == 'a' && s[kStart + 3] == 'p') { AudioGaps = v; return; }
+                    if (s[kStart] == 'v' && s[kStart + 1] == 'r' && s[kStart + 2] == 's' && s[kStart + 3] == 'm') { ReasmDrops = v; return; }
                     return;
                 case 5:
                     if (s[kStart] == 'n' && s[kStart + 4] == 'e') { NoDue = v; return; }
                     if (s[kStart] == 'a' && s[kStart + 4] == 'm') { Trims = v; return; } // atrim
+                    if (s[kStart] == 'v' && s[kStart + 1] == 'd') { VideoDrops = v; return; } // vdrop
                     return;
                 case 6:
                     if (s[kStart] == 'r' && s[kStart + 5] == 'r') { Render = v; return; }

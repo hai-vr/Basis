@@ -505,8 +505,28 @@ with on-screen text or a logo, every time video-path code changes.
   `eng_ttff_ms` (time to first frame), `engine_pos_us` step distribution (late presents show
   as double-steps coinciding with wall-clock gaps), `eng_lag_ms`/`eng_buf_ms` (clock vs
   buffer health), `audio_queue_depth`/`eng_audio_trims` (audio starvation/overrun),
-  `cpu_*_drops/skips` (CPU-path frame accounting). Filter rows to `engine_state == Playing`
-  before drawing conclusions.
+  `cpu_*_drops/skips` (CPU-path frame accounting),
+  `eng_rtp_video_gaps`/`eng_rtp_video_drops`/`eng_rtp_audio_gaps` (RTP loss on UDP
+  transports). Filter rows to `engine_state == Playing` before drawing conclusions.
+- **RTP loss counters**: on `rtsp://` where UDP wins the negotiation, packet loss costs whole
+  access units rather than delivery time — a sequence gap taints the AU under assembly and it
+  is discarded rather than handed to the decoder incomplete. Queue depths, the present clock
+  and `eng_lag_ms` can therefore all look healthy while frames are being dropped. A climbing
+  `eng_rtp_video_drops` against a steady `eng_lag_ms` is loss, not starvation, and buffering
+  does not address it. These stay at zero on TCP transports, which have no sequence gaps to
+  detect.
+
+  They also stay at zero on a native plugin built before the counters existed, because the
+  values come from the native side — so a stale binary reports absence of loss rather than
+  absence of instrumentation, which is the more dangerous of the two. If a UDP stream is
+  visibly dropping frames and all four columns read zero, check the plugin for that platform
+  is current before concluding the path is clean.
+- **`eng_reasm_video_drops`** counts the other reason an access unit is discarded: reassembly
+  failed locally, either an allocation failure or the depacketiser refusing a reassembly past
+  its per-AU ceiling. It is deliberately separate from the loss counters because the cause is
+  different in kind — it needs no packet loss and fires on any transport, so a run of it points
+  at a malformed or hostile source rather than at network conditions. Non-zero here on
+  `rtspt://`, which cannot lose packets, always means the source, never the path.
 - **Debug window**: `Basis → Debug → Media Player Debug` shows live engine state per player.
 - **Feedless harness**: `BasisSyntheticTestSource` (`Runtime/Sources/`) drives the player
   without any network feed — isolates render-path changes from transport noise.

@@ -447,8 +447,13 @@ typedef struct {
 
     /* UDP loss handling: a sequence gap taints the access unit under
      * assembly — it's discarded at its boundary instead of delivered with
-     * missing slices. */
+     * missing slices. v_drop is also raised by reassembly failures (allocation,
+     * or the RTP_MAX_BUF ceiling), which are local and can happen on either
+     * transport, so v_gap_taint records that this particular discard came from
+     * a sequence gap. Without it the counters would report a cap refusal on
+     * TCP-interleaved — a transport with no loss at all — as network loss. */
     int v_drop;
+    int v_gap_taint;
 } depkt_t;
 
 static const uint8_t SC4[4] = {0,0,0,1};
@@ -522,7 +527,10 @@ static int64_t rtp_ts_extend(uint32_t ts, int64_t* ext, int* have_ext,
 }
 
 static void deliver_au(depkt_t* d) {
-    if (d->v_drop) { d->au_len = 0; d->v_drop = 0; return; }
+    if (d->v_drop) {
+        basis_engine_note_video_au_dropped(d->sink->user, d->v_gap_taint);
+        d->au_len = 0; d->v_drop = 0; d->v_gap_taint = 0; return;
+    }
     if (d->au_len <= 0) return;
     if (!d->video_announced) {
         int w = 0, h = 0;
@@ -936,11 +944,14 @@ static void udp_deliver_video(void* ctx, const uint8_t* pkt, int len) { depkt_vi
 static void udp_deliver_audio(void* ctx, const uint8_t* pkt, int len) { depkt_audio((depkt_t*)ctx, pkt, len); }
 static void udp_gap_video(void* ctx) {
     depkt_t* d = (depkt_t*)ctx;
+    basis_engine_note_rtp_gap(d->sink->user, 1);
     d->fu_active = 0;
     d->v_drop = 1;
+    d->v_gap_taint = 1;
 }
 static void udp_gap_audio(void* ctx) {
     depkt_t* d = (depkt_t*)ctx;
+    basis_engine_note_rtp_gap(d->sink->user, 0);
     d->afrag_active = 0;
     d->afrag_len = 0;
 }

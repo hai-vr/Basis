@@ -196,6 +196,23 @@ struct basis_media_engine {
     volatile long video_au_count;
     volatile long audio_frame_count;
 
+    /* RTP loss accounting (UDP transports only). A sequence gap taints the access
+     * unit under assembly, which is then discarded rather than handed to the
+     * decoder with missing slices — so the stream degrades silently, with no
+     * effect on delivery timing and nothing visible in the queue depths. Counted
+     * here so the cost is measurable. Same unlocked-read treatment as the AU
+     * counters above: these are diagnostics, and a stale read costs nothing. */
+    volatile long rtp_video_gaps;
+    volatile long rtp_video_drops;
+    volatile long rtp_audio_gaps;
+
+    /* Access units discarded by a local reassembly failure — allocation, or the
+     * depacketiser's per-AU ceiling refusing an unbounded reassembly. Kept apart
+     * from the loss counters above because the cause is different in kind: these
+     * can fire on a transport with no packet loss at all, and a run of them says
+     * the source is malformed or hostile rather than that the path is dropping. */
+    volatile long reasm_video_drops;
+
     /* Total media duration reported by the demuxer (VOD); 0 = unknown/live.
      * Demux thread writes once, main thread reads — a torn read on 32-bit is
      * the worst case and Windows/Android are 64-bit. */
@@ -243,6 +260,15 @@ basis_decoder_t* basis_engine_get_decoder(basis_media_engine_t* e) { return e ? 
 int basis_engine_is_paused(basis_media_engine_t* e) { return e ? e->paused : 0; }
 int basis_engine_is_running(basis_media_engine_t* e) { return e ? e->running : 0; }
 int basis_engine_is_paced(basis_media_engine_t* e) { return e ? e->paced : 0; }
+
+void basis_engine_note_rtp_gap(basis_media_engine_t* e, int is_video) {
+    if (!e) return;
+    if (is_video) e->rtp_video_gaps++; else e->rtp_audio_gaps++;
+}
+void basis_engine_note_video_au_dropped(basis_media_engine_t* e, int from_gap) {
+    if (!e) return;
+    if (from_gap) e->rtp_video_drops++; else e->reasm_video_drops++;
+}
 
 /* ---- render-event liveness registry ------------------------------------
  * OnRenderEvent (Unity render thread) is handed the engine pointer and can fire
@@ -1722,8 +1748,11 @@ BASIS_API int BASIS_CALL basis_media_get_transport(basis_media_engine_t* e, char
 
 BASIS_API int BASIS_CALL basis_media_get_debug(basis_media_engine_t* e, char* buf, int buf_size) {
     if (!e || !buf || buf_size <= 0) return 0;
-    int n = snprintf(buf, (size_t)buf_size, "vau=%ld aau=%ld | ",
-                     e->video_au_count, e->audio_frame_count);
+    int n = snprintf(buf, (size_t)buf_size,
+                     "vau=%ld aau=%ld vgap=%ld vdrop=%ld agap=%ld vrsm=%ld | ",
+                     e->video_au_count, e->audio_frame_count,
+                     e->rtp_video_gaps, e->rtp_video_drops, e->rtp_audio_gaps,
+                     e->reasm_video_drops);
     if (n < 0) n = 0;
     if (e->decoder && n < buf_size) n += basis_decoder_get_debug(e->decoder, buf + n, buf_size - n);
     return n;
