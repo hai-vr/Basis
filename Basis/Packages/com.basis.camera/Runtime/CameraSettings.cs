@@ -22,6 +22,11 @@ public partial class BasisHandHeldCameraUI
 
             cameraMode = (int)BasisCameraMode.Photo;
 
+            // Empty rather than null, and never allowed to become null again: JsonUtility writes a
+            // null string as "" and reads it back as "", so a null here would be a field that
+            // provably cannot survive its own file.
+            userMode = string.Empty;
+
             backgroundMode = 0;
             backgroundCustomColor = BasisHandHeldCamera.ChromaGreen;
             backgroundKeepsWorld = false;
@@ -78,6 +83,17 @@ public partial class BasisHandHeldCameraUI
         /// longer matches the mode it names settles on Custom instead of mislabelling itself.
         /// </summary>
         public int cameraMode;
+
+        /// <summary>
+        /// The saved mode the camera was last wearing, by name, or empty for none. Looked up in
+        /// <see cref="BasisCameraUserModes"/> on load and dropped if that mode has since been
+        /// deleted or edited into something this file no longer matches.
+        ///
+        /// <para>Only the name is stored, never the mode's values: the values are already in this
+        /// file. A copy here would be a second version of the same settings, free to disagree with
+        /// both the file around it and the mode it names.</para>
+        /// </summary>
+        public string userMode;
 
         public int resolutionIndex = 1;
         public int formatIndex = 0;

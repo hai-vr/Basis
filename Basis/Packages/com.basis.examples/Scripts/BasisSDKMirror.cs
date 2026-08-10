@@ -195,6 +195,172 @@ public class BasisSDKMirror : MonoBehaviour
         }
     }
 
+    public const float MinSurfaceSize = 0.25f;
+    public const float MaxSurfaceSize = 10f;
+
+    [NonSerialized] private Vector3 baseScale = Vector3.one;
+    [NonSerialized] private Vector2 baseSurfaceSize;
+    [NonSerialized] private bool surfaceBaselineCaptured;
+
+    /// <summary>
+    /// Physical size of the mirror surface in metres. Driven by scaling this component's transform,
+    /// so the surface, its frame and its collider stay in agreement — measured against the size the
+    /// content author shipped rather than assuming a 1x1 quad at unit scale.
+    /// </summary>
+    public Vector2 SurfaceSize
+    {
+        get
+        {
+            if (!TryCaptureSurfaceBaseline()) return Vector2.zero;
+
+            Vector3 scale = transform.localScale;
+            return new Vector2(
+                baseSurfaceSize.x * SafeRatio(scale.x, baseScale.x),
+                baseSurfaceSize.y * SafeRatio(scale.y, baseScale.y));
+        }
+        set
+        {
+            if (!TryCaptureSurfaceBaseline()) return;
+            if (baseSurfaceSize.x <= 0f || baseSurfaceSize.y <= 0f) return;
+
+            float width = Mathf.Clamp(value.x, MinSurfaceSize, MaxSurfaceSize);
+            float height = Mathf.Clamp(value.y, MinSurfaceSize, MaxSurfaceSize);
+
+            Vector3 scale = transform.localScale;
+            scale.x = baseScale.x * (width / baseSurfaceSize.x);
+            scale.y = baseScale.y * (height / baseSurfaceSize.y);
+            transform.localScale = scale;
+        }
+    }
+
+    public float SurfaceWidth
+    {
+        get => SurfaceSize.x;
+        set => SurfaceSize = new Vector2(value, SurfaceSize.y);
+    }
+
+    public float SurfaceHeight
+    {
+        get => SurfaceSize.y;
+        set => SurfaceSize = new Vector2(SurfaceSize.x, value);
+    }
+
+    /// <summary>True once the authored scale and surface extents are known; false if there is no renderer yet.</summary>
+    public bool HasSurfaceSize => TryCaptureSurfaceBaseline();
+
+    private bool TryCaptureSurfaceBaseline()
+    {
+        if (surfaceBaselineCaptured) return true;
+        if (Renderer == null) return false;
+
+        baseScale = transform.localScale;
+        if (Mathf.Approximately(baseScale.x, 0f)) baseScale.x = 1f;
+        if (Mathf.Approximately(baseScale.y, 0f)) baseScale.y = 1f;
+
+        // Local bounds are the untransformed mesh extents, so this stays correct under rotation
+        // where world-space bounds would not. The surface lies in the renderer's local XY plane
+        // (its local -Z is the reflection normal).
+        Bounds local = Renderer.localBounds;
+        Vector3 lossy = Renderer.transform.lossyScale;
+        baseSurfaceSize = new Vector2(
+            Mathf.Abs(local.size.x * lossy.x),
+            Mathf.Abs(local.size.y * lossy.y));
+
+        surfaceBaselineCaptured = true;
+        return true;
+    }
+
+    private static float SafeRatio(float value, float baseline)
+    {
+        return Mathf.Approximately(baseline, 0f) ? 1f : value / baseline;
+    }
+
+    public const string CutoutShaderName = "BasisMirrorCutout";
+
+    [NonSerialized] private Material cutoutMaterial;
+    [NonSerialized] private bool cutoutEnabled;
+    [NonSerialized] private MirrorClearFlags clearFlagsBeforeCutout;
+    [NonSerialized] private Color clearColorBeforeCutout;
+
+    public bool CutoutEnabled => cutoutEnabled;
+
+    /// <summary>
+    /// Clear flags/colour as the user configured them, ignoring the transparent clear the cutout
+    /// imposes while it is on. Saving the live values instead would overwrite the real choice.
+    /// </summary>
+    public MirrorClearFlags ConfiguredClearFlags => cutoutEnabled ? clearFlagsBeforeCutout : clearFlags;
+    public Color ConfiguredClearColor => cutoutEnabled ? clearColorBeforeCutout : clearColor;
+
+    /// <summary>
+    /// Swaps the surface to the transparent cutout shader and clears the reflection to fully
+    /// transparent, so only opaque reflected geometry has alpha and the rest reads through — the
+    /// calibration mirror's look. Returns the resulting state; false from a request to enable means
+    /// the shader is missing or unsupported and the mirror was left as it was.
+    /// </summary>
+    public bool SetCutout(bool enabled)
+    {
+        if (enabled == cutoutEnabled) return cutoutEnabled;
+        return enabled ? EnableCutout() : DisableCutout();
+    }
+
+    private bool EnableCutout()
+    {
+        if (Renderer == null) return false;
+
+        Shader shader = Resources.Load<Shader>(CutoutShaderName);
+        if (shader == null || !shader.isSupported) return false;
+
+        clearFlagsBeforeCutout = clearFlags;
+        clearColorBeforeCutout = clearColor;
+
+        if (cutoutMaterial == null)
+            cutoutMaterial = new Material(shader) { name = $"{name} Mirror Cutout" };
+
+        SeedCutoutTextures();
+        Renderer.sharedMaterial = cutoutMaterial;
+        cutoutEnabled = true;
+
+        ClearColor = new Color(0f, 0f, 0f, 0f);
+        ClearFlags = MirrorClearFlags.Color;
+        return true;
+    }
+
+    private bool DisableCutout()
+    {
+        cutoutEnabled = false;
+
+        if (Renderer != null && MirrorsMaterial != null)
+            Renderer.sharedMaterial = MirrorsMaterial;
+
+        DestroyCutoutMaterial();
+
+        ClearColor = clearColorBeforeCutout;
+        ClearFlags = clearFlagsBeforeCutout;
+        return false;
+    }
+
+    private void SeedCutoutTextures()
+    {
+        if (cutoutMaterial == null || PortalTextureLeft == null) return;
+
+        cutoutMaterial.SetTexture(ReflectionTexLeftId, PortalTextureLeft);
+        cutoutMaterial.SetTexture(ReflectionTexRightId,
+            PortalTextureRight != null ? PortalTextureRight : PortalTextureLeft);
+    }
+
+    private void DestroyCutoutMaterial()
+    {
+        if (cutoutMaterial == null) return;
+
+#if UNITY_EDITOR
+        if (!Application.isPlaying) DestroyImmediate(cutoutMaterial);
+        else Destroy(cutoutMaterial);
+#else
+        Destroy(cutoutMaterial);
+#endif
+        cutoutMaterial = null;
+    }
+
     public int UpdateInterval
     {
         get => UpdateEveryNthFrame;
@@ -245,7 +411,7 @@ public class BasisSDKMirror : MonoBehaviour
     public const float MaxClipPlaneOffset = 0.5f;
     public const float MaxRateDistance = 200f;
 
-    private void SetTargetShape(int width, int height, int depthBits, int msaa)
+    public void SetTargetShape(int width, int height, int depthBits, int msaa)
     {
         int newWidth = Mathf.Clamp(width, MinResolution, MaxResolution);
         int newHeight = Mathf.Clamp(height, MinResolution, MaxResolution);
@@ -268,6 +434,7 @@ public class BasisSDKMirror : MonoBehaviour
         ReplacePortalTexture(StereoscopicEye.Left, ref PortalTextureLeft, LeftCamera);
         ReplacePortalTexture(StereoscopicEye.Right, ref PortalTextureRight, RightCamera);
         ReleaseSecondaryViewerTextures();
+        SeedCutoutTextures();
 
         BindReflectionTextures(PortalTextureLeft, PortalTextureRight);
         primaryBound = true;
@@ -420,6 +587,7 @@ public class BasisSDKMirror : MonoBehaviour
     private void OnDestroy()
     {
         BasisMirrorRegistry.Remove(this);
+        DestroyCutoutMaterial();
         BasisDeviceManagement.OnBootModeChanged -= BootModeChanged;
         BasisSettingsDefaults.MirrorQuality.OnChanged -= OnMirrorQualityChanged;
         BasisSettingsDefaults.UseMirrorQualityOverride.OnChanged -= OnMirrorQualityOverrideChanged;
@@ -570,6 +738,12 @@ public class BasisSDKMirror : MonoBehaviour
             Renderer.sharedMaterial = MirrorsMaterial;
             materialApplied = true;
         }
+
+        // A cutout enabled from saved settings is applied in OnEnable, before this runs, so the
+        // first-init assignment above would drop it on a fresh spawn.
+        SeedCutoutTextures();
+        if (cutoutEnabled && cutoutMaterial != null)
+            Renderer.sharedMaterial = cutoutMaterial;
 
         IsAbleToRender = Renderer.isVisible;
         IsActive = true;

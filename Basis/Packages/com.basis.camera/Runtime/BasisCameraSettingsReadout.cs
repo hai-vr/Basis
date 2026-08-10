@@ -1,0 +1,209 @@
+using System.Text;
+using Basis.BasisUI;
+using UnityEngine;
+using CameraSettings = BasisHandHeldCameraUI.CameraSettings;
+
+/// <summary>
+/// Writes a settings file out as something you can read.
+///
+/// <para>The panel spreads these values over seven tabs and sixteen collapsible sections, which is
+/// the right shape for <em>changing</em> one and the wrong shape for answering "what is this camera
+/// actually set to" — or the question a saved mode raises, "what am I about to get back". This is
+/// the whole file on one page, in the panel's own words, using the same localized labels the
+/// controls carry so the readout and the control that sets a value never disagree about its name.
+/// </para>
+///
+/// <para>Values that reach the camera as an index into a preset table are shown as the preset —
+/// "f/2.8", not "1". The tables live on <see cref="BasisHandHeldCameraMetaData"/>, which is a plain
+/// serializable class with readonly defaults, so passing null is only a fallback for a camera that
+/// has not built one yet rather than the normal case.</para>
+/// </summary>
+public static class BasisCameraSettingsReadout
+{
+    private static readonly StringBuilder Builder = new StringBuilder(2048);
+
+    /// <summary>
+    /// The whole file as text. <paramref name="pinSpace"/>, <paramref name="autoFollow"/> and
+    /// <paramref name="cinematic"/> are passed alongside because they are placement rather than
+    /// settings — <see cref="CameraSettings"/> deliberately does not carry them — and leaving them
+    /// out would make the readout silent about the two things that decide where the camera goes.
+    /// </summary>
+    public static string Build(
+        CameraSettings settings,
+        int pinSpace,
+        bool autoFollow,
+        bool cinematic,
+        BasisHandHeldCameraMetaData metaData)
+    {
+        if (settings == null) return string.Empty;
+
+        Builder.Clear();
+
+        Section("camera.placement");
+        Row("camera.pinSpace", PinSpaceLabel(pinSpace));
+        Row("camera.autoFollow", OnOff(autoFollow));
+        Row("camera.cinematicEnabled", OnOff(cinematic));
+
+        Section("camera.lens");
+        Row("camera.fieldOfView", Number(settings.fov));
+        Row("camera.sensorSize", $"{Number(settings.sensorSizeX)} x {Number(settings.sensorSizeY)} mm");
+        Row("camera.aperture", Preset(metaData?.apertures, settings.apertureIndex));
+        Row("camera.shutterSpeed", Preset(metaData?.shutterSpeeds, settings.shutterSpeedIndex));
+        Row("camera.iso", Preset(metaData?.isoValues, settings.isoIndex));
+
+        Section("camera.depthOfField");
+        Row("camera.depthOfField", OnOff(settings.depthIsActive));
+        Row("camera.mode", DepthModeLabel(settings.dofMode));
+        Row("camera.aperture", "f/" + Number(settings.depthAperture));
+        Row("camera.focalLength", Number(settings.dofFocalLength) + " mm");
+        Row("camera.bokehBlades", settings.dofBladeCount.ToString());
+        Row("camera.focusMode", BasisLocalization.Get(settings.useManualFocus ? "camera.focusManual" : "camera.focusAuto"));
+        Row("camera.focusDistance", Number(settings.depthFocusDistance));
+
+        Section("camera.exposureColour");
+        Row("camera.exposure", ExposureLabel(settings.exposureIndex));
+        Row("camera.exposureOnCamera", OnOff(settings.showExposureOnCamera));
+        Row("camera.contrast", Number(settings.contrast));
+        Row("camera.saturation", Number(settings.saturation));
+        Row("camera.hueShift", Number(settings.hueShift));
+        Row("camera.whiteBalanceTemp", Number(settings.whiteBalanceTemperature));
+        Row("camera.whiteBalanceTint", Number(settings.whiteBalanceTint));
+
+        Section("camera.effects");
+        Row("camera.bloomIntensity", Number(settings.bloomIntensity));
+        Row("camera.bloomThreshold", Number(settings.bloomThreshold));
+        Row("camera.vignette", Number(settings.vignette));
+        Row("camera.chromaticAberration", Number(settings.chromaticAberration));
+        Row("camera.filmGrain", Number(settings.filmGrain));
+        Row("camera.lensDistortion", Number(settings.lensDistortion));
+        Row("camera.motionBlur", Number(settings.motionBlurIntensity));
+        Row("camera.motionBlurClamp", Number(settings.motionBlurClamp));
+        Row("camera.motionBlurQuality", MotionBlurQualityLabel(settings.motionBlurQuality));
+        Row("camera.motionBlurMode", MotionBlurModeLabel(settings.motionBlurMode));
+        Row("camera.volumetricFog", Number(settings.VolumetricFogVolumedensity));
+
+        Section("camera.output");
+        Row("camera.photoResolution", ResolutionLabel(metaData, settings.resolutionIndex));
+        Row("camera.photoFormat", Preset(metaData?.formats, settings.formatIndex));
+        Row("camera.msaa", settings.msaaSamples + "x");
+        Row("camera.n360Capture", OnOff(settings.capture360));
+        Row("camera.autoLevel", OnOff(settings.useAutoLeveling));
+        Row("camera.vrStabilization", OnOff(settings.useVRHandheldSmoothing));
+
+        Section("camera.follow");
+        Row("camera.followOffset", Vector(settings.autoFollowPositionOffset));
+        Row("camera.followRotationOffset", Vector(settings.autoFollowRotationOffset));
+        Row("camera.followPlayspace", OnOff(settings.autoFollowPlayspace));
+        Row("camera.lookAtMe", OnOff(settings.autoFollowLookAtPlayer));
+        Row("camera.lookAtHeightY", Number(settings.autoFollowLookAtHeightOffset));
+        Row("camera.lateralTrackingX", Number(settings.autoFollowLateralTracking));
+        Row("camera.autoFocusSubject", OnOff(settings.autoFocusFollowSubject));
+        Row("camera.detachedMarker", DetachedMarkerLabel(settings.detachedMarker));
+        Row("camera.subjectSize", Number(settings.subjectFramingRadius));
+
+        Section("camera.background");
+        Row("camera.backgroundMode", BackgroundModeLabel(settings.backgroundMode));
+        Row("camera.backgroundKeepWorld", OnOff(settings.backgroundKeepsWorld));
+        Row("camera.backgroundRed", "#" + ColorUtility.ToHtmlStringRGB(settings.backgroundCustomColor));
+
+        // A count rather than a list: the shots are a track someone authored, and naming each one
+        // here would bury every setting above it under a mode with a dozen of them.
+        Section("camera.cinematic");
+        Row("camera.shot", (settings.cinematicShots?.Count ?? 0).ToString());
+
+        return Builder.ToString();
+    }
+
+    private static void Section(string key)
+    {
+        if (Builder.Length > 0) Builder.Append('\n');
+        Builder.Append(BasisLocalization.Get(key)).Append('\n');
+    }
+
+    // Two spaces rather than a tab: TextMeshPro's tab stops are set by the style asset, so an
+    // indent made of tabs is a different width in every panel it is read in.
+    private static void Row(string key, string value) =>
+        Builder.Append("  ").Append(BasisLocalization.Get(key)).Append(": ").Append(value).Append('\n');
+
+    /// <summary>Trailing zeros are noise on a readout — 40 and 2.8 rather than 40.00 and 2.80.</summary>
+    private static string Number(float value) => value.ToString("0.###");
+
+    private static string Vector(Vector3 value) =>
+        $"{Number(value.x)}, {Number(value.y)}, {Number(value.z)}";
+
+    private static string OnOff(bool value) =>
+        BasisLocalization.Get(value ? "ui.option.on" : "ui.option.off");
+
+    /// <summary>An index with no table behind it is still worth showing — as an index, honestly.</summary>
+    private static string Preset(string[] table, int index) =>
+        table != null && index >= 0 && index < table.Length ? table[index] : index.ToString();
+
+    private static string ResolutionLabel(BasisHandHeldCameraMetaData metaData, int index)
+    {
+        if (metaData == null || index < 0 || index >= metaData.resolutions.Length) return index.ToString();
+
+        var resolution = metaData.resolutions[index];
+        return $"{resolution.width} x {resolution.height}";
+    }
+
+    private static string ExposureLabel(int index)
+    {
+        // The stop table is the UI's, and it is what the index means. Showing the stop rather than
+        // the index is the difference between "+1" and "8".
+        float stop = BasisHandHeldCameraUI.ExposureStopAt(index);
+        return (stop > 0f ? "+" : string.Empty) + Number(stop);
+    }
+
+    private static string PinSpaceLabel(int pinSpace)
+    {
+        switch (pinSpace)
+        {
+            case (int)BasisHandHeldCameraInteractable.CameraPinSpace.HandHeld:
+                return BasisLocalization.Get("camera.pinSpace.handHeld");
+            case (int)BasisHandHeldCameraInteractable.CameraPinSpace.PlaySpace:
+                return BasisLocalization.Get("camera.pinSpace.playSpace");
+            default:
+                return BasisLocalization.Get("camera.pinSpace.worldSpace");
+        }
+    }
+
+    private static string DepthModeLabel(int dofMode) =>
+        BasisLocalization.Get(dofMode == 1 ? "camera.mode.gaussian" : "camera.mode.bokeh");
+
+    private static string MotionBlurQualityLabel(int quality)
+    {
+        switch (quality)
+        {
+            case 0: return BasisLocalization.Get("camera.motionBlurQuality.low");
+            case 2: return BasisLocalization.Get("camera.motionBlurQuality.high");
+            default: return BasisLocalization.Get("camera.motionBlurQuality.medium");
+        }
+    }
+
+    private static string MotionBlurModeLabel(int mode) =>
+        BasisLocalization.Get(mode == 1 ? "camera.motionBlurMode.cameraAndObjects" : "camera.motionBlurMode.cameraOnly");
+
+    private static string DetachedMarkerLabel(int marker)
+    {
+        switch ((BasisCameraDetachedMarker)marker)
+        {
+            case BasisCameraDetachedMarker.Off: return BasisLocalization.Get("ui.option.off");
+            case BasisCameraDetachedMarker.Gizmo: return BasisLocalization.Get("camera.detachedMarker.wireframe");
+            default: return BasisLocalization.Get("camera.detachedMarker.puck");
+        }
+    }
+
+    private static string BackgroundModeLabel(int mode)
+    {
+        switch ((BasisCameraBackgroundMode)mode)
+        {
+            case BasisCameraBackgroundMode.GreenScreen: return BasisLocalization.Get("camera.background.greenScreen");
+            case BasisCameraBackgroundMode.BlueScreen: return BasisLocalization.Get("camera.background.blueScreen");
+            case BasisCameraBackgroundMode.Black: return BasisLocalization.Get("camera.background.black");
+            case BasisCameraBackgroundMode.White: return BasisLocalization.Get("camera.background.white");
+            case BasisCameraBackgroundMode.Magenta: return BasisLocalization.Get("camera.background.magenta");
+            case BasisCameraBackgroundMode.Custom: return BasisLocalization.Get("camera.background.custom");
+            default: return BasisLocalization.Get("camera.background.world");
+        }
+    }
+}

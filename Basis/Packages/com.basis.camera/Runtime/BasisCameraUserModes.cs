@@ -33,6 +33,8 @@ public static class BasisCameraUserModes
     }
 
     private static List<BasisCameraUserMode> _modes;
+    private static int _count;
+    private static int _revision;
 
     /// <summary>Raised after the list changes, so an open panel can rebuild its dropdown.</summary>
     public static event Action OnChanged;
@@ -47,7 +49,26 @@ public static class BasisCameraUserModes
         }
     }
 
-    public static int Count => Modes.Count;
+    /// <summary>
+    /// How many modes there are, without touching the list. Read on the panel tick purely to
+    /// decide whether there is anything to do, so it stays a field read even before the file has
+    /// ever been opened.
+    /// </summary>
+    public static int Count
+    {
+        get
+        {
+            EnsureLoaded();
+            return _count;
+        }
+    }
+
+    /// <summary>
+    /// Bumped by every change. A rebuild of the mode dropdown throws away the entries an open
+    /// dropdown is showing, so the panel only wants to do it when something actually moved — and
+    /// the count alone cannot tell it, since a rename or a colour change leaves the count still.
+    /// </summary>
+    public static int Revision => _revision;
 
     public static BasisCameraUserMode Find(string name)
     {
@@ -135,14 +156,38 @@ public static class BasisCameraUserModes
         return false;
     }
 
-    private static string FilePath => Path.Combine(Application.persistentDataPath, CameraModesJson);
+#if UNITY_INCLUDE_TESTS
+    /// <summary>
+    /// Where the modes file lives, when it is not where it lives. Tests must never open the real
+    /// one: they save, clear and delete modes, and the file they would be doing that to is the
+    /// player's own list of saved modes.
+    /// </summary>
+    public static string DirectoryOverrideForTest;
+
+    private static string StorageDirectory =>
+        string.IsNullOrEmpty(DirectoryOverrideForTest) ? Application.persistentDataPath : DirectoryOverrideForTest;
+#else
+    private static string StorageDirectory => Application.persistentDataPath;
+#endif
+
+    private static string FilePath => Path.Combine(StorageDirectory, CameraModesJson);
 
     private static void EnsureLoaded()
     {
         if (_modes != null) return;
 
         _modes = new List<BasisCameraUserMode>();
+        LoadFromDisk();
 
+        // Set here rather than inside the load, which returns from several places — and bumped
+        // even for an empty file, since "not read yet" and "read, and there are none" are
+        // different states to anything caching off the revision.
+        _count = _modes.Count;
+        _revision++;
+    }
+
+    private static void LoadFromDisk()
+    {
         try
         {
             string path = FilePath;
@@ -184,6 +229,9 @@ public static class BasisCameraUserModes
 
     private static void Save()
     {
+        _count = _modes.Count;
+        _revision++;
+
         try
         {
             ModeFile file = new ModeFile();

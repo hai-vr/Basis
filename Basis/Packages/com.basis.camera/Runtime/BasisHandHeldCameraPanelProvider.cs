@@ -363,7 +363,18 @@ namespace Basis.BasisUI.HandHeldCamera
             if (element == null) return;
 
             if (element.IconBackground != null) element.IconBackground.SetActive(false);
-            if (!releaseControlSlot || element.Header == null) return;
+            if (releaseControlSlot) ReleaseControlSlot(element);
+        }
+
+        /// <summary>
+        /// Hands back the control slot a card reserves beside its title whether or not it puts a
+        /// control in it. Text-only cards need it back: the title and the description share what is
+        /// left over, so a card that keeps the reservation wraps a long readout into a narrow
+        /// column with 300 units of nothing beside it.
+        /// </summary>
+        private static void ReleaseControlSlot(PanelElementDescriptor element)
+        {
+            if (element == null || element.Header == null) return;
 
             Transform slot = element.Header.Find("Title/Element");
             if (slot != null) slot.gameObject.SetActive(false);

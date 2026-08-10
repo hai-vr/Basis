@@ -75,6 +75,166 @@
       "value": "The shot rig drives the camera along your dolly, orbit and framing moves. A longer lens, shallower focus and a little motion blur for the filmic look. Follow does nothing here — the rig owns where the camera goes."
     },
     {
+      "key": "camera.userMode.title",
+      "value": "Your Modes"
+    },
+    {
+      "key": "camera.userMode.help",
+      "value": "Point the camera the way you like it, give that arrangement a name and a colour, and it joins the list above. Saving over a name you already have updates that mode."
+    },
+    {
+      "key": "camera.userMode.description",
+      "value": "One of your own saved modes. Everything below was restored from it, and the panel is coloured in the colour you gave it."
+    },
+    {
+      "key": "camera.userMode.name",
+      "value": "Mode Name"
+    },
+    {
+      "key": "camera.userMode.name.tooltip",
+      "value": "What this mode is called in the list above. Saving with a name you already have replaces that mode."
+    },
+    {
+      "key": "camera.userMode.tint",
+      "value": "Mode Colour"
+    },
+    {
+      "key": "camera.userMode.tint.tooltip",
+      "value": "The colour the panel is painted while this mode is in control. Slide through the spectrum to pick one."
+    },
+    {
+      "key": "camera.userMode.save",
+      "value": "Save Current Settings"
+    },
+    {
+      "key": "camera.userMode.save.tooltip",
+      "value": "Stores everything this camera is set to right now, under the name above."
+    },
+    {
+      "key": "camera.userMode.remove",
+      "value": "Remove Mode"
+    },
+    {
+      "key": "camera.userMode.remove.tooltip",
+      "value": "Forgets the saved mode named above. Your camera keeps its current settings."
+    },
+    {
+      "key": "camera.userMode.remove.confirm",
+      "value": "Remove the saved mode “{0}”? The camera keeps the settings it has now — only the saved mode is forgotten."
+    },
+    {
+      "key": "camera.userMode.saved",
+      "value": "Saved. It is now in the list above."
+    },
+    {
+      "key": "camera.userMode.removed",
+      "value": "Removed."
+    },
+    {
+      "key": "camera.userMode.readout",
+      "value": "All Settings"
+    },
+    {
+      "key": "camera.userMode.error.empty",
+      "value": "Give the mode a name before saving it."
+    },
+    {
+      "key": "camera.userMode.error.full",
+      "value": "There is no room for another saved mode. Remove one first."
+    },
+    {
+      "key": "camera.placement",
+      "value": "Placement"
+    },
+    {
+      "key": "camera.pinSpace",
+      "value": "Position"
+    },
+    {
+      "key": "camera.pinSpace.handHeld",
+      "value": "In Your Hand"
+    },
+    {
+      "key": "camera.pinSpace.playSpace",
+      "value": "Pinned To You"
+    },
+    {
+      "key": "camera.pinSpace.worldSpace",
+      "value": "Left In The World"
+    },
+    {
+      "key": "camera.sensorSize",
+      "value": "Sensor Size"
+    },
+    {
+      "key": "camera.shutterSpeed",
+      "value": "Shutter Speed"
+    },
+    {
+      "key": "camera.iso",
+      "value": "ISO"
+    },
+    {
+      "key": "camera.focusMode",
+      "value": "Focus Mode"
+    },
+    {
+      "key": "camera.focusManual",
+      "value": "Manual"
+    },
+    {
+      "key": "camera.focusAuto",
+      "value": "Follow Subject"
+    },
+    {
+      "key": "camera.followOffset",
+      "value": "Follow Offset"
+    },
+    {
+      "key": "camera.followRotationOffset",
+      "value": "Follow Rotation"
+    },
+    {
+      "key": "camera.autoFocusSubject",
+      "value": "Auto Focus Subject"
+    },
+    {
+      "key": "camera.detachedMarker.puck",
+      "value": "Puck"
+    },
+    {
+      "key": "camera.detachedMarker.wireframe",
+      "value": "Wireframe"
+    },
+    {
+      "key": "camera.background.world",
+      "value": "World"
+    },
+    {
+      "key": "camera.background.greenScreen",
+      "value": "Green Screen"
+    },
+    {
+      "key": "camera.background.blueScreen",
+      "value": "Blue Screen"
+    },
+    {
+      "key": "camera.background.black",
+      "value": "Black"
+    },
+    {
+      "key": "camera.background.white",
+      "value": "White"
+    },
+    {
+      "key": "camera.background.magenta",
+      "value": "Magenta"
+    },
+    {
+      "key": "camera.background.custom",
+      "value": "Custom"
+    },
+    {
       "key": "camera.noCamerasOpen",
       "value": "No Cameras Open"
     },
@@ -12511,6 +12671,246 @@
     {
       "key": "menu.individualPlayer.uuid",
       "value": "UUID"
+    },
+    {
+      "key": "mirror.background",
+      "value": "Background"
+    },
+    {
+      "key": "mirror.background.description",
+      "value": "What the reflection clears to where the world does not cover it."
+    },
+    {
+      "key": "mirror.clearColor",
+      "value": "Clear Color"
+    },
+    {
+      "key": "mirror.clearColor.blue",
+      "value": "Blue"
+    },
+    {
+      "key": "mirror.clearColor.green",
+      "value": "Green"
+    },
+    {
+      "key": "mirror.clearColor.hex",
+      "value": "Hex"
+    },
+    {
+      "key": "mirror.clearColor.red",
+      "value": "Red"
+    },
+    {
+      "key": "mirror.clearFlags",
+      "value": "Clear Mode"
+    },
+    {
+      "key": "mirror.clearFlags.color",
+      "value": "Solid Color"
+    },
+    {
+      "key": "mirror.clearFlags.depth",
+      "value": "Depth Only"
+    },
+    {
+      "key": "mirror.clearFlags.fromReferenceCamera",
+      "value": "Match Player Camera"
+    },
+    {
+      "key": "mirror.clearFlags.nothing",
+      "value": "Nothing"
+    },
+    {
+      "key": "mirror.clearFlags.skybox",
+      "value": "Skybox"
+    },
+    {
+      "key": "mirror.clipPlaneOffset",
+      "value": "Surface Offset"
+    },
+    {
+      "key": "mirror.clipPlaneOffset.description",
+      "value": "Pushes the reflection clip plane off the glass. Raise it if the surface flickers at shallow angles."
+    },
+    {
+      "key": "mirror.clipping",
+      "value": "Clipping"
+    },
+    {
+      "key": "mirror.clipping.description",
+      "value": "How near and how far the mirror renders. A shorter far plane is the cheapest saving in a large world."
+    },
+    {
+      "key": "mirror.cullDistance",
+      "value": "Stop Distance"
+    },
+    {
+      "key": "mirror.cullDistance.description",
+      "value": "Past this distance the mirror stops updating and keeps its last image."
+    },
+    {
+      "key": "mirror.depthBits",
+      "value": "Depth Buffer"
+    },
+    {
+      "key": "mirror.depthBits.description",
+      "value": "Bits of depth precision. 16 is cheaper, 24 avoids z-fighting in deep scenes."
+    },
+    {
+      "key": "mirror.farClip",
+      "value": "Far Clip"
+    },
+    {
+      "key": "mirror.fullRateDistance",
+      "value": "Full Rate Distance"
+    },
+    {
+      "key": "mirror.fullRateDistance.description",
+      "value": "Standalone only. Within this distance the mirror updates every frame."
+    },
+    {
+      "key": "mirror.halfRateDistance",
+      "value": "Half Rate Distance"
+    },
+    {
+      "key": "mirror.height",
+      "value": "Height"
+    },
+    {
+      "key": "mirror.layers",
+      "value": "Reflected Layers"
+    },
+    {
+      "key": "mirror.layers.description",
+      "value": "Which layers appear in the reflection. Turning layers off is the largest saving a mirror has."
+    },
+    {
+      "key": "mirror.msaa",
+      "value": "Anti-aliasing"
+    },
+    {
+      "key": "mirror.msaa.description",
+      "value": "Edge smoothing for the reflection. Ignored while the Graphics anti-aliasing setting is off."
+    },
+    {
+      "key": "mirror.msaa.off",
+      "value": "Off"
+    },
+    {
+      "key": "mirror.nearClip",
+      "value": "Near Clip"
+    },
+    {
+      "key": "mirror.noMirrors",
+      "value": "No Mirrors"
+    },
+    {
+      "key": "mirror.noMirrors.description",
+      "value": "Spawn a mirror to change its settings."
+    },
+    {
+      "key": "mirror.occlusionCulling",
+      "value": "Occlusion Culling"
+    },
+    {
+      "key": "mirror.performance",
+      "value": "Performance"
+    },
+    {
+      "key": "mirror.performance.description",
+      "value": "Update rate and per-render work. Lower these first when a mirror costs you frames."
+    },
+    {
+      "key": "mirror.postProcessing",
+      "value": "Post Processing"
+    },
+    {
+      "key": "mirror.preset",
+      "value": "Preset"
+    },
+    {
+      "key": "mirror.preset.custom",
+      "value": "Custom"
+    },
+    {
+      "key": "mirror.preset.description",
+      "value": "Sets width and height together."
+    },
+    {
+      "key": "mirror.reset",
+      "value": "Reset To Defaults"
+    },
+    {
+      "key": "mirror.resolution",
+      "value": "Resolution"
+    },
+    {
+      "key": "mirror.resolution.description",
+      "value": "Size of the reflection texture. Doubling it costs about four times the memory and fill rate."
+    },
+    {
+      "key": "mirror.secondaryViewerCap",
+      "value": "Secondary Viewer Limit"
+    },
+    {
+      "key": "mirror.secondaryViewerCap.description",
+      "value": "Resolution cap for reflections drawn for handheld cameras and the Scene View."
+    },
+    {
+      "key": "mirror.shadows",
+      "value": "Shadows"
+    },
+    {
+      "key": "mirror.status",
+      "value": "Mirror"
+    },
+    {
+      "key": "mirror.status.effectiveResolution",
+      "value": "Rendering at {0} x {1}"
+    },
+    {
+      "key": "mirror.status.globalOverride",
+      "value": "Overridden by the Mirror Quality setting in Graphics."
+    },
+    {
+      "key": "mirror.status.notPersisted",
+      "value": "Changes here last for this session only."
+    },
+    {
+      "key": "mirror.updateInterval",
+      "value": "Update Interval"
+    },
+    {
+      "key": "mirror.updateInterval.description",
+      "value": "Render the reflection every Nth frame. 1 is every frame."
+    },
+    {
+      "key": "mirror.width",
+      "value": "Width"
+    },
+    {
+      "key": "mirror.cutout",
+      "value": "Cutout"
+    },
+    {
+      "key": "mirror.cutout.description",
+      "value": "Show only the reflection itself on a transparent background, as the calibration mirror does. Pair it with Reflected Layers set to just your avatar."
+    },
+    {
+      "key": "mirror.cutout.unavailable",
+      "value": "Cutout is unavailable: the cutout shader is missing or unsupported here."
+    },
+    {
+      "key": "mirror.size",
+      "value": "Size"
+    },
+    {
+      "key": "mirror.size.description",
+      "value": "Physical size of the mirror surface in the world."
+    },
+    {
+      "key": "mirror.status.surfaceSize",
+      "value": "Surface {0} x {1} m"
     }
   ]
 }

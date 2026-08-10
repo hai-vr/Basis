@@ -23,7 +23,6 @@ public static class BasisCalibrationMirror
 {
     // Big enough to frame a full body right away.
     private const float MirrorScale = 3f;
-    private const string CutoutShaderName = "BasisMirrorCutout";
 
     private static GameObject _instance;
     private static AsyncOperationHandle<GameObject> _handle;
@@ -111,7 +110,7 @@ public static class BasisCalibrationMirror
         // calibration panel and is deliberately not registered in BasisRuntimeSpawnRegistry.
         _instance.name = "Calibration Mirror";
 
-        _instance.transform.localScale *= MirrorScale;
+        _instance.transform.localScale = Vector3.one * MirrorScale;
 
         OptimizeForLocalAvatar(_instance);
 
@@ -175,22 +174,9 @@ public static class BasisCalibrationMirror
     private static bool TryMakeTransparent(BasisSDKMirror mirror)
     {
         if (!BasisLocalCameraDriver.HasInstance) return false;
+        if (mirror.PortalTextureLeft == null) return false;
 
-        Shader shader = Resources.Load<Shader>(CutoutShaderName);
-        if (shader == null || !shader.isSupported) return false; // missing or failed to compile
-
-        if (mirror.Renderer == null || mirror.PortalTextureLeft == null) return false;
-
-        // The alpha channel of the clear is what makes the cutout work.
-        ApplyClear(mirror, new Color(0f, 0f, 0f, 0f));
-
-        // The per-frame reflection binding rides the renderer's MaterialPropertyBlock, so this
-        // direct bind only seeds the material; property IDs match the stock mirror shader.
-        Material material = new Material(shader) { name = "Calibration Mirror Cutout" };
-        material.SetTexture("_ReflectionTexLeft", mirror.PortalTextureLeft);
-        material.SetTexture("_ReflectionTexRight", mirror.PortalTextureRight != null ? mirror.PortalTextureRight : mirror.PortalTextureLeft);
-        mirror.Renderer.material = material;
-        return true;
+        return mirror.SetCutout(true);
     }
 
     private static void ApplyClear(BasisSDKMirror mirror, Color color)

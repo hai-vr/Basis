@@ -72,6 +72,17 @@ public sealed class BasisCameraModeDescriptor
     public readonly string TitleKey;
     public readonly string DescriptionKey;
 
+    /// <summary>
+    /// A saved mode's name, shown as-is. Null for the built-ins, whose titles are localization
+    /// keys. The two cannot be the same field: a name someone typed must never be looked up in the
+    /// language table, or a mode called "Photo" — or worse, one named after a key — would come
+    /// back translated into somebody else's mode.
+    /// </summary>
+    public readonly string LiteralTitle;
+
+    /// <summary>True for a mode somebody saved, which is the half of the roster that can be deleted.</summary>
+    public bool IsUserMode => LiteralTitle != null;
+
     /// <summary>The mode's identity colour. Sections are tinted toward it, never painted with it flat.</summary>
     public readonly Color Tint;
 
@@ -82,13 +93,15 @@ public sealed class BasisCameraModeDescriptor
         string titleKey,
         string descriptionKey,
         Color tint,
-        BasisCameraSectionRole[] roles)
+        BasisCameraSectionRole[] roles,
+        string literalTitle = null)
     {
         Mode = mode;
         TitleKey = titleKey;
         DescriptionKey = descriptionKey;
         Tint = tint;
         _roles = roles;
+        LiteralTitle = literalTitle;
     }
 
     public BasisCameraSectionRole RoleOf(BasisCameraPanelSection section)
@@ -166,9 +179,18 @@ public static class BasisCameraModes
     /// and the card's own translucency — intact, so a tinted panel still looks like the rest of the
     /// menu rather than a block of paint.
     /// </summary>
-    public static Color TintFor(BasisCameraMode mode, BasisCameraPanelSection section, Color baseline)
+    public static Color TintFor(BasisCameraMode mode, BasisCameraPanelSection section, Color baseline) =>
+        TintFor(Get(mode), section, baseline);
+
+    /// <summary>
+    /// The same rule against a descriptor rather than a built-in. Saved modes have no entry in the
+    /// table — their colour is whatever their owner picked — so the tint has to be reachable from
+    /// the descriptor alone.
+    /// </summary>
+    public static Color TintFor(BasisCameraModeDescriptor descriptor, BasisCameraPanelSection section, Color baseline)
     {
-        BasisCameraModeDescriptor descriptor = Get(mode);
+        if (descriptor == null) return baseline;
+
         switch (descriptor.RoleOf(section))
         {
             case BasisCameraSectionRole.Driven:
@@ -277,10 +299,71 @@ public static class BasisCameraModes
         };
     }
 
+    /// <summary>
+    /// Presents a saved mode the way the panel presents a built-in one.
+    ///
+    /// <para>Where a built-in drives a hand-picked few sections, a saved mode is a snapshot of the
+    /// whole camera and so drives every section that has anywhere in the settings file to be
+    /// saved. The three that do not — render layers, the performance limiter and the gizmos — stay
+    /// available: they are real controls that a saved mode simply has no opinion about, and
+    /// colouring them as driven would promise a restore that never comes.</para>
+    ///
+    /// <para>The rig sections follow the same rule the built-ins do. A mode that does not arm
+    /// follow greys the follow section out, because with follow off nothing in it does anything;
+    /// orbit, shake and the dolly track stay available under a cinematic mode because they are the
+    /// rig's own controls rather than the mode's.</para>
+    /// </summary>
+    public static BasisCameraModeDescriptor DescribeUserMode(BasisCameraUserMode mode)
+    {
+        if (mode == null) return Get(BasisCameraMode.Custom);
+
+        // Built as two disjoint lists rather than two literal tables. Follow and the rig are not
+        // quite mutually exclusive — a record hand-edited on disk can arm both — and a section
+        // named in each would silently take whichever role happened to be written second.
+        System.Collections.Generic.List<BasisCameraPanelSection> driven =
+            new System.Collections.Generic.List<BasisCameraPanelSection>
+            {
+                BasisCameraPanelSection.Actions,
+                BasisCameraPanelSection.Lens,
+                BasisCameraPanelSection.DepthOfField,
+                BasisCameraPanelSection.Colour,
+                BasisCameraPanelSection.Effects,
+                BasisCameraPanelSection.Output,
+                BasisCameraPanelSection.Background,
+            };
+
+        System.Collections.Generic.List<BasisCameraPanelSection> inactive =
+            new System.Collections.Generic.List<BasisCameraPanelSection>();
+
+        (mode.autoFollow ? driven : inactive).Add(BasisCameraPanelSection.Follow);
+
+        if (mode.cinematic)
+        {
+            driven.Add(BasisCameraPanelSection.Cinematic);
+            driven.Add(BasisCameraPanelSection.Composition);
+        }
+        else
+        {
+            inactive.Add(BasisCameraPanelSection.Cinematic);
+            inactive.Add(BasisCameraPanelSection.Composition);
+            inactive.Add(BasisCameraPanelSection.Orbit);
+            inactive.Add(BasisCameraPanelSection.Noise);
+            inactive.Add(BasisCameraPanelSection.Dolly);
+        }
+
+        return new BasisCameraModeDescriptor(
+            BasisCameraMode.Custom,
+            "camera.modePreset.custom",
+            "camera.userMode.description",
+            mode.tint,
+            Roles(driven, inactive),
+            mode.name);
+    }
+
     /// <summary>Anything not named is available — the safe default for a section added later.</summary>
     private static BasisCameraSectionRole[] Roles(
-        BasisCameraPanelSection[] driven,
-        BasisCameraPanelSection[] inactive)
+        System.Collections.Generic.IReadOnlyList<BasisCameraPanelSection> driven,
+        System.Collections.Generic.IReadOnlyList<BasisCameraPanelSection> inactive)
     {
         BasisCameraSectionRole[] roles = new BasisCameraSectionRole[SectionCount];
         for (int Index = 0; Index < roles.Length; Index++)
@@ -290,7 +373,7 @@ public static class BasisCameraModes
 
         if (driven != null)
         {
-            for (int Index = 0; Index < driven.Length; Index++)
+            for (int Index = 0; Index < driven.Count; Index++)
             {
                 roles[(int)driven[Index]] = BasisCameraSectionRole.Driven;
             }
@@ -298,7 +381,7 @@ public static class BasisCameraModes
 
         if (inactive != null)
         {
-            for (int Index = 0; Index < inactive.Length; Index++)
+            for (int Index = 0; Index < inactive.Count; Index++)
             {
                 roles[(int)inactive[Index]] = BasisCameraSectionRole.Inactive;
             }
