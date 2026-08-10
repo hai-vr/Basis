@@ -258,6 +258,19 @@ int basis_engine_is_running(basis_media_engine_t* engine);
  * presents on a fixed 1x-from-first-PTS clock instead of the live-edge clock. */
 int basis_engine_is_paced(basis_media_engine_t* engine);
 
+/* RTP loss accounting, reported by the depacketiser. A gap is a sequence
+ * discontinuity, which only UDP transports can see. Both are invisible in
+ * delivery timing and queue depths, so without these the cost of packet loss
+ * cannot be measured.
+ *
+ * from_gap separates the two reasons an access unit gets discarded: a sequence
+ * gap left it incomplete, or reassembly failed locally (allocation, or the
+ * per-AU ceiling refusing an unbounded reassembly). The second can happen with
+ * no packet loss on any transport, so counting them together would report a
+ * malformed source as network loss. */
+void basis_engine_note_rtp_gap(basis_media_engine_t* engine, int is_video);
+void basis_engine_note_video_au_dropped(basis_media_engine_t* engine, int from_gap);
+
 /* Leading frames of a decoded audio block that sit ahead of the media-time
  * origin, and so must not reach the PCM ring.
  *

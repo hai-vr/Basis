@@ -12,7 +12,9 @@
  *     link-time basis_io stub that serves the fuzz bytes in place of a socket.
  *
  * The other basis_io entry points are stubbed no-ops purely to satisfy the link
- * (basis_rtsp_run references them but is never called here).
+ * (basis_rtsp_run references them but is never called here), as are the engine
+ * loss counters the depacketiser reports gaps and dropped access units to —
+ * there is no engine in this TU, and the counts are not what is under test.
  *
  * Build: see ../build.sh (clang -fsanitize=fuzzer,address,undefined).
  */
@@ -48,6 +50,10 @@ int basis_io_udp_connect(basis_io_t* io, const char* h, int p) { (void)io; (void
 int basis_io_udp_open_pair(const char* h, basis_io_t** a, basis_io_t** b, int* p) {
     (void)h; if (a) *a = NULL; if (b) *b = NULL; if (p) *p = 0; return -1;
 }
+
+/* ---- engine stub: loss accounting has no engine to report to here --------- */
+void basis_engine_note_rtp_gap(basis_media_engine_t* e, int is_video) { (void)e; (void)is_video; }
+void basis_engine_note_video_au_dropped(basis_media_engine_t* e, int from_gap) { (void)e; (void)from_gap; }
 
 /* Pull in the real parser (statics become visible in this TU). */
 #include "protocol/basis_rtsp.c"
