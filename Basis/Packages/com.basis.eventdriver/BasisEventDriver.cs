@@ -492,7 +492,7 @@ namespace Basis.EventDriver
 
             using (Prof.NetworkApply.Auto())
             {
-                RemoteBoneJobSystem.ScheduleGathers();
+                RemoteBoneJobSystem.BeginFrame();
                 ProfileBegin(PROF_NETWORK_APPLY);
                 ProfileBegin2();
                 using (Prof.NetFireBeforeApply.Auto())

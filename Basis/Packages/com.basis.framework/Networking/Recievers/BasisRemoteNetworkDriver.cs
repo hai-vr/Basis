@@ -578,10 +578,17 @@ public static class BasisRemoteNetworkDriver
     ///   3. Reads filtered hips local deltas (no separate temp buffer)
     ///   4. Reads per-player TPose hips local pos/rot from caller-supplied arrays
     ///   5. Derives the root world pose via inverse math (conjugate, not inverse)
+    ///   6. Walks the baked hips→head chain for the head's WORLD pose
     /// Replaces what used to be three separate dispatches (BulkCopyHipsAndScale,
     /// BulkCopyHipsLocalDeltas, ComputeRootFromHipsJob). Saves dispatch
     /// overhead at thousand-player scale and removes a round-trip through two
     /// persistent temp buffers, keeping each player's work in cache.
+    ///
+    /// Step 6 is what let GatherHeadJob go. Everything the head pose depends on is already loaded
+    /// here — the hips world pose in step 1, the avatar scale in step 2, and the same rig-neutral
+    /// bone rotations plus decode operators the skeleton pass consumes — so composing it costs a
+    /// handful of quaternion multiplies per player instead of an IJobParallelForTransform that
+    /// could only ever read the PREVIOUS frame's apply.
     /// </summary>
     [BurstCompile]
     struct BulkCopyHipsAndDeriveJob : IJobParallelFor
@@ -596,6 +603,18 @@ public static class BasisRemoteNetworkDriver
         [ReadOnly] public NativeArray<float3> TposeHipsLocalPos;
         [ReadOnly] public NativeArray<quaternion> HipsDecodePre;
         [ReadOnly] public NativeArray<quaternion> HipsDecodePost;
+
+        // ─── Head-chain FK ───
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> SrcBoneRotations;
+        [ReadOnly] public NativeArray<HeadChainLink> HeadChain;
+        [ReadOnly] public NativeArray<HeadChainHeader> HeadChainHeaders;
+        [ReadOnly] public NativeArray<quaternion> BoneDecodePre;
+        [ReadOnly] public NativeArray<quaternion> BoneDecodePost;
+        [WriteOnly] public NativeArray<float3> DstHeadWorldPos;
+        [WriteOnly] public NativeArray<quaternion> DstHeadWorldRot;
+        public int HeadChainStride;
+        public int BoneCount;
+        public int CapacityFixed;
 
         [WriteOnly] public NativeArray<float3> DstHipsWorldPos;
         [WriteOnly] public NativeArray<quaternion> DstHipsWorldRot;
@@ -628,6 +647,48 @@ public static class BasisRemoteNetworkDriver
             float3 scaledLocal = scale * hipsLocalPos;
             DstRootPos[i] = hipsWorldPos - math.mul(rootRot, scaledLocal);
             DstRootRot[i] = rootRot;
+
+            // 6: forward-kinematic the head off the hips pose just fanned out. Only bones the bake
+            // found in the real hierarchy are links, so a rig's twist/Armature nodes are already
+            // folded in and a missing UpperChest simply isn't there.
+            HeadChainHeader header = HeadChainHeaders[i];
+            bool keyValid = (uint)key < (uint)CapacityFixed;
+            float3 headPos = hipsWorldPos;
+            quaternion headRot = hipsWorldRot;
+            float3 chainScale = scale * header.HipsScalePerRootLocal;
+
+            int linkBase = i * HeadChainStride;
+            int boneBase = i * BoneCount;
+            int deltaBase = key * BoneCount;
+            for (int l = 0; l < header.Length; l++)
+            {
+                HeadChainLink link = HeadChain[linkBase + l];
+                headPos += math.mul(headRot, chainScale * link.Offset);
+
+                quaternion driven = quaternion.identity;
+                if (link.Slot >= 0)
+                {
+                    quaternion generic = keyValid ? SrcBoneRotations[deltaBase + link.Slot] : quaternion.identity;
+                    // (0,0,0,0) is the shimmer filter's unseeded sentinel — see EnsureInitialized and
+                    // ResetBoneShimmerFilter, which stamp it on registration, recalibration and every
+                    // reused slot — and it survives until that player's first decoded pose lands.
+                    // Composing it collapses the whole chain to a zero quaternion, which normalize
+                    // below turns into NaN. Identity is what the rig is actually showing anyway: the
+                    // skeleton apply never writes the sentinel out, because LastWritten is seeded to
+                    // the same zero and its bit-exact compare suppresses the write, so the bone is
+                    // still sitting at its bind rotation.
+                    if (math.lengthsq(generic.value) < 0.5f) generic = quaternion.identity;
+                    driven = math.mul(math.mul(BoneDecodePre[boneBase + link.Slot], generic),
+                                      BoneDecodePost[boneBase + link.Slot]);
+                }
+
+                headRot = math.mul(headRot, math.mul(link.PreRot, driven));
+                chainScale *= link.ScaleMul;
+            }
+
+            DstHeadWorldPos[i] = headPos;
+            // Renormalized so the chain of multiplies matches what Transform.rotation would return.
+            DstHeadWorldRot[i] = math.normalize(headRot);
         }
     }
 
@@ -704,8 +765,8 @@ public static class BasisRemoteNetworkDriver
     /// ComputeRootFromHipsJob trio — one dispatch instead of three, and no
     /// round-trip through hips-delta temp buffers.
     /// playerKeys[i] → internal SoA index; data is written to dst arrays at index i.
-    /// TPose hips local pos/rot are passed in by the caller (per-player cache
-    /// owned by RemoteBoneJobSystem).
+    /// TPose hips local pos/rot, the decode operator tables and the baked head chain are all passed
+    /// in by the caller (per-player caches owned by RemoteBoneJobSystem).
     /// </summary>
     public static JobHandle ScheduleBulkCopyHipsAndDerive(
         NativeArray<int> playerKeys, int count,
@@ -714,6 +775,10 @@ public static class BasisRemoteNetworkDriver
         NativeArray<float3> dstHipsWorldPos, NativeArray<quaternion> dstHipsWorldRot,
         NativeArray<float3> dstScale, NativeArray<byte> dstScaleChanged,
         NativeArray<float3> dstRootPos, NativeArray<quaternion> dstRootRot,
+        NativeArray<HeadChainLink> headChain, NativeArray<HeadChainHeader> headChainHeaders,
+        int headChainStride,
+        NativeArray<quaternion> boneDecodePre, NativeArray<quaternion> boneDecodePost, int boneCount,
+        NativeArray<float3> dstHeadWorldPos, NativeArray<quaternion> dstHeadWorldRot,
         JobHandle deps = default)
     {
         if (!_initialized || count == 0) return deps;
@@ -733,6 +798,16 @@ public static class BasisRemoteNetworkDriver
             TposeHipsLocalPos = tposeHipsLocalPos,
             HipsDecodePre = hipsDecodePre,
             HipsDecodePost = hipsDecodePost,
+            SrcBoneRotations = _outBoneRotations,
+            HeadChain = headChain,
+            HeadChainHeaders = headChainHeaders,
+            BoneDecodePre = boneDecodePre,
+            BoneDecodePost = boneDecodePost,
+            DstHeadWorldPos = dstHeadWorldPos,
+            DstHeadWorldRot = dstHeadWorldRot,
+            HeadChainStride = headChainStride,
+            BoneCount = boneCount,
+            CapacityFixed = FixedCapacity,
             DstHipsWorldPos = dstHipsWorldPos,
             DstHipsWorldRot = dstHipsWorldRot,
             DstScaleOut = dstScale,
