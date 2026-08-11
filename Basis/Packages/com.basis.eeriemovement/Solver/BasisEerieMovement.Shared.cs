@@ -4,12 +4,8 @@ using Unity.Collections;
 using UnityEngine;
 namespace Basis.IK
 {
-    /// <summary>
-    /// Geometry and bone-write helpers shared by more than one body part.
-    /// </summary>
     public partial struct BasisEerieMovement
     {
-        // Generic per-bone overrides (direct tracker control). Last, so a tracker outranks every solve above.
         void ApplyTrackerOverrides(BasisPoseStream stream)
         {
             for (int i = 0; i < slotHandles.Length; i++)
@@ -20,14 +16,12 @@ namespace Basis.IK
 
         public static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
-            // Angle between the two orientations
             float angle = Quaternion.Angle(reference, current);
             if (angle <= maxAngleDeg)
             {
                 return current;
             }
 
-            // Scale back toward the reference so the final difference is exactly maxAngleDeg
             float t = maxAngleDeg / Mathf.Max(angle, k_Epsilon);
             return Quaternion.Slerp(reference, current, t);
         }
@@ -155,7 +149,6 @@ namespace Basis.IK
             {
                 if (sw)
                 {
-
                     Vector3 targetPos = p;
                     Quaternion targetRot = r;
                     Quaternion offsetRot = o;
