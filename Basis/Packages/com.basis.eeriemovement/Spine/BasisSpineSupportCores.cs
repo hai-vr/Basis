@@ -182,20 +182,6 @@ namespace Basis.IK
             r.HipsRot = Quaternion.AngleAxis(addDeg, hingeAxis) * i.HipsRot;
         }
 
-        public static float Saturate(float x, float cap)
-        {
-            if (!(cap > k_Epsilon))
-            {
-                return 0f;
-            }
-            float soft = cap * 0.8f;
-            if (!(x > soft))
-            {
-                return x < 0f ? 0f : x;
-            }
-            float m = cap - soft;
-            float e = x - soft;
-            return soft + m * e / (m + e);
-        }
+        public static float Saturate(float x, float cap) => BasisTrunkCounterbalanceCore.Saturate(x, cap);
     }
 }
