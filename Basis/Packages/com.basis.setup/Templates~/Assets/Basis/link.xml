@@ -94,7 +94,6 @@
     <assembly fullname="Unity.RenderPipelines.Universal.Shaders" preserve="all" />
     <assembly fullname="Unity.ResourceManager" preserve="all" />
     <assembly fullname="Unity.ScriptableBuildPipeline" preserve="all" />
-    <assembly fullname="Unity.Services.Analytics" preserve="all" />
     <assembly fullname="Unity.Services.CloudDiagnostics" preserve="all" />
     <assembly fullname="Unity.Services.Core" preserve="all" />
     <assembly fullname="Unity.Services.Core.Analytics" preserve="all" />
