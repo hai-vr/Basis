@@ -4059,22 +4059,6 @@
       "value": "Movement Mode"
     },
     {
-      "key": "menu.individualPlayer.locomotion.mode.none",
-      "value": "Leave Unchanged"
-    },
-    {
-      "key": "menu.individualPlayer.locomotion.mode.walk",
-      "value": "Walk"
-    },
-    {
-      "key": "menu.individualPlayer.locomotion.mode.fly",
-      "value": "Fly"
-    },
-    {
-      "key": "menu.individualPlayer.locomotion.mode.noclip",
-      "value": "No Clip"
-    },
-    {
       "key": "menu.individualPlayer.locomotion.apply",
       "value": "Apply Locomotion Override"
     },
@@ -12727,6 +12711,134 @@
     {
       "key": "settings.admin.playerOpusBitrate.clear",
       "value": "Clear Player Bitrate"
+    },
+    {
+      "key": "settings.admin.locomotion",
+      "value": "Locomotion Override"
+    },
+    {
+      "key": "settings.admin.locomotion.jumpHeight.override",
+      "value": "Override Jump Height"
+    },
+    {
+      "key": "settings.admin.locomotion.jumpHeight",
+      "value": "Jump Height"
+    },
+    {
+      "key": "settings.admin.locomotion.walkSpeed.override",
+      "value": "Override Walk Speed"
+    },
+    {
+      "key": "settings.admin.locomotion.walkSpeed",
+      "value": "Walk Speed (m/s)"
+    },
+    {
+      "key": "settings.admin.locomotion.runSpeed.override",
+      "value": "Override Run Speed"
+    },
+    {
+      "key": "settings.admin.locomotion.runSpeed",
+      "value": "Run Speed (m/s)"
+    },
+    {
+      "key": "settings.admin.locomotion.mode",
+      "value": "Movement Mode"
+    },
+    {
+      "key": "settings.admin.locomotion.mode.none",
+      "value": "Leave Unchanged"
+    },
+    {
+      "key": "settings.admin.locomotion.mode.walk",
+      "value": "Walk"
+    },
+    {
+      "key": "settings.admin.locomotion.mode.fly",
+      "value": "Fly"
+    },
+    {
+      "key": "settings.admin.locomotion.mode.noclip",
+      "value": "No Clip"
+    },
+    {
+      "key": "settings.admin.locomotion.apply",
+      "value": "Apply To Selected Player"
+    },
+    {
+      "key": "settings.admin.locomotion.apply.tooltip",
+      "value": "Override the selected player's movement for this session. Only the fields you ticked are sent."
+    },
+    {
+      "key": "settings.admin.locomotion.clear",
+      "value": "Clear On Selected Player"
+    },
+    {
+      "key": "settings.admin.locomotion.clear.tooltip",
+      "value": "Return the selected player to whatever the world and their own settings ask for."
+    },
+    {
+      "key": "settings.admin.locomotion.applyAll",
+      "value": "Apply To Everyone"
+    },
+    {
+      "key": "settings.admin.locomotion.applyAll.tooltip",
+      "value": "Override every player in the instance. Ignores the selected player. Protected players are skipped."
+    },
+    {
+      "key": "settings.admin.locomotion.clearAll",
+      "value": "Clear On Everyone"
+    },
+    {
+      "key": "settings.admin.locomotion.clearAll.tooltip",
+      "value": "Drop the locomotion override on every player in the instance."
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApply.title",
+      "value": "Override Locomotion?"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApply.body",
+      "value": "Override this player's movement for the rest of their session. They cannot undo it themselves."
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApply.confirm",
+      "value": "Override"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClear.title",
+      "value": "Clear Locomotion Override?"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClear.body",
+      "value": "Return this player's movement to whatever the world and their own settings ask for."
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClear.confirm",
+      "value": "Clear"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApplyAll.title",
+      "value": "Override Everyone's Locomotion?"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApplyAll.body",
+      "value": "Override the movement of EVERY player in this instance, not just the selected one. Protected players are skipped."
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApplyAll.confirm",
+      "value": "Override Everyone"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClearAll.title",
+      "value": "Clear Everyone's Locomotion Override?"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClearAll.body",
+      "value": "Drop the locomotion override on EVERY player in this instance."
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClearAll.confirm",
+      "value": "Clear Everyone"
     },
     {
       "key": "settings.admin.playerOpusBitrate.clear.tooltip",

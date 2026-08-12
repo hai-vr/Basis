@@ -224,6 +224,12 @@ namespace BasisNetworkCore.Serializable
             // server→client: apply this locomotion override now. Same payload as SetLocomotionOverride
             // with the target id replaced by the initiating moderator's id.
             LocomotionOverrideApply,
+
+            // moderator: override EVERY player's locomotion. Same payload as SetLocomotionOverride minus
+            // the target id. The server fans LocomotionOverrideApply out to every peer except the sender,
+            // skipping anyone holding basis.protection, so the client needs no new receive path.
+            // Payload: [byte fields][float jumpHeight][float walkSpeed][float runSpeed][float gravity][byte mode]
+            SetLocomotionOverrideAll,
         }
     }
 }

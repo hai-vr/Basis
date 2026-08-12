@@ -196,6 +196,27 @@ public static class BasisNetworkModeration
     }
 
     /// <summary>
+    /// <see cref="SetLocomotionOverride(ushort, BasisLocomotionValues)"/> aimed at the whole instance. The
+    /// server sends it to everyone but the caller and skips players holding basis.protection.
+    /// </summary>
+    public static void SetLocomotionOverrideAll(BasisLocomotionValues values)
+    {
+        SendAdminRequest(AdminRequestMode.SetLocomotionOverrideAll,
+            w => w.Put((byte)values.Fields),
+            w => w.Put(values.JumpHeight),
+            w => w.Put(values.WalkSpeed),
+            w => w.Put(values.RunSpeed),
+            w => w.Put(values.Gravity),
+            w => w.Put((byte)values.Mode));
+    }
+
+    /// <summary>Drop the moderator locomotion override on every player in the instance.</summary>
+    public static void ClearLocomotionOverrideAll()
+    {
+        SetLocomotionOverrideAll(default);
+    }
+
+    /// <summary>
     /// Convenience overload taking the library entry a moderator picked.
     /// </summary>
     public static void ForceAvatar(ushort targetId, BasisDataStoreItemKeys.ItemKey item)

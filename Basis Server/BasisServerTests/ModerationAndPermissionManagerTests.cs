@@ -374,6 +374,7 @@ public class PermissionManagerTests
         Assert.True(m.Has(mod, PermNodes.ChatLockBypass));
         Assert.True(m.Has(mod, PermNodes.VoiceLockBypass));
         Assert.True(m.Has(mod, PermNodes.ModerationForceAvatar));
+        Assert.True(m.Has(mod, PermNodes.ModerationLocomotion));
         Assert.True(m.Has(mod, PermNodes.help)); // via "default" parent
         Assert.False(m.Has(mod, PermNodes.PermissionsEdit));
         Assert.False(m.Has(mod, PermNodes.ConfigurationEditor));
@@ -388,7 +389,7 @@ public class PermissionManagerTests
         Assert.Contains("*", m.GetAllAllowedRules(admin));
 
         Assert.True(m.TryGetGroup("moderator", out var modGroup));
-        Assert.Equal(21, modGroup.Nodes.Count);
+        Assert.Equal(22, modGroup.Nodes.Count);
         Assert.Contains("default", modGroup.Parents);
 
         Assert.True(m.TryGetGroup("admin", out var adminGroup));

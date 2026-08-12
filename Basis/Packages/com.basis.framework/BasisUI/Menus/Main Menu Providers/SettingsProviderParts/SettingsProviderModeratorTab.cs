@@ -1,4 +1,6 @@
+﻿using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
@@ -367,10 +369,187 @@ namespace Basis.BasisUI
                     BasisNetworkModeration.SetUserOpusBitrate(target.playerId, 0);
                 });
 
+            // --- Locomotion override ---
+            // Targets the runtime player id like the bitrate override above, so it only reaches someone
+            // currently connected. The "everyone" button ignores the selected player entirely.
+            PanelSectionToggle locomotionSection = PanelSectionToggle.CreateNewEntry(container);
+            locomotionSection.SetTitle(BasisLocalization.Get("settings.admin.locomotion"));
+            int locomotionStart = container.childCount;
+
+            PanelToggle jumpToggle = PanelToggle.CreateNew(container);
+            jumpToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.jumpHeight.override"));
+            PanelSlider jumpSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
+            jumpSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("settings.admin.locomotion.jumpHeight"), 0.1f, 5f, false, 2, ValueDisplayMode.Meters));
+            jumpSlider.SetValueWithoutNotify(DefaultLocomotionJumpHeight);
+
+            PanelToggle walkToggle = PanelToggle.CreateNew(container);
+            walkToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.walkSpeed.override"));
+            PanelSlider walkSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
+            walkSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("settings.admin.locomotion.walkSpeed"), 0f, 15f, false, 2, ValueDisplayMode.Raw));
+            walkSlider.SetValueWithoutNotify(DefaultLocomotionWalkSpeed);
+
+            PanelToggle runToggle = PanelToggle.CreateNew(container);
+            runToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.runSpeed.override"));
+            PanelSlider runSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
+            runSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("settings.admin.locomotion.runSpeed"), 0f, 20f, false, 2, ValueDisplayMode.Raw));
+            runSlider.SetValueWithoutNotify(DefaultLocomotionRunSpeed);
+
+            List<string> locomotionModes = BuildLocomotionModeEntries();
+            PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(container);
+            modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.mode"));
+            modeDropdown.AssignEntries(locomotionModes);
+            modeDropdown.SetValueWithoutNotify(locomotionModes[0]);
+
+            void ApplyLocomotionSliderVisibility()
+            {
+                jumpSlider.Descriptor.SetActive(jumpToggle.Value);
+                walkSlider.Descriptor.SetActive(walkToggle.Value);
+                runSlider.Descriptor.SetActive(runToggle.Value);
+            }
+
+            ApplyLocomotionSliderVisibility();
+            jumpToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); descriptor.ForceRebuild(); };
+            walkToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); descriptor.ForceRebuild(); };
+            runToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); descriptor.ForceRebuild(); };
+
+            BasisLocomotionValues BuildLocomotionValues()
+            {
+                return ComposeLocomotionValues(
+                    jumpToggle.Value, jumpSlider.Value,
+                    walkToggle.Value, walkSlider.Value,
+                    runToggle.Value, runSlider.Value,
+                    locomotionModes.IndexOf(modeDropdown.Value));
+            }
+
+            PanelButton applyLocomotion = PanelButton.CreateNew(container);
+            applyLocomotion.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.apply"));
+            applyLocomotion.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.locomotion.apply.tooltip"));
+            GuardedClick(applyLocomotion, BasisLocalization.Get("settings.admin.confirm.locomotionApply.title"),
+                BasisLocalization.Get("settings.admin.confirm.locomotionApply.body"),
+                BasisLocalization.Get("settings.admin.confirm.locomotionApply.confirm"),
+                () =>
+                {
+                    BasisNetworkPlayer target = controller.GetEffectivePlayer();
+                    if (target == null) { BasisDebug.LogError("No player available."); return; }
+                    BasisLocomotionValues values = BuildLocomotionValues();
+                    if (values.Fields == BasisLocomotionField.None)
+                    {
+                        BasisDebug.LogError("No locomotion fields selected to override.");
+                        return;
+                    }
+                    BasisNetworkModeration.SetLocomotionOverride(target.playerId, values);
+                });
+
+            PanelButton clearLocomotion = PanelButton.CreateNew(container);
+            clearLocomotion.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.clear"));
+            clearLocomotion.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.locomotion.clear.tooltip"));
+            GuardedClick(clearLocomotion, BasisLocalization.Get("settings.admin.confirm.locomotionClear.title"),
+                BasisLocalization.Get("settings.admin.confirm.locomotionClear.body"),
+                BasisLocalization.Get("settings.admin.confirm.locomotionClear.confirm"),
+                () =>
+                {
+                    BasisNetworkPlayer target = controller.GetEffectivePlayer();
+                    if (target == null) { BasisDebug.LogError("No player available."); return; }
+                    BasisNetworkModeration.ClearLocomotionOverride(target.playerId);
+                });
+
+            // Ignores the selected player entirely — this is the whole instance, so the confirmation
+            // spells that out rather than reusing the single-target wording.
+            PanelButton applyLocomotionAll = PanelButton.CreateNew(container);
+            applyLocomotionAll.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.applyAll"));
+            applyLocomotionAll.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.locomotion.applyAll.tooltip"));
+            GuardedClick(applyLocomotionAll, BasisLocalization.Get("settings.admin.confirm.locomotionApplyAll.title"),
+                BasisLocalization.Get("settings.admin.confirm.locomotionApplyAll.body"),
+                BasisLocalization.Get("settings.admin.confirm.locomotionApplyAll.confirm"),
+                () =>
+                {
+                    BasisLocomotionValues values = BuildLocomotionValues();
+                    if (values.Fields == BasisLocomotionField.None)
+                    {
+                        BasisDebug.LogError("No locomotion fields selected to override.");
+                        return;
+                    }
+                    BasisNetworkModeration.SetLocomotionOverrideAll(values);
+                });
+
+            PanelButton clearLocomotionAll = PanelButton.CreateNew(container);
+            clearLocomotionAll.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.clearAll"));
+            clearLocomotionAll.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.locomotion.clearAll.tooltip"));
+            GuardedClick(clearLocomotionAll, BasisLocalization.Get("settings.admin.confirm.locomotionClearAll.title"),
+                BasisLocalization.Get("settings.admin.confirm.locomotionClearAll.body"),
+                BasisLocalization.Get("settings.admin.confirm.locomotionClearAll.confirm"),
+                BasisNetworkModeration.ClearLocomotionOverrideAll);
+
+            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(locomotionSection, container, locomotionStart, false,
+                visible =>
+                {
+                    if (visible) ApplyLocomotionSliderVisibility();
+                    descriptor.ForceRebuild();
+                });
+
             controller.RebuildPlayerList();
             controller.RebuildAvatarList();
             descriptor.ForceRebuild();
             return tab;
+        }
+
+        /// <summary>Values the locomotion sliders start on before a moderator moves them.</summary>
+        private const float DefaultLocomotionJumpHeight = 1.0f;
+        private const float DefaultLocomotionWalkSpeed = 2.5f;
+        private const float DefaultLocomotionRunSpeed = 4.0f;
+
+        /// <summary>
+        /// Movement-mode picker entries. Index 0 leaves the mode alone; the rest map onto
+        /// <see cref="BasisLocalCharacterDriver.Mode"/> in declaration order.
+        /// </summary>
+        internal static List<string> BuildLocomotionModeEntries()
+        {
+            return new List<string>
+            {
+                BasisLocalization.Get("settings.admin.locomotion.mode.none"),
+                BasisLocalization.Get("settings.admin.locomotion.mode.walk"),
+                BasisLocalization.Get("settings.admin.locomotion.mode.fly"),
+                BasisLocalization.Get("settings.admin.locomotion.mode.noclip"),
+            };
+        }
+
+        /// <summary>
+        /// Folds the toggle/slider state into a payload. <paramref name="modeIndex"/> is the picker index:
+        /// 0 or below leaves the mode unclaimed.
+        /// </summary>
+        internal static BasisLocomotionValues ComposeLocomotionValues(
+            bool overrideJump, float jumpHeight,
+            bool overrideWalk, float walkSpeed,
+            bool overrideRun, float runSpeed,
+            int modeIndex)
+        {
+            BasisLocomotionValues values = default;
+
+            if (overrideJump)
+            {
+                values.Fields |= BasisLocomotionField.JumpHeight;
+                values.JumpHeight = jumpHeight;
+            }
+            if (overrideWalk)
+            {
+                values.Fields |= BasisLocomotionField.WalkSpeed;
+                values.WalkSpeed = walkSpeed;
+            }
+            if (overrideRun)
+            {
+                values.Fields |= BasisLocomotionField.RunSpeed;
+                values.RunSpeed = runSpeed;
+            }
+            if (modeIndex > 0)
+            {
+                values.Fields |= BasisLocomotionField.Mode;
+                values.Mode = (BasisLocalCharacterDriver.Mode)(modeIndex - 1);
+            }
+
+            return values;
         }
 
         private static void WithConfirm(string title, string body, string confirmText, string cancelText, Action onConfirm)

@@ -211,6 +211,25 @@ namespace BasisNetworkCore.Serializable
             // skipping anyone holding basis.protection, so the client needs no new receive path.
             // Payload: [string url][string password][byte embeddedSource]
             ForceAvatarAll,
+
+            // moderator: override one player's jump height, walk/run speed, gravity and character
+            // controller mode. The server authorizes and relays to that single peer, which applies it
+            // under a reserved key world content cannot clear or outrank. Session-only, not persisted.
+            // Payload: [ushort targetId][byte fields][float jumpHeight][float walkSpeed][float runSpeed]
+            //          [float gravity][byte mode]
+            // fields is a bitmask: 1 jumpHeight, 2 walkSpeed, 4 runSpeed, 8 gravity, 16 mode.
+            // fields == 0 clears the override. mode: 0 = Walk, 1 = Fly, 2 = NoClip.
+            SetLocomotionOverride,
+
+            // server→client: apply this locomotion override now. Same payload as SetLocomotionOverride
+            // with the target id replaced by the initiating moderator's id.
+            LocomotionOverrideApply,
+
+            // moderator: override EVERY player's locomotion. Same payload as SetLocomotionOverride minus
+            // the target id. The server fans LocomotionOverrideApply out to every peer except the sender,
+            // skipping anyone holding basis.protection, so the client needs no new receive path.
+            // Payload: [byte fields][float jumpHeight][float walkSpeed][float runSpeed][float gravity][byte mode]
+            SetLocomotionOverrideAll,
         }
     }
 }
