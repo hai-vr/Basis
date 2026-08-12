@@ -146,11 +146,16 @@ namespace Basis.IK
 
         public NativeArray<Vector3> chestSpringState;
         public NativeArray<int> chestSpringInit;
-        public const int k_SwingLeftElbow = 0, k_SwingRightElbow = 1, k_SwingLeftKnee = 2, k_SwingRightKnee = 3, k_SwingCount = 4;
+        public const int k_SwingLeftElbow = 0, k_SwingRightElbow = 1, k_SwingCount = 2;
         public NativeArray<Vector3> swingLastDir, swingLastAxis, swingLastTarget;
         public NativeArray<Vector3> swingHintBend, swingHintAxis, swingHintDrag;
         public NativeArray<Quaternion> swingHintBodyRot;
         public NativeArray<int> swingContinuityInit, swingCollided, swingSmoothState, swingHintInit;
+        public NativeArray<float> swingHintReach;
+        public NativeArray<int> swingGuardSide;
+        public NativeArray<Vector3> swingPoleAnchor;
+        public NativeArray<Quaternion> swingPoleAnchorRot;
+        public NativeArray<int> swingPoleAnchorInit;
         public NativeArray<Vector3> legSwivelRaw, legSwivelSmooth;
         public NativeArray<int> legSwivelInit;
         public NativeArray<BasisLegDiagnostics> legDiagnostics;
@@ -298,6 +303,11 @@ namespace Basis.IK
             if (swingHintDrag.IsCreated) swingHintDrag.Dispose();
             if (swingHintBodyRot.IsCreated) swingHintBodyRot.Dispose();
             if (swingHintInit.IsCreated) swingHintInit.Dispose();
+            if (swingHintReach.IsCreated) swingHintReach.Dispose();
+            if (swingGuardSide.IsCreated) swingGuardSide.Dispose();
+            if (swingPoleAnchor.IsCreated) swingPoleAnchor.Dispose();
+            if (swingPoleAnchorRot.IsCreated) swingPoleAnchorRot.Dispose();
+            if (swingPoleAnchorInit.IsCreated) swingPoleAnchorInit.Dispose();
             if (legDiagnostics.IsCreated) legDiagnostics.Dispose();
             if (legSwivelRaw.IsCreated) legSwivelRaw.Dispose();
             if (legSwivelSmooth.IsCreated) legSwivelSmooth.Dispose();

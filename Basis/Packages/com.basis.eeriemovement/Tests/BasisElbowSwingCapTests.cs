@@ -69,11 +69,15 @@ namespace Basis.Tests.IK
             float worstGain = 0f;
             for (int i = 1; i < n; i++)
             {
+                // atan2 angle metric, matching the core's own budget arithmetic: Vector3.Angle's acos
+                // loses ~1.3% at these 0.17-degree steps (acos ulp amplification near dot=1), which is
+                // wider than this assert's 1% slack and reads as a phantom cap leak.
+                float3 prevAxisN = math.normalize(hand[i - 1]);
                 float3 axis = math.normalize(hand[i]);
-                float dHand = Vector3.Angle((Vector3)math.normalize(hand[i - 1]), (Vector3)axis);
+                float dHand = math.degrees(math.atan2(math.length(math.cross(prevAxisN, axis)), math.dot(prevAxisN, axis)));
                 if (dHand < 1e-4f) continue;
                 Transport(capped[i - 1], axis, out float3 tp);
-                float rot = Vector3.Angle((Vector3)tp, (Vector3)capped[i]);
+                float rot = math.degrees(math.atan2(math.length(math.cross(tp, capped[i])), math.dot(tp, capped[i])));
                 worstGain = Mathf.Max(worstGain, rot / dHand);
             }
             Assert.LessOrEqual(worstGain, k_MaxGain + 0.05f,

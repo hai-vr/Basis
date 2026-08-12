@@ -13,7 +13,18 @@ public struct BasisFootSimulateJob : IJob
     const float k_DoubleSupportStanding = 1.0f;
     const float k_WalkOnsetFrac = 0.10f;
 
-    const float k_StandingTriggerFrac = 0.55f;
+    // Standing reaction scale on (stepTriggerDist + idleBoost). stepTriggerDist (0.18*leg) is a WALK
+    // stride constant; at 0.55 with the boost added unscaled the body drifted ~0.19*leg (16.5 cm adult)
+    // before a standing step was even requested -- the documented "slow to react" residue. 0.38 with the
+    // boost folded under the scale lands the standing reaction at ~0.10*leg (8.9 cm), balance-of-support
+    // scale rather than stride scale. Walk band (walkOnset >= 1) is bit-identical: scale lerps to 1 and
+    // the boost is only nonzero when stationary.
+    const float k_StandingTriggerFrac = 0.38f;
+
+    // A foot far out of place may go SOONER: drift at 2x threshold halves the remaining double-support
+    // dwell. Advances the existing trigger, never creates one (the invariance-safe shape); inert in the
+    // walk band where the dwell is already ~0.05*stepDur.
+    const float k_DriftDwellWaiver = 0.5f;
 
     const float k_DriftUrgencyRefMul = 1.0f;
 
@@ -203,7 +214,7 @@ public struct BasisFootSimulateJob : IJob
 
         float triggerScale = math.lerp(k_StandingTriggerFrac, 1f, walkOnset)
                            * math.lerp(1f, k_AccelTriggerFrac, accelUrgency);
-        float threshold = math.min(p.stepTriggerDist * triggerScale + speed * p.strideScale + idleBoost, avgLegT * 0.55f);
+        float threshold = math.min((p.stepTriggerDist + idleBoost) * triggerScale + speed * p.strideScale, avgLegT * 0.55f);
         float stepDur = math.lerp(p.stepDurSlow, p.stepDurFast, urgencyT);
 
         float dsWalkT = math.saturate(speed / math.max(1e-3f, k_WalkTopSpeedFrac * dsSpeedRef));
@@ -370,11 +381,22 @@ public struct BasisFootSimulateJob : IJob
                 if (math.lengthsq(f.plantedBodyFwd) < 1e-6f) f.plantedBodyFwd = bodyFlat;
 
                 float yawDiff = math.abs(SignedAngle(math.normalize(f.plantedBodyFwd), bodyFlat, up));
-                yawTrigger = yawDiff > p.maxPlantedYawDegrees;
+                // Fire EARLY by the yaw the body will add during the swing (mirroring what
+                // ComputeStepPrediction adds to the target) -- triggering only at the full limit meant
+                // every re-plant cost limit + yawRate*stepDur = 25-46 deg of body yaw instead of ~20.
+                float predSwingYaw = math.min(math.abs(yawRateDeg) * stepDur, p.maxPlantedYawDegrees);
+                yawTrigger = yawDiff + predSwingYaw > p.maxPlantedYawDegrees;
+            }
+
+            float dwellRequired = doubleSupportSec;
+            if (dist > threshold && threshold > 1e-4f)
+            {
+                float driftUrgency = math.saturate((dist - threshold) / threshold);
+                dwellRequired *= 1f - k_DriftDwellWaiver * driftUrgency;
             }
 
             float doubleSupportSoFar = math.min(f.plantedTime, other.plantedTime);
-            bool otherSettled = other.phase == 0 && doubleSupportSoFar >= doubleSupportSec;
+            bool otherSettled = other.phase == 0 && doubleSupportSoFar >= dwellRequired;
 
             if ((dist > threshold || yawTrigger) && otherSettled)
             {

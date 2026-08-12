@@ -93,7 +93,7 @@ namespace Basis.IK
             float spineR = Mathf.Max(0f, chestRBase * 0.8f + skin);
             float hipsR = Mathf.Max(0f, chestRBase * 1.4f + skin);
 
-            Vector3 upN = acSqr > 0f && i.PlayerUp.sqrMagnitude > k_Epsilon ? i.PlayerUp.normalized : Vector3.up;
+            Vector3 upN = i.PlayerUp.sqrMagnitude > k_Epsilon * k_Epsilon ? i.PlayerUp.normalized : Vector3.up;
             Vector3 bodyLat = i.BodyRight - upN * Vector3.Dot(i.BodyRight, upN);
             if (bodyLat.sqrMagnitude <= k_Epsilon * k_Epsilon)
             {
@@ -301,8 +301,8 @@ namespace Basis.IK
             float apR = latR * k_ChestDepthRatio;
             Vector3 axis = q2 - p2;
             float axisSqr = axis.sqrMagnitude;
-            if (apR > k_Epsilon && sepLen > k_Epsilon && axisSqr > k_Epsilon
-                && bodyLat.sqrMagnitude > k_Epsilon && bodyFwd.sqrMagnitude > k_Epsilon)
+            if (apR > k_Epsilon && sepLen > k_Epsilon && axisSqr > k_Epsilon * k_Epsilon
+                && bodyLat.sqrMagnitude > k_Epsilon * k_Epsilon && bodyFwd.sqrMagnitude > k_Epsilon * k_Epsilon)
             {
                 Vector3 axisN = axis / Mathf.Sqrt(axisSqr);
                 Vector3 sepPerp = sep - axisN * Vector3.Dot(sep, axisN);

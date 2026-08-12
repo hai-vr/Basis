@@ -252,8 +252,8 @@ public partial class BasisLocalFootDriver
 
         if (_nativeFeet.IsCreated)
         {
-            _nativeFeet[0] = FootStateToNative(left);
-            _nativeFeet[1] = FootStateToNative(right);
+            _nativeFeet[0] = FootStateToNative(left, _nativeFeet[0]);
+            _nativeFeet[1] = FootStateToNative(right, _nativeFeet[1]);
         }
     }
 
@@ -275,8 +275,8 @@ public partial class BasisLocalFootDriver
 
         if (_nativeFeet.IsCreated)
         {
-            _nativeFeet[0] = FootStateToNative(left);
-            _nativeFeet[1] = FootStateToNative(right);
+            _nativeFeet[0] = FootStateToNative(left, _nativeFeet[0]);
+            _nativeFeet[1] = FootStateToNative(right, _nativeFeet[1]);
         }
         if (_nativeSimState.IsCreated)
         {
@@ -396,8 +396,8 @@ public partial class BasisLocalFootDriver
             smoothedBodyRight = bodyRight,
         };
 
-        _nativeFeet[0] = FootStateToNative(left);
-        _nativeFeet[1] = FootStateToNative(right);
+        _nativeFeet[0] = FootStateToNative(left, _nativeFeet[0]);
+        _nativeFeet[1] = FootStateToNative(right, _nativeFeet[1]);
 
         BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnHeightChanged;
         IsInitialized = true;
@@ -436,7 +436,7 @@ public partial class BasisLocalFootDriver
         if (_probeResults.IsCreated) _probeResults.Dispose();
     }
 
-    private static BasisFootNativeState FootStateToNative(BasisFootState f)
+    private static BasisFootNativeState FootStateToNative(BasisFootState f, in BasisFootNativeState prev)
     {
         return new BasisFootNativeState
         {
@@ -459,6 +459,12 @@ public partial class BasisLocalFootDriver
             currentPos = f.currentPos,
             currentRot = f.currentRot,
             kneeHint = f.kneeHint,
+            // Native-only state (no managed mirror): preserve across rebuilds. Zeroing landRot fed
+            // slerp((0,0,0,0), plantedRot) in the planted flat-blend after a Teleport/height change.
+            toeBendDeg = prev.toeBendDeg,
+            toeBendAxis = prev.toeBendAxis,
+            stepArcScale = prev.stepArcScale,
+            landRot = math.lengthsq(prev.landRot.value) > 0.5f ? prev.landRot : (quaternion)f.currentRot,
         };
     }
 
@@ -780,8 +786,8 @@ public partial class BasisLocalFootDriver
 
         if (_nativeFeet.IsCreated)
         {
-            _nativeFeet[0] = FootStateToNative(left);
-            _nativeFeet[1] = FootStateToNative(right);
+            _nativeFeet[0] = FootStateToNative(left, _nativeFeet[0]);
+            _nativeFeet[1] = FootStateToNative(right, _nativeFeet[1]);
         }
     }
 

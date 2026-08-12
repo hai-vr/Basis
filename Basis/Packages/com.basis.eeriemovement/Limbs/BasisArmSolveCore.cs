@@ -22,6 +22,19 @@ namespace Basis.IK
         public Quaternion TipRotation;
 
         public Quaternion HintRotation;
+
+        // Tracker pole anchor state (previous frame): the last well-conditioned pole direction and the
+        // tracker rotation it was captured against. Zero/false = no history, anchor declines.
+        public bool HasPrevPole;
+        public Vector3 PrevPoleDir;
+        public Quaternion PrevHintRotation;
+
+        // Anatomy-guard branch hysteresis: the side (-1/+1) the guard chose last frame, 0 = no history.
+        // ElbowLateralOut (anatomically outward) seeds the first decision; TorsoUp is the guard's frame
+        // (falls back to PlayerUp when zero).
+        public int PrevGuardSide;
+        public Vector3 ElbowLateralOut;
+        public Vector3 TorsoUp;
     }
 
     public struct BasisArmSolveResult
@@ -52,6 +65,12 @@ namespace Basis.IK
         public float WristTwistDeg;
         public float WristReliefDeg;
         public float ForearmRollDeg;
+
+        public bool PoleAnchorValid;
+        public Vector3 PoleDirUsed;
+        public Quaternion PoleRotUsed;
+        public float PoleConditioning;
+        public int GuardSideUsed;
     }
 
     public static class BasisArmSolveCore
@@ -72,6 +91,12 @@ namespace Basis.IK
         public const float TrackerRollHandBlend = 0.5f;
 
         public const float TrackerForearmRollMaxDeg = 120f;
+
+        // Tracker pole anchor conditioning band, as fractions of hint-lever-arm / total arm length:
+        // below AnchorFrac the measured pole is noise (hold the anchor), above TrustFrac it is fully
+        // trusted (refresh the anchor); between them the swivel eases from anchor to measured.
+        public const float TrackerPoleAnchorFrac = 0.05f;
+        public const float TrackerPoleTrustFrac = 0.12f;
 
         const float k_WristWrapFadeStartDeg = 155f;
         const float k_WristWrapFadeEndDeg = 178f;
@@ -166,6 +191,7 @@ namespace Basis.IK
             float swivelUsedRad = 0f;
             float hintProjMag = 0f;
             float armProjMag = 0f;
+            float poleCondW = 1f;
             if (i.HintWeight)
             {
                 float acSqrMag = ac.sqrMagnitude;
@@ -178,28 +204,73 @@ namespace Basis.IK
                     Vector3 ah = i.HintPosition - aPosition;
                     Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
                     Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
-                    Vector3 elbowDir = Vector3.Cross(acNorm, rootDelta * axis);
-                    elbowDir -= acNorm * Vector3.Dot(elbowDir, acNorm);
+                    // The swivel is measured from the TRUE projected elbow (abProj), so applying it lands
+                    // the elbow ON the pole plane wherever the animation left it -- and at full extension
+                    // abProj collapses and the hint declines instead of snapping on a noise-length lever.
+                    Vector3 elbowDir = abProj;
                     hintProjMag = ahProj.magnitude;
                     armProjMag = abProj.magnitude;
 
                     hintFade = 1f;
 
-                    if (ahProj.sqrMagnitude > k_SqrEpsilon && elbowDir.sqrMagnitude > k_SqrEpsilon)
+                    // Tracker pole anchor: as the arm straightens, the hint's lever arm (ahProj) collapses
+                    // and the measured pole degenerates into noise -- the swivel snapped up to 179 deg/frame
+                    // at full extension. Hold the last well-conditioned pole, carried by the tracker's own
+                    // rotation delta (a rigid puck carries its pole with it), and ease back to the measured
+                    // pole as conditioning returns.
+                    Vector3 anchorCarriedRaw = Vector3.zero;
+                    Vector3 anchorCarried = Vector3.zero;
+                    bool hasAnchorCarried = false;
+                    bool poleMeasurable = ahProj.sqrMagnitude > k_SqrEpsilon;
+                    if (i.HintIsTracker && totalLen > k_Epsilon)
                     {
-                        float effFade = hintFade;
-                        if (effFade < 1f)
-                        {
-                            float denom = Mathf.Sqrt(elbowDir.sqrMagnitude * ahProj.sqrMagnitude);
-                            float cosBA = denom > k_Epsilon ? Mathf.Clamp(Vector3.Dot(elbowDir, ahProj) / denom, -1f, 1f) : 1f;
-                            float flipDeg = Mathf.Acos(cosBA) * Mathf.Rad2Deg;
-                            float commit = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((flipDeg - 90f) / 80f));
+                        poleCondW = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
+                            (hintProjMag / totalLen - TrackerPoleAnchorFrac) / (TrackerPoleTrustFrac - TrackerPoleAnchorFrac)));
 
-                            commit *= Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((hintFade - 0.3f) / 0.25f));
-                            effFade = hintFade + (1f - hintFade) * commit;
+                        if (i.HasPrevPole)
+                        {
+                            Quaternion carryRot = Quaternion.identity;
+                            if (IsValidRotation(i.PrevHintRotation) && IsValidRotation(i.HintRotation))
+                            {
+                                carryRot = i.HintRotation * Quaternion.Inverse(i.PrevHintRotation);
+                            }
+
+                            anchorCarriedRaw = carryRot * i.PrevPoleDir;
+                            anchorCarried = anchorCarriedRaw - acNorm * Vector3.Dot(anchorCarriedRaw, acNorm);
+                            hasAnchorCarried = anchorCarried.sqrMagnitude > k_SqrEpsilon;
                         }
 
-                        swivelUsedRad = SignedAngleRad(elbowDir, ahProj, acNorm) * effFade;
+                        if (poleMeasurable && (poleCondW >= 1f || !i.HasPrevPole))
+                        {
+                            r.PoleDirUsed = ahProj / hintProjMag;
+                            r.PoleRotUsed = i.HintRotation;
+                            r.PoleAnchorValid = true;
+                        }
+                        else if (i.HasPrevPole)
+                        {
+                            r.PoleDirUsed = i.PrevPoleDir;
+                            r.PoleRotUsed = i.PrevHintRotation;
+                            r.PoleAnchorValid = true;
+                            if (poleMeasurable && poleCondW > 0f && hasAnchorCarried)
+                            {
+                                float ease = SignedAngleRad(anchorCarried, ahProj, acNorm) * poleCondW;
+                                r.PoleDirUsed = (AngleAxisRad(ease, acNorm) * anchorCarriedRaw).normalized;
+                                r.PoleRotUsed = i.HintRotation;
+                            }
+                        }
+                    }
+
+                    if (poleMeasurable && elbowDir.sqrMagnitude > k_SqrEpsilon)
+                    {
+                        float poleSwivel = SignedAngleRad(elbowDir, ahProj, acNorm);
+                        if (i.HintIsTracker && i.HasPrevPole && poleCondW < 1f && hasAnchorCarried)
+                        {
+                            float anchorSwivel = SignedAngleRad(elbowDir, anchorCarried, acNorm);
+                            float dSwivel = Mathf.DeltaAngle(anchorSwivel * Mathf.Rad2Deg, poleSwivel * Mathf.Rad2Deg) * Mathf.Deg2Rad;
+                            poleSwivel = anchorSwivel + poleCondW * dSwivel;
+                        }
+
+                        swivelUsedRad = poleSwivel * hintFade;
                         float swivel = swivelUsedRad;
 
                         float maxStep = i.HintMaxStepDeg * Mathf.Deg2Rad;
@@ -217,16 +288,11 @@ namespace Basis.IK
                     }
                 }
             }
+            r.PoleConditioning = poleCondW;
 
             if (i.HintWeight && !i.HintIsTracker)
             {
                 float poleCond = totalLen > k_Epsilon ? hintProjMag / totalLen : 1f;
-
-                if (i.HintIsTracker)
-                {
-                    float floorBlend = Mathf.Clamp01((poleCond - 0.05f) / 0.05f);
-                    poleCond = Mathf.Lerp(poleCond, Mathf.Max(poleCond, 0.30f), floorBlend);
-                }
                 float collapse = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((poleCond - 0.15f) / 0.15f));
                 Vector3 acStab = cPosition - aPosition;
                 if (collapse > 0f && acStab.sqrMagnitude > k_SqrEpsilon)
@@ -304,7 +370,10 @@ namespace Basis.IK
                 }
             }
 
-            float guardSwivel = BasisElbowAnatomyCore.GuardSwivelRad(aPosition, bPosition, cPosition, i.PlayerUp, totalLen);
+            Vector3 guardUp = i.TorsoUp.sqrMagnitude > k_SqrEpsilon ? i.TorsoUp : i.PlayerUp;
+            float guardSwivel = BasisElbowAnatomyCore.GuardSwivelRad(aPosition, bPosition, cPosition, guardUp, totalLen,
+                i.ElbowLateralOut, i.PrevGuardSide, out int guardSideUsed);
+            r.GuardSideUsed = guardSideUsed;
             if (guardSwivel != 0f)
             {
                 Vector3 acGuard = cPosition - aPosition;
@@ -381,6 +450,9 @@ namespace Basis.IK
             r.AxisSource = axisSource;
             r.HandError = (cPosition - tPosition).magnitude;
         }
+
+        static bool IsValidRotation(Quaternion q) =>
+            (q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w) > 0.5f;
 
         static float SignedAngleRad(Vector3 from, Vector3 to, Vector3 axis)
         {

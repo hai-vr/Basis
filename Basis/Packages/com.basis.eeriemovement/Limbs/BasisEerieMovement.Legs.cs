@@ -24,14 +24,22 @@ namespace Basis.IK
         BasisSwivelFrame BuildLegFrame(BasisPoseStream stream)
         {
             if (!handleLeftUpperLeg.IsValid(stream) || !handleRightUpperLeg.IsValid(stream)
-                || !handleHips.IsValid(stream) || !handleChest.IsValid(stream))
+                || !handleHips.IsValid(stream))
+            {
+                return default;
+            }
+
+            BasisBoneHandle upTo = handleChest.IsValid(stream) ? handleChest
+                : handleSpine.IsValid(stream) ? handleSpine
+                : handleNeck.IsValid(stream) ? handleNeck : handleHead;
+            if (!upTo.IsValid(stream))
             {
                 return default;
             }
 
             return BasisSwivelHintCore.BuildFrame(
                 handleLeftUpperLeg.GetPosition(stream), handleRightUpperLeg.GetPosition(stream),
-                handleHips.GetPosition(stream), handleChest.GetPosition(stream));
+                handleHips.GetPosition(stream), upTo.GetPosition(stream));
         }
 
         public Quaternion SolveTwoBone(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, Vector3 hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal, float hintDistrust = 0f, int diagSlot = -1, Quaternion hintRotation = default, bool hintIsTracker = false, Vector3 anteriorNormal = default)
@@ -189,7 +197,9 @@ namespace Basis.IK
         }
         void SmoothKneeSwivel(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, int slot, float dt, float minCutoffHz, float beta, float derivCutoffHz, bool conditionOnPole, bool holdWhenSingular)
         {
-            if (!legSwivelInit.IsCreated || slot < 0 || slot >= legSwivelInit.Length || !handleHips.IsValid(stream))
+            if (!legSwivelInit.IsCreated || !legSwivelRaw.IsCreated || !legSwivelSmooth.IsCreated
+                || (uint)slot >= (uint)legSwivelInit.Length || (uint)slot >= (uint)legSwivelRaw.Length
+                || (uint)slot >= (uint)legSwivelSmooth.Length || !handleHips.IsValid(stream))
             {
                 return;
             }

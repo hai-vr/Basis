@@ -46,6 +46,7 @@ namespace Basis.IK
     public static class BasisShoulderSolveCore
     {
         const float k_Epsilon = 1e-5f;
+        const float k_SqrEpsilon = 1e-10f;
         const float k_ReachEngageThreshold = 0.7f;
         const float k_SetStartDeg = 8f;
         const float k_SetFullDeg = 95f;
@@ -69,7 +70,7 @@ namespace Basis.IK
             Vector3 driver = i.HasElbow ? i.ElbowPos : i.HandTargetPos;
             Vector3 armVec = driver - i.ShoulderPos;
             Vector3 handVec = i.HandTargetPos - i.ShoulderPos;
-            if (armVec.sqrMagnitude < k_Epsilon || i.TposeArmDirWorld.sqrMagnitude < k_Epsilon)
+            if (armVec.sqrMagnitude < k_SqrEpsilon || i.TposeArmDirWorld.sqrMagnitude < k_SqrEpsilon)
             {
                 r.Apply = false;
                 return;
@@ -102,7 +103,7 @@ namespace Basis.IK
                 float seg = Mathf.Max(bindLen - clav, k_Epsilon);
 
                 Vector3 segVecL = armDirL * armVec.magnitude - restDirL * clav;
-                float hangDot = segVecL.sqrMagnitude > k_Epsilon ? -segVecL.normalized.y : 0f;
+                float hangDot = segVecL.sqrMagnitude > k_SqrEpsilon ? -segVecL.normalized.y : 0f;
                 if (hangDot > k_ShrugHangStart)
                 {
                     float hang = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(k_ShrugHangStart, k_ShrugHangFull, hangDot));

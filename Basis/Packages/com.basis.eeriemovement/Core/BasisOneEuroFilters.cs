@@ -62,6 +62,7 @@ namespace Basis.Scripts.Drivers
                 return _hatX;
             }
             public float Last() => _hatX;
+            public bool Initialized => _initialized;
         }
     }
 
@@ -83,11 +84,14 @@ namespace Basis.Scripts.Drivers
         {
             float dt = ComputeDt(timestamp);
 
-            Vector3 dx = new Vector3(
-                (_xX.Last() - x.x) / dt,
-                (_xY.Last() - x.y) / dt,
-                (_xZ.Last() - x.z) / dt
-            );
+            // First sample: no previous filtered state, so the derivative is zero -- Last() would
+            // read the uninitialized 0 and spike the adaptive cutoff for the next ~dCutoff seconds.
+            Vector3 dx = _xX.Initialized
+                ? new Vector3(
+                    (_xX.Last() - x.x) / dt,
+                    (_xY.Last() - x.y) / dt,
+                    (_xZ.Last() - x.z) / dt)
+                : Vector3.zero;
 
             float ad = Alpha(dCutoff, dt);
             dx = new Vector3(
@@ -131,8 +135,18 @@ namespace Basis.Scripts.Drivers
             float dt = ComputeDt(timestamp);
 
             Vector4 cur = new Vector4(q.x, q.y, q.z, q.w);
-            Vector4 last = new Vector4(_xX.Last(), _xY.Last(), _xZ.Last(), _xW.Last());
-            Vector4 d = (last - cur) / dt;
+            Vector4 d = Vector4.zero;
+            if (_xX.Initialized)
+            {
+                Vector4 last = new Vector4(_xX.Last(), _xY.Last(), _xZ.Last(), _xW.Last());
+                // q and -q are the same rotation; align to the filter state before differencing or a
+                // hemisphere flip reads as a huge derivative and the blend drags through zero.
+                if (Vector4.Dot(last, cur) < 0f)
+                {
+                    cur = -cur;
+                }
+                d = (last - cur) / dt;
+            }
 
             float ad = Alpha(dCutoff, dt);
             Vector4 dFiltered = new Vector4(

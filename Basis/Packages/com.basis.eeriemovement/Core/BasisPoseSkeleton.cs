@@ -51,6 +51,7 @@ namespace Basis.IK
 
             var closure = new List<Transform>();
             var seen = new HashSet<Transform>();
+            var walkBuffer = new List<Transform>();
 
             for (int i = 0; i < bones.Count; i++)
             {
@@ -59,17 +60,34 @@ namespace Basis.IK
                 {
                     continue;
                 }
+                // Commit a bone's ancestor walk only if it anchors to root (or joins an already
+                // accepted subtree) -- a bone outside root would otherwise pull the whole scene
+                // hierarchy above it into the closure and silently build a wrong skeleton.
+                walkBuffer.Clear();
+                bool anchored = root == null;
                 for (Transform walk = bone; walk != null; walk = walk.parent)
                 {
-                    if (!seen.Add(walk))
+                    if (seen.Contains(walk))
                     {
+                        anchored = true;
                         break;
                     }
-                    closure.Add(walk);
+                    walkBuffer.Add(walk);
                     if (walk == root)
                     {
+                        anchored = true;
                         break;
                     }
+                }
+                if (!anchored)
+                {
+                    Debug.LogWarning($"BasisPoseSkeleton.Build: bone '{bone.name}' is not a descendant of root '{root.name}' -- skipped.");
+                    continue;
+                }
+                for (int w = 0; w < walkBuffer.Count; w++)
+                {
+                    seen.Add(walkBuffer[w]);
+                    closure.Add(walkBuffer[w]);
                 }
             }
 

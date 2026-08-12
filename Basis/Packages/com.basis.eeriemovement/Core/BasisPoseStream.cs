@@ -57,24 +57,41 @@ namespace Basis.IK
 
         public static Quaternion FromToRotation(Vector3 from, Vector3 to)
         {
-            float theta = Vector3.Dot(from.normalized, to.normalized);
+            Vector3 fromN = from.normalized;
+            Vector3 toN = to.normalized;
+            if (fromN.sqrMagnitude < 0.5f || toN.sqrMagnitude < 0.5f)
+            {
+                return Quaternion.identity;
+            }
+
+            float theta = Vector3.Dot(fromN, toN);
             if (theta >= 1f)
             {
                 return Quaternion.identity;
             }
 
-            if (theta <= -1f)
+            Vector3 rotAxis = Vector3.Cross(fromN, toN);
+            if (theta > -1f && rotAxis.sqrMagnitude >= k_FloatMin)
             {
-                Vector3 axis = Vector3.Cross(from, Vector3.right);
-                if (axis.sqrMagnitude == 0f)
-                {
-                    axis = Vector3.Cross(from, Vector3.up);
-                }
-
-                return Quaternion.AngleAxis(180f, axis);
+                return Quaternion.AngleAxis(Mathf.Acos(theta) * Mathf.Rad2Deg, rotAxis.normalized);
             }
 
-            return Quaternion.AngleAxis(Mathf.Acos(theta) * Mathf.Rad2Deg, Vector3.Cross(from, to).normalized);
+            if (theta > 0f)
+            {
+                return Quaternion.identity;
+            }
+
+            Vector3 axis = Vector3.Cross(fromN, Vector3.right);
+            if (axis.sqrMagnitude < k_FloatMin)
+            {
+                axis = Vector3.Cross(fromN, Vector3.up);
+            }
+            if (axis.sqrMagnitude < k_FloatMin)
+            {
+                return Quaternion.identity;
+            }
+
+            return Quaternion.AngleAxis(180f, axis.normalized);
         }
 
         public static Quaternion NormalizeSafe(Quaternion q)
@@ -104,7 +121,7 @@ namespace Basis.IK
 
     public struct BasisPoseStream
     {
-        public const int MaxDepth = 32;
+        public const int MaxDepth = 64;
 
         public NativeArray<float3> LocalPosition;
         public NativeArray<quaternion> LocalRotation;

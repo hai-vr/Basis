@@ -13,8 +13,46 @@ namespace Basis.IK
 
         public const float HardMarginFracLimb = 0.15f;
 
+        // Margins are fractions of the LIMB, but the guard moves the elbow on its swivel CIRCLE --
+        // uncapped, the soft margin exceeds the circle radius above elbow angle 168.522 deg and the
+        // guard is arithmetically unable to fire at full extension, whatever MaxElbowAngleDeg says.
+        public const float SoftMarginMaxFracRadius = 0.5f;
+
+        // Inside |s| < this the measured pole no longer says which side the elbow is on, it says what
+        // the tracker's jitter did this frame -- the branch re-decided 92-110 times per 200 frames.
+        // Sized as the smallest band with zero flips at 0.5-2 mm elbow noise.
+        public const float TieBandFracRadius = 0.10f;
+
+        // Capping the margins at the circle radius keeps the guard REACHABLE near extension, but the
+        // margin then shrinks with the radius while the correction stays angular: at elbow 178 deg the
+        // guard asked for 33.6 deg of swivel to lower the elbow 0.9 mm -- pure axial wring, no visible
+        // elbow travel, and it switched on hard. Fade the authority out with the swivel conditioning
+        // (radius / limb) so the guard still fires there, just proportionally to how much it can mean.
+        public const float ConditioningFadeLo = 0.04f;
+        public const float ConditioningFadeHi = 0.10f;
+
+        public static float ConditioningFade(float radius, float totalLen)
+        {
+            if (!(totalLen > k_Epsilon))
+            {
+                return 0f;
+            }
+            float t = Mathf.Clamp01((radius / totalLen - ConditioningFadeLo) / (ConditioningFadeHi - ConditioningFadeLo));
+            return t * t * (3f - 2f * t);
+        }
+
         public static float GuardSwivelRad(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 playerUp, float totalLen)
         {
+            return GuardSwivelRad(shoulder, elbow, hand, playerUp, totalLen, Vector3.zero, 0, out _);
+        }
+
+        // `prevSide` is the side this guard chose last frame (-1 / +1), 0 for no history; `sideUsed`
+        // feeds next frame's `prevSide`. `lateralOut` (anatomically outward) seeds the first frame only.
+        // With lateralOut zero and prevSide 0 this is bit-identical to the single-overload guard.
+        public static float GuardSwivelRad(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 playerUp, float totalLen,
+            Vector3 lateralOut, int prevSide, out int sideUsed)
+        {
+            sideUsed = prevSide;
             Vector3 ac = hand - shoulder;
             float acSqr = ac.sqrMagnitude;
 
@@ -55,8 +93,19 @@ namespace Basis.IK
             float handUp = Vector3.Dot(ac, up);
             float ceiling = handUp > 0f ? handUp : 0f;
 
-            float hSoft = ceiling + SoftMarginFracLimb * totalLen;
-            float hHard = ceiling + HardMarginFracLimb * totalLen;
+            // Cap both margins at a fraction of the circle radius, keeping the soft:hard ratio, so the
+            // guard stays reachable at any extension / segment ratio / avatar scale.
+            float softRise = SoftMarginFracLimb * totalLen;
+            float hardRise = HardMarginFracLimb * totalLen;
+            float riseCap = SoftMarginMaxFracRadius * radius;
+            if (softRise > riseCap)
+            {
+                hardRise *= riseCap / softRise;
+                softRise = riseCap;
+            }
+
+            float hSoft = ceiling + softRise;
+            float hHard = ceiling + hardRise;
 
             float h = Vector3.Dot(ae, up);
 
@@ -81,11 +130,36 @@ namespace Basis.IK
 
             Vector3 poleDir = aeProj / radius;
             float s = Vector3.Dot(poleDir, w);
+            int side = s < 0f ? -1 : 1;
+            if (Mathf.Abs(s) < TieBandFracRadius)
+            {
+                if (prevSide != 0)
+                {
+                    side = prevSide < 0 ? -1 : 1;
+                }
+                else
+                {
+                    float latSqr = lateralOut.sqrMagnitude;
+                    if (latSqr > k_SqrEpsilon)
+                    {
+                        float lat = Vector3.Dot(lateralOut, w);
+                        if (lat > 0f)
+                        {
+                            side = 1;
+                        }
+                        else if (lat < 0f)
+                        {
+                            side = -1;
+                        }
+                    }
+                }
+            }
 
-            float sG = (s < 0f ? -1f : 1f) * Mathf.Sqrt(Mathf.Max(1f - cG * cG, 0f));
+            sideUsed = side;
+            float sG = side * Mathf.Sqrt(Mathf.Max(1f - cG * cG, 0f));
 
             Vector3 poleGuarded = upN * cG + w * sG;
-            return SignedAngleRad(poleDir, poleGuarded, acN);
+            return SignedAngleRad(poleDir, poleGuarded, acN) * ConditioningFade(radius, totalLen);
         }
 
         static float SignedAngleRad(Vector3 from, Vector3 to, Vector3 axis)
@@ -257,7 +331,27 @@ namespace Basis.IK
     {
         public const float MaxGain = 5f;
 
+        // The axis-angle term is ZERO for a hand moving along its own arm axis (punch/push/point), so the
+        // budget also tracks |dReach| -- gated by pole conditioning, because conditioning and radial
+        // sensitivity both collapse together at a field core (cores read <0.02, real punches >0.2).
+        public const float ReachGain = 3f;
+        public const float ReachTrustLo = 0.06f;
+        public const float ReachTrustHi = 0.10f;
+
+        public static float ReachTrust(float conditioning)
+        {
+            if (!(conditioning > ReachTrustLo))
+            {
+                return 0f;
+            }
+            float t = math.saturate((conditioning - ReachTrustLo) / (ReachTrustHi - ReachTrustLo));
+            return t * t * (3f - 2f * t);
+        }
+
         public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain)
+            => Apply(prevBend, prevAxis, curAxis, rawBend, maxGain, 0f, 0f);
+
+        public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain, float dReach, float conditioning)
         {
             float3 tp = prevBend - curAxis * math.dot(prevBend, curAxis);
             float tpLen = math.length(tp);
@@ -271,7 +365,14 @@ namespace Basis.IK
             float ang = math.atan2(math.dot(rawBend, cross), math.dot(rawBend, tp));
 
             float dHand = math.atan2(math.length(math.cross(prevAxis, curAxis)), math.dot(prevAxis, curAxis));
-            float cap = maxGain * dHand;
+            float dRadial = 0f;
+            float absReach = math.abs(dReach);
+            if (absReach > 0f && math.isfinite(absReach))
+            {
+                dRadial = ReachGain * ReachTrust(conditioning) * absReach;
+            }
+
+            float cap = maxGain * (dHand + dRadial);
             float capped = math.clamp(ang, -cap, cap);
             if (capped == ang)
             {
