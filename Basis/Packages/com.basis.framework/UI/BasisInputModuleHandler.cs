@@ -50,6 +50,14 @@ namespace Basis.Scripts.UI
         private int lastCaretVisibilityPosition;
         private int lastCaretVisibilityTextLength;
 
+        private UnityEngine.Object caretArbiterTarget;
+        private bool hasCaretArbiterSnapshot;
+        private int caretArbiterPosition;
+        private int caretArbiterLength;
+        private bool fieldDrivesOwnCaret;
+
+        private bool compositionActive;
+
         /// <summary>
         /// Currently selected TMP input field (if any).
         /// </summary>
@@ -117,6 +125,8 @@ namespace Basis.Scripts.UI
 
             UnsubscribePhysicalKeyboard();
             ResetPhysicalKeyboardText();
+            ResetCaretArbiter();
+            compositionActive = false;
             BasisTextFieldCaret.RestoreOverflowMode();
 
             tabAction.Disable();
@@ -396,6 +406,7 @@ namespace Basis.Scripts.UI
 
             if (HasHoverONInput)
             {
+                compositionActive = ReadCompositionActive();
                 EnsurePhysicalKeyboardSubscription();
                 HandleCaretNavigation();
                 HandlePhysicalKeyboardText();
@@ -403,11 +414,36 @@ namespace Basis.Scripts.UI
             }
             else
             {
+                compositionActive = false;
                 caretHeldDirection = 0;
                 lastCaretVisibilityField = null;
+                ResetCaretArbiter();
                 ResetPhysicalKeyboardText();
                 BasisTextFieldCaret.RestoreOverflowMode();
             }
+        }
+
+        private bool ReadCompositionActive()
+        {
+            BaseInput baseInput = input;
+            if (baseInput == null)
+            {
+                return false;
+            }
+            return string.IsNullOrEmpty(baseInput.compositionString) == false;
+        }
+
+        /// <summary>
+        /// True while an IME composition is being converted, in which case Enter/Tab belong to the
+        /// IME rather than to UI submit/navigation.
+        /// </summary>
+        public bool IsComposingText()
+        {
+            if (HasHoverONInput == false)
+            {
+                return false;
+            }
+            return compositionActive || ReadCompositionActive();
         }
 
         private void TrackCaretVisibility()
@@ -440,12 +476,32 @@ namespace Basis.Scripts.UI
             if (tmp == null && legacy == null)
             {
                 caretHeldDirection = 0;
+                ResetCaretArbiter();
                 return;
             }
+
+            UnityEngine.Object target = tmp != null ? tmp : (UnityEngine.Object)legacy;
+            if (target != caretArbiterTarget)
+            {
+                caretArbiterTarget = target;
+                hasCaretArbiterSnapshot = false;
+                fieldDrivesOwnCaret = false;
+            }
+
+            bool focused = tmp != null ? tmp.isFocused : legacy.isFocused;
+            if (focused == false)
+            {
+                fieldDrivesOwnCaret = false;
+            }
+
+            int caretPosition = ReadCaretPosition(tmp, legacy);
+            int textLength = ReadTextLength(tmp, legacy);
+            bool caretMovedElsewhere = hasCaretArbiterSnapshot && textLength == caretArbiterLength && caretPosition != caretArbiterPosition;
 
             int direction = 0;
             bool shift = false;
             bool ctrl = false;
+            bool fromKeyboard = false;
 
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null)
@@ -455,6 +511,7 @@ namespace Basis.Scripts.UI
                 if (left != right)
                 {
                     direction = right ? 1 : -1;
+                    fromKeyboard = true;
                 }
                 shift = keyboard.shiftKey.isPressed;
                 ctrl = keyboard.ctrlKey.isPressed;
@@ -476,7 +533,22 @@ namespace Basis.Scripts.UI
             if (direction == 0)
             {
                 caretHeldDirection = 0;
+                SnapshotCaretArbiter(tmp, legacy);
                 return;
+            }
+
+            if (fromKeyboard && focused)
+            {
+                if (caretMovedElsewhere && (caretPosition > caretArbiterPosition ? 1 : -1) == direction)
+                {
+                    fieldDrivesOwnCaret = true;
+                }
+                if (fieldDrivesOwnCaret)
+                {
+                    caretHeldDirection = 0;
+                    SnapshotCaretArbiter(tmp, legacy);
+                    return;
+                }
             }
 
             float time = Time.unscaledTime;
@@ -487,6 +559,7 @@ namespace Basis.Scripts.UI
             }
             else if (time < caretNextRepeatTime)
             {
+                SnapshotCaretArbiter(tmp, legacy);
                 return;
             }
             else
@@ -495,6 +568,34 @@ namespace Basis.Scripts.UI
             }
 
             BasisTextFieldCaret.MoveCaret(tmp, legacy, direction, shift, ctrl);
+            SnapshotCaretArbiter(tmp, legacy);
+        }
+
+        private static int ReadCaretPosition(TMP_InputField tmp, InputField legacy)
+        {
+            if (tmp != null)
+            {
+                return tmp.stringPosition;
+            }
+            if (legacy != null)
+            {
+                return legacy.caretPosition;
+            }
+            return 0;
+        }
+
+        private void SnapshotCaretArbiter(TMP_InputField tmp, InputField legacy)
+        {
+            caretArbiterPosition = ReadCaretPosition(tmp, legacy);
+            caretArbiterLength = ReadTextLength(tmp, legacy);
+            hasCaretArbiterSnapshot = true;
+        }
+
+        private void ResetCaretArbiter()
+        {
+            caretArbiterTarget = null;
+            hasCaretArbiterSnapshot = false;
+            fieldDrivesOwnCaret = false;
         }
 
         private static float ReadLeftHandStickX()
@@ -529,6 +630,10 @@ namespace Basis.Scripts.UI
         {
             if (context.performed)
             {
+                if (IsComposingText())
+                {
+                    return;
+                }
                 GameObject CurrentGameObject = EventSystem.currentSelectedGameObject;
                 if (CurrentGameObject == null)
                 {
@@ -549,6 +654,10 @@ namespace Basis.Scripts.UI
         {
             if (context.performed)
             {
+                if (IsComposingText())
+                {
+                    return;
+                }
                 GameObject current = EventSystem.currentSelectedGameObject;
                 if (current != null)
                 {

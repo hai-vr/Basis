@@ -35,6 +35,8 @@ namespace Basis.BasisUI
 
         public override void RunAction()
         {
+            if (BasisMainMenu.Instance == null || BasisMainMenu.Instance.Dialogue != null) return;
+
             BasisMainMenu.Instance.OpenDialogue(
                 BasisLocalization.Get("menu.exit.dialog.title"),
                 BasisLocalization.Get("menu.exit.dialog.body"),
