@@ -451,8 +451,11 @@ namespace Basis.IK
 
                         float residAbs = Mathf.Abs(resid);
                         float keep = Mathf.Min(WristKeepFrac * residAbs, WristKeepMaxDeg * Mathf.Deg2Rad);
+                        float seamBasisDeg = Mathf.Abs(r.WristTwistDeg);
+                        float residAbsDeg = residAbs * Mathf.Rad2Deg;
+                        if (residAbsDeg > seamBasisDeg) seamBasisDeg = residAbsDeg;
                         float seam = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
-                            (residAbs * Mathf.Rad2Deg - k_WristWrapFadeStartDeg) / (k_WristWrapFadeEndDeg - k_WristWrapFadeStartDeg)));
+                            (seamBasisDeg - k_WristWrapFadeStartDeg) / (k_WristWrapFadeEndDeg - k_WristWrapFadeStartDeg)));
                         float w = i.ForearmFollowWeight < 1f ? i.ForearmFollowWeight : 1f;
                         float topUp = (residAbs - keep) * seam * w;
                         roll += resid < 0f ? -topUp : topUp;
