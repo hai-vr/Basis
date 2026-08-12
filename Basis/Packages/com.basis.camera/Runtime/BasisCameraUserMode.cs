@@ -210,6 +210,7 @@ public class BasisCameraUserMode
         if (left.videoFrameRate != right.videoFrameRate) return false;
         if (left.videoWidth != right.videoWidth) return false;
         if (left.videoQuality != right.videoQuality) return false;
+        if (left.videoTimeLimit != right.videoTimeLimit) return false;
 
         if (left.backgroundMode != right.backgroundMode) return false;
         if (!Near(left.backgroundCustomColor, right.backgroundCustomColor)) return false;

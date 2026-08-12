@@ -255,7 +255,10 @@ namespace Basis.BasisUI.HandHeldCamera
             switch (state)
             {
                 case BasisCameraRecordingState.Recording:
-                    buttonLabel = BasisLocalization.Get(keyPrefix + ".stop", Mathf.CeilToInt(secondsRemaining));
+                    // An unlimited recording has no countdown to show — the button just stops it.
+                    buttonLabel = float.IsPositiveInfinity(secondsRemaining)
+                        ? BasisLocalization.Get(keyPrefix + ".stopUnlimited")
+                        : BasisLocalization.Get(keyPrefix + ".stop", Mathf.CeilToInt(secondsRemaining));
                     statusText = BasisLocalization.Get(keyPrefix + ".status.recording", framesCaptured);
                     break;
 

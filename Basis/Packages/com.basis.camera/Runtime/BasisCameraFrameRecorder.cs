@@ -258,7 +258,8 @@ namespace Basis
         {
             if (target == null) return;
             target.Release();
-            Object.Destroy(target);
+            if (Application.isPlaying) Object.Destroy(target);
+            else Object.DestroyImmediate(target);
             target = null;
         }
     }

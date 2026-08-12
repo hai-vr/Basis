@@ -710,6 +710,7 @@ public partial class BasisHandHeldCameraUI
             videoFrameRate = HHC != null ? HHC.VideoRecordingFrameRate : baseline.videoFrameRate,
             videoWidth = HHC != null ? HHC.VideoRecordingWidth : baseline.videoWidth,
             videoQuality = HHC != null ? HHC.VideoRecordingQuality : baseline.videoQuality,
+            videoTimeLimit = HHC == null || HHC.VideoRecordingTimeLimit,
             backgroundMode = HHC != null ? (int)HHC.backgroundMode : 0,
             backgroundCustomColor = HHC != null ? HHC.backgroundCustomColor : BasisHandHeldCamera.ChromaGreen,
             backgroundKeepsWorld = HHC != null && HHC.backgroundKeepsWorld,
@@ -1096,6 +1097,7 @@ public partial class BasisHandHeldCameraUI
         HHC.SetVideoRecordingFrameRate(settings.videoFrameRate);
         HHC.SetVideoRecordingWidth(settings.videoWidth);
         HHC.SetVideoRecordingQuality(settings.videoQuality);
+        HHC.VideoRecordingTimeLimit = settings.videoTimeLimit;
 
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC.MetaData.VolumetricFogVolume != null)

@@ -415,6 +415,18 @@
       "value": "JPEG quality of each frame. Higher looks better and makes a much larger file."
     },
     {
+      "key": "camera.video.timeLimit",
+      "value": "Time Limit"
+    },
+    {
+      "key": "camera.video.timeLimit.description",
+      "value": "Stop by itself after the length below. Off records until you press stop."
+    },
+    {
+      "key": "camera.video.stopUnlimited",
+      "value": "Stop Recording"
+    },
+    {
       "key": "camera.lens",
       "value": "Lens"
     },

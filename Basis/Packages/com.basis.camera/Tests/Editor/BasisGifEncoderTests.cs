@@ -229,6 +229,7 @@ namespace Basis.Tests.Camera
             public bool HasNetscapeLoop;
             public readonly List<int> Delays = new List<int>();
             public readonly List<byte[]> FrameIndices = new List<byte[]>();
+            public readonly List<byte[]> Palettes = new List<byte[]>();
 
             public static ParsedGif Parse(byte[] data)
             {
@@ -283,7 +284,18 @@ namespace Basis.Tests.Camera
                     int framePacked = data[pos + 8];
                     pos += 9;
                     Assert.That(framePacked & 0x40, Is.Zero, "Interlaced frames are never written.");
-                    if ((framePacked & 0x80) != 0) pos += 3 * (1 << ((framePacked & 0x07) + 1));
+                    if ((framePacked & 0x80) != 0)
+                    {
+                        int paletteBytes = 3 * (1 << ((framePacked & 0x07) + 1));
+                        byte[] palette = new byte[paletteBytes];
+                        Array.Copy(data, pos, palette, 0, paletteBytes);
+                        parsed.Palettes.Add(palette);
+                        pos += paletteBytes;
+                    }
+                    else
+                    {
+                        parsed.Palettes.Add(Array.Empty<byte>());
+                    }
 
                     int minCodeSize = data[pos++];
                     var lzw = new MemoryStream();

@@ -13,6 +13,7 @@ namespace Basis
     public sealed class BasisVideoAudioTap : MonoBehaviour
     {
         /// <summary>Written on the main thread, read on the audio thread; a stale read costs one buffer.</summary>
+        [System.NonSerialized]
         public BasisRecordingAudioBuffer Target;
 
         private void OnAudioFilterRead(float[] data, int channels)

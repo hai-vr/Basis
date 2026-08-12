@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using Basis;
@@ -177,10 +178,30 @@ namespace Basis
     /// landed. Frame delays come from capture timestamps rather than the nominal rate, with the
     /// rounding remainder carried forward, so dropped or late frames slow the moment they cover
     /// instead of speeding the whole clip up. The main thread only copies bytes and flips
-    /// counters; everything expensive happens here.
+    /// counters; the per-frame quantisation — the expensive half — fans out across a few pool
+    /// threads, each with its own scratch, while the write stage keeps the frames in capture
+    /// order. The delay carry is sequential by nature and stays on the write stage.
     /// </summary>
     public sealed class BasisGifRecorderSession : IBasisFrameRecorderSession
     {
+        /// <summary>
+        /// Parallel quantisations in flight. Half the machine, capped: the encode must not
+        /// starve the render loop or Unity's own workers of cores mid-session.
+        /// </summary>
+        private static readonly int EncodeThreads = Math.Max(1, Math.Min(4, Environment.ProcessorCount / 2));
+
+        /// <summary>One in-flight frame: the raw input, its own quantiser scratch, and the result.</summary>
+        private sealed class EncodeSlot
+        {
+            public readonly BasisGifQuantizer Quantizer = new BasisGifQuantizer();
+            public readonly ManualResetEventSlim Done = new ManualResetEventSlim(false);
+            public byte[] Indices;
+            public byte[] Rgba;
+            public double Timestamp;
+            public volatile string Error;
+        }
+
+        private readonly ConcurrentStack<EncodeSlot> slotPool = new ConcurrentStack<EncodeSlot>();
         private readonly int width;
         private readonly int height;
         private readonly bool loop;
@@ -270,56 +291,72 @@ namespace Basis
         {
             FileStream file = null;
             bool success = false;
+            var inFlight = new Queue<EncodeSlot>();
             try
             {
                 file = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None);
                 var writer = new BasisGifWriter(file, width, height, loop);
-                var quantizer = new BasisGifQuantizer();
-                byte[] indices = new byte[width * height];
 
-                byte[] heldFrame = null;
-                double heldTimestamp = 0;
+                EncodeSlot held = null;
                 double delayCarry = 0;
 
-                while (true)
+                while (failureMessage == null)
                 {
-                    if (!pendingFrames.TryDequeue(out QueuedFrame frame))
+                    bool dispatched = false;
+                    while (inFlight.Count < EncodeThreads && pendingFrames.TryDequeue(out QueuedFrame frame))
                     {
-                        if (completeAdding) break;
-                        frameReady.WaitOne(100);
+                        Interlocked.Decrement(ref framesQueued);
+                        inFlight.Enqueue(DispatchEncode(frame));
+                        dispatched = true;
+                    }
+
+                    if (inFlight.Count == 0)
+                    {
+                        if (completeAdding && pendingFrames.IsEmpty) break;
+                        if (!dispatched) frameReady.WaitOne(100);
                         continue;
                     }
-                    Interlocked.Decrement(ref framesQueued);
+
+                    // Results are taken oldest-first, so however the pool schedules the
+                    // quantisations, the file gets its frames in capture order.
+                    EncodeSlot ready = inFlight.Dequeue();
+                    ready.Done.Wait();
+                    if (ready.Error != null)
+                    {
+                        failureMessage = ready.Error;
+                        break;
+                    }
 
                     // One frame is always held back: a frame's delay is the gap to the frame
                     // after it, which is only known once that frame arrives.
-                    if (heldFrame != null)
+                    if (held != null)
                     {
-                        EncodeFrame(writer, quantizer, indices, heldFrame,
-                            NextDelay(frame.Timestamp - heldTimestamp, ref delayCarry));
+                        WriteSlot(writer, held, NextDelay(ready.Timestamp - held.Timestamp, ref delayCarry));
                     }
-                    heldFrame = frame.Rgba;
-                    heldTimestamp = frame.Timestamp;
+                    held = ready;
                 }
 
-                if (heldFrame != null)
+                if (failureMessage == null)
                 {
-                    EncodeFrame(writer, quantizer, indices, heldFrame, fallbackDelayCentiseconds);
-                }
+                    if (held != null)
+                    {
+                        WriteSlot(writer, held, fallbackDelayCentiseconds);
+                    }
 
-                writer.Finish();
-                file.Flush();
-                file.Dispose();
-                file = null;
+                    writer.Finish();
+                    file.Flush();
+                    file.Dispose();
+                    file = null;
 
-                if (writer.FrameCount == 0)
-                {
-                    failureMessage = "No frames were captured.";
-                }
-                else
-                {
-                    File.Move(temporaryPath, FinalPath);
-                    success = true;
+                    if (writer.FrameCount == 0)
+                    {
+                        failureMessage = "No frames were captured.";
+                    }
+                    else
+                    {
+                        File.Move(temporaryPath, FinalPath);
+                        success = true;
+                    }
                 }
             }
             catch (Exception e)
@@ -328,6 +365,8 @@ namespace Basis
             }
             finally
             {
+                // The pool callbacks write into the slots; every one must land before teardown.
+                while (inFlight.Count > 0) inFlight.Dequeue().Done.Wait();
                 try { file?.Dispose(); } catch (Exception) { }
                 if (!success)
                 {
@@ -338,12 +377,42 @@ namespace Basis
             }
         }
 
-        private void EncodeFrame(BasisGifWriter writer, BasisGifQuantizer quantizer, byte[] indices, byte[] rgba, int delayCentiseconds)
+        private EncodeSlot DispatchEncode(QueuedFrame frame)
         {
-            quantizer.Quantize(rgba, width, height, dither, indices);
-            writer.WriteFrame(indices, quantizer.PaletteRgb, quantizer.PaletteCount, delayCentiseconds);
-            bufferPool.Push(rgba);
+            if (!slotPool.TryPop(out EncodeSlot slot)) slot = new EncodeSlot();
+            if (slot.Indices == null || slot.Indices.Length != width * height) slot.Indices = new byte[width * height];
+            slot.Rgba = frame.Rgba;
+            slot.Timestamp = frame.Timestamp;
+            slot.Error = null;
+            slot.Done.Reset();
+            ThreadPool.QueueUserWorkItem(QuantizeSlot, slot);
+            return slot;
+        }
+
+        private void QuantizeSlot(object state)
+        {
+            var slot = (EncodeSlot)state;
+            try
+            {
+                slot.Quantizer.Quantize(slot.Rgba, width, height, dither, slot.Indices);
+            }
+            catch (Exception e)
+            {
+                slot.Error = $"{e.GetType().Name}: {e.Message}";
+            }
+            finally
+            {
+                slot.Done.Set();
+            }
+        }
+
+        private void WriteSlot(BasisGifWriter writer, EncodeSlot slot, int delayCentiseconds)
+        {
+            writer.WriteFrame(slot.Indices, slot.Quantizer.PaletteRgb, slot.Quantizer.PaletteCount, delayCentiseconds);
             Interlocked.Increment(ref framesEncoded);
+            bufferPool.Push(slot.Rgba);
+            slot.Rgba = null;
+            slotPool.Push(slot);
         }
 
         /// <summary>

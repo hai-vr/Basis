@@ -86,6 +86,7 @@ public partial class BasisHandHeldCameraUI
             videoFrameRate = 30;
             videoWidth = 1920;
             videoQuality = 80;
+            videoTimeLimit = true;
         }
 
         /// <summary>
@@ -202,6 +203,9 @@ public partial class BasisHandHeldCameraUI
         public int videoFrameRate;
         public int videoWidth;
         public int videoQuality;
+
+        /// <summary>On, a recording stops itself after <see cref="videoDurationSeconds"/>; off, it runs until stopped.</summary>
+        public bool videoTimeLimit;
 
         /// <summary>
         /// Whether each saved photo is also printed into the world as a shared image pickup,

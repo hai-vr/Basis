@@ -78,27 +78,28 @@ namespace Basis
             if (length <= 0 || length > jpeg.Length) throw new ArgumentOutOfRangeException(nameof(length));
 
             if (length > largestVideoChunk) largestVideoChunk = length;
-            WriteChunk("00dc", jpeg, length, isAudio: false);
+            WriteChunk("00dc", jpeg, 0, length, isAudio: false);
             FrameCount++;
         }
 
         /// <summary>Appends interleaved 16-bit PCM. Lengths that shear a sample block are trimmed to whole blocks.</summary>
-        public void WriteAudio(byte[] pcm, int length)
+        public void WriteAudio(byte[] pcm, int offset, int length)
         {
             if (finished) throw new InvalidOperationException("Writer already finished.");
             if (!HasAudio) throw new InvalidOperationException("Writer was created without an audio stream.");
             if (pcm == null) throw new ArgumentNullException(nameof(pcm));
+            if (offset < 0 || offset > pcm.Length) throw new ArgumentOutOfRangeException(nameof(offset));
 
-            length = Math.Min(length, pcm.Length);
+            length = Math.Min(length, pcm.Length - offset);
             length -= length % audioBlockAlign;
             if (length <= 0) return;
 
             if (length > largestAudioChunk) largestAudioChunk = length;
             audioBytesWritten += length;
-            WriteChunk("01wb", pcm, length, isAudio: true);
+            WriteChunk("01wb", pcm, offset, length, isAudio: true);
         }
 
-        private void WriteChunk(string fourcc, byte[] payload, int length, bool isAudio)
+        private void WriteChunk(string fourcc, byte[] payload, int offset, int length, bool isAudio)
         {
             // Index offsets are counted from the 'movi' fourcc, first chunk at 4 — the layout
             // players expect from every common muxer.
@@ -106,7 +107,7 @@ namespace Basis
 
             WriteFourcc(fourcc);
             WriteInt(length);
-            stream.Write(payload, 0, length);
+            stream.Write(payload, offset, length);
             if ((length & 1) != 0) stream.WriteByte(0);
         }
 

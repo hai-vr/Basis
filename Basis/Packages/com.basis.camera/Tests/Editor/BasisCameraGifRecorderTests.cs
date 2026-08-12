@@ -138,6 +138,43 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void ManyFramesComeOutInCaptureOrderThroughTheParallelPipeline()
+        {
+            // More frames than encode slots, each a distinct solid colour: however the pool
+            // schedules the quantisations, frame N of the file must still be shade N.
+            const int Width = 8, Height = 8, Frames = 24;
+            string finalPath = Path.Combine(Path.GetTempPath(), $"BasisGifSessionOrder_{Guid.NewGuid():N}.gif");
+            var session = new BasisGifRecorderSession(Width, Height, loop: false, dither: false, frameRate: 30, finalPath);
+            Assert.That(session.Start(), Is.True);
+
+            try
+            {
+                for (int Frame = 0; Frame < Frames; Frame++)
+                {
+                    AddFrame(session, Width, Height, shade: (byte)(10 * Frame), timestamp: 100.0 + Frame / 30.0);
+                }
+                session.CompleteAdding();
+                WaitUntilFinished(session);
+
+                Assert.That(session.FailureMessage, Is.Null);
+                var parsed = BasisGifEncoderTests.ParsedGif.Parse(File.ReadAllBytes(finalPath));
+                Assert.That(parsed.FrameIndices.Count, Is.EqualTo(Frames));
+
+                for (int Frame = 0; Frame < Frames; Frame++)
+                {
+                    int paletteIndex = parsed.FrameIndices[Frame][0] * 3;
+                    Assert.That(parsed.Palettes[Frame][paletteIndex], Is.EqualTo((byte)(10 * Frame)),
+                        $"Frame {Frame} does not carry its own capture's colour — ordering broke in the pool.");
+                }
+            }
+            finally
+            {
+                if (File.Exists(finalPath)) File.Delete(finalPath);
+                if (File.Exists(finalPath + ".tmp")) File.Delete(finalPath + ".tmp");
+            }
+        }
+
+        [Test]
         public void SessionWithNoFramesReportsFailureAndLeavesNoFile()
         {
             string finalPath = Path.Combine(Path.GetTempPath(), $"BasisGifSessionEmpty_{Guid.NewGuid():N}.gif");

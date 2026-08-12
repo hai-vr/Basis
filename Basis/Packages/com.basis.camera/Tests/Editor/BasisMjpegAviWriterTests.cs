@@ -100,6 +100,47 @@ namespace Basis.Tests.Camera
             Assert.Throws<ArgumentException>(() => new BasisMjpegAviWriter(new ForwardOnlyStream(), 16, 16, 30));
         }
 
+        [Test]
+        public void AudioStreamIsDeclaredInterleavedAndBlockAligned()
+        {
+            var stream = new MemoryStream();
+            var writer = new BasisMjpegAviWriter(stream, 32, 32, 30, audioSampleRate: 48000, audioChannels: 2);
+
+            byte[] pcmA = new byte[40];
+            byte[] pcmB = new byte[46];
+            for (int Index = 0; Index < pcmA.Length; Index++) pcmA[Index] = (byte)Index;
+            for (int Index = 0; Index < pcmB.Length; Index++) pcmB[Index] = (byte)(200 - Index);
+
+            writer.WriteFrame(FakeJpeg(64, 5), 64);
+            writer.WriteAudio(pcmA, 0, pcmA.Length);
+            writer.WriteFrame(FakeJpeg(64, 6), 64);
+            // Offset skips the first block; the trailing 6 bytes shear a 4-byte block and must be trimmed.
+            writer.WriteAudio(pcmB, 4, 42);
+            writer.Finish();
+
+            ParsedAvi parsed = ParsedAvi.Parse(stream.ToArray());
+
+            Assert.That(parsed.StreamCount, Is.EqualTo(2));
+            Assert.That(parsed.AudioSampleRate, Is.EqualTo(48000));
+            Assert.That(parsed.AudioChannels, Is.EqualTo(2));
+            Assert.That(parsed.AudioBlockAlign, Is.EqualTo(4));
+            Assert.That(parsed.AudioBitsPerSample, Is.EqualTo(16));
+
+            Assert.That(parsed.AudioChunks.Count, Is.EqualTo(2));
+            Assert.That(parsed.AudioChunks[0], Is.EqualTo(pcmA));
+            Assert.That(parsed.AudioChunks[1].Length, Is.EqualTo(40), "42 bytes trim to ten whole blocks.");
+            Assert.That(parsed.AudioChunks[1][0], Is.EqualTo(pcmB[4]), "The offset must be honoured.");
+            Assert.That(parsed.AudioStreamLength, Is.EqualTo((40 + 40) / 4));
+
+            string[] expectedOrder = { "00dc", "01wb", "00dc", "01wb" };
+            Assert.That(parsed.IndexEntries.Count, Is.EqualTo(4));
+            for (int Entry = 0; Entry < 4; Entry++)
+            {
+                Assert.That(parsed.IndexEntries[Entry].Fourcc, Is.EqualTo(expectedOrder[Entry]),
+                    "The index must list the chunks in file order.");
+            }
+        }
+
         /// <summary>Recognisably JPEG-shaped payload: SOI marker in, EOI marker out, noise between.</summary>
         private static byte[] FakeJpeg(int length, int seed)
         {
@@ -136,9 +177,16 @@ namespace Basis.Tests.Camera
             public int Scale;
             public int Rate;
             public int StreamLength;
+            public int StreamCount;
+            public int AudioSampleRate;
+            public int AudioChannels;
+            public int AudioBlockAlign;
+            public int AudioBitsPerSample;
+            public int AudioStreamLength;
             public readonly List<byte[]> Frames = new List<byte[]>();
             public readonly List<int> FrameChunkOffsets = new List<int>();
-            public readonly List<(int Offset, int Size)> IndexEntries = new List<(int, int)>();
+            public readonly List<byte[]> AudioChunks = new List<byte[]>();
+            public readonly List<(string Fourcc, int Offset, int Size)> IndexEntries = new List<(string, int, int)>();
 
             public static ParsedAvi Parse(byte[] data)
             {
@@ -172,8 +220,9 @@ namespace Basis.Tests.Camera
                     {
                         for (int Entry = body; Entry < body + size; Entry += 16)
                         {
-                            Assert.That(Fourcc(data, Entry), Is.EqualTo("00dc"));
-                            parsed.IndexEntries.Add((Int(data, Entry + 8), Int(data, Entry + 12)));
+                            string entryFourcc = Fourcc(data, Entry);
+                            Assert.That(entryFourcc, Is.EqualTo("00dc").Or.EqualTo("01wb"));
+                            parsed.IndexEntries.Add((entryFourcc, Int(data, Entry + 8), Int(data, Entry + 12)));
                         }
                     }
 
@@ -197,6 +246,7 @@ namespace Basis.Tests.Camera
                         parsed.MicroSecPerFrame = Int(data, body);
                         parsed.HasIndexFlag = (Int(data, body + 12) & 0x10) != 0;
                         parsed.TotalFrames = Int(data, body + 16);
+                        parsed.StreamCount = Int(data, body + 24);
                         parsed.SuggestedBufferSize = Int(data, body + 28);
                         parsed.Width = Int(data, body + 32);
                         parsed.Height = Int(data, body + 36);
@@ -212,6 +262,7 @@ namespace Basis.Tests.Camera
 
             private static void ParseStreamList(byte[] data, int pos, int end, ParsedAvi parsed)
             {
+                string streamType = null;
                 while (pos < end)
                 {
                     string chunk = Fourcc(data, pos);
@@ -220,15 +271,34 @@ namespace Basis.Tests.Camera
 
                     if (chunk == "strh")
                     {
-                        parsed.StreamType = Fourcc(data, body);
-                        parsed.Handler = Fourcc(data, body + 4);
-                        parsed.Scale = Int(data, body + 20);
-                        parsed.Rate = Int(data, body + 24);
-                        parsed.StreamLength = Int(data, body + 32);
+                        streamType = Fourcc(data, body);
+                        if (streamType == "vids")
+                        {
+                            parsed.StreamType = streamType;
+                            parsed.Handler = Fourcc(data, body + 4);
+                            parsed.Scale = Int(data, body + 20);
+                            parsed.Rate = Int(data, body + 24);
+                            parsed.StreamLength = Int(data, body + 32);
+                        }
+                        else if (streamType == "auds")
+                        {
+                            parsed.AudioStreamLength = Int(data, body + 32);
+                        }
                     }
                     else if (chunk == "strf")
                     {
-                        parsed.Compression = Fourcc(data, body + 16);
+                        if (streamType == "vids")
+                        {
+                            parsed.Compression = Fourcc(data, body + 16);
+                        }
+                        else if (streamType == "auds")
+                        {
+                            Assert.That(Int(data, body) & 0xFFFF, Is.EqualTo(1), "Audio must be plain PCM.");
+                            parsed.AudioChannels = data[body + 2] | (data[body + 3] << 8);
+                            parsed.AudioSampleRate = Int(data, body + 4);
+                            parsed.AudioBlockAlign = data[body + 12] | (data[body + 13] << 8);
+                            parsed.AudioBitsPerSample = data[body + 14] | (data[body + 15] << 8);
+                        }
                     }
 
                     pos = body + size + (size & 1);
@@ -241,12 +311,22 @@ namespace Basis.Tests.Camera
                 {
                     string chunk = Fourcc(data, pos);
                     int size = Int(data, pos + 4);
-                    Assert.That(chunk, Is.EqualTo("00dc"), $"Unexpected chunk '{chunk}' inside movi.");
+                    byte[] payload = new byte[size];
+                    Array.Copy(data, pos + 8, payload, 0, size);
 
-                    parsed.FrameChunkOffsets.Add(pos - moviFourccAt);
-                    byte[] frame = new byte[size];
-                    Array.Copy(data, pos + 8, frame, 0, size);
-                    parsed.Frames.Add(frame);
+                    if (chunk == "00dc")
+                    {
+                        parsed.FrameChunkOffsets.Add(pos - moviFourccAt);
+                        parsed.Frames.Add(payload);
+                    }
+                    else if (chunk == "01wb")
+                    {
+                        parsed.AudioChunks.Add(payload);
+                    }
+                    else
+                    {
+                        Assert.Fail($"Unexpected chunk '{chunk}' inside movi.");
+                    }
 
                     pos += 8 + size + (size & 1);
                 }

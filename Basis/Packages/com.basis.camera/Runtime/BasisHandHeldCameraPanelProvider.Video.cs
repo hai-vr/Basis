@@ -14,6 +14,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelElementDescriptor _videoGroup;
         private PanelButton _videoRecordButton;
         private PanelElementDescriptor _videoStatus;
+        private PanelToggle _videoTimeLimitToggle;
         private PanelSlider _videoDurationSlider;
         private PanelSlider _videoRecordFrameRateSlider;
         private PanelDropdown _videoSizeDropdown;
@@ -21,6 +22,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private string _lastVideoButtonLabel;
         private string _lastVideoStatusText;
+        private bool? _lastVideoTimeLimit;
         private float _lastVideoDuration = float.NaN;
         private float _lastVideoFrameRate = float.NaN;
         private int _lastVideoWidth = -1;
@@ -41,6 +43,15 @@ namespace Basis.BasisUI.HandHeldCamera
             _videoStatus = BuildRecordingStatusCard(content, "camera.video.status", "camera.video.status.idle");
 
             BasisHandHeldCameraUI.CameraSettings defaults = new BasisHandHeldCameraUI.CameraSettings();
+
+            _videoTimeLimitToggle = PanelToggle.CreateNewEntry(content);
+            _videoTimeLimitToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.video.timeLimit"));
+            _videoTimeLimitToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.video.timeLimit.description"));
+            _videoTimeLimitToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera != null) _activeCamera.VideoRecordingTimeLimit = v;
+                RefreshVideoLengthVisibility();
+            };
 
             _videoDurationSlider = PanelSlider.CreateNew(content);
             _videoDurationSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
@@ -123,10 +134,26 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastVideoQuality = _activeCamera.VideoRecordingQuality;
             _lastVideoWidth = -1;
             SyncWidthDropdown(_videoSizeDropdown, BasisHandHeldCamera.VideoWidthPresets, _activeCamera.VideoRecordingWidth, ref _lastVideoWidth);
+            _lastVideoTimeLimit = null;
+            SyncToggle(_videoTimeLimitToggle, _activeCamera.VideoRecordingTimeLimit, ref _lastVideoTimeLimit);
+            RefreshVideoLengthVisibility();
 
             _lastVideoButtonLabel = null;
             _lastVideoStatusText = null;
             TickVideoSection();
+        }
+
+        /// <summary>The length slider only exists while there is a limit for it to set.</summary>
+        private void RefreshVideoLengthVisibility()
+        {
+            if (_videoDurationSlider == null || _activeCamera == null) return;
+
+            bool limited = _activeCamera.VideoRecordingTimeLimit;
+            if (_videoDurationSlider.gameObject.activeSelf == limited) return;
+
+            _videoDurationSlider.gameObject.SetActive(limited);
+            RefreshSearch();
+            ForceLayoutRebuild(_videoGroup);
         }
 
         /// <summary>Per-tick sync, same shape and reasoning as the GIF section's.</summary>
@@ -138,6 +165,8 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncSlider(_videoRecordFrameRateSlider, _activeCamera.VideoRecordingFrameRate, ref _lastVideoFrameRate);
             SyncSlider(_videoQualitySlider, _activeCamera.VideoRecordingQuality, ref _lastVideoQuality);
             SyncWidthDropdown(_videoSizeDropdown, BasisHandHeldCamera.VideoWidthPresets, _activeCamera.VideoRecordingWidth, ref _lastVideoWidth);
+            SyncToggle(_videoTimeLimitToggle, _activeCamera.VideoRecordingTimeLimit, ref _lastVideoTimeLimit);
+            RefreshVideoLengthVisibility();
 
             TickRecordingControls(
                 _activeCamera.VideoRecordingState, _activeCamera.VideoSecondsRemaining,
@@ -153,6 +182,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _videoGroup = null;
             _videoRecordButton = null;
             _videoStatus = null;
+            _videoTimeLimitToggle = null;
+            _lastVideoTimeLimit = null;
             _videoDurationSlider = null;
             _videoRecordFrameRateSlider = null;
             _videoSizeDropdown = null;

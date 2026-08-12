@@ -99,6 +99,7 @@ public static class BasisCameraSettingsReadout
         Row("camera.gif.dither", OnOff(settings.gifDither));
 
         Section("camera.video");
+        Row("camera.video.timeLimit", OnOff(settings.videoTimeLimit));
         Row("camera.video.length", Number(settings.videoDurationSeconds) + " s");
         Row("camera.video.frameRate", settings.videoFrameRate.ToString());
         Row("camera.video.size", settings.videoWidth + " px");

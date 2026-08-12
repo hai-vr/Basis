@@ -183,6 +183,7 @@ namespace Basis.Tests.Camera
                 videoFrameRate = 24,
                 videoWidth = 1280,
                 videoQuality = 65,
+                videoTimeLimit = false,
                 backgroundMode = (int)BasisCameraBackgroundMode.BlueScreen,
                 backgroundCustomColor = new Color(0.1f, 0.2f, 0.3f, 1f),
                 backgroundKeepsWorld = true,
