@@ -1,3 +1,4 @@
+using Basis;
 using UnityEngine;
 
 namespace Basis.BasisUI.HandHeldCamera
@@ -6,7 +7,8 @@ namespace Basis.BasisUI.HandHeldCamera
     /// The GIF section on the Image tab: record a short clip of the camera feed straight to a
     /// shareable animated GIF. The controls write through the camera's clamped setters, and the
     /// tick keeps the button and status honest about a recording the panel did not start — the
-    /// state lives on the camera, which keeps recording with the panel closed.
+    /// state lives on the camera, which keeps recording with the panel closed. The button and
+    /// status plumbing is shared with the video section below it, which records the same way.
     /// </summary>
     public partial class BasisHandHeldCameraPanelProvider
     {
@@ -40,11 +42,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _gifRecordButton.Descriptor.SetTitle(BasisLocalization.Get("camera.gif.record"));
             _gifRecordButton.OnClicked += OnGifRecordClicked;
 
-            _gifStatus = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, content);
-            _gifStatus.SetTitle(BasisLocalization.Get("camera.gif.status"));
-            _gifStatus.SetDescription(BasisLocalization.Get("camera.gif.status.idle"));
-            if (_gifStatus.IconBackground != null) _gifStatus.IconBackground.SetActive(false);
-            ReleaseControlSlot(_gifStatus);
+            _gifStatus = BuildRecordingStatusCard(content, "camera.gif.status", "camera.gif.status.idle");
 
             BasisHandHeldCameraUI.CameraSettings defaults = new BasisHandHeldCameraUI.CameraSettings();
 
@@ -69,7 +67,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _gifSizeDropdown = PanelDropdown.CreateNewEntry(content);
             _gifSizeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.gif.size"));
             _gifSizeDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.gif.size.description"));
-            _gifSizeDropdown.AssignEntries(BuildGifSizeLabels());
+            _gifSizeDropdown.AssignEntries(BuildWidthLabels(BasisHandHeldCamera.GifWidthPresets));
             _gifSizeDropdown.OnValueChanged = _ =>
             {
                 if (_activeCamera == null || _gifSizeDropdown == null) return;
@@ -105,25 +103,15 @@ namespace Basis.BasisUI.HandHeldCamera
             }
         }
 
-        private static System.Collections.Generic.List<string> BuildGifSizeLabels()
-        {
-            var labels = new System.Collections.Generic.List<string>(BasisHandHeldCamera.GifWidthPresets.Length);
-            for (int Index = 0; Index < BasisHandHeldCamera.GifWidthPresets.Length; Index++)
-            {
-                labels.Add($"{BasisHandHeldCamera.GifWidthPresets[Index]} px");
-            }
-            return labels;
-        }
-
         private void OnGifRecordClicked()
         {
             if (_activeCamera == null) return;
 
-            if (_activeCamera.GifState == BasisHandHeldCamera.BasisGifRecorderState.Recording)
+            if (_activeCamera.GifState == BasisCameraRecordingState.Recording)
             {
                 _activeCamera.StopGifRecording();
             }
-            else if (_activeCamera.GifState == BasisHandHeldCamera.BasisGifRecorderState.Idle)
+            else if (_activeCamera.GifState == BasisCameraRecordingState.Idle)
             {
                 _activeCamera.StartGifRecording();
             }
@@ -146,7 +134,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_gifLoopToggle, _activeCamera.GifLoop, ref _lastGifLoop);
             SyncToggle(_gifDitherToggle, _activeCamera.GifDither, ref _lastGifDither);
             _lastGifWidth = -1;
-            SyncGifSizeDropdown();
+            SyncWidthDropdown(_gifSizeDropdown, BasisHandHeldCamera.GifWidthPresets, _activeCamera.GifWidth, ref _lastGifWidth);
 
             _lastGifButtonLabel = null;
             _lastGifStatusText = null;
@@ -166,84 +154,14 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncSlider(_gifFrameRateSlider, _activeCamera.GifFrameRate, ref _lastGifFrameRate);
             SyncToggle(_gifLoopToggle, _activeCamera.GifLoop, ref _lastGifLoop);
             SyncToggle(_gifDitherToggle, _activeCamera.GifDither, ref _lastGifDither);
-            SyncGifSizeDropdown();
+            SyncWidthDropdown(_gifSizeDropdown, BasisHandHeldCamera.GifWidthPresets, _activeCamera.GifWidth, ref _lastGifWidth);
 
-            string buttonLabel;
-            string statusText;
-            bool interactable = true;
-
-            switch (_activeCamera.GifState)
-            {
-                case BasisHandHeldCamera.BasisGifRecorderState.Recording:
-                    int secondsLeft = Mathf.CeilToInt(_activeCamera.GifSecondsRemaining);
-                    buttonLabel = BasisLocalization.Get("camera.gif.stop", secondsLeft);
-                    statusText = BasisLocalization.Get("camera.gif.status.recording", _activeCamera.GifFramesCaptured);
-                    break;
-
-                case BasisHandHeldCamera.BasisGifRecorderState.Saving:
-                    buttonLabel = BasisLocalization.Get("camera.gif.saving");
-                    statusText = BasisLocalization.Get("camera.gif.status.saving",
-                        _activeCamera.GifFramesEncoded, _activeCamera.GifFramesCaptured);
-                    interactable = false;
-                    break;
-
-                default:
-                    buttonLabel = BasisLocalization.Get("camera.gif.record");
-                    if (BasisNetworkModeration.CameraCaptureBlockedLocally)
-                    {
-                        statusText = BasisLocalization.Get("camera.gif.status.blocked");
-                        interactable = false;
-                    }
-                    else if (_activeCamera.LastGifFailure != null)
-                    {
-                        statusText = BasisLocalization.Get("camera.gif.status.failed", _activeCamera.LastGifFailure);
-                    }
-                    else if (_activeCamera.LastGifFileName != null)
-                    {
-                        statusText = BasisLocalization.Get("camera.gif.status.saved", _activeCamera.LastGifFileName);
-                    }
-                    else
-                    {
-                        statusText = BasisLocalization.Get("camera.gif.status.idle");
-                    }
-                    break;
-            }
-
-            if (buttonLabel != _lastGifButtonLabel)
-            {
-                _lastGifButtonLabel = buttonLabel;
-                _gifRecordButton.Descriptor.SetTitle(buttonLabel);
-                _gifRecordButton.SetInteractable(interactable);
-            }
-
-            if (statusText != _lastGifStatusText)
-            {
-                _lastGifStatusText = statusText;
-                _gifStatus?.SetDescription(statusText);
-            }
-        }
-
-        private void SyncGifSizeDropdown()
-        {
-            if (_gifSizeDropdown == null || _activeCamera == null) return;
-            if (_activeCamera.GifWidth == _lastGifWidth) return;
-
-            // Never move a list that is open under the user's pointer; the width is re-read the
-            // moment it closes because the cache is only advanced on a successful write.
-            if (_gifSizeDropdown.DropdownComponent != null && _gifSizeDropdown.DropdownComponent.IsExpanded) return;
-
-            _lastGifWidth = _activeCamera.GifWidth;
-
-            int[] presets = BasisHandHeldCamera.GifWidthPresets;
-            int nearest = 0;
-            for (int Index = 1; Index < presets.Length; Index++)
-            {
-                if (Mathf.Abs(presets[Index] - _lastGifWidth) < Mathf.Abs(presets[nearest] - _lastGifWidth))
-                {
-                    nearest = Index;
-                }
-            }
-            _gifSizeDropdown.SetValueWithoutNotify($"{presets[nearest]} px");
+            TickRecordingControls(
+                _activeCamera.GifState, _activeCamera.GifSecondsRemaining,
+                _activeCamera.GifFramesCaptured, _activeCamera.GifFramesEncoded,
+                _activeCamera.LastGifFileName, _activeCamera.LastGifFailure,
+                "camera.gif", _gifRecordButton, _gifStatus,
+                ref _lastGifButtonLabel, ref _lastGifStatusText);
         }
 
         private void ClearGifReferences()
@@ -264,6 +182,123 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastGifWidth = -1;
             _lastGifLoop = null;
             _lastGifDither = null;
+        }
+
+        // ---- shared between the GIF and video sections ----------------------------------
+
+        /// <summary>Text-only status card: the icon slot and control reservation both go, or the description wraps into a sliver.</summary>
+        private static PanelElementDescriptor BuildRecordingStatusCard(RectTransform parent, string titleKey, string idleKey)
+        {
+            PanelElementDescriptor card = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
+            card.SetTitle(BasisLocalization.Get(titleKey));
+            card.SetDescription(BasisLocalization.Get(idleKey));
+            if (card.IconBackground != null) card.IconBackground.SetActive(false);
+            ReleaseControlSlot(card);
+            return card;
+        }
+
+        private static System.Collections.Generic.List<string> BuildWidthLabels(int[] presets)
+        {
+            var labels = new System.Collections.Generic.List<string>(presets.Length);
+            for (int Index = 0; Index < presets.Length; Index++)
+            {
+                labels.Add($"{presets[Index]} px");
+            }
+            return labels;
+        }
+
+        /// <summary>
+        /// Shows the camera's width on a preset dropdown, as the nearest preset. Never moves a
+        /// list that is open under the user's pointer; the cache only advances on a successful
+        /// write, so the value is re-read the moment it closes.
+        /// </summary>
+        private static void SyncWidthDropdown(PanelDropdown dropdown, int[] presets, int width, ref int cached)
+        {
+            if (dropdown == null || width == cached) return;
+            if (dropdown.DropdownComponent != null && dropdown.DropdownComponent.IsExpanded) return;
+
+            cached = width;
+
+            int nearest = 0;
+            for (int Index = 1; Index < presets.Length; Index++)
+            {
+                if (Mathf.Abs(presets[Index] - width) < Mathf.Abs(presets[nearest] - width))
+                {
+                    nearest = Index;
+                }
+            }
+            dropdown.SetValueWithoutNotify($"{presets[nearest]} px");
+        }
+
+        /// <summary>
+        /// The record button and status card for one clip recorder, edge-gated. Both recorders
+        /// speak the same states, so the only thing that differs is the key prefix their
+        /// wording lives under.
+        /// </summary>
+        private void TickRecordingControls(
+            BasisCameraRecordingState state,
+            float secondsRemaining,
+            int framesCaptured,
+            int framesEncoded,
+            string lastFileName,
+            string lastFailure,
+            string keyPrefix,
+            PanelButton recordButton,
+            PanelElementDescriptor statusCard,
+            ref string lastButtonLabel,
+            ref string lastStatusText)
+        {
+            string buttonLabel;
+            string statusText;
+            bool interactable = true;
+
+            switch (state)
+            {
+                case BasisCameraRecordingState.Recording:
+                    buttonLabel = BasisLocalization.Get(keyPrefix + ".stop", Mathf.CeilToInt(secondsRemaining));
+                    statusText = BasisLocalization.Get(keyPrefix + ".status.recording", framesCaptured);
+                    break;
+
+                case BasisCameraRecordingState.Saving:
+                    buttonLabel = BasisLocalization.Get(keyPrefix + ".saving");
+                    statusText = BasisLocalization.Get(keyPrefix + ".status.saving", framesEncoded, framesCaptured);
+                    interactable = false;
+                    break;
+
+                default:
+                    buttonLabel = BasisLocalization.Get(keyPrefix + ".record");
+                    if (BasisNetworkModeration.CameraCaptureBlockedLocally)
+                    {
+                        statusText = BasisLocalization.Get(keyPrefix + ".status.blocked");
+                        interactable = false;
+                    }
+                    else if (lastFailure != null)
+                    {
+                        statusText = BasisLocalization.Get(keyPrefix + ".status.failed", lastFailure);
+                    }
+                    else if (lastFileName != null)
+                    {
+                        statusText = BasisLocalization.Get(keyPrefix + ".status.saved", lastFileName);
+                    }
+                    else
+                    {
+                        statusText = BasisLocalization.Get(keyPrefix + ".status.idle");
+                    }
+                    break;
+            }
+
+            if (buttonLabel != lastButtonLabel)
+            {
+                lastButtonLabel = buttonLabel;
+                recordButton.Descriptor.SetTitle(buttonLabel);
+                recordButton.SetInteractable(interactable);
+            }
+
+            if (statusText != lastStatusText)
+            {
+                lastStatusText = statusText;
+                statusCard?.SetDescription(statusText);
+            }
         }
     }
 }

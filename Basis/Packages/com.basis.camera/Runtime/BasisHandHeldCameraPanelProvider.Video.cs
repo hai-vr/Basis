@@ -1,0 +1,168 @@
+using Basis;
+using UnityEngine;
+
+namespace Basis.BasisUI.HandHeldCamera
+{
+    /// <summary>
+    /// The video section on the Image tab, directly under the GIF section it shares its
+    /// plumbing with: record the camera feed to a Motion-JPEG AVI beside the photos. Distinct
+    /// from Output's live streaming — this writes a file to keep, that publishes a feed.
+    /// </summary>
+    public partial class BasisHandHeldCameraPanelProvider
+    {
+        private PanelSectionToggle _videoSection;
+        private PanelElementDescriptor _videoGroup;
+        private PanelButton _videoRecordButton;
+        private PanelElementDescriptor _videoStatus;
+        private PanelSlider _videoDurationSlider;
+        private PanelSlider _videoRecordFrameRateSlider;
+        private PanelDropdown _videoSizeDropdown;
+        private PanelSlider _videoQualitySlider;
+
+        private string _lastVideoButtonLabel;
+        private string _lastVideoStatusText;
+        private float _lastVideoDuration = float.NaN;
+        private float _lastVideoFrameRate = float.NaN;
+        private int _lastVideoWidth = -1;
+        private float _lastVideoQuality = float.NaN;
+
+        private void BuildVideoGroup(RectTransform parent)
+        {
+            _videoSection = PanelSectionToggle.CreateNewEntry(parent);
+            _videoGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                _videoSection, parent, BasisLocalization.Get("camera.video"), false);
+            RectTransform content = _videoGroup.ContentParent;
+
+            RectTransform recordRow = PanelElementDescriptor.BuildActionRow(content, "CameraVideoRecordRow");
+            _videoRecordButton = PanelButton.CreateNew(recordRow);
+            _videoRecordButton.Descriptor.SetTitle(BasisLocalization.Get("camera.video.record"));
+            _videoRecordButton.OnClicked += OnVideoRecordClicked;
+
+            _videoStatus = BuildRecordingStatusCard(content, "camera.video.status", "camera.video.status.idle");
+
+            BasisHandHeldCameraUI.CameraSettings defaults = new BasisHandHeldCameraUI.CameraSettings();
+
+            _videoDurationSlider = PanelSlider.CreateNew(content);
+            _videoDurationSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.video.length"),
+                BasisHandHeldCamera.MinVideoDurationSeconds, BasisHandHeldCamera.MaxVideoDurationSeconds,
+                true, 0, ValueDisplayMode.Raw));
+            _videoDurationSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.video.length.description"));
+            _videoDurationSlider.SetResetDefault(defaults.videoDurationSeconds);
+            _videoDurationSlider.OnValueChanged = v => _activeCamera?.SetVideoRecordingDuration(v);
+
+            _videoRecordFrameRateSlider = PanelSlider.CreateNew(content);
+            _videoRecordFrameRateSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.video.frameRate"),
+                BasisHandHeldCamera.MinVideoFrameRate, BasisHandHeldCamera.MaxVideoFrameRate,
+                true, 0, ValueDisplayMode.Hz));
+            _videoRecordFrameRateSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.video.frameRate.description"));
+            _videoRecordFrameRateSlider.SetResetDefault(defaults.videoFrameRate);
+            _videoRecordFrameRateSlider.OnValueChanged = v => _activeCamera?.SetVideoRecordingFrameRate((int)v);
+
+            _videoSizeDropdown = PanelDropdown.CreateNewEntry(content);
+            _videoSizeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.video.size"));
+            _videoSizeDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.video.size.description"));
+            _videoSizeDropdown.AssignEntries(BuildWidthLabels(BasisHandHeldCamera.VideoWidthPresets));
+            _videoSizeDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _videoSizeDropdown == null) return;
+                int index = _videoSizeDropdown.Index;
+                if (index >= 0 && index < BasisHandHeldCamera.VideoWidthPresets.Length)
+                {
+                    _activeCamera.SetVideoRecordingWidth(BasisHandHeldCamera.VideoWidthPresets[index]);
+                }
+            };
+
+            _videoQualitySlider = PanelSlider.CreateNew(content);
+            _videoQualitySlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.video.quality"),
+                BasisHandHeldCamera.MinVideoQuality, BasisHandHeldCamera.MaxVideoQuality,
+                true, 0, ValueDisplayMode.Raw));
+            _videoQualitySlider.Descriptor.SetDescription(BasisLocalization.Get("camera.video.quality.description"));
+            _videoQualitySlider.SetResetDefault(defaults.videoQuality);
+            _videoQualitySlider.OnValueChanged = v => _activeCamera?.SetVideoRecordingQuality((int)v);
+
+            if (BasisHandHeldCamera.CanOpenPhotosFolder)
+            {
+                RectTransform folderRow = PanelElementDescriptor.BuildActionRow(content, "CameraVideoFolderRow");
+                PanelButton openFolderButton = PanelButton.CreateNew(folderRow);
+                openFolderButton.Descriptor.SetTitle(BasisLocalization.Get("camera.openPhotosFolder"));
+                openFolderButton.OnClicked += () => BasisHandHeldCamera.OpenPhotosFolder();
+            }
+        }
+
+        private void OnVideoRecordClicked()
+        {
+            if (_activeCamera == null) return;
+
+            if (_activeCamera.VideoRecordingState == BasisCameraRecordingState.Recording)
+            {
+                _activeCamera.StopVideoRecording();
+            }
+            else if (_activeCamera.VideoRecordingState == BasisCameraRecordingState.Idle)
+            {
+                _activeCamera.StartVideoRecording();
+            }
+
+            _lastVideoButtonLabel = null;
+            _lastVideoStatusText = null;
+            TickVideoSection();
+        }
+
+        /// <summary>Seeds the video controls from a camera the panel just bound.</summary>
+        private void SeedVideoControls()
+        {
+            if (_activeCamera == null) return;
+
+            _videoDurationSlider?.SetValueWithoutNotify(_activeCamera.VideoRecordingDurationSeconds);
+            _videoRecordFrameRateSlider?.SetValueWithoutNotify(_activeCamera.VideoRecordingFrameRate);
+            _videoQualitySlider?.SetValueWithoutNotify(_activeCamera.VideoRecordingQuality);
+            _lastVideoDuration = _activeCamera.VideoRecordingDurationSeconds;
+            _lastVideoFrameRate = _activeCamera.VideoRecordingFrameRate;
+            _lastVideoQuality = _activeCamera.VideoRecordingQuality;
+            _lastVideoWidth = -1;
+            SyncWidthDropdown(_videoSizeDropdown, BasisHandHeldCamera.VideoWidthPresets, _activeCamera.VideoRecordingWidth, ref _lastVideoWidth);
+
+            _lastVideoButtonLabel = null;
+            _lastVideoStatusText = null;
+            TickVideoSection();
+        }
+
+        /// <summary>Per-tick sync, same shape and reasoning as the GIF section's.</summary>
+        private void TickVideoSection()
+        {
+            if (_activeCamera == null || _videoRecordButton == null) return;
+
+            SyncSlider(_videoDurationSlider, _activeCamera.VideoRecordingDurationSeconds, ref _lastVideoDuration);
+            SyncSlider(_videoRecordFrameRateSlider, _activeCamera.VideoRecordingFrameRate, ref _lastVideoFrameRate);
+            SyncSlider(_videoQualitySlider, _activeCamera.VideoRecordingQuality, ref _lastVideoQuality);
+            SyncWidthDropdown(_videoSizeDropdown, BasisHandHeldCamera.VideoWidthPresets, _activeCamera.VideoRecordingWidth, ref _lastVideoWidth);
+
+            TickRecordingControls(
+                _activeCamera.VideoRecordingState, _activeCamera.VideoSecondsRemaining,
+                _activeCamera.VideoFramesCaptured, _activeCamera.VideoFramesEncoded,
+                _activeCamera.LastVideoFileName, _activeCamera.LastVideoFailure,
+                "camera.video", _videoRecordButton, _videoStatus,
+                ref _lastVideoButtonLabel, ref _lastVideoStatusText);
+        }
+
+        private void ClearVideoReferences()
+        {
+            _videoSection = null;
+            _videoGroup = null;
+            _videoRecordButton = null;
+            _videoStatus = null;
+            _videoDurationSlider = null;
+            _videoRecordFrameRateSlider = null;
+            _videoSizeDropdown = null;
+            _videoQualitySlider = null;
+            _lastVideoButtonLabel = null;
+            _lastVideoStatusText = null;
+            _lastVideoDuration = float.NaN;
+            _lastVideoFrameRate = float.NaN;
+            _lastVideoWidth = -1;
+            _lastVideoQuality = float.NaN;
+        }
+    }
+}

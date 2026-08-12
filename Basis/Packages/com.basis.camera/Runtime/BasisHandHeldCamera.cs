@@ -345,6 +345,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         StopWebStream();
         StopVideoOutput();
         ShutdownGifRecorder();
+        ShutdownVideoRecorder();
         SetAudioListener(false);
         DespawnFollowPip();
         DestroyDetachedGizmo();
@@ -1286,6 +1287,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         UpdatePreviewScreenTexture();
         TickVideoOutput();
         TickGifRecorder();
+        TickVideoRecorder();
         UpdateOnPropUIVisibility();
         UpdateAutoFocus();
         UpdateFollowPip();
@@ -1459,7 +1461,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// freezes on whatever frame the prop was last on screen for.
     /// </summary>
     private bool HasOffPropFeedConsumer =>
-        IsOverridingDesktopView || IsAnyVideoOutputActive || IsGifRecording || panelPreviewActive || IsPreviewScreenVisible;
+        IsOverridingDesktopView || IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || panelPreviewActive || IsPreviewScreenVisible;
 
     /// <summary>
     /// Told by the settings panel while it is open on this camera. Its preview is a second window
@@ -1517,9 +1519,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         // A recording is a consumer the same way: capturing 15 distinct frames a second needs
         // the camera rendering at least that often.
-        if (IsGifRecording && gifSessionFrameRate > 0)
+        if (IsGifRecording && gifRecorder.FrameRate > 0)
         {
-            targetHz = Mathf.Max(targetHz, gifSessionFrameRate);
+            targetHz = Mathf.Max(targetHz, gifRecorder.FrameRate);
+        }
+        if (IsVideoRecording && videoRecorder.FrameRate > 0)
+        {
+            targetHz = Mathf.Max(targetHz, videoRecorder.FrameRate);
         }
 
         captureCamera.enabled = renderRateLimiter.AllowThisFrame(Time.unscaledDeltaTime, targetHz, limitEnabled);

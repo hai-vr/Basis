@@ -206,6 +206,11 @@ public class BasisCameraUserMode
         if (left.gifLoop != right.gifLoop) return false;
         if (left.gifDither != right.gifDither) return false;
 
+        if (!Near(left.videoDurationSeconds, right.videoDurationSeconds, Epsilon)) return false;
+        if (left.videoFrameRate != right.videoFrameRate) return false;
+        if (left.videoWidth != right.videoWidth) return false;
+        if (left.videoQuality != right.videoQuality) return false;
+
         if (left.backgroundMode != right.backgroundMode) return false;
         if (!Near(left.backgroundCustomColor, right.backgroundCustomColor)) return false;
         if (left.backgroundKeepsWorld != right.backgroundKeepsWorld) return false;

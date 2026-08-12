@@ -98,6 +98,12 @@ public static class BasisCameraSettingsReadout
         Row("camera.gif.loop", OnOff(settings.gifLoop));
         Row("camera.gif.dither", OnOff(settings.gifDither));
 
+        Section("camera.video");
+        Row("camera.video.length", Number(settings.videoDurationSeconds) + " s");
+        Row("camera.video.frameRate", settings.videoFrameRate.ToString());
+        Row("camera.video.size", settings.videoWidth + " px");
+        Row("camera.video.quality", settings.videoQuality.ToString());
+
         Section("camera.follow");
         Row("camera.followOffset", Vector(settings.autoFollowPositionOffset));
         Row("camera.followRotationOffset", Vector(settings.autoFollowRotationOffset));

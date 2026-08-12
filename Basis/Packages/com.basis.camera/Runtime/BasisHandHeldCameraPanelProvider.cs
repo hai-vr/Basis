@@ -280,6 +280,9 @@ namespace Basis.BasisUI.HandHeldCamera
 
                 BuildGifGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_gifSection, _gifGroup, false, OnSectionExpanded);
+
+                BuildVideoGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_videoSection, _videoGroup, false, OnSectionExpanded);
             });
 
             AddTab("camera.output", content =>
@@ -655,6 +658,7 @@ namespace Basis.BasisUI.HandHeldCamera
             ClearCinematicReferences();
             ClearModeReferences();
             ClearGifReferences();
+            ClearVideoReferences();
             _panel = null;
             _tabGroup = null;
             _navColumn = null;
@@ -1752,6 +1756,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             SeedCinematicCameraControls();
             SeedGifControls();
+            SeedVideoControls();
             RefreshShotList();
             RefreshWaypointList();
 
@@ -2089,6 +2094,7 @@ namespace Basis.BasisUI.HandHeldCamera
             TickModeState();
             TickCinematicSections();
             TickGifSection();
+            TickVideoSection();
             RefreshTimerLabel();
             RefreshHiddenState();
         }

@@ -82,17 +82,17 @@ namespace Basis.Tests.Camera
         [Test]
         public void RecorderStartsIdleAndRefusesWithoutAFeed()
         {
-            Assert.That(_camera.GifState, Is.EqualTo(BasisHandHeldCamera.BasisGifRecorderState.Idle));
+            Assert.That(_camera.GifState, Is.EqualTo(BasisCameraRecordingState.Idle));
             Assert.That(_camera.IsGifRecording, Is.False);
 
             // No capture camera or render texture exists in edit mode; a start must refuse
             // cleanly rather than spin up a session with nothing to record.
             Assert.That(_camera.StartGifRecording(), Is.False);
-            Assert.That(_camera.GifState, Is.EqualTo(BasisHandHeldCamera.BasisGifRecorderState.Idle));
+            Assert.That(_camera.GifState, Is.EqualTo(BasisCameraRecordingState.Idle));
 
             // Stop from idle is a no-op, not an error.
             _camera.StopGifRecording();
-            Assert.That(_camera.GifState, Is.EqualTo(BasisHandHeldCamera.BasisGifRecorderState.Idle));
+            Assert.That(_camera.GifState, Is.EqualTo(BasisCameraRecordingState.Idle));
         }
 
         // ---- the session end to end ----------------------------------------------------

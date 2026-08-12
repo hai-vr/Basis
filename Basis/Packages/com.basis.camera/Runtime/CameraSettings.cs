@@ -81,6 +81,11 @@ public partial class BasisHandHeldCameraUI
             gifWidth = 480;
             gifLoop = true;
             gifDither = true;
+
+            videoDurationSeconds = 30f;
+            videoFrameRate = 30;
+            videoWidth = 1920;
+            videoQuality = 80;
         }
 
         /// <summary>
@@ -191,6 +196,12 @@ public partial class BasisHandHeldCameraUI
         public int gifWidth;
         public bool gifLoop;
         public bool gifDither;
+
+        // Video recording (MJPEG AVI), defaulted the same way.
+        public float videoDurationSeconds;
+        public int videoFrameRate;
+        public int videoWidth;
+        public int videoQuality;
 
         /// <summary>
         /// Whether each saved photo is also printed into the world as a shared image pickup,

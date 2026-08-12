@@ -706,6 +706,10 @@ public partial class BasisHandHeldCameraUI
             gifWidth = HHC != null ? HHC.GifWidth : baseline.gifWidth,
             gifLoop = HHC == null || HHC.GifLoop,
             gifDither = HHC == null || HHC.GifDither,
+            videoDurationSeconds = HHC != null ? HHC.VideoRecordingDurationSeconds : baseline.videoDurationSeconds,
+            videoFrameRate = HHC != null ? HHC.VideoRecordingFrameRate : baseline.videoFrameRate,
+            videoWidth = HHC != null ? HHC.VideoRecordingWidth : baseline.videoWidth,
+            videoQuality = HHC != null ? HHC.VideoRecordingQuality : baseline.videoQuality,
             backgroundMode = HHC != null ? (int)HHC.backgroundMode : 0,
             backgroundCustomColor = HHC != null ? HHC.backgroundCustomColor : BasisHandHeldCamera.ChromaGreen,
             backgroundKeepsWorld = HHC != null && HHC.backgroundKeepsWorld,
@@ -1088,6 +1092,10 @@ public partial class BasisHandHeldCameraUI
         HHC.SetGifWidth(settings.gifWidth);
         HHC.GifLoop = settings.gifLoop;
         HHC.GifDither = settings.gifDither;
+        HHC.SetVideoRecordingDuration(settings.videoDurationSeconds);
+        HHC.SetVideoRecordingFrameRate(settings.videoFrameRate);
+        HHC.SetVideoRecordingWidth(settings.videoWidth);
+        HHC.SetVideoRecordingQuality(settings.videoQuality);
 
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC.MetaData.VolumetricFogVolume != null)

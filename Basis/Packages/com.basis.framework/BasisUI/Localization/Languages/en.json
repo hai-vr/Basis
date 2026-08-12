@@ -339,6 +339,82 @@
       "value": "Blends the GIF's limited colors. Smoother gradients, slightly grainy."
     },
     {
+      "key": "camera.video",
+      "value": "Video Recording"
+    },
+    {
+      "key": "camera.video.record",
+      "value": "Start Recording"
+    },
+    {
+      "key": "camera.video.stop",
+      "value": "Stop ({0}s)"
+    },
+    {
+      "key": "camera.video.saving",
+      "value": "Saving…"
+    },
+    {
+      "key": "camera.video.status",
+      "value": "Status"
+    },
+    {
+      "key": "camera.video.status.idle",
+      "value": "Ready. Videos save next to your photos as MJPEG AVI files."
+    },
+    {
+      "key": "camera.video.status.recording",
+      "value": "Recording… {0} frames so far."
+    },
+    {
+      "key": "camera.video.status.saving",
+      "value": "Encoding frame {0} of {1}…"
+    },
+    {
+      "key": "camera.video.status.saved",
+      "value": "Saved {0}"
+    },
+    {
+      "key": "camera.video.status.failed",
+      "value": "Failed: {0}"
+    },
+    {
+      "key": "camera.video.status.blocked",
+      "value": "Camera capture is locked by an admin."
+    },
+    {
+      "key": "camera.video.length",
+      "value": "Length"
+    },
+    {
+      "key": "camera.video.length.description",
+      "value": "Seconds a recording runs before it stops itself."
+    },
+    {
+      "key": "camera.video.frameRate",
+      "value": "Frame Rate"
+    },
+    {
+      "key": "camera.video.frameRate.description",
+      "value": "Frames per second in the finished video. More is smoother and bigger."
+    },
+    {
+      "key": "camera.video.size",
+      "value": "Size"
+    },
+    {
+      "key": "camera.video.size.description",
+      "value": "Width of the video in pixels. The height follows the photo aspect."
+    },
+    {
+      "key": "camera.video.quality",
+      "value": "Quality"
+    },
+    {
+      "key": "camera.video.quality.description",
+      "value": "JPEG quality of each frame. Higher looks better and makes a much larger file."
+    },
+    {
       "key": "camera.lens",
       "value": "Lens"
     },
