@@ -336,6 +336,11 @@ namespace BasisNetworkServer.Security
                         HandleForceAvatarAll(peer, reader));
                     break;
 
+                case AdminRequestMode.SetLocomotionOverride:
+                    Require(peer, PermNodes.ModerationLocomotion, () =>
+                        HandleSetLocomotionOverride(peer, reader));
+                    break;
+
                 // ===== GLOBAL LOCK =====
                 case AdminRequestMode.GlobalToggleAvatars:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
@@ -856,6 +861,45 @@ namespace BasisNetworkServer.Security
         /// target's own avatar-change broadcast is what reaches everyone else, so
         /// <see cref="BasisSavedState"/> stays correct for late joiners with nothing extra here.
         /// </summary>
+        private static void HandleSetLocomotionOverride(NetPeer peer, NetPacketReader reader)
+        {
+            ushort targetId = reader.GetUShort();
+            byte fields = reader.GetByte();
+            float jumpHeight = reader.GetFloat();
+            float walkSpeed = reader.GetFloat();
+            float runSpeed = reader.GetFloat();
+            float gravity = reader.GetFloat();
+            byte movementMode = reader.GetByte();
+
+            if (!NetworkServer.AuthenticatedPeers.TryGetValue(targetId, out NetPeer targetPeer))
+            {
+                SendBackMessage(peer, "Player not found");
+                return;
+            }
+
+            if (NetworkServer.AuthIdentity.NetIDToUUID(targetPeer, out string targetUUID) && IsProtected(targetUUID))
+            {
+                SendBackMessage(peer, "Target is protected");
+                return;
+            }
+
+            var writer = NetworkServer.RentWriter();
+            new AdminRequest().Serialize(writer, AdminRequestMode.LocomotionOverrideApply);
+            writer.Put((ushort)peer.Id);
+            writer.Put(fields);
+            writer.Put(jumpHeight);
+            writer.Put(walkSpeed);
+            writer.Put(runSpeed);
+            writer.Put(gravity);
+            writer.Put(movementMode);
+            NetworkServer.TrySend(targetPeer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+
+            SendBackMessage(peer, fields == 0
+                ? $"Locomotion override cleared on player {targetId}."
+                : $"Locomotion override applied to player {targetId}.");
+        }
+
         private static void HandleForceAvatar(NetPeer peer, NetPacketReader reader)
         {
             ushort targetId = reader.GetUShort();

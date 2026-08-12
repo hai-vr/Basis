@@ -258,6 +258,7 @@ namespace Basis.Scripts.Networking
                 BasisNetworkAvatarCompressor.Dispose();
                 BasisP2PManager.Shutdown();
                 BasisAvatarRateRegistry.Reset();
+                BasisLocomotionOverrides.RemoveAll(true);
                 await BasisNetworkLifeCycle.RebootManagement(true, peer, disconnectInfo);
                 BasisNetworkConnectionWatchdog.NotifyRebootComplete();
 #if UNITY_SERVER

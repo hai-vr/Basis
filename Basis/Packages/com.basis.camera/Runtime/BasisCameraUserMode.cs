@@ -198,6 +198,13 @@ public class BasisCameraUserMode
         if (left.capture360 != right.capture360) return false;
         if (left.useAutoLeveling != right.useAutoLeveling) return false;
         if (left.useVRHandheldSmoothing != right.useVRHandheldSmoothing) return false;
+        if (left.printPhoto != right.printPhoto) return false;
+
+        if (!Near(left.gifDurationSeconds, right.gifDurationSeconds, Epsilon)) return false;
+        if (left.gifFrameRate != right.gifFrameRate) return false;
+        if (left.gifWidth != right.gifWidth) return false;
+        if (left.gifLoop != right.gifLoop) return false;
+        if (left.gifDither != right.gifDither) return false;
 
         if (left.backgroundMode != right.backgroundMode) return false;
         if (!Near(left.backgroundCustomColor, right.backgroundCustomColor)) return false;

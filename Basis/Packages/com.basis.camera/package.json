@@ -14,6 +14,7 @@
   },
   "vpmDependencies": {
     "com.basis.sdk": "0.0.1",
-    "com.basis.framework": "0.0.1"
+    "com.basis.framework": "0.0.1",
+    "com.basis.imagepickup": "0.0.1"
   }
 }

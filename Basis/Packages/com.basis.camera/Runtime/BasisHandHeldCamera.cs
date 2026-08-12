@@ -1,5 +1,6 @@
 using Basis;
 using Basis.BasisUI;
+using Basis.ImagePickup;
 using Basis.Scripts.Audio;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Interactions;
@@ -77,6 +78,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>“EXR” or “PNG” (affects RT format and encoding).</summary>
     [Tooltip("Capture format (EXR/PNG)")]
     public string captureFormat = "EXR";
+
+    /// <summary>
+    /// When on, every photo saved to disk is also printed into the world as a shared image
+    /// pickup — the same card a file drag-and-dropped onto the window makes.
+    /// </summary>
+    [Tooltip("Also spawn each saved photo in the world as an image pickup")]
+    public bool printPhotoEnabled = false;
 
     /// <summary>Depth buffer bits for the render texture (e.g., 24).</summary>
     [Tooltip("Depth buffer bits for render texture")]
@@ -336,6 +344,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // the next camera come up as "Basis Camera 2".
         StopWebStream();
         StopVideoOutput();
+        ShutdownGifRecorder();
         SetAudioListener(false);
         DespawnFollowPip();
         DestroyDetachedGizmo();
@@ -1276,6 +1285,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         UpdatePreviewScreenTexture();
         TickVideoOutput();
+        TickGifRecorder();
         UpdateOnPropUIVisibility();
         UpdateAutoFocus();
         UpdateFollowPip();
@@ -1339,6 +1349,24 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             imageData = BasisHandHeldCameraPhotoMetadata.Embed(imageData, captureFormat, photoMetadata, screenshot.width, screenshot.height);
 
         await File.WriteAllBytesAsync(path, imageData);
+        PrintPhotoIfEnabled(path);
+    }
+
+    /// <summary>
+    /// Hands a photo that just landed on disk to the image pickup service, spawning it in front
+    /// of the player as the same shareable, replicated card a drag-and-dropped image file makes.
+    /// PNG only: EXR is a float format the pickup pipeline cannot decode, so those saves stay on
+    /// disk rather than raising a rejection popup for every shot.
+    /// </summary>
+    private void PrintPhotoIfEnabled(string path)
+    {
+        if (!printPhotoEnabled) return;
+        if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+        {
+            BasisDebug.Log("Print Photo skipped: only PNG photos can become image pickups.", BasisDebug.LogTag.Camera);
+            return;
+        }
+        BasisImagePickupManager.SpawnFromFile(path);
     }
 
     /// <summary>Builds a platform-appropriate save path for a screenshot filename.</summary>
@@ -1431,7 +1459,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// freezes on whatever frame the prop was last on screen for.
     /// </summary>
     private bool HasOffPropFeedConsumer =>
-        IsOverridingDesktopView || IsAnyVideoOutputActive || panelPreviewActive || IsPreviewScreenVisible;
+        IsOverridingDesktopView || IsAnyVideoOutputActive || IsGifRecording || panelPreviewActive || IsPreviewScreenVisible;
 
     /// <summary>
     /// Told by the settings panel while it is open on this camera. Its preview is a second window
@@ -1485,6 +1513,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (IsAnyVideoOutputActive && VideoOutputSettings.FrameRate > 0f)
         {
             targetHz = Mathf.Max(targetHz, VideoOutputSettings.FrameRate);
+        }
+
+        // A recording is a consumer the same way: capturing 15 distinct frames a second needs
+        // the camera rendering at least that often.
+        if (IsGifRecording && gifSessionFrameRate > 0)
+        {
+            targetHz = Mathf.Max(targetHz, gifSessionFrameRate);
         }
 
         captureCamera.enabled = renderRateLimiter.AllowThisFrame(Time.unscaledDeltaTime, targetHz, limitEnabled);

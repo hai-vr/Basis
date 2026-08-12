@@ -404,7 +404,7 @@ public partial class BasisHandHeldCamera
     /// in the middle of the frame keeps the stream undistorted at the size receivers were told to
     /// expect. Identity whenever the two already agree, which is the usual case.
     /// </summary>
-    private static void GetStreamBlitCrop(Texture source, RenderTexture destination, out Vector2 scale, out Vector2 offset)
+    internal static void GetStreamBlitCrop(Texture source, RenderTexture destination, out Vector2 scale, out Vector2 offset)
     {
         scale = Vector2.one;
         offset = Vector2.zero;

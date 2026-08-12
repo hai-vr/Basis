@@ -29,15 +29,15 @@ namespace Basis.Shims
 		public static MethodInfo ResolveShim(
 			CilboxUsage usage,
 			String name,
-			Serializee[] parametersIn,
-			Serializee[] genericArgumentsIn,
+			SerializedTypeDescriptor[] parametersIn,
+			SerializedTypeDescriptor[] genericArgumentsIn,
 			String fullSignature )
 		{
 			if( usage == null ) return null;
 			if( name != "Instantiate" && name != "InstantiateAsync" ) return null;
 
-			Type[] parameters = usage.TypeNamesToArrayOfNativeTypes( parametersIn );
-			Type[] genericArguments = usage.TypeNamesToArrayOfNativeTypes( genericArgumentsIn );
+			Type[] parameters = usage.DescriptorsToArrayOfNativeTypes( parametersIn );
+			Type[] genericArguments = usage.DescriptorsToArrayOfNativeTypes( genericArgumentsIn );
 			if( parameters == null ) return null;
 			for( int i = 0; i < parameters.Length; i++ )
 				if( parameters[i] == null ) return null;

@@ -75,6 +75,12 @@ public partial class BasisHandHeldCameraUI
             VolumetricFogenableMainLightContribution = true;
 
             msaaSamples = 2;
+
+            gifDurationSeconds = 5f;
+            gifFrameRate = 15;
+            gifWidth = 480;
+            gifLoop = true;
+            gifDither = true;
         }
 
         /// <summary>
@@ -177,6 +183,20 @@ public partial class BasisHandHeldCameraUI
         public bool capture360;
         public bool useAutoLeveling;
         public bool useVRHandheldSmoothing;
+
+        // GIF recording. Every default is set in the constructor, so an older file that lacks
+        // them loads the intended values without a migration.
+        public float gifDurationSeconds;
+        public int gifFrameRate;
+        public int gifWidth;
+        public bool gifLoop;
+        public bool gifDither;
+
+        /// <summary>
+        /// Whether each saved photo is also printed into the world as a shared image pickup,
+        /// exactly as if its file had been drag-and-dropped onto the window.
+        /// </summary>
+        public bool printPhoto;
 
         // Background. Mode 0 is World, so a zero-filled old file keeps the world background.
         public int backgroundMode;

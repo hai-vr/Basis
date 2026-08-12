@@ -220,7 +220,15 @@ local.Teleport(spawnPoint.position, spawnPoint.rotation, BasisTeleportMode.Insta
 
 local.SetDefaultMovementSpeed(3.5f);
 local.SetJumpHeight(1.2f);
-local.Immobilize(true);",
+local.Immobilize(true);
+
+// Overrides layer over those baselines under your own key, so removing the key
+// restores whatever was underneath instead of guessing at the original value.
+// Mode: 0 = Walk, 1 = Fly, 2 = NoClip.
+local.SetWalkSpeedOverride(""LowGravityZone"", 1.2f);
+local.SetJumpHeightOverride(""LowGravityZone"", 2.5f);
+local.SetMovementModeOverride(""LowGravityZone"", 1);
+local.ClearLocomotionOverride(""LowGravityZone"");",
             },
             new CilboxApiEntry
             {

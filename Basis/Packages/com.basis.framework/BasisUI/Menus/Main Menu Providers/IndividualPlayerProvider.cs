@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
@@ -1434,6 +1436,100 @@ namespace Basis.BasisUI
                         confirmed => { if (confirmed) BasisNetworkModeration.ForceAvatar(np.playerId, entry.Item); });
                 };
 
+                // ---- Locomotion override ----
+                var locomotionGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminGroup.ContentParent);
+                locomotionGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion"));
+                locomotionGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.locomotion.description"));
+
+                PanelToggle jumpToggle = PanelToggle.CreateNew(locomotionGroup.ContentParent);
+                jumpToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.jumpHeight.override"));
+                PanelSlider jumpSlider = PanelSlider.CreateNew(locomotionGroup.ContentParent);
+                jumpSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("menu.individualPlayer.locomotion.jumpHeight"), 0.1f, 5f, false, 2, ValueDisplayMode.Raw));
+                jumpSlider.SetValueWithoutNotify(1f);
+                jumpSlider.Descriptor.SetActive(jumpToggle.Value);
+                jumpToggle.OnValueChanged += value => { jumpSlider.Descriptor.SetActive(value); locomotionGroup.ForceRebuild(); };
+
+                PanelToggle walkToggle = PanelToggle.CreateNew(locomotionGroup.ContentParent);
+                walkToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.walkSpeed.override"));
+                PanelSlider walkSlider = PanelSlider.CreateNew(locomotionGroup.ContentParent);
+                walkSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("menu.individualPlayer.locomotion.walkSpeed"), 0.1f, 15f, false, 2, ValueDisplayMode.Raw));
+                walkSlider.SetValueWithoutNotify(2.5f);
+                walkSlider.Descriptor.SetActive(walkToggle.Value);
+                walkToggle.OnValueChanged += value => { walkSlider.Descriptor.SetActive(value); locomotionGroup.ForceRebuild(); };
+
+                PanelToggle runToggle = PanelToggle.CreateNew(locomotionGroup.ContentParent);
+                runToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.runSpeed.override"));
+                PanelSlider runSlider = PanelSlider.CreateNew(locomotionGroup.ContentParent);
+                runSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("menu.individualPlayer.locomotion.runSpeed"), 0.1f, 20f, false, 2, ValueDisplayMode.Raw));
+                runSlider.SetValueWithoutNotify(4f);
+                runSlider.Descriptor.SetActive(runToggle.Value);
+                runToggle.OnValueChanged += value => { runSlider.Descriptor.SetActive(value); locomotionGroup.ForceRebuild(); };
+
+                string modeNone = BasisLocalization.Get("menu.individualPlayer.locomotion.mode.none");
+                List<string> modeEntries = new List<string>
+                {
+                    modeNone,
+                    BasisLocalization.Get("menu.individualPlayer.locomotion.mode.walk"),
+                    BasisLocalization.Get("menu.individualPlayer.locomotion.mode.fly"),
+                    BasisLocalization.Get("menu.individualPlayer.locomotion.mode.noclip"),
+                };
+                PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(locomotionGroup.ContentParent);
+                modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.mode"));
+                modeDropdown.AssignEntries(modeEntries);
+                modeDropdown.SetValueWithoutNotify(modeNone);
+
+                PanelButton locomotionApplyBtn = PanelButton.CreateNew(locomotionGroup.ContentParent);
+                locomotionApplyBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.apply"));
+                locomotionApplyBtn.OnClicked += () =>
+                {
+                    if (!BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer np)) return;
+
+                    BasisLocomotionValues values = default;
+                    if (jumpToggle.Value)
+                    {
+                        values.Fields |= BasisLocomotionField.JumpHeight;
+                        values.JumpHeight = jumpSlider.Value;
+                    }
+                    if (walkToggle.Value)
+                    {
+                        values.Fields |= BasisLocomotionField.WalkSpeed;
+                        values.WalkSpeed = walkSlider.Value;
+                    }
+                    if (runToggle.Value)
+                    {
+                        values.Fields |= BasisLocomotionField.RunSpeed;
+                        values.RunSpeed = runSlider.Value;
+                    }
+
+                    int modeIndex = modeEntries.IndexOf(modeDropdown.Value);
+                    if (modeIndex > 0)
+                    {
+                        values.Fields |= BasisLocomotionField.Mode;
+                        values.Mode = (BasisLocalCharacterDriver.Mode)(modeIndex - 1);
+                    }
+
+                    if (values.Fields == BasisLocomotionField.None)
+                    {
+                        BasisDebug.LogError("No locomotion fields selected to override.");
+                        return;
+                    }
+
+                    BasisNetworkModeration.SetLocomotionOverride(np.playerId, values);
+                };
+
+                PanelButton locomotionClearBtn = PanelButton.CreateNew(locomotionGroup.ContentParent);
+                locomotionClearBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.clear"));
+                locomotionClearBtn.OnClicked += () =>
+                {
+                    if (BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer np))
+                    {
+                        BasisNetworkModeration.ClearLocomotionOverride(np.playerId);
+                    }
+                };
+
                 // ---- Per-user permissions ----
                 var permGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminGroup.ContentParent);
                 permGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.permissions"));
@@ -1453,6 +1549,7 @@ namespace Basis.BasisUI
                     PermNodes.ModerationTeleport,
                     PermNodes.ModerationShout,
                     PermNodes.ModerationForceAvatar,
+                    PermNodes.ModerationLocomotion,
                     PermNodes.PlayerModeration,
                     PermNodes.PermissionsView,
                     PermNodes.PermissionsEdit,

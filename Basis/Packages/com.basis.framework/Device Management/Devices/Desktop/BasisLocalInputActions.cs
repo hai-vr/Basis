@@ -401,14 +401,16 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 return;
             }
 
-            if (LocalCharacterDriver.CurrentModeKind == BasisLocalCharacterDriver.Mode.Fly)
+            if (BasisLocomotionOverrides.Resolve().Has(BasisLocomotionField.Mode))
             {
-                LocalCharacterDriver.SetMode(BasisLocalCharacterDriver.Mode.Walk);
+                BasisDebug.Log("Fly toggle ignored: the movement mode is currently overridden.");
+                return;
             }
-            else
-            {
-                LocalCharacterDriver.SetMode(BasisLocalCharacterDriver.Mode.Fly);
-            }
+
+            LocalCharacterDriver.BaselineMode = LocalCharacterDriver.CurrentModeKind == BasisLocalCharacterDriver.Mode.Fly
+                ? BasisLocalCharacterDriver.Mode.Walk
+                : BasisLocalCharacterDriver.Mode.Fly;
+            LocalCharacterDriver.SetMode(LocalCharacterDriver.BaselineMode);
         }
 
         public static void OnJumpActionCancelled(InputAction.CallbackContext ctx)

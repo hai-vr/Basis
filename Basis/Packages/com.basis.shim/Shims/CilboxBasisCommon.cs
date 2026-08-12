@@ -540,7 +540,7 @@ namespace Cilbox
 			return false;
 		}
 
-		public override bool CheckMethodAllowed(out MethodInfo mi, Type declaringType, string name, Serializee[] parametersIn, Serializee[] genericArgumentsIn, string fullSignature)
+		public override bool CheckMethodAllowed(out MethodInfo mi, Type declaringType, string name, SerializedTypeDescriptor[] parametersIn, SerializedTypeDescriptor[] genericArgumentsIn, string fullSignature)
 		{
 			mi = null;
 

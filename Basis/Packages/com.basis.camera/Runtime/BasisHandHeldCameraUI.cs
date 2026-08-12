@@ -700,6 +700,12 @@ public partial class BasisHandHeldCameraUI
             capture360 = HHC != null && HHC.capture360Enabled,
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
             useVRHandheldSmoothing = HHC != null && HHC.useVRHandheldSmoothing,
+            printPhoto = HHC != null && HHC.printPhotoEnabled,
+            gifDurationSeconds = HHC != null ? HHC.GifDurationSeconds : baseline.gifDurationSeconds,
+            gifFrameRate = HHC != null ? HHC.GifFrameRate : baseline.gifFrameRate,
+            gifWidth = HHC != null ? HHC.GifWidth : baseline.gifWidth,
+            gifLoop = HHC == null || HHC.GifLoop,
+            gifDither = HHC == null || HHC.GifDither,
             backgroundMode = HHC != null ? (int)HHC.backgroundMode : 0,
             backgroundCustomColor = HHC != null ? HHC.backgroundCustomColor : BasisHandHeldCamera.ChromaGreen,
             backgroundKeepsWorld = HHC != null && HHC.backgroundKeepsWorld,
@@ -1073,6 +1079,15 @@ public partial class BasisHandHeldCameraUI
         HHC.capture360Enabled = settings.capture360;
         HHC.useAutoLeveling = settings.useAutoLeveling;
         HHC.useVRHandheldSmoothing = settings.useVRHandheldSmoothing;
+        HHC.printPhotoEnabled = settings.printPhoto;
+
+        // Through the setters, not the fields: a settings file is text on disk, and these
+        // clamp it back into the ranges the encoder and the panel promise.
+        HHC.SetGifDuration(settings.gifDurationSeconds);
+        HHC.SetGifFrameRate(settings.gifFrameRate);
+        HHC.SetGifWidth(settings.gifWidth);
+        HHC.GifLoop = settings.gifLoop;
+        HHC.GifDither = settings.gifDither;
 
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC.MetaData.VolumetricFogVolume != null)

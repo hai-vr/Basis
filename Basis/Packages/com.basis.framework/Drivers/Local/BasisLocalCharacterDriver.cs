@@ -75,6 +75,14 @@ namespace Basis.Scripts.BasisCharacterController
         private BasisNoClipMovementMode _noClipMode = new BasisNoClipMovementMode();
         [System.NonSerialized] public IMovementMode CurrentMode;
         [System.NonSerialized] public Mode CurrentModeKind = Mode.Walk;
+
+        [System.NonSerialized] public float BaselineJumpHeight = 1f;
+        [System.NonSerialized] public float BaselineWalkSpeed = 2.5f;
+        [System.NonSerialized] public float BaselineRunSpeed = 4f;
+        [System.NonSerialized] public float BaselineMinimumSpeed = 0.5f;
+        [System.NonSerialized] public float BaselineGravity = -9.81f;
+        [System.NonSerialized] public Mode BaselineMode = Mode.Walk;
+        [System.NonSerialized] private int _appliedOverrideVersion = -1;
         public delegate void ModeChangedHandler(Mode newMode);
         public ModeChangedHandler ModeChanged;
         public void SetMode(Mode mode)
@@ -164,6 +172,7 @@ namespace Basis.Scripts.BasisCharacterController
         public float CurrentSpeed;
         public void DeInitialize()
         {
+            BasisLocomotionOverrides.RemoveAll(true);
             CurrentMode?.Exit(this);
             CurrentMode = null;
             if (HasEvents)
@@ -185,7 +194,66 @@ namespace Basis.Scripts.BasisCharacterController
             SetMovementSpeedMultiplier(GetMultiplierForMovementSpeed(DefaultMovementSpeed));
             Validate();
             CalculateCharacterSize();
+            CaptureLocomotionBaselines();
             SetMode(Mode.Walk);
+            ApplyLocomotionOverrides(true);
+        }
+
+        /// <summary>
+        /// Snapshots the authored values the override stack layers over. Refuses to run while an
+        /// override is live, because the live fields are that override's output — capturing them would
+        /// bake it into the baseline and it would never release.
+        /// </summary>
+        public void CaptureLocomotionBaselines()
+        {
+            if (BasisLocomotionOverrides.Count != 0)
+            {
+                return;
+            }
+
+            BaselineJumpHeight = jumpHeight;
+            BaselineWalkSpeed = DefaultMovementSpeed;
+            BaselineRunSpeed = MaximumMovementSpeed;
+            BaselineMinimumSpeed = MinimumMovementSpeed;
+            BaselineGravity = gravityValue;
+            BaselineMode = CurrentModeKind;
+            _appliedOverrideVersion = -1;
+        }
+
+        /// <summary>
+        /// Folds the resolved <see cref="BasisLocomotionOverrides"/> stack onto the live driver values,
+        /// falling back to the authored baseline for every field no override claims. Skipped entirely
+        /// when the stack has not changed since the last apply.
+        /// </summary>
+        public void ApplyLocomotionOverrides(bool force = false)
+        {
+            int version = BasisLocomotionOverrides.Version;
+            if (!force && version == _appliedOverrideVersion)
+            {
+                return;
+            }
+            _appliedOverrideVersion = version;
+
+            BasisLocomotionEffective effective = BasisLocomotionOverrides.Flatten(
+                BasisLocomotionOverrides.Resolve(),
+                new BasisLocomotionBaseline
+                {
+                    JumpHeight = BaselineJumpHeight,
+                    WalkSpeed = BaselineWalkSpeed,
+                    RunSpeed = BaselineRunSpeed,
+                    MinimumSpeed = BaselineMinimumSpeed,
+                    Gravity = BaselineGravity,
+                    Mode = BaselineMode,
+                });
+
+            jumpHeight = effective.JumpHeight;
+            gravityValue = effective.Gravity;
+            MinimumMovementSpeed = effective.MinimumSpeed;
+            DefaultMovementSpeed = effective.WalkSpeed;
+            MaximumMovementSpeed = effective.RunSpeed;
+            UpdateMovementSpeed(UseMaxSpeed);
+
+            SetMode(effective.Mode);
         }
 
         public void OnControllerColliderHit(ControllerColliderHit hit)
@@ -223,6 +291,7 @@ namespace Basis.Scripts.BasisCharacterController
                 return;
             }
             sMarkerMoveSize.Begin();
+            ApplyLocomotionOverrides();
             BasisScriptedPlayerInput.ApplyLocomotion(this);
             LastBottomPoint = bottomPointLocalSpace;
             CalculateCharacterSize();

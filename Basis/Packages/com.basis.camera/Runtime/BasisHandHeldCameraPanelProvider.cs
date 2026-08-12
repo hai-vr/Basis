@@ -149,6 +149,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelToggle _autoLevelToggle;
         private PanelToggle _vrStabToggle;
         private PanelToggle _capture360Toggle;
+        private PanelToggle _printPhotoToggle;
         private PanelToggle _previewScreenToggle;
         private PanelToggle _audioListenerToggle;
         private PanelToggle _selfieToggle;
@@ -276,6 +277,9 @@ namespace Basis.BasisUI.HandHeldCamera
 
                 BuildEffectsGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_effectsSection, _effectsGroup, false, OnSectionExpanded);
+
+                BuildGifGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_gifSection, _gifGroup, false, OnSectionExpanded);
             });
 
             AddTab("camera.output", content =>
@@ -650,6 +654,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SetPanelTickSubscription(false);
             ClearCinematicReferences();
             ClearModeReferences();
+            ClearGifReferences();
             _panel = null;
             _tabGroup = null;
             _navColumn = null;
@@ -748,6 +753,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastAperture = float.NaN;
             _lastFocus = float.NaN;
             _capture360Toggle = null;
+            _printPhotoToggle = null;
             _previewScreenToggle = null;
             _audioListenerToggle = null;
             _selfieToggle = null;
@@ -1364,6 +1370,14 @@ namespace Basis.BasisUI.HandHeldCamera
             _capture360Toggle.Descriptor.SetTitle(BasisLocalization.Get("camera.n360Capture"));
             _capture360Toggle.OnValueChanged = v => _activeCamera?.HandHeld.SetCapture360State(v);
 
+            _printPhotoToggle = PanelToggle.CreateNewEntry(content);
+            _printPhotoToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.printPhoto"));
+            _printPhotoToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.printPhoto.description"));
+            _printPhotoToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera != null) _activeCamera.printPhotoEnabled = v;
+            };
+
             _selfieToggle = PanelToggle.CreateNewEntry(content);
             _selfieToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.selfie"));
             _selfieToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.selfie.description"));
@@ -1737,6 +1751,7 @@ namespace Basis.BasisUI.HandHeldCamera
             RefreshModeVisuals(force: true);
 
             SeedCinematicCameraControls();
+            SeedGifControls();
             RefreshShotList();
             RefreshWaypointList();
 
@@ -1842,6 +1857,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _autoLevelToggle?.SetValueWithoutNotify(_activeCamera.useAutoLeveling);
             _vrStabToggle?.SetValueWithoutNotify(_activeCamera.useVRHandheldSmoothing);
             _capture360Toggle?.SetValueWithoutNotify(_activeCamera.capture360Enabled);
+            _printPhotoToggle?.SetValueWithoutNotify(_activeCamera.printPhotoEnabled);
             _formatDropdown?.SetValueWithoutNotify(
                 _activeCamera.HandHeld.FormatIndex == BasisHandHeldCameraUI.FORMAT_EXR ? "EXR" : "PNG");
 
@@ -2072,6 +2088,7 @@ namespace Basis.BasisUI.HandHeldCamera
             RefreshFollowTargets();
             TickModeState();
             TickCinematicSections();
+            TickGifSection();
             RefreshTimerLabel();
             RefreshHiddenState();
         }

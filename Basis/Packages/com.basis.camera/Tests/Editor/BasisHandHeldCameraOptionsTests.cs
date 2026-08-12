@@ -127,6 +127,7 @@ namespace Basis.Tests.Camera
                 capture360 = true,
                 useAutoLeveling = true,
                 useVRHandheldSmoothing = true,
+                printPhoto = true,
             };
 
             string json = JsonUtility.ToJson(original);
@@ -163,6 +164,7 @@ namespace Basis.Tests.Camera
             Assert.That(restored.capture360, Is.True);
             Assert.That(restored.useAutoLeveling, Is.True);
             Assert.That(restored.useVRHandheldSmoothing, Is.True);
+            Assert.That(restored.printPhoto, Is.True);
         }
 
         [Test]

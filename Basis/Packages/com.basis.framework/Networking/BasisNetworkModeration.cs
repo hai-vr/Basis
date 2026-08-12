@@ -1,6 +1,8 @@
 using Basis.BasisUI;
 using Basis.Network.Core;
+using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
@@ -164,6 +166,33 @@ public static class BasisNetworkModeration
                 w => w.Put(password ?? string.Empty),
                 w => w.Put(embeddedSource));
         }
+    }
+
+    /// <summary>
+    /// Ask the server to override <paramref name="targetId"/>'s jump height, movement speeds, gravity
+    /// and character controller mode. Only the fields flagged in <see cref="BasisLocomotionValues.Fields"/>
+    /// travel; the target applies them under a reserved key that world content can neither clear nor
+    /// outrank. Session-only — nothing is persisted, and a reconnect starts clean.
+    /// </summary>
+    public static void SetLocomotionOverride(ushort targetId, BasisLocomotionValues values)
+    {
+        SendAdminRequest(AdminRequestMode.SetLocomotionOverride,
+            w => w.Put(targetId),
+            w => w.Put((byte)values.Fields),
+            w => w.Put(values.JumpHeight),
+            w => w.Put(values.WalkSpeed),
+            w => w.Put(values.RunSpeed),
+            w => w.Put(values.Gravity),
+            w => w.Put((byte)values.Mode));
+    }
+
+    /// <summary>
+    /// Drop the moderator override on <paramref name="targetId"/>, returning them to whatever the world
+    /// and their own settings ask for.
+    /// </summary>
+    public static void ClearLocomotionOverride(ushort targetId)
+    {
+        SetLocomotionOverride(targetId, default);
     }
 
     /// <summary>
@@ -398,6 +427,10 @@ public static class BasisNetworkModeration
 
             case AdminRequestMode.ForceAvatarApply:
                 HandleForcedAvatar(reader);
+                break;
+
+            case AdminRequestMode.LocomotionOverrideApply:
+                HandleLocomotionOverride(reader);
                 break;
 
             case AdminRequestMode.GlobalGetOpusFrameDurationState:
@@ -1575,6 +1608,52 @@ public static class BasisNetworkModeration
 
     /// <summary>Fired when the server pushes a per-user bitrate override to this client.</summary>
     public static event Action<int> OnLocalOpusBitrateOverrideChanged;
+
+    /// <summary>
+    /// Fired when a moderator's locomotion override lands on this client. A value with no fields set
+    /// means the override was cleared.
+    /// </summary>
+    public static event Action<BasisLocomotionValues> OnLocomotionOverrideChanged;
+
+    private static void HandleLocomotionOverride(NetDataReader reader)
+    {
+        ushort initiatorId = reader.GetUShort();
+        byte fields = reader.GetByte();
+        float jumpHeight = reader.GetFloat();
+        float walkSpeed = reader.GetFloat();
+        float runSpeed = reader.GetFloat();
+        float gravity = reader.GetFloat();
+        byte movementMode = reader.GetByte();
+
+        BasisLocomotionOverrides.Remove(BasisLocomotionOverrides.AdminKey);
+
+        BasisLocomotionField applied = (BasisLocomotionField)fields & BasisLocomotionField.All;
+        if (applied == BasisLocomotionField.None)
+        {
+            BasisDebug.Log($"Locomotion override cleared by player {initiatorId}", BasisDebug.LogTag.Networking);
+            OnLocomotionOverrideChanged?.Invoke(default);
+            return;
+        }
+
+        if (movementMode > (byte)BasisLocalCharacterDriver.Mode.NoClip)
+        {
+            movementMode = (byte)BasisLocalCharacterDriver.Mode.Walk;
+        }
+
+        BasisLocomotionValues values = new BasisLocomotionValues
+        {
+            Fields = applied,
+            JumpHeight = jumpHeight,
+            WalkSpeed = walkSpeed,
+            RunSpeed = runSpeed,
+            Gravity = gravity,
+            Mode = (BasisLocalCharacterDriver.Mode)movementMode,
+        };
+
+        BasisLocomotionOverrides.Set(BasisLocomotionOverrides.AdminKey, BasisLocomotionOverrides.AdminPriority, values);
+        BasisDebug.Log($"Locomotion override applied by player {initiatorId} ({applied})", BasisDebug.LogTag.Networking);
+        OnLocomotionOverrideChanged?.Invoke(values);
+    }
 
     private static void HandleUserOpusBitrateOverride(NetDataReader reader)
     {

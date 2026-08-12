@@ -87,8 +87,16 @@ public static class BasisCameraSettingsReadout
         Row("camera.photoFormat", Preset(metaData?.formats, settings.formatIndex));
         Row("camera.msaa", settings.msaaSamples + "x");
         Row("camera.n360Capture", OnOff(settings.capture360));
+        Row("camera.printPhoto", OnOff(settings.printPhoto));
         Row("camera.autoLevel", OnOff(settings.useAutoLeveling));
         Row("camera.vrStabilization", OnOff(settings.useVRHandheldSmoothing));
+
+        Section("camera.gif");
+        Row("camera.gif.length", Number(settings.gifDurationSeconds) + " s");
+        Row("camera.gif.frameRate", settings.gifFrameRate.ToString());
+        Row("camera.gif.size", settings.gifWidth + " px");
+        Row("camera.gif.loop", OnOff(settings.gifLoop));
+        Row("camera.gif.dither", OnOff(settings.gifDither));
 
         Section("camera.follow");
         Row("camera.followOffset", Vector(settings.autoFollowPositionOffset));
