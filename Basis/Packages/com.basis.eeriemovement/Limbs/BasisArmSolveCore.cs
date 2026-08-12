@@ -35,6 +35,11 @@ namespace Basis.IK
         public int PrevGuardSide;
         public Vector3 ElbowLateralOut;
         public Vector3 TorsoUp;
+
+        // Forearm demand-follow weight. 0 (the struct default) = legacy roll behaviour, bit-identical
+        // for every caller that predates the field; 1 = beyond the wrist's carpal keep the forearm rolls
+        // to carry the hand's axial demand. Never moves the hand off its rotation target.
+        public float ForearmFollowWeight;
     }
 
     public struct BasisArmSolveResult
@@ -65,6 +70,7 @@ namespace Basis.IK
         public float WristTwistDeg;
         public float WristReliefDeg;
         public float ForearmRollDeg;
+        public float WristResidualDeg;
 
         public bool PoleAnchorValid;
         public Vector3 PoleDirUsed;
@@ -91,6 +97,12 @@ namespace Basis.IK
         public const float TrackerRollHandBlend = 0.5f;
 
         public const float TrackerForearmRollMaxDeg = 120f;
+
+        // Carpal share of an imposed hand roll. In vivo the radiocarpal joint has no active axial DOF:
+        // the carpus carries 10-20% of a hand rotation up to ~17 deg (SD 8-10), collapsing under grip
+        // (PubMed 15621322, 11415625, 1861019). Everything past the keep belongs to the forearm.
+        public const float WristKeepFrac = 0.15f;
+        public const float WristKeepMaxDeg = 15f;
 
         // Tracker pole anchor conditioning band, as fractions of hint-lever-arm / total arm length:
         // below AnchorFrac the measured pole is noise (hold the anchor), above TrustFrac it is fully
@@ -392,38 +404,81 @@ namespace Basis.IK
 
             float hintRotSqr = i.HintRotation.x * i.HintRotation.x + i.HintRotation.y * i.HintRotation.y
                              + i.HintRotation.z * i.HintRotation.z + i.HintRotation.w * i.HintRotation.w;
-            if (i.HintIsTracker && hintRotSqr > 0.5f)
             {
                 Vector3 foreRoll = cPosition - bPosition;
                 if (foreRoll.sqrMagnitude > k_SqrEpsilon)
                 {
                     Vector3 foreRollN = foreRoll.normalized;
-                    float trackerRoll = TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), foreRollN);
 
-                    float roll = trackerRoll;
-                    if (tipRotSqr > 0.5f)
+                    float handDemand = 0f;
+                    bool handDemandValid = tipRotSqr > 0.5f;
+                    if (handDemandValid)
                     {
                         Quaternion neutral = midRot * Quaternion.Inverse(i.MidRotation) * i.TipRotation;
-                        float handRoll = TwistAngleRad(tRotation * Quaternion.Inverse(neutral), foreRollN);
-                        r.WristTwistDeg = handRoll * Mathf.Rad2Deg;
-
-                        float d = handRoll - trackerRoll;
-                        if (d > Mathf.PI) d -= 2f * Mathf.PI;
-                        else if (d < -Mathf.PI) d += 2f * Mathf.PI;
-                        float fade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
-                            (Mathf.Abs(d) * Mathf.Rad2Deg - k_WristWrapFadeStartDeg) / (k_WristWrapFadeEndDeg - k_WristWrapFadeStartDeg)));
-                        roll = trackerRoll + TrackerRollHandBlend * d * fade;
+                        handDemand = TwistAngleRad(tRotation * Quaternion.Inverse(neutral), foreRollN);
                     }
 
-                    float rollAbs = Mathf.Abs(roll);
-                    float rollCap = TrackerForearmRollMaxDeg * Mathf.Deg2Rad;
-                    if (rollAbs > rollCap) rollAbs = rollCap;
-                    if (rollAbs > 1e-6f)
+                    float roll = 0f;
+                    bool rollLive = false;
+                    if (i.HintIsTracker && hintRotSqr > 0.5f)
                     {
-                        float rollSigned = roll < 0f ? -rollAbs : rollAbs;
-                        r.MidPostRoll = AngleAxisRad(rollSigned, foreRollN);
-                        midRot = r.MidPostRoll * midRot;
-                        r.ForearmRollDeg = rollSigned * Mathf.Rad2Deg;
+                        float trackerRoll = TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), foreRollN);
+
+                        roll = trackerRoll;
+                        rollLive = true;
+                        if (handDemandValid)
+                        {
+                            r.WristTwistDeg = handDemand * Mathf.Rad2Deg;
+
+                            float d = handDemand - trackerRoll;
+                            if (d > Mathf.PI) d -= 2f * Mathf.PI;
+                            else if (d < -Mathf.PI) d += 2f * Mathf.PI;
+                            float fade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
+                                (Mathf.Abs(d) * Mathf.Rad2Deg - k_WristWrapFadeStartDeg) / (k_WristWrapFadeEndDeg - k_WristWrapFadeStartDeg)));
+                            roll = trackerRoll + TrackerRollHandBlend * d * fade;
+                        }
+                    }
+
+                    // The wrist keeps only its carpal share of whatever axial demand is still unmet; the
+                    // forearm follows the rest as a pure roll about its own long axis -- the elbow stays
+                    // on its pole and the hand stays on its rotation target. Faded to nothing toward the
+                    // +/-180 seam, where any continuous bound is topologically forced to release.
+                    if (handDemandValid && i.ForearmFollowWeight > 0f)
+                    {
+                        float resid = handDemand - roll;
+                        if (resid > Mathf.PI) resid -= 2f * Mathf.PI;
+                        else if (resid < -Mathf.PI) resid += 2f * Mathf.PI;
+
+                        float residAbs = Mathf.Abs(resid);
+                        float keep = Mathf.Min(WristKeepFrac * residAbs, WristKeepMaxDeg * Mathf.Deg2Rad);
+                        float seam = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
+                            (residAbs * Mathf.Rad2Deg - k_WristWrapFadeStartDeg) / (k_WristWrapFadeEndDeg - k_WristWrapFadeStartDeg)));
+                        float w = i.ForearmFollowWeight < 1f ? i.ForearmFollowWeight : 1f;
+                        float topUp = (residAbs - keep) * seam * w;
+                        roll += resid < 0f ? -topUp : topUp;
+                        rollLive = true;
+                    }
+
+                    if (rollLive)
+                    {
+                        float rollAbs = Mathf.Abs(roll);
+                        float rollCap = TrackerForearmRollMaxDeg * Mathf.Deg2Rad;
+                        if (rollAbs > rollCap) rollAbs = rollCap;
+                        if (rollAbs > 1e-6f)
+                        {
+                            float rollSigned = roll < 0f ? -rollAbs : rollAbs;
+                            r.MidPostRoll = AngleAxisRad(rollSigned, foreRollN);
+                            midRot = r.MidPostRoll * midRot;
+                            r.ForearmRollDeg = rollSigned * Mathf.Rad2Deg;
+                        }
+                    }
+
+                    if (handDemandValid)
+                    {
+                        float residOut = handDemand - r.ForearmRollDeg * Mathf.Deg2Rad;
+                        if (residOut > Mathf.PI) residOut -= 2f * Mathf.PI;
+                        else if (residOut < -Mathf.PI) residOut += 2f * Mathf.PI;
+                        r.WristResidualDeg = residOut * Mathf.Rad2Deg;
                     }
                 }
             }

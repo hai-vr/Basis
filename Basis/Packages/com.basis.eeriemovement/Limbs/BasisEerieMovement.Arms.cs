@@ -221,6 +221,7 @@ namespace Basis.IK
             input.HintMaxStepDeg = float.MaxValue;
             input.TipRotation = handRot;
             input.HintRotation = hintIsTracker ? hint.rotation : default;
+            input.ForearmFollowWeight = 1f;
 
             Vector3 bodyRight = (handleLeftUpperArm.IsValid(stream) && handleRightUpperArm.IsValid(stream))
                 ? handleRightUpperArm.GetPosition(stream) - handleLeftUpperArm.GetPosition(stream)
