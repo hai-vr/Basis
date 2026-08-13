@@ -683,27 +683,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             string folder = PhotosDirectory;
             if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
-            folder = Path.GetFullPath(folder);
-
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-            // explorer wants backslashes and does not accept a file:// URI.
-            string launcher = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
-            string argument = folder.Replace('/', '\\').TrimEnd('\\');
-#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
-            string launcher = "open";
-            string argument = folder;
-#else
-            string launcher = "xdg-open";
-            string argument = folder;
-#endif
-            System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = launcher,
-                Arguments = $"\"{argument}\"",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            using (System.Diagnostics.Process.Start(startInfo)) { }
+            BasisFileBrowserUtility.Reveal(folder);
             return true;
         }
         catch (Exception e)
