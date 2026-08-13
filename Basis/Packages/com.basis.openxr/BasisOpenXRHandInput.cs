@@ -30,6 +30,7 @@ public class BasisOpenXRHandInput : BasisInputController
     public InputActionProperty pointerPosition;
     public InputActionProperty pointerRotation;
 
+    [System.NonSerialized]
     public UnityEngine.XR.InputDevice Device;
     public const float TriggerDownAmount = 0.5f;
 

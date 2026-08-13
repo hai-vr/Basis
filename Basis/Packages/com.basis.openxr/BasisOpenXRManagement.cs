@@ -17,7 +17,7 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
     {
         [SerializeField]
         private List<BasisInput> controls = new List<BasisInput>();
-        [SerializeField]
+        [NonSerialized]
         public HashSet<InputDevice> OpenXRTrackers = new HashSet<InputDevice>();
         [SerializeField]
         public List<BasisOpenxrDeviceTrackedInfo> Trackers = new List<BasisOpenxrDeviceTrackedInfo>();
@@ -35,6 +35,7 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
             "Left Elbow", "Right Elbow", "Left Knee", "Right Knee", "Waist",
             "Chest", "Camera", "Keyboard"
         };
+        [NonSerialized]
         public XRHandSubsystem m_Subsystem;
         public BasisOpenXRHandInput LeftHand;
         public BasisOpenXRHandInput RightHand;

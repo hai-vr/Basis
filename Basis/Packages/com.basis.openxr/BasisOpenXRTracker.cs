@@ -8,6 +8,7 @@ public class BasisOpenXRTracker : BasisInput
 {
     public InputActionProperty Position;
     public InputActionProperty Rotation;
+    [System.NonSerialized]
     public InputDevice InputDevice;
 
     private InputAction _positionAction;
