@@ -174,11 +174,26 @@ namespace Basis.Network.Core.Compression
             {
                 fieldFirst[BasisAvatarDeltaCompression.BoneFieldStart + slot] = channels.Count;
                 int b = rotBase + fieldOffsets[slot];
-                // Smallest-three: the 2-bit index selects which component was dropped, so it changes
-                // what the other three MEAN. Differencing across an index change is nonsense — Raw.
-                channels.Add(new BasisAvatarChannel(b, 2, BasisChannelKind.Raw));
-                for (int c = 0; c < 3; c++)
-                    channels.Add(new BasisAvatarChannel(b + 2 + c * bpc[slot], bpc[slot], BasisChannelKind.Delta));
+                switch (BasisBoneRotationCompression.BONE_DOF[slot])
+                {
+                    case 3:
+                        // Smallest-three: the 2-bit index selects which component was dropped, so it
+                        // changes what the other three MEAN. Differencing across an index change is
+                        // nonsense — Raw.
+                        channels.Add(new BasisAvatarChannel(b, 2, BasisChannelKind.Raw));
+                        for (int c = 0; c < 3; c++)
+                            channels.Add(new BasisAvatarChannel(b + 2 + c * bpc[slot], bpc[slot], BasisChannelKind.Delta));
+                        break;
+                    case 2:
+                        // Hinge + twist angles: uniformly quantized scalars, both deltable.
+                        int hingeBits = BasisBoneRotationCompression.HingeBits(q);
+                        channels.Add(new BasisAvatarChannel(b, hingeBits, BasisChannelKind.Delta));
+                        channels.Add(new BasisAvatarChannel(b + hingeBits, BasisBoneRotationCompression.TwistBits(q), BasisChannelKind.Delta));
+                        break;
+                    default:
+                        channels.Add(new BasisAvatarChannel(b, BasisBoneRotationCompression.SingleAxisBits(q), BasisChannelKind.Delta));
+                        break;
+                }
             }
 
             for (int f = 0; f < BasisBoneRotationCompression.FingerChannelCount; f++)

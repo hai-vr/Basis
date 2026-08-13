@@ -33,12 +33,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             for (int slot = 0; slot < BasisBoneRotationCompression.WireBoneSlotCount; slot++)
             {
-                int bitsPerComp = bpc[slot];
-                int totalBits = 2 + 3 * bitsPerComp;
+                int totalBits = BasisBoneRotationCompression.BoneFieldWidth(quality, slot);
 
                 quaternion q = boneDeltas[slot];
-                ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(
-                    q.value.x, q.value.y, q.value.z, q.value.w, bitsPerComp, ranges[slot]);
+                ulong packed = BasisBoneRotationCompression.BONE_DOF[slot] == 3
+                    ? BasisBoneRotationCompression.EncodeSmallestThree(
+                        q.value.x, q.value.y, q.value.z, q.value.w, bpc[slot], ranges[slot])
+                    : BasisBoneRotationCompression.EncodeRestricted(
+                        q.value.x, q.value.y, q.value.z, q.value.w, slot, quality);
 
                 BasisBoneRotationCompression.WriteBits(dst, bitPos, packed, totalBits);
                 bitPos += totalBits;
@@ -77,12 +79,20 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             for (int slot = 0; slot < BasisBoneRotationCompression.WireBoneSlotCount; slot++)
             {
-                int bitsPerComp = bpc[slot];
-                int totalBits = 2 + 3 * bitsPerComp;
+                int totalBits = BasisBoneRotationCompression.BoneFieldWidth(quality, slot);
 
                 ulong packed = BasisBoneRotationCompression.ReadBits(src, ref bitPos, totalBits);
-                BasisBoneRotationCompression.DecodeSmallestThree(packed, bitsPerComp,
-                    out float qx, out float qy, out float qz, out float qw, ranges[slot]);
+                float qx, qy, qz, qw;
+                if (BasisBoneRotationCompression.BONE_DOF[slot] == 3)
+                {
+                    BasisBoneRotationCompression.DecodeSmallestThree(packed, bpc[slot],
+                        out qx, out qy, out qz, out qw, ranges[slot]);
+                }
+                else
+                {
+                    BasisBoneRotationCompression.DecodeRestricted(packed, slot, quality,
+                        out qx, out qy, out qz, out qw);
+                }
 
                 boneDeltas[slot] = new quaternion(qx, qy, qz, qw);
             }

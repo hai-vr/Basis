@@ -363,8 +363,43 @@ public class Configuration
         ApplyEnvironmentalOverridesTo(this);
     }
 
+    /// <summary>
+    /// Settings established once during boot — socket binds, the transport stack, the health and
+    /// API listeners, the console, and disk support. Editing one persists and takes effect on the
+    /// next start; everything else is re-applied live by NetworkServer.ApplyLiveConfiguration.
+    /// </summary>
+    private static readonly string[] RestartOnlyFields =
+    {
+        nameof(SetPort),
+        nameof(IPv4Address),
+        nameof(IPv6Address),
+        nameof(OverrideAutoDiscoveryOfIpv),
+        nameof(NetworkStackId),
+        nameof(HasFileSupport),
+        nameof(EnableStatistics),
+        nameof(EnableConsole),
+        nameof(HealthCheckHost),
+        nameof(HealthCheckPort),
+        nameof(HealthPath),
+        nameof(ApiEnabled),
+        nameof(ApiHost),
+        nameof(ApiPort),
+        nameof(ApiKey),
+    };
+
+    /// <summary>Whether a field only takes effect after a restart. See <see cref="RestartOnlyFields"/>.</summary>
+    public static bool RequiresRestart(string fieldName) =>
+        Array.IndexOf(RestartOnlyFields, fieldName) >= 0;
+
+    /// <summary>
+    /// Settings a connected client is told about at join time only, so an edit reaches new joiners
+    /// but leaves the existing crowd on the value they connected with.
+    /// </summary>
+    public static bool AppliesToNewJoinsOnly(string fieldName) =>
+        fieldName == nameof(BSRSlowestSendRate);
+
     /// <summary>Field names whose values must never reach the log.</summary>
-    private static bool IsSecretFieldName(string fieldName)
+    public static bool IsSecretFieldName(string fieldName)
     {
         if (string.IsNullOrEmpty(fieldName)) return false;
         return fieldName.IndexOf("password", StringComparison.OrdinalIgnoreCase) >= 0

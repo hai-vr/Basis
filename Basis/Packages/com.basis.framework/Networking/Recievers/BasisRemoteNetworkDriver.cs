@@ -355,6 +355,46 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>
+    /// Seeds all hips-world pose state for a player slot to a known-good pose.
+    /// Call at calibration time with the latest stashed network pose, immediately after
+    /// snapping the avatar's hips onto it, so the first UpdateAllAvatarsJob tick (before
+    /// SetFrameInputs has seeded the real interp window) outputs that same pose instead of
+    /// the slot's zero init.
+    ///
+    /// Without this seed: prev/target positions hold float3.zero on a fresh slot, so the very
+    /// next LateUpdate's bone jobs write the avatar that was just installed to the world
+    /// origin. The receiver needs BOTH a Current and a Next buffer before ComputeData will
+    /// touch the interp window, so a joining player's fallback avatar stands at (0,0,0) until
+    /// its second pose packet lands, then pops into place. The scale channel had the same
+    /// failure mode; see <see cref="SeedScaleState"/>.
+    ///
+    /// Clears the 1€ seeded flag so the pose filter restarts from this pose rather than
+    /// easing over from the previous occupant's filtered state.
+    ///
+    /// Completes any in-flight oneEuroJob first for the same reason as
+    /// <see cref="SeedScaleState"/>: these arrays are read and written by jobs it covers.
+    /// </summary>
+    public static unsafe void SeedPoseState(int index, float3 hipsWorldPosition, quaternion hipsWorldRotation)
+    {
+        if (!_initialized) return;
+        if ((uint)index >= FixedCapacity) return;
+        oneEuroJob.Complete();
+        ((float3*)_p0Positions.GetUnsafePtr())[index] = hipsWorldPosition;
+        ((float3*)_prevPositions.GetUnsafePtr())[index] = hipsWorldPosition;
+        ((float3*)_targetPositions.GetUnsafePtr())[index] = hipsWorldPosition;
+        ((float3*)_p3Positions.GetUnsafePtr())[index] = hipsWorldPosition;
+        ((float3*)_outPositions.GetUnsafePtr())[index] = hipsWorldPosition;
+        ((float3*)_filteredPositions.GetUnsafePtr())[index] = hipsWorldPosition;
+        ((quaternion*)_p0Rotations.GetUnsafePtr())[index] = hipsWorldRotation;
+        ((quaternion*)_prevRotations.GetUnsafePtr())[index] = hipsWorldRotation;
+        ((quaternion*)_targetRotations.GetUnsafePtr())[index] = hipsWorldRotation;
+        ((quaternion*)_p3Rotations.GetUnsafePtr())[index] = hipsWorldRotation;
+        ((quaternion*)_outRotations.GetUnsafePtr())[index] = hipsWorldRotation;
+        ((quaternion*)_filteredRotations.GetUnsafePtr())[index] = hipsWorldRotation;
+        ((byte*)_poseFilterSeeded.GetUnsafePtr())[index] = 0;
+    }
+
+    /// <summary>
     /// Sentinel reset used when we don't yet have a real network scale to seed
     /// with (slot-reuse cleanup at Initialize time). Forces the next
     /// UpdateAllAvatarsJob tick to flag HasScaleChange so whatever value

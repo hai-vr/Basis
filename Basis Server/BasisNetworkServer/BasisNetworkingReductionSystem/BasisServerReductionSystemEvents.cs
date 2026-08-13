@@ -182,6 +182,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // so the first compress attempt usually succeeds with no retry. 0 = unseeded.
         public float LastBundleRatio;
 
+        // Share of the MTU budget the first compress attempt aims to fill. LastBundleRatio is an EMA
+        // of the MEAN ratio, but the budget is a ceiling, so sizing against the mean overshoots on
+        // every chunk that compresses worse than average — measured at 20% of emitted bundles, each
+        // costing a deflate of a chunk that is then discarded and rebuilt. Backs off fast on an
+        // overshoot and recovers slowly, so receivers whose payloads compress predictably keep
+        // full-sized bundles while erratic ones stop paying for the guess. 0 = unseeded.
+        public float BundleFillMargin;
+
         // Flushes remaining before this receiver re-probes whether bundling is worth the CPU.
         // Non-zero means "this receiver's data did not compress well enough last time we looked,
         // send it uncompressed for now". See AvatarBundleMaxRatio.
@@ -367,6 +375,17 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // one is a free win: it cuts deflate work with no bandwidth cost at all. Measured ratio on
         // quantized bone rotations is ~0.87; the old 0.6 guess made ~8% of bundles compress twice.
         private const float InitialBundleRatioGuess = 0.85f;
+        // Share of the MTU budget a first compress attempt aims to fill, adapted per receiver in
+        // PlayerState.BundleFillMargin. A flat 0.95 assumed the ratio EMA predicts each chunk well,
+        // but the EMA tracks the mean while the budget is a ceiling: at 1000 players 20% of bundles
+        // overshot and paid a second deflate on a chunk that was then thrown away, ~17% of all
+        // deflate calls. Backing off 0.05 per overshoot and recovering 0.01 per clean bundle settles
+        // each receiver just under its own overshoot boundary. The floor keeps a pathological
+        // receiver from shrinking bundles indefinitely, since bandwidth is the scarcer resource.
+        private const float MaxBundleFillMargin = 0.95f;
+        private const float MinBundleFillMargin = 0.75f;
+        private const float BundleFillMarginBackoff = 0.05f;
+        private const float BundleFillMarginRecover = 0.01f;
         // Skip bundling for a receiver only when compression is returning essentially nothing — at
         // 0.98 it must be saving under 2% before we stop paying for it. Deliberately far above the
         // ~0.87 seen in practice, so normal traffic keeps its savings.
@@ -1345,6 +1364,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int previousShedTier = _loadShedTier;
             long previousInterval = intervalMs;
 
+            // The seed value is independent of BSRSMillisecondDefaultInterval, so a configured send
+            // interval above 40ms puts the floor above it and neither branch below can ever move it:
+            // the speed-up requires intervalMs > floor, and the slow-down only fires under overload.
+            // The period then sits under its own floor for the process lifetime, running ticks the
+            // send intervals do not justify and paying fork/join on each. Snap up to the floor first.
+            if (intervalMs < AdaptiveMinIntervalMs)
+            {
+                intervalMs = AdaptiveMinIntervalMs;
+            }
+
             if (overloaded && intervalMs < MaxTickIntervalMs)
             {
                 intervalMs = Math.Min(MaxTickIntervalMs, intervalMs + 2L * escalationSteps);
@@ -2231,6 +2260,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             float ratio = stateI.LastBundleRatio;
             if (ratio < 0.05f || ratio > 0.95f) ratio = InitialBundleRatioGuess;
 
+            float fillMargin = stateI.BundleFillMargin;
+            if (fillMargin < MinBundleFillMargin || fillMargin > MaxBundleFillMargin) fillMargin = MaxBundleFillMargin;
+
             int cursor = 0;
             // AvatarBundleMinMessages gates *starting* to bundle (caller already checked it for
             // the first chunk). Inside the loop, individual chunks are sized by what fits in MTU;
@@ -2239,10 +2271,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // < min uncompressed (since uncompressed sends merge fine for tiny remainders).
             while (count - cursor >= AvatarBundleMinMessages)
             {
-                // Predict raw chunk size that would compress to ~budget * 0.95 (small safety
-                // margin so we don't waste a retry on near-MTU overshoots). Then walk pending
+                // Predict raw chunk size that would compress to ~budget * fillMargin (safety margin
+                // so we don't waste a retry on near-MTU overshoots). Then walk pending
                 // accumulating sizes until we hit that target or run out of messages.
-                int targetRaw = (int)((budget * 0.95f) / ratio);
+                int targetRaw = (int)((budget * fillMargin) / ratio);
                 int chunkEnd = PickChunkEnd(pending, cursor, count, targetRaw);
                 if (chunkEnd <= cursor) break;
 
@@ -2254,6 +2286,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     UpdateRatioEMA(ref stateI.LastBundleRatio, compressedLen, rawLen, weightOnObserved: 0.3f);
                     cursor = chunkEnd;
                     ratio = stateI.LastBundleRatio;
+                    if (fillMargin < MaxBundleFillMargin) fillMargin = Math.Min(MaxBundleFillMargin, fillMargin + BundleFillMarginRecover);
                     continue;
                 }
 
@@ -2261,6 +2294,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // retry with a smaller chunk. Heavier weight on the observed value: this
                 // receiver's payload likely just compresses worse than predicted.
                 UpdateRatioEMA(ref stateI.LastBundleRatio, compressedLen, rawLen, weightOnObserved: 0.7f);
+                fillMargin = Math.Max(MinBundleFillMargin, fillMargin - BundleFillMarginBackoff);
                 float observed = (float)compressedLen / rawLen;
                 if (observed < 0.05f) observed = 0.05f;
                 if (observed > 0.99f) observed = 0.99f;
@@ -2285,6 +2319,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 cursor = retryEnd;
                 ratio = stateI.LastBundleRatio;
             }
+            stateI.BundleFillMargin = fillMargin;
             return cursor;
         }
 

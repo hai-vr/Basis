@@ -360,6 +360,7 @@ namespace Basis.Scripts.Drivers
             receiver.GetLatestNetworkPose(out var hipsWorldPos, out var hipsWorldRot, out var networkScale);
             animatorRoot.localScale = networkScale;
             BasisRemoteNetworkDriver.SeedScaleState(receiver.playerId, networkScale);
+            BasisRemoteNetworkDriver.SeedPoseState(receiver.playerId, hipsWorldPos, hipsWorldRot);
 
             // Derive an approximate root pose using the same inverse math as
             // BulkCopyHipsAndDeriveJob (assumes hips is effectively a child of
@@ -377,6 +378,7 @@ namespace Basis.Scripts.Drivers
             // doesn't disturb the result — hips lands exactly at the received
             // high-precision world pose.
             References.Hips.SetPositionAndRotation(hipsWorldPos, hipsWorldRot);
+            SnapNamePlateAndMouth(RemotePlayer, hipsWorldPos, networkScale.y);
 
             // Initialize any jiggle rigs. Performance-limit enforcement lives in
             // BasisAvatarPerformanceLimits.TrimExcessComponents (called earlier by
@@ -533,6 +535,7 @@ namespace Basis.Scripts.Drivers
             receiver.GetLatestNetworkPose(out var hipsWorldPos, out var hipsWorldRot, out var networkScale);
             animatorRoot.localScale = networkScale;
             BasisRemoteNetworkDriver.SeedScaleState(receiver.playerId, networkScale);
+            BasisRemoteNetworkDriver.SeedPoseState(receiver.playerId, hipsWorldPos, hipsWorldRot);
             // conjugate, not inverse — unit quaternions only. The rest hips LOCAL rotation, not a
             // generic-space value: this snap has no network rotation to decode, it just backs the
             // root out of the hips world pose with the avatar at rest.
@@ -542,6 +545,7 @@ namespace Basis.Scripts.Drivers
             float3 rootPos = (float3)hipsWorldPos - math.mul(rootRot, scaledLocal);
             animatorRoot.SetPositionAndRotation(rootPos, rootRot);
             References.Hips.SetPositionAndRotation(hipsWorldPos, hipsWorldRot);
+            SnapNamePlateAndMouth(RemotePlayer, hipsWorldPos, networkScale.y);
 
             // Teleport jiggle rigs by the travel delta so they don't whip across the distance
             // the player covered while the avatar was asleep.
@@ -558,6 +562,47 @@ namespace Basis.Scripts.Drivers
             }
 
             BasisFiniteWatchdog.CheckpointRemote("RemoteRegister/PostNetworkPoseSnap (far-LOD wake)", RemotePlayer);
+        }
+
+        /// <summary>
+        /// Places the nameplate and mouth markers on the pose the bone jobs will give them next
+        /// frame. Both are standalone scene roots created at world origin by
+        /// <see cref="BasisRemotePlayer.RemoteInitialize"/> and only ever moved by
+        /// <see cref="MappedNameplateApplyJob"/> / <see cref="ApplyMouthJob"/> at the tail of
+        /// LateUpdate, so a joining player's plate renders at (0,0,0) for the frame their avatar
+        /// installs on — the avatar itself no longer does, which leaves the plate alone out there.
+        ///
+        /// The plate goes through the same <see cref="BasisNamePlateAnchorMath.AnchorWorldY"/> and
+        /// the same yaw-only billboard the apply job uses, so the two cannot drift apart. The mouth
+        /// takes the head bone's world pose: its real anchor is that pose plus the authored
+        /// centimetre-scale offset, it carries no renderer, and reproducing the head-chain FK here
+        /// would duplicate the job for a marker nobody sees.
+        /// </summary>
+        private void SnapNamePlateAndMouth(BasisRemotePlayer RemotePlayer, float3 hipsWorldPos, float rootScaleY)
+        {
+            Transform namePlate = RemotePlayer.NamePlateTransformProvider?.Invoke();
+            if (namePlate != null)
+            {
+                float3 platePosition = new float3(
+                    hipsWorldPos.x,
+                    BasisNamePlateAnchorMath.AnchorWorldY(
+                        hipsWorldPos.y,
+                        NamePlateHeightAboveHipsModel * rootScaleY,
+                        BasisRemoteNamePlateDriver.PanelHalfHeightWorld()),
+                    hipsWorldPos.z);
+
+                float3 toCamera = (float3)BasisLocalCameraDriver.Position - platePosition;
+                float2 flat = new float2(toCamera.x, toCamera.z);
+                float yaw = math.lengthsq(flat) > 1e-12f ? math.atan2(flat.x, flat.y) : 0f;
+                namePlate.SetPositionAndRotation(platePosition, quaternion.RotateY(yaw));
+            }
+
+            Transform mouth = RemotePlayer.MouthTransform;
+            if (mouth != null && References.head != null)
+            {
+                References.head.GetPositionAndRotation(out Vector3 headPosition, out Quaternion headRotation);
+                mouth.SetPositionAndRotation(headPosition, headRotation);
+            }
         }
 
         /// <summary>

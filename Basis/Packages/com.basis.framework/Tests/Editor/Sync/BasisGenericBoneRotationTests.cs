@@ -342,6 +342,16 @@ namespace Basis.Tests.Sync
             var decoded = new NativeArray<quaternion>(BasisBoneRotationCompression.SyncBoneCount, Allocator.TempJob);
             var fingersIn = new NativeArray<float2>(BasisBoneRotationCompression.FingerChannelCount, Allocator.TempJob);
             var fingersOut = new NativeArray<float2>(BasisBoneRotationCompression.FingerChannelCount, Allocator.TempJob);
+            var dofNative = new NativeArray<byte>(boneCount, Allocator.TempJob);
+            var axisANative = new NativeArray<byte>(boneCount, Allocator.TempJob);
+            var axisBNative = new NativeArray<byte>(boneCount, Allocator.TempJob);
+            var rangeANative = new NativeArray<float>(boneCount, Allocator.TempJob);
+            var rangeBNative = new NativeArray<float>(boneCount, Allocator.TempJob);
+            NativeArray<byte>.Copy(BasisBoneRotationCompression.BONE_DOF, dofNative, boneCount);
+            NativeArray<byte>.Copy(BasisBoneRotationCompression.BONE_AXIS_A, axisANative, boneCount);
+            NativeArray<byte>.Copy(BasisBoneRotationCompression.BONE_AXIS_B, axisBNative, boneCount);
+            NativeArray<float>.Copy(BasisBoneRotationCompression.BONE_RANGE_A, rangeANative, boneCount);
+            NativeArray<float>.Copy(BasisBoneRotationCompression.BONE_RANGE_B, rangeBNative, boneCount);
 
             try
             {
@@ -381,6 +391,14 @@ namespace Basis.Tests.Sync
                     FingerPercentages = fingersIn,
                     CurlBits = BasisBoneRotationCompression.CurlBits(quality),
                     SplayBits = BasisBoneRotationCompression.SplayBits(quality),
+                    BoneDof = dofNative,
+                    BoneAxisA = axisANative,
+                    BoneAxisB = axisBNative,
+                    BoneRangeA = rangeANative,
+                    BoneRangeB = rangeBNative,
+                    HingeBitCount = BasisBoneRotationCompression.HingeBits(quality),
+                    TwistBitCount = BasisBoneRotationCompression.TwistBits(quality),
+                    SingleAxisBitCount = BasisBoneRotationCompression.SingleAxisBits(quality),
                 }.Run();
 
                 byte[] wire = packet.ToArray();
@@ -408,6 +426,164 @@ namespace Basis.Tests.Sync
                 current.Dispose(); encodePre.Dispose(); encodePost.Dispose(); outDeltas.Dispose();
                 bpcNative.Dispose(); maxComp.Dispose(); packet.Dispose(); decoded.Dispose();
                 fingersIn.Dispose(); fingersOut.Dispose();
+                dofNative.Dispose(); axisANative.Dispose(); axisBNative.Dispose();
+                rangeANative.Dispose(); rangeBNative.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// The Burst encode job and the managed CompressBoneRotations must emit bit-identical
+        /// packets — the round-trip test above cannot catch a divergence because it re-encodes
+        /// with the same implementation it decoded from. Also asserts the restricted-DOF slots
+        /// (v52: elbows/knees/shoulders/wrists/ankles as hinge+twist angles, toes as one angle)
+        /// reconstruct anatomically-plausible poses within their quantization step.
+        /// </summary>
+        [Test]
+        public void BurstEncode_BitMatchesManagedEncode_AndRestrictedJointsRoundTrip()
+        {
+            int boneCount = BasisBoneRotationCompression.WireBoneSlotCount;
+            var quality = BasisAvatarBitPacking.BitQuality.High;
+
+            var current = new NativeArray<quaternion>(boneCount, Allocator.TempJob);
+            var identityOps = new NativeArray<quaternion>(boneCount, Allocator.TempJob);
+            var outDeltas = new NativeArray<quaternion>(boneCount, Allocator.TempJob);
+            var bpcNative = new NativeArray<byte>(boneCount, Allocator.TempJob);
+            var maxComp = new NativeArray<float>(boneCount, Allocator.TempJob);
+            var packet = new NativeArray<byte>(BasisBoneRotationCompression.RotationBytes(quality), Allocator.TempJob);
+            var fingersIn = new NativeArray<float2>(BasisBoneRotationCompression.FingerChannelCount, Allocator.TempJob);
+            var fingersOut = new NativeArray<float2>(BasisBoneRotationCompression.FingerChannelCount, Allocator.TempJob);
+            var decoded = new NativeArray<quaternion>(BasisBoneRotationCompression.SyncBoneCount, Allocator.TempJob);
+            var dofNative = new NativeArray<byte>(boneCount, Allocator.TempJob);
+            var axisANative = new NativeArray<byte>(boneCount, Allocator.TempJob);
+            var axisBNative = new NativeArray<byte>(boneCount, Allocator.TempJob);
+            var rangeANative = new NativeArray<float>(boneCount, Allocator.TempJob);
+            var rangeBNative = new NativeArray<float>(boneCount, Allocator.TempJob);
+            NativeArray<byte>.Copy(BasisBoneRotationCompression.BONE_DOF, dofNative, boneCount);
+            NativeArray<byte>.Copy(BasisBoneRotationCompression.BONE_AXIS_A, axisANative, boneCount);
+            NativeArray<byte>.Copy(BasisBoneRotationCompression.BONE_AXIS_B, axisBNative, boneCount);
+            NativeArray<float>.Copy(BasisBoneRotationCompression.BONE_RANGE_A, rangeANative, boneCount);
+            NativeArray<float>.Copy(BasisBoneRotationCompression.BONE_RANGE_B, rangeBNative, boneCount);
+
+            try
+            {
+                float3 Axis(int code) => new float3(code == 0 ? 1f : 0f, code == 1 ? 1f : 0f, code == 2 ? 1f : 0f);
+
+                Seed(909u);
+                byte[] bpc = BasisBoneRotationCompression.GetBpcTable(quality);
+                for (int slot = 0; slot < boneCount; slot++)
+                {
+                    identityOps[slot] = quaternion.identity;
+                    bpcNative[slot] = bpc[slot];
+                    maxComp[slot] = BasisBoneRotationCompression.MAX_COMPONENT[slot];
+
+                    // Generic-space pose the slot's encoding can represent: restricted slots get an
+                    // in-range two-axis rotation, full slots a bounded random rotation.
+                    int dof = BasisBoneRotationCompression.BONE_DOF[slot];
+                    if (dof == 3)
+                    {
+                        float maxHalf = math.degrees(math.asin(math.min(1f, maxComp[slot])));
+                        current[slot] = AxisAngle(new float3(Next(), Next(), Next()), Next() * 0.85f * maxHalf);
+                    }
+                    else
+                    {
+                        quaternion hinge = quaternion.AxisAngle(
+                            Axis(BasisBoneRotationCompression.BONE_AXIS_A[slot]),
+                            Next() * 0.9f * BasisBoneRotationCompression.BONE_RANGE_A[slot]);
+                        current[slot] = dof == 2
+                            ? math.mul(hinge, quaternion.AxisAngle(
+                                Axis(BasisBoneRotationCompression.BONE_AXIS_B[slot]),
+                                Next() * 0.9f * BasisBoneRotationCompression.BONE_RANGE_B[slot]))
+                            : hinge;
+                    }
+                }
+
+                new BasisBoneDeltaAndCompressJob
+                {
+                    CurrentLocalRotations = current,
+                    EncodePre = identityOps,
+                    EncodePost = identityOps,
+                    BitsPerComponent = bpcNative,
+                    MaxComponent = maxComp,
+                    OutputBuffer = packet,
+                    RotationByteOffset = 0,
+                    BoneCount = boneCount,
+                    BoneDeltas = outDeltas,
+                    FingerPercentages = fingersIn,
+                    CurlBits = BasisBoneRotationCompression.CurlBits(quality),
+                    SplayBits = BasisBoneRotationCompression.SplayBits(quality),
+                    BoneDof = dofNative,
+                    BoneAxisA = axisANative,
+                    BoneAxisB = axisBNative,
+                    BoneRangeA = rangeANative,
+                    BoneRangeB = rangeBNative,
+                    HingeBitCount = BasisBoneRotationCompression.HingeBits(quality),
+                    TwistBitCount = BasisBoneRotationCompression.TwistBits(quality),
+                    SingleAxisBitCount = BasisBoneRotationCompression.SingleAxisBits(quality),
+                }.Run();
+
+                byte[] burstWire = packet.ToArray();
+
+                var managedWire = new byte[burstWire.Length];
+                int managedOffset = 0;
+                BasisBoneRotationUtils.CompressBoneRotations(outDeltas, fingersIn, quality, managedWire, ref managedOffset);
+
+                // Field-by-field, allowing a single quantization step: the managed encoder runs
+                // trig through double-precision Math while Burst uses float math, so a value that
+                // lands within one ulp of a step boundary may legally round apart. Any real
+                // divergence (wrong axis, sign, layout) is off by orders of magnitude more.
+                var fieldOffsets = new int[BasisBoneRotationCompression.RotationFieldCount];
+                BasisBoneRotationCompression.BuildRotationFieldOffsets(quality, fieldOffsets);
+                int hingeBits = BasisBoneRotationCompression.HingeBits(quality);
+                int twistBits = BasisBoneRotationCompression.TwistBits(quality);
+                for (int slot = 0; slot < boneCount; slot++)
+                {
+                    int width = BasisBoneRotationCompression.BoneFieldWidth(quality, slot);
+                    int posA = fieldOffsets[slot], posB = fieldOffsets[slot];
+                    ulong fromBurst = BasisBoneRotationCompression.ReadBits(burstWire, ref posA, width);
+                    ulong fromManaged = BasisBoneRotationCompression.ReadBits(managedWire, ref posB, width);
+                    if (BasisBoneRotationCompression.BONE_DOF[slot] == 2)
+                    {
+                        long hB = (long)(fromBurst & ((1UL << hingeBits) - 1UL));
+                        long hM = (long)(fromManaged & ((1UL << hingeBits) - 1UL));
+                        long tB = (long)(fromBurst >> hingeBits), tM = (long)(fromManaged >> hingeBits);
+                        Assert.That(math.abs(hB - hM), Is.LessThanOrEqualTo(1), $"slot {slot} hinge diverged between encoders");
+                        Assert.That(math.abs(tB - tM), Is.LessThanOrEqualTo(1), $"slot {slot} twist diverged between encoders");
+                    }
+                    else if (BasisBoneRotationCompression.BONE_DOF[slot] == 1)
+                    {
+                        Assert.That(math.abs((long)fromBurst - (long)fromManaged), Is.LessThanOrEqualTo(1),
+                            $"slot {slot} angle diverged between encoders");
+                    }
+                    else
+                    {
+                        Assert.That(fromManaged, Is.EqualTo(fromBurst),
+                            $"slot {slot} smallest-three diverged between encoders");
+                    }
+                }
+
+                int offset = 0;
+                BasisBoneRotationUtils.DecompressBoneRotations(burstWire, quality, ref decoded, ref fingersOut, ref offset);
+
+                for (int slot = 0; slot < boneCount; slot++)
+                {
+                    int dof = BasisBoneRotationCompression.BONE_DOF[slot];
+                    // Half a quantization step per transmitted angle, in degrees, with slack.
+                    float bound = dof == 3 ? 0.2f
+                        : dof == 2 ? math.degrees(
+                            BasisBoneRotationCompression.BONE_RANGE_A[slot] / ((1 << BasisBoneRotationCompression.HingeBits(quality)) - 1)
+                            + BasisBoneRotationCompression.BONE_RANGE_B[slot] / ((1 << BasisBoneRotationCompression.TwistBits(quality)) - 1)) + 0.05f
+                        : math.degrees(
+                            BasisBoneRotationCompression.BONE_RANGE_A[slot] / ((1 << BasisBoneRotationCompression.SingleAxisBits(quality)) - 1)) + 0.05f;
+                    Assert.That(AngleBetween(decoded[slot], current[slot]), Is.LessThan(bound),
+                        $"slot {slot} (dof {dof}) reconstructed outside its quantization bound");
+                }
+            }
+            finally
+            {
+                current.Dispose(); identityOps.Dispose(); outDeltas.Dispose(); bpcNative.Dispose();
+                maxComp.Dispose(); packet.Dispose(); fingersIn.Dispose(); fingersOut.Dispose();
+                decoded.Dispose(); dofNative.Dispose(); axisANative.Dispose(); axisBNative.Dispose();
+                rangeANative.Dispose(); rangeBNative.Dispose();
             }
         }
 
@@ -757,17 +933,17 @@ namespace Basis.Tests.Sync
         public void PacketSize_IsUnchangedByTheRepresentation()
         {
             // Conjugation is an isometry of SO(3), so the generic-space remap cannot alter any
-            // bone's bit cost. v47 DID move the total — by dropping the finger rotations entirely,
-            // which is a change of CONTENT, not of axes — so what this pins is the explicit bone
-            // region, the only part a change of representation could have disturbed.
-            byte[] bpc = BasisBoneRotationCompression.GetBpcTable(BasisAvatarBitPacking.BitQuality.High);
+            // bone's bit cost. v47 moved the total by dropping finger rotations, and v52 moved it
+            // again by shipping restricted-DOF joints as angles — both are changes of CONTENT.
+            // What this pins is the current explicit bone region so a drift is deliberate:
+            // 9 x (2 + 3*12) three-DOF slots + 10 x (13 + 12) hinge/twist slots + 2 x 7 toe slots.
             int boneBits = 0;
             for (int slot = 0; slot < BasisBoneRotationCompression.WireBoneSlotCount; slot++)
-                boneBits += 2 + 3 * bpc[slot];
+                boneBits += BasisBoneRotationCompression.BoneFieldWidth(BasisAvatarBitPacking.BitQuality.High, slot);
 
-            Assert.That(boneBits, Is.EqualTo(756), "explicit bone region must not move for a change of axes");
+            Assert.That(boneBits, Is.EqualTo(606), "explicit bone region must only move deliberately");
             Assert.That(BasisBoneRotationCompression.RotationBytes(BasisAvatarBitPacking.BitQuality.High),
-                Is.EqualTo(112), "High rotation block: 756 bone bits + 140 finger bits = 896 = 112 bytes");
+                Is.EqualTo(94), "High rotation block: 606 bone bits + 140 finger bits = 746 = 94 bytes");
             Assert.That(BasisBoneRotationCompression.SyncBoneCount, Is.EqualTo(51));
         }
     }

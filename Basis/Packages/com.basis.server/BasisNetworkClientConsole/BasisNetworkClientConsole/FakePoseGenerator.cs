@@ -149,9 +149,6 @@ namespace BasisNetworkClientConsole
 
             for (int slot = 0; slot < WireBoneCount; slot++)
             {
-                int bitsPerComp = bpc[slot];
-                int totalBits = 2 + 3 * bitsPerComp;
-
                 // Every slot animates every frame — a load-test sender must produce fresh
                 // rotation bits per send like a real tracked human, not a frozen statue.
                 int idx = slot * 4;
@@ -162,7 +159,10 @@ namespace BasisNetworkClientConsole
                 QuatMul(bx, by, bz, bw, dx, dy, dz, dw, out float rx, out float ry, out float rz, out float rw);
                 Normalize(ref rx, ref ry, ref rz, ref rw);
 
-                ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(rx, ry, rz, rw, bitsPerComp, ranges[slot]);
+                int totalBits = BasisBoneRotationCompression.BoneFieldWidth(quality, slot);
+                ulong packed = BasisBoneRotationCompression.BONE_DOF[slot] == 3
+                    ? BasisBoneRotationCompression.EncodeSmallestThree(rx, ry, rz, rw, bpc[slot], ranges[slot])
+                    : BasisBoneRotationCompression.EncodeRestricted(rx, ry, rz, rw, slot, quality);
 
                 BasisBoneRotationCompression.WriteBits(dst, baseBit + offsets[slot], packed, totalBits);
             }
@@ -352,8 +352,13 @@ namespace BasisNetworkClientConsole
                     frequency *= 1f + 0.07f * (slot % 3);
                     float angle = amplitude * MathF.Sin((float)(t * frequency * TwoPi + p * 1.1f + slot * 0.61f));
 
-                    // Cycle the rotation axis per slot so motion isn't uniformly single-axis.
-                    switch (slot % 3)
+                    // Restricted slots (v52) only carry their anatomical axes on the wire, so
+                    // animate the hinge axis — motion on a dropped axis would encode to silence.
+                    // Full 3-DOF slots keep the per-slot axis cycle so motion isn't single-axis.
+                    int axisCode = BasisBoneRotationCompression.BONE_DOF[slot] == 3
+                        ? slot % 3
+                        : BasisBoneRotationCompression.BONE_AXIS_A[slot];
+                    switch (axisCode)
                     {
                         case 0: AxisAngleToQuat(1, 0, 0, angle, out dx, out dy, out dz, out dw); break;
                         case 1: AxisAngleToQuat(0, 1, 0, angle, out dx, out dy, out dz, out dw); break;

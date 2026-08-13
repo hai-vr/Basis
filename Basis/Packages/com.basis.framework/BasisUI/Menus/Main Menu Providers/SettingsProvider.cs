@@ -2135,6 +2135,10 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             });
 
+            // Nameplates live in the same tab — one plate per remote player is a crowd cost like
+            // the rest of this page, and Performance Mode drives their visibility.
+            SettingsProviderNamePlate.BuildNamePlateContent(container, descriptor);
+
             // Performance limits live in the same tab — formerly its own page,
             // merged here so users see all rendering / quality / cost controls together.
             SettingsProviderPerformanceLimits.BuildPerformanceLimitsContent(container, true);
@@ -2247,6 +2251,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.PerformanceModeBaseline.ResetToDefault();
 
             SettingsProviderPerformanceLimits.ResetPerformanceLimitDefaults();
+            SettingsProviderNamePlate.ResetNamePlateDefaults();
 
             BasisSettingsDefaults.AvatarRange.ResetToDefault();
             BasisSettingsDefaults.UseMaxVisibleAvatars.ResetToDefault();
@@ -2492,10 +2497,6 @@ namespace Basis.BasisUI
                 togglePhotoWorld.AssignBinding(BasisSettingsDefaults.PhotoEmbedWorld);
             }, false, _ => descriptor.ForceRebuild());
 
-            // Nameplates live in the same tab — formerly its own page, merged here so
-            // chat-adjacent presence settings (notifications, name visibility) are colocated.
-            SettingsProviderNamePlate.BuildNamePlateContent(container, descriptor);
-
             BuildAppearanceContent(container, descriptor);
 
             RegisterPageReset("settings.tab.chat", ResetChatDefaults);
@@ -2654,7 +2655,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MenuBGGrain.ResetToDefault();
             BasisSettingsDefaults.MenuBGGrainScale.ResetToDefault();
             SettingsProviderUIStyle.ResetUIStyleDefaults();
-            SettingsProviderNamePlate.ResetNamePlateDefaults();
         }
 
         private static void ApplyPendingChatComposerRequest()

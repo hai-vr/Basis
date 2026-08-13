@@ -60,9 +60,12 @@ public class AvatarRepackerTests
         for (int slot = 0; slot < BasisBoneRotationCompression.WireBoneSlotCount; slot++)
         {
             var (x, y, z, w) = S.RandomQuat(rng);
-            ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(
-                x, y, z, w, bpc[slot], BasisBoneRotationCompression.MAX_COMPONENT[slot]);
-            BasisBoneRotationCompression.WriteBits(arr, baseBit + offs[slot], packed, 2 + 3 * bpc[slot]);
+            ulong packed = BasisBoneRotationCompression.BONE_DOF[slot] == 3
+                ? BasisBoneRotationCompression.EncodeSmallestThree(
+                    x, y, z, w, bpc[slot], BasisBoneRotationCompression.MAX_COMPONENT[slot])
+                : BasisBoneRotationCompression.EncodeRestricted(x, y, z, w, slot, q);
+            BasisBoneRotationCompression.WriteBits(arr, baseBit + offs[slot], packed,
+                BasisBoneRotationCompression.BoneFieldWidth(q, slot));
         }
 
         int fingerWidth = BasisBoneRotationCompression.FingerFieldWidth(q);
@@ -113,20 +116,49 @@ public class AvatarRepackerTests
                 for (int slot = 0; slot < BasisBoneRotationCompression.WireBoneSlotCount; slot++)
                 {
                     int srcPos = S.BoneBaseBit(BitQuality.High) + highOffs[slot];
-                    ulong rawHigh = BasisBoneRotationCompression.ReadBits(highArr, ref srcPos, 2 + 3 * highBpc[slot]);
-                    uint idx = (uint)(rawHigh & 3UL);
-                    uint maskSrc = (uint)((1 << highBpc[slot]) - 1);
-                    uint qa = (uint)((rawHigh >> 2) & maskSrc);
-                    uint qb = (uint)((rawHigh >> (2 + highBpc[slot])) & maskSrc);
-                    uint qc = (uint)((rawHigh >> (2 + 2 * highBpc[slot])) & maskSrc);
+                    ulong rawHigh = BasisBoneRotationCompression.ReadBits(highArr, ref srcPos,
+                        BasisBoneRotationCompression.BoneFieldWidth(BitQuality.High, slot));
 
-                    ulong expectedPacked = idx
-                        | ((ulong)Rescale(qa, highBpc[slot], bpc[slot]) << 2)
-                        | ((ulong)Rescale(qb, highBpc[slot], bpc[slot]) << (2 + bpc[slot]))
-                        | ((ulong)Rescale(qc, highBpc[slot], bpc[slot]) << (2 + 2 * bpc[slot]));
+                    ulong expectedPacked;
+                    switch (BasisBoneRotationCompression.BONE_DOF[slot])
+                    {
+                        case 3:
+                        {
+                            uint idx = (uint)(rawHigh & 3UL);
+                            uint maskSrc = (uint)((1 << highBpc[slot]) - 1);
+                            uint qa = (uint)((rawHigh >> 2) & maskSrc);
+                            uint qb = (uint)((rawHigh >> (2 + highBpc[slot])) & maskSrc);
+                            uint qc = (uint)((rawHigh >> (2 + 2 * highBpc[slot])) & maskSrc);
+                            expectedPacked = idx
+                                | ((ulong)Rescale(qa, highBpc[slot], bpc[slot]) << 2)
+                                | ((ulong)Rescale(qb, highBpc[slot], bpc[slot]) << (2 + bpc[slot]))
+                                | ((ulong)Rescale(qc, highBpc[slot], bpc[slot]) << (2 + 2 * bpc[slot]));
+                            break;
+                        }
+                        case 2:
+                        {
+                            int srcHinge = BasisBoneRotationCompression.HingeBits(BitQuality.High);
+                            int srcTwist = BasisBoneRotationCompression.TwistBits(BitQuality.High);
+                            int dstHinge = BasisBoneRotationCompression.HingeBits(q);
+                            int dstTwist = BasisBoneRotationCompression.TwistBits(q);
+                            uint hinge = (uint)(rawHigh & ((1UL << srcHinge) - 1UL));
+                            uint twist = (uint)((rawHigh >> srcHinge) & ((1UL << srcTwist) - 1UL));
+                            expectedPacked = Rescale(hinge, srcHinge, dstHinge)
+                                | ((ulong)Rescale(twist, srcTwist, dstTwist) << dstHinge);
+                            break;
+                        }
+                        default:
+                        {
+                            int srcBits = BasisBoneRotationCompression.SingleAxisBits(BitQuality.High);
+                            int dstBits = BasisBoneRotationCompression.SingleAxisBits(q);
+                            expectedPacked = Rescale((uint)(rawHigh & ((1UL << srcBits) - 1UL)), srcBits, dstBits);
+                            break;
+                        }
+                    }
 
                     int dstPos = posBytes * 8 + offs[slot];
-                    ulong actualPacked = BasisBoneRotationCompression.ReadBits(msg.array, ref dstPos, 2 + 3 * bpc[slot]);
+                    ulong actualPacked = BasisBoneRotationCompression.ReadBits(msg.array, ref dstPos,
+                        BasisBoneRotationCompression.BoneFieldWidth(q, slot));
                     Assert.True(expectedPacked == actualPacked, $"{q} bone slot {slot} mismatch");
                 }
 

@@ -180,6 +180,8 @@
     { "key": "sdk.avatarValidator.texture.noStreamingMips.fix", "value": "Enable Streaming Mip Maps on \"{0}\"" },
     { "key": "sdk.avatarValidator.texture.tooLarge", "value": "Texture \"{0}\" is {1} (should be <= {2}). This will negatively affect its performance ranking." },
     { "key": "sdk.avatarValidator.texture.tooLarge.fix", "value": "Resize \"{0}\" to {1}" },
+    { "key": "sdk.avatarValidator.texture.crunched", "value": "Texture \"{0}\" uses Crunch compression ({1}). Crunch has to be transcoded on the CPU, which slows how long the avatar takes to load and unload, and it saves little on top of the compression the bundle already applies while permanently lowering quality." },
+    { "key": "sdk.avatarValidator.texture.crunched.fix", "value": "Disable Crunch compression on \"{0}\"" },
     { "key": "sdk.avatarValidator.mesh.noMesh", "value": "{0} does not have a mesh assigned to its SkinnedMeshRenderer!" },
     { "key": "sdk.avatarValidator.mesh.tooManyTriangles", "value": "{0} has more than {1} triangles. This will cause performance issues." },
     { "key": "sdk.avatarValidator.mesh.tooManyVertices", "value": "{0} has more vertices than can be properly rendered ({1}). This will cause performance issues." },

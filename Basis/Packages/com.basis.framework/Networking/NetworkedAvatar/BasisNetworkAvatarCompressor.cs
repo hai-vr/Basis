@@ -70,6 +70,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         static NativeArray<quaternion> sEncodePostNative;
         static NativeArray<byte> sBpcNative;
         static NativeArray<float> sMaxComponentNative;
+        // Restricted-DOF tables (v52), one entry per wire slot: DOF class, hinge/twist axis
+        // codes and half-ranges. Constant per protocol version, staged once for the Burst job.
+        static NativeArray<byte> sDofNative;
+        static NativeArray<byte> sAxisANative;
+        static NativeArray<byte> sAxisBNative;
+        static NativeArray<float> sRangeANative;
+        static NativeArray<float> sRangeBNative;
         static bool sJobArraysReady;
 
         // Persistent NativeArray for jobified compression output — avoids per-frame TempJob allocation.
@@ -675,6 +682,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 EncodePost = sEncodePostNative,
                 BitsPerComponent = sBpcNative,
                 MaxComponent = sMaxComponentNative,
+                BoneDof = sDofNative,
+                BoneAxisA = sAxisANative,
+                BoneAxisB = sAxisBNative,
+                BoneRangeA = sRangeANative,
+                BoneRangeB = sRangeBNative,
+                HingeBitCount = BasisBoneRotationCompression.HingeBits(WireQuality),
+                TwistBitCount = BasisBoneRotationCompression.TwistBits(WireQuality),
+                SingleAxisBitCount = BasisBoneRotationCompression.SingleAxisBits(WireQuality),
                 OutputBuffer = sJobOutputBuffer,
                 RotationByteOffset = 0,
                 BoneCount = boneCount,
@@ -786,6 +801,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             sMaxComponentNative = new NativeArray<float>(boneCount, Allocator.Persistent);
             NativeArray<float>.Copy(maxComp, sMaxComponentNative, boneCount);
 
+            int wireSlots = BasisBoneRotationCompression.WireBoneSlotCount;
+            sDofNative = new NativeArray<byte>(wireSlots, Allocator.Persistent);
+            sAxisANative = new NativeArray<byte>(wireSlots, Allocator.Persistent);
+            sAxisBNative = new NativeArray<byte>(wireSlots, Allocator.Persistent);
+            sRangeANative = new NativeArray<float>(wireSlots, Allocator.Persistent);
+            sRangeBNative = new NativeArray<float>(wireSlots, Allocator.Persistent);
+            NativeArray<byte>.Copy(BasisBoneRotationCompression.BONE_DOF, sDofNative, wireSlots);
+            NativeArray<byte>.Copy(BasisBoneRotationCompression.BONE_AXIS_A, sAxisANative, wireSlots);
+            NativeArray<byte>.Copy(BasisBoneRotationCompression.BONE_AXIS_B, sAxisBNative, wireSlots);
+            NativeArray<float>.Copy(BasisBoneRotationCompression.BONE_RANGE_A, sRangeANative, wireSlots);
+            NativeArray<float>.Copy(BasisBoneRotationCompression.BONE_RANGE_B, sRangeBNative, wireSlots);
+
             // Build TransformAccessArray for jobified bone reads.
             // Only valid transforms are added; missing bones get identity pre-filled.
             var validTransforms = new System.Collections.Generic.List<Transform>(boneCount);
@@ -823,6 +850,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (sEncodePostNative.IsCreated) sEncodePostNative.Dispose();
             if (sBpcNative.IsCreated) sBpcNative.Dispose();
             if (sMaxComponentNative.IsCreated) sMaxComponentNative.Dispose();
+            if (sDofNative.IsCreated) sDofNative.Dispose();
+            if (sAxisANative.IsCreated) sAxisANative.Dispose();
+            if (sAxisBNative.IsCreated) sAxisBNative.Dispose();
+            if (sRangeANative.IsCreated) sRangeANative.Dispose();
+            if (sRangeBNative.IsCreated) sRangeBNative.Dispose();
         }
 
         static void EnsureInitialized()
