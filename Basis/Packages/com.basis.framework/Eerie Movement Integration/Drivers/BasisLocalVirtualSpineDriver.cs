@@ -121,6 +121,13 @@ namespace Basis.IK
             {
                 torsoYawDeadzoneDeg = 0f;
             }
+            // Prone: the whole lying body is the yaw follower (ApplyProneBodyYaw swings it to this
+            // yaw), and the relocking anchor would let the head point sideways while the body stays
+            // straight. Deadzone-free follow, still smoothed by TorsoYawBlendSpeed.
+            if (BasisLocalPlayer.Instance.LocalCharacterDriver.IsProne)
+            {
+                torsoYawDeadzoneDeg = 0f;
+            }
 
             var leftFoot = BasisLocalBoneDriver.LeftFootControl;
             var rightFoot = BasisLocalBoneDriver.RightFootControl;

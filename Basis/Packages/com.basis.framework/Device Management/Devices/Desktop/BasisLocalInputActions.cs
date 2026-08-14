@@ -22,6 +22,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public static InputAction LookAction;
         public static InputAction JumpAction;
         public static InputAction CrouchAction;
+        public static InputAction ProneAction;
         public static InputAction RunButton;
         public static InputAction Escape;
         public static InputAction Tab;
@@ -123,6 +124,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             LookAction = map.FindAction("Look Delta", throwIfNotFound: true);
             JumpAction = map.FindAction("Jump", throwIfNotFound: true);
             CrouchAction = map.FindAction("Crouch", throwIfNotFound: true);
+            ProneAction = map.FindAction("Prone", throwIfNotFound: true);
             RunButton = map.FindAction("Running", throwIfNotFound: true);
             Escape = map.FindAction("Escape", throwIfNotFound: true);
             Tab = map.FindAction("Tab", throwIfNotFound: true);
@@ -162,6 +164,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             LookAction.Enable();
             JumpAction.Enable();
             CrouchAction.Enable();
+            ProneAction.Enable();
             RunButton.Enable();
             Escape.Enable();
             Tab.Enable();
@@ -187,6 +190,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             LookAction?.Disable();
             JumpAction?.Disable();
             CrouchAction?.Disable();
+            ProneAction?.Disable();
             RunButton?.Disable();
             Escape?.Disable();
             Tab?.Disable();
@@ -209,6 +213,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             CrouchAction.performed += OnCrouchPerformed;
             CrouchAction.canceled += OnCrouchCancelled;
+
+            ProneAction.performed += OnPronePerformed;
 
             MoveAction.performed += OnMoveActionPerformed;
             MoveAction.canceled += OnMoveActionCancelled;
@@ -277,6 +283,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         {
             SafeRemoveCallbacks(PointerAction, OnPointerPerformed, OnPointerCancelled);
             SafeRemoveCallbacks(CrouchAction, OnCrouchPerformed, OnCrouchCancelled);
+            SafeRemoveCallbacks(ProneAction, OnPronePerformed);
             SafeRemoveCallbacks(MoveAction, OnMoveActionPerformed, OnMoveActionCancelled);
             SafeRemoveCallbacks(LookAction, OnLookActionPerformed, OnLookActionCancelled);
             SafeRemoveCallbacks(JumpAction, OnJumpActionPerformed, OnJumpActionCancelled);
@@ -440,6 +447,13 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         {
             IsCrouchHeld = false;
             LocalCharacterDriver.UpdateMovementSpeed(IsRunHeld);
+        }
+
+        public static void OnPronePerformed(InputAction.CallbackContext ctx)
+        {
+            if (BasisInputModuleHandler.Instance != null && BasisInputModuleHandler.Instance.IsTyping())
+                return;
+            LocalCharacterDriver.ProneToggle();
         }
 
         public static void OnRunStarted(InputAction.CallbackContext ctx)

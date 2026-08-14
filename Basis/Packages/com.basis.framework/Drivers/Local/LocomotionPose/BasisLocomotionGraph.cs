@@ -73,18 +73,18 @@ namespace Basis.Scripts.Drivers
     /// </summary>
     public static class BasisLocomotionGraph
     {
-        public const int ClipCount = 31;
-        public const int MaxContributions = 20;
+        public const int ClipCount = 38;
+        public const int MaxContributions = 28;
 
-        public const int WalkingChildCount = 10;
+        public const int WalkingChildCount = 17;
         public const int CrouchingChildCount = 9;
         public const int ProneChildCount = 9;
         public const int WalkingClipStart = 0;
-        public const int CrouchingClipStart = 10;
-        public const int ProneClipStart = 19;
-        public const int JumpClip = 28;
-        public const int FallingClip = 29;
-        public const int LandingClip = 30;
+        public const int CrouchingClipStart = 17;
+        public const int ProneClipStart = 26;
+        public const int JumpClip = 35;
+        public const int FallingClip = 36;
+        public const int LandingClip = 37;
 
         public static readonly string[] ClipNames =
         {
@@ -96,8 +96,15 @@ namespace Basis.Scripts.Drivers
             "BackwardsStrafeLeft",
             "Lside",
             "ForwardStrafeLeft",
-            "HumanoidRun",
+            "Run",
             "Idle",
+            "RunStrafeRight",
+            "RunRight",
+            "RunBackStafeRight",
+            "RunBackwards",
+            "RunBackStafeLeft",
+            "RunLeft",
+            "RunStrafeLeft",
             "CrouchForward",
             "CrouchStrafeRight",
             "RCrouch",
@@ -131,13 +138,20 @@ namespace Basis.Scripts.Drivers
             new float2(-1.3471601f, -1.3232877f),
             new float2(-1.3944328f, -0.000010990724f),
             new float2(-1.3405663f, 1.3408747f),
-            new float2(0.03366417f, 3.6030414f),
+            new float2(0f, 3.6f),
             new float2(0.000011402694f, 0.000046161364f),
+            new float2(2.55f, 2.55f),
+            new float2(3.6f, 0f),
+            new float2(2.55f, -2.55f),
+            new float2(0f, -3.6f),
+            new float2(-2.55f, -2.55f),
+            new float2(-3.6f, 0f),
+            new float2(-2.55f, 2.55f),
         };
 
         public static readonly float[] WalkingChildTimeScales =
         {
-            1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f,
+            1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1.5f, 1f, 1.5f, 1.5f, 1.5f, 1.5f, 1.5f, 1.5f, 1.5f,
         };
 
         public static readonly float2[] CrouchingChildPositions =
@@ -160,14 +174,14 @@ namespace Basis.Scripts.Drivers
 
         public static readonly float2[] ProneChildPositions =
         {
-            new float2(0f, 1.2f),
-            new float2(1.35f, 1.35f),
-            new float2(1.4f, 0f),
-            new float2(1.35f, -1.35f),
-            new float2(0f, -1.2f),
-            new float2(-1.35f, -1.35f),
-            new float2(-1.4f, 0f),
-            new float2(-1.35f, 1.35f),
+            new float2(0f, 0.4f),
+            new float2(0.42f, 0.42f),
+            new float2(0.45f, 0f),
+            new float2(0.42f, -0.42f),
+            new float2(0f, -0.4f),
+            new float2(-0.42f, -0.42f),
+            new float2(-0.45f, 0f),
+            new float2(-0.42f, 0.42f),
             new float2(0f, 0f),
         };
 

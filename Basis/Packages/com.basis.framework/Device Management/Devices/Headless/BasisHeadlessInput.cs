@@ -293,9 +293,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
 
                 if (!BasisLocks.GetContext(BasisLocks.Crouching))
                 {
-                    float crouchMin = charDriverLocked.MinimumCrouchPercent;
-                    float crouchBlend = charDriverLocked.CrouchBlend;
-                    float heightAdjust = (1f - crouchMin) * crouchBlend + crouchMin;
+                    float heightAdjust = charDriverLocked.GetStanceHeightPercent();
                     float headHeightUnscaled = GetUnscaledHeadHeightForCrouch();
                     posLocked.y -= headHeightUnscaled * (1f - heightAdjust);
                 }
@@ -395,9 +393,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
 
             if (!BasisLocks.GetContext(BasisLocks.Crouching))
             {
-                float crouchMin = charDriver.MinimumCrouchPercent;
-                float crouchBlend = charDriver.CrouchBlend;
-                float heightAdjust = (1f - crouchMin) * crouchBlend + crouchMin;
+                float heightAdjust = charDriver.GetStanceHeightPercent();
                 float headHeightUnscaled = GetUnscaledHeadHeightForCrouch();
                 pos.y -= headHeightUnscaled * (1f - heightAdjust);
             }

@@ -52,6 +52,15 @@
                     "initialStateCheck": true
                 },
                 {
+                    "name": "Prone",
+                    "type": "Button",
+                    "id": "7e3f9c2a-58d1-4b6e-9a47-c2f8e01b5d93",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Escape",
                     "type": "Button",
                     "id": "513752c6-b4b2-47d1-a588-bedd29ed3375",
@@ -491,6 +500,17 @@
                     "processors": "",
                     "groups": "All",
                     "action": "Crouch",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "4a91d7c6-2b3e-4f85-b1c9-8e5a06d47f21",
+                    "path": "<Keyboard>/z",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";All",
+                    "action": "Prone",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

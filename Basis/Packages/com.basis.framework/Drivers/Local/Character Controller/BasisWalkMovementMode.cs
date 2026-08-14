@@ -38,6 +38,10 @@ namespace Basis.Scripts.BasisCharacterController
             // amplitudes and step urgency at maximum and roughly doubled cadence at half size.
             ctx.CurrentSpeed = (math.lerp(ctx.MinimumMovementSpeed, ctx.MaximumMovementSpeed, ctx.MovementSpeedScale) + ctx.MinimumMovementSpeed * ctx.MovementSpeedBoost)
                 * BasisLocalCharacterDriver.LocomotionSpeedScale();
+            if (ctx.IsProne)
+            {
+                ctx.CurrentSpeed = ctx.ProneMovementSpeed * BasisLocalCharacterDriver.LocomotionSpeedScale();
+            }
 
             Vector3 move = facing * inputDir * ctx.CurrentSpeed * dt;
 

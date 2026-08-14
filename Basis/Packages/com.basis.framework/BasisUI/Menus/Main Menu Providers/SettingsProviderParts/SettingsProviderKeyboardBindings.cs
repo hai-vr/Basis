@@ -38,6 +38,7 @@ public static class SettingsProviderKeyboardBindings
             ("Jump", "Jump"),
             ("Running", "Sprint"),
             ("Crouch", "Crouch"),
+            ("Prone", "Prone"),
             ("ToggleMicMute", "Microphone Input"));
 
         // Menu

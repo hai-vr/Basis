@@ -24,7 +24,9 @@ namespace Basis.Scripts.BasisCharacterController
         [SerializeField] public float MaximumMovementSpeed = 4;
         [SerializeField] public float DefaultMovementSpeed = 2.5f;
         [SerializeField] public float MinimumMovementSpeed = 0.5f;
+        [SerializeField] public float ProneMovementSpeed = 0.35f;
         [SerializeField, Range(0f, 1f)] public float MinimumCrouchPercent = 0.5f;
+        [SerializeField, Range(0f, 1f)] public float MinimumPronePercent = 0.15f;
         [SerializeField] public float gravityValue = -9.81f;
         [SerializeField] public float RaycastDistance = 0.2f;
         [SerializeField] public float MinimumColliderSize = 0.01f;
@@ -147,7 +149,7 @@ namespace Basis.Scripts.BasisCharacterController
         /// </summary>
         public bool IsCrouching => CrouchBlend <= LocalAnimatorDriver.CrouchThreshold;
         /// <summary>
-        /// When true the locomotion animator plays the prone set instead of the crouch set. Nothing toggles this yet — input or gameplay systems set it directly.
+        /// When true the locomotion animator plays the prone set and movement drops to crawl speed. Toggled by <see cref="ProneToggle"/>; crouching input clears it.
         /// </summary>
         public bool IsProne = false;
         public bool IsRunning => CurrentSpeed > DefaultMovementSpeed;
@@ -460,9 +462,27 @@ namespace Basis.Scripts.BasisCharacterController
 
         public void CrouchToggle()
         {
+            IsProne = false;
             // check what the animator driver considers to be crouching, and standup if crouch threshold is matched, otherwise, full crouch
             CrouchBlend = CrouchingLock || CrouchBlend <= LocalAnimatorDriver.CrouchThreshold ? 1f : 0f;
             UpdateMovementSpeed(UseMaxSpeed);
+        }
+
+        public void ProneToggle()
+        {
+            if (CrouchingLock) return;
+            IsProne = !IsProne;
+            UpdateMovementSpeed(UseMaxSpeed);
+        }
+
+        /// <summary>
+        /// 0..1 multiplier applied to the head/eye height for the current stance:
+        /// 1 standing, down to <see cref="MinimumCrouchPercent"/> via CrouchBlend, or <see cref="MinimumPronePercent"/> while prone.
+        /// </summary>
+        public float GetStanceHeightPercent()
+        {
+            if (IsProne) return MinimumPronePercent;
+            return (1f - MinimumCrouchPercent) * CrouchBlend + MinimumCrouchPercent;
         }
 
         public void SetCrouchBlendDelta(float delta)
@@ -529,6 +549,7 @@ namespace Basis.Scripts.BasisCharacterController
             Vector3 horizontalMoveDirection = new Vector3(MovementVector.x, 0, MovementVector.y).normalized;
 
             CurrentSpeed = math.lerp(MinimumMovementSpeed, MaximumMovementSpeed, MovementSpeedScale) + MinimumMovementSpeed * MovementSpeedBoost;
+            if (IsProne) CurrentSpeed = ProneMovementSpeed;
 
             Vector3 totalMoveDirection = flattenedRotation * horizontalMoveDirection * CurrentSpeed * DeltaTime;
             if (MovementLock)

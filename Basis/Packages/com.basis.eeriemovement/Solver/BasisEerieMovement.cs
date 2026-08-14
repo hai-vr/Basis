@@ -73,6 +73,7 @@ namespace Basis.IK
         public bool enabledSpineIK, enabledLeftShoulder, enabledRightShoulder;
         public bool leftToeEnabled, rightToeEnabled;
         public bool hasChestTracker, hasHipsTracker;
+        public bool proneBodyPose;
         public bool hintIsTrackerLeftLowerLeg, hintIsTrackerRightLowerLeg;
         public bool footIsTrackerLeftLeg, footIsTrackerRightLeg;
 
