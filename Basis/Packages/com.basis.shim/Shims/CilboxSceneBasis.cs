@@ -327,8 +327,11 @@ namespace Cilbox
 				} },
 			// Restrict BasisDeviceManagement to the single mode query the menu uses.
 			{ typeof(Basis.Scripts.Device_Management.BasisDeviceManagement), new HashSet<string>{ "IsCurrentModeVR" } },
-			// BasisLocalCameraDriver: only the static CameraInstance field is needed (whitelisted above); block all methods.
-			{ typeof(Basis.Scripts.Drivers.BasisLocalCameraDriver), new HashSet<string>() },
+			// BasisLocalCameraDriver: world-space stereo eye reads only (copied Vector3), plus the static CameraInstance field (whitelisted above); everything else blocked.
+			{ typeof(Basis.Scripts.Drivers.BasisLocalCameraDriver), new HashSet<string>{
+				nameof(Basis.Scripts.Drivers.BasisLocalCameraDriver.LeftEyeWorldPosition),
+				nameof(Basis.Scripts.Drivers.BasisLocalCameraDriver.RightEyeWorldPosition),
+				} },
 			{ typeof(Basis.Shims.BasisPlayspaceInputShim), new HashSet<string>() },
 			{ typeof(Basis.Shims.BasisVixxyShim), new HashSet<string>() },
 			{ typeof(BasisLocalPlayer), new HashSet<string>{

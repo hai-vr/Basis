@@ -175,7 +175,7 @@ namespace Basis.Scripts.Device_Management.EyeTracking
             {
                 BasisEyeMath.WorldRayToPerEyeAngles(
                     data.GazeOrigin, data.GazeDirection, GazeConvergenceDistance,
-                    BasisLocalCameraDriver.LeftEyePosition(), BasisLocalCameraDriver.RightEyePosition(), headRot,
+                    BasisLocalCameraDriver.LeftEyeWorldPosition(), BasisLocalCameraDriver.RightEyeWorldPosition(), headRot,
                     out data.LeftAngles, out data.RightAngles);
                 data.HasPerEyeAngles = true;
             }

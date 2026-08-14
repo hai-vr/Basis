@@ -24,6 +24,11 @@ namespace Cilbox
 			"Basis.Shims.BasisOsc*",
 			"Basis.Network.Core.DeliveryMethod",
 			"Basis.SafeUtil",
+			// Wire compression helpers: quat <-> uint/ulong (smallest-three) and ranged
+			// float <-> ushort. Pure math over already-whitelisted primitives — no handles,
+			// no native memory — so default-allow methods are safe.
+			"Basis.Scripts.Networking.Compression.BasisCompression+QuaternionCompressor",
+			"BasisNetworkPrimitiveCompression+BasisRangedUshortFloatData",
 			// Roster access plus the pose reads IBasisPlayer withholds. Returns players as
 			// IBasisPlayer, and poses as copied Vector3/Quaternion — never a Transform.
 			"Basis.Shims.BasisPlayersShim",
@@ -351,6 +356,9 @@ namespace Cilbox
 			"Basis.BasisNetworkBehaviour.IsOwnedLocallyOnServer",
 			"Basis.BasisNetworkBehaviour.HasNetworkID",
 			"Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.playerId",
+			// Quantizer configuration (Precision/Min/Max/RequiredBits/Mask) on the script's
+			// own instance; Compress/Decompress clamp, so a mangled config can't corrupt.
+			"BasisNetworkPrimitiveCompression+BasisRangedUshortFloatData.*",
 
 			// Sync shim configuration. These are plain fields rather than { get; set; } pairs, so
 			// unlike a property they need naming here — field access is default-deny, methods are
