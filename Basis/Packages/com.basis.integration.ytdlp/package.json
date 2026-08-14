@@ -2,7 +2,7 @@
   "name": "com.basis.integration.ytdlp",
   "displayName": "Basis yt-dlp Integration",
   "version": "0.0.1",
-  "description": "Resolves page URLs (YouTube, Twitch, …) to playable stream URLs via the in-process yt-dlp native plugin (com.yewnyx.ytdlp) and hands them to BasisMediaPlayer. Optional bolt-on: compiles to nothing unless both com.basis.mediaplayer and com.yewnyx.ytdlp are present.",
+  "description": "Resolves page URLs (YouTube, Twitch, …) to playable stream URLs via the in-process yt-dlp native plugin (town.mr.ytdlp, or its pre-rename id com.yewnyx.ytdlp) and hands them to BasisMediaPlayer. Optional bolt-on: compiles to nothing unless both com.basis.mediaplayer and the yt-dlp plugin are present.",
   "author": {
     "name": "BasisVR",
     "url": "https://github.com/BasisVR"

@@ -8,7 +8,7 @@ using YtDlp;
 namespace Basis.Integration.YtDlp
 {
     /// <summary>
-    /// Bridges the in-process yt-dlp resolver (com.yewnyx.ytdlp) to BasisMediaPlayer:
+    /// Bridges the in-process yt-dlp resolver (town.mr.ytdlp) to BasisMediaPlayer:
     /// turns a page URL (YouTube, Twitch, …) into the stream(s) the OS-codec engine
     /// can open, then loads them. The core media player has no reference to this type,
     /// so removing this package removes the feature with nothing dangling.

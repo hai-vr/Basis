@@ -58,9 +58,10 @@ BasisMediaSource source = await BasisYtDlpResolver.ResolveSourceAsync(pageUrl);
 
 ## Requirements
 
-- **`com.basis.mediaplayer`** (the player) and **`com.yewnyx.ytdlp`** (the in-process
-  yt-dlp native plugin — an embedded CPython runtime + yt-dlp). This package compiles
-  to nothing unless both are present (asmdef define constraints
+- **`com.basis.mediaplayer`** (the player) and **`town.mr.ytdlp`** (the in-process
+  yt-dlp native plugin — an embedded CPython runtime + yt-dlp; its pre-rename id
+  `com.yewnyx.ytdlp` is also recognised). This package compiles to nothing unless
+  both are present (asmdef define constraints
   `BASIS_MEDIAPLAYER_EXISTS` + `YTDLP_EXISTS`).
 - **Windows** today — the yt-dlp native plugin is Windows-first.
 - **Expect a few seconds per page-URL load.** The *first* resolution also unpacks the

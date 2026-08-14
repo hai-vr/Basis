@@ -4,12 +4,13 @@ How to verify page-URL resolution (YouTube, Twitch, and friends) after changing 
 The base player's guide —
 [`com.basis.mediaplayer/TESTING.md`](../com.basis.mediaplayer/TESTING.md) — covers everything
 downstream of resolution and deliberately uses **direct stream URLs only**; page URLs belong
-here, because they only work when this integration (and its `com.yewnyx.ytdlp` dependency)
+here, because they only work when this integration (and its `town.mr.ytdlp` dependency)
 is installed.
 
 ## Prerequisites
 
-- `com.basis.mediaplayer` and `com.yewnyx.ytdlp` present — this package compiles to nothing
+- `com.basis.mediaplayer` and `town.mr.ytdlp` (or its pre-rename id `com.yewnyx.ytdlp`)
+  present — this package compiles to nothing
   without both (asmdef define constraints), so first confirm it's actually active: loading a
   page URL without it reports that a resolver is needed.
 - **Windows** — the yt-dlp native plugin is Windows-first.
