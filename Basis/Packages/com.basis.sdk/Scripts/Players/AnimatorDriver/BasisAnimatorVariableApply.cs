@@ -55,6 +55,11 @@ namespace Basis.Scripts.Animator_Driver
                 Animator.SetBool(BasisAvatarAnimatorHash.HashCrouchedState, BasisAnimatorVariables.IsCrouching);
                 BasisAnimatorVariables.cachedIsCrouching = BasisAnimatorVariables.IsCrouching;
             }
+            if (BasisAnimatorVariables.cachedIsProne != BasisAnimatorVariables.IsProne)
+            {
+                Animator.SetBool(BasisAvatarAnimatorHash.HashProneState, BasisAnimatorVariables.IsProne);
+                BasisAnimatorVariables.cachedIsProne = BasisAnimatorVariables.IsProne;
+            }
             if (BasisAnimatorVariables.cachedIsFalling != BasisAnimatorVariables.IsFalling)
             {
                 Animator.SetBool(BasisAvatarAnimatorHash.HashIsFalling, BasisAnimatorVariables.IsFalling);
@@ -103,6 +108,7 @@ namespace Basis.Scripts.Animator_Driver
             // Set all animator boolean parameters to false
             Animator.SetBool(BasisAvatarAnimatorHash.HashMovingState, false);
             Animator.SetBool(BasisAvatarAnimatorHash.HashCrouchedState, false);
+            Animator.SetBool(BasisAvatarAnimatorHash.HashProneState, false);
             Animator.SetBool(BasisAvatarAnimatorHash.HashIsFalling, false);
 
             // Update cached variables for boolean states
@@ -111,6 +117,9 @@ namespace Basis.Scripts.Animator_Driver
 
             BasisAnimatorVariables.cachedIsCrouching = false;
             BasisAnimatorVariables.IsCrouching = false;
+
+            BasisAnimatorVariables.cachedIsProne = false;
+            BasisAnimatorVariables.IsProne = false;
 
             BasisAnimatorVariables.cachedIsFalling = false;
             BasisAnimatorVariables.IsFalling = false;
@@ -149,6 +158,7 @@ namespace Basis.Scripts.Animator_Driver
             BasisAvatarAnimatorHash.HashCurrentSpeed = Animator.StringToHash("CurrentSpeed");
             BasisAvatarAnimatorHash.HashCrouchBlend = Animator.StringToHash("CrouchBlend");
             BasisAvatarAnimatorHash.HashCrouchedState = Animator.StringToHash("CrouchedState");
+            BasisAvatarAnimatorHash.HashProneState = Animator.StringToHash("ProneState");
             BasisAvatarAnimatorHash.HashMovingState = Animator.StringToHash("MovingState");
 
             BasisAvatarAnimatorHash.IsPaused = Animator.StringToHash("IsPaused");

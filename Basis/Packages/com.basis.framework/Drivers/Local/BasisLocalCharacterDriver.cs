@@ -146,6 +146,10 @@ namespace Basis.Scripts.BasisCharacterController
         /// Indicates whether the character is considered crouching based on the CrouchBlend value being less than the defined threshold.
         /// </summary>
         public bool IsCrouching => CrouchBlend <= LocalAnimatorDriver.CrouchThreshold;
+        /// <summary>
+        /// When true the locomotion animator plays the prone set instead of the crouch set. Nothing toggles this yet — input or gameplay systems set it directly.
+        /// </summary>
+        public bool IsProne = false;
         public bool IsRunning => CurrentSpeed > DefaultMovementSpeed;
         public bool UseMaxSpeed => BasisLocalInputActions.IsRunHeld;
         public bool CanPushRigidbodys = false;

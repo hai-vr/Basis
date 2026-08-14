@@ -51,6 +51,8 @@ namespace Basis.Framework.IK.Tests
                 BasisLocoCondition.CrouchedFalse => (AnimatorConditionMode.IfNot, "CrouchedState"),
                 BasisLocoCondition.IsFallingTrue => (AnimatorConditionMode.If, "IsFalling"),
                 BasisLocoCondition.IsFallingFalse => (AnimatorConditionMode.IfNot, "IsFalling"),
+                BasisLocoCondition.ProneTrue => (AnimatorConditionMode.If, "ProneState"),
+                BasisLocoCondition.ProneFalse => (AnimatorConditionMode.IfNot, "ProneState"),
                 _ => (AnimatorConditionMode.If, "IsLanding"),
             };
             Assert.AreEqual(expected.mode, actual.mode);
@@ -92,7 +94,7 @@ namespace Basis.Framework.IK.Tests
         {
             AnimatorController controller = Load();
             AnimatorStateMachine machine = controller.layers[0].stateMachine;
-            Assert.AreEqual(5, machine.states.Length);
+            Assert.AreEqual(6, machine.states.Length);
             Assert.AreEqual("Walking", machine.defaultState.name);
             Assert.AreEqual(BasisLocoState.Walking, BasisLocomotionGraph.DefaultSimState.Current);
 
@@ -119,8 +121,10 @@ namespace Basis.Framework.IK.Tests
 
             Assert.IsTrue(FindState(controller, "Walking").speedParameterActive);
             Assert.AreEqual("CurrentSpeed", FindState(controller, "Walking").speedParameter);
-            Assert.IsTrue(FindState(controller, "Cawling").speedParameterActive);
-            Assert.AreEqual("CurrentSpeed", FindState(controller, "Cawling").speedParameter);
+            Assert.IsTrue(FindState(controller, "Crouching").speedParameterActive);
+            Assert.AreEqual("CurrentSpeed", FindState(controller, "Crouching").speedParameter);
+            Assert.IsTrue(FindState(controller, "Prone").speedParameterActive);
+            Assert.AreEqual("CurrentSpeed", FindState(controller, "Prone").speedParameter);
             Assert.IsFalse(FindState(controller, "Jump").speedParameterActive);
             Assert.IsFalse(FindState(controller, "Falling").speedParameterActive);
             Assert.IsFalse(FindState(controller, "Landing").speedParameterActive);
@@ -155,10 +159,15 @@ namespace Basis.Framework.IK.Tests
             AssertTree(walking, BasisLocomotionGraph.WalkingClipStart, BasisLocomotionGraph.WalkingChildCount,
                 BasisLocomotionGraph.WalkingChildPositions, BasisLocomotionGraph.WalkingChildTimeScales);
 
-            var cawling = FindState(controller, "Cawling").motion as BlendTree;
-            Assert.IsNotNull(cawling, "Cawling should hold a blend tree");
-            AssertTree(cawling, BasisLocomotionGraph.CawlingClipStart, BasisLocomotionGraph.CawlingChildCount,
-                BasisLocomotionGraph.CawlingChildPositions, BasisLocomotionGraph.CawlingChildTimeScales);
+            var crouching = FindState(controller, "Crouching").motion as BlendTree;
+            Assert.IsNotNull(crouching, "Crouching should hold a blend tree");
+            AssertTree(crouching, BasisLocomotionGraph.CrouchingClipStart, BasisLocomotionGraph.CrouchingChildCount,
+                BasisLocomotionGraph.CrouchingChildPositions, BasisLocomotionGraph.CrouchingChildTimeScales);
+
+            var prone = FindState(controller, "Prone").motion as BlendTree;
+            Assert.IsNotNull(prone, "Prone should hold a blend tree");
+            AssertTree(prone, BasisLocomotionGraph.ProneClipStart, BasisLocomotionGraph.ProneChildCount,
+                BasisLocomotionGraph.ProneChildPositions, BasisLocomotionGraph.ProneChildTimeScales);
         }
 
         [Test]

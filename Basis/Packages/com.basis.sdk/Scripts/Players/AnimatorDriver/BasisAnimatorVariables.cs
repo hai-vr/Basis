@@ -16,7 +16,7 @@ namespace Basis.Scripts.Animator_Driver
         public float cachedAnimSpeed;
 
         /// <summary>
-        /// Cached blend value for crouching (0 = standing, 1 = crouched).
+        /// Cached blend value for crouching (1 = standing, 0 = fully crouched).
         /// </summary>
         public float cachedCrouchBlend;
 
@@ -51,6 +51,11 @@ namespace Basis.Scripts.Animator_Driver
         public bool cachedIsCrouching;
 
         /// <summary>
+        /// Cached flag for whether the avatar was prone last frame.
+        /// </summary>
+        public bool cachedIsProne;
+
+        /// <summary>
         /// Current flag indicating if the avatar is jumping this frame.
         /// </summary>
         public bool IsJumping;
@@ -66,7 +71,12 @@ namespace Basis.Scripts.Animator_Driver
         public bool IsCrouching;
 
         /// <summary>
-        /// Current crouch blend value (0 = standing, 1 = crouched).
+        /// Current flag indicating if the avatar is prone this frame.
+        /// </summary>
+        public bool IsProne;
+
+        /// <summary>
+        /// Current crouch blend value (1 = standing, 0 = fully crouched).
         /// </summary>
         public float CrouchBlend;
 
