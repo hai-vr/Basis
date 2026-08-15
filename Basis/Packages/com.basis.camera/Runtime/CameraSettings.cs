@@ -22,6 +22,11 @@ public partial class BasisHandHeldCameraUI
 
             cameraMode = (int)BasisCameraMode.Photo;
 
+            // Empty rather than null, and never allowed to become null again: JsonUtility writes a
+            // null string as "" and reads it back as "", so a null here would be a field that
+            // provably cannot survive its own file.
+            userMode = string.Empty;
+
             backgroundMode = 0;
             backgroundCustomColor = BasisHandHeldCamera.ChromaGreen;
             backgroundKeepsWorld = false;
@@ -70,6 +75,18 @@ public partial class BasisHandHeldCameraUI
             VolumetricFogenableMainLightContribution = true;
 
             msaaSamples = 2;
+
+            gifDurationSeconds = 5f;
+            gifFrameRate = 15;
+            gifWidth = 480;
+            gifLoop = true;
+            gifDither = true;
+
+            videoDurationSeconds = 30f;
+            videoFrameRate = 30;
+            videoWidth = 1920;
+            videoQuality = 80;
+            videoTimeLimit = true;
         }
 
         /// <summary>
@@ -78,6 +95,17 @@ public partial class BasisHandHeldCameraUI
         /// longer matches the mode it names settles on Custom instead of mislabelling itself.
         /// </summary>
         public int cameraMode;
+
+        /// <summary>
+        /// The saved mode the camera was last wearing, by name, or empty for none. Looked up in
+        /// <see cref="BasisCameraUserModes"/> on load and dropped if that mode has since been
+        /// deleted or edited into something this file no longer matches.
+        ///
+        /// <para>Only the name is stored, never the mode's values: the values are already in this
+        /// file. A copy here would be a second version of the same settings, free to disagree with
+        /// both the file around it and the mode it names.</para>
+        /// </summary>
+        public string userMode;
 
         public int resolutionIndex = 1;
         public int formatIndex = 0;
@@ -161,6 +189,29 @@ public partial class BasisHandHeldCameraUI
         public bool capture360;
         public bool useAutoLeveling;
         public bool useVRHandheldSmoothing;
+
+        // GIF recording. Every default is set in the constructor, so an older file that lacks
+        // them loads the intended values without a migration.
+        public float gifDurationSeconds;
+        public int gifFrameRate;
+        public int gifWidth;
+        public bool gifLoop;
+        public bool gifDither;
+
+        // Video recording (MJPEG AVI), defaulted the same way.
+        public float videoDurationSeconds;
+        public int videoFrameRate;
+        public int videoWidth;
+        public int videoQuality;
+
+        /// <summary>On, a recording stops itself after <see cref="videoDurationSeconds"/>; off, it runs until stopped.</summary>
+        public bool videoTimeLimit;
+
+        /// <summary>
+        /// Whether each saved photo is also printed into the world as a shared image pickup,
+        /// exactly as if its file had been drag-and-dropped onto the window.
+        /// </summary>
+        public bool printPhoto;
 
         // Background. Mode 0 is World, so a zero-filled old file keeps the world background.
         public int backgroundMode;

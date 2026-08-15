@@ -29,6 +29,11 @@ namespace Basis.Scripts.Animator_Driver
         public int HashCrouchedState;
 
         /// <summary>
+        /// Animator hash indicating whether the avatar is prone.
+        /// </summary>
+        public int HashProneState;
+
+        /// <summary>
         /// Animator hash for the crouch blend parameter (used for smooth transitions).
         /// </summary>
         public int HashCrouchBlend;

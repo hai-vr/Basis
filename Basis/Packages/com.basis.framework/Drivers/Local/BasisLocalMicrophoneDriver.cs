@@ -2,6 +2,7 @@
 using UnityEngine;
 using System;
 using System.Linq;
+using Basis.Scripts.Audio;
 using Basis.Scripts.Device_Management;
 using System.Threading;
 
@@ -246,6 +247,8 @@ public static class BasisLocalMicrophoneDriver
 
         rmsValues = null;
         _denoiseDry = null;
+
+        BasisVoiceLevel.LocalVoiceRms = 0f;
 
         channels = 1;
         IsInitialize = false;
@@ -516,6 +519,8 @@ public static class BasisLocalMicrophoneDriver
             rmsIndex = 0;
             averageRms = 0f;
         }
+
+        BasisVoiceLevel.LocalVoiceRms = 0f;
 
         if (_denoiseDry != null) Array.Clear(_denoiseDry, 0, _denoiseDry.Length);
     }
@@ -903,6 +908,8 @@ public static class BasisLocalMicrophoneDriver
         ApplyLimiter(s);
 
         RollingRMS();
+
+        BasisVoiceLevel.LocalVoiceRms = isPaused ? 0f : averageRms;
 
         if (!isPaused && IsTransmitWorthy())
         {

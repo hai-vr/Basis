@@ -1,5 +1,6 @@
 using Basis.IK;
 using Basis.Scripts.Animator_Driver;
+using Basis.Scripts.Audio;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Helpers;
@@ -470,6 +471,11 @@ namespace Basis.Scripts.BasisSdk.Players
                     });
                 }
             }
+
+            // Everyone else resolves this avatar from the address alone, which only works if the
+            // address means something off this machine. Say so now rather than let the player find
+            // out from someone telling them they are a grey dummy.
+            BasisLocalAvatarNetworkNotice.NotifyIfLocalOnly();
         }
 
         /// <summary>
@@ -558,6 +564,7 @@ namespace Basis.Scripts.BasisSdk.Players
         public void DriveAudioToViseme()
         {
 #if !BASIS_DISABLE_MICROPHONE
+            LocalVisemeDriver.VoiceRms = BasisVoiceLevel.LocalVoiceRms;
             LocalVisemeDriver.ProcessAudioSamples(BasisLocalMicrophoneDriver.processBufferArray,1,BasisLocalMicrophoneDriver.processBufferArray.Length);
 #endif
         }
@@ -777,15 +784,120 @@ namespace Basis.Scripts.BasisSdk.Players
             }
         }
         public float GetMinimumMovementSpeed() => LocalCharacterDriver.MinimumMovementSpeed;
-        public void SetMinimumMovementSpeed(float value) => LocalCharacterDriver.MinimumMovementSpeed = value;
+        public void SetMinimumMovementSpeed(float value)
+        {
+            LocalCharacterDriver.BaselineMinimumSpeed = value;
+            LocalCharacterDriver.ApplyLocomotionOverrides(true);
+        }
         public float GetDefaultMovementSpeed() => LocalCharacterDriver.DefaultMovementSpeed;
-        public void SetDefaultMovementSpeed(float value) => LocalCharacterDriver.DefaultMovementSpeed = value;
+        public void SetDefaultMovementSpeed(float value)
+        {
+            LocalCharacterDriver.BaselineWalkSpeed = value;
+            LocalCharacterDriver.ApplyLocomotionOverrides(true);
+        }
         public float GetMaximumMovementSpeed() => LocalCharacterDriver.MaximumMovementSpeed;
-        public void SetMaximumMovementSpeed(float value) => LocalCharacterDriver.MaximumMovementSpeed = value;
+        public void SetMaximumMovementSpeed(float value)
+        {
+            LocalCharacterDriver.BaselineRunSpeed = value;
+            LocalCharacterDriver.ApplyLocomotionOverrides(true);
+        }
         public float GetJumpHeight() => LocalCharacterDriver.jumpHeight;
-        public void SetJumpHeight(float value) => LocalCharacterDriver.jumpHeight = value;
+        public void SetJumpHeight(float value)
+        {
+            LocalCharacterDriver.BaselineJumpHeight = value;
+            LocalCharacterDriver.ApplyLocomotionOverrides(true);
+        }
         public float GetGravityValue() => LocalCharacterDriver.gravityValue;
-        public void SetGravityValue(float value) => LocalCharacterDriver.gravityValue = value;
+        public void SetGravityValue(float value)
+        {
+            LocalCharacterDriver.BaselineGravity = value;
+            LocalCharacterDriver.ApplyLocomotionOverrides(true);
+        }
+
+        /// <summary>
+        /// Movement mode currently in force: 0 = Walk, 1 = Fly, 2 = NoClip.
+        /// </summary>
+        public int GetMovementMode() => (int)LocalCharacterDriver.CurrentModeKind;
+
+        public void SetJumpHeightOverride(string key, float jumpHeight)
+        {
+            PushLocomotionOverride(key, new BasisLocomotionValues
+            {
+                Fields = BasisLocomotionField.JumpHeight,
+                JumpHeight = jumpHeight,
+            });
+        }
+
+        public void SetWalkSpeedOverride(string key, float walkSpeed)
+        {
+            PushLocomotionOverride(key, new BasisLocomotionValues
+            {
+                Fields = BasisLocomotionField.WalkSpeed,
+                WalkSpeed = walkSpeed,
+            });
+        }
+
+        public void SetRunSpeedOverride(string key, float runSpeed)
+        {
+            PushLocomotionOverride(key, new BasisLocomotionValues
+            {
+                Fields = BasisLocomotionField.RunSpeed,
+                RunSpeed = runSpeed,
+            });
+        }
+
+        public void SetGravityOverride(string key, float gravity)
+        {
+            PushLocomotionOverride(key, new BasisLocomotionValues
+            {
+                Fields = BasisLocomotionField.Gravity,
+                Gravity = gravity,
+            });
+        }
+
+        /// <summary>
+        /// Force the character controller into a movement mode: 0 = Walk, 1 = Fly, 2 = NoClip.
+        /// </summary>
+        public void SetMovementModeOverride(string key, int mode)
+        {
+            if (mode < (int)BasisLocalCharacterDriver.Mode.Walk || mode > (int)BasisLocalCharacterDriver.Mode.NoClip)
+            {
+                BasisDebug.LogError($"Movement mode override rejected: {mode} is not a valid mode.");
+                return;
+            }
+
+            PushLocomotionOverride(key, new BasisLocomotionValues
+            {
+                Fields = BasisLocomotionField.Mode,
+                Mode = (BasisLocalCharacterDriver.Mode)mode,
+            });
+        }
+
+        public bool HasLocomotionOverride(string key) => BasisLocomotionOverrides.Contains(key);
+
+        public bool ClearLocomotionOverride(string key)
+        {
+            if (BasisLocomotionOverrides.IsReservedKey(key))
+            {
+                BasisDebug.LogError($"Locomotion override key '{key}' is reserved and cannot be cleared here.");
+                return false;
+            }
+
+            return BasisLocomotionOverrides.Remove(key);
+        }
+
+        public void ClearAllLocomotionOverrides() => BasisLocomotionOverrides.RemoveAll(false);
+
+        private void PushLocomotionOverride(string key, BasisLocomotionValues values)
+        {
+            if (BasisLocomotionOverrides.IsReservedKey(key))
+            {
+                BasisDebug.LogError($"Locomotion override key '{key}' is reserved.");
+                return;
+            }
+
+            BasisLocomotionOverrides.Set(key, BasisLocomotionOverrides.DefaultPriority, values);
+        }
         /// <summary>
         /// Delegate type for scheduling a callback on the next frame.
         /// </summary>

@@ -258,6 +258,7 @@ namespace Basis.Scripts.Avatar
                 {
                     case 2:
                         Output = BasisLoadableBundle.LoadableGameobject.InSceneItem;
+                        ResolveRemoteSpawnPose(Player, ref Position, ref Rotation);
                         Output.transform.SetPositionAndRotation(Position, Rotation);
                         // In-scene path skips ContentPolice; strip BasisHeadChop so the
                         // authoring component never persists on a remote avatar. Pass null
@@ -281,6 +282,10 @@ namespace Basis.Scripts.Avatar
                             {
                                 throw new OperationCanceledException(token);
                             }
+
+                            // Re-read here rather than at the call site: the gate wait above can
+                            // be seconds long on a busy instance, and the player kept walking.
+                            ResolveRemoteSpawnPose(Player, ref Position, ref Rotation);
 
                             if (Mode == 0)
                             {
@@ -387,6 +392,33 @@ namespace Basis.Scripts.Avatar
         }
 
         /// <summary>
+        /// Overrides a remote install's spawn pose with that player's latest network pose.
+        ///
+        /// Every remote call site passes <see cref="Vector3.zero"/> because
+        /// <see cref="BasisRemoteAvatarDriver.RemoteCalibration"/> snaps root and hips onto the
+        /// network pose right after the install. That snap is too late for anything that seeds
+        /// itself from world position during Instantiate: Awake/OnEnable run INSIDE the
+        /// Instantiate call, so jiggle trees, colliders and constraints all come up believing the
+        /// avatar lives at the world origin, and only a teleport-by-delta afterwards rescues them.
+        /// Spawning at the right place removes the need for the rescue.
+        ///
+        /// Hips world is the closest pose available here — the root derivation calibration uses
+        /// needs References/TPose, which are not read until the avatar exists. The remaining
+        /// hips-vs-root offset is under a metre and calibration corrects it in the same frame.
+        /// No-ops for the local player (parented under the player root, already in place) and for
+        /// a remote with no receiver yet.
+        /// </summary>
+        private static void ResolveRemoteSpawnPose(IBasisPlayer Player, ref Vector3 Position, ref Quaternion Rotation)
+        {
+            if (Player is BasisRemotePlayer remotePlayer && remotePlayer.NetworkReceiver != null)
+            {
+                remotePlayer.NetworkReceiver.GetLatestNetworkPose(out var networkPosition, out var networkRotation, out _);
+                Position = networkPosition;
+                Rotation = networkRotation;
+            }
+        }
+
+        /// <summary>
         /// Loads a fallback avatar if the requested one fails or is invalid.
         /// </summary>
         /// <param name="Player">The player to assign the fallback avatar to.</param>
@@ -398,6 +430,7 @@ namespace Basis.Scripts.Avatar
                 BasisDebug.LogError("Cannot spawn fallback avatar: loading avatar prefab is null (factory not initialized, or de-initialized during teardown).");
                 return;
             }
+            ResolveRemoteSpawnPose(Player, ref Position, ref Rotation);
             var inSceneLoadingAvatar = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.AvatarParent);
 
             if (inSceneLoadingAvatar.TryGetComponent(out BasisAvatar avatar))
@@ -625,6 +658,7 @@ namespace Basis.Scripts.Avatar
 
             try
             {
+                ResolveRemoteSpawnPose(Player, ref Position, ref Rotation);
                 GameObject data = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.AvatarParent);
 
                 InitializePlayerAvatar(Player, data, null);
@@ -674,6 +708,12 @@ namespace Basis.Scripts.Avatar
                     if (Player.AvatarLoadMode == 1 || Player.AvatarLoadMode == 0)
                     {
                         await BasisLoadHandler.RequestDeIncrementOfBundle(Player.AvatarMetaData);
+                        // The de-increment can drop the last holder and Unload(true) the bundle,
+                        // which destroys the Avatar assets its model cache entries describe. This
+                        // is the only place in the client that knows a bundle may have just gone,
+                        // so it is where the dead entries — and the native memory the shared
+                        // hand-pose grid hangs off them — get released.
+                        BasisAvatarModelCache.SweepDestroyed();
                     }
                     else
                     {

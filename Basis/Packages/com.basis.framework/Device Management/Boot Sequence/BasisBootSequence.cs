@@ -1,8 +1,6 @@
 using Basis.Scripts.Addressable_Driver.Resource;
 using System;
 using System.Threading.Tasks;
-using Unity.Services.Analytics;
-using Unity.Services.Core;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.AddressableAssets.ResourceLocators;
@@ -18,7 +16,7 @@ namespace Basis.Scripts.Boot_Sequence
 {
     /// <summary>
     /// Central bootstrapping entry point for the Basis runtime.
-    /// Initializes Addressables, spawns the framework GameObject, and (optionally) starts Unity Services/Analytics.
+    /// Initializes Addressables and spawns the framework GameObject.
     /// Handles cleanup both on app quit and when leaving Play Mode in the Editor.
     /// </summary>
     [DefaultExecutionOrder(-50)]
@@ -44,11 +42,6 @@ namespace Basis.Scripts.Boot_Sequence
         /// </summary>
         public static bool WillBoot = true;
 
-        /// <summary>
-        /// If true, attempts to initialize Unity Services and enable Analytics.
-        /// </summary>
-        public static bool GrabUnityAnalytics = true;
-
         // Keep handles/refs so we can release them properly.
         /// <summary>
         /// Handle for Addressables.InitializeAsync() to release at teardown.
@@ -62,11 +55,10 @@ namespace Basis.Scripts.Boot_Sequence
 
         /// <summary>
         /// Unity runtime hook invoked after a scene has loaded.
-        /// Initializes Addressables and, if enabled, Unity Services/Analytics.
-        /// Also wires up application/editor teardown callbacks.
+        /// Initializes Addressables and wires up application/editor teardown callbacks.
         /// </summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static async Task OnAfterSceneLoadRuntimeMethod()
+        static void OnAfterSceneLoadRuntimeMethod()
         {
             // Subscribe once to teardown hooks.
             if (!HasEvents)
@@ -86,22 +78,6 @@ namespace Basis.Scripts.Boot_Sequence
             if (WillBoot)
             {
                 _addressablesInitHandle.Completed += OnAddressablesInitializationComplete;
-            }
-
-            // Unity Services / Analytics (optional).
-            if (GrabUnityAnalytics)
-            {
-                try
-                {
-                    await UnityServices.InitializeAsync();
-#pragma warning disable CS0618 // Type or member is obsolete
-                    AnalyticsService.Instance.StartDataCollection();
-#pragma warning restore CS0618
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"[BootSequence] Unity Services init/analytics failed: {e.Message}");
-                }
             }
         }
 

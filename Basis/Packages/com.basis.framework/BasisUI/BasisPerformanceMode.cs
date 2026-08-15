@@ -717,6 +717,12 @@ namespace Basis.BasisUI
                 Bools(BasisSettingsDefaults.UseAvatarVisibilityCull, true, true, true),
                 Bools(BasisSettingsDefaults.UseAvatarFarLod, true, true, true),
 
+                // Plates already vanish with the avatar's distance downgrades, so Light — which
+                // pulls AvatarRange in to 25 — needs no rule of its own. Past that the survivors
+                // are the players close enough to matter, and reading them on demand from the
+                // menu is cheaper than carrying a plate each.
+                Bools(BasisSettingsDefaults.NPMenuOnly, null, true, true),
+
                 //Bools(BasisSettingsDefaults.UseRealtimeReflectionProbes, false, false, false), // commented out 2026-08-04 with the unimplemented probe-driver bindings
                 Bools(BasisSettingsDefaults.LimitHandHeldCameraRate, true, true, true),
                 Bools(BasisSettingsDefaults.LimitAvatarPreviewRate, true, true, true),

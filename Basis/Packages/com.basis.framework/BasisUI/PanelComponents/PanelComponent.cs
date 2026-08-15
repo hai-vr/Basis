@@ -1,3 +1,4 @@
+using System;
 using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -68,6 +69,15 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
+        /// Optional lazy source for the hover tooltip, checked before the descriptor's own text.
+        /// The bar only reads a tooltip when the pointer arrives, so a row whose text changes
+        /// continuously (live distances, "joined Xs ago") can supply it here instead of pushing a
+        /// freshly formatted string through <see cref="PanelElementDescriptor.SetTooltip"/> every
+        /// tick — that per-tick string is work nobody ever sees.
+        /// </summary>
+        public Func<string> TooltipProvider;
+
+        /// <summary>
         /// Text shown in the hover tooltip bar. While disabled with a reason, that reason is
         /// shown so a greyed-out control explains itself. Otherwise prefers the element's
         /// description, falling back to its title — controls like toggles/sliders/dropdowns
@@ -78,6 +88,11 @@ namespace Basis.BasisUI
             get
             {
                 if (!IsInteractable && !string.IsNullOrEmpty(_disabledReason)) return _disabledReason;
+                if (TooltipProvider != null)
+                {
+                    string live = TooltipProvider();
+                    if (!string.IsNullOrEmpty(live)) return live;
+                }
                 if (!Descriptor) return null;
                 if (!string.IsNullOrEmpty(Descriptor.Tooltip)) return Descriptor.Tooltip;
                 return string.IsNullOrEmpty(Descriptor.Description) ? Descriptor.Title : Descriptor.Description;

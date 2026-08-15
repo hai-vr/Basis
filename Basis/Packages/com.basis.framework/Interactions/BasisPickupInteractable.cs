@@ -1233,6 +1233,14 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
+        /// Whether desktop middle click belongs to the derived interactable rather than to this
+        /// object's drag-rotate. Both read the same <c>Secondary2DAxisClick</c>, so a subclass that
+        /// binds it — the handheld camera's fly toggle — would otherwise spin the prop under the
+        /// mouse on the way in.
+        /// </summary>
+        protected virtual bool DesktopMiddleClickReserved => false;
+
+        /// <summary>
         /// Handles desktop-only controls: mouse wheel zoom ("zoop") and drag rotation.
         /// Temporarily pauses head/look rotation while rotating.
         /// </summary>
@@ -1268,7 +1276,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             var dampendOffset = Vector3.SmoothDamp(currentOffset, targetOffset, ref currentZoopVelocity, k_DesktopZoopSmoothing, k_DesktopZoopMaxVelocity);
             InputConstraint.sources[0].positionOffset = dampendOffset;
 
-            if (DesktopEye.CurrentInputState.Secondary2DAxisClick)
+            if (DesktopEye.CurrentInputState.Secondary2DAxisClick && !DesktopMiddleClickReserved)
             {
                 if (!pauseHead)
                 {

@@ -159,6 +159,52 @@ public partial class BasisTransmissionResults
     /// </summary>
     public static int MaxAvatarReloadsPerTick = 8;
 
+    /// <summary>
+    /// Wall-clock ceiling on what this tick's range-commit reloads are allowed to cost, mirroring
+    /// <c>BasisAvatarFarLOD.MaxTransitionMillisecondsPerTick</c>.
+    /// </summary>
+    /// <remarks>
+    /// A count alone could not bound the spike: a reload that goes OUT of range installs the
+    /// loading avatar inline — an Instantiate plus a full remote calibration — and unlike the
+    /// in-range direction it never reaches <see cref="Basis.Scripts.Avatar.BasisAvatarSetupBudget"/>,
+    /// which only gates the tail of <c>LoadAvatarRemote</c>. Measured in the field at ~0.4-0.6 ms
+    /// each, so the count of 8 was worth up to ~5 ms of transmit tick on its own. Over-budget
+    /// transitions stay pending (their commit time has already passed) and retry next tick, which
+    /// is the behaviour the count already had.
+    /// </remarks>
+    public static float MaxAvatarReloadMillisecondsPerTick = 2f;
+
+    private static readonly System.Diagnostics.Stopwatch sAvatarReloadClock = new System.Diagnostics.Stopwatch();
+
+    /// <summary>
+    /// Max remote voice sources admitted to <c>StartAudio</c> per transmit tick, for the same
+    /// reason <see cref="MaxAvatarReloadsPerTick"/> exists one branch below.
+    /// </summary>
+    /// <remarks>
+    /// A start is not a flag write: it pulls a voice object from the pool (or Instantiates the
+    /// prefab once the pool is dry), adds an AudioSource + spatializer, allocates a clip, and
+    /// pushes the whole Steam Audio parameter set — every one of which mutates the FMOD DSP
+    /// graph. Measured at ~0.15 ms each, with the graph flushes dominating. A join burst or a
+    /// hearing-range slider move crosses dozens of players at once: 22 starts on one tick was
+    /// 3.4 ms of transmit tick, ~2.5 ms of it DSP flushes.
+    /// <para>Over-budget starts need no pending state of their own — the
+    /// <c>HasAudioSource != canHear</c> mismatch that admitted them is re-evaluated every tick,
+    /// so they simply retry on the next one. Stops are deliberately NOT budgeted: they free
+    /// resources rather than allocate them, and deferring one leaves an out-of-range player
+    /// audible.</para>
+    /// </remarks>
+    public static int MaxAudioStartsPerTick = 4;
+
+    /// <summary>
+    /// Wall-clock ceiling on this tick's voice-source starts, mirroring
+    /// <see cref="MaxAvatarReloadMillisecondsPerTick"/>. The count alone cannot bound the spike:
+    /// a start that misses the object pool pays an Instantiate plus Steam Audio's native source
+    /// creation, which is several times a pool hit.
+    /// </summary>
+    public static float MaxAudioStartMillisecondsPerTick = 1f;
+
+    private static readonly System.Diagnostics.Stopwatch sAudioStartClock = new System.Diagnostics.Stopwatch();
+
     /// <summary>Half-angle (degrees) of the eye-gaze cone used to boost MeshLod detail for players the user is looking at.</summary>
     public static float GazeFoveationConeDegrees = 20f;
 
@@ -538,8 +584,16 @@ public partial class BasisTransmissionResults
         // Uses unsafe pointers to bypass NativeArray safety checks.
         float visemeRangeSq = SMModuleDistanceBasedReductions.HearingRange * 0.25f;
         bool jiggleColliderLodEnabled = BasisJiggleColliderLOD.Enabled;
-        // Per-tick budget of avatar (re)loads admitted below; reset each tick. See MaxAvatarReloadsPerTick.
+        // Per-tick budget of avatar (re)loads admitted below; reset each tick. See
+        // MaxAvatarReloadsPerTick for the count and MaxAvatarReloadMillisecondsPerTick for the
+        // wall clock that actually bounds the spike.
         int avatarReloadsAdmitted = 0;
+        sAvatarReloadClock.Reset();
+        long avatarReloadBudgetTicks = (long)(MaxAvatarReloadMillisecondsPerTick * (System.Diagnostics.Stopwatch.Frequency / 1000.0));
+        // Same shape for voice-source starts; see MaxAudioStartsPerTick for why they need one.
+        int audioStartsAdmitted = 0;
+        sAudioStartClock.Reset();
+        long audioStartBudgetTicks = (long)(MaxAudioStartMillisecondsPerTick * (System.Diagnostics.Stopwatch.Frequency / 1000.0));
         // Per-tick budget of far LOD swaps — each swap forces a bone-job sync. Two ceilings:
         // the count below, and a wall-clock budget opened here that bounds what those swaps are
         // allowed to cost, since an install is a build plus a full remote calibration.
@@ -570,14 +624,31 @@ public partial class BasisTransmissionResults
                 bool canHear = pHearingRange[i];
                 if (audio.HasAudioSource != canHear)
                 {
-                    using (sMarkerAudioTransition.Auto())
+                    if (canHear)
                     {
-                        if (canHear)
+                        // Stagger, exactly as the avatar reload below does: a start builds a
+                        // spatialized voice source and rewrites the DSP graph, and a join burst
+                        // flips dozens on the same tick. Skipped starts carry no pending state —
+                        // the mismatch tested above re-admits them next tick.
+                        // ElapsedTicks, not Elapsed — this runs once per remote per tick and
+                        // TimeSpan construction is not free at crowd scale.
+                        bool audioStartBudgetSpent = audioStartsAdmitted >= MaxAudioStartsPerTick
+                            || sAudioStartClock.ElapsedTicks >= audioStartBudgetTicks;
+                        if (!audioStartBudgetSpent)
                         {
-                            audio.StartAudio(ConvertedVoiceDistance);
-                            remote.OutOfRangeFromLocal = false;
+                            audioStartsAdmitted++;
+                            sAudioStartClock.Start();
+                            using (sMarkerAudioTransition.Auto())
+                            {
+                                audio.StartAudio(ConvertedVoiceDistance);
+                                remote.OutOfRangeFromLocal = false;
+                            }
+                            sAudioStartClock.Stop();
                         }
-                        else
+                    }
+                    else
+                    {
+                        using (sMarkerAudioTransition.Auto())
                         {
                             audio.StopAudio();
                             remote.OutOfRangeFromLocal = true;
@@ -654,7 +725,11 @@ public partial class BasisTransmissionResults
                             // fires ~1000 ReloadAvatar calls in one frame. Over-budget transitions stay
                             // pending (their commit time has already passed) and retry next tick. Commits
                             // that don't start a load (e.g. already mid-load) are never gated — they're free.
-                            if (willReload && avatarReloadsAdmitted >= MaxAvatarReloadsPerTick)
+                            // ElapsedTicks, not Elapsed — this runs once per remote per tick and
+                            // TimeSpan construction is not free at crowd scale.
+                            bool reloadBudgetSpent = avatarReloadsAdmitted >= MaxAvatarReloadsPerTick
+                                || sAvatarReloadClock.ElapsedTicks >= avatarReloadBudgetTicks;
+                            if (willReload && reloadBudgetSpent)
                             {
                                 // Budget spent this tick — leave pending; revisited next tick.
                             }
@@ -666,10 +741,12 @@ public partial class BasisTransmissionResults
                                 if (willReload)
                                 {
                                     avatarReloadsAdmitted++;
+                                    sAvatarReloadClock.Start();
                                     using (sMarkerAvatarReload.Auto())
                                     {
                                         remote.ReloadAvatar();
                                     }
+                                    sAvatarReloadClock.Stop();
                                 }
                             }
                         }

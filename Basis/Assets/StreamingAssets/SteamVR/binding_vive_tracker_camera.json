@@ -1,4 +1,5 @@
 {
+  "app_key": "application.generated.unity.basisunity.exe",
   "bindings": {
     "/actions/default": {
       "chords": [],
@@ -8,13 +9,6 @@
           "path": "/user/camera/pose/raw"
         }
       ],
-      "haptics": [],
-      "sources": [],
-      "skeleton": []
-    },
-    "/actions/mixedreality": {
-      "chords": [],
-      "poses": [],
       "haptics": [],
       "sources": [],
       "skeleton": []

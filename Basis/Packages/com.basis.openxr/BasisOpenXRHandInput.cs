@@ -30,6 +30,7 @@ public class BasisOpenXRHandInput : BasisInputController
     public InputActionProperty pointerPosition;
     public InputActionProperty pointerRotation;
 
+    [System.NonSerialized]
     public UnityEngine.XR.InputDevice Device;
     public const float TriggerDownAmount = 0.5f;
 
@@ -88,6 +89,20 @@ public class BasisOpenXRHandInput : BasisInputController
         Secondary2DAxis = new InputActionProperty(new InputAction(devicePath + "/secondary2DAxis", InputActionType.Value, devicePath + "/secondary2DAxis", expectedControlType: "Vector2"));
         Primary2DAxisClick = new InputActionProperty(new InputAction(devicePath + "/primary2DAxisClick", InputActionType.Button, devicePath + "/primary2DAxisClick", expectedControlType: "Button"));
         Secondary2DAxisClick = new InputActionProperty(new InputAction(devicePath + "/secondary2DAxisClick", InputActionType.Button, devicePath + "/secondary2DAxisClick", expectedControlType: "Button"));
+
+        // Interaction-profile layouts don't all alias these generic control names — the stick/pad
+        // click controls carry no matching name or alias on the WMR, Index, and Touch layouts, and
+        // WMR names its buttons differently across the board — but every layout stamps the standard
+        // usages, so each action also binds the usage as a fallback.
+        Trigger.action.AddBinding(devicePath + "/{Trigger}");
+        Grip.action.AddBinding(devicePath + "/{Grip}");
+        PrimaryButton.action.AddBinding(devicePath + "/{PrimaryButton}");
+        SecondaryButton.action.AddBinding(devicePath + "/{SecondaryButton}");
+        MenuButton.action.AddBinding(devicePath + "/{MenuButton}");
+        Primary2DAxis.action.AddBinding(devicePath + "/{Primary2DAxis}");
+        Secondary2DAxis.action.AddBinding(devicePath + "/{Secondary2DAxis}");
+        Primary2DAxisClick.action.AddBinding(devicePath + "/{Primary2DAxisClick}");
+        Secondary2DAxisClick.action.AddBinding(devicePath + "/{Secondary2DAxisClick}");
 
         DeviceActionPosition = new InputActionProperty(new InputAction($"{devicePath}/devicePosition", InputActionType.Value, $"{devicePath}/devicePosition", expectedControlType: "Vector3"));
         DeviceActionRotation = new InputActionProperty(new InputAction($"{devicePath}/deviceRotation", InputActionType.Value, $"{devicePath}/deviceRotation", expectedControlType: "Quaternion"));
@@ -159,35 +174,54 @@ public class BasisOpenXRHandInput : BasisInputController
         DisableInputActions();
         base.OnDestroy();
     }
-    public override void LateDoPollData()
+    /// <summary>
+    /// Matches the 50% dpad deadzone in bindings_holographic_controller.json so the pad-click
+    /// substitution feels the same in OpenXR mode as it does under SteamVR.
+    /// </summary>
+    public const float PadSubstituteDeadzone = 0.5f;
+    private void PollButtonsAndAxes()
     {
-        // Poll input state here so InputUpdate() sees fresh data after LastUpdatePlayerControl()
+        Vector2 secondaryAxis = _secondary2DAxisAction?.ReadValue<Vector2>() ?? Vector2.zero;
+        bool secondaryAxisClick = _secondary2DAxisClickAction?.ReadValue<float>() > TriggerDownAmount;
+        bool primaryButton = _primaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
+        bool secondaryButton = _secondaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
+
+        // WMR-era wands have no A/B buttons, which would leave jump/mute and the main menu
+        // unreachable. Mirror the SteamVR holographic binding (pad-click east = primary,
+        // west = secondary) whenever the layout resolves a clickable pad but no primary button.
+        if (secondaryAxisClick && _primaryButtonAction != null && _primaryButtonAction.controls.Count == 0)
+        {
+            if (secondaryAxis.x > PadSubstituteDeadzone)
+            {
+                primaryButton = true;
+            }
+            else if (secondaryAxis.x < -PadSubstituteDeadzone)
+            {
+                secondaryButton = true;
+            }
+        }
+
         CurrentInputState.Primary2DAxisRaw = _primary2DAxisAction?.ReadValue<Vector2>() ?? Vector2.zero;
-        CurrentInputState.Secondary2DAxisRaw = _secondary2DAxisAction?.ReadValue<Vector2>() ?? Vector2.zero;
+        CurrentInputState.Secondary2DAxisRaw = secondaryAxis;
         CurrentInputState.Primary2DAxisClick = _primary2DAxisClickAction?.ReadValue<float>() > TriggerDownAmount;
-        CurrentInputState.Secondary2DAxisClick = _secondary2DAxisClickAction?.ReadValue<float>() > TriggerDownAmount;
+        CurrentInputState.Secondary2DAxisClick = secondaryAxisClick;
         float grip = _gripAction?.ReadValue<float>() ?? 0f;
         CurrentInputState.SecondaryTrigger = grip;
         CurrentInputState.GripButton = grip > TriggerDownAmount;
         CurrentInputState.SystemOrMenuButton = _menuButtonAction?.ReadValue<float>() > TriggerDownAmount;
-        CurrentInputState.PrimaryButtonGetState = _primaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
-        CurrentInputState.SecondaryButtonGetState = _secondaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
+        CurrentInputState.PrimaryButtonGetState = primaryButton;
+        CurrentInputState.SecondaryButtonGetState = secondaryButton;
         CurrentInputState.Trigger = _triggerAction?.ReadValue<float>() ?? 0f;
+    }
+    public override void LateDoPollData()
+    {
+        // Poll input state here so InputUpdate() sees fresh data after LastUpdatePlayerControl()
+        PollButtonsAndAxes();
         PollPose();
     }
     public override void RenderPollData()
     {
-        CurrentInputState.Primary2DAxisRaw = _primary2DAxisAction?.ReadValue<Vector2>() ?? Vector2.zero;
-        CurrentInputState.Secondary2DAxisRaw = _secondary2DAxisAction?.ReadValue<Vector2>() ?? Vector2.zero;
-        CurrentInputState.Primary2DAxisClick = _primary2DAxisClickAction?.ReadValue<float>() > TriggerDownAmount;
-        CurrentInputState.Secondary2DAxisClick = _secondary2DAxisClickAction?.ReadValue<float>() > TriggerDownAmount;
-        float grip = _gripAction?.ReadValue<float>() ?? 0f;
-        CurrentInputState.SecondaryTrigger = grip;
-        CurrentInputState.GripButton = grip > TriggerDownAmount;
-        CurrentInputState.SystemOrMenuButton = _menuButtonAction?.ReadValue<float>() > TriggerDownAmount;
-        CurrentInputState.PrimaryButtonGetState = _primaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
-        CurrentInputState.SecondaryButtonGetState = _secondaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
-        CurrentInputState.Trigger = _triggerAction?.ReadValue<float>() ?? 0f;
+        PollButtonsAndAxes();
 
         PollPose();
         if (_pointerPositionAction != null)

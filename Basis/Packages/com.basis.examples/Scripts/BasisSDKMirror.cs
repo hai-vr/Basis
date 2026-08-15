@@ -97,10 +97,388 @@ public class BasisSDKMirror : MonoBehaviour
         set
         {
             clearFlags = value;
-            Camera refCamera = BasisLocalCameraDriver.Instance.Camera;
+            Camera refCamera = BasisLocalCameraDriver.HasInstance ? BasisLocalCameraDriver.Instance.Camera : null;
             if (LeftCamera) updateCameraClearFlags(LeftCamera, refCamera);
             if (RightCamera) updateCameraClearFlags(RightCamera, refCamera);
         }
+    }
+
+    public int ReflectionWidth
+    {
+        get => XSize;
+        set => SetTargetShape(value, YSize, depth, Antialiasing);
+    }
+
+    public int ReflectionHeight
+    {
+        get => YSize;
+        set => SetTargetShape(XSize, value, depth, Antialiasing);
+    }
+
+    public int DepthBits
+    {
+        get => depth;
+        set => SetTargetShape(XSize, YSize, value, Antialiasing);
+    }
+
+    public int MsaaSamples
+    {
+        get => Antialiasing;
+        set => SetTargetShape(XSize, YSize, depth, value);
+    }
+
+    public int SecondaryViewerResolutionCap
+    {
+        get => SecondaryViewerMaxSize;
+        set
+        {
+            int clamped = Mathf.Clamp(value, MinResolution, MaxResolution);
+            if (clamped == SecondaryViewerMaxSize) return;
+            SecondaryViewerMaxSize = clamped;
+            ReleaseSecondaryViewerTextures();
+        }
+    }
+
+    public float NearClip
+    {
+        get => nearClipLimit;
+        set
+        {
+            nearClipLimit = Mathf.Clamp(value, MinNearClip, MaxNearClip);
+            ApplyCameraOptions();
+        }
+    }
+
+    public float FarClip
+    {
+        get => FarClipPlane;
+        set
+        {
+            FarClipPlane = Mathf.Clamp(value, MinFarClip, MaxFarClip);
+            ApplyCameraOptions();
+        }
+    }
+
+    public float SurfaceClipOffset
+    {
+        get => ClipPlaneOffset;
+        set => ClipPlaneOffset = Mathf.Clamp(value, MinClipPlaneOffset, MaxClipPlaneOffset);
+    }
+
+    public bool UsePostProcessing
+    {
+        get => RenderPostProcessing;
+        set
+        {
+            RenderPostProcessing = value;
+            ApplyCameraOptions();
+        }
+    }
+
+    public bool UseOcclusionCulling
+    {
+        get => OcclusionCulling;
+        set
+        {
+            OcclusionCulling = value;
+            ApplyCameraOptions();
+        }
+    }
+
+    public bool RenderShadows
+    {
+        get => renderShadows;
+        set
+        {
+            renderShadows = value;
+            ApplyCameraOptions();
+        }
+    }
+
+    public const float MinSurfaceSize = 0.25f;
+    public const float MaxSurfaceSize = 10f;
+
+    [NonSerialized] private Vector3 baseScale = Vector3.one;
+    [NonSerialized] private Vector2 baseSurfaceSize;
+    [NonSerialized] private bool surfaceBaselineCaptured;
+
+    /// <summary>
+    /// Physical size of the mirror surface in metres. Driven by scaling this component's transform,
+    /// so the surface, its frame and its collider stay in agreement — measured against the size the
+    /// content author shipped rather than assuming a 1x1 quad at unit scale.
+    /// </summary>
+    public Vector2 SurfaceSize
+    {
+        get
+        {
+            if (!TryCaptureSurfaceBaseline()) return Vector2.zero;
+
+            Vector3 scale = transform.localScale;
+            return new Vector2(
+                baseSurfaceSize.x * SafeRatio(scale.x, baseScale.x),
+                baseSurfaceSize.y * SafeRatio(scale.y, baseScale.y));
+        }
+        set
+        {
+            if (!TryCaptureSurfaceBaseline()) return;
+            if (baseSurfaceSize.x <= 0f || baseSurfaceSize.y <= 0f) return;
+
+            float width = Mathf.Clamp(value.x, MinSurfaceSize, MaxSurfaceSize);
+            float height = Mathf.Clamp(value.y, MinSurfaceSize, MaxSurfaceSize);
+
+            Vector3 scale = transform.localScale;
+            scale.x = baseScale.x * (width / baseSurfaceSize.x);
+            scale.y = baseScale.y * (height / baseSurfaceSize.y);
+            transform.localScale = scale;
+        }
+    }
+
+    public float SurfaceWidth
+    {
+        get => SurfaceSize.x;
+        set => SurfaceSize = new Vector2(value, SurfaceSize.y);
+    }
+
+    public float SurfaceHeight
+    {
+        get => SurfaceSize.y;
+        set => SurfaceSize = new Vector2(SurfaceSize.x, value);
+    }
+
+    /// <summary>True once the authored scale and surface extents are known; false if there is no renderer yet.</summary>
+    public bool HasSurfaceSize => TryCaptureSurfaceBaseline();
+
+    private bool TryCaptureSurfaceBaseline()
+    {
+        if (surfaceBaselineCaptured) return true;
+        if (Renderer == null) return false;
+
+        baseScale = transform.localScale;
+        if (Mathf.Approximately(baseScale.x, 0f)) baseScale.x = 1f;
+        if (Mathf.Approximately(baseScale.y, 0f)) baseScale.y = 1f;
+
+        // Local bounds are the untransformed mesh extents, so this stays correct under rotation
+        // where world-space bounds would not. The surface lies in the renderer's local XY plane
+        // (its local -Z is the reflection normal).
+        Bounds local = Renderer.localBounds;
+        Vector3 lossy = Renderer.transform.lossyScale;
+        baseSurfaceSize = new Vector2(
+            Mathf.Abs(local.size.x * lossy.x),
+            Mathf.Abs(local.size.y * lossy.y));
+
+        surfaceBaselineCaptured = true;
+        return true;
+    }
+
+    private static float SafeRatio(float value, float baseline)
+    {
+        return Mathf.Approximately(baseline, 0f) ? 1f : value / baseline;
+    }
+
+    public const string CutoutShaderName = "BasisMirrorCutout";
+
+    [NonSerialized] private Material cutoutMaterial;
+    [NonSerialized] private bool cutoutEnabled;
+    [NonSerialized] private MirrorClearFlags clearFlagsBeforeCutout;
+    [NonSerialized] private Color clearColorBeforeCutout;
+
+    public bool CutoutEnabled => cutoutEnabled;
+
+    /// <summary>
+    /// Clear flags/colour as the user configured them, ignoring the transparent clear the cutout
+    /// imposes while it is on. Saving the live values instead would overwrite the real choice.
+    /// </summary>
+    public MirrorClearFlags ConfiguredClearFlags => cutoutEnabled ? clearFlagsBeforeCutout : clearFlags;
+    public Color ConfiguredClearColor => cutoutEnabled ? clearColorBeforeCutout : clearColor;
+
+    /// <summary>
+    /// Swaps the surface to the transparent cutout shader and clears the reflection to fully
+    /// transparent, so only opaque reflected geometry has alpha and the rest reads through — the
+    /// calibration mirror's look. Returns the resulting state; false from a request to enable means
+    /// the shader is missing or unsupported and the mirror was left as it was.
+    /// </summary>
+    public bool SetCutout(bool enabled)
+    {
+        if (enabled == cutoutEnabled) return cutoutEnabled;
+        return enabled ? EnableCutout() : DisableCutout();
+    }
+
+    private bool EnableCutout()
+    {
+        if (Renderer == null) return false;
+
+        Shader shader = Resources.Load<Shader>(CutoutShaderName);
+        if (shader == null || !shader.isSupported) return false;
+
+        clearFlagsBeforeCutout = clearFlags;
+        clearColorBeforeCutout = clearColor;
+
+        if (cutoutMaterial == null)
+            cutoutMaterial = new Material(shader) { name = $"{name} Mirror Cutout" };
+
+        SeedCutoutTextures();
+        Renderer.sharedMaterial = cutoutMaterial;
+        cutoutEnabled = true;
+
+        ClearColor = new Color(0f, 0f, 0f, 0f);
+        ClearFlags = MirrorClearFlags.Color;
+        return true;
+    }
+
+    private bool DisableCutout()
+    {
+        cutoutEnabled = false;
+
+        if (Renderer != null && MirrorsMaterial != null)
+            Renderer.sharedMaterial = MirrorsMaterial;
+
+        DestroyCutoutMaterial();
+
+        ClearColor = clearColorBeforeCutout;
+        ClearFlags = clearFlagsBeforeCutout;
+        return false;
+    }
+
+    private void SeedCutoutTextures()
+    {
+        if (cutoutMaterial == null || PortalTextureLeft == null) return;
+
+        cutoutMaterial.SetTexture(ReflectionTexLeftId, PortalTextureLeft);
+        cutoutMaterial.SetTexture(ReflectionTexRightId,
+            PortalTextureRight != null ? PortalTextureRight : PortalTextureLeft);
+    }
+
+    private void DestroyCutoutMaterial()
+    {
+        if (cutoutMaterial == null) return;
+
+#if UNITY_EDITOR
+        if (!Application.isPlaying) DestroyImmediate(cutoutMaterial);
+        else Destroy(cutoutMaterial);
+#else
+        Destroy(cutoutMaterial);
+#endif
+        cutoutMaterial = null;
+    }
+
+    public int UpdateInterval
+    {
+        get => UpdateEveryNthFrame;
+        set => UpdateEveryNthFrame = Mathf.Clamp(value, MinUpdateInterval, MaxUpdateInterval);
+    }
+
+    public float FullRateRange
+    {
+        get => FullRateDistance;
+        set => FullRateDistance = Mathf.Clamp(value, 0f, MaxRateDistance);
+    }
+
+    public float HalfRateRange
+    {
+        get => HalfRateDistance;
+        set => HalfRateDistance = Mathf.Clamp(value, 0f, MaxRateDistance);
+    }
+
+    public float CullRange
+    {
+        get => CullDistance;
+        set => CullDistance = Mathf.Clamp(value, 0f, MaxRateDistance);
+    }
+
+    public string DisplayName => gameObject != null ? gameObject.name : "(destroyed)";
+
+    public Vector2Int EffectiveResolution
+    {
+        get
+        {
+            GetEffectiveResolution(out int width, out int height);
+            return new Vector2Int(width, height);
+        }
+    }
+
+    public static bool ResolutionIsOverriddenGlobally =>
+        BasisSettingsDefaults.UseMirrorQualityOverride.RawValue;
+
+    public const int MinResolution = 64;
+    public const int MaxResolution = 4096;
+    public const int MinUpdateInterval = 1;
+    public const int MaxUpdateInterval = 8;
+    public const float MinNearClip = 0.001f;
+    public const float MaxNearClip = 1f;
+    public const float MinFarClip = 1f;
+    public const float MaxFarClip = 1000f;
+    public const float MinClipPlaneOffset = 0f;
+    public const float MaxClipPlaneOffset = 0.5f;
+    public const float MaxRateDistance = 200f;
+
+    public void SetTargetShape(int width, int height, int depthBits, int msaa)
+    {
+        int newWidth = Mathf.Clamp(width, MinResolution, MaxResolution);
+        int newHeight = Mathf.Clamp(height, MinResolution, MaxResolution);
+        int newDepth = depthBits >= 24 ? 24 : depthBits >= 16 ? 16 : 0;
+        int newMsaa = msaa >= 8 ? 8 : msaa >= 4 ? 4 : msaa >= 2 ? 2 : 1;
+
+        if (newWidth == XSize && newHeight == YSize && newDepth == depth && newMsaa == Antialiasing) return;
+
+        XSize = newWidth;
+        YSize = newHeight;
+        depth = newDepth;
+        Antialiasing = newMsaa;
+        RebuildReflectionTargets();
+    }
+
+    public void RebuildReflectionTargets()
+    {
+        if (!IsActive) return;
+
+        ReplacePortalTexture(StereoscopicEye.Left, ref PortalTextureLeft, LeftCamera);
+        ReplacePortalTexture(StereoscopicEye.Right, ref PortalTextureRight, RightCamera);
+        ReleaseSecondaryViewerTextures();
+        SeedCutoutTextures();
+
+        BindReflectionTextures(PortalTextureLeft, PortalTextureRight);
+        primaryBound = true;
+    }
+
+    private void ReplacePortalTexture(StereoscopicEye eye, ref RenderTexture texture, Camera portalCamera)
+    {
+        RenderTexture previous = texture;
+        texture = CreatePortalTexture(eye);
+        if (portalCamera) portalCamera.targetTexture = texture;
+        DestroyTexture(previous);
+    }
+
+    private void ReleaseSecondaryViewerTextures()
+    {
+        foreach (KeyValuePair<Camera, SecondaryViewerState> pair in secondaryViewers)
+        {
+            ReleaseViewerTexture(pair.Value);
+        }
+    }
+
+    private void ApplyCameraOptions()
+    {
+        ApplyCameraOptions(LeftCamera, leftCameraData);
+        ApplyCameraOptions(RightCamera, rightCameraData);
+    }
+
+    private void ApplyCameraOptions(Camera camera, UniversalAdditionalCameraData cameraData)
+    {
+        if (camera == null) return;
+
+        camera.nearClipPlane = Mathf.Max(0.001f, nearClipLimit);
+        camera.farClipPlane = FarClipPlane;
+        camera.cullingMask = ReflectingLayers;
+        camera.useOcclusionCulling = OcclusionCulling;
+
+        if (cameraData == null) return;
+#if UNITY_ANDROID && !UNITY_EDITOR
+        cameraData.allowXRRendering = false;
+#else
+        cameraData.allowXRRendering = allowXRRendering;
+#endif
+        cameraData.renderPostProcessing = RenderPostProcessing;
+        cameraData.renderShadows = renderShadows;
     }
 
     public Color ClearColor
@@ -118,6 +496,8 @@ public class BasisSDKMirror : MonoBehaviour
     }
 
     private BasisMeshRendererCheck basisMeshRendererCheck;
+    private UniversalAdditionalCameraData leftCameraData;
+    private UniversalAdditionalCameraData rightCameraData;
     private BasisGazeTarget gazeTarget;
     private Vector3 thisPosition;
     private Vector3 normal;
@@ -187,20 +567,27 @@ public class BasisSDKMirror : MonoBehaviour
         BasisSettingsDefaults.UseMirrorQualityOverride.OnChanged += OnMirrorQualityOverrideChanged;
         BasisSettingsDefaults.Antialiasing.OnChanged += OnAntialiasingChanged;
 
+        BasisMirrorSettingsStore.ApplyTo(this);
+
         if (BasisLocalCameraDriver.HasInstance)
             Initialize();
 
         Application.onBeforeRender += OnBeforeRender;
         RenderPipeline.beginCameraRendering += OnBeginCameraRendering;
+
+        BasisMirrorRegistry.Add(this);
     }
 
     private void OnDisable()
     {
+        BasisMirrorRegistry.Remove(this);
         CleanUp();
     }
 
     private void OnDestroy()
     {
+        BasisMirrorRegistry.Remove(this);
+        DestroyCutoutMaterial();
         BasisDeviceManagement.OnBootModeChanged -= BootModeChanged;
         BasisSettingsDefaults.MirrorQuality.OnChanged -= OnMirrorQualityChanged;
         BasisSettingsDefaults.UseMirrorQualityOverride.OnChanged -= OnMirrorQualityOverrideChanged;
@@ -249,26 +636,23 @@ public class BasisSDKMirror : MonoBehaviour
         InsideRendering = false;
     }
 
+    private static void DestroyTexture(RenderTexture texture)
+    {
+        if (!texture) return;
+
+        texture.Release();
+#if UNITY_EDITOR
+        if (!Application.isPlaying) DestroyImmediate(texture);
+        else Destroy(texture);
+#else
+        Destroy(texture);
+#endif
+    }
+
     private void DisposePortalResources()
     {
-        if (PortalTextureLeft)
-        {
-#if UNITY_EDITOR
-            if (!Application.isPlaying) DestroyImmediate(PortalTextureLeft);
-            else Destroy(PortalTextureLeft);
-#else
-            Destroy(PortalTextureLeft);
-#endif
-        }
-        if (PortalTextureRight)
-        {
-#if UNITY_EDITOR
-            if (!Application.isPlaying) DestroyImmediate(PortalTextureRight);
-            else Destroy(PortalTextureRight);
-#else
-            Destroy(PortalTextureRight);
-#endif
-        }
+        DestroyTexture(PortalTextureLeft);
+        DestroyTexture(PortalTextureRight);
 
         BasisCullingCameraRegistry.Unregister(LeftCamera);
         if (LeftCamera) Destroy(LeftCamera.gameObject);
@@ -277,6 +661,7 @@ public class BasisSDKMirror : MonoBehaviour
         PortalTextureLeft = null;
         PortalTextureRight = null;
         LeftCamera = RightCamera = null;
+        leftCameraData = rightCameraData = null;
 
         foreach (KeyValuePair<Camera, SecondaryViewerState> pair in secondaryViewers)
         {
@@ -339,8 +724,8 @@ public class BasisSDKMirror : MonoBehaviour
             return;
         }
 
-        CreatePortalCamera(mainCamera, StereoscopicEye.Left, ref LeftCamera, ref PortalTextureLeft);
-        CreatePortalCamera(mainCamera, StereoscopicEye.Right, ref RightCamera, ref PortalTextureRight);
+        CreatePortalCamera(mainCamera, StereoscopicEye.Left, ref LeftCamera, ref PortalTextureLeft, ref leftCameraData);
+        CreatePortalCamera(mainCamera, StereoscopicEye.Right, ref RightCamera, ref PortalTextureRight, ref rightCameraData);
         BasisCullingCameraRegistry.Register(LeftCamera);
 
         // The reflection textures are bound per-renderer through a MaterialPropertyBlock
@@ -353,6 +738,12 @@ public class BasisSDKMirror : MonoBehaviour
             Renderer.sharedMaterial = MirrorsMaterial;
             materialApplied = true;
         }
+
+        // A cutout enabled from saved settings is applied in OnEnable, before this runs, so the
+        // first-init assignment above would drop it on a fresh spawn.
+        SeedCutoutTextures();
+        if (cutoutEnabled && cutoutMaterial != null)
+            Renderer.sharedMaterial = cutoutMaterial;
 
         IsAbleToRender = Renderer.isVisible;
         IsActive = true;
@@ -568,9 +959,11 @@ public class BasisSDKMirror : MonoBehaviour
     {
         Camera portalCamera = (eye == MonoOrStereoscopicEye.Right) ? RightCamera : LeftCamera;
         if (!portalCamera) return;
+        if (destination == null) return;
 
         // Portal cameras are shared by every viewer now, so per-render state must be refreshed.
         updateCameraClearFlags(portalCamera, sourceCamera);
+        UpdateAttachmentRequirement((eye == MonoOrStereoscopicEye.Right) ? rightCameraData : leftCameraData, destination);
 
         // --- Eye pose/projection from source camera ---
         Vector3 eyeOriginWS;
@@ -617,7 +1010,7 @@ public class BasisSDKMirror : MonoBehaviour
         }
         else
         {
-            portalCamera.nearClipPlane = Mathf.Max(nearClipLimit, portalCamera.nearClipPlane);
+            portalCamera.nearClipPlane = Mathf.Max(0.001f, nearClipLimit);
             portalCamera.farClipPlane = FarClipPlane;
         }
 
@@ -742,7 +1135,7 @@ public class BasisSDKMirror : MonoBehaviour
         projection[14] = c.w - projection[15];
     }
 
-    private void CreatePortalCamera(Camera sourceCamera, StereoscopicEye eye, ref Camera portalCamera, ref RenderTexture portalTexture)
+    private RenderTexture CreatePortalTexture(StereoscopicEye eye)
     {
         GetEffectiveResolution(out int effectiveWidth, out int effectiveHeight);
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -766,18 +1159,24 @@ public class BasisSDKMirror : MonoBehaviour
             dimension = TextureDimension.Tex2D
         };
 
-        portalTexture = new RenderTexture(desc)
+        var texture = new RenderTexture(desc)
         {
             name = $"__MirrorReflection{eye}_{GetEntityId()}",
             anisoLevel = 0
         };
-        portalTexture.Create();
+        texture.Create();
+        return texture;
+    }
 
-        CreateNewCamera(sourceCamera, out portalCamera);
+    private void CreatePortalCamera(Camera sourceCamera, StereoscopicEye eye, ref Camera portalCamera, ref RenderTexture portalTexture, ref UniversalAdditionalCameraData portalCameraData)
+    {
+        portalTexture = CreatePortalTexture(eye);
+
+        CreateNewCamera(sourceCamera, out portalCamera, out portalCameraData);
         portalCamera.targetTexture = portalTexture;
     }
 
-    private void CreateNewCamera(Camera sourceCamera, out Camera newCamera)
+    private void CreateNewCamera(Camera sourceCamera, out Camera newCamera, out UniversalAdditionalCameraData cameraData)
     {
         // Built bare on purpose — CopyFrom(mainCamera) inherits stereoTargetEye = Both and the XR
         // flags that let HMD tracking override the computed reflected pose on Quest multiview
@@ -788,28 +1187,36 @@ public class BasisSDKMirror : MonoBehaviour
         newCamera.enabled = false;
 
         newCamera.depth = 2;
-        newCamera.nearClipPlane = Mathf.Max(0.01f, nearClipLimit);
-        newCamera.farClipPlane = FarClipPlane;
-        newCamera.cullingMask = ReflectingLayers;
-        newCamera.useOcclusionCulling = OcclusionCulling;
         newCamera.allowHDR = false;
         newCamera.allowMSAA = true;
         newCamera.stereoTargetEye = StereoTargetEyeMask.None;
         updateCameraClearFlags(newCamera, sourceCamera);
 
-        UniversalAdditionalCameraData cameraData = newCamera.GetUniversalAdditionalCameraData();
+        cameraData = newCamera.GetUniversalAdditionalCameraData();
+        ApplyCameraOptions(newCamera, cameraData);
+
         if (cameraData != null)
         {
-#if UNITY_ANDROID && !UNITY_EDITOR
-            cameraData.allowXRRendering = false;
-#else
-            cameraData.allowXRRendering = allowXRRendering;
-#endif
-            cameraData.renderPostProcessing = RenderPostProcessing;
-            cameraData.renderShadows = renderShadows;
             cameraData.requiresColorOption = CameraOverrideOption.Off;
-            cameraData.requiresDepthOption = CameraOverrideOption.Off;
+            cameraData.requiresDepthOption = CameraOverrideOption.Off; // refreshed per render below
         }
+    }
+
+    /// <summary>
+    /// With post-processing off and both textures overridden Off, a multisampled target is the only
+    /// thing keeping URP's intermediate colour/depth attachments alive for this camera. Antialiasing
+    /// Off (and the always-single-sampled secondary viewer textures) drops it to rendering straight
+    /// into the shared reflection texture, which comes back holding nothing but URP's background
+    /// clear. Asking for the depth texture restores the attachments — the same graph the mirror runs
+    /// at every MSAA level — for one depth copy on the renders that would otherwise be empty.
+    /// </summary>
+    private static void UpdateAttachmentRequirement(UniversalAdditionalCameraData cameraData, RenderTexture destination)
+    {
+        if (cameraData == null) return;
+
+        cameraData.requiresDepthOption = BasisCameraTargetMsaa.ClampsToSingleSample(destination.antiAliasing)
+            ? CameraOverrideOption.On
+            : CameraOverrideOption.Off;
     }
 
     private void VisibilityFlag(bool isVisible)

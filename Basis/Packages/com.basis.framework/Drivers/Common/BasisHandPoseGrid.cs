@@ -80,6 +80,18 @@ namespace Basis.Scripts.Drivers
         public float Increment = DefaultIncrement;
 
         /// <summary>
+        /// False while <see cref="Cells"/> is a VIEW of the shared array owned by
+        /// <see cref="BasisAvatarModelCache"/>, which is the normal state for everyone but the
+        /// first wearer of an avatar. Only a grid that baked its own cells and never published
+        /// them frees anything.
+        /// <para>Each restore used to allocate a fresh 207 KB Persistent array and rebuild all
+        /// 13,230 quaternions element by element out of a float[] — per remote player, per avatar
+        /// swap, for bytes identical across everyone in the same avatar. Nothing writes cells
+        /// after the bake (every consumer only samples), so the copy bought nothing.</para>
+        /// </summary>
+        public bool OwnsCells { get; private set; }
+
+        /// <summary>
         /// True only for a grid that is actually samplable. The array being allocated is not enough:
         /// a zero-length or single-column grid reports IsCreated on the NativeArray while every
         /// sample indexes out of bounds, and the sampler's clamp range (0 .. gridWidth - 2) inverts
@@ -91,10 +103,42 @@ namespace Basis.Scripts.Drivers
 
         public void Dispose()
         {
-            if (Cells.IsCreated) Cells.Dispose();
+            if (OwnsCells && Cells.IsCreated)
+            {
+                Cells.Dispose();
+            }
+            // Cleared even for a view: the shared array outlives us, and leaving the handle
+            // behind would let a torn-down driver keep sampling a grid it no longer holds.
+            Cells = default;
+            OwnsCells = false;
             GridWidth = 0;
             GridHeight = 0;
             FingerStride = 0;
+        }
+
+        /// <summary>
+        /// Teardown for a driver that is going away: frees cells this grid OWNS and leaves a
+        /// shared view completely alone.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately does NOT clear a view the way <see cref="Dispose"/> does. The parallel
+        /// network compute samples this grid from worker threads and is only guaranteed joined at
+        /// a few points in the frame; nulling <see cref="Cells"/> from a teardown that can run
+        /// outside those windows is a torn read. Leaving the view costs nothing — the shared
+        /// buffer outlives the cache entry by design, and a destroyed player is off the receiver
+        /// snapshot so nothing samples it again.
+        /// </remarks>
+        public void DisposeOwnedOnly()
+        {
+            if (OwnsCells && Cells.IsCreated)
+            {
+                Cells.Dispose();
+                Cells = default;
+                OwnsCells = false;
+                GridWidth = 0;
+                GridHeight = 0;
+                FingerStride = 0;
+            }
         }
 
         public quaternion SampleJoint(int fingerIndex, int jointIndex, float2 percentage)
@@ -145,16 +189,18 @@ namespace Basis.Scripts.Drivers
 
             if (key != EntityId.None)
             {
-                var entry = BasisAvatarModelCache.GetOrCreate(key);
-                entry.HandPoseGrid = new BasisAvatarModelCache.HandPoseGridData
+                var entry = BasisAvatarModelCache.GetOrCreate(key, animator.avatar);
+                if (entry.HandPoseGrid != null)
                 {
-                    NativeGridSnapshot = target.ToSnapshot(),
-                    GridWidth = target.GridWidth,
-                    GridHeight = target.GridHeight,
-                    FingerStride = target.FingerStride,
-                    TotalElements = target.Cells.Length,
-                    Increment = target.Increment,
-
+                    // Someone else baked this same avatar while we were in TryBake. Publishing over
+                    // them would orphan their array with our view still pointing at it, so drop the
+                    // duplicate bake and share what is already there.
+                    target.Dispose();
+                    target.RestoreFrom(entry.HandPoseGrid);
+                    return target.IsCreated;
+                }
+                var data = new BasisAvatarModelCache.HandPoseGridData
+                {
                     LeftThumb = bake.LeftThumb,
                     LeftIndex = bake.LeftIndex,
                     LeftMiddle = bake.LeftMiddle,
@@ -168,6 +214,8 @@ namespace Basis.Scripts.Drivers
 
                     InitialPose = bake.RestPose,
                 };
+                target.PublishCellsTo(data);
+                entry.HandPoseGrid = data;
             }
             return target.IsCreated;
         }
@@ -204,6 +252,10 @@ namespace Basis.Scripts.Drivers
         //  Cache round-trip
         // ────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Points this grid at the cache entry's shared cells. No allocation and no copy — see
+        /// <see cref="OwnsCells"/>.
+        /// </summary>
         public void RestoreFrom(BasisAvatarModelCache.HandPoseGridData cached)
         {
             Dispose();
@@ -213,29 +265,23 @@ namespace Basis.Scripts.Drivers
             FingerStride = cached.FingerStride;
             Increment = cached.Increment > 0f ? cached.Increment : DefaultIncrement;
 
-            Cells = new NativeArray<quaternion>(cached.TotalElements, Allocator.Persistent);
-            float[] snapshot = cached.NativeGridSnapshot;
-            for (int i = 0; i < cached.TotalElements; i++)
-            {
-                int b = i * 4;
-                Cells[i] = new quaternion(snapshot[b], snapshot[b + 1], snapshot[b + 2], snapshot[b + 3]);
-            }
+            Cells = cached.SharedCells;
         }
 
-        public float[] ToSnapshot()
+        /// <summary>
+        /// Hands the freshly baked cells to <paramref name="destination"/> and demotes this grid to
+        /// a view of them. Call only with a destination that is about to be stored in
+        /// <see cref="BasisAvatarModelCache"/>, which takes over freeing them.
+        /// </summary>
+        public void PublishCellsTo(BasisAvatarModelCache.HandPoseGridData destination)
         {
-            int total = Cells.Length;
-            float[] snapshot = new float[total * 4];
-            for (int i = 0; i < total; i++)
-            {
-                quaternion q = Cells[i];
-                int b = i * 4;
-                snapshot[b] = q.value.x;
-                snapshot[b + 1] = q.value.y;
-                snapshot[b + 2] = q.value.z;
-                snapshot[b + 3] = q.value.w;
-            }
-            return snapshot;
+            destination.SharedCells = Cells;
+            destination.GridWidth = GridWidth;
+            destination.GridHeight = GridHeight;
+            destination.FingerStride = FingerStride;
+            destination.TotalElements = Cells.IsCreated ? Cells.Length : 0;
+            destination.Increment = Increment;
+            OwnsCells = false;
         }
 
         // ────────────────────────────────────────────────────────────
@@ -316,8 +362,9 @@ namespace Basis.Scripts.Drivers
                     // here would clear the FingerStride computed one line up — allocating 10 * 0
                     // cells and leaving a grid that reports IsCreated while every sample indexes
                     // out of bounds inside Burst.
-                    if (Cells.IsCreated) Cells.Dispose();
+                    if (OwnsCells && Cells.IsCreated) Cells.Dispose();
                     Cells = new NativeArray<quaternion>(FingerCount * FingerStride, Allocator.Persistent);
+                    OwnsCells = true;
 
                     var muscles = new[]
                     {

@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
@@ -1400,6 +1402,126 @@ namespace Basis.BasisUI
                     }
                 };
 
+                // ---- Force avatar ----
+                // Built once with the page: this panel is rebuilt each time it is opened, so the
+                // list is as fresh as the rest of what's on screen.
+                var forceAvatarGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminGroup.ContentParent);
+                forceAvatarGroup.SetTitle(BasisLocalization.Get("settings.admin.forceAvatar"));
+                forceAvatarGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.forceAvatar.description"));
+
+                List<ForceAvatarCatalog.Entry> avatarEntries = ForceAvatarCatalog.Build();
+
+                PanelDropdown avatarDropdown = PanelDropdown.CreateNewEntry(forceAvatarGroup.ContentParent);
+                avatarDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.forceAvatar.pick"));
+                avatarDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.forceAvatar.pick.tooltip"));
+                ForceAvatarCatalog.Apply(avatarDropdown, avatarEntries);
+
+                PanelButton forceAvatarBtn = PanelButton.CreateNew(forceAvatarGroup.ContentParent);
+                forceAvatarBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.forceAvatar"));
+                forceAvatarBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.forceAvatar.description"));
+                forceAvatarBtn.OnClicked += () =>
+                {
+                    if (!ForceAvatarCatalog.TryResolve(avatarEntries, avatarDropdown.Value, out ForceAvatarCatalog.Entry entry))
+                    {
+                        BasisDebug.LogError("No avatar selected.");
+                        return;
+                    }
+                    if (!BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer np)) return;
+
+                    BasisMainMenu.Instance.OpenDialogue(
+                        BasisLocalization.Get("menu.individualPlayer.forceAvatar.dialog.title"),
+                        BasisLocalization.Get("menu.individualPlayer.forceAvatar.dialog.body", remotePlayer.DisplayName, entry.Label),
+                        BasisLocalization.Get("menu.individualPlayer.forceAvatar"),
+                        BasisLocalization.Get("ui.cancel"),
+                        confirmed => { if (confirmed) BasisNetworkModeration.ForceAvatar(np.playerId, entry.Item); });
+                };
+
+                // ---- Locomotion override ----
+                RectTransform adminContent = adminGroup.ContentParent;
+                PanelSectionToggle locomotionSection = PanelSectionToggle.CreateNewEntry(adminContent);
+                locomotionSection.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion"));
+                int locomotionStart = adminContent.childCount;
+
+                var locomotionGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminContent);
+                locomotionGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.locomotion.description"));
+
+                PanelToggle jumpToggle = PanelToggle.CreateNew(locomotionGroup.ContentParent);
+                jumpToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.jumpHeight.override"));
+                PanelSlider jumpSlider = PanelSlider.CreateNew(locomotionGroup.ContentParent);
+                jumpSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("menu.individualPlayer.locomotion.jumpHeight"), 0.1f, 5f, false, 2, ValueDisplayMode.Raw));
+                jumpSlider.SetValueWithoutNotify(1f);
+
+                PanelToggle walkToggle = PanelToggle.CreateNew(locomotionGroup.ContentParent);
+                walkToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.walkSpeed.override"));
+                PanelSlider walkSlider = PanelSlider.CreateNew(locomotionGroup.ContentParent);
+                walkSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("menu.individualPlayer.locomotion.walkSpeed"), 0.1f, 15f, false, 2, ValueDisplayMode.Raw));
+                walkSlider.SetValueWithoutNotify(2.5f);
+
+                PanelToggle runToggle = PanelToggle.CreateNew(locomotionGroup.ContentParent);
+                runToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.runSpeed.override"));
+                PanelSlider runSlider = PanelSlider.CreateNew(locomotionGroup.ContentParent);
+                runSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("menu.individualPlayer.locomotion.runSpeed"), 0.1f, 20f, false, 2, ValueDisplayMode.Raw));
+                runSlider.SetValueWithoutNotify(4f);
+
+                List<string> modeEntries = SettingsProviderModeratorTab.BuildLocomotionModeEntries();
+                PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(locomotionGroup.ContentParent);
+                modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.mode"));
+                modeDropdown.AssignEntries(modeEntries);
+                modeDropdown.SetValueWithoutNotify(modeEntries[0]);
+
+                void ApplyLocomotionSliderVisibility()
+                {
+                    jumpSlider.Descriptor.SetActive(jumpToggle.Value);
+                    walkSlider.Descriptor.SetActive(walkToggle.Value);
+                    runSlider.Descriptor.SetActive(runToggle.Value);
+                }
+
+                ApplyLocomotionSliderVisibility();
+                jumpToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); locomotionGroup.ForceRebuild(); };
+                walkToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); locomotionGroup.ForceRebuild(); };
+                runToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); locomotionGroup.ForceRebuild(); };
+
+                PanelButton locomotionApplyBtn = PanelButton.CreateNew(locomotionGroup.ContentParent);
+                locomotionApplyBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.apply"));
+                locomotionApplyBtn.OnClicked += () =>
+                {
+                    if (!BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer np)) return;
+
+                    BasisLocomotionValues values = SettingsProviderModeratorTab.ComposeLocomotionValues(
+                        jumpToggle.Value, jumpSlider.Value,
+                        walkToggle.Value, walkSlider.Value,
+                        runToggle.Value, runSlider.Value,
+                        modeEntries.IndexOf(modeDropdown.Value));
+
+                    if (values.Fields == BasisLocomotionField.None)
+                    {
+                        BasisDebug.LogError("No locomotion fields selected to override.");
+                        return;
+                    }
+
+                    BasisNetworkModeration.SetLocomotionOverride(np.playerId, values);
+                };
+
+                PanelButton locomotionClearBtn = PanelButton.CreateNew(locomotionGroup.ContentParent);
+                locomotionClearBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.clear"));
+                locomotionClearBtn.OnClicked += () =>
+                {
+                    if (BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer np))
+                    {
+                        BasisNetworkModeration.ClearLocomotionOverride(np.playerId);
+                    }
+                };
+
+                PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(locomotionSection, adminContent, locomotionStart, false,
+                    visible =>
+                    {
+                        if (visible) ApplyLocomotionSliderVisibility();
+                        locomotionGroup.ForceRebuild();
+                    });
+
                 // ---- Per-user permissions ----
                 var permGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminGroup.ContentParent);
                 permGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.permissions"));
@@ -1418,6 +1540,8 @@ namespace Basis.BasisUI
                     PermNodes.ModerationMessageAll,
                     PermNodes.ModerationTeleport,
                     PermNodes.ModerationShout,
+                    PermNodes.ModerationForceAvatar,
+                    PermNodes.ModerationLocomotion,
                     PermNodes.PlayerModeration,
                     PermNodes.PermissionsView,
                     PermNodes.PermissionsEdit,

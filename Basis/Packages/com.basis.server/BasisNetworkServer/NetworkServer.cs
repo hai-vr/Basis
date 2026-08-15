@@ -170,6 +170,41 @@ public static class NetworkServer
         BNL.Log($"[BSR] AvatarBundleCompression={Configuration.EnableAvatarBundleCompression} (minMsgs={Configuration.AvatarBundleMinMessages}, minBytes={Configuration.AvatarBundleMinBytes}) DeltaCompression={Configuration.EnableAvatarDeltaCompression} (keyframeMs={Configuration.AvatarDeltaKeyframeIntervalMs}) VoiceFrameDurationMs={BasisNetworkServer.Security.BasisOpusFrameDurationStateManager.FrameDurationMs}");
     }
 
+    /// <summary>
+    /// Re-applies every setting that can take effect without a restart and pushes the new state to
+    /// connected clients, so a runtime edit (console /config, admin panel) is live immediately.
+    ///
+    /// Deliberately not a re-run of StartServer's boot sequence: InitializeAuth builds a fresh
+    /// BasisDIDAuthIdentity that subscribes to a static event and reloads permissions, allow and ban
+    /// lists from disc, so calling it here would double-handle every auth packet and discard runtime
+    /// moderation state. Only the password comparer is rebuilt. Bind-time settings are excluded and
+    /// reported by <see cref="Configuration.RequiresRestart"/>.
+    /// </summary>
+    public static void ApplyLiveConfiguration()
+    {
+        if (Configuration == null) return;
+
+        InitializePulseSettings();
+
+        Auth = new PasswordAuth(Configuration.Password ?? string.Empty);
+
+        BasisHeadlessConnectionPolicyManager.InitializeFromConfig(Configuration.DisallowHeadless);
+        BasisNetworkServer.Security.BasisGlobalLockManager.InitializeFromConfig(Configuration);
+        BasisNetworkServer.Security.BasisCrashReportStateManager.InitializeFromConfig(Configuration);
+        BasisNetworkServer.Security.BasisAudioRangeLimitManager.InitializeFromConfig(Configuration);
+        BasisNetworkServer.Security.BasisAvatarScaleLimitManager.InitializeFromConfig(Configuration);
+        BasisNetworkServer.Security.BasisResourceLimitManager.InitializeFromConfig(Configuration);
+
+        if (Server == null) return;
+
+        BasisHeadlessConnectionPolicyManager.BroadcastState();
+        BasisNetworkServer.Security.BasisGlobalLockManager.BroadcastLockState();
+        BasisNetworkServer.Security.BasisCrashReportStateManager.BroadcastState();
+        BasisNetworkServer.Security.BasisAudioRangeLimitManager.BroadcastState();
+        BasisNetworkServer.Security.BasisAvatarScaleLimitManager.BroadcastState();
+        BasisNetworkServer.Security.BasisResourceLimitManager.BroadcastState();
+    }
+
     private static void InitializeAuth()
     {
         var HasFileSupport = Configuration.HasFileSupport;

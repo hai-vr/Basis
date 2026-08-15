@@ -211,6 +211,10 @@ public partial class BasisHandHeldCamera
     /// </summary>
     public void ApplyCameraMode(BasisCameraMode mode)
     {
+        // Picking a built-in is picking something else, whatever it turns out to be — even Custom,
+        // which writes nothing but is still a statement that the saved mode is no longer in charge.
+        UserModeName = null;
+
         if (!TryGetPreset(mode, out BasisCameraModePreset preset))
         {
             CameraMode = BasisCameraMode.Custom;
@@ -251,13 +255,21 @@ public partial class BasisHandHeldCamera
     /// — otherwise the loser's hand-back fires last and drags the camera out of the pin it was just
     /// given. The explicit pin write afterwards then settles the modes that arm neither.</para>
     /// </summary>
-    private void ApplyPresetPlacement(BasisCameraModePreset preset)
+    private void ApplyPresetPlacement(BasisCameraModePreset preset) =>
+        ApplyPlacement(preset.Pin, preset.AutoFollow, preset.Cinematic);
+
+    /// <summary>
+    /// The placement write itself, shared with the saved modes in
+    /// <see cref="BasisHandHeldCameraUserModes"/> — the ordering above is subtle enough that a
+    /// second copy of it would be a second chance to get it wrong.
+    /// </summary>
+    internal void ApplyPlacement(CameraPinSpace pin, bool autoFollow, bool cinematic)
     {
-        if (!preset.AutoFollow) SetAutoFollowEnabled(false);
-        if (!preset.Cinematic) SetCinematicEnabled(false);
-        if (preset.AutoFollow) SetAutoFollowEnabled(true);
-        if (preset.Cinematic) SetCinematicEnabled(true);
-        PinSpace = preset.Pin;
+        if (!autoFollow) SetAutoFollowEnabled(false);
+        if (!cinematic) SetCinematicEnabled(false);
+        if (autoFollow) SetAutoFollowEnabled(true);
+        if (cinematic) SetCinematicEnabled(true);
+        PinSpace = pin;
     }
 
     /// <summary>

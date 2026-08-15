@@ -98,6 +98,12 @@ namespace Basis.BasisUI
             Alternate = label;
             AlternateCallback = onChosen;
 
+            if (AlternateButton != null)
+            {
+                AlternateButton.Descriptor.SetTitle(label);
+                return;
+            }
+
             AlternateButton = PanelButton.CreateNew(AcceptButton.rectTransform.parent);
             AlternateButton.Descriptor.SetTitle(label);
             // The accent-blue standard style, matching the Accept/Decline button family

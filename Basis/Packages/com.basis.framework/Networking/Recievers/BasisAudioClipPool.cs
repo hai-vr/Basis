@@ -5,7 +5,11 @@ using UnityEngine;
 
 public static class BasisAudioClipPool
 {
-    private static int maxPooledClips = 16;//how many pooled sources.
+    // Kept in step with BasisAudioRemoteSource.MaxPoolSize — a returned voice object and its clip
+    // come back together, so a smaller clip pool just means the paired Get() destroys and
+    // re-Creates (SoundManager.CreateSoundInternal) on a reuse the object pool served for free.
+    // Each clip is one Opus frame duration of mono float, a few KB, so the count is cheap.
+    private static int maxPooledClips = 64;//how many pooled sources.
 
     /// <summary>
     /// Multiplier applied to <see cref="SharedOpusSettings.DesiredDurationInSeconds"/>

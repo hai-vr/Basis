@@ -203,14 +203,17 @@ public class BasisFlyCamera
 
     // --- Input callbacks ---
 
-    /// <summary>Reads mouse delta while active; zeroes on cancel.</summary>
+    /// <summary>
+    /// Reads mouse delta only while control is captured, so a fly camera left armed does not
+    /// swing every time the pointer moves; zeroes otherwise.
+    /// </summary>
     private void OnMouseLook(InputAction.CallbackContext context)
     {
-        if (isActive && context.performed)
+        if (isActive && isControlling && context.performed)
         {
             mouseInput = context.ReadValue<Vector2>();
         }
-        else if (context.canceled)
+        else
         {
             mouseInput = Vector2.zero;
         }

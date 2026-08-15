@@ -24,7 +24,9 @@ namespace Basis.Scripts.BasisCharacterController
         [SerializeField] public float MaximumMovementSpeed = 4;
         [SerializeField] public float DefaultMovementSpeed = 2.5f;
         [SerializeField] public float MinimumMovementSpeed = 0.5f;
+        [SerializeField] public float ProneMovementSpeed = 0.35f;
         [SerializeField, Range(0f, 1f)] public float MinimumCrouchPercent = 0.5f;
+        [SerializeField, Range(0f, 1f)] public float MinimumPronePercent = 0.15f;
         [SerializeField] public float gravityValue = -9.81f;
         [SerializeField] public float RaycastDistance = 0.2f;
         [SerializeField] public float MinimumColliderSize = 0.01f;
@@ -75,6 +77,14 @@ namespace Basis.Scripts.BasisCharacterController
         private BasisNoClipMovementMode _noClipMode = new BasisNoClipMovementMode();
         [System.NonSerialized] public IMovementMode CurrentMode;
         [System.NonSerialized] public Mode CurrentModeKind = Mode.Walk;
+
+        [System.NonSerialized] public float BaselineJumpHeight = 1f;
+        [System.NonSerialized] public float BaselineWalkSpeed = 2.5f;
+        [System.NonSerialized] public float BaselineRunSpeed = 4f;
+        [System.NonSerialized] public float BaselineMinimumSpeed = 0.5f;
+        [System.NonSerialized] public float BaselineGravity = -9.81f;
+        [System.NonSerialized] public Mode BaselineMode = Mode.Walk;
+        [System.NonSerialized] private int _appliedOverrideVersion = -1;
         public delegate void ModeChangedHandler(Mode newMode);
         public ModeChangedHandler ModeChanged;
         public void SetMode(Mode mode)
@@ -138,6 +148,10 @@ namespace Basis.Scripts.BasisCharacterController
         /// Indicates whether the character is considered crouching based on the CrouchBlend value being less than the defined threshold.
         /// </summary>
         public bool IsCrouching => CrouchBlend <= LocalAnimatorDriver.CrouchThreshold;
+        /// <summary>
+        /// When true the locomotion animator plays the prone set and movement drops to crawl speed. Toggled by <see cref="ProneToggle"/>; crouching input clears it.
+        /// </summary>
+        public bool IsProne = false;
         public bool IsRunning => CurrentSpeed > DefaultMovementSpeed;
         public bool UseMaxSpeed => BasisLocalInputActions.IsRunHeld;
         public bool CanPushRigidbodys = false;
@@ -164,6 +178,7 @@ namespace Basis.Scripts.BasisCharacterController
         public float CurrentSpeed;
         public void DeInitialize()
         {
+            BasisLocomotionOverrides.RemoveAll(true);
             CurrentMode?.Exit(this);
             CurrentMode = null;
             if (HasEvents)
@@ -185,7 +200,66 @@ namespace Basis.Scripts.BasisCharacterController
             SetMovementSpeedMultiplier(GetMultiplierForMovementSpeed(DefaultMovementSpeed));
             Validate();
             CalculateCharacterSize();
+            CaptureLocomotionBaselines();
             SetMode(Mode.Walk);
+            ApplyLocomotionOverrides(true);
+        }
+
+        /// <summary>
+        /// Snapshots the authored values the override stack layers over. Refuses to run while an
+        /// override is live, because the live fields are that override's output — capturing them would
+        /// bake it into the baseline and it would never release.
+        /// </summary>
+        public void CaptureLocomotionBaselines()
+        {
+            if (BasisLocomotionOverrides.Count != 0)
+            {
+                return;
+            }
+
+            BaselineJumpHeight = jumpHeight;
+            BaselineWalkSpeed = DefaultMovementSpeed;
+            BaselineRunSpeed = MaximumMovementSpeed;
+            BaselineMinimumSpeed = MinimumMovementSpeed;
+            BaselineGravity = gravityValue;
+            BaselineMode = CurrentModeKind;
+            _appliedOverrideVersion = -1;
+        }
+
+        /// <summary>
+        /// Folds the resolved <see cref="BasisLocomotionOverrides"/> stack onto the live driver values,
+        /// falling back to the authored baseline for every field no override claims. Skipped entirely
+        /// when the stack has not changed since the last apply.
+        /// </summary>
+        public void ApplyLocomotionOverrides(bool force = false)
+        {
+            int version = BasisLocomotionOverrides.Version;
+            if (!force && version == _appliedOverrideVersion)
+            {
+                return;
+            }
+            _appliedOverrideVersion = version;
+
+            BasisLocomotionEffective effective = BasisLocomotionOverrides.Flatten(
+                BasisLocomotionOverrides.Resolve(),
+                new BasisLocomotionBaseline
+                {
+                    JumpHeight = BaselineJumpHeight,
+                    WalkSpeed = BaselineWalkSpeed,
+                    RunSpeed = BaselineRunSpeed,
+                    MinimumSpeed = BaselineMinimumSpeed,
+                    Gravity = BaselineGravity,
+                    Mode = BaselineMode,
+                });
+
+            jumpHeight = effective.JumpHeight;
+            gravityValue = effective.Gravity;
+            MinimumMovementSpeed = effective.MinimumSpeed;
+            DefaultMovementSpeed = effective.WalkSpeed;
+            MaximumMovementSpeed = effective.RunSpeed;
+            UpdateMovementSpeed(UseMaxSpeed);
+
+            SetMode(effective.Mode);
         }
 
         public void OnControllerColliderHit(ControllerColliderHit hit)
@@ -223,6 +297,7 @@ namespace Basis.Scripts.BasisCharacterController
                 return;
             }
             sMarkerMoveSize.Begin();
+            ApplyLocomotionOverrides();
             BasisScriptedPlayerInput.ApplyLocomotion(this);
             LastBottomPoint = bottomPointLocalSpace;
             CalculateCharacterSize();
@@ -387,9 +462,27 @@ namespace Basis.Scripts.BasisCharacterController
 
         public void CrouchToggle()
         {
+            IsProne = false;
             // check what the animator driver considers to be crouching, and standup if crouch threshold is matched, otherwise, full crouch
             CrouchBlend = CrouchingLock || CrouchBlend <= LocalAnimatorDriver.CrouchThreshold ? 1f : 0f;
             UpdateMovementSpeed(UseMaxSpeed);
+        }
+
+        public void ProneToggle()
+        {
+            if (CrouchingLock) return;
+            IsProne = !IsProne;
+            UpdateMovementSpeed(UseMaxSpeed);
+        }
+
+        /// <summary>
+        /// 0..1 multiplier applied to the head/eye height for the current stance:
+        /// 1 standing, down to <see cref="MinimumCrouchPercent"/> via CrouchBlend, or <see cref="MinimumPronePercent"/> while prone.
+        /// </summary>
+        public float GetStanceHeightPercent()
+        {
+            if (IsProne) return MinimumPronePercent;
+            return (1f - MinimumCrouchPercent) * CrouchBlend + MinimumCrouchPercent;
         }
 
         public void SetCrouchBlendDelta(float delta)
@@ -456,6 +549,7 @@ namespace Basis.Scripts.BasisCharacterController
             Vector3 horizontalMoveDirection = new Vector3(MovementVector.x, 0, MovementVector.y).normalized;
 
             CurrentSpeed = math.lerp(MinimumMovementSpeed, MaximumMovementSpeed, MovementSpeedScale) + MinimumMovementSpeed * MovementSpeedBoost;
+            if (IsProne) CurrentSpeed = ProneMovementSpeed;
 
             Vector3 totalMoveDirection = flattenedRotation * horizontalMoveDirection * CurrentSpeed * DeltaTime;
             if (MovementLock)

@@ -105,35 +105,30 @@ public static class BasisNetworkEvents
                 Reader.Recycle();
                 return;
             }
-            // Deserialize on the main thread (preserves existing thread affinity),
-            // recycle the reader immediately, then enqueue the heavy
-            // CreateRemotePlayer work into the budgeted lifecycle queue.
-            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            // This body used to be wrapped in EnqueueOnMainThread, which put the DECODE (Deflate,
+            // strings, avatar blob, pose unpack) on the frame thread rather than just the spawn.
+            // Copy the bytes out, free the pooled reader immediately, and let the avatar load
+            // thread decode; it re-enters through the budgeted lifecycle queue with a record the
+            // spawn step consumes without parsing anything. Decoding inline here is not an option
+            // — this is LiteNetLib's receive thread and blocking it stalls every other channel.
+            //
+            // JoiningPlayers is marked from the leading ushort of the record rather than after the
+            // decode, so per-player traffic arriving behind this packet still finds the id present
+            // — sooner than it did when the mark waited on an EnqueueOnMainThread hop.
+            try
             {
-                try
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
-                    ServerReadyMessage srm = new ServerReadyMessage();
-                    srm.Deserialize(Reader);
-                    // Mark the player as joining the moment the spawn is KNOWN, not when the
-                    // budgeted queue finally runs it — per-player traffic (voice, avatar
-                    // data) races ahead of creation and consults this to drop quietly.
-                    // CreateRemotePlayer's finally clears it.
-                    BasisNetworkPlayers.JoiningPlayers.TryAdd(srm.playerIdMessage.playerID, 0);
-                    BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
-                    {
-                        BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
-                    });
-                }
-                catch (Exception ex)
-                {
-                    BNL.LogError($"Dropping corrupt remote-player spawn packet: {ex.Message}");
-                }
-                finally
-                {
-                    Reader.Recycle();
-                }
-            });
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
+                BasisNetworkPlayers.JoiningPlayers.TryAdd(Reader.PeekUShort(), 0);
+                BasisAvatarLoadThread.SubmitSpawn(Reader.GetRemainingBytes());
+            }
+            catch (Exception ex)
+            {
+                BNL.LogError($"Dropping corrupt remote-player spawn packet: {ex.Message}");
+            }
+            finally
+            {
+                Reader.Recycle();
+            }
         });
 
         BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel, (peer, Reader, channel, deliveryMethod) =>
@@ -143,47 +138,26 @@ public static class BasisNetworkEvents
                 Reader.Recycle();
                 return;
             }
-            //same as remote player but just used at the start — arrives as a compressed batch of players
-            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            // Same as remote player but just used at the start — arrives as a compressed batch of
+            // players. This is the single heaviest decode the client ever does: a Deflate inflate
+            // of up to 32 KB per batch plus one full record decode per player already present, and
+            // it was running on the frame thread. Unlike the single-spawn channel the ids sit
+            // inside the compressed payload, so JoiningPlayers is marked by the load thread as
+            // each record comes out; a pose or voice packet that beats it there costs a log line,
+            // never a dropped player.
+            try
             {
-                try
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
-
-                    ServerReadyBatchMessage batch = new ServerReadyBatchMessage();
-                    batch.Deserialize(Reader);
-
-                    NetDataReader batchReader = new NetDataReader(batch.Payload);
-                    for (int i = 0; i < batch.Count; i++)
-                    {
-                        // One corrupt entry must not cost the whole batch: every player after it in this
-                        // packet would otherwise never spawn. Stop at the bad record, keep the good ones.
-                        ServerReadyMessage srm = new ServerReadyMessage();
-                        try
-                        {
-                            srm.Deserialize(batchReader);
-                        }
-                        catch (Exception ex)
-                        {
-                            BNL.LogError($"Dropping remote-player spawn batch at entry {i}/{batch.Count}: {ex.Message}");
-                            break;
-                        }
-                        BasisNetworkPlayers.JoiningPlayers.TryAdd(srm.playerIdMessage.playerID, 0);
-                        BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
-                        {
-                            BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    BNL.LogError($"Dropping corrupt remote-player spawn packet: {ex.Message}");
-                }
-                finally
-                {
-                    Reader.Recycle();
-                }
-            });
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
+                BasisAvatarLoadThread.SubmitSpawnBatch(Reader.GetRemainingBytes());
+            }
+            catch (Exception ex)
+            {
+                BNL.LogError($"Dropping corrupt remote-player spawn packet: {ex.Message}");
+            }
+            finally
+            {
+                Reader.Recycle();
+            }
         });
 
         BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.GetCurrentOwnerRequestChannel, (peer, Reader, channel, deliveryMethod) =>

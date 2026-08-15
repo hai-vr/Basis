@@ -51,6 +51,26 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// <summary>Max quaternion component range per slot. Length = SyncBoneCount.</summary>
         [ReadOnly] public NativeArray<float> MaxComponent;
 
+        /// <summary>Degrees of freedom per wire slot (v52): 3 = smallest-three, 2 = hinge+twist
+        /// angles, 1 = single angle. Mirrors BasisBoneRotationCompression.BONE_DOF.</summary>
+        [ReadOnly] public NativeArray<byte> BoneDof;
+
+        /// <summary>Hinge axis code (0=X 1=Y 2=Z) per restricted slot.</summary>
+        [ReadOnly] public NativeArray<byte> BoneAxisA;
+
+        /// <summary>Twist axis code per 2-DOF slot.</summary>
+        [ReadOnly] public NativeArray<byte> BoneAxisB;
+
+        /// <summary>Half-range (radians) of the hinge angle per restricted slot.</summary>
+        [ReadOnly] public NativeArray<float> BoneRangeA;
+
+        /// <summary>Half-range (radians) of the twist angle per 2-DOF slot.</summary>
+        [ReadOnly] public NativeArray<float> BoneRangeB;
+
+        public int HingeBitCount;
+        public int TwistBitCount;
+        public int SingleAxisBitCount;
+
         /// <summary>Output byte buffer (the full packet array). Must be pre-cleared in the rotation region.</summary>
         [NativeDisableContainerSafetyRestriction]
         public NativeArray<byte> OutputBuffer;
@@ -86,12 +106,30 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
                 BoneDeltas[slot] = delta;
 
-                // Encode smallest-three
-                int bpc = BitsPerComponent[slot];
-                int totalBits = 2 + 3 * bpc;
-                float maxRange = MaxComponent[slot];
+                int dof = BoneDof[slot];
+                int totalBits;
+                ulong packed;
+                if (dof == 3)
+                {
+                    int bpc = BitsPerComponent[slot];
+                    totalBits = 2 + 3 * bpc;
+                    packed = EncodeSmallestThree(delta.value.x, delta.value.y, delta.value.z, delta.value.w, bpc, MaxComponent[slot]);
+                }
+                else if (dof == 2)
+                {
+                    totalBits = HingeBitCount + TwistBitCount;
+                    ExtractHingeTwist(delta.value, BoneAxisA[slot], BoneAxisB[slot], out float angleA, out float angleB);
+                    ulong ea = EncodeSignedUnit(angleA / BoneRangeA[slot], HingeBitCount);
+                    ulong eb = EncodeSignedUnit(angleB / BoneRangeB[slot], TwistBitCount);
+                    packed = ea | (eb << HingeBitCount);
+                }
+                else
+                {
+                    totalBits = SingleAxisBitCount;
+                    float angle = ExtractSingleAxis(delta.value, BoneAxisA[slot]);
+                    packed = EncodeSignedUnit(angle / BoneRangeA[slot], SingleAxisBitCount);
+                }
 
-                ulong packed = EncodeSmallestThree(delta.value.x, delta.value.y, delta.value.z, delta.value.w, bpc, maxRange);
                 WriteBits(bitPos, packed, totalBits);
                 bitPos += totalBits;
             }
@@ -118,6 +156,50 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (math.isnan(value)) return (maxQ + 1) >> 1;
             float clamped = math.clamp(value, -1f, 1f);
             return Clamp((uint)math.round((clamped * 0.5f + 0.5f) * maxQ), 0, maxQ);
+        }
+
+        static float GetComponent(float4 v, int axis) => axis == 0 ? v.x : (axis == 1 ? v.y : v.z);
+
+        /// <summary>
+        /// Burst-compatible mirror of BasisBoneRotationCompression.ExtractHingeTwist: factorizes
+        /// q as R_axisA(angleA) * R_axisB(angleB), projecting off-axis content away.
+        /// </summary>
+        static void ExtractHingeTwist(float4 q, int axisA, int axisB, out float angleA, out float angleB)
+        {
+            if (q.w < 0f) q = -q;
+
+            float pb = GetComponent(q, axisB);
+            float len = math.sqrt(pb * pb + q.w * q.w);
+            float tb, tw;
+            if (len > 1e-6f)
+            {
+                angleB = 2f * math.atan2(pb, q.w);
+                float inv = 1f / len;
+                tb = pb * inv; tw = q.w * inv;
+            }
+            else
+            {
+                angleB = 0f; tb = 0f; tw = 1f;
+            }
+
+            // swing = q * conj(twist)
+            float cx = axisB == 0 ? -tb : 0f;
+            float cy = axisB == 1 ? -tb : 0f;
+            float cz = axisB == 2 ? -tb : 0f;
+            float sw = q.w * tw - q.x * cx - q.y * cy - q.z * cz;
+            float sx = q.w * cx + q.x * tw + q.y * cz - q.z * cy;
+            float sy = q.w * cy - q.x * cz + q.y * tw + q.z * cx;
+            float sz = q.w * cz + q.x * cy - q.y * cx + q.z * tw;
+
+            if (sw < 0f) { sx = -sx; sy = -sy; sz = -sz; sw = -sw; }
+            angleA = 2f * math.atan2(GetComponent(new float4(sx, sy, sz, sw), axisA), sw);
+        }
+
+        /// <summary>Burst-compatible mirror of BasisBoneRotationCompression.ExtractSingleAxis.</summary>
+        static float ExtractSingleAxis(float4 q, int axisA)
+        {
+            if (q.w < 0f) q = -q;
+            return 2f * math.atan2(GetComponent(q, axisA), q.w);
         }
 
         // Burst-compatible encode (inlined from BasisBoneRotationCompression)

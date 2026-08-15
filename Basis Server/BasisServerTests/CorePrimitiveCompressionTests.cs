@@ -276,9 +276,18 @@ public class CorePrimitiveCompressionTests
             Assert.Equal(totalBits, BasisBoneRotationCompression.RotationBits(q));
             Assert.Equal((totalBits + 7) >> 3, BasisBoneRotationCompression.RotationBytes(q));
 
-            // The explicit bone slots come first, then one field per finger channel.
+            // The explicit bone slots come first, then one field per finger channel. Since v52
+            // only 3-DOF slots are smallest-three; restricted slots carry angle fields.
             for (int slot = 0; slot < BasisBoneRotationCompression.WireBoneSlotCount; slot++)
-                Assert.Equal(2 + 3 * BasisBoneRotationCompression.GetBpcTable(q)[slot], widths[slot]);
+            {
+                int expectedWidth = BasisBoneRotationCompression.BONE_DOF[slot] switch
+                {
+                    3 => 2 + 3 * BasisBoneRotationCompression.GetBpcTable(q)[slot],
+                    2 => BasisBoneRotationCompression.HingeBits(q) + BasisBoneRotationCompression.TwistBits(q),
+                    _ => BasisBoneRotationCompression.SingleAxisBits(q),
+                };
+                Assert.Equal(expectedWidth, widths[slot]);
+            }
             for (int f = 0; f < BasisBoneRotationCompression.FingerChannelCount; f++)
                 Assert.Equal(BasisBoneRotationCompression.FingerFieldWidth(q),
                     widths[BasisBoneRotationCompression.WireBoneSlotCount + f]);
@@ -335,11 +344,12 @@ public class CorePrimitiveCompressionTests
     [Fact]
     public void PacketSizes_ArePinned_WireCompatibility()
     {
-        // Current v48 wire sizes; a change here is a protocol break and must be deliberate.
-        Assert.Equal(52, BasisBoneRotationCompression.RotationBytes(BitQuality.VeryLow));
-        Assert.Equal(62, BasisBoneRotationCompression.RotationBytes(BitQuality.Low));
-        Assert.Equal(78, BasisBoneRotationCompression.RotationBytes(BitQuality.Medium));
-        Assert.Equal(112, BasisBoneRotationCompression.RotationBytes(BitQuality.High));
+        // Current v52 wire sizes (restricted-DOF bone encoding); a change here is a protocol
+        // break and must be deliberate.
+        Assert.Equal(44, BasisBoneRotationCompression.RotationBytes(BitQuality.VeryLow));
+        Assert.Equal(53, BasisBoneRotationCompression.RotationBytes(BitQuality.Low));
+        Assert.Equal(67, BasisBoneRotationCompression.RotationBytes(BitQuality.Medium));
+        Assert.Equal(94, BasisBoneRotationCompression.RotationBytes(BitQuality.High));
 
         Assert.Equal(9, BasisAvatarBitPacking.WritePosition);
         Assert.Equal(21, BasisAvatarBitPacking.TailBytes);
@@ -361,10 +371,10 @@ public class CorePrimitiveCompressionTests
                 + BasisBoneRotationCompression.EndEffectorBytes(q);
             Assert.Equal(expected, BasisBoneRotationCompression.ConvertToSize(q));
         }
-        Assert.Equal(82, BasisBoneRotationCompression.ConvertToSize(BitQuality.VeryLow));
-        Assert.Equal(92, BasisBoneRotationCompression.ConvertToSize(BitQuality.Low));
-        Assert.Equal(108, BasisBoneRotationCompression.ConvertToSize(BitQuality.Medium));
-        Assert.Equal(177, BasisBoneRotationCompression.ConvertToSize(BitQuality.High));
+        Assert.Equal(74, BasisBoneRotationCompression.ConvertToSize(BitQuality.VeryLow));
+        Assert.Equal(83, BasisBoneRotationCompression.ConvertToSize(BitQuality.Low));
+        Assert.Equal(97, BasisBoneRotationCompression.ConvertToSize(BitQuality.Medium));
+        Assert.Equal(159, BasisBoneRotationCompression.ConvertToSize(BitQuality.High));
     }
 
     // ────────────────────────────────────────────────────────────

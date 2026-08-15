@@ -31,10 +31,6 @@
       "value": "Mode"
     },
     {
-      "key": "camera.modePreset.description",
-      "value": "What this camera is for. Picking a mode sets it up for that job and colours each section below: brightly for settings the mode chose, dimly for ones that do nothing here. Change anything and the mode becomes Custom — nothing is ever locked."
-    },
-    {
       "key": "camera.modePreset.custom",
       "value": "Custom"
     },
@@ -75,6 +71,166 @@
       "value": "The shot rig drives the camera along your dolly, orbit and framing moves. A longer lens, shallower focus and a little motion blur for the filmic look. Follow does nothing here — the rig owns where the camera goes."
     },
     {
+      "key": "camera.userMode.title",
+      "value": "Your Modes"
+    },
+    {
+      "key": "camera.userMode.help",
+      "value": "Point the camera the way you like it, give that arrangement a name and a colour, and it joins the list above. Saving over a name you already have updates that mode."
+    },
+    {
+      "key": "camera.userMode.description",
+      "value": "One of your own saved modes. Everything below was restored from it, and the panel is coloured in the colour you gave it."
+    },
+    {
+      "key": "camera.userMode.name",
+      "value": "Mode Name"
+    },
+    {
+      "key": "camera.userMode.name.tooltip",
+      "value": "What this mode is called in the list above. Saving with a name you already have replaces that mode."
+    },
+    {
+      "key": "camera.userMode.tint",
+      "value": "Mode Colour"
+    },
+    {
+      "key": "camera.userMode.tint.tooltip",
+      "value": "The colour the panel is painted while this mode is in control. Slide through the spectrum to pick one."
+    },
+    {
+      "key": "camera.userMode.save",
+      "value": "Save Current Settings"
+    },
+    {
+      "key": "camera.userMode.save.tooltip",
+      "value": "Stores everything this camera is set to right now, under the name above."
+    },
+    {
+      "key": "camera.userMode.remove",
+      "value": "Remove Mode"
+    },
+    {
+      "key": "camera.userMode.remove.tooltip",
+      "value": "Forgets the saved mode named above. Your camera keeps its current settings."
+    },
+    {
+      "key": "camera.userMode.remove.confirm",
+      "value": "Remove the saved mode “{0}”? The camera keeps the settings it has now — only the saved mode is forgotten."
+    },
+    {
+      "key": "camera.userMode.saved",
+      "value": "Saved. It is now in the list above."
+    },
+    {
+      "key": "camera.userMode.removed",
+      "value": "Removed."
+    },
+    {
+      "key": "camera.userMode.readout",
+      "value": "All Settings"
+    },
+    {
+      "key": "camera.userMode.error.empty",
+      "value": "Give the mode a name before saving it."
+    },
+    {
+      "key": "camera.userMode.error.full",
+      "value": "There is no room for another saved mode. Remove one first."
+    },
+    {
+      "key": "camera.placement",
+      "value": "Placement"
+    },
+    {
+      "key": "camera.pinSpace",
+      "value": "Position"
+    },
+    {
+      "key": "camera.pinSpace.handHeld",
+      "value": "In Your Hand"
+    },
+    {
+      "key": "camera.pinSpace.playSpace",
+      "value": "Pinned To You"
+    },
+    {
+      "key": "camera.pinSpace.worldSpace",
+      "value": "Left In The World"
+    },
+    {
+      "key": "camera.sensorSize",
+      "value": "Sensor Size"
+    },
+    {
+      "key": "camera.shutterSpeed",
+      "value": "Shutter Speed"
+    },
+    {
+      "key": "camera.iso",
+      "value": "ISO"
+    },
+    {
+      "key": "camera.focusMode",
+      "value": "Focus Mode"
+    },
+    {
+      "key": "camera.focusManual",
+      "value": "Manual"
+    },
+    {
+      "key": "camera.focusAuto",
+      "value": "Follow Subject"
+    },
+    {
+      "key": "camera.followOffset",
+      "value": "Follow Offset"
+    },
+    {
+      "key": "camera.followRotationOffset",
+      "value": "Follow Rotation"
+    },
+    {
+      "key": "camera.autoFocusSubject",
+      "value": "Auto Focus Subject"
+    },
+    {
+      "key": "camera.detachedMarker.puck",
+      "value": "Puck"
+    },
+    {
+      "key": "camera.detachedMarker.wireframe",
+      "value": "Wireframe"
+    },
+    {
+      "key": "camera.background.world",
+      "value": "World"
+    },
+    {
+      "key": "camera.background.greenScreen",
+      "value": "Green Screen"
+    },
+    {
+      "key": "camera.background.blueScreen",
+      "value": "Blue Screen"
+    },
+    {
+      "key": "camera.background.black",
+      "value": "Black"
+    },
+    {
+      "key": "camera.background.white",
+      "value": "White"
+    },
+    {
+      "key": "camera.background.magenta",
+      "value": "Magenta"
+    },
+    {
+      "key": "camera.background.custom",
+      "value": "Custom"
+    },
+    {
       "key": "camera.noCamerasOpen",
       "value": "No Cameras Open"
     },
@@ -93,6 +249,182 @@
     {
       "key": "camera.tab.advanced",
       "value": "Advanced"
+    },
+    {
+      "key": "camera.tab.gif",
+      "value": "GIF"
+    },
+    {
+      "key": "camera.gif",
+      "value": "GIF Recording"
+    },
+    {
+      "key": "camera.gif.record",
+      "value": "Start Recording"
+    },
+    {
+      "key": "camera.gif.stop",
+      "value": "Stop ({0}s)"
+    },
+    {
+      "key": "camera.gif.saving",
+      "value": "Saving…"
+    },
+    {
+      "key": "camera.gif.status",
+      "value": "Status"
+    },
+    {
+      "key": "camera.gif.status.idle",
+      "value": "Ready. GIFs save next to your photos."
+    },
+    {
+      "key": "camera.gif.status.recording",
+      "value": "Recording… {0} frames so far."
+    },
+    {
+      "key": "camera.gif.status.saving",
+      "value": "Encoding frame {0} of {1}…"
+    },
+    {
+      "key": "camera.gif.status.saved",
+      "value": "Saved {0}"
+    },
+    {
+      "key": "camera.gif.status.failed",
+      "value": "Failed: {0}"
+    },
+    {
+      "key": "camera.gif.status.blocked",
+      "value": "Camera capture is locked by an admin."
+    },
+    {
+      "key": "camera.gif.length",
+      "value": "Length"
+    },
+    {
+      "key": "camera.gif.length.description",
+      "value": "Seconds a recording runs before it stops itself."
+    },
+    {
+      "key": "camera.gif.frameRate",
+      "value": "Frame Rate"
+    },
+    {
+      "key": "camera.gif.frameRate.description",
+      "value": "Frames per second in the finished GIF. More is smoother and bigger."
+    },
+    {
+      "key": "camera.gif.size",
+      "value": "Size"
+    },
+    {
+      "key": "camera.gif.size.description",
+      "value": "Width of the GIF in pixels. The height follows the photo aspect."
+    },
+    {
+      "key": "camera.gif.loop",
+      "value": "Loop"
+    },
+    {
+      "key": "camera.gif.loop.description",
+      "value": "Repeat forever, or play once and hold the last frame."
+    },
+    {
+      "key": "camera.gif.dither",
+      "value": "Dithering"
+    },
+    {
+      "key": "camera.gif.dither.description",
+      "value": "Blends the GIF's limited colors. Smoother gradients, slightly grainy."
+    },
+    {
+      "key": "camera.video",
+      "value": "Video Recording"
+    },
+    {
+      "key": "camera.video.record",
+      "value": "Start Recording"
+    },
+    {
+      "key": "camera.video.stop",
+      "value": "Stop ({0}s)"
+    },
+    {
+      "key": "camera.video.saving",
+      "value": "Saving…"
+    },
+    {
+      "key": "camera.video.status",
+      "value": "Status"
+    },
+    {
+      "key": "camera.video.status.idle",
+      "value": "Ready. Videos save next to your photos as MJPEG AVI files."
+    },
+    {
+      "key": "camera.video.status.recording",
+      "value": "Recording… {0} frames so far."
+    },
+    {
+      "key": "camera.video.status.saving",
+      "value": "Encoding frame {0} of {1}…"
+    },
+    {
+      "key": "camera.video.status.saved",
+      "value": "Saved {0}"
+    },
+    {
+      "key": "camera.video.status.failed",
+      "value": "Failed: {0}"
+    },
+    {
+      "key": "camera.video.status.blocked",
+      "value": "Camera capture is locked by an admin."
+    },
+    {
+      "key": "camera.video.length",
+      "value": "Length"
+    },
+    {
+      "key": "camera.video.length.description",
+      "value": "Seconds a recording runs before it stops itself."
+    },
+    {
+      "key": "camera.video.frameRate",
+      "value": "Frame Rate"
+    },
+    {
+      "key": "camera.video.frameRate.description",
+      "value": "Frames per second in the finished video. More is smoother and bigger."
+    },
+    {
+      "key": "camera.video.size",
+      "value": "Size"
+    },
+    {
+      "key": "camera.video.size.description",
+      "value": "Width of the video in pixels. The height follows the photo aspect."
+    },
+    {
+      "key": "camera.video.quality",
+      "value": "Quality"
+    },
+    {
+      "key": "camera.video.quality.description",
+      "value": "JPEG quality of each frame. Higher looks better and makes a much larger file."
+    },
+    {
+      "key": "camera.video.timeLimit",
+      "value": "Time Limit"
+    },
+    {
+      "key": "camera.video.timeLimit.description",
+      "value": "Stop by itself after the length below. Off records until you press stop."
+    },
+    {
+      "key": "camera.video.stopUnlimited",
+      "value": "Stop Recording"
     },
     {
       "key": "camera.lens",
@@ -363,6 +695,14 @@
       "value": "Sender Name"
     },
     {
+      "key": "camera.flyMode",
+      "value": "Fly Mode"
+    },
+    {
+      "key": "camera.flyMode.description",
+      "value": "Send the camera out into the world and steer it yourself. In VR this switch is the way in and out, and the hand that launched it keeps the controls, so you can let go of the camera and keep flying. On desktop middle click toggles it too, and you fly with the mouse and WASD. Your own movement is held still while it flies."
+    },
+    {
       "key": "camera.follow",
       "value": "Follow"
     },
@@ -465,6 +805,14 @@
     {
       "key": "camera.n360Capture",
       "value": "360 Capture"
+    },
+    {
+      "key": "camera.printPhoto",
+      "value": "Print Photo"
+    },
+    {
+      "key": "camera.printPhoto.description",
+      "value": "Spawn each photo you take in front of you as a shared image card — the same one a file dragged onto the window makes. Everyone in the instance sees it, and anyone can grab, move, or delete it. PNG photos only."
     },
     {
       "key": "camera.selfie",
@@ -3147,6 +3495,14 @@
       "value": "No transmission data"
     },
     {
+      "key": "network.avatarLocalOnly.title",
+      "value": "Avatar Won't Load For Others"
+    },
+    {
+      "key": "network.avatarLocalOnly.body",
+      "value": "This avatar is loaded from a file on your computer and isn't hosted anywhere the other players can reach, so nobody else on this server can download it. You will see it normally; everyone else will see a placeholder. Upload it and load it from a URL for other players to see it. Built-in avatars are unaffected — every client already has those."
+    },
+    {
       "key": "menu.servers.list.default",
       "value": "Default Basis Server"
     },
@@ -3661,6 +4017,66 @@
     {
       "key": "menu.individualPlayer.kick.dialog.body",
       "value": "Kick {0}?"
+    },
+    {
+      "key": "menu.individualPlayer.forceAvatar",
+      "value": "Force Avatar"
+    },
+    {
+      "key": "menu.individualPlayer.locomotion",
+      "value": "Locomotion Override"
+    },
+    {
+      "key": "menu.individualPlayer.locomotion.description",
+      "value": "Override this player's movement for this session. Cleared automatically when they disconnect, and world content cannot undo or outrank it."
+    },
+    {
+      "key": "menu.individualPlayer.locomotion.jumpHeight.override",
+      "value": "Override Jump Height"
+    },
+    {
+      "key": "menu.individualPlayer.locomotion.jumpHeight",
+      "value": "Jump Height (m)"
+    },
+    {
+      "key": "menu.individualPlayer.locomotion.walkSpeed.override",
+      "value": "Override Walk Speed"
+    },
+    {
+      "key": "menu.individualPlayer.locomotion.walkSpeed",
+      "value": "Walk Speed (m/s)"
+    },
+    {
+      "key": "menu.individualPlayer.locomotion.runSpeed.override",
+      "value": "Override Run Speed"
+    },
+    {
+      "key": "menu.individualPlayer.locomotion.runSpeed",
+      "value": "Run Speed (m/s)"
+    },
+    {
+      "key": "menu.individualPlayer.locomotion.mode",
+      "value": "Movement Mode"
+    },
+    {
+      "key": "menu.individualPlayer.locomotion.apply",
+      "value": "Apply Locomotion Override"
+    },
+    {
+      "key": "menu.individualPlayer.locomotion.clear",
+      "value": "Clear Locomotion Override"
+    },
+    {
+      "key": "menu.individualPlayer.forceAvatar.description",
+      "value": "Put this player onto the selected avatar. They can change back at any time."
+    },
+    {
+      "key": "menu.individualPlayer.forceAvatar.dialog.title",
+      "value": "Force avatar?"
+    },
+    {
+      "key": "menu.individualPlayer.forceAvatar.dialog.body",
+      "value": "Put {0} onto '{1}'?"
     },
     {
       "key": "menu.individualPlayer.ban",
@@ -5000,7 +5416,7 @@
     },
     {
       "key": "settings.general.networking.proxyBenchmarkRange.tooltip",
-      "value": "Allow downloads when your system resolver answers with an address in 198.18.0.0/15. Proxies such as Clash and sing-box in TUN mode give every website a placeholder address in that range and carry the connection themselves, which otherwise looks like an unreachable address and blocks every download. Loopback, local network and cloud metadata addresses stay blocked. Leave off unless you use one of these proxies."
+      "value": "Turn this on only if downloads fail while a VPN or proxy is running. Some proxies (Clash, sing-box in TUN mode) give websites fake placeholder addresses that Basis normally blocks. Local network addresses stay blocked either way."
     },
     {
       "key": "settings.network.fakeIp.prompt.title",
@@ -12225,6 +12641,54 @@
       "value": "Player Voice"
     },
     {
+      "key": "settings.admin.forceAvatar",
+      "value": "Force Avatar"
+    },
+    {
+      "key": "settings.admin.forceAvatar.pick",
+      "value": "Avatar"
+    },
+    {
+      "key": "settings.admin.forceAvatar.pick.tooltip",
+      "value": "Avatars this server provides, followed by your own saved avatars."
+    },
+    {
+      "key": "settings.admin.forceAvatar.refresh",
+      "value": "Refresh Avatar List"
+    },
+    {
+      "key": "settings.admin.forceAvatar.refresh.tooltip",
+      "value": "Re-read the server's avatars and your own library."
+    },
+    {
+      "key": "settings.admin.forceAvatar.apply",
+      "value": "Force Avatar On Target"
+    },
+    {
+      "key": "settings.admin.forceAvatar.apply.tooltip",
+      "value": "Put the selected player onto the selected avatar. They can change back at any time."
+    },
+    {
+      "key": "settings.admin.forceAvatar.applyAll",
+      "value": "Force Avatar On Everyone"
+    },
+    {
+      "key": "settings.admin.forceAvatar.applyAll.tooltip",
+      "value": "Put every player in the instance onto the selected avatar. Protected players are skipped, and anyone can change back at any time."
+    },
+    {
+      "key": "settings.admin.forceAvatar.serverEntry",
+      "value": "[Server] {0}"
+    },
+    {
+      "key": "settings.admin.forceAvatar.notice.body",
+      "value": "{0} changed your avatar. You can change back at any time from your library."
+    },
+    {
+      "key": "settings.admin.forceAvatar.notice.unknownModerator",
+      "value": "A moderator"
+    },
+    {
       "key": "settings.admin.playerOpusBitrate",
       "value": "Voice Bitrate Override"
     },
@@ -12247,6 +12711,134 @@
     {
       "key": "settings.admin.playerOpusBitrate.clear",
       "value": "Clear Player Bitrate"
+    },
+    {
+      "key": "settings.admin.locomotion",
+      "value": "Locomotion Override"
+    },
+    {
+      "key": "settings.admin.locomotion.jumpHeight.override",
+      "value": "Override Jump Height"
+    },
+    {
+      "key": "settings.admin.locomotion.jumpHeight",
+      "value": "Jump Height"
+    },
+    {
+      "key": "settings.admin.locomotion.walkSpeed.override",
+      "value": "Override Walk Speed"
+    },
+    {
+      "key": "settings.admin.locomotion.walkSpeed",
+      "value": "Walk Speed (m/s)"
+    },
+    {
+      "key": "settings.admin.locomotion.runSpeed.override",
+      "value": "Override Run Speed"
+    },
+    {
+      "key": "settings.admin.locomotion.runSpeed",
+      "value": "Run Speed (m/s)"
+    },
+    {
+      "key": "settings.admin.locomotion.mode",
+      "value": "Movement Mode"
+    },
+    {
+      "key": "settings.admin.locomotion.mode.none",
+      "value": "Leave Unchanged"
+    },
+    {
+      "key": "settings.admin.locomotion.mode.walk",
+      "value": "Walk"
+    },
+    {
+      "key": "settings.admin.locomotion.mode.fly",
+      "value": "Fly"
+    },
+    {
+      "key": "settings.admin.locomotion.mode.noclip",
+      "value": "No Clip"
+    },
+    {
+      "key": "settings.admin.locomotion.apply",
+      "value": "Apply To Selected Player"
+    },
+    {
+      "key": "settings.admin.locomotion.apply.tooltip",
+      "value": "Override the selected player's movement for this session. Only the fields you ticked are sent."
+    },
+    {
+      "key": "settings.admin.locomotion.clear",
+      "value": "Clear On Selected Player"
+    },
+    {
+      "key": "settings.admin.locomotion.clear.tooltip",
+      "value": "Return the selected player to whatever the world and their own settings ask for."
+    },
+    {
+      "key": "settings.admin.locomotion.applyAll",
+      "value": "Apply To Everyone"
+    },
+    {
+      "key": "settings.admin.locomotion.applyAll.tooltip",
+      "value": "Override every player in the instance. Ignores the selected player. Protected players are skipped."
+    },
+    {
+      "key": "settings.admin.locomotion.clearAll",
+      "value": "Clear On Everyone"
+    },
+    {
+      "key": "settings.admin.locomotion.clearAll.tooltip",
+      "value": "Drop the locomotion override on every player in the instance."
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApply.title",
+      "value": "Override Locomotion?"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApply.body",
+      "value": "Override this player's movement for the rest of their session. They cannot undo it themselves."
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApply.confirm",
+      "value": "Override"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClear.title",
+      "value": "Clear Locomotion Override?"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClear.body",
+      "value": "Return this player's movement to whatever the world and their own settings ask for."
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClear.confirm",
+      "value": "Clear"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApplyAll.title",
+      "value": "Override Everyone's Locomotion?"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApplyAll.body",
+      "value": "Override the movement of EVERY player in this instance, not just the selected one. Protected players are skipped."
+    },
+    {
+      "key": "settings.admin.confirm.locomotionApplyAll.confirm",
+      "value": "Override Everyone"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClearAll.title",
+      "value": "Clear Everyone's Locomotion Override?"
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClearAll.body",
+      "value": "Drop the locomotion override on EVERY player in this instance."
+    },
+    {
+      "key": "settings.admin.confirm.locomotionClearAll.confirm",
+      "value": "Clear Everyone"
     },
     {
       "key": "settings.admin.playerOpusBitrate.clear.tooltip",
@@ -12335,6 +12927,30 @@
     {
       "key": "settings.admin.confirm.kick.title",
       "value": "Kick player?"
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatar.body",
+      "value": "Put the selected player onto this avatar? They can change back at any time."
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatar.confirm",
+      "value": "Force Avatar"
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatar.title",
+      "value": "Force avatar?"
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatarAll.body",
+      "value": "Put EVERY player in this instance onto the selected avatar? Protected players are skipped, and anyone can change back at any time."
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatarAll.confirm",
+      "value": "Force On Everyone"
+    },
+    {
+      "key": "settings.admin.confirm.forceAvatarAll.title",
+      "value": "Force avatar on everyone?"
     },
     {
       "key": "settings.admin.confirm.sendAll.body",
@@ -12503,6 +13119,246 @@
     {
       "key": "menu.individualPlayer.uuid",
       "value": "UUID"
+    },
+    {
+      "key": "mirror.background",
+      "value": "Background"
+    },
+    {
+      "key": "mirror.background.description",
+      "value": "What the reflection clears to where the world does not cover it."
+    },
+    {
+      "key": "mirror.clearColor",
+      "value": "Clear Color"
+    },
+    {
+      "key": "mirror.clearColor.blue",
+      "value": "Blue"
+    },
+    {
+      "key": "mirror.clearColor.green",
+      "value": "Green"
+    },
+    {
+      "key": "mirror.clearColor.hex",
+      "value": "Hex"
+    },
+    {
+      "key": "mirror.clearColor.red",
+      "value": "Red"
+    },
+    {
+      "key": "mirror.clearFlags",
+      "value": "Clear Mode"
+    },
+    {
+      "key": "mirror.clearFlags.color",
+      "value": "Solid Color"
+    },
+    {
+      "key": "mirror.clearFlags.depth",
+      "value": "Depth Only"
+    },
+    {
+      "key": "mirror.clearFlags.fromReferenceCamera",
+      "value": "Match Player Camera"
+    },
+    {
+      "key": "mirror.clearFlags.nothing",
+      "value": "Nothing"
+    },
+    {
+      "key": "mirror.clearFlags.skybox",
+      "value": "Skybox"
+    },
+    {
+      "key": "mirror.clipPlaneOffset",
+      "value": "Surface Offset"
+    },
+    {
+      "key": "mirror.clipPlaneOffset.description",
+      "value": "Pushes the reflection clip plane off the glass. Raise it if the surface flickers at shallow angles."
+    },
+    {
+      "key": "mirror.clipping",
+      "value": "Clipping"
+    },
+    {
+      "key": "mirror.clipping.description",
+      "value": "How near and how far the mirror renders. A shorter far plane is the cheapest saving in a large world."
+    },
+    {
+      "key": "mirror.cullDistance",
+      "value": "Stop Distance"
+    },
+    {
+      "key": "mirror.cullDistance.description",
+      "value": "Past this distance the mirror stops updating and keeps its last image."
+    },
+    {
+      "key": "mirror.depthBits",
+      "value": "Depth Buffer"
+    },
+    {
+      "key": "mirror.depthBits.description",
+      "value": "Bits of depth precision. 16 is cheaper, 24 avoids z-fighting in deep scenes."
+    },
+    {
+      "key": "mirror.farClip",
+      "value": "Far Clip"
+    },
+    {
+      "key": "mirror.fullRateDistance",
+      "value": "Full Rate Distance"
+    },
+    {
+      "key": "mirror.fullRateDistance.description",
+      "value": "Standalone only. Within this distance the mirror updates every frame."
+    },
+    {
+      "key": "mirror.halfRateDistance",
+      "value": "Half Rate Distance"
+    },
+    {
+      "key": "mirror.height",
+      "value": "Height"
+    },
+    {
+      "key": "mirror.layers",
+      "value": "Reflected Layers"
+    },
+    {
+      "key": "mirror.layers.description",
+      "value": "Which layers appear in the reflection. Turning layers off is the largest saving a mirror has."
+    },
+    {
+      "key": "mirror.msaa",
+      "value": "Anti-aliasing"
+    },
+    {
+      "key": "mirror.msaa.description",
+      "value": "Edge smoothing for the reflection. Ignored while the Graphics anti-aliasing setting is off."
+    },
+    {
+      "key": "mirror.msaa.off",
+      "value": "Off"
+    },
+    {
+      "key": "mirror.nearClip",
+      "value": "Near Clip"
+    },
+    {
+      "key": "mirror.noMirrors",
+      "value": "No Mirrors"
+    },
+    {
+      "key": "mirror.noMirrors.description",
+      "value": "Spawn a mirror to change its settings."
+    },
+    {
+      "key": "mirror.occlusionCulling",
+      "value": "Occlusion Culling"
+    },
+    {
+      "key": "mirror.performance",
+      "value": "Performance"
+    },
+    {
+      "key": "mirror.performance.description",
+      "value": "Update rate and per-render work. Lower these first when a mirror costs you frames."
+    },
+    {
+      "key": "mirror.postProcessing",
+      "value": "Post Processing"
+    },
+    {
+      "key": "mirror.preset",
+      "value": "Preset"
+    },
+    {
+      "key": "mirror.preset.custom",
+      "value": "Custom"
+    },
+    {
+      "key": "mirror.preset.description",
+      "value": "Sets width and height together."
+    },
+    {
+      "key": "mirror.reset",
+      "value": "Reset To Defaults"
+    },
+    {
+      "key": "mirror.resolution",
+      "value": "Resolution"
+    },
+    {
+      "key": "mirror.resolution.description",
+      "value": "Size of the reflection texture. Doubling it costs about four times the memory and fill rate."
+    },
+    {
+      "key": "mirror.secondaryViewerCap",
+      "value": "Secondary Viewer Limit"
+    },
+    {
+      "key": "mirror.secondaryViewerCap.description",
+      "value": "Resolution cap for reflections drawn for handheld cameras and the Scene View."
+    },
+    {
+      "key": "mirror.shadows",
+      "value": "Shadows"
+    },
+    {
+      "key": "mirror.status",
+      "value": "Mirror"
+    },
+    {
+      "key": "mirror.status.effectiveResolution",
+      "value": "Rendering at {0} x {1}"
+    },
+    {
+      "key": "mirror.status.globalOverride",
+      "value": "Overridden by the Mirror Quality setting in Graphics."
+    },
+    {
+      "key": "mirror.status.notPersisted",
+      "value": "Changes here last for this session only."
+    },
+    {
+      "key": "mirror.updateInterval",
+      "value": "Update Interval"
+    },
+    {
+      "key": "mirror.updateInterval.description",
+      "value": "Render the reflection every Nth frame. 1 is every frame."
+    },
+    {
+      "key": "mirror.width",
+      "value": "Width"
+    },
+    {
+      "key": "mirror.cutout",
+      "value": "Cutout"
+    },
+    {
+      "key": "mirror.cutout.description",
+      "value": "Show only the reflection itself on a transparent background, as the calibration mirror does. Pair it with Reflected Layers set to just your avatar."
+    },
+    {
+      "key": "mirror.cutout.unavailable",
+      "value": "Cutout is unavailable: the cutout shader is missing or unsupported here."
+    },
+    {
+      "key": "mirror.size",
+      "value": "Size"
+    },
+    {
+      "key": "mirror.size.description",
+      "value": "Physical size of the mirror surface in the world."
+    },
+    {
+      "key": "mirror.status.surfaceSize",
+      "value": "Surface {0} x {1} m"
     }
   ]
 }

@@ -217,6 +217,7 @@ public partial class BasisHandHeldCamera
         string path = GetSavePath(filename);
 
         await File.WriteAllBytesAsync(path, imageData);
+        PrintPhotoIfEnabled(path);
     }
 
     private static byte[] TonemapEquirectToRgba32(byte[] linearFloatRgba, int width, int height, float exposure, float contrast, float saturation)

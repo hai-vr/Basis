@@ -687,7 +687,7 @@ namespace Basis.BasisUI.HandHeldCamera
             if (_activeCamera == null) return;
 
             _activeCamera.TargetGroup.Clear();
-            _activeCamera.TargetGroup.Add(0);
+            _activeCamera.targetGroupIncludesLocal = true;
             foreach (var pair in Basis.Scripts.Networking.BasisNetworkPlayers.RemotePlayers)
             {
                 if (pair.Value != null) _activeCamera.TargetGroup.Add(pair.Key);

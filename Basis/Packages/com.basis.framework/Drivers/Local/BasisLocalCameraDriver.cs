@@ -196,10 +196,10 @@ namespace Basis.Scripts.Drivers
         /// <summary>The desired near clipping plane from scene settings before avatar overriding.</summary>
         private float DesiredClipNear = 0.001f;
 
-        /// <summary>World-space position of the left eye (XR). In desktop mode this equals camera position.</summary>
+        /// <summary>Raw left-eye position from the active XR backend: tracking space on OpenXR, head-relative on OpenVR. Not world space; not written in desktop mode.</summary>
         public static Vector3 LeftEye;
 
-        /// <summary>World-space position of the right eye (XR). In desktop mode this equals camera position.</summary>
+        /// <summary>Raw right-eye position from the active XR backend: tracking space on OpenXR, head-relative on OpenVR. Not world space; not written in desktop mode.</summary>
         public static Vector3 RightEye;
 
         /// <summary>
@@ -314,9 +314,11 @@ namespace Basis.Scripts.Drivers
         }
 
         /// <summary>
-        /// Returns the left-eye position for XR, or the camera position for desktop mode.
+        /// Raw backend eye position: <see cref="LeftEye"/> in XR (tracking space on OpenXR, head-relative
+        /// on OpenVR — not world space), or the world-space camera position in desktop mode.
+        /// Use <see cref="LeftEyeWorldPosition"/> for the world-space render-camera eye.
         /// </summary>
-        public static Vector3 LeftEyePosition()
+        public static Vector3 LeftEyeRawPosition()
         {
             if (BasisDeviceManagement.IsUserInDesktop())
             {
@@ -329,9 +331,11 @@ namespace Basis.Scripts.Drivers
         }
 
         /// <summary>
-        /// Returns the right-eye position for XR, or the camera position for desktop mode.
+        /// Raw backend eye position: <see cref="RightEye"/> in XR (tracking space on OpenXR, head-relative
+        /// on OpenVR — not world space), or the world-space camera position in desktop mode.
+        /// Use <see cref="RightEyeWorldPosition"/> for the world-space render-camera eye.
         /// </summary>
-        public static Vector3 RightEyePosition()
+        public static Vector3 RightEyeRawPosition()
         {
             if (BasisDeviceManagement.IsUserInDesktop())
             {
@@ -341,6 +345,39 @@ namespace Basis.Scripts.Drivers
             {
                 return RightEye;
             }
+        }
+
+        /// <summary>
+        /// World-space position of the stereo render camera's left eye, recovered from the camera's
+        /// stereo view matrix. Falls back to the camera position when stereo rendering is inactive
+        /// (desktop mode), or zero when no camera instance exists.
+        /// </summary>
+        public static Vector3 LeftEyeWorldPosition()
+        {
+            return EyeWorldPosition(Camera.StereoscopicEye.Left);
+        }
+
+        /// <summary>
+        /// World-space position of the stereo render camera's right eye, recovered from the camera's
+        /// stereo view matrix. Falls back to the camera position when stereo rendering is inactive
+        /// (desktop mode), or zero when no camera instance exists.
+        /// </summary>
+        public static Vector3 RightEyeWorldPosition()
+        {
+            return EyeWorldPosition(Camera.StereoscopicEye.Right);
+        }
+
+        private static Vector3 EyeWorldPosition(Camera.StereoscopicEye eye)
+        {
+            if (!HasInstance || CameraInstance == null)
+            {
+                return Vector3.zero;
+            }
+            if (CameraInstance.stereoEnabled)
+            {
+                return CameraInstance.GetStereoViewMatrix(eye).inverse.MultiplyPoint(Vector3.zero);
+            }
+            return SelfTransform.position;
         }
 
         /// <summary>

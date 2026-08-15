@@ -278,14 +278,13 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             rotationPitch = Mathf.Clamp(rotationPitch, minimumPitch, maximumPitch);
             Quaternion targetRot = Quaternion.Euler(rotationPitch, rotationYaw, 0);
 
-            // Handle crouching adjustment — always apply the current crouch visual
+            // Handle crouching/prone adjustment — always apply the current stance visual
             // offset. The CrouchingLock only prevents *input* from changing CrouchBlend;
             // skipping this block when locked caused the camera to snap to standing height
             // while the player was still crouched (see issue #637).
             {
                 BasisLocalPlayer Player = BasisLocalPlayer.Instance;
-                var crouchMinimum = Player.LocalCharacterDriver.MinimumCrouchPercent;
-                float heightAdj = (1 - crouchMinimum) * Player.LocalCharacterDriver.CrouchBlend + crouchMinimum;
+                float heightAdj = Player.LocalCharacterDriver.GetStanceHeightPercent();
                 // Match the space of tposeHeadWorld above (TposeLocal, pre-scale)
                 // so the subtraction is dimensionally consistent.
                 float headLocalY = BasisLocalBoneDriver.HeadControl.TposeLocal.position.y;

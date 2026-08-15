@@ -21,6 +21,49 @@ public static class BasisPlayerSettingsManager
         Directory.CreateDirectory(Dir);
     }
 
+    /// <summary>
+    /// Forces the static constructor to run on whichever thread calls this. The field
+    /// initializers read <see cref="Application.persistentDataPath"/>, which is main-thread-only,
+    /// so the avatar load thread calls this from <c>Initialize</c> (on the main thread) rather
+    /// than tripping it itself on a first <see cref="Warm"/>.
+    /// </summary>
+    public static void EnsureInitialized()
+    {
+    }
+
+    /// <summary>
+    /// Fire-and-forget cache fill for a UUID that is about to be requested several times.
+    /// A joining player is asked for by the avatar loader, the jiggle collider setup and the
+    /// nameplate's block state; warming from the avatar load thread turns the first of those
+    /// from a disc read plus JSON parse into a dictionary hit.
+    /// <para>Failures are swallowed on purpose, and that is what makes this safe to call off the
+    /// main thread: the warm has no synchronization context, so the read's continuation — the
+    /// <see cref="JsonUtility.FromJson{T}(string)"/> of a plain struct — resumes on a pool thread.
+    /// If that were ever rejected it throws BEFORE <c>cache[key]</c> is written while the
+    /// <c>finally</c> still releases the per-file semaphore, so the awaited request every caller
+    /// still makes redoes the work correctly on their own thread. Worst case is today's
+    /// behaviour.</para>
+    /// </summary>
+    public static void Warm(string uuid)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(uuid) || cache.ContainsKey(Sanitize(uuid)))
+            {
+                return;
+            }
+            _ = RequestPlayerSettings(uuid).ContinueWith(
+                static t => { _ = t.Exception; },
+                TaskContinuationOptions.OnlyOnFaulted);
+        }
+        catch (Exception e)
+        {
+            // Nothing this method can fail at is worth losing the caller's work over — a join
+            // decode calls it mid-flight, and a dropped exception here would drop that player.
+            BasisDebug.LogWarning($"Player settings warm for {uuid} failed: {e.Message}");
+        }
+    }
+
     public static async Task<BasisPlayerSettingsData> RequestPlayerSettings(string uuid)
     {
         if (string.IsNullOrWhiteSpace(uuid))

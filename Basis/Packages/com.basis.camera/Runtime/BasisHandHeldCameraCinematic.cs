@@ -27,8 +27,11 @@ public abstract partial class BasisHandHeldCameraInteractable
     public BasisCameraDirector Director { get; private set; }
     public BasisCameraDollyTrack DollyTrack { get; private set; }
 
-    /// <summary>Net ids framed by a group shot. 0 is the local player.</summary>
+    /// <summary>Networked players framed by a group shot. The local player is carried by <see cref="targetGroupIncludesLocal"/>.</summary>
     public readonly List<ushort> TargetGroup = new List<ushort>();
+
+    [Tooltip("Frame the local player as part of a group shot, alongside the networked members.")]
+    public bool targetGroupIncludesLocal = false;
 
     private const float SubjectVelocitySmoothing = 6f;
 
@@ -210,9 +213,15 @@ public abstract partial class BasisHandHeldCameraInteractable
     {
         BasisCameraSubject subject;
 
-        if (useTargetGroup && TargetGroup.Count > 0)
+        if (useTargetGroup && (TargetGroup.Count > 0 || targetGroupIncludesLocal))
         {
             groupSubjects.Clear();
+            if (targetGroupIncludesLocal)
+            {
+                BasisCameraSubject local = ToCinematicSubject(ResolveLocalSubject());
+                if (local.Valid) groupSubjects.Add(local);
+            }
+
             for (int Index = 0; Index < TargetGroup.Count; Index++)
             {
                 if (TryResolveSubjectForNetId(TargetGroup[Index], out BasisCameraSubject member))
@@ -250,12 +259,6 @@ public abstract partial class BasisHandHeldCameraInteractable
 
     private bool TryResolveSubjectForNetId(ushort netId, out BasisCameraSubject subject)
     {
-        if (netId == 0)
-        {
-            subject = ToCinematicSubject(ResolveLocalSubject());
-            return subject.Valid;
-        }
-
         if (Basis.Scripts.Networking.BasisNetworkPlayers.RemotePlayers.TryGetValue(netId, out var remote) &&
             remote != null && !remote.IsDestroyed &&
             TryResolveRemoteSubject(netId, remote, out FollowSubject resolved))

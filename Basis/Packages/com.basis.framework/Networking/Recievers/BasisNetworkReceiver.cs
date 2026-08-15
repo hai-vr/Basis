@@ -101,6 +101,29 @@ namespace Basis.Scripts.Networking.Receivers
         [System.NonSerialized] public NativeArray<quaternion> BoneDecodePost;
 
         /// <summary>
+        /// The same operators as managed arrays, when they came from the per-model cache
+        /// (<c>BasisAvatarModelCache.BoneDecodeOperatorData</c>) — null otherwise.
+        /// <para>The bone job's deferred registration needs a snapshot it can hold until the add
+        /// commits, and it cannot hold the NativeArrays above because the receiver may dispose and
+        /// recreate them on a recalibration in between. A cache-owned immutable array has no such
+        /// lifetime, so handing these over replaces two <c>ToArray()</c> copies per install with
+        /// two reference assignments.</para>
+        /// </summary>
+        [System.NonSerialized] public quaternion[] CachedDecodePre;
+        [System.NonSerialized] public quaternion[] CachedDecodePost;
+
+        /// <summary>
+        /// Receiver-owned mirror of the operators, used only for a rig with no Avatar asset to key
+        /// a cache entry on. Separate fields rather than reusing the two above so a receiver that
+        /// previously pointed at a cache-owned array can never be written through — that array is
+        /// shared by every other player in the same avatar.
+        /// <para>Allocated once and reused (SyncBoneCount is constant), so it costs one allocation
+        /// per receiver rather than one per install.</para>
+        /// </summary>
+        [System.NonSerialized] public quaternion[] OwnedDecodePre;
+        [System.NonSerialized] public quaternion[] OwnedDecodePost;
+
+        /// <summary>
         /// Bone transforms for this receiver's avatar.
         /// Set during calibration and passed to RemoteBoneJobSystem for the skeleton apply job.
         /// </summary>

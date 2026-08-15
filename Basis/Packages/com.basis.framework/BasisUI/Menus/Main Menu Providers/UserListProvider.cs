@@ -4,6 +4,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using System;
 using System.Collections.Generic;
+using System.Text;
 using TMPro;
 using Unity.Mathematics;
 using UnityEngine;
@@ -227,12 +228,34 @@ namespace Basis.BasisUI
 
         private enum SortMode { Default, Distance, Name, Platform, JoinTime }
 
-        private struct PlayerEntry
+        /// <summary>
+        /// One card and everything the refresh tick would otherwise have to re-derive.
+        /// A class rather than a struct: cards are handed to a reuse pool and rebound to a
+        /// different player, so the refresh path has to be able to write back into the entry
+        /// the dictionary is holding.
+        /// </summary>
+        private sealed class PlayerEntry
         {
             public BasisNetworkPlayer NetPlayer;
             public PanelButton Button;
+            public GameObject ChipRoot;
             public TextMeshProUGUI InfoLabel;
+            public CanvasGroup CanvasGroup;
+
+            // Both overlays are created on demand: the pin is off for almost every player, and
+            // an unknown platform has no sprite at all. Creating them up front and hiding them
+            // was one wasted PE Image instantiate per card.
             public PanelImage PinIcon;
+            public PanelImage PlatformIcon;
+            public string PlatformIconAddress;
+
+            public bool IsLocal;
+            public bool IsPinned;
+            public bool Visible;
+
+            // Distance in tenths of a metre — the chip renders {0:F1}, so anything finer than
+            // this cannot change the text and does not need a re-format.
+            public int LastDistanceTenths;
         }
 
         /// <summary>
@@ -251,18 +274,45 @@ namespace Basis.BasisUI
             private readonly Dictionary<ushort, PlayerEntry> _entries = new();
             private SortMode _sortMode = SortMode.Default;
             private string _lastQuery = string.Empty;
+            private int _visibleCount;
 
-            // Reused buffer for sort comparisons \u2014 avoids per-tick allocation.
+            // Reused buffers for the roster/sort passes — avoids per-tick allocation.
             private readonly List<BasisNetworkPlayer> _orderBuffer = new();
+            private readonly List<ushort> _removeBuffer = new();
+            private Comparison<BasisNetworkPlayer> _comparison;
 
-            // Periodic refresh of the distance chip and the hover tooltip's
-            // "joined Xs ago" text. Players move continuously but the player list is
-            // a low-detail surface \u2014 0.5s feels live without rebuilding text every frame.
+            // Cards released by a player leaving are parked here and rebound to the next
+            // arrival instead of being destroyed and re-instantiated. Churn while the list is
+            // open is the common case (someone leaves, someone else joins) and a PE Button plus
+            // its overlays is the single most expensive thing this panel does.
+            private readonly List<PlayerEntry> _cardPool = new();
+            private const int CardPoolCap = 32;
+
+            // A late-join fill hands the list its whole roster at once, and opening the panel in
+            // a busy instance is the same shape. Build enough to fill the page immediately and
+            // let the following frames finish the tail, so the window is never waiting on the
+            // last card before it draws.
+            private const int FirstFrameCards = 24;
+            private const int CardsPerFrame = 8;
+            private int _lastAddFrame = -1;
+
+            // Structural work is flagged here and applied once in LateUpdate. Every join used to
+            // run its own sort + filter + synchronous layout chain rebuild, so a burst of ten
+            // arrivals paid for ten full passes over the grid in one frame.
+            private bool _rosterDirty;
+            private bool _orderDirty;
+            private bool _filterDirty;
+            private bool _headerDirty;
+
+            // Periodic refresh of the distance chip. Players move continuously but the player
+            // list is a low-detail surface — 0.5s feels live without rewriting text every frame.
             private float _refreshTimer;
             private const float RefreshInterval = 0.5f;
 
             public void Initialize()
             {
+                _comparison = CompareForCurrentSort;
+
                 BasisNetworkPlayer.OnRemotePlayerJoined += OnRemoteJoined;
                 BasisNetworkPlayer.OnRemotePlayerLeft += OnRemoteLeft;
                 PinnedPlayers.Changed += OnPinsChanged;
@@ -270,8 +320,9 @@ namespace Basis.BasisUI
                 SearchField.OnValueChanged += OnSearchChanged;
                 SortDropdown.OnValueChanged += OnSortChanged;
 
-                RebuildFullList();
-                RebuildGridLayout();
+                _rosterDirty = true;
+                _headerDirty = true;
+                Flush();
             }
 
             /// <summary>
@@ -302,34 +353,55 @@ namespace Basis.BasisUI
 
                 RefreshCardInfo();
 
-                if (_sortMode == SortMode.Distance || _sortMode == SortMode.JoinTime)
-                {
-                    ReorderButtons();
-                }
+                // Join time is fixed once a player is in the list, so only distance can change
+                // the running order on its own.
+                if (_sortMode == SortMode.Distance) _orderDirty = true;
             }
 
-            private void OnRemoteJoined(BasisNetworkPlayer netPlayer, BasisRemotePlayer _)
+            /// <summary>
+            /// Applies whatever the frame's events asked for, once. Joins, leaves, pin changes,
+            /// sort changes and keystrokes only raise flags; everything that walks the whole grid
+            /// happens here so a burst of them costs the same as one.
+            /// </summary>
+            private void LateUpdate() => Flush();
+
+            private void Flush()
             {
-                AddPlayerEntry(netPlayer);
-                ReorderButtons();
-                ApplyFilter();
-                UpdateHeader();
-                RebuildGridLayout();
+                if (!_rosterDirty && !_orderDirty && !_filterDirty && !_headerDirty) return;
+
+                bool rosterChanged = false;
+                if (_rosterDirty) rosterChanged = ReconcileRoster();
+                else if (_orderDirty) RefreshOrderBuffer();
+
+                bool orderChanged = false;
+                if (rosterChanged || _orderDirty) orderChanged = ApplySiblingOrder();
+                _orderDirty = false;
+
+                bool filterChanged = false;
+                if (_filterDirty || rosterChanged) filterChanged = ApplyFilter();
+                _filterDirty = false;
+
+                if (_headerDirty || rosterChanged || filterChanged) UpdateHeader();
+                _headerDirty = false;
+
+                if (rosterChanged || orderChanged || filterChanged) RebuildGridLayout();
             }
+
+            private void OnRemoteJoined(BasisNetworkPlayer netPlayer, BasisRemotePlayer _) => _rosterDirty = true;
+
+            private void OnRemoteLeft(BasisNetworkPlayer netPlayer, BasisRemotePlayer _) => _rosterDirty = true;
 
             private void OnPinsChanged()
             {
                 // Pin status feeds the comparator; just resort, no rebuild needed.
-                RefreshCardInfo();
-                ReorderButtons();
-                RebuildGridLayout();
-            }
-
-            private void OnRemoteLeft(BasisNetworkPlayer netPlayer, BasisRemotePlayer _)
-            {
-                RemovePlayerEntry(netPlayer.playerId);
-                UpdateHeader();
-                RebuildGridLayout();
+                foreach (var kvp in _entries)
+                {
+                    PlayerEntry entry = kvp.Value;
+                    IBasisPlayer p = entry.NetPlayer != null ? entry.NetPlayer.Player : null;
+                    entry.IsPinned = p != null && PinnedPlayers.IsPinned(p.UUID);
+                    RefreshCard(entry);
+                }
+                _orderDirty = true;
             }
 
             private void OnSortChanged(string value)
@@ -342,31 +414,22 @@ namespace Basis.BasisUI
                     "Join Time" => SortMode.JoinTime,
                     _ => SortMode.Default,
                 };
-                ReorderButtons();
-                RefreshCardInfo();
-                RebuildGridLayout();
+                _orderDirty = true;
             }
 
             private void OnSearchChanged(string query)
             {
                 _lastQuery = query ?? string.Empty;
-                ApplyFilter();
-                RebuildGridLayout();
+                _filterDirty = true;
             }
 
             private void UpdateHeader()
             {
                 int total = BasisNetworkPlayers.Players.Count;
-                int visible = 0;
-                foreach (var kvp in _entries)
-                {
-                    if (kvp.Value.Button != null && kvp.Value.Button.gameObject.activeSelf)
-                        visible++;
-                }
 
                 bool hasFilter = !string.IsNullOrEmpty(_lastQuery);
-                if (visible < total && hasFilter)
-                    HeaderGroup.SetTitle(BasisLocalization.Get("menu.players.header.filtered", visible, total));
+                if (_visibleCount < total && hasFilter)
+                    HeaderGroup.SetTitle(BasisLocalization.Get("menu.players.header.filtered", _visibleCount, total));
                 else
                     HeaderGroup.SetTitle(BasisLocalization.Get("menu.players.header", total));
 
@@ -377,39 +440,115 @@ namespace Basis.BasisUI
             {
                 foreach (var kvp in _entries)
                 {
-                    if (kvp.Value.Button != null) kvp.Value.Button.ReleaseInstance();
+                    DestroyEntry(kvp.Value);
                 }
                 _entries.Clear();
+
+                for (int i = 0; i < _cardPool.Count; i++)
+                {
+                    DestroyEntry(_cardPool[i]);
+                }
+                _cardPool.Clear();
             }
 
-            private void RebuildFullList()
+            // ---- Roster ----
+
+            /// <summary>
+            /// Brings the card set in line with <see cref="BasisNetworkPlayers.Players"/>, which is
+            /// the authority — both join and leave events fire after that dictionary is updated, so
+            /// reconciling here cannot miss or double-count an event. Additions are capped per
+            /// frame; the flag stays set until the roster is fully built.
+            /// Returns true when a card was added or removed.
+            /// </summary>
+            private bool ReconcileRoster()
             {
-                ClearAllEntries();
-                foreach (BasisNetworkPlayer player in BasisNetworkPlayers.Players.Values)
+                _orderBuffer.Clear();
+                foreach (var kvp in BasisNetworkPlayers.Players)
                 {
-                    AddPlayerEntry(player);
+                    if (kvp.Value != null) _orderBuffer.Add(kvp.Value);
                 }
-                ReorderButtons();
-                ApplyFilter();
-                UpdateHeader();
+                _orderBuffer.Sort(_comparison);
+
+                bool changed = false;
+
+                _removeBuffer.Clear();
+                foreach (var kvp in _entries)
+                {
+                    if (!BasisNetworkPlayers.Players.ContainsKey(kvp.Key)) _removeBuffer.Add(kvp.Key);
+                }
+                for (int i = 0; i < _removeBuffer.Count; i++)
+                {
+                    RemovePlayerEntry(_removeBuffer[i]);
+                    changed = true;
+                }
+
+                // Adding in sorted order keeps a staged build from visibly shuffling: each card
+                // lands where the comparator already wants it, so the sibling pass below is a no-op
+                // for everything already on screen. One chunk per frame however many times Flush
+                // runs — opening the panel calls it directly and LateUpdate calls it again in the
+                // same frame.
+                int budget = _lastAddFrame == Time.frameCount
+                    ? 0
+                    : _entries.Count == 0 ? FirstFrameCards : CardsPerFrame;
+
+                bool complete = true;
+                for (int i = 0; i < _orderBuffer.Count; i++)
+                {
+                    BasisNetworkPlayer player = _orderBuffer[i];
+                    if (_entries.ContainsKey(player.playerId)) continue;
+                    if (budget <= 0)
+                    {
+                        complete = false;
+                        break;
+                    }
+
+                    AddPlayerEntry(player);
+                    _lastAddFrame = Time.frameCount;
+                    budget--;
+                    changed = true;
+                }
+
+                _rosterDirty = !complete;
+                return changed;
+            }
+
+            private void RefreshOrderBuffer()
+            {
+                _orderBuffer.Clear();
+                foreach (var kvp in _entries)
+                {
+                    if (kvp.Value.NetPlayer != null) _orderBuffer.Add(kvp.Value.NetPlayer);
+                }
+                _orderBuffer.Sort(_comparison);
             }
 
             private void AddPlayerEntry(BasisNetworkPlayer netPlayer)
             {
-                if (_entries.ContainsKey(netPlayer.playerId)) return;
                 if (!GridParent) return;
 
+                PlayerEntry entry = AcquireEntry();
+                if (entry == null) return;
+
+                BindEntry(entry, netPlayer);
+                _entries[netPlayer.playerId] = entry;
+            }
+
+            private PlayerEntry AcquireEntry()
+            {
+                while (_cardPool.Count > 0)
+                {
+                    int last = _cardPool.Count - 1;
+                    PlayerEntry pooled = _cardPool[last];
+                    _cardPool.RemoveAt(last);
+                    if (pooled.Button != null) return pooled;
+                }
+                return CreateEntry();
+            }
+
+            private PlayerEntry CreateEntry()
+            {
                 PanelButton btn = PanelButton.CreateNew(GridParent);
-
-                bool isLocal = netPlayer.Player != null && netPlayer.Player.IsLocal;
-                string name = netPlayer.SafeDisplayName;
-                if (string.IsNullOrEmpty(name)) name = BasisLocalization.Get("ui.unknown");
-
-                btn.Descriptor.SetTitle(isLocal ? BasisLocalization.Get("menu.players.you", name) : name);
-
-                // PE Button has no description label, so the full platform/distance/joined
-                // line lives on the hover tooltip and the distance alone gets a chip.
-                btn.Descriptor.SetTooltip(BuildDescription(netPlayer));
+                if (btn == null) return null;
 
                 if (btn.Descriptor.TitleLabel != null)
                 {
@@ -418,87 +557,177 @@ namespace Basis.BasisUI
                     btn.Descriptor.TitleLabel.overflowMode = TextOverflowModes.Ellipsis;
                 }
 
-                string platformIcon = GetPlatformIconAddress(
-                    netPlayer.Player != null ? netPlayer.Player.PlayerPlatform : string.Empty);
-                if (!string.IsNullOrEmpty(platformIcon)) AddPlatformIcon(btn, platformIcon);
-
-                if (isLocal)
-                {
-                    btn.ButtonComponent.interactable = false;
-                    if (!btn.TryGetComponent(out CanvasGroup canvasGroup))
-                        canvasGroup = btn.gameObject.AddComponent<CanvasGroup>();
-                    canvasGroup.alpha = 0.4f;
-                }
-
-                TextMeshProUGUI infoLabel = AddInfoChip(btn);
-                PanelImage pinIcon = AddPinIcon(btn);
-
-                btn.OnClicked += () => OnPlayerClicked(netPlayer);
-
                 PlayerEntry entry = new PlayerEntry
                 {
-                    NetPlayer = netPlayer,
                     Button = btn,
-                    InfoLabel = infoLabel,
-                    PinIcon = pinIcon,
+                    InfoLabel = AddInfoChip(btn),
+                    LastDistanceTenths = int.MinValue,
                 };
-                _entries[netPlayer.playerId] = entry;
+                entry.ChipRoot = entry.InfoLabel.transform.parent.gameObject;
+
+                // Bound once and read through the entry, so a pooled card rebound to a different
+                // player needs no rewiring. PE Button has no description label, so the full
+                // platform/distance/joined line lives on the hover tooltip and the distance alone
+                // gets a chip; building it lazily keeps it off the refresh tick entirely.
+                btn.OnClicked = () => OnPlayerClicked(entry.NetPlayer);
+                btn.TooltipProvider = () => BuildDescription(entry.NetPlayer);
+
+                return entry;
+            }
+
+            private void BindEntry(PlayerEntry entry, BasisNetworkPlayer netPlayer)
+            {
+                entry.NetPlayer = netPlayer;
+
+                IBasisPlayer p = netPlayer.Player;
+                entry.IsLocal = p != null && p.IsLocal;
+                entry.IsPinned = p != null && PinnedPlayers.IsPinned(p.UUID);
+                entry.LastDistanceTenths = int.MinValue;
+
+                string name = netPlayer.SafeDisplayName;
+                if (string.IsNullOrEmpty(name)) name = BasisLocalization.Get("ui.unknown");
+                entry.Button.Descriptor.SetTitle(
+                    entry.IsLocal ? BasisLocalization.Get("menu.players.you", name) : name);
+
+                ApplyPlatformIcon(entry, GetPlatformIconAddress(p != null ? p.PlayerPlatform : string.Empty));
+
+                entry.Button.ButtonComponent.interactable = !entry.IsLocal;
+                if (entry.IsLocal) EnsureCanvasGroup(entry).alpha = 0.4f;
+                else if (entry.CanvasGroup != null) entry.CanvasGroup.alpha = 1f;
+
+                entry.Visible = true;
+                entry.Button.gameObject.SetActive(true);
+
                 RefreshCard(entry);
+            }
+
+            private static CanvasGroup EnsureCanvasGroup(PlayerEntry entry)
+            {
+                if (entry.CanvasGroup != null) return entry.CanvasGroup;
+                if (!entry.Button.TryGetComponent(out CanvasGroup group))
+                    group = entry.Button.gameObject.AddComponent<CanvasGroup>();
+                entry.CanvasGroup = group;
+                return group;
+            }
+
+            private static void ApplyPlatformIcon(PlayerEntry entry, string address)
+            {
+                if (string.Equals(entry.PlatformIconAddress, address, StringComparison.Ordinal)) return;
+                entry.PlatformIconAddress = address;
+
+                if (string.IsNullOrEmpty(address))
+                {
+                    if (entry.PlatformIcon != null) entry.PlatformIcon.gameObject.SetActive(false);
+                    return;
+                }
+
+                if (entry.PlatformIcon == null)
+                {
+                    entry.PlatformIcon = AddPlatformIcon(entry.Button, address);
+                    return;
+                }
+
+                entry.PlatformIcon.SetIcon(AddressableAssets.GetSprite(address), true);
+                entry.PlatformIcon.gameObject.SetActive(true);
             }
 
             private void RemovePlayerEntry(ushort playerId)
             {
-                if (_entries.TryGetValue(playerId, out PlayerEntry entry))
+                if (!_entries.TryGetValue(playerId, out PlayerEntry entry)) return;
+                _entries.Remove(playerId);
+
+                entry.NetPlayer = null;
+                entry.Visible = false;
+
+                if (entry.Button == null) return;
+
+                if (_cardPool.Count < CardPoolCap)
                 {
-                    if (entry.Button != null) entry.Button.ReleaseInstance();
-                    _entries.Remove(playerId);
+                    entry.Button.gameObject.SetActive(false);
+                    // Park it past the live cards so the sibling pass keeps seeing a contiguous
+                    // 0..n-1 run and its "already in order" early-out stays valid.
+                    entry.Button.transform.SetAsLastSibling();
+                    _cardPool.Add(entry);
+                    return;
                 }
+
+                DestroyEntry(entry);
+            }
+
+            private static void DestroyEntry(PlayerEntry entry)
+            {
+                if (entry.Button == null) return;
+                entry.Button.OnClicked = null;
+                entry.Button.TooltipProvider = null;
+                entry.Button.ReleaseInstance();
+                entry.Button = null;
             }
 
             // ---- Description ----
 
+            // Reused by the hover tooltip, which is built for one card at a time.
+            private static readonly StringBuilder _descriptionBuilder = new StringBuilder(96);
+
             private static string BuildDescription(BasisNetworkPlayer netPlayer)
             {
+                if (netPlayer == null) return string.Empty;
+
                 IBasisPlayer p = netPlayer.Player;
                 bool isPinned = p != null && PinnedPlayers.IsPinned(p.UUID);
                 bool isLocal = p != null && p.IsLocal;
 
-                string platformLabel = GetPlatformLabel(p != null ? p.PlayerPlatform : "");
-
-                var parts = new List<string>(5) { platformLabel };
+                _descriptionBuilder.Clear();
+                _descriptionBuilder.Append(GetPlatformLabel(p != null ? p.PlayerPlatform : ""));
 
                 if (isPinned)
                 {
-                    parts.Add(BasisLocalization.Get("menu.players.pinned"));
+                    AppendPart(BasisLocalization.Get("menu.players.pinned"));
                 }
 
                 // Distance + range only make sense for remote peers.
-                if (!isLocal && p != null && BasisLocalCameraDriver.HasInstance)
+                if (!isLocal && BasisLocalCameraDriver.HasInstance && TryGetRemotePosition(p, out Vector3 remotePos))
                 {
-                    Vector3 localPos = BasisLocalCameraDriver.Position;
-                    Vector3 remotePos = GetRemotePosition(p);
-                    float dist = Vector3.Distance(localPos, remotePos);
-                    parts.Add(BasisLocalization.Get("menu.players.distanceMeters", dist));
+                    float dist = Vector3.Distance(BasisLocalCameraDriver.Position, remotePos);
+                    AppendPart(BasisLocalization.Get("menu.players.distanceMeters", dist));
 
                     if (p is BasisRemotePlayer remote && remote.OutOfRangeFromLocal)
                     {
-                        parts.Add(BasisLocalization.Get("menu.players.outOfRange"));
+                        AppendPart(BasisLocalization.Get("menu.players.outOfRange"));
                     }
                 }
 
                 if (!isLocal)
                 {
-                    parts.Add(FormatJoinedAgo(netPlayer.JoinTime));
+                    AppendPart(FormatJoinedAgo(netPlayer.JoinTime));
                 }
 
-                return string.Join(" \u2022 ", parts);
+                return _descriptionBuilder.ToString();
             }
 
-            private static Vector3 GetRemotePosition(IBasisPlayer p)
+            private static void AppendPart(string value) => _descriptionBuilder.Append(" • ").Append(value);
+
+            /// <summary>
+            /// A leaving player's card outlives them by a frame — removal is folded into the same
+            /// deferred flush as everything else — and the disconnect path destroys their avatar
+            /// immediately, so every read of their transform has to tolerate it already being gone.
+            /// </summary>
+            private static bool TryGetRemotePosition(IBasisPlayer p, out Vector3 position)
             {
                 if (p is BasisRemotePlayer remote && remote.MouthTransform != null)
-                    return remote.MouthTransform.position;
-                return p.Transform.position;
+                {
+                    position = remote.MouthTransform.position;
+                    return true;
+                }
+
+                Transform root = p != null ? p.Transform : null;
+                if (root != null)
+                {
+                    position = root.position;
+                    return true;
+                }
+
+                position = Vector3.zero;
+                return false;
             }
 
             private static string FormatJoinedAgo(double joinTime)
@@ -517,7 +746,9 @@ namespace Basis.BasisUI
             {
                 foreach (var kvp in _entries)
                 {
-                    RefreshCard(kvp.Value);
+                    // A card the search has filtered out is not on screen; refreshing its chip
+                    // formats a string nobody can read.
+                    if (kvp.Value.Visible) RefreshCard(kvp.Value);
                 }
             }
 
@@ -525,29 +756,26 @@ namespace Basis.BasisUI
             {
                 if (entry.Button == null || entry.NetPlayer == null) return;
 
-                entry.Button.Descriptor.SetTooltip(BuildDescription(entry.NetPlayer));
+                if (entry.IsPinned && entry.PinIcon == null) entry.PinIcon = AddPinIcon(entry.Button);
+                if (entry.PinIcon != null && entry.PinIcon.gameObject.activeSelf != entry.IsPinned)
+                    entry.PinIcon.gameObject.SetActive(entry.IsPinned);
+
+                if (entry.ChipRoot == null) return;
 
                 IBasisPlayer p = entry.NetPlayer.Player;
-                bool isLocal = p != null && p.IsLocal;
+                Vector3 remotePos = Vector3.zero;
+                bool showChip = !entry.IsLocal && BasisLocalCameraDriver.HasInstance
+                    && TryGetRemotePosition(p, out remotePos);
+                if (entry.ChipRoot.activeSelf != showChip) entry.ChipRoot.SetActive(showChip);
+                if (!showChip) return;
 
-                if (entry.PinIcon != null)
+                float dist = Vector3.Distance(BasisLocalCameraDriver.Position, remotePos);
+                int tenths = Mathf.RoundToInt(dist * 10f);
+                if (tenths != entry.LastDistanceTenths)
                 {
-                    bool isPinned = p != null && PinnedPlayers.IsPinned(p.UUID);
-                    entry.PinIcon.gameObject.SetActive(isPinned);
+                    entry.LastDistanceTenths = tenths;
+                    entry.InfoLabel.SetText(BasisLocalization.Get("menu.players.distanceMeters", dist));
                 }
-
-                if (entry.InfoLabel == null) return;
-
-                if (isLocal || p == null || !BasisLocalCameraDriver.HasInstance)
-                {
-                    entry.InfoLabel.transform.parent.gameObject.SetActive(false);
-                    return;
-                }
-
-                entry.InfoLabel.transform.parent.gameObject.SetActive(true);
-
-                float dist = Vector3.Distance(BasisLocalCameraDriver.Position, GetRemotePosition(p));
-                entry.InfoLabel.SetText(BasisLocalization.Get("menu.players.distanceMeters", dist));
 
                 // "Out of Range" does not fit the chip, so dim the distance instead —
                 // the full wording is still on the hover tooltip.
@@ -562,17 +790,30 @@ namespace Basis.BasisUI
 
             private static float DistanceTo(IBasisPlayer p)
             {
-                if (p == null || !BasisLocalCameraDriver.HasInstance) return float.MaxValue;
-                return Vector3.Distance(BasisLocalCameraDriver.Position, GetRemotePosition(p));
+                if (!BasisLocalCameraDriver.HasInstance) return float.MaxValue;
+                if (!TryGetRemotePosition(p, out Vector3 remotePos)) return float.MaxValue;
+                return Vector3.Distance(BasisLocalCameraDriver.Position, remotePos);
+            }
+
+            /// <summary>
+            /// Pinned state for the comparator. <see cref="PinnedPlayers.IsPinned"/> takes a lock,
+            /// and a sort asks twice per comparison, so the answer is read off the card whenever
+            /// one exists — it is kept current by <see cref="OnPinsChanged"/>.
+            /// </summary>
+            private bool IsPinned(BasisNetworkPlayer player)
+            {
+                if (player == null) return false;
+                if (_entries.TryGetValue(player.playerId, out PlayerEntry entry)) return entry.IsPinned;
+                return player.Player != null && PinnedPlayers.IsPinned(player.Player.UUID);
             }
 
             private int CompareForCurrentSort(BasisNetworkPlayer a, BasisNetworkPlayer b)
             {
-                // Pinned players group above unpinned ones in every sort mode \u2014
+                // Pinned players group above unpinned ones in every sort mode —
                 // the pin is intended as a "keep this person at the top" signal,
                 // so secondary sorting only orders within each group.
-                bool aPinned = a.Player != null && PinnedPlayers.IsPinned(a.Player.UUID);
-                bool bPinned = b.Player != null && PinnedPlayers.IsPinned(b.Player.UUID);
+                bool aPinned = IsPinned(a);
+                bool bPinned = IsPinned(b);
                 if (aPinned != bPinned) return aPinned ? -1 : 1;
 
                 switch (_sortMode)
@@ -602,7 +843,7 @@ namespace Basis.BasisUI
                             StringComparison.OrdinalIgnoreCase);
                     }
                     case SortMode.JoinTime:
-                        // Most recent arrival first \u2014 common ask is "who just joined?"
+                        // Most recent arrival first — common ask is "who just joined?"
                         return b.JoinTime.CompareTo(a.JoinTime);
                     default:
                         // Default: oldest-first arrival order, mirrors the previous
@@ -611,16 +852,14 @@ namespace Basis.BasisUI
                 }
             }
 
-            private void ReorderButtons()
+            /// <summary>
+            /// Walks the sorted <see cref="_orderBuffer"/> onto sibling indices. Returns true only
+            /// when something actually moved, so an unchanged order costs one comparison pass and
+            /// no layout rebuild.
+            /// </summary>
+            private bool ApplySiblingOrder()
             {
-                if (GridParent == null) return;
-
-                _orderBuffer.Clear();
-                foreach (var kvp in _entries)
-                {
-                    if (kvp.Value.NetPlayer != null) _orderBuffer.Add(kvp.Value.NetPlayer);
-                }
-                _orderBuffer.Sort(CompareForCurrentSort);
+                if (GridParent == null) return false;
 
                 int expected = 0;
                 bool inOrder = true;
@@ -632,7 +871,7 @@ namespace Basis.BasisUI
                             inOrder = false;
                     }
                 }
-                if (inOrder) return;
+                if (inOrder) return false;
 
                 int sibling = 0;
                 for (int i = 0; i < _orderBuffer.Count; i++)
@@ -643,15 +882,23 @@ namespace Basis.BasisUI
                             entry.Button.transform.SetSiblingIndex(sibling++);
                     }
                 }
+                return true;
             }
 
             // ---- Filter / Search ----
 
-            private void ApplyFilter()
+            /// <summary>
+            /// Applies the search query and records the visible count for the header.
+            /// Returns true when a card's visibility changed — that is the case that moves the
+            /// grid's height and therefore needs a layout rebuild.
+            /// </summary>
+            private bool ApplyFilter()
             {
                 string query = _lastQuery.Trim();
                 bool hasQuery = query.Length > 0;
-                string queryLower = hasQuery ? query.ToLowerInvariant() : string.Empty;
+
+                bool changed = false;
+                int visible = 0;
 
                 foreach (var kvp in _entries)
                 {
@@ -662,24 +909,36 @@ namespace Basis.BasisUI
 
                     if (hasQuery)
                     {
-                        string n = entry.NetPlayer.SafeDisplayName ?? "";
-                        string uuid = entry.NetPlayer.Player != null
-                            ? entry.NetPlayer.Player.UUID ?? "" : "";
-                        show = n.ToLowerInvariant().Contains(queryLower)
-                            || uuid.ToLowerInvariant().Contains(queryLower);
+                        string uuid = entry.NetPlayer.Player != null ? entry.NetPlayer.Player.UUID : null;
+                        show = ContainsIgnoreCase(entry.NetPlayer.SafeDisplayName, query)
+                            || ContainsIgnoreCase(uuid, query);
                     }
 
-                    entry.Button.gameObject.SetActive(show);
+                    if (entry.Visible != show)
+                    {
+                        entry.Visible = show;
+                        entry.Button.gameObject.SetActive(show);
+                        changed = true;
+                    }
+
+                    if (show) visible++;
                 }
 
-                UpdateHeader();
+                _visibleCount = visible;
+                return changed;
             }
+
+            // Ordinal-ignore-case rather than lowercasing both sides: the old form allocated two
+            // strings per card per keystroke.
+            private static bool ContainsIgnoreCase(string haystack, string needle) =>
+                !string.IsNullOrEmpty(haystack) &&
+                haystack.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
 
             // ---- Click handling ----
 
             private void OnPlayerClicked(BasisNetworkPlayer netPlayer)
             {
-                if (netPlayer.Player == null) return;
+                if (netPlayer == null || netPlayer.Player == null) return;
 
                 if (!netPlayer.Player.IsLocal)
                 {

@@ -26,11 +26,21 @@ namespace Basis.Tests.Sync
         const int FirstFingerBone = (int)HumanBodyBones.LeftThumbProximal;   // 24
         const int LastFingerBone = (int)HumanBodyBones.RightLittleDistal;    // 53
 
-        static int BoneBits(byte[] table)
+        /// <summary>Pre-v52 cost of the explicit slots: every bone as smallest-three.</summary>
+        static int LegacyBoneBits(byte[] table)
         {
             int bits = 0;
             for (int slot = 0; slot < BasisBoneRotationCompression.WireBoneSlotCount; slot++)
                 bits += 2 + 3 * table[slot];
+            return bits;
+        }
+
+        /// <summary>Current cost: 3-DOF slots as smallest-three, restricted slots as angles.</summary>
+        static int BoneBits(Q quality)
+        {
+            int bits = 0;
+            for (int slot = 0; slot < BasisBoneRotationCompression.WireBoneSlotCount; slot++)
+                bits += BasisBoneRotationCompression.BoneFieldWidth(quality, slot);
             return bits;
         }
 
@@ -104,10 +114,10 @@ namespace Basis.Tests.Sync
         //  Exact sizes
         // ────────────────────────────────────────────────────────────
 
-        [TestCase(Q.High, 896, 112)]
-        [TestCase(Q.Medium, 624, 78)]
-        [TestCase(Q.Low, 496, 62)]
-        [TestCase(Q.VeryLow, 413, 52)]
+        [TestCase(Q.High, 746, 94)]
+        [TestCase(Q.Medium, 534, 67)]
+        [TestCase(Q.Low, 418, 53)]
+        [TestCase(Q.VeryLow, 351, 44)]
         public void RotationStream_IsExactlyThisManyBits(Q quality, int expectedBits, int expectedBytes)
         {
             Assert.AreEqual(expectedBits, BasisBoneRotationCompression.RotationBits(quality));
@@ -115,10 +125,10 @@ namespace Basis.Tests.Sync
             Assert.AreEqual(expectedBytes, BasisAvatarBitPacking.MuscleBytes(quality));
         }
 
-        [TestCase(Q.High, 177)]
-        [TestCase(Q.Medium, 108)]
-        [TestCase(Q.Low, 92)]
-        [TestCase(Q.VeryLow, 82)]
+        [TestCase(Q.High, 159)]
+        [TestCase(Q.Medium, 97)]
+        [TestCase(Q.Low, 83)]
+        [TestCase(Q.VeryLow, 74)]
         public void Packet_IsExactlyThisManyBytes(Q quality, int expected)
         {
             Assert.AreEqual(expected, BasisAvatarBitPacking.ConvertToSize(quality));
@@ -160,7 +170,7 @@ namespace Basis.Tests.Sync
                 fingerBits += 2 + 3 * table[slot];
 
             Assert.AreEqual(expectedFingerBits, fingerBits);
-            Assert.AreEqual(expectedBoneBits, BoneBits(table));
+            Assert.AreEqual(expectedBoneBits, LegacyBoneBits(table));
         }
 
         [TestCase(Q.High, 8, 6, 140)]
@@ -175,7 +185,7 @@ namespace Basis.Tests.Sync
             Assert.AreEqual(totalBits,
                 BasisBoneRotationCompression.FingerChannelCount * BasisBoneRotationCompression.FingerFieldWidth(quality));
 
-            Assert.AreEqual(BoneBits(BasisBoneRotationCompression.GetBpcTable(quality)) + totalBits,
+            Assert.AreEqual(BoneBits(quality) + totalBits,
                 BasisBoneRotationCompression.RotationBits(quality));
         }
 

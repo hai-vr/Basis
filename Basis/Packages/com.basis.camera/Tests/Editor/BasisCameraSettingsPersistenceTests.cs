@@ -46,6 +46,11 @@ namespace Basis.Tests.Camera
             // a file claiming a mode its values do not match is re-derived to Custom on load, which
             // is the whole point. Covered on its own by CameraMode_SurvivesTheRoundTrip.
             { "cameraMode", "re-derived from the settings it describes, not stored independently" },
+
+            // The same, for the half of the roster people save themselves: a name is kept only
+            // while the mode it names still exists and still matches. No mode is saved during this
+            // test, so the name is dropped — correctly. Covered by BasisCameraUserModeTests.
+            { "userMode", "re-derived against the saved modes, not stored independently" },
         };
 
         [Test]

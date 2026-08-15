@@ -1,4 +1,5 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -24,8 +25,28 @@ public static class BasisAvatarModelCache
     /// </summary>
     public class Entry
     {
+        /// <summary>
+        /// The Avatar asset this entry describes, held so lookups can prove the entry still
+        /// belongs to it. Two things make that necessary: the asset dies when its AssetBundle is
+        /// unloaded, and an entity id is only unique among LIVE objects — a later asset can be
+        /// handed the id of a destroyed one. Without the check a reused id would serve a
+        /// different avatar someone else's rest pose, which is a silent, small,
+        /// everywhere-at-once error rather than a visible failure.
+        /// </summary>
+        public Avatar Asset;
+
         /// <summary>Baked finger pose grid data (BasisLocalHandDriver).</summary>
         public HandPoseGridData HandPoseGrid;
+
+        /// <summary>
+        /// This rig's generic->local decode operator pair per wire slot, in
+        /// BONE_WRITE_ORDER. Derived purely from the cached rest tables and the character basis,
+        /// so it is a property of the model — only the bone Transforms are per-instance.
+        /// </summary>
+        public BoneDecodeOperatorData BoneDecodeOperators;
+
+        /// <summary>Authored bind localPositions of the body-fit bones. See <see cref="BodyFitRestData"/>.</summary>
+        public BodyFitRestData BodyFitRest;
 
         /// <summary>T-pose local rotations for all 55 humanoid bones (BasisTransformMapping.TposeLocal).</summary>
         public TposeLocalData TposeLocal;
@@ -54,7 +75,15 @@ public static class BasisAvatarModelCache
     /// </summary>
     public class HandPoseGridData
     {
-        public float[] NativeGridSnapshot; // raw quaternion floats (x,y,z,w per element)
+        /// <summary>
+        /// The baked cells, owned by this cache entry and SHARED by every grid that restores from
+        /// it. 13,230 quaternions (~207 KB) at the default increment, immutable once baked — every
+        /// consumer only ever samples it — so a crowd in matching avatars holds one copy between
+        /// them instead of one each.
+        /// <para>⚠️ Freed ONLY by <see cref="Clear"/>. Eviction retires it instead — see
+        /// <c>RetireNative</c> for why disposing it while views exist is a crash.</para>
+        /// </summary>
+        public NativeArray<quaternion> SharedCells;
         public int GridWidth;
         public int GridHeight;
         public int FingerStride;
@@ -119,6 +148,43 @@ public static class BasisAvatarModelCache
     }
 
     /// <summary>
+    /// The folded generic->rig decode operators for every wire slot, indexed by slot in
+    /// BasisBoneRotationCompression.BONE_WRITE_ORDER (NOT by HumanBodyBones).
+    /// </summary>
+    /// <remarks>
+    /// Safe to key on the Avatar asset because every input is: the rest tables come from
+    /// <see cref="TposeLocal"/>/<see cref="TposeFromRoot"/>, the character basis comes from the
+    /// same capture, and which slots resolve a bone is fixed by the rig. The per-instance half of
+    /// the same loop — the bone Transforms — stays per player.
+    /// <para>The arrays double as the snapshot <c>RemoteBoneJobSystem.AddRemotePlayer</c> defers
+    /// with. It used to <c>ToArray()</c> the receiver's two NativeArrays because those are owned
+    /// by the receiver and can be disposed under a recalibration before the add commits; a
+    /// cache-owned immutable array has no such lifetime problem, so the copy goes away.</para>
+    /// </remarks>
+    public class BoneDecodeOperatorData
+    {
+        public quaternion[] Pre;
+        public quaternion[] Post;
+        /// <summary>False for slots the rig has no bone for; those get a null Transform.</summary>
+        public bool[] HasBone;
+    }
+
+    /// <summary>
+    /// Authored bind localPositions of the bones the networked body fit scales, indexed to match
+    /// <c>BasisBodyFitApply.CollectBones</c>.
+    /// </summary>
+    /// <remarks>
+    /// Caching this is not only a saving — it removes a drift hazard. The live capture re-read
+    /// <c>bone.localPosition</c> on every calibration, so a recalibration of an avatar that
+    /// already had a fit applied would record the SCALED positions as "rest" and compound the fit
+    /// on the next apply. An authored copy taken once cannot drift.
+    /// </remarks>
+    public class BodyFitRestData
+    {
+        public Vector3[] Local;
+    }
+
+    /// <summary>
     /// Which humanoid bones exist on this avatar model. Indexed by HumanBodyBones enum.
     /// Avoids repeated GetBoneTransform null checks across instances of the same model.
     /// </summary>
@@ -148,28 +214,133 @@ public static class BasisAvatarModelCache
     /// </summary>
     public static Entry GetOrCreate(EntityId key)
     {
+        return GetOrCreate(key, null);
+    }
+
+    /// <summary>
+    /// Gets or creates the entry for an avatar asset, stamping <paramref name="asset"/> so later
+    /// lookups can prove the entry still describes it. Prefer this overload — an entry with no
+    /// asset recorded can never be validated or swept.
+    /// </summary>
+    public static Entry GetOrCreate(EntityId key, Avatar asset)
+    {
         if (!_cache.TryGetValue(key, out Entry entry))
         {
             entry = new Entry();
             _cache[key] = entry;
         }
+        if (asset != null)
+        {
+            entry.Asset = asset;
+        }
         return entry;
     }
 
     /// <summary>
-    /// Tries to get an existing cache entry. Returns false if not cached.
+    /// Tries to get an existing cache entry, dropping it if the Avatar asset it describes has been
+    /// destroyed — which happens when the bundle it came from is unloaded, and is also what makes
+    /// a reused entity id safe (the previous owner is destroyed, so the entry fails this check and
+    /// is rebuilt for the new asset).
     /// </summary>
     public static bool TryGet(EntityId key, out Entry entry)
     {
-        return _cache.TryGetValue(key, out entry);
+        if (!_cache.TryGetValue(key, out entry))
+        {
+            return false;
+        }
+        // Unity-null, not reference-null: a destroyed asset is a live managed reference to a dead
+        // native object. An entry created before Asset was recorded has a genuinely null reference
+        // and is left alone rather than being thrown away on every lookup.
+        if (!ReferenceEquals(entry.Asset, null) && entry.Asset == null)
+        {
+            RetireNative(entry);
+            _cache.Remove(key);
+            entry = null;
+            return false;
+        }
+        return true;
     }
+
+    /// <summary>
+    /// Drops every entry whose Avatar asset has been destroyed. <see cref="TryGet"/> only evicts
+    /// an entry that something looks up again, so without this a session that cycles through many
+    /// avatars keeps every dead one — and an entry now owns the shared hand-pose grid's native
+    /// memory, which no GC will ever reclaim.
+    /// </summary>
+    public static void SweepDestroyed()
+    {
+        if (_cache.Count == 0)
+        {
+            return;
+        }
+        _sweepScratch.Clear();
+        foreach (KeyValuePair<EntityId, Entry> pair in _cache)
+        {
+            Entry entry = pair.Value;
+            if (!ReferenceEquals(entry.Asset, null) && entry.Asset == null)
+            {
+                _sweepScratch.Add(pair.Key);
+            }
+        }
+        for (int Index = 0; Index < _sweepScratch.Count; Index++)
+        {
+            EntityId key = _sweepScratch[Index];
+            if (_cache.TryGetValue(key, out Entry dead))
+            {
+                RetireNative(dead);
+            }
+            _cache.Remove(key);
+        }
+        _sweepScratch.Clear();
+    }
+
+    private static readonly List<EntityId> _sweepScratch = new List<EntityId>();
 
     /// <summary>
     /// Removes a specific avatar's cache entry (e.g., when its bundle is unloaded).
     /// </summary>
     public static void Remove(EntityId key)
     {
+        if (_cache.TryGetValue(key, out Entry entry))
+        {
+            RetireNative(entry);
+        }
         _cache.Remove(key);
+    }
+
+    /// <summary>
+    /// Native buffers detached from evicted entries, freed only at <see cref="Clear"/>.
+    /// </summary>
+    private static readonly List<NativeArray<quaternion>> _retiredCells = new List<NativeArray<quaternion>>();
+
+    /// <summary>
+    /// Detaches an evicted entry's native buffers WITHOUT freeing them.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Freeing here is a crash, and it was one: every grid that restored from this entry holds a
+    /// non-owning VIEW of <see cref="HandPoseGridData.SharedCells"/>, and a NativeArray view has no
+    /// way to observe its owner being disposed — <c>IsCreated</c> keeps returning true, so
+    /// <c>ExpandFingerChannels</c>' guard passes and the read throws ObjectDisposedException.
+    ///
+    /// Worse, eviction reaches here from <c>BasisAvatarFactory.DeleteLastAvatar</c>, which is
+    /// async void: its continuation runs on the Unity synchronization context and can land between
+    /// <c>BeginNetworkCompute</c> and <c>JoinPendingCompute</c> — with the parallel finger
+    /// expansion mid-flight over these exact cells. There is no lock to take and no refcount to
+    /// consult, so the buffer simply outlives the entry.
+    ///
+    /// Retaining is not a regression: before the cells were shared, every player allocated their
+    /// own copy and nothing ever freed those either. This holds ONE per model instead of one per
+    /// player, and the eviction still does the half that matters for correctness — the entry stops
+    /// being handed out, so a destroyed asset (or a reused entity id) can never serve stale data.
+    /// </remarks>
+    private static void RetireNative(Entry entry)
+    {
+        HandPoseGridData grid = entry?.HandPoseGrid;
+        if (grid != null && grid.SharedCells.IsCreated)
+        {
+            _retiredCells.Add(grid.SharedCells);
+            grid.SharedCells = default;
+        }
     }
 
     /// <summary>Number of cached avatar models.</summary>
@@ -181,6 +352,21 @@ public static class BasisAvatarModelCache
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     public static void Clear()
     {
+        // The one point where freeing is safe: nothing is wearing an avatar and no compute is in
+        // flight, so no grid can still be viewing these. Every other eviction path only retires.
+        foreach (KeyValuePair<EntityId, Entry> pair in _cache)
+        {
+            RetireNative(pair.Value);
+        }
+        for (int Index = 0; Index < _retiredCells.Count; Index++)
+        {
+            NativeArray<quaternion> cells = _retiredCells[Index];
+            if (cells.IsCreated)
+            {
+                cells.Dispose();
+            }
+        }
+        _retiredCells.Clear();
         _cache.Clear();
     }
 
@@ -213,13 +399,13 @@ public static class BasisAvatarModelCache
         // Store for next time
         if (key != EntityId.None)
         {
-            StorePosesToCache(key, mapping);
+            StorePosesToCache(key, mapping, animator.avatar);
         }
     }
 
-    private static void StorePosesToCache(EntityId key, Basis.Scripts.Common.BasisTransformMapping mapping)
+    private static void StorePosesToCache(EntityId key, Basis.Scripts.Common.BasisTransformMapping mapping, Avatar asset)
     {
-        var entry = GetOrCreate(key);
+        var entry = GetOrCreate(key, asset);
         int boneCount = (int)HumanBodyBones.LastBone;
 
         if (entry.TposeLocal == null)

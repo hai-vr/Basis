@@ -123,14 +123,16 @@ namespace Basis.Scripts.Player
         public static BasisRemotePlayer CreateRemotePlayer(
             InstantiationParameters InstantiationParameters,
             ClientAvatarChangeMessage AvatarURL,
-            ClientMetaDataMessage PlayerMetaDataMessage)
+            ClientMetaDataMessage PlayerMetaDataMessage,
+            string PreparedSafeDisplayName = null)
         {
             // The remote player is a plain managed object with no dedicated root GameObject.
             // RemoteInitialize creates its own scene-root marker transforms (mouth, nameplate),
             // and the avatar loads as its own scene root — each a distinct Transform.root so
             // the bone jobs spread across worker threads.
             BasisRemotePlayer CreatedRemotePlayer = new BasisRemotePlayer();
-            CreatedRemotePlayer.RemoteInitialize(AvatarURL, PlayerMetaDataMessage);
+            CreatedRemotePlayer.RemoteInitialize(AvatarURL, PlayerMetaDataMessage,
+                PreparedSafeDisplayName: PreparedSafeDisplayName);
             return CreatedRemotePlayer;
         }
     }

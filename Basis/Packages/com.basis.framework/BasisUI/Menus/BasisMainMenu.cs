@@ -314,7 +314,6 @@ namespace Basis.BasisUI
 
         private void OnLoadingProgressChanged(string display, float percentage, bool active)
         {
-            BasisDebug.Log($"[LoadingBarRoute] menu received '{display}' {percentage} active:{active} area:{(_tooltipCanvasGroup != null ? _tooltipCanvasGroup.gameObject.activeInHierarchy.ToString() : "null")}");
             _progressDisplay = display;
             _progressPercentage = percentage;
             _progressActive = active;
@@ -344,7 +343,6 @@ namespace Basis.BasisUI
                 return;
             }
 
-            BasisDebug.Log($"[LoadingBarRoute] ApplyTooltip '{text}' fill:{progressPercentage} alpha:{_tooltipCanvasGroup.alpha}");
             KillTooltipTween();
             _tooltipCanvasGroup.gameObject.SetActive(true);
             if (_tooltipEdge != null) _tooltipEdge.color = _tooltipEdgeColor;

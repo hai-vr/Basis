@@ -457,13 +457,6 @@ namespace Basis.Scripts.Drivers
             {
                 BasisDebug.LogError("Missing Avatar");
             }
-            if (Avatar.FaceVisemeMesh == null)
-            {
-                BasisDebug.Log("Missing Face for " + LocalPlayer.DisplayName, BasisDebug.LogTag.Avatar);
-            }
-
-            LocalPlayer.UpdateFaceVisibility(Avatar.FaceVisemeMesh.isVisible);
-
             if (LocalPlayer.FaceRenderer != null)
             {
                 // Mute before the deferred destroy: the outgoing avatar's renderer fires a
@@ -472,10 +465,20 @@ namespace Basis.Scripts.Drivers
                 // incoming avatar.
                 LocalPlayer.FaceRenderer.Check = null;
                 GameObject.Destroy(LocalPlayer.FaceRenderer);
+                LocalPlayer.FaceRenderer = null;
             }
 
-            LocalPlayer.FaceRenderer = BasisHelpers.GetOrAddComponent<BasisMeshRendererCheck>(Avatar.FaceVisemeMesh.gameObject);
-            LocalPlayer.FaceRenderer.Check += LocalPlayer.UpdateFaceVisibility;
+            if (Avatar.FaceVisemeMesh != null)
+            {
+                LocalPlayer.UpdateFaceVisibility(Avatar.FaceVisemeMesh.isVisible);
+                LocalPlayer.FaceRenderer = BasisHelpers.GetOrAddComponent<BasisMeshRendererCheck>(Avatar.FaceVisemeMesh.gameObject);
+                LocalPlayer.FaceRenderer.Check += LocalPlayer.UpdateFaceVisibility;
+            }
+            else
+            {
+                BasisDebug.Log("Missing Face for " + LocalPlayer.DisplayName, BasisDebug.LogTag.Avatar);
+                LocalPlayer.UpdateFaceVisibility(false);
+            }
 
             if (BasisLocalFacialBlinkDriver.MeetsRequirements(Avatar))
             {

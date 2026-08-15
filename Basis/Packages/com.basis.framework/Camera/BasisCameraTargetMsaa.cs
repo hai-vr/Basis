@@ -26,4 +26,15 @@ public static class BasisCameraTargetMsaa
         int requested = Mathf.Max(1, requestedSamples);
         return PipelineSampleCount() > 1 ? requested : 1;
     }
+
+    /// <summary>
+    /// True when <see cref="Clamp"/> leaves a camera target single sampled, which is also where an
+    /// offscreen camera with no post-processing loses its intermediate colour/depth attachments —
+    /// the multisampled target was the only thing asking for them — and URP starts rendering
+    /// straight into the target with no resolve and no final blit.
+    /// </summary>
+    public static bool ClampsToSingleSample(int requestedSamples)
+    {
+        return Clamp(requestedSamples) <= 1;
+    }
 }

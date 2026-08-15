@@ -132,10 +132,11 @@ public class AvatarDeltaCodecTests
     public void PayloadSizes_MatchExpectedLadder()
     {
         // Position is int24 mm (9B) at every tier and the hips tail is 21B (13-bit hips delta).
-        Assert.Equal(82, S.PayloadSize(BitQuality.VeryLow));  // 9 pos + 52 rot + 21 tail
-        Assert.Equal(92, S.PayloadSize(BitQuality.Low));      // 9 pos + 62 rot + 21 tail
-        Assert.Equal(108, S.PayloadSize(BitQuality.Medium));  // 9 pos + 78 rot + 21 tail
-        Assert.Equal(177, S.PayloadSize(BitQuality.High));    // 9 pos + 112 rot + 21 tail + 35 effector
+        // Rotation bytes shrank in v52: restricted-DOF bones ship angles, not quaternions.
+        Assert.Equal(74, S.PayloadSize(BitQuality.VeryLow));  // 9 pos + 44 rot + 21 tail
+        Assert.Equal(83, S.PayloadSize(BitQuality.Low));      // 9 pos + 53 rot + 21 tail
+        Assert.Equal(97, S.PayloadSize(BitQuality.Medium));   // 9 pos + 67 rot + 21 tail
+        Assert.Equal(159, S.PayloadSize(BitQuality.High));    // 9 pos + 94 rot + 21 tail + 35 effector
         Assert.Equal(5, BasisAvatarDeltaCompression.DirtyMaskBytes);
         Assert.Equal(37, BasisAvatarDeltaCompression.FieldCount);
     }

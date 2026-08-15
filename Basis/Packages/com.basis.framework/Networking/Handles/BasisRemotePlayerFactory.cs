@@ -20,7 +20,34 @@ namespace Basis.Scripts.Networking
 
              CreateRemotePlayer(ServerReadyMessage, Parent);
         }
+
+        /// <summary>
+        /// Spawn path for a record the avatar load thread already decoded. Everything left here is
+        /// Unity-affine: the mouth marker, the nameplate, the receiver, and the fallback avatar.
+        /// </summary>
+        public static BasisNetworkPlayer CreateRemotePlayer(BasisPreparedJoin prepared, InstantiationParameters instantiationParameters)
+        {
+            if (prepared == null)
+            {
+                return null;
+            }
+            if (!BasisAvatarLoadThread.IsCurrent(prepared))
+            {
+                // Decoded for a connection that has since torn down. The pose buffer is pooled and
+                // no receiver will ever take ownership of it, so hand it back here.
+                ReleaseSpawnPose(prepared);
+                BasisNetworkPlayers.JoiningPlayers.TryRemove(prepared.PlayerId, out _);
+                return null;
+            }
+            return CreateRemotePlayer(prepared.Ready, instantiationParameters, prepared);
+        }
+
         public static BasisNetworkPlayer CreateRemotePlayer(ServerReadyMessage ServerReadyMessage, InstantiationParameters instantiationParameters)
+        {
+            return CreateRemotePlayer(ServerReadyMessage, instantiationParameters, null);
+        }
+
+        private static BasisNetworkPlayer CreateRemotePlayer(ServerReadyMessage ServerReadyMessage, InstantiationParameters instantiationParameters, BasisPreparedJoin prepared)
         {
             ClientAvatarChangeMessage avatarID = ServerReadyMessage.localReadyMessage.clientAvatarChangeMessage;
             ushort playerId = ServerReadyMessage.playerIdMessage.playerID;
@@ -28,13 +55,22 @@ namespace Basis.Scripts.Networking
 
             try
             {
-                BasisRemotePlayer remote = BasisPlayerFactory.CreateRemotePlayer(instantiationParameters, avatarID, ServerReadyMessage.localReadyMessage.playerMetaDataMessage);
+                BasisRemotePlayer remote = BasisPlayerFactory.CreateRemotePlayer(instantiationParameters, avatarID, ServerReadyMessage.localReadyMessage.playerMetaDataMessage, prepared?.SafeDisplayName);
                 BasisNetworkReceiver BasisNetworkReceiver = new BasisNetworkReceiver(playerId);
-                RemoteInitialization(BasisNetworkReceiver, remote, ServerReadyMessage, avatarID.LocalAvatarIndex);
+                RemoteInitialization(BasisNetworkReceiver, remote, ServerReadyMessage, avatarID.LocalAvatarIndex, prepared);
 
                 if (avatarID.byteArray != null && avatarID.byteArray.Length > 0)
                 {
-                    remote.LoadAvatarFromInitial(avatarID);
+                    if (prepared != null && prepared.AvatarDecodeError != null)
+                    {
+                        // The load thread already tried and failed to decode the blob; re-running
+                        // the same decode here would only fail again, on the frame thread.
+                        remote.AvatarLoadErrorMessage = prepared.AvatarDecodeError;
+                    }
+                    else
+                    {
+                        remote.LoadAvatarFromInitial(avatarID, prepared?.InitialAvatar);
+                    }
                 }
 
                 if (!BasisNetworkPlayers.AddPlayer(BasisNetworkReceiver))
@@ -61,7 +97,13 @@ namespace Basis.Scripts.Networking
                 BasisNetworkPlayers.JoiningPlayers.TryRemove(playerId, out _);
             }
         }
-        public static void RemoteInitialization(BasisNetworkReceiver BasisNetworkReceiver, BasisRemotePlayer RemotePlayer, ServerReadyMessage ServerReadyMessage,byte LocalAvatarIndex)
+
+        public static void RemoteInitialization(BasisNetworkReceiver BasisNetworkReceiver, BasisRemotePlayer RemotePlayer, ServerReadyMessage ServerReadyMessage, byte LocalAvatarIndex)
+        {
+            RemoteInitialization(BasisNetworkReceiver, RemotePlayer, ServerReadyMessage, LocalAvatarIndex, null);
+        }
+
+        private static void RemoteInitialization(BasisNetworkReceiver BasisNetworkReceiver, BasisRemotePlayer RemotePlayer, ServerReadyMessage ServerReadyMessage, byte LocalAvatarIndex, BasisPreparedJoin prepared)
         {
             BasisNetworkReceiver.Player = RemotePlayer;
             RemotePlayer.NetworkReceiver = BasisNetworkReceiver;
@@ -78,15 +120,36 @@ namespace Basis.Scripts.Networking
             {
                 BasisDebug.LogError("Missing CharacterIKCalibration");
             }
-            if (RemotePlayer.RemoteAvatarDriver != null)
-            {
-            }
-            else
-            {
-                BasisDebug.LogError("Missing CharacterIKCalibration");
-            }
             BasisNetworkReceiver.Initialize();//fires events and makes us network compatible
-            BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(BasisNetworkReceiver, ServerReadyMessage.localReadyMessage.localAvatarSyncMessage);
+
+            LocalAvatarSyncMessage spawnSync = ServerReadyMessage.localReadyMessage.localAvatarSyncMessage;
+            if (prepared != null && prepared.SpawnPose != null)
+            {
+                // Bit-unpacked on the avatar load thread. Ownership of the pooled buffer transfers
+                // to the receiver here, so clear it either way — a second apply would double-free.
+                BasisAvatarBuffer spawnPose = prepared.SpawnPose;
+                prepared.SpawnPose = null;
+                BasisNetworkAvatarDecompressor.ApplyDecodedSpawnPose(BasisNetworkReceiver, spawnPose, spawnSync);
+            }
+            else if (prepared == null)
+            {
+                BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(BasisNetworkReceiver, spawnSync);
+            }
+        }
+
+        /// <summary>
+        /// Returns an unconsumed spawn-pose buffer to the pool. Only reached when a prepared
+        /// record is discarded before a receiver takes ownership of it.
+        /// </summary>
+        private static void ReleaseSpawnPose(BasisPreparedJoin prepared)
+        {
+            BasisAvatarBuffer spawnPose = prepared.SpawnPose;
+            if (spawnPose == null)
+            {
+                return;
+            }
+            prepared.SpawnPose = null;
+            BasisAvatarBufferPool.Release(spawnPose);
         }
     }
 }

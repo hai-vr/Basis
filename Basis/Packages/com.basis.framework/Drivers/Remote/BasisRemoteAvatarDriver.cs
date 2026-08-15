@@ -360,6 +360,7 @@ namespace Basis.Scripts.Drivers
             receiver.GetLatestNetworkPose(out var hipsWorldPos, out var hipsWorldRot, out var networkScale);
             animatorRoot.localScale = networkScale;
             BasisRemoteNetworkDriver.SeedScaleState(receiver.playerId, networkScale);
+            BasisRemoteNetworkDriver.SeedPoseState(receiver.playerId, hipsWorldPos, hipsWorldRot);
 
             // Derive an approximate root pose using the same inverse math as
             // BulkCopyHipsAndDeriveJob (assumes hips is effectively a child of
@@ -377,6 +378,7 @@ namespace Basis.Scripts.Drivers
             // doesn't disturb the result — hips lands exactly at the received
             // high-precision world pose.
             References.Hips.SetPositionAndRotation(hipsWorldPos, hipsWorldRot);
+            SnapNamePlateAndMouth(RemotePlayer, hipsWorldPos, networkScale.y);
 
             // Initialize any jiggle rigs. Performance-limit enforcement lives in
             // BasisAvatarPerformanceLimits.TrimExcessComponents (called earlier by
@@ -512,7 +514,9 @@ namespace Basis.Scripts.Drivers
                     namePlateHeightAboveHipsModel: NamePlateHeightAboveHipsModel,
                     boneDecodePre: receiver.BoneDecodePre,
                     boneDecodePost: receiver.BoneDecodePost,
-                    boneTransforms: receiver.BoneTransforms
+                    boneTransforms: receiver.BoneTransforms,
+                    cachedDecodePre: receiver.CachedDecodePre,
+                    cachedDecodePost: receiver.CachedDecodePost
                 );
             }
             InBoneDriver = true;
@@ -531,6 +535,7 @@ namespace Basis.Scripts.Drivers
             receiver.GetLatestNetworkPose(out var hipsWorldPos, out var hipsWorldRot, out var networkScale);
             animatorRoot.localScale = networkScale;
             BasisRemoteNetworkDriver.SeedScaleState(receiver.playerId, networkScale);
+            BasisRemoteNetworkDriver.SeedPoseState(receiver.playerId, hipsWorldPos, hipsWorldRot);
             // conjugate, not inverse — unit quaternions only. The rest hips LOCAL rotation, not a
             // generic-space value: this snap has no network rotation to decode, it just backs the
             // root out of the hips world pose with the avatar at rest.
@@ -540,6 +545,7 @@ namespace Basis.Scripts.Drivers
             float3 rootPos = (float3)hipsWorldPos - math.mul(rootRot, scaledLocal);
             animatorRoot.SetPositionAndRotation(rootPos, rootRot);
             References.Hips.SetPositionAndRotation(hipsWorldPos, hipsWorldRot);
+            SnapNamePlateAndMouth(RemotePlayer, hipsWorldPos, networkScale.y);
 
             // Teleport jiggle rigs by the travel delta so they don't whip across the distance
             // the player covered while the avatar was asleep.
@@ -556,6 +562,47 @@ namespace Basis.Scripts.Drivers
             }
 
             BasisFiniteWatchdog.CheckpointRemote("RemoteRegister/PostNetworkPoseSnap (far-LOD wake)", RemotePlayer);
+        }
+
+        /// <summary>
+        /// Places the nameplate and mouth markers on the pose the bone jobs will give them next
+        /// frame. Both are standalone scene roots created at world origin by
+        /// <see cref="BasisRemotePlayer.RemoteInitialize"/> and only ever moved by
+        /// <see cref="MappedNameplateApplyJob"/> / <see cref="ApplyMouthJob"/> at the tail of
+        /// LateUpdate, so a joining player's plate renders at (0,0,0) for the frame their avatar
+        /// installs on — the avatar itself no longer does, which leaves the plate alone out there.
+        ///
+        /// The plate goes through the same <see cref="BasisNamePlateAnchorMath.AnchorWorldY"/> and
+        /// the same yaw-only billboard the apply job uses, so the two cannot drift apart. The mouth
+        /// takes the head bone's world pose: its real anchor is that pose plus the authored
+        /// centimetre-scale offset, it carries no renderer, and reproducing the head-chain FK here
+        /// would duplicate the job for a marker nobody sees.
+        /// </summary>
+        private void SnapNamePlateAndMouth(BasisRemotePlayer RemotePlayer, float3 hipsWorldPos, float rootScaleY)
+        {
+            Transform namePlate = RemotePlayer.NamePlateTransformProvider?.Invoke();
+            if (namePlate != null)
+            {
+                float3 platePosition = new float3(
+                    hipsWorldPos.x,
+                    BasisNamePlateAnchorMath.AnchorWorldY(
+                        hipsWorldPos.y,
+                        NamePlateHeightAboveHipsModel * rootScaleY,
+                        BasisRemoteNamePlateDriver.PanelHalfHeightWorld()),
+                    hipsWorldPos.z);
+
+                float3 toCamera = (float3)BasisLocalCameraDriver.Position - platePosition;
+                float2 flat = new float2(toCamera.x, toCamera.z);
+                float yaw = math.lengthsq(flat) > 1e-12f ? math.atan2(flat.x, flat.y) : 0f;
+                namePlate.SetPositionAndRotation(platePosition, quaternion.RotateY(yaw));
+            }
+
+            Transform mouth = RemotePlayer.MouthTransform;
+            if (mouth != null && References.head != null)
+            {
+                References.head.GetPositionAndRotation(out Vector3 headPosition, out Quaternion headRotation);
+                mouth.SetPositionAndRotation(headPosition, headRotation);
+            }
         }
 
         /// <summary>
@@ -717,7 +764,7 @@ namespace Basis.Scripts.Drivers
             // a freshly measured F would build an operator pair describing two different rest
             // poses, which is a silent, small, everywhere-at-once pose error.
             EntityId cacheKey = BasisAvatarModelCache.GetKey(animator);
-            var cacheEntry = cacheKey != EntityId.None ? BasisAvatarModelCache.GetOrCreate(cacheKey) : null;
+            var cacheEntry = cacheKey != EntityId.None ? BasisAvatarModelCache.GetOrCreate(cacheKey, animator.avatar) : null;
             bool hasCachedRest = cacheEntry?.TposeLocal != null && cacheEntry.TposeFromRoot != null;
 
             quaternion[] restLocalByBone = hasCachedRest ? cacheEntry.TposeLocal.Rotations : null;
@@ -732,6 +779,32 @@ namespace Basis.Scripts.Drivers
                 ? BasisGenericBoneRotationUtils.GetCharacterBasis(
                     cacheEntry.TposeFromRoot.AvatarForward, cacheEntry.TposeFromRoot.AvatarUp)
                 : BasisGenericBoneRotationUtils.GetCharacterBasis(References);
+
+            // Every input to the operator loop below is model-determined once the rest tables are
+            // cached, so a second wearer of this avatar only needs the per-instance half: the bone
+            // Transforms. The operators come back as one memcpy each, and the managed arrays are
+            // handed to the bone-job registration as its deferred snapshot (see CachedDecodePre).
+            var cachedOperators = hasCachedRest ? cacheEntry.BoneDecodeOperators : null;
+            if (cachedOperators != null)
+            {
+                receiver.BoneDecodePre.CopyFrom(cachedOperators.Pre);
+                receiver.BoneDecodePost.CopyFrom(cachedOperators.Post);
+                receiver.CachedDecodePre = cachedOperators.Pre;
+                receiver.CachedDecodePost = cachedOperators.Post;
+                bool[] hasBone = cachedOperators.HasBone;
+                for (int slot = 0; slot < boneCount; slot++)
+                {
+                    boneTransforms[slot] = hasBone[slot]
+                        && References.GetTransform((HumanBodyBones)writeOrder[slot], out var cachedTransform)
+                        ? cachedTransform
+                        : null;
+                }
+                return;
+            }
+
+            // First wearer of this model: build the operators, and record which slots resolved a
+            // bone so the copy path above reproduces this loop's null-transform decisions exactly.
+            bool[] slotHasBone = cacheEntry != null ? new bool[boneCount] : null;
 
             for (int slot = 0; slot < boneCount; slot++)
             {
@@ -750,6 +823,10 @@ namespace Basis.Scripts.Drivers
                     postOut[slot] = quaternion.identity;
                     boneTransforms[slot] = null;
                     continue;
+                }
+                if (slotHasBone != null)
+                {
+                    slotHasBone[slot] = true;
                 }
 
                 quaternion restLocal, restFrame;
@@ -779,6 +856,40 @@ namespace Basis.Scripts.Drivers
                 BasisGenericBoneRotationUtils.BuildDecodeOperators(restFrame, restLocal,
                     out preOut[slot], out postOut[slot]);
                 boneTransforms[slot] = transform;
+            }
+
+            // Publish the operators for the next wearer, and use the same arrays as this player's
+            // registration snapshot so even the first wearer stops paying two ToArray() copies.
+            // Only when the rest tables they were built from are the cached ones — otherwise the
+            // pair would describe a rest pose the cache does not hold.
+            if (cacheEntry != null && hasCachedRest && cacheEntry.BoneDecodeOperators == null)
+            {
+                var operators = new BasisAvatarModelCache.BoneDecodeOperatorData
+                {
+                    Pre = receiver.BoneDecodePre.ToArray(),
+                    Post = receiver.BoneDecodePost.ToArray(),
+                    HasBone = slotHasBone,
+                };
+                cacheEntry.BoneDecodeOperators = operators;
+                receiver.CachedDecodePre = operators.Pre;
+                receiver.CachedDecodePost = operators.Post;
+            }
+            else
+            {
+                // No Avatar asset to key an entry on, so there is nothing to share. Mirror into
+                // receiver-owned managed arrays rather than letting the registration hold the
+                // NativeArrays: the add is DEFERRED and the receiver disposes those on teardown,
+                // so a held reference would be a use-after-free rather than merely stale. Reused
+                // across recalibrations, exactly like receiver.BoneTransforms.
+                if (receiver.OwnedDecodePre == null || receiver.OwnedDecodePre.Length != boneCount)
+                {
+                    receiver.OwnedDecodePre = new quaternion[boneCount];
+                    receiver.OwnedDecodePost = new quaternion[boneCount];
+                }
+                receiver.BoneDecodePre.CopyTo(receiver.OwnedDecodePre);
+                receiver.BoneDecodePost.CopyTo(receiver.OwnedDecodePost);
+                receiver.CachedDecodePre = receiver.OwnedDecodePre;
+                receiver.CachedDecodePost = receiver.OwnedDecodePost;
             }
 
             // Store both rest tables for other instances of this avatar. StorePosesToCache fills
@@ -881,12 +992,34 @@ namespace Basis.Scripts.Drivers
         private void CaptureBodyFitRestLocal()
         {
             Basis.IK.BasisBodyFitApply.CollectBones(References, _fitBones);
+
+            // Authored bind positions are a property of the model, so the first wearer measures and
+            // everyone after copies. This is not only cheaper — it removes a drift hazard. Reading
+            // the LIVE localPosition means a recalibration of an avatar that already has a fit
+            // applied records the SCALED positions as "rest", and the next apply compounds on top.
+            Animator animator = Player?.BasisAvatar != null ? Player.BasisAvatar.Animator : null;
+            EntityId cacheKey = BasisAvatarModelCache.GetKey(animator);
+            BasisAvatarModelCache.Entry entry = null;
+            if (cacheKey != EntityId.None && BasisAvatarModelCache.TryGet(cacheKey, out entry)
+                && entry.BodyFitRest != null && entry.BodyFitRest.Local.Length == _fitRestLocal.Length)
+            {
+                System.Array.Copy(entry.BodyFitRest.Local, _fitRestLocal, _fitRestLocal.Length);
+                _fitRestCaptured = true;
+                return;
+            }
+
             for (int i = 0; i < _fitBones.Length; i++)
             {
                 Transform bone = _fitBones[i];
                 _fitRestLocal[i] = bone != null ? bone.localPosition : Vector3.zero;
             }
             _fitRestCaptured = true;
+
+            if (cacheKey != EntityId.None)
+            {
+                BasisAvatarModelCache.GetOrCreate(cacheKey, animator.avatar).BodyFitRest =
+                    new BasisAvatarModelCache.BodyFitRestData { Local = (Vector3[])_fitRestLocal.Clone() };
+            }
         }
 
         private void ApplyRemoteBodyFit()
@@ -974,7 +1107,14 @@ namespace Basis.Scripts.Drivers
         {
             RemoveJiggleRigColliders();
             int generation = ++JiggleColliderSetupGeneration;
-            BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(Player.UUID);
+            // Synchronous on a cache hit, which is the normal case by the time calibration runs —
+            // CreateAvatar asked for this same UUID moments ago. The await allocated a
+            // Task<BasisPlayerSettingsData> and a state machine per calibration otherwise, and
+            // every avatar install reaches here.
+            if (!BasisPlayerSettingsManager.TryGetCached(Player.UUID, out BasisPlayerSettingsData BasisPlayerSettingsData))
+            {
+                BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(Player.UUID);
+            }
             if (Player == null || Player.IsDestroyed)
             {
                 return;

@@ -1,3 +1,4 @@
+using Basis.Scripts.Audio;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using UnityEngine;
@@ -94,6 +95,25 @@ namespace Basis.Scripts.Drivers
         /// Tracks whether initialization completed successfully.
         /// </summary>
         public bool WasSuccessful;
+
+        /// <summary>
+        /// Smoothed RMS of this player's voice, written by whichever source is currently feeding
+        /// them — <see cref="BasisRemoteAudioDriver"/> for a remote (spatial or shout, whichever
+        /// owns the tap), the microphone chain for the wearer. Read through
+        /// <see cref="VoiceLevel01"/>.
+        /// </summary>
+        public volatile float VoiceRms;
+
+        /// <summary>
+        /// How loudly this player is talking, on <see cref="BasisVoiceLevel"/>'s shared 0..1 scale.
+        /// Measured before distance, per-player volume and the directivity cone, so every listener
+        /// reads the same number, and maintained whether or not the avatar has visemes — an avatar
+        /// with no face mesh at all still reports its wearer's voice here.
+        /// </summary>
+        public float VoiceLevel01 =>
+            TrackedAudioSource != null && AudioSourceInactive && !ShoutActive
+                ? 0f
+                : BasisVoiceLevel.RmsToUnit(VoiceRms);
 
         /// <summary>
         /// The visibility check this driver actually subscribed to. The swap-time unsubscribe

@@ -7,6 +7,7 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
     {
         public string layoutName;
         public InputActionProperty State;
+        [System.NonSerialized]
         public InputDevice device;
         public string usage;
         public int IsActive;

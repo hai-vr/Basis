@@ -36,7 +36,7 @@ namespace Basis.EventDriver
 #if UNITY_SERVER
         true;
 #else
-            false;
+        false;
 #endif
         private static readonly List<Camera> JiggleCullCameras = new List<Camera>(8);
         // Profiler section IDs live in BasisEventDriverProfileSections (pulled in via `using static`).
@@ -176,6 +176,7 @@ namespace Basis.EventDriver
                 RemoteBoneJobSystem.Dispose();
                 BasisAuthoredMotionSystem.Dispose();
                 BasisConstraintSystem.Dispose();
+                Basis.Scripts.Rendering.BasisVisibilitySystem.Dispose();
                 BasisAvatarBufferPool.Deinitialize();
             }
             finally
@@ -491,7 +492,7 @@ namespace Basis.EventDriver
 
             using (Prof.NetworkApply.Auto())
             {
-                RemoteBoneJobSystem.ScheduleGathers();
+                RemoteBoneJobSystem.BeginFrame();
                 ProfileBegin(PROF_NETWORK_APPLY);
                 ProfileBegin2();
                 using (Prof.NetFireBeforeApply.Auto())

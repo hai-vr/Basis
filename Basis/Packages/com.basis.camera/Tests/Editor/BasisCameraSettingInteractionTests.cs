@@ -112,6 +112,34 @@ namespace Basis.Tests.Camera
             }
         }
 
+        [Test]
+        public void TheDetachedMarkerLives_OnALayerNoBackgroundOrToggleCanPutBackInTheShot()
+        {
+            // Both detached markers — the puck and the wireframe gizmo — sit at the camera's own
+            // position, so the only thing keeping them out of a photo is that the capture culls
+            // their layer. The wireframe used to rely on being parked behind the near plane
+            // instead, which the batched gizmo draw (a frame behind its producer) and any 360
+            // capture both defeat.
+            int marker = BasisHandHeldCamera.MarkerLayer;
+            Assert.That(marker, Is.GreaterThanOrEqualTo(0), "This project no longer defines the OverlayUI layer.");
+
+            Assert.That(BasisHandHeldCamera.IsCaptureLayerUserTogglable(marker), Is.False,
+                "A marker layer the Render Layers list exposes is one the operator can switch back into the shot.");
+
+            // The rig's camera is a bare Camera, so stand in for the prefab's mask: the shipped
+            // capture camera ships with this bit already clear. What is under test is that
+            // nothing afterwards puts it back.
+            _rig.CaptureCamera.cullingMask = ~(1 << marker);
+            foreach (BasisCameraBackgroundMode mode in System.Enum.GetValues(typeof(BasisCameraBackgroundMode)))
+            {
+                _rig.Camera.SetBackgroundMode(mode);
+                _rig.Camera.SetCaptureLayerEnabled(marker, true);
+
+                Assert.That(_rig.CaptureCamera.cullingMask & (1 << marker), Is.Zero,
+                    $"The marker layer came back into the culling mask under {mode}.");
+            }
+        }
+
         // ---------- Depth of field: style vs on/off vs focus mode ----------
 
         [Test]

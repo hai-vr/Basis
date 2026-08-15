@@ -18,6 +18,8 @@ namespace Basis
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
 
+            BasisConsoleCommands.WaitForPredecessorExit(args);
+
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             string configDir = Path.Combine(baseDir, Configuration.ConfigFolderName);
             if (!Directory.Exists(configDir))
@@ -99,6 +101,7 @@ namespace Basis
                 BasisConsoleCommands.RegisterCommand("/players", "Lists all connected players.", BasisConsoleCommands.HandleShowPlayers);
                 BasisConsoleCommands.RegisterCommand("/status", "Shows the current server status.", BasisConsoleCommands.HandleStatus);
                 BasisConsoleCommands.RegisterCommand("/shutdown", "Shuts down the server.", BasisConsoleCommands.HandleShutdown);
+                BasisConsoleCommands.RegisterCommand("/restart", "Restarts the server, applying settings that need a restart.", BasisConsoleCommands.HandleRestart);
                 BasisConsoleCommands.RegisterCommand("/help", "Displays all available commands.", BasisConsoleCommands.HandleHelp);
                 BasisConsoleCommands.RegisterCommand("/clear", "Clears the console", BasisConsoleCommands.HandleClear);
                 BasisConsoleCommands.RegisterPermissionCommands();

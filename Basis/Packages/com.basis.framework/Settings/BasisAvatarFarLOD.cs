@@ -306,7 +306,6 @@ public static class BasisAvatarFarLOD
         }
         if (string.IsNullOrEmpty(connector.FarLodBase64))
         {
-            BasisDebug.Log($"Avatar bee for {remote.DisplayName} carries no far avatar payload — staying on the fallback.", BasisDebug.LogTag.Avatar);
             // Remember that this source was inspected and had nothing — stops the transmit
             // tick's fetch retry from re-reading a known payload-less bee forever.
             remote.FarLodOverrideSource = source;

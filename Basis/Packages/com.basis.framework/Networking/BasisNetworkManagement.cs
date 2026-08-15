@@ -176,14 +176,68 @@ namespace Basis.Scripts.Networking
         // during compute so the apply scales with state changes, not total player count.
         static int[] s_decodedIndices = Array.Empty<int>();
         static int s_decodedCount;
-        // Pipelined compute: Phase 2 runs as a background task started at the tail of the frame
-        // and joined at the top of the next Update (overlaps jiggle CompletePose + the render gap).
-        static Task s_computeTask;
+        // Pipelined compute: Phase 2 runs on a parked background worker kicked at the tail of the
+        // frame and joined at the top of the next Update (overlaps jiggle CompletePose + the
+        // render gap).
         static BasisNetworkReceiver[] s_finishSnapshot;
         static int s_parallelCount;
         static bool s_computePending;
-        static readonly Action s_runParallelCompute = RunParallelCompute;
+        static Thread s_computeThread;
+        static readonly ManualResetEventSlim s_computeKick = new ManualResetEventSlim(false);
+        static readonly ManualResetEventSlim s_computeDone = new ManualResetEventSlim(true);
+        static volatile bool s_computeInFlight;
+        static volatile Exception s_computeException;
         static void RunParallelCompute() => Parallel.For(0, s_parallelCount, s_parallelOptions, s_parallelComputeBody);
+
+        static void ComputeThreadLoop()
+        {
+            while (true)
+            {
+                s_computeKick.Wait();
+                s_computeKick.Reset();
+                try
+                {
+                    RunParallelCompute();
+                }
+                catch (Exception ex)
+                {
+                    s_computeException = ex;
+                }
+                s_computeDone.Set();
+            }
+        }
+
+        static void KickParallelCompute()
+        {
+            if (s_computeThread == null)
+            {
+                s_computeThread = new Thread(ComputeThreadLoop)
+                {
+                    IsBackground = true,
+                    Name = "Basis Network Compute",
+                };
+                s_computeThread.Start();
+            }
+            s_computeDone.Reset();
+            s_computeInFlight = true;
+            s_computeKick.Set();
+        }
+
+        static void JoinComputeWorker()
+        {
+            if (!s_computeInFlight)
+            {
+                return;
+            }
+            s_computeDone.Wait();
+            s_computeInFlight = false;
+            Exception ex = s_computeException;
+            if (ex != null)
+            {
+                s_computeException = null;
+                BasisDebug.LogError($"Network compute worker failed: {ex}", BasisDebug.LogTag.Networking);
+            }
+        }
         static void ParallelComputeBody(int i)
         {
             var rec = s_parallelSnapshot[i];
@@ -203,6 +257,7 @@ namespace Basis.Scripts.Networking
         /// <param name="UnscaledDeltaTime">Delta time since last tick (unscaled).</param>
         public static void BeginNetworkCompute(double UnscaledDeltaTime)
         {
+            JoinComputeWorker();
             s_computePending = false;
             if (!NetworkRunning)
             {
@@ -255,7 +310,7 @@ namespace Basis.Scripts.Networking
             {
                 s_parallelSnapshot = snapshot;
                 s_parallelDeltaTime = UnscaledDeltaTime;
-                s_computeTask = Task.Run(s_runParallelCompute);
+                KickParallelCompute();
             }
             else
             {
@@ -268,7 +323,6 @@ namespace Basis.Scripts.Networking
                         s_decodedIndices[s_decodedCount++] = i;
                     }
                 }
-                s_computeTask = null;
             }
         }
 
@@ -320,18 +374,7 @@ namespace Basis.Scripts.Networking
         /// </summary>
         public static void JoinPendingCompute()
         {
-            if (s_computeTask != null)
-            {
-                try
-                {
-                    s_computeTask.Wait();
-                }
-                catch (Exception ex)
-                {
-                    BasisDebug.LogError($"Network compute task failed: {ex}", BasisDebug.LogTag.Networking);
-                }
-                s_computeTask = null;
-            }
+            JoinComputeWorker();
             s_computePending = false;
         }
         /// <summary>

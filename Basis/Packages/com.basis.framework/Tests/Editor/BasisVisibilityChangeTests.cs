@@ -163,6 +163,105 @@ public class BasisVisibilityChangeTests
     }
 
     [Test]
+    public void CullableCount_TracksRegistrationAndRemoval()
+    {
+        BasisVisibilityDatabase.EnsureCreated();
+        Assert.AreEqual(0, BasisVisibilityDatabase.CullableCount);
+
+        int handle = BasisVisibilityDatabase.Register(null, null, float3.zero, new float3(1f),
+            BasisVisibilityFlags.Static | BasisVisibilityFlags.CullEligible);
+        Assert.AreEqual(1, BasisVisibilityDatabase.CullableCount);
+
+        BasisVisibilityDatabase.Unregister(handle);
+        Assert.AreEqual(0, BasisVisibilityDatabase.CullableCount);
+    }
+
+    [Test]
+    public void CullableCount_FollowsEligibilityToggles()
+    {
+        BasisVisibilityDatabase.EnsureCreated();
+        int handle = BasisVisibilityDatabase.Register(null, null, float3.zero, new float3(1f),
+            BasisVisibilityFlags.Static);
+        Assert.AreEqual(0, BasisVisibilityDatabase.CullableCount);
+
+        BasisVisibilityDatabase.SetCullEligible(handle, true);
+        Assert.AreEqual(1, BasisVisibilityDatabase.CullableCount);
+
+        BasisVisibilityDatabase.SetCullEligible(handle, true);
+        Assert.AreEqual(1, BasisVisibilityDatabase.CullableCount, "re-asserting eligibility must not double count");
+
+        BasisVisibilityDatabase.SetCullEligible(handle, false);
+        Assert.AreEqual(0, BasisVisibilityDatabase.CullableCount);
+    }
+
+    [Test]
+    public void ForcedVisibleEntries_AreNotCounted()
+    {
+        BasisVisibilityDatabase.EnsureCreated();
+        BasisVisibilityDatabase.Register(null, null, float3.zero, new float3(1f),
+            BasisVisibilityFlags.Dynamic | BasisVisibilityFlags.CullEligible);
+
+        Assert.AreEqual(0, BasisVisibilityDatabase.CullableCount,
+            "a root-less dynamic entry is forced always-visible, so it can never be culled");
+    }
+
+    [Test]
+    public void CulledCount_KeepsAnIneligibleEntryInThePipeline()
+    {
+        BasisVisibilityDatabase.EnsureCreated();
+        int handle = BasisVisibilityDatabase.Register(null, null, float3.zero, new float3(1f),
+            BasisVisibilityFlags.Static | BasisVisibilityFlags.CullEligible);
+
+        BasisVisibilityDatabase.SetApplied(handle, false);
+        Assert.AreEqual(1, BasisVisibilityDatabase.CulledCount);
+
+        BasisVisibilityDatabase.SetCullEligible(handle, false);
+        Assert.AreEqual(0, BasisVisibilityDatabase.CullableCount);
+        Assert.AreEqual(1, BasisVisibilityDatabase.CulledCount,
+            "the schedule must keep running or the show that restores this entry is never emitted");
+
+        BasisVisibilityDatabase.SetApplied(handle, true);
+        Assert.AreEqual(0, BasisVisibilityDatabase.CulledCount);
+    }
+
+    [Test]
+    public void CulledCount_IsClearedByUnregisterAndRestoreAll()
+    {
+        BasisVisibilityDatabase.EnsureCreated();
+        int first = BasisVisibilityDatabase.Register(null, null, float3.zero, new float3(1f),
+            BasisVisibilityFlags.Static | BasisVisibilityFlags.CullEligible);
+        int second = BasisVisibilityDatabase.Register(null, null, float3.zero, new float3(1f),
+            BasisVisibilityFlags.Static | BasisVisibilityFlags.CullEligible);
+
+        BasisVisibilityDatabase.SetApplied(first, false);
+        BasisVisibilityDatabase.SetApplied(second, false);
+        Assert.AreEqual(2, BasisVisibilityDatabase.CulledCount);
+
+        BasisVisibilityDatabase.Unregister(first);
+        Assert.AreEqual(1, BasisVisibilityDatabase.CulledCount);
+
+        BasisVisibilityDatabase.RestoreAll();
+        Assert.AreEqual(0, BasisVisibilityDatabase.CulledCount);
+    }
+
+    [Test]
+    public void ReusedSlot_DoesNotStrandTheCullableCount()
+    {
+        BasisVisibilityDatabase.EnsureCreated();
+        int handle = BasisVisibilityDatabase.Register(null, null, float3.zero, new float3(1f),
+            BasisVisibilityFlags.Static | BasisVisibilityFlags.CullEligible);
+        BasisVisibilityDatabase.SetApplied(handle, false);
+        BasisVisibilityDatabase.Unregister(handle);
+
+        int reused = BasisVisibilityDatabase.Register(null, null, float3.zero, new float3(1f),
+            BasisVisibilityFlags.Static);
+
+        Assert.AreEqual(handle, reused);
+        Assert.AreEqual(0, BasisVisibilityDatabase.CullableCount);
+        Assert.AreEqual(0, BasisVisibilityDatabase.CulledCount);
+    }
+
+    [Test]
     public void GrowingPastInitialCapacity_KeepsEarlierEntries()
     {
         BasisVisibilityDatabase.EnsureCreated();

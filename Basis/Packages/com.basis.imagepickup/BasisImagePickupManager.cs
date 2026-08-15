@@ -38,6 +38,12 @@ namespace Basis.ImagePickup
     {
         private const string FixedNetworkIdentifier = "BasisImagePickupManager";
         private const int MaxIgnoredOwnerNameBytes = 1024;
+
+        /// <summary>
+        /// Stands in for "no player" where an owner id is required but none exists. Cannot be 0:
+        /// peer ids are handed out from zero up, so 0 is the net id of the first player to join.
+        /// </summary>
+        private const ushort UnownedPlayerId = ushort.MaxValue;
         private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Pickups;
         private const BasisDebug.LogTag RenderLogTag = BasisDebug.LogTag.Rendering;
         internal const int MaxOwnerNameUtf8Bytes = 256;
@@ -50,6 +56,12 @@ namespace Basis.ImagePickup
         private const byte OpClaim = 5;
         private const byte OpAnimationSpawn = 6;
         private const byte OpAnimationChunk = 7;
+
+        /// <summary>
+        /// Server → owner only: whether the server is holding this image in its own buffer and will
+        /// serve it to arrivals. Never sent by a client. See <see cref="HandleServerCacheState"/>.
+        /// </summary>
+        private const byte OpServerCacheState = 8;
 
         // Values 0 and 1 were used by pre-release animation transport experiments and remain
         // reserved so stale clients cannot misinterpret the production V2 native-LZ4 payload.
@@ -269,6 +281,14 @@ namespace Basis.ImagePickup
         private static bool _destroying;
         private static readonly Dictionary<ushort, SpawnRateLimitState> _spawnRateBySender = new();
         private static readonly List<Guid> _scratchIds = new();
+
+        /// <summary>
+        /// Images of ours the server is holding in its own buffer and will hand to arrivals itself.
+        /// Purely an optimisation hint — if it is ever wrong in the "we hold it" direction the worst
+        /// case is a joiner missing an image until the server corrects us, so it is only ever set
+        /// from a message the server stamped.
+        /// </summary>
+        private static readonly HashSet<Guid> _serverHeldImages = new();
         private static bool _initialized;
         private static int _broadcastDirectRecipients;
         private static int _broadcastRelayRecipients;
@@ -404,6 +424,7 @@ namespace Basis.ImagePickup
                 owned.AnimationPayload?.Dispose();
             }
             _owned.Clear();
+            _serverHeldImages.Clear();
             foreach (BasisNativeAnimationPayload payload in _remoteAnimationPayloads.Values)
                 payload?.Dispose();
             _remoteAnimationPayloads.Clear();
@@ -844,11 +865,16 @@ namespace Basis.ImagePickup
                 });
         }
 
+        /// <summary>
+        /// The local player's net id, or <see cref="UnownedPlayerId"/> when there is no local
+        /// player yet. Falling back to 0 stamped the pickup as belonging to whoever joined the
+        /// instance first, and OnPlayerLeft destroys every image whose OwnerId matches the leaver.
+        /// </summary>
         private static ushort LocalPlayerId()
         {
             return BasisNetworkPlayer.LocalPlayer != null
                 ? BasisNetworkPlayer.LocalPlayer.playerId
-                : (ushort)0;
+                : UnownedPlayerId;
         }
 
         private static string LocalOwnerName()
@@ -1461,7 +1487,7 @@ namespace Basis.ImagePickup
         private static void RefreshBroadcastRecipientCounts()
         {
             if (!BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId))
-                localId = ushort.MaxValue;
+                localId = UnownedPlayerId;
 
             int direct = 0;
             int relay = 0;
@@ -1619,17 +1645,28 @@ namespace Basis.ImagePickup
         {
             if (player == null || _owned.Count == 0)
                 return;
+
+            // Recipients key their cleanup off the owner id in these spawns, so sending one that
+            // is not ours strands the images on their side forever. Without a local id there is
+            // nothing truthful to stamp, and 0 is the first joiner rather than a safe blank.
+            ushort ownerId = LocalPlayerId();
+            if (ownerId == UnownedPlayerId)
+                return;
+
             ushort[] recipients = { player.playerId };
-            ushort ownerId =
-                BasisNetworkPlayer.LocalPlayer != null
-                    ? BasisNetworkPlayer.LocalPlayer.playerId
-                    : (ushort)0;
 
             foreach (KeyValuePair<Guid, OwnedImage> entry in _owned)
             {
                 OwnedImage owned = entry.Value;
                 if (owned.Object == null)
                     continue;
+
+                // The server holds this one and hands it to arrivals itself, so re-uploading it to
+                // every joiner is pure waste. It tells us the moment it stops holding it, and we
+                // start providing again from the next join.
+                if (_serverHeldImages.Contains(entry.Key))
+                    continue;
+
                 owned.Object.transform.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
                 SendSpawn(
                     entry.Key,
@@ -1762,6 +1799,9 @@ namespace Basis.ImagePickup
                         break;
                     case OpAnimationChunk:
                         HandleAnimationChunk(senderId, reader);
+                        break;
+                    case OpServerCacheState:
+                        HandleServerCacheState(senderId, reader);
                         break;
                 }
             }
@@ -2556,6 +2596,25 @@ namespace Basis.ImagePickup
             }
         }
 
+        /// <summary>
+        /// The server telling us whether it is holding one of our images. Only the server can cause
+        /// a message to arrive stamped with our own player id — the relay never echoes a sender back
+        /// to itself — so that check is what makes this unforgeable by another client.
+        /// </summary>
+        private static void HandleServerCacheState(ushort senderId, BinaryReader reader)
+        {
+            Guid id = new Guid(reader.ReadBytes(16));
+            bool held = reader.ReadBoolean();
+
+            if (!BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId) || senderId != localId)
+                return;
+
+            if (held)
+                _serverHeldImages.Add(id);
+            else
+                _serverHeldImages.Remove(id);
+        }
+
         private static void HandleDespawn(ushort senderId, BinaryReader reader)
         {
             Guid id = new Guid(reader.ReadBytes(16));
@@ -3123,6 +3182,7 @@ namespace Basis.ImagePickup
             if (_owned.TryGetValue(id, out OwnedImage owned))
                 owned.AnimationPayload?.Dispose();
             _owned.Remove(id);
+            _serverHeldImages.Remove(id);
             if (_remoteAnimationPayloads.TryGetValue(id, out BasisNativeAnimationPayload remotePayload))
                 remotePayload?.Dispose();
             _remoteAnimationPayloads.Remove(id);
@@ -4138,14 +4198,27 @@ namespace Basis.ImagePickup
             if (candidatePixels <= 0 || candidatePixels > limit)
                 return false;
 
-            ushort ownerId = candidate.OwnerId;
+            // The budget is per owner, so a player whose pickup has gone belongs to nobody's group
+            // and is neither counted nor evicted here — its data is released by the unregister
+            // path. Treating a missing pickup as owner 0 charged every orphan to whoever joined
+            // the instance first, so their images hit this cap and got evicted before anyone else's.
+            if (!candidate.TryGetOwnerId(out ushort ownerId))
+                return false;
+
             long decodedPixels = candidateNeedsDecode ? candidatePixels : 0;
             int playerCount = _players.Count;
             for (int i = 0; i < playerCount; i++)
             {
                 BasisAnimatedImagePlayer player = _players[i];
-                if (player == null || player.OwnerId != ownerId || !player.HasDecodedData)
+                if (
+                    player == null
+                    || !player.TryGetOwnerId(out ushort playerOwnerId)
+                    || playerOwnerId != ownerId
+                    || !player.HasDecodedData
+                )
+                {
                     continue;
+                }
                 decodedPixels += player.DecodedFramePixels;
             }
 
@@ -4156,7 +4229,8 @@ namespace Basis.ImagePickup
                 if (
                     player == null
                     || ReferenceEquals(player, candidate)
-                    || player.OwnerId != ownerId
+                    || !player.TryGetOwnerId(out ushort playerOwnerId)
+                    || playerOwnerId != ownerId
                     || player.HasDecodedData
                 )
                 {
@@ -4179,7 +4253,8 @@ namespace Basis.ImagePickup
                     BasisAnimatedImagePlayer player = _players[i];
                     if (
                         player == null
-                        || player.OwnerId != ownerId
+                        || !player.TryGetOwnerId(out ushort playerOwnerId)
+                        || playerOwnerId != ownerId
                         || !player.HasDecodedData
                         || !player.CanReleaseDecodedData
                     )
@@ -4211,7 +4286,8 @@ namespace Basis.ImagePickup
                     BasisAnimatedImagePlayer player = _players[i];
                     if (
                         player == null
-                        || player.OwnerId != ownerId
+                        || !player.TryGetOwnerId(out ushort playerOwnerId)
+                        || playerOwnerId != ownerId
                         || !player.HasDecodedData
                         || !player.CanReleaseDecodedData
                         || (deferReleases && _pendingDecodedReleases.Contains(player))

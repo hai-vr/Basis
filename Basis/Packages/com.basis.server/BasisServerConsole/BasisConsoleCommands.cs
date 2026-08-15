@@ -17,6 +17,9 @@ namespace BasisNetworkConsole
         // Register commands for each configuration field
         public static void RegisterConfigurationCommands(Configuration config)
         {
+            RegisterCommand("/config", "Lists every server setting. /config <name> [value] to read or change one.",
+                (args) => HandleConfigRoot(args, config));
+
             var fields = typeof(Configuration).GetFields(BindingFlags.Public | BindingFlags.Instance);
             foreach (var field in fields)
             {
@@ -25,71 +28,116 @@ namespace BasisNetworkConsole
                 RegisterCommand(commandName, string.Empty, (args) => HandleConfigField(args, field, config));
             }
         }
+
+        private static void HandleConfigRoot(string[] args, Configuration config)
+        {
+            var fields = typeof(Configuration).GetFields(BindingFlags.Public | BindingFlags.Instance);
+
+            if (args.Length == 0)
+            {
+                BNL.Log($"{fields.Length} settings. '*' takes effect on /restart, '+' applies to new joins only.");
+                foreach (var field in fields)
+                {
+                    string marker = Configuration.RequiresRestart(field.Name) ? "*"
+                        : Configuration.AppliesToNewJoinsOnly(field.Name) ? "+"
+                        : " ";
+                    BNL.Log($" {marker} {field.Name} = {DisplayValue(field, config)}");
+                }
+                return;
+            }
+
+            var match = Array.Find(fields, f => string.Equals(f.Name, args[0], StringComparison.OrdinalIgnoreCase));
+            if (match == null)
+            {
+                BNL.Log($"Unknown setting '{args[0]}'. Type /config to list them.");
+                return;
+            }
+
+            HandleConfigField(args.Skip(1).ToArray(), match, config);
+        }
+
+        private static string DisplayValue(FieldInfo field, Configuration config)
+        {
+            if (Configuration.IsSecretFieldName(field.Name))
+            {
+                string raw = field.GetValue(config)?.ToString();
+                return string.IsNullOrEmpty(raw) ? "<empty>" : "<redacted>";
+            }
+            return field.GetValue(config)?.ToString() ?? string.Empty;
+        }
         public static void HandleConfigField(string[] args, FieldInfo field, Configuration config)
         {
             if (args.Length == 0)
             {
-                // Display the current value
-                BNL.Log($"{field.Name}: {field.GetValue(config)}");
+                string suffix = Configuration.RequiresRestart(field.Name) ? "  (takes effect on /restart)"
+                    : Configuration.AppliesToNewJoinsOnly(field.Name) ? "  (applies to new joins only)"
+                    : string.Empty;
+                BNL.Log($"{field.Name}: {DisplayValue(field, config)}{suffix}");
+                return;
             }
-            else if (args.Length == 1)
-            {
-                // Try to set the value
-                string newValue = args[0];
-                bool success = false;
 
-                // Handle different types of fields
-                if (field.FieldType == typeof(int))
-                {
-                    if (int.TryParse(newValue, out int intValue))
-                    {
-                        field.SetValue(config, intValue);
-                        success = true;
-                    }
-                }
-                else if (field.FieldType == typeof(ushort))
-                {
-                    if (ushort.TryParse(newValue, out ushort ushortValue))
-                    {
-                        field.SetValue(config, ushortValue);
-                        success = true;
-                    }
-                }
-                else if (field.FieldType == typeof(bool))
-                {
-                    if (bool.TryParse(newValue, out bool boolValue))
-                    {
-                        field.SetValue(config, boolValue);
-                        success = true;
-                    }
-                }
-                else if (field.FieldType == typeof(float))
-                {
-                    if (float.TryParse(newValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float floatValue))
-                    {
-                        field.SetValue(config, floatValue);
-                        success = true;
-                    }
-                }
-                else if (field.FieldType == typeof(string))
-                {
-                    field.SetValue(config, newValue);
-                    success = true;
-                }
+            // Rejoined rather than args[0]: ServerMotd and ServerName carry spaces, and splitting
+            // them on the command line silently truncated the value to its first word.
+            string newValue = string.Join(' ', args);
+            object previous = field.GetValue(config);
 
-                if (success)
-                {
-                    BNL.Log($"Set {field.Name} to {newValue}");
-                }
-                else
-                {
-                    BNL.Log($"Failed to set {field.Name} to {newValue}. Invalid type or value.");
-                }
-            }
-            else
+            if (!TryParseConfigValue(field.FieldType, newValue, out object parsed))
             {
-                BNL.Log($"Usage: /config {field.Name.ToLower()} [value]");
+                BNL.Log($"Failed to set {field.Name} to '{newValue}'. Expected {DescribeType(field.FieldType)}.");
+                return;
             }
+
+            field.SetValue(config, parsed);
+
+            try
+            {
+                config.SaveToXml(Configuration.GetDefaultPath());
+            }
+            catch (Exception e)
+            {
+                field.SetValue(config, previous);
+                BNL.LogError($"Failed to persist {field.Name}, change reverted: {e.Message}");
+                return;
+            }
+
+            string shown = Configuration.IsSecretFieldName(field.Name) ? "<redacted>" : newValue;
+
+            if (Configuration.RequiresRestart(field.Name))
+            {
+                BNL.Log($"Set {field.Name} to {shown}. Saved — takes effect on /restart.");
+                return;
+            }
+
+            NetworkServer.ApplyLiveConfiguration();
+
+            BNL.Log(Configuration.AppliesToNewJoinsOnly(field.Name)
+                ? $"Set {field.Name} to {shown}. Saved and applied to new joins."
+                : $"Set {field.Name} to {shown}. Saved and applied live.");
+        }
+
+        private static bool TryParseConfigValue(Type type, string raw, out object parsed)
+        {
+            parsed = null;
+            var invariant = System.Globalization.CultureInfo.InvariantCulture;
+
+            if (type == typeof(string)) { parsed = raw; return true; }
+            if (type == typeof(bool)) { if (bool.TryParse(raw, out var v)) { parsed = v; return true; } return false; }
+            if (type == typeof(int)) { if (int.TryParse(raw, System.Globalization.NumberStyles.Integer, invariant, out var v)) { parsed = v; return true; } return false; }
+            if (type == typeof(ushort)) { if (ushort.TryParse(raw, System.Globalization.NumberStyles.Integer, invariant, out var v)) { parsed = v; return true; } return false; }
+            if (type == typeof(byte)) { if (byte.TryParse(raw, System.Globalization.NumberStyles.Integer, invariant, out var v)) { parsed = v; return true; } return false; }
+            if (type == typeof(long)) { if (long.TryParse(raw, System.Globalization.NumberStyles.Integer, invariant, out var v)) { parsed = v; return true; } return false; }
+            if (type == typeof(float)) { if (float.TryParse(raw, System.Globalization.NumberStyles.Float, invariant, out var v)) { parsed = v; return true; } return false; }
+            if (type == typeof(double)) { if (double.TryParse(raw, System.Globalization.NumberStyles.Float, invariant, out var v)) { parsed = v; return true; } return false; }
+            if (type.IsEnum) { try { parsed = Enum.Parse(type, raw, true); return Enum.IsDefined(type, parsed); } catch { return false; } }
+
+            return false;
+        }
+
+        private static string DescribeType(Type type)
+        {
+            if (type.IsEnum) return $"one of [{string.Join(", ", Enum.GetNames(type))}]";
+            if (type == typeof(bool)) return "true or false";
+            return type.Name;
         }
         private static Thread? consoleThread;
         public static void RegisterPermissionCommands()
@@ -563,6 +611,82 @@ namespace BasisNetworkConsole
             BNL.Log("Shutting down the server...");
             Program.isRunning = false;  // Gracefully stop the server
             Environment.Exit(0); // Exit the application
+        }
+
+        /// <summary>Passed to the process /restart launches so it waits for its predecessor to release the port.</summary>
+        public const string AwaitPidArgument = "--await-pid=";
+
+        /// <summary>
+        /// Blocks until the process that launched this one via /restart has exited, so the UDP bind
+        /// does not race it. Returns immediately when the argument is absent, malformed, or names a
+        /// process that is already gone.
+        /// </summary>
+        public static void WaitForPredecessorExit(string[] args)
+        {
+            string argument = Array.Find(args ?? Array.Empty<string>(),
+                a => a.StartsWith(AwaitPidArgument, StringComparison.OrdinalIgnoreCase));
+            if (argument == null) return;
+
+            if (!int.TryParse(argument.Substring(AwaitPidArgument.Length), out int pid)) return;
+
+            try
+            {
+                using var previous = System.Diagnostics.Process.GetProcessById(pid);
+                BNL.Log($"Waiting for the previous server process ({pid}) to exit...");
+                if (!previous.WaitForExit(30000))
+                {
+                    BNL.LogWarning($"Previous server process ({pid}) is still running after 30s; binding anyway.");
+                }
+            }
+            catch (ArgumentException)
+            {
+                // Already exited, which is the common case — nothing to wait for.
+            }
+            catch (Exception e)
+            {
+                BNL.LogWarning($"Could not wait on the previous server process ({pid}): {e.Message}");
+            }
+        }
+
+        public static void HandleRestart(string[] args)
+        {
+            string exePath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exePath))
+            {
+                BNL.LogError("Cannot restart: the host process path is unavailable. Use /shutdown and start the server again.");
+                return;
+            }
+
+            // Launched before this process exits, so the operator keeps a running server rather than
+            // being left with nothing if the relaunch fails. The replacement binds the same UDP port,
+            // so it is told to wait for this process to go away first — otherwise it races us for the
+            // socket and dies on startup.
+            try
+            {
+                var start = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = exePath,
+                    WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
+                    UseShellExecute = true,
+                };
+                foreach (string argument in Environment.GetCommandLineArgs().Skip(1))
+                {
+                    if (argument.StartsWith(AwaitPidArgument, StringComparison.OrdinalIgnoreCase)) continue;
+                    start.ArgumentList.Add(argument);
+                }
+                start.ArgumentList.Add($"{AwaitPidArgument}{Environment.ProcessId}");
+
+                BNL.Log("Restarting the server...");
+                System.Diagnostics.Process.Start(start);
+            }
+            catch (Exception e)
+            {
+                BNL.LogError($"Restart failed to launch a replacement process, server left running: {e.Message}");
+                return;
+            }
+
+            Program.isRunning = false;
+            Environment.Exit(0);
         }
 
         public static void HandleHelp(string[] args)

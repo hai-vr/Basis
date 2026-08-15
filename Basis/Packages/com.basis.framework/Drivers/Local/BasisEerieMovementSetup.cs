@@ -193,7 +193,8 @@ namespace Basis.Scripts.Drivers
             // Baked T-pose data for shoulder solve
             job.tposeLeftShoulderRot = Mapping.leftShoulder != null ? Mapping.leftShoulder.rotation : Quaternion.identity;
             job.tposeRightShoulderRot = Mapping.RightShoulder != null ? Mapping.RightShoulder.rotation : Quaternion.identity;
-            job.tposeChestRot = Mapping.chest != null ? Mapping.chest.rotation : Quaternion.identity;
+            job.tposeChestRot = Mapping.Upperchest != null ? Mapping.Upperchest.rotation
+                : Mapping.chest != null ? Mapping.chest.rotation : Quaternion.identity;
             job.tposeLeftShoulderLocalDir = (Mapping.leftShoulder != null && Mapping.leftUpperArm != null)
                 ? (Mapping.leftUpperArm.position - Mapping.leftShoulder.position).normalized : Vector3.left;
             job.tposeRightShoulderLocalDir = (Mapping.RightShoulder != null && Mapping.RightUpperArm != null)
@@ -256,6 +257,11 @@ namespace Basis.Scripts.Drivers
             job.swingHintDrag = new NativeArray<Vector3>(BasisEerieMovement.k_SwingCount, Allocator.Persistent);
             job.swingHintBodyRot = new NativeArray<Quaternion>(BasisEerieMovement.k_SwingCount, Allocator.Persistent);
             job.swingHintInit = new NativeArray<int>(BasisEerieMovement.k_SwingCount, Allocator.Persistent);
+            job.swingHintReach = new NativeArray<float>(BasisEerieMovement.k_SwingCount, Allocator.Persistent);
+            job.swingGuardSide = new NativeArray<int>(BasisEerieMovement.k_SwingCount, Allocator.Persistent);
+            job.swingPoleAnchor = new NativeArray<Vector3>(BasisEerieMovement.k_SwingCount, Allocator.Persistent);
+            job.swingPoleAnchorRot = new NativeArray<Quaternion>(BasisEerieMovement.k_SwingCount, Allocator.Persistent);
+            job.swingPoleAnchorInit = new NativeArray<int>(BasisEerieMovement.k_SwingCount, Allocator.Persistent);
             job.legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);

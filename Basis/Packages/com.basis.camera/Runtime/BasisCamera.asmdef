@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "Basis Framework",
+        "Basis.ImagePickup",
         "BasisSDK",
         "BasisCommon",
         "BasisDebug",

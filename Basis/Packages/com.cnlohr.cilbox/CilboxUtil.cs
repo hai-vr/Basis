@@ -761,27 +761,26 @@ namespace Cilbox
 				Dictionary< String, int > classes;
 				CilboxClass [] classesList;
 
-				Dictionary< String, Serializee > assemblyRoot = new Serializee( Convert.FromBase64String( assemblyData ), Serializee.ElementType.Map ).AsMap();
-				Dictionary< String, Serializee > classData = assemblyRoot["classes"].AsMap();
-				Dictionary< String, Serializee > metaData = assemblyRoot["metadata"].AsMap();
+				SerializedAssembly assembly = SerializedAssembly.DeserializeString(assemblyData);
+				SerializedClass[] classData = assembly.classes;
+				SerializedMetadataToken[] metaData = assembly.metadata;
 
 				int clsid = 0;
 				classes = new Dictionary< String, int >();
-				classesList = new CilboxClass[classData.Count];
-				foreach( var v in classData )
+				classesList = new CilboxClass[classData.Length];
+				for( int i = 0; i < classData.Length; i++ )
 				{
-					CilboxClass cls = new CilboxClass();
-					classesList[clsid] = cls;
-					classes[(String)v.Key] = clsid;
+					classesList[clsid] = new CilboxClass();
+					classes[classData[i].className] = clsid;
 					clsid++;
 				}
 
 				clsid = 0;
-				foreach( var v in classData )
+				for( int cid = 0; cid < classData.Length; cid++ )
 				{
 					CilboxClass c = classesList[clsid++];
-
-					c.LoadCilboxClass( b, v.Key, v.Value );
+					SerializedClass sc = classData[cid];
+					c.LoadCilboxClass( b, sc );
 
 					CLog.WriteLine( $"Class: {c.className}" );
 
@@ -924,38 +923,33 @@ namespace Cilbox
 					}
 				}
 
-				foreach( var v in metaData )
+				foreach( var st in metaData )
 				{
-					int mid = Convert.ToInt32((String)v.Key);
-					Dictionary< String, Serializee > st = v.Value.AsMap();
-					MetaTokenType metatype = (MetaTokenType)Convert.ToInt32(st["mt"].AsString());
-					//CilMetadataTokenInfo t = metadatas[mid] = new CilMetadataTokenInfo( metatype );
+					MetaTokenType metatype = (MetaTokenType)st.metaTokenType;
 
-					//t.type = metatype;
-					//t.Name = "<UNKNOWN>";
-
-					String metaLine = $"\t{mid.ToString("X4")} {metatype.ToString().Substring(2),-7} ";
+					String metaLine = $"\t{st.metaTokenIndex.ToString("X4")} {metatype.ToString().Substring(2),-7} ";
 
 					switch( metatype )
 					{
 					case MetaTokenType.mtString:
-						metaLine += st["s"].AsString();
+						metaLine += st.stringValue;
 						break;
 					case MetaTokenType.mtArrayInitializer:
-						metaLine += Convert.ToBase64String( st["data"].AsBlob() );
+						metaLine += Convert.ToBase64String( st.arrayInitData );
 						break;
 					case MetaTokenType.mtField:
-						Type t = b.usage.GetNativeTypeFromSerializee( st["dt"] );
-						if( Int32.Parse( st["isStatic"].AsString() ) > 0 ) metaLine += "static ";
+						SerializedTypeDescriptor td = st.typeDescriptor;
+						Type t = b.usage.GetNativeTypeFromDescriptor(td);
+						if( st.isStatic ) metaLine += "static ";
 						String tname = t?.ToString();
 						if( t == null )
-							tname = "NR:" + st["dt"].AsMap()["n"].AsString() + " ";
-						metaLine += tname + st["name"].AsString();
+							tname = "NR:" + td.typeName + " ";
+						metaLine += tname + st.name;
 						break;
 					case MetaTokenType.mtType:
 					{
-						Serializee typ = st["dt"];
-						Type nt = b.usage.GetNativeTypeFromSerializee( typ );
+						SerializedTypeDescriptor td2 = st.typeDescriptor;
+						Type nt = b.usage.GetNativeTypeFromDescriptor(td2);
 						StackType seType = StackElement.StackTypeFromType( nt );
 						if( seType < StackType.Object )
 						{
@@ -968,7 +962,7 @@ namespace Cilbox
 								bool bFound = false;
 								foreach( CilboxClass c in b.classesList )
 								{
-									if( c.className == typ.AsMap()["n"].AsString() )
+									if( c.className == td2.typeName )
 									{
 										metaLine += $"PROXY: {c.className}";
 										bFound = true;
@@ -976,7 +970,7 @@ namespace Cilbox
 								}
 
 								if( !bFound )
-									throw new Exception( $"Type {typ.AsMap()["n"].AsString()} not available." );
+									throw new Exception( $"Type {td2.typeName} not available." );
 							}
 							else
 							{
@@ -987,7 +981,7 @@ namespace Cilbox
 					}
 					case MetaTokenType.mtMethod:
 					{
-						metaLine += $"{st["name"].AsString()} {st["fullSignature"].AsString()} {st["assembly"].AsString()}";
+						metaLine += $"{st.name} {st.methodFullSignature} {st.methodAssembly}";
 						break;
 					}
 					}
@@ -1004,7 +998,7 @@ namespace Cilbox
 		}
 
 		// Layout enumeration only -- field TYPES are not gated here. Every field type (inherited privates included) is
-		// validated at load in CilboxClass.LoadCilboxClass (GetNativeTypeFromSerializee -> CheckTypeAllowed), the real boundary.
+		// validated at load in CilboxClass.LoadCilboxClass (GetNativeTypeFromDescriptor -> CheckTypeAllowed), the real boundary.
 		public static FieldInfo[] GetInstanceFieldsBaseFirst( Type type )
 		{
 			List< FieldInfo > ordered = new List< FieldInfo >();
@@ -1029,7 +1023,7 @@ namespace Cilbox
 				UnityEngine.SceneManagement.Scene _scene = (UnityEngine.SceneManagement.Scene)scene;
 				if( !_scene.IsValid())
 				{
-					Debug.LogWarning($"Scene {_scene.name} is not valid. Returning empty MonoBehaviour array.");					
+					Debug.LogWarning($"Scene {_scene.name} is not valid. Returning empty MonoBehaviour array.");
 					return Array.Empty<MonoBehaviour>();
 				}
 
@@ -1092,54 +1086,6 @@ namespace Cilbox
 				t = t.DeclaringType;
 			}
 			return false;
-		}
-
-		// This does not check any rules, so it can be static.
-		public static Serializee GetSerializeeFromNativeType( Type t )
-		{
-			Dictionary< String, Serializee > ret = new Dictionary< String, Serializee >();
-			// Originally I did this to try to narrow down the search.  Now it is not as practical.
-			ret["a"] = new Serializee( t.Assembly.GetName().Name );
-			if( t.IsGenericType )
-			{
-				String genericDefName = t.GetGenericTypeDefinition().FullName;
-				StringBuilder typeNameBuilder = new StringBuilder();
-
-				// The following section strips out arity (`1, `2, etc) from the generic type definition name.
-				// This way we do not need to whitelist each generic arity of a type; We just need to whitelist the base name.
-				// Extreme example: Namespace.Outer`1+Middle`2+Inner`1 would be stripped to Namespace.Outer+Middle+Inner
-				for (int i = 0; i < genericDefName.Length; i++)
-				{
-					if (genericDefName[i] != '`')
-					{
-						typeNameBuilder.Append(genericDefName[i]);
-						continue;
-					}
-
-					int j = i + 1;
-					while (j < genericDefName.Length && char.IsDigit(genericDefName[j]))
-						j++;
-
-					if (j == genericDefName.Length || genericDefName[j] == '+' || genericDefName[j] == '[')
-						i = j - 1;
-				}
-				string baseName = typeNameBuilder.ToString();
-
-				ret["n"] = new Serializee( baseName );
-				ret["gn"] = new Serializee( genericDefName ); // Store the generic name so it does not have to be rebuilt
-				Type [] ta = t.GenericTypeArguments;
-				Serializee [] sg = new Serializee[ta.Length];
-				for( int i = 0; i < ta.Length; i++ )
-					sg[i] = GetSerializeeFromNativeType( ta[i] );
-				ret["g"] = new Serializee( sg );
-			}
-			else
-			{
-				ret["n"] = new Serializee( t.FullName );
-				if( t.IsEnum && HasCilboxableAttribute(t) )
-					ret["ut"] = GetSerializeeFromNativeType( t.GetEnumUnderlyingType() );
-			}
-			return new Serializee( ret );
 		}
 
 

@@ -28,8 +28,6 @@
         "BasisDebug",
         "BasisBundleManagement",
         "BasisProfiler",
-        "Unity.Services.Core",
-        "Unity.Services.Analytics",
         "BasisSettings",
         "com.cqf.urpvolumetricfog.runtime",
         "OpusSharp",

@@ -42,11 +42,16 @@ namespace Basis.Scripts.Rendering
         private static readonly Stack<int> FreeSlots = new Stack<int>();
         private static int _capacity;
         private static int _count;
+        private static int _cullableCount;
+        private static int _culledCount;
 
         public static int Count => _count;
         public static int Capacity => _capacity;
         public static int DynamicCount => DenseToSlot.IsCreated ? DenseToSlot.Length : 0;
         public static bool IsCreated => Centers.IsCreated;
+
+        public static int CullableCount => _cullableCount;
+        public static int CulledCount => _culledCount;
 
         public static void EnsureCreated()
         {
@@ -77,6 +82,8 @@ namespace Basis.Scripts.Rendering
             FreeSlots.Clear();
             _capacity = 0;
             _count = 0;
+            _cullableCount = 0;
+            _culledCount = 0;
         }
 
         public static int Register(Renderer[] renderers, Transform root, float3 center, float3 extents, BasisVisibilityFlags flags)
@@ -104,13 +111,20 @@ namespace Basis.Scripts.Rendering
                 _count++;
             }
 
+            uint stored = (uint)(flags | BasisVisibilityFlags.Active);
+
             Centers[slot] = center;
             BaseExtents[slot] = extents;
             Extents[slot] = extents;
-            Flags[slot] = (uint)(flags | BasisVisibilityFlags.Active);
+            Flags[slot] = stored;
             VisibleMask[slot] = uint.MaxValue;
             AppliedVisible[slot] = 1;
             SlotToDense[slot] = InvalidHandle;
+
+            if (IsCullable(stored))
+            {
+                _cullableCount++;
+            }
 
             Bindings[slot] = new BasisVisibilityBinding
             {
@@ -136,6 +150,15 @@ namespace Basis.Scripts.Rendering
 
             RestoreRenderers(Bindings[handle]);
             RemoveRoot(handle);
+
+            if (IsCullable(Flags[handle]))
+            {
+                _cullableCount--;
+            }
+            if (AppliedVisible[handle] == 0)
+            {
+                _culledCount--;
+            }
 
             Flags[handle] = (uint)BasisVisibilityFlags.None;
             VisibleMask[handle] = uint.MaxValue;
@@ -184,7 +207,10 @@ namespace Basis.Scripts.Rendering
             {
                 return;
             }
-            Flags[handle] = (uint)(flags | BasisVisibilityFlags.Active);
+            uint previous = Flags[handle];
+            uint next = (uint)(flags | BasisVisibilityFlags.Active);
+            Flags[handle] = next;
+            ApplyCullableDelta(previous, next);
         }
 
         public static void SetCullEligible(int handle, bool eligible)
@@ -194,7 +220,8 @@ namespace Basis.Scripts.Rendering
             {
                 return;
             }
-            uint current = Flags[handle];
+            uint previous = Flags[handle];
+            uint current = previous;
             if (eligible)
             {
                 current |= (uint)BasisVisibilityFlags.CullEligible;
@@ -204,6 +231,35 @@ namespace Basis.Scripts.Rendering
                 current &= ~(uint)BasisVisibilityFlags.CullEligible;
             }
             Flags[handle] = current;
+            ApplyCullableDelta(previous, current);
+        }
+
+        public static void SetApplied(int handle, bool visible)
+        {
+            byte value = visible ? (byte)1 : (byte)0;
+            if (AppliedVisible[handle] == value)
+            {
+                return;
+            }
+            AppliedVisible[handle] = value;
+            _culledCount += visible ? -1 : 1;
+        }
+
+        private static void ApplyCullableDelta(uint previous, uint next)
+        {
+            bool was = IsCullable(previous);
+            bool now = IsCullable(next);
+            if (was != now)
+            {
+                _cullableCount += now ? 1 : -1;
+            }
+        }
+
+        private static bool IsCullable(uint flags)
+        {
+            const uint Required = (uint)(BasisVisibilityFlags.Active | BasisVisibilityFlags.CullEligible);
+            return (flags & Required) == Required
+                && (flags & (uint)BasisVisibilityFlags.AlwaysVisible) == 0;
         }
 
         public static bool IsValid(int handle)
@@ -223,6 +279,7 @@ namespace Basis.Scripts.Rendering
                     AppliedVisible[index] = 1;
                 }
             }
+            _culledCount = 0;
         }
 
         private static void RestoreRenderers(BasisVisibilityBinding binding)

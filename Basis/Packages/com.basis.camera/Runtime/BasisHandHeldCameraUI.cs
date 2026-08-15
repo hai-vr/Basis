@@ -73,6 +73,13 @@ public partial class BasisHandHeldCameraUI
 
     public static int ExposureStopCount => ExposureStops.Length;
 
+    /// <summary>
+    /// The stop an exposure index means. Exposure travels as an index because it is a slider with
+    /// detents, but an index is meaningless to read — the settings readout wants "+1", not "8".
+    /// </summary>
+    public static float ExposureStopAt(int index) =>
+        ExposureStops[Mathf.Clamp(index, 0, ExposureStops.Length - 1)];
+
     public int ExposureIndex { get; private set; } = 6;
 
     /// <summary>
@@ -628,6 +635,10 @@ public partial class BasisHandHeldCameraUI
         var settings = new CameraSettings
         {
             cameraMode = HHC != null ? (int)HHC.CameraMode : baseline.cameraMode,
+            // Settled at the bottom of this method, once there is a whole file to judge it
+            // against. Seeded from the baseline so a camera with no live half still saves the
+            // name it loaded rather than dropping it.
+            userMode = baseline.userMode,
 
             // No live source: carried forward so a save cannot drop them.
             apertureIndex = baseline.apertureIndex,
@@ -689,6 +700,17 @@ public partial class BasisHandHeldCameraUI
             capture360 = HHC != null && HHC.capture360Enabled,
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
             useVRHandheldSmoothing = HHC != null && HHC.useVRHandheldSmoothing,
+            printPhoto = HHC != null && HHC.printPhotoEnabled,
+            gifDurationSeconds = HHC != null ? HHC.GifDurationSeconds : baseline.gifDurationSeconds,
+            gifFrameRate = HHC != null ? HHC.GifFrameRate : baseline.gifFrameRate,
+            gifWidth = HHC != null ? HHC.GifWidth : baseline.gifWidth,
+            gifLoop = HHC == null || HHC.GifLoop,
+            gifDither = HHC == null || HHC.GifDither,
+            videoDurationSeconds = HHC != null ? HHC.VideoRecordingDurationSeconds : baseline.videoDurationSeconds,
+            videoFrameRate = HHC != null ? HHC.VideoRecordingFrameRate : baseline.videoFrameRate,
+            videoWidth = HHC != null ? HHC.VideoRecordingWidth : baseline.videoWidth,
+            videoQuality = HHC != null ? HHC.VideoRecordingQuality : baseline.videoQuality,
+            videoTimeLimit = HHC == null || HHC.VideoRecordingTimeLimit,
             backgroundMode = HHC != null ? (int)HHC.backgroundMode : 0,
             backgroundCustomColor = HHC != null ? HHC.backgroundCustomColor : BasisHandHeldCamera.ChromaGreen,
             backgroundKeepsWorld = HHC != null && HHC.backgroundKeepsWorld,
@@ -704,6 +726,16 @@ public partial class BasisHandHeldCameraUI
             settings.VolumetricFogenableMainLightContribution = HHC.MetaData.VolumetricFogVolume.enableMainLightContribution.value;
         }
 #endif
+
+        // Last, and against the finished file: a saved mode is a claim about every value above
+        // this line, so it can only be checked once they are all in. Handing the harvest over
+        // rather than letting the camera take its own also keeps this from re-entering itself.
+        if (HHC != null)
+        {
+            HHC.RefreshUserMode(settings);
+            // Never null on the way into a file — see the constructor.
+            settings.userMode = HHC.UserModeName ?? string.Empty;
+        }
 
         return settings;
     }
@@ -838,6 +870,17 @@ public partial class BasisHandHeldCameraUI
         settings.settingsVersion = CameraSettings.CurrentVersion;
     }
 
+    /// <summary>
+    /// Applies a settings file that came from somewhere other than disk — today, a saved mode.
+    /// The apply is private because a settings file is normally the load path's business, but a
+    /// mode <em>is</em> a settings file, and giving it a second apply of its own would be a second
+    /// place for a field to be forgotten.
+    /// </summary>
+    internal void ApplyModeSettings(CameraSettings settings) => ApplySettings(settings);
+
+    /// <summary>Everything the camera is set to, for a saved mode to keep or be checked against.</summary>
+    internal CameraSettings CaptureSettings() => CreateCurrentCameraSettings();
+
 #if UNITY_INCLUDE_TESTS
     /// <summary>Test-only access to the private migration.</summary>
     public static void MigrateSettingsForTest(CameraSettings settings) => MigrateSettings(settings);
@@ -959,6 +1002,11 @@ public partial class BasisHandHeldCameraUI
             // saved mode against values the apply had not reached yet and call it Custom.
             HHC.RestoreCameraMode((BasisCameraMode)settings.cameraMode);
 
+            // After the built-in label, and allowed to sit on top of it: a saved mode owns the
+            // camera whenever one is named, and the built-in underneath is only what the values
+            // would have been called had nobody saved them.
+            HHC.RestoreUserMode(settings.userMode);
+
             // Update readouts
             RefreshAllReadouts();
 
@@ -1036,6 +1084,20 @@ public partial class BasisHandHeldCameraUI
         HHC.capture360Enabled = settings.capture360;
         HHC.useAutoLeveling = settings.useAutoLeveling;
         HHC.useVRHandheldSmoothing = settings.useVRHandheldSmoothing;
+        HHC.printPhotoEnabled = settings.printPhoto;
+
+        // Through the setters, not the fields: a settings file is text on disk, and these
+        // clamp it back into the ranges the encoder and the panel promise.
+        HHC.SetGifDuration(settings.gifDurationSeconds);
+        HHC.SetGifFrameRate(settings.gifFrameRate);
+        HHC.SetGifWidth(settings.gifWidth);
+        HHC.GifLoop = settings.gifLoop;
+        HHC.GifDither = settings.gifDither;
+        HHC.SetVideoRecordingDuration(settings.videoDurationSeconds);
+        HHC.SetVideoRecordingFrameRate(settings.videoFrameRate);
+        HHC.SetVideoRecordingWidth(settings.videoWidth);
+        HHC.SetVideoRecordingQuality(settings.videoQuality);
+        HHC.VideoRecordingTimeLimit = settings.videoTimeLimit;
 
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC.MetaData.VolumetricFogVolume != null)

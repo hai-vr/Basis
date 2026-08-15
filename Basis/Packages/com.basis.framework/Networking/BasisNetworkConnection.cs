@@ -1,5 +1,6 @@
 using Basis.BasisUI;
 using Basis.Network.Core;
+using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
@@ -228,6 +229,11 @@ namespace Basis.Scripts.Networking
 
                     BasisNetworkPlayer.OnLocalPlayerJoined?.Invoke(transmitter, BasisLocalPlayer.Instance);
                     BasisNetworkPlayer.OnPlayerJoined?.Invoke(transmitter);
+
+                    // The avatar was picked before any of this existed, so nothing has had cause to
+                    // check whether the rest of the server can actually fetch it. Has to run after
+                    // LocalPlayerIsConnected, which is the flag the check gates on.
+                    BasisLocalAvatarNetworkNotice.NotifyIfLocalOnly();
                 }
                 catch (Exception ex)
                 {
@@ -252,6 +258,7 @@ namespace Basis.Scripts.Networking
                 BasisNetworkAvatarCompressor.Dispose();
                 BasisP2PManager.Shutdown();
                 BasisAvatarRateRegistry.Reset();
+                BasisLocomotionOverrides.RemoveAll(true);
                 await BasisNetworkLifeCycle.RebootManagement(true, peer, disconnectInfo);
                 BasisNetworkConnectionWatchdog.NotifyRebootComplete();
 #if UNITY_SERVER

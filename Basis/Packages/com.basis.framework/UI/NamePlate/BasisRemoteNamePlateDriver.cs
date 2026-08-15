@@ -195,6 +195,13 @@ namespace Basis.Scripts.UI.NamePlate
         /// One-time load of the prefab-replacement assets (materials + TMP baking object).
         /// Baker is parented under the BasisDeviceManagement root so it inherits the
         /// framework's lifetime instead of needing DontDestroyOnLoad.
+        /// The single activate/deactivate pair at the end is the ONLY time the baker is ever
+        /// activated: it runs TMP's Awake + OnEnable once, here, during device init. Bakes then
+        /// run through ForceMeshUpdate(ignoreActiveState: true) on the permanently inactive
+        /// object. Do not re-add a per-bake SetActive — GameObject.Activate takes the
+        /// PersistentManager lock, and a bake landing during an async bundle load (i.e. every
+        /// join, since the joining player's avatar is loading while their plate bakes) stalled
+        /// the main thread ~120ms inside TextMeshPro.OnEnable waiting on it.
         /// </summary>
         private static void EnsureAssetsLoaded()
         {
@@ -223,6 +230,9 @@ namespace Basis.Scripts.UI.NamePlate
                 Text.enableVertexGradient = false;
                 Text.textWrappingMode = TextWrappingModes.NoWrap;
                 Text.overflowMode = TextOverflowModes.Overflow;
+
+                bakingGO.SetActive(true);
+                bakingGO.SetActive(false);
             }
         }
 
@@ -601,8 +611,11 @@ namespace Basis.Scripts.UI.NamePlate
         /// <summary>
         /// Shared baking front-half: pushes the name through the TMP baker and computes the
         /// panel half-width plus the text submesh transform (horizontal flip, with a uniform
-        /// downscale folded in when the name exceeds MaxPlateHalfWidth). Leaves the baker active
-        /// so callers can read <see cref="TMPro.TMP_Text.textInfo"/>; callers deactivate it.
+        /// downscale folded in when the name exceeds MaxPlateHalfWidth). The baker stays inactive
+        /// throughout. TMP gates its Phase III vertex upload on IsActive(), so ForceMeshUpdate alone
+        /// lays the text out into textInfo but leaves every meshInfo Mesh empty — UpdateVertexData
+        /// performs that same upload unconditionally. Both calls are required; dropping the second
+        /// bakes empty text meshes and the merge job dies on a missing vertex attribute.
         /// </summary>
         private static bool PrepareBakedText(string displayName, out float halfWidth, out Matrix4x4 textTransform)
         {
@@ -610,10 +623,10 @@ namespace Basis.Scripts.UI.NamePlate
             textTransform = FlipX;
             if (Text == null) return false;
 
-            Text.gameObject.SetActive(true);
             Text.fontSize = BakeFontSize;
             Text.text = displayName;
-            Text.ForceMeshUpdate();
+            Text.ForceMeshUpdate(true);
+            Text.UpdateVertexData();
 
             const float horizontalPadding = 2f;
             Vector2 textSize = Text.GetRenderedValues(true);
@@ -679,7 +692,6 @@ namespace Basis.Scripts.UI.NamePlate
             textMeshes.Clear();
             textMaterials.Clear();
             BasisGlobalNamePlateRenderer.MarkDirty();
-            Text.gameObject.SetActive(false);
             return true;
         }
 
@@ -734,7 +746,6 @@ namespace Basis.Scripts.UI.NamePlate
             renderer.sharedMaterials = materials;
 
             Object.Destroy(plateMesh);
-            Text.gameObject.SetActive(false);
             return true;
         }
 

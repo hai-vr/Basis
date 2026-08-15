@@ -133,7 +133,7 @@ namespace Basis.Framework.IK.Tests
 
             BasisLocomotionGraph.Step(ref sim, ref p, 0.01f, lengths, looping, contributions);
             Assert.IsTrue(sim.InTransition);
-            Assert.AreEqual(BasisLocoState.Cawling, sim.To);
+            Assert.AreEqual(BasisLocoState.Crouching, sim.To);
 
             int count = BasisLocomotionGraph.Step(ref sim, ref p, 0.05f, lengths, looping, contributions);
             float total = 0f;
@@ -190,7 +190,7 @@ namespace Basis.Framework.IK.Tests
 
             p.IsJumping = true;
             BasisLocomotionGraph.Step(ref sim, ref p, 0.01f, lengths, looping, contributions);
-            Assert.AreEqual(BasisLocoState.Cawling, sim.To, "an active transition must not be interrupted");
+            Assert.AreEqual(BasisLocoState.Crouching, sim.To, "an active transition must not be interrupted");
         }
     }
 }

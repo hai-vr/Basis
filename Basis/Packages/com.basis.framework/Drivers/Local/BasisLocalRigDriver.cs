@@ -822,7 +822,10 @@ namespace Basis.Scripts.Drivers
             bool footDriverReady = footDriver.IsInitialized;
             bool isStationaryEnough = stationaryTimer >= StationaryDelaySeconds;
             bool footIKSetting = Basis.BasisUI.BasisSettingsDefaults.FootIKEnabled.RawValue;
-            bool footIKReady = footDriverReady && (LocomotionFootIK || isStationaryEnough) && footIKSetting;
+            // Prone keeps the feet animation-owned: the stepper models a standing gait and would plant
+            // standing feet under a lying body. The blend weights below fade IK out on the gate.
+            bool footIKReady = footDriverReady && (LocomotionFootIK || isStationaryEnough) && footIKSetting
+                && !localPlayer.LocalCharacterDriver.IsProne;
             bool leftWantIK = footIKReady && !leftHasTracker;
             bool rightWantIK = footIKReady && !rightHasTracker;
             bool leftOrRightDrive = !leftHasTracker || !rightHasTracker;
@@ -1023,6 +1026,8 @@ namespace Basis.Scripts.Drivers
                 data.targetPositionHips = hipsPos;
                 data.targetRotationHips = hipsRot;
                 data.hasHipsTracker = hipsHaveTracker;
+                // Only without a real pelvis tracker: a tracked hips must stay pinned even while prone.
+                data.proneBodyPose = localPlayer.LocalCharacterDriver.IsProne && !hipsHaveTracker;
                 // Per frame, not just on OnHasRigChanged: the weight moves continuously while a source fades.
                 data.enabledLeftHand = HandRigWeight(BasisLocalBoneDriver.LeftHandControl);
                 data.enabledRightHand = HandRigWeight(BasisLocalBoneDriver.RightHandControl);
@@ -1035,9 +1040,10 @@ namespace Basis.Scripts.Drivers
                 // It cannot be derived inside the job -- the lock-mode stage restores the head-hips
                 // separation to rest length before the crouch stage reads it. Seats force it to zero: a
                 // chair-sitter's head is low with the hips forward onto the seat, the opposite of a squat.
+                // Prone forces it to zero for the same reason: a lying body's head is low without any squat.
                 float restHeadLocalY = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position.y;
                 data.standingHeadHeight = Mathf.Max(0f, restHeadLocalY * playerUpScale);
-                if (localPlayer.LocalSeatDriver.IsSeated || playerUpScale <= 1e-6f)
+                if (localPlayer.LocalSeatDriver.IsSeated || localPlayer.LocalCharacterDriver.IsProne || playerUpScale <= 1e-6f)
                 {
                     data.crouchDepth = 0f;
                 }

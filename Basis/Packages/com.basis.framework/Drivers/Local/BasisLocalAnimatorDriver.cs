@@ -210,6 +210,7 @@ namespace Basis.Scripts.Animator_Driver
                 VelocityZ = variables.Velocity.z,
                 CurrentSpeed = variables.AnimationsCurrentSpeed,
                 CrouchedState = variables.IsCrouching,
+                ProneState = variables.IsProne,
                 IsFalling = variables.IsFalling,
                 IsJumping = variables.IsJumping,
             };
@@ -284,6 +285,7 @@ namespace Basis.Scripts.Animator_Driver
             basisAnimatorVariableApply.BasisAnimatorVariables.IsFalling = LocalCharacterDriver.IsFalling;
             basisAnimatorVariableApply.BasisAnimatorVariables.CrouchBlend = LocalCharacterDriver.CrouchBlend;
             basisAnimatorVariableApply.BasisAnimatorVariables.IsCrouching = LocalCharacterDriver.CrouchBlend < CrouchThreshold;
+            basisAnimatorVariableApply.BasisAnimatorVariables.IsProne = LocalCharacterDriver.IsProne;
 
             // Calculate the angular velocity of the hips
             deltaRotation = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation * Quaternion.Inverse(previousHipsRotation);

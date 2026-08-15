@@ -170,7 +170,14 @@ namespace LiteNetLib
             packet.Next = null;
             packet.Size = size;
             if (packet.RawData.Length < size)
-                packet.RawData = new byte[size];
+            {
+                int capacity = 64;
+                while (capacity < size)
+                    capacity <<= 1;
+                if (capacity > NetConstants.MaxPacketSize)
+                    capacity = NetConstants.MaxPacketSize;
+                packet.RawData = new byte[capacity];
+            }
             return packet;
         }
 

@@ -238,6 +238,38 @@ namespace Basis.Tests.IK
             }
         }
 
+        // ── Per-gizmo layers ────────────────────────────────────────────────
+
+        [Test]
+        public void SetGizmoLayer_AcceptsBatchedGizmosAndRefusesUnknownIds()
+        {
+            // The layer is what hides a gizmo from one particular camera — the handheld
+            // camera's detached marker rides it to stay out of its own capture — so an id
+            // that silently fails to take one puts geometry back in the shot.
+            BasisGizmoManager.CreateSphereGizmo("s", out int sphereId, Vector3.zero, 0.1f, Color.white);
+            BasisGizmoManager.CreateLineGizmo("l", out int lineId, Vector3.zero, Vector3.one, 0.01f, Color.white);
+
+            Assert.IsTrue(BasisGizmoManager.SetGizmoLayer(sphereId, 9));
+            Assert.IsTrue(BasisGizmoManager.SetGizmoLayer(lineId, 9));
+
+            // -1 hands the gizmo back to the shared RenderLayer.
+            Assert.IsTrue(BasisGizmoManager.SetGizmoLayer(sphereId, -1));
+            Assert.IsTrue(BasisGizmoManager.SetGizmoLayer(lineId, -1));
+
+            LogAssert.ignoreFailingMessages = true;
+            try
+            {
+                Assert.IsFalse(BasisGizmoManager.SetGizmoLayer(123456, 9), "unknown id");
+                // Unity only has 32 layers; anything else would throw inside the draw call.
+                Assert.IsFalse(BasisGizmoManager.SetGizmoLayer(lineId, 32), "layer above the range");
+                Assert.IsFalse(BasisGizmoManager.SetGizmoLayer(lineId, -2), "layer below the sentinel");
+            }
+            finally
+            {
+                LogAssert.ignoreFailingMessages = false;
+            }
+        }
+
         [Test]
         public void SetGizmoActive_TogglesWithoutDestroying()
         {

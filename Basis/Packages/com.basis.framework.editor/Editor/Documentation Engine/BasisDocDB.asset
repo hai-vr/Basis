@@ -46645,9 +46645,8 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: "Central bootstrapping entry point for the Basis runtime.\n Initializes
-      Addressables, spawns the framework GameObject, and (optionally) starts Unity
-      Services/Analytics.\n Handles cleanup both on app quit and when leaving Play
-      Mode in the Editor."
+      Addressables and spawns the framework GameObject.\n Handles cleanup both on app
+      quit and when leaving Play Mode in the Editor."
     Remarks: 
     Returns: 
     Value: 
@@ -46773,37 +46772,6 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: If true, will instantiate the framework after Addressables initialization
       completes.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Boot_Sequence.BasisBootSequence
-    MemberName: GrabUnityAnalytics
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: If true, attempts to initialize Unity Services and enable Analytics.
     Remarks: 
     Returns: 
     Value: 

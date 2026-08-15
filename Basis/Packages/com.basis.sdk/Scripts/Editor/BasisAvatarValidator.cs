@@ -26,6 +26,7 @@ public class BasisAvatarValidator
     public const int MeshVertices = 65535;
     public const int MaxTextureSizeBeforeWarning = 4096;
     public const int MaxTextureSizeWithoutMipMaps = 256;
+    private static readonly string[] TextureImporterPlatforms = { "Standalone", "Android", "iPhone" };
 
     public VisualElement Root;
 
@@ -666,6 +667,111 @@ public class BasisAvatarValidator
                     BasisEditorLocalization.Get("sdk.avatarValidator.texture.tooLarge.fix", tex.name, MaxTextureSizeBeforeWarning)
                 ));
             }
+            if (IsCrunchCompressed(tex, texImporter, out string crunchScope))
+            {
+                warnings.Add(new BasisValidationIssue(
+                    BasisEditorLocalization.Get("sdk.avatarValidator.texture.crunched", tex.name, crunchScope),
+                    ValidationCategory.Performance,
+                    () => DisableCrunchCompression(texImporter),
+                    BasisEditorLocalization.Get("sdk.avatarValidator.texture.crunched.fix", tex.name)
+                ));
+            }
+        }
+    }
+
+    private static bool IsCrunchCompressed(Texture tex, TextureImporter texImporter, out string scope)
+    {
+        if (tex is Texture2D texture2D && IsCrunchedFormat(texture2D.format))
+        {
+            scope = texture2D.format.ToString();
+            return true;
+        }
+        for (int Index = 0; Index < TextureImporterPlatforms.Length; Index++)
+        {
+            TextureImporterPlatformSettings platformSettings = texImporter.GetPlatformTextureSettings(TextureImporterPlatforms[Index]);
+            if (platformSettings == null || !platformSettings.overridden) continue;
+            if (!platformSettings.crunchedCompression && !IsCrunchedImporterFormat(platformSettings.format)) continue;
+            if (!CanCrunchFormat(platformSettings.format)) continue;
+            scope = TextureImporterPlatforms[Index];
+            return true;
+        }
+        scope = null;
+        return false;
+    }
+
+    private static bool IsCrunchedFormat(TextureFormat format)
+    {
+        switch (format)
+        {
+            case TextureFormat.DXT1Crunched:
+            case TextureFormat.DXT5Crunched:
+            case TextureFormat.ETC_RGB4Crunched:
+            case TextureFormat.ETC2_RGBA8Crunched:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static bool IsCrunchedImporterFormat(TextureImporterFormat format)
+    {
+        switch (format)
+        {
+            case TextureImporterFormat.DXT1Crunched:
+            case TextureImporterFormat.DXT5Crunched:
+            case TextureImporterFormat.ETC_RGB4Crunched:
+            case TextureImporterFormat.ETC2_RGBA8Crunched:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static bool CanCrunchFormat(TextureImporterFormat format)
+    {
+        switch (format)
+        {
+            case TextureImporterFormat.Automatic:
+            case TextureImporterFormat.DXT1:
+            case TextureImporterFormat.DXT5:
+            case TextureImporterFormat.ETC_RGB4:
+            case TextureImporterFormat.ETC2_RGBA8:
+                return true;
+            default:
+                return IsCrunchedImporterFormat(format);
+        }
+    }
+
+    private static void DisableCrunchCompression(TextureImporter texImporter)
+    {
+        if (texImporter == null) return;
+        texImporter.crunchedCompression = false;
+        for (int Index = 0; Index < TextureImporterPlatforms.Length; Index++)
+        {
+            TextureImporterPlatformSettings platformSettings = texImporter.GetPlatformTextureSettings(TextureImporterPlatforms[Index]);
+            if (platformSettings == null || !platformSettings.overridden) continue;
+            if (!platformSettings.crunchedCompression && !IsCrunchedImporterFormat(platformSettings.format)) continue;
+            platformSettings.crunchedCompression = false;
+            platformSettings.format = UncrunchedImporterFormat(platformSettings.format);
+            texImporter.SetPlatformTextureSettings(platformSettings);
+        }
+        texImporter.SaveAndReimport();
+    }
+
+    private static TextureImporterFormat UncrunchedImporterFormat(TextureImporterFormat format)
+    {
+        switch (format)
+        {
+            case TextureImporterFormat.DXT1Crunched:
+                return TextureImporterFormat.DXT1;
+            case TextureImporterFormat.DXT5Crunched:
+                return TextureImporterFormat.DXT5;
+            case TextureImporterFormat.ETC_RGB4Crunched:
+                return TextureImporterFormat.ETC_RGB4;
+            case TextureImporterFormat.ETC2_RGBA8Crunched:
+                return TextureImporterFormat.ETC2_RGBA8;
+            default:
+                return format;
         }
     }
 

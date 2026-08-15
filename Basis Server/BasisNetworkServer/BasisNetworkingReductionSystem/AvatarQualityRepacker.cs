@@ -76,28 +76,39 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             Array.Clear(low.array, rotBase, LowRotBytes);
             Array.Clear(veryLow.array, rotBase, VLowRotBytes);
 
-            // Repack each explicit bone: read smallest-three at HIGH BPC, rescale to lower BPC
+            // Repack each explicit bone. 3-DOF slots: read smallest-three at HIGH BPC, rescale
+            // to lower BPC. Restricted slots (v52): one or two uniformly quantized angles whose
+            // ranges are quality-invariant, so they rescale on the same integer ladder as fingers.
             for (int slot = 0; slot < BoneSlots; slot++)
             {
-                int bpcSrc = HighBpc[slot];
-                int totalBitsSrc = 2 + 3 * bpcSrc;
+                if (BasisBoneRotationCompression.BONE_DOF[slot] == 3)
+                {
+                    int bpcSrc = HighBpc[slot];
+                    int totalBitsSrc = 2 + 3 * bpcSrc;
 
-                // Read the full packed bone (index + 3 components) as raw bits
-                ulong raw = BitReader.ReadBitsU64(srcHigh.array, srcRotBase, HighOffs[slot], totalBitsSrc);
+                    // Read the full packed bone (index + 3 components) as raw bits
+                    ulong raw = BitReader.ReadBitsU64(srcHigh.array, srcRotBase, HighOffs[slot], totalBitsSrc);
 
-                // Extract the 2-bit index (which component was dropped)
-                uint idx = (uint)(raw & 3UL);
+                    // Extract the 2-bit index (which component was dropped)
+                    uint idx = (uint)(raw & 3UL);
 
-                // Extract 3 components at source BPC
-                uint maskSrc = (uint)((1 << bpcSrc) - 1);
-                uint qa = (uint)((raw >> 2) & maskSrc);
-                uint qb = (uint)((raw >> (2 + bpcSrc)) & maskSrc);
-                uint qc = (uint)((raw >> (2 + 2 * bpcSrc)) & maskSrc);
+                    // Extract 3 components at source BPC
+                    uint maskSrc = (uint)((1 << bpcSrc) - 1);
+                    uint qa = (uint)((raw >> 2) & maskSrc);
+                    uint qb = (uint)((raw >> (2 + bpcSrc)) & maskSrc);
+                    uint qc = (uint)((raw >> (2 + 2 * bpcSrc)) & maskSrc);
 
-                // Rescale and write for each target quality
-                RepackBone(medium.array, rotBase, MedOffs[slot], MedBpc[slot], idx, qa, qb, qc, bpcSrc);
-                RepackBone(low.array, rotBase, LowOffs[slot], LowBpc[slot], idx, qa, qb, qc, bpcSrc);
-                RepackBone(veryLow.array, rotBase, VLowOffs[slot], VLowBpc[slot], idx, qa, qb, qc, bpcSrc);
+                    // Rescale and write for each target quality
+                    RepackBone(medium.array, rotBase, MedOffs[slot], MedBpc[slot], idx, qa, qb, qc, bpcSrc);
+                    RepackBone(low.array, rotBase, LowOffs[slot], LowBpc[slot], idx, qa, qb, qc, bpcSrc);
+                    RepackBone(veryLow.array, rotBase, VLowOffs[slot], VLowBpc[slot], idx, qa, qb, qc, bpcSrc);
+                }
+                else
+                {
+                    RepackRestrictedBone(srcHigh.array, srcRotBase, slot, medium.array, rotBase, MedOffs[slot], BitQuality.Medium);
+                    RepackRestrictedBone(srcHigh.array, srcRotBase, slot, low.array, rotBase, LowOffs[slot], BitQuality.Low);
+                    RepackRestrictedBone(srcHigh.array, srcRotBase, slot, veryLow.array, rotBase, VLowOffs[slot], BitQuality.VeryLow);
+                }
             }
 
             // Finger channels: two independent signed-unit scalars per finger, so they rescale with
@@ -122,6 +133,32 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             Buffer.BlockCopy(srcHigh.array, srcTailOffset, medium.array, rotBase + MedRotBytes, TailBytes);
             Buffer.BlockCopy(srcHigh.array, srcTailOffset, low.array, rotBase + LowRotBytes, TailBytes);
             Buffer.BlockCopy(srcHigh.array, srcTailOffset, veryLow.array, rotBase + VLowRotBytes, TailBytes);
+        }
+
+        /// <summary>Rescales a restricted (1/2-DOF) bone's angle field(s) from High to a lower tier.
+        /// Ranges are identical across tiers, so pure integer rescaling is exact.</summary>
+        static void RepackRestrictedBone(byte[] src, int srcRotBase, int slot,
+            byte[] dst, int dstRotBase, int dstBitOffset, BitQuality dstQuality)
+        {
+            int srcBit = HighOffs[slot];
+            if (BasisBoneRotationCompression.BONE_DOF[slot] == 1)
+            {
+                int srcBits = BasisBoneRotationCompression.SingleAxisBits(BitQuality.High);
+                int dstBits = BasisBoneRotationCompression.SingleAxisBits(dstQuality);
+                uint v = (uint)BitReader.ReadBitsU64(src, srcRotBase, srcBit, srcBits);
+                BitWriter.WriteBitsU64(dst, dstRotBase, dstBitOffset, RescaleQuant(v, srcBits, dstBits), dstBits);
+                return;
+            }
+
+            int srcHinge = BasisBoneRotationCompression.HingeBits(BitQuality.High);
+            int srcTwist = BasisBoneRotationCompression.TwistBits(BitQuality.High);
+            int dstHinge = BasisBoneRotationCompression.HingeBits(dstQuality);
+            int dstTwist = BasisBoneRotationCompression.TwistBits(dstQuality);
+            uint hinge = (uint)BitReader.ReadBitsU64(src, srcRotBase, srcBit, srcHinge);
+            uint twist = (uint)BitReader.ReadBitsU64(src, srcRotBase, srcBit + srcHinge, srcTwist);
+            ulong packed = RescaleQuant(hinge, srcHinge, dstHinge)
+                | ((ulong)RescaleQuant(twist, srcTwist, dstTwist) << dstHinge);
+            BitWriter.WriteBitsU64(dst, dstRotBase, dstBitOffset, packed, dstHinge + dstTwist);
         }
 
         static void RepackFinger(byte[] dst, int baseByteOffset, int bitOffset, BitQuality dstQuality,

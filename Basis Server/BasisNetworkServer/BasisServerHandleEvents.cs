@@ -386,6 +386,7 @@ namespace BasisServerHandle
             BasisServerReductionSystemEvents.RemovePlayer(id);
             BasisNetworkPIPCamera.RemovePlayer(id);
             BasisNetworkContentShare.RemovePlayerSpheres(id);
+            BasisNetworkImageCache.RemovePlayerImages(id);
             BasisNetworkPreloadResourceManagement.RemovePeer(id);
             BasisNetworkServer.Security.BasisUserOpusBitrateStateManager.ClearForPeer(id);
             BasisServerP2PBroker.RemovePeer(id);
@@ -710,6 +711,7 @@ namespace BasisServerHandle
                 BasisNetworkOwnership.SendOutOwnershipInformation(newPeer);
                 BasisNetworkPIPCamera.SendPIPStateToPeer(newPeer);
                 BasisNetworkContentShare.SendAllSpheresToPeer(newPeer);
+                BasisNetworkImageCache.SendCachedImagesToPeer(newPeer);
                 BasisNetworkServer.Security.BasisGlobalLockManager.SendLockStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisHeadlessAudioStateManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisHeadlessConnectionPolicyManager.SendStateToPeer(newPeer);
