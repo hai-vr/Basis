@@ -574,6 +574,7 @@ namespace Basis.Scripts.BasisSdk.Players
         static readonly ProfilerMarker sMarkerVirtualData = new ProfilerMarker("BasisDriver.LocalPlayer.VirtualData");
         static readonly ProfilerMarker sMarkerLateSimulateBones = new ProfilerMarker("BasisDriver.LocalPlayer.LateSimulateBones");
         static readonly ProfilerMarker sMarkerBoneDriver = new ProfilerMarker("BasisDriver.LocalPlayer.BoneDriver");
+        static readonly ProfilerMarker sMarkerVirtualSpine = new ProfilerMarker("BasisDriver.LocalPlayer.VirtualSpine");
         static readonly ProfilerMarker sMarkerIKDestinations = new ProfilerMarker("BasisDriver.LocalPlayer.IKDestinations");
         static readonly ProfilerMarker sMarkerAnimator = new ProfilerMarker("BasisDriver.LocalPlayer.Animator");
         static readonly ProfilerMarker sMarkerHandDriver = new ProfilerMarker("BasisDriver.LocalPlayer.HandDriver");
@@ -630,6 +631,15 @@ namespace Basis.Scripts.BasisSdk.Players
                 OnLateSimulateBones(this);
             }
             BasisFiniteWatchdog.Checkpoint("LocalSim/PostLatePollData");
+
+            // Virtual spine derives head/neck/chest/spine/hips from the freshly polled eye, and
+            // runs ahead of the bone sim so the sim's follower chains (untracked legs and arms
+            // hang off the hips via their targets) read this frame's hips rather than last frame's.
+            using (sMarkerVirtualSpine.Auto())
+            {
+                LocalVirtualSpineDriver.Simulate();
+            }
+            BasisFiniteWatchdog.CheckpointBoneControls("LocalSim/PostVirtualSpine (virtual spine bone data)");
 
             // moves all bones to where they belong
             // This also drives head and camera movement.

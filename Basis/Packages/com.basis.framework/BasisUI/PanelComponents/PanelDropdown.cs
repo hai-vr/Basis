@@ -109,6 +109,26 @@ namespace Basis.BasisUI
             _previousIndex = DropdownComponent.value;
         }
 
+        /// <summary>
+        /// Shows the option's display label rather than the raw stored value, since entries and
+        /// their labels can differ (localized dropdowns store the entry, show the translation).
+        /// </summary>
+        protected override string FormatSettingValue(string value)
+        {
+            if (Entries != null && DropdownComponent != null && DropdownComponent.options.Count == Entries.Count)
+            {
+                for (int Index = 0; Index < Entries.Count; Index++)
+                {
+                    if (string.Equals(Entries[Index], value, System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        return DropdownComponent.options[Index].text;
+                    }
+                }
+            }
+
+            return base.FormatSettingValue(value);
+        }
+
         private void AnimateSelectionChange()
         {
             if (!Application.isPlaying) return;

@@ -32,6 +32,9 @@ namespace Basis.BasisUI
         /// </summary>
         protected virtual Selectable InteractableTarget => null;
 
+        /// <summary>True while the pointer is over this control.</summary>
+        public bool PointerInside => _pointerInside;
+
         /// <summary>True when this control has no Selectable, or its Selectable is interactable.</summary>
         public bool IsInteractable
         {
@@ -51,6 +54,19 @@ namespace Basis.BasisUI
         /// <summary>Asks to reset this control to its default. No-op unless the control supports it.</summary>
         public virtual void RequestReset()
         {
+        }
+
+        /// <summary>
+        /// Describes how this control's bound setting currently differs from its default, for the
+        /// panel Reset dialogue's list of what a page reset would change. False when the control
+        /// has no settings binding or its value already is the default.
+        /// </summary>
+        public virtual bool TryDescribeSettingChange(out string label, out string currentText, out string defaultText)
+        {
+            label = null;
+            currentText = null;
+            defaultText = null;
+            return false;
         }
 
         /// <summary>

@@ -145,7 +145,8 @@ namespace Basis.ImagePickup
                     {
                         BasisMainMenu.Close();
                     }
-                }
+                },
+                category: BasisNotificationCategory.Content
             );
 
             BasisMenuDialoguePanel dialogue = BasisMainMenu.Instance.Dialogue;

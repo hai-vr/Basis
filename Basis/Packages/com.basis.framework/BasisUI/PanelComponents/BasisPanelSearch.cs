@@ -58,7 +58,11 @@ namespace Basis.BasisUI
         /// </summary>
         private const float FilterDelay = 0.1f;
 
+        /// <summary>How deep a stack of lazy sections inside lazy sections is followed while opening.</summary>
+        private const int MaxExpandPasses = 8;
+
         private static readonly List<PanelSectionToggle> _sectionBuffer = new();
+        private static readonly List<PanelSectionToggle> _chainBuffer = new();
         private static readonly List<PanelElementDescriptor> _descriptorBuffer = new();
         private static readonly List<Transform> _contentBuffer = new();
         private static readonly List<int> _indexBuffer = new();
@@ -372,47 +376,38 @@ namespace Basis.BasisUI
         /// half of search — a caller with several pages to make searchable should spread these out
         /// rather than run them all on one keystroke.
         /// </summary>
-        public void Prepare()
+        public bool Prepare() => Prepare(false);
+
+        /// <summary>
+        /// <paramref name="rescan"/> looks for sections that have closed since the page was last
+        /// prepared and opens them again, at the cost of a walk of the page — for a caller preparing
+        /// once per search rather than once per keystroke. Returns whether the page moved, so that
+        /// caller can tell an answer that is now stale from one that still stands.
+        /// </summary>
+        public bool Prepare(bool rescan)
         {
-            ExpandLazySections();
-            EnsureIndex();
+            bool expanded = ExpandLazySections(rescan);
+            bool indexed = EnsureIndex();
+            return expanded || indexed;
         }
 
-        private void ExpandLazySections()
+        private bool ExpandLazySections(bool rescan)
         {
-            if (_prepared) return;
+            if (_prepared && !rescan) return false;
             _prepared = true;
 
-            _sectionState.Clear();
-            _lazyExpanded.Clear();
-
+            bool expanded = false;
             bool suppressed = BasisMenuStateMemory.SuppressSectionWrites;
             BasisMenuStateMemory.SuppressSectionWrites = true;
             try
             {
-                _page.GetComponentsInChildren(true, _sectionBuffer);
-
-                // Snapshot before expanding anything: opening a lazy section builds rows that carry
-                // sections of their own, and those were never part of the user's layout.
-                for (int i = 0; i < _sectionBuffer.Count; i++)
+                // Opening a lazy section builds rows that carry sections of their own, and those are
+                // collapsed as they land, so one pass only ever reaches the outermost layer. Repeats
+                // until a pass finds nothing left to open.
+                for (int pass = 0; pass < MaxExpandPasses; pass++)
                 {
-                    PanelSectionToggle section = _sectionBuffer[i];
-                    if (section != null) _sectionState[section] = section.Expanded;
-                }
-
-                for (int i = 0; i < _sectionBuffer.Count; i++)
-                {
-                    PanelSectionToggle section = _sectionBuffer[i];
-                    if (section == null || section.Expanded) continue;
-
-                    // A collapsed section with nothing registered under it is a lazy one: its rows
-                    // were destroyed when it closed, so they have to be rebuilt to be searchable.
-                    GetSectionContents(section, _contentBuffer);
-                    if (_contentBuffer.Count > 0) continue;
-
-                    section.SetExpanded(true);
-                    _lazyExpanded.Add(section);
-                    _indexed = false;
+                    if (!ExpandLazySectionPass()) break;
+                    expanded = true;
                 }
             }
             finally
@@ -421,6 +416,44 @@ namespace Basis.BasisUI
                 _sectionBuffer.Clear();
                 _contentBuffer.Clear();
             }
+
+            if (expanded) _indexed = false;
+            return expanded;
+        }
+
+        private bool ExpandLazySectionPass()
+        {
+            _page.GetComponentsInChildren(true, _sectionBuffer);
+
+            // Recorded before this pass expands anything, and only for sections not seen before, so a
+            // section search opened keeps the state the user left it in rather than the one it is in
+            // because search opened it.
+            for (int i = 0; i < _sectionBuffer.Count; i++)
+            {
+                PanelSectionToggle section = _sectionBuffer[i];
+                if (section != null && !_sectionState.ContainsKey(section))
+                {
+                    _sectionState[section] = section.Expanded;
+                }
+            }
+
+            bool expanded = false;
+            for (int i = 0; i < _sectionBuffer.Count; i++)
+            {
+                PanelSectionToggle section = _sectionBuffer[i];
+                if (section == null || section.Expanded) continue;
+
+                // A collapsed section with nothing registered under it is a lazy one: its rows
+                // were destroyed when it closed, so they have to be rebuilt to be searchable.
+                GetSectionContents(section, _contentBuffer);
+                if (_contentBuffer.Count > 0) continue;
+
+                section.SetExpanded(true);
+                if (!_lazyExpanded.Contains(section)) _lazyExpanded.Add(section);
+                expanded = true;
+            }
+
+            return expanded;
         }
 
         /// <summary>Puts the page back the way it was found and drops everything search cached.</summary>
@@ -445,8 +478,9 @@ namespace Basis.BasisUI
                 try
                 {
                     // Notify on the way back down as well, so a lazy section drops the rows search
-                    // made it build instead of leaving them alive behind a closed header.
-                    for (int i = 0; i < _lazyExpanded.Count; i++)
+                    // made it build instead of leaving them alive behind a closed header. Innermost
+                    // first, so a nested one is closed while it still exists to be closed.
+                    for (int i = _lazyExpanded.Count - 1; i >= 0; i--)
                     {
                         PanelSectionToggle section = _lazyExpanded[i];
                         if (section != null) section.SetExpanded(false);
@@ -480,9 +514,9 @@ namespace Basis.BasisUI
         // THE FLATTENED PAGE
         // ------------------
 
-        private void EnsureIndex()
+        private bool EnsureIndex()
         {
-            if (_indexed && (_count == 0 || _nodes[0].Transform != null)) return;
+            if (_indexed && (_count == 0 || _nodes[0].Transform != null)) return false;
 
             _count = 0;
             _sectionNodes.Clear();
@@ -502,6 +536,7 @@ namespace Basis.BasisUI
 
             _lookup.Clear();
             _indexed = true;
+            return true;
         }
 
         private void AppendChildren(Transform parent, int parentIndex)
@@ -860,6 +895,25 @@ namespace Basis.BasisUI
         // ------------------
 
         /// <summary>
+        /// Opens a section along with every section it is nested inside, outermost first. A section
+        /// opened on its own is still inside whatever closed one holds it, and a lazy parent has to
+        /// rebuild its rows before the header nested under it exists to be opened at all.
+        /// </summary>
+        public static void RevealSection(PanelSectionToggle section)
+        {
+            if (section == null) return;
+
+            PanelSectionToggle.GetSectionChain(section, _chainBuffer);
+            for (int i = 0; i < _chainBuffer.Count; i++)
+            {
+                PanelSectionToggle step = _chainBuffer[i];
+                if (step != null && !step.Expanded) step.SetExpanded(true);
+            }
+
+            _chainBuffer.Clear();
+        }
+
+        /// <summary>
         /// Brings a row into view and gives it a nudge so the eye lands on it. Matched by title rather
         /// than by reference: a lazy section rebuilds its rows when it reopens, so the descriptor a
         /// result was collected from is usually gone by the time the user gets there.
@@ -875,6 +929,7 @@ namespace Basis.BasisUI
                 return;
             }
 
+            RevealRow(title);
             ScrollToNow(title);
         }
 
@@ -883,13 +938,27 @@ namespace Basis.BasisUI
             // The page was only just switched to and the section holding the row may have rebuilt it,
             // so let the layout those changes queued settle before asking where anything is.
             yield return null;
+
+            // Whatever the result was filed under, the row itself is the last word on which sections
+            // are still closed over it — a stale hit can name a section that no longer holds it.
+            if (RevealRow(title)) yield return null;
+
             ScrollToNow(title);
+        }
+
+        private bool RevealRow(string title)
+        {
+            RectTransform row = FindRow(title);
+            if (row == null || row.gameObject.activeInHierarchy) return false;
+
+            RevealSection(PanelSectionToggle.GetOwningSection(row));
+            return true;
         }
 
         private void ScrollToNow(string title)
         {
             RectTransform row = FindRow(title);
-            if (row == null) return;
+            if (row == null || !row.gameObject.activeInHierarchy) return;
 
             ScrollRect scroll = _page.GetComponentInParent<ScrollRect>();
             if (scroll != null && scroll.content != null && scroll.viewport != null)
@@ -908,9 +977,13 @@ namespace Basis.BasisUI
                     float offset = Mathf.Clamp(fromTop - viewHeight * 0.5f, 0f, scrollable);
                     scroll.verticalNormalizedPosition = 1f - (offset / scrollable);
                 }
+
+                // The page restores where it was last left for a few frames after it is shown, which
+                // is exactly the window this lands in and would put the view straight back.
+                PanelScrollMemory.Adopt(scroll);
             }
 
-            UIAnimations.PunchScale(row, 1.06f);
+            PanelSearchBounce.Play(row);
         }
 
         private void ScrollToTop()
@@ -919,24 +992,34 @@ namespace Basis.BasisUI
             if (scroll != null && scroll.vertical) scroll.verticalNormalizedPosition = 1f;
         }
 
-        /// <summary>Finds a visible row by its title, skipping the page's own search chrome.</summary>
+        /// <summary>
+        /// Finds a row by its title, skipping the page's own search chrome. Prefers one that is
+        /// actually on screen, but falls back to a hidden one so a caller can open whatever is closed
+        /// over it rather than give up on a row that is there.
+        /// </summary>
         private RectTransform FindRow(string title)
         {
-            _page.GetComponentsInChildren(false, _descriptorBuffer);
+            _page.GetComponentsInChildren(true, _descriptorBuffer);
 
             RectTransform match = null;
+            RectTransform hidden = null;
             for (int i = 0; i < _descriptorBuffer.Count; i++)
             {
                 PanelElementDescriptor descriptor = _descriptorBuffer[i];
                 if (descriptor == null || _exempt.Contains(descriptor.gameObject)) continue;
                 if (!string.Equals(descriptor.Title, title, StringComparison.OrdinalIgnoreCase)) continue;
 
-                match = descriptor.rectTransform;
-                break;
+                if (descriptor.gameObject.activeInHierarchy)
+                {
+                    match = descriptor.rectTransform;
+                    break;
+                }
+
+                hidden ??= descriptor.rectTransform;
             }
 
             _descriptorBuffer.Clear();
-            return match;
+            return match != null ? match : hidden;
         }
 
         // ------------------

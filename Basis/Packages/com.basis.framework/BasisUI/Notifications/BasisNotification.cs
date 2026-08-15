@@ -15,6 +15,20 @@ namespace Basis.BasisUI
     }
 
     /// <summary>
+    /// Where a notification came from, so the history list can be filtered down to one
+    /// kind of source. <see cref="System"/> is the default for anything unclassified.
+    /// </summary>
+    public enum BasisNotificationCategory
+    {
+        System,
+        Player,
+        Content,
+        Network,
+        Avatar,
+        Developer,
+    }
+
+    /// <summary>
     /// A single entry tracked by <see cref="BasisNotificationCenter"/>.
     ///
     /// A popup that is closed before it has been accepted or denied is captured as a
@@ -32,6 +46,8 @@ namespace Basis.BasisUI
         public string IconAddress;
 
         public BasisNotificationStatus Status = BasisNotificationStatus.Pending;
+
+        public BasisNotificationCategory Category = BasisNotificationCategory.System;
 
         public readonly DateTime CreatedUtc = DateTime.UtcNow;
         public DateTime? ResolvedUtc;

@@ -125,6 +125,83 @@ namespace Basis.BasisUI
             }
         }
 
+        // ── History filtering ────────────────────────────────────────────────
+        // Applies to the History section only. Pending entries are always listed in
+        // full so a filter can never hide something still waiting on the user.
+        private const string HistoryCategoryStoreKey = "NotificationsHistoryCategory.BAS";
+        private const int HistoryCategoryAll = -1;
+        private static bool _historyCategoryLoaded;
+        private static BasisNotificationCategory? _historyCategory;
+
+        /// <summary>
+        /// Category the history list is narrowed to, or null for all categories.
+        /// Persists across sessions.
+        /// </summary>
+        public static BasisNotificationCategory? HistoryCategory
+        {
+            get
+            {
+                if (!_historyCategoryLoaded)
+                {
+                    int stored = BasisDataStore.LoadInt(HistoryCategoryStoreKey, HistoryCategoryAll);
+                    _historyCategory = Enum.IsDefined(typeof(BasisNotificationCategory), stored)
+                        ? (BasisNotificationCategory)stored
+                        : null;
+                    _historyCategoryLoaded = true;
+                }
+                return _historyCategory;
+            }
+            set
+            {
+                _historyCategoryLoaded = true;
+                if (_historyCategory == value) return;
+                _historyCategory = value;
+                BasisDataStore.SaveInt(value.HasValue ? (int)value.Value : HistoryCategoryAll, HistoryCategoryStoreKey);
+                Changed?.Invoke();
+            }
+        }
+
+        private static string _historySearch = string.Empty;
+
+        /// <summary>
+        /// Free-text narrowing of the history list, matched against title and
+        /// description. Session-only — a search box that survived a restart would hide
+        /// history with no obvious cause.
+        /// </summary>
+        public static string HistorySearch
+        {
+            get => _historySearch;
+            set
+            {
+                string next = value ?? string.Empty;
+                if (string.Equals(_historySearch, next, StringComparison.Ordinal)) return;
+                _historySearch = next;
+                Changed?.Invoke();
+            }
+        }
+
+        /// <summary>True when the history list is currently narrowed by either filter.</summary>
+        public static bool HistoryFiltered => HistoryCategory.HasValue || !string.IsNullOrWhiteSpace(HistorySearch);
+
+        /// <summary>Whether a terminal entry survives the active category and search filters.</summary>
+        public static bool PassesHistoryFilter(BasisNotification notification)
+        {
+            if (notification == null) return false;
+            if (HistoryCategory.HasValue && notification.Category != HistoryCategory.Value) return false;
+
+            string query = HistorySearch;
+            if (string.IsNullOrWhiteSpace(query)) return true;
+            query = query.Trim();
+
+            return Contains(notification.Title, query) || Contains(notification.Description, query);
+        }
+
+        private static bool Contains(string haystack, string needle)
+        {
+            return !string.IsNullOrEmpty(haystack)
+                && haystack.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
         // ── Forced suppression scopes ────────────────────────────────────────
         // Some contexts (the admin and moderator panels) require every popup to be
         // routed into the list while they are open, regardless of the user's toggle.
@@ -184,13 +261,15 @@ namespace Basis.BasisUI
             string description,
             string iconAddress,
             Action reopen,
-            Action onDismiss = null)
+            Action onDismiss = null,
+            BasisNotificationCategory category = BasisNotificationCategory.System)
         {
             BasisNotification notification = new BasisNotification
             {
                 Title = title,
                 Description = description,
                 IconAddress = iconAddress,
+                Category = category,
                 Status = BasisNotificationStatus.Pending,
                 Reopen = reopen,
                 OnDismiss = onDismiss,
@@ -210,7 +289,8 @@ namespace Basis.BasisUI
             string title,
             string description,
             string iconAddress,
-            BasisNotificationStatus outcome)
+            BasisNotificationStatus outcome,
+            BasisNotificationCategory category = BasisNotificationCategory.System)
         {
             if (outcome == BasisNotificationStatus.Pending)
             {
@@ -222,6 +302,7 @@ namespace Basis.BasisUI
                 Title = title,
                 Description = description,
                 IconAddress = iconAddress,
+                Category = category,
                 Status = outcome,
                 ResolvedUtc = DateTime.UtcNow,
             };

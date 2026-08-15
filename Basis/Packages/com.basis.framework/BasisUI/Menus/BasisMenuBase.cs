@@ -138,6 +138,17 @@ namespace Basis.BasisUI
             {
                 ActiveProvider.OnReleaseEvent();
             }
+
+            if (ActiveMenu) ActiveMenu.ReleaseInstance();
+            ActiveMenu = null;
+            ActiveProvider = null;
+
+            foreach (PanelButton button in ProviderButtons)
+            {
+                if (button) button.ReleaseInstance();
+            }
+            ProviderButtons.Clear();
+
             if (MenuObjectInstance) MenuObjectInstance.ReleaseInstance();
         }
 
@@ -148,7 +159,8 @@ namespace Basis.BasisUI
             string deny,
             Action<bool> callback,
             bool divertible = false,
-            BasisPanelSeverity severity = BasisPanelSeverity.None)
+            BasisPanelSeverity severity = BasisPanelSeverity.None,
+            BasisNotificationCategory category = BasisNotificationCategory.System)
         {
             bool route = divertible && BasisNotificationCenter.RouteToNotifications;
             if (!route && Dialogue)
@@ -163,7 +175,8 @@ namespace Basis.BasisUI
                 deny,
                 callback,
                 divertible,
-                severity);
+                severity,
+                category);
             if (!route) Dialogue = created;
         }
 
@@ -173,7 +186,8 @@ namespace Basis.BasisUI
             string accept,
             Action<bool> callback,
             bool divertible = false,
-            BasisPanelSeverity severity = BasisPanelSeverity.None)
+            BasisPanelSeverity severity = BasisPanelSeverity.None,
+            BasisNotificationCategory category = BasisNotificationCategory.System)
         {
             bool route = divertible && BasisNotificationCenter.RouteToNotifications;
             if (!route && Dialogue)
@@ -187,7 +201,8 @@ namespace Basis.BasisUI
                 accept,
                 callback,
                 divertible,
-                severity);
+                severity,
+                category);
             if (!route) Dialogue = created;
         }
     }

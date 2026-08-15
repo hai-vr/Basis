@@ -65,9 +65,9 @@ namespace Basis.BasisUI
             sortDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.players.sortMode"));
             sortDropdown.Descriptor.SetDescription(BasisLocalization.Get("menu.players.sortMode.description"));
             sortDropdown.AssignLocalizedEntries(
-                new List<string> { "Default", "Distance", "Name", "Platform", "Join Time" },
-                new List<string> { "menu.players.sortMode.default", "menu.players.sortMode.distance", "menu.players.sortMode.name", "menu.players.sortMode.platform", "menu.players.sortMode.joinTime" });
-            sortDropdown.SetValueWithoutNotify("Default");
+                new List<string> { "Join Time", "Distance", "Name", "Platform" },
+                new List<string> { "menu.players.sortMode.joinTime", "menu.players.sortMode.distance", "menu.players.sortMode.name", "menu.players.sortMode.platform" });
+            sortDropdown.SetValueWithoutNotify("Join Time");
 
             // Player count header
             var headerGroup = PanelElementDescriptor.CreateNew(
@@ -226,7 +226,7 @@ namespace Basis.BasisUI
 
         // ======== Types ========
 
-        private enum SortMode { Default, Distance, Name, Platform, JoinTime }
+        private enum SortMode { JoinTime, Distance, Name, Platform }
 
         /// <summary>
         /// One card and everything the refresh tick would otherwise have to re-derive.
@@ -272,7 +272,7 @@ namespace Basis.BasisUI
             public PanelElementDescriptor TabDescriptor;
 
             private readonly Dictionary<ushort, PlayerEntry> _entries = new();
-            private SortMode _sortMode = SortMode.Default;
+            private SortMode _sortMode = SortMode.JoinTime;
             private string _lastQuery = string.Empty;
             private int _visibleCount;
 
@@ -411,8 +411,7 @@ namespace Basis.BasisUI
                     "Distance" => SortMode.Distance,
                     "Name" => SortMode.Name,
                     "Platform" => SortMode.Platform,
-                    "Join Time" => SortMode.JoinTime,
-                    _ => SortMode.Default,
+                    _ => SortMode.JoinTime,
                 };
                 _orderDirty = true;
             }
@@ -842,13 +841,9 @@ namespace Basis.BasisUI
                             b.SafeDisplayName ?? "",
                             StringComparison.OrdinalIgnoreCase);
                     }
-                    case SortMode.JoinTime:
+                    default:
                         // Most recent arrival first — common ask is "who just joined?"
                         return b.JoinTime.CompareTo(a.JoinTime);
-                    default:
-                        // Default: oldest-first arrival order, mirrors the previous
-                        // pinned-then-append behavior for users who liked it.
-                        return a.JoinTime.CompareTo(b.JoinTime);
                 }
             }
 

@@ -125,6 +125,15 @@ namespace Basis.IK
             public int IdxSpine;
             public int IdxHips;
 
+            // A bone with a real tracker is the tracker's to pose, not this solve's — the driver
+            // sets 1 for tracked bones and the write is skipped (the solve still uses the virtual
+            // value internally for chain placement). Default 0 = write, the historical behavior.
+            public byte SkipHead;
+            public byte SkipNeck;
+            public byte SkipChest;
+            public byte SkipSpine;
+            public byte SkipHips;
+
             public void Execute()
             {
                 BasisBoneSimState head = States[IdxHead];
@@ -273,11 +282,11 @@ namespace Basis.IK
                     ApplyPositionGivenBaseTorsoLock(ref spine, in spinePos, in P.SpineScaledOffset, P.SpineTposeY + P.TrackingLiftY, in P.ParentMatrix, in P.ParentRotation);
                 }
 
-                States[IdxHead] = head;
-                States[IdxNeck] = neck;
-                States[IdxChest] = chest;
-                States[IdxSpine] = spine;
-                States[IdxHips] = hips;
+                if (SkipHead == 0) States[IdxHead] = head;
+                if (SkipNeck == 0) States[IdxNeck] = neck;
+                if (SkipChest == 0) States[IdxChest] = chest;
+                if (SkipSpine == 0) States[IdxSpine] = spine;
+                if (SkipHips == 0) States[IdxHips] = hips;
                 State[0] = s;
             }
         }

@@ -310,7 +310,8 @@ namespace Basis.BasisUI
                 BasisLocalization.Get("calibration.measureMe"),
                 BasisLocalization.Get("calibration.measureMe.prompt"),
                 AddressableAssets.Sprites.Information,
-                BasisNotificationStatus.Accepted);
+                BasisNotificationStatus.Accepted,
+                BasisNotificationCategory.Avatar);
         }
 
         private void OnStatedHeightEntered(PanelTextField field, string text)

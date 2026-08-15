@@ -127,7 +127,8 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("menu.individualPlayer.block.dialog.body", player.DisplayName),
                     BasisLocalization.Get("menu.individualPlayer.blockButton"),
                     BasisLocalization.Get("ui.cancel"),
-                    confirmed => tcs.SetResult(confirmed));
+                    confirmed => tcs.SetResult(confirmed),
+                    category: BasisNotificationCategory.Player);
 
                 if (!await tcs.Task) return current.IsBlocked;
             }
@@ -473,6 +474,21 @@ namespace Basis.BasisUI
             // came here to do rather than on a page of read-only metadata.
             const string actionsTabKey = "menu.individualPlayer.actions";
             PanelTabPage actionsPage = NewPage(actionsTabKey, AddressableAssets.Sprites.List);
+
+            // Ahead of every action, because the usual reason for opening this panel off a
+            // nameplate is "why can I not see this person?" — that answer leads instead of being
+            // spread across the Avatar tab's load-error card, its performance card, and the range
+            // readouts on Debug. Built before the action grid so it is the first row on the page,
+            // and repainted by IndividualPlayerPanelUpdater because everything it reads (range,
+            // a download finishing, the far avatar swapping in) moves without the panel being
+            // touched.
+            var avatarStatusField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, actionsPage.Descriptor.ContentParent);
+            // Before the first paint: the card quotes AvatarLoadErrorMessage and
+            // PerformanceBlockReason verbatim, and neither is ours to trust as markup.
+            avatarStatusField.DisableRichText();
+            BasisPanelTint.Handle avatarStatusTint = BasisPanelTint.Capture(avatarStatusField);
+            PaintAvatarStatus(remotePlayer, avatarStatusField, avatarStatusTint, false);
+
             BuildActionsPage(actionsPage, remotePlayer, settings, sync);
             AddPage(actionsTabKey, actionsPage);
 
@@ -1308,7 +1324,8 @@ namespace Basis.BasisUI
                         BasisLocalization.Get("menu.individualPlayer.kick.dialog.body", remotePlayer.DisplayName),
                         BasisLocalization.Get("menu.individualPlayer.kick"),
                         BasisLocalization.Get("ui.cancel"),
-                        confirmed => { if (confirmed) BasisNetworkModeration.SendKick(targetUUID, ""); });
+                        confirmed => { if (confirmed) BasisNetworkModeration.SendKick(targetUUID, ""); },
+                        category: BasisNotificationCategory.Player);
                 };
 
                 PanelButton banBtn = PanelButton.CreateNew(adminGroup.ContentParent);
@@ -1321,7 +1338,8 @@ namespace Basis.BasisUI
                         BasisLocalization.Get("menu.individualPlayer.ban.dialog.body", remotePlayer.DisplayName),
                         BasisLocalization.Get("menu.individualPlayer.ban"),
                         BasisLocalization.Get("ui.cancel"),
-                        confirmed => { if (confirmed) BasisNetworkModeration.SendBan(targetUUID, ""); });
+                        confirmed => { if (confirmed) BasisNetworkModeration.SendBan(targetUUID, ""); },
+                        category: BasisNotificationCategory.Player);
                 };
 
                 PanelButton ipBanBtn = PanelButton.CreateNew(adminGroup.ContentParent);
@@ -1334,7 +1352,8 @@ namespace Basis.BasisUI
                         BasisLocalization.Get("menu.individualPlayer.ipBan.dialog.body", remotePlayer.DisplayName),
                         BasisLocalization.Get("menu.individualPlayer.ipBan"),
                         BasisLocalization.Get("ui.cancel"),
-                        confirmed => { if (confirmed) BasisNetworkModeration.SendIPBan(targetUUID, ""); });
+                        confirmed => { if (confirmed) BasisNetworkModeration.SendIPBan(targetUUID, ""); },
+                        category: BasisNotificationCategory.Player);
                 };
 
                 PanelButton teleportToBtn = PanelButton.CreateNew(adminGroup.ContentParent);
@@ -1433,7 +1452,8 @@ namespace Basis.BasisUI
                         BasisLocalization.Get("menu.individualPlayer.forceAvatar.dialog.body", remotePlayer.DisplayName, entry.Label),
                         BasisLocalization.Get("menu.individualPlayer.forceAvatar"),
                         BasisLocalization.Get("ui.cancel"),
-                        confirmed => { if (confirmed) BasisNetworkModeration.ForceAvatar(np.playerId, entry.Item); });
+                        confirmed => { if (confirmed) BasisNetworkModeration.ForceAvatar(np.playerId, entry.Item); },
+                        category: BasisNotificationCategory.Player);
                 };
 
                 // ---- Locomotion override ----
@@ -1756,6 +1776,8 @@ namespace Basis.BasisUI
             updater.DirectConnPingTint = directConnPingTint;
             updater.DirectConnRebuildFrom = p2pGroup.ContentParent;
             updater.DirectConnRebuildStopAt = networkPage.Descriptor.ContentParent;
+            updater.AvatarStatusField = avatarStatusField;
+            updater.AvatarStatusTint = avatarStatusTint;
 
             // Wire audio debug fields
             updater.AudioSourceField = audioSourceField;

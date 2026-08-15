@@ -45,7 +45,8 @@ namespace Basis.BasisUI
 
         private static async Task<bool> ShowPageAsync(BasisMenuPanel panel, string title, string body, string icon, string buttonLabel)
         {
-            DialogBox<bool> dialog = DialogBox<bool>.Create(panel, new Vector2(830, 380), title, body, icon, true);
+            DialogBox<bool> dialog = DialogBox<bool>.Create(panel, new Vector2(830, 380), title, body, icon, true,
+                category: BasisNotificationCategory.Network);
             if (dialog.Descriptor != null)
             {
                 PanelTabGroup actions = PanelTabGroup.CreateNew(dialog.Descriptor.ContentParent, LayoutDirection.HorizontalNoBackground);

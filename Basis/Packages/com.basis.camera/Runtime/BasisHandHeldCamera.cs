@@ -683,8 +683,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             string folder = PhotosDirectory;
             if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
-            BasisFileBrowserUtility.Reveal(folder);
-            return true;
+            return BasisFileBrowserUtility.Reveal(folder);
         }
         catch (Exception e)
         {
@@ -694,6 +693,53 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 #else
         return false;
 #endif
+    }
+
+    /// <summary>Full path of the last photo this camera wrote, or null until one lands.</summary>
+    public string LastPhotoPath { get; private set; }
+
+    /// <summary>File name of the last photo this camera wrote, or null.</summary>
+    public string LastPhotoFileName => LastPhotoPath == null ? null : Path.GetFileName(LastPhotoPath);
+
+    /// <summary>Why the last save failed, or null. Cleared by the next successful save.</summary>
+    public string LastPhotoFailure { get; private set; }
+
+    /// <summary>
+    /// Opens the OS file browser on the photo this camera saved most recently, with the file
+    /// itself highlighted, so "where did that shot go" is one click rather than a hunt through
+    /// Pictures. Falls back to the plain folder when nothing has been shot yet, when the file has
+    /// since been moved, or when the highlighting launcher is refused — some Windows setups block
+    /// the explorer.exe spawn that selecting a file requires, and the folder still opens there.
+    /// </summary>
+    public bool RevealLastPhoto()
+    {
+#if UNITY_STANDALONE_WIN || UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX || UNITY_EDITOR
+        string path = LastPhotoPath;
+        if (!string.IsNullOrEmpty(path) && BasisFileBrowserUtility.Reveal(path, true)) return true;
+        return OpenPhotosFolder();
+#else
+        return false;
+#endif
+    }
+
+    /// <summary>
+    /// Records where a photo just landed. The single write point for both the flat and the 360
+    /// save paths, so the panel has one place to read regardless of which one took the shot.
+    /// </summary>
+    private void RecordPhotoSaved(string path)
+    {
+        LastPhotoPath = path;
+        LastPhotoFailure = null;
+    }
+
+    /// <summary>
+    /// Records a failed write. The previous photo's path is deliberately kept — it is still on
+    /// disk and still worth revealing — so only the failure text changes.
+    /// </summary>
+    private void RecordPhotoFailed(Exception e)
+    {
+        LastPhotoFailure = $"{e.GetType().Name}: {e.Message}";
+        BasisDebug.LogError($"Could not save photo: {LastPhotoFailure}", BasisDebug.LogTag.Camera);
     }
 
     /// <summary>Stores the UI layer bit as a culling mask for toggling nameplates.</summary>
@@ -1323,14 +1369,27 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         string filename = $"Screenshot_{timestamp}_{captureWidth}x{captureHeight}.{extension}";
         string path = GetSavePath(filename);
 
-        byte[] imageData = captureFormat == "EXR"
-            ? screenshot.EncodeToEXR(Texture2D.EXRFlags.CompressZIP)
-            : screenshot.EncodeToPNG();
+        // async void: anything thrown out of here surfaces as an unhandled exception rather than
+        // as something the shooter can act on, so encode-and-write is captured and reported on
+        // the panel instead — a full disk or a locked file is a normal thing to hit.
+        try
+        {
+            byte[] imageData = captureFormat == "EXR"
+                ? screenshot.EncodeToEXR(Texture2D.EXRFlags.CompressZIP)
+                : screenshot.EncodeToPNG();
 
-        if (photoMetadata != null)
-            imageData = BasisHandHeldCameraPhotoMetadata.Embed(imageData, captureFormat, photoMetadata, screenshot.width, screenshot.height);
+            if (photoMetadata != null)
+                imageData = BasisHandHeldCameraPhotoMetadata.Embed(imageData, captureFormat, photoMetadata, screenshot.width, screenshot.height);
 
-        await File.WriteAllBytesAsync(path, imageData);
+            await File.WriteAllBytesAsync(path, imageData);
+        }
+        catch (Exception e)
+        {
+            RecordPhotoFailed(e);
+            return;
+        }
+
+        RecordPhotoSaved(path);
         PrintPhotoIfEnabled(path);
     }
 

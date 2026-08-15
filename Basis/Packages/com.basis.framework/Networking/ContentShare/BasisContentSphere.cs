@@ -268,7 +268,7 @@ public class BasisContentSphere : BasisInteractableObject
             {
                 RequestRemove();
             }
-        });
+        }, category: BasisNotificationCategory.Content);
     }
 
     private async void SaveToLibrary()

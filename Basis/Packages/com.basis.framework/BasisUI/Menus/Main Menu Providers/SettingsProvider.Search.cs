@@ -189,10 +189,16 @@ namespace Basis.BasisUI
                 if (_searchTabGroup == null || _searchQuery.Length == 0) break;
 
                 TabSearch entry = _tabSearches[i];
-                if (entry.Prepared || entry.Search == null) continue;
+                if (entry.Search == null) continue;
 
+                // Re-prepared rather than skipped once indexed: a section the user has collapsed since
+                // took its rows with it, and search that cannot see them is answering for a page that
+                // is no longer there. Costs a walk when nothing has moved.
+                bool first = !entry.Prepared;
+                bool changed = entry.Search.Prepare(rescan: true);
                 entry.Prepared = true;
-                entry.Search.Prepare();
+                if (!first && !changed) continue;
+
                 BasisPanelSearchPopup.MarkDirty();
                 yield return null;
             }
@@ -214,8 +220,9 @@ namespace Basis.BasisUI
 
             // A lazy section rebuilds its rows when it reopens, so expanding has to come after the
             // navigation rather than with the hit. That also means the row is a new object, which is
-            // why ScrollTo finds it by title.
-            if (section != null) section.SetExpanded(true);
+            // why ScrollTo finds it by title. Every section over the hit is opened, not just the one
+            // it is filed under — that one is no use while the section holding it is still closed.
+            BasisPanelSearch.RevealSection(section);
 
             FindTabSearch(tabKey)?.Search?.ScrollTo(title);
         }

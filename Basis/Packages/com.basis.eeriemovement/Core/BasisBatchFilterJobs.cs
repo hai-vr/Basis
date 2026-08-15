@@ -44,6 +44,12 @@ namespace Basis.Scripts.Drivers
 
         public float dt;
 
+        // Inputs and filter state are playspace-local; outputs leave in world through this
+        // matrix. Filtering locally means intentional playspace motion (stick locomotion,
+        // turning, teleports, seats) passes through with zero lag — only tracking-space
+        // motion, where the sensor noise actually lives, is smoothed.
+        public float4x4 playspaceToWorld;
+
         public unsafe void Execute(int i)
         {
             byte m = UnsafeUtility.ReadArrayElement<byte>(mode.GetUnsafeReadOnlyPtr(), i);
@@ -52,7 +58,7 @@ namespace Basis.Scripts.Drivers
 
             if (m == (byte)BasisFilterMode.Passthrough)
             {
-                UnsafeUtility.WriteArrayElement(outPtr, i, x);
+                UnsafeUtility.WriteArrayElement(outPtr, i, math.transform(playspaceToWorld, x));
                 return;
             }
 
@@ -62,13 +68,13 @@ namespace Basis.Scripts.Drivers
             {
                 ref float3 fs = ref UnsafeUtility.ArrayElementAsRef<float3>(fallbackStates.GetUnsafePtr(), i);
                 fs = math.lerp(fs, x, t.w);
-                UnsafeUtility.WriteArrayElement(outPtr, i, fs);
+                UnsafeUtility.WriteArrayElement(outPtr, i, math.transform(playspaceToWorld, fs));
                 return;
             }
 
             ref BasisEuroVec3State st = ref UnsafeUtility.ArrayElementAsRef<BasisEuroVec3State>(euroStates.GetUnsafePtr(), i);
             float3 result = BasisFilterMath.EuroVec3(ref st, x, math.max(dt, 1e-6f), t.x, t.y, t.z);
-            UnsafeUtility.WriteArrayElement(outPtr, i, result);
+            UnsafeUtility.WriteArrayElement(outPtr, i, math.transform(playspaceToWorld, result));
         }
     }
 
@@ -86,6 +92,9 @@ namespace Basis.Scripts.Drivers
 
         public float dt;
 
+        // Same playspace-local convention as the position job: local in, world out.
+        public quaternion playspaceRotation;
+
         public unsafe void Execute(int i)
         {
             byte m = UnsafeUtility.ReadArrayElement<byte>(mode.GetUnsafeReadOnlyPtr(), i);
@@ -94,7 +103,7 @@ namespace Basis.Scripts.Drivers
 
             if (m == (byte)BasisFilterMode.Passthrough)
             {
-                UnsafeUtility.WriteArrayElement(outPtr, i, q);
+                UnsafeUtility.WriteArrayElement(outPtr, i, math.mul(playspaceRotation, q));
                 return;
             }
 
@@ -104,13 +113,13 @@ namespace Basis.Scripts.Drivers
             {
                 ref quaternion fs = ref UnsafeUtility.ArrayElementAsRef<quaternion>(fallbackStates.GetUnsafePtr(), i);
                 fs = BasisFilterMath.SlerpShortest(fs, q, t.w);
-                UnsafeUtility.WriteArrayElement(outPtr, i, fs);
+                UnsafeUtility.WriteArrayElement(outPtr, i, math.mul(playspaceRotation, fs));
                 return;
             }
 
             ref BasisEuroQuatState st = ref UnsafeUtility.ArrayElementAsRef<BasisEuroQuatState>(euroStates.GetUnsafePtr(), i);
             quaternion result = BasisFilterMath.EuroQuat(ref st, q, math.max(dt, 1e-6f), t.x, t.y, t.z);
-            UnsafeUtility.WriteArrayElement(outPtr, i, result);
+            UnsafeUtility.WriteArrayElement(outPtr, i, math.mul(playspaceRotation, result));
         }
     }
 

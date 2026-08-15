@@ -80,7 +80,8 @@ namespace Basis.Scripts.Networking
                     BasisLocalization.Get("menu.servers.error.title"),
                     body,
                     BasisLocalization.Get("ui.ok"),
-                    _ => { });
+                    _ => { },
+                    category: BasisNotificationCategory.Network);
             }
             else
             {

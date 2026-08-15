@@ -136,12 +136,12 @@ namespace Basis.Scripts.Drivers
 
                 if (BasisFiniteWatchdog.IsNonFinite((Vector3)_posInputs[i]))
                 {
-                    BasisFiniteWatchdog.ReportValue(stage, $"IK raw position input, slot '{slot}' (bone control OutgoingWorldData)", _posInputs[i].ToString());
+                    BasisFiniteWatchdog.ReportValue(stage, $"IK raw position input, slot '{slot}' (bone control OutGoingData, playspace local)", _posInputs[i].ToString());
                     return;
                 }
                 if (BasisFiniteWatchdog.IsNonFinite((Quaternion)_rotInputs[i]))
                 {
-                    BasisFiniteWatchdog.ReportValue(stage, $"IK raw rotation input, slot '{slot}' (bone control OutgoingWorldData)", _rotInputs[i].ToString());
+                    BasisFiniteWatchdog.ReportValue(stage, $"IK raw rotation input, slot '{slot}' (bone control OutGoingData, playspace local)", _rotInputs[i].ToString());
                     return;
                 }
 
@@ -839,22 +839,25 @@ namespace Basis.Scripts.Drivers
             sMarkerIKDestFootSchedule.End();
 
             // ── 2. Gather raw inputs from bone controls (main thread only) ──
+            // Playspace-LOCAL data on purpose: the filter jobs smooth in tracking space (where the
+            // sensor noise lives) and convert to world on output, so stick locomotion, turning and
+            // teleports — pure playspace-matrix motion — reach the solve with zero filter lag.
             sMarkerIKDestGatherTargets.Begin();
-            var hipsData = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
-            var headData = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
-            var leftFootData = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
-            var rightFootData = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
-            var chestData = BasisLocalBoneDriver.ChestControl.OutgoingWorldData;
-            var leftLLData = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
-            var rightLLData = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
-            var leftHandData = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
-            var rightHandData = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData;
-            var leftLAData = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData;
-            var rightLAData = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData;
-            var leftToeData = BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData;
-            var rightToeData = BasisLocalBoneDriver.RightToeControl.OutgoingWorldData;
-            Quaternion leftShoulderRot = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData.rotation;
-            Quaternion rightShoulderRot = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData.rotation;
+            var hipsData = BasisLocalBoneDriver.HipsControl.OutGoingData;
+            var headData = BasisLocalBoneDriver.HeadControl.OutGoingData;
+            var leftFootData = BasisLocalBoneDriver.LeftFootControl.OutGoingData;
+            var rightFootData = BasisLocalBoneDriver.RightFootControl.OutGoingData;
+            var chestData = BasisLocalBoneDriver.ChestControl.OutGoingData;
+            var leftLLData = BasisLocalBoneDriver.LeftLowerLegControl.OutGoingData;
+            var rightLLData = BasisLocalBoneDriver.RightLowerLegControl.OutGoingData;
+            var leftHandData = BasisLocalBoneDriver.LeftHandControl.OutGoingData;
+            var rightHandData = BasisLocalBoneDriver.RightHandControl.OutGoingData;
+            var leftLAData = BasisLocalBoneDriver.LeftLowerArmControl.OutGoingData;
+            var rightLAData = BasisLocalBoneDriver.RightLowerArmControl.OutGoingData;
+            var leftToeData = BasisLocalBoneDriver.LeftToeControl.OutGoingData;
+            var rightToeData = BasisLocalBoneDriver.RightToeControl.OutGoingData;
+            Quaternion leftShoulderRot = BasisLocalBoneDriver.LeftShoulderControl.OutGoingData.rotation;
+            Quaternion rightShoulderRot = BasisLocalBoneDriver.RightShoulderControl.OutGoingData.rotation;
 
             // NativeArray indexer does a safety-handle check on every call. For ~60 sequential
             // writes per frame we cache the pointers once and stream values through UnsafeUtility.
@@ -935,6 +938,7 @@ namespace Basis.Scripts.Drivers
 
             // ── 5. Schedule batched filter jobs ──
             sMarkerIKDestFilters.Begin();
+            Matrix4x4 playspaceMatrix = BasisLocalPlayer.localToWorldMatrix;
             var posJob = new BasisBatchPositionFilterJob
             {
                 mode = _posModeNative,
@@ -944,6 +948,7 @@ namespace Basis.Scripts.Drivers
                 fallbackStates = _fallbackPosStates,
                 outputs = _posOutputs,
                 dt = safeDt,
+                playspaceToWorld = playspaceMatrix,
             };
             var rotJob = new BasisBatchRotationFilterJob
             {
@@ -954,6 +959,7 @@ namespace Basis.Scripts.Drivers
                 fallbackStates = _fallbackRotStates,
                 outputs = _rotOutputs,
                 dt = safeDt,
+                playspaceRotation = playspaceMatrix.rotation,
             };
             // Run inline: 15 slots of Burst filter math is microseconds, below the cost of
             // dispatching two parallel-for jobs (batch 4 → up to eight slices) and fencing

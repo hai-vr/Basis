@@ -73,6 +73,22 @@ namespace Basis.BasisUI
         public static PanelTextField CreateNew(string style, Component parent)
             => CreateNew<PanelTextField>(style, parent);
 
+        /// <summary>
+        /// Never prints what a password field holds, and keeps long free text (URLs, MOTDs) from
+        /// swallowing the reset dialogue's change list.
+        /// </summary>
+        protected override string FormatSettingValue(string value)
+        {
+            TMP_InputField.ContentType contentType = _inputField != null ? _inputField.contentType : _contentType;
+            if (contentType == TMP_InputField.ContentType.Password || contentType == TMP_InputField.ContentType.Pin)
+            {
+                return "•••";
+            }
+
+            if (string.IsNullOrEmpty(value)) return "—";
+            return value.Length <= 60 ? value : value.Substring(0, 57) + "…";
+        }
+
 #if UNITY_EDITOR
         protected override void OnValidate()
         {

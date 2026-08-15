@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -51,7 +52,6 @@ namespace Basis.IK
             BasisLocalBoneDriver.SpineControl.HasVirtualOverride = true;
             BasisLocalBoneDriver.HipsControl.HasVirtualOverride = true;
 
-            BasisLocalPlayer.Instance.OnVirtualData += OnSimulate;
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnHeightChanged;
 
             _solveState = new NativeArray<BasisVirtualSpineCore.SpineSolveState>(1, Allocator.Persistent);
@@ -71,10 +71,6 @@ namespace Basis.IK
             BasisLocalBoneDriver.SpineControl.HasVirtualOverride = false;
             BasisLocalBoneDriver.HipsControl.HasVirtualOverride = false;
 
-            if (BasisLocalPlayer.Instance != null)
-            {
-                BasisLocalPlayer.Instance.OnVirtualData -= OnSimulate;
-            }
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnHeightChanged;
 
             if (_solveState.IsCreated) _solveState.Dispose();
@@ -94,14 +90,42 @@ namespace Basis.IK
             }
         }
 
-        public void OnSimulate()
+        /// <summary>
+        /// Runs after the device poll and BEFORE <see cref="BasisLocalBoneDriver.Simulate"/> in the
+        /// local player tick: the bone sim's follower chains (untracked legs/arms hang off the hips
+        /// via TargetIndex) must read the hips this solve writes for the SAME frame, or the whole
+        /// virtual leg chain — toes included — trails the torso by a frame. The eye pose is read
+        /// from the control's freshly polled IncomingData (the sim has not published it yet), so
+        /// the head target is still this frame's pose.
+        /// </summary>
+        public void Simulate()
         {
+            if (!_initialized) return;
+
             var eye = BasisLocalBoneDriver.EyeControl;
             var head = BasisLocalBoneDriver.HeadControl;
             var neck = BasisLocalBoneDriver.NeckControl;
             var chest = BasisLocalBoneDriver.ChestControl;
             var spine = BasisLocalBoneDriver.SpineControl;
             var hips = BasisLocalBoneDriver.HipsControl;
+
+            // This frame's eye, exactly as the bone sim will publish it a stage later (its tracked
+            // branch snaps to incoming, through the inverse offset when one is calibrated).
+            BasisCalibratedCoords freshEye;
+            if (eye.HasTracked == BasisHasTracked.HasTracker)
+            {
+                freshEye = eye.IncomingData;
+                if (eye.UseInverseOffset)
+                {
+                    var off = eye.InverseOffsetFromBone;
+                    freshEye.position += freshEye.rotation * off.position;
+                    freshEye.rotation *= off.rotation;
+                }
+            }
+            else
+            {
+                freshEye = eye.OutGoingData;
+            }
 
             if (_lengthsDirty)
             {
@@ -141,16 +165,16 @@ namespace Basis.IK
                 TrackingLiftY = BasisLocalPlayspaceMover.VerticalOffset * BasisHeightDriver.DeviceScale,
                 ParentMatrix = parentMatrix,
                 ParentRotation = parentMatrix.rotation,
-                EyeRot = eye.OutGoingData.rotation,
+                EyeRot = freshEye.rotation,
 
-                HeadTargetPos = ResolveTargetPos(head),
-                HeadTargetRot = ResolveTargetRot(head),
-                NeckTargetPos = ResolveTargetPos(neck),
-                NeckTargetRot = ResolveTargetRot(neck),
-                ChestTargetPos = ResolveTargetPos(chest),
-                ChestTargetRot = ResolveTargetRot(chest),
-                SpineTargetPos = ResolveTargetPos(spine),
-                SpineTargetRot = ResolveTargetRot(spine),
+                HeadTargetPos = ResolveTargetPos(head, eye, in freshEye),
+                HeadTargetRot = ResolveTargetRot(head, eye, in freshEye),
+                NeckTargetPos = ResolveTargetPos(neck, eye, in freshEye),
+                NeckTargetRot = ResolveTargetRot(neck, eye, in freshEye),
+                ChestTargetPos = ResolveTargetPos(chest, eye, in freshEye),
+                ChestTargetRot = ResolveTargetRot(chest, eye, in freshEye),
+                SpineTargetPos = ResolveTargetPos(spine, eye, in freshEye),
+                SpineTargetRot = ResolveTargetRot(spine, eye, in freshEye),
 
                 HeadScaledOffset = head.ScaledOffset,
                 NeckScaledOffset = neck.ScaledOffset,
@@ -189,7 +213,7 @@ namespace Basis.IK
 
                 StandingHipsLocalY = _standingHipsLocalY,
                 StandingHeadLocalY = _standingHeadLocalY,
-                EyePos = eye.OutGoingData.position,
+                EyePos = freshEye.position,
                 EyeFromHeadTpose = _eyeFromHeadTpose,
                 GazeSwingRemoval = Basis.BasisUI.BasisSettingsDefaults.VSpineGazeSwingRemoval.RawValue,
                 HipsAnchorOffsetLocal = _hipsFromEyeTposeXZ,
@@ -209,17 +233,32 @@ namespace Basis.IK
                 IdxChest = chest.Index,
                 IdxSpine = spine.Index,
                 IdxHips = hips.Index,
+                SkipHead = TrackerOwned(head),
+                SkipNeck = TrackerOwned(neck),
+                SkipChest = TrackerOwned(chest),
+                SkipSpine = TrackerOwned(spine),
+                SkipHips = TrackerOwned(hips),
             }.Run();
         }
 
-        private static float3 ResolveTargetPos(BasisLocalBoneControl c)
+        private static byte TrackerOwned(BasisLocalBoneControl c)
         {
-            return ResolveTarget(c).OutGoingData.position;
+            return (byte)(c.HasTracked == BasisHasTracked.HasTracker ? 1 : 0);
         }
 
-        private static quaternion ResolveTargetRot(BasisLocalBoneControl c)
+        // Targets resolving to the eye read the fresh pose computed above — the sim has not
+        // published this frame's eye yet when this solve runs. Every other target is virtual
+        // self-state, which is exactly what it was on the previous write.
+        private static float3 ResolveTargetPos(BasisLocalBoneControl c, BasisLocalBoneControl eye, in BasisCalibratedCoords freshEye)
         {
-            return ResolveTarget(c).OutGoingData.rotation;
+            BasisLocalBoneControl target = ResolveTarget(c);
+            return ReferenceEquals(target, eye) ? (float3)freshEye.position : (float3)target.OutGoingData.position;
+        }
+
+        private static quaternion ResolveTargetRot(BasisLocalBoneControl c, BasisLocalBoneControl eye, in BasisCalibratedCoords freshEye)
+        {
+            BasisLocalBoneControl target = ResolveTarget(c);
+            return ReferenceEquals(target, eye) ? (quaternion)freshEye.rotation : (quaternion)target.OutGoingData.rotation;
         }
 
         private static BasisLocalBoneControl ResolveTarget(BasisLocalBoneControl c)

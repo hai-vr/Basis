@@ -24,6 +24,14 @@ namespace Basis.BasisUI
         private BasisPanelSeverity _pingSeverity;
 
         /// <summary>
+        /// "Why can I not see this player" card at the top of the Actions page. Polled rather than
+        /// painted on open because none of what it reports — range, a download landing, the far
+        /// avatar swapping in, the other side blocking us — announces itself to this panel.
+        /// </summary>
+        public PanelElementDescriptor AvatarStatusField;
+        [System.NonSerialized] public BasisPanelTint.Handle AvatarStatusTint;
+
+        /// <summary>
         /// Direct-link round trip at which the ping card warns, then reads hot. Same thresholds the
         /// network settings tab grades the server ping with, so a P2P link and the server relay are
         /// judged by the same bar.
@@ -59,7 +67,9 @@ namespace Basis.BasisUI
         {
             if (_richTextDisabled) return;
             _richTextDisabled = true;
-            // These debug panels only display plain-text stats — skip tag scanning.
+            // These debug panels only display plain-text stats — skip tag scanning. (The avatar
+            // status card does the same, but at build time — it can carry a remote error string
+            // on its very first paint, before this runs.)
             DebugField?.DisableRichText();
             DistanceField?.DisableRichText();
             LodField?.DisableRichText();
@@ -130,6 +140,10 @@ namespace Basis.BasisUI
             // P2P ping is independent of the receiver/transmitter pipeline — refresh
             // it on every tick, before any of the early-returns below kick us out.
             UpdateDirectConnPingField();
+
+            // Same reasoning, and it also has an answer for a null player, so it runs before the
+            // guards rather than after them.
+            IndividualPlayerProvider.PaintAvatarStatus(RemotePlayer, AvatarStatusField, AvatarStatusTint, true);
 
             if (RemotePlayer == null)
             {

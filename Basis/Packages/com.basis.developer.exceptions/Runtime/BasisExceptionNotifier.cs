@@ -102,7 +102,8 @@ namespace Basis.BasisUI
                         title,
                         plain,
                         AddressableAssets.Sprites.Information,
-                        reopen: () => Present(type, system, message, stackTrace));
+                        reopen: () => Present(type, system, message, stackTrace),
+                        category: BasisNotificationCategory.Developer);
                 }
             }
             catch

@@ -22,6 +22,7 @@ namespace Basis.BasisUI
         private string _description;
         private string _icon;
         private Action _reopen;
+        private BasisNotificationCategory _category;
 
         private DialogBox() { }
 
@@ -32,7 +33,8 @@ namespace Basis.BasisUI
             string description = null,
             string icon = null,
             bool strongerOverlay = false,
-            Action reopen = null
+            Action reopen = null,
+            BasisNotificationCategory category = BasisNotificationCategory.Content
         )
         {
             DialogBox<T> box = new DialogBox<T>
@@ -41,6 +43,7 @@ namespace Basis.BasisUI
                 _description = description,
                 _icon = icon,
                 _reopen = reopen,
+                _category = category,
                 _tcs = new TaskCompletionSource<T>(),
             };
 
@@ -87,6 +90,8 @@ namespace Basis.BasisUI
             // the dialog to the notification center instead of leaking the Task forever.
             DialogBoxReleaseWatcher watcher = box._background.gameObject.AddComponent<DialogBoxReleaseWatcher>();
             watcher.OnDestroyed = box.HandlePopped;
+
+            BasisPanelInputDelay.Arm(box._background.gameObject);
 
             return box;
         }
@@ -163,11 +168,11 @@ namespace Basis.BasisUI
 
             if (_reopen != null)
             {
-                BasisNotificationCenter.AddPending(title, _description, icon, _reopen);
+                BasisNotificationCenter.AddPending(title, _description, icon, _reopen, category: _category);
             }
             else
             {
-                BasisNotificationCenter.LogResolved(title, _description, icon, BasisNotificationStatus.Dismissed);
+                BasisNotificationCenter.LogResolved(title, _description, icon, BasisNotificationStatus.Dismissed, _category);
             }
         }
     }

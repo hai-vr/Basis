@@ -317,7 +317,7 @@ namespace Basis.BasisUI
             tabGroup.AddTab(BasisLocalization.Get(generalKey), () =>
             {
                 _lastSelectedTabKey = generalKey;
-                BindPageReset(generalKey);
+                BindPageReset(generalKey, generalPage);
             }, generalPage);
             PanelScrollMemory.Attach(generalPage.Descriptor.ContentParent, generalKey);
             AttachTabSearch(generalKey, 0, generalPage);
@@ -427,8 +427,8 @@ namespace Basis.BasisUI
             tabGroup.AddTab(BasisLocalization.Get(tabKey), () =>
             {
                 _lastSelectedTabKey = tabKey;
-                RealizeTab(tabGroup, tab, forSearch: false);
-                BindPageReset(tabKey);
+                PanelTabPage page = RealizeTab(tabGroup, tab, forSearch: false);
+                BindPageReset(tabKey, page);
             }, placeholder);
         }
 
@@ -507,7 +507,7 @@ namespace Basis.BasisUI
         /// Points the panel header's Reset at the page now on show. Runs on every tab selection,
         /// after the tab has been realized, so a lazily built page has already registered itself.
         /// </summary>
-        private static void BindPageReset(string tabKey)
+        private static void BindPageReset(string tabKey, PanelTabPage page)
         {
             if (BasisMainMenu.Instance == null)
             {
@@ -524,7 +524,39 @@ namespace Basis.BasisUI
                 BasisMainMenu.Instance.ActiveMenu,
                 reset == null ? null : BasisLocalization.Get("ui.resetPage.title", pageName),
                 reset == null ? null : BasisLocalization.Get("menu.panel.reset.choose", pageName),
-                reset);
+                reset,
+                reset == null || page == null ? null : () => CollectChangedSettings(page));
+        }
+
+        /// <summary>
+        /// Every bound control on <paramref name="page"/> whose setting is off its default, as
+        /// rows for the reset dialogue's change list — the row's own title, then the value the way
+        /// the control shows it next to the default it would go back to. Hidden and collapsed rows
+        /// are included: a page reset puts those back too.
+        /// </summary>
+        private static List<BasisMenuDialoguePanel.DetailRow> CollectChangedSettings(PanelTabPage page)
+        {
+            if (page == null || page.IsReleased)
+            {
+                return null;
+            }
+
+            List<BasisMenuDialoguePanel.DetailRow> rows = new();
+            HashSet<string> seen = new();
+            string entryFormat = BasisLocalization.Get("menu.panel.reset.changed.entry");
+            PanelComponent[] components = page.GetComponentsInChildren<PanelComponent>(true);
+            for (int Index = 0; Index < components.Length; Index++)
+            {
+                if (!components[Index].TryDescribeSettingChange(out string label, out string current, out string standard) ||
+                    !seen.Add(label + "\n" + current + "\n" + standard))
+                {
+                    continue;
+                }
+
+                rows.Add(new BasisMenuDialoguePanel.DetailRow(label, string.Format(entryFormat, current, standard)));
+            }
+
+            return rows;
         }
 
         // ------------------
@@ -680,6 +712,14 @@ namespace Basis.BasisUI
 
             BuildIdentitySection(container, descriptor);
 
+            // ---- Backup & Restore ----
+            // Lazy: the archive list is read off disk when the section opens, so a collapsed
+            // section costs nothing and reopening it picks up files written since.
+            PanelSectionToggleHelpers.CreateLazyBoxedSection(container,
+                BasisLocalization.Get("settings.developer.backup.title"),
+                () => SettingsProviderBackup.BuildSection(container, descriptor),
+                false, _ => descriptor.ForceRebuild());
+
             PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.general.developer.title"), () =>
             {
@@ -717,10 +757,12 @@ namespace Basis.BasisUI
             dropdownLanguage.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.language.title.tooltip"));
 
             var languages = BasisLocalization.Available;
+            var codes = new List<string>(languages.Count);
             var displayNames = new List<string>(languages.Count);
             int currentIndex = 0;
             for (int i = 0; i < languages.Count; i++)
             {
+                codes.Add(languages[i].Code);
                 displayNames.Add(languages[i].NativeName);
                 if (languages[i].Code == BasisLocalization.CurrentLanguage)
                 {
@@ -728,20 +770,20 @@ namespace Basis.BasisUI
                 }
             }
 
-            dropdownLanguage.AssignEntries(displayNames);
-            if (displayNames.Count > 0)
+            dropdownLanguage.AssignEntries(codes, displayNames);
+            if (codes.Count > 0)
             {
-                dropdownLanguage.SetValueWithoutNotify(displayNames[currentIndex]);
+                dropdownLanguage.SetValueWithoutNotify(codes[currentIndex]);
             }
 
             dropdownLanguage.OnValueChanged += (selected) =>
             {
-                for (int i = 0; i < languages.Count; i++)
+                for (int i = 0; i < codes.Count; i++)
                 {
-                    if (languages[i].NativeName == selected)
+                    if (codes[i] == selected)
                     {
-                        BasisSettingsDefaults.Language.SetValue(languages[i].Code);
-                        BasisLocalization.SetLanguage(languages[i].Code);
+                        BasisSettingsDefaults.Language.SetValue(codes[i]);
+                        BasisLocalization.SetLanguage(codes[i]);
                         BasisMainMenu.Close();
                         OpenToTab("settings.tab.general");
                         return;
@@ -3287,11 +3329,7 @@ namespace Basis.BasisUI
                 false, _ => descriptor.ForceRebuild());
 #endif
 
-            // ---- Backup & Restore ----
-            PanelSectionToggleHelpers.CreateLazyBoxedSection(container,
-                BasisLocalization.Get("settings.developer.backup.title"),
-                () => SettingsProviderBackup.BuildSection(container, descriptor),
-                false, _ => descriptor.ForceRebuild());
+            // Backup & Restore moved to the General tab — it is user data, not a developer tool.
 
             // ---- Console Log ----
             PanelSectionToggleHelpers.CreateLazyFlatSection(container,

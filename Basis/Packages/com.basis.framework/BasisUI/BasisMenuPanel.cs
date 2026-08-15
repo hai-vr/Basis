@@ -83,6 +83,12 @@ namespace Basis.BasisUI
             Descriptor = GetComponent<PanelElementDescriptor>();
         }
 
+        public override void OnCreateEvent()
+        {
+            base.OnCreateEvent();
+            BasisPanelInputDelay.Arm(gameObject);
+        }
+
         /// <summary>
         /// Instantiate a new Panel and load in the corresponding panel data.
         /// </summary>

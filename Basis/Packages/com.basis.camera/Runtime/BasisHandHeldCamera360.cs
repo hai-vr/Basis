@@ -216,7 +216,19 @@ public partial class BasisHandHeldCamera
         string filename = $"Screenshot360_{layout}_{timestamp}_{width}x{height}.{extension}";
         string path = GetSavePath(filename);
 
-        await File.WriteAllBytesAsync(path, imageData);
+        // Same reasoning as the flat save path: this is async void, so a write that fails has to
+        // be captured here or it never reaches the user.
+        try
+        {
+            await File.WriteAllBytesAsync(path, imageData);
+        }
+        catch (Exception e)
+        {
+            RecordPhotoFailed(e);
+            return;
+        }
+
+        RecordPhotoSaved(path);
         PrintPhotoIfEnabled(path);
     }
 

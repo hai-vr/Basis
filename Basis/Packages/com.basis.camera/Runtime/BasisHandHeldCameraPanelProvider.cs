@@ -150,6 +150,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelToggle _vrStabToggle;
         private PanelToggle _capture360Toggle;
         private PanelToggle _printPhotoToggle;
+        private PanelElementDescriptor _photoStatus;
+        private PanelButton _revealPhotoButton;
+        private string _lastPhotoStatusText;
+        private bool? _lastRevealPhotoInteractable;
         private PanelToggle _previewScreenToggle;
         private PanelToggle _audioListenerToggle;
         private PanelToggle _selfieToggle;
@@ -236,7 +240,10 @@ namespace Basis.BasisUI.HandHeldCamera
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
             _panel = panel;
 
-            panel.OnInstanceReleased += OnPanelClosed;
+            panel.OnInstanceReleased += () =>
+            {
+                if (_panel == null || _panel == panel) OnPanelClosed();
+            };
 
             // Search lives on the header. The popup must not outlive this panel — it navigates into
             // tabs that go away with it.
@@ -758,6 +765,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastFocus = float.NaN;
             _capture360Toggle = null;
             _printPhotoToggle = null;
+            _photoStatus = null;
+            _revealPhotoButton = null;
+            _lastPhotoStatusText = null;
+            _lastRevealPhotoInteractable = null;
             _previewScreenToggle = null;
             _audioListenerToggle = null;
             _selfieToggle = null;
@@ -1420,10 +1431,63 @@ namespace Basis.BasisUI.HandHeldCamera
             // browsable Pictures folder rather than the app's sandboxed data path.
             if (BasisHandHeldCamera.CanOpenPhotosFolder)
             {
+                // Names the shot that just landed and gives it a one-click way back. Nothing else
+                // tells the shooter where a photo went, and the shutter is on the prop, so the
+                // answer has to survive until they come looking for it here.
+                _photoStatus = BuildRecordingStatusCard(content, "camera.photo.status", "camera.photo.status.idle");
+
                 RectTransform folderRow = PanelElementDescriptor.BuildActionRow(content, "CameraPhotosRow");
+
+                _revealPhotoButton = PanelButton.CreateNew(folderRow);
+                _revealPhotoButton.Descriptor.SetTitle(BasisLocalization.Get("camera.openSavedPhoto"));
+                _revealPhotoButton.OnClicked += () => _activeCamera?.RevealLastPhoto();
+
                 PanelButton openFolderButton = PanelButton.CreateNew(folderRow);
                 openFolderButton.Descriptor.SetTitle(BasisLocalization.Get("camera.openPhotosFolder"));
                 openFolderButton.OnClicked += () => BasisHandHeldCamera.OpenPhotosFolder();
+            }
+        }
+
+        /// <summary>
+        /// Keeps the last-photo card and its reveal button honest. Photos are taken from the prop
+        /// while this panel is open, so the state is polled rather than pushed; edge-gated, so an
+        /// unchanged label never restarts the widget's tweens.
+        /// </summary>
+        private void TickPhotoStatus()
+        {
+            if (_activeCamera == null || _photoStatus == null) return;
+
+            string failure = _activeCamera.LastPhotoFailure;
+            string fileName = _activeCamera.LastPhotoFileName;
+
+            string statusText;
+            if (failure != null)
+            {
+                statusText = BasisLocalization.Get("camera.photo.status.failed", failure);
+            }
+            else if (fileName != null)
+            {
+                statusText = BasisLocalization.Get("camera.photo.status.saved", fileName);
+            }
+            else
+            {
+                statusText = BasisLocalization.Get("camera.photo.status.idle");
+            }
+
+            if (statusText != _lastPhotoStatusText)
+            {
+                _lastPhotoStatusText = statusText;
+                _photoStatus.SetDescription(statusText);
+            }
+
+            // A failed save can still leave an earlier photo worth revealing, so the button
+            // follows the path rather than the failure.
+            bool canReveal = fileName != null;
+            if (_revealPhotoButton != null && canReveal != _lastRevealPhotoInteractable)
+            {
+                _lastRevealPhotoInteractable = canReveal;
+                _revealPhotoButton.SetInteractable(
+                    canReveal, canReveal ? null : BasisLocalization.Get("camera.openSavedPhoto.none"));
             }
         }
 
@@ -1757,6 +1821,12 @@ namespace Basis.BasisUI.HandHeldCamera
             SeedCinematicCameraControls();
             SeedGifControls();
             SeedVideoControls();
+
+            // The bound camera changed, so the cached labels describe someone else's last shot.
+            _lastPhotoStatusText = null;
+            _lastRevealPhotoInteractable = null;
+            TickPhotoStatus();
+
             RefreshShotList();
             RefreshWaypointList();
 
@@ -2095,6 +2165,7 @@ namespace Basis.BasisUI.HandHeldCamera
             TickCinematicSections();
             TickGifSection();
             TickVideoSection();
+            TickPhotoStatus();
             RefreshTimerLabel();
             RefreshHiddenState();
         }

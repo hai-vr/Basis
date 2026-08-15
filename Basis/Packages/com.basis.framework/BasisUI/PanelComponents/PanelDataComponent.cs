@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -103,6 +105,41 @@ namespace Basis.BasisUI
             SetValueWithoutNotify(target);
             SettingsBinding?.SetValue(target);
             OnValueChanged?.Invoke(target);
+        }
+
+        public override bool TryDescribeSettingChange(out string label, out string currentText, out string defaultText)
+        {
+            label = null;
+            currentText = null;
+            defaultText = null;
+            if (SettingsBinding == null) return false;
+
+            T current = SettingsBinding.RawValue;
+            T standard = SettingsBinding.DefaultValue.GetDefault();
+            if (EqualityComparer<T>.Default.Equals(current, standard)) return false;
+
+            label = Descriptor && !string.IsNullOrEmpty(Descriptor.Title) ? Descriptor.Title : SettingsBinding.BindingKey;
+            currentText = FormatSettingValue(current);
+            defaultText = FormatSettingValue(standard);
+            return true;
+        }
+
+        /// <summary>
+        /// Writes one of this control's values the way the control itself would show it, for the
+        /// reset dialogue's change list. Controls with richer displays (slider units, dropdown
+        /// labels) override this.
+        /// </summary>
+        protected virtual string FormatSettingValue(T value)
+        {
+            switch (value)
+            {
+                case bool boolValue:
+                    return BasisLocalization.Get(boolValue ? "ui.on" : "ui.off");
+                case float floatValue:
+                    return floatValue.ToString("0.###", CultureInfo.InvariantCulture);
+                default:
+                    return value != null ? value.ToString() : string.Empty;
+            }
         }
     }
 }

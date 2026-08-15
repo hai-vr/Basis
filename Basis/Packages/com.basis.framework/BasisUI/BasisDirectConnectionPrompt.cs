@@ -29,7 +29,8 @@ namespace Basis.BasisUI
             {
                 BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Network,
                     reopen: () => Show(displayName, uuid, respond, true),
-                    onDismiss: () => respond(false));
+                    onDismiss: () => respond(false),
+                    category: BasisNotificationCategory.Player);
                 return;
             }
 
@@ -120,7 +121,8 @@ namespace Basis.BasisUI
                     answered = true;
                     BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Network,
                         reopen: () => Show(displayName, uuid, respond, true),
-                        onDismiss: () => respond(false));
+                        onDismiss: () => respond(false),
+                        category: BasisNotificationCategory.Player);
                 }
 
                 // Opening the menu above tore down the page and virtual keyboard the user had

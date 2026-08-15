@@ -989,7 +989,8 @@ namespace Basis.BasisUI
                 BasisLocalization.Get("menu.servers.usernamePrompt.title"),
                 BasisLocalization.Get("menu.servers.usernamePrompt.body"),
                 AddressableAssets.Sprites.Information,
-                true);
+                true,
+                category: BasisNotificationCategory.Network);
             if (dialog.Descriptor == null) return;
 
             PanelTextField nameField = PanelTextField.CreateNewEntry(dialog.Descriptor.ContentParent);

@@ -359,7 +359,7 @@ public static class BasisNetworkModeration
                 {
                     BasisMainMenu.Close();
                 }
-            });
+            }, category: BasisNotificationCategory.Player);
             BasisDebug.Log(message);
         }
     }
@@ -391,7 +391,7 @@ public static class BasisNetworkModeration
             {
                 BasisMainMenu.Close();
             }
-        });
+        }, category: BasisNotificationCategory.Player);
     }
 
     public static void AdminMessage(NetDataReader reader)

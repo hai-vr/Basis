@@ -63,6 +63,30 @@ namespace Basis.BasisUI
             ignoreToggle.SetValueWithoutNotify(BasisNotificationCenter.IgnoreMode);
             ignoreToggle.OnValueChanged = value => BasisNotificationCenter.IgnoreMode = value;
 
+            // History filters. Fixed controls like the toggle above, so typing in the
+            // search box survives the list rebuild each change triggers.
+            PanelDropdown categoryFilter = PanelDropdown.CreateNewEntry(root);
+            categoryFilter.Descriptor.SetTitle(BasisLocalization.Get("notifications.filter.category"));
+            categoryFilter.Descriptor.SetDescription(BasisLocalization.Get("notifications.filter.category.description"));
+            categoryFilter.AssignEntries(FilterEntries(), FilterLabels());
+            categoryFilter.SetValueWithoutNotify(EntryFor(BasisNotificationCenter.HistoryCategory));
+            categoryFilter.OnValueChanged = value => BasisNotificationCenter.HistoryCategory = CategoryFor(value);
+
+            PanelTextField searchField = PanelTextField.CreateNewEntry(root);
+            searchField.Descriptor.SetTitle(BasisLocalization.Get("notifications.filter.search"));
+            if (searchField._placeholderLabel != null)
+            {
+                searchField._placeholderLabel.text = BasisLocalization.Get("ui.search");
+            }
+            searchField.SetValueWithoutNotify(BasisNotificationCenter.HistorySearch);
+            // SetValueWithoutNotify only stores the value; the field itself has to be written
+            // or a search carried over from the last time the page was open filters invisibly.
+            if (searchField._inputField != null)
+            {
+                searchField._inputField.text = BasisNotificationCenter.HistorySearch;
+            }
+            searchField.OnValueChanged = value => BasisNotificationCenter.HistorySearch = value;
+
             _controller = panel.gameObject.AddComponent<NotificationPanelController>();
             _controller.Root = root;
             _controller.TabDescriptor = tab.Descriptor;
@@ -74,6 +98,62 @@ namespace Basis.BasisUI
         public override void OnReleaseEvent()
         {
             _controller = null;
+        }
+
+        // Stored dropdown value standing for "no category filter". Kept distinct from the
+        // enum names so it can never collide with a category added later.
+        private const string AllEntry = "All";
+
+        private static List<string> FilterEntries()
+        {
+            List<string> entries = new List<string> { AllEntry };
+            entries.AddRange(Enum.GetNames(typeof(BasisNotificationCategory)));
+            return entries;
+        }
+
+        private static List<string> FilterLabels()
+        {
+            List<string> labels = new List<string> { BasisLocalization.Get("notifications.category.all") };
+            Array categories = Enum.GetValues(typeof(BasisNotificationCategory));
+            for (int i = 0; i < categories.Length; i++)
+            {
+                labels.Add(CategoryLabel((BasisNotificationCategory)categories.GetValue(i)));
+            }
+            return labels;
+        }
+
+        private static string EntryFor(BasisNotificationCategory? category)
+        {
+            return category.HasValue ? category.Value.ToString() : AllEntry;
+        }
+
+        private static BasisNotificationCategory? CategoryFor(string entry)
+        {
+            if (Enum.TryParse(entry, out BasisNotificationCategory parsed)
+                && Enum.IsDefined(typeof(BasisNotificationCategory), parsed))
+            {
+                return parsed;
+            }
+            return null;
+        }
+
+        public static string CategoryLabel(BasisNotificationCategory category)
+        {
+            switch (category)
+            {
+                case BasisNotificationCategory.Player:
+                    return BasisLocalization.Get("notifications.category.player");
+                case BasisNotificationCategory.Content:
+                    return BasisLocalization.Get("notifications.category.content");
+                case BasisNotificationCategory.Network:
+                    return BasisLocalization.Get("notifications.category.network");
+                case BasisNotificationCategory.Avatar:
+                    return BasisLocalization.Get("notifications.category.avatar");
+                case BasisNotificationCategory.Developer:
+                    return BasisLocalization.Get("notifications.category.developer");
+                default:
+                    return BasisLocalization.Get("notifications.category.system");
+            }
         }
 
         /// <summary>
@@ -190,18 +270,32 @@ namespace Basis.BasisUI
                 PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(pendingSection, Root, pendingStart, true,
                     _ => TabDescriptor?.ForceRebuild());
 
-                // History (newest first) — resolved outcomes.
+                // History (newest first) — resolved outcomes, narrowed by the category and
+                // search filters above. Pending is deliberately left unfiltered.
                 PanelSectionToggle historySection = PanelSectionToggle.CreateNewEntry(Root);
-                historySection.SetTitle(BasisLocalization.Get("notifications.history"));
                 int historyStart = Root.childCount;
                 int history = 0;
+                int historyTotal = 0;
                 for (int i = all.Count - 1; i >= 0; i--)
                 {
                     if (all[i].Status == BasisNotificationStatus.Pending) continue;
+                    historyTotal++;
+                    if (!BasisNotificationCenter.PassesHistoryFilter(all[i])) continue;
                     BuildHistoryRow(all[i]);
                     history++;
                 }
-                if (history == 0) AddEmpty(BasisLocalization.Get("notifications.empty.history"));
+
+                bool filtered = BasisNotificationCenter.HistoryFiltered;
+                historySection.SetTitle(filtered
+                    ? BasisLocalization.Get("notifications.history.filtered", history, historyTotal)
+                    : BasisLocalization.Get("notifications.history"));
+
+                if (history == 0)
+                {
+                    AddEmpty(BasisLocalization.Get(filtered && historyTotal > 0
+                        ? "notifications.empty.filtered"
+                        : "notifications.empty.history"));
+                }
                 PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(historySection, Root, historyStart, true,
                     _ => TabDescriptor?.ForceRebuild());
 
@@ -221,7 +315,7 @@ namespace Basis.BasisUI
                 PanelElementDescriptor row = PanelElementDescriptor.CreateNew(
                     PanelElementDescriptor.ElementStyles.Entry, Root);
                 row.SetTitle(n.Title);
-                row.SetDescription(WithTimestamp(n.Description, n.CreatedUtc));
+                row.SetDescription(WithMeta(n.Description, n.Category, n.CreatedUtc));
 
                 // Horizontal action row — same pattern as the library Yes/No dialogs.
                 PanelTabGroup actions = PanelTabGroup.CreateNew(
@@ -252,14 +346,15 @@ namespace Basis.BasisUI
                     ? OutcomeBadge(n.Status)
                     : $"{n.Title}   {OutcomeBadge(n.Status)}");
 
-                row.SetDescription(WithTimestamp(n.Description, n.ResolvedUtc ?? n.CreatedUtc));
+                row.SetDescription(WithMeta(n.Description, n.Category, n.ResolvedUtc ?? n.CreatedUtc));
             }
 
-            // Appends a dimmed local-time stamp ("2:34 PM") below the description.
-            private static string WithTimestamp(string description, DateTime utc)
+            // Appends a dimmed "Players · 2:34 PM" line below the description. The category
+            // is shown on every row so the filter dropdown reads against something visible.
+            private static string WithMeta(string description, BasisNotificationCategory category, DateTime utc)
             {
-                string stamp = $"<color={TimeColor}><size=80%>{utc.ToLocalTime():h:mm tt}</size></color>";
-                return string.IsNullOrEmpty(description) ? stamp : $"{description}\n{stamp}";
+                string meta = $"<color={TimeColor}><size=80%>{CategoryLabel(category)} · {utc.ToLocalTime():h:mm tt}</size></color>";
+                return string.IsNullOrEmpty(description) ? meta : $"{description}\n{meta}";
             }
 
             private static string OutcomeBadge(BasisNotificationStatus status)

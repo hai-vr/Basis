@@ -9,7 +9,7 @@ namespace Basis.BasisUI.Mirrors
     {
         public const string StaticTitle = "Mirror Settings";
 
-        private static readonly int[] ResolutionPresets = { 256, 512, 1024, 2048, 4096 };
+        private static readonly int[] ResolutionPresets = { 256, 512, 1024, 2048, 4096, 8192 };
         private static readonly int[] MsaaSampleCounts = { 1, 2, 4, 8 };
         private static readonly int[] DepthBitOptions = { 16, 24 };
 
@@ -318,7 +318,7 @@ namespace Basis.BasisUI.Mirrors
             _presetDropdown.OnValueChanged = _ =>
             {
                 if (_activeMirror == null || _presetDropdown == null) return;
-                int index = _presetDropdown.Index - 1;
+                int index = _presetDropdown.Index;
                 if (index < 0 || index >= ResolutionPresets.Length) return;
 
                 int size = ResolutionPresets[index];
@@ -685,7 +685,8 @@ namespace Basis.BasisUI.Mirrors
                 _heightSlider?.SetValueWithoutNotify(surface.y);
             }
             _viewerCapSlider?.SetValueWithoutNotify(_activeMirror.SecondaryViewerResolutionCap);
-            _presetDropdown?.SetValueWithoutNotify(CurrentPresetLabel());
+            string presetLabel = CurrentPresetLabel();
+            if (presetLabel != null) _presetDropdown?.SetValueWithoutNotify(presetLabel);
             _msaaDropdown?.SetValueWithoutNotify(MsaaLabel(_activeMirror.MsaaSamples));
             _depthDropdown?.SetValueWithoutNotify(DepthLabel(_activeMirror.DepthBits));
 
@@ -718,7 +719,8 @@ namespace Basis.BasisUI.Mirrors
 
         private void RefreshResolutionReadouts()
         {
-            _presetDropdown?.SetValueWithoutNotify(CurrentPresetLabel());
+            string preset = CurrentPresetLabel();
+            if (preset != null) _presetDropdown?.SetValueWithoutNotify(preset);
             RefreshStatus();
         }
 
@@ -830,10 +832,7 @@ namespace Basis.BasisUI.Mirrors
 
         private static List<string> BuildPresetLabels()
         {
-            List<string> labels = new List<string>(ResolutionPresets.Length + 1)
-            {
-                BasisLocalization.Get("mirror.preset.custom")
-            };
+            List<string> labels = new List<string>(ResolutionPresets.Length);
             for (int Index = 0; Index < ResolutionPresets.Length; Index++)
             {
                 labels.Add(PresetLabel(ResolutionPresets[Index]));
@@ -845,17 +844,16 @@ namespace Basis.BasisUI.Mirrors
 
         private string CurrentPresetLabel()
         {
-            string custom = BasisLocalization.Get("mirror.preset.custom");
-            if (_activeMirror == null) return custom;
+            if (_activeMirror == null) return null;
 
             int width = _activeMirror.ReflectionWidth;
-            if (width != _activeMirror.ReflectionHeight) return custom;
+            if (width != _activeMirror.ReflectionHeight) return null;
 
             for (int Index = 0; Index < ResolutionPresets.Length; Index++)
             {
                 if (ResolutionPresets[Index] == width) return PresetLabel(width);
             }
-            return custom;
+            return null;
         }
 
         private static List<string> BuildMsaaLabels()

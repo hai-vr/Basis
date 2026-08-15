@@ -63,12 +63,6 @@ MonoBehaviour:
     m_SerializedLabels:
     - language
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 1d033680539317746923204fb8ca9def
-    m_Address: Languages/com.basis.provider.servers/zh
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 1d623dc35b0a8084b952adc792b6bc8d
     m_Address: Languages/com.basis.provider.servers/es-MX
     m_ReadOnly: 0
@@ -165,12 +159,6 @@ MonoBehaviour:
     m_SerializedLabels:
     - language
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 4861d300623cc3646817a3b6087e5fb0
-    m_Address: Languages/com.basis.developer.exceptions/zh
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 4bb3e761313d3044b93f2259fc04c3e2
     m_Address: Languages/com.basis.developer.exceptions/ja
     m_ReadOnly: 0
@@ -191,12 +179,6 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 52e0056c3318400409fcb37f41888ec9
     m_Address: Languages/com.basis.developer.exceptions/zh-Hant
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 5541ac853e0e3cc409cb3ebf7cee01cd
-    m_Address: Languages/com.basis.developer.recorder/zh
     m_ReadOnly: 0
     m_SerializedLabels:
     - language
@@ -345,12 +327,6 @@ MonoBehaviour:
     m_SerializedLabels:
     - language
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 9fb8cc094c61ea949a45dd1fe2e0002a
-    m_Address: Languages/com.basis.developer.exceptions/zh-CN
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a145559a5ab3f1447a654913a51922ef
     m_Address: Languages/com.basis.provider.servers/bn
     m_ReadOnly: 0
@@ -371,12 +347,6 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: aaf5746bf94cc834aa94013d89683e01
     m_Address: Languages/com.basis.developer.recorder/es-MX
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: adeea2a16ed047341998aed317f981ac
-    m_Address: Languages/com.basis.provider.servers/zh-CN
     m_ReadOnly: 0
     m_SerializedLabels:
     - language
@@ -441,32 +411,8 @@ MonoBehaviour:
     m_SerializedLabels:
     - language
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: c4d8e2a16b7f3958bc09d4e1f2a36870
-    m_Address: Languages/zh
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: c7a3f9b2e8d54a16b9c8d7e6f5a4b3c2
-    m_Address: Languages/zh-CN
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c7f4063db58ab1e48abc696d2c627a5a
     m_Address: Languages/com.basis.developer.exceptions/ar
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: cc0afc17289720342ab30ec1af2a5786
-    m_Address: Languages/com.basis.developer.recorder/zh-CN
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: cf3e78a581a8c7f4b924c4c19c7661ff
-    m_Address: Languages/dev.hai-vr.hvr.license-review/zh-CN
     m_ReadOnly: 0
     m_SerializedLabels:
     - language
@@ -509,12 +455,6 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: e589c5bb9ebe74344a73c3662ae989ab
     m_Address: Languages/nl
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: eaea0c06d85ba8a4eb727bcb500a6d6b
-    m_Address: Languages/dev.hai-vr.hvr.license-review/zh
     m_ReadOnly: 0
     m_SerializedLabels:
     - language
@@ -621,20 +561,8 @@ MonoBehaviour:
     m_SerializedLabels:
     - language
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: aa2e9e3031af4a3581929e843cc8fcf2
-    m_Address: Languages/com.basis.imagepickup/zh-CN
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ad967af7840042a58e190846e2349745
     m_Address: Languages/com.basis.imagepickup/zh-Hant
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - language
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: b7adc052adb94601814baa4dc8de1efb
-    m_Address: Languages/com.basis.imagepickup/zh
     m_ReadOnly: 0
     m_SerializedLabels:
     - language

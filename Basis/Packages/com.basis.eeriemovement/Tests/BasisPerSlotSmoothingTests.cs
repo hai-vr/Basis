@@ -77,6 +77,7 @@ namespace Basis.Tests.IK
                         fallbackStates = fallbackStates,
                         outputs = outputs,
                         dt = Dt,
+                        playspaceToWorld = float4x4.identity,
                     };
                     job.Run(SlotCount);
 
@@ -182,6 +183,7 @@ namespace Basis.Tests.IK
                         fallbackStates = fallbackStates,
                         outputs = outputs,
                         dt = Dt,
+                        playspaceRotation = quaternion.identity,
                     };
                     job.Run(SlotCount);
 

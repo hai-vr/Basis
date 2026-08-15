@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using Basis.BTween;
+using Basis.Scripts.UI;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -34,6 +36,12 @@ namespace Basis.BasisUI
         /// dialogue in the plain colours its prefab ships with.
         /// </summary>
         public BasisPanelSeverity Severity = BasisPanelSeverity.None;
+
+        /// <summary>
+        /// Which bucket this dialogue lands in when it reaches the notification center,
+        /// so the history list can be filtered down to it.
+        /// </summary>
+        public BasisNotificationCategory Category = BasisNotificationCategory.System;
 
         public bool BlocksOtherActions;
 
@@ -79,7 +87,8 @@ namespace Basis.BasisUI
                 Title,
                 Description,
                 AddressableAssets.Sprites.Information,
-                accepted ? BasisNotificationStatus.Accepted : BasisNotificationStatus.Denied);
+                accepted ? BasisNotificationStatus.Accepted : BasisNotificationStatus.Denied,
+                Category);
             Callback?.Invoke(accepted);
             ReleaseInstance();
         }
@@ -114,6 +123,112 @@ namespace Basis.BasisUI
             AlternateButton.OnClicked += ResolveAlternate;
         }
 
+        /// <summary>One row of the list <see cref="ShowDetails"/> puts under the description.</summary>
+        public readonly struct DetailRow
+        {
+            public readonly string Title;
+            public readonly string Value;
+
+            public DetailRow(string title, string value)
+            {
+                Title = title;
+                Value = value;
+            }
+        }
+
+        private const float DetailRowHeight = 96f;
+        private const float DetailListMinHeight = 120f;
+        private const float DetailListMaxHeight = 420f;
+        private const float DetailPanelMaxHeight = 800f;
+        private const float DetailTopGap = 16f;
+        private const float DetailBottomInset = 8f;
+        private const float DetailSideInset = 32f;
+
+        /// <summary>
+        /// Puts a scrollable list of title/value rows between the description and the buttons, and
+        /// grows the dialogue to give it room, so a confirmation can show exactly what it is about
+        /// to act on. Built at runtime like <see cref="EnableAlternate"/>, so plain two-button
+        /// callers are unaffected. Call after <see cref="FillDialogue"/> — the list is placed under
+        /// however many lines the description wrapped to.
+        /// </summary>
+        public void ShowDetails(IReadOnlyList<DetailRow> rows)
+        {
+            if (rows == null || rows.Count == 0) return;
+            if (Descriptor == null || !Descriptor.HasDescription) return;
+
+            RectTransform host = Descriptor.DescriptionLabel.rectTransform.parent as RectTransform;
+            if (host == null) return;
+
+            float textWidth = Mathf.Max(100f, Data.PanelSize.x - 32f - 64f);
+            float questionHeight = Mathf.Clamp(
+                Mathf.Ceil(Descriptor.DescriptionLabel.GetPreferredValues(Description ?? string.Empty, textWidth, 0f).y),
+                40f, 200f);
+
+            float desiredList = Mathf.Clamp(rows.Count * DetailRowHeight + DetailBottomInset, DetailListMinHeight, DetailListMaxHeight);
+            float panelHeight = Mathf.Clamp(220f + questionHeight + DetailTopGap + desiredList + DetailBottomInset,
+                Data.PanelSize.y, DetailPanelMaxHeight);
+            if (panelHeight > Data.PanelSize.y)
+            {
+                PanelData data = Data;
+                data.PanelSize = new Vector2(data.PanelSize.x, panelHeight);
+                Data = data;
+                rectTransform.sizeDelta = data.PanelSize;
+                BasisGraphicUIRayCaster.SetBoxColliderToRectTransform(gameObject);
+            }
+
+            PanelElementDescriptor scroll = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVertical, host);
+            RectTransform scrollArea = scroll.rectTransform;
+            scrollArea.anchorMin = Vector2.zero;
+            scrollArea.anchorMax = Vector2.one;
+            scrollArea.offsetMin = new Vector2(DetailSideInset, DetailBottomInset);
+            scrollArea.offsetMax = new Vector2(-DetailSideInset, -(questionHeight + DetailTopGap));
+
+            RectTransform content = scroll.ContentParent;
+            ScrollRect scrollView = content != null ? content.GetComponentInParent<ScrollRect>() : null;
+            if (scrollView != null && scrollView.viewport != null)
+            {
+                RectTransform viewport = scrollView.viewport;
+                viewport.anchorMin = Vector2.zero;
+                viewport.anchorMax = Vector2.one;
+                viewport.offsetMin = Vector2.zero;
+                viewport.offsetMax = new Vector2(-25f, 0f); // clear of the vertical scrollbar
+                if (!viewport.TryGetComponent(out RectMask2D _))
+                {
+                    viewport.gameObject.AddComponent<RectMask2D>();
+                }
+            }
+
+            for (int Index = 0; Index < rows.Count; Index++)
+            {
+                PanelElementDescriptor row = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Entry, content);
+                row.SetTitle(rows[Index].Title);
+                row.SetDescription(rows[Index].Value);
+                ReleaseControlSlot(row);
+            }
+
+            if (content != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+            }
+            if (scrollView != null)
+            {
+                scrollView.verticalNormalizedPosition = 1f;
+            }
+        }
+
+        /// <summary>
+        /// An Entry card reserves a 300-wide control slot even when nothing is put in it; on a
+        /// dialogue-width row that squeezes the labels into wrapping. These rows are text only, so
+        /// give the labels the whole card.
+        /// </summary>
+        private static void ReleaseControlSlot(PanelElementDescriptor row)
+        {
+            if (row == null || row.Header == null) return;
+
+            Transform slot = row.Header.Find("Title/Element");
+            if (slot != null) slot.gameObject.SetActive(false);
+        }
+
         private void ResolveAlternate()
         {
             _resolved = true;
@@ -121,7 +236,8 @@ namespace Basis.BasisUI
                 Title,
                 Description,
                 AddressableAssets.Sprites.Information,
-                BasisNotificationStatus.Accepted);
+                BasisNotificationStatus.Accepted,
+                Category);
             AlternateCallback?.Invoke();
             ReleaseInstance();
         }
@@ -166,6 +282,7 @@ namespace Basis.BasisUI
             string accept = Accept;
             string deny = Decline;
             BasisPanelSeverity severity = Severity;
+            BasisNotificationCategory category = Category;
             Action<bool> callback = Callback;
 
             BasisNotificationCenter.AddPending(
@@ -178,9 +295,10 @@ namespace Basis.BasisUI
                     if (!BasisMainMenu.Instance) return;
                     if (BasisMainMenu.Instance.Dialogue) BasisMainMenu.Instance.Dialogue.ReleaseInstance();
                     // CreateInternal bypasses ignore mode so re-open always shows.
-                    BasisMainMenu.Instance.Dialogue = CreateInternal(title, description, accept, deny, callback, severity);
+                    BasisMainMenu.Instance.Dialogue = CreateInternal(title, description, accept, deny, callback, severity, category);
                 },
-                onDismiss: () => callback?.Invoke(false));
+                onDismiss: () => callback?.Invoke(false),
+                category: category);
         }
 
         /// <summary>
@@ -195,16 +313,17 @@ namespace Basis.BasisUI
             string deny,
             Action<bool> callback,
             bool divertible = false,
-            BasisPanelSeverity severity = BasisPanelSeverity.None)
+            BasisPanelSeverity severity = BasisPanelSeverity.None,
+            BasisNotificationCategory category = BasisNotificationCategory.System)
         {
             // Only "divertible" (incoming/unsolicited) popups route to the notification
             // list under do-not-disturb or while the admin/moderator panel is open.
             // User-initiated confirmations (the default) always show.
             if (divertible && BasisNotificationCenter.RouteToNotifications)
             {
-                return SuppressToNotifications(title, description, accept, deny, callback, severity);
+                return SuppressToNotifications(title, description, accept, deny, callback, severity, category);
             }
-            return CreateInternal(title, description, accept, deny, callback, severity);
+            return CreateInternal(title, description, accept, deny, callback, severity, category);
         }
 
         /// <summary>
@@ -218,13 +337,14 @@ namespace Basis.BasisUI
             string accept,
             Action<bool> callback,
             bool divertible = false,
-            BasisPanelSeverity severity = BasisPanelSeverity.None)
+            BasisPanelSeverity severity = BasisPanelSeverity.None,
+            BasisNotificationCategory category = BasisNotificationCategory.System)
         {
             if (divertible && BasisNotificationCenter.RouteToNotifications)
             {
-                return SuppressToNotifications(title, description, accept, null, callback, severity);
+                return SuppressToNotifications(title, description, accept, null, callback, severity, category);
             }
-            return CreateInternal(title, description, accept, null, callback, severity);
+            return CreateInternal(title, description, accept, null, callback, severity, category);
         }
 
         /// <summary>
@@ -237,7 +357,8 @@ namespace Basis.BasisUI
             string accept,
             string deny,
             Action<bool> callback,
-            BasisPanelSeverity severity = BasisPanelSeverity.None)
+            BasisPanelSeverity severity = BasisPanelSeverity.None,
+            BasisNotificationCategory category = BasisNotificationCategory.System)
         {
             if (!BasisMainMenu.Instance)
             {
@@ -265,6 +386,7 @@ namespace Basis.BasisUI
             panel.LoadData(DialoguePanelData);
             panel.Callback = callback;
             panel.Severity = severity;
+            panel.Category = category;
             panel.SetLayer(PanelLayer.Overlay);
             panel.FillDialogue(title, description, accept, deny);
             BasisPanelMoveHandle.Attach(panel, nameof(BasisMenuDialoguePanel));
@@ -285,7 +407,8 @@ namespace Basis.BasisUI
             string accept,
             string deny,
             Action<bool> callback,
-            BasisPanelSeverity severity = BasisPanelSeverity.None)
+            BasisPanelSeverity severity = BasisPanelSeverity.None,
+            BasisNotificationCategory category = BasisNotificationCategory.System)
         {
             BasisNotificationCenter.AddPending(
                 title,
@@ -296,9 +419,10 @@ namespace Basis.BasisUI
                     if (!BasisMainMenu.Instance) BasisMainMenu.Open();
                     if (!BasisMainMenu.Instance) return;
                     if (BasisMainMenu.Instance.Dialogue) BasisMainMenu.Instance.Dialogue.ReleaseInstance();
-                    BasisMainMenu.Instance.Dialogue = CreateInternal(title, description, accept, deny, callback, severity);
+                    BasisMainMenu.Instance.Dialogue = CreateInternal(title, description, accept, deny, callback, severity, category);
                 },
-                onDismiss: () => callback?.Invoke(false));
+                onDismiss: () => callback?.Invoke(false),
+                category: category);
             return null;
         }
 

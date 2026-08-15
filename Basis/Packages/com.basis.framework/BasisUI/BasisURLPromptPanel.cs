@@ -94,7 +94,8 @@ namespace Basis.BasisUI
                 BasisLocalization.Get("notifications.url.title"),
                 URLTextField._inputField.text,
                 AddressableAssets.Sprites.World,
-                accepted ? BasisNotificationStatus.Accepted : BasisNotificationStatus.Denied);
+                accepted ? BasisNotificationStatus.Accepted : BasisNotificationStatus.Denied,
+                BasisNotificationCategory.Content);
 
             Callback.Invoke(new LoadResponse {
                 Accepted = accepted,
@@ -131,7 +132,8 @@ namespace Basis.BasisUI
                     // CreateInternal bypasses ignore mode so re-open always shows.
                     CreateInternal(url, callback);
                 },
-                onDismiss: () => callback.Invoke(new LoadResponse { Accepted = false }));
+                onDismiss: () => callback.Invoke(new LoadResponse { Accepted = false }),
+                category: BasisNotificationCategory.Content);
         }
 
         /// <summary>
@@ -206,7 +208,8 @@ namespace Basis.BasisUI
                     if (!BasisMainMenu.Instance) return;
                     CreateInternal(url, callback);
                 },
-                onDismiss: () => callback?.Invoke(new LoadResponse { Accepted = false }));
+                onDismiss: () => callback?.Invoke(new LoadResponse { Accepted = false }),
+                category: BasisNotificationCategory.Content);
             return null;
         }
     }

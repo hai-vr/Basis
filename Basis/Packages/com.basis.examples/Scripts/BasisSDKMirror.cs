@@ -400,7 +400,7 @@ public class BasisSDKMirror : MonoBehaviour
         BasisSettingsDefaults.UseMirrorQualityOverride.RawValue;
 
     public const int MinResolution = 64;
-    public const int MaxResolution = 4096;
+    public const int MaxResolution = 8192;
     public const int MinUpdateInterval = 1;
     public const int MaxUpdateInterval = 8;
     public const float MinNearClip = 0.001f;

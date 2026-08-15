@@ -34,6 +34,28 @@ namespace Basis.BasisUI
             return memory;
         }
 
+        /// <summary>
+        /// Takes the position the view is at now as the remembered one and drops the pending restore.
+        /// For a caller that has placed the view deliberately — search jumping to the row it was asked
+        /// for — which lands inside the few frames the restore is still running and would be undone.
+        /// </summary>
+        public static void Adopt(ScrollRect scroll)
+        {
+            if (scroll != null && scroll.TryGetComponent(out PanelScrollMemory memory))
+            {
+                memory.Adopt();
+            }
+        }
+
+        public void Adopt()
+        {
+            _restoreFramesLeft = 0;
+            if (BasisMenuStateMemory.Enabled && IsScrollable())
+            {
+                BasisMenuStateMemory.SetScroll(_key, Mathf.Clamp01(_scroll.verticalNormalizedPosition));
+            }
+        }
+
         private void OnEnable()
         {
             if (!BasisMenuStateMemory.Enabled)

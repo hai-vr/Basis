@@ -755,7 +755,8 @@ public static class BasisHeightDriver
             BasisLocalization.Get("calibration.refit.title"),
             detail,
             AddressableAssets.Sprites.Information,
-            BasisNotificationStatus.Accepted);
+            BasisNotificationStatus.Accepted,
+            BasisNotificationCategory.Avatar);
     }
 
     public static void CaptureAvatarHeightDuringTpose()

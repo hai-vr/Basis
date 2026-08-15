@@ -98,6 +98,27 @@ namespace Basis.Localization
         }
 
         /// <summary>
+        /// Rewrites a retired language code onto the file that superseded it, so a
+        /// choice persisted by an older build still resolves instead of falling back
+        /// to English. Codes that were never retired are returned unchanged.
+        /// </summary>
+        public static string NormalizeLanguageCode(string languageCode)
+        {
+            if (string.IsNullOrEmpty(languageCode))
+            {
+                return languageCode;
+            }
+
+            if (string.Equals(languageCode, "zh", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(languageCode, "zh-CN", StringComparison.OrdinalIgnoreCase))
+            {
+                return "zh-Hans";
+            }
+
+            return languageCode;
+        }
+
+        /// <summary>
         /// Applies <paramref name="args"/> to an already-resolved template using the
         /// invariant culture. Returns the template unchanged when there are no args
         /// or the format string is malformed.

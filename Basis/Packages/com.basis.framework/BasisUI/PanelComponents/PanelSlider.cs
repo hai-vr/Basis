@@ -432,38 +432,8 @@ namespace Basis.BasisUI
             _hasLastFormattedValue = true;
             _lastFormattedValue = Value;
 
-            string next;
-            switch (Settings.DisplayMode)
-            {
-                case ValueDisplayMode.Percentage:
-                    float range2 = SliderComponent.maxValue - SliderComponent.minValue;
-                    float normalized = (range2 > 0f) ? (Value - SliderComponent.minValue) / range2 : 0f;
-                    next = $"{Mathf.RoundToInt(normalized * 100f)}%";
-                    break;
-                case ValueDisplayMode.percentageFromZero:
-                    next = $"{Mathf.RoundToInt(Value * 100f)}%";
-                    break;
-                case ValueDisplayMode.Raw:
-                    next = Value.ToString(_cachedDecimalFormat);
-                    break;
-                case ValueDisplayMode.Meters:
-                    next = Value.ToString(_cachedDecimalFormat) + " m";
-                    break;
-                case ValueDisplayMode.Degrees:
-                    next = Value.ToString(_cachedDecimalFormat) + "°";
-                    break;
-                case ValueDisplayMode.MemorySize:
-                    next = FormatMemorySize(Value * 1024 * 1024, Settings.DecimalPlaces);
-                    break;
-                case ValueDisplayMode.Compact:
-                    next = FormatCompact(Value);
-                    break;
-                case ValueDisplayMode.Hz:
-                    next = Value.ToString(_cachedDecimalFormat) + " Hz";
-                    break;
-                default:
-                    return;
-            }
+            string next = FormatDisplayValue(Value);
+            if (next == null) return;
 
             // Dedup — dragging a slider fires ApplyValue many times per second, and the
             // rounded/formatted text is often identical between frames.
@@ -471,6 +441,40 @@ namespace Basis.BasisUI
             _lastCurrentValueText = next;
             CurrentValueLabel.SetText(next);
         }
+
+        /// <summary>
+        /// A value written the way this slider's value label writes it — same display mode, same
+        /// unit suffix — or null for a display mode with no text form.
+        /// </summary>
+        private string FormatDisplayValue(float value)
+        {
+            string decimalFormat = _cachedDecimalFormat ?? "0." + new string('#', Mathf.Max(0, Settings.DecimalPlaces));
+            switch (Settings.DisplayMode)
+            {
+                case ValueDisplayMode.Percentage:
+                    float range = Settings.SliderMax - Settings.SliderMin;
+                    float normalized = (range > 0f) ? (value - Settings.SliderMin) / range : 0f;
+                    return $"{Mathf.RoundToInt(normalized * 100f)}%";
+                case ValueDisplayMode.percentageFromZero:
+                    return $"{Mathf.RoundToInt(value * 100f)}%";
+                case ValueDisplayMode.Raw:
+                    return value.ToString(decimalFormat);
+                case ValueDisplayMode.Meters:
+                    return value.ToString(decimalFormat) + " m";
+                case ValueDisplayMode.Degrees:
+                    return value.ToString(decimalFormat) + "°";
+                case ValueDisplayMode.MemorySize:
+                    return FormatMemorySize(value * 1024 * 1024, Settings.DecimalPlaces);
+                case ValueDisplayMode.Compact:
+                    return FormatCompact(value);
+                case ValueDisplayMode.Hz:
+                    return value.ToString(decimalFormat) + " Hz";
+                default:
+                    return null;
+            }
+        }
+
+        protected override string FormatSettingValue(float value) => FormatDisplayValue(value) ?? base.FormatSettingValue(value);
         private static string FormatMemorySize(float bytes, int decimalPlaces = 2)
         {
             if (bytes < 0f)

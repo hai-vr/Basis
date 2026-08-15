@@ -14,19 +14,22 @@ namespace Basis.BasisUI
     ///   • refuses any path containing a double-quote or control character — a legitimate reveal
     ///     target never has one, and a double-quote is the only thing that could break out of the
     ///     quoted argument we pass;
-    ///   • never routes through a shell, opens folders by path (no argument string) on Windows,
-    ///     invokes the absolute /usr/bin/open on macOS, and on the fallback emits only a file://
-    ///     URI (never an arbitrary scheme);
+    ///   • never routes through a shell, invokes the absolute explorer.exe on Windows and the
+    ///     absolute /usr/bin/open on macOS, and on the fallback emits only a file:// URI (never an
+    ///     arbitrary scheme);
     ///   • swallows and logs every failure, so a UI callback can never be broken by it.
     /// No-op for an empty / invalid / non-existent path.
+    ///
+    /// Returns whether a launcher was actually reached, so a caller with a broader target (a file
+    /// and the folder holding it) can fall back rather than leave the user with nothing.
     /// </summary>
     public static class BasisFileBrowserUtility
     {
-        public static void Reveal(string path, bool selectFile = false)
+        public static bool Reveal(string path, bool selectFile = false)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(path)) return;
+                if (string.IsNullOrWhiteSpace(path)) return false;
 
                 // Resolve to an absolute path and require it to exist locally. Only a real on-disk
                 // target ever reaches a launcher below.
@@ -34,41 +37,32 @@ namespace Basis.BasisUI
 
                 bool isFile = File.Exists(fullPath);
                 bool isDirectory = Directory.Exists(fullPath);
-                if (!isFile && !isDirectory) return;
+                if (!isFile && !isDirectory) return false;
 
                 // A legitimate reveal target carries no double-quote or control character; if one
                 // does (a crafted name), refuse rather than risk breaking out of the quoted argument.
-                if (HasUnsafeCharacters(fullPath)) return;
+                if (HasUnsafeCharacters(fullPath)) return false;
 
                 // Only a real file can be highlighted; otherwise reveal the directory itself.
                 if (selectFile && !isFile) selectFile = false;
                 string directory = isDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
 
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-                if (selectFile)
+                // Pin to the absolute system explorer so a CWD-planted "explorer.exe" cannot run
+                // instead. explorer expects exactly "/select,<file>" to highlight one, and the bare
+                // path to open a folder; both targets are verified to exist and Windows paths cannot
+                // contain a double-quote, so neither can break out of the quoted argument.
+                string explorer = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
-                    // Pin to the absolute system explorer so a CWD-planted "explorer.exe" cannot run
-                    // instead. explorer expects exactly "/select,<file>"; the file is verified to exist
-                    // and Windows file names cannot contain a double-quote, so it cannot break out.
-                    string explorer = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = explorer,
-                        Arguments = $"/select,\"{fullPath}\"",
-                        UseShellExecute = true
-                    });
-                }
-                else
-                {
-                    // Open the directory itself — there is no argument string to inject into, and
-                    // shell-executing a verified directory always opens the browser, never runs a file.
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = directory,
-                        UseShellExecute = true
-                    });
-                }
+                    FileName = explorer,
+                    Arguments = selectFile
+                        ? $"/select,\"{fullPath.Replace('/', '\\')}\""
+                        : $"\"{directory.Replace('/', '\\')}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
 #elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
                 // Absolute path (no PATH lookup to hijack) and no shell (UseShellExecute = false); the
                 // quoted target has no quote/control chars, so it cannot inject extra `open` flags
@@ -84,11 +78,13 @@ namespace Basis.BasisUI
                 // steered to a remote or script scheme. (This platform cannot highlight a file.)
                 UnityEngine.Application.OpenURL(new Uri(directory).AbsoluteUri);
 #endif
+                return true;
             }
             catch (Exception e)
             {
                 // Best-effort convenience: a failure here must never propagate into the caller.
                 BasisDebug.LogWarning($"Could not reveal path in file browser: {e.Message}");
+                return false;
             }
         }
 

@@ -84,7 +84,8 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("menu.individualPlayer.directConnection.serverLockedDialog.body"),
                     BasisLocalization.Get("ui.ok"),
                     _ => { },
-                    severity: BasisPanelSeverity.Caution);
+                    severity: BasisPanelSeverity.Caution,
+                    category: BasisNotificationCategory.Player);
                 return;
             }
 
@@ -95,7 +96,8 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("menu.individualPlayer.directConnection.disabledDialog.body"),
                     BasisLocalization.Get("ui.ok"),
                     _ => { },
-                    severity: BasisPanelSeverity.Caution);
+                    severity: BasisPanelSeverity.Caution,
+                    category: BasisNotificationCategory.Player);
                 return;
             }
 
@@ -110,7 +112,8 @@ namespace Basis.BasisUI
                     if (!confirmed) return;
                     BasisP2PManager.SendRequest(playerId);
                 },
-                severity: BasisPanelSeverity.Hot);
+                severity: BasisPanelSeverity.Hot,
+                category: BasisNotificationCategory.Player);
         }
 
         /// <summary>

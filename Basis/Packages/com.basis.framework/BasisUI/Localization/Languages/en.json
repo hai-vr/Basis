@@ -843,6 +843,30 @@
       "value": "Open Photos Folder"
     },
     {
+      "key": "camera.openSavedPhoto",
+      "value": "Show Saved Photo"
+    },
+    {
+      "key": "camera.openSavedPhoto.none",
+      "value": "Take a photo first."
+    },
+    {
+      "key": "camera.photo.status",
+      "value": "Last Photo"
+    },
+    {
+      "key": "camera.photo.status.idle",
+      "value": "No photo saved yet."
+    },
+    {
+      "key": "camera.photo.status.saved",
+      "value": "Saved {0}"
+    },
+    {
+      "key": "camera.photo.status.failed",
+      "value": "Save failed: {0}"
+    },
+    {
       "key": "camera.renderLayers",
       "value": "Render Layers"
     },
@@ -2795,6 +2819,10 @@
       "value": "Reset Position"
     },
     {
+      "key": "menu.panel.reset.all",
+      "value": "Reset All"
+    },
+    {
       "key": "menu.panel.search",
       "value": "Search"
     },
@@ -2808,7 +2836,19 @@
     },
     {
       "key": "menu.panel.reset.choose",
-      "value": "Reset all {0} settings to defaults, or just put this panel back where it started?"
+      "value": "Reset all {0} settings to defaults, put this panel back where it started, or reset both?"
+    },
+    {
+      "key": "menu.panel.reset.changed",
+      "value": "Changed from default ({0}):"
+    },
+    {
+      "key": "menu.panel.reset.nochanges",
+      "value": "Everything on this page is already at its default."
+    },
+    {
+      "key": "menu.panel.reset.changed.entry",
+      "value": "{0} → {1}"
     },
     {
       "key": "keyboard.title",
@@ -3519,10 +3559,6 @@
       "value": "Pinned players always appear first."
     },
     {
-      "key": "menu.players.sortMode.default",
-      "value": "Default"
-    },
-    {
       "key": "menu.players.sortMode.distance",
       "value": "Distance"
     },
@@ -3605,6 +3641,122 @@
     {
       "key": "menu.individualPlayer.actions.description",
       "value": "One press for the things you most often want to do to this player. Every action here also appears on the tab that owns it."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.shown",
+      "value": "Avatar Shown"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.shown.body",
+      "value": "Their real avatar is loaded and visible."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.blockedByYou",
+      "value": "Blocked by You"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.blockedByYou.body",
+      "value": "You blocked this player, so their avatar, voice and chat stay hidden. Unblock them to load the avatar again."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.blockedByThem",
+      "value": "They Blocked You"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.blockedByThem.body",
+      "value": "This player blocked you, so their avatar is hidden on both sides for the rest of the session."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.hidden",
+      "value": "Hidden by You"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.hidden.body",
+      "value": "You hid this player's avatar. Press Show Avatar to load it again."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.failed",
+      "value": "Avatar Failed to Load"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.failed.body",
+      "value": "Their avatar could not be loaded and will not be retried on its own. Press Show Avatar to try again."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.performance",
+      "value": "Over Your Performance Limits"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.performance.body",
+      "value": "Their avatar goes over a limit you set, so it was never downloaded. The Avatar tab can bypass the filter for this one player."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.outOfRange",
+      "value": "Out of Avatar Range"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.outOfRange.body",
+      "value": "They are {0:0.#} m away and your avatar range is {1:0.#} m. Move closer, raise the range, or turn on Always Show Avatar for them."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.overCap",
+      "value": "Over the Avatar Limit"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.overCap.body",
+      "value": "They are close enough, but you are showing at most {0} avatars at once and closer players took the slots. Raise the limit, or turn on Always Show Avatar for them."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.overCap.body.zero",
+      "value": "They are close enough, but your visible avatar limit is set to 0, so no real avatars load at all. Raise the limit, or turn on Always Show Avatar for them."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.rangePending",
+      "value": "Coming Back Into Range"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.rangePending.body",
+      "value": "They just came back inside your avatar range and their avatar is being restored."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.loading",
+      "value": "Avatar Loading"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.loading.body",
+      "value": "Their avatar is downloading now."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.placeholder",
+      "value": "No Avatar Yet"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.placeholder.body",
+      "value": "Nothing is holding their avatar back, so this should clear on its own in a moment."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.gone",
+      "value": "Player Gone"
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.gone.body",
+      "value": "This player is no longer in the instance."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.showing.far",
+      "value": "You are seeing their far avatar — a low-detail stand-in."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.showing.placeholder",
+      "value": "You are seeing the placeholder avatar."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.showing.nothing",
+      "value": "Nothing is being drawn for them right now."
+    },
+    {
+      "key": "menu.individualPlayer.avatarStatus.reason",
+      "value": "Reason: {0}"
     },
     {
       "key": "menu.individualPlayer.player",
@@ -7787,6 +7939,14 @@
       "value": "No avatar is currently loaded."
     },
     {
+      "key": "settings.myAvatar.noCustomization",
+      "value": "No Avatar Customization"
+    },
+    {
+      "key": "settings.myAvatar.noCustomization.description",
+      "value": "This avatar does not support any Avatar Customization."
+    },
+    {
       "key": "settings.myAvatar.overview",
       "value": "Overview"
     },
@@ -10129,6 +10289,54 @@
     {
       "key": "notifications.show.history",
       "value": "Show history"
+    },
+    {
+      "key": "notifications.history.filtered",
+      "value": "History ({0} of {1})"
+    },
+    {
+      "key": "notifications.empty.filtered",
+      "value": "No history matches this filter."
+    },
+    {
+      "key": "notifications.filter.category",
+      "value": "Filter history"
+    },
+    {
+      "key": "notifications.filter.category.description",
+      "value": "Narrow the history list to one kind of notification."
+    },
+    {
+      "key": "notifications.filter.search",
+      "value": "Search history"
+    },
+    {
+      "key": "notifications.category.all",
+      "value": "All"
+    },
+    {
+      "key": "notifications.category.system",
+      "value": "System"
+    },
+    {
+      "key": "notifications.category.player",
+      "value": "Players"
+    },
+    {
+      "key": "notifications.category.content",
+      "value": "Content"
+    },
+    {
+      "key": "notifications.category.network",
+      "value": "Network"
+    },
+    {
+      "key": "notifications.category.avatar",
+      "value": "Avatar"
+    },
+    {
+      "key": "notifications.category.developer",
+      "value": "Errors"
     },
     {
       "key": "settings.tab.performancelimits",

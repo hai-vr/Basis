@@ -249,7 +249,7 @@ public class BasisAvatarPedestal : BasisInteractableObject
                 {
                     WasJustPressed = false;
                 }
-            });
+            }, category: BasisNotificationCategory.Avatar);
         }
     }
 

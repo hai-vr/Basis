@@ -15,6 +15,8 @@ namespace Basis.BasisUI
         // Avoid scaling inappropriately large or sentinel preferred-height values.
         private const float MaxPreferredHeightThreshold = 1000f;
 
+        private const int MaxSectionDepth = 16;
+
         public static class Styles
         {
             public static string Default => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Section Toggle.prefab";
@@ -213,6 +215,48 @@ namespace Basis.BasisUI
                     results.Add(marker.transform);
                 }
             }
+        }
+
+        /// <summary>
+        /// Fills <paramref name="results"/> with the sections that have to be open for
+        /// <paramref name="section"/> to be reachable, outermost first and ending with the section
+        /// itself. Opening only the innermost leaves it inside a closed parent — and while that parent
+        /// is a lazy one, the nested header does not exist to be opened at all.
+        /// </summary>
+        public static void GetSectionChain(PanelSectionToggle section, List<PanelSectionToggle> results)
+        {
+            if (results == null)
+            {
+                return;
+            }
+
+            results.Clear();
+            PanelSectionToggle current = section;
+            while (current != null && results.Count < MaxSectionDepth && !results.Contains(current))
+            {
+                results.Add(current);
+                current = GetOwningSection(current.transform);
+            }
+
+            results.Reverse();
+        }
+
+        /// <summary>
+        /// The section whose registered content <paramref name="node"/> sits inside, or null when it
+        /// is not filed under one. Walked through the content markers rather than the transform
+        /// parents: a section's rows live in containers it registers, not under its header.
+        /// </summary>
+        public static PanelSectionToggle GetOwningSection(Transform node)
+        {
+            for (Transform parent = node != null ? node.parent : null; parent != null; parent = parent.parent)
+            {
+                if (parent.TryGetComponent(out PanelSectionContentMarker marker) && marker.Owner != null)
+                {
+                    return marker.Owner;
+                }
+            }
+
+            return null;
         }
 
         protected override void ApplyValue()

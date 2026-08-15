@@ -163,7 +163,8 @@ namespace Basis.Scripts.Networking
                     serverLabel,
                     AddressableAssets.Sprites.Network,
                     reopen: () => ShowConfirmation(entry, forceShow: true),
-                    onDismiss: () => { _deepLinkActive = false; });
+                    onDismiss: () => { _deepLinkActive = false; },
+                    category: BasisNotificationCategory.Network);
                 return;
             }
 
@@ -193,12 +194,13 @@ namespace Basis.Scripts.Networking
                             BasisLocalization.Get("menu.servers.deepLink.usernameRequired.title"),
                             BasisLocalization.Get("menu.servers.deepLink.usernameRequired.body"),
                             BasisLocalization.Get("ui.ok"),
-                            _ => { });
+                            _ => { },
+                            category: BasisNotificationCategory.Network);
                         return;
                     }
 
                     _ = ConnectAndUnlock(entry, userName);
-                });
+                }, category: BasisNotificationCategory.Network);
         }
 
         private static async Task ConnectAndUnlock(ServerDirectoryEntry entry, string userName)

@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Developer-tab "Backup &amp; Restore" section. Creating an archive is offered everywhere; restoring
+/// General-tab "Backup &amp; Restore" section. Creating an archive is offered everywhere; restoring
 /// is Windows/Linux only (<see cref="BasisUserDataBackup.RestoreSupported"/>) and lists the archives
 /// found in the backups folder, plus a field for a path copied in from elsewhere.
 /// </summary>

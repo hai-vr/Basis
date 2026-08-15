@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
@@ -20,7 +21,8 @@ namespace Basis.BasisUI
     /// axis to aim along with a mouse, and a panel dragged off the edge could not be dragged back.
     /// <para>
     /// Where the user leaves it is remembered per panel and per platform, see
-    /// <see cref="BasisPanelOffsetMemory"/>. Reset puts it back where the panel was authored.
+    /// <see cref="BasisPanelOffsetMemory"/>. Reset puts it back where the panel was authored, and
+    /// keeps out of the way until there is something to put back.
     /// </para>
     /// <para>
     /// The drag is computed entirely in the panel parent's local space. On desktop both the pointer
@@ -35,6 +37,7 @@ namespace Basis.BasisUI
         public const string ResetKey = "menu.panel.reset";
         public const string ResetTooltipKey = "menu.panel.reset.tooltip";
         public const string ResetPositionKey = "menu.panel.reset.position";
+        public const string ResetAllKey = "menu.panel.reset.all";
         public const string SearchKey = "menu.panel.search";
         public const string SearchTooltipKey = "menu.panel.search.tooltip";
 
@@ -68,6 +71,7 @@ namespace Basis.BasisUI
         private float _lockedDepth;
         private bool _dragging;
         private bool _bootModeHooked;
+        private bool _resetGestureHooked;
 
         private readonly BasisLocks.LockContext _movementLock = BasisLocks.GetContext(BasisLocks.Movement);
         private readonly BasisLocks.LockContext _lookLock = BasisLocks.GetContext(BasisLocks.LookRotation);
@@ -93,8 +97,9 @@ namespace Basis.BasisUI
                 return null;
             }
 
-            // Search sits leftmost of the three so the destructive one stays furthest from it. It is
-            // built inactive: only panels that register something to search show it.
+            // Search sits leftmost of the three so the destructive one stays furthest from it. It
+            // and Reset are both built inactive: each appears only once it has something to do — a
+            // search to run, a placement or a page default to put back.
             PanelButton search = CreateButton(host, inHeader, SearchKey, SearchTooltipKey, AddressableAssets.Sprites.Search, SearchStyle, "Search Button");
             PanelButton move = CreateButton(host, inHeader, MoveKey, MoveTooltipKey, AddressableAssets.Sprites.Move, MoveStyle, "Move Button");
             PanelButton reset = CreateButton(host, inHeader, ResetKey, ResetTooltipKey, AddressableAssets.Sprites.Reset, ResetStyle, "Reset Button");
@@ -106,6 +111,11 @@ namespace Basis.BasisUI
             if (search != null)
             {
                 search.gameObject.SetActive(false);
+            }
+
+            if (reset != null)
+            {
+                reset.gameObject.SetActive(false);
             }
 
             BasisPanelMoveHandle handle = move.gameObject.AddComponent<BasisPanelMoveHandle>();
@@ -252,9 +262,6 @@ namespace Basis.BasisUI
             _panelKey = panelKey;
             _defaultLocalPosition = panel.Data.PanelPosition;
 
-            // The move button also answers the shared reset gesture, so a user who has learnt it on
-            // sliders and toggles finds it here too.
-            move.OnResetRequested += RequestReset;
             if (reset != null)
             {
                 reset.OnClicked += RequestReset;
@@ -265,6 +272,7 @@ namespace Basis.BasisUI
             }
 
             ApplyStoredOffset();
+            RefreshResetAvailability();
 
             BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
             _bootModeHooked = true;
@@ -302,6 +310,7 @@ namespace Basis.BasisUI
         {
             EndDrag();
             ApplyStoredOffset();
+            RefreshResetAvailability();
         }
 
         private void ApplyStoredOffset()
@@ -316,12 +325,20 @@ namespace Basis.BasisUI
 
         /// <summary>
         /// Tells this panel's Reset button that the page currently on show has its own defaults to
-        /// go back to — the settings tabs each do. Reset then asks which of the two the user meant
-        /// instead of silently picking one; panels with nothing registered (the keyboard, dialogues,
-        /// prompts) keep the plain behaviour, because there is no choice to offer.
+        /// go back to — the settings tabs each do. Reset then asks which the user meant — page,
+        /// placement, or both — instead of silently picking one; panels with nothing registered
+        /// (the keyboard, dialogues, prompts) keep the plain behaviour, because there is no choice
+        /// to offer.
+        /// <para>
+        /// <paramref name="changes"/> optionally lists what the page reset would touch — every
+        /// setting currently off its default. It is asked again each time the dialogue opens, so it
+        /// reflects what the user just finished tweaking, and the dialogue shows the rows so
+        /// "reset this page" is a decision about known values rather than a guess.
+        /// </para>
         /// <para>Call again whenever the page changes; the last registration wins.</para>
         /// </summary>
-        public static void SetPanelReset(BasisMenuPanel panel, string label, string question, Action reset)
+        public static void SetPanelReset(BasisMenuPanel panel, string label, string question, Action reset,
+            Func<List<BasisMenuDialoguePanel.DetailRow>> changes = null)
         {
             if (panel == null)
             {
@@ -337,15 +354,24 @@ namespace Basis.BasisUI
             handle._panelResetLabel = label;
             handle._panelResetQuestion = question;
             handle._panelReset = reset;
+            handle._panelResetChanges = changes;
+            handle.RefreshResetAvailability();
         }
 
         private string _panelResetLabel;
         private string _panelResetQuestion;
         private Action _panelReset;
+        private Func<List<BasisMenuDialoguePanel.DetailRow>> _panelResetChanges;
+
+        public const string ResetChangedKey = "menu.panel.reset.changed";
+        public const string ResetNoChangesKey = "menu.panel.reset.nochanges";
 
         /// <summary>
         /// The Reset button. With a page reset registered this is a fork — put the panel back where
-        /// it was, or put the page's settings back to defaults — so it asks rather than guessing.
+        /// it was, put the page's settings back to defaults, or both — so it asks rather than
+        /// guessing. The panel's Close button is the way out that resets nothing, so every button
+        /// in the dialogue itself resets something and dismissing it must not be captured as a
+        /// pending notification whose dismiss would fire the decline callback.
         /// </summary>
         private void RequestReset()
         {
@@ -363,24 +389,39 @@ namespace Basis.BasisUI
                 return;
             }
 
+            string question = _panelResetQuestion;
+            List<BasisMenuDialoguePanel.DetailRow> changes = _panelResetChanges?.Invoke();
+            if (changes != null)
+            {
+                question += "\n\n" + (changes.Count > 0
+                    ? BasisLocalization.Get(ResetChangedKey, changes.Count)
+                    : BasisLocalization.Get(ResetNoChangesKey));
+            }
+
             Action pageReset = _panelReset;
             menu.OpenDialogue(
                 BasisLocalization.Get(ResetKey),
-                _panelResetQuestion,
+                question,
                 _panelResetLabel,
-                BasisLocalization.Get("ui.cancel"),
+                BasisLocalization.Get(ResetAllKey),
                 accepted =>
                 {
-                    if (accepted)
+                    pageReset.Invoke();
+                    if (!accepted)
                     {
-                        pageReset.Invoke();
+                        ResetPlacement();
                     }
                 });
 
             BasisMenuDialoguePanel dialogue = menu.Dialogue;
             if (dialogue != null)
             {
+                dialogue.CaptureOnClose = false;
                 dialogue.EnableAlternate(BasisLocalization.Get(ResetPositionKey), ResetPlacement);
+                if (changes != null && changes.Count > 0)
+                {
+                    dialogue.ShowDetails(changes);
+                }
             }
         }
 
@@ -389,6 +430,54 @@ namespace Basis.BasisUI
             EndDrag();
             BasisPanelOffsetMemory.Clear(_panelKey);
             SetPanelLocalPosition(_defaultLocalPosition);
+            RefreshResetAvailability();
+        }
+
+        /// <summary>
+        /// Slack on "has this panel been moved", in panel-local units: sideways a fraction of a
+        /// millimetre at the menu's group scale, in depth a couple of millimetres. Below that the
+        /// drag came back to where it started and left no placement worth undoing.
+        /// </summary>
+        private const float MovedEpsilon = 0.25f;
+
+        private bool HasMovedPlacement =>
+            BasisPanelOffsetMemory.Get(_panelKey).sqrMagnitude > MovedEpsilon * MovedEpsilon;
+
+        /// <summary>
+        /// Reset only ever puts something back: a placement the user dragged, or the defaults of a
+        /// page that registered its own. A panel with neither has nothing to undo, so the button
+        /// stays out of the header until it does — a control that visibly does nothing when pressed
+        /// teaches the user to distrust the ones beside it.
+        /// <para>
+        /// The shared reset gesture — right click on desktop, thumbstick click in VR, which the move
+        /// button answers so a user who learnt it on sliders finds it here too — is hooked and
+        /// unhooked alongside. It is not merely ignored while unavailable because the move button's
+        /// tooltip advertises the gesture off that same hook.
+        /// </para>
+        /// </summary>
+        private void RefreshResetAvailability()
+        {
+            bool available = _panelReset != null || HasMovedPlacement;
+
+            if (_resetButton != null)
+            {
+                _resetButton.gameObject.SetActive(available);
+            }
+
+            if (available == _resetGestureHooked || _moveButton == null)
+            {
+                return;
+            }
+
+            _resetGestureHooked = available;
+            if (available)
+            {
+                _moveButton.OnResetRequested += RequestReset;
+            }
+            else
+            {
+                _moveButton.OnResetRequested -= RequestReset;
+            }
         }
 
         public void OnPointerDown(PointerEventData eventData)
@@ -486,6 +575,9 @@ namespace Basis.BasisUI
             {
                 BasisPanelOffsetMemory.Set(_panelKey, _panelRect.localPosition - _defaultLocalPosition);
             }
+
+            // A drag that actually went somewhere is what earns the panel its Reset.
+            RefreshResetAvailability();
         }
 
         private void Tick()

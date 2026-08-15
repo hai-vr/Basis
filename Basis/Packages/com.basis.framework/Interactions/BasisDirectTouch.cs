@@ -441,6 +441,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             GameObject graphic = FindGraphic(best, proj, cam);
 
+            // A panel still inside its open dead time is not there as far as touch is
+            // concerned, so a finger already travelling toward it cannot poke it through.
+            if (graphic != null && BasisPanelInputDelay.IsSuppressed(graphic))
+            {
+                graphic = null;
+            }
+
             switch (st.Phase)
             {
                 case TouchPhase.None:

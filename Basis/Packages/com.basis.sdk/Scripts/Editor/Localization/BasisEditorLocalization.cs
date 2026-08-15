@@ -100,6 +100,8 @@ namespace Basis.Editor.Localization
                 languageCode = DefaultLanguage;
             }
 
+            languageCode = BasisLocalizationCore.NormalizeLanguageCode(languageCode);
+
             _current.Clear();
             if (!string.Equals(languageCode, DefaultLanguage, StringComparison.OrdinalIgnoreCase))
             {

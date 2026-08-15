@@ -495,14 +495,16 @@ namespace Basis.Scripts.Networking.VoiceRecording
 
             if (BasisNotificationCenter.RouteToNotifications)
             {
-                BasisMenuDialoguePanel.CreateNew(title, body, accept, deny, Decide, divertible: true);
+                BasisMenuDialoguePanel.CreateNew(title, body, accept, deny, Decide, divertible: true,
+                    category: BasisNotificationCategory.Player);
                 return;
             }
             if (!BasisMainMenu.Instance)
             {
                 BasisMainMenu.Open();
             }
-            BasisMainMenu.Instance.OpenDialogue(title, body, accept, deny, Decide, divertible: true);
+            BasisMainMenu.Instance.OpenDialogue(title, body, accept, deny, Decide, divertible: true,
+                category: BasisNotificationCategory.Player);
         }
 
         private static bool IsRateLimited(ushort recorderId)

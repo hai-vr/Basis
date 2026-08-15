@@ -917,7 +917,7 @@ public static class BasisNetworkEvents
                     {
                         BasisMainMenu.Instance.OpenDialogue(BasisLocalization.Get("menu.servers.connection.title"), reason, BasisLocalization.Get("ui.ok"), value =>
                         {
-                        });
+                        }, category: BasisNotificationCategory.Network);
                     }
                 }
                 BasisDebug.LogError(reason);
@@ -938,7 +938,7 @@ public static class BasisNetworkEvents
                 {
                     BasisMainMenu.Instance.OpenDialogue(BasisLocalization.Get("menu.servers.connection.title"), Reason, BasisLocalization.Get("ui.ok"), value =>
                     {
-                    });
+                    }, category: BasisNotificationCategory.Network);
                 }
                 BasisDebug.LogError(Reason);
             }
@@ -1000,7 +1000,7 @@ public static class BasisNetworkEvents
                 {
                     BasisMainMenu.Instance.OpenDialogue(title, body, "ok", value =>
                     {
-                    });
+                    }, category: BasisNotificationCategory.Network);
                 }
             }
 

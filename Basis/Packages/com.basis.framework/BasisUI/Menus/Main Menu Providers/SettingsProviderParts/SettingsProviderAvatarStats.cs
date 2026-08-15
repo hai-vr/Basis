@@ -24,7 +24,18 @@ namespace Basis.BasisUI
             descriptor.SetTitle(BasisLocalization.Get("settings.tab.myavatar"));
             descriptor.ForceRebuild();
 
-            SettingsProvider.AvatarCustomizationBuilder?.Invoke(tab.Descriptor.ContentParent);
+            RectTransform content = tab.Descriptor.ContentParent;
+            SettingsProvider.AvatarCustomizationBuilder?.Invoke(content);
+
+            if (content.childCount == 0)
+            {
+                PanelElementDescriptor emptyGroup =
+                    PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, content);
+                emptyGroup.SetTitle(BasisLocalization.Get("settings.myAvatar.noCustomization"));
+                emptyGroup.SetDescription(BasisLocalization.Get("settings.myAvatar.noCustomization.description"));
+                descriptor.ForceRebuild();
+            }
+
             return tab;
         }
 

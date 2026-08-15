@@ -264,7 +264,7 @@ namespace Basis.Scripts.UI
                 if (!currentEventData.WasLastDown)
                 {
                     GameObject pressTarget = hit.graphic.gameObject;
-                    if (currentEventData.pointerEnter == pressTarget)
+                    if (currentEventData.pointerEnter == pressTarget && !BasisPanelInputDelay.IsSuppressed(pressTarget))
                     {
                         currentEventData.pressPosition = hit.screenPosition;
                         currentEventData.pointerPressRaycast = raycastResult;

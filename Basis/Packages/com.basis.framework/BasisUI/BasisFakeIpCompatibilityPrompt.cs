@@ -81,7 +81,8 @@ namespace Basis.BasisUI
             {
                 BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Network,
                     reopen: () => ShowPrompt(true),
-                    onDismiss: () => { });
+                    onDismiss: () => { },
+                    category: BasisNotificationCategory.Network);
                 return;
             }
 
@@ -104,7 +105,7 @@ namespace Basis.BasisUI
                 {
                     if (!accepted) return;
                     BasisSettingsDefaults.AllowProxyBenchmarkRange.SetValue(true);
-                });
+                }, category: BasisNotificationCategory.Network);
         }
     }
 }
