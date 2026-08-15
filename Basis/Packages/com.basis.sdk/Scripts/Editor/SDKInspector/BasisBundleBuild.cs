@@ -614,6 +614,20 @@ public static class BasisBundleBuild
 
             DeleteFolders(buildOutDir);
 
+            try
+            {
+                string premadeConfigPath = BasisPremadeServerConfig.Write(buildOutDir, basisContentBase, FilePath, Password);
+                if (!string.IsNullOrEmpty(premadeConfigPath))
+                {
+                    BasisDebug.Log("Wrote server config to " + premadeConfigPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+                Debug.LogWarning("Failed to write the premade server config — the bundle itself built fine.");
+            }
+
             // cleanup staging (uncombined) outputs
             try
             {
