@@ -122,6 +122,10 @@ public static class SettingsProviderPlatform
         {
             BasisSettingsDefaults.SwapMode_Shutdown,
             BasisSettingsDefaults.SwapMode_AutoSwap
+        }, null, new System.Collections.Generic.List<string>
+        {
+            BasisLocalization.Get("settings.platform.swapMode.shutdown.tooltip"),
+            BasisLocalization.Get("settings.platform.swapMode.autoSwap.tooltip")
         });
         dropdownSwapMode.AssignBinding(BasisSettingsDefaults.SwapMode);
 #endif

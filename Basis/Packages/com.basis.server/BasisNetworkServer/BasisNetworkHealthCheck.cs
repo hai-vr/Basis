@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
 using System;
 using System.Globalization;
@@ -156,6 +157,10 @@ namespace Basis.Network.Server
                         $"\"capacity\":{capacity}," +
                         $"\"sent\":{sent}," +
                         $"\"recv\":{recv}," +
+                        // Datagram counts alongside the byte counts, so egress work can be read as
+                        // packet rate and not just volume - the two move independently.
+                        $"\"packetsSent\":{NetworkServer.Server.Statistics.PacketsSent}," +
+                        $"\"packetsRecv\":{NetworkServer.Server.Statistics.PacketsReceived}," +
                         // Zero on a healthy instance. Rising means the server is shedding position
                         // updates because it cannot drain what it produces — the one number that
                         // distinguishes "busy" from "past capacity", and there was no way to see it.
@@ -259,6 +264,27 @@ namespace Basis.Network.Server
               .Append(",\"avgMessages\":").Append(Num(s.BundlesEmitted > 0 ? (double)s.BundleMessages / s.BundlesEmitted : 0, "F2"))
               .Append(",\"deflateMsPerTick\":").Append(Num(s.BundleDeflateMs / ticks, "F4"))
               .Append(",\"avgDeflateUs\":").Append(Num(s.BundlesEmitted > 0 ? (s.BundleDeflateMs * 1000.0) / s.BundlesEmitted : 0, "F2"))
+              // Zstd half of the hybrid codec, broken out so a run can be judged on what the
+              // two codecs each cost and returned rather than on the blended average — which
+              // moves whenever the keyframe/delta traffic mix does, independently of either
+              // codec getting better or worse. "dictGeneration":0 means no dictionary is
+              // embedded and the Zstd path is inert.
+              .Append(",\"zstd\":{")
+              .Append("\"dictGeneration\":").Append(Int(BasisAvatarBundleZstd.DictionaryGeneration))
+              .Append(",\"emitted\":").Append(Int(s.BundleZstdEmitted))
+              .Append(",\"shareOfBundles\":").Append(Num(s.BundlesEmitted > 0 ? (double)s.BundleZstdEmitted / s.BundlesEmitted : 0, "F4"))
+              .Append(",\"rawBytes\":").Append(Int(s.BundleZstdRawBytes))
+              .Append(",\"compressedBytes\":").Append(Int(s.BundleZstdCompressedBytes))
+              .Append(",\"ratio\":").Append(Num(s.BundleZstdRawBytes > 0 ? (double)s.BundleZstdCompressedBytes / s.BundleZstdRawBytes : 0, "F4"))
+              .Append(",\"msPerTick\":").Append(Num(s.BundleZstdMs / ticks, "F4"))
+              .Append(",\"avgUs\":").Append(Num(s.BundleZstdEmitted > 0 ? (s.BundleZstdMs * 1000.0) / s.BundleZstdEmitted : 0, "F2"))
+              // LZ4's share is the remainder of the totals above, reported explicitly so the
+              // two codecs can be compared without the reader having to subtract.
+              .Append(",\"lz4Ratio\":").Append(Num(s.BundleRawBytes - s.BundleZstdRawBytes > 0
+                  ? (double)(s.BundleCompressedBytes - s.BundleZstdCompressedBytes) / (s.BundleRawBytes - s.BundleZstdRawBytes) : 0, "F4"))
+              .Append(",\"lz4AvgUs\":").Append(Num(s.BundlesEmitted - s.BundleZstdEmitted > 0
+                  ? ((s.BundleDeflateMs - s.BundleZstdMs) * 1000.0) / (s.BundlesEmitted - s.BundleZstdEmitted) : 0, "F2"))
+              .Append('}')
               .Append("}}}");
 
             return sb.ToString();

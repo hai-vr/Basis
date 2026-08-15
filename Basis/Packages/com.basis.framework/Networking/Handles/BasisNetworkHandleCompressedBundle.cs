@@ -10,12 +10,19 @@ using System;
 /// as if it had been received on its original quality channel.
 ///
 /// Wire format (must match BasisServerReductionSystemEvents on the server):
-///   [count:1][rawLen:2-LE][LZ4 block( group* )]
+///   [flags:1][rawLen:2-LE][compressed( group* )]
 ///   group := [origChannel:1][n:1][msgLen:2-LE] x n [bodies]
 ///
-/// rawLen is authoritative — count is just a sanity hint. Each inner body is exactly what the
-/// server would have sent on origChannel individually, so quality / additional-data presence /
-/// id-size are all derived from origChannel by the existing handler.
+/// rawLen is authoritative. Each inner body is exactly what the server would have sent on
+/// origChannel individually, so quality / additional-data presence / id-size are all derived
+/// from origChannel by the existing handler.
+///
+/// v53 replaced byte 0 — a message count this decoder always ignored — with the codec id and
+/// dictionary generation (see BasisAvatarBundleZstd). The server picks the codec per bundle by
+/// traffic class: delta-only bundles are LZ4, keyframe/full bundles are Zstd against a trained
+/// dictionary. Because a v52 client would have silently LZ4-decoded a Zstd bundle into garbage
+/// rather than rejecting it, the server version was bumped so those clients cannot connect at
+/// all; there is no in-band fallback here by design.
 ///
 /// v50 groups entries by channel: one channel byte per RUN rather than per entry. The server
 /// channel-sorts a receiver's pending messages first, so runs are long, but nothing here assumes
@@ -37,7 +44,7 @@ public static class BasisNetworkHandleCompressedBundle
 
     public static void Handle(NetDataReader reader)
     {
-        if (!reader.TryGetByte(out _)) return;          // count — ignored, rawLen is authoritative
+        if (!reader.TryGetByte(out byte flags)) return;
         if (!reader.TryGetUShort(out ushort rawLen)) return;
         if (rawLen == 0) return;
 
@@ -51,9 +58,29 @@ public static class BasisNetworkHandleCompressedBundle
             _scratch = scratch;
         }
 
-        int decoded = LZ4Codec.Decode(
-            reader.RawData.AsSpan(reader.Position, compressedLen),
-            scratch.AsSpan(0, rawLen));
+        byte codec = BasisAvatarBundleZstd.CodecOf(flags);
+        int decoded;
+        if (codec == BasisAvatarBundleZstd.CodecZstdDict)
+        {
+            // Refuse a generation this build has no dictionary for rather than decoding against
+            // the wrong one: frames are written with the dictionary id suppressed, so zstd would
+            // not catch the mismatch itself and would hand back plausible-looking garbage.
+            if (BasisAvatarBundleZstd.DictGenerationOf(flags) != BasisAvatarBundleZstd.DictionaryGeneration)
+            {
+                reader.SkipBytes(compressedLen);
+                return;
+            }
+            BasisAvatarBundleZstd.TryDecompress(
+                reader.RawData.AsSpan(reader.Position, compressedLen),
+                scratch.AsSpan(0, rawLen),
+                out decoded);
+        }
+        else
+        {
+            decoded = LZ4Codec.Decode(
+                reader.RawData.AsSpan(reader.Position, compressedLen),
+                scratch.AsSpan(0, rawLen));
+        }
 
         // Advance the source reader past the bytes we just consumed so the caller's
         // Reader.Recycle() doesn't warn about unread payload (we read the compressed

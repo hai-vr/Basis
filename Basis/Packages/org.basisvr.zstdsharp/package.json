@@ -1,0 +1,12 @@
+{
+  "name": "org.basisvr.zstdsharp",
+  "version": "0.8.6",
+  "displayName": "ZstdSharp",
+  "description": "Managed port of the Zstandard compression library for .NET. Used by Basis for dictionary-compressed server-side avatar bundles.",
+  "documentationUrl": "https://github.com/oleg-st/ZstdSharp",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/@BasisVR"
+  },
+  "repository": "https://github.com/BasisVR/UpmBuilds",
+  "license": "MIT"
+}

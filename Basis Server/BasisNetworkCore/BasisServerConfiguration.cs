@@ -23,7 +23,9 @@ public class Configuration
     //    doc comment rather than only silently gaining the field.
     // 7: EnableUplinkAvatarStream removed again; bumped so existing files drop the stale field and
     //    its doc comment instead of carrying a setting nothing reads.
-    public const int CurrentConfigVersion = 7;
+    // 8: hybrid avatar-bundle codec (EnableAvatarBundleZstd and friends) added; bumped so existing
+    //    files gain the four settings with their doc comments rather than only the bare fields.
+    public const int CurrentConfigVersion = 8;
     /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
     public int ConfigVersion = 0;
 
@@ -69,6 +71,33 @@ public class Configuration
     public int AvatarBundleMinMessages = 2;
     /// <summary>Minimum uncompressed bundle bytes before LZ4 compression is attempted. With LZ4 having near-zero per-call setup, 128 just guards the very smallest cases where LZ4 can't find any redundancy.</summary>
     public int AvatarBundleMinBytes = 128;
+    /// <summary>
+    /// Compress keyframe/full avatar bundles with Zstd against an embedded 16 KiB trained
+    /// dictionary instead of LZ4. Measured 16.7-18.1% fewer bundle bytes at 250 clients for
+    /// roughly 2x the compression CPU. Delta-only bundles stay on LZ4 either way — Zstd is a
+    /// 2.8-4.5% LOSS on those. Has no effect unless a dictionary is embedded in the build
+    /// (see BasisAvatarBundleDictionary); dictionary-less Zstd is worse than LZ4, so there is
+    /// deliberately no partial mode. Clients must implement the matching decoder.
+    /// </summary>
+    public bool EnableAvatarBundleZstd = true;
+    /// <summary>
+    /// Also route delta-only bundles through Zstd. Measured a 2.8-4.5% loss against LZ4, so this
+    /// is off; it exists to re-measure the traffic-class split on new data without a rebuild.
+    /// </summary>
+    public bool AvatarBundleZstdDeltaBundles = false;
+    /// <summary>
+    /// Zstd compression level for avatar bundles. Negative levels trade ratio for speed. -2 is
+    /// the measured sweet spot (~17.3% saving at ~2.3x LZ4 CPU); -3 costs meaningfully less CPU
+    /// for ~15-16%.
+    /// </summary>
+    public int AvatarBundleZstdLevel = -2;
+    /// <summary>
+    /// Highest BSR load-shed tier (0 healthy .. 2 maximum shedding) at which Zstd is still used.
+    /// Above it every bundle falls back to LZ4. Zstd buys bandwidth with CPU, which is the right
+    /// trade while the tick has headroom and the wrong one once the server is already shedding
+    /// avatar quality to keep up. Set to 2 to keep Zstd on at all tiers, or -1 to disable it.
+    /// </summary>
+    public int AvatarBundleZstdMaxShedTier = 1;
     /// <summary>
     /// When true, the reduction system sends periodic full avatar keyframes and, in between, sends
     /// only the fields that changed since the last keyframe (per-bone dirty mask) on

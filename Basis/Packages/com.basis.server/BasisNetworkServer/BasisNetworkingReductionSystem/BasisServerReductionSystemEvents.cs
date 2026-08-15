@@ -182,6 +182,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // so the first compress attempt usually succeeds with no retry. 0 = unseeded.
         public float LastBundleRatio;
 
+        // Same, for the Zstd path. Kept SEPARATE rather than folded into LastBundleRatio because
+        // the two codecs sit far apart — ~0.87 for LZ4 on deltas against ~0.50 for dictionary
+        // Zstd on keyframes — and a receiver in steady state produces both classes in the same
+        // flush. One blended EMA would sit between them and mispredict every chunk in both
+        // directions at once: too large for the LZ4 chunks (overshoot, wasted second compress)
+        // and too small for the Zstd ones (underfilled datagrams), while BundleFillMargin
+        // thrashed trying to correct for a ratio that was never wrong in one consistent
+        // direction. 0 = unseeded.
+        public float LastBundleZstdRatio;
+
         // Share of the MTU budget the first compress attempt aims to fill. LastBundleRatio is an EMA
         // of the MEAN ratio, but the budget is a ceiling, so sizing against the mean overshoots on
         // every chunk that compresses worse than average — measured at 20% of emitted bundles, each
@@ -331,6 +341,29 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static int AvatarBundleMinMessages = 2;
         public static int AvatarBundleMinBytes = 128;
 
+        // ── Hybrid bundle codec (written from NetworkServer.InitializePulseSettings) ──
+        // Keyframe/full bundles compress far better under Zstd with a trained dictionary than
+        // under LZ4; delta-only bundles compress WORSE. See BasisAvatarBundleZstd for the
+        // measurements. These select which bundles take the Zstd path.
+        //
+        // Inert unless a dictionary is embedded (BasisAvatarBundleDictionary.Generation != 0) —
+        // dictionary-less Zstd measured worse than LZ4, so there is nothing to fall back to.
+        public static bool EnableAvatarBundleZstd = true;
+        /// <summary>
+        /// Route delta-only bundles through Zstd too. Measured a 2.8-4.5% LOSS against LZ4, so
+        /// this is off; it exists so the traffic-class finding can be re-measured on new data
+        /// without a rebuild.
+        /// </summary>
+        public static bool AvatarBundleZstdDeltaBundles = false;
+        public static int AvatarBundleZstdLevel = BasisAvatarBundleZstd.DefaultLevel;
+        /// <summary>
+        /// Highest load-shed tier at which Zstd is still used; above it every bundle falls back
+        /// to LZ4. Zstd buys bandwidth at roughly 2x the compression CPU, which is the right
+        /// trade while the tick has headroom and the wrong one once the BSR is already shedding
+        /// quality to keep up. Tier 0 = healthy, 2 = maximum shedding.
+        /// </summary>
+        public static int AvatarBundleZstdMaxShedTier = 1;
+
         /// <summary>
         /// Largest bundle scratch buffer a receiver keeps between ticks. Below this the buffer is
         /// retained (renting one per receiver per tick contends ArrayPool.Shared badly at scale);
@@ -375,6 +408,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // one is a free win: it cuts deflate work with no bandwidth cost at all. Measured ratio on
         // quantized bone rotations is ~0.87; the old 0.6 guess made ~8% of bundles compress twice.
         private const float InitialBundleRatioGuess = 0.85f;
+        // Same, for the Zstd path. Deliberately pessimistic against the ~0.50 hybrid bundles
+        // actually reach: guessing high underfills the first bundle or two per receiver, which
+        // costs a few bytes, while guessing low overshoots MTU and burns an entire extra
+        // compress on a chunk that is then discarded. The EMA converges within a handful of
+        // bundles either way.
+        private const float InitialBundleZstdRatioGuess = 0.60f;
         // Share of the MTU budget a first compress attempt aims to fill, adapted per receiver in
         // PlayerState.BundleFillMargin. A flat 0.95 assumed the ratio EMA predicts each chunk well,
         // but the EMA tracks the mean while the budget is a ceiling: at 1000 players 20% of bundles
@@ -405,7 +444,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // bundle fits in a single UDP datagram. Accounts for LiteNetLib unreliable header,
         // optional packet-layer header, and merge length prefixes.
         private const int BundleMtuHeadroom = 32;
-        // Bundle wire header: [count:1][rawLen:2-LE]
+        // Bundle wire header: [flags:1][rawLen:2-LE]. Byte 0 was a message count through v52,
+        // documented as a hint and read by no decoder; v53 repurposes it to carry the codec id
+        // and dictionary generation, so the hybrid codec costs zero wire bytes.
+        // See BasisAvatarBundleZstd for the layout.
         private const int BundleHeaderSize = 3;
         private static readonly double MsToTick = Stopwatch.Frequency / 1000.0;
 
@@ -2252,13 +2294,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int budget = peer.Mtu - BundleMtuHeadroom - BundleHeaderSize;
             if (budget <= 0) return 0;
 
-            // Initial ratio guess. Measured at 1000 players this sits around 0.87, not the 0.6 this
-            // used to assume — quantized bone rotations are close to incompressible. Guessing too
-            // optimistic makes the very first chunk overshoot MTU and burn a whole extra deflate on
-            // the retry path, which was costing ~7-8% of all bundles.
-            // Stays in [0.05, 0.95] so prediction never picks zero or full-budget chunks.
-            float ratio = stateI.LastBundleRatio;
-            if (ratio < 0.05f || ratio > 0.95f) ratio = InitialBundleRatioGuess;
+            // Hoisted per flush — enablement, dictionary presence and shed tier are all
+            // tick-scoped, so re-testing them per chunk would buy nothing.
+            bool zstdPath = ZstdPathAvailable();
 
             float fillMargin = stateI.BundleFillMargin;
             if (fillMargin < MinBundleFillMargin || fillMargin > MaxBundleFillMargin) fillMargin = MaxBundleFillMargin;
@@ -2271,6 +2309,22 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // < min uncompressed (since uncompressed sends merge fine for tiny remainders).
             while (count - cursor >= AvatarBundleMinMessages)
             {
+                // Codec has to be picked BEFORE the chunk is sized, because the size prediction
+                // needs the ratio EMA belonging to the codec that will actually run. Predict it
+                // from the run starting at cursor: pending is channel-sorted, so that run is
+                // what the chunk mostly consists of.
+                bool useZstd = zstdPath
+                               && (AvatarBundleZstdDeltaBundles
+                                   || pending[cursor].Channel != BasisNetworkCommons.DeltaAvatarChannel);
+
+                // Initial ratio guess. Measured at 1000 players the LZ4 path sits around 0.87, not
+                // the 0.6 this used to assume — quantized bone rotations are close to
+                // incompressible. Guessing too optimistic makes the very first chunk overshoot MTU
+                // and burn a whole extra deflate on the retry path, which was costing ~7-8% of all
+                // bundles. Stays in [0.05, 0.95] so prediction never picks zero or full-budget chunks.
+                float ratio = useZstd ? stateI.LastBundleZstdRatio : stateI.LastBundleRatio;
+                if (ratio < 0.05f || ratio > 0.95f) ratio = useZstd ? InitialBundleZstdRatioGuess : InitialBundleRatioGuess;
+
                 // Predict raw chunk size that would compress to ~budget * fillMargin (safety margin
                 // so we don't waste a retry on near-MTU overshoots). Then walk pending
                 // accumulating sizes until we hit that target or run out of messages.
@@ -2278,14 +2332,22 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 int chunkEnd = PickChunkEnd(pending, cursor, count, targetRaw);
                 if (chunkEnd <= cursor) break;
 
+                // Now the chosen range is known, so settle the class properly. A chunk that starts
+                // on a quality channel can still run entirely into delta entries; routing that to
+                // Zstd would be the case the traffic-class finding says to avoid. The prediction
+                // above may then have used the wrong EMA, which costs at worst one mis-sized chunk.
+                if (useZstd && !AvatarBundleZstdDeltaBundles && ChunkIsDeltaOnly(pending, cursor, chunkEnd)) useZstd = false;
+
                 int rawLen = BuildRawForRange(stateI, pending, cursor, chunkEnd);
                 if (rawLen < AvatarBundleMinBytes) break;
 
-                if (TryDeflateAndEmit(stateI, peer, cursor, chunkEnd, rawLen, budget, ref bundleCount, ref bundleBytes, out int compressedLen))
+                // Bound once the codec is final; every EMA update below feeds the codec that ran.
+                ref float ema = ref (useZstd ? ref stateI.LastBundleZstdRatio : ref stateI.LastBundleRatio);
+
+                if (TryDeflateAndEmit(stateI, peer, cursor, chunkEnd, rawLen, budget, useZstd, ref bundleCount, ref bundleBytes, out int compressedLen))
                 {
-                    UpdateRatioEMA(ref stateI.LastBundleRatio, compressedLen, rawLen, weightOnObserved: 0.3f);
+                    UpdateRatioEMA(ref ema, compressedLen, rawLen, weightOnObserved: 0.3f);
                     cursor = chunkEnd;
-                    ratio = stateI.LastBundleRatio;
                     if (fillMargin < MaxBundleFillMargin) fillMargin = Math.Min(MaxBundleFillMargin, fillMargin + BundleFillMarginRecover);
                     continue;
                 }
@@ -2293,7 +2355,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // Overshoot — recompute target using the actual ratio we just observed and
                 // retry with a smaller chunk. Heavier weight on the observed value: this
                 // receiver's payload likely just compresses worse than predicted.
-                UpdateRatioEMA(ref stateI.LastBundleRatio, compressedLen, rawLen, weightOnObserved: 0.7f);
+                UpdateRatioEMA(ref ema, compressedLen, rawLen, weightOnObserved: 0.7f);
                 fillMargin = Math.Max(MinBundleFillMargin, fillMargin - BundleFillMarginBackoff);
                 float observed = (float)compressedLen / rawLen;
                 if (observed < 0.05f) observed = 0.05f;
@@ -2304,20 +2366,25 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 if (retryEnd >= chunkEnd) retryEnd = cursor + Math.Max(1, (chunkEnd - cursor) * 3 / 4);
                 if (retryEnd <= cursor) break;
 
+                // Shrinking the chunk can drop the entries that made it a keyframe chunk, so the
+                // class is re-derived for the retry rather than inherited.
+                bool retryUseZstd = useZstd
+                                    && (AvatarBundleZstdDeltaBundles || !ChunkIsDeltaOnly(pending, cursor, retryEnd));
+
                 int retryRawLen = BuildRawForRange(stateI, pending, cursor, retryEnd);
                 if (retryRawLen < AvatarBundleMinBytes) break;
 
                 if (BSRProfiler.Enabled) BSRProfiler.Local.BundleRetries++;
-                if (!TryDeflateAndEmit(stateI, peer, cursor, retryEnd, retryRawLen, budget, ref bundleCount, ref bundleBytes, out int retryCompressed))
+                if (!TryDeflateAndEmit(stateI, peer, cursor, retryEnd, retryRawLen, budget, retryUseZstd, ref bundleCount, ref bundleBytes, out int retryCompressed))
                 {
                     // Two failures in a row — give up on bundling for this receiver this tick;
                     // caller replays cursor..count uncompressed.
                     break;
                 }
 
-                UpdateRatioEMA(ref stateI.LastBundleRatio, retryCompressed, retryRawLen, weightOnObserved: 0.5f);
+                ref float retryEma = ref (retryUseZstd ? ref stateI.LastBundleZstdRatio : ref stateI.LastBundleRatio);
+                UpdateRatioEMA(ref retryEma, retryCompressed, retryRawLen, weightOnObserved: 0.5f);
                 cursor = retryEnd;
-                ratio = stateI.LastBundleRatio;
             }
             stateI.BundleFillMargin = fillMargin;
             return cursor;
@@ -2497,21 +2564,29 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
 
         /// <summary>
-        /// LZ4-compresses <c>stateI.BundleRawScratch[0..rawLen]</c> into the payload region of
+        /// Compresses <c>stateI.BundleRawScratch[0..rawLen]</c> into the payload region of
         /// <c>stateI.BundleCompressedScratch</c> (after the reserved bundle-header prefix),
         /// emits one UDP datagram on CompressedAvatarBundleChannel if it fits the peer-MTU
         /// budget, and reports the compressed payload length. On overshoot returns false
-        /// (caller retries with a smaller chunk). LZ4Codec.Encode is a single static call
-        /// with no allocations and no per-call setup — at high call rates this is ~10× cheaper
-        /// than DeflateStream, which allocates an internal window + hashtable on every Write.
+        /// (caller retries with a smaller chunk).
+        ///
+        /// <paramref name="useZstd"/> selects the codec for this chunk; the caller picks it from
+        /// the chunk's traffic class (see <see cref="ChunkIsDeltaOnly"/>). Both codecs are
+        /// single calls into a pre-built context with no per-call allocation — the property that
+        /// made LZ4 ~10x cheaper than the DeflateStream this path started on, and the reason
+        /// Zstd's contexts are pooled rather than constructed per bundle.
         /// </summary>
-        private static bool TryDeflateAndEmit(PlayerState stateI, NetPeer peer, int chunkStart, int chunkEnd, int rawLen, int budget, ref long bundleCount, ref long bundleBytes, out int compressedLen)
+        private static bool TryDeflateAndEmit(PlayerState stateI, NetPeer peer, int chunkStart, int chunkEnd, int rawLen, int budget, bool useZstd, ref long bundleCount, ref long bundleBytes, out int compressedLen)
         {
             compressedLen = 0;
             byte[] raw = stateI.BundleRawScratch;
             byte[] compressed = stateI.BundleCompressedScratch;
-            // LZ4 worst case is rawLen + (rawLen / 255) + 16 (returned by MaximumOutputSize).
-            int compCapacityNeeded = BundleHeaderSize + LZ4Codec.MaximumOutputSize(rawLen);
+            // LZ4 worst case is rawLen + (rawLen / 255) + 16; Zstd's bound is a little larger.
+            // Size for whichever codec could run so a receiver that switches class mid-stream
+            // never has to re-rent, and so an incompressible chunk cannot overrun the scratch.
+            int compCapacityNeeded = BundleHeaderSize + Math.Max(
+                LZ4Codec.MaximumOutputSize(rawLen),
+                useZstd ? BasisAvatarBundleZstd.MaximumOutputSize(rawLen) : 0);
             if (compressed == null || compressed.Length < compCapacityNeeded)
             {
                 if (compressed != null) ArrayPool<byte>.Shared.Return(compressed);
@@ -2522,15 +2597,25 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             bool profiling = BSRProfiler.Enabled;
             long deflateStart = profiling ? Stopwatch.GetTimestamp() : 0;
 
-            // Encode directly into the wire packet's payload region. Returns -1 if the
-            // destination span isn't large enough — shouldn't happen given the sizing above,
-            // but if it does we treat it as an overshoot and let the caller retry smaller.
-            compressedLen = LZ4Codec.Encode(
-                raw.AsSpan(0, rawLen),
-                compressed.AsSpan(BundleHeaderSize, compressed.Length - BundleHeaderSize),
-                LZ4Level.L00_FAST);
+            // Encode directly into the wire packet's payload region. Either codec reporting
+            // failure is treated as an overshoot and the caller retries with a smaller chunk.
+            byte codec;
+            Span<byte> payload = compressed.AsSpan(BundleHeaderSize, compressed.Length - BundleHeaderSize);
+            if (useZstd && BasisAvatarBundleZstd.TryCompress(raw.AsSpan(0, rawLen), payload, out compressedLen))
+            {
+                codec = BasisAvatarBundleZstd.CodecZstdDict;
+            }
+            else
+            {
+                // Covers both "this chunk is delta-only" and "Zstd declined" — LZ4 is always a
+                // valid encoding of any bundle body, so there is no failure path to handle here
+                // beyond the shared overshoot check below.
+                codec = BasisAvatarBundleZstd.CodecLz4;
+                compressedLen = LZ4Codec.Encode(raw.AsSpan(0, rawLen), payload, LZ4Level.L00_FAST);
+            }
 
-            if (profiling) BSRProfiler.Local.BundleDeflateTicks += Stopwatch.GetTimestamp() - deflateStart;
+            long deflateTicks = profiling ? Stopwatch.GetTimestamp() - deflateStart : 0;
+            if (profiling) BSRProfiler.Local.BundleDeflateTicks += deflateTicks;
 
             if (compressedLen <= 0 || compressedLen > budget)
             {
@@ -2539,7 +2624,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             int wireLen = BundleHeaderSize + compressedLen;
             int chunkCount = chunkEnd - chunkStart;
-            compressed[0] = (byte)Math.Min(chunkCount, 255);
+            compressed[0] = BasisAvatarBundleZstd.PackFlags(
+                codec,
+                codec == BasisAvatarBundleZstd.CodecZstdDict ? BasisAvatarBundleZstd.DictionaryGeneration : (byte)0);
             BinaryPrimitives.WriteUInt16LittleEndian(compressed.AsSpan(1, 2), (ushort)Math.Min(rawLen, ushort.MaxValue));
 
             peer.SendUnreliableRawMerge(compressed, 0, wireLen, BasisNetworkCommons.CompressedAvatarBundleChannel);
@@ -2553,9 +2640,50 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 counters.BundleMessages += chunkCount;
                 counters.BundleRawBytes += rawLen;
                 counters.BundleCompressedBytes += compressedLen;
+                // Split out so the health endpoint can show what each codec is actually costing
+                // and returning in production, rather than only the blended average.
+                if (codec == BasisAvatarBundleZstd.CodecZstdDict)
+                {
+                    counters.BundleZstdEmitted++;
+                    counters.BundleZstdRawBytes += rawLen;
+                    counters.BundleZstdCompressedBytes += compressedLen;
+                    counters.BundleZstdTicks += deflateTicks;
+                }
             }
             return true;
         }
+
+        /// <summary>
+        /// True when every entry in <c>pending[start, end)</c> is on
+        /// <see cref="BasisNetworkCommons.DeltaAvatarChannel"/> — the traffic class that must
+        /// stay on LZ4.
+        ///
+        /// Walks the range rather than checking its endpoints: <see cref="SortPendingByChannel"/>
+        /// bails out without sorting when it sees a channel outside its histogram, and a chunk
+        /// that only looks delta-only at the edges would then be mis-routed. The range is ~19
+        /// entries in production and this runs once per compress attempt, against a compression
+        /// call that is four orders of magnitude more expensive.
+        /// </summary>
+        private static bool ChunkIsDeltaOnly(PendingAvatarSend[] pending, int start, int end)
+        {
+            for (int i = start; i < end; i++)
+            {
+                if (pending[i].Channel != BasisNetworkCommons.DeltaAvatarChannel) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Whether this tick's bundles may use the Zstd path at all: enabled, a dictionary is
+        /// embedded, and the BSR is not already shedding harder than
+        /// <see cref="AvatarBundleZstdMaxShedTier"/>.
+        ///
+        /// Hoisted per flush rather than tested per bundle — all three inputs are tick-scoped.
+        /// </summary>
+        private static bool ZstdPathAvailable()
+            => EnableAvatarBundleZstd
+               && BasisAvatarBundleZstd.Available
+               && Volatile.Read(ref _loadShedTier) <= AvatarBundleZstdMaxShedTier;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void UpdateRatioEMA(ref float ema, int compressed, int raw, float weightOnObserved)

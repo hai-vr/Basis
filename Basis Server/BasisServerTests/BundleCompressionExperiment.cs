@@ -361,6 +361,28 @@ public class BundleCompressionExperiment
         return o.ToArray();
     }
 
+    /// <summary>
+    /// Corpus seam for the hybrid-codec work: <paramref name="chunks"/> bundle bodies in exactly
+    /// the grouped, delta-transposed form BuildRawForRange emits, so a codec measured against
+    /// them is measured against production's actual input.
+    ///
+    /// Exposed rather than reimplemented because the fidelity of this corpus is the whole reason
+    /// the table above is worth reading — see "Corpus fidelity" in the class remarks. A
+    /// plausible-looking synthetic builder measured 1.005 here (no matches at all) and would
+    /// make any codec comparison meaningless in the same silent way.
+    /// </summary>
+    internal static byte[][] BuildGroupedCorpus(string kind, bool delta, int chunks, int seed)
+    {
+        var rng = new Random(seed);
+        int player = 0;
+        var corpus = new byte[chunks][];
+        for (int i = 0; i < chunks; i++)
+        {
+            corpus[i] = PackGrouped(BuildChunk(kind, delta, rng, ref player), transposeDelta: true, deriveLen: false);
+        }
+        return corpus;
+    }
+
     // ── measurement ───────────────────────────────────────────────────────────────────────────
 
     sealed class Stat

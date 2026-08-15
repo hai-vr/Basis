@@ -196,7 +196,7 @@ namespace Basis.BasisUI
             string[] dateSortNames = Enum.GetNames(typeof(LibraryDateSortMode));
 
             dateSorting.Descriptor.SetSize(new Vector2(60, 80));
-            dateSorting.AssignEntries(dateSortNames.ToList());
+            dateSorting.AssignEntries(dateSortNames.ToList(), null, EnumOptionTooltips(dateSortNames, "library.sort."));
             dateSorting.SetValueWithoutNotify(_currentSort.ToString());
 
             // when sorting changes, update and refresh
@@ -216,7 +216,7 @@ namespace Basis.BasisUI
             string[] itemTypeNames = Enum.GetNames(typeof(LibraryItemTypeFilter));
 
             itemTypeSorting.Descriptor.SetSize(new Vector2(60, 80));
-            itemTypeSorting.AssignEntries(itemTypeNames.ToList());
+            itemTypeSorting.AssignEntries(itemTypeNames.ToList(), null, EnumOptionTooltips(itemTypeNames, "library.filter."));
             itemTypeSorting.SetValueWithoutNotify(_currentItemTypeFilter.ToString());
 
             // when sorting changes, update and refresh
@@ -264,6 +264,22 @@ namespace Basis.BasisUI
             if (panel == null || panel.IsReleased) return;
 
             panel.Descriptor.ForceRebuild();
+        }
+
+        /// <summary>
+        /// Hover text for the sort and filter dropdowns, whose options are raw enum names. The key
+        /// is the prefix plus the camelCased member, so LibraryItemTypeFilter.PlacedByMe reads from
+        /// "library.filter.placedByMe.tooltip".
+        /// </summary>
+        private static List<string> EnumOptionTooltips(string[] memberNames, string keyPrefix)
+        {
+            List<string> tooltips = new List<string>(memberNames.Length);
+            foreach (string member in memberNames)
+            {
+                string camel = char.ToLowerInvariant(member[0]) + member.Substring(1);
+                tooltips.Add(BasisLocalization.Get(keyPrefix + camel + ".tooltip"));
+            }
+            return tooltips;
         }
 
         #endregion

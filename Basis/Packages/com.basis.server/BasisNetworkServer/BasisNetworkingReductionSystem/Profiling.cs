@@ -32,6 +32,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public long BundleRetries;
         public long BundleFallbacks;
         public long BundleTailUncompressed;
+        // Zstd subset of the four Bundle* figures above, so the blended average can be split
+        // into what each half of the hybrid codec actually costs and returns. LZ4's share is
+        // the difference; it is not counted separately.
+        public long BundleZstdEmitted;
+        public long BundleZstdRawBytes;
+        public long BundleZstdCompressedBytes;
+        public double BundleZstdMs;
     }
 
     /// <summary>
@@ -61,6 +68,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public long BundleRetries;
         public long BundleFallbacks;
         public long BundleTailUncompressed;
+        public long BundleZstdEmitted;
+        public long BundleZstdRawBytes;
+        public long BundleZstdCompressedBytes;
+        public long BundleZstdTicks;
 
 #pragma warning disable CS0169
         private long _padTail0, _padTail1, _padTail2, _padTail3, _padTail4, _padTail5, _padTail6, _padTail7;
@@ -137,6 +148,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     bundleRetries += Interlocked.Exchange(ref c.BundleRetries, 0);
                     bundleFallbacks += Interlocked.Exchange(ref c.BundleFallbacks, 0);
                     bundleTailUncompressed += Interlocked.Exchange(ref c.BundleTailUncompressed, 0);
+                    bundleZstdEmitted += Interlocked.Exchange(ref c.BundleZstdEmitted, 0);
+                    bundleZstdRawBytes += Interlocked.Exchange(ref c.BundleZstdRawBytes, 0);
+                    bundleZstdCompressedBytes += Interlocked.Exchange(ref c.BundleZstdCompressedBytes, 0);
+                    bundleZstdTicks += Interlocked.Exchange(ref c.BundleZstdTicks, 0);
                 }
             }
         }
@@ -178,6 +193,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static long bundleRetries;
         public static long bundleFallbacks;
         public static long bundleTailUncompressed;
+        public static long bundleZstdEmitted;
+        public static long bundleZstdRawBytes;
+        public static long bundleZstdCompressedBytes;
+        public static long bundleZstdTicks;
 
         public static void IncrementPreSerializations()
         {
@@ -224,6 +243,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     c.BundleRetries = 0;
                     c.BundleFallbacks = 0;
                     c.BundleTailUncompressed = 0;
+                    c.BundleZstdEmitted = 0;
+                    c.BundleZstdRawBytes = 0;
+                    c.BundleZstdCompressedBytes = 0;
+                    c.BundleZstdTicks = 0;
                 }
             }
             tickCount = 0;
@@ -244,6 +267,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             bundleRetries = 0;
             bundleFallbacks = 0;
             bundleTailUncompressed = 0;
+            bundleZstdEmitted = 0;
+            bundleZstdRawBytes = 0;
+            bundleZstdCompressedBytes = 0;
+            bundleZstdTicks = 0;
         }
 
         public static void TryPrint()
@@ -282,6 +309,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             long bRetry = Interlocked.Exchange(ref bundleRetries, 0);
             long bFallback = Interlocked.Exchange(ref bundleFallbacks, 0);
             long bTail = Interlocked.Exchange(ref bundleTailUncompressed, 0);
+            long bzEmit = Interlocked.Exchange(ref bundleZstdEmitted, 0);
+            long bzRaw = Interlocked.Exchange(ref bundleZstdRawBytes, 0);
+            long bzComp = Interlocked.Exchange(ref bundleZstdCompressedBytes, 0);
+            long bzTicks = Interlocked.Exchange(ref bundleZstdTicks, 0);
 
             _latest = new BSRProfilerSnapshot
             {
@@ -305,6 +336,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 BundleRetries = bRetry,
                 BundleFallbacks = bFallback,
                 BundleTailUncompressed = bTail,
+                BundleZstdEmitted = bzEmit,
+                BundleZstdRawBytes = bzRaw,
+                BundleZstdCompressedBytes = bzComp,
+                BundleZstdMs = bzTicks / MsToTick,
             };
 
             if (!WriteToLog) return;

@@ -1717,7 +1717,8 @@ namespace Basis.BasisUI
             dropdownAntialiasing.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.antialiasing.tooltip"));
             dropdownAntialiasing.AssignLocalizedEntries(
                 new List<string> { "Off","MSAA 2X","MSAA 4X","MSAA 8X","Linear","Point","FSR"/*,"STP"*/ },
-                new List<string> { "ui.option.off", "settings.graphics.aa.msaa2x", "settings.graphics.aa.msaa4x", "settings.graphics.aa.msaa8x", "settings.graphics.aa.linear", "settings.graphics.aa.point", "settings.graphics.aa.fsr" });
+                new List<string> { "ui.option.off", "settings.graphics.aa.msaa2x", "settings.graphics.aa.msaa4x", "settings.graphics.aa.msaa8x", "settings.graphics.aa.linear", "settings.graphics.aa.point", "settings.graphics.aa.fsr" },
+                new List<string> { "settings.graphics.aa.off.tooltip" });
             dropdownAntialiasing.AssignBinding(BasisSettingsDefaults.Antialiasing);
 
             PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
@@ -1725,7 +1726,8 @@ namespace Basis.BasisUI
             dropdownVSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.verticalSync.tooltip"));
             dropdownVSync.AssignLocalizedEntries(
                 new List<string> { "On", "Capped", "Off", "Half" },
-                new List<string> { "ui.option.on", "settings.graphics.vsync.capped", "ui.option.off", "settings.graphics.vsync.half" });
+                new List<string> { "ui.option.on", "settings.graphics.vsync.capped", "ui.option.off", "settings.graphics.vsync.half" },
+                new List<string> { "settings.graphics.vsync.on.tooltip", null, "settings.graphics.vsync.off.tooltip" });
             dropdownVSync.AssignBinding(BasisSettingsDefaults.VSync);
 
             PanelTextField fpsCapField = PanelTextField.CreateNewEntry(qualityGroup.ContentParent);
@@ -1823,7 +1825,15 @@ namespace Basis.BasisUI
             PanelDropdown dropdownMirrorQuality = PanelDropdown.CreateNewEntry(mirrorGroup.ContentParent);
             dropdownMirrorQuality.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.mirrorResolution"));
             dropdownMirrorQuality.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.mirrorResolution.tooltip"));
-            dropdownMirrorQuality.AssignEntries(new List<string> { "256", "512", "1024", "2048", "4096", "8192" });
+            dropdownMirrorQuality.AssignEntries(new List<string> { "256", "512", "1024", "2048", "4096", "8192" }, null, new List<string>
+            {
+                BasisLocalization.Get("settings.graphics.mirrorResolution.256.tooltip"),
+                BasisLocalization.Get("settings.graphics.mirrorResolution.512.tooltip"),
+                BasisLocalization.Get("settings.graphics.mirrorResolution.1024.tooltip"),
+                BasisLocalization.Get("settings.graphics.mirrorResolution.2048.tooltip"),
+                BasisLocalization.Get("settings.graphics.mirrorResolution.4096.tooltip"),
+                BasisLocalization.Get("settings.graphics.mirrorResolution.8192.tooltip")
+            });
             dropdownMirrorQuality.AssignBinding(BasisSettingsDefaults.MirrorQuality);
 
             dropdownMirrorQuality.Descriptor.SetActive(toggleMirrorOverride.Value);
@@ -2029,7 +2039,8 @@ namespace Basis.BasisUI
             dropdownHDR.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.hdrSupport.tooltip"));
             dropdownHDR.AssignLocalizedEntries(
                 new List<string> { "Off", "32bit", "64bit" },
-                new List<string> { "ui.option.off", "settings.graphics.hdr.32bit", "settings.graphics.hdr.64bit" });
+                new List<string> { "ui.option.off", "settings.graphics.hdr.32bit", "settings.graphics.hdr.64bit" },
+                new List<string> { "settings.graphics.hdr.off.tooltip" });
             dropdownHDR.AssignBinding(BasisSettingsDefaults.HDRSupport);
 
             PanelSlider sliderFoveatedRendering = PanelSlider.CreateEntryAndBind(
@@ -2228,7 +2239,13 @@ namespace Basis.BasisUI
                 levelLabels.Add(BasisPerformanceMode.DisplayNameWithThreshold(
                     BasisPerformanceMode.IdToLevel(levelIds[Index])));
             }
-            dropdownLevel.AssignEntries(levelIds, levelLabels);
+            dropdownLevel.AssignEntries(levelIds, levelLabels, new List<string>
+            {
+                BasisLocalization.Get("settings.performanceMode.level.off.tooltip"),
+                BasisLocalization.Get("settings.performanceMode.level.light.tooltip"),
+                BasisLocalization.Get("settings.performanceMode.level.balanced.tooltip"),
+                BasisLocalization.Get("settings.performanceMode.level.aggressive.tooltip")
+            });
             dropdownLevel.AssignBinding(BasisSettingsDefaults.PerformanceModeLevel);
 
             PanelToggle toggleAuto = PanelToggle.CreateNewEntry(group.ContentParent);

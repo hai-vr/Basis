@@ -1500,6 +1500,11 @@ public static class BasisNetworkModeration
     public static int ServerAvatarBundleMinMessages { get; private set; } = 4;
     public static int ServerAvatarBundleMinBytes { get; private set; } = 128;
     public static bool ServerEnableBSRProfiling { get; private set; } = false;
+    /// <summary>Hybrid avatar-bundle codec: keyframe/full bundles on dictionary Zstd, delta-only on LZ4.</summary>
+    public static bool ServerEnableAvatarBundleZstd { get; private set; } = true;
+    public static bool ServerAvatarBundleZstdDeltaBundles { get; private set; } = false;
+    public static int ServerAvatarBundleZstdLevel { get; private set; } = -2;
+    public static int ServerAvatarBundleZstdMaxShedTier { get; private set; } = 1;
 
     /// <summary>Fired when the server pushes new BSR reduction settings. The Server* values above hold the current set.</summary>
     public static event Action OnReductionSettingsChanged;
@@ -1517,6 +1522,10 @@ public static class BasisNetworkModeration
         ServerAvatarBundleMinMessages = reader.GetInt();
         ServerAvatarBundleMinBytes = reader.GetInt();
         ServerEnableBSRProfiling = reader.GetBool();
+        ServerEnableAvatarBundleZstd = reader.GetBool();
+        ServerAvatarBundleZstdDeltaBundles = reader.GetBool();
+        ServerAvatarBundleZstdLevel = reader.GetInt();
+        ServerAvatarBundleZstdMaxShedTier = reader.GetInt();
         OnReductionSettingsChanged?.Invoke();
     }
 
@@ -1524,7 +1533,14 @@ public static class BasisNetworkModeration
     /// Admin: set the server avatar-reduction (BSR) tuning. Persisted to config.xml, re-applied live,
     /// and broadcast to every admin panel. SlowestSendRate only affects clients that join afterwards.
     /// </summary>
-    public static void SetGlobalReductionSettings(int defaultIntervalMs, int baseMultiplier, float increaseRate, float slowestSendRate, float highDistance, float mediumDistance, float lowDistance, bool bundleCompression, int bundleMinMessages, int bundleMinBytes, bool profiling)
+    /// <remarks>
+    /// The four hybrid-codec arguments are optional and default to "leave as-is": null sends back
+    /// whatever the server last pushed. The admin panel has no controls for them yet, and a caller
+    /// that does not know about a setting must not be able to silently reset it — the wire message
+    /// carries the whole block, so omitting a field is not an option at this layer.
+    /// </remarks>
+    public static void SetGlobalReductionSettings(int defaultIntervalMs, int baseMultiplier, float increaseRate, float slowestSendRate, float highDistance, float mediumDistance, float lowDistance, bool bundleCompression, int bundleMinMessages, int bundleMinBytes, bool profiling,
+        bool? bundleZstd = null, bool? bundleZstdDeltas = null, int? bundleZstdLevel = null, int? bundleZstdMaxShedTier = null)
     {
         if (defaultIntervalMs < 1) defaultIntervalMs = 1;
         if (baseMultiplier < 1) baseMultiplier = 1;
@@ -1547,7 +1563,11 @@ public static class BasisNetworkModeration
             w => w.Put(bundleCompression),
             w => w.Put(bundleMinMessages),
             w => w.Put(bundleMinBytes),
-            w => w.Put(profiling));
+            w => w.Put(profiling),
+            w => w.Put(bundleZstd ?? ServerEnableAvatarBundleZstd),
+            w => w.Put(bundleZstdDeltas ?? ServerAvatarBundleZstdDeltaBundles),
+            w => w.Put(bundleZstdLevel ?? ServerAvatarBundleZstdLevel),
+            w => w.Put(bundleZstdMaxShedTier ?? ServerAvatarBundleZstdMaxShedTier));
     }
 
     private static void HandleGlobalHeadlessDisallowState(NetDataReader reader)

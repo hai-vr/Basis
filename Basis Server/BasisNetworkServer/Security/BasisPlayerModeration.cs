@@ -1,4 +1,5 @@
 ﻿using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 using BasisNetworkCore;
 using BasisNetworkCore.Security;
 using BasisPermissions;
@@ -1115,6 +1116,10 @@ namespace BasisNetworkServer.Security
             config.AvatarBundleMinMessages = reader.GetInt();
             config.AvatarBundleMinBytes = reader.GetInt();
             config.EnableBSRProfiling = reader.GetBool();
+            config.EnableAvatarBundleZstd = reader.GetBool();
+            config.AvatarBundleZstdDeltaBundles = reader.GetBool();
+            config.AvatarBundleZstdLevel = reader.GetInt();
+            config.AvatarBundleZstdMaxShedTier = reader.GetInt();
 
             if (config.BSRSMillisecondDefaultInterval < 1) config.BSRSMillisecondDefaultInterval = 1;
             if (config.BSRBaseMultiplier < 1) config.BSRBaseMultiplier = 1;
@@ -1132,6 +1137,10 @@ namespace BasisNetworkServer.Security
             if (config.LowQualityDistance > MaxQualityDistanceMeters) config.LowQualityDistance = MaxQualityDistanceMeters;
             if (config.AvatarBundleMinMessages < 1) config.AvatarBundleMinMessages = 1;
             if (config.AvatarBundleMinBytes < 0) config.AvatarBundleMinBytes = 0;
+            // Clamp to the range zstd actually accepts — a level outside it throws inside the
+            // codec, and this value arrives from an admin client rather than from config.xml.
+            if (config.AvatarBundleZstdLevel < BasisAvatarBundleZstd.MinLevel) config.AvatarBundleZstdLevel = BasisAvatarBundleZstd.MinLevel;
+            if (config.AvatarBundleZstdLevel > BasisAvatarBundleZstd.MaxLevel) config.AvatarBundleZstdLevel = BasisAvatarBundleZstd.MaxLevel;
 
             NetworkServer.InitializePulseSettings();
             SaveConfig();
@@ -1154,6 +1163,10 @@ namespace BasisNetworkServer.Security
             writer.Put(config.AvatarBundleMinMessages);
             writer.Put(config.AvatarBundleMinBytes);
             writer.Put(config.EnableBSRProfiling);
+            writer.Put(config.EnableAvatarBundleZstd);
+            writer.Put(config.AvatarBundleZstdDeltaBundles);
+            writer.Put(config.AvatarBundleZstdLevel);
+            writer.Put(config.AvatarBundleZstdMaxShedTier);
         }
 
         private static void BroadcastReductionSettings()

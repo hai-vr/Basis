@@ -91,6 +91,9 @@ namespace Basis.Shims.Editor
             }
         }
 
+        /// <summary>Points the tab at a type from outside the window — see the API Reference's Cilbox section.</summary>
+        public void Focus(string fullName) => Select(fullName);
+
         /// <summary>Points the tab at a type, keeping the text field and the resolved type in step.</summary>
         private void Select(string fullName)
         {
@@ -432,12 +435,27 @@ namespace Basis.Shims.Editor
     internal sealed class BasisCilboxPermissionsWindow : BasisTabbedEditorWindow
     {
         [MenuItem("Basis/Tools/Cilbox Permissions", false, 504)]
-        private static void Open()
+        private static void OpenMenu() => Open();
+
+        private static BasisCilboxPermissionsWindow Open()
         {
             var window = GetWindow<BasisCilboxPermissionsWindow>();
             window.titleContent = new GUIContent(BasisCilboxLoc.Get("sdk.cilbox.window.title"));
             window.minSize = new Vector2(560f, 420f);
             window.Show();
+            return window;
+        }
+
+        /// <summary>Opens the window on the lookup tab, already pointed at a type.</summary>
+        internal static void OpenForType(string fullName)
+        {
+            BasisCilboxPermissionsWindow window = Open();
+
+            BasisCilboxLookupPage page = window.Page<BasisCilboxLookupPage>();
+            if (page == null) return;
+
+            page.Focus(fullName);
+            window.SelectPage(page);
         }
 
         protected override string HeaderTitle => BasisCilboxLoc.Get("sdk.cilbox.window.title");

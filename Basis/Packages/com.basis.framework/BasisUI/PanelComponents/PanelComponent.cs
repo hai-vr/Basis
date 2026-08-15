@@ -120,7 +120,7 @@ namespace Basis.BasisUI
         /// while there is a default to go back to. Nothing else advertises that gesture, and a
         /// hover is the moment it is about to be useful.
         /// </summary>
-        private string HoverTooltipText
+        protected virtual string HoverTooltipText
         {
             get
             {
@@ -131,6 +131,16 @@ namespace Basis.BasisUI
                 if (string.IsNullOrEmpty(hint)) return text;
                 return string.IsNullOrEmpty(text) ? hint : $"{text} — {hint}";
             }
+        }
+
+        /// <summary>
+        /// Re-pushes this control's tooltip into the bar, for controls whose text changes while
+        /// the pointer is still on them — a dropdown moving between its open options, say.
+        /// </summary>
+        protected void RefreshHoverTooltip()
+        {
+            if (!_pointerInside) return;
+            BasisMainMenu.ShowTooltip(HoverTooltipText);
         }
 
         public virtual void OnPointerEnter(PointerEventData eventData)

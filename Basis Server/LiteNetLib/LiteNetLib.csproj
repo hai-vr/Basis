@@ -40,6 +40,10 @@
     <TargetFrameworks>net10.0;netstandard2.1</TargetFrameworks>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="BasisServerTests" />
+  </ItemGroup>
+
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0|AnyCPU'">
     <DefineConstants>$(DefineConstants);LITENETLIB_UNSAFE;DEBUG_MESSAGES</DefineConstants>
   </PropertyGroup>

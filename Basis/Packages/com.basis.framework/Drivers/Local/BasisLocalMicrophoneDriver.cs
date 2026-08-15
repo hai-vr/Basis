@@ -94,6 +94,9 @@ public static class BasisLocalMicrophoneDriver
     public const int ProcessFrameSize = 960;  // 20ms at 48kHz
     public const int DenoiserFrameSize = 480; // 10ms at 48kHz
 
+    private static readonly BasisMicrophonePacer _pacer = new BasisMicrophonePacer();
+    private const int PaceMaxWaitMilliseconds = 20;
+
     private static readonly BasisMicrophoneAgc _agc = new BasisMicrophoneAgc();
     private static BasisMicrophoneAgc.Settings _agcSettings;
     private static float _prevAgcAmp = 1f;
@@ -747,17 +750,19 @@ public static class BasisLocalMicrophoneDriver
         processingTokenSource = new CancellationTokenSource();
         processingThread = new Thread(() =>
         {
+            int waitMilliseconds = Timeout.Infinite;
             while (!processingTokenSource.IsCancellationRequested)
             {
                 try
                 {
-                    processingEvent.WaitOne();
+                    processingEvent.WaitOne(waitMilliseconds);
                     if (processingTokenSource.IsCancellationRequested) break;
 
-                    ProcessPendingFrames();
+                    waitMilliseconds = ProcessPendingFrames();
                 }
                 catch (Exception ex)
                 {
+                    waitMilliseconds = Timeout.Infinite;
                     BasisDebug.LogErrorOnce($"Microphone processing thread: {ex}", BasisDebug.LogTag.Voice);
                 }
             }
@@ -780,7 +785,12 @@ public static class BasisLocalMicrophoneDriver
         processingTokenSource = null;
     }
 
-    public static void ProcessPendingFrames()
+    /// <summary>
+    /// Processes as many captured frames as the pacer will release, and returns how long
+    /// the caller should wait before calling again — <see cref="Timeout.Infinite"/> when
+    /// the ring is empty and the capture pump will be the next thing to wake it.
+    /// </summary>
+    public static int ProcessPendingFrames()
     {
         while (true)
         {
@@ -788,14 +798,64 @@ public static class BasisLocalMicrophoneDriver
             {
                 DrainStagingIntoRing();
 
+                long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (!_pacer.TryRelease(now, PendingFrameCount(), PaceFramePeriodTicks(), out long waitTicks))
+                {
+                    return waitTicks > 0 ? PaceWaitMilliseconds(waitTicks) : Timeout.Infinite;
+                }
+
                 if (!TryDequeueCapturedFrame())
                 {
-                    return;
+                    _pacer.Resync(now);
+                    return Timeout.Infinite;
                 }
 
                 ProcessCurrentFrame();
             }
         }
+    }
+
+    private static int PendingFrameCount()
+    {
+        lock (ringLock)
+        {
+            if (!MicrophoneIsStarted || microphoneBufferArray == null || processBufferArray == null || bufferLength <= 0)
+            {
+                return 0;
+            }
+
+            int available = GetDataLength(bufferLength, head, written);
+            if (inWarmup)
+            {
+                available -= warmupSamples;
+            }
+            return available > 0 ? available / ProcessFrameSize : 0;
+        }
+    }
+
+    private static long PaceFramePeriodTicks()
+    {
+        int rate = LocalOpusSettings.MicrophoneSampleRate;
+        if (rate <= 0)
+        {
+            rate = 48000;
+        }
+        return System.Diagnostics.Stopwatch.Frequency * ProcessFrameSize / rate;
+    }
+
+    private static int PaceWaitMilliseconds(long ticks)
+    {
+        long frequency = System.Diagnostics.Stopwatch.Frequency;
+        long milliseconds = (ticks * 1000L + frequency - 1L) / frequency;
+        if (milliseconds < 1L)
+        {
+            milliseconds = 1L;
+        }
+        else if (milliseconds > PaceMaxWaitMilliseconds)
+        {
+            milliseconds = PaceMaxWaitMilliseconds;
+        }
+        return (int)milliseconds;
     }
 
     // Downmixes every staged raw chunk into the mono ring, advancing `written`. Runs on

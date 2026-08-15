@@ -13567,6 +13567,642 @@
     {
       "key": "mirror.status.surfaceSize",
       "value": "Surface {0} x {1} m"
+    },
+    {
+      "key": "settings.urlPrompt.scope.url.tooltip",
+      "value": "Apply your answer to this exact link only."
+    },
+    {
+      "key": "settings.urlPrompt.scope.hostname.tooltip",
+      "value": "Apply your answer to every link from this host, subdomain included."
+    },
+    {
+      "key": "settings.urlPrompt.scope.baseDomain.tooltip",
+      "value": "Apply your answer to the whole domain and every subdomain under it."
+    },
+    {
+      "key": "settings.bodyTracking.seatedMode.standing.tooltip",
+      "value": "Scale for a room-scale space you stand and walk around in."
+    },
+    {
+      "key": "settings.bodyTracking.seatedMode.seated.tooltip",
+      "value": "Scale for playing from a chair, with your height measured sitting down."
+    },
+    {
+      "key": "settings.bodyTracking.ikMode.auto.tooltip",
+      "value": "Let Basis pick the scaling method that best fits your tracking setup."
+    },
+    {
+      "key": "settings.bodyTracking.ikMode.eyeHeight.tooltip",
+      "value": "Match avatar size to your measured eye height. Best for walking and staying on the floor."
+    },
+    {
+      "key": "settings.bodyTracking.ikMode.armDistance.tooltip",
+      "value": "Match avatar size to your arm span. Best when reach and hand placement matter most."
+    },
+    {
+      "key": "settings.bodyTracking.spineLock.hips.tooltip",
+      "value": "Anchor the spine at the hips and let the head follow."
+    },
+    {
+      "key": "settings.bodyTracking.spineLock.head.tooltip",
+      "value": "Anchor the spine at the head and let the hips follow."
+    },
+    {
+      "key": "settings.bodyTracking.spineLock.both.tooltip",
+      "value": "Hold head and hips at once and share the bend between them."
+    },
+    {
+      "key": "settings.microphone.mode.onActivation.tooltip",
+      "value": "Your mic stays open and the talk button toggles mute on and off."
+    },
+    {
+      "key": "settings.microphone.mode.pushToTalk.tooltip",
+      "value": "You are heard only while you hold the talk button down."
+    },
+    {
+      "key": "settings.microphone.icon.alwaysVisible.tooltip",
+      "value": "Keep the mic icon on screen at all times."
+    },
+    {
+      "key": "settings.microphone.icon.activityDetection.tooltip",
+      "value": "Show the mic icon only while you are speaking."
+    },
+    {
+      "key": "settings.microphone.icon.hidden.tooltip",
+      "value": "Never show the mic icon."
+    },
+    {
+      "key": "settings.microphone.start.muted.tooltip",
+      "value": "Always start muted when Basis launches."
+    },
+    {
+      "key": "settings.microphone.start.unmuted.tooltip",
+      "value": "Always start unmuted when Basis launches."
+    },
+    {
+      "key": "settings.microphone.start.rememberLast.tooltip",
+      "value": "Start in whichever state you left the mic in last time."
+    },
+    {
+      "key": "settings.microphone.mute.shutdown.tooltip",
+      "value": "Close the recording device while muted. Lowest CPU and battery cost."
+    },
+    {
+      "key": "settings.microphone.mute.keepOpen.tooltip",
+      "value": "Leave the device running and only silence its output. Use this if your mic driver is slow to start."
+    },
+    {
+      "key": "settings.graphics.quality.veryLow.tooltip",
+      "value": "Cheapest setting. Best frame rate, biggest cut to detail."
+    },
+    {
+      "key": "settings.graphics.quality.low.tooltip",
+      "value": "Reduced detail for weaker hardware, with frame rate the priority."
+    },
+    {
+      "key": "settings.graphics.quality.medium.tooltip",
+      "value": "Balanced detail and performance. A safe starting point."
+    },
+    {
+      "key": "settings.graphics.quality.high.tooltip",
+      "value": "More detail, at a noticeable cost to frame rate."
+    },
+    {
+      "key": "settings.graphics.quality.ultra.tooltip",
+      "value": "Maximum detail. Worth it only on hardware with headroom to spare."
+    },
+    {
+      "key": "settings.graphics.aa.off.tooltip",
+      "value": "No edge smoothing. Fastest, but edges stay jagged."
+    },
+    {
+      "key": "settings.graphics.aa.msaa2x.tooltip",
+      "value": "Light multisampling. Softens edges for a small cost."
+    },
+    {
+      "key": "settings.graphics.aa.msaa4x.tooltip",
+      "value": "Moderate multisampling. The usual balance of quality and cost."
+    },
+    {
+      "key": "settings.graphics.aa.msaa8x.tooltip",
+      "value": "Heavy multisampling. Cleanest edges, and the most expensive."
+    },
+    {
+      "key": "settings.graphics.aa.linear.tooltip",
+      "value": "No multisampling. Upscales a lower-resolution image with smooth filtering: softer, but faster."
+    },
+    {
+      "key": "settings.graphics.aa.point.tooltip",
+      "value": "No multisampling. Upscales a lower-resolution image with no filtering: sharp, but blocky."
+    },
+    {
+      "key": "settings.graphics.aa.fsr.tooltip",
+      "value": "No multisampling. Upscales with AMD FidelityFX Super Resolution, which holds more detail than plain filtering."
+    },
+    {
+      "key": "settings.graphics.vsync.on.tooltip",
+      "value": "Match the display refresh rate. No tearing, slightly more input lag."
+    },
+    {
+      "key": "settings.graphics.vsync.capped.tooltip",
+      "value": "Ignore the refresh rate and hold the frame rate at the cap set below."
+    },
+    {
+      "key": "settings.graphics.vsync.off.tooltip",
+      "value": "Render as fast as the machine allows. Lowest latency, but the image can tear."
+    },
+    {
+      "key": "settings.graphics.vsync.half.tooltip",
+      "value": "Sync to every second refresh, so 30 FPS on a 60 Hz display. Steady, at half the frames."
+    },
+    {
+      "key": "settings.graphics.memoryAllocation.dynamic.tooltip",
+      "value": "Let the renderer size its texture budget from whatever the machine has free."
+    },
+    {
+      "key": "settings.graphics.screenMode.fullscreen.tooltip",
+      "value": "Take the display exclusively. Best performance, slowest to alt-tab out of."
+    },
+    {
+      "key": "settings.graphics.screenMode.borderless.tooltip",
+      "value": "Fill the screen in a window with no border. Switching to other apps stays instant."
+    },
+    {
+      "key": "settings.graphics.screenMode.windowed.tooltip",
+      "value": "Run in an ordinary resizable window."
+    },
+    {
+      "key": "settings.graphics.hdr.off.tooltip",
+      "value": "Render in standard dynamic range. Cheapest and most compatible."
+    },
+    {
+      "key": "settings.graphics.hdr.32bit.tooltip",
+      "value": "High dynamic range at 32 bits per pixel. Brighter highlights for a modest memory cost."
+    },
+    {
+      "key": "settings.graphics.hdr.64bit.tooltip",
+      "value": "High dynamic range at 64 bits per pixel. Widest range and least banding, heaviest on memory and bandwidth."
+    },
+    {
+      "key": "settings.chat.camera.photoMetadata.noOne.tooltip",
+      "value": "Write no names into the photo. The default."
+    },
+    {
+      "key": "settings.chat.camera.photoMetadata.everyone.tooltip",
+      "value": "Write the name of every player visible in the shot."
+    },
+    {
+      "key": "settings.chat.camera.photoMetadata.justMe.tooltip",
+      "value": "Write only your own name into the photo."
+    },
+    {
+      "key": "settings.developer.logLevel.all.tooltip",
+      "value": "Keep everything: logs, warnings, and errors."
+    },
+    {
+      "key": "settings.developer.logLevel.warningsErrors.tooltip",
+      "value": "Hide plain logs; keep warnings and errors."
+    },
+    {
+      "key": "settings.developer.logLevel.errorsOnly.tooltip",
+      "value": "Keep errors only. The quietest setting."
+    },
+    {
+      "key": "settings.console.filter.all.tooltip",
+      "value": "Show every message in the console."
+    },
+    {
+      "key": "settings.console.filter.errors.tooltip",
+      "value": "Show errors only."
+    },
+    {
+      "key": "settings.console.filter.warnings.tooltip",
+      "value": "Show warnings only."
+    },
+    {
+      "key": "settings.console.filter.logs.tooltip",
+      "value": "Show plain log messages only."
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.adaptive.tooltip",
+      "value": "Keyboard and mouse stay live while you use them, then idle down until the next input."
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.alwaysOn.tooltip",
+      "value": "Keyboard and mouse are read every frame, whatever headset is connected."
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.off.tooltip",
+      "value": "Ignore keyboard and mouse entirely while a headset is in use."
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.index.tooltip",
+      "value": "Press panels with your index finger. The usual choice."
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.thumb.tooltip",
+      "value": "Press panels with your thumb."
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.middle.tooltip",
+      "value": "Press panels with your middle finger."
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.ring.tooltip",
+      "value": "Press panels with your ring finger."
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.little.tooltip",
+      "value": "Press panels with your little finger."
+    },
+    {
+      "key": "settings.general.fingerTouch.hands.both.tooltip",
+      "value": "Either hand can press panels directly."
+    },
+    {
+      "key": "settings.general.fingerTouch.hands.left.tooltip",
+      "value": "Only your left hand can press panels directly."
+    },
+    {
+      "key": "settings.general.fingerTouch.hands.right.tooltip",
+      "value": "Only your right hand can press panels directly."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.grip.tooltip",
+      "value": "The squeeze button on the side of the controller."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.trigger.tooltip",
+      "value": "The index-finger trigger on the controller."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.primary.tooltip",
+      "value": "The primary face button: A on the right controller, X on the left."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.secondary.tooltip",
+      "value": "The secondary face button: B on the right controller, Y on the left."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.hand.both.tooltip",
+      "value": "Either controller can grab, and using both at once lets you rotate and scale."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.hand.left.tooltip",
+      "value": "Only the left controller can grab."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.hand.right.tooltip",
+      "value": "Only the right controller can grab."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.roll.tooltip",
+      "value": "Tip sideways, rolling the world over until you are upside down."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.pitch.tooltip",
+      "value": "Tip forward or backward, nose over tail."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.yaw.tooltip",
+      "value": "Spin your view left or right while staying level."
+    },
+    {
+      "key": "settings.bodyTracking.trackerVisuals.off.tooltip",
+      "value": "Draw nothing at your trackers."
+    },
+    {
+      "key": "settings.bodyTracking.trackerVisuals.markers.tooltip",
+      "value": "Draw a simple shape at each tracker. Cheap, and easy to line up."
+    },
+    {
+      "key": "settings.bodyTracking.trackerVisuals.deviceModels.tooltip",
+      "value": "Draw each device's real model, when the runtime provides one."
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.auto.tooltip",
+      "value": "Pick smoothing to suit whatever tracking hardware is in use."
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.off.tooltip",
+      "value": "No smoothing. Raw tracking: lowest latency, most jitter."
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.light.tooltip",
+      "value": "A little smoothing. Keeps motion responsive while taking the edge off jitter."
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.standard.tooltip",
+      "value": "The balanced default for most headsets and trackers."
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.heavy.tooltip",
+      "value": "Strong smoothing for noisy tracking. Calmest motion, most lag."
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.optical.tooltip",
+      "value": "Tuned for camera-based tracking, which drifts and jumps more than it shakes."
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.custom.tooltip",
+      "value": "Set the smoothing values yourself with the sliders below."
+    },
+    {
+      "key": "settings.remoteAudio.rolloff.logarithmic.tooltip",
+      "value": "Volume drops quickly up close and gently far away, the way real sound behaves."
+    },
+    {
+      "key": "settings.remoteAudio.rolloff.linear.tooltip",
+      "value": "Volume falls at a steady rate out to the maximum distance."
+    },
+    {
+      "key": "settings.remoteAudio.rolloff.custom.tooltip",
+      "value": "Use the curve preset chosen below instead of a fixed rolloff shape."
+    },
+    {
+      "key": "settings.remoteAudio.curve.natural.tooltip",
+      "value": "A realistic falloff that keeps nearby voices clear without carrying far."
+    },
+    {
+      "key": "settings.remoteAudio.curve.legacy.tooltip",
+      "value": "The falloff Basis used previously. Pick it if the newer curves sound wrong to you."
+    },
+    {
+      "key": "settings.remoteAudio.curve.sharp.tooltip",
+      "value": "Volume drops away fast. Good in busy rooms where you only want the people beside you."
+    },
+    {
+      "key": "settings.remoteAudio.curve.gradual.tooltip",
+      "value": "Voices carry further before fading. Good in large open worlds."
+    },
+    {
+      "key": "settings.remoteAudio.curve.inverseSquare.tooltip",
+      "value": "Physically accurate inverse-square falloff: quiet quickly, then a long faint tail."
+    },
+    {
+      "key": "settings.remoteAudio.curve.flat.tooltip",
+      "value": "Almost no falloff. Everyone stays about as loud wherever they stand."
+    },
+    {
+      "key": "settings.remoteAudio.curve.userDefined.tooltip",
+      "value": "Use the curve you have shaped by hand rather than a preset."
+    },
+    {
+      "key": "settings.remoteAudio.interp.nearest.tooltip",
+      "value": "Snap to the closest measured HRTF direction. Cheapest, and can step audibly as people move."
+    },
+    {
+      "key": "settings.remoteAudio.interp.bilinear.tooltip",
+      "value": "Blend between neighbouring HRTF directions for smoother movement, at a little more CPU."
+    },
+    {
+      "key": "settings.remoteAudio.attenuation.curveDriven.tooltip",
+      "value": "Take distance volume from the rolloff curve above."
+    },
+    {
+      "key": "settings.remoteAudio.attenuation.physicsBased.tooltip",
+      "value": "Let the audio simulation work distance volume out from the scene itself."
+    },
+    {
+      "key": "settings.remoteAudio.airMode.simulation.tooltip",
+      "value": "Let the simulation decide how much high frequency the air absorbs."
+    },
+    {
+      "key": "settings.remoteAudio.airMode.userDefined.tooltip",
+      "value": "Set the low, mid, and high absorption amounts yourself with the sliders below."
+    },
+    {
+      "key": "settings.remoteAudio.occlusionType.raycast.tooltip",
+      "value": "Test a single ray to the speaker. Cheap, and switches abruptly at edges."
+    },
+    {
+      "key": "settings.remoteAudio.occlusionType.volumetric.tooltip",
+      "value": "Test a spread of rays for partial blocking. Softer transitions, more CPU."
+    },
+    {
+      "key": "settings.remoteAudio.transmissionType.independent.tooltip",
+      "value": "Muffle every frequency by the same amount when sound passes through a wall."
+    },
+    {
+      "key": "settings.remoteAudio.transmissionType.dependent.tooltip",
+      "value": "Let low frequencies through more than high ones, the way real walls behave."
+    },
+    {
+      "key": "menu.players.sortMode.joinTime.tooltip",
+      "value": "Order the list by when each player arrived."
+    },
+    {
+      "key": "menu.players.sortMode.distance.tooltip",
+      "value": "Order the list by how far away each player is, nearest first."
+    },
+    {
+      "key": "menu.players.sortMode.name.tooltip",
+      "value": "Order the list alphabetically by display name."
+    },
+    {
+      "key": "menu.players.sortMode.platform.tooltip",
+      "value": "Order the list by the platform each player is on."
+    },
+    {
+      "key": "settings.admin.joinRestriction.normal.tooltip",
+      "value": "Anyone may join the server."
+    },
+    {
+      "key": "settings.admin.joinRestriction.allowList.tooltip",
+      "value": "Only players on the allow list may join."
+    },
+    {
+      "key": "settings.admin.joinRestriction.rejoinOnly.tooltip",
+      "value": "Locks the server to the players connected when this was set; admins may still join. Resets to Normal on restart."
+    },
+    {
+      "key": "settings.performanceMode.level.off.tooltip",
+      "value": "Leave your own graphics settings alone. No avatar simplification."
+    },
+    {
+      "key": "settings.performanceMode.level.light.tooltip",
+      "value": "A gentle trim of avatar detail. Armed on its own past 250 players."
+    },
+    {
+      "key": "settings.performanceMode.level.balanced.tooltip",
+      "value": "A firmer trim that keeps crowds readable. Armed on its own past 500 players."
+    },
+    {
+      "key": "settings.performanceMode.level.aggressive.tooltip",
+      "value": "The tightest limits, for very large instances. Armed on its own past 1000 players."
+    },
+    {
+      "key": "settings.graphics.mirrorResolution.256.tooltip",
+      "value": "256 x 256. Cheapest, and very soft up close."
+    },
+    {
+      "key": "settings.graphics.mirrorResolution.512.tooltip",
+      "value": "512 x 512. Light on performance, noticeably blurry."
+    },
+    {
+      "key": "settings.graphics.mirrorResolution.1024.tooltip",
+      "value": "1024 x 1024. A reasonable balance on most machines."
+    },
+    {
+      "key": "settings.graphics.mirrorResolution.2048.tooltip",
+      "value": "2048 x 2048. Sharp, and the usual choice on desktop hardware."
+    },
+    {
+      "key": "settings.graphics.mirrorResolution.4096.tooltip",
+      "value": "4096 x 4096. Very sharp, and heavy enough to cost real frame rate."
+    },
+    {
+      "key": "settings.graphics.mirrorResolution.8192.tooltip",
+      "value": "8192 x 8192. Extreme. Worth it only for stills on a powerful GPU."
+    },
+    {
+      "key": "settings.platform.swapMode.shutdown.tooltip",
+      "value": "Fully restart the XR runtime when you swap. Slower, but the cleanest handover."
+    },
+    {
+      "key": "settings.platform.swapMode.autoSwap.tooltip",
+      "value": "Switch between VR and desktop on its own as the headset comes and goes."
+    },
+    {
+      "key": "settings.controls.dominantHand.right.tooltip",
+      "value": "Treat your right hand as the main interaction hand."
+    },
+    {
+      "key": "settings.controls.dominantHand.left.tooltip",
+      "value": "Treat your left hand as the main interaction hand."
+    },
+    {
+      "key": "settings.admin.opusFrameDuration.20.tooltip",
+      "value": "Send voice in 20 ms packets. Lower latency, a little more bandwidth and CPU."
+    },
+    {
+      "key": "settings.admin.opusFrameDuration.40.tooltip",
+      "value": "Send voice in 40 ms packets. Less bandwidth and overhead, a little more delay."
+    },
+    {
+      "key": "settings.admin.title.type.avatar.tooltip",
+      "value": "Add this URL to the server's default avatars."
+    },
+    {
+      "key": "settings.admin.title.type.world.tooltip",
+      "value": "Add this URL to the server's default worlds."
+    },
+    {
+      "key": "settings.admin.title.type.prop.tooltip",
+      "value": "Add this URL to the server's default props."
+    },
+    {
+      "key": "notifications.category.all.tooltip",
+      "value": "Show notifications from every category."
+    },
+    {
+      "key": "notifications.category.system.tooltip",
+      "value": "Notices from Basis itself: updates, settings, and failures."
+    },
+    {
+      "key": "notifications.category.player.tooltip",
+      "value": "Players joining and leaving, and moderation actions."
+    },
+    {
+      "key": "notifications.category.content.tooltip",
+      "value": "Props, worlds, and other content being loaded or spawned."
+    },
+    {
+      "key": "notifications.category.network.tooltip",
+      "value": "Connection state, servers, and direct connections."
+    },
+    {
+      "key": "notifications.category.avatar.tooltip",
+      "value": "Avatar loading, swapping, and calibration."
+    },
+    {
+      "key": "notifications.category.developer.tooltip",
+      "value": "Developer and debug messages."
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.ask.tooltip",
+      "value": "Prompt you each time this player asks to record you."
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.allow.tooltip",
+      "value": "Let this player record your voice without asking again."
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.deny.tooltip",
+      "value": "Refuse this player's recording requests without asking again."
+    },
+    {
+      "key": "menu.individualPlayer.directConnection.policy.ask.tooltip",
+      "value": "Prompt you each time this player requests a direct connection."
+    },
+    {
+      "key": "menu.individualPlayer.directConnection.policy.accept.tooltip",
+      "value": "Accept direct connection requests from this player automatically."
+    },
+    {
+      "key": "menu.individualPlayer.directConnection.policy.decline.tooltip",
+      "value": "Decline direct connection requests from this player automatically."
+    },
+    {
+      "key": "library.sort.name.tooltip",
+      "value": "Sort items alphabetically by name."
+    },
+    {
+      "key": "library.sort.dateOldestToNewest.tooltip",
+      "value": "Show the oldest items first."
+    },
+    {
+      "key": "library.sort.dateNewestToOldest.tooltip",
+      "value": "Show the most recently added items first."
+    },
+    {
+      "key": "library.filter.all.tooltip",
+      "value": "Show every item."
+    },
+    {
+      "key": "library.filter.embedded.tooltip",
+      "value": "Show only items bundled with Basis or with the world."
+    },
+    {
+      "key": "library.filter.local.tooltip",
+      "value": "Show only items stored on this machine."
+    },
+    {
+      "key": "library.filter.networked.tooltip",
+      "value": "Show only items shared over the network."
+    },
+    {
+      "key": "library.filter.gameObject.tooltip",
+      "value": "Show only props and other objects."
+    },
+    {
+      "key": "library.filter.scene.tooltip",
+      "value": "Show only worlds and scenes."
+    },
+    {
+      "key": "library.filter.avatar.tooltip",
+      "value": "Show only avatars."
+    },
+    {
+      "key": "library.filter.adminOnly.tooltip",
+      "value": "Show only items restricted to admins."
+    },
+    {
+      "key": "library.filter.persistentOnly.tooltip",
+      "value": "Show only items that stay in the world after you leave."
+    },
+    {
+      "key": "library.filter.notPersistent.tooltip",
+      "value": "Show only items that disappear when you leave."
+    },
+    {
+      "key": "library.filter.placedByMe.tooltip",
+      "value": "Show only items you placed yourself."
+    },
+    {
+      "key": "library.filter.notPlacedByMe.tooltip",
+      "value": "Show only items placed by someone else."
     }
   ]
 }

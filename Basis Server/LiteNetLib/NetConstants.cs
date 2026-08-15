@@ -51,7 +51,12 @@ namespace LiteNetLib
         public const ushort HalfMaxSequence = MaxSequence / 2;
 
         //protocol
-        internal const int ProtocolId = 13;
+        /// <summary>
+        /// 14 introduced the CompactMerged framing, which a peer either understands or silently
+        /// loses every unreliable message to. Rejecting the connection outright is the loud
+        /// failure that replaces a runtime capability exchange.
+        /// </summary>
+        internal const int ProtocolId = 14;
         internal const int MaxUdpHeaderSize = 68;
         internal const int ChannelTypeCount = 4;
         internal const int FragmentedChannelsCount = 2;
