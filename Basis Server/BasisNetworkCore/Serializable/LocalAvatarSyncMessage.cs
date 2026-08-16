@@ -156,7 +156,9 @@ public static partial class SerializableBasis
             }
             for (int i = 0; i < AdditionalAvatarDataSize; i++)
             {
-                AdditionalAvatarDatas[i] = new AdditionalAvatarData();
+                // Deserialize in place: the slot's retained payload buffer is reused when the
+                // size matches — every frame of a steady face-tracking stream. Re-initializing
+                // the slot first nulled that buffer and forced a fresh byte[] per entry per packet.
                 AdditionalAvatarDatas[i].Deserialize(reader);
             }
         }
