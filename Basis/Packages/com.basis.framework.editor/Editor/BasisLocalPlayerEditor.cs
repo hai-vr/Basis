@@ -4,14 +4,20 @@ using System.Reflection;
 using Basis.Scripts.BasisSdk.Players;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 /// <summary>
 /// Restores inspector visibility of the player state that moved from public fields to
 /// <see cref="IBasisPlayer"/> get/set properties. Unity no longer serializes those, so the
 /// default inspector dropped them; this draws them live via reflection.
+///
+/// <para>Derives from <see cref="BasisDocInspector_UI"/> so declaring a CustomEditor for
+/// BasisLocalPlayer does not cost it the Basis API Reference — a plain Editor here shadows the
+/// fallback inspector and the reference silently disappears from the type people look it up on
+/// most.</para>
 /// </summary>
 [CustomEditor(typeof(BasisLocalPlayer))]
-public class BasisLocalPlayerEditor : Editor
+public class BasisLocalPlayerEditor : BasisDocInspector_UI
 {
     private const BindingFlags MemberFlags = BindingFlags.Instance | BindingFlags.Public;
     private static PropertyInfo[] _properties;
@@ -31,6 +37,23 @@ public class BasisLocalPlayerEditor : Editor
         }
         list.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
         _properties = list.ToArray();
+    }
+
+    public override VisualElement CreateInspectorGUI()
+    {
+        var root = new VisualElement();
+
+        // The property table is reflection-driven IMGUI; hosting it as-is keeps that code unchanged
+        // while the API Reference underneath stays UI Toolkit like every other Basis inspector.
+        root.Add(new IMGUIContainer(OnInspectorGUI));
+
+        VisualElement api = CreateApiReferenceFoldout();
+        if (api != null)
+        {
+            root.Add(new VisualElement { style = { height = 8 } });
+            root.Add(api);
+        }
+        return root;
     }
 
     public override void OnInspectorGUI()

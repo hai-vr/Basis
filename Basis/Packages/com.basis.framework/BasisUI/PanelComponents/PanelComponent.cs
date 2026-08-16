@@ -118,19 +118,35 @@ namespace Basis.BasisUI
         /// <summary>
         /// What the tooltip bar actually shows: the control's own text, plus the reset gesture
         /// while there is a default to go back to. Nothing else advertises that gesture, and a
-        /// hover is the moment it is about to be useful.
+        /// hover is the moment it is about to be useful. A joystick bind being armed — or already
+        /// holding this control — takes that spot instead, since it is the more immediate offer.
         /// </summary>
-        private string HoverTooltipText
+        protected virtual string HoverTooltipText
         {
             get
             {
                 string text = TooltipText;
-                if (!HasResetDefault || !IsInteractable) return text;
+                if (!IsInteractable) return text;
 
-                string hint = BasisPanelResetGesture.HintText;
+                string hint = BasisPanelJoystickBind.HintFor(this);
+                if (string.IsNullOrEmpty(hint))
+                {
+                    if (!HasResetDefault) return text;
+                    hint = BasisPanelResetGesture.HintText;
+                }
                 if (string.IsNullOrEmpty(hint)) return text;
                 return string.IsNullOrEmpty(text) ? hint : $"{text} — {hint}";
             }
+        }
+
+        /// <summary>
+        /// Re-pushes this control's tooltip into the bar, for controls whose text changes while
+        /// the pointer is still on them — a dropdown moving between its open options, say.
+        /// </summary>
+        protected void RefreshHoverTooltip()
+        {
+            if (!_pointerInside) return;
+            BasisMainMenu.ShowTooltip(HoverTooltipText);
         }
 
         public virtual void OnPointerEnter(PointerEventData eventData)

@@ -68,7 +68,7 @@ namespace Basis.BasisUI
             PanelDropdown categoryFilter = PanelDropdown.CreateNewEntry(root);
             categoryFilter.Descriptor.SetTitle(BasisLocalization.Get("notifications.filter.category"));
             categoryFilter.Descriptor.SetDescription(BasisLocalization.Get("notifications.filter.category.description"));
-            categoryFilter.AssignEntries(FilterEntries(), FilterLabels());
+            categoryFilter.AssignEntries(FilterEntries(), FilterLabels(), FilterTooltips());
             categoryFilter.SetValueWithoutNotify(EntryFor(BasisNotificationCenter.HistoryCategory));
             categoryFilter.OnValueChanged = value => BasisNotificationCenter.HistoryCategory = CategoryFor(value);
 
@@ -122,6 +122,17 @@ namespace Basis.BasisUI
             return labels;
         }
 
+        private static List<string> FilterTooltips()
+        {
+            List<string> tooltips = new List<string> { BasisLocalization.Get("notifications.category.all.tooltip") };
+            Array categories = Enum.GetValues(typeof(BasisNotificationCategory));
+            for (int i = 0; i < categories.Length; i++)
+            {
+                tooltips.Add(CategoryTooltip((BasisNotificationCategory)categories.GetValue(i)));
+            }
+            return tooltips;
+        }
+
         private static string EntryFor(BasisNotificationCategory? category)
         {
             return category.HasValue ? category.Value.ToString() : AllEntry;
@@ -153,6 +164,25 @@ namespace Basis.BasisUI
                     return BasisLocalization.Get("notifications.category.developer");
                 default:
                     return BasisLocalization.Get("notifications.category.system");
+            }
+        }
+
+        public static string CategoryTooltip(BasisNotificationCategory category)
+        {
+            switch (category)
+            {
+                case BasisNotificationCategory.Player:
+                    return BasisLocalization.Get("notifications.category.player.tooltip");
+                case BasisNotificationCategory.Content:
+                    return BasisLocalization.Get("notifications.category.content.tooltip");
+                case BasisNotificationCategory.Network:
+                    return BasisLocalization.Get("notifications.category.network.tooltip");
+                case BasisNotificationCategory.Avatar:
+                    return BasisLocalization.Get("notifications.category.avatar.tooltip");
+                case BasisNotificationCategory.Developer:
+                    return BasisLocalization.Get("notifications.category.developer.tooltip");
+                default:
+                    return BasisLocalization.Get("notifications.category.system.tooltip");
             }
         }
 

@@ -9,145 +9,6 @@ namespace Basis.Tests.Camera
     /// must continue from wherever the camera physically is, while a teleport must throw that away
     /// and re-derive from the subject.
     /// </summary>
-    public class BasisCameraHandOffTests
-    {
-        private static BasisCameraDirector RigWithOneShot(out BasisCameraShot shot, float damping = 1f)
-        {
-            var director = new BasisCameraDirector();
-            shot = ShotFixture.BodyOnly(director.AddShot());
-            shot.positionOffset = new Vector3(0f, 0f, 2f);
-            shot.positionDamping = new Vector3(damping, damping, damping);
-            return director;
-        }
-
-        [Test]
-        public void SnapTo_OnAShotThatIsAlreadyLive_ContinuesFromTheHandOffPose()
-        {
-            BasisCameraDirector director = RigWithOneShot(out _);
-
-            director.SnapTo(Vector3.zero, Quaternion.identity, 40f);
-            director.Solve(ShotFixture.Context());
-
-            director.SnapTo(new Vector3(0f, 0f, 40f), Quaternion.identity, 40f);
-            BasisCameraPose pose = director.Solve(ShotFixture.Context());
-
-            Assert.That(pose.Position.z, Is.GreaterThan(35f),
-                "Switching the rig on must ease from where the camera actually is. Cutting to the " +
-                "shot's own offset instead is a visible jump the moment the toggle is pressed.");
-        }
-
-        [Test]
-        public void SnapTo_BeforeAnythingIsLive_AlsoStartsFromTheHandOffPose()
-        {
-            BasisCameraDirector director = RigWithOneShot(out _);
-
-            director.SnapTo(new Vector3(0f, 0f, 40f), Quaternion.identity, 40f);
-            BasisCameraPose pose = director.Solve(ShotFixture.Context());
-
-            Assert.That(pose.Position.z, Is.GreaterThan(35f));
-        }
-
-        [Test]
-        public void SnapTo_EventuallyReachesTheShotItHandedOffTo()
-        {
-            BasisCameraDirector director = RigWithOneShot(out _);
-
-            director.SnapTo(new Vector3(0f, 0f, 40f), Quaternion.identity, 40f);
-            BasisCameraPose pose = default;
-            for (int Frame = 0; Frame < 600; Frame++)
-            {
-                pose = director.Solve(ShotFixture.Context());
-            }
-
-            Assert.That(pose.Position.z, Is.EqualTo(2f).Within(0.05f));
-        }
-
-        [Test]
-        public void ReseedShots_RederivesFromTheSubjectRatherThanEasingAcrossTheMap()
-        {
-            BasisCameraDirector director = RigWithOneShot(out _);
-
-            director.SnapTo(new Vector3(0f, 0f, 40f), Quaternion.identity, 40f);
-            director.Solve(ShotFixture.Context());
-
-            director.ReseedShots();
-            BasisCameraPose pose = director.Solve(ShotFixture.Context());
-
-            Assert.That(pose.Position.z, Is.EqualTo(2f).Within(0.05f),
-                "After a teleport the shot must reappear at its offset from the new position, not " +
-                "fly there from the old one.");
-        }
-
-        [Test]
-        public void ReseedShots_PicksUpTheSubjectsNewPlace()
-        {
-            BasisCameraDirector director = RigWithOneShot(out _);
-
-            director.SnapTo(Vector3.zero, Quaternion.identity, 40f);
-            director.Solve(ShotFixture.Context());
-
-            director.ReseedShots();
-            BasisCameraPose pose = director.Solve(
-                ShotFixture.Context(ShotFixture.Subject(new Vector3(500f, 0f, 0f))));
-
-            Assert.That(pose.Position.x, Is.EqualTo(500f).Within(0.05f));
-            Assert.That(pose.Position.z, Is.EqualTo(2f).Within(0.05f));
-        }
-
-        [Test]
-        public void ReseedShots_CancelsAnyBlendInFlight()
-        {
-            var director = new BasisCameraDirector();
-            BasisCameraShot first = ShotFixture.BodyOnly(director.AddShot());
-            first.priority = 10;
-            BasisCameraShot second = ShotFixture.BodyOnly(director.AddShot());
-            second.blendTime = 5f;
-
-            director.SnapTo(Vector3.zero, Quaternion.identity, 40f);
-            director.Solve(ShotFixture.Context());
-            director.SelectedShotId = second.id;
-
-            director.ReseedShots();
-
-            Assert.That(director.IsBlending, Is.False,
-                "A blend that survives a teleport would sweep from the old world position.");
-        }
-
-        [Test]
-        public void SnapTo_ClearsAnyBlendInFlight()
-        {
-            var director = new BasisCameraDirector();
-            ShotFixture.BodyOnly(director.AddShot()).priority = 10;
-            BasisCameraShot second = ShotFixture.BodyOnly(director.AddShot());
-            second.blendTime = 5f;
-
-            director.SnapTo(Vector3.zero, Quaternion.identity, 40f);
-            director.Solve(ShotFixture.Context());
-            director.SelectedShotId = second.id;
-
-            director.SnapTo(new Vector3(1f, 2f, 3f), Quaternion.identity, 40f);
-
-            Assert.That(director.IsBlending, Is.False);
-        }
-
-        [Test]
-        public void ShotsAddedAfterAHandOffStillSeedSensibly()
-        {
-            BasisCameraDirector director = RigWithOneShot(out _);
-            director.SnapTo(new Vector3(0f, 0f, 40f), Quaternion.identity, 40f);
-            director.Solve(ShotFixture.Context());
-
-            BasisCameraShot late = ShotFixture.BodyOnly(director.AddShot());
-            late.priority = 99;
-            late.positionOffset = new Vector3(0f, 0f, 3f);
-
-            BasisCameraPose pose = director.Solve(ShotFixture.Context());
-
-            Assert.That(float.IsNaN(pose.Position.x), Is.False);
-            Assert.That(pose.Position.magnitude, Is.LessThan(100f),
-                "A shot created after a hand-off must not start from uninitialised state.");
-        }
-    }
 
     /// <summary>Frame maths the damping helpers rely on, and the native calls they stand in for.</summary>
     public class BasisCameraFrameMathTests
@@ -260,93 +121,6 @@ namespace Basis.Tests.Camera
         }
     }
 
-    public class BasisCameraShotDataTests
-    {
-        [Test]
-        public void CloningAShotProducesAnIndependentCopy()
-        {
-            var original = new BasisCameraShot
-            {
-                name = "Original",
-                positionOffset = new Vector3(1f, 2f, 3f),
-                priority = 7,
-            };
-            original.composer.screenX = 0.25f;
-
-            BasisCameraShot copy = original.Clone();
-            copy.name = "Copy";
-            copy.positionOffset = Vector3.zero;
-            copy.composer.screenX = 0.9f;
-            copy.priority = 1;
-
-            Assert.That(original.name, Is.EqualTo("Original"));
-            Assert.That(original.positionOffset, Is.EqualTo(new Vector3(1f, 2f, 3f)));
-            Assert.That(original.composer.screenX, Is.EqualTo(0.25f).Within(1e-5f),
-                "The composer is a struct, so a shallow clone is a deep one - but only while it stays a struct.");
-            Assert.That(original.priority, Is.EqualTo(7));
-        }
-
-        [Test]
-        public void OnlyShotsThatSetTheLensClaimIt()
-        {
-            var plain = new BasisCameraShot();
-            Assert.That(plain.DrivesLens, Is.False, "An ordinary shot must leave the operator's FOV slider alone.");
-
-            var overridden = new BasisCameraShot { overrideLens = true };
-            Assert.That(overridden.DrivesLens, Is.True);
-
-            var zoomFraming = new BasisCameraShot
-            {
-                bodyMode = BasisCameraBodyMode.Framing,
-                framingUsesZoom = true,
-            };
-            Assert.That(zoomFraming.DrivesLens, Is.True);
-
-            var dollyFraming = new BasisCameraShot
-            {
-                bodyMode = BasisCameraBodyMode.Framing,
-                framingUsesZoom = false,
-            };
-            Assert.That(dollyFraming.DrivesLens, Is.False, "Framing by dollying does not touch the lens.");
-        }
-
-        [Test]
-        public void ADirectorAddedShotGetsAUniqueIdAndAName()
-        {
-            var director = new BasisCameraDirector();
-            BasisCameraShot first = director.AddShot();
-            BasisCameraShot second = director.AddShot();
-
-            Assert.That(first.id, Is.Not.EqualTo(second.id));
-            Assert.That(string.IsNullOrEmpty(first.name), Is.False);
-        }
-
-        [Test]
-        public void DuplicatingThroughTheDirectorDoesNotShareAnId()
-        {
-            var director = new BasisCameraDirector();
-            BasisCameraShot source = director.AddShot();
-            source.positionOffset = new Vector3(9f, 9f, 9f);
-
-            BasisCameraShot copy = director.AddShot(source);
-
-            Assert.That(copy.id, Is.Not.EqualTo(source.id),
-                "Shared ids would make two shots fight over one slot of solver state.");
-            Assert.That(copy.positionOffset, Is.EqualTo(source.positionOffset));
-        }
-
-        [Test]
-        public void ClearedRigsStillHandOutFreshIds()
-        {
-            var director = new BasisCameraDirector();
-            int firstId = director.AddShot().id;
-            director.Clear();
-            int afterClear = director.AddShot().id;
-
-            Assert.That(afterClear, Is.Not.EqualTo(firstId),
-                "Reusing an id after a clear would let stale solver state attach to a new shot.");
-        }
-    }
 
     public class BasisCameraLoopedSplineTests
     {
@@ -409,7 +183,7 @@ namespace Basis.Tests.Camera
         public void DampingAcrossTheSeamTakesTheShortWay()
         {
             // 0.1 to 3.9 on a four-segment loop is 0.2 backwards, not 3.8 forwards.
-            float stepped = BasisCameraDirector.DampDollyPosition(0.1f, 3.9f, 4, true, 0.05f, 1f / 60f);
+            float stepped = BasisCameraModifierSolver.DampDollyPosition(0.1f, 3.9f, 4, true, 0.05f, 1f / 60f);
 
             Assert.That(stepped, Is.GreaterThan(3.5f).Or.LessThan(0.1f));
             Assert.That(stepped, Is.GreaterThanOrEqualTo(0f));
@@ -419,7 +193,7 @@ namespace Basis.Tests.Camera
         [Test]
         public void DampingOnAnOpenPathDoesNotWrap()
         {
-            float stepped = BasisCameraDirector.DampDollyPosition(0.1f, 2.9f, 4, false, 0f, 1f / 60f);
+            float stepped = BasisCameraModifierSolver.DampDollyPosition(0.1f, 2.9f, 4, false, 0f, 1f / 60f);
 
             Assert.That(stepped, Is.EqualTo(2.9f).Within(1e-3f),
                 "An open track has no seam, so the move is the long way by definition.");
@@ -428,8 +202,8 @@ namespace Basis.Tests.Camera
         [Test]
         public void DampingAnEmptyTrackStaysAtZero()
         {
-            Assert.That(BasisCameraDirector.DampDollyPosition(0f, 5f, 0, false, 0f, 1f / 60f), Is.EqualTo(0f));
-            Assert.That(BasisCameraDirector.DampDollyPosition(0f, 5f, 1, false, 0f, 1f / 60f), Is.EqualTo(0f));
+            Assert.That(BasisCameraModifierSolver.DampDollyPosition(0f, 5f, 0, false, 0f, 1f / 60f), Is.EqualTo(0f));
+            Assert.That(BasisCameraModifierSolver.DampDollyPosition(0f, 5f, 1, false, 0f, 1f / 60f), Is.EqualTo(0f));
         }
     }
 

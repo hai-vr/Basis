@@ -22,10 +22,57 @@ public static class BasisGizmoManager
     /// <summary>
     /// Layer the batched sphere/line draws submit on. The calibration mirror relay points
     /// this at LocalPlayerAvatar while its cutout mirror is alive so gizmos show up in the
-    /// reflection (whose camera culls to that layer), and restores it on teardown.
+    /// reflection (whose camera culls to that layer), and restores it to
+    /// <see cref="DefaultRenderLayer"/> on teardown.
     /// Individual gizmos can opt out with <see cref="SetGizmoLayer"/>.
     /// </summary>
-    public static int RenderLayer = 0;
+    /// <remarks>
+    /// Resolved on first read rather than by a field initializer, for two reasons: static
+    /// initializers run in textual order, so an initializer here would read the backing field
+    /// below as 0 and silently settle on the Default layer; and <c>LayerMask.NameToLayer</c> is a
+    /// Unity call that has no business running during static construction.
+    /// </remarks>
+    public static int RenderLayer
+    {
+        get
+        {
+            if (renderLayer == LayerNotResolved)
+            {
+                renderLayer = DefaultRenderLayer;
+            }
+            return renderLayer;
+        }
+        set => renderLayer = value;
+    }
+
+    private const int LayerNotResolved = -2;
+    private static int renderLayer = LayerNotResolved;
+    private static int defaultRenderLayer = LayerNotResolved;
+
+    /// <summary>
+    /// Where gizmos live unless something moves them: OverlayUI.
+    ///
+    /// <para>Gizmos are debug drawing for the person operating the thing they describe, and the
+    /// handheld camera's capture pass culls this layer — so a tracker marker, an IK probe or a
+    /// dolly track can be read while a shot is being taken without ever landing in the shot. The
+    /// player's own camera renders the layer, and it depth-tests against the world like anything
+    /// else, which is what makes the waypoint markers already sitting on it grabbable.</para>
+    ///
+    /// <para>Falls back to the Default layer in a project that does not define OverlayUI, which is
+    /// where gizmos used to live — visible to every camera including the capture.</para>
+    /// </summary>
+    public static int DefaultRenderLayer
+    {
+        get
+        {
+            if (defaultRenderLayer == LayerNotResolved)
+            {
+                int overlayUi = LayerMask.NameToLayer("OverlayUI");
+                defaultRenderLayer = overlayUi >= 0 ? overlayUi : 0;
+            }
+            return defaultRenderLayer;
+        }
+    }
 
     /// <summary>
     /// Optional viewer-distance cull for sphere/line gizmos, in meters. Defaults to

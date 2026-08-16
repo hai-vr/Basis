@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using Basis.BasisUI;
 using Basis.BasisUI.HandHeldCamera;
 using NUnit.Framework;
 using UnityEngine;
@@ -357,10 +358,28 @@ namespace Basis.Tests.Camera
         [Test]
         public void TheDetachedMarkerDropdownHasOneLabelPerMode()
         {
-            Assert.That(BasisHandHeldCameraPanelProvider.DetachedMarkerLabelsForTest.Length,
+            Assert.That(BasisHandHeldCameraPanelProvider.DetachedMarkerKeysForTest.Length,
                 Is.EqualTo(Enum.GetValues(typeof(BasisCameraDetachedMarker)).Length),
                 "The dropdown casts its index straight to the enum, so a missing label makes a mode unreachable " +
                 "and a spare one selects a mode that does not exist.");
+        }
+
+        [Test]
+        public void EveryDropdownOptionKeyHasATranslationAndATooltip()
+        {
+            // The options are keys rather than text, so a key with nothing behind it shows as the
+            // key itself in the list. The tooltip is what tells you which option to pick at all.
+            foreach (string key in BasisHandHeldCameraPanelProvider.OptionKeysForTest)
+            {
+                Assert.That(BasisLocalization.TryGet(key, out string label), Is.True,
+                    $"{key} has no translation, so the dropdown would show the key.");
+                Assert.That(label, Is.Not.Empty);
+
+                Assert.That(BasisLocalization.TryGet(key + ".tooltip", out string tooltip) ||
+                            BasisLocalization.TryGet(key + ".description", out tooltip), Is.True,
+                    $"{key} has no tooltip or description, so hovering it explains nothing.");
+                Assert.That(tooltip, Is.Not.Empty);
+            }
         }
 
         [Test]

@@ -226,7 +226,11 @@ namespace Basis.BasisUI
             PanelDropdown opusFrameDurationDropdown = PanelDropdown.CreateNewEntry(container);
             opusFrameDurationDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.opusFrameDuration"));
             opusFrameDurationDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusFrameDuration.tooltip"));
-            opusFrameDurationDropdown.AssignEntries(new List<string>(OpusFrameDurationNames));
+            opusFrameDurationDropdown.AssignEntries(new List<string>(OpusFrameDurationNames), null, new List<string>
+            {
+                BasisLocalization.Get("settings.admin.opusFrameDuration.20.tooltip"),
+                BasisLocalization.Get("settings.admin.opusFrameDuration.40.tooltip")
+            });
             opusFrameDurationDropdown.SetValueWithoutNotify(FrameDurationToName(BasisNetworkModeration.GlobalOpusFrameDurationMs));
 
             PanelSlider maxMicrophoneRangeSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
@@ -792,7 +796,12 @@ namespace Basis.BasisUI
             PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(container);
             modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.type"));
             modeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.type.tooltip"));
-            modeDropdown.AssignEntries(new List<string>(DefaultLibraryModeNames));
+            modeDropdown.AssignEntries(new List<string>(DefaultLibraryModeNames), null, new List<string>
+            {
+                BasisLocalization.Get("settings.admin.title.type.avatar.tooltip"),
+                BasisLocalization.Get("settings.admin.title.type.world.tooltip"),
+                BasisLocalization.Get("settings.admin.title.type.prop.tooltip")
+            });
             modeDropdown.SetValueWithoutNotify(DefaultLibraryModeNames[0]);
 
             PanelButton addButton = PanelButton.CreateNew(container);

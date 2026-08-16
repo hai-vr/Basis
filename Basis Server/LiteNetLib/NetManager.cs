@@ -358,6 +358,18 @@ namespace LiteNetLib
         public float MergeHoldMs = 0f;
 
         /// <summary>
+        /// Frame merged unreliable traffic with the compact per-entry format, which costs 2 bytes
+        /// per message up to a 255-byte payload and 3 above it, against 4 for the legacy nested
+        /// form. Voice and avatar traffic keep sharing one MTU-sized datagram either way — this
+        /// changes the framing inside the existing merger, not the merger.
+        ///
+        /// Send-side only, and safe to set independently on each end: both framings are always
+        /// decoded. Every peer is assumed to understand the format, which
+        /// <see cref="NetConstants.ProtocolId"/> is what guarantees.
+        /// </summary>
+        public bool CompactMergeEnabled = true;
+
+        /// <summary>
         /// Worker cap for the per-peer update pass in <see cref="UpdateLogic"/>. 0 = scale with the
         /// peer count, which is what you want.
         ///

@@ -83,7 +83,12 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("menu.individualPlayer.directConnection.policy.accept"),
                     BasisLocalization.Get("menu.individualPlayer.directConnection.policy.decline"),
                 };
-                policy.AssignEntries(options);
+                policy.AssignEntries(options, null, new List<string>
+                {
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.policy.ask.tooltip"),
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.policy.accept.tooltip"),
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.policy.decline.tooltip"),
+                });
                 policy.SetValueWithoutNotify(options[(int)BasisTrustedConnections.GetPolicy(uuid)]);
                 policy.OnValueChanged = selected =>
                 {

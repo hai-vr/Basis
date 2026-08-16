@@ -11,7 +11,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -40,12 +39,24 @@ public class BasisDocInspector_UI : Editor
     private bool _useApiPanel;
 
     // ---------- Theme ----------
-    private static readonly Color ColBorder = new(0, 0, 0, 0.12f);
-    private static readonly Color ColMuted = new(1f, 1f, 1f, 0.75f);
-    private static readonly Color ColCard = new(0.1f, 0.1f, 0.1f, 0.06f);
-    private static readonly Color ColChipBg = new(0.2f, 0.2f, 0.2f, 0.25f);
-    private static readonly Color ColChipOn = new(0.18f, 0.5f, 0.9f, 0.25f);
-    private static readonly Color ColCrumb = new(0.3f, 0.6f, 0.95f, 0.6f);
+    // Colours come from BasisEditorUI so the reference matches the rest of the Basis editor UI
+    // on both skins — one source of truth for the pink.
+    private static bool Light => BasisEditorUI.Light;
+    private static Color ColAccent => BasisEditorUI.Accent;
+    private static Color ColStrong => BasisEditorUI.Value;
+    private static Color ColMuted => BasisEditorUI.Muted;
+    private static Color ColBorder => Light ? new Color(0f, 0f, 0f, 0.16f) : new Color(1f, 1f, 1f, 0.14f);
+    private static Color ColHeaderBg => Light ? new Color(1f, 1f, 1f, 0.60f) : new Color(0f, 0f, 0f, 0.54f);
+    private static Color ColCard => Light ? new Color(1f, 1f, 1f, 0.40f) : new Color(0f, 0f, 0f, 0.30f);
+    private static Color ColInset => Light ? new Color(0f, 0f, 0f, 0.07f) : new Color(0f, 0f, 0f, 0.28f);
+    private static Color ColChipBg => Light ? new Color(0f, 0f, 0f, 0.10f) : new Color(1f, 1f, 1f, 0.10f);
+    private static Color ColChipOn => new(ColAccent.r, ColAccent.g, ColAccent.b, Light ? 0.20f : 0.28f);
+
+    private static Color PillNeutral => new(0.31f, 0.31f, 0.31f);
+    private static Color PillGood => new(45f / 255f, 140f / 255f, 60f / 255f);
+    private static Color PillBad => new(160f / 255f, 50f / 255f, 50f / 255f);
+    private static Color ButtonNeutral => Light ? new Color(0.82f, 0.82f, 0.82f) : new Color(0.31f, 0.31f, 0.31f);
+    private static Color ButtonNeutralText => Light ? new Color(0.13f, 0.13f, 0.13f) : Color.white;
 
     // ---------- Navigation frame ----------
     // One frame per level of drill-down. Live() evaluates the chain at runtime
@@ -145,6 +156,7 @@ public class BasisDocInspector_UI : Editor
             text = "Basis API Reference",
             value = false
         };
+        StyleCardFoldout(apiFoldout);
 
         _nav.Clear();
         _nav.Add(BuildRootFrame(hostType));
@@ -224,14 +236,14 @@ public class BasisDocInspector_UI : Editor
             {
                 flexDirection = FlexDirection.Row,
                 flexWrap = Wrap.Wrap,
+                alignItems = Align.Center,
                 paddingLeft = 6, paddingRight = 6,
                 paddingTop = 4, paddingBottom = 4,
-                backgroundColor = ColCard,
-                borderTopLeftRadius = 6, borderTopRightRadius = 6,
-                borderBottomLeftRadius = 6, borderBottomRightRadius = 6,
-                marginBottom = 4
+                backgroundColor = ColInset,
+                marginBottom = 6
             }
         };
+        Round(_breadcrumbs, 5);
         container.Add(_breadcrumbs);
 
         var outer = new TwoPaneSplitView(0, 90, TwoPaneSplitViewOrientation.Horizontal)
@@ -242,18 +254,28 @@ public class BasisDocInspector_UI : Editor
         // LEFT: filters
         var left = new VisualElement { style = { flexDirection = FlexDirection.Column } };
         left.style.overflow = Overflow.Hidden;
+        left.style.backgroundColor = ColCard;
+        Round(left, 5);
 
         var filtersHeader = new Toolbar();
         filtersHeader.style.position = Position.Relative;
+        StyleToolbar(filtersHeader);
         filtersHeader.Add(new Label("Filter")
         {
-            style = { unityFontStyleAndWeight = FontStyle.Bold, marginLeft = 6, marginRight = 6 }
+            style =
+            {
+                unityFontStyleAndWeight = FontStyle.Bold,
+                fontSize = 12,
+                color = ColAccent,
+                marginLeft = 6, marginRight = 6
+            }
         });
         left.Add(filtersHeader);
 
         var chips = new Toolbar();
         chips.style.flexDirection = FlexDirection.Column;
         chips.style.position = Position.Relative;
+        StyleToolbar(chips);
         _fltFields = Chip("Fields", true);
         _fltProps = Chip("Properties", true);
         _fltMethods = Chip("Methods", true);
@@ -280,6 +302,7 @@ public class BasisDocInspector_UI : Editor
 
         var searchBar = new Toolbar();
         searchBar.style.position = Position.Relative;
+        StyleToolbar(searchBar);
         _search = new ToolbarSearchField { style = { flexGrow = 1 } };
         _search.RegisterValueChangedCallback(_ => ApplyFilter());
         searchBar.Add(_search);
@@ -293,19 +316,21 @@ public class BasisDocInspector_UI : Editor
             {
                 flexGrow = 1,
                 overflow = Overflow.Hidden,
+                backgroundColor = ColCard,
                 borderTopWidth = 1, borderBottomWidth = 1, borderLeftWidth = 1, borderRightWidth = 1,
                 borderTopColor = ColBorder, borderBottomColor = ColBorder, borderLeftColor = ColBorder, borderRightColor = ColBorder
             }
         };
+        Round(_list, 5);
         _list.makeItem = () =>
         {
             var row = new VisualElement
             {
                 style = { paddingLeft = 8, paddingRight = 8, paddingTop = 6, paddingBottom = 6, flexDirection = FlexDirection.Row }
             };
-            var icon = new Label { name = "drillIcon", style = { width = 12, color = ColCrumb, marginRight = 4, unityFontStyleAndWeight = FontStyle.Bold } };
+            var icon = new Label { name = "drillIcon", style = { width = 12, color = ColAccent, marginRight = 4, unityFontStyleAndWeight = FontStyle.Bold } };
             var col = new VisualElement { style = { flexGrow = 1, flexDirection = FlexDirection.Column } };
-            var title = new Label { name = "title", style = { unityFontStyleAndWeight = FontStyle.Bold } };
+            var title = new Label { name = "title", style = { unityFontStyleAndWeight = FontStyle.Bold, color = ColStrong } };
             var sub = new Label { name = "sub", style = { color = ColMuted, fontSize = 11, whiteSpace = WhiteSpace.Normal } };
             col.Add(title);
             col.Add(sub);
@@ -423,20 +448,22 @@ public class BasisDocInspector_UI : Editor
         {
             var frame = _nav[i];
             var idx = i;
+            bool active = i == _nav.Count - 1;
             var crumb = new Button(() => NavigateTo(idx))
             {
                 text = frame.CrumbLabel,
                 style =
                 {
-                    backgroundColor = i == _nav.Count - 1 ? ColChipOn : ColChipBg,
-                    paddingLeft = 6, paddingRight = 6, paddingTop = 1, paddingBottom = 1,
-                    marginLeft = 0, marginRight = 0,
+                    backgroundColor = active ? ColAccent : ColChipBg,
+                    color = active ? Color.white : ColMuted,
+                    unityFontStyleAndWeight = active ? FontStyle.Bold : FontStyle.Normal,
+                    paddingLeft = 8, paddingRight = 8, paddingTop = 2, paddingBottom = 2,
+                    marginLeft = 0, marginRight = 0, marginTop = 1, marginBottom = 1,
                     borderTopWidth = 0, borderBottomWidth = 0, borderLeftWidth = 0, borderRightWidth = 0,
-                    borderTopLeftRadius = 4, borderTopRightRadius = 4,
-                    borderBottomLeftRadius = 4, borderBottomRightRadius = 4,
                     fontSize = 11
                 }
             };
+            Pill(crumb);
             crumb.tooltip = frame.AccessExpr;
             _breadcrumbs.Add(crumb);
 
@@ -670,7 +697,7 @@ public class BasisDocInspector_UI : Editor
         var titleRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, flexWrap = Wrap.Wrap } };
         titleRow.Add(Title(d.Name));
         titleRow.Add(Spacer(6));
-        titleRow.Add(ChipTag(d.Kind.TrimEnd('s')));
+        titleRow.Add(ChipTag(d.Kind.TrimEnd('s'), ColAccent));
 
         // Modifier chips
         if (d.Info != null)
@@ -690,13 +717,13 @@ public class BasisDocInspector_UI : Editor
         }
 
         if (d.IsInherited(Current.Type) && d.Info?.DeclaringType != null)
-            titleRow.Add(ChipTag($"from {d.Info.DeclaringType.Name}", new Color(0.5f, 0.5f, 0.5f, 0.35f)));
+            titleRow.Add(ChipTag($"from {d.Info.DeclaringType.Name}", PillNeutral));
 
         if (!string.IsNullOrEmpty(d.ObsoleteMsg))
-            titleRow.Add(ChipTag("Obsolete", new Color(0.9f, 0.4f, 0.3f, 0.4f)));
+            titleRow.Add(ChipTag("Obsolete", PillBad));
 
         if (!string.IsNullOrEmpty(d.Since))
-            titleRow.Add(ChipTag($"Since {d.Since}", new Color(0.3f, 0.8f, 0.5f, 0.35f)));
+            titleRow.Add(ChipTag($"Since {d.Since}", PillGood));
 
         if (d.Platforms is { Length: > 0 })
             foreach (var p in d.Platforms) titleRow.Add(ChipTag(p));
@@ -706,8 +733,8 @@ public class BasisDocInspector_UI : Editor
         if (!string.IsNullOrEmpty(d.ConstValue))
             _detail.Add(Subtle($"Const value: {d.ConstValue}"));
 
-        if (!string.IsNullOrEmpty(d.Signature))
-            _detail.Add(Subtle($"Signature: {d.Signature}"));
+        if (d.Info is MethodInfo signatureOf)
+            _detail.Add(Subtle($"Signature: {BasisDocSnippet.Signature(signatureOf, includeDefaults: true)}"));
         else if (!string.IsNullOrEmpty(d.TypeName))
             _detail.Add(Subtle($"Type: {d.TypeName}"));
 
@@ -753,9 +780,13 @@ public class BasisDocInspector_UI : Editor
             }
         }
 
-        var snippet = GenerateSnippet(d);
-        if (!string.IsNullOrEmpty(snippet))
-            _detail.Add(ColorizedCodeBlock("How to call", snippet, showCopyButton: true));
+        var context = SnippetContext();
+
+        var snippet = BasisDocSnippet.Build(d.Info, context);
+        if (!snippet.IsEmpty)
+            _detail.Add(ColorizedCodeBlock("How to call", snippet.Code, showCopyButton: true));
+
+        AppendCilboxSection(d, context);
 
         // Inspect button — drill into this member's type (or collection element type)
         if (d.IsDrillable && d.DrillType != null)
@@ -763,9 +794,7 @@ public class BasisDocInspector_UI : Editor
             var label = string.IsNullOrEmpty(d.DrillSuffix)
                 ? $"▶  Inspect {NiceType(d.DrillType)}"
                 : $"▶  Inspect element ({NiceType(d.DrillType)}) via {d.Name}{d.DrillSuffix}";
-            var btn = new Button(() => NavigatePush(d)) { text = label };
-            btn.style.marginTop = 4;
-            _detail.Add(btn);
+            _detail.Add(PrimaryButton(label, () => NavigatePush(d)));
         }
 
         // Live values: evaluate from the navigation chain
@@ -785,18 +814,71 @@ public class BasisDocInspector_UI : Editor
         {
             var inst = m.IsStatic ? null : ResolveInstance(m);
             var canInvoke = m.IsStatic || inst != null;
-            var btn = new Button(() =>
+            var text = canInvoke
+                ? (Application.isPlaying ? "Invoke" : "Invoke (enter Play Mode)")
+                : "Invoke (instance unavailable)";
+            var btn = PrimaryButton(text, () =>
             {
                 try { m.Invoke(inst, null); }
                 catch (Exception ex) { Debug.LogException(ex); }
-            })
-            {
-                text = canInvoke
-                    ? (Application.isPlaying ? "Invoke" : "Invoke (enter Play Mode)")
-                    : "Invoke (instance unavailable)"
-            };
+            });
             btn.SetEnabled(canInvoke && Application.isPlaying);
             _detail.Add(btn);
+        }
+    }
+
+    // ---------- Cilbox ----------
+    // Whether the member is reachable from a sandboxed script, and what the call looks like there.
+    // The answers come from com.basis.shim when it is installed; with no provider registered the
+    // whole section is skipped rather than guessed at.
+    private void AppendCilboxSection(MemberRow d, BasisDocSnippetContext context)
+    {
+        if (!BasisDocCilbox.Available) return;
+
+        var advice = BasisDocCilbox.Describe(d.Info);
+        if (advice == null || advice.Boxes.Count == 0) return;
+
+        var inner = new VisualElement();
+        inner.Add(BlockHeader("Cilbox"));
+
+        var chips = new VisualElement
+        {
+            style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginBottom = 2 }
+        };
+        foreach (var box in advice.Boxes)
+        {
+            var chip = ChipTag($"{box.BoxName}  {(box.Allowed ? "✓" : "✕")}", box.Allowed ? PillGood : PillBad);
+            chip.tooltip = box.Reason;
+            chips.Add(chip);
+        }
+        inner.Add(chips);
+
+        foreach (var box in advice.Boxes)
+        {
+            if (!string.IsNullOrEmpty(box.Reason)) inner.Add(Subtle($"{box.BoxName} — {box.Reason}"));
+        }
+
+        if (!string.IsNullOrEmpty(advice.SwapNote)) inner.Add(Body(advice.SwapNote));
+        foreach (var note in advice.Notes) inner.Add(Body("• " + note));
+
+        if (advice.Reveal != null)
+            inner.Add(SecondaryButton("Open in Cilbox Permissions", () => advice.Reveal()));
+
+        Card(inner);
+
+        if (advice.AnyAllowed)
+        {
+            var cilbox = BasisDocSnippet.BuildCilbox(d.Info, context);
+            if (!cilbox.IsEmpty)
+                _detail.Add(ColorizedCodeBlock("How to call it from a Cilbox script", cilbox.Code, showCopyButton: true));
+        }
+
+        if (!string.IsNullOrEmpty(advice.RelatedExample))
+        {
+            var title = string.IsNullOrEmpty(advice.RelatedTitle)
+                ? "Cilbox reference"
+                : $"Cilbox reference — {advice.RelatedTitle}";
+            _detail.Add(ColorizedCodeBlock(title, advice.RelatedExample, showCopyButton: true));
         }
     }
 
@@ -817,7 +899,7 @@ public class BasisDocInspector_UI : Editor
         var inner = new VisualElement();
         var line1 = new Label($"Now viewing: {NiceType(t)}")
         {
-            style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 12 }
+            style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 13, color = ColAccent }
         };
         inner.Add(line1);
 
@@ -850,7 +932,7 @@ public class BasisDocInspector_UI : Editor
         {
             inner.Add(new Label(typeDoc.Summary)
             {
-                style = { whiteSpace = WhiteSpace.Normal, marginTop = 3 }
+                style = { whiteSpace = WhiteSpace.Normal, marginTop = 3, color = ColStrong }
             });
         }
 
@@ -863,7 +945,7 @@ public class BasisDocInspector_UI : Editor
         if (bits.Count > 0)
             inner.Add(Subtle(string.Join("  •  ", bits)));
 
-        Card(inner);
+        Card(inner, true);
     }
 
     // ---------- Filtering helpers: keep our code, drop Unity/engine stuff ----------
@@ -1013,17 +1095,7 @@ public class BasisDocInspector_UI : Editor
         return null;
     }
 
-    private static string FormatLiteral(object v)
-    {
-        return v switch
-        {
-            null => "null",
-            string s => $"\"{s}\"",
-            char c => $"'{c}'",
-            bool b => b ? "true" : "false",
-            _ => v.ToString()
-        };
-    }
+    private static string FormatLiteral(object v) => BasisDocSnippet.Literal(v);
 
     private static bool IsTrivialBaseType(Type t) =>
         t == typeof(object) || t == typeof(ValueType) || t == typeof(Enum) ||
@@ -1040,16 +1112,99 @@ public class BasisDocInspector_UI : Editor
     }
 
     // ---------- Small UI helpers ----------
+    private static void Round(VisualElement e, float r)
+    {
+        e.style.borderTopLeftRadius = r;
+        e.style.borderTopRightRadius = r;
+        e.style.borderBottomLeftRadius = r;
+        e.style.borderBottomRightRadius = r;
+    }
+
+    // A corner radius past half the height is clamped per-corner to width/2 x height/2, which turns a
+    // wide chip into an ellipse instead of a stadium. Round to half the measured height, as BasisEditorUI.Pill does.
+    private static void Pill(VisualElement e)
+    {
+        e.RegisterCallback<GeometryChangedEvent>(evt =>
+        {
+            float r = evt.newRect.height * 0.5f;
+            if (r > 0f) Round((VisualElement)evt.target, r);
+        });
+    }
+
+    private static void StyleCardFoldout(Foldout foldout)
+    {
+        foldout.style.marginBottom = 8;
+        foldout.style.paddingTop = 6;
+        foldout.style.paddingBottom = 8;
+        foldout.style.paddingLeft = 8;
+        foldout.style.paddingRight = 8;
+        foldout.style.backgroundColor = ColHeaderBg;
+        foldout.style.borderBottomWidth = 3;
+        foldout.style.borderBottomColor = ColAccent;
+        Round(foldout, 5);
+
+        Label title = foldout.Q<Label>();
+        if (title != null)
+        {
+            title.style.fontSize = 13;
+            title.style.unityFontStyleAndWeight = FontStyle.Bold;
+            title.style.color = ColAccent;
+        }
+
+        VisualElement content = foldout.contentContainer;
+        if (content != null)
+        {
+            content.style.marginLeft = 0;
+            content.style.marginTop = 6;
+        }
+    }
+
+    // Unity's toolbar paints its own grey strip and bottom rule, which fights the card it sits on.
+    private static void StyleToolbar(Toolbar toolbar)
+    {
+        toolbar.style.backgroundColor = Color.clear;
+        toolbar.style.borderBottomWidth = 1;
+        toolbar.style.borderBottomColor = ColBorder;
+    }
+
+    private static Button FlatButton(string text, Action onClick, Color bg, Color fg, float fontSize)
+    {
+        var btn = new Button(onClick) { text = text };
+        btn.style.backgroundColor = bg;
+        btn.style.color = fg;
+        btn.style.unityFontStyleAndWeight = FontStyle.Bold;
+        btn.style.fontSize = fontSize;
+        btn.style.paddingTop = 5;
+        btn.style.paddingBottom = 5;
+        btn.style.paddingLeft = 12;
+        btn.style.paddingRight = 12;
+        btn.style.marginTop = 4;
+        btn.style.marginLeft = 0;
+        btn.style.marginRight = 0;
+        btn.style.borderTopWidth = 0;
+        btn.style.borderBottomWidth = 0;
+        btn.style.borderLeftWidth = 0;
+        btn.style.borderRightWidth = 0;
+        Round(btn, 6);
+        return btn;
+    }
+
+    private static Button PrimaryButton(string text, Action onClick)
+        => FlatButton(text, onClick, ColAccent, Color.white, 12);
+
+    private static Button SecondaryButton(string text, Action onClick)
+        => FlatButton(text, onClick, ButtonNeutral, ButtonNeutralText, 11);
+
     private static VisualElement Divider() => new VisualElement
     {
-        style = { height = 1, backgroundColor = new Color(0,0,0,0.2f) }
+        style = { height = 1, backgroundColor = ColBorder }
     };
 
     private static VisualElement Spacer(float px) => new VisualElement { style = { height = px } };
 
     private static Label Title(string text) => new Label(text)
     {
-        style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 13, marginTop = 6, marginBottom = 2 }
+        style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 13, color = ColStrong, marginTop = 6, marginBottom = 2 }
     };
 
     private static Label Subtle(string text) => new Label(text)
@@ -1059,15 +1214,19 @@ public class BasisDocInspector_UI : Editor
 
     private static Label BlockHeader(string text) => new Label(text)
     {
-        style = { unityFontStyleAndWeight = FontStyle.Bold, marginBottom = 2 }
+        style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 12, color = ColAccent, marginBottom = 2 }
+    };
+
+    private static Label Body(string text) => new Label(text)
+    {
+        style = { whiteSpace = WhiteSpace.Normal, color = ColStrong }
     };
 
     private VisualElement CardBlock(string title, string body)
     {
         var inner = new VisualElement();
         inner.Add(BlockHeader(title));
-        var lbl = new Label(body) { style = { whiteSpace = WhiteSpace.Normal } };
-        inner.Add(lbl);
+        inner.Add(Body(body));
         Card(inner);
         return inner;
     }
@@ -1077,7 +1236,7 @@ public class BasisDocInspector_UI : Editor
         var inner = new VisualElement();
         inner.Add(BlockHeader(title));
         foreach (var it in items)
-            inner.Add(new Label("• " + it) { style = { whiteSpace = WhiteSpace.Normal } });
+            inner.Add(Body("• " + it));
         Card(inner);
         return inner;
     }
@@ -1089,7 +1248,7 @@ public class BasisDocInspector_UI : Editor
         for (int i = 0; i < names.Length; i++)
         {
             var doc = (i < docs.Length) ? docs[i] : "";
-            inner.Add(new Label($"• {names[i]} — {doc}") { style = { whiteSpace = WhiteSpace.Normal } });
+            inner.Add(Body($"• {names[i]} — {doc}"));
         }
         Card(inner);
         return inner;
@@ -1102,7 +1261,7 @@ public class BasisDocInspector_UI : Editor
         foreach (var (cref, doc) in items)
         {
             var line = string.IsNullOrEmpty(cref) ? $"• {doc}" : $"• {cref} — {doc}";
-            inner.Add(new Label(line) { style = { whiteSpace = WhiteSpace.Normal } });
+            inner.Add(Body(line));
         }
         Card(inner);
         return inner;
@@ -1117,23 +1276,77 @@ public class BasisDocInspector_UI : Editor
         tf.style.whiteSpace = WhiteSpace.Normal;
         tf.style.unityTextAlign = TextAnchor.UpperLeft;
         tf.style.marginTop = 4;
-        tf.style.height = Mathf.Clamp(40 + code.Length / 2, 60, 260);
+        tf.style.marginLeft = 0;
+        tf.style.marginRight = 0;
+        // Size from the line count, not the character count: a whole cilboxed script is long but
+        // narrow, and the old length-based guess clipped it to a scrollbar.
+        tf.style.height = Mathf.Clamp(18 + CountLines(code) * 15, 44, 520);
+        tf.style.backgroundColor = ColInset;
+        tf.style.borderTopWidth = 0;
+        tf.style.borderBottomWidth = 0;
+        tf.style.borderLeftWidth = 0;
+        tf.style.borderRightWidth = 0;
+        Round(tf, 4);
+
+        VisualElement input = tf.Q(TextField.textInputUssName);
+        if (input != null)
+        {
+            input.style.backgroundColor = Color.clear;
+            input.style.color = ColStrong;
+            input.style.borderTopWidth = 0;
+            input.style.borderBottomWidth = 0;
+            input.style.borderLeftWidth = 0;
+            input.style.borderRightWidth = 0;
+            input.style.paddingTop = 5;
+            input.style.paddingBottom = 5;
+            input.style.paddingLeft = 6;
+            input.style.paddingRight = 6;
+        }
+
         wrap.Add(tf);
         if (showCopyButton)
-            wrap.Add(new Button(() => EditorGUIUtility.systemCopyBuffer = code) { text = "Copy code" });
+            wrap.Add(SecondaryButton("Copy code", () => EditorGUIUtility.systemCopyBuffer = code));
         Card(wrap);
         return wrap;
+    }
+
+    private static int CountLines(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return 1;
+
+        int lines = 1;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n') lines++;
+        }
+        return lines;
     }
 
     private ToolbarToggle Chip(string text, bool value)
     {
         var t = new ToolbarToggle { text = text, value = value };
         t.style.height = 20;
-        t.RegisterValueChangedCallback(_ => ApplyFilter());
+        t.style.marginTop = 1;
+        t.style.marginBottom = 1;
+        t.style.paddingLeft = 4;
+        t.style.paddingRight = 4;
         t.style.unityTextAlign = TextAnchor.MiddleLeft;
-        t.style.backgroundColor = value ? ColChipOn : ColChipBg;
-        t.RegisterCallback<ChangeEvent<bool>>(e => { t.style.backgroundColor = e.newValue ? ColChipOn : ColChipBg; });
+        Round(t, 4);
+        PaintChip(t, value);
+        t.RegisterValueChangedCallback(e => { PaintChip(t, e.newValue); ApplyFilter(); });
         return t;
+    }
+
+    private static void PaintChip(ToolbarToggle t, bool on)
+    {
+        t.style.backgroundColor = on ? ColChipOn : ColChipBg;
+        Color fg = on ? ColAccent : ColMuted;
+        FontStyle weight = on ? FontStyle.Bold : FontStyle.Normal;
+        foreach (Label label in t.Query<Label>().ToList())
+        {
+            label.style.color = fg;
+            label.style.unityFontStyleAndWeight = weight;
+        }
     }
 
     private VisualElement ChipTag(string text, Color? c = null)
@@ -1142,19 +1355,22 @@ public class BasisDocInspector_UI : Editor
         {
             style =
             {
-                backgroundColor = c ?? ColChipBg,
+                backgroundColor = c ?? PillNeutral,
+                color = Color.white,
+                unityFontStyleAndWeight = FontStyle.Bold,
                 unityTextAlign = TextAnchor.MiddleCenter,
-                paddingLeft = 6, paddingRight = 6, paddingTop = 2, paddingBottom = 2,
-                marginLeft = 4, marginRight = 0,
-                borderTopLeftRadius = 999, borderTopRightRadius = 999,
-                borderBottomLeftRadius = 999, borderBottomRightRadius = 999,
+                paddingLeft = 8, paddingRight = 8, paddingTop = 2, paddingBottom = 2,
+                marginLeft = 4, marginRight = 0, marginTop = 2, marginBottom = 2,
                 fontSize = 10
             }
         };
+        Pill(tag);
         return tag;
     }
 
-    private void Card(VisualElement content)
+    private void Card(VisualElement content) => Card(content, false);
+
+    private void Card(VisualElement content, bool header)
     {
         var card = new VisualElement
         {
@@ -1162,44 +1378,26 @@ public class BasisDocInspector_UI : Editor
             {
                 marginTop = 6, marginBottom = 8,
                 paddingLeft = 8, paddingRight = 8, paddingTop = 6, paddingBottom = 6,
-                backgroundColor = ColCard,
-                borderTopLeftRadius = 8, borderTopRightRadius = 8,
-                borderBottomLeftRadius = 8, borderBottomRightRadius = 8
+                backgroundColor = header ? ColHeaderBg : ColCard
             }
         };
+        if (header)
+        {
+            card.style.borderBottomWidth = 3;
+            card.style.borderBottomColor = ColAccent;
+        }
+        Round(card, 5);
         card.Add(content);
         _detail.Add(card);
     }
 
     private static string NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
-    private static string NiceType(Type t)
-    {
-        if (t == null) return "void";
-        if (t == typeof(void)) return "void";
-        if (t == typeof(int)) return "int";
-        if (t == typeof(float)) return "float";
-        if (t == typeof(double)) return "double";
-        if (t == typeof(bool)) return "bool";
-        if (t == typeof(string)) return "string";
-        if (t.IsArray) return NiceType(t.GetElementType()) + "[]";
-        if (!t.IsGenericType) return t.Name;
-        var root = t.Name.Split('`')[0];
-        var args = string.Join(", ", t.GetGenericArguments().Select(NiceType));
-        return $"{root}<{args}>";
-    }
+    // Type names, signatures and literals all come from the snippet builder so the list, the
+    // signature line and the pasteable code cannot disagree about how something is spelled.
+    private static string NiceType(Type t) => BasisDocSnippet.NiceType(t);
 
-    private string BuildSignature(MethodInfo m)
-    {
-        var ps = m.GetParameters();
-        var parms = string.Join(", ", ps.Select(p =>
-        {
-            var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " : p.GetCustomAttributes(typeof(ParamArrayAttribute), false).Length > 0 ? "params " : "";
-            var t = p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType;
-            return $"{mod}{NiceType(t)} {p.Name}";
-        }));
-        return $"{NiceType(m.ReturnType)} {m.Name}({parms})";
-    }
+    private string BuildSignature(MethodInfo m) => BasisDocSnippet.Signature(m);
 
     // ---------- Member shape helpers ----------
     private static Type MemberValueType(MemberInfo mi) => mi switch
@@ -1448,8 +1646,9 @@ public class BasisDocInspector_UI : Editor
                     if (outType != target) continue;
 
                     var args = string.Join(", ", ps.Take(ps.Length - 1).Select(p =>
-                        $"/* {p.Name}: {NiceType(p.ParameterType)} */"));
-                    var expr = $"{type.FullName}.{m.Name}({args}, out var {SafeVarName(target.Name)}) ? {SafeVarName(target.Name)} : null";
+                        BasisDocSnippet.PlaceholderFor(p.ParameterType)));
+                    if (args.Length > 0) args += ", ";
+                    var expr = $"{type.FullName}.{m.Name}({args}out var {SafeVarName(target.Name)}) ? {SafeVarName(target.Name)} : null";
                     pat = new AccessorPattern { Expr = expr, MayBeNull = true, Hint = "Provider.TryGet" };
                     return true;
                 }
@@ -1476,7 +1675,7 @@ public class BasisDocInspector_UI : Editor
                     if (m.ReturnType != target) continue;
                     if (m.IsSpecialName) continue;
                     var args = string.Join(", ", m.GetParameters().Select(p =>
-                        $"/* {p.Name}: {NiceType(p.ParameterType)} */"));
+                        BasisDocSnippet.PlaceholderFor(p.ParameterType)));
                     var expr = $"{type.FullName}.{m.Name}({args})";
                     pat = new AccessorPattern { Expr = expr, MayBeNull = true, Hint = "Provider.Get" };
                     return true;
@@ -1516,7 +1715,7 @@ public class BasisDocInspector_UI : Editor
                 {
                     if (!IsSeqOf(m.ReturnType, target)) continue;
                     var args = string.Join(", ", m.GetParameters().Select(p =>
-                        $"/* {p.Name}: {NiceType(p.ParameterType)} */"));
+                        BasisDocSnippet.PlaceholderFor(p.ParameterType)));
                     var expr = $"{type.FullName}.{m.Name}({args}).FirstOrDefault()";
                     pat = new AccessorPattern { Expr = expr, MayBeNull = true, Hint = "Provider.Enumerable" };
                     return true;
@@ -1568,127 +1767,16 @@ public class BasisDocInspector_UI : Editor
         return DiscoverAccessor(host, host);
     }
 
-    private static string SafeVarName(string typeName)
+    private static string SafeVarName(string typeName) => BasisDocSnippet.SafeVarName(typeName);
+
+    /// <summary>The chain the current frame was reached through, in the form the snippet builder wants.</summary>
+    private BasisDocSnippetContext SnippetContext() => new()
     {
-        if (string.IsNullOrEmpty(typeName)) return "obj";
-        var v = char.ToLowerInvariant(typeName[0]) + typeName.Substring(1);
-        if (v is "var" or "int" or "string" or "float" or "bool") v = "_" + v;
-        return v;
-    }
-
-    private string GenerateSnippet(MemberRow d)
-    {
-        var sb = new StringBuilder();
-        var declType = d.Info?.DeclaringType ?? Current.Type;
-        var declName = declType.Name;
-
-        bool isStatic = MemberIsStatic(d.Info);
-
-        if (isStatic)
-        {
-            switch (d.Kind)
-            {
-                case "Fields":
-                    sb.AppendLine("// read");
-                    sb.AppendLine($"var value = {declName}.{d.Name};");
-                    if (d.Info is FieldInfo fStat && !fStat.IsLiteral && !fStat.IsInitOnly)
-                    {
-                        sb.AppendLine();
-                        sb.AppendLine("// write");
-                        sb.AppendLine($"{declName}.{d.Name} = /* new {d.TypeName} */;");
-                    }
-                    return sb.ToString();
-
-                case "Properties":
-                    sb.AppendLine("// read");
-                    sb.AppendLine($"var value = {declName}.{d.Name};");
-                    if ((d.Info as PropertyInfo)?.SetMethod != null)
-                        sb.AppendLine($"{declName}.{d.Name} = /* new {d.TypeName} */;");
-                    return sb.ToString();
-
-                case "Methods":
-                {
-                    var mm = (MethodInfo)d.Info;
-                    var ps = mm.GetParameters();
-                    sb.Append($"{declName}.{mm.Name}(");
-                    sb.Append(string.Join(", ", ps.Select(p =>
-                    {
-                        var t = p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType;
-                        var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " :
-                                  p.GetCustomAttributes(typeof(ParamArrayAttribute), false).Length > 0 ? "params " : "";
-                        return $"/* {mod}{NiceType(t)} {p.Name} */";
-                    })));
-                    sb.AppendLine(");");
-                    return sb.ToString();
-                }
-
-                case "Events":
-                    sb.AppendLine($"{declName}.{d.Name} += MyHandler;");
-                    sb.AppendLine("// ... later");
-                    sb.AppendLine($"{declName}.{d.Name} -= MyHandler;");
-                    sb.AppendLine();
-                    sb.AppendLine("void MyHandler() { /* ... */ }");
-                    return sb.ToString();
-            }
-        }
-
-        // Instance members — build off the current frame's chain. For inherited
-        // members, point out the declaring type so users know where the member lives.
-        var chain = Current.AccessExpr;
-        var hint = Current.AccessorHint;
-        sb.AppendLine($"// Source: {hint}  →  {chain}");
-
-        // If member is declared on a base of the current type, surface that to the reader
-        if (declType != Current.Type && declType.IsAssignableFrom(Current.Type))
-            sb.AppendLine($"// (member declared on base {declName})");
-
-        // Reference-types can be null; skip null-guard for struct chains
-        if (Current.MayBeNull && !Current.Type.IsValueType)
-            sb.AppendLine($"if ({chain} == null) return; // not available yet");
-
-        switch (d.Kind)
-        {
-            case "Fields":
-                sb.AppendLine($"var value = {chain}.{d.Name};");
-                if (d.Info is FieldInfo fInst && !fInst.IsLiteral && !fInst.IsInitOnly)
-                    sb.AppendLine($"{chain}.{d.Name} = /* new {d.TypeName} */;");
-                break;
-
-            case "Properties":
-            {
-                var canSet = (d.Info as PropertyInfo)?.SetMethod != null;
-                sb.AppendLine($"var value = {chain}.{d.Name};");
-                if (canSet) sb.AppendLine($"{chain}.{d.Name} = /* new {d.TypeName} */;");
-                break;
-            }
-
-            case "Methods":
-            {
-                var mm = (MethodInfo)d.Info;
-                var ps = mm.GetParameters();
-                sb.Append($"{chain}.{mm.Name}(");
-                sb.Append(string.Join(", ", ps.Select(p =>
-                {
-                    var t = p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType;
-                    var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " :
-                              p.GetCustomAttributes(typeof(ParamArrayAttribute), false).Length > 0 ? "params " : "";
-                    return $"/* {mod}{NiceType(t)} {p.Name} */";
-                })));
-                sb.AppendLine(");");
-                break;
-            }
-
-            case "Events":
-                sb.AppendLine($"{chain}.{d.Name} += MyHandler;");
-                sb.AppendLine("// ... later");
-                sb.AppendLine($"{chain}.{d.Name} -= MyHandler;");
-                sb.AppendLine();
-                sb.AppendLine("void MyHandler() { /* ... */ }");
-                break;
-        }
-
-        return sb.ToString();
-    }
+        HostType = Current?.Type,
+        AccessExpr = Current?.AccessExpr,
+        AccessorHint = Current?.AccessorHint,
+        MayBeNull = Current?.MayBeNull ?? true,
+    };
 
     // Try to evaluate a getter and pretty-print the value. Returns false on exceptions
     // OR when the chain is null (drilled into a member of a not-yet-initialized parent).

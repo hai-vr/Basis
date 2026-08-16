@@ -41,7 +41,7 @@ namespace Basis.ImagePickup
     /// </summary>
     public static class BasisImageSecurity
     {
-        private enum SourceImageFormat : byte
+        internal enum SourceImageFormat : byte
         {
             Png = 0,
             Jpeg = 1,
@@ -194,6 +194,146 @@ namespace Basis.ImagePickup
             return BuildFromBytes(bytes, SourceImageFormat.Png, true, false);
         }
 
+        /// <summary>
+        /// Validates an image that arrived as data rather than as a file — a clipboard paste — and
+        /// returns a sanitized PNG plus a display texture, under the same caps a dropped file gets.
+        ///
+        /// The format has to be recognized from the bytes themselves: a paste has no name, so the
+        /// extension allowlist that guards <see cref="ValidateFile"/> has nothing to check. Sniffing
+        /// is not a weaker gate here — the extension only ever chose which signature to verify, and
+        /// that verification still runs; what is lost is the ability to reject on the name alone.
+        /// </summary>
+        public static BasisImageValidationResult ValidateSourceBytes(byte[] bytes)
+        {
+            var result = new BasisImageValidationResult();
+
+            if (bytes == null || bytes.Length == 0)
+            {
+                result.Error = "Empty image data";
+                return result;
+            }
+            if (!TryGetSourceFormatFromSignature(bytes, out SourceImageFormat sourceFormat))
+            {
+                result.Error = "Unsupported image data; only PNG, JPEG, and GIF data can be pasted";
+                return result;
+            }
+
+            int sourceByteLimit =
+                sourceFormat == SourceImageFormat.Gif
+                    ? BasisImagePickupSettings.MaxAnimationSourceBytes
+                    : BasisImagePickupSettings.MaxSourceBytes;
+            if (bytes.Length > sourceByteLimit)
+            {
+                result.Error = DescribeByteLimit("Pasted image", bytes.Length, sourceByteLimit);
+                return result;
+            }
+
+            if (!TryReadSourceDimensions(bytes, sourceFormat, out int width, out int height, out string headerError))
+            {
+                result.Error = headerError;
+                return result;
+            }
+
+            if (sourceFormat == SourceImageFormat.Gif)
+            {
+                if (!AnimationDimensionsWithinCaps(width, height, out string gifCapError))
+                {
+                    result.Error = gifCapError;
+                    return result;
+                }
+                return BuildFromGifData(bytes);
+            }
+
+            if (!SourceDimensionsWithinCaps(width, height, out string capError))
+            {
+                result.Error = capError;
+                return result;
+            }
+
+            return BuildFromBytes(bytes, sourceFormat, true, true);
+        }
+
+        /// <summary>
+        /// Validates already-unpacked pixels — what a clipboard bitmap becomes once its header has been
+        /// parsed. There is no encoded source to decode or to check a header against, so this enters
+        /// the shared pipeline one step later than <see cref="ValidateSourceBytes"/>; from the display
+        /// caps onward the two are the same, and both leave with a re-encoded PNG.
+        /// </summary>
+        /// <param name="rgba">Top-down RGBA32, four bytes per pixel — the order images are read in.</param>
+        public static BasisImageValidationResult ValidateRgba32(byte[] rgba, int width, int height)
+        {
+            var result = new BasisImageValidationResult();
+
+            if (rgba == null || rgba.Length == 0)
+            {
+                result.Error = "Empty image data";
+                return result;
+            }
+            if (width <= 0 || height <= 0)
+            {
+                result.Error = "Invalid image dimensions";
+                return result;
+            }
+            if ((long)width * height * 4 != rgba.Length)
+            {
+                result.Error = "Pixel data does not match the reported size";
+                return result;
+            }
+            if (!SourceDimensionsWithinCaps(width, height, out string capError))
+            {
+                result.Error = capError;
+                return result;
+            }
+
+            // A texture's raw data starts at the BOTTOM row, so the rows are reversed on the way in.
+            // Skipping this does not fail anywhere — it silently produces an upside-down image.
+            int stride = width * 4;
+            byte[] bottomUp = new byte[rgba.Length];
+            for (int y = 0; y < height; y++)
+            {
+                Buffer.BlockCopy(rgba, y * stride, bottomUp, (height - 1 - y) * stride, stride);
+            }
+
+            Texture2D decoded = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            try
+            {
+                decoded.LoadRawTextureData(bottomUp);
+                decoded.Apply(false, false);
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Object.Destroy(decoded);
+                result.Error = "Pixel upload failed: " + e.Message;
+                return result;
+            }
+
+            return FinishTexture(decoded, null, true, true);
+        }
+
+        /// <summary>True when the data begins with a GIF signature, so it may carry animation.</summary>
+        public static bool IsGifData(byte[] data)
+        {
+            return TryGetSourceFormatFromSignature(data, out SourceImageFormat format)
+                && format == SourceImageFormat.Gif;
+        }
+
+        private static BasisImageValidationResult BuildFromGifData(byte[] bytes)
+        {
+            try
+            {
+                using BasisGifDecodeJobRequest request = BasisAnimatedImageJobs.ScheduleGifDecode(bytes);
+                BasisGifDecodeJobResult worker = request.Complete();
+                return BasisAnimatedImageJobs.FinalizeGifDecode(worker);
+            }
+            catch (Exception exception)
+            {
+                return new BasisImageValidationResult
+                {
+                    Error = "GIF Burst pipeline failed: " + exception.Message,
+                };
+            }
+        }
+
         private static BasisImageValidationResult BuildFromBytes(
             byte[] bytes,
             SourceImageFormat sourceFormat,
@@ -244,6 +384,23 @@ namespace Basis.ImagePickup
                 result.Error = "Header/pixel size mismatch";
                 return result;
             }
+
+            return FinishTexture(decoded, bytes, reencode, allowDownscale);
+        }
+
+        /// <summary>
+        /// The half of import that is the same whatever the pixels came from: fit the display caps,
+        /// re-encode to a PNG that carries nothing but image data, and hand back a texture ready to
+        /// show. Shared by the file, network, and clipboard paths so all three obey one set of limits.
+        /// </summary>
+        private static BasisImageValidationResult FinishTexture(
+            Texture2D decoded,
+            byte[] bytes,
+            bool reencode,
+            bool allowDownscale
+        )
+        {
+            var result = new BasisImageValidationResult();
 
             Texture2D finalTexture = decoded;
             if (allowDownscale && ExceedsDisplayCaps(decoded.width, decoded.height))
@@ -521,6 +678,43 @@ namespace Basis.ImagePickup
                 format = SourceImageFormat.Gif;
             return true;
         }
+            return false;
+        }
+
+        /// <summary>
+        /// Picks the format from the leading signature bytes. Only the three formats the feature
+        /// already supports are recognized; anything else is refused rather than handed to the decoder
+        /// to find out, so an unknown container never reaches <c>LoadImage</c>.
+        /// </summary>
+        internal static bool TryGetSourceFormatFromSignature(byte[] data, out SourceImageFormat format)
+        {
+            format = default;
+            if (data == null || data.Length < 6)
+                return false;
+
+            if (VerifyPngSignature(data))
+            {
+                format = SourceImageFormat.Png;
+                return true;
+            }
+            if (data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF)
+            {
+                format = SourceImageFormat.Jpeg;
+                return true;
+            }
+            if (
+                data[0] == (byte)'G'
+                && data[1] == (byte)'I'
+                && data[2] == (byte)'F'
+                && data[3] == (byte)'8'
+                && (data[4] == (byte)'7' || data[4] == (byte)'9')
+                && data[5] == (byte)'a'
+            )
+            {
+                format = SourceImageFormat.Gif;
+                return true;
+            }
+
             return false;
         }
 

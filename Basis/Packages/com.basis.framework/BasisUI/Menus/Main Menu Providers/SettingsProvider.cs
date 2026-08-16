@@ -1252,58 +1252,39 @@ namespace Basis.BasisUI
             // -------------------- DSP SETTINGS (advanced) --------------------
 
             PanelSectionToggle toggleAdvanced = PanelSectionToggle.CreateNewEntry(container);
-            toggleAdvanced.SetTitle(BasisLocalization.Get("ui.advanced"));
-            int advancedStart = container.childCount;
-            RectTransform advancedContent = container;
+            PanelElementDescriptor advancedGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                toggleAdvanced, container, BasisLocalization.Get("ui.advanced"), showGroupTitle: false);
+            RectTransform advancedContent = advancedGroup.ContentParent;
 
             // Mute & Start Behaviour (advanced)
-            PanelElementDescriptor muteBehaviorGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            muteBehaviorGroup.SetTitle(BasisLocalization.Get("settings.microphone.muteBehavior.title"));
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(advancedContent,
+                BasisLocalization.Get("settings.microphone.muteBehavior.title"), () =>
+            {
+                PanelDropdown dropdownMicStartBehavior = PanelDropdown.CreateNewEntry(advancedContent);
+                dropdownMicStartBehavior.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.startBehavior"));
+                dropdownMicStartBehavior.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.startBehavior.tooltip"));
+                dropdownMicStartBehavior.AssignLocalizedEntries(
+                    new List<string>
+                    {
+                        BasisLocalMicrophoneDriver.SettingStartOff,
+                        BasisLocalMicrophoneDriver.SettingStartOn,
+                        BasisLocalMicrophoneDriver.SettingStartRememberLast,
+                    },
+                    new List<string> { "settings.microphone.start.muted", "settings.microphone.start.unmuted", "settings.microphone.start.rememberLast" });
+                dropdownMicStartBehavior.AssignBinding(BasisSettingsDefaults.MicStartBehavior);
 
-            PanelDropdown dropdownMicStartBehavior = PanelDropdown.CreateNewEntry(muteBehaviorGroup);
-            dropdownMicStartBehavior.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.startBehavior"));
-            dropdownMicStartBehavior.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.startBehavior.tooltip"));
-            dropdownMicStartBehavior.AssignLocalizedEntries(
-                new List<string>
-                {
-                    BasisLocalMicrophoneDriver.SettingStartOff,
-                    BasisLocalMicrophoneDriver.SettingStartOn,
-                    BasisLocalMicrophoneDriver.SettingStartRememberLast,
-                },
-                new List<string> { "settings.microphone.start.muted", "settings.microphone.start.unmuted", "settings.microphone.start.rememberLast" });
-            dropdownMicStartBehavior.AssignBinding(BasisSettingsDefaults.MicStartBehavior);
-
-            PanelDropdown dropdownMicMuteBehavior = PanelDropdown.CreateNewEntry(muteBehaviorGroup);
-            dropdownMicMuteBehavior.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.muteBehavior"));
-            dropdownMicMuteBehavior.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.muteBehavior.tooltip"));
-            dropdownMicMuteBehavior.AssignLocalizedEntries(
-                new List<string>
-                {
-                    BasisLocalMicrophoneDriver.SettingMuteShutdown,
-                    BasisLocalMicrophoneDriver.SettingMuteSuppress,
-                },
-                new List<string> { "settings.microphone.mute.shutdown", "settings.microphone.mute.keepOpen" });
-            dropdownMicMuteBehavior.AssignBinding(BasisSettingsDefaults.MicMuteBehavior);
-
-            // Limiter
-            PanelElementDescriptor limiterGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            limiterGroup.SetTitle(BasisLocalization.Get("settings.microphone.limiter.title"));
-
-            sliderLimitThreshold = PanelSlider.CreateEntryAndBind(
-               limiterGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.limiter.threshold"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-               BasisSettingsDefaults.LimitThreshold);
-            sliderLimitThreshold.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.limiter.threshold.tooltip"));
-            sliderLimitThreshold.SetValueWithoutNotify(snap.LimitThreshold);
-
-            sliderLimitKnee = PanelSlider.CreateEntryAndBind(
-               limiterGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.limiter.knee"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-               BasisSettingsDefaults.LimitKnee);
-            sliderLimitKnee.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.limiter.knee.tooltip"));
-            sliderLimitKnee.SetValueWithoutNotify(snap.LimitKnee);
+                PanelDropdown dropdownMicMuteBehavior = PanelDropdown.CreateNewEntry(advancedContent);
+                dropdownMicMuteBehavior.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.muteBehavior"));
+                dropdownMicMuteBehavior.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.muteBehavior.tooltip"));
+                dropdownMicMuteBehavior.AssignLocalizedEntries(
+                    new List<string>
+                    {
+                        BasisLocalMicrophoneDriver.SettingMuteShutdown,
+                        BasisLocalMicrophoneDriver.SettingMuteSuppress,
+                    },
+                    new List<string> { "settings.microphone.mute.shutdown", "settings.microphone.mute.keepOpen" });
+                dropdownMicMuteBehavior.AssignBinding(BasisSettingsDefaults.MicMuteBehavior);
+            }, false, _ => descriptor.ForceRebuild());
 
             void LimitThresholdChanged(float v)
             {
@@ -1321,27 +1302,28 @@ namespace Basis.BasisUI
                 var s = SMDMicrophone.Current;
                 SMDMicrophone.SetLimiter(s.LimitThreshold, v);
             }
-            sliderLimitThreshold.SliderComponent.onValueChanged.AddListener(LimitThresholdChanged);
-            sliderLimitKnee.SliderComponent.onValueChanged.AddListener(LimitKneeChanged);
 
-            // Denoiser tuning
-            PanelElementDescriptor denoiseGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            denoiseGroup.SetTitle(BasisLocalization.Get("settings.microphone.denoiser.title"));
+            // Limiter
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(advancedContent,
+                BasisLocalization.Get("settings.microphone.limiter.title"), () =>
+            {
+                sliderLimitThreshold = PanelSlider.CreateEntryAndBind(
+                   advancedContent,
+                   PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.limiter.threshold"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                   BasisSettingsDefaults.LimitThreshold);
+                sliderLimitThreshold.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.limiter.threshold.tooltip"));
+                sliderLimitThreshold.SetValueWithoutNotify(snap.LimitThreshold);
 
-            sliderDenoiseWet = PanelSlider.CreateEntryAndBind(
-               denoiseGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.denoiser.wet"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-               BasisSettingsDefaults.DenoiseWet);
-            sliderDenoiseWet.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.denoiser.wet.tooltip"));
-            sliderDenoiseWet.SetValueWithoutNotify(snap.DenoiseWet);
+                sliderLimitKnee = PanelSlider.CreateEntryAndBind(
+                   advancedContent,
+                   PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.limiter.knee"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                   BasisSettingsDefaults.LimitKnee);
+                sliderLimitKnee.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.limiter.knee.tooltip"));
+                sliderLimitKnee.SetValueWithoutNotify(snap.LimitKnee);
 
-            sliderDenoiseMakeup = PanelSlider.CreateEntryAndBind(
-               denoiseGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.denoiser.makeup"), -12f, 24f, false, 2, ValueDisplayMode.Raw),
-               BasisSettingsDefaults.DenoiseMakeupDb);
-            sliderDenoiseMakeup.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.denoiser.makeup.tooltip"));
-            sliderDenoiseMakeup.SetValueWithoutNotify(snap.DenoiseMakeupDb);
+                sliderLimitThreshold.SliderComponent.onValueChanged.AddListener(LimitThresholdChanged);
+                sliderLimitKnee.SliderComponent.onValueChanged.AddListener(LimitKneeChanged);
+            }, false, _ => descriptor.ForceRebuild());
 
             void DenoiseWetChanged(float v)
             {
@@ -1359,47 +1341,28 @@ namespace Basis.BasisUI
                 var s = SMDMicrophone.Current;
                 SMDMicrophone.SetDenoiseParams(v, s.DenoiseWet);
             }
-            sliderDenoiseWet.SliderComponent.onValueChanged.AddListener(DenoiseWetChanged);
-            sliderDenoiseMakeup.SliderComponent.onValueChanged.AddListener(DenoiseMakeupChanged);
 
-            // AGC tuning
-            PanelElementDescriptor agcGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            agcGroup.SetTitle(BasisLocalization.Get("settings.microphone.agc.title"));
+            // Denoiser tuning
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(advancedContent,
+                BasisLocalization.Get("settings.microphone.denoiser.title"), () =>
+            {
+                sliderDenoiseWet = PanelSlider.CreateEntryAndBind(
+                   advancedContent,
+                   PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.denoiser.wet"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                   BasisSettingsDefaults.DenoiseWet);
+                sliderDenoiseWet.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.denoiser.wet.tooltip"));
+                sliderDenoiseWet.SetValueWithoutNotify(snap.DenoiseWet);
 
-            PanelToggle toggleAGC = PanelToggle.CreateNewEntry(agcGroup);
-            toggleAGC.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.agc"));
-            toggleAGC.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.tooltip"));
-            toggleAGC.AssignBinding(BasisSettingsDefaults.UseAutomaticGain);
+                sliderDenoiseMakeup = PanelSlider.CreateEntryAndBind(
+                   advancedContent,
+                   PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.denoiser.makeup"), -12f, 24f, false, 2, ValueDisplayMode.Raw),
+                   BasisSettingsDefaults.DenoiseMakeupDb);
+                sliderDenoiseMakeup.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.denoiser.makeup.tooltip"));
+                sliderDenoiseMakeup.SetValueWithoutNotify(snap.DenoiseMakeupDb);
 
-            // Target loudness is fixed in BasisMicrophoneAgc.DefaultTargetRms — see the binding.
-            // sliderAgcTarget = PanelSlider.CreateEntryAndBind(
-            //    agcGroup,
-            //    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.targetRms"), 0.001f, 0.25f, false, 4, ValueDisplayMode.Raw),
-            //    BasisSettingsDefaults.AgcTargetRms);
-            // sliderAgcTarget.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.targetRms.tooltip"));
-            // sliderAgcTarget.SetValueWithoutNotify(snap.AgcTargetRms);
-
-            sliderAgcMaxGain = PanelSlider.CreateEntryAndBind(
-               agcGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.maxGain"), 0f, 36f, false, 1, ValueDisplayMode.Raw),
-               BasisSettingsDefaults.AgcMaxGainDb);
-            sliderAgcMaxGain.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.maxGain.tooltip"));
-            sliderAgcMaxGain.SetValueWithoutNotify(snap.AgcMaxGainDb);
-
-            sliderAgcAttack = PanelSlider.CreateEntryAndBind(
-               agcGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.attack"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-               BasisSettingsDefaults.AgcAttack);
-            sliderAgcAttack.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.attack.tooltip"));
-            sliderAgcAttack.SetValueWithoutNotify(snap.AgcAttack);
-
-            sliderAgcRelease = PanelSlider.CreateEntryAndBind(
-               agcGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.release"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-               BasisSettingsDefaults.AgcRelease);
-            sliderAgcRelease.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.release.tooltip"));
-            sliderAgcRelease.SetValueWithoutNotify(snap.AgcRelease);
+                sliderDenoiseWet.SliderComponent.onValueChanged.AddListener(DenoiseWetChanged);
+                sliderDenoiseMakeup.SliderComponent.onValueChanged.AddListener(DenoiseMakeupChanged);
+            }, false, _ => descriptor.ForceRebuild());
 
             // void AgcTargetChanged(float v)
             // {
@@ -1434,53 +1397,56 @@ namespace Basis.BasisUI
                 SMDMicrophone.SetAgcParams(s.AgcTargetRms, s.AgcMaxGainDb, s.AgcAttack, v);
             }
 
-            PanelElementDescriptor agcDebugField =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, agcGroup.ContentParent);
-            agcDebugField.SetTitle(BasisLocalization.Get("settings.microphone.agc.debug"));
-            agcDebugField.SetDescription(BasisLocalization.Get("settings.microphone.agc.debug.listening"));
-            var agcDebugUpdater = agcDebugField.gameObject.AddComponent<Basis.Scripts.UI.UI_Panels.BasisMicAgcDebugUpdater>();
-            agcDebugUpdater.Field = agcDebugField;
+            // AGC tuning
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(advancedContent,
+                BasisLocalization.Get("settings.microphone.agc.title"), () =>
+            {
+                PanelToggle toggleAGC = PanelToggle.CreateNewEntry(advancedContent);
+                toggleAGC.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.agc"));
+                toggleAGC.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.tooltip"));
+                toggleAGC.AssignBinding(BasisSettingsDefaults.UseAutomaticGain);
 
-            // sliderAgcTarget.OnValueChanged += AgcTargetChanged;
-            sliderAgcMaxGain.OnValueChanged += AgcMaxGainChanged;
-            sliderAgcAttack.OnValueChanged += AgcAttackChanged;
-            sliderAgcRelease.OnValueChanged += AgcReleaseChanged;
+                // Target loudness is fixed in BasisMicrophoneAgc.DefaultTargetRms — see the binding.
+                // sliderAgcTarget = PanelSlider.CreateEntryAndBind(
+                //    advancedContent,
+                //    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.targetRms"), 0.001f, 0.25f, false, 4, ValueDisplayMode.Raw),
+                //    BasisSettingsDefaults.AgcTargetRms);
+                // sliderAgcTarget.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.targetRms.tooltip"));
+                // sliderAgcTarget.SetValueWithoutNotify(snap.AgcTargetRms);
 
-            // Noise Gate
-            PanelElementDescriptor noiseGateGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            noiseGateGroup.SetTitle(BasisLocalization.Get("settings.microphone.noiseGate.title"));
+                sliderAgcMaxGain = PanelSlider.CreateEntryAndBind(
+                   advancedContent,
+                   PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.maxGain"), 0f, 36f, false, 1, ValueDisplayMode.Raw),
+                   BasisSettingsDefaults.AgcMaxGainDb);
+                sliderAgcMaxGain.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.maxGain.tooltip"));
+                sliderAgcMaxGain.SetValueWithoutNotify(snap.AgcMaxGainDb);
 
-            PanelToggle toggleNoiseGate = PanelToggle.CreateNewEntry(noiseGateGroup);
-            toggleNoiseGate.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.noiseGate.enable"));
-            toggleNoiseGate.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.enable.tooltip"));
-            toggleNoiseGate.AssignBinding(BasisSettingsDefaults.UseNoiseGate);
+                sliderAgcAttack = PanelSlider.CreateEntryAndBind(
+                   advancedContent,
+                   PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.attack"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                   BasisSettingsDefaults.AgcAttack);
+                sliderAgcAttack.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.attack.tooltip"));
+                sliderAgcAttack.SetValueWithoutNotify(snap.AgcAttack);
 
-            PanelToggle toggleAutoNoiseGate = PanelToggle.CreateNewEntry(noiseGateGroup);
-            toggleAutoNoiseGate.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.noiseGate.auto"));
-            toggleAutoNoiseGate.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.auto.tooltip"));
-            toggleAutoNoiseGate.AssignBinding(BasisSettingsDefaults.AutoNoiseGate);
+                sliderAgcRelease = PanelSlider.CreateEntryAndBind(
+                   advancedContent,
+                   PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.release"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                   BasisSettingsDefaults.AgcRelease);
+                sliderAgcRelease.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.release.tooltip"));
+                sliderAgcRelease.SetValueWithoutNotify(snap.AgcRelease);
 
-            sliderNoiseGateThreshold = PanelSlider.CreateEntryAndBind(
-               noiseGateGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.noiseGate.threshold"), 0f, 0.5f, false, 4, ValueDisplayMode.Raw),
-               BasisSettingsDefaults.NoiseGateThreshold);
-            sliderNoiseGateThreshold.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.threshold.tooltip"));
-            sliderNoiseGateThreshold.SetValueWithoutNotify(snap.NoiseGateThreshold);
+                PanelElementDescriptor agcDebugField =
+                    PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
+                agcDebugField.SetTitle(BasisLocalization.Get("settings.microphone.agc.debug"));
+                agcDebugField.SetDescription(BasisLocalization.Get("settings.microphone.agc.debug.listening"));
+                var agcDebugUpdater = agcDebugField.gameObject.AddComponent<Basis.Scripts.UI.UI_Panels.BasisMicAgcDebugUpdater>();
+                agcDebugUpdater.Field = agcDebugField;
 
-            sliderNoiseGateAttack = PanelSlider.CreateEntryAndBind(
-               noiseGateGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.noiseGate.attack"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-               BasisSettingsDefaults.NoiseGateAttack);
-            sliderNoiseGateAttack.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.attack.tooltip"));
-            sliderNoiseGateAttack.SetValueWithoutNotify(snap.NoiseGateAttack);
-
-            sliderNoiseGateRelease = PanelSlider.CreateEntryAndBind(
-               noiseGateGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.noiseGate.release"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-               BasisSettingsDefaults.NoiseGateRelease);
-            sliderNoiseGateRelease.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.release.tooltip"));
-            sliderNoiseGateRelease.SetValueWithoutNotify(snap.NoiseGateRelease);
+                // sliderAgcTarget.OnValueChanged += AgcTargetChanged;
+                sliderAgcMaxGain.OnValueChanged += AgcMaxGainChanged;
+                sliderAgcAttack.OnValueChanged += AgcAttackChanged;
+                sliderAgcRelease.OnValueChanged += AgcReleaseChanged;
+            }, false, _ => descriptor.ForceRebuild());
 
             void NoiseGateThresholdChanged(float v)
             {
@@ -1507,28 +1473,64 @@ namespace Basis.BasisUI
                 SMDMicrophone.SetNoiseGateParams(s.NoiseGateThreshold, s.NoiseGateAttack, v);
             }
 
-            sliderNoiseGateThreshold.OnValueChanged += NoiseGateThresholdChanged;
-            sliderNoiseGateAttack.OnValueChanged += NoiseGateAttackChanged;
-            sliderNoiseGateRelease.OnValueChanged += NoiseGateReleaseChanged;
+            // Noise Gate
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(advancedContent,
+                BasisLocalization.Get("settings.microphone.noiseGate.title"), () =>
+            {
+                PanelToggle toggleNoiseGate = PanelToggle.CreateNewEntry(advancedContent);
+                toggleNoiseGate.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.noiseGate.enable"));
+                toggleNoiseGate.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.enable.tooltip"));
+                toggleNoiseGate.AssignBinding(BasisSettingsDefaults.UseNoiseGate);
+
+                PanelToggle toggleAutoNoiseGate = PanelToggle.CreateNewEntry(advancedContent);
+                toggleAutoNoiseGate.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.noiseGate.auto"));
+                toggleAutoNoiseGate.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.auto.tooltip"));
+                toggleAutoNoiseGate.AssignBinding(BasisSettingsDefaults.AutoNoiseGate);
+
+                sliderNoiseGateThreshold = PanelSlider.CreateEntryAndBind(
+                   advancedContent,
+                   PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.noiseGate.threshold"), 0f, 0.5f, false, 4, ValueDisplayMode.Raw),
+                   BasisSettingsDefaults.NoiseGateThreshold);
+                sliderNoiseGateThreshold.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.threshold.tooltip"));
+                sliderNoiseGateThreshold.SetValueWithoutNotify(snap.NoiseGateThreshold);
+
+                sliderNoiseGateAttack = PanelSlider.CreateEntryAndBind(
+                   advancedContent,
+                   PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.noiseGate.attack"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                   BasisSettingsDefaults.NoiseGateAttack);
+                sliderNoiseGateAttack.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.attack.tooltip"));
+                sliderNoiseGateAttack.SetValueWithoutNotify(snap.NoiseGateAttack);
+
+                sliderNoiseGateRelease = PanelSlider.CreateEntryAndBind(
+                   advancedContent,
+                   PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.noiseGate.release"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                   BasisSettingsDefaults.NoiseGateRelease);
+                sliderNoiseGateRelease.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.release.tooltip"));
+                sliderNoiseGateRelease.SetValueWithoutNotify(snap.NoiseGateRelease);
+
+                sliderNoiseGateThreshold.OnValueChanged += NoiseGateThresholdChanged;
+                sliderNoiseGateAttack.OnValueChanged += NoiseGateAttackChanged;
+                sliderNoiseGateRelease.OnValueChanged += NoiseGateReleaseChanged;
+            }, false, _ => descriptor.ForceRebuild());
 
             // Mic Icon Position (advanced)
-            PanelElementDescriptor micIconGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            micIconGroup.SetTitle(BasisLocalization.Get("settings.microphone.iconPosition.title"));
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(advancedContent,
+                BasisLocalization.Get("settings.microphone.iconPosition.title"), () =>
+            {
+                PanelSlider sliderMicIconOffsetX = PanelSlider.CreateEntryAndBind(
+                    advancedContent,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.iconPosition.horizontal"), -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.MicrophoneIconOffsetX);
+                sliderMicIconOffsetX.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.iconPosition.horizontal.tooltip"));
 
-            PanelSlider sliderMicIconOffsetX = PanelSlider.CreateEntryAndBind(
-                micIconGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.iconPosition.horizontal"), -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.MicrophoneIconOffsetX);
-            sliderMicIconOffsetX.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.iconPosition.horizontal.tooltip"));
+                PanelSlider sliderMicIconOffsetY = PanelSlider.CreateEntryAndBind(
+                    advancedContent,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.iconPosition.vertical"), -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.MicrophoneIconOffsetY);
+                sliderMicIconOffsetY.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.iconPosition.vertical.tooltip"));
+            }, false, _ => descriptor.ForceRebuild());
 
-            PanelSlider sliderMicIconOffsetY = PanelSlider.CreateEntryAndBind(
-                micIconGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.iconPosition.vertical"), -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.MicrophoneIconOffsetY);
-            sliderMicIconOffsetY.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.iconPosition.vertical.tooltip"));
-
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(toggleAdvanced, container, advancedStart, false,
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(toggleAdvanced, advancedGroup, false,
                 _ => descriptor.ForceRebuild());
 
             RegisterPageReset("settings.tab.microphone", ResetMicrophoneDefaults);
@@ -1717,7 +1719,8 @@ namespace Basis.BasisUI
             dropdownAntialiasing.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.antialiasing.tooltip"));
             dropdownAntialiasing.AssignLocalizedEntries(
                 new List<string> { "Off","MSAA 2X","MSAA 4X","MSAA 8X","Linear","Point","FSR"/*,"STP"*/ },
-                new List<string> { "ui.option.off", "settings.graphics.aa.msaa2x", "settings.graphics.aa.msaa4x", "settings.graphics.aa.msaa8x", "settings.graphics.aa.linear", "settings.graphics.aa.point", "settings.graphics.aa.fsr" });
+                new List<string> { "ui.option.off", "settings.graphics.aa.msaa2x", "settings.graphics.aa.msaa4x", "settings.graphics.aa.msaa8x", "settings.graphics.aa.linear", "settings.graphics.aa.point", "settings.graphics.aa.fsr" },
+                new List<string> { "settings.graphics.aa.off.tooltip" });
             dropdownAntialiasing.AssignBinding(BasisSettingsDefaults.Antialiasing);
 
             PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
@@ -1725,7 +1728,8 @@ namespace Basis.BasisUI
             dropdownVSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.verticalSync.tooltip"));
             dropdownVSync.AssignLocalizedEntries(
                 new List<string> { "On", "Capped", "Off", "Half" },
-                new List<string> { "ui.option.on", "settings.graphics.vsync.capped", "ui.option.off", "settings.graphics.vsync.half" });
+                new List<string> { "ui.option.on", "settings.graphics.vsync.capped", "ui.option.off", "settings.graphics.vsync.half" },
+                new List<string> { "settings.graphics.vsync.on.tooltip", null, "settings.graphics.vsync.off.tooltip" });
             dropdownVSync.AssignBinding(BasisSettingsDefaults.VSync);
 
             PanelTextField fpsCapField = PanelTextField.CreateNewEntry(qualityGroup.ContentParent);
@@ -1823,7 +1827,15 @@ namespace Basis.BasisUI
             PanelDropdown dropdownMirrorQuality = PanelDropdown.CreateNewEntry(mirrorGroup.ContentParent);
             dropdownMirrorQuality.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.mirrorResolution"));
             dropdownMirrorQuality.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.mirrorResolution.tooltip"));
-            dropdownMirrorQuality.AssignEntries(new List<string> { "256", "512", "1024", "2048", "4096", "8192" });
+            dropdownMirrorQuality.AssignEntries(new List<string> { "256", "512", "1024", "2048", "4096", "8192" }, null, new List<string>
+            {
+                BasisLocalization.Get("settings.graphics.mirrorResolution.256.tooltip"),
+                BasisLocalization.Get("settings.graphics.mirrorResolution.512.tooltip"),
+                BasisLocalization.Get("settings.graphics.mirrorResolution.1024.tooltip"),
+                BasisLocalization.Get("settings.graphics.mirrorResolution.2048.tooltip"),
+                BasisLocalization.Get("settings.graphics.mirrorResolution.4096.tooltip"),
+                BasisLocalization.Get("settings.graphics.mirrorResolution.8192.tooltip")
+            });
             dropdownMirrorQuality.AssignBinding(BasisSettingsDefaults.MirrorQuality);
 
             dropdownMirrorQuality.Descriptor.SetActive(toggleMirrorOverride.Value);
@@ -2029,7 +2041,8 @@ namespace Basis.BasisUI
             dropdownHDR.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.hdrSupport.tooltip"));
             dropdownHDR.AssignLocalizedEntries(
                 new List<string> { "Off", "32bit", "64bit" },
-                new List<string> { "ui.option.off", "settings.graphics.hdr.32bit", "settings.graphics.hdr.64bit" });
+                new List<string> { "ui.option.off", "settings.graphics.hdr.32bit", "settings.graphics.hdr.64bit" },
+                new List<string> { "settings.graphics.hdr.off.tooltip" });
             dropdownHDR.AssignBinding(BasisSettingsDefaults.HDRSupport);
 
             PanelSlider sliderFoveatedRendering = PanelSlider.CreateEntryAndBind(
@@ -2228,7 +2241,13 @@ namespace Basis.BasisUI
                 levelLabels.Add(BasisPerformanceMode.DisplayNameWithThreshold(
                     BasisPerformanceMode.IdToLevel(levelIds[Index])));
             }
-            dropdownLevel.AssignEntries(levelIds, levelLabels);
+            dropdownLevel.AssignEntries(levelIds, levelLabels, new List<string>
+            {
+                BasisLocalization.Get("settings.performanceMode.level.off.tooltip"),
+                BasisLocalization.Get("settings.performanceMode.level.light.tooltip"),
+                BasisLocalization.Get("settings.performanceMode.level.balanced.tooltip"),
+                BasisLocalization.Get("settings.performanceMode.level.aggressive.tooltip")
+            });
             dropdownLevel.AssignBinding(BasisSettingsDefaults.PerformanceModeLevel);
 
             PanelToggle toggleAuto = PanelToggle.CreateNewEntry(group.ContentParent);
@@ -2497,47 +2516,10 @@ namespace Basis.BasisUI
                 toggleLeaveNotifications.AssignBinding(BasisSettingsDefaults.LeaveNotifications);
             }, false, _ => descriptor.ForceRebuild());
 
-            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
-                BasisLocalization.Get("settings.chat.camera.title"), () =>
-            {
-                PanelDropdown dropdownPhotoMetadata = PanelDropdown.CreateNewEntry(container);
-                dropdownPhotoMetadata.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photoMetadata"));
-                dropdownPhotoMetadata.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.photoMetadata.tooltip"));
-                dropdownPhotoMetadata.AssignLocalizedEntries(
-                    new List<string>
-                    {
-                        BasisSettingsDefaults.PhotoTagging_NoOne,
-                        BasisSettingsDefaults.PhotoTagging_EveryoneInPhoto,
-                        BasisSettingsDefaults.PhotoTagging_JustMe
-                    },
-                    new List<string> { "settings.chat.camera.photoMetadata.noOne", "settings.chat.camera.photoMetadata.everyone", "settings.chat.camera.photoMetadata.justMe" });
-                dropdownPhotoMetadata.AssignBinding(BasisSettingsDefaults.PhotoMetadataTagging);
-
-                PanelToggle togglePhotoPersonDetails = PanelToggle.CreateNewEntry(container);
-                togglePhotoPersonDetails.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.personDetails"));
-                togglePhotoPersonDetails.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.personDetails.tooltip"));
-                togglePhotoPersonDetails.AssignBinding(BasisSettingsDefaults.PhotoEmbedPersonDetails);
-
-                PanelToggle togglePhotoCameraSettings = PanelToggle.CreateNewEntry(container);
-                togglePhotoCameraSettings.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.cameraSettings"));
-                togglePhotoCameraSettings.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.cameraSettings.tooltip"));
-                togglePhotoCameraSettings.AssignBinding(BasisSettingsDefaults.PhotoEmbedCameraSettings);
-
-                PanelToggle togglePhotoCaptureInfo = PanelToggle.CreateNewEntry(container);
-                togglePhotoCaptureInfo.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.captureInfo"));
-                togglePhotoCaptureInfo.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.captureInfo.tooltip"));
-                togglePhotoCaptureInfo.AssignBinding(BasisSettingsDefaults.PhotoEmbedCaptureInfo);
-
-                PanelToggle togglePhotoPhotographer = PanelToggle.CreateNewEntry(container);
-                togglePhotoPhotographer.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photographer"));
-                togglePhotoPhotographer.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.photographer.tooltip"));
-                togglePhotoPhotographer.AssignBinding(BasisSettingsDefaults.PhotoEmbedPhotographer);
-
-                PanelToggle togglePhotoWorld = PanelToggle.CreateNewEntry(container);
-                togglePhotoWorld.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.world"));
-                togglePhotoWorld.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.world.tooltip"));
-                togglePhotoWorld.AssignBinding(BasisSettingsDefaults.PhotoEmbedWorld);
-            }, false, _ => descriptor.ForceRebuild());
+            // What gets written into a photo file used to sit here, under Chat. It belongs to the
+            // camera, so it now lives in the Camera Settings panel's Advanced tab — see
+            // BasisHandHeldCameraPanelProvider.BuildPhotoMetadataGroup. Its localization keys still
+            // read settings.chat.camera.* because they carry sixteen translations.
 
             BuildAppearanceContent(container, descriptor);
 

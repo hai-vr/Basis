@@ -333,6 +333,13 @@ namespace Basis.EventDriver
                 {
                     BasisDesktopFileDrop.Dispatch();
                 }
+                // Reads the paste chord and, when it fires, the clipboard itself. Unlike the drop
+                // above there is no window message to collect this on: Windows sends a game window
+                // no paste notification, so the chord is sampled here on the frame it happens.
+                using (Prof.DesktopClipboard.Auto())
+                {
+                    BasisDesktopClipboard.Dispatch();
+                }
             }
             using (Prof.OnUpdateCallbacks.Auto())
             {

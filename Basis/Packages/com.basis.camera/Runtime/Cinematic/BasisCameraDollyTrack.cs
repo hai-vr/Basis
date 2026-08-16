@@ -14,6 +14,32 @@ namespace Basis.Cinematics
         private const float LineWidth = 0.012f;
         private const string GizmoName = "CameraDollyTrack";
 
+        /// <summary>Not looked up yet. A real layer index is 0-31 and -1 means the project has none.</summary>
+        private const int LayerNotResolved = -2;
+
+        private static int markerLayer = LayerNotResolved;
+
+        /// <summary>
+        /// Layer the path and its numbered labels draw on. The track is an authoring aid — it is
+        /// laid out to frame a shot, so it must not appear in one. OverlayUI is what the capture
+        /// camera culls and what the waypoint markers already use, so the player sees the whole
+        /// track while a photo, a 360 or the video feed sees none of it.
+        ///
+        /// <para>A project without the layer hands back -1, which SetGizmoLayer reads as "stay on
+        /// the shared gizmo layer" — still a usable track, just visible to the shot.</para>
+        /// </summary>
+        private static int MarkerLayer
+        {
+            get
+            {
+                if (markerLayer == LayerNotResolved)
+                {
+                    markerLayer = LayerMask.NameToLayer("OverlayUI");
+                }
+                return markerLayer;
+            }
+        }
+
         private readonly List<BasisCameraDollyWaypoint> waypoints = new List<BasisCameraDollyWaypoint>();
         private readonly List<Vector3> points = new List<Vector3>();
         private readonly List<int> labelIds = new List<int>();
@@ -25,6 +51,18 @@ namespace Basis.Cinematics
 
         public bool Looped;
         public bool Visible = true;
+
+        /// <summary>
+        /// How the track is shared. Read every refresh rather than cached, so a change of mode
+        /// reaches the markers on the next frame without a separate apply path to keep in step.
+        /// </summary>
+        public BasisCameraDollySync SyncMode = BasisCameraDollySync.LocalOnly;
+
+        /// <summary>
+        /// Whether this client authored the track, as opposed to mirroring somebody else's. Only
+        /// the author may reshape a locked track.
+        /// </summary>
+        public bool IsAuthor = true;
         public bool GridSnap;
         public float GridSize = 0.25f;
 
@@ -34,6 +72,13 @@ namespace Basis.Cinematics
         public IReadOnlyList<Vector3> Points => points;
 
         public int Count => waypoints.Count;
+
+        /// <summary>
+        /// Whether the points on this client may be picked up. A locked track is readable by
+        /// everyone and reshapeable only by whoever authored it; the other two modes leave the
+        /// points alone, so a track you can see is a track you can move unless it says otherwise.
+        /// </summary>
+        public bool CanMovePoints => SyncMode != BasisCameraDollySync.NetworkedLocked || IsAuthor;
 
         /// <summary>A Dolly shot needs at least two points before there is a path to ride.</summary>
         public bool HasPath => waypoints.Count >= 2;
@@ -151,6 +196,7 @@ namespace Basis.Cinematics
             {
                 BasisCameraDollyWaypoint waypoint = waypoints[Index];
                 waypoint.SetVisible(true);
+                waypoint.SetMovable(CanMovePoints);
                 waypoint.SetScale(scale);
                 waypoint.SetColor(ColorForIndex(Index, waypoints.Count));
             }
@@ -250,6 +296,7 @@ namespace Basis.Cinematics
             if (!lineCreated)
             {
                 BasisGizmoManager.CreateLineGizmo(GizmoName, out lineId, lineBuffer, LineWidth, new Color(0.4f, 0.85f, 1f), Looped);
+                BasisGizmoManager.SetGizmoLayer(lineId, MarkerLayer);
                 lineCreated = true;
                 lineVisible = true;
                 return;
@@ -277,6 +324,10 @@ namespace Basis.Cinematics
                 if (Index >= labelIds.Count)
                 {
                     BasisGizmoManager.CreateTextGizmo(GizmoName, out int newId, position, text, color);
+
+                    // After the create, not before: a label rented back out of the pool starts on
+                    // the container's layer, so this is the point at which the layer sticks.
+                    BasisGizmoManager.SetGizmoLayer(newId, MarkerLayer);
                     labelIds.Add(newId);
                     continue;
                 }

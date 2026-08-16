@@ -1181,10 +1181,14 @@ namespace Basis.Network.Core
         // ── Compressed avatar bundle (server → client only) ──────────────────
         /// <summary>
         /// Server-only outbound channel carrying multiple avatar quality messages
-        /// to a single receiver, LZ4-compressed into one UDP datagram that fits the peer MTU.
-        /// Wire format (v50):
-        ///   [count:1][rawLen:2-LE][LZ4 block( group* )]
+        /// to a single receiver, compressed into one UDP datagram that fits the peer MTU.
+        /// Wire format (v53):
+        ///   [flags:1][rawLen:2-LE][compressed( group* )]
         ///   group := [origChannel:1][n:1][msgLen:2-LE] x n [bodies]
+        /// flags: bits 0-2 codec id, bits 3-7 dictionary generation. Byte 0 was a message count
+        /// through v52 that every decoder documented as a hint and none read, so the hybrid codec
+        /// costs no wire bytes. A v52 client would ignore the byte and LZ4-decode a Zstd bundle
+        /// into garbage rather than rejecting it, which is why v53 is a hard version bump.
         /// Each [origChannel] is the byte-id or ushort-id avatar quality channel the message would
         /// have been sent on individually (channels 6-13 / 41-48), or DeltaAvatarChannel. One
         /// channel byte per RUN, not per entry — the server channel-sorts a receiver's pending
@@ -1192,7 +1196,11 @@ namespace Basis.Network.Core
         /// The DeltaAvatarChannel group's bodies are COLUMN-TRANSPOSED (byte j of every body, then
         /// byte j+1 of every body); no other group is. See BasisAvatarBundleCodec, which is the
         /// shared reader, and BundleCompressionExperiment for why.
-        /// Compression: LZ4Codec.Encode at LZ4Level.L00_FAST (K4os.Compression.LZ4 1.3.x).
+        /// Compression is hybrid, chosen per bundle by traffic class: delta-only bundles use LZ4
+        /// (LZ4Codec.Encode at LZ4Level.L00_FAST, K4os.Compression.LZ4 1.3.x); bundles carrying a
+        /// keyframe/full quality channel use Zstd against a trained dictionary. Zstd measured
+        /// 16.7-18.1% smaller on keyframes and 2.8-4.5% LARGER on deltas, which is why the split
+        /// exists. See BasisAvatarBundleZstd.
         /// </summary>
         public const byte CompressedAvatarBundleChannel = 52;
 

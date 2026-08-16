@@ -250,6 +250,22 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// Maximum percentage the object can be embiggened to.
         /// </summary>
         public float maxScalePercent = 200f;
+
+        /// <summary>
+        /// Uniform scale that <see cref="minScalePercent"/> and <see cref="maxScalePercent"/> are measured
+        /// against. Defaults to the scale captured in <see cref="Start"/>; objects whose scale is driven at
+        /// runtime override this so the range tracks their live size instead of an authored value.
+        /// </summary>
+        protected virtual float GestureScaleReference => _scaleAtStart.x;
+
+        /// <summary>
+        /// Applies a single gesture scale step. Objects that do not own their <see cref="Transform.localScale"/>
+        /// outright override this to route the step through their own sizing.
+        /// </summary>
+        protected virtual void ApplyGestureScaleStep(BasisTransform.Direction scaleDirection, float stepSize, float minScale, float maxScale)
+        {
+            BasisTransform.ScaleObjectBetween(transform, scaleDirection, stepSize, minScale, maxScale);
+        }
         #endregion
 
         #region Lock to Axis
@@ -1008,16 +1024,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
                             if (delta > 0.001f)
                             {
                                 var scaleDirection = distanceBetweenHands > _previousDistance ? BasisTransform.Direction.Embiggen : BasisTransform.Direction.Ensmallen;
-                                float minScale = (minScalePercent / 100) * _scaleAtStart.x;
-                                float maxScale = (maxScalePercent / 100) * _scaleAtStart.x;
+                                float referenceScale = GestureScaleReference;
+                                float minScale = (minScalePercent / 100) * referenceScale;
+                                float maxScale = (maxScalePercent / 100) * referenceScale;
                                 float stepSize = math.abs(minScale - maxScale) / 100f;
-                                BasisTransform.ScaleObjectBetween(
-                                    transform,
-                                    scaleDirection,
-                                    stepSize,
-                                    minScale,
-                                    maxScale
-                                    );
+                                ApplyGestureScaleStep(scaleDirection, stepSize, minScale, maxScale);
                             }
                             _previousDistance = distanceBetweenHands;
                         }

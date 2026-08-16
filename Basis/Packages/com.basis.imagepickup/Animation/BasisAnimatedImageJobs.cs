@@ -169,6 +169,32 @@ namespace Basis.ImagePickup
             StartManagedRead();
         }
 
+        /// <summary>
+        /// Decodes a GIF that is already in memory — a clipboard paste, which never had a file to read.
+        /// Enters at the same Reading state as the file path rather than skipping to Decoding, so the
+        /// state machine, the completion polling, and the failure reporting downstream are shared
+        /// rather than duplicated; the read is simply already done.
+        /// </summary>
+        internal BasisGifDecodeJobRequest(byte[] bytes)
+        {
+            _path = null;
+            _startTimestamp = Stopwatch.GetTimestamp();
+
+            if (bytes == null || bytes.Length == 0)
+            {
+                FinishFailure("GIF data is empty.");
+                return;
+            }
+            if (bytes.Length > BasisImagePickupSettings.MaxAnimationSourceBytes)
+            {
+                FinishFailure("GIF data exceeds the configured source-byte limit.");
+                return;
+            }
+
+            _readTask = Task.FromResult(bytes);
+            _state = State.Reading;
+        }
+
         public bool IsCompleted =>
             _state switch
             {
@@ -707,6 +733,14 @@ namespace Basis.ImagePickup
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException("GIF path is empty.", nameof(path));
             return new BasisGifDecodeJobRequest(path);
+        }
+
+        /// <summary>Decodes GIF data that never came from a file, such as a clipboard paste.</summary>
+        public static BasisGifDecodeJobRequest ScheduleGifDecode(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+                throw new ArgumentException("GIF data is empty.", nameof(bytes));
+            return new BasisGifDecodeJobRequest(bytes);
         }
 
         public static BasisAnimationPacketJobRequest SchedulePacketBuild(

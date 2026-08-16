@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Basis.Cinematics;
 using UnityEngine;
 
@@ -11,9 +10,10 @@ public partial class BasisHandHeldCameraUI
         /// <summary>
         /// Bumped whenever fields are added whose zero-fill value (JsonUtility leaves absent fields
         /// at 0/false) differs from their intended default. LoadSettings migrates older files.
-        /// v2 added the auto-follow config, capture toggles and MSAA.
+        /// v2 added the auto-follow config, capture toggles and MSAA. v9 replaced the auto-follow
+        /// block and the shot list with the modifier stack.
         /// </summary>
-        public const int CurrentVersion = 8;
+        public const int CurrentVersion = 9;
         public int settingsVersion = CurrentVersion;
 
         public CameraSettings()
@@ -30,14 +30,8 @@ public partial class BasisHandHeldCameraUI
             backgroundMode = 0;
             backgroundCustomColor = BasisHandHeldCamera.ChromaGreen;
             backgroundKeepsWorld = false;
-            subjectFramingRadius = 0.45f;
 
-            autoFollowPositionOffset = new Vector3(0.5f, 0f, 1.4f);
-            autoFollowRotationOffset = Vector3.zero;
-            autoFollowPlayspace = true;
-            autoFollowLookAtPlayer = true;
-            autoFollowLookAtHeightOffset = 0f;
-            autoFollowLateralTracking = 0.5f;
+            modifiers = new BasisCameraModifierStack();
             detachedMarker = (int)BasisCameraDetachedMarker.Puck;
 
             dofMode = 2;          // Bokeh, matching the authored profile
@@ -55,6 +49,15 @@ public partial class BasisHandHeldCameraUI
             sensorSizeY = 24f;
             bloomIntensity = 0.5f;
             bloomThreshold = 0.5f;
+
+            // URP's own defaults for the parts of an effect that shape it rather than switch it on.
+            // Set here rather than left to the zero fill, so a file written before they existed
+            // loads the look it was saved with instead of a hard-edged bloom and a flat vignette.
+            bloomScatter = 0.7f;
+            vignetteSmoothness = 0.2f;
+            lensDistortionScale = 1f;
+            paniniCropToFit = 1f;
+            captureTonemapping = (int)UnityEngine.Rendering.Universal.TonemappingMode.ACES;
             contrast = 1f;
             saturation = 1f;
             depthAperture = 2.8f;
@@ -62,6 +65,20 @@ public partial class BasisHandHeldCameraUI
             depthIsActive = false;
             useManualFocus = true;
             showExposureOnCamera = false;
+
+            // Off, but with a usable sensitivity already set, so the file a camera loads on the day
+            // the feature arrives is not one that switches it on at the least sensitive end.
+            focusPeaking = false;
+            focusPeakingSensitivity = BasisHandHeldCamera.DefaultFocusPeakingSensitivity;
+            focusPeakingColour = 0;
+            focusPeakingGreyPicture = false;
+
+            // Same again for the meter: off, but already set up to behave the moment it is on.
+            autoBrightness = false;
+            autoBrightnessTarget = BasisHandHeldCamera.DefaultBrightnessTarget;
+            autoBrightnessSpeed = BasisHandHeldCamera.DefaultBrightnessSpeed;
+            autoBrightnessMetering = (int)BasisCameraMeteringMode.CentreWeighted;
+            autoBrightnessRange = BasisHandHeldCamera.DefaultBrightnessRange;
 
             // Off by default (a still photo of a moving world is not usually what is wanted), but
             // with the shape of the effect already sane for the moment it is switched on.
@@ -87,6 +104,7 @@ public partial class BasisHandHeldCameraUI
             videoWidth = 1920;
             videoQuality = 80;
             videoTimeLimit = true;
+            videoContinuousClips = false;
         }
 
         /// <summary>
@@ -142,6 +160,30 @@ public partial class BasisHandHeldCameraUI
 
         public bool useManualFocus = true;
 
+        /// <summary>
+        /// The viewfinder focus aid. A view preference rather than part of the shot — the overlay
+        /// is produced into a texture of its own that no capture path reads — but it is saved for
+        /// the same reason the detached marker is: it is a control with nowhere else to be
+        /// remembered, and one that resets every session is one nobody leaves on.
+        /// </summary>
+        public bool focusPeaking;
+        public float focusPeakingSensitivity;
+        /// <summary>Index into <see cref="BasisHandHeldCamera.FocusPeakingColours"/>; 0 is red.</summary>
+        public int focusPeakingColour;
+        public bool focusPeakingGreyPicture;
+
+        /// <summary>
+        /// Auto brightness. The stops the meter is currently adding are deliberately not saved:
+        /// they describe the room the camera was last in, and a file that restored them would open
+        /// every session mis-exposed until the loop had walked it back.
+        /// </summary>
+        public bool autoBrightness;
+        public float autoBrightnessTarget;
+        public float autoBrightnessSpeed;
+        /// <summary>Which part of the frame is metered, as <see cref="BasisCameraMeteringMode"/>.</summary>
+        public int autoBrightnessMetering;
+        public float autoBrightnessRange;
+
         public float VolumetricFogVolumedensity;
         public bool VolumetricFogenableAPVContribution;
         public bool VolumetricFogenableMainLightContribution;
@@ -153,6 +195,23 @@ public partial class BasisHandHeldCameraUI
         public float whiteBalanceTemperature;
         public float whiteBalanceTint;
         public float lensDistortion;
+        public float paniniDistance;
+
+        /// <summary>
+        /// Shape, as opposed to strength. Each belongs to an effect whose own slider is the on/off,
+        /// so these carry usable values even while the effect they shape is switched off.
+        /// </summary>
+        public float bloomScatter;
+        public float vignetteSmoothness;
+        public float lensDistortionScale;
+        public float paniniCropToFit;
+
+        /// <summary>
+        /// Which tonemapper grades the saved photo, as <c>TonemappingMode</c>. The preview is always
+        /// Neutral — the capture is rendered at a different resolution and exposure and has always
+        /// been graded on its own — so this is the still's look, not the viewfinder's.
+        /// </summary>
+        public int captureTonemapping;
 
         /// <summary>
         /// Motion blur. The strength is the on/off — URP only runs the pass above zero — so the
@@ -169,13 +228,14 @@ public partial class BasisHandHeldCameraUI
 
         public bool autoFocusFollowSubject;
 
-        // Auto-follow configuration (the follow target itself is per-session and not persisted).
-        public Vector3 autoFollowPositionOffset;
-        public Vector3 autoFollowRotationOffset;
-        public bool autoFollowPlayspace;
-        public bool autoFollowLookAtPlayer;
-        public float autoFollowLookAtHeightOffset;
-        public float autoFollowLateralTracking;
+        /// <summary>
+        /// How the camera is driven, including who it films. Which modifiers are fitted is saved
+        /// in full: unlike the auto follow flag it replaced, an empty stack is the resting state,
+        /// so a restored file can only ever fly the camera off on spawn if that is what was
+        /// actually saved. The follow target itself is per-session and not persisted.
+        /// </summary>
+        public BasisCameraModifierStack modifiers = new BasisCameraModifierStack();
+
 
         /// <summary>
         /// Which marker shows where the camera has gone while it is detached, as
@@ -208,6 +268,13 @@ public partial class BasisHandHeldCameraUI
         public bool videoTimeLimit;
 
         /// <summary>
+        /// With a time limit set, on: reaching it starts the next clip instead of ending the
+        /// recording, which then runs until it is stopped by hand. Off is the zero fill, so an
+        /// older file loads as the single-clip recording it was written as.
+        /// </summary>
+        public bool videoContinuousClips;
+
+        /// <summary>
         /// Whether each saved photo is also printed into the world as a shared image pickup,
         /// exactly as if its file had been drag-and-dropped onto the window.
         /// </summary>
@@ -218,12 +285,5 @@ public partial class BasisHandHeldCameraUI
         public Color backgroundCustomColor;
         public bool backgroundKeepsWorld;
 
-        /// <summary>
-        /// The authored shot rig. Whether the rig is switched on is deliberately not saved — the
-        /// same reasoning as auto follow, which would otherwise fly the camera off on every spawn.
-        /// </summary>
-        public List<BasisCameraShot> cinematicShots = new List<BasisCameraShot>();
-
-        public float subjectFramingRadius;
     }
 }

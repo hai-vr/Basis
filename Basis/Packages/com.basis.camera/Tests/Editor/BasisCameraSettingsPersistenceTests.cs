@@ -185,24 +185,18 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
-        public void CinematicShots_SurviveTheRoundTrip()
+        public void TheModifierStack_SurvivesTheRoundTrip()
         {
             BasisHandHeldCameraUI.CameraSettings original = BasisCameraSettingsRig.DistinctiveSettings();
-            original.cinematicShots = new List<BasisCameraShot>
-            {
-                new BasisCameraShot { name = "Interview", priority = 42, blendTime = 1.25f },
-                new BasisCameraShot { name = "Wide", priority = 3, blendTime = 2.5f },
-            };
 
             _rig.UI.ApplySettingsForTest(original);
             BasisHandHeldCameraUI.CameraSettings captured = _rig.UI.CreateCurrentCameraSettingsForTest();
 
-            Assert.That(captured.cinematicShots, Is.Not.Null);
-            Assert.That(captured.cinematicShots.Count, Is.EqualTo(2),
-                "An authored rig must not be replaced by the default shots on the way back out.");
-            Assert.That(captured.cinematicShots[0].name, Is.EqualTo("Interview"));
-            Assert.That(captured.cinematicShots[0].priority, Is.EqualTo(42));
-            Assert.That(captured.cinematicShots[1].blendTime, Is.EqualTo(2.5f).Within(1e-4f));
+            Assert.That(captured.modifiers, Is.Not.Null);
+            Assert.That(BasisCameraModifierStack.Matches(original.modifiers, captured.modifiers), Is.True,
+                "A configured stack must come back exactly as it went in.");
+            Assert.That(captured.modifiers, Is.Not.SameAs(_rig.Camera.Modifiers),
+                "The harvest must take a copy, or the file and the live camera share one object.");
         }
 
         [Test]
@@ -222,7 +216,7 @@ namespace Basis.Tests.Camera
 
             Assert.That(captured.cameraMode, Is.EqualTo((int)BasisCameraMode.FollowMe),
                 "Loading a file saved in Follow Me must come back in Follow Me.");
-            Assert.That(_rig.Camera.autoFollowEnabled, Is.True,
+            Assert.That(_rig.Camera.Modifiers.DrivesPosition, Is.True,
                 "Follow is not persisted, so the restore has to re-arm it — otherwise the camera " +
                 "comes back labelled Follow Me while sitting inert in the player's hand.");
         }
@@ -242,16 +236,16 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
-        public void AnEmptyShotList_IsSeededSoTheRigIsNeverUnusable()
+        public void ANullStackInAFile_LoadsAsTheShippedDefaults()
         {
             BasisHandHeldCameraUI.CameraSettings original = BasisCameraSettingsRig.DistinctiveSettings();
-            original.cinematicShots = new List<BasisCameraShot>();
+            original.modifiers = null;
 
             _rig.UI.ApplySettingsForTest(original);
 
-            Assert.That(_rig.Camera.Director, Is.Not.Null);
-            Assert.That(_rig.Camera.Director.Count, Is.GreaterThan(0),
-                "Switching the rig on with no shots authored would leave nothing to cut to.");
+            Assert.That(_rig.Camera.Modifiers, Is.Not.Null);
+            Assert.That(_rig.Camera.Modifiers.DrivesAnything, Is.False,
+                "A file with no stack must leave the camera in the operator's hands, not part-configured.");
         }
 
         [Test]
@@ -325,17 +319,17 @@ namespace Basis.Tests.Camera
             var sparse = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>("{\"fov\":50}");
 
             Assert.That(sparse.fov, Is.EqualTo(50f).Within(1e-4f), "what the file does say wins");
-            Assert.That(sparse.autoFollowPlayspace, Is.EqualTo(defaults.autoFollowPlayspace));
-            Assert.That(sparse.autoFollowPositionOffset, Is.EqualTo(defaults.autoFollowPositionOffset));
+            Assert.That(sparse.modifiers.subject.anchorToBody, Is.EqualTo(defaults.modifiers.subject.anchorToBody));
+            Assert.That(sparse.modifiers.follow.positionOffset, Is.EqualTo(defaults.modifiers.follow.positionOffset));
             Assert.That(sparse.depthAperture, Is.EqualTo(defaults.depthAperture).Within(1e-4f));
-            Assert.That(sparse.subjectFramingRadius, Is.EqualTo(defaults.subjectFramingRadius).Within(1e-4f));
+            Assert.That(sparse.modifiers.subject.framingRadius, Is.EqualTo(defaults.modifiers.subject.framingRadius).Within(1e-4f));
             Assert.That(sparse.backgroundCustomColor, Is.EqualTo(defaults.backgroundCustomColor));
 
             // A value the file does state still overrides the constructor, including a falsy one —
             // otherwise "off" could never be saved.
             var explicitlyOff = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(
-                "{\"autoFollowPlayspace\":false}");
-            Assert.That(explicitlyOff.autoFollowPlayspace, Is.False);
+                "{\"modifiers\":{\"subject\":{\"anchorToBody\":false}}}");
+            Assert.That(explicitlyOff.modifiers.subject.anchorToBody, Is.False);
         }
 
         [Test]
@@ -361,14 +355,14 @@ namespace Basis.Tests.Camera
             BasisHandHeldCameraUI.MigrateSettingsForTest(loaded);
 
             Assert.That(loaded.settingsVersion, Is.EqualTo(BasisHandHeldCameraUI.CameraSettings.CurrentVersion));
-            Assert.That(loaded.autoFollowPositionOffset, Is.Not.EqualTo(Vector3.zero),
+            Assert.That(loaded.modifiers.follow.positionOffset, Is.Not.EqualTo(Vector3.zero),
                 "A zero follow offset parks the camera inside the player.");
             Assert.That(loaded.msaaSamples, Is.EqualTo(defaults.msaaSamples));
             Assert.That(loaded.depthAperture,
                 Is.InRange(BasisHandHeldCameraUI.MinAperture, BasisHandHeldCameraUI.MaxAperture),
                 "An aperture outside URP's range is dead slider travel.");
             Assert.That(loaded.dofFocalLength, Is.GreaterThan(0f), "A zero lens divides through zero.");
-            Assert.That(loaded.subjectFramingRadius, Is.GreaterThan(0f),
+            Assert.That(loaded.modifiers.subject.framingRadius, Is.GreaterThan(0f),
                 "A zero framing radius dollies the camera into the subject's face.");
             Assert.That(loaded.backgroundCustomColor.a, Is.GreaterThan(0f),
                 "A transparent custom background is not a background.");
@@ -484,31 +478,69 @@ namespace Basis.Tests.Camera
         public void DetachedMarkerAndLateralTracking_ComeBackAfterAReload()
         {
             // The two Follow controls that had nowhere to be saved until v8.
-            _rig.Camera.autoFollowLateralTracking = 0.25f;
+            _rig.Camera.Modifiers.follow.lateralTracking = 0.25f;
             _rig.Camera.SetDetachedMarker(BasisCameraDetachedMarker.Off);
 
             BasisHandHeldCameraUI.CameraSettings captured = _rig.UI.CreateCurrentCameraSettingsForTest();
             _rig.UI.ApplySettingsForTest(new BasisHandHeldCameraUI.CameraSettings());
             _rig.UI.ApplySettingsForTest(captured);
 
-            Assert.That(_rig.Camera.autoFollowLateralTracking, Is.EqualTo(0.25f).Within(1e-3f));
+            Assert.That(_rig.Camera.Modifiers.follow.lateralTracking, Is.EqualTo(0.25f).Within(1e-3f));
             Assert.That(_rig.Camera.detachedMarker, Is.EqualTo(BasisCameraDetachedMarker.Off));
         }
 
         [Test]
-        public void UpgradingAPreV8File_KeepsFollowTrackingAndTheMarkerOn()
+        public void UpgradingAPreV8File_KeepsTheMarkerOn()
         {
-            // Both zero-fill to a value that is not merely different but useless: tracking off, and
-            // no marker at all to show where a detached camera went.
+            // The marker zero-fills to Off, leaving nothing on screen to show where a detached
+            // camera went - and nothing to grab it back by.
             var legacy = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(
-                "{\"settingsVersion\":7,\"autoFollowLateralTracking\":0,\"detachedMarker\":0}");
+                "{\"settingsVersion\":7,\"detachedMarker\":0}");
 
             BasisHandHeldCameraUI.MigrateSettingsForTest(legacy);
 
             var defaults = new BasisHandHeldCameraUI.CameraSettings();
-            Assert.That(legacy.autoFollowLateralTracking, Is.EqualTo(defaults.autoFollowLateralTracking).Within(1e-4f));
             Assert.That(legacy.detachedMarker, Is.EqualTo(defaults.detachedMarker));
             Assert.That(defaults.detachedMarker, Is.EqualTo((int)BasisCameraDetachedMarker.Puck));
+        }
+
+        [Test]
+        public void UpgradingAPreV9File_CarriesTheAutoFollowBlockOntoTheStack()
+        {
+            // Everything the auto-follow block held now lives on a modifier or on the subject
+            // settings. The values are read straight off the old text, because CameraSettings no
+            // longer carries the fields they were stored in.
+            const string legacyJson =
+                "{\"settingsVersion\":8,\"autoFollowPositionOffset\":{\"x\":2.5,\"y\":1.5,\"z\":3.5}," +
+                "\"autoFollowRotationOffset\":{\"x\":7,\"y\":-9,\"z\":0},\"autoFollowPlayspace\":false," +
+                "\"autoFollowLookAtHeightOffset\":-0.42,\"autoFollowLateralTracking\":0.9," +
+                "\"subjectFramingRadius\":0.75}";
+
+            var loaded = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(legacyJson);
+            BasisHandHeldCameraUI.UpgradeLegacyFollowForTest(loaded, legacyJson);
+            BasisHandHeldCameraUI.MigrateSettingsForTest(loaded);
+
+            Assert.That(loaded.modifiers.follow.positionOffset, Is.EqualTo(new Vector3(2.5f, 1.5f, 3.5f)));
+            Assert.That(loaded.modifiers.follow.lateralTracking, Is.EqualTo(0.9f).Within(1e-4f));
+            Assert.That(loaded.modifiers.lookAt.rotationOffset, Is.EqualTo(new Vector3(7f, -9f, 0f)));
+            Assert.That(loaded.modifiers.compose.rotationOffset, Is.EqualTo(new Vector3(7f, -9f, 0f)));
+            Assert.That(loaded.modifiers.subject.anchorToBody, Is.False);
+            Assert.That(loaded.modifiers.subject.aimHeightOffset, Is.EqualTo(-0.42f).Within(1e-4f));
+            Assert.That(loaded.modifiers.subject.framingRadius, Is.EqualTo(0.75f).Within(1e-4f));
+            Assert.That(loaded.settingsVersion, Is.EqualTo(BasisHandHeldCameraUI.CameraSettings.CurrentVersion));
+        }
+
+        [Test]
+        public void UpgradingAPreV9File_LeavesBothSlotsEmpty()
+        {
+            // Whether follow was armed was never saved, so an upgraded file keeps its numbers and
+            // stays put. A camera that restored armed would fly out of your hand on spawn.
+            const string legacyJson = "{\"settingsVersion\":8,\"autoFollowLateralTracking\":0.9}";
+
+            var loaded = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(legacyJson);
+            BasisHandHeldCameraUI.UpgradeLegacyFollowForTest(loaded, legacyJson);
+
+            Assert.That(loaded.modifiers.DrivesAnything, Is.False);
         }
 
         // ---------- helpers ----------
@@ -528,6 +560,9 @@ namespace Basis.Tests.Camera
                     return Mathf.Abs(c.r - other.r) < 1e-3f && Mathf.Abs(c.g - other.g) < 1e-3f &&
                            Mathf.Abs(c.b - other.b) < 1e-3f && Mathf.Abs(c.a - other.a) < 1e-3f;
                 case null: return b == null;
+                case Basis.Cinematics.BasisCameraModifierStack stack:
+                    return Basis.Cinematics.BasisCameraModifierStack.Matches(
+                        stack, b as Basis.Cinematics.BasisCameraModifierStack);
                 default: return a.Equals(b);
             }
         }

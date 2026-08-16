@@ -33,6 +33,50 @@ namespace Basis.Network.Core.Compression
         public static int MaxFlatSize(int groupedLength) => groupedLength * 2 + 8;
 
         /// <summary>
+        /// Classifies a grouped bundle body by traffic class, walking only the group headers —
+        /// it never touches the bodies, so it is far cheaper than <see cref="TryFlatten"/>.
+        ///
+        /// <paramref name="deltaOnly"/> is true when every group is
+        /// <see cref="BasisNetworkCommons.DeltaAvatarChannel"/>. That is the split the hybrid
+        /// codec routes on: delta-only bundles go to LZ4, anything carrying a keyframe/full
+        /// quality channel goes to dictionary Zstd. See <see cref="BasisAvatarBundleZstd"/>.
+        ///
+        /// Returns false on a malformed body, in which case <paramref name="deltaOnly"/> is
+        /// meaningless and the caller should drop the bundle.
+        /// </summary>
+        public static bool TryClassify(ReadOnlySpan<byte> grouped, out bool deltaOnly)
+        {
+            deltaOnly = true;
+            int read = 0;
+
+            while (read + 2 <= grouped.Length)
+            {
+                byte channel = grouped[read];
+                int n = grouped[read + 1];
+                read += 2;
+                if (n == 0) { deltaOnly = false; return false; }
+                if (read + n * 2 > grouped.Length) { deltaOnly = false; return false; }
+
+                if (channel != BasisNetworkCommons.DeltaAvatarChannel) deltaOnly = false;
+
+                int bodyTotal = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    int len = BinaryPrimitives.ReadUInt16LittleEndian(grouped.Slice(read + i * 2, 2));
+                    if (len == 0) { deltaOnly = false; return false; }
+                    bodyTotal += len;
+                }
+
+                read += n * 2;
+                if (read + bodyTotal > grouped.Length) { deltaOnly = false; return false; }
+                read += bodyTotal;
+            }
+
+            if (read != grouped.Length) { deltaOnly = false; return false; }
+            return true;
+        }
+
+        /// <summary>
         /// Rewrites a grouped bundle body into the flat <c>[channel:1][len:2-LE][body]*</c> form.
         /// Returns false on any inconsistency — a truncated group, a zero length, or a body run
         /// that overruns the buffer — in which case the caller should drop the datagram.

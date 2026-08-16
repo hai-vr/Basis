@@ -6443,9 +6443,9 @@ MonoBehaviour:
   OnPickupUse:
     m_PersistentCalls:
       m_Calls: []
-  enableScaleWithGesture: 0
-  minScalePercent: 50
-  maxScalePercent: 200
+  enableScaleWithGesture: 1
+  minScalePercent: 25
+  maxScalePercent: 400
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
@@ -6506,16 +6506,6 @@ MonoBehaviour:
     rid: -2
   desktopScreenFitFraction: 0.85
   desktopEyeDistanceScale: 0.325
-  autoFollowEnabled: 0
-  autoFollowPositionOffset: {x: 0.5, y: 0, z: 1.4}
-  autoFollowRotationOffset: {x: 0, y: 0, z: 0}
-  autoFollowPlayspace: 1
-  autoFollowLookAtPlayer: 1
-  autoFollowLookAtHeightOffset: 0
-  autoFollowLateralTracking: 0.5
-  autoFollowPositionSmoothing: 4
-  autoFollowRotationSmoothing: 6
-  autoFollowTeleportDistance: 10
   autoFocusFollowSubject: 0
   followTargetPlayerId: 0
   followTargetBound: 0

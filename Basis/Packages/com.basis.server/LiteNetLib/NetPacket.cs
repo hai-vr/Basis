@@ -22,7 +22,8 @@ namespace LiteNetLib
         PeerNotFound,
         InvalidProtocol,
         NatMessage,
-        Empty
+        Empty,
+        CompactMerged
     }
 
     internal sealed class NetPacket

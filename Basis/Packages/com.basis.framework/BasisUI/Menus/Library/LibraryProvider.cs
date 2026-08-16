@@ -196,7 +196,7 @@ namespace Basis.BasisUI
             string[] dateSortNames = Enum.GetNames(typeof(LibraryDateSortMode));
 
             dateSorting.Descriptor.SetSize(new Vector2(60, 80));
-            dateSorting.AssignEntries(dateSortNames.ToList());
+            dateSorting.AssignEntries(dateSortNames.ToList(), null, EnumOptionTooltips(dateSortNames, "library.sort."));
             dateSorting.SetValueWithoutNotify(_currentSort.ToString());
 
             // when sorting changes, update and refresh
@@ -216,7 +216,7 @@ namespace Basis.BasisUI
             string[] itemTypeNames = Enum.GetNames(typeof(LibraryItemTypeFilter));
 
             itemTypeSorting.Descriptor.SetSize(new Vector2(60, 80));
-            itemTypeSorting.AssignEntries(itemTypeNames.ToList());
+            itemTypeSorting.AssignEntries(itemTypeNames.ToList(), null, EnumOptionTooltips(itemTypeNames, "library.filter."));
             itemTypeSorting.SetValueWithoutNotify(_currentItemTypeFilter.ToString());
 
             // when sorting changes, update and refresh
@@ -264,6 +264,22 @@ namespace Basis.BasisUI
             if (panel == null || panel.IsReleased) return;
 
             panel.Descriptor.ForceRebuild();
+        }
+
+        /// <summary>
+        /// Hover text for the sort and filter dropdowns, whose options are raw enum names. The key
+        /// is the prefix plus the camelCased member, so LibraryItemTypeFilter.PlacedByMe reads from
+        /// "library.filter.placedByMe.tooltip".
+        /// </summary>
+        private static List<string> EnumOptionTooltips(string[] memberNames, string keyPrefix)
+        {
+            List<string> tooltips = new List<string>(memberNames.Length);
+            foreach (string member in memberNames)
+            {
+                string camel = char.ToLowerInvariant(member[0]) + member.Substring(1);
+                tooltips.Add(BasisLocalization.Get(keyPrefix + camel + ".tooltip"));
+            }
+            return tooltips;
         }
 
         #endregion
@@ -1153,7 +1169,7 @@ namespace Basis.BasisUI
             {
                 description = new BasisBundleDescription()
                 {
-                    AssetBundleName = item.Url,
+                    AssetBundleName = EmbeddedItems.GetDisplayNameForEmbeddedItem(item),
                     AssetBundleDescription = embedItem,
                 };
 
@@ -2110,7 +2126,9 @@ namespace Basis.BasisUI
         private static string TitleFromSpawnInstanceMetaData(BasisRuntimeSpawnRegistry.SpawnInstance k)
         {
             bool hasMetaData = k.bundleConnector != null;
-            return hasMetaData ? LibraryProviderStrUtil.TitleToCase(k.bundleConnector.BasisBundleDescription.AssetBundleName) : k.Url;
+            return hasMetaData
+                ? LibraryProviderStrUtil.TitleToCase(k.bundleConnector.BasisBundleDescription.AssetBundleName)
+                : EmbeddedItems.GetDisplayNameForUrl(k.Url);
         }
 
         private static void UpdateInstantiatedTab()
@@ -2844,7 +2862,9 @@ namespace Basis.BasisUI
         private static void CreateListEntry(BasisRuntimeSpawnRegistry.SpawnInstance itemKey, RectTransform parentTabGroup, string instanceID)
         {
             bool hasMetaData = itemKey.bundleConnector != null;
-            string title = hasMetaData ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName) : itemKey.Url;
+            string title = hasMetaData
+                ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName)
+                : EmbeddedItems.GetDisplayNameForUrl(itemKey.Url);
             //string description = hasMetaData ? (itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription.Length > 0 ? itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription : "No description was provided.") : (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded ? "Embedded Item" : "N/A");
 
             bool hasSelected = false; // used for if we have selected this item via the placement manager

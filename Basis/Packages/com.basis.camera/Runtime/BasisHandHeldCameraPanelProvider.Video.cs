@@ -15,6 +15,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelButton _videoRecordButton;
         private PanelElementDescriptor _videoStatus;
         private PanelToggle _videoTimeLimitToggle;
+        private PanelToggle _videoAutoNewClipToggle;
         private PanelSlider _videoDurationSlider;
         private PanelSlider _videoRecordFrameRateSlider;
         private PanelDropdown _videoSizeDropdown;
@@ -23,6 +24,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private string _lastVideoButtonLabel;
         private string _lastVideoStatusText;
         private bool? _lastVideoTimeLimit;
+        private bool? _lastVideoAutoNewClip;
         private float _lastVideoDuration = float.NaN;
         private float _lastVideoFrameRate = float.NaN;
         private int _lastVideoWidth = -1;
@@ -50,7 +52,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _videoTimeLimitToggle.OnValueChanged = v =>
             {
                 if (_activeCamera != null) _activeCamera.VideoRecordingTimeLimit = v;
-                RefreshVideoLengthVisibility();
+                RefreshVideoLimitVisibility();
             };
 
             _videoDurationSlider = PanelSlider.CreateNew(content);
@@ -61,6 +63,14 @@ namespace Basis.BasisUI.HandHeldCamera
             _videoDurationSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.video.length.description"));
             _videoDurationSlider.SetResetDefault(defaults.videoDurationSeconds);
             _videoDurationSlider.OnValueChanged = v => _activeCamera?.SetVideoRecordingDuration(v);
+
+            _videoAutoNewClipToggle = PanelToggle.CreateNewEntry(content);
+            _videoAutoNewClipToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.video.autoNewClip"));
+            _videoAutoNewClipToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.video.autoNewClip.description"));
+            _videoAutoNewClipToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera != null) _activeCamera.VideoContinuousClips = v;
+            };
 
             _videoRecordFrameRateSlider = PanelSlider.CreateNew(content);
             _videoRecordFrameRateSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
@@ -135,25 +145,39 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastVideoWidth = -1;
             SyncWidthDropdown(_videoSizeDropdown, BasisHandHeldCamera.VideoWidthPresets, _activeCamera.VideoRecordingWidth, ref _lastVideoWidth);
             _lastVideoTimeLimit = null;
+            _lastVideoAutoNewClip = null;
             SyncToggle(_videoTimeLimitToggle, _activeCamera.VideoRecordingTimeLimit, ref _lastVideoTimeLimit);
-            RefreshVideoLengthVisibility();
+            SyncToggle(_videoAutoNewClipToggle, _activeCamera.VideoContinuousClips, ref _lastVideoAutoNewClip);
+            RefreshVideoLimitVisibility();
 
             _lastVideoButtonLabel = null;
             _lastVideoStatusText = null;
             TickVideoSection();
         }
 
-        /// <summary>The length slider only exists while there is a limit for it to set.</summary>
-        private void RefreshVideoLengthVisibility()
+        /// <summary>
+        /// The length slider and the auto-new-clip toggle only exist while there is a limit for
+        /// them to act on — the one sets it, the other says what reaching it does.
+        /// </summary>
+        private void RefreshVideoLimitVisibility()
         {
-            if (_videoDurationSlider == null || _activeCamera == null) return;
+            if (_activeCamera == null) return;
 
             bool limited = _activeCamera.VideoRecordingTimeLimit;
-            if (_videoDurationSlider.gameObject.activeSelf == limited) return;
+            bool changed = SetRowActive(_videoDurationSlider, limited);
+            changed |= SetRowActive(_videoAutoNewClipToggle, limited);
+            if (!changed) return;
 
-            _videoDurationSlider.gameObject.SetActive(limited);
             RefreshSearch();
             ForceLayoutRebuild(_videoGroup);
+        }
+
+        /// <summary>Shows or hides one row, reporting whether that was a change worth a rebuild.</summary>
+        private static bool SetRowActive(PanelComponent row, bool active)
+        {
+            if (row == null || row.gameObject.activeSelf == active) return false;
+            row.gameObject.SetActive(active);
+            return true;
         }
 
         /// <summary>Per-tick sync, same shape and reasoning as the GIF section's.</summary>
@@ -166,11 +190,13 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncSlider(_videoQualitySlider, _activeCamera.VideoRecordingQuality, ref _lastVideoQuality);
             SyncWidthDropdown(_videoSizeDropdown, BasisHandHeldCamera.VideoWidthPresets, _activeCamera.VideoRecordingWidth, ref _lastVideoWidth);
             SyncToggle(_videoTimeLimitToggle, _activeCamera.VideoRecordingTimeLimit, ref _lastVideoTimeLimit);
-            RefreshVideoLengthVisibility();
+            SyncToggle(_videoAutoNewClipToggle, _activeCamera.VideoContinuousClips, ref _lastVideoAutoNewClip);
+            RefreshVideoLimitVisibility();
 
             TickRecordingControls(
                 _activeCamera.VideoRecordingState, _activeCamera.VideoSecondsRemaining,
                 _activeCamera.VideoFramesCaptured, _activeCamera.VideoFramesEncoded,
+                _activeCamera.VideoClipNumber,
                 _activeCamera.LastVideoFileName, _activeCamera.LastVideoFailure,
                 "camera.video", _videoRecordButton, _videoStatus,
                 ref _lastVideoButtonLabel, ref _lastVideoStatusText);
@@ -184,6 +210,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _videoStatus = null;
             _videoTimeLimitToggle = null;
             _lastVideoTimeLimit = null;
+            _videoAutoNewClipToggle = null;
+            _lastVideoAutoNewClip = null;
             _videoDurationSlider = null;
             _videoRecordFrameRateSlider = null;
             _videoSizeDropdown = null;

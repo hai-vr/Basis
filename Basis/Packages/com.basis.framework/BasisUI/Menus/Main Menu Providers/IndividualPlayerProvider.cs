@@ -800,7 +800,12 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("menu.individualPlayer.voiceRecording.policy.allow"),
                     BasisLocalization.Get("menu.individualPlayer.voiceRecording.policy.deny"),
                 };
-                recordPolicy.AssignEntries(recordPolicyOptions);
+                recordPolicy.AssignEntries(recordPolicyOptions, null, new List<string>
+                {
+                    BasisLocalization.Get("menu.individualPlayer.voiceRecording.policy.ask.tooltip"),
+                    BasisLocalization.Get("menu.individualPlayer.voiceRecording.policy.allow.tooltip"),
+                    BasisLocalization.Get("menu.individualPlayer.voiceRecording.policy.deny.tooltip"),
+                });
                 recordPolicy.SetValueWithoutNotify(recordPolicyOptions[(int)BasisRecordingConsent.GetPolicy(remotePlayer.UUID)]);
                 recordPolicy.OnValueChanged = selected =>
                 {
@@ -1054,7 +1059,12 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("menu.individualPlayer.directConnection.policy.accept"),
                     BasisLocalization.Get("menu.individualPlayer.directConnection.policy.decline"),
                 };
-                directConnPolicy.AssignEntries(policyOptions);
+                directConnPolicy.AssignEntries(policyOptions, null, new List<string>
+                {
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.policy.ask.tooltip"),
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.policy.accept.tooltip"),
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.policy.decline.tooltip"),
+                });
                 directConnPolicy.SetValueWithoutNotify(policyOptions[(int)BasisTrustedConnections.GetPolicy(remotePlayer.UUID)]);
                 directConnPolicy.OnValueChanged = selected =>
                 {

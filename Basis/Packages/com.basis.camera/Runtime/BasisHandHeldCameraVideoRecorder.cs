@@ -30,12 +30,26 @@ public partial class BasisHandHeldCamera
     public static readonly int[] VideoWidthPresets = { 1280, 1920, 2560, 3840 };
 
     /// <summary>
-    /// On, a recording stops itself after the picked length; off, it runs until stopped by
-    /// hand. MJPEG is big — roughly megabytes per second — so an unlimited recording's ceiling
-    /// is the disk, and one that fills it ends as a failed recording rather than a saved one.
+    /// On, the picked length is where a clip ends — the recording with it, or only that clip
+    /// when <see cref="VideoContinuousClips"/> is set; off, one clip runs until stopped by hand.
+    /// MJPEG is big — roughly megabytes per second — so an unlimited recording's ceiling is the
+    /// disk, and one that fills it ends as a failed recording rather than a saved one.
     /// </summary>
     [NonSerialized]
     public bool VideoRecordingTimeLimit = true;
+
+    /// <summary>
+    /// With a time limit set, on: reaching it closes the clip and opens the next one in the same
+    /// frame, so a long session lands as a numbered run of files and keeps going until it is
+    /// stopped by hand. Nothing falls between them — the join costs one frame interval, the same
+    /// gap as any two frames inside a clip. Off, the limit ends the recording.
+    ///
+    /// <para>Which is the point of it: MJPEG at a megabyte a second gives one unbounded recording
+    /// a single enormous file that a player has to read to the end, and loses the lot if the disk
+    /// fills. A run of clips is the same footage in pieces an editor can open.</para>
+    /// </summary>
+    [NonSerialized]
+    public bool VideoContinuousClips;
 
     private int videoFrameRate = 30;
     private float videoDurationSeconds = 30f;
@@ -44,6 +58,14 @@ public partial class BasisHandHeldCamera
 
     private readonly BasisCameraFrameRecorder videoRecorder = new BasisCameraFrameRecorder("Video");
     private BasisVideoAudioTap videoAudioTap;
+
+    // The geometry and naming every clip of one run shares. Held for the roll, which has to
+    // open its file without the feed's dimensions being free to change underneath it.
+    private int videoSegmentWidth;
+    private int videoSegmentHeight;
+    private string videoSegmentStamp;
+    private int videoSegmentIndex;
+    private bool videoSegmentNumbered;
 
     public int VideoRecordingFrameRate => videoFrameRate;
     public float VideoRecordingDurationSeconds => videoDurationSeconds;
@@ -82,6 +104,9 @@ public partial class BasisHandHeldCamera
     /// <summary>Seconds of recording time left, for the panel's stop-button label.</summary>
     public float VideoSecondsRemaining => videoRecorder.SecondsRemaining;
 
+    /// <summary>Which clip of a run is recording, counting from one, or zero for a single clip.</summary>
+    public int VideoClipNumber => videoRecorder.SegmentNumber;
+
     /// <summary>
     /// Starts a recording with the current video settings. Refused while one is already running
     /// or saving, and while an admin has locked capture — the same gate photos go through.
@@ -91,17 +116,15 @@ public partial class BasisHandHeldCamera
         if (videoRecorder.State != BasisCameraRecordingState.Idle) return false;
         if (!TryBeginClipRecording("Video", videoWidth, MinVideoWidth, MaxVideoWidth, out int width, out int height, out string timestamp)) return false;
 
-        string finalPath = GetSavePath($"Video_{timestamp}_{width}x{height}.avi");
+        bool continuous = VideoRecordingTimeLimit && VideoContinuousClips;
+        videoSegmentWidth = width;
+        videoSegmentHeight = height;
+        videoSegmentStamp = timestamp;
+        videoSegmentIndex = 0;
+        videoSegmentNumbered = continuous;
 
-        // The recording hears what the player hears: the listener mix, from the camera's own
-        // position when Hear From Camera has moved the listener there. No listener to tap —
-        // batch tests, headless — records a silent file rather than refusing.
-        var audioBuffer = new BasisRecordingAudioBuffer(AudioSettings.outputSampleRate);
-        videoAudioTap = BasisVideoAudioTap.Attach(audioBuffer);
-
-        var session = new BasisVideoRecorderSession(width, height, videoQuality, videoFrameRate, finalPath,
-            videoAudioTap != null ? audioBuffer : null, Time.unscaledTimeAsDouble);
-        if (!session.Start())
+        IBasisFrameRecorderSession session = BeginVideoSegment();
+        if (session == null)
         {
             BasisVideoAudioTap.Detach(ref videoAudioTap);
             return false;
@@ -112,13 +135,45 @@ public partial class BasisHandHeldCamera
         float duration = VideoRecordingTimeLimit
             ? Mathf.Clamp(videoDurationSeconds, MinVideoDurationSeconds, MaxVideoDurationSeconds)
             : float.PositiveInfinity;
-        videoRecorder.Start(session, width, height, videoFrameRate, duration, flip: false);
+        videoRecorder.Start(session, width, height, videoFrameRate, duration, flip: false,
+            continuous ? BeginVideoSegment : (Func<IBasisFrameRecorderSession>)null);
         UpdateRenderGate();
         AnnounceClipRecording();
 
-        BasisDebug.Log($"Video recording started: {width}x{height} @ {videoFrameRate}fps, " +
-            (VideoRecordingTimeLimit ? $"for up to {videoDurationSeconds:0.#}s." : "until stopped."), BasisDebug.LogTag.Camera);
+        string length = !VideoRecordingTimeLimit ? "until stopped."
+            : continuous ? $"in {videoDurationSeconds:0.#}s clips until stopped."
+            : $"for up to {videoDurationSeconds:0.#}s.";
+        BasisDebug.Log($"Video recording started: {width}x{height} @ {videoFrameRate}fps, {length}", BasisDebug.LogTag.Camera);
         return true;
+    }
+
+    /// <summary>
+    /// Opens a clip's file and encoder: the first one at the start of a recording, and one more
+    /// at every roll. Returns null when the encoder will not start, which ends the run.
+    ///
+    /// <para>The listener tap is retargeted rather than detached and re-attached, so the audio
+    /// thread always has somewhere to write. A callback that read the old target just as the
+    /// swap landed still reaches the clip it belonged to: that clip's worker is told no more
+    /// frames are coming a tick or more later, and drains everything buffered before it closes
+    /// the file.</para>
+    /// </summary>
+    private IBasisFrameRecorderSession BeginVideoSegment()
+    {
+        videoSegmentIndex++;
+        string fileName = videoSegmentNumbered
+            ? $"Video_{videoSegmentStamp}_{videoSegmentWidth}x{videoSegmentHeight}_part{videoSegmentIndex:000}.avi"
+            : $"Video_{videoSegmentStamp}_{videoSegmentWidth}x{videoSegmentHeight}.avi";
+
+        // The recording hears what the player hears: the listener mix, from the camera's own
+        // position when Hear From Camera has moved the listener there. No listener to tap —
+        // batch tests, headless — records a silent file rather than refusing.
+        var audioBuffer = new BasisRecordingAudioBuffer(AudioSettings.outputSampleRate);
+        if (videoAudioTap == null) videoAudioTap = BasisVideoAudioTap.Attach(audioBuffer);
+        else videoAudioTap.Target = audioBuffer;
+
+        var session = new BasisVideoRecorderSession(videoSegmentWidth, videoSegmentHeight, videoQuality, videoFrameRate,
+            GetSavePath(fileName), videoAudioTap != null ? audioBuffer : null, Time.unscaledTimeAsDouble);
+        return session.Start() ? session : null;
     }
 
     /// <summary>Ends the capture phase and lets the frames already taken drain into the file.</summary>

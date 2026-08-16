@@ -357,6 +357,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisCullingCameraRegistry.Unregister(captureCamera);
         BasisMirrorViewerRegistry.Unregister(captureCamera);
         ReleaseRenderTexture();
+        ReleaseFocusPeaking();
+        ReleaseAutoBrightness();
         if (pooledScreenshot != null) { Destroy(pooledScreenshot); pooledScreenshot = null; }
         ReleaseSrgbResolveTarget();
         if (actualMaterial != null) { Destroy(actualMaterial); actualMaterial = null; }
@@ -521,7 +523,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public void RevealAsFreshSpawn()
     {
         SetCameraHidden(false);
-        SetAutoFollowEnabled(false);
+        ClearModifiers();
         PinSpace = CameraPinSpace.HandHeld;
         AcquireCursorLock();
     }
@@ -623,7 +625,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         if (MetaData.Profile.TryGet(out MetaData.tonemapping))
         {
-            ToggleToneMapping(TonemappingMode.Neutral);
+            ToggleToneMapping(PreviewTonemapping);
         }
     }
 
@@ -829,8 +831,21 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// True when the follow subject is somewhere the camera could actually be pointed. Follow
     /// resolves to the local player whenever no remote is targeted, and while the camera is in
     /// hand that point sits behind the lens, so focusing on it blurs the whole shot.
+    /// <para>
+    /// A fitted modifier only counts while the Subject slot names somebody: with the slot on None
+    /// the stack is driving the camera at nothing in particular, and the fallback is again your own
+    /// head — the same shot-wide blur, arrived at from the other direction.
+    /// </para>
     /// </summary>
-    public bool CanAutoFocusOnFollowSubject => IsAutoFollowing || IsFollowingRemotePlayer;
+    public bool CanAutoFocusOnFollowSubject =>
+        IsFollowingRemotePlayer || (IsModifierDriven && Modifiers.ResolvesSubject);
+
+    /// <summary>
+    /// True when Follow Subject focus is selected and there is nobody for it to keep sharp, which
+    /// is a state the operator cannot otherwise see: the focus mode reads Follow Subject, the
+    /// manual slider is quietly still in charge, and who the camera films is set on another page.
+    /// </summary>
+    public bool AutoFocusHasNoSubject => autoFocusFollowSubject && !CanAutoFocusOnFollowSubject;
 
     /// <summary>
     /// Shortest focus distance the blur solver can take, in metres. Its circle of confusion is
@@ -943,15 +958,27 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (CameraData.antialiasingQuality != AQ)
             CameraData.antialiasingQuality = AQ;
 
-        if (actualMaterial != lastAssignedMaterial || renderTexture != lastAssignedRenderTexture || textureChanged)
-        {
-            actualMaterial.SetTexture("_MainTex", renderTexture);
-            actualMaterial.mainTexture = renderTexture;
-            Renderer.sharedMaterial = actualMaterial;
-            lastAssignedMaterial = actualMaterial;
-            lastAssignedRenderTexture = renderTexture;
-            ApplyViewfinderCrop();
-        }
+        BindViewfinderFeed(textureChanged);
+    }
+
+    /// <summary>
+    /// Points the prop's viewfinder mesh at whatever is currently being shown — the feed, or the
+    /// focus-peaking overlay of it. Change-gated, since it is called from the per-frame tick as
+    /// well as from every resize.
+    /// </summary>
+    private void BindViewfinderFeed(bool force = false)
+    {
+        if (actualMaterial == null) return;
+
+        RenderTexture feed = ViewfinderTexture;
+        if (!force && actualMaterial == lastAssignedMaterial && feed == lastAssignedRenderTexture) return;
+
+        actualMaterial.SetTexture("_MainTex", feed);
+        actualMaterial.mainTexture = feed;
+        if (Renderer != null) Renderer.sharedMaterial = actualMaterial;
+        lastAssignedMaterial = actualMaterial;
+        lastAssignedRenderTexture = feed;
+        ApplyViewfinderCrop();
     }
 
     /// <summary>
@@ -1035,7 +1062,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         yield return new WaitForEndOfFrame();
 
         BasisLocalAvatarDriver.ScaleHeadToNormal();
-        ToggleToneMapping(TonemappingMode.ACES);
+        ToggleToneMapping(CaptureTonemapping);
 
         captureCamera.Render();
 
@@ -1305,6 +1332,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         UpdateRenderGate();
 
+        // Ahead of the render, so the exposure the meter settles on is the one this frame is shot at.
+        TickAutoBrightness();
+
+        // Before every surface that binds a feed, so they are pointed at the overlay for the frame
+        // it was produced in rather than the frame after.
+        TickFocusPeaking();
+
         if (IsOverridingDesktopView)
         {
             UpdateDirectToScreenTexture();
@@ -1341,8 +1375,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.depth = -1;
         captureCamera.targetDisplay = 0;
         captureCamera.targetTexture = renderTexture;
-        actualMaterial.mainTexture = renderTexture;
-        actualMaterial.SetTexture("_MainTex", renderTexture);
+        BindViewfinderFeed(true);
 
         SetDirectToScreenOverlayActive(IsOverridingDesktopView);
 
@@ -1437,7 +1470,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public void SetNormalAfterCapture()
     {
         captureInFlight = false;
-        ToggleToneMapping(TonemappingMode.Neutral);
+        ToggleToneMapping(PreviewTonemapping);
         BasisLocalAvatarDriver.ScaleHeadToZero();
         ApplyPreviewResolution();
     }
@@ -1445,7 +1478,29 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Sets the URP tonemapping mode on the active profile.</summary>
     public void ToggleToneMapping(TonemappingMode mappingMode)
     {
+        if (MetaData.tonemapping == null) return;
         MetaData.tonemapping.mode.value = mappingMode;
+    }
+
+    /// <summary>
+    /// What the viewfinder is graded with. Fixed: the preview is rendered at a different resolution
+    /// and exposure to the still, and a viewfinder whose grade moved under the operator would make
+    /// the two harder to compare rather than easier.
+    /// </summary>
+    public const TonemappingMode PreviewTonemapping = TonemappingMode.Neutral;
+
+    /// <summary>
+    /// Which tonemapper the saved photo is graded with. ACES by default, which is what the capture
+    /// path always used before this was a choice.
+    /// </summary>
+    public TonemappingMode CaptureTonemapping { get; private set; } = TonemappingMode.ACES;
+
+    /// <summary>Sets the still's grade from a persisted <see cref="TonemappingMode"/> value.</summary>
+    public void SetCaptureTonemapping(int mode)
+    {
+        CaptureTonemapping = System.Enum.IsDefined(typeof(TonemappingMode), mode)
+            ? (TonemappingMode)mode
+            : TonemappingMode.ACES;
     }
 
     /// <summary>Boot-mode swap handler (keeps overrides in sync).</summary>

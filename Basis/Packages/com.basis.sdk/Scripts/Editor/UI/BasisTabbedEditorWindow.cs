@@ -55,6 +55,35 @@ public abstract class BasisTabbedEditorWindow : EditorWindow
     protected BasisEditorTabPage Current =>
         _pages != null && _tab >= 0 && _tab < _pages.Length ? _pages[_tab] : null;
 
+    /// <summary>This window's first tab of the given type, or null when it has none.</summary>
+    protected T Page<T>() where T : BasisEditorTabPage
+    {
+        if (_pages == null) return null;
+        foreach (BasisEditorTabPage page in _pages)
+        {
+            if (page is T match) return match;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Brings a tab to the front, for when something outside the window opens it at a particular
+    /// page. Returns false when the page does not belong to this window.
+    /// </summary>
+    protected bool SelectPage(BasisEditorTabPage page)
+    {
+        if (_pages == null || page == null) return false;
+
+        int index = Array.IndexOf(_pages, page);
+        if (index < 0) return false;
+
+        _tab = index;
+        EditorPrefs.SetInt(PrefKey, _tab);
+        GUI.FocusControl(null);
+        Repaint();
+        return true;
+    }
+
     protected virtual void OnEnable()
     {
         _pages = BuildPages() ?? Array.Empty<BasisEditorTabPage>();

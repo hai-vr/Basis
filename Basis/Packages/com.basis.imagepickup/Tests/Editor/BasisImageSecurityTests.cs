@@ -43,6 +43,89 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
+        public void PngSignatureIsRecognizedWithoutAFileName()
+        {
+            // Pasted data has no name, so the extension allowlist has nothing to check and the format
+            // has to come from the bytes. The signature check itself is unchanged.
+            var png = new byte[16];
+            Buffer.BlockCopy(PngSignature, 0, png, 0, PngSignature.Length);
+
+            Assert.That(
+                BasisImageSecurity.TryGetSourceFormatFromSignature(png, out BasisImageSecurity.SourceImageFormat format),
+                Is.True
+            );
+            Assert.That(format, Is.EqualTo(BasisImageSecurity.SourceImageFormat.Png));
+        }
+
+        [Test]
+        public void JpegSignatureIsRecognizedWithoutAFileName()
+        {
+            byte[] jpeg = { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10 };
+
+            Assert.That(
+                BasisImageSecurity.TryGetSourceFormatFromSignature(jpeg, out BasisImageSecurity.SourceImageFormat format),
+                Is.True
+            );
+            Assert.That(format, Is.EqualTo(BasisImageSecurity.SourceImageFormat.Jpeg));
+        }
+
+        [TestCase("GIF87a")]
+        [TestCase("GIF89a")]
+        public void GifSignatureIsRecognizedWithoutAFileName(string signature)
+        {
+            byte[] gif = System.Text.Encoding.ASCII.GetBytes(signature + "\0\0\0\0");
+
+            Assert.That(BasisImageSecurity.IsGifData(gif), Is.True);
+        }
+
+        [Test]
+        public void UnknownDataIsRejectedBySignature()
+        {
+            // WebP starts with "RIFF" and is a supported-looking image everywhere else; nothing but the
+            // three formats the feature decodes may reach the decoder.
+            byte[] webp = System.Text.Encoding.ASCII.GetBytes("RIFF\0\0\0\0WEBP");
+
+            Assert.That(BasisImageSecurity.TryGetSourceFormatFromSignature(webp, out _), Is.False);
+            Assert.That(BasisImageSecurity.IsGifData(webp), Is.False);
+        }
+
+        [Test]
+        public void EmptyAndShortDataAreRejectedBySignature()
+        {
+            Assert.That(BasisImageSecurity.TryGetSourceFormatFromSignature(null, out _), Is.False);
+            Assert.That(BasisImageSecurity.TryGetSourceFormatFromSignature(Array.Empty<byte>(), out _), Is.False);
+            Assert.That(BasisImageSecurity.TryGetSourceFormatFromSignature(new byte[] { 0x89, 0x50 }, out _), Is.False);
+            Assert.That(BasisImageSecurity.IsGifData(new byte[] { (byte)'G', (byte)'I' }), Is.False);
+        }
+
+        [Test]
+        public void PastedDataWithNoRecognizedSignatureIsRejected()
+        {
+            BasisImageValidationResult result = BasisImageSecurity.ValidateSourceBytes(
+                System.Text.Encoding.ASCII.GetBytes("MZ\0\0not an image at all")
+            );
+
+            Assert.That(result.Ok, Is.False);
+            Assert.That(result.Error, Does.Contain("Unsupported image data"));
+        }
+
+        [Test]
+        public void EmptyPastedDataIsRejected()
+        {
+            Assert.That(BasisImageSecurity.ValidateSourceBytes(null).Ok, Is.False);
+            Assert.That(BasisImageSecurity.ValidateSourceBytes(Array.Empty<byte>()).Ok, Is.False);
+        }
+
+        [Test]
+        public void PastedPixelsMustMatchTheirReportedSize()
+        {
+            BasisImageValidationResult result = BasisImageSecurity.ValidateRgba32(new byte[4 * 3], 2, 2);
+
+            Assert.That(result.Ok, Is.False);
+            Assert.That(result.Error, Does.Contain("does not match"));
+        }
+
+        [Test]
         public void RejectionPopupDescriptionIncludesFileAndEscapedReason()
         {
             string description = BasisImagePickupRejectionPopup.BuildDescription(

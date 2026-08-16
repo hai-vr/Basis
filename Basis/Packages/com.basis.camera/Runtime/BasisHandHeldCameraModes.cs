@@ -1,3 +1,4 @@
+using Basis.Cinematics;
 using UnityEngine;
 using CameraPinSpace = BasisHandHeldCameraInteractable.CameraPinSpace;
 
@@ -27,8 +28,9 @@ public partial class BasisHandHeldCamera
         // Placement: the three values a settings file cannot carry, because saving them would have
         // a camera fly out of your hand the moment it spawned. These are what a restore re-arms.
         public readonly CameraPinSpace Pin;
-        public readonly bool AutoFollow;
-        public readonly bool Cinematic;
+        public readonly BasisCameraPositionModifier Position;
+        public readonly BasisCameraRotationModifier Rotation;
+        public readonly BasisCameraEffectModifier[] Effects;
 
         // Everything below is persisted in its own right, so a restore must leave it alone and let
         // the file speak. Only an explicit mode selection writes these.
@@ -36,8 +38,7 @@ public partial class BasisHandHeldCamera
         public readonly bool VrStabilisation;
         public readonly bool Capture360;
         public readonly bool AutoFocusSubject;
-        public readonly bool FollowPlayspace;
-        public readonly bool FollowLookAtPlayer;
+        public readonly bool AnchorToBody;
         public readonly Vector3 FollowOffset;
         public readonly float Fov;
 
@@ -57,14 +58,14 @@ public partial class BasisHandHeldCamera
 
         public BasisCameraModePreset(
             CameraPinSpace pin,
-            bool autoFollow,
-            bool cinematic,
+            BasisCameraPositionModifier position,
+            BasisCameraRotationModifier rotation,
+            BasisCameraEffectModifier[] effects,
             bool autoLevel,
             bool vrStabilisation,
             bool capture360,
             bool autoFocusSubject,
-            bool followPlayspace,
-            bool followLookAtPlayer,
+            bool anchorToBody,
             Vector3 followOffset,
             float fov,
             bool dofEnabled,
@@ -74,14 +75,14 @@ public partial class BasisHandHeldCamera
             float motionBlur)
         {
             Pin = pin;
-            AutoFollow = autoFollow;
-            Cinematic = cinematic;
+            Position = position;
+            Rotation = rotation;
+            Effects = effects;
             AutoLevel = autoLevel;
             VrStabilisation = vrStabilisation;
             Capture360 = capture360;
             AutoFocusSubject = autoFocusSubject;
-            FollowPlayspace = followPlayspace;
-            FollowLookAtPlayer = followLookAtPlayer;
+            AnchorToBody = anchorToBody;
             FollowOffset = followOffset;
             Fov = fov;
             DoFEnabled = dofEnabled;
@@ -90,7 +91,65 @@ public partial class BasisHandHeldCamera
             FocalLength = focalLength;
             MotionBlur = motionBlur;
         }
+
+        /// <summary>Whether the fitted slots need somebody to film, and so own the subject settings.</summary>
+        public bool DrivesSubject =>
+            BasisCameraModifiers.NeedsSubject(Position) || BasisCameraModifiers.NeedsSubject(Rotation);
+
+        /// <summary>
+        /// The stack this mode runs, built on top of whatever the camera already carries.
+        ///
+        /// <para>A preset owns the two slots and the effects list — the placement a settings file
+        /// deliberately never stores — but it only writes the framing when it actually films
+        /// somebody. A mode that greys the position section out has no business resetting the
+        /// values in it: the user's framing is still theirs when they come back to Follow Me.</para>
+        /// </summary>
+        public BasisCameraModifierStack BuildStack(BasisCameraModifierStack current)
+        {
+            BasisCameraModifierStack stack = current != null
+                ? current.Clone()
+                : new BasisCameraModifierStack();
+
+            stack.positionModifier = Position;
+            stack.rotationModifier = Rotation;
+
+            stack.ClearEffects();
+            if (Effects != null)
+            {
+                for (int Index = 0; Index < Effects.Length; Index++)
+                {
+                    stack.AddEffect(Effects[Index]);
+                }
+            }
+
+            if (DrivesSubject)
+            {
+                stack.follow.positionOffset = FollowOffset;
+                stack.framing.directionOffset = FollowOffset;
+            }
+            return stack;
+        }
+
+        public bool EffectsMatch(BasisCameraModifierStack stack)
+        {
+            int wanted = Effects?.Length ?? 0;
+            if (stack == null || stack.EffectCount != wanted) return false;
+
+            for (int Index = 0; Index < wanted; Index++)
+            {
+                if (!stack.HasEffect(Effects[Index])) return false;
+            }
+            return true;
+        }
     }
+
+    private static readonly BasisCameraEffectModifier[] NoEffects = new BasisCameraEffectModifier[0];
+
+    private static readonly BasisCameraEffectModifier[] CinematicEffects =
+    {
+        BasisCameraEffectModifier.LookAhead,
+        BasisCameraEffectModifier.Shake,
+    };
 
     /// <summary>
     /// Photo is the camera as it has always behaved, so every number here is the shipped default —
@@ -100,14 +159,14 @@ public partial class BasisHandHeldCamera
     /// </summary>
     private static readonly BasisCameraModePreset PhotoPreset = new BasisCameraModePreset(
         pin: CameraPinSpace.HandHeld,
-        autoFollow: false,
-        cinematic: false,
+        position: BasisCameraPositionModifier.FreeFly,
+        rotation: BasisCameraRotationModifier.FreeLook,
+        effects: NoEffects,
         autoLevel: false,
         vrStabilisation: false,
         capture360: false,
         autoFocusSubject: false,
-        followPlayspace: true,
-        followLookAtPlayer: true,
+        anchorToBody: true,
         followOffset: new Vector3(0.5f, 0f, 1.4f),
         fov: 40f,
         dofEnabled: false,
@@ -123,14 +182,14 @@ public partial class BasisHandHeldCamera
     /// </summary>
     private static readonly BasisCameraModePreset FlyingPuckPreset = new BasisCameraModePreset(
         pin: CameraPinSpace.WorldSpace,
-        autoFollow: false,
-        cinematic: false,
+        position: BasisCameraPositionModifier.FreeFly,
+        rotation: BasisCameraRotationModifier.FreeLook,
+        effects: NoEffects,
         autoLevel: true,
         vrStabilisation: true,
         capture360: false,
         autoFocusSubject: false,
-        followPlayspace: true,
-        followLookAtPlayer: true,
+        anchorToBody: true,
         followOffset: new Vector3(0.5f, 0f, 1.4f),
         fov: 55f,
         dofEnabled: false,
@@ -146,14 +205,14 @@ public partial class BasisHandHeldCamera
     /// </summary>
     private static readonly BasisCameraModePreset FollowMePreset = new BasisCameraModePreset(
         pin: CameraPinSpace.WorldSpace,
-        autoFollow: true,
-        cinematic: false,
+        position: BasisCameraPositionModifier.FollowSubject,
+        rotation: BasisCameraRotationModifier.LookAtSubject,
+        effects: NoEffects,
         autoLevel: false,
         vrStabilisation: false,
         capture360: false,
         autoFocusSubject: true,
-        followPlayspace: true,
-        followLookAtPlayer: true,
+        anchorToBody: true,
         followOffset: new Vector3(0.5f, 0f, 1.4f),
         fov: 45f,
         dofEnabled: true,
@@ -169,15 +228,15 @@ public partial class BasisHandHeldCamera
     /// </summary>
     private static readonly BasisCameraModePreset CinematicPreset = new BasisCameraModePreset(
         pin: CameraPinSpace.WorldSpace,
-        autoFollow: false,
-        cinematic: true,
+        position: BasisCameraPositionModifier.FollowSubject,
+        rotation: BasisCameraRotationModifier.Compose,
+        effects: CinematicEffects,
         autoLevel: false,
         vrStabilisation: false,
         capture360: false,
         autoFocusSubject: false,
-        followPlayspace: true,
-        followLookAtPlayer: true,
-        followOffset: new Vector3(0.5f, 0f, 1.4f),
+        anchorToBody: true,
+        followOffset: new Vector3(1.2f, 0.4f, 3f),
         fov: 35f,
         dofEnabled: true,
         dofStyle: 2,
@@ -230,12 +289,10 @@ public partial class BasisHandHeldCamera
         // Only a mode that actually runs follow owns follow's settings. The others mark the whole
         // Follow section as doing nothing, and a mode that greys a section out has no business
         // resetting the values in it — the user's framing is still theirs when they come back.
-        if (preset.AutoFollow)
+        if (preset.DrivesSubject)
         {
             autoFocusFollowSubject = preset.AutoFocusSubject;
-            autoFollowPlayspace = preset.FollowPlayspace;
-            autoFollowLookAtPlayer = preset.FollowLookAtPlayer;
-            autoFollowPositionOffset = preset.FollowOffset;
+            subjectSettings.anchorToBody = preset.AnchorToBody;
         }
 
         SetFieldOfView(preset.Fov);
@@ -256,19 +313,19 @@ public partial class BasisHandHeldCamera
     /// given. The explicit pin write afterwards then settles the modes that arm neither.</para>
     /// </summary>
     private void ApplyPresetPlacement(BasisCameraModePreset preset) =>
-        ApplyPlacement(preset.Pin, preset.AutoFollow, preset.Cinematic);
+        ApplyPlacement(preset.Pin, preset.BuildStack(Modifiers));
 
     /// <summary>
     /// The placement write itself, shared with the saved modes in
     /// <see cref="BasisHandHeldCameraUserModes"/> — the ordering above is subtle enough that a
     /// second copy of it would be a second chance to get it wrong.
     /// </summary>
-    internal void ApplyPlacement(CameraPinSpace pin, bool autoFollow, bool cinematic)
+    internal void ApplyPlacement(CameraPinSpace pin, BasisCameraModifierStack stack)
     {
-        if (!autoFollow) SetAutoFollowEnabled(false);
-        if (!cinematic) SetCinematicEnabled(false);
-        if (autoFollow) SetAutoFollowEnabled(true);
-        if (cinematic) SetCinematicEnabled(true);
+        if (stack != null)
+        {
+            ApplyModifierStack(stack);
+        }
         PinSpace = pin;
     }
 
@@ -338,8 +395,9 @@ public partial class BasisHandHeldCamera
         // PinSpace is deliberately not compared. It is where the camera happens to be, not how it
         // is configured — grabbing a flying puck back out of the air, or letting go of a photo
         // camera, must not read as "you have left the mode".
-        if (autoFollowEnabled != preset.AutoFollow) return false;
-        if (cinematicEnabled != preset.Cinematic) return false;
+        if (Modifiers.positionModifier != preset.Position) return false;
+        if (Modifiers.rotationModifier != preset.Rotation) return false;
+        if (!preset.EffectsMatch(Modifiers)) return false;
         if (useAutoLeveling != preset.AutoLevel) return false;
         if (useVRHandheldSmoothing != preset.VrStabilisation) return false;
         if (capture360Enabled != preset.Capture360) return false;
@@ -347,12 +405,11 @@ public partial class BasisHandHeldCamera
         // Compared only where they are written. A mode that leaves the follow settings alone must
         // not be knocked out of itself by them, or editing a section it greys out would drop the
         // camera to Custom for a change that had no effect on the shot.
-        if (preset.AutoFollow)
+        if (preset.DrivesSubject)
         {
             if (autoFocusFollowSubject != preset.AutoFocusSubject) return false;
-            if (autoFollowPlayspace != preset.FollowPlayspace) return false;
-            if (autoFollowLookAtPlayer != preset.FollowLookAtPlayer) return false;
-            if (Vector3.Distance(autoFollowPositionOffset, preset.FollowOffset) > OffsetTolerance) return false;
+            if (subjectSettings.anchorToBody != preset.AnchorToBody) return false;
+            if (Vector3.Distance(Modifiers.follow.positionOffset, preset.FollowOffset) > OffsetTolerance) return false;
         }
 
         if (captureCamera != null &&
@@ -435,9 +492,12 @@ public partial class BasisHandHeldCamera
     /// </summary>
     internal void RestoreCameraMode(BasisCameraMode mode)
     {
+        // Only the pin. Everything else a preset writes — the two slots, the effects, the framing
+        // — is carried by the settings file that has just been applied, so re-running the preset
+        // here would overwrite the values the load had only just finished restoring.
         if (TryGetPreset(mode, out BasisCameraModePreset preset))
         {
-            ApplyPresetPlacement(preset);
+            PinSpace = preset.Pin;
         }
 
         CameraMode = mode;

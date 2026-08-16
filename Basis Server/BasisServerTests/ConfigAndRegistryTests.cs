@@ -165,7 +165,8 @@ public class ServerConfigurationDefaultsTests
         // 5: added EnableUplinkAvatarStream, so existing files get rewritten with its doc comment.
         // 6: added BSRMaxSliceCount.
         // 7: removed EnableUplinkAvatarStream again.
-        Assert.Equal(7, Configuration.CurrentConfigVersion);
+        // 8: added the hybrid avatar-bundle codec settings (EnableAvatarBundleZstd and friends).
+        Assert.Equal(8, Configuration.CurrentConfigVersion);
         Assert.Equal(0, new Configuration().ConfigVersion);
         Assert.Equal("config", Configuration.ConfigFolderName);
         Assert.Equal("logs", Configuration.LogsFolderName);
@@ -315,7 +316,9 @@ public class TransportConfigStoreTests
         // PeerUpdatePeersPerWorker and MaxSendSockets, so existing files get rewritten with them.
         // 8: MaxUnreliableQueuePerPeer and PacketPoolSizeMax became 0 = auto-scaled, and the old
         // fixed values are actively migrated away because they were harmful at scale.
-        Assert.Equal(8, LNLTransportConfig.CurrentConfigVersion);
+        // 9: added CompactMerged, so existing files get rewritten with it.
+        Assert.Equal(9, LNLTransportConfig.CurrentConfigVersion);
+        Assert.True(cfg.CompactMerged);
         Assert.Equal(0, cfg.MaxSendSockets);   // 0 = auto: half the cores, 4 to 64
         Assert.Equal(0, cfg.PeerUpdatePeersPerWorker);
         Assert.Equal(0, cfg.MaxUnreliableQueuePerPeer);   // 0 = auto from population + memory

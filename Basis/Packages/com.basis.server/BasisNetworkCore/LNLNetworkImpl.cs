@@ -215,6 +215,7 @@ namespace Basis.Network.Core
                 BroadcastReceiveEnabled = false,
                 UseNativeSockets = lnl.UseNativeSockets,
                 MergeHoldMs = lnl.MergeHoldMs,
+                CompactMergeEnabled = lnl.CompactMerged,
                 PeerUpdateParallelism = lnl.PeerUpdateParallelism,
                 // This pool's share of the machine, decided centrally so it composes with the
                 // reduction system's overlapping pool instead of both claiming the whole box.

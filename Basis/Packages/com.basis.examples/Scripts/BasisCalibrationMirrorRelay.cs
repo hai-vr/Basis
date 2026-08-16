@@ -100,6 +100,6 @@ public sealed class BasisCalibrationMirrorRelay : MonoBehaviour
             if (moved != null) moved.gameObject.layer = pair.Value;
         }
         _relayered.Clear();
-        if (BasisGizmoManager.RenderLayer == _avatarLayer) BasisGizmoManager.RenderLayer = 0;
+        if (BasisGizmoManager.RenderLayer == _avatarLayer) BasisGizmoManager.RenderLayer = BasisGizmoManager.DefaultRenderLayer;
     }
 }

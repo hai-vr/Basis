@@ -67,7 +67,8 @@ public partial class BasisHandHeldCamera
     private RenderTexture PreviewScreenFeed =>
         // Single render path now: the camera always renders into its own RT (see
         // BasisHandHeldCameraDirectToScreen), so the preview screen never needs the copy RT.
-        renderTexture;
+        // It is a viewfinder, so it takes the focus-peaking overlay when there is one.
+        ViewfinderTexture;
 
     /// <summary>Subscribes to the Camera HUD setting so toggling it spawns/despawns the screen live.</summary>
     private void SubscribePreviewScreen()

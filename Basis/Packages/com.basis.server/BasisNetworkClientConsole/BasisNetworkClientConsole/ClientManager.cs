@@ -181,7 +181,10 @@ namespace Basis.Network
                     BNL.Log($"Connecting: {name} ({identity.Did})");
                 }
 
-                await Task.Delay(1, cts.Token);
+                if (ConfigManager.ClientConnectIntervalMs > 0)
+                {
+                    await Task.Delay(ConfigManager.ClientConnectIntervalMs, cts.Token);
+                }
             }
         }
         public async Task ReconnectClientAsync(int index)

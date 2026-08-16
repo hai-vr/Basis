@@ -125,9 +125,12 @@ public partial class BasisHandHeldCamera
 
         if (directToScreenImage == null || renderTexture == null) return;
 
-        if (directToScreenImage.texture != renderTexture)
+        // The screen is a viewfinder, so it shows the focus-peaking overlay when there is one. The
+        // photo is re-rendered off the feed itself when the shutter fires and never sees it.
+        RenderTexture feed = ViewfinderTexture;
+        if (directToScreenImage.texture != feed)
         {
-            directToScreenImage.texture = renderTexture;
+            directToScreenImage.texture = feed;
         }
 
         if (directToScreenFitter != null && renderTexture.height > 0)

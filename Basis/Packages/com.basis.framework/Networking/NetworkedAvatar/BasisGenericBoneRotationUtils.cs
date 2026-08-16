@@ -165,6 +165,54 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             return quaternion.identity;
         }
 
+        /// <summary>
+        /// Rotation carrying the DERIVED ROOT frame — the pose the remote pipeline writes to an
+        /// avatar's animator transform — onto that avatar's anatomical frame. Multiply the animator
+        /// root's world rotation by this and the result's forward is the direction the avatar is
+        /// actually facing, on any rig.
+        ///
+        /// <para>Two exporter constants sit between those frames, and neither is visible in the
+        /// posed avatar: the hips are applied in WORLD space, so the mesh lands correctly no matter
+        /// what the root above it says.</para>
+        /// <list type="bullet">
+        /// <item>The derived root is <c>hipsWorld * conj(hipsLocal)</c>, which is the hips'
+        /// PARENT — every node between it and the animator (an <c>Armature</c>, a Blender Z-up
+        /// conversion) is folded into it.</item>
+        /// <item>The animator root is not the anatomical frame either: a model authored facing −Z
+        /// is a legal humanoid rig (see <see cref="GetCharacterBasis"/>).</item>
+        /// </list>
+        /// <para>Both are the gap between T and F̂, so both fold into <c>T * conj(F̂)</c> — and both
+        /// come out identity for hips hanging straight off a +Z-facing root. That is why reading the
+        /// root as "which way are they facing" looks correct on most avatars and films the occasional
+        /// one from behind.</para>
+        ///
+        /// <para>Identity unless the rig recorded BOTH hips rest rotations: correcting off half a
+        /// measurement would move avatars that read correctly today.</para>
+        /// </summary>
+        public static quaternion GetDerivedRootToCharacterBasis(BasisTransformMapping mapping)
+        {
+            if (mapping?.TposeLocal == null || mapping.TposeFromRoot == null ||
+                !mapping.TposeLocal.TryGetValue(HumanBodyBones.Hips, out var local) ||
+                !mapping.TposeFromRoot.TryGetValue(HumanBodyBones.Hips, out var fromRoot))
+            {
+                return quaternion.identity;
+            }
+
+            Quaternion t = local.rotation;
+            Quaternion f = fromRoot.rotation;
+            // RecordPoses stores a bone the rig does not have as an all-zero coords pair, which is
+            // not a rotation.
+            if (t.x * t.x + t.y * t.y + t.z * t.z + t.w * t.w < 1e-12f ||
+                f.x * f.x + f.y * f.y + f.z * f.z + f.w * f.w < 1e-12f)
+            {
+                return quaternion.identity;
+            }
+
+            quaternion restFrame = NormalizeRestFrame(new quaternion(f.x, f.y, f.z, f.w), GetCharacterBasis(mapping));
+            quaternion restLocal = math.normalize(new quaternion(t.x, t.y, t.z, t.w));
+            return math.normalize(math.mul(restLocal, math.conjugate(restFrame)));
+        }
+
         // ────────────────────────────────────────────────────────────
         //  Whole-skeleton tables, in BONE_WRITE_ORDER slot order
         // ────────────────────────────────────────────────────────────

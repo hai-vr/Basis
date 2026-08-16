@@ -43,8 +43,6 @@ public class BasisCameraUserMode
 
     /// <summary>Where the camera sits, as <see cref="BasisHandHeldCameraInteractable.CameraPinSpace"/>.</summary>
     public int pinSpace;
-    public bool autoFollow;
-    public bool cinematic;
 
     /// <summary>Everything else. Never null once stored — a mode with no settings has nothing to be.</summary>
     public CameraSettings settings;
@@ -170,6 +168,17 @@ public class BasisCameraUserMode
         if (left.dofBladeCount != right.dofBladeCount) return false;
         if (left.useManualFocus != right.useManualFocus) return false;
 
+        if (left.focusPeaking != right.focusPeaking) return false;
+        if (!Near(left.focusPeakingSensitivity, right.focusPeakingSensitivity, Epsilon)) return false;
+        if (left.focusPeakingColour != right.focusPeakingColour) return false;
+        if (left.focusPeakingGreyPicture != right.focusPeakingGreyPicture) return false;
+
+        if (left.autoBrightness != right.autoBrightness) return false;
+        if (!Near(left.autoBrightnessTarget, right.autoBrightnessTarget, Epsilon)) return false;
+        if (!Near(left.autoBrightnessSpeed, right.autoBrightnessSpeed, Epsilon)) return false;
+        if (left.autoBrightnessMetering != right.autoBrightnessMetering) return false;
+        if (!Near(left.autoBrightnessRange, right.autoBrightnessRange, Epsilon)) return false;
+
         if (!Near(left.VolumetricFogVolumedensity, right.VolumetricFogVolumedensity, Epsilon)) return false;
         if (left.VolumetricFogenableAPVContribution != right.VolumetricFogenableAPVContribution) return false;
         if (left.VolumetricFogenableMainLightContribution != right.VolumetricFogenableMainLightContribution) return false;
@@ -180,6 +189,12 @@ public class BasisCameraUserMode
         if (!Near(left.whiteBalanceTemperature, right.whiteBalanceTemperature, Epsilon)) return false;
         if (!Near(left.whiteBalanceTint, right.whiteBalanceTint, Epsilon)) return false;
         if (!Near(left.lensDistortion, right.lensDistortion, Epsilon)) return false;
+        if (!Near(left.lensDistortionScale, right.lensDistortionScale, Epsilon)) return false;
+        if (!Near(left.bloomScatter, right.bloomScatter, Epsilon)) return false;
+        if (!Near(left.vignetteSmoothness, right.vignetteSmoothness, Epsilon)) return false;
+        if (!Near(left.paniniDistance, right.paniniDistance, Epsilon)) return false;
+        if (!Near(left.paniniCropToFit, right.paniniCropToFit, Epsilon)) return false;
+        if (left.captureTonemapping != right.captureTonemapping) return false;
 
         if (!Near(left.motionBlurIntensity, right.motionBlurIntensity, MotionBlurTolerance)) return false;
         if (!Near(left.motionBlurClamp, right.motionBlurClamp, Epsilon)) return false;
@@ -187,12 +202,10 @@ public class BasisCameraUserMode
         if (left.motionBlurMode != right.motionBlurMode) return false;
 
         if (left.autoFocusFollowSubject != right.autoFocusFollowSubject) return false;
-        if (!Near(left.autoFollowPositionOffset, right.autoFollowPositionOffset)) return false;
-        if (!Near(left.autoFollowRotationOffset, right.autoFollowRotationOffset)) return false;
-        if (left.autoFollowPlayspace != right.autoFollowPlayspace) return false;
-        if (left.autoFollowLookAtPlayer != right.autoFollowLookAtPlayer) return false;
-        if (!Near(left.autoFollowLookAtHeightOffset, right.autoFollowLookAtHeightOffset, OffsetTolerance)) return false;
-        if (!Near(left.autoFollowLateralTracking, right.autoFollowLateralTracking, Epsilon)) return false;
+        if (!Basis.Cinematics.BasisCameraModifierStack.Matches(left.modifiers, right.modifiers)) return false;
+        if (left.modifiers.subject.anchorToBody != right.modifiers.subject.anchorToBody) return false;
+        if (!Near(left.modifiers.subject.aimHeightOffset, right.modifiers.subject.aimHeightOffset, OffsetTolerance)) return false;
+        if (!Near(left.modifiers.subject.framingRadius, right.modifiers.subject.framingRadius, Epsilon)) return false;
         if (left.detachedMarker != right.detachedMarker) return false;
 
         if (left.capture360 != right.capture360) return false;
@@ -211,12 +224,11 @@ public class BasisCameraUserMode
         if (left.videoWidth != right.videoWidth) return false;
         if (left.videoQuality != right.videoQuality) return false;
         if (left.videoTimeLimit != right.videoTimeLimit) return false;
+        if (left.videoContinuousClips != right.videoContinuousClips) return false;
 
         if (left.backgroundMode != right.backgroundMode) return false;
         if (!Near(left.backgroundCustomColor, right.backgroundCustomColor)) return false;
         if (left.backgroundKeepsWorld != right.backgroundKeepsWorld) return false;
-
-        if (!Near(left.subjectFramingRadius, right.subjectFramingRadius, Epsilon)) return false;
 
         return true;
     }

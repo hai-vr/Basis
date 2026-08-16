@@ -546,8 +546,6 @@ namespace Basis.BasisUI.HandHeldCamera
             string text = BasisCameraSettingsReadout.Build(
                 live,
                 (int)_activeCamera.PinSpace,
-                _activeCamera.autoFollowEnabled,
-                _activeCamera.cinematicEnabled,
                 _activeCamera.MetaData);
 
             _readoutCard.SetDescription(text);
@@ -589,16 +587,16 @@ namespace Basis.BasisUI.HandHeldCamera
             AddSectionTint(BasisCameraPanelSection.Colour, _colorSection, _colorGroup);
             AddSectionTint(BasisCameraPanelSection.Effects, _effectsSection, _effectsGroup);
             AddSectionTint(BasisCameraPanelSection.Output, _outputSection, _outputGroup);
-            AddSectionTint(BasisCameraPanelSection.Follow, _followSection, _followGroup);
-            AddSectionTint(BasisCameraPanelSection.Cinematic, _cinematicSection, _cinematicGroup);
-            AddSectionTint(BasisCameraPanelSection.Composition, _compositionSection, _compositionGroup);
-            AddSectionTint(BasisCameraPanelSection.Orbit, _orbitSection, _orbitGroup);
-            AddSectionTint(BasisCameraPanelSection.Noise, _noiseSection, _noiseGroup);
+            AddSectionTint(BasisCameraPanelSection.Subject, _followSection, _followGroup);
+            AddSectionTint(BasisCameraPanelSection.PositionModifier, _positionSection, _positionGroup);
+            AddSectionTint(BasisCameraPanelSection.RotationModifier, _rotationSection, _rotationGroup);
+            AddSectionTint(BasisCameraPanelSection.ModifierEffects, _modifierEffectsSection, _modifierEffectsGroup);
             AddSectionTint(BasisCameraPanelSection.Dolly, _dollySection, _dollyGroup);
             AddSectionTint(BasisCameraPanelSection.Background, _backgroundSection, _backgroundGroup);
             AddSectionTint(BasisCameraPanelSection.Layers, _layersSection, _layersGroup);
             AddSectionTint(BasisCameraPanelSection.Performance, _performanceSection, _performanceGroup);
             AddSectionTint(BasisCameraPanelSection.Gizmos, _gizmoSection, _gizmoGroup);
+            AddSectionTint(BasisCameraPanelSection.PhotoMetadata, _photoMetadataSection, _photoMetadataGroup);
         }
 
         private void AddSectionTint(

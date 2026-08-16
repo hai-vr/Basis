@@ -159,6 +159,7 @@ namespace Basis.BasisUI.HandHeldCamera
             TickRecordingControls(
                 _activeCamera.GifState, _activeCamera.GifSecondsRemaining,
                 _activeCamera.GifFramesCaptured, _activeCamera.GifFramesEncoded,
+                clipNumber: 0,
                 _activeCamera.LastGifFileName, _activeCamera.LastGifFailure,
                 "camera.gif", _gifRecordButton, _gifStatus,
                 ref _lastGifButtonLabel, ref _lastGifStatusText);
@@ -233,13 +234,15 @@ namespace Basis.BasisUI.HandHeldCamera
         /// <summary>
         /// The record button and status card for one clip recorder, edge-gated. Both recorders
         /// speak the same states, so the only thing that differs is the key prefix their
-        /// wording lives under.
+        /// wording lives under. <paramref name="clipNumber"/> is zero for a recording that is a
+        /// single clip, and which clip is being taken for one that rolls into new ones.
         /// </summary>
         private void TickRecordingControls(
             BasisCameraRecordingState state,
             float secondsRemaining,
             int framesCaptured,
             int framesEncoded,
+            int clipNumber,
             string lastFileName,
             string lastFailure,
             string keyPrefix,
@@ -255,11 +258,15 @@ namespace Basis.BasisUI.HandHeldCamera
             switch (state)
             {
                 case BasisCameraRecordingState.Recording:
-                    // An unlimited recording has no countdown to show — the button just stops it.
-                    buttonLabel = float.IsPositiveInfinity(secondsRemaining)
+                    // No countdown where there is nothing for it to count down to: an unlimited
+                    // recording, and a run of clips, both end when the button is pressed. The
+                    // countdown to the next roll would read as a countdown to the end.
+                    buttonLabel = clipNumber > 0 || float.IsPositiveInfinity(secondsRemaining)
                         ? BasisLocalization.Get(keyPrefix + ".stopUnlimited")
                         : BasisLocalization.Get(keyPrefix + ".stop", Mathf.CeilToInt(secondsRemaining));
-                    statusText = BasisLocalization.Get(keyPrefix + ".status.recording", framesCaptured);
+                    statusText = clipNumber > 0
+                        ? BasisLocalization.Get(keyPrefix + ".status.recordingClip", clipNumber, framesCaptured)
+                        : BasisLocalization.Get(keyPrefix + ".status.recording", framesCaptured);
                     break;
 
                 case BasisCameraRecordingState.Saving:

@@ -703,6 +703,16 @@
     { "key": "sdk.cilbox.reason.fieldType", "value": "Field type {0} is not whitelisted." },
     { "key": "sdk.cilbox.reason.constInlined", "value": "A const is compiled into the code, so the sandbox never sees a field access." },
     { "key": "sdk.cilbox.reason.instantiateShim", "value": "Redirected to the sanitizing Instantiate shim." },
+
+    { "key": "sdk.cilbox.doc.unavailable", "value": "This sandbox could not be read, so nothing can be said about it." },
+    { "key": "sdk.cilbox.doc.typeBlocked", "value": "{0} is not on this sandbox's type whitelist." },
+    { "key": "sdk.cilbox.doc.swap", "value": "{0} is served by {1} in the {2} sandbox - write {0} and the box substitutes it." },
+    { "key": "sdk.cilbox.doc.swapMissing", "value": "{0} has no {1}, so the substitution leaves nothing to call." },
+    { "key": "sdk.cilbox.doc.readOnly", "value": "Readable. Writing is blocked: {0}" },
+    { "key": "sdk.cilbox.doc.writeOnly", "value": "Writable. Reading is blocked: {0}" },
+    { "key": "sdk.cilbox.doc.subscribeOnly", "value": "Subscribing works. Unsubscribing is blocked: {0}" },
+    { "key": "sdk.cilbox.doc.unsubscribeOnly", "value": "Unsubscribing works. Subscribing is blocked: {0}" },
+
     { "key": "sdk.cilbox.group.lifecycle", "value": "Lifecycle" },
     { "key": "sdk.cilbox.group.players", "value": "Players" },
     { "key": "sdk.cilbox.group.avatar", "value": "Avatar" },

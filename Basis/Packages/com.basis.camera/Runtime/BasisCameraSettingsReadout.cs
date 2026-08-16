@@ -23,16 +23,14 @@ public static class BasisCameraSettingsReadout
     private static readonly StringBuilder Builder = new StringBuilder(2048);
 
     /// <summary>
-    /// The whole file as text. <paramref name="pinSpace"/>, <paramref name="autoFollow"/> and
-    /// <paramref name="cinematic"/> are passed alongside because they are placement rather than
+    /// The whole file as text. <paramref name="pinSpace"/> is passed alongside because it is
+    /// placement rather than
     /// settings — <see cref="CameraSettings"/> deliberately does not carry them — and leaving them
     /// out would make the readout silent about the two things that decide where the camera goes.
     /// </summary>
     public static string Build(
         CameraSettings settings,
         int pinSpace,
-        bool autoFollow,
-        bool cinematic,
         BasisHandHeldCameraMetaData metaData)
     {
         if (settings == null) return string.Empty;
@@ -41,8 +39,6 @@ public static class BasisCameraSettingsReadout
 
         Section("camera.placement");
         Row("camera.pinSpace", PinSpaceLabel(pinSpace));
-        Row("camera.autoFollow", OnOff(autoFollow));
-        Row("camera.cinematicEnabled", OnOff(cinematic));
 
         Section("camera.lens");
         Row("camera.fieldOfView", Number(settings.fov));
@@ -68,14 +64,20 @@ public static class BasisCameraSettingsReadout
         Row("camera.hueShift", Number(settings.hueShift));
         Row("camera.whiteBalanceTemp", Number(settings.whiteBalanceTemperature));
         Row("camera.whiteBalanceTint", Number(settings.whiteBalanceTint));
+        Row("camera.tonemapping", TonemappingLabel(settings.captureTonemapping));
 
         Section("camera.effects");
         Row("camera.bloomIntensity", Number(settings.bloomIntensity));
         Row("camera.bloomThreshold", Number(settings.bloomThreshold));
+        Row("camera.bloomScatter", Number(settings.bloomScatter));
         Row("camera.vignette", Number(settings.vignette));
+        Row("camera.vignetteSmoothness", Number(settings.vignetteSmoothness));
         Row("camera.chromaticAberration", Number(settings.chromaticAberration));
         Row("camera.filmGrain", Number(settings.filmGrain));
         Row("camera.lensDistortion", Number(settings.lensDistortion));
+        Row("camera.lensDistortionScale", Number(settings.lensDistortionScale));
+        Row("camera.panini", Number(settings.paniniDistance));
+        Row("camera.paniniCrop", Number(settings.paniniCropToFit));
         Row("camera.motionBlur", Number(settings.motionBlurIntensity));
         Row("camera.motionBlurClamp", Number(settings.motionBlurClamp));
         Row("camera.motionBlurQuality", MotionBlurQualityLabel(settings.motionBlurQuality));
@@ -100,21 +102,35 @@ public static class BasisCameraSettingsReadout
 
         Section("camera.video");
         Row("camera.video.timeLimit", OnOff(settings.videoTimeLimit));
+        Row("camera.video.autoNewClip", OnOff(settings.videoContinuousClips));
         Row("camera.video.length", Number(settings.videoDurationSeconds) + " s");
         Row("camera.video.frameRate", settings.videoFrameRate.ToString());
         Row("camera.video.size", settings.videoWidth + " px");
         Row("camera.video.quality", settings.videoQuality.ToString());
 
-        Section("camera.follow");
-        Row("camera.followOffset", Vector(settings.autoFollowPositionOffset));
-        Row("camera.followRotationOffset", Vector(settings.autoFollowRotationOffset));
-        Row("camera.followPlayspace", OnOff(settings.autoFollowPlayspace));
-        Row("camera.lookAtMe", OnOff(settings.autoFollowLookAtPlayer));
-        Row("camera.lookAtHeightY", Number(settings.autoFollowLookAtHeightOffset));
-        Row("camera.lateralTrackingX", Number(settings.autoFollowLateralTracking));
+        Basis.Cinematics.BasisCameraModifierStack stack =
+            settings.modifiers ?? new Basis.Cinematics.BasisCameraModifierStack();
+
+        Section("camera.subject");
+        Row("camera.modifier.subject",
+            BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.subject.modifier)));
+        Row("camera.followPlayspace", OnOff(stack.subject.anchorToBody));
+        Row("camera.lookAtHeightY", Number(stack.subject.aimHeightOffset));
+        Row("camera.subjectRadius", Number(stack.subject.framingRadius));
+        Row("camera.groupIncludesMe", OnOff(stack.subject.groupIncludesLocal));
+        Row("camera.fixedPoint", Vector(stack.subject.fixedPoint));
+
+        Section("camera.modifiers");
+        Row("camera.modifier.position",
+            BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.positionModifier)));
+        Row("camera.modifier.rotation",
+            BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.rotationModifier)));
+        Row("camera.modifier.effects", EffectList(stack));
+        Row("camera.followOffset", Vector(stack.follow.positionOffset));
+        Row("camera.lateralTrackingX", Number(stack.follow.lateralTracking));
+        Row("camera.followRotationOffset", Vector(stack.lookAt.rotationOffset));
         Row("camera.autoFocusSubject", OnOff(settings.autoFocusFollowSubject));
         Row("camera.detachedMarker", DetachedMarkerLabel(settings.detachedMarker));
-        Row("camera.subjectSize", Number(settings.subjectFramingRadius));
 
         Section("camera.background");
         Row("camera.backgroundMode", BackgroundModeLabel(settings.backgroundMode));
@@ -123,8 +139,6 @@ public static class BasisCameraSettingsReadout
 
         // A count rather than a list: the shots are a track someone authored, and naming each one
         // here would bury every setting above it under a mode with a dozen of them.
-        Section("camera.cinematic");
-        Row("camera.shot", (settings.cinematicShots?.Count ?? 0).ToString());
 
         return Builder.ToString();
     }
@@ -169,6 +183,24 @@ public static class BasisCameraSettingsReadout
         return (stop > 0f ? "+" : string.Empty) + Number(stop);
     }
 
+    /// <summary>The fitted effects by name, or a dash when the stack carries none.</summary>
+    private static string EffectList(Basis.Cinematics.BasisCameraModifierStack stack)
+    {
+        if (stack == null || stack.EffectCount == 0)
+        {
+            return "-";
+        }
+
+        System.Text.StringBuilder builder = new System.Text.StringBuilder();
+        for (int Index = 0; Index < stack.EffectCount; Index++)
+        {
+            if (!stack.TryGetEffectAt(Index, out Basis.Cinematics.BasisCameraEffectModifier effect)) continue;
+            if (builder.Length > 0) builder.Append(", ");
+            builder.Append(BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(effect)));
+        }
+        return builder.Length > 0 ? builder.ToString() : "-";
+    }
+
     private static string PinSpaceLabel(int pinSpace)
     {
         switch (pinSpace)
@@ -197,6 +229,16 @@ public static class BasisCameraSettingsReadout
 
     private static string MotionBlurModeLabel(int mode) =>
         BasisLocalization.Get(mode == 1 ? "camera.motionBlurMode.cameraAndObjects" : "camera.motionBlurMode.cameraOnly");
+
+    private static string TonemappingLabel(int mode)
+    {
+        switch (mode)
+        {
+            case 0: return BasisLocalization.Get("camera.tonemapping.none");
+            case 1: return BasisLocalization.Get("camera.tonemapping.neutral");
+            default: return BasisLocalization.Get("camera.tonemapping.aces");
+        }
+    }
 
     private static string DetachedMarkerLabel(int marker)
     {

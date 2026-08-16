@@ -8,6 +8,7 @@ namespace Basis.Config
         public static string Ip = "localhost";
         public static int Port = 4296;
         public static int ClientCount = 250;
+        public static int ClientConnectIntervalMs = 1;
 
         public static string AvatarPassword = "default_avatar_password";
         public static string AvatarUrl = "http://localhost/avatar";
@@ -180,6 +181,8 @@ namespace Basis.Config
                                 new XElement("Port", Port),
                                 new XComment(" Number of simulated clients to spawn for load testing. int (>= 1); higher counts need more CPU, memory and sockets. "),
                                 new XElement("ClientCount", ClientCount),
+                                new XComment(" Delay in ms between starting each simulated client's connection, controlling how fast the crowd ramps up. 0 or less starts them as fast as the loop runs. int. "),
+                                new XElement("ClientConnectIntervalMs", ClientConnectIntervalMs),
                                 new XComment(" Avatar unlock password/key sent with the avatar; used to decrypt the (encrypted .BEE) bundle at <AvatarUrl>. string. "),
                                 new XElement("AvatarPassword", AvatarPassword),
                                 new XComment(" Avatar source each fake client advertises. For AvatarLoadMode 0 this is the (encrypted .BEE) bundle download URL. string. "),
@@ -276,6 +279,7 @@ namespace Basis.Config
                     Ip = ReadString(root, "Ip", Ip);
                     Port = ReadInt(root, "Port", Port);
                     ClientCount = ReadInt(root, "ClientCount", ClientCount);
+                    ClientConnectIntervalMs = ReadInt(root, "ClientConnectIntervalMs", ClientConnectIntervalMs);
 
                     AvatarPassword = ReadString(root, "AvatarPassword", AvatarPassword);
                     AvatarUrl = ReadString(root, "AvatarUrl", AvatarUrl);

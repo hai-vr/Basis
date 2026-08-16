@@ -153,6 +153,13 @@ public static class NetworkServer
         BasisServerReductionSystemEvents.EnableAvatarBundleCompression = Configuration.EnableAvatarBundleCompression;
         BasisServerReductionSystemEvents.AvatarBundleMinMessages = Configuration.AvatarBundleMinMessages;
         BasisServerReductionSystemEvents.AvatarBundleMinBytes = Configuration.AvatarBundleMinBytes;
+        BasisServerReductionSystemEvents.EnableAvatarBundleZstd = Configuration.EnableAvatarBundleZstd;
+        BasisServerReductionSystemEvents.AvatarBundleZstdDeltaBundles = Configuration.AvatarBundleZstdDeltaBundles;
+        BasisServerReductionSystemEvents.AvatarBundleZstdLevel = Configuration.AvatarBundleZstdLevel;
+        BasisServerReductionSystemEvents.AvatarBundleZstdMaxShedTier = Configuration.AvatarBundleZstdMaxShedTier;
+        // Level lives on the codec rather than being passed per call: it decides how the pooled
+        // compression contexts are built, so a change has to invalidate them.
+        Basis.Network.Core.Compression.BasisAvatarBundleZstd.SetLevel(Configuration.AvatarBundleZstdLevel);
         BasisServerReductionSystemEvents.EnableAvatarDeltaCompression = Configuration.EnableAvatarDeltaCompression;
         BasisServerReductionSystemEvents.AvatarDeltaKeyframeIntervalMs = Configuration.AvatarDeltaKeyframeIntervalMs;
         BasisServerReductionSystemEvents.AvatarDeltaKeyframeMaxIntervalMs = Configuration.AvatarDeltaKeyframeMaxIntervalMs;
@@ -167,7 +174,13 @@ public static class NetworkServer
         {
             BasisNetworkServer.Security.BasisOpusFrameDurationStateManager.BroadcastState();
         }
-        BNL.Log($"[BSR] AvatarBundleCompression={Configuration.EnableAvatarBundleCompression} (minMsgs={Configuration.AvatarBundleMinMessages}, minBytes={Configuration.AvatarBundleMinBytes}) DeltaCompression={Configuration.EnableAvatarDeltaCompression} (keyframeMs={Configuration.AvatarDeltaKeyframeIntervalMs}) VoiceFrameDurationMs={BasisNetworkServer.Security.BasisOpusFrameDurationStateManager.FrameDurationMs}");
+        // Report whether the Zstd path is actually live, not just whether it is configured on:
+        // with no dictionary embedded the setting is inert, and that is exactly the state
+        // someone reading this line after a bandwidth measurement needs to be able to tell apart.
+        string zstdState = !Configuration.EnableAvatarBundleZstd ? "off"
+            : !Basis.Network.Core.Compression.BasisAvatarBundleZstd.Available ? "INERT (no dictionary embedded)"
+            : $"on (level {Configuration.AvatarBundleZstdLevel}, dictGen {Basis.Network.Core.Compression.BasisAvatarBundleZstd.DictionaryGeneration}, maxShedTier {Configuration.AvatarBundleZstdMaxShedTier}{(Configuration.AvatarBundleZstdDeltaBundles ? ", deltas too" : "")})";
+        BNL.Log($"[BSR] AvatarBundleCompression={Configuration.EnableAvatarBundleCompression} (minMsgs={Configuration.AvatarBundleMinMessages}, minBytes={Configuration.AvatarBundleMinBytes}) BundleZstd={zstdState} DeltaCompression={Configuration.EnableAvatarDeltaCompression} (keyframeMs={Configuration.AvatarDeltaKeyframeIntervalMs}) VoiceFrameDurationMs={BasisNetworkServer.Security.BasisOpusFrameDurationStateManager.FrameDurationMs}");
     }
 
     /// <summary>

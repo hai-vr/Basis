@@ -41,7 +41,7 @@ public partial class BasisHandHeldCamera
 
         // After the settings, not before: applying a file re-arms the placement the file's own
         // mode label asks for, and the mode being put on is the one that gets the last word.
-        ApplyPlacement((CameraPinSpace)mode.pinSpace, mode.autoFollow, mode.cinematic);
+        ApplyPlacement((CameraPinSpace)mode.pinSpace, null);
         SyncPropUiAfterModeChange();
 
         // Derived first so the built-in label underneath is honest, then the name is asserted over
@@ -53,11 +53,9 @@ public partial class BasisHandHeldCamera
     /// <summary>
     /// Restores the saved mode a settings file named, as the last step of loading it.
     ///
-    /// <para>Unlike <see cref="RestoreCameraMode"/> — which re-arms only placement, because a
-    /// built-in preset's values would otherwise overwrite the ones the file just supplied — there
-    /// is nothing to overwrite here: a saved mode's settings <em>are</em> the file that was just
-    /// applied. So this re-arms placement for the same reason and then checks the claim, because
-    /// the mode may have been edited or deleted since the file naming it was written.</para>
+    /// <para>Only the pin, for the same reason as <see cref="RestoreCameraMode"/>: the stack is
+    /// carried by the settings file, which has just been applied. Then the claim is checked,
+    /// because the mode may have been edited or deleted since the file naming it was written.</para>
     /// </summary>
     internal void RestoreUserMode(string name)
     {
@@ -67,7 +65,7 @@ public partial class BasisHandHeldCamera
         BasisCameraUserMode mode = BasisCameraUserModes.Find(name);
         if (mode == null) return;
 
-        ApplyPlacement((CameraPinSpace)mode.pinSpace, mode.autoFollow, mode.cinematic);
+        ApplyPlacement((CameraPinSpace)mode.pinSpace, null);
         UserModeName = mode.name;
 
         // The claim, checked. The file has just landed, so harvesting it back is the cheapest
@@ -122,8 +120,6 @@ public partial class BasisHandHeldCamera
             name = name,
             tint = tint,
             pinSpace = (int)PinSpace,
-            autoFollow = autoFollowEnabled,
-            cinematic = cinematicEnabled,
             settings = HandHeld != null ? HandHeld.CaptureSettings() : new CameraSettings(),
         };
 
