@@ -417,7 +417,7 @@ public static class BasisLoadHandler
         {
             if (LoadedBundles.TryGetValue(key, out BasisTrackedBundleWrapper inUseCheck) && inUseCheck != null && inUseCheck.IsInUse)
             {
-                BasisDebug.LogError($"Skipping in-memory unload for: {remoteUrl}; bundle is still in use.");
+                BasisDebug.LogWarning($"Skipping in-memory unload for: {remoteUrl}; bundle is still in use.", BasisDebug.LogTag.Event);
                 continue;
             }
             if (LoadedBundles.TryRemove(key, out BasisTrackedBundleWrapper removed) && removed != null)
