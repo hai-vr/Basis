@@ -18,6 +18,30 @@ public static class SettingsProviderIK
     private static readonly List<PanelToggle> _euroToggleUIs = new();
     private static readonly List<PanelToggle> _trackerLerpToggleUIs = new();
 
+    private static readonly string[] PlayspaceMoverInputValues =
+    {
+        BasisLocalPlayspaceMover.InputGrip,
+        BasisLocalPlayspaceMover.InputTrigger,
+        BasisLocalPlayspaceMover.InputSecondaryTrigger,
+        BasisLocalPlayspaceMover.InputPrimary,
+        BasisLocalPlayspaceMover.InputSecondary,
+        BasisLocalPlayspaceMover.InputJoystick,
+        BasisLocalPlayspaceMover.InputTrackpad,
+        BasisLocalPlayspaceMover.InputMenu,
+    };
+
+    private static readonly string[] PlayspaceMoverInputKeys =
+    {
+        "settings.bodyTracking.playspaceMover.input.grip",
+        "settings.bodyTracking.playspaceMover.input.trigger",
+        "settings.bodyTracking.playspaceMover.input.secondaryTrigger",
+        "settings.bodyTracking.playspaceMover.input.primary",
+        "settings.bodyTracking.playspaceMover.input.secondary",
+        "settings.bodyTracking.playspaceMover.input.joystick",
+        "settings.bodyTracking.playspaceMover.input.trackpad",
+        "settings.bodyTracking.playspaceMover.input.menu",
+    };
+
     private static PanelDropdown _boneDropdown;
 
     private static PanelToggle _uiUseCalibration;
@@ -130,8 +154,8 @@ public static class SettingsProviderIK
             inputDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.input"));
             inputDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.input.tooltip"));
             inputDropdown.AssignLocalizedEntries(
-                new List<string> { BasisLocalPlayspaceMover.InputGrip, BasisLocalPlayspaceMover.InputTrigger, BasisLocalPlayspaceMover.InputPrimary, BasisLocalPlayspaceMover.InputSecondary },
-                new List<string> { "settings.bodyTracking.playspaceMover.input.grip", "settings.bodyTracking.playspaceMover.input.trigger", "settings.bodyTracking.playspaceMover.input.primary", "settings.bodyTracking.playspaceMover.input.secondary" });
+                new List<string>(PlayspaceMoverInputValues),
+                new List<string>(PlayspaceMoverInputKeys));
             inputDropdown.AssignBinding(BasisSettingsDefaults.PlayspaceMoverInput);
 
             var handDropdown = PanelDropdown.CreateNewEntry(moverParent);
@@ -151,8 +175,8 @@ public static class SettingsProviderIK
             rotateInputDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.rotateInput"));
             rotateInputDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.rotateInput.tooltip"));
             rotateInputDropdown.AssignLocalizedEntries(
-                new List<string> { BasisLocalPlayspaceMover.InputGrip, BasisLocalPlayspaceMover.InputTrigger, BasisLocalPlayspaceMover.InputPrimary, BasisLocalPlayspaceMover.InputSecondary },
-                new List<string> { "settings.bodyTracking.playspaceMover.input.grip", "settings.bodyTracking.playspaceMover.input.trigger", "settings.bodyTracking.playspaceMover.input.primary", "settings.bodyTracking.playspaceMover.input.secondary" });
+                new List<string>(PlayspaceMoverInputValues),
+                new List<string>(PlayspaceMoverInputKeys));
             rotateInputDropdown.AssignBinding(BasisSettingsDefaults.PlayspaceMoverRotateInput);
 
             var scaleToggle = PanelToggle.CreateNewEntry(moverParent);

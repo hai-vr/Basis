@@ -7163,6 +7163,22 @@
       "value": "Secondary Button"
     },
     {
+      "key": "settings.bodyTracking.playspaceMover.input.secondaryTrigger",
+      "value": "Secondary Trigger"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.joystick",
+      "value": "Joystick Click"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.trackpad",
+      "value": "Trackpad Click"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.menu",
+      "value": "Menu Button"
+    },
+    {
       "key": "settings.bodyTracking.playspaceMover.hand",
       "value": "Controller"
     },
@@ -14839,6 +14855,22 @@
     {
       "key": "settings.bodyTracking.playspaceMover.input.secondary.tooltip",
       "value": "The secondary face button: B on the right controller, Y on the left."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.secondaryTrigger.tooltip",
+      "value": "The hand trigger read as an axis, squeezed past halfway. On most controllers this is the same squeeze as Grip."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.joystick.tooltip",
+      "value": "Pressing the thumbstick straight down until it clicks."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.trackpad.tooltip",
+      "value": "The trackpad on controllers that have one. Under SteamVR this registers on touch rather than a full click."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.menu.tooltip",
+      "value": "The menu button on the controller. Some headset runtimes keep this button for themselves."
     },
     {
       "key": "settings.bodyTracking.playspaceMover.hand.both.tooltip",

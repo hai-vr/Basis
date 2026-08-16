@@ -33,8 +33,12 @@ namespace Basis.Scripts.Drivers
     {
         public const string InputGrip = "Grip";
         public const string InputTrigger = "Trigger";
+        public const string InputSecondaryTrigger = "SecondaryTrigger";
         public const string InputPrimary = "Primary";
         public const string InputSecondary = "Secondary";
+        public const string InputJoystick = "Joystick";
+        public const string InputTrackpad = "Trackpad";
+        public const string InputMenu = "Menu";
 
         public const string HandBoth = "Both";
         public const string HandLeft = "Left";
@@ -658,8 +662,12 @@ namespace Basis.Scripts.Drivers
             switch (inputMode)
             {
                 case InputTrigger: return state.Trigger >= TriggerThreshold;
+                case InputSecondaryTrigger: return state.SecondaryTrigger >= TriggerThreshold;
                 case InputPrimary: return state.PrimaryButtonGetState;
                 case InputSecondary: return state.SecondaryButtonGetState;
+                case InputJoystick: return state.Primary2DAxisClick;
+                case InputTrackpad: return state.Secondary2DAxisClick;
+                case InputMenu: return state.SystemOrMenuButton;
                 default: return state.GripButton;
             }
         }
