@@ -32,14 +32,15 @@ namespace Basis.Tests.Camera
             BasisCameraDollyPacket.Point[] sent = Points(4);
             byte[] buffer = new byte[BasisCameraDollyPacket.RosterSize(4)];
 
-            int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, sent, 4);
+            int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, true, sent, 4);
             Assert.That(written, Is.EqualTo(buffer.Length), "The writer and the size helper disagree.");
 
             var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
             Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, written, read,
-                out BasisCameraDollySync mode, out int count), Is.True);
+                out BasisCameraDollySync mode, out bool looped, out int count), Is.True);
 
             Assert.That(mode, Is.EqualTo(BasisCameraDollySync.Networked));
+            Assert.That(looped, Is.True);
             Assert.That(count, Is.EqualTo(4));
             for (int Index = 0; Index < 4; Index++)
             {
@@ -55,10 +56,10 @@ namespace Basis.Tests.Camera
             // Deleting the last waypoint has to be sendable, or a cleared track never clears on
             // anyone else's screen.
             byte[] buffer = new byte[BasisCameraDollyPacket.RosterSize(0)];
-            int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, Points(0), 0);
+            int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, false, Points(0), 0);
 
             var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
-            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, written, read, out _, out int count), Is.True);
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, written, read, out _, out _, out int count), Is.True);
             Assert.That(count, Is.EqualTo(0));
         }
 
@@ -121,7 +122,7 @@ namespace Basis.Tests.Camera
             int written = BasisCameraDollyPacket.WritePointMove(move, 1, 1, Vector3.one, Quaternion.identity);
 
             var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
-            Assert.That(BasisCameraDollyPacket.TryReadRoster(move, written, read, out _, out _), Is.False);
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(move, written, read, out _, out _, out _), Is.False);
             Assert.That(BasisCameraDollyPacket.TryReadClaim(move, written, out _, out _, out _), Is.False);
             Assert.That(BasisCameraDollyPacket.TryReadPointMove(move, written, out _, out _, out _, out _), Is.True);
         }
@@ -131,10 +132,10 @@ namespace Basis.Tests.Camera
         {
             BasisCameraDollyPacket.Point[] sent = Points(6);
             byte[] buffer = new byte[BasisCameraDollyPacket.RosterSize(6)];
-            int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, sent, 6);
+            int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, false, sent, 6);
 
             var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
-            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, written - 1, read, out _, out _), Is.False,
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, written - 1, read, out _, out _, out _), Is.False,
                 "A sender that claimed more points than it sent must not be believed.");
         }
 
@@ -152,11 +153,11 @@ namespace Basis.Tests.Camera
         public void AnUnknownSharingModeIsRefused()
         {
             byte[] buffer = new byte[BasisCameraDollyPacket.RosterSize(1)];
-            BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, Points(1), 1);
+            BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, false, Points(1), 1);
             buffer[1] = 99;
 
             var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
-            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, buffer.Length, read, out _, out _), Is.False);
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, buffer.Length, read, out _, out _, out _), Is.False);
         }
 
         [Test]
@@ -177,11 +178,11 @@ namespace Basis.Tests.Camera
         public void ATrackLongerThanTheCapIsRefused()
         {
             byte[] buffer = new byte[BasisCameraDollyPacket.RosterSize(1)];
-            BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, Points(1), 1);
+            BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, false, Points(1), 1);
             buffer[2] = BasisCameraDollyPacket.MaxPoints + 1;
 
             var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
-            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, buffer.Length, read, out _, out _), Is.False,
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, buffer.Length, read, out _, out _, out _), Is.False,
                 "A count past the cap would run the reader off the end of its own array.");
         }
 
@@ -209,10 +210,38 @@ namespace Basis.Tests.Camera
             byte[] buffer = new byte[BasisCameraDollyPacket.RosterSize(BasisCameraDollyPacket.MaxPoints)];
 
             int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.NetworkedLocked,
-                sent, BasisCameraDollyPacket.MaxPoints);
+                true, sent, BasisCameraDollyPacket.MaxPoints);
 
             Assert.That(written, Is.EqualTo(buffer.Length));
             Assert.That(written, Is.LessThan(1200), "A track has to stay inside one datagram.");
+        }
+
+        [Test]
+        public void ClosingTheTrackIsCarriedSeparatelyFromItsPoints()
+        {
+            // A loop is the same waypoints with one more span through them, so it changes nothing a
+            // reader could infer from the points themselves. Left off the wire it is invisible to
+            // the author, whose own track closes, and only wrong on everybody else's screen.
+            byte[] open = new byte[BasisCameraDollyPacket.RosterSize(3)];
+            byte[] closed = new byte[BasisCameraDollyPacket.RosterSize(3)];
+
+            int openWritten = BasisCameraDollyPacket.WriteRoster(open, BasisCameraDollySync.Networked, false, Points(3), 3);
+            int closedWritten = BasisCameraDollyPacket.WriteRoster(closed, BasisCameraDollySync.Networked, true, Points(3), 3);
+
+            Assert.That(closedWritten, Is.EqualTo(openWritten), "Closing a track must not change its size.");
+
+            var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
+
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(open, openWritten, read,
+                out BasisCameraDollySync openMode, out bool openLooped, out int openCount), Is.True);
+            Assert.That(openLooped, Is.False);
+
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(closed, closedWritten, read,
+                out BasisCameraDollySync closedMode, out bool closedLooped, out int closedCount), Is.True);
+            Assert.That(closedLooped, Is.True);
+
+            Assert.That(closedMode, Is.EqualTo(openMode), "The loop flag must not disturb the mode.");
+            Assert.That(closedCount, Is.EqualTo(openCount), "The loop flag must not disturb the count.");
         }
 
         [Test]

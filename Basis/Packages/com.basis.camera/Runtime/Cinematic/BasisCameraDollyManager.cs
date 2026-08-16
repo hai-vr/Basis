@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Network.Core;
@@ -54,6 +56,7 @@ namespace Basis.Cinematics
         private static float _nextKeyframe;
         private static int _lastSentCount = -1;
         private static BasisCameraDollySync _lastSentMode = BasisCameraDollySync.LocalOnly;
+        private static bool _mirrorTickRequested;
 
         // ---- Lifecycle -------------------------------------------------------------------
 
@@ -66,14 +69,24 @@ namespace Basis.Cinematics
             BasisNetworkPlayer.OnPlayerLeft += HandlePlayerLeft;
             BasisNetworkPlayer.OnPlayerJoined -= HandlePlayerJoined;
             BasisNetworkPlayer.OnPlayerJoined += HandlePlayerJoined;
+            BasisNetworkPlayer.OnLocalPlayerJoined -= HandleLocalPlayerJoined;
+            BasisNetworkPlayer.OnLocalPlayerJoined += HandleLocalPlayerJoined;
+            Application.quitting -= Shutdown;
+            Application.quitting += Shutdown;
 
-            ResolveNetworkId();
+            if (BasisNetworkConnection.LocalPlayerIsConnected)
+            {
+                HandleLocalPlayerJoined(null, null);
+            }
         }
 
         public static void Shutdown()
         {
             BasisNetworkPlayer.OnPlayerLeft -= HandlePlayerLeft;
             BasisNetworkPlayer.OnPlayerJoined -= HandlePlayerJoined;
+            BasisNetworkPlayer.OnLocalPlayerJoined -= HandleLocalPlayerJoined;
+            BasisNetworkPlayer.OnLocalPlayerLeft -= HandleLocalPlayerLeft;
+            Application.quitting -= Shutdown;
 
             if (HasNetworkID)
             {
@@ -87,9 +100,19 @@ namespace Basis.Cinematics
             ClearAllMirrors();
         }
 
-        private static async void ResolveNetworkId()
+        /// <summary>
+        /// Resolving the shared identifier needs a live connection, so it waits for the local player
+        /// to be approved rather than running at load. The handler is re-armed per join because the
+        /// network lifecycle nulls the delegate on teardown.
+        /// </summary>
+        private static async void HandleLocalPlayerJoined(BasisNetworkPlayer networkPlayer, BasisLocalPlayer localPlayer)
         {
             if (HasNetworkID) return;
+            if (!BasisNetworkConnection.LocalPlayerIsConnected)
+            {
+                BasisDebug.LogError("Dolly manager cannot start; the local player is not connected.", LogTag);
+                return;
+            }
 
             BasisIdResolutionResult resolution = await BasisNetworkIdResolver.ResolveAsync(FixedNetworkIdentifier);
             if (!_initialized || HasNetworkID) return;
@@ -104,6 +127,27 @@ namespace Basis.Cinematics
             NetworkID = resolution.Id;
             HasNetworkID = true;
             BasisNetworkGenericMessages.RegisterDirectHandler(NetworkID, OnDirectNetworkMessage);
+
+            BasisNetworkPlayer.OnLocalPlayerLeft -= HandleLocalPlayerLeft;
+            BasisNetworkPlayer.OnLocalPlayerLeft += HandleLocalPlayerLeft;
+
+            _lastSentCount = -1;
+            _nextRoster = 0f;
+            _nextKeyframe = 0f;
+            BasisDebug.Log($"Dolly manager ready (network id {NetworkID}).", LogTag);
+        }
+
+        private static void HandleLocalPlayerLeft(BasisNetworkPlayer networkPlayer, BasisLocalPlayer localPlayer)
+        {
+            if (HasNetworkID)
+            {
+                BasisNetworkGenericMessages.UnregisterDirectHandler(NetworkID);
+            }
+            HasNetworkID = false;
+            NetworkID = 0;
+            _lastSentCount = -1;
+
+            ClearAllMirrors();
         }
 
         // ---- The local track --------------------------------------------------------------
@@ -127,6 +171,27 @@ namespace Basis.Cinematics
         }
 
         /// <summary>
+        /// Offers a track for sharing. A roster is keyed by the player who sent it, so a client
+        /// shares one track at a time; with several cameras out the first to ask keeps the slot
+        /// until it stops sharing, rather than the two of them withdrawing each other every frame.
+        /// </summary>
+        public static void ClaimLocalTrack(BasisCameraDollyTrack track)
+        {
+            if (track == null || ReferenceEquals(_local, track)) return;
+            if (_local != null && _local.SyncMode != BasisCameraDollySync.LocalOnly) return;
+
+            SetLocalTrack(track);
+        }
+
+        /// <summary>Gives the slot up, but only for the track actually holding it.</summary>
+        public static void ReleaseLocalTrack(BasisCameraDollyTrack track)
+        {
+            if (track == null || !ReferenceEquals(_local, track)) return;
+
+            SetLocalTrack(null);
+        }
+
+        /// <summary>
         /// Sends the local track when it is due. Called from the camera's own frame, so a client
         /// with no camera out costs nothing at all.
         /// </summary>
@@ -145,7 +210,7 @@ namespace Basis.Cinematics
                 return;
             }
 
-            bool changed = _local.Count != _lastSentCount || _local.SyncMode != _lastSentMode;
+            bool changed = _local.Count != _lastSentCount || _local.SyncMode != _lastSentMode || LocalTrackIsHeld();
             bool due = changed ? time >= _nextRoster : time >= _nextKeyframe;
             if (!due) return;
 
@@ -154,6 +219,20 @@ namespace Basis.Cinematics
             _nextKeyframe = time + KeyframeInterval;
             _lastSentCount = _local.Count;
             _lastSentMode = _local.SyncMode;
+        }
+
+        /// <summary>
+        /// Whether a point is in somebody's hand. A drag moves points without changing the count, so
+        /// without this a track being laid out would only reach the others at the keyframe rate.
+        /// </summary>
+        private static bool LocalTrackIsHeld()
+        {
+            for (int Index = 0; Index < _local.Count; Index++)
+            {
+                BasisCameraDollyWaypoint waypoint = _local.GetWaypoint(Index);
+                if (waypoint != null && waypoint.IsGrabbed) return true;
+            }
+            return false;
         }
 
         private static void BroadcastRoster(ushort[] recipients)
@@ -172,7 +251,7 @@ namespace Basis.Cinematics
             }
 
             EnsureBuffer(BasisCameraDollyPacket.RosterSize(count));
-            int written = BasisCameraDollyPacket.WriteRoster(_sendBuffer, _local.SyncMode, _scratch, count);
+            int written = BasisCameraDollyPacket.WriteRoster(_sendBuffer, _local.SyncMode, _local.Looped, _scratch, count);
             if (written > 0) Send(written, DeliveryMethod.ReliableOrdered, recipients);
         }
 
@@ -182,7 +261,7 @@ namespace Basis.Cinematics
             if (!HasNetworkID) return;
 
             EnsureBuffer(BasisCameraDollyPacket.RosterSize(0));
-            int written = BasisCameraDollyPacket.WriteRoster(_sendBuffer, BasisCameraDollySync.LocalOnly, _scratch, 0);
+            int written = BasisCameraDollyPacket.WriteRoster(_sendBuffer, BasisCameraDollySync.LocalOnly, false, _scratch, 0);
             if (written > 0) Send(written, DeliveryMethod.ReliableOrdered, null);
         }
 
@@ -234,7 +313,7 @@ namespace Basis.Cinematics
         private static void ApplyRoster(ushort playerId, byte[] buffer, int length)
         {
             if (!BasisCameraDollyPacket.TryReadRoster(buffer, length, _scratch,
-                out BasisCameraDollySync mode, out int count))
+                out BasisCameraDollySync mode, out bool looped, out int count))
             {
                 return;
             }
@@ -249,8 +328,9 @@ namespace Basis.Cinematics
             {
                 mirror = new BasisCameraDollyMirror(playerId);
                 _mirrors[playerId] = mirror;
+                UpdateMirrorTickRequest();
             }
-            mirror.Apply(mode, _scratch, count);
+            mirror.Apply(mode, looped, _scratch, count);
         }
 
         private static void ApplyPointMove(ushort playerId, byte[] buffer, int length)
@@ -318,6 +398,7 @@ namespace Basis.Cinematics
             {
                 mirror.Dispose();
                 _mirrors.Remove(playerId);
+                UpdateMirrorTickRequest();
             }
         }
 
@@ -328,11 +409,41 @@ namespace Basis.Cinematics
                 pair.Value.Dispose();
             }
             _mirrors.Clear();
+            UpdateMirrorTickRequest();
         }
 
-        /// <summary>Refreshes every mirrored track's markers. Driven from the camera's frame.</summary>
-        public static void TickMirrors(float scale, Quaternion labelFacing)
+        /// <summary>
+        /// Somebody else's track has to draw on a client that has no camera of its own out — seeing
+        /// where a shot is being laid out is the point of sharing it — so the frame clock drives the
+        /// mirrors rather than the handheld camera. The request is held only while there is a track
+        /// to draw, so a client with none costs nothing.
+        /// </summary>
+        private static void UpdateMirrorTickRequest()
         {
+            bool wanted = _mirrors.Count > 0;
+            if (wanted == _mirrorTickRequested) return;
+
+            _mirrorTickRequested = wanted;
+            if (wanted)
+            {
+                BasisFrameClock.OnTick += TickMirrors;
+                BasisFrameClock.AddRequest();
+            }
+            else
+            {
+                BasisFrameClock.OnTick -= TickMirrors;
+                BasisFrameClock.RemoveRequest();
+            }
+        }
+
+        /// <summary>Refreshes every mirrored track's markers.</summary>
+        public static void TickMirrors()
+        {
+            float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+            Quaternion labelFacing = BasisLocalCameraDriver.HasInstance && BasisLocalCameraDriver.CameraInstance != null
+                ? BasisLocalCameraDriver.CameraInstance.transform.rotation
+                : Quaternion.identity;
+
             foreach (KeyValuePair<ushort, BasisCameraDollyMirror> pair in _mirrors)
             {
                 pair.Value.Refresh(scale, labelFacing);

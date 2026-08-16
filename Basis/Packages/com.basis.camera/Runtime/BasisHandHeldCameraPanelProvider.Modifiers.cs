@@ -513,7 +513,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _dollySpeedSlider = PanelSlider.CreateNew(content);
             _dollySpeedSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                BasisLocalization.Get("camera.dollySpeed"), -3f, 3f, false, 2, ValueDisplayMode.Raw));
+                BasisLocalization.Get("camera.dollySpeed"), -100f, 100f, false, 2, ValueDisplayMode.Raw));
             _dollySpeedSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.dollySpeed.description"));
             _dollySpeedSlider.OnValueChanged = v =>
             {

@@ -81,10 +81,17 @@ public abstract partial class BasisHandHeldCameraInteractable
         DollyTrack.SyncMode = Modifiers.dolly.syncMode;
         DollyTrack.Refresh(scale, facing);
 
-        // Everyone else's tracks are drawn from the same frame as our own, so a shared track is
-        // never a frame behind the one it is being laid out beside.
+        // Claimed every frame rather than on the share dropdown, so a track that turns networked
+        // through a preset or a restored mode is shared on the same terms as one switched by hand.
+        if (Modifiers.dolly.syncMode == BasisCameraDollySync.LocalOnly)
+        {
+            BasisCameraDollyManager.ReleaseLocalTrack(DollyTrack);
+        }
+        else
+        {
+            BasisCameraDollyManager.ClaimLocalTrack(DollyTrack);
+        }
         BasisCameraDollyManager.Tick(Time.time);
-        BasisCameraDollyManager.TickMirrors(scale, facing);
     }
 
     internal void DisposeModifiers()
@@ -93,7 +100,7 @@ public abstract partial class BasisHandHeldCameraInteractable
         // to update it.
         if (DollyTrack != null)
         {
-            BasisCameraDollyManager.SetLocalTrack(null);
+            BasisCameraDollyManager.ReleaseLocalTrack(DollyTrack);
         }
         DollyTrack?.Dispose();
         DollyTrack = null;

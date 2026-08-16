@@ -37,8 +37,15 @@ namespace Basis.Cinematics
 
         private const int HeaderSize = 1;
         private const int OwnerSize = 2;
-        private const int PointSize = 28;                       // position (12) + rotation (16)
-        private const int RosterHeader = HeaderSize + 1 + 1;    // type, mode, count
+        private const int PointSize = 28;                           // position (12) + rotation (16)
+        private const int RosterHeader = HeaderSize + 1 + 1 + 1;    // type, mode, count, flags
+
+        /// <summary>
+        /// The track closes back on itself. It belongs with the points rather than beside them: it
+        /// decides whether the last waypoint joins the first, so a mirror without it draws a
+        /// different path from the one the author is looking at.
+        /// </summary>
+        private const byte RosterFlagLooped = 1 << 0;
         private const int MoveSize = HeaderSize + OwnerSize + 1 + PointSize;
         private const int ClaimSize = HeaderSize + OwnerSize + 1 + 1;
 
@@ -62,7 +69,7 @@ namespace Basis.Cinematics
         /// callers size with <see cref="RosterSize"/>, so 0 means a caller bug rather than a
         /// runtime condition to handle.
         /// </summary>
-        public static int WriteRoster(byte[] buffer, BasisCameraDollySync mode, Point[] points, int count)
+        public static int WriteRoster(byte[] buffer, BasisCameraDollySync mode, bool looped, Point[] points, int count)
         {
             count = Mathf.Clamp(count, 0, MaxPoints);
             if (points == null) count = 0;
@@ -73,6 +80,7 @@ namespace Basis.Cinematics
             buffer[offset++] = (byte)BasisCameraDollyPacketType.Roster;
             buffer[offset++] = (byte)mode;
             buffer[offset++] = (byte)count;
+            buffer[offset++] = looped ? RosterFlagLooped : (byte)0;
 
             for (int Index = 0; Index < count; Index++)
             {
@@ -129,9 +137,10 @@ namespace Basis.Cinematics
         /// False when the packet is truncated or names a mode this build does not have.
         /// </summary>
         public static bool TryReadRoster(byte[] buffer, int length, Point[] points,
-            out BasisCameraDollySync mode, out int count)
+            out BasisCameraDollySync mode, out bool looped, out int count)
         {
             mode = BasisCameraDollySync.LocalOnly;
+            looped = false;
             count = 0;
 
             if (!TryReadType(buffer, length, out BasisCameraDollyPacketType type) ||
@@ -147,6 +156,7 @@ namespace Basis.Cinematics
             if (length < RosterSize(declared)) return false;
 
             mode = (BasisCameraDollySync)buffer[1];
+            looped = (buffer[3] & RosterFlagLooped) != 0;
             count = declared;
 
             int offset = RosterHeader;
