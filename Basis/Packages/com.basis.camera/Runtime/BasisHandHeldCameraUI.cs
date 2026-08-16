@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Basis.BasisUI;
 using TMPro;
+using Basis.Cinematics;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -690,12 +691,7 @@ public partial class BasisHandHeldCameraUI
             motionBlurQuality = HHC != null && HHC.MetaData.motionBlur != null ? (int)HHC.MetaData.motionBlur.quality.value : baseline.motionBlurQuality,
             motionBlurMode = HHC != null && HHC.MetaData.motionBlur != null ? (int)HHC.MetaData.motionBlur.mode.value : baseline.motionBlurMode,
             autoFocusFollowSubject = HHC != null && HHC.autoFocusFollowSubject,
-            autoFollowPositionOffset = HHC != null ? HHC.autoFollowPositionOffset : new Vector3(0.5f, 0f, 1.4f),
-            autoFollowRotationOffset = HHC != null ? HHC.autoFollowRotationOffset : Vector3.zero,
-            autoFollowPlayspace = HHC == null || HHC.autoFollowPlayspace,
-            autoFollowLookAtPlayer = HHC == null || HHC.autoFollowLookAtPlayer,
-            autoFollowLookAtHeightOffset = HHC != null ? HHC.autoFollowLookAtHeightOffset : 0f,
-            autoFollowLateralTracking = HHC != null ? HHC.autoFollowLateralTracking : 0.5f,
+            modifiers = HHC != null ? HHC.Modifiers.Clone() : new BasisCameraModifierStack(),
             detachedMarker = HHC != null ? (int)HHC.detachedMarker : (int)BasisCameraDetachedMarker.Puck,
             capture360 = HHC != null && HHC.capture360Enabled,
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
@@ -714,8 +710,6 @@ public partial class BasisHandHeldCameraUI
             backgroundMode = HHC != null ? (int)HHC.backgroundMode : 0,
             backgroundCustomColor = HHC != null ? HHC.backgroundCustomColor : BasisHandHeldCamera.ChromaGreen,
             backgroundKeepsWorld = HHC != null && HHC.backgroundKeepsWorld,
-            subjectFramingRadius = HHC != null ? HHC.subjectFramingRadius : 0.45f,
-            cinematicShots = HHC != null ? HHC.SaveShots() : new System.Collections.Generic.List<Basis.Cinematics.BasisCameraShot>(),
         };
 
 #if Basis_VOLUMETRIC_SUPPORTED
@@ -784,6 +778,7 @@ public partial class BasisHandHeldCameraUI
         {
             string json = await File.ReadAllTextAsync(path);
             var loaded = JsonUtility.FromJson<CameraSettings>(json);
+            UpgradeLegacyFollow(loaded, json);
             MigrateSettings(loaded);
             ApplySettings(loaded);
         }
@@ -799,16 +794,31 @@ public partial class BasisHandHeldCameraUI
     /// absent fields — without this, upgrading a save would silently turn follow features off and
     /// park the camera at the player's origin (position offset 0,0,0).
     /// </summary>
+    /// <summary>
+    /// Carries the auto-follow block a pre-v9 file stored onto its modifier stack. Read off the raw
+    /// text rather than off <see cref="CameraSettings"/>, which no longer carries those fields —
+    /// keeping them there so a migration could read them would leave six settings in the file with
+    /// nowhere in the panel to be edited.
+    /// </summary>
+    private static void UpgradeLegacyFollow(CameraSettings settings, string json)
+    {
+        if (settings == null || settings.settingsVersion >= BasisCameraLegacyFollow.UpgradedAtVersion)
+        {
+            return;
+        }
+
+        settings.modifiers ??= new BasisCameraModifierStack();
+        if (BasisCameraLegacyFollow.TryRead(json, out BasisCameraLegacyFollow legacy))
+        {
+            legacy.ApplyTo(settings.modifiers);
+        }
+    }
+
     private static void MigrateSettings(CameraSettings settings)
     {
         if (settings.settingsVersion < 2)
         {
             var defaults = new CameraSettings();
-            settings.autoFollowPositionOffset = defaults.autoFollowPositionOffset;
-            settings.autoFollowRotationOffset = defaults.autoFollowRotationOffset;
-            settings.autoFollowPlayspace = defaults.autoFollowPlayspace;
-            settings.autoFollowLookAtPlayer = defaults.autoFollowLookAtPlayer;
-            settings.autoFollowLookAtHeightOffset = defaults.autoFollowLookAtHeightOffset;
             settings.msaaSamples = defaults.msaaSamples;
         }
 
@@ -845,7 +855,7 @@ public partial class BasisHandHeldCameraUI
             // subject's face the moment Framing mode was picked.
             var defaults = new CameraSettings();
             settings.backgroundCustomColor = defaults.backgroundCustomColor;
-            settings.subjectFramingRadius = defaults.subjectFramingRadius;
+            settings.modifiers.subject.framingRadius = defaults.modifiers.subject.framingRadius;
         }
 
         if (settings.settingsVersion < 7)
@@ -858,15 +868,25 @@ public partial class BasisHandHeldCameraUI
 
         if (settings.settingsVersion < 8)
         {
-            // Neither zero-fills to its default. Lateral tracking would come back as 0, so the
-            // camera stops closing the gap when the subject strafes and they slide out of frame;
-            // the detached marker would come back as Off, leaving nothing on screen to show where
+            // The detached marker would come back as Off, leaving nothing on screen to show where
             // a camera that has flown away went — and nothing to grab it back by.
             var defaults = new CameraSettings();
-            settings.autoFollowLateralTracking = defaults.autoFollowLateralTracking;
             settings.detachedMarker = defaults.detachedMarker;
         }
 
+        if (settings.settingsVersion < BasisCameraLegacyFollow.UpgradedAtVersion)
+        {
+            // The stack is new, so it arrives holding its own defaults rather than anything the
+            // file said. LoadSettings hands the legacy block over separately; a file reaching here
+            // without one keeps those defaults, which is the shipped configuration.
+            settings.modifiers ??= new BasisCameraModifierStack();
+            settings.modifiers.subject.framingRadius = settings.modifiers.subject.framingRadius > 0f
+                ? settings.modifiers.subject.framingRadius
+                : new CameraSettings().modifiers.subject.framingRadius;
+        }
+
+        settings.modifiers ??= new BasisCameraModifierStack();
+        settings.modifiers.Sanitize();
         settings.settingsVersion = CameraSettings.CurrentVersion;
     }
 
@@ -884,6 +904,10 @@ public partial class BasisHandHeldCameraUI
 #if UNITY_INCLUDE_TESTS
     /// <summary>Test-only access to the private migration.</summary>
     public static void MigrateSettingsForTest(CameraSettings settings) => MigrateSettings(settings);
+
+    /// <summary>Runs the pre-v9 auto-follow upgrade against raw settings text.</summary>
+    public static void UpgradeLegacyFollowForTest(CameraSettings settings, string json)
+        => UpgradeLegacyFollow(settings, json);
 
     /// <summary>Test-only access to the private apply, so the apply/capture pair can be checked as one.</summary>
     public void ApplySettingsForTest(CameraSettings settings) => ApplySettings(settings);
@@ -984,8 +1008,6 @@ public partial class BasisHandHeldCameraUI
 
             // Cinematic rig. Shots load before the background so a colour mode caches a culling
             // mask that already reflects everything else this method applied.
-            HHC.subjectFramingRadius = settings.subjectFramingRadius > 0f ? settings.subjectFramingRadius : 0.45f;
-            HHC.LoadShots(settings.cinematicShots);
 
             HHC.backgroundCustomColor = settings.backgroundCustomColor.a > 0f
                 ? settings.backgroundCustomColor
@@ -1073,12 +1095,7 @@ public partial class BasisHandHeldCameraUI
 
         HHC.autoFocusFollowSubject = settings.autoFocusFollowSubject;
 
-        HHC.autoFollowPositionOffset = settings.autoFollowPositionOffset;
-        HHC.autoFollowRotationOffset = settings.autoFollowRotationOffset;
-        HHC.autoFollowPlayspace = settings.autoFollowPlayspace;
-        HHC.autoFollowLookAtPlayer = settings.autoFollowLookAtPlayer;
-        HHC.autoFollowLookAtHeightOffset = settings.autoFollowLookAtHeightOffset;
-        HHC.autoFollowLateralTracking = Mathf.Clamp01(settings.autoFollowLateralTracking);
+        HHC.ApplyModifierStack(settings.modifiers);
         HHC.SetDetachedMarker((BasisCameraDetachedMarker)Mathf.Clamp(
             settings.detachedMarker, 0, (int)BasisCameraDetachedMarker.Gizmo));
         HHC.capture360Enabled = settings.capture360;

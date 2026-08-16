@@ -309,6 +309,8 @@ public static class BasisActionDriver
         {
             return;
         }
+
+        s_DispatchRole = trackedRole;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         for (int Index = 0; Index < compiled.Length; Index++)
         {
@@ -424,7 +426,7 @@ public static class BasisActionDriver
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void SetMovementSpeedMultiplierFromPrimary2DAxis(ref BasisInputState current, ref BasisInputState last)
     {
-        Vector2 axis = current.Primary2DAxisDeadZoned;
+        Vector2 axis = LocomotionAxis(current.Primary2DAxisDeadZoned);
         float largestValue = Mathf.Abs(axis.x) > Mathf.Abs(axis.y) ? axis.x : axis.y;
         var controller = BasisLocalPlayer.Instance.LocalCharacterDriver;
         controller.SetMovementSpeedMultiplier(largestValue);
@@ -439,7 +441,7 @@ public static class BasisActionDriver
     public static void SetMovementVectorFromPrimary2DAxis(ref BasisInputState current, ref BasisInputState last)
     {
         BasisLocalCharacterDriver controller = BasisLocalPlayer.Instance.LocalCharacterDriver;
-        controller.SetMovementVector(current.Primary2DAxisDeadZoned);
+        controller.SetMovementVector(LocomotionAxis(current.Primary2DAxisDeadZoned));
     }
 
     /// <summary>
@@ -526,7 +528,7 @@ public static class BasisActionDriver
     public static void RotateFromPrimary2DAxis(ref BasisInputState current, ref BasisInputState last)
     {
         var driver = BasisLocalPlayer.Instance.LocalCharacterDriver;
-        driver.Rotation = current.Primary2DAxisButterfly;
+        driver.Rotation = LocomotionAxis(current.Primary2DAxisButterfly);
     }
 
     /// <summary>
@@ -581,6 +583,29 @@ public static class BasisActionDriver
     private static readonly Dictionary<BasisBoneTrackedRole, int> s_RoleDispatchFrame = new Dictionary<BasisBoneTrackedRole, int>(capacity: 4);
     private static  BasisInputState s_AggCurrent = new BasisInputState();
     private static  BasisInputState s_AggLast = new BasisInputState();
+
+    /// <summary>
+    /// The role whose actions are running right now. Action delegates are handed input state and
+    /// nothing else, so this is how they know whose stick they are reading — see
+    /// <see cref="LocomotionAxis"/>.
+    /// </summary>
+    private static BasisBoneTrackedRole s_DispatchRole;
+
+    /// <summary>
+    /// Stick input for the role being dispatched, with forward/back dropped while that hand's stick
+    /// is driving a settings slider (<see cref="Basis.BasisUI.BasisPanelJoystickBind"/>). Tuning a
+    /// value must not also walk the player. Left/right is left alone, so a bound hand can still
+    /// strafe or turn.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Vector2 LocomotionAxis(Vector2 axis)
+    {
+        if (Basis.BasisUI.BasisPanelJoystickBind.CapturesStick(s_DispatchRole))
+        {
+            axis.y = 0f;
+        }
+        return axis;
+    }
 
     /// <summary>
     /// Rebuilds and caches the compiled action delegate array for a single role.

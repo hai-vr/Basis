@@ -664,6 +664,20 @@ namespace Basis.Scripts.BasisSdk.Interactions
             WriteEventData(st, surf, cam);
 
             var ed = st.EventData;
+
+            // A poke made while a joystick bind is armed takes the slider for the stick. The press
+            // is spent doing that and never delivered — a pointer down on a slider jumps its handle
+            // to the finger, which would throw away the value being bound.
+            if (BasisPanelJoystickBind.TryHandlePress(target, input))
+            {
+                ed.eligibleForClick = false;
+                ed.pointerPress = null;
+                ed.rawPointerPress = null;
+                ed.pointerDrag = null;
+                st.PrevSurface = surf;
+                return;
+            }
+
             ed.pressPosition = ed.position;
             ed.pointerPressRaycast = ed.pointerCurrentRaycast;
             ed.eligibleForClick = true;

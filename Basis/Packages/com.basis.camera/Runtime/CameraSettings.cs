@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Basis.Cinematics;
 using UnityEngine;
 
@@ -11,9 +10,10 @@ public partial class BasisHandHeldCameraUI
         /// <summary>
         /// Bumped whenever fields are added whose zero-fill value (JsonUtility leaves absent fields
         /// at 0/false) differs from their intended default. LoadSettings migrates older files.
-        /// v2 added the auto-follow config, capture toggles and MSAA.
+        /// v2 added the auto-follow config, capture toggles and MSAA. v9 replaced the auto-follow
+        /// block and the shot list with the modifier stack.
         /// </summary>
-        public const int CurrentVersion = 8;
+        public const int CurrentVersion = 9;
         public int settingsVersion = CurrentVersion;
 
         public CameraSettings()
@@ -30,14 +30,8 @@ public partial class BasisHandHeldCameraUI
             backgroundMode = 0;
             backgroundCustomColor = BasisHandHeldCamera.ChromaGreen;
             backgroundKeepsWorld = false;
-            subjectFramingRadius = 0.45f;
 
-            autoFollowPositionOffset = new Vector3(0.5f, 0f, 1.4f);
-            autoFollowRotationOffset = Vector3.zero;
-            autoFollowPlayspace = true;
-            autoFollowLookAtPlayer = true;
-            autoFollowLookAtHeightOffset = 0f;
-            autoFollowLateralTracking = 0.5f;
+            modifiers = new BasisCameraModifierStack();
             detachedMarker = (int)BasisCameraDetachedMarker.Puck;
 
             dofMode = 2;          // Bokeh, matching the authored profile
@@ -169,13 +163,14 @@ public partial class BasisHandHeldCameraUI
 
         public bool autoFocusFollowSubject;
 
-        // Auto-follow configuration (the follow target itself is per-session and not persisted).
-        public Vector3 autoFollowPositionOffset;
-        public Vector3 autoFollowRotationOffset;
-        public bool autoFollowPlayspace;
-        public bool autoFollowLookAtPlayer;
-        public float autoFollowLookAtHeightOffset;
-        public float autoFollowLateralTracking;
+        /// <summary>
+        /// How the camera is driven, including who it films. Which modifiers are fitted is saved
+        /// in full: unlike the auto follow flag it replaced, an empty stack is the resting state,
+        /// so a restored file can only ever fly the camera off on spawn if that is what was
+        /// actually saved. The follow target itself is per-session and not persisted.
+        /// </summary>
+        public BasisCameraModifierStack modifiers = new BasisCameraModifierStack();
+
 
         /// <summary>
         /// Which marker shows where the camera has gone while it is detached, as
@@ -218,12 +213,5 @@ public partial class BasisHandHeldCameraUI
         public Color backgroundCustomColor;
         public bool backgroundKeepsWorld;
 
-        /// <summary>
-        /// The authored shot rig. Whether the rig is switched on is deliberately not saved — the
-        /// same reasoning as auto follow, which would otherwise fly the camera off on every spawn.
-        /// </summary>
-        public List<BasisCameraShot> cinematicShots = new List<BasisCameraShot>();
-
-        public float subjectFramingRadius;
     }
 }

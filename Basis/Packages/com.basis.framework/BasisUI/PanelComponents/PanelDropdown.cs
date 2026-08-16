@@ -159,8 +159,13 @@ namespace Basis.BasisUI
         public override void OnComponentUsed()
         {
             base.OnComponentUsed();
-            if (DropdownComponent.value == -1) SetValue(string.Empty);
-            else SetValue(Entries[DropdownComponent.value]);
+
+            // A dropdown whose entries were never assigned still shows whatever options its prefab
+            // shipped with, and clicking one of those rows used to dereference a null list. Report
+            // no selection instead: the rows do not stand for anything this control can name.
+            int selected = DropdownComponent.value;
+            if (Entries == null || selected < 0 || selected >= Entries.Count) SetValue(string.Empty);
+            else SetValue(Entries[selected]);
 
             AnimateSelectionChange();
         }

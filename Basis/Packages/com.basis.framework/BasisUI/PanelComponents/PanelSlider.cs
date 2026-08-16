@@ -201,6 +201,16 @@ namespace Basis.BasisUI
             SliderConfirmedListener.OnValueConfirmed += OnSliderConfirmed;
         }
 
+        /// <summary>
+        /// A rebuilt page hands a fresh slider to a setting a thumbstick may already be driving —
+        /// offer it back, or the reopened menu shows a handle frozen where the old page left it.
+        /// </summary>
+        public override void AssignBinding(BasisSettingsBinding<float> binding)
+        {
+            base.AssignBinding(binding);
+            BasisPanelJoystickBind.NotifySliderCreated(this);
+        }
+
         public void OnPointerDown(PointerEventData eventData)
         {
             if (!Application.isPlaying) return;
@@ -219,6 +229,22 @@ namespace Basis.BasisUI
         public void OnPointerUp(PointerEventData eventData)
         {
             if (!Application.isPlaying) return;
+            EndDragVisual();
+        }
+
+        /// <summary>
+        /// Hands the slider to a driver other than the pointer — a bound thumbstick
+        /// (<see cref="BasisPanelJoystickBind"/>) — for as long as it is moving the value. The
+        /// handle lifts as it would under a finger, and the fill tracks instantly instead of
+        /// starting a fresh colour tween on every frame of the sweep.
+        /// </summary>
+        public void SetExternalDrive(bool driving)
+        {
+            if (driving)
+            {
+                BeginDragVisual();
+                return;
+            }
             EndDragVisual();
         }
 

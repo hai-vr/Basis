@@ -456,7 +456,7 @@ public sealed class BasisHandHeldCameraGizmos
         _follow.Sphere(sample.TargetPosition, nodeSize, tint);
         _follow.Line(sample.TargetPosition, sample.LookPoint, tint, LineWidth);
 
-        BuildRing(sample.TargetPosition, camera.autoFollowTeleportDistance * sample.Scale);
+        BuildRing(sample.TargetPosition, TeleportDistanceOf(camera) * sample.Scale);
         _follow.Poly(_ring, sample.Snapped ? AxisXColor : GhostColor, true, ThinLineWidth);
 
         Vector3 live = camera.captureCamera.transform.position;
@@ -503,16 +503,19 @@ public sealed class BasisHandHeldCameraGizmos
         }
         _builder.Append("aim ").Append(aimDistance.ToString("0.00")).Append("m   lag ")
             .Append(lag.ToString("0.00")).Append("m\n");
-        _builder.Append("half-life ").Append(HalfLife(camera.autoFollowPositionSmoothing).ToString("0.00")).Append("s pos  ")
-            .Append(HalfLife(camera.autoFollowRotationSmoothing).ToString("0.00")).Append("s rot");
+        _builder.Append("damp ").Append(camera.Modifiers.follow.damping.z.ToString("0.00")).Append("s pos  ")
+            .Append(camera.Modifiers.lookAt.damping.y.ToString("0.00")).Append("s rot");
         if (sample.Snapped)
         {
-            _builder.Append("\nSNAP — past ").Append((camera.autoFollowTeleportDistance * sample.Scale).ToString("0.0")).Append('m');
+            _builder.Append("\nSNAP — past ").Append((TeleportDistanceOf(camera) * sample.Scale).ToString("0.0")).Append('m');
         }
         return _builder.ToString();
     }
 
-    private static float HalfLife(float rate) => rate > 1e-4f ? Mathf.Log(2f) / rate : 0f;
+    private static float TeleportDistanceOf(BasisHandHeldCamera camera) =>
+        camera.Modifiers.positionModifier == Basis.Cinematics.BasisCameraPositionModifier.FrameSubject
+            ? camera.Modifiers.framing.teleportDistance
+            : camera.Modifiers.follow.teleportDistance;
 
     private void DrawPinState(BasisHandHeldCamera camera, float scale, Vector3 viewer, bool readouts)
     {
@@ -550,7 +553,7 @@ public sealed class BasisHandHeldCameraGizmos
                 ? camPos.y - BasisLocalPlayer.Instance.transform.position.y
                 : camPos.y;
 
-            int key = (int)camera.PinSpace ^ (camera.IsFlying ? 1 << 4 : 0) ^ (camera.IsAutoFollowing ? 1 << 5 : 0) ^
+            int key = (int)camera.PinSpace ^ (camera.IsFlying ? 1 << 4 : 0) ^ (camera.IsModifierDriven ? 1 << 5 : 0) ^
                       (camera.HandHeld.IsSelfieMode ? 1 << 6 : 0) ^ (camera.enableRecordingView ? 1 << 7 : 0) ^
                       (camera.IsVideoOutputActive ? 1 << 8 : 0) ^ (camera.autoFocusFollowSubject ? 1 << 9 : 0) ^
                       (camera.useAutoLeveling ? 1 << 10 : 0) ^ (camera.useVRHandheldSmoothing ? 1 << 11 : 0) ^
@@ -579,7 +582,8 @@ public sealed class BasisHandHeldCameraGizmos
 
         int written = 0;
         AppendMode(ref written, camera.IsFlying, "fly");
-        AppendMode(ref written, camera.IsAutoFollowing, "follow");
+        AppendMode(ref written, camera.Modifiers.DrivesPosition, "driven-pos");
+        AppendMode(ref written, camera.Modifiers.DrivesRotation, "driven-rot");
         AppendMode(ref written, camera.autoFocusFollowSubject, "autofocus");
         AppendMode(ref written, camera.HandHeld.IsSelfieMode, "selfie");
         AppendMode(ref written, camera.enableRecordingView, "recording");

@@ -1,6 +1,7 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using NUnit.Framework;
+using Basis.Cinematics;
 using UnityEngine;
 using CameraPinSpace = BasisHandHeldCameraInteractable.CameraPinSpace;
 
@@ -37,23 +38,23 @@ namespace Basis.Tests.Camera
         public void Defaults_StartHandHeldAndNotFollowing()
         {
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.HandHeld));
-            Assert.That(_camera.IsAutoFollowing, Is.False);
-            Assert.That(_camera.autoFollowEnabled, Is.False);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.False);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.False);
         }
 
         [Test]
         public void FollowPlayspace_DefaultsOn()
         {
             // Maintainer asked for centre-of-mass following to be the out-of-the-box behaviour.
-            Assert.That(_camera.autoFollowPlayspace, Is.True);
+            Assert.That(_camera.subjectSettings.anchorToBody, Is.True);
         }
 
         [Test]
         public void EnableAutoFollow_TakesWorldSpace()
         {
-            _camera.SetAutoFollowEnabled(true);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
-            Assert.That(_camera.IsAutoFollowing, Is.True);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.True);
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace),
                 "Auto-follow drives the camera through the fly pin, so it must claim WorldSpace.");
         }
@@ -61,10 +62,10 @@ namespace Basis.Tests.Camera
         [Test]
         public void DisableAutoFollow_ReturnsToHandHeld()
         {
-            _camera.SetAutoFollowEnabled(true);
-            _camera.SetAutoFollowEnabled(false);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
 
-            Assert.That(_camera.IsAutoFollowing, Is.False);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.False);
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.HandHeld),
                 "Turning follow off must hand the camera back to the player's hand.");
         }
@@ -74,11 +75,11 @@ namespace Basis.Tests.Camera
         {
             CameraPinSpace before = _camera.PinSpace;
 
-            _camera.SetAutoFollowEnabled(true);
-            _camera.SetAutoFollowEnabled(false);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
 
             Assert.That(_camera.PinSpace, Is.EqualTo(before));
-            Assert.That(_camera.IsAutoFollowing, Is.False);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.False);
         }
 
         [Test]
@@ -86,25 +87,25 @@ namespace Basis.Tests.Camera
         {
             // Follow only owns WorldSpace. If the camera has since been pinned to the playspace,
             // switching follow off must leave that alone rather than yanking it back to the hand.
-            _camera.SetAutoFollowEnabled(true);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
             _camera.PinSpace = CameraPinSpace.PlaySpace;
 
-            _camera.SetAutoFollowEnabled(false);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
 
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.PlaySpace));
-            Assert.That(_camera.IsAutoFollowing, Is.False);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.False);
         }
 
         [Test]
         public void EnableAutoFollow_IsIdempotent()
         {
-            _camera.SetAutoFollowEnabled(true);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
             _camera.PinSpace = CameraPinSpace.WorldSpace;
 
-            _camera.SetAutoFollowEnabled(true);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace));
-            Assert.That(_camera.IsAutoFollowing, Is.True);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.True);
         }
 
         [Test]
@@ -112,7 +113,7 @@ namespace Basis.Tests.Camera
         {
             _camera.PinSpace = CameraPinSpace.PlaySpace;
 
-            _camera.SetAutoFollowEnabled(false);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
 
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.PlaySpace),
                 "A no-op disable must not run the WorldSpace hand-back path.");
@@ -123,14 +124,14 @@ namespace Basis.Tests.Camera
         {
             foreach (CameraPinSpace start in System.Enum.GetValues(typeof(CameraPinSpace)))
             {
-                _camera.SetAutoFollowEnabled(false);
+                _camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
                 _camera.PinSpace = start;
 
-                _camera.SetAutoFollowEnabled(true);
+                _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
                 Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace),
                     $"Enabling follow from {start} must end in WorldSpace.");
-                Assert.That(_camera.IsAutoFollowing, Is.True);
+                Assert.That(_camera.Modifiers.DrivesPosition, Is.True);
             }
         }
 
@@ -141,14 +142,14 @@ namespace Basis.Tests.Camera
             // to survive a user flipping the toggle repeatedly.
             for (int Index = 0; Index < 10; Index++)
             {
-                _camera.SetAutoFollowEnabled(true);
+                _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
                 Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace));
 
-                _camera.SetAutoFollowEnabled(false);
+                _camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
                 Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.HandHeld));
             }
 
-            Assert.That(_camera.IsAutoFollowing, Is.False);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.False);
         }
 
         [Test]
@@ -156,13 +157,13 @@ namespace Basis.Tests.Camera
         {
             // The anchor choice must survive follow being switched on and off, or the user's
             // preference silently resets every time they stop following.
-            _camera.autoFollowPlayspace = false;
+            _camera.subjectSettings.anchorToBody = false;
 
-            _camera.SetAutoFollowEnabled(true);
-            Assert.That(_camera.autoFollowPlayspace, Is.False);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
+            Assert.That(_camera.subjectSettings.anchorToBody, Is.False);
 
-            _camera.SetAutoFollowEnabled(false);
-            Assert.That(_camera.autoFollowPlayspace, Is.False);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
+            Assert.That(_camera.subjectSettings.anchorToBody, Is.False);
         }
 
         // ---- Fly mode ---------------------------------------------------------------------
@@ -199,11 +200,11 @@ namespace Basis.Tests.Camera
         [Test]
         public void EnableFly_StopsAutoFollow()
         {
-            _camera.SetAutoFollowEnabled(true);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
             _camera.SetFlyModeEnabled(true);
 
-            Assert.That(_camera.IsAutoFollowing, Is.False,
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.False,
                 "Follow and manual flight both drive the world pin; only one can own it.");
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace));
         }
@@ -215,10 +216,10 @@ namespace Basis.Tests.Camera
             // armed held the player's look/move/crouch locks for a stick that steered nothing.
             _camera.SetFlyModeEnabled(true);
 
-            _camera.SetAutoFollowEnabled(true);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
             Assert.That(_camera.IsFlyModeEnabled, Is.False);
-            Assert.That(_camera.IsAutoFollowing, Is.True);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.True);
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace),
                 "Follow claims the world pin on the way in, after fly has handed it back.");
         }
@@ -354,7 +355,7 @@ namespace Basis.Tests.Camera
             try
             {
                 _camera.SetFollowTargetPlayer(netId);
-                _camera.SetAutoFollowEnabled(true);
+                _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
                 Assert.That(_camera.TryGetFollowFocusPoint(out Vector3 point), Is.True);
                 Assert.That(_camera.TryGetFollowTargetPlayer(out ushort bound), Is.True,
@@ -389,7 +390,7 @@ namespace Basis.Tests.Camera
             // No such player is connected in a unit test, so resolving must drop the dangling id
             // back to the local player rather than leaving the camera pointed at nobody.
             _camera.SetFollowTargetPlayer(9999);
-            _camera.SetAutoFollowEnabled(true);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
             _camera.TryGetFollowFocusPoint(out _);
 
@@ -415,7 +416,7 @@ namespace Basis.Tests.Camera
             try
             {
                 _camera.SetFollowTargetPlayer(netId);
-                _camera.SetAutoFollowEnabled(true);
+                _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
                 Assert.That(_camera.TryGetFollowFocusPoint(out Vector3 point), Is.True);
                 Assert.That(_camera.TryGetFollowTargetPlayer(out ushort bound), Is.True,
@@ -443,7 +444,7 @@ namespace Basis.Tests.Camera
             try
             {
                 _camera.SetFollowTargetPlayer(netId);
-                _camera.SetAutoFollowEnabled(true);
+                _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
                 _camera.TryGetFollowFocusPoint(out _);
 
@@ -481,7 +482,7 @@ namespace Basis.Tests.Camera
             try
             {
                 _camera.SetFollowTargetPlayer(netId);
-                _camera.SetAutoFollowEnabled(true);
+                _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
                 Assert.That(_camera.TryResolveRemoteSubjectForTest(netId, remote, out _, out _, out _),
                     Is.False, "An undriven mouth marker is not a position; the frame must be skipped.");

@@ -7,6 +7,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.TransformBinders.BoneControl;
+using Basis.Cinematics;
 
 /// <summary>
 /// Interactable handheld/fly camera controller:
@@ -111,34 +112,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     private Vector3 desktopSpawnOffset = Vector3.forward;
     private Quaternion desktopOffsetRotation = Quaternion.identity;
 
-    [Header("Auto Follow")]
-    [Tooltip("Flies the camera along with the player instead of holding it. Works in desktop and VR.")]
-    public bool autoFollowEnabled = false;
-
-    [Tooltip("Offset from the player in yaw-relative space, in metres at default avatar scale: X right, Y up from calibrated eye level, Z forward.")]
-    public Vector3 autoFollowPositionOffset = new Vector3(0.5f, 0f, 1.4f);
-
-    [Tooltip("Extra rotation applied after aiming, in degrees.")]
-    public Vector3 autoFollowRotationOffset = Vector3.zero;
-
-    [Tooltip("Follow your body's centre of mass (hips) so room-scale movement keeps you in frame. Off anchors to the playspace origin, which is steadier but ignores physical walking.")]
-    public bool autoFollowPlayspace = true;
-
-    [Tooltip("Aim the camera at the player rather than facing the player's forward.")]
-    public bool autoFollowLookAtPlayer = true;
-
-    [Tooltip("Shifts the aim point up or down from head height, in metres at default avatar scale. Negative aims lower down the body.")]
-    public float autoFollowLookAtHeightOffset = 0f;
-
-    [Tooltip("How strongly sideways player movement pulls the camera in to keep the shot tight. 0 holds the fixed side offset; 1 closes the side gap fully while strafing.")]
-    [Range(0f, 1f)] public float autoFollowLateralTracking = 0.5f;
-
-    public float autoFollowPositionSmoothing = 4f;
-    public float autoFollowRotationSmoothing = 6f;
-
-    [Tooltip("Snap instead of easing when the target is further away than this, in metres at default avatar scale.")]
-    public float autoFollowTeleportDistance = 10f;
-
+    [Header("Follow Target")]
     [Tooltip("Continuously focus depth of field on the follow subject, keeping them sharp as they move.")]
     public bool autoFocusFollowSubject = false;
 
@@ -175,8 +149,6 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     }
 
     public bool IsFollowingRemotePlayer => followTargetBound;
-
-    public bool IsAutoFollowing => autoFollowEnabled;
 
     /// <summary>Resolved pose of whoever the camera follows — local player or a remote — in world space.</summary>
     private struct FollowSubject
@@ -231,7 +203,13 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         string className = nameof(BasisHandHeldCameraInteractable);
 
-        autoFollowEnabled = false;
+        // Flight and a position modifier both drive the same world pin, and the stack wins inside
+        // MoveCameraFlying. Written straight onto the stack rather than through SetPositionModifier,
+        // which would call back into ExitFlyMode from underneath this one.
+        if (Modifiers.DrivesPosition)
+        {
+            Modifiers.positionModifier = BasisCameraPositionModifier.FreeFly;
+        }
 
         LookLock.Add(className);
         MovementLock.Add(className);
@@ -241,7 +219,8 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         if (HHC != null && HHC.captureCamera != null)
         {
-            HHC.captureCamera.transform.GetPositionAndRotation(out smoothedPosition, out smoothedRotation);
+            HHC.captureCamera.transform.GetPositionAndRotation(out Vector3 heldPosition, out Quaternion heldRotation);
+            SeedPose(heldPosition, heldRotation);
         }
 
         if (BasisDeviceManagement.IsUserInDesktop())
@@ -267,6 +246,15 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         vrFlightRoleValid = true;
 
         // Seed the aim from where the camera already points, so arming it does not snap.
+        SeedOperatorAimFromCurrentRotation();
+    }
+
+    /// <summary>
+    /// Points the operator's pitch and yaw at wherever the camera is now, so whatever takes the
+    /// rotation channel next continues from the live shot rather than from a stale aim.
+    /// </summary>
+    private void SeedOperatorAimFromCurrentRotation()
+    {
         Vector3 euler = smoothedRotation.eulerAngles;
         currentPitch = targetPitch = NormalizeAngle(euler.x);
         currentYaw = targetYaw = NormalizeAngle(euler.y);
@@ -313,52 +301,14 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     /// </summary>
     public bool IsDetachedFromHand => PinSpace != CameraPinSpace.HandHeld;
 
-    public void SetAutoFollowEnabled(bool enabled)
-    {
-        if (autoFollowEnabled == enabled)
-        {
-            return;
-        }
-
-        autoFollowEnabled = enabled;
-
-        if (enabled)
-        {
-            // Follow and manual flight both drive the same world pin, and follow wins inside
-            // MoveCameraFlying — so leaving fly armed would hold the player's locks for a stick
-            // that no longer steers anything.
-            ExitFlyMode();
-
-            if (HHC != null && HHC.captureCamera != null)
-            {
-                HHC.captureCamera.transform.GetPositionAndRotation(out smoothedPosition, out smoothedRotation);
-            }
-            PinSpace = CameraPinSpace.WorldSpace;
-        }
-        else if (PinSpace == CameraPinSpace.WorldSpace)
-        {
-            PinSpace = CameraPinSpace.HandHeld;
-        }
-    }
-
-    /// <summary>Previous frame's follow anchor, for measuring how fast the subject strafes.</summary>
-    private Vector3 lastFollowAnchor;
-    private bool hasLastFollowAnchor;
-
-    /// <summary>Who <see cref="lastFollowAnchor"/> was measured on. Only read alongside <see cref="lastFollowAnchorWasRemote"/>.</summary>
+    /// <summary>Who the strafe history was measured on. Only read alongside <see cref="lastFollowAnchorWasRemote"/>.</summary>
     private ushort lastFollowAnchorSubject;
 
     /// <summary>Whether <see cref="lastFollowAnchorSubject"/> names a remote, so net id 0 cannot alias the local player.</summary>
     private bool lastFollowAnchorWasRemote;
 
-    /// <summary>Lateral speed above which the camera pulls in fully, in metres/second at default scale.</summary>
-    private const float LateralTrackingReferenceSpeed = 1.5f;
-
-    /// <summary>Low-pass rate for the measured lateral speed, so a single-frame spike can't slam the offset.</summary>
-    private const float LateralTrackingSpeedSmoothing = 8f;
-
-    /// <summary>Filtered lateral speed of the follow subject.</summary>
-    private float smoothedLateralSpeed;
+    /// <summary>Whether the last solve was framing a group, so switching modes also drops the history.</summary>
+    private bool lastFollowAnchorWasGroup;
 
     /// <summary>
     /// Every intermediate the follow solve produces, so the debug gizmos can draw what the
@@ -389,120 +339,62 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     private FollowGizmoSample followGizmoSample;
     private int followGizmoSampleFrame = -1;
 
-    private void MoveCameraAutoFollow(float deltaTime)
+    /// <summary>
+    /// Records the solve's own intermediates for the debug gizmos, so they draw what the solve
+    /// actually computed rather than re-deriving it.
+    /// </summary>
+    private void CaptureModifierGizmoSample(in BasisCameraSubject subject, in BasisCameraPose pose)
     {
-        FollowSubject subject = ResolveFollowSubject();
-        if (!subject.Valid)
+        if (!CaptureFollowGizmoSample || !subject.Valid)
         {
-            hasLastFollowAnchor = false;
             return;
         }
 
-        // The lateral history belongs to whoever it was measured on. Carried across a change of
-        // subject, the gap between the two reads as a single-frame strafe of tens of metres per
-        // second: the close-in below saturates and the camera lurches sideways before easing back
-        // out. That fires on every target switch, and again on every fallback to the local player
-        // while a remote is between avatars, which is most of what "follow is temperamental" was.
-        ushort subjectId = subject.IsRemote ? followTargetPlayerId : (ushort)0;
-        if (subject.IsRemote != lastFollowAnchorWasRemote || subjectId != lastFollowAnchorSubject)
+        Vector3 authored = modifiers.positionModifier == BasisCameraPositionModifier.FrameSubject
+            ? modifiers.framing.directionOffset
+            : modifiers.follow.positionOffset;
+
+        Vector3 applied = authored;
+        if (modifiers.positionModifier == BasisCameraPositionModifier.FollowSubject)
         {
-            lastFollowAnchorWasRemote = subject.IsRemote;
-            lastFollowAnchorSubject = subjectId;
-            hasLastFollowAnchor = false;
-            smoothedLateralSpeed = 0f;
+            float reference = BasisCameraModifierSolver.LateralTrackingReferenceSpeed * subject.Scale;
+            float closeIn = modifiers.follow.lateralTracking *
+                Mathf.Clamp01(Mathf.Abs(modifierState.SmoothedLateralSpeed) / Mathf.Max(1e-4f, reference));
+            applied.x *= 1f - closeIn;
         }
 
-        Vector3 sideOffset = autoFollowPositionOffset;
-        float appliedCloseIn = 0f;
-
-        // Sideways tracking: when the subject strafes, close the side gap so they stay framed
-        // instead of sliding toward the edge of the shot. Measured as the subject's velocity
-        // along the camera's side axis; standing still leaves the authored offset untouched, so
-        // the smoothing below eases the camera back out when they stop.
-        if (autoFollowLateralTracking > 0f && hasLastFollowAnchor && deltaTime > 1e-5f)
+        followGizmoSample = new FollowGizmoSample
         {
-            Vector3 sideAxis = subject.Yaw * Vector3.right;
-            float lateralSpeed = Vector3.Dot(subject.AnchorPos - lastFollowAnchor, sideAxis) / deltaTime;
-
-            // Low-pass the speed. A raw one-frame delta spikes on any hitch — a frame stall, an
-            // avatar swap, a teleport, a hips snap — and an instant spike slams the side offset
-            // closed and then eases back out, which reads as a jitter every so often.
-            smoothedLateralSpeed = Mathf.Lerp(smoothedLateralSpeed, lateralSpeed,
-                1f - Mathf.Exp(-LateralTrackingSpeedSmoothing * deltaTime));
-
-            float referenceSpeed = LateralTrackingReferenceSpeed * subject.Scale;
-            float closeIn = autoFollowLateralTracking * Mathf.Clamp01(Mathf.Abs(smoothedLateralSpeed) / referenceSpeed);
-            sideOffset.x *= 1f - closeIn;
-            appliedCloseIn = closeIn;
-        }
-        else
-        {
-            smoothedLateralSpeed = 0f;
-        }
-        lastFollowAnchor = subject.AnchorPos;
-        hasLastFollowAnchor = true;
-
-        Vector3 targetPosition = subject.AnchorPos + subject.Yaw * (sideOffset * subject.Scale);
-
-        // Auto follow always aims at the player. (The old "Look At Me" toggle is gone — its off
-        // state pointed the camera the way the player faced, i.e. away from them.)
-        Vector3 toSubject = subject.LookPoint - targetPosition;
-
-        Quaternion targetRotation = toSubject.sqrMagnitude > 1e-6f
-            ? Quaternion.LookRotation(toSubject, Vector3.up)
-            : subject.Yaw;
-        targetRotation *= Quaternion.Euler(autoFollowRotationOffset);
-
-        bool snapped = Vector3.Distance(smoothedPosition, targetPosition) > autoFollowTeleportDistance * subject.Scale;
-
-        if (CaptureFollowGizmoSample)
-        {
-            followGizmoSample = new FollowGizmoSample
-            {
-                Valid = true,
-                Live = true,
-                AnchorPos = subject.AnchorPos,
-                GroundPos = subject.GroundPos,
-                LookPoint = subject.LookPoint,
-                Yaw = subject.Yaw,
-                Scale = subject.Scale,
-                AuthoredOffset = autoFollowPositionOffset,
-                AppliedOffset = sideOffset,
-                TargetPosition = targetPosition,
-                TargetRotation = targetRotation,
-                LateralSpeed = smoothedLateralSpeed,
-                CloseIn = appliedCloseIn,
-                Snapped = snapped,
-            };
-            followGizmoSampleFrame = Time.frameCount;
-        }
-
-        if (snapped)
-        {
-            smoothedPosition = targetPosition;
-            smoothedRotation = targetRotation;
-            return;
-        }
-
-        smoothedPosition = Vector3.Lerp(smoothedPosition, targetPosition, 1f - Mathf.Exp(-autoFollowPositionSmoothing * deltaTime));
-        smoothedRotation = Quaternion.Slerp(smoothedRotation, targetRotation, 1f - Mathf.Exp(-autoFollowRotationSmoothing * deltaTime));
-
-        // ApplyFollowZoom();  // Removed: it narrowed FOV to hold the subject the same size as
-        // the camera dollied out, so the two cancelled and the Distance slider did nothing
-        // visible. Distance is now a plain dolly (targetPosition above), which changes framing.
+            Valid = true,
+            Live = true,
+            AnchorPos = subject.AnchorPos,
+            GroundPos = subject.GroundPos,
+            LookPoint = subject.LookPoint,
+            Yaw = subject.Yaw,
+            Scale = subject.Scale,
+            AuthoredOffset = authored,
+            AppliedOffset = applied,
+            TargetPosition = pose.Position,
+            TargetRotation = pose.Rotation,
+            LateralSpeed = modifierState.SmoothedLateralSpeed,
+            CloseIn = authored.x != 0f ? 1f - applied.x / authored.x : 0f,
+            Snapped = false,
+        };
+        followGizmoSampleFrame = Time.frameCount;
     }
 
     /// <summary>
-    /// Drops auto-follow and pins the camera at an explicit world pose, holding it there so it
+    /// Drops every modifier and pins the camera at an explicit world pose, holding it there so it
     /// stops chasing anything and can be picked up. The transform is set immediately as well as
     /// the smoothed pin targets, so there is no ease-in from wherever it was.
     /// </summary>
     public void PlaceWorldPinned(Vector3 position, Quaternion rotation)
     {
-        autoFollowEnabled = false;
+        InitializeModifiers();
+        modifiers.positionModifier = BasisCameraPositionModifier.FreeFly;
+        modifiers.rotationModifier = BasisCameraRotationModifier.FreeLook;
         PinSpace = CameraPinSpace.WorldSpace;
-        smoothedPosition = position;
-        smoothedRotation = rotation;
+        SeedPose(position, rotation);
         if (HHC != null && HHC.captureCamera != null)
         {
             HHC.captureCamera.transform.SetPositionAndRotation(position, rotation);
@@ -565,7 +457,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         Vector3 anchorPos = rootPos + Vector3.up * GetTposeHeadHeight();
 
         float hipsHeight = GetTposeHipsHeight();
-        if (autoFollowPlayspace && hipsHeight > 0f && BasisLocalBoneDriver.HipsControl != null)
+        if (subjectSettings.anchorToBody && hipsHeight > 0f && BasisLocalBoneDriver.HipsControl != null)
         {
             // Centre of mass. The hips carry their own height, so lift by only the calibrated
             // eye-above-hips gap and a zero offset still sits on your eyeline. Vertical now
@@ -695,7 +587,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             GroundPos = rootPos,
             Yaw = yaw,
             // Head height (the synced head transform), matching the local path's default.
-            LookPoint = new Vector3(rootPos.x, lookPoint.y + autoFollowLookAtHeightOffset, rootPos.z),
+            LookPoint = new Vector3(rootPos.x, lookPoint.y + subjectSettings.aimHeightOffset, rootPos.z),
             Scale = scale,
         };
         return true;
@@ -730,7 +622,10 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             return false;
         }
 
-        Vector3 targetPosition = subject.AnchorPos + subject.Yaw * (autoFollowPositionOffset * subject.Scale);
+        Vector3 authoredOffset = Modifiers.positionModifier == BasisCameraPositionModifier.FrameSubject
+            ? Modifiers.framing.directionOffset
+            : Modifiers.follow.positionOffset;
+        Vector3 targetPosition = subject.AnchorPos + subject.Yaw * (authoredOffset * subject.Scale);
         Vector3 toSubject = subject.LookPoint - targetPosition;
         Quaternion targetRotation = toSubject.sqrMagnitude > 1e-6f
             ? Quaternion.LookRotation(toSubject, Vector3.up)
@@ -745,10 +640,10 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             LookPoint = subject.LookPoint,
             Yaw = subject.Yaw,
             Scale = subject.Scale,
-            AuthoredOffset = autoFollowPositionOffset,
-            AppliedOffset = autoFollowPositionOffset,
+            AuthoredOffset = authoredOffset,
+            AppliedOffset = authoredOffset,
             TargetPosition = targetPosition,
-            TargetRotation = targetRotation * Quaternion.Euler(autoFollowRotationOffset),
+            TargetRotation = targetRotation * Quaternion.Euler(Modifiers.lookAt.rotationOffset),
         };
         return true;
     }
@@ -762,7 +657,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
     /// <summary>
     /// The point auto-follow aims at: the player's head by default, so the shot frames the face,
-    /// shifted toward the body by <see cref="autoFollowLookAtHeightOffset"/>.
+    /// shifted toward the body by the subject settings' aim height offset.
     /// <para>
     /// The height comes from the avatar's T-pose, not from the live head. Live head position
     /// moves with every crouch, lean and head-bob, and the camera would swing to chase it —
@@ -774,7 +669,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         // Aim at head height by default so the shot frames the face; the offset drops it toward
         // the body when wanted.
         float headHeight = GetTposeHeadHeight();
-        return rootPosition + Vector3.up * (headHeight + autoFollowLookAtHeightOffset * scale);
+        return rootPosition + Vector3.up * (headHeight + subjectSettings.aimHeightOffset * scale);
     }
 
     /// <summary>
@@ -812,6 +707,12 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     }
 
     private float appliedCameraScale = -1f;
+
+    /// <summary>
+    /// User resize from the two-hand pickup gesture, held as a ratio of <see cref="GetBaseCameraScale"/>
+    /// so it survives avatar height changes and the desktop fit, which both rewrite the base size.
+    /// </summary>
+    private float userScaleMultiplier = 1f;
 
     private float GetDesktopFitScale()
     {
@@ -870,7 +771,10 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         return Mathf.Min(frustumWidth / rectSize.x, frustumHeight / rectSize.y) * fitFraction;
     }
 
-    private void ApplyCameraScale()
+    /// <summary>
+    /// Size the camera takes with no user resize applied: avatar-relative in VR, frustum-fit on desktop.
+    /// </summary>
+    private float GetBaseCameraScale()
     {
         float scale = cameraDefaultScale * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
 
@@ -880,6 +784,13 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             scale = desktopFit;
         }
 
+        return scale;
+    }
+
+    private void ApplyCameraScale()
+    {
+        float scale = GetBaseCameraScale() * userScaleMultiplier;
+
         if (Mathf.Approximately(scale, appliedCameraScale))
         {
             return;
@@ -887,6 +798,25 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         appliedCameraScale = scale;
         transform.localScale = Vector3.one * scale;
+    }
+
+    /// <inheritdoc/>
+    protected override float GestureScaleReference => GetBaseCameraScale();
+
+    /// <inheritdoc/>
+    protected override void ApplyGestureScaleStep(BasisTransform.Direction scaleDirection, float stepSize, float minScale, float maxScale)
+    {
+        float baseScale = GetBaseCameraScale();
+        if (baseScale <= 0f)
+        {
+            return;
+        }
+
+        float step = scaleDirection == BasisTransform.Direction.Embiggen ? stepSize : -stepSize;
+        float stepped = Mathf.Clamp(baseScale * userScaleMultiplier + step, minScale, maxScale);
+
+        userScaleMultiplier = stepped / baseScale;
+        ApplyCameraScale();
     }
 
     private bool isPlayerManuallyUnlocked = false;
@@ -908,6 +838,24 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     // Smoothed transform (for pin constraint offset)
     private Vector3 smoothedPosition = Vector3.zero;
     private Quaternion smoothedRotation = Quaternion.identity;
+
+    /// <summary>
+    /// The pose the operator's own controls hold, before any modifier has run.
+    ///
+    /// <para>Kept apart from <see cref="smoothedPosition"/> because the finished pose can carry an
+    /// effect on top of it. Integrating the next frame from a pose that already has shake in it
+    /// folds every frame's wander into the base, and the camera random-walks away from where the
+    /// stick left it.</para>
+    /// </summary>
+    private Vector3 operatorPosition = Vector3.zero;
+    private Quaternion operatorRotation = Quaternion.identity;
+
+    /// <summary>Puts the operator's pose and the published pose at the same place.</summary>
+    private void SeedPose(Vector3 position, Quaternion rotation)
+    {
+        operatorPosition = smoothedPosition = position;
+        operatorRotation = smoothedRotation = rotation;
+    }
 
     private bool pauseMove = false;
 
@@ -991,7 +939,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         flyCamera = new BasisFlyCamera();
 
-        InitializeCinematics();
+        InitializeModifiers();
     }
 
     /// <summary>Assigns the UI instance so orientation changes can be reflected.</summary>
@@ -1182,7 +1130,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     return;
 
             case CameraPinSpace.PlaySpace:
-                // Player root, not the avatar model — see MoveCameraAutoFollow. Pinning to the
+                // Player root, not the avatar model — see ResolveLocalSubject. Pinning to the
                 // avatar fed every IK correction into the constraint as shake, and the playspace
                 // is the root by definition.
                 BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out Vector3 pinParentPos, out Quaternion pinParentRot);
@@ -1388,54 +1336,76 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     }
 
     /// <summary>
-    /// Fly camera step: handles input, acceleration/deceleration, momentum, auto-leveling,
-    /// and computes smoothed position/rotation for the pin constraint offset.
+    /// One step of camera motion. The operator's own controls run for whichever channels the
+    /// modifier stack has not claimed, and the stack then solves over the top of them — so a
+    /// hand-flown camera that keeps somebody framed is just a stack with the position slot empty,
+    /// rather than a mode of its own.
     /// </summary>
     private void MoveCameraFlying()
     {
         float deltaTime = Time.deltaTime;
 
         // Selfie-stick grip: while the follow puck is held it is the master, so the camera snaps
-        // to it. Releasing falls straight back through to auto-follow / fly below on the next frame.
+        // to it. Releasing falls straight back through to the stack / fly below on the next frame.
         if (HHC != null && HHC.TryGetFollowPipPose(out Vector3 pipPos, out Quaternion pipRot))
         {
-            smoothedPosition = pipPos;
-            smoothedRotation = pipRot;
+            SeedPose(pipPos, pipRot);
+
+            // The stack keeps up with the puck rather than holding wherever it last solved, so
+            // letting go eases on from where the camera actually is instead of sweeping back.
+            ModifierState.Seed(pipPos, pipRot, GetCaptureFov());
             return;
         }
 
-        if (cinematicEnabled)
+        BasisCameraModifierStack stack = Modifiers;
+        bool drivesPosition = stack.DrivesPosition;
+        bool drivesRotation = stack.DrivesRotation;
+
+        if (!drivesPosition || !drivesRotation)
         {
-            MoveCameraCinematic(deltaTime);
-            return;
+            MoveCameraOperator(deltaTime, !drivesPosition, !drivesRotation);
         }
 
-        if (autoFollowEnabled)
+        if (stack.DrivesAnything)
         {
-            MoveCameraAutoFollow(deltaTime);
-            return;
-        }
-
-        if (HandleMovementInput(out Vector3 inputMovement, out float speedMultiplier))
-        {
-            UpdateMovement(inputMovement, speedMultiplier, deltaTime);
-        }
-        else if (useMomentum)
-        {
-            ApplyInertia(deltaTime);
+            MoveCameraModifiers(deltaTime);
         }
         else
         {
-            currentVelocity = Vector3.zero;
-            targetVelocity = Vector3.zero;
+            smoothedPosition = operatorPosition;
+            smoothedRotation = operatorRotation;
+        }
+    }
+
+    /// <summary>
+    /// The operator's own fly controls: input, acceleration, momentum and auto-levelling, for the
+    /// channels the stack has left them.
+    /// </summary>
+    private void MoveCameraOperator(float deltaTime, bool applyPosition, bool applyRotation)
+    {
+        if (applyPosition)
+        {
+            if (HandleMovementInput(out Vector3 inputMovement, out float speedMultiplier))
+            {
+                UpdateMovement(inputMovement, speedMultiplier, deltaTime);
+            }
+            else if (useMomentum)
+            {
+                ApplyInertia(deltaTime);
+            }
+            else
+            {
+                currentVelocity = Vector3.zero;
+                targetVelocity = Vector3.zero;
+            }
         }
 
-        if (HandleRotationInput(out Vector2 rotationDelta))
+        if (applyRotation && HandleRotationInput(out Vector2 rotationDelta))
         {
             UpdateRotation(rotationDelta, deltaTime);
         }
 
-        ApplySmoothedPosition(deltaTime);
+        ApplySmoothedPosition(deltaTime, applyPosition, applyRotation);
     }
 
     /// <summary>Reads fly movement inputs and outputs a normalized movement vector + speed multiplier.</summary>
@@ -1573,21 +1543,29 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     }
 
     /// <summary>
-    /// Integrates velocity into <see cref="smoothedPosition"/> and applies smoothed rotation
+    /// Integrates velocity into <see cref="operatorPosition"/> and applies smoothed rotation
     /// with momentum-influenced smoothing.
     /// </summary>
-    private void ApplySmoothedPosition(float deltaTime)
+    private void ApplySmoothedPosition(float deltaTime, bool applyPosition = true, bool applyRotation = true)
     {
-        Vector3 finalVelocity = currentVelocity + (useMomentum ? velocityMomentum : Vector3.zero);
-        smoothedPosition += finalVelocity * deltaTime;
+        if (applyPosition)
+        {
+            Vector3 finalVelocity = currentVelocity + (useMomentum ? velocityMomentum : Vector3.zero);
+            operatorPosition += finalVelocity * deltaTime;
+        }
+
+        if (!applyRotation)
+        {
+            return;
+        }
 
         if (isVRFlying)
         {
             // VR: 1:1 controller-to-camera rotation for responsive aiming
             currentPitch = targetPitch;
             currentYaw = targetYaw;
-            smoothedRotation = useAutoLeveling
-                ? LevelRoll(vrControllerRotation, smoothedRotation, deltaTime)
+            operatorRotation = useAutoLeveling
+                ? LevelRoll(vrControllerRotation, operatorRotation, deltaTime)
                 : vrControllerRotation;
         }
         else
@@ -1599,7 +1577,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             currentYaw = Mathf.LerpAngle(currentYaw, targetYaw, enhancedRotationSmoothness * deltaTime);
 
             Quaternion targetRotationQuat = Quaternion.Euler(currentPitch, currentYaw, 0f);
-            smoothedRotation = Quaternion.Slerp(smoothedRotation, targetRotationQuat, rotationSmoothing * deltaTime);
+            operatorRotation = Quaternion.Slerp(operatorRotation, targetRotationQuat, rotationSmoothing * deltaTime);
         }
     }
 
@@ -1709,7 +1687,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             flyCamera.OnDestroy();
         }
 
-        DisposeCinematics();
+        DisposeModifiers();
 
         ReleaseCursorLock();
         base.OnDestroy();

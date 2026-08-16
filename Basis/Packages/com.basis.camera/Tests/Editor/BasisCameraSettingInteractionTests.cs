@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using Basis.Cinematics;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
@@ -225,7 +226,7 @@ namespace Basis.Tests.Camera
         {
             _rig.DepthOfField.active = true;
             _rig.Camera.autoFocusFollowSubject = true;
-            _rig.Camera.SetAutoFollowEnabled(true);
+            _rig.Camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
             _rig.UI.SetDepthMode(BasisHandHeldCameraUI.DepthMode.Auto);
 
@@ -314,13 +315,13 @@ namespace Basis.Tests.Camera
         [Test]
         public void CinematicRigAndAutoFollow_BothClaimWorldSpaceWithoutFightingOverIt()
         {
-            _rig.Camera.SetAutoFollowEnabled(true);
-            _rig.Camera.SetCinematicEnabled(true);
+            _rig.Camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
+            _rig.Camera.SetRotationModifier(BasisCameraRotationModifier.Compose);
 
             Assert.That(_rig.Camera.PinSpace, Is.EqualTo(BasisHandHeldCameraInteractable.CameraPinSpace.WorldSpace));
 
-            _rig.Camera.SetCinematicEnabled(false);
-            _rig.Camera.SetAutoFollowEnabled(false);
+            _rig.Camera.SetRotationModifier(BasisCameraRotationModifier.FreeLook);
+            _rig.Camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
 
             Assert.That(_rig.Camera.PinSpace, Is.EqualTo(BasisHandHeldCameraInteractable.CameraPinSpace.HandHeld),
                 "Switching both off has to give the camera back to the hand, not strand it in the world.");
@@ -343,14 +344,14 @@ namespace Basis.Tests.Camera
         {
             // The offsets are edited with follow off as often as on — the panel is where a shot
             // gets set up before it is switched on.
-            _rig.Camera.autoFollowPositionOffset = new Vector3(1f, 2f, 3f);
-            _rig.Camera.autoFollowPlayspace = false;
+            _rig.Camera.Modifiers.follow.positionOffset = new Vector3(1f, 2f, 3f);
+            _rig.Camera.subjectSettings.anchorToBody = false;
 
-            _rig.Camera.SetAutoFollowEnabled(true);
-            _rig.Camera.SetAutoFollowEnabled(false);
+            _rig.Camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
+            _rig.Camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
 
-            Assert.That(_rig.Camera.autoFollowPositionOffset, Is.EqualTo(new Vector3(1f, 2f, 3f)));
-            Assert.That(_rig.Camera.autoFollowPlayspace, Is.False);
+            Assert.That(_rig.Camera.Modifiers.follow.positionOffset, Is.EqualTo(new Vector3(1f, 2f, 3f)));
+            Assert.That(_rig.Camera.subjectSettings.anchorToBody, Is.False);
         }
 
         // ---------- Output ----------

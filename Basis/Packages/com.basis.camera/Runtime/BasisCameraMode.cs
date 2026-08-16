@@ -37,11 +37,10 @@ public enum BasisCameraPanelSection
     Colour,
     Effects,
     Output,
-    Follow,
-    Cinematic,
-    Composition,
-    Orbit,
-    Noise,
+    Subject,
+    PositionModifier,
+    RotationModifier,
+    ModifierEffects,
     Dolly,
     Background,
     Layers,
@@ -142,7 +141,7 @@ public static class BasisCameraModes
     private const float InactiveAlpha = 0.72f;
 
     /// <summary>
-    /// The shot rig and the follow solver, both of which only run in their own mode.
+    /// The modifier stack, which only drives the camera once something is fitted.
     ///
     /// ⚠️ Declared before <see cref="Descriptors"/> on purpose: static field initializers run in
     /// textual order, so a table built above this line would read it as null and silently give
@@ -150,11 +149,10 @@ public static class BasisCameraModes
     /// </summary>
     private static readonly BasisCameraPanelSection[] RigSections =
     {
-        BasisCameraPanelSection.Follow,
-        BasisCameraPanelSection.Cinematic,
-        BasisCameraPanelSection.Composition,
-        BasisCameraPanelSection.Orbit,
-        BasisCameraPanelSection.Noise,
+        BasisCameraPanelSection.Subject,
+        BasisCameraPanelSection.PositionModifier,
+        BasisCameraPanelSection.RotationModifier,
+        BasisCameraPanelSection.ModifierEffects,
         BasisCameraPanelSection.Dolly,
     };
 
@@ -265,16 +263,15 @@ public static class BasisCameraModes
                     driven: new[]
                     {
                         BasisCameraPanelSection.Actions,
-                        BasisCameraPanelSection.Follow,
+                        BasisCameraPanelSection.Subject,
                         BasisCameraPanelSection.Lens,
                         BasisCameraPanelSection.DepthOfField,
                     },
                     inactive: new[]
                     {
-                        BasisCameraPanelSection.Cinematic,
-                        BasisCameraPanelSection.Composition,
-                        BasisCameraPanelSection.Orbit,
-                        BasisCameraPanelSection.Noise,
+                        BasisCameraPanelSection.PositionModifier,
+                        BasisCameraPanelSection.RotationModifier,
+                        BasisCameraPanelSection.ModifierEffects,
                         BasisCameraPanelSection.Dolly,
                     })),
 
@@ -289,13 +286,13 @@ public static class BasisCameraModes
                     driven: new[]
                     {
                         BasisCameraPanelSection.Actions,
-                        BasisCameraPanelSection.Cinematic,
-                        BasisCameraPanelSection.Composition,
+                        BasisCameraPanelSection.PositionModifier,
+                        BasisCameraPanelSection.RotationModifier,
                         BasisCameraPanelSection.Lens,
                         BasisCameraPanelSection.DepthOfField,
                         BasisCameraPanelSection.Effects,
                     },
-                    inactive: new[] { BasisCameraPanelSection.Follow })),
+                    inactive: new[] { BasisCameraPanelSection.Subject })),
         };
     }
 
@@ -335,21 +332,16 @@ public static class BasisCameraModes
         System.Collections.Generic.List<BasisCameraPanelSection> inactive =
             new System.Collections.Generic.List<BasisCameraPanelSection>();
 
-        (mode.autoFollow ? driven : inactive).Add(BasisCameraPanelSection.Follow);
+        Basis.Cinematics.BasisCameraModifierStack stack = mode.settings?.modifiers;
+        bool drivesPosition = stack != null && stack.DrivesPosition;
+        bool drivesRotation = stack != null && stack.DrivesRotation;
 
-        if (mode.cinematic)
-        {
-            driven.Add(BasisCameraPanelSection.Cinematic);
-            driven.Add(BasisCameraPanelSection.Composition);
-        }
-        else
-        {
-            inactive.Add(BasisCameraPanelSection.Cinematic);
-            inactive.Add(BasisCameraPanelSection.Composition);
-            inactive.Add(BasisCameraPanelSection.Orbit);
-            inactive.Add(BasisCameraPanelSection.Noise);
-            inactive.Add(BasisCameraPanelSection.Dolly);
-        }
+        (drivesPosition || drivesRotation ? driven : inactive).Add(BasisCameraPanelSection.Subject);
+        (drivesPosition ? driven : inactive).Add(BasisCameraPanelSection.PositionModifier);
+        (drivesRotation ? driven : inactive).Add(BasisCameraPanelSection.RotationModifier);
+        (stack != null && stack.EffectCount > 0 ? driven : inactive).Add(BasisCameraPanelSection.ModifierEffects);
+        (stack != null && stack.positionModifier == Basis.Cinematics.BasisCameraPositionModifier.DollyTrack
+            ? driven : inactive).Add(BasisCameraPanelSection.Dolly);
 
         return new BasisCameraModeDescriptor(
             BasisCameraMode.Custom,

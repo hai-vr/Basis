@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Basis.Cinematics;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
@@ -163,12 +164,7 @@ namespace Basis.Tests.Camera
                 motionBlurQuality = 2,
                 motionBlurMode = 1,
                 autoFocusFollowSubject = true,
-                autoFollowPositionOffset = new Vector3(1.25f, 0.6f, 2.4f),
-                autoFollowRotationOffset = new Vector3(11f, -23f, 0f),
-                autoFollowPlayspace = false,
-                autoFollowLookAtPlayer = false,
-                autoFollowLookAtHeightOffset = -0.35f,
-                autoFollowLateralTracking = 0.8f,
+                modifiers = DistinctiveModifiers(),
                 detachedMarker = (int)BasisCameraDetachedMarker.Gizmo,
                 capture360 = true,
                 useAutoLeveling = true,
@@ -187,8 +183,95 @@ namespace Basis.Tests.Camera
                 backgroundMode = (int)BasisCameraBackgroundMode.BlueScreen,
                 backgroundCustomColor = new Color(0.1f, 0.2f, 0.3f, 1f),
                 backgroundKeepsWorld = true,
-                subjectFramingRadius = 0.8f,
             };
+        }
+
+        /// <summary>
+        /// A stack with every block moved off its default, so the persistence walk can tell a
+        /// setting that survived a round trip from one that came back as the shipped value.
+        /// </summary>
+        public static BasisCameraModifierStack DistinctiveModifiers()
+        {
+            BasisCameraModifierStack stack = new BasisCameraModifierStack
+            {
+                positionModifier = BasisCameraPositionModifier.Orbit,
+                rotationModifier = BasisCameraRotationModifier.Compose,
+            };
+
+            stack.follow.positionOffset = new Vector3(1.25f, 0.6f, 2.4f);
+            stack.follow.bindingMode = BasisCameraBindingMode.WorldSpace;
+            stack.follow.damping = new Vector3(0.11f, 0.22f, 0.33f);
+            stack.follow.lateralTracking = 0.8f;
+            stack.follow.teleportDistance = 14f;
+
+            stack.framing.directionOffset = new Vector3(2.1f, 0.9f, 3.7f);
+            stack.framing.bindingMode = BasisCameraBindingMode.SimpleFollow;
+            stack.framing.damping = new Vector3(0.44f, 0.55f, 0.66f);
+            stack.framing.screenFraction = 0.42f;
+            stack.framing.minDistance = 0.9f;
+            stack.framing.maxDistance = 15f;
+            stack.framing.usesZoom = true;
+            stack.framing.teleportDistance = 16f;
+
+            stack.dolly.position = 3.5f;
+            stack.dolly.autoTrack = false;
+            stack.dolly.damping = 0.75f;
+            stack.dolly.speed = 1.25f;
+            stack.dolly.offset = new Vector3(0.2f, 0.3f, 0.4f);
+
+            stack.orbit.heading = 42f;
+            stack.orbit.verticalAxis = 0.8f;
+            stack.orbit.headingDamping = 0.9f;
+            stack.orbit.verticalDamping = 0.7f;
+            stack.orbit.followSubjectHeading = false;
+            stack.orbit.top = new BasisCameraOrbitRig(2.2f, 1.9f);
+            stack.orbit.middle = new BasisCameraOrbitRig(0.4f, 2.4f);
+            stack.orbit.bottom = new BasisCameraOrbitRig(-0.9f, 1.7f);
+
+            stack.lookAt.rotationOffset = new Vector3(11f, -23f, 0f);
+            stack.lookAt.damping = new Vector3(0.15f, 0.25f, 0.35f);
+
+            stack.compose.rotationOffset = new Vector3(4f, -6f, 2f);
+            stack.compose.composer.screenX = 0.35f;
+            stack.compose.composer.screenY = 0.65f;
+            stack.compose.composer.deadZoneWidth = 0.2f;
+            stack.compose.composer.deadZoneHeight = 0.24f;
+            stack.compose.composer.softZoneWidth = 0.9f;
+            stack.compose.composer.softZoneHeight = 0.95f;
+            stack.compose.composer.biasX = 0.12f;
+            stack.compose.composer.biasY = -0.08f;
+            stack.compose.composer.horizontalDamping = 0.55f;
+            stack.compose.composer.verticalDamping = 0.75f;
+
+            stack.matchSubject.rotationOffset = new Vector3(-3f, 8f, 1f);
+            stack.matchSubject.damping = new Vector3(0.45f, 0.5f, 0.9f);
+
+            stack.lookAhead.time = 0.4f;
+            stack.lookAhead.limit = 3.5f;
+
+            stack.occlusion.padding = 0.4f;
+            stack.occlusion.minDistance = 0.7f;
+            stack.occlusion.returnDamping = 0.85f;
+            stack.occlusion.probeRadius = 0.2f;
+
+            stack.shake = BasisCameraNoiseSettings.ForProfile(BasisCameraNoiseProfile.Drone);
+            stack.shake.amplitudeGain = 1.4f;
+            stack.shake.frequencyGain = 0.6f;
+
+            stack.lens.fov = 62f;
+            stack.lens.damping = 1.1f;
+
+            stack.subject.modifier = BasisCameraSubjectModifier.TargetGroup;
+            stack.subject.anchorToBody = false;
+            stack.subject.aimHeightOffset = -0.35f;
+            stack.subject.framingRadius = 0.8f;
+            stack.subject.groupIncludesLocal = false;
+            stack.subject.fixedPoint = new Vector3(3f, 1.5f, -2f);
+
+            stack.AddEffect(BasisCameraEffectModifier.LookAhead);
+            stack.AddEffect(BasisCameraEffectModifier.Shake);
+
+            return stack;
         }
 
         private Slider NewSlider(string name, float min, float max)

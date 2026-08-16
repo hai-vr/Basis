@@ -107,6 +107,14 @@ namespace Basis.BasisUI
             OnValueChanged?.Invoke(target);
         }
 
+        /// <summary>
+        /// Writes a value that came from somewhere other than this control — a thumbstick driving
+        /// it (<see cref="BasisPanelJoystickBind"/>), say. Takes the same path as a reset: the
+        /// control is moved without re-firing its own live listener, then the binding and callback
+        /// are invoked, which is what a pointer does when it lets go.
+        /// </summary>
+        public void ApplyDrivenValue(T value) => ApplyReset(value);
+
         public override bool TryDescribeSettingChange(out string label, out string currentText, out string defaultText)
         {
             label = null;

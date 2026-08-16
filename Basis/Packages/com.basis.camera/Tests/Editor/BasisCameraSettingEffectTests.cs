@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using Basis.Cinematics;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
@@ -507,25 +508,25 @@ namespace Basis.Tests.Camera
         public void FollowOffsets_AreStoredPerAxisSoOneSliderCannotClearAnother()
         {
             // The panel drives these one axis at a time out of a shared vector.
-            _rig.Camera.autoFollowPositionOffset = new Vector3(0.5f, 0f, 1.4f);
+            _rig.Camera.Modifiers.follow.positionOffset = new Vector3(0.5f, 0f, 1.4f);
 
-            Vector3 offset = _rig.Camera.autoFollowPositionOffset;
+            Vector3 offset = _rig.Camera.Modifiers.follow.positionOffset;
             offset[1] = 0.9f;
-            _rig.Camera.autoFollowPositionOffset = offset;
+            _rig.Camera.Modifiers.follow.positionOffset = offset;
 
-            Assert.That(_rig.Camera.autoFollowPositionOffset, Is.EqualTo(new Vector3(0.5f, 0.9f, 1.4f)));
+            Assert.That(_rig.Camera.Modifiers.follow.positionOffset, Is.EqualTo(new Vector3(0.5f, 0.9f, 1.4f)));
         }
 
         [Test]
         public void AutoFollow_TakesTheCameraOutOfTheHandAndGivesItBack()
         {
-            _rig.Camera.SetAutoFollowEnabled(true);
-            Assert.That(_rig.Camera.IsAutoFollowing, Is.True);
+            _rig.Camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
+            Assert.That(_rig.Camera.Modifiers.DrivesPosition, Is.True);
             Assert.That(_rig.Camera.PinSpace, Is.EqualTo(BasisHandHeldCameraInteractable.CameraPinSpace.WorldSpace),
                 "A followed camera cannot stay pinned to the hand it flew away from.");
 
-            _rig.Camera.SetAutoFollowEnabled(false);
-            Assert.That(_rig.Camera.IsAutoFollowing, Is.False);
+            _rig.Camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
+            Assert.That(_rig.Camera.Modifiers.DrivesPosition, Is.False);
             Assert.That(_rig.Camera.PinSpace, Is.EqualTo(BasisHandHeldCameraInteractable.CameraPinSpace.HandHeld));
         }
 

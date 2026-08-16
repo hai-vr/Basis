@@ -184,6 +184,13 @@ namespace Basis.ImagePickup
         private sealed class QueuedFileSpawn
         {
             public string Path;
+            /// <summary>
+            /// Image data for a spawn that never had a file — a clipboard paste. Null for a dropped
+            /// file, which is what <see cref="Path"/> being set means.
+            /// </summary>
+            public byte[] Data;
+            /// <summary>What rejection popups name this import; the path for a file, a description otherwise.</summary>
+            public string Label;
             public Vector3 Position;
             public Quaternion Rotation;
         }
@@ -191,6 +198,9 @@ namespace Basis.ImagePickup
         private sealed class PendingGifSpawn
         {
             public string Path;
+            /// <summary>GIF data for a pasted animation; null when <see cref="Path"/> supplies it.</summary>
+            public byte[] Data;
+            public string Label;
             public Vector3 Position;
             public Quaternion Rotation;
             public BasisGifDecodeJobRequest Job;
@@ -566,6 +576,82 @@ namespace Basis.ImagePickup
         }
 
         /// <summary>
+        /// Spawns an image supplied as data rather than as a file — what a clipboard paste produces,
+        /// where the picture exists only in memory and no path can be handed around. From the import
+        /// queue onward it is treated exactly like a dropped file: same pacing, same caps, same
+        /// sanitized PNG on the wire, and the same animated path for a GIF.
+        /// </summary>
+        /// <param name="label">What rejection popups should call this image.</param>
+        public static bool SpawnFromImageData(byte[] data, string label)
+        {
+            if (data == null || data.Length == 0)
+                return false;
+            if (!CanStartLocalSpawn(label))
+                return false;
+
+            int currentCount = GetLocalReservedImageCount();
+            if (currentCount >= BasisImagePickupSettings.MaxConcurrentImagesPerSender)
+            {
+                BasisImagePickupRejectionPopup.ShowImageLimit(currentCount, 1);
+                BasisDebug.LogWarning(
+                    $"Image pickup rejected: local image limit of "
+                        + $"{BasisImagePickupSettings.MaxConcurrentImagesPerSender} reached.",
+                    LogTag
+                );
+                return false;
+            }
+
+            GetSpawnPose(out Vector3 position, out Quaternion rotation);
+            _queuedFileSpawns.Enqueue(
+                new QueuedFileSpawn
+                {
+                    Data = data,
+                    Label = label,
+                    Position = position,
+                    Rotation = rotation,
+                }
+            );
+            return true;
+        }
+
+        /// <summary>
+        /// Spawns an image supplied as unpacked pixels, which is what a clipboard bitmap becomes once
+        /// its header has been read. Immediate rather than queued: the caller has already paid the
+        /// unpacking cost, and re-encoding straight away is what makes this a normal shared image with
+        /// a sanitized PNG behind it, exactly like every other source.
+        /// </summary>
+        /// <param name="rgba">Top-down RGBA32, four bytes per pixel.</param>
+        public static bool SpawnFromRgba32(byte[] rgba, int width, int height, string label)
+        {
+            if (rgba == null || rgba.Length == 0)
+                return false;
+            if (!CanStartLocalSpawn(label))
+                return false;
+
+            int currentCount = GetLocalReservedImageCount();
+            if (currentCount >= BasisImagePickupSettings.MaxConcurrentImagesPerSender)
+            {
+                BasisImagePickupRejectionPopup.ShowImageLimit(currentCount, 1);
+                BasisDebug.LogWarning(
+                    $"Image pickup rejected: local image limit of "
+                        + $"{BasisImagePickupSettings.MaxConcurrentImagesPerSender} reached.",
+                    LogTag
+                );
+                return false;
+            }
+
+            GetSpawnPose(out Vector3 position, out Quaternion rotation);
+            return SpawnValidatedFile(
+                label,
+                BasisImageSecurity.ValidateRgba32(rgba, width, height),
+                position,
+                rotation,
+                Guid.NewGuid(),
+                null
+            );
+        }
+
+        /// <summary>
         /// Spawns one drag/drop batch in stable row-major slots. GIFs retain their assigned slots while
         /// waiting in the decode queue, so faster static images or shorter GIFs cannot scramble the layout.
         /// </summary>
@@ -660,7 +746,7 @@ namespace Basis.ImagePickup
             return available <= 0 ? 0 : (int)Math.Min(int.MaxValue, available);
         }
 
-        private static bool CanStartLocalSpawn(string path)
+        private static bool CanStartLocalSpawn(string label)
         {
             if (!BasisNetworkModeration.GlobalImagesLocked || BasisNetworkModeration.LocalPlayerHasGlobalLockBypass())
             {
@@ -668,7 +754,7 @@ namespace Basis.ImagePickup
             }
 
             string reason = BasisLocalization.Get("imagePickup.popup.reason.adminLocked");
-            BasisImagePickupRejectionPopup.Show(path, reason);
+            BasisImagePickupRejectionPopup.Show(label, reason);
             BasisDebug.LogWarning($"Image pickup rejected: {reason}", LogTag);
             return false;
         }
@@ -683,6 +769,7 @@ namespace Basis.ImagePickup
                 new QueuedFileSpawn
                 {
                     Path = path,
+                    Label = path,
                     Position = position,
                     Rotation = rotation,
                 }
@@ -712,9 +799,9 @@ namespace Basis.ImagePickup
                 string lockedReason = BasisLocalization.Get(
                     "imagePickup.popup.reason.adminLockedDuringDecode"
                 );
-                string firstPath = _queuedFileSpawns.Peek().Path;
+                string firstLabel = _queuedFileSpawns.Peek().Label;
                 _queuedFileSpawns.Clear();
-                BasisImagePickupRejectionPopup.Show(firstPath, lockedReason);
+                BasisImagePickupRejectionPopup.Show(firstLabel, lockedReason);
                 BasisDebug.LogWarning($"Image pickup rejected: {lockedReason}", LogTag);
                 return;
             }
@@ -725,15 +812,21 @@ namespace Basis.ImagePickup
                 QueuedFileSpawn queued = _queuedFileSpawns.Dequeue();
                 budget--;
 
-                if (BasisAnimatedImageJobs.IsGifPath(queued.Path))
+                // Pasted data carries no name, so what it is has to come from the bytes themselves.
+                bool animated = queued.Data != null
+                    ? BasisImageSecurity.IsGifData(queued.Data)
+                    : BasisAnimatedImageJobs.IsGifPath(queued.Path);
+                if (animated)
                 {
-                    QueueGifSpawn(queued.Path, queued.Position, queued.Rotation);
+                    QueueGifSpawn(queued, queued.Position, queued.Rotation);
                     continue;
                 }
 
                 SpawnValidatedFile(
-                    queued.Path,
-                    BasisImageSecurity.ValidateFile(queued.Path),
+                    queued.Label,
+                    queued.Data != null
+                        ? BasisImageSecurity.ValidateSourceBytes(queued.Data)
+                        : BasisImageSecurity.ValidateFile(queued.Path),
                     queued.Position,
                     queued.Rotation,
                     Guid.NewGuid(),
@@ -748,19 +841,20 @@ namespace Basis.ImagePickup
         /// gives the decoder's exact poster size, so the placeholder already has the GIF's true aspect and the
         /// card never resizes when <see cref="ProcessCompletedGifSpawns"/> swaps the poster in.
         /// </summary>
-        private static bool QueueGifSpawn(string path, Vector3 position, Quaternion rotation)
+        private static bool QueueGifSpawn(QueuedFileSpawn queued, Vector3 position, Quaternion rotation)
         {
-            if (
-                !BasisImageSecurity.TryReadGifFileDimensions(
-                    path,
-                    out int width,
-                    out int height,
-                    out string headerError
-                )
-                || !BasisImageSecurity.AnimationDimensionsWithinCaps(width, height, out headerError)
-            )
+            // Pasted data is already in hand, so its logical screen descriptor is read straight out of
+            // it; a dropped file reads only the first ten bytes off disk for the same answer.
+            int width;
+            int height;
+            string headerError;
+            bool headerOk = queued.Data != null
+                ? BasisGifDecoder.TryReadDimensions(queued.Data, out width, out height, out headerError)
+                : BasisImageSecurity.TryReadGifFileDimensions(queued.Path, out width, out height, out headerError);
+
+            if (!headerOk || !BasisImageSecurity.AnimationDimensionsWithinCaps(width, height, out headerError))
             {
-                BasisImagePickupRejectionPopup.Show(path, headerError);
+                BasisImagePickupRejectionPopup.Show(queued.Label, headerError);
                 BasisDebug.LogWarning($"Image pickup rejected: {headerError}", LogTag);
                 return false;
             }
@@ -780,7 +874,9 @@ namespace Basis.ImagePickup
             _queuedGifSpawns.Enqueue(
                 new PendingGifSpawn
                 {
-                    Path = path,
+                    Path = queued.Path,
+                    Data = queued.Data,
+                    Label = queued.Label,
                     Position = position,
                     Rotation = rotation,
                     Id = id,
@@ -788,7 +884,7 @@ namespace Basis.ImagePickup
                 }
             );
             BasisDebug.Log(
-                $"Image pickup: queued GIF '{Path.GetFileName(path)}' "
+                $"Image pickup: queued GIF '{DescribeSpawn(queued.Path, queued.Label)}' "
                     + $"({_queuedGifSpawns.Count:N0} waiting, "
                     + $"{_pendingGifSpawns.Count:N0} active).",
                 LogTag
@@ -911,7 +1007,7 @@ namespace Basis.ImagePickup
                     _queuedGifSpawns.Dequeue();
                     continue;
                 }
-                if (ShouldDeferGifDecodeForMemory(pending.Path))
+                if (ShouldDeferGifDecodeForMemory(pending))
                 {
                     LogGifDecodePausedForMemory();
                     return;
@@ -919,12 +1015,14 @@ namespace Basis.ImagePickup
                 _queuedGifSpawns.Dequeue();
                 try
                 {
-                    pending.Job = BasisAnimatedImageJobs.ScheduleGifDecode(pending.Path);
+                    pending.Job = pending.Data != null
+                        ? BasisAnimatedImageJobs.ScheduleGifDecode(pending.Data)
+                        : BasisAnimatedImageJobs.ScheduleGifDecode(pending.Path);
                     _pendingGifSpawns.Add(pending);
                     _gifDecodePausedForMemory = false;
                     BasisDebug.Log(
                         $"Image pickup: started GIF Burst pipeline for "
-                            + $"'{Path.GetFileName(pending.Path)}' "
+                            + $"'{DescribeSpawn(pending.Path, pending.Label)}' "
                             + $"({_pendingGifSpawns.Count:N0}/"
                             + $"{BasisImagePickupSettings.MaxConcurrentAnimationDecodeJobs:N0} active, "
                             + $"{_queuedGifSpawns.Count:N0} waiting).",
@@ -944,17 +1042,25 @@ namespace Basis.ImagePickup
                         "imagePickup.popup.reason.animationStartFailed",
                         exception.Message
                     );
-                    BasisImagePickupRejectionPopup.Show(pending.Path, reason);
+                    BasisImagePickupRejectionPopup.Show(pending.Label, reason);
                     BasisDebug.LogWarning($"Image pickup rejected: {reason}", LogTag);
                 }
             }
         }
 
-        private static bool ShouldDeferGifDecodeForMemory(string path)
+        /// <summary>Names an import for logging: the file it came from, or what it was pasted as.</summary>
+        private static string DescribeSpawn(string path, string label)
+        {
+            return string.IsNullOrEmpty(path) ? label : Path.GetFileName(path);
+        }
+
+        private static bool ShouldDeferGifDecodeForMemory(PendingGifSpawn pending)
         {
             try
             {
-                long length = new FileInfo(path).Length;
+                long length = pending.Data != null
+                    ? pending.Data.Length
+                    : new FileInfo(pending.Path).Length;
                 if (length <= 0 || length > BasisImagePickupSettings.MaxAnimationSourceBytes)
                 {
                     return false;
@@ -1029,7 +1135,7 @@ namespace Basis.ImagePickup
                         string lockedReason = BasisLocalization.Get(
                             "imagePickup.popup.reason.adminLockedDuringDecode"
                         );
-                        BasisImagePickupRejectionPopup.Show(pending.Path, lockedReason);
+                        BasisImagePickupRejectionPopup.Show(pending.Label, lockedReason);
                         BasisDebug.LogWarning($"Image pickup rejected: {lockedReason}", LogTag);
                         continue;
                     }
@@ -1057,7 +1163,7 @@ namespace Basis.ImagePickup
                         );
                     }
                     SpawnValidatedFile(
-                        pending.Path,
+                        pending.Label,
                         result,
                         pending.Position,
                         pending.Rotation,
@@ -1081,7 +1187,7 @@ namespace Basis.ImagePickup
         /// path) builds the card here instead. Rejections tear the placeholder back down.
         /// </summary>
         private static bool SpawnValidatedFile(
-            string path,
+            string label,
             BasisImageValidationResult result,
             Vector3 position,
             Quaternion rotation,
@@ -1092,7 +1198,7 @@ namespace Basis.ImagePickup
             if (!result.Ok)
             {
                 RemoveImage(id);
-                BasisImagePickupRejectionPopup.Show(path, result.Error);
+                BasisImagePickupRejectionPopup.Show(label, result.Error);
                 BasisDebug.LogWarning($"Image pickup rejected: {result.Error}", LogTag);
                 return false;
             }
@@ -1107,7 +1213,7 @@ namespace Basis.ImagePickup
             {
                 DisposeRejectedValidationResult(ref result);
                 RemoveImage(id);
-                BasisImagePickupRejectionPopup.Show(path, imageBudgetReason);
+                BasisImagePickupRejectionPopup.Show(label, imageBudgetReason);
                 BasisDebug.LogWarning($"Image pickup rejected: {imageBudgetReason}", LogTag);
                 return false;
             }

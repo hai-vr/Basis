@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using Basis.Cinematics;
 using UnityEngine;
 using CameraPinSpace = BasisHandHeldCameraInteractable.CameraPinSpace;
 
@@ -91,7 +92,7 @@ namespace Basis.Tests.Camera
         {
             _camera.ApplyCameraMode(BasisCameraMode.FollowMe);
 
-            _camera.autoFollowPlayspace = !_camera.autoFollowPlayspace;
+            _camera.subjectSettings.anchorToBody = !_camera.subjectSettings.anchorToBody;
 
             Assert.That(_camera.RefreshCameraMode(), Is.True, "The drift should have been noticed.");
             Assert.That(_camera.CameraMode, Is.EqualTo(BasisCameraMode.Custom));
@@ -102,7 +103,7 @@ namespace Basis.Tests.Camera
         {
             _camera.ApplyCameraMode(BasisCameraMode.FollowMe);
 
-            _camera.SetAutoFollowEnabled(false);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
             _camera.RefreshCameraMode();
 
             // Where it lands is deliberately not asserted. Switching follow off also hands the
@@ -110,7 +111,7 @@ namespace Basis.Tests.Camera
             // leftover Follow Me optics put it on Custom — but this fixture has neither, so by
             // every measure that remains it is genuinely a Photo camera and says so. Both are
             // right; what matters is that it stops claiming to be following you when it is not.
-            Assert.That(_camera.autoFollowEnabled, Is.False);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.False);
             Assert.That(_camera.CameraMode, Is.Not.EqualTo(BasisCameraMode.FollowMe),
                 "Follow being armed is what Follow Me is, so switching it off cannot still be Follow Me.");
         }
@@ -120,8 +121,8 @@ namespace Basis.Tests.Camera
         {
             _camera.ApplyCameraMode(BasisCameraMode.Photo);
 
-            // The follow aim height is not in any preset — the modes leave it to the user.
-            _camera.autoFollowLookAtHeightOffset = 0.42f;
+            // The aim height is not in any preset — the modes leave it to the user.
+            _camera.subjectSettings.aimHeightOffset = 0.42f;
 
             Assert.That(_camera.RefreshCameraMode(), Is.False);
             Assert.That(_camera.CameraMode, Is.EqualTo(BasisCameraMode.Photo),
@@ -131,23 +132,23 @@ namespace Basis.Tests.Camera
         [Test]
         public void AModeThatGreysOutFollow_LeavesTheUsersFramingAlone()
         {
-            // Photo, Flying Puck and Cinematic all colour the Follow section as doing nothing.
+            // Photo and Flying Puck colour the position section as doing nothing.
             // A mode that greys a section out must not quietly reset the values inside it, or the
             // user's framing is gone the next time they come back to Follow Me.
             _camera.ApplyCameraMode(BasisCameraMode.FollowMe);
             Vector3 framing = new Vector3(1.25f, 0.6f, 2.4f);
-            _camera.autoFollowPositionOffset = framing;
-            _camera.autoFollowLookAtHeightOffset = -0.3f;
+            _camera.Modifiers.follow.positionOffset = framing;
+            _camera.subjectSettings.aimHeightOffset = -0.3f;
 
             foreach (BasisCameraMode mode in new[]
-                     { BasisCameraMode.Photo, BasisCameraMode.FlyingPuck, BasisCameraMode.Cinematic })
+                     { BasisCameraMode.Photo, BasisCameraMode.FlyingPuck })
             {
                 _camera.ApplyCameraMode(mode);
 
-                Assert.That(_camera.autoFollowPositionOffset, Is.EqualTo(framing),
-                    $"{mode} greys out Follow but reset the follow offset.");
-                Assert.That(_camera.autoFollowLookAtHeightOffset, Is.EqualTo(-0.3f).Within(1e-4f),
-                    $"{mode} greys out Follow but reset the aim height.");
+                Assert.That(_camera.Modifiers.follow.positionOffset, Is.EqualTo(framing),
+                    $"{mode} greys out the position slot but reset the follow offset.");
+                Assert.That(_camera.subjectSettings.aimHeightOffset, Is.EqualTo(-0.3f).Within(1e-4f),
+                    $"{mode} greys out the position slot but reset the aim height.");
             }
         }
 
@@ -156,12 +157,12 @@ namespace Basis.Tests.Camera
         {
             _camera.ApplyCameraMode(BasisCameraMode.Photo);
 
-            _camera.autoFollowPlayspace = !_camera.autoFollowPlayspace;
-            _camera.autoFollowPositionOffset = new Vector3(3f, 2f, 1f);
+            _camera.subjectSettings.anchorToBody = !_camera.subjectSettings.anchorToBody;
+            _camera.Modifiers.follow.positionOffset = new Vector3(3f, 2f, 1f);
 
             Assert.That(_camera.RefreshCameraMode(), Is.False);
             Assert.That(_camera.CameraMode, Is.EqualTo(BasisCameraMode.Photo),
-                "Photo does not run follow, so follow's settings cannot take it out of Photo.");
+                "Photo fits no position modifier, so follow's settings cannot take it out of Photo.");
         }
 
         [Test]
@@ -220,10 +221,15 @@ namespace Basis.Tests.Camera
             _camera.ApplyCameraMode(BasisCameraMode.FollowMe);
             _camera.ApplyCameraMode(BasisCameraMode.Cinematic);
 
-            Assert.That(_camera.autoFollowEnabled, Is.False, "The rig cannot share the camera with follow.");
-            Assert.That(_camera.cinematicEnabled, Is.True);
+            // Following and composing are no longer rival modes: Cinematic is Follow Subject in
+            // the position slot with Compose in the rotation slot, which is the coupling the
+            // modifier slots were introduced to remove.
+            Assert.That(_camera.Modifiers.positionModifier,
+                Is.EqualTo(BasisCameraPositionModifier.FollowSubject));
+            Assert.That(_camera.Modifiers.rotationModifier,
+                Is.EqualTo(BasisCameraRotationModifier.Compose));
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace),
-                "Disarming follow must not drag the camera back to the hand the rig just took it from.");
+                "Swapping modes must not drag the camera back to the hand.");
         }
 
         [Test]
@@ -232,8 +238,7 @@ namespace Basis.Tests.Camera
             _camera.ApplyCameraMode(BasisCameraMode.Cinematic);
             _camera.ApplyCameraMode(BasisCameraMode.Photo);
 
-            Assert.That(_camera.cinematicEnabled, Is.False);
-            Assert.That(_camera.autoFollowEnabled, Is.False);
+            Assert.That(_camera.Modifiers.DrivesAnything, Is.False);
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.HandHeld));
         }
 
@@ -256,15 +261,15 @@ namespace Basis.Tests.Camera
         public void ApplyingCustom_ChangesNothingButTheLabel()
         {
             _camera.ApplyCameraMode(BasisCameraMode.FollowMe);
-            bool followBefore = _camera.autoFollowEnabled;
-            Vector3 offsetBefore = _camera.autoFollowPositionOffset;
+            bool followBefore = _camera.Modifiers.DrivesPosition;
+            Vector3 offsetBefore = _camera.Modifiers.follow.positionOffset;
 
             _camera.ApplyCameraMode(BasisCameraMode.Custom);
 
             Assert.That(_camera.CameraMode, Is.EqualTo(BasisCameraMode.Custom));
-            Assert.That(_camera.autoFollowEnabled, Is.EqualTo(followBefore),
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.EqualTo(followBefore),
                 "Custom has no preset to apply, so it must not disturb the camera.");
-            Assert.That(_camera.autoFollowPositionOffset, Is.EqualTo(offsetBefore));
+            Assert.That(_camera.Modifiers.follow.positionOffset, Is.EqualTo(offsetBefore));
         }
 
         [Test]
@@ -278,23 +283,28 @@ namespace Basis.Tests.Camera
         // ---- Restoring a saved mode ---------------------------------------------------------
 
         [Test]
-        public void RestoringAMode_ReArmsFlightWithoutOverwritingLoadedSettings()
+        public void RestoringAMode_ReArmsOnlyThePin()
         {
-            // A settings file carries every value a preset writes EXCEPT whether follow and the
-            // rig are armed and where the camera is pinned. Restore therefore has to re-arm those
-            // three and touch nothing else — re-applying the whole preset would overwrite the
-            // values the load had just finished restoring with the preset's own.
-            _camera.autoFollowPositionOffset = new Vector3(1.25f, 0.6f, 2.4f);
+            // Where the camera is pinned is the one thing a settings file still cannot carry, so it
+            // is the whole of what a restore re-arms. The modifier stack IS saved, so re-running
+            // the preset here would overwrite the values the load had only just finished restoring.
+            _camera.Modifiers.positionModifier = BasisCameraPositionModifier.Orbit;
+            _camera.Modifiers.rotationModifier = BasisCameraRotationModifier.Compose;
+            _camera.Modifiers.follow.positionOffset = new Vector3(1.25f, 0.6f, 2.4f);
             _camera.autoFocusFollowSubject = true;
             _camera.useAutoLeveling = true;
             _camera.capture360Enabled = true;
 
             _camera.RestoreCameraModeForTest(BasisCameraMode.FollowMe);
 
-            Assert.That(_camera.autoFollowEnabled, Is.True, "Flight must come back, per the saved mode.");
-            Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace));
+            Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace),
+                "The pin is the one thing the file could not carry, so it has to come back.");
 
-            Assert.That(_camera.autoFollowPositionOffset, Is.EqualTo(new Vector3(1.25f, 0.6f, 2.4f)),
+            Assert.That(_camera.Modifiers.positionModifier, Is.EqualTo(BasisCameraPositionModifier.Orbit),
+                "The loaded position modifier was overwritten by the preset's.");
+            Assert.That(_camera.Modifiers.rotationModifier, Is.EqualTo(BasisCameraRotationModifier.Compose),
+                "The loaded rotation modifier was overwritten by the preset's.");
+            Assert.That(_camera.Modifiers.follow.positionOffset, Is.EqualTo(new Vector3(1.25f, 0.6f, 2.4f)),
                 "The loaded follow offset was overwritten by the preset's.");
             Assert.That(_camera.useAutoLeveling, Is.True, "The loaded auto-level was overwritten.");
             Assert.That(_camera.capture360Enabled, Is.True, "The loaded 360 toggle was overwritten.");
@@ -401,9 +411,9 @@ namespace Basis.Tests.Camera
             const BasisCameraMode mode = BasisCameraMode.Cinematic;
 
             // Cinematic drives the shot rig, leaves colour alone, and switches follow off.
-            Color driven = BasisCameraModes.TintFor(mode, BasisCameraPanelSection.Cinematic, baseline);
+            Color driven = BasisCameraModes.TintFor(mode, BasisCameraPanelSection.PositionModifier, baseline);
             Color available = BasisCameraModes.TintFor(mode, BasisCameraPanelSection.Colour, baseline);
-            Color inactive = BasisCameraModes.TintFor(mode, BasisCameraPanelSection.Follow, baseline);
+            Color inactive = BasisCameraModes.TintFor(mode, BasisCameraPanelSection.Subject, baseline);
 
             Assert.That(Distance(driven, available), Is.GreaterThan(0.05f), "Driven is not distinct from available.");
             Assert.That(Distance(driven, inactive), Is.GreaterThan(0.05f), "Driven is not distinct from inactive.");

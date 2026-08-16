@@ -31,6 +31,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker BodyEvidenceSample = new ProfilerMarker("BasisDriver.Calibration.BodyEvidenceSample");
         public static readonly ProfilerMarker HighPlayerCap = new ProfilerMarker("BasisDriver.PerfLimits.HighPlayerCap");
         public static readonly ProfilerMarker DesktopFileDrop = new ProfilerMarker("BasisDriver.Platform.DesktopFileDrop");
+        public static readonly ProfilerMarker DesktopClipboard = new ProfilerMarker("BasisDriver.Platform.DesktopClipboard");
         public static readonly ProfilerMarker OnUpdateCallbacks = new ProfilerMarker("BasisDriver.OnUpdateCallbacks");
 
         public static readonly ProfilerMarker SceneFactorySimulate = new ProfilerMarker("BasisDriver.SceneFactory.Simulate");

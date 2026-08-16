@@ -177,14 +177,14 @@ namespace Basis.BasisUI.HandHeldCamera
         /// </summary>
         private void RefreshCompositionGuides()
         {
-            if (!_showGuides || _activeCamera == null || !_activeCamera.cinematicEnabled)
+            if (!_showGuides || _activeCamera == null)
             {
                 SetGuidesActive(false);
                 return;
             }
 
-            BasisCameraShot shot = EditedShot;
-            if (shot == null || shot.aimMode != BasisCameraAimMode.Composer)
+            BasisCameraModifierStack stack = Stack;
+            if (stack == null || stack.rotationModifier != BasisCameraRotationModifier.Compose)
             {
                 SetGuidesActive(false);
                 return;
@@ -196,7 +196,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 return;
             }
 
-            BasisComposerSettings composer = shot.composer;
+            BasisComposerSettings composer = stack.compose.composer;
 
             Vector2 deadCentre = new Vector2(composer.screenX, composer.screenY);
             Vector2 deadSize = new Vector2(Mathf.Max(0f, composer.deadZoneWidth), Mathf.Max(0f, composer.deadZoneHeight));

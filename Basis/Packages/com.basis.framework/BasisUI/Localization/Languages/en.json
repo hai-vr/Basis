@@ -6743,6 +6743,78 @@
       "value": "How far the trigger must be released before the click ends."
     },
     {
+      "key": "settings.controls.joystickBind.title",
+      "value": "Slider on a Thumbstick"
+    },
+    {
+      "key": "settings.controls.joystickBind.description",
+      "value": "Hand one slider to a thumbstick, so a value can be tuned while looking at what it changes instead of at the menu."
+    },
+    {
+      "key": "settings.controls.joystickBind.bind",
+      "value": "Bind a Slider"
+    },
+    {
+      "key": "settings.controls.joystickBind.bind.tooltip",
+      "value": "Then press any slider with a hand. That hand's stick moves it: forward raises, back lowers."
+    },
+    {
+      "key": "settings.controls.joystickBind.cancel",
+      "value": "Cancel Binding"
+    },
+    {
+      "key": "settings.controls.joystickBind.unbind",
+      "value": "Unbind"
+    },
+    {
+      "key": "settings.controls.joystickBind.unbind.tooltip",
+      "value": "Give the stick back to walking and turning."
+    },
+    {
+      "key": "settings.controls.joystickBind.status",
+      "value": "Bound Slider"
+    },
+    {
+      "key": "settings.controls.joystickBind.status.none",
+      "value": "Nothing is bound — both sticks walk and turn as usual."
+    },
+    {
+      "key": "settings.controls.joystickBind.status.bound",
+      "value": "{0}, on the {1} stick. That stick no longer walks or turns forward and back."
+    },
+    {
+      "key": "settings.controls.joystickBind.status.unnamed",
+      "value": "A slider"
+    },
+    {
+      "key": "settings.controls.joystickBind.sweep",
+      "value": "Sweep Seconds"
+    },
+    {
+      "key": "settings.controls.joystickBind.sweep.tooltip",
+      "value": "How long a fully pushed stick takes to cross the whole slider. A small push moves far slower than this."
+    },
+    {
+      "key": "settings.controls.joystickBind.vrOnly",
+      "value": "VR only — a thumbstick is needed to move the slider."
+    },
+    {
+      "key": "ui.joystickBind.hint.pick",
+      "value": "Press to bind this to that hand's thumbstick."
+    },
+    {
+      "key": "ui.joystickBind.hint.bound",
+      "value": "On the {0} thumbstick — push forward and back to move it."
+    },
+    {
+      "key": "ui.hand.left",
+      "value": "left hand"
+    },
+    {
+      "key": "ui.hand.right",
+      "value": "right hand"
+    },
+    {
       "key": "settings.bodyTracking.description",
       "value": "Fine-tuning for avatar scaling, calibration, and IK smoothing"
     },
@@ -12619,6 +12691,386 @@
     {
       "key": "camera.noiseFrequency",
       "value": "Shake Speed"
+    },
+    {
+      "key": "camera.modifiers",
+      "value": "Modifiers"
+    },
+    {
+      "key": "camera.subject",
+      "value": "Subject"
+    },
+    {
+      "key": "camera.modifier.position",
+      "value": "Position Modifier"
+    },
+    {
+      "key": "camera.modifier.position.description",
+      "value": "What decides where the camera sits. One is fitted at a time, so nothing can fight over it."
+    },
+    {
+      "key": "camera.modifier.rotation",
+      "value": "Rotation Modifier"
+    },
+    {
+      "key": "camera.modifier.rotation.description",
+      "value": "What decides where the camera points. One is fitted at a time."
+    },
+    {
+      "key": "camera.modifier.effects",
+      "value": "Effects"
+    },
+    {
+      "key": "camera.modifier.effects.description",
+      "value": "Extras layered on top of the two slots."
+    },
+    {
+      "key": "camera.modifier.addEffect",
+      "value": "Add Effect"
+    },
+    {
+      "key": "camera.modifier.addEffect.description",
+      "value": "Fit another effect on top of the fitted modifiers."
+    },
+    {
+      "key": "camera.modifier.noEffects",
+      "value": "No effects fitted"
+    },
+    {
+      "key": "camera.modifier.noEffects.description",
+      "value": "Add one above to layer look-ahead, occlusion avoidance, shake or a fixed lens over whatever is driving the camera."
+    },
+    {
+      "key": "camera.modifier.freeFly",
+      "value": "Free Fly"
+    },
+    {
+      "key": "camera.modifier.freeFly.description",
+      "value": "You drive. Sticks, mouse and keyboard move the camera themselves."
+    },
+    {
+      "key": "camera.modifier.followSubject",
+      "value": "Follow Subject"
+    },
+    {
+      "key": "camera.modifier.followSubject.description",
+      "value": "Holds an offset from the subject and eases along behind them."
+    },
+    {
+      "key": "camera.modifier.orbit",
+      "value": "Orbit"
+    },
+    {
+      "key": "camera.modifier.orbit.description",
+      "value": "Rides a ring around the subject, sweeping between a low, waist and high rig."
+    },
+    {
+      "key": "camera.modifier.dollyTrack",
+      "value": "Dolly Track"
+    },
+    {
+      "key": "camera.modifier.dollyTrack.description",
+      "value": "Rides the track built from placed waypoints."
+    },
+    {
+      "key": "camera.modifier.frameSubject",
+      "value": "Frame Subject"
+    },
+    {
+      "key": "camera.modifier.frameSubject.description",
+      "value": "Dollies in or out to hold the subject at a chosen size in frame."
+    },
+    {
+      "key": "camera.modifier.lockedOff",
+      "value": "Locked Off"
+    },
+    {
+      "key": "camera.modifier.lockedOff.description",
+      "value": "Stays exactly where it was put, like a tripod."
+    },
+    {
+      "key": "camera.modifier.freeLook",
+      "value": "Free Look"
+    },
+    {
+      "key": "camera.modifier.freeLook.description",
+      "value": "You aim it. Nothing steers the camera for you."
+    },
+    {
+      "key": "camera.modifier.lookAtSubject",
+      "value": "Look At Subject"
+    },
+    {
+      "key": "camera.modifier.lookAtSubject.description",
+      "value": "Keeps the subject dead centre, every frame."
+    },
+    {
+      "key": "camera.modifier.compose",
+      "value": "Compose"
+    },
+    {
+      "key": "camera.modifier.compose.description",
+      "value": "Holds the subject inside a dead zone and a soft zone, so small movements do not move the camera."
+    },
+    {
+      "key": "camera.modifier.matchSubject",
+      "value": "Match Subject"
+    },
+    {
+      "key": "camera.modifier.matchSubject.description",
+      "value": "Copies the subject's own facing, for over-the-shoulder shots."
+    },
+    {
+      "key": "camera.modifier.hold",
+      "value": "Hold"
+    },
+    {
+      "key": "camera.modifier.hold.description",
+      "value": "Keeps whatever rotation it already had."
+    },
+    {
+      "key": "camera.modifier.lookAhead",
+      "value": "Look Ahead"
+    },
+    {
+      "key": "camera.modifier.lookAhead.description",
+      "value": "Leads a moving subject so they are not dragged to the back of the frame."
+    },
+    {
+      "key": "camera.modifier.avoidOcclusion",
+      "value": "Avoid Occlusion"
+    },
+    {
+      "key": "camera.modifier.avoidOcclusion.description",
+      "value": "Pulls the camera in when something solid comes between it and the subject."
+    },
+    {
+      "key": "camera.modifier.shake",
+      "value": "Shake"
+    },
+    {
+      "key": "camera.modifier.shake.description",
+      "value": "Positional and rotational wander, for a handheld or airborne character."
+    },
+    {
+      "key": "camera.modifier.lensOverride",
+      "value": "Lens Override"
+    },
+    {
+      "key": "camera.modifier.lensOverride.description",
+      "value": "Drives the field of view from the stack instead of the lens slider."
+    },
+    {
+      "key": "camera.teleportDistance",
+      "value": "Snap Distance"
+    },
+    {
+      "key": "camera.teleportDistance.description",
+      "value": "Past this far from where it should be, the camera jumps rather than easing. Keeps a teleport from becoming a long sweep across the world."
+    },
+    {
+      "key": "camera.subjectRadius",
+      "value": "Subject Size"
+    },
+    {
+      "key": "camera.subjectRadius.description",
+      "value": "How wide the subject is assumed to be when framing them. Larger backs the camera off."
+    },
+    {
+      "key": "camera.lookAtHeightY.description",
+      "value": "Moves the point the camera aims at up or down the body. Negative aims lower."
+    },
+    {
+      "key": "camera.framingSize",
+      "value": "Frame Fill"
+    },
+    {
+      "key": "camera.framingSize.description",
+      "value": "How much of the frame the subject should fill."
+    },
+    {
+      "key": "camera.framingMin",
+      "value": "Closest Distance"
+    },
+    {
+      "key": "camera.framingMax",
+      "value": "Furthest Distance"
+    },
+    {
+      "key": "camera.orbitDamping",
+      "value": "Orbit Damping"
+    },
+    {
+      "key": "camera.orbitDamping.description",
+      "value": "Seconds for the orbit to catch up in heading and ring position."
+    },
+    {
+      "key": "camera.orbitHeading.description",
+      "value": "Angle around the subject. 0 places the camera in front, facing back at them."
+    },
+    {
+      "key": "camera.composerDamp.description",
+      "value": "Seconds for the composer to bring a drifting subject back to its screen point."
+    },
+    {
+      "key": "camera.lookAheadLimit",
+      "value": "Look Ahead Limit"
+    },
+    {
+      "key": "camera.occlusionPadding",
+      "value": "Clearance"
+    },
+    {
+      "key": "camera.occlusionPadding.description",
+      "value": "Extra distance kept clear of whatever is in the way."
+    },
+    {
+      "key": "camera.occlusionMin",
+      "value": "Closest Pull-In"
+    },
+    {
+      "key": "camera.occlusionReturn",
+      "value": "Return Damping"
+    },
+    {
+      "key": "camera.occlusionReturn.description",
+      "value": "Seconds to ease back out once the shot is clear again. Pulling in is always instant, so you never see a frame of wall."
+    },
+    {
+      "key": "camera.occlusionRadius",
+      "value": "Probe Radius"
+    },
+    {
+      "key": "camera.lensFov",
+      "value": "Lens Field Of View"
+    },
+    {
+      "key": "camera.lensFov.description",
+      "value": "The field of view the stack holds the camera at."
+    },
+    {
+      "key": "camera.lensDamping",
+      "value": "Lens Damping"
+    },
+    {
+      "key": "camera.dollyDamping",
+      "value": "Track Damping"
+    },
+    {
+      "key": "camera.dolly.description",
+      "value": "Waypoints the camera rides. Place them where you want the move to pass through."
+    },
+    {
+      "key": "camera.dolly.inactive",
+      "value": "Lay out a track here, then fit Dolly Track in the position slot to ride it."
+    },
+    {
+      "key": "camera.modifier.subject",
+      "value": "Subject"
+    },
+    {
+      "key": "camera.modifier.subject.description",
+      "value": "Who the camera is filming. Every other modifier reads whoever this resolves to."
+    },
+    {
+      "key": "camera.modifier.followPlayer",
+      "value": "Follow Player"
+    },
+    {
+      "key": "camera.modifier.followPlayer.description",
+      "value": "One player: you, or whoever is picked from the instance."
+    },
+    {
+      "key": "camera.modifier.targetGroup",
+      "value": "Target Group"
+    },
+    {
+      "key": "camera.modifier.targetGroup.description",
+      "value": "Everyone in the group at once, framed as one subject so a wide shot holds them all."
+    },
+    {
+      "key": "camera.modifier.fixedPoint",
+      "value": "Fixed Point"
+    },
+    {
+      "key": "camera.modifier.fixedPoint.description",
+      "value": "A place in the world rather than a person. It has no facing, so world axes and a fixed aim are what the other modifiers get."
+    },
+    {
+      "key": "camera.modifier.noSubject",
+      "value": "Nobody"
+    },
+    {
+      "key": "camera.modifier.noSubject.description",
+      "value": "Films no one. Modifiers that need a subject hold wherever they were."
+    },
+    {
+      "key": "camera.groupIncludesMe",
+      "value": "Include Me"
+    },
+    {
+      "key": "camera.groupIncludesMe.description",
+      "value": "Frame yourself as part of the group, alongside everyone else in it."
+    },
+    {
+      "key": "camera.groupFill",
+      "value": "Add Everyone Here"
+    },
+    {
+      "key": "camera.groupFill.description",
+      "value": "Puts everyone currently in the instance into the group."
+    },
+    {
+      "key": "camera.groupClear",
+      "value": "Clear Group"
+    },
+    {
+      "key": "camera.fixedPoint",
+      "value": "Fixed Point"
+    },
+    {
+      "key": "camera.fixedPointHere",
+      "value": "Point Here"
+    },
+    {
+      "key": "camera.fixedPointHere.description",
+      "value": "Parks the filmed point where the camera is now."
+    },
+    {
+      "key": "camera.fixedPointAtMe",
+      "value": "Point At Me"
+    },
+    {
+      "key": "camera.fixedPointAtMe.description",
+      "value": "Parks the filmed point on you, for filming the spot you are standing in."
+    },
+    {
+      "key": "camera.composerBiasX",
+      "value": "Bias Sideways"
+    },
+    {
+      "key": "camera.composerBiasY",
+      "value": "Bias Vertical"
+    },
+    {
+      "key": "camera.composerBias.description",
+      "value": "Shifts the soft zone off the screen point, so the camera gives a moving subject more room on the side they are heading."
+    },
+    {
+      "key": "camera.dollyOffsetX",
+      "value": "Track Offset Sideways"
+    },
+    {
+      "key": "camera.dollyOffsetY",
+      "value": "Track Offset Vertical"
+    },
+    {
+      "key": "camera.dollyOffsetZ",
+      "value": "Track Offset Along"
+    },
+    {
+      "key": "camera.dollyOffset.description",
+      "value": "Rides the track at an offset from it, in the track's own frame."
     },
     {
       "key": "camera.dolly",

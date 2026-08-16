@@ -55,8 +55,6 @@ namespace Basis.Tests.Camera
                 name = name,
                 tint = new Color(0.2f, 0.4f, 0.6f, 1f),
                 pinSpace = (int)BasisHandHeldCameraInteractable.CameraPinSpace.WorldSpace,
-                autoFollow = true,
-                cinematic = false,
                 settings = settings ?? BasisCameraSettingsRig.DistinctiveSettings(),
             };
         }
@@ -101,7 +99,7 @@ namespace Basis.Tests.Camera
         }
 
         /// <summary>
-        /// The four fields the comparison deliberately ignores. Kept as a test so removing a reason
+        /// The three fields the comparison deliberately ignores. Kept as a test so removing a reason
         /// from the design means removing it from here too.
         /// </summary>
         private static readonly Dictionary<string, string> ComparisonExclusions = new Dictionary<string, string>
@@ -109,7 +107,6 @@ namespace Basis.Tests.Camera
             { "settingsVersion", "describes the file format, not the camera" },
             { "cameraMode", "a label derived from the values around it" },
             { "userMode", "the answer this comparison is being asked for" },
-            { "cinematicShots", "content the rig plays, not a setting the camera holds" },
         };
 
         [Test]
@@ -191,8 +188,6 @@ namespace Basis.Tests.Camera
             Assert.That(loaded, Is.Not.Null, "the mode did not reach the file");
             Assert.That(loaded.tint, Is.EqualTo(saved.tint));
             Assert.That(loaded.pinSpace, Is.EqualTo(saved.pinSpace));
-            Assert.That(loaded.autoFollow, Is.EqualTo(saved.autoFollow));
-            Assert.That(loaded.cinematic, Is.EqualTo(saved.cinematic));
             Assert.That(BasisCameraUserMode.SettingsMatch(saved.settings, loaded.settings), Is.True,
                 "the settings did not survive the file");
         }
@@ -343,8 +338,8 @@ namespace Basis.Tests.Camera
                 Assert.That(rig.Camera.UserModeName, Is.EqualTo("Night"));
                 Assert.That(rig.Camera.PinSpace,
                     Is.EqualTo(BasisHandHeldCameraInteractable.CameraPinSpace.WorldSpace));
-                Assert.That(rig.Camera.autoFollowEnabled, Is.True, "the mode's follow was not armed");
-                Assert.That(rig.Camera.cinematicEnabled, Is.False);
+                Assert.That(rig.Camera.Modifiers.DrivesPosition, Is.True, "the mode's position modifier was not fitted");
+                
                 Assert.That(rig.CaptureCamera.fieldOfView, Is.EqualTo(stored.fov).Within(0.5f));
                 Assert.That(rig.Vignette.intensity.value, Is.EqualTo(stored.vignette).Within(0.001f),
                     "a mode carries the whole settings file, not just the shot-defining half");
@@ -366,9 +361,9 @@ namespace Basis.Tests.Camera
 
                 rig.Camera.ApplyUserMode(mode);
 
-                Assert.That(rig.Camera.Director, Is.Not.Null);
-                Assert.That(rig.Camera.Director.Shots, Is.Not.SameAs(mode.settings.cinematicShots),
-                    "the shot rig is authoring straight into the saved mode's own list");
+                Assert.That(rig.Camera.Modifiers, Is.Not.Null);
+                Assert.That(rig.Camera.Modifiers, Is.Not.SameAs(mode.settings.modifiers),
+                    "the camera is editing straight into the saved mode's own stack");
 
                 // And the mode still gives back what it stored, after the camera has been used.
                 float storedVignette = mode.settings.vignette;
@@ -476,7 +471,7 @@ namespace Basis.Tests.Camera
                 rig.UI.ApplySettingsForTest(file);
 
                 Assert.That(rig.Camera.UserModeName, Is.EqualTo("Night"));
-                Assert.That(rig.Camera.autoFollowEnabled, Is.True,
+                Assert.That(rig.Camera.Modifiers.DrivesPosition, Is.True,
                     "placement was not re-armed, so a saved flying camera came back inert");
             }
         }
@@ -515,24 +510,24 @@ namespace Basis.Tests.Camera
         public void ASavedModeGreysOutOnlyWhatItDoesNotRun()
         {
             BasisCameraUserMode following = NewMode("Following");
-            following.autoFollow = true;
-            following.cinematic = false;
+            following.settings.modifiers.positionModifier = Basis.Cinematics.BasisCameraPositionModifier.FollowSubject;
             BasisCameraModeDescriptor followDescriptor = BasisCameraModes.DescribeUserMode(following);
 
-            Assert.That(followDescriptor.RoleOf(BasisCameraPanelSection.Follow),
+            Assert.That(followDescriptor.RoleOf(BasisCameraPanelSection.Subject),
                 Is.EqualTo(BasisCameraSectionRole.Driven));
             Assert.That(followDescriptor.RoleOf(BasisCameraPanelSection.Dolly),
                 Is.EqualTo(BasisCameraSectionRole.Inactive));
 
             BasisCameraUserMode filming = NewMode("Filming");
-            filming.autoFollow = false;
-            filming.cinematic = true;
+            filming.settings.modifiers.positionModifier = Basis.Cinematics.BasisCameraPositionModifier.FreeFly;
+            filming.settings.modifiers.rotationModifier = Basis.Cinematics.BasisCameraRotationModifier.FreeLook;
             BasisCameraModeDescriptor filmDescriptor = BasisCameraModes.DescribeUserMode(filming);
 
-            Assert.That(filmDescriptor.RoleOf(BasisCameraPanelSection.Follow),
+            Assert.That(filmDescriptor.RoleOf(BasisCameraPanelSection.Subject),
                 Is.EqualTo(BasisCameraSectionRole.Inactive));
-            Assert.That(filmDescriptor.RoleOf(BasisCameraPanelSection.Cinematic),
-                Is.EqualTo(BasisCameraSectionRole.Driven));
+            Assert.That(filmDescriptor.RoleOf(BasisCameraPanelSection.PositionModifier),
+                Is.EqualTo(BasisCameraSectionRole.Inactive),
+                "Free Fly hands the position channel back, so the section is not driven.");
 
             // A saved mode is a whole settings file, so anything with somewhere to be saved is
             // driven — but the three that have nowhere must not claim to be.
@@ -547,19 +542,19 @@ namespace Basis.Tests.Camera
         }
 
         /// <summary>
-        /// A record hand-edited to arm both follow and the rig used to name Follow in the driven
-        /// list and the inactive one, and take whichever the builder happened to write second.
+        /// A record naming a section in both the driven list and the inactive one used to take
+        /// whichever the builder happened to write second.
         /// </summary>
         [Test]
         public void AModeThatArmsBothDoesNotGiveASectionTwoRoles()
         {
             BasisCameraUserMode both = NewMode("Both");
-            both.autoFollow = true;
-            both.cinematic = true;
+            both.settings.modifiers.positionModifier = Basis.Cinematics.BasisCameraPositionModifier.FollowSubject;
+            both.settings.modifiers.rotationModifier = Basis.Cinematics.BasisCameraRotationModifier.Compose;
 
             BasisCameraModeDescriptor descriptor = BasisCameraModes.DescribeUserMode(both);
 
-            Assert.That(descriptor.RoleOf(BasisCameraPanelSection.Follow),
+            Assert.That(descriptor.RoleOf(BasisCameraPanelSection.Subject),
                 Is.EqualTo(BasisCameraSectionRole.Driven),
                 "follow is armed, so the section that configures it cannot read as doing nothing");
         }
@@ -587,8 +582,6 @@ namespace Basis.Tests.Camera
             string text = BasisCameraSettingsReadout.Build(
                 settings,
                 (int)BasisHandHeldCameraInteractable.CameraPinSpace.WorldSpace,
-                autoFollow: true,
-                cinematic: false,
                 metaData);
 
             Assert.That(text, Is.Not.Null.And.Not.Empty);
@@ -614,11 +607,11 @@ namespace Basis.Tests.Camera
         public void TheReadoutSurvivesACameraWithNoPresetTables()
         {
             Assert.That(
-                BasisCameraSettingsReadout.Build(BasisCameraSettingsRig.DistinctiveSettings(), 0, false, false, null),
+                BasisCameraSettingsReadout.Build(BasisCameraSettingsRig.DistinctiveSettings(), 0, null),
                 Is.Not.Null.And.Not.Empty);
 
             Assert.That(
-                BasisCameraSettingsReadout.Build(null, 0, false, false, null),
+                BasisCameraSettingsReadout.Build(null, 0, null),
                 Is.Empty);
         }
 
@@ -640,9 +633,23 @@ namespace Basis.Tests.Camera
             if (type == typeof(string)) return (string)value == "moved" ? "moved twice" : "moved";
             if (type == typeof(Vector3)) return (Vector3)value + new Vector3(1.5f, 2.5f, 3.5f);
             if (type == typeof(Color)) return new Color(0.77f, 0.11f, 0.33f, 1f);
-            if (type == typeof(List<Basis.Cinematics.BasisCameraShot>))
+            if (type == typeof(Basis.Cinematics.BasisCameraModifierStack))
             {
-                return new List<Basis.Cinematics.BasisCameraShot> { new Basis.Cinematics.BasisCameraShot() };
+                Basis.Cinematics.BasisCameraModifierStack moved =
+                    ((Basis.Cinematics.BasisCameraModifierStack)value).Clone();
+                moved.follow.positionOffset += new Vector3(1.5f, 2.5f, 3.5f);
+                moved.subject.aimHeightOffset += 1.25f;
+                return moved;
+            }
+            if (type == typeof(Basis.Cinematics.BasisCameraSubjectSettings))
+            {
+                Basis.Cinematics.BasisCameraSubjectSettings moved =
+                    (Basis.Cinematics.BasisCameraSubjectSettings)value;
+                moved.aimHeightOffset += 1.25f;
+                moved.framingRadius += 0.3f;
+                moved.anchorToBody = !moved.anchorToBody;
+                moved.groupIncludesLocal = !moved.groupIncludesLocal;
+                return moved;
             }
 
             throw new AssertionException(

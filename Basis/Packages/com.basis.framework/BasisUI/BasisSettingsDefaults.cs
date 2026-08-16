@@ -844,6 +844,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> UIClickPressThreshold = new("uiclickpressthreshold", new BasisPlatformDefault<float>(0.5f));
         public static BasisSettingsBinding<float> UIClickReleaseThreshold = new("uiclickreleasethreshold", new BasisPlatformDefault<float>(0.4f));
 
+        // Seconds a fully pushed thumbstick takes to cross a bound slider's whole range
+        // (BasisPanelJoystickBind). The response is squared, so a nudge is far slower than this.
+        public static BasisSettingsBinding<float> JoystickBindSweepSeconds = new("joystickbindsweepseconds", new BasisPlatformDefault<float>(4f));
+
         // ---------------- VR FINGER TOUCH ----------------
         // Direct fingertip presses on world-space UI in VR (BasisDirectTouch).
         // Distances are meters; defaults mirror the original hardcoded tuning.
@@ -2252,6 +2256,7 @@ namespace Basis.BasisUI
             UIHaptics.LoadBindingValue();
             UIClickPressThreshold.LoadBindingValue();
             UIClickReleaseThreshold.LoadBindingValue();
+            JoystickBindSweepSeconds.LoadBindingValue();
             DisableVRFingerTouch.LoadBindingValue();
             FingerTouchFinger.LoadBindingValue();
             FingerTouchHands.LoadBindingValue();

@@ -521,7 +521,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public void RevealAsFreshSpawn()
     {
         SetCameraHidden(false);
-        SetAutoFollowEnabled(false);
+        ClearModifiers();
         PinSpace = CameraPinSpace.HandHeld;
         AcquireCursorLock();
     }
@@ -830,7 +830,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// resolves to the local player whenever no remote is targeted, and while the camera is in
     /// hand that point sits behind the lens, so focusing on it blurs the whole shot.
     /// </summary>
-    public bool CanAutoFocusOnFollowSubject => IsAutoFollowing || IsFollowingRemotePlayer;
+    public bool CanAutoFocusOnFollowSubject => IsModifierDriven || IsFollowingRemotePlayer;
 
     /// <summary>
     /// Shortest focus distance the blur solver can take, in metres. Its circle of confusion is

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Basis.BasisUI.Styling;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
+using Basis.Cinematics;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -124,23 +125,20 @@ namespace Basis.BasisUI.HandHeldCamera
 #endif
 
         private PanelElementDescriptor _followGroup;
-        private PanelToggle _autoFollowToggle;
         private PanelDropdown _followMarkerDropdown;
         private PanelDropdown _followTargetDropdown;
         // Networked members only, in dropdown order. Row 0 of the dropdown is always "Me", so row
         // n maps to _followTargetIds[n - 1]. The local player is not an id: net id 0 is a real
         // player, so "Me" cannot be represented as a reserved value in here.
         private readonly List<ushort> _followTargetIds = new List<ushort>();
+
+        /// <summary>Whether the target dropdown has ever been given its entries. See RefreshFollowTargets.</summary>
+        private bool _followTargetsBuilt;
         private PanelDropdown _focusModeDropdown;
         private PanelToggle _followPlayspaceToggle;
-        // private PanelToggle _followLookAtToggle;  // "Look At Me" removed — follow always aims at the player.
         private PanelSlider _followLookAtHeightSlider;
-        private PanelSlider _followSideSlider;
-        private PanelSlider _followLateralSlider;
-        private PanelSlider _followHeightSlider;
-        private PanelSlider _followDistanceSlider;
-        private PanelSlider _followYawSlider;
-        private PanelSlider _followPitchSlider;
+        private PanelSlider _subjectRadiusSlider;
+        private PanelToggle _targetGroupToggle;
 
         private PanelDropdown _resolutionDropdown;
         private PanelDropdown _formatDropdown;
@@ -192,7 +190,6 @@ namespace Basis.BasisUI.HandHeldCamera
         private bool? _lastAutoLevel;
         private bool? _lastVrStab;
         private bool? _lastCloseHides;
-        private bool? _lastAutoFollow;
         private bool? _lastExposureOnCamera;
         private bool? _lastFocusFollows;
 
@@ -298,13 +295,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_outputSection, _outputGroup, true, OnSectionExpanded);
             });
 
-            AddTab("camera.follow", content =>
-            {
-                BuildFollowGroup(content);
-                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_followSection, _followGroup, true, OnSectionExpanded);
-            });
-
-            AddTab("camera.cinematic", BuildCinematicSections);
+            AddTab("camera.modifiers", BuildModifierSections);
 
             AddTab("camera.tab.advanced", content =>
             {
@@ -597,13 +588,14 @@ namespace Basis.BasisUI.HandHeldCamera
             _webQualitySlider?.SetResetDefault(70f);
 
             // Follow — from the interactable's field initializers.
-            _followSideSlider?.SetResetDefault(defaults.autoFollowPositionOffset.x);
-            _followHeightSlider?.SetResetDefault(defaults.autoFollowPositionOffset.y);
-            _followDistanceSlider?.SetResetDefault(defaults.autoFollowPositionOffset.z);
-            _followYawSlider?.SetResetDefault(defaults.autoFollowRotationOffset.y);
-            _followPitchSlider?.SetResetDefault(defaults.autoFollowRotationOffset.x);
-            _followLookAtHeightSlider?.SetResetDefault(defaults.autoFollowLookAtHeightOffset);
-            _followLateralSlider?.SetResetDefault(0.5f);
+            _placeOffsetXSlider?.SetResetDefault(defaults.modifiers.follow.positionOffset.x);
+            _placeOffsetYSlider?.SetResetDefault(defaults.modifiers.follow.positionOffset.y);
+            _placeOffsetZSlider?.SetResetDefault(defaults.modifiers.follow.positionOffset.z);
+            _aimYawSlider?.SetResetDefault(defaults.modifiers.lookAt.rotationOffset.y);
+            _aimPitchSlider?.SetResetDefault(defaults.modifiers.lookAt.rotationOffset.x);
+            _followLookAtHeightSlider?.SetResetDefault(defaults.modifiers.subject.aimHeightOffset);
+            _subjectRadiusSlider?.SetResetDefault(defaults.modifiers.subject.framingRadius);
+            _followLateralSlider?.SetResetDefault(defaults.modifiers.follow.lateralTracking);
         }
 
         /// <summary>
@@ -662,7 +654,7 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             ApplyOnPropUIVisibility(false);
             SetPanelTickSubscription(false);
-            ClearCinematicReferences();
+            ClearModifierReferences();
             ClearModeReferences();
             ClearGifReferences();
             ClearVideoReferences();
@@ -712,6 +704,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _focusModeDropdown = null;
             _followTargetDropdown = null;
             _followTargetIds.Clear();
+            _followTargetsBuilt = false;
             _msaaDropdown = null;
 #if Basis_VOLUMETRIC_SUPPORTED
             _fogSlider = null;
@@ -739,17 +732,11 @@ namespace Basis.BasisUI.HandHeldCamera
             _performanceSection = null;
             _limitRenderRateToggle = null;
             _renderRateSlider = null;
-            _autoFollowToggle = null;
             _followMarkerDropdown = null;
             _followPlayspaceToggle = null;
             _followLookAtHeightSlider = null;
-            _followSideSlider = null;
-            _followLateralSlider = null;
-            _followHeightSlider = null;
-            _followDistanceSlider = null;
-            _followYawSlider = null;
-            _followPitchSlider = null;
-            _lastAutoFollow = null;
+            _subjectRadiusSlider = null;
+            _targetGroupToggle = null;
             _resolutionDropdown = null;
             _formatDropdown = null;
             _recordToggle = null;
@@ -1220,21 +1207,30 @@ namespace Basis.BasisUI.HandHeldCamera
             };
         }
 
-        private void BuildFollowGroup(RectTransform parent)
+        /// <summary>
+        /// Who the camera films and where on them it reads. Held apart from the modifiers because
+        /// every one of them resolves the same subject, so these keep meaning something whichever
+        /// modifier is fitted - and depth auto-focus reads the aim point even with none.
+        /// </summary>
+        private void BuildSubjectGroup(RectTransform parent)
         {
             _followSection = PanelSectionToggle.CreateNewEntry(parent);
             _followGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
-                _followSection, parent, BasisLocalization.Get("camera.follow"), false);
+                _followSection, parent, BasisLocalization.Get("camera.subject"), false);
             RectTransform content = _followGroup.ContentParent;
 
-            _autoFollowToggle = PanelToggle.CreateNewEntry(content);
-            _autoFollowToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.autoFollow"));
-            _autoFollowToggle.OnValueChanged = v =>
+            _subjectDropdown = PanelDropdown.CreateNewEntry(content);
+            _subjectDropdown.Descriptor.SetTitle(BasisLocalization.Get(BasisCameraModifiers.SubjectSlotKey));
+            _subjectDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.modifier.subject.description"));
+            _subjectDropdown.AssignEntries(LocalizedList(SubjectLabelKeys));
+            _subjectDropdown.OnValueChanged = _ =>
             {
-                if (_activeCamera == null) return;
-                _activeCamera.SetAutoFollowEnabled(v);
-                // Auto Follow is half of what decides whether Follow Subject focus can drive.
+                int index = _subjectDropdown != null ? _subjectDropdown.Index : -1;
+                if (_activeCamera == null || index < 0 || index >= BasisCameraModifiers.SubjectModifiers.Length) return;
+
+                _activeCamera.SetSubjectModifier(BasisCameraModifiers.SubjectModifiers[index]);
                 RefreshDoFModeVisibility();
+                RefreshModifierVisibility();
             };
 
             RectTransform teleportRow = PanelElementDescriptor.BuildActionRow(content, "CameraTeleportRow");
@@ -1276,83 +1272,61 @@ namespace Basis.BasisUI.HandHeldCamera
             _followPlayspaceToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.followPlayspace.description"));
             _followPlayspaceToggle.OnValueChanged = v =>
             {
-                if (_activeCamera != null) _activeCamera.autoFollowPlayspace = v;
+                if (_activeCamera != null) _activeCamera.subjectSettings.anchorToBody = v;
             };
-
-            // "Look At Me" removed — auto follow always aims at the player now, so the toggle is gone.
-            // _followLookAtToggle = PanelToggle.CreateNewEntry(content);
-            // _followLookAtToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.lookAtMe"));
-            // _followLookAtToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.lookAtMe.description"));
-            // _followLookAtToggle.OnValueChanged = v =>
-            // {
-            //     if (_activeCamera != null) _activeCamera.autoFollowLookAtPlayer = v;
-            // };
-
-            // Grouped by axis: everything acting on X, then Y, then Z, so the sideways controls sit
-            // together, the vertical ones sit together, and depth is on its own.
-
-            // --- X axis: sideways placement and the rotation about X ---
-            _followSideSlider = PanelSlider.CreateNew(content);
-            _followSideSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                BasisLocalization.Get("camera.sideOffsetX"), -3f, 3f, false, 2, ValueDisplayMode.Meters));
-            _followSideSlider.OnValueChanged = v => SetFollowPositionAxis(0, v);
-
-            _followLateralSlider = PanelSlider.CreateNew(content);
-            _followLateralSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                BasisLocalization.Get("camera.lateralTrackingX"), 0f, 1f, false, 2, ValueDisplayMode.Raw));
-            _followLateralSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.lateralTrackingX.description"));
-            _followLateralSlider.OnValueChanged = v =>
-            {
-                if (_activeCamera != null) _activeCamera.autoFollowLateralTracking = v;
-            };
-
-            _followPitchSlider = PanelSlider.CreateNew(content);
-            _followPitchSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(BasisLocalization.Get("camera.pitchOffsetX"), -90f, 90f, false, 1));
-            _followPitchSlider.OnValueChanged = v => SetFollowRotationAxis(0, v);
-
-            // --- Y axis: vertical placement, aim height and the rotation about Y ---
-            _followHeightSlider = PanelSlider.CreateNew(content);
-            _followHeightSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                BasisLocalization.Get("camera.heightOffsetY"), -2f, 2f, false, 2, ValueDisplayMode.Meters));
-            _followHeightSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.heightOffsetY.description"));
-            _followHeightSlider.OnValueChanged = v => SetFollowPositionAxis(1, v);
 
             _followLookAtHeightSlider = PanelSlider.CreateNew(content);
             _followLookAtHeightSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 BasisLocalization.Get("camera.lookAtHeightY"), -3f, 3f, false, 2, ValueDisplayMode.Meters));
+            _followLookAtHeightSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.lookAtHeightY.description"));
             _followLookAtHeightSlider.OnValueChanged = v =>
             {
-                if (_activeCamera != null) _activeCamera.autoFollowLookAtHeightOffset = v;
+                if (_activeCamera != null) _activeCamera.subjectSettings.aimHeightOffset = v;
             };
 
-            _followYawSlider = PanelSlider.CreateNew(content);
-            _followYawSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(BasisLocalization.Get("camera.yawOffsetY"), -180f, 180f, false, 1));
-            _followYawSlider.OnValueChanged = v => SetFollowRotationAxis(1, v);
+            _subjectRadiusSlider = PanelSlider.CreateNew(content);
+            _subjectRadiusSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.subjectRadius"), 0.1f, 2f, false, 2, ValueDisplayMode.Meters));
+            _subjectRadiusSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.subjectRadius.description"));
+            _subjectRadiusSlider.OnValueChanged = v =>
+            {
+                if (_activeCamera != null) _activeCamera.subjectSettings.framingRadius = v;
+            };
 
-            // --- Z axis: depth ---
-            _followDistanceSlider = PanelSlider.CreateNew(content);
-            _followDistanceSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                BasisLocalization.Get("camera.distanceZ"), 0.3f, 6f, false, 2, ValueDisplayMode.Meters));
-            _followDistanceSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.distanceZ.description"));
-            _followDistanceSlider.OnValueChanged = v => SetFollowPositionAxis(2, v);
+            _targetGroupToggle = PanelToggle.CreateNewEntry(content);
+            _targetGroupToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.groupIncludesMe"));
+            _targetGroupToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.groupIncludesMe.description"));
+            _targetGroupToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera == null) return;
+                _activeCamera.subjectSettings.groupIncludesLocal = v;
+            };
+
+            _groupRefreshRow = PanelElementDescriptor.BuildActionRow(content, "CameraGroupRow");
+
+            PanelButton fillGroup = PanelButton.CreateNew(_groupRefreshRow);
+            fillGroup.Descriptor.SetTitle(BasisLocalization.Get("camera.groupFill"));
+            fillGroup.Descriptor.SetDescription(BasisLocalization.Get("camera.groupFill.description"));
+            fillGroup.OnClicked += () => _activeCamera?.RebuildTargetGroup();
+
+            PanelButton clearGroup = PanelButton.CreateNew(_groupRefreshRow);
+            clearGroup.Descriptor.SetTitle(BasisLocalization.Get("camera.groupClear"));
+            clearGroup.OnClicked += () => _activeCamera?.TargetGroup.Clear();
+
+            _fixedPointRow = PanelElementDescriptor.BuildActionRow(content, "CameraFixedPointRow");
+
+            PanelButton pointAtCamera = PanelButton.CreateNew(_fixedPointRow);
+            pointAtCamera.Descriptor.SetTitle(BasisLocalization.Get("camera.fixedPointHere"));
+            pointAtCamera.Descriptor.SetDescription(BasisLocalization.Get("camera.fixedPointHere.description"));
+            pointAtCamera.OnClicked += () => _activeCamera?.SetFixedPointToCamera();
+
+            PanelButton pointAtPlayer = PanelButton.CreateNew(_fixedPointRow);
+            pointAtPlayer.Descriptor.SetTitle(BasisLocalization.Get("camera.fixedPointAtMe"));
+            pointAtPlayer.Descriptor.SetDescription(BasisLocalization.Get("camera.fixedPointAtMe.description"));
+            pointAtPlayer.OnClicked += () => _activeCamera?.SetFixedPointToPlayer();
         }
 
-        private void SetFollowPositionAxis(int axis, float value)
-        {
-            if (_activeCamera == null) return;
-            Vector3 offset = _activeCamera.autoFollowPositionOffset;
-            offset[axis] = value;
-            _activeCamera.autoFollowPositionOffset = offset;
-        }
-
-        private void SetFollowRotationAxis(int axis, float value)
-        {
-            if (_activeCamera == null) return;
-            Vector3 rotation = _activeCamera.autoFollowRotationOffset;
-            rotation[axis] = value;
-            _activeCamera.autoFollowRotationOffset = rotation;
-        }
-
+        
         private void BuildActionsGroup(RectTransform parent)
         {
             _actionSection = PanelSectionToggle.CreateNewEntry(parent);
@@ -1783,10 +1757,9 @@ namespace Basis.BasisUI.HandHeldCamera
             SetSectionActive(_effectsSection, _effectsGroup, active);
             SetSectionActive(_outputSection, _outputGroup, active);
             SetSectionActive(_followSection, _followGroup, active);
-            SetSectionActive(_cinematicSection, _cinematicGroup, active);
-            SetSectionActive(_compositionSection, _compositionGroup, active);
-            SetSectionActive(_orbitSection, _orbitGroup, active);
-            SetSectionActive(_noiseSection, _noiseGroup, active);
+            SetSectionActive(_positionSection, _positionGroup, active);
+            SetSectionActive(_rotationSection, _rotationGroup, active);
+            SetSectionActive(_modifierEffectsSection, _modifierEffectsGroup, active);
             SetSectionActive(_dollySection, _dollyGroup, active);
             SetSectionActive(_backgroundSection, _backgroundGroup, active);
             SetSectionActive(_actionSection, _actionGroup, active);
@@ -1809,16 +1782,15 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             if (_activeCamera == null) return;
 
-            _lastShotRosterHash = -1;
             _lastWaypointCount = -1;
-            _lastCinematic = null;
+            _lastEffectSignature = -1;
 
             // Cameras hold their modes independently, so switching between two of them has to
             // repaint rather than trust the cache from the one that was showing.
             _activeCamera.RefreshCameraMode();
             RefreshModeVisuals(force: true);
 
-            SeedCinematicCameraControls();
+            SeedModifierCameraControls();
             SeedGifControls();
             SeedVideoControls();
 
@@ -1827,7 +1799,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastRevealPhotoInteractable = null;
             TickPhotoStatus();
 
-            RefreshShotList();
+            RefreshEffectList();
             RefreshWaypointList();
 
             BasisHandHeldCameraMetaData metaData = _activeCamera.MetaData;
@@ -1936,7 +1908,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _formatDropdown?.SetValueWithoutNotify(
                 _activeCamera.HandHeld.FormatIndex == BasisHandHeldCameraUI.FORMAT_EXR ? "EXR" : "PNG");
 
-            SyncToggle(_autoFollowToggle, _activeCamera.IsAutoFollowing, ref _lastAutoFollow);
             if (_followMarkerDropdown != null)
             {
                 int markerIndex = Mathf.Clamp((int)_activeCamera.detachedMarker, 0, DetachedMarkerLabels.Length - 1);
@@ -1947,16 +1918,14 @@ namespace Basis.BasisUI.HandHeldCamera
             // the dropdown kept showing the previous camera's target, and picking the name already
             // on screen raises no change event, so the new camera silently stayed on "Me".
             _followTargetIds.Clear();
+            _followTargetsBuilt = false;
             RefreshFollowTargets();
 
-            _followPlayspaceToggle?.SetValueWithoutNotify(_activeCamera.autoFollowPlayspace);
-            _followLookAtHeightSlider?.SetValueWithoutNotify(_activeCamera.autoFollowLookAtHeightOffset);
-            _followSideSlider?.SetValueWithoutNotify(_activeCamera.autoFollowPositionOffset.x);
-            _followLateralSlider?.SetValueWithoutNotify(_activeCamera.autoFollowLateralTracking);
-            _followHeightSlider?.SetValueWithoutNotify(_activeCamera.autoFollowPositionOffset.y);
-            _followDistanceSlider?.SetValueWithoutNotify(_activeCamera.autoFollowPositionOffset.z);
-            _followYawSlider?.SetValueWithoutNotify(_activeCamera.autoFollowRotationOffset.y);
-            _followPitchSlider?.SetValueWithoutNotify(_activeCamera.autoFollowRotationOffset.x);
+            _followPlayspaceToggle?.SetValueWithoutNotify(_activeCamera.subjectSettings.anchorToBody);
+            _followLookAtHeightSlider?.SetValueWithoutNotify(_activeCamera.subjectSettings.aimHeightOffset);
+            _subjectRadiusSlider?.SetValueWithoutNotify(_activeCamera.subjectSettings.framingRadius);
+            _targetGroupToggle?.SetValueWithoutNotify(_activeCamera.subjectSettings.groupIncludesLocal);
+            SeedModifierControls();
 
             RefreshVideoOutputState();
             RefreshLayerToggles();
@@ -2158,11 +2127,10 @@ namespace Basis.BasisUI.HandHeldCamera
 
             SyncToggle(_recordToggle, _activeCamera.enableRecordingView, ref _lastRecordingView);
             SyncToggle(_previewScreenToggle, _activeCamera.IsPreviewScreenVisible, ref _lastPreviewScreenVisible);
-            SyncToggle(_autoFollowToggle, _activeCamera.IsAutoFollowing, ref _lastAutoFollow);
             SyncSharedControls();
             RefreshFollowTargets();
             TickModeState();
-            TickCinematicSections();
+            TickModifierSections();
             TickGifSection();
             TickVideoSection();
             TickPhotoStatus();
@@ -2228,7 +2196,13 @@ namespace Basis.BasisUI.HandHeldCamera
                 _followTargetDropdown.DropdownComponent.IsExpanded) return;
 
             var remotes = Basis.Scripts.Networking.BasisNetworkPlayers.RemotePlayers;
-            if (!FollowTargetRosterChanged(remotes)) return;
+
+            // The first build is never optional. An empty roster and an empty list agree, so the
+            // change check answers "nothing moved" and the dropdown would keep the placeholder
+            // options its prefab shipped with — which is what an instance with nobody else in it
+            // looks like, and the rows stand for no player at all.
+            if (_followTargetsBuilt && !FollowTargetRosterChanged(remotes)) return;
+            _followTargetsBuilt = true;
 
             _followTargetIds.Clear();
             // Entries are the net ids, not the names: PanelDropdown resolves its selection by

@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using Basis.Cinematics;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 using UnityCamera = UnityEngine.Camera;
@@ -141,7 +142,7 @@ namespace Basis.Tests.Camera
         [Test]
         public void AutoFocus_DrivesWhileAutoFollowFliesTheCamera()
         {
-            _camera.SetAutoFollowEnabled(true);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
             Assert.That(_camera.CanAutoFocusOnFollowSubject, Is.True);
         }
