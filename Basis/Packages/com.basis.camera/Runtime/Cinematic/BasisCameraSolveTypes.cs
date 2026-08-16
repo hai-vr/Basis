@@ -29,6 +29,15 @@ namespace Basis.Cinematics
     /// </summary>
     public delegate bool BasisCameraOcclusionProbe(Vector3 target, Vector3 desiredCameraPos, out float freeDistanceFromTarget);
 
+    /// <summary>
+    /// Reports how far the camera may travel along its own path before it meets something solid.
+    /// Returning false means the way is clear. Separate from <see cref="BasisCameraOcclusionProbe"/>
+    /// because that one only ever looks along the sight line to a subject, and a camera being flown
+    /// by hand or carried by a track has no sight line to look along.
+    /// </summary>
+    public delegate bool BasisCameraSweepProbe(Vector3 origin, Vector3 direction, float distance, float radius,
+        out float freeDistance);
+
     public struct BasisCameraSolveContext
     {
         public BasisCameraSubject Subject;
@@ -45,6 +54,7 @@ namespace Basis.Cinematics
         public Quaternion OperatorRotation;
 
         public BasisCameraOcclusionProbe OcclusionProbe;
+        public BasisCameraSweepProbe SweepProbe;
     }
 
     public struct BasisCameraPose

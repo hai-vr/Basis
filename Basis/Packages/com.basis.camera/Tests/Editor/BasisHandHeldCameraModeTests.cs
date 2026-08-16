@@ -531,6 +531,41 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void RemoteSubjectYaw_DividesOutTheirRigsRootConstant()
+        {
+            // The root pose the bone jobs write is backed out of the hips' parent and carries
+            // whatever the exporter baked above the skeleton; a model authored facing -Z puts a
+            // straight 180 degrees in it. None of that shows in the avatar — the hips are applied
+            // in world space and the mesh follows them — so the camera was the one thing that could
+            // see it, and it set the shot up behind everyone wearing one of those rigs.
+            const ushort netId = 14;
+            GameObject root = new GameObject("RemoteRootFlippedRigUnderTest");
+            GameObject mouth = new GameObject("RemoteMouthFlippedRigUnderTest");
+            root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.Euler(0f, 90f, 0f));
+            mouth.transform.position = new Vector3(0f, 1.6f, 0f);
+
+            BasisRemotePlayer remote = new BasisRemotePlayer
+            {
+                AvatarAnimatorTransform = root.transform,
+                MouthTransform = mouth.transform,
+            };
+            remote.RemoteAvatarDriver.DerivedRootToCharacterBasis = Quaternion.Euler(0f, 180f, 0f);
+
+            try
+            {
+                Assert.That(_camera.TryResolveRemoteSubjectForTest(netId, remote, out Quaternion yaw, out _, out _),
+                    Is.True);
+                Assert.That(Quaternion.Angle(yaw, Quaternion.Euler(0f, 270f, 0f)), Is.LessThan(0.5f),
+                    "The shot is framed against the way the avatar faces, not the way its root does.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(mouth);
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
         public void RemoteSubjectScale_TracksTheirAvatarHeight()
         {
             // Remote scale used to be hardcoded to 1, so the authored offsets — and the teleport

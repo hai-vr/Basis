@@ -121,5 +121,18 @@ namespace Basis.Tests.Camera
             Assert.That(gizmos.IsLayerEnabled(BasisCameraGizmoLayers.PinState), Is.True);
             Assert.That(gizmos.Layers, Is.EqualTo(BasisCameraGizmoLayers.PinState));
         }
+
+        [Test]
+        public void GizmosDefaultToALayerTheCaptureCameraCannotSee()
+        {
+            // Gizmos are debug drawing for whoever is operating the thing they describe. Sharing a
+            // layer with the world puts every one of them — tracker markers, IK probes, the dolly
+            // track, this camera's own frustum — into every photo, 360 and video frame the handheld
+            // camera takes. Pinning the two together means moving either one fails here first.
+            Assert.That(BasisGizmoManager.DefaultRenderLayer, Is.EqualTo(BasisHandHeldCamera.MarkerLayer),
+                "Gizmos must default to the layer the capture camera culls.");
+            Assert.That(BasisGizmoManager.RenderLayer, Is.EqualTo(BasisHandHeldCamera.MarkerLayer),
+                "Nothing should have moved the shared gizmo layer off its default.");
+        }
     }
 }

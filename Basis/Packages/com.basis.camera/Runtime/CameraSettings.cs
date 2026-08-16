@@ -49,6 +49,15 @@ public partial class BasisHandHeldCameraUI
             sensorSizeY = 24f;
             bloomIntensity = 0.5f;
             bloomThreshold = 0.5f;
+
+            // URP's own defaults for the parts of an effect that shape it rather than switch it on.
+            // Set here rather than left to the zero fill, so a file written before they existed
+            // loads the look it was saved with instead of a hard-edged bloom and a flat vignette.
+            bloomScatter = 0.7f;
+            vignetteSmoothness = 0.2f;
+            lensDistortionScale = 1f;
+            paniniCropToFit = 1f;
+            captureTonemapping = (int)UnityEngine.Rendering.Universal.TonemappingMode.ACES;
             contrast = 1f;
             saturation = 1f;
             depthAperture = 2.8f;
@@ -56,6 +65,13 @@ public partial class BasisHandHeldCameraUI
             depthIsActive = false;
             useManualFocus = true;
             showExposureOnCamera = false;
+
+            // Off, but with a usable sensitivity already set, so the file a camera loads on the day
+            // the feature arrives is not one that switches it on at the least sensitive end.
+            focusPeaking = false;
+            focusPeakingSensitivity = BasisHandHeldCamera.DefaultFocusPeakingSensitivity;
+            focusPeakingColour = 0;
+            focusPeakingGreyPicture = false;
 
             // Off by default (a still photo of a moving world is not usually what is wanted), but
             // with the shape of the effect already sane for the moment it is switched on.
@@ -81,6 +97,7 @@ public partial class BasisHandHeldCameraUI
             videoWidth = 1920;
             videoQuality = 80;
             videoTimeLimit = true;
+            videoContinuousClips = false;
         }
 
         /// <summary>
@@ -136,6 +153,18 @@ public partial class BasisHandHeldCameraUI
 
         public bool useManualFocus = true;
 
+        /// <summary>
+        /// The viewfinder focus aid. A view preference rather than part of the shot — the overlay
+        /// is produced into a texture of its own that no capture path reads — but it is saved for
+        /// the same reason the detached marker is: it is a control with nowhere else to be
+        /// remembered, and one that resets every session is one nobody leaves on.
+        /// </summary>
+        public bool focusPeaking;
+        public float focusPeakingSensitivity;
+        /// <summary>Index into <see cref="BasisHandHeldCamera.FocusPeakingColours"/>; 0 is red.</summary>
+        public int focusPeakingColour;
+        public bool focusPeakingGreyPicture;
+
         public float VolumetricFogVolumedensity;
         public bool VolumetricFogenableAPVContribution;
         public bool VolumetricFogenableMainLightContribution;
@@ -147,6 +176,23 @@ public partial class BasisHandHeldCameraUI
         public float whiteBalanceTemperature;
         public float whiteBalanceTint;
         public float lensDistortion;
+        public float paniniDistance;
+
+        /// <summary>
+        /// Shape, as opposed to strength. Each belongs to an effect whose own slider is the on/off,
+        /// so these carry usable values even while the effect they shape is switched off.
+        /// </summary>
+        public float bloomScatter;
+        public float vignetteSmoothness;
+        public float lensDistortionScale;
+        public float paniniCropToFit;
+
+        /// <summary>
+        /// Which tonemapper grades the saved photo, as <c>TonemappingMode</c>. The preview is always
+        /// Neutral — the capture is rendered at a different resolution and exposure and has always
+        /// been graded on its own — so this is the still's look, not the viewfinder's.
+        /// </summary>
+        public int captureTonemapping;
 
         /// <summary>
         /// Motion blur. The strength is the on/off — URP only runs the pass above zero — so the
@@ -201,6 +247,13 @@ public partial class BasisHandHeldCameraUI
 
         /// <summary>On, a recording stops itself after <see cref="videoDurationSeconds"/>; off, it runs until stopped.</summary>
         public bool videoTimeLimit;
+
+        /// <summary>
+        /// With a time limit set, on: reaching it starts the next clip instead of ending the
+        /// recording, which then runs until it is stopped by hand. Off is the zero fill, so an
+        /// older file loads as the single-clip recording it was written as.
+        /// </summary>
+        public bool videoContinuousClips;
 
         /// <summary>
         /// Whether each saved photo is also printed into the world as a shared image pickup,

@@ -14,9 +14,36 @@ namespace Basis.BasisUI.HandHeldCamera
     /// </summary>
     public partial class BasisHandHeldCameraPanelProvider
     {
-        private static readonly string[] BindingModeLabels = { "Turns With Subject", "World Axes", "Keep Current Side" };
-        private static readonly string[] NoiseProfileLabels = { "Off", "Handheld", "Documentary", "Drone", "Shaky", "Custom" };
-        private static readonly string[] BackgroundModeLabels = { "World", "Green Screen", "Blue Screen", "Black", "White", "Magenta", "Custom" };
+        // Option lists are localization keys, not text. PanelDropdown resolves a selection by
+        // string-matching the entry, so translated text as the value makes the selection follow the
+        // language — and the key doubles as the stem its per-option tooltip is looked up from.
+        private static readonly string[] DollyModeKeys =
+        {
+            "camera.dollyMode.manual", "camera.dollyMode.followSubject", "camera.dollyMode.play",
+        };
+
+        private static readonly string[] DollySyncKeys =
+        {
+            "camera.dollySync.local", "camera.dollySync.networked", "camera.dollySync.locked",
+        };
+
+        private static readonly string[] BindingModeKeys =
+        {
+            "camera.bindingMode.subjectYaw", "camera.bindingMode.worldSpace", "camera.bindingMode.simpleFollow",
+        };
+
+        private static readonly string[] NoiseProfileKeys =
+        {
+            "camera.noiseProfile.off", "camera.noiseProfile.handheld", "camera.noiseProfile.documentary",
+            "camera.noiseProfile.drone", "camera.noiseProfile.shaky", "camera.noiseProfile.custom",
+        };
+
+        private static readonly string[] BackgroundModeKeys =
+        {
+            "camera.background.world", "camera.background.greenScreen", "camera.background.blueScreen",
+            "camera.background.black", "camera.background.white", "camera.background.magenta",
+            "camera.background.custom",
+        };
 
         private PanelDropdown _subjectDropdown;
         private RectTransform _groupRefreshRow;
@@ -49,7 +76,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _orbitMidRadiusSlider;
         private PanelSlider _orbitBottomHeightSlider;
         private PanelSlider _orbitBottomRadiusSlider;
-        private PanelToggle _dollyAutoTrackToggle;
+        private PanelDropdown _dollyModeDropdown;
+        private RectTransform _dollyTransportRow;
+        private PanelButton _dollyPlayButton;
+        private bool? _lastDollyPlaying;
         private PanelSlider _dollyPositionSlider;
         private PanelSlider _dollySpeedSlider;
         private PanelSlider _dollyDampSlider;
@@ -92,8 +122,18 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _noiseFrequencySlider;
         private PanelSlider _lensFovSlider;
         private PanelSlider _lensDampSlider;
+        private PanelSlider _steadySmoothingSlider;
+        private PanelSlider _steadyDeadZoneSlider;
+        private PanelSlider _collisionRadiusSlider;
+        private PanelSlider _collisionPaddingSlider;
+        private PanelSlider _dollyZoomMinSlider;
+        private PanelSlider _dollyZoomMaxSlider;
+        private PanelSlider _rigWeightResponseSlider;
+        private PanelSlider _rigWeightBounceSlider;
         private readonly Dictionary<BasisCameraEffectModifier, RectTransform> _effectRemoveRows =
             new Dictionary<BasisCameraEffectModifier, RectTransform>();
+        private readonly Dictionary<BasisCameraEffectModifier, PanelButton> _effectRemoveButtons =
+            new Dictionary<BasisCameraEffectModifier, PanelButton>();
         private int _lastEffectSignature = -1;
         private BasisCameraPositionModifier? _lastPositionModifier;
         private BasisCameraRotationModifier? _lastRotationModifier;
@@ -104,6 +144,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _waypointOrderSlider;
         private PanelToggle _dollyLoopToggle;
         private PanelToggle _dollyVisibleToggle;
+        private PanelDropdown _dollySyncDropdown;
         private PanelToggle _dollyGridSnapToggle;
         private PanelSlider _dollyGridSizeSlider;
         private PanelElementDescriptor _dollyEmptyState;
@@ -156,6 +197,17 @@ namespace Basis.BasisUI.HandHeldCamera
             return keys;
         }
 
+        /// <summary>The matching <c>.description</c> key for each option, used as its hover text.</summary>
+        private static List<string> DescriptionKeys(string[] keys)
+        {
+            var list = new List<string>(keys.Length);
+            for (int Index = 0; Index < keys.Length; Index++)
+            {
+                list.Add(keys[Index] + ".description");
+            }
+            return list;
+        }
+
         private static List<string> LocalizedList(string[] keys)
         {
             var list = new List<string>(keys.Length);
@@ -177,11 +229,15 @@ namespace Basis.BasisUI.HandHeldCamera
             BuildRotationGroup(parent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_rotationSection, _rotationGroup, true, OnSectionExpanded);
 
-            BuildModifierEffectsGroup(parent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_modifierEffectsSection, _modifierEffectsGroup, false, OnSectionExpanded);
-
             BuildDollyGroup(parent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_dollySection, _dollyGroup, false, OnSectionExpanded);
+        }
+
+        /// <summary>The effects page: everything layered on top of whatever the slots are doing.</summary>
+        private void BuildEffectSections(RectTransform parent)
+        {
+            BuildModifierEffectsGroup(parent);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_modifierEffectsSection, _modifierEffectsGroup, true, OnSectionExpanded);
         }
 
         // ---- Position slot ---------------------------------------------------------------------
@@ -196,7 +252,9 @@ namespace Basis.BasisUI.HandHeldCamera
             _positionDropdown = PanelDropdown.CreateNewEntry(content);
             _positionDropdown.Descriptor.SetTitle(BasisLocalization.Get(BasisCameraModifiers.PositionSlotKey));
             _positionDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.modifier.position.description"));
-            _positionDropdown.AssignEntries(LocalizedList(PositionLabelKeys));
+            _positionDropdown.AssignLocalizedEntries(
+                new List<string>(PositionLabelKeys), new List<string>(PositionLabelKeys),
+                DescriptionKeys(PositionLabelKeys));
             _positionDropdown.OnValueChanged = _ =>
             {
                 int index = _positionDropdown != null ? _positionDropdown.Index : -1;
@@ -210,7 +268,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _bindingModeDropdown = PanelDropdown.CreateNewEntry(content);
             _bindingModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.bindingMode"));
             _bindingModeDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.bindingMode.description"));
-            _bindingModeDropdown.AssignEntries(new List<string>(BindingModeLabels));
+            _bindingModeDropdown.AssignLocalizedEntries(
+                new List<string>(BindingModeKeys), new List<string>(BindingModeKeys));
             _bindingModeDropdown.OnValueChanged = _ =>
             {
                 int index = _bindingModeDropdown != null ? _bindingModeDropdown.Index : -1;
@@ -403,14 +462,44 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (Stack != null) Stack.orbit.bottom.radius = v;
             };
 
-            _dollyAutoTrackToggle = PanelToggle.CreateNewEntry(content);
-            _dollyAutoTrackToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyAutoTrack"));
-            _dollyAutoTrackToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyAutoTrack.description"));
-            _dollyAutoTrackToggle.OnValueChanged = v =>
+            _dollyModeDropdown = PanelDropdown.CreateNewEntry(content);
+            _dollyModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyMode"));
+            _dollyModeDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyMode.description"));
+            _dollyModeDropdown.AssignLocalizedEntries(
+                new List<string>(DollyModeKeys), new List<string>(DollyModeKeys));
+            _dollyModeDropdown.OnValueChanged = _ =>
             {
-                if (Stack == null) return;
-                Stack.dolly.autoTrack = v;
+                int index = _dollyModeDropdown != null ? _dollyModeDropdown.Index : -1;
+                if (Stack == null || index < 0 || index >= DollyModeKeys.Length) return;
+
+                Stack.dolly.mode = (BasisCameraDollyMode)index;
+                if (Stack.dolly.mode != BasisCameraDollyMode.Play)
+                {
+                    Stack.dolly.playing = false;
+                }
+                RefreshDollyTransport();
                 RefreshModifierVisibility();
+            };
+
+            _dollyTransportRow = PanelElementDescriptor.BuildActionRow(content, "CameraDollyTransportRow");
+
+            _dollyPlayButton = PanelButton.CreateNew(_dollyTransportRow);
+            _dollyPlayButton.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyPlay"));
+            _dollyPlayButton.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyPlay.description"));
+            _dollyPlayButton.OnClicked += () =>
+            {
+                if (_activeCamera == null) return;
+                _activeCamera.SetDollyPlaying(!_activeCamera.IsDollyPlaying);
+                RefreshDollyTransport();
+            };
+
+            PanelButton restart = PanelButton.CreateNew(_dollyTransportRow);
+            restart.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyRestart"));
+            restart.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyRestart.description"));
+            restart.OnClicked += () =>
+            {
+                _activeCamera?.RestartDolly();
+                RefreshDollyTransport();
             };
 
             _dollyPositionSlider = PanelSlider.CreateNew(content);
@@ -518,7 +607,9 @@ namespace Basis.BasisUI.HandHeldCamera
             _rotationDropdown = PanelDropdown.CreateNewEntry(content);
             _rotationDropdown.Descriptor.SetTitle(BasisLocalization.Get(BasisCameraModifiers.RotationSlotKey));
             _rotationDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.modifier.rotation.description"));
-            _rotationDropdown.AssignEntries(LocalizedList(RotationLabelKeys));
+            _rotationDropdown.AssignLocalizedEntries(
+                new List<string>(RotationLabelKeys), new List<string>(RotationLabelKeys),
+                DescriptionKeys(RotationLabelKeys));
             _rotationDropdown.OnValueChanged = _ =>
             {
                 int index = _rotationDropdown != null ? _rotationDropdown.Index : -1;
@@ -710,6 +801,27 @@ namespace Basis.BasisUI.HandHeldCamera
             _modifierEffectsEmptyState.SetTitle(BasisLocalization.Get("camera.modifier.noEffects"));
             _modifierEffectsEmptyState.SetDescription(BasisLocalization.Get("camera.modifier.noEffects.description"));
 
+            BuildEffectBlock(content, BasisCameraEffectModifier.SteadySubject, () =>
+            {
+                _steadySmoothingSlider = PanelSlider.CreateNew(content);
+                _steadySmoothingSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("camera.steadySmoothing"), 0f, 1.5f, false, 2, ValueDisplayMode.Raw));
+                _steadySmoothingSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.steadySmoothing.description"));
+                _steadySmoothingSlider.OnValueChanged = v =>
+                {
+                    if (Stack != null) Stack.steady.smoothing = v;
+                };
+
+                _steadyDeadZoneSlider = PanelSlider.CreateNew(content);
+                _steadyDeadZoneSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("camera.steadyDeadZone"), 0f, 1f, false, 2, ValueDisplayMode.Meters));
+                _steadyDeadZoneSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.steadyDeadZone.description"));
+                _steadyDeadZoneSlider.OnValueChanged = v =>
+                {
+                    if (Stack != null) Stack.steady.verticalDeadZone = v;
+                };
+            });
+
             BuildEffectBlock(content, BasisCameraEffectModifier.LookAhead, () =>
             {
                 _lookAheadTimeSlider = PanelSlider.CreateNew(content);
@@ -767,6 +879,26 @@ namespace Basis.BasisUI.HandHeldCamera
                 };
             });
 
+            BuildEffectBlock(content, BasisCameraEffectModifier.AvoidCollision, () =>
+            {
+                _collisionRadiusSlider = PanelSlider.CreateNew(content);
+                _collisionRadiusSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("camera.collisionRadius"), 0.01f, 1f, false, 2, ValueDisplayMode.Meters));
+                _collisionRadiusSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.collisionRadius.description"));
+                _collisionRadiusSlider.OnValueChanged = v =>
+                {
+                    if (Stack != null) Stack.collision.radius = v;
+                };
+
+                _collisionPaddingSlider = PanelSlider.CreateNew(content);
+                _collisionPaddingSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("camera.collisionPadding"), 0f, 1f, false, 2, ValueDisplayMode.Meters));
+                _collisionPaddingSlider.OnValueChanged = v =>
+                {
+                    if (Stack != null) Stack.collision.padding = v;
+                };
+            });
+
             BuildEffectBlock(content, BasisCameraEffectModifier.LensOverride, () =>
             {
                 _lensFovSlider = PanelSlider.CreateNew(content);
@@ -787,12 +919,55 @@ namespace Basis.BasisUI.HandHeldCamera
                 };
             });
 
+            BuildEffectBlock(content, BasisCameraEffectModifier.DollyZoom, () =>
+            {
+                _dollyZoomMinSlider = PanelSlider.CreateNew(content);
+                _dollyZoomMinSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(
+                    BasisLocalization.Get("camera.dollyZoomMin"), 5f, 120f, false, 1));
+                _dollyZoomMinSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyZoomMin.description"));
+                _dollyZoomMinSlider.OnValueChanged = v =>
+                {
+                    if (Stack != null) Stack.dollyZoom.minFov = v;
+                };
+
+                _dollyZoomMaxSlider = PanelSlider.CreateNew(content);
+                _dollyZoomMaxSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(
+                    BasisLocalization.Get("camera.dollyZoomMax"), 5f, 120f, false, 1));
+                _dollyZoomMaxSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyZoomMax.description"));
+                _dollyZoomMaxSlider.OnValueChanged = v =>
+                {
+                    if (Stack != null) Stack.dollyZoom.maxFov = v;
+                };
+            });
+
+            BuildEffectBlock(content, BasisCameraEffectModifier.RigWeight, () =>
+            {
+                _rigWeightResponseSlider = PanelSlider.CreateNew(content);
+                _rigWeightResponseSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("camera.rigWeightResponse"), 0.5f, 12f, false, 1, ValueDisplayMode.Raw));
+                _rigWeightResponseSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.rigWeightResponse.description"));
+                _rigWeightResponseSlider.OnValueChanged = v =>
+                {
+                    if (Stack != null) Stack.rigWeight.responsiveness = v;
+                };
+
+                _rigWeightBounceSlider = PanelSlider.CreateNew(content);
+                _rigWeightBounceSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(
+                    BasisLocalization.Get("camera.rigWeightBounce")));
+                _rigWeightBounceSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.rigWeightBounce.description"));
+                _rigWeightBounceSlider.OnValueChanged = v =>
+                {
+                    if (Stack != null) Stack.rigWeight.bounce = v / 100f;
+                };
+            });
+
             BuildEffectBlock(content, BasisCameraEffectModifier.Shake, () =>
             {
                 _noiseProfileDropdown = PanelDropdown.CreateNewEntry(content);
                 _noiseProfileDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.noiseProfile"));
                 _noiseProfileDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.noiseProfile.description"));
-                _noiseProfileDropdown.AssignEntries(new List<string>(NoiseProfileLabels));
+                _noiseProfileDropdown.AssignLocalizedEntries(
+                    new List<string>(NoiseProfileKeys), new List<string>(NoiseProfileKeys));
                 _noiseProfileDropdown.OnValueChanged = _ =>
                 {
                     int index = _noiseProfileDropdown != null ? _noiseProfileDropdown.Index : -1;
@@ -848,6 +1023,7 @@ namespace Basis.BasisUI.HandHeldCamera
             };
 
             _effectRemoveRows[effect] = row;
+            _effectRemoveButtons[effect] = remove;
             buildControls();
         }
 
@@ -874,7 +1050,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastEffectSignature = signature;
 
             _addableEffects.Clear();
-            List<string> entries = new List<string> { BasisLocalization.Get("camera.modifier.addEffect") };
+            List<string> entries = new List<string> { "camera.modifier.addEffect" };
+            List<string> tooltipKeys = new List<string> { "camera.modifier.addEffect.description" };
 
             for (int Index = 0; Index < BasisCameraModifiers.Effects.Length; Index++)
             {
@@ -882,10 +1059,11 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (stack != null && stack.HasEffect(descriptor.Effect)) continue;
 
                 _addableEffects.Add(descriptor.Effect);
-                entries.Add(BasisLocalization.Get(descriptor.NameKey));
+                entries.Add(descriptor.NameKey);
+                tooltipKeys.Add(descriptor.DescriptionKey);
             }
 
-            _effectAddDropdown.AssignEntries(entries);
+            _effectAddDropdown.AssignLocalizedEntries(entries, entries, tooltipKeys);
             _effectAddDropdown.SetValueWithoutNotify(entries[0]);
         }
 
@@ -985,6 +1163,19 @@ namespace Basis.BasisUI.HandHeldCamera
                 RefreshWaypointList();
             };
 
+            _dollySyncDropdown = PanelDropdown.CreateNewEntry(content);
+            _dollySyncDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.dollySync"));
+            _dollySyncDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.dollySync.description"));
+            _dollySyncDropdown.AssignLocalizedEntries(
+                new List<string>(DollySyncKeys), new List<string>(DollySyncKeys));
+            _dollySyncDropdown.OnValueChanged = _ =>
+            {
+                int index = _dollySyncDropdown != null ? _dollySyncDropdown.Index : -1;
+                if (_activeCamera == null || index < 0 || index >= DollySyncKeys.Length) return;
+
+                _activeCamera.SetDollySync((BasisCameraDollySync)index);
+            };
+
             _dollyLoopToggle = PanelToggle.CreateNewEntry(content);
             _dollyLoopToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyLoop"));
             _dollyLoopToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyLoop.description"));
@@ -1029,7 +1220,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _backgroundModeDropdown = PanelDropdown.CreateNewEntry(content);
             _backgroundModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.backgroundMode"));
             _backgroundModeDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.backgroundMode.description"));
-            _backgroundModeDropdown.AssignEntries(new List<string>(BackgroundModeLabels));
+            _backgroundModeDropdown.AssignLocalizedEntries(
+                new List<string>(BackgroundModeKeys), new List<string>(BackgroundModeKeys));
             _backgroundModeDropdown.OnValueChanged = _ =>
             {
                 if (_activeCamera == null || _backgroundModeDropdown == null) return;
@@ -1084,12 +1276,9 @@ namespace Basis.BasisUI.HandHeldCamera
             BasisCameraModifierStack stack = Stack;
             if (stack == null) return;
 
-            _subjectDropdown?.SetValueWithoutNotify(
-                BasisLocalization.Get(BasisCameraModifiers.NameKey(stack.subject.modifier)));
-            _positionDropdown?.SetValueWithoutNotify(
-                BasisLocalization.Get(BasisCameraModifiers.NameKey(stack.positionModifier)));
-            _rotationDropdown?.SetValueWithoutNotify(
-                BasisLocalization.Get(BasisCameraModifiers.NameKey(stack.rotationModifier)));
+            _subjectDropdown?.SetValueWithoutNotify(BasisCameraModifiers.NameKey(stack.subject.modifier));
+            _positionDropdown?.SetValueWithoutNotify(BasisCameraModifiers.NameKey(stack.positionModifier));
+            _rotationDropdown?.SetValueWithoutNotify(BasisCameraModifiers.NameKey(stack.rotationModifier));
 
             bool framing = stack.positionModifier == BasisCameraPositionModifier.FrameSubject;
             Vector3 offset = framing ? stack.framing.directionOffset : stack.follow.positionOffset;
@@ -1097,7 +1286,7 @@ namespace Basis.BasisUI.HandHeldCamera
             BasisCameraBindingMode binding = framing ? stack.framing.bindingMode : stack.follow.bindingMode;
             float teleport = framing ? stack.framing.teleportDistance : stack.follow.teleportDistance;
 
-            _bindingModeDropdown?.SetValueWithoutNotify(BindingModeLabels[(int)binding]);
+            _bindingModeDropdown?.SetValueWithoutNotify(BindingModeKeys[(int)binding]);
             _placeOffsetXSlider?.SetValueWithoutNotify(offset.x);
             _placeOffsetYSlider?.SetValueWithoutNotify(offset.y);
             _placeOffsetZSlider?.SetValueWithoutNotify(offset.z);
@@ -1123,7 +1312,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _orbitBottomHeightSlider?.SetValueWithoutNotify(stack.orbit.bottom.height);
             _orbitBottomRadiusSlider?.SetValueWithoutNotify(stack.orbit.bottom.radius);
 
-            _dollyAutoTrackToggle?.SetValueWithoutNotify(stack.dolly.autoTrack);
+            _dollyModeDropdown?.SetValueWithoutNotify(DollyModeKeys[(int)stack.dolly.mode]);
             _dollyPositionSlider?.SetValueWithoutNotify(stack.dolly.position);
             _dollySpeedSlider?.SetValueWithoutNotify(stack.dolly.speed);
             _dollyDampSlider?.SetValueWithoutNotify(stack.dolly.damping);
@@ -1163,12 +1352,24 @@ namespace Basis.BasisUI.HandHeldCamera
             _occlusionReturnSlider?.SetValueWithoutNotify(stack.occlusion.returnDamping);
             _occlusionRadiusSlider?.SetValueWithoutNotify(stack.occlusion.probeRadius);
 
-            _noiseProfileDropdown?.SetValueWithoutNotify(NoiseProfileLabels[(int)stack.shake.profile]);
+            _noiseProfileDropdown?.SetValueWithoutNotify(NoiseProfileKeys[(int)stack.shake.profile]);
             _noiseAmplitudeSlider?.SetValueWithoutNotify(stack.shake.amplitudeGain);
             _noiseFrequencySlider?.SetValueWithoutNotify(stack.shake.frequencyGain);
 
             _lensFovSlider?.SetValueWithoutNotify(stack.lens.fov);
             _lensDampSlider?.SetValueWithoutNotify(stack.lens.damping);
+
+            _steadySmoothingSlider?.SetValueWithoutNotify(stack.steady.smoothing);
+            _steadyDeadZoneSlider?.SetValueWithoutNotify(stack.steady.verticalDeadZone);
+
+            _collisionRadiusSlider?.SetValueWithoutNotify(stack.collision.radius);
+            _collisionPaddingSlider?.SetValueWithoutNotify(stack.collision.padding);
+
+            _dollyZoomMinSlider?.SetValueWithoutNotify(stack.dollyZoom.minFov);
+            _dollyZoomMaxSlider?.SetValueWithoutNotify(stack.dollyZoom.maxFov);
+
+            _rigWeightResponseSlider?.SetValueWithoutNotify(stack.rigWeight.responsiveness);
+            _rigWeightBounceSlider?.SetValueWithoutNotify(stack.rigWeight.bounce * 100f);
 
             _lastSubjectModifier = stack.subject.modifier;
             _lastPositionModifier = stack.positionModifier;
@@ -1191,9 +1392,10 @@ namespace Basis.BasisUI.HandHeldCamera
                 _dollyVisibleToggle?.SetValueWithoutNotify(_activeCamera.DollyTrack.Visible);
                 _dollyGridSnapToggle?.SetValueWithoutNotify(_activeCamera.DollyTrack.GridSnap);
                 _dollyGridSizeSlider?.SetValueWithoutNotify(_activeCamera.DollyTrack.GridSize);
+                _dollySyncDropdown?.SetValueWithoutNotify(DollySyncKeys[(int)_activeCamera.Modifiers.dolly.syncMode]);
             }
 
-            _backgroundModeDropdown?.SetValueWithoutNotify(BackgroundModeLabels[(int)_activeCamera.backgroundMode]);
+            _backgroundModeDropdown?.SetValueWithoutNotify(BackgroundModeKeys[(int)_activeCamera.backgroundMode]);
             _backgroundKeepWorldToggle?.SetValueWithoutNotify(_activeCamera.backgroundKeepsWorld);
             _backgroundRedSlider?.SetValueWithoutNotify(_activeCamera.backgroundCustomColor.r);
             _backgroundGreenSlider?.SetValueWithoutNotify(_activeCamera.backgroundCustomColor.g);
@@ -1259,9 +1461,13 @@ namespace Basis.BasisUI.HandHeldCamera
             _orbitBottomHeightSlider?.gameObject.SetActive(orbit);
             _orbitBottomRadiusSlider?.gameObject.SetActive(orbit);
 
-            _dollyAutoTrackToggle?.gameObject.SetActive(dolly);
-            _dollyPositionSlider?.gameObject.SetActive(dolly && !stack.dolly.autoTrack);
-            _dollySpeedSlider?.gameObject.SetActive(dolly && !stack.dolly.autoTrack);
+            _dollyModeDropdown?.gameObject.SetActive(dolly);
+            if (_dollyTransportRow != null)
+            {
+                _dollyTransportRow.gameObject.SetActive(dolly && stack.dolly.mode == BasisCameraDollyMode.Play);
+            }
+            _dollyPositionSlider?.gameObject.SetActive(dolly && stack.dolly.mode == BasisCameraDollyMode.Manual);
+            _dollySpeedSlider?.gameObject.SetActive(dolly && stack.dolly.mode == BasisCameraDollyMode.Play);
             _dollyDampSlider?.gameObject.SetActive(dolly);
             _dollyOffsetXSlider?.gameObject.SetActive(dolly);
             _dollyOffsetYSlider?.gameObject.SetActive(dolly);
@@ -1299,11 +1505,19 @@ namespace Basis.BasisUI.HandHeldCamera
             bool occlusion = stack.HasEffect(BasisCameraEffectModifier.AvoidOcclusion);
             bool shake = stack.HasEffect(BasisCameraEffectModifier.Shake);
             bool lens = stack.HasEffect(BasisCameraEffectModifier.LensOverride);
+            bool steady = stack.HasEffect(BasisCameraEffectModifier.SteadySubject);
+            bool collision = stack.HasEffect(BasisCameraEffectModifier.AvoidCollision);
+            bool dollyZoom = stack.HasEffect(BasisCameraEffectModifier.DollyZoom);
+            bool rigWeight = stack.HasEffect(BasisCameraEffectModifier.RigWeight);
 
             SetEffectRowActive(BasisCameraEffectModifier.LookAhead, lookAhead);
             SetEffectRowActive(BasisCameraEffectModifier.AvoidOcclusion, occlusion);
             SetEffectRowActive(BasisCameraEffectModifier.Shake, shake);
             SetEffectRowActive(BasisCameraEffectModifier.LensOverride, lens);
+            SetEffectRowActive(BasisCameraEffectModifier.SteadySubject, steady);
+            SetEffectRowActive(BasisCameraEffectModifier.AvoidCollision, collision);
+            SetEffectRowActive(BasisCameraEffectModifier.DollyZoom, dollyZoom);
+            SetEffectRowActive(BasisCameraEffectModifier.RigWeight, rigWeight);
 
             _lookAheadTimeSlider?.gameObject.SetActive(lookAhead);
             _lookAheadLimitSlider?.gameObject.SetActive(lookAhead);
@@ -1320,6 +1534,20 @@ namespace Basis.BasisUI.HandHeldCamera
             _lensFovSlider?.gameObject.SetActive(lens);
             _lensDampSlider?.gameObject.SetActive(lens);
 
+            _steadySmoothingSlider?.gameObject.SetActive(steady);
+            _steadyDeadZoneSlider?.gameObject.SetActive(steady);
+
+            _collisionRadiusSlider?.gameObject.SetActive(collision);
+            _collisionPaddingSlider?.gameObject.SetActive(collision);
+
+            _dollyZoomMinSlider?.gameObject.SetActive(dollyZoom);
+            _dollyZoomMaxSlider?.gameObject.SetActive(dollyZoom);
+
+            _rigWeightResponseSlider?.gameObject.SetActive(rigWeight);
+            _rigWeightBounceSlider?.gameObject.SetActive(rigWeight);
+
+            RefreshEffectSubjectNotices(stack);
+
             _modifierEffectsEmptyState?.gameObject.SetActive(stack.EffectCount == 0);
 
             // The dolly section stays put whatever is fitted. A track is normally laid out with
@@ -1334,11 +1562,47 @@ namespace Basis.BasisUI.HandHeldCamera
             ForceLayoutRebuild(_modifierEffectsGroup);
         }
 
+        /// <summary>
+        /// Keeps the play button honest. The move can end on its own when an open track runs out,
+        /// so the label is driven by what the camera is actually doing rather than by the click.
+        /// </summary>
+        private void RefreshDollyTransport()
+        {
+            if (_activeCamera == null || _dollyPlayButton == null) return;
+
+            bool playing = _activeCamera.IsDollyPlaying;
+            if (_lastDollyPlaying == playing) return;
+            _lastDollyPlaying = playing;
+
+            _dollyPlayButton.Descriptor.SetTitle(BasisLocalization.Get(
+                playing ? "camera.dollyPause" : "camera.dollyPlay"));
+        }
+
         private void SetEffectRowActive(BasisCameraEffectModifier effect, bool active)
         {
             if (_effectRemoveRows.TryGetValue(effect, out RectTransform row) && row != null)
             {
                 row.gameObject.SetActive(active);
+            }
+        }
+
+        /// <summary>
+        /// Says so on the row when a fitted effect has nothing to work on. The subject slot is on
+        /// another page, so an effect that has quietly stopped mattering because the slot was
+        /// emptied would otherwise look exactly like one that is running.
+        /// </summary>
+        private void RefreshEffectSubjectNotices(BasisCameraModifierStack stack)
+        {
+            bool hasSubject = stack.ResolvesSubject;
+
+            foreach (KeyValuePair<BasisCameraEffectModifier, PanelButton> pair in _effectRemoveButtons)
+            {
+                if (pair.Value == null || pair.Value.Descriptor == null) continue;
+
+                bool idle = !hasSubject && BasisCameraModifiers.NeedsSubject(pair.Key);
+                pair.Value.Descriptor.SetDescription(BasisLocalization.Get(idle
+                    ? "camera.modifier.needsSubject"
+                    : BasisCameraModifiers.DescriptionKey(pair.Key)));
             }
         }
 
@@ -1362,6 +1626,7 @@ namespace Basis.BasisUI.HandHeldCamera
             if (_activeCamera == null) return;
 
             SyncModifierSlots();
+            RefreshDollyTransport();
             RefreshEffectList();
             RefreshWaypointList();
             RefreshCompositionGuides();
@@ -1467,7 +1732,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _orbitMidRadiusSlider = null;
             _orbitBottomHeightSlider = null;
             _orbitBottomRadiusSlider = null;
-            _dollyAutoTrackToggle = null;
+            _dollyModeDropdown = null;
+            _dollyTransportRow = null;
+            _dollyPlayButton = null;
+            _lastDollyPlaying = null;
             _dollyPositionSlider = null;
             _dollySpeedSlider = null;
             _dollyDampSlider = null;
@@ -1507,7 +1775,16 @@ namespace Basis.BasisUI.HandHeldCamera
             _noiseFrequencySlider = null;
             _lensFovSlider = null;
             _lensDampSlider = null;
+            _steadySmoothingSlider = null;
+            _steadyDeadZoneSlider = null;
+            _collisionRadiusSlider = null;
+            _collisionPaddingSlider = null;
+            _dollyZoomMinSlider = null;
+            _dollyZoomMaxSlider = null;
+            _rigWeightResponseSlider = null;
+            _rigWeightBounceSlider = null;
             _effectRemoveRows.Clear();
+            _effectRemoveButtons.Clear();
             _addableEffects.Clear();
             _lastEffectSignature = -1;
             _subjectDropdown = null;
@@ -1523,6 +1800,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _waypointOrderSlider = null;
             _dollyLoopToggle = null;
             _dollyVisibleToggle = null;
+            _dollySyncDropdown = null;
             _dollyGridSnapToggle = null;
             _dollyGridSizeSlider = null;
             _dollyEmptyState = null;

@@ -40,6 +40,7 @@ namespace Basis.Tests.Camera
         public readonly WhiteBalance WhiteBalance;
         public readonly LensDistortion LensDistortion;
         public readonly MotionBlur MotionBlur;
+        public readonly PaniniProjection PaniniProjection;
 
         public readonly Slider FovSlider;
         public readonly Slider ExposureSlider;
@@ -72,6 +73,7 @@ namespace Basis.Tests.Camera
             WhiteBalance = NewOverride<WhiteBalance>();
             LensDistortion = NewOverride<LensDistortion>();
             MotionBlur = NewOverride<MotionBlur>();
+            PaniniProjection = NewOverride<PaniniProjection>();
 
             BasisHandHeldCameraMetaData metaData = Camera.MetaData;
             metaData.depthOfField = DepthOfField;
@@ -83,6 +85,7 @@ namespace Basis.Tests.Camera
             metaData.whiteBalance = WhiteBalance;
             metaData.lensDistortion = LensDistortion;
             metaData.motionBlur = MotionBlur;
+            metaData.paniniProjection = PaniniProjection;
 
             // Mirrors CachePostProcessingReferences: colour grading is always live, the added
             // effects start switched off so an unconfigured one never alters the shot.
@@ -93,6 +96,7 @@ namespace Basis.Tests.Camera
             WhiteBalance.active = false;
             LensDistortion.active = false;
             MotionBlur.active = false;
+            PaniniProjection.active = false;
 
             // Ranges copied from SetupSliderRanges. A Slider defaults to 0..1, so without these
             // every value the settings carry would be clamped away on the way in.
@@ -150,6 +154,10 @@ namespace Basis.Tests.Camera
                 dofFocalLength = 85f,
                 dofBladeCount = 7,
                 useManualFocus = false,
+                focusPeaking = true,
+                focusPeakingSensitivity = 0.72f,
+                focusPeakingColour = 2,
+                focusPeakingGreyPicture = true,
                 VolumetricFogVolumedensity = 0.42f,
                 VolumetricFogenableAPVContribution = false,
                 VolumetricFogenableMainLightContribution = false,
@@ -159,6 +167,12 @@ namespace Basis.Tests.Camera
                 whiteBalanceTemperature = 18f,
                 whiteBalanceTint = -12f,
                 lensDistortion = 0.4f,
+                lensDistortionScale = 1.35f,
+                bloomScatter = 0.45f,
+                vignetteSmoothness = 0.65f,
+                paniniDistance = 0.55f,
+                paniniCropToFit = 0.3f,
+                captureTonemapping = (int)UnityEngine.Rendering.Universal.TonemappingMode.Neutral,
                 motionBlurIntensity = 0.6f,
                 motionBlurClamp = 0.12f,
                 motionBlurQuality = 2,
@@ -180,6 +194,7 @@ namespace Basis.Tests.Camera
                 videoWidth = 1280,
                 videoQuality = 65,
                 videoTimeLimit = false,
+                videoContinuousClips = true,
                 backgroundMode = (int)BasisCameraBackgroundMode.BlueScreen,
                 backgroundCustomColor = new Color(0.1f, 0.2f, 0.3f, 1f),
                 backgroundKeepsWorld = true,
@@ -214,7 +229,8 @@ namespace Basis.Tests.Camera
             stack.framing.teleportDistance = 16f;
 
             stack.dolly.position = 3.5f;
-            stack.dolly.autoTrack = false;
+            stack.dolly.mode = BasisCameraDollyMode.Play;
+            stack.dolly.playing = true;
             stack.dolly.damping = 0.75f;
             stack.dolly.speed = 1.25f;
             stack.dolly.offset = new Vector3(0.2f, 0.3f, 0.4f);
@@ -261,6 +277,18 @@ namespace Basis.Tests.Camera
             stack.lens.fov = 62f;
             stack.lens.damping = 1.1f;
 
+            stack.steady.smoothing = 0.42f;
+            stack.steady.verticalDeadZone = 0.28f;
+
+            stack.collision.radius = 0.33f;
+            stack.collision.padding = 0.17f;
+
+            stack.dollyZoom.minFov = 18f;
+            stack.dollyZoom.maxFov = 88f;
+
+            stack.rigWeight.responsiveness = 3.5f;
+            stack.rigWeight.bounce = 0.7f;
+
             stack.subject.modifier = BasisCameraSubjectModifier.TargetGroup;
             stack.subject.anchorToBody = false;
             stack.subject.aimHeightOffset = -0.35f;
@@ -270,6 +298,8 @@ namespace Basis.Tests.Camera
 
             stack.AddEffect(BasisCameraEffectModifier.LookAhead);
             stack.AddEffect(BasisCameraEffectModifier.Shake);
+            stack.AddEffect(BasisCameraEffectModifier.SteadySubject);
+            stack.AddEffect(BasisCameraEffectModifier.RigWeight);
 
             return stack;
         }

@@ -29,6 +29,7 @@ namespace Basis.Cinematics
         private bool hasAppliedColor;
         private float appliedScale = -1f;
         private bool appliedVisible = true;
+        private bool appliedMovable = true;
 
         public Vector3 Position => transform.position;
         public Quaternion Rotation => transform.rotation;
@@ -111,6 +112,36 @@ namespace Basis.Cinematics
 
         public Color Color => markerColor;
 
+        /// <summary>
+        /// Whether this point can be picked up at all. A locked track is one you can see and ride
+        /// but not reshape, which is the whole of what read-only means.
+        ///
+        /// <para>⚠️ Edge-triggered on purpose. <c>InteractableEnabled</c>'s setter runs
+        /// <c>ClearAllInfluencing()</c> on every write of false, not only on a change, so writing
+        /// it per frame tears down hover state continuously.</para>
+        /// </summary>
+        public void SetMovable(bool movable)
+        {
+            if (movable == appliedMovable)
+            {
+                return;
+            }
+            appliedMovable = movable;
+            ApplyPickupEnabled();
+        }
+
+        /// <summary>
+        /// A point is grabbable only while it is both shown and movable, so the two gates cannot
+        /// disagree about what the pickup should be doing.
+        /// </summary>
+        private void ApplyPickupEnabled()
+        {
+            if (Pickup != null)
+            {
+                Pickup.InteractableEnabled = appliedVisible && appliedMovable;
+            }
+        }
+
         public void SetVisible(bool visible)
         {
             if (visible == appliedVisible)
@@ -123,10 +154,7 @@ namespace Basis.Cinematics
             {
                 markerRenderer.enabled = visible;
             }
-            if (Pickup != null)
-            {
-                Pickup.InteractableEnabled = visible;
-            }
+            ApplyPickupEnabled();
         }
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");

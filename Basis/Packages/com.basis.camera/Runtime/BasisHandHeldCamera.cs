@@ -357,6 +357,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisCullingCameraRegistry.Unregister(captureCamera);
         BasisMirrorViewerRegistry.Unregister(captureCamera);
         ReleaseRenderTexture();
+        ReleaseFocusPeaking();
         if (pooledScreenshot != null) { Destroy(pooledScreenshot); pooledScreenshot = null; }
         ReleaseSrgbResolveTarget();
         if (actualMaterial != null) { Destroy(actualMaterial); actualMaterial = null; }
@@ -623,7 +624,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         if (MetaData.Profile.TryGet(out MetaData.tonemapping))
         {
-            ToggleToneMapping(TonemappingMode.Neutral);
+            ToggleToneMapping(PreviewTonemapping);
         }
     }
 
@@ -943,15 +944,27 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (CameraData.antialiasingQuality != AQ)
             CameraData.antialiasingQuality = AQ;
 
-        if (actualMaterial != lastAssignedMaterial || renderTexture != lastAssignedRenderTexture || textureChanged)
-        {
-            actualMaterial.SetTexture("_MainTex", renderTexture);
-            actualMaterial.mainTexture = renderTexture;
-            Renderer.sharedMaterial = actualMaterial;
-            lastAssignedMaterial = actualMaterial;
-            lastAssignedRenderTexture = renderTexture;
-            ApplyViewfinderCrop();
-        }
+        BindViewfinderFeed(textureChanged);
+    }
+
+    /// <summary>
+    /// Points the prop's viewfinder mesh at whatever is currently being shown — the feed, or the
+    /// focus-peaking overlay of it. Change-gated, since it is called from the per-frame tick as
+    /// well as from every resize.
+    /// </summary>
+    private void BindViewfinderFeed(bool force = false)
+    {
+        if (actualMaterial == null) return;
+
+        RenderTexture feed = ViewfinderTexture;
+        if (!force && actualMaterial == lastAssignedMaterial && feed == lastAssignedRenderTexture) return;
+
+        actualMaterial.SetTexture("_MainTex", feed);
+        actualMaterial.mainTexture = feed;
+        if (Renderer != null) Renderer.sharedMaterial = actualMaterial;
+        lastAssignedMaterial = actualMaterial;
+        lastAssignedRenderTexture = feed;
+        ApplyViewfinderCrop();
     }
 
     /// <summary>
@@ -1035,7 +1048,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         yield return new WaitForEndOfFrame();
 
         BasisLocalAvatarDriver.ScaleHeadToNormal();
-        ToggleToneMapping(TonemappingMode.ACES);
+        ToggleToneMapping(CaptureTonemapping);
 
         captureCamera.Render();
 
@@ -1305,6 +1318,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         UpdateRenderGate();
 
+        // Before every surface that binds a feed, so they are pointed at the overlay for the frame
+        // it was produced in rather than the frame after.
+        TickFocusPeaking();
+
         if (IsOverridingDesktopView)
         {
             UpdateDirectToScreenTexture();
@@ -1341,8 +1358,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.depth = -1;
         captureCamera.targetDisplay = 0;
         captureCamera.targetTexture = renderTexture;
-        actualMaterial.mainTexture = renderTexture;
-        actualMaterial.SetTexture("_MainTex", renderTexture);
+        BindViewfinderFeed(true);
 
         SetDirectToScreenOverlayActive(IsOverridingDesktopView);
 
@@ -1437,7 +1453,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public void SetNormalAfterCapture()
     {
         captureInFlight = false;
-        ToggleToneMapping(TonemappingMode.Neutral);
+        ToggleToneMapping(PreviewTonemapping);
         BasisLocalAvatarDriver.ScaleHeadToZero();
         ApplyPreviewResolution();
     }
@@ -1445,7 +1461,29 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Sets the URP tonemapping mode on the active profile.</summary>
     public void ToggleToneMapping(TonemappingMode mappingMode)
     {
+        if (MetaData.tonemapping == null) return;
         MetaData.tonemapping.mode.value = mappingMode;
+    }
+
+    /// <summary>
+    /// What the viewfinder is graded with. Fixed: the preview is rendered at a different resolution
+    /// and exposure to the still, and a viewfinder whose grade moved under the operator would make
+    /// the two harder to compare rather than easier.
+    /// </summary>
+    public const TonemappingMode PreviewTonemapping = TonemappingMode.Neutral;
+
+    /// <summary>
+    /// Which tonemapper the saved photo is graded with. ACES by default, which is what the capture
+    /// path always used before this was a choice.
+    /// </summary>
+    public TonemappingMode CaptureTonemapping { get; private set; } = TonemappingMode.ACES;
+
+    /// <summary>Sets the still's grade from a persisted <see cref="TonemappingMode"/> value.</summary>
+    public void SetCaptureTonemapping(int mode)
+    {
+        CaptureTonemapping = System.Enum.IsDefined(typeof(TonemappingMode), mode)
+            ? (TonemappingMode)mode
+            : TonemappingMode.ACES;
     }
 
     /// <summary>Boot-mode swap handler (keeps overrides in sync).</summary>

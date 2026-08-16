@@ -101,6 +101,17 @@ namespace Basis.Scripts.Drivers
         public float NamePlateHeightAboveHipsModel;
 
         /// <summary>
+        /// Turns the animator root's world rotation into the direction this avatar is FACING —
+        /// <c>AvatarAnimatorTransform.rotation * DerivedRootToCharacterBasis</c>. The root pose the
+        /// bone jobs write is backed out of the hips' parent and carries whatever the exporter
+        /// baked above the skeleton, so on its own it is not a facing on every rig; see
+        /// <see cref="BasisGenericBoneRotationUtils.GetDerivedRootToCharacterBasis"/>. Identity for
+        /// a rig with hips straight off a +Z-facing root, and identity until calibration has
+        /// measured the avatar.
+        /// </summary>
+        public Quaternion DerivedRootToCharacterBasis = Quaternion.identity;
+
+        /// <summary>
         /// Tracks whether this avatar has been registered with the remote bone job system.
         /// </summary>
         public bool InBoneDriver = false;
@@ -466,6 +477,12 @@ namespace Basis.Scripts.Drivers
                 BasisGenericBoneRotationUtils.GetRestFrame(References, HumanBodyBones.Hips),
                 BasisGenericBoneRotationUtils.GetRestLocal(References, HumanBodyBones.Hips),
                 out quaternion hipsDecodePre, out quaternion hipsDecodePost);
+
+            // Measured off the same two rest rotations, here rather than per frame: the difference
+            // between them is exactly what the derived root pose below carries on top of this
+            // avatar's facing, and anything aiming at the player (the follow camera) has to divide
+            // it back out.
+            DerivedRootToCharacterBasis = BasisGenericBoneRotationUtils.GetDerivedRootToCharacterBasis(References);
 
             // Initialize this player's interpolation slot before registering it with the bone
             // job system. The bone Schedule reads _filtered*[playerId] earlier in LateUpdate than

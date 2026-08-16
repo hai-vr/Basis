@@ -553,7 +553,18 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         if (root != null)
         {
             root.GetPositionAndRotation(out rootPos, out Quaternion rootRot);
-            yaw = FlattenToYaw(rootRot);
+
+            // The root's own rotation is NOT which way they are facing. The remote pipeline backs
+            // that pose out of the hips' PARENT, so it carries whatever the exporter baked between
+            // the animator and the skeleton, and the animator root is not the anatomical frame
+            // either — a model authored facing −Z is a legal humanoid rig. Neither shows in the
+            // avatar (hips are applied in world space and the mesh follows them), so the camera was
+            // the only thing that could see it: on those rigs the shot set up 180° out and filmed
+            // the subject from behind. The correction is a per-avatar constant measured at
+            // calibration, and identity on a rig with hips straight off a +Z-facing root.
+            yaw = FlattenToYaw(rootRot * (remote.RemoteAvatarDriver != null
+                ? remote.RemoteAvatarDriver.DerivedRootToCharacterBasis
+                : Quaternion.identity));
             lastRemoteBodyYaw = yaw;
             lastRemoteBodyYawSubject = netId;
         }
@@ -564,7 +575,10 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
             // The mouth marker's rotation is head facing, so driving the shot from it swings the
             // camera around the subject on every glance. Hold the last yaw read off their avatar
-            // root; the head only seeds a subject we have never had a body yaw for at all.
+            // root; the head only seeds a subject we have never had a body yaw for at all. It is
+            // rig-dependent the same way the root is and cannot be corrected — reaching here means
+            // there is no avatar to have measured — but it only ever covers the frames before one
+            // has loaded.
             yaw = lastRemoteBodyYawSubject == netId ? lastRemoteBodyYaw : FlattenToYaw(headRot);
         }
 

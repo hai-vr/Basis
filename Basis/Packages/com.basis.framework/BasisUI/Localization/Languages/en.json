@@ -367,6 +367,10 @@
       "value": "Recording… {0} frames so far."
     },
     {
+      "key": "camera.video.status.recordingClip",
+      "value": "Recording clip {0}… {1} frames so far."
+    },
+    {
       "key": "camera.video.status.saving",
       "value": "Encoding frame {0} of {1}…"
     },
@@ -421,6 +425,14 @@
     {
       "key": "camera.video.timeLimit.description",
       "value": "Stop by itself after the length below. Off records until you press stop."
+    },
+    {
+      "key": "camera.video.autoNewClip",
+      "value": "Auto New Clip"
+    },
+    {
+      "key": "camera.video.autoNewClip.description",
+      "value": "At the length above, save the clip and start the next one straight away. Nothing is lost at the join, and recording runs until you press stop."
     },
     {
       "key": "camera.video.stopUnlimited",
@@ -499,6 +511,78 @@
       "value": "Number of aperture blades — the shape of out-of-focus highlights (Bokeh)."
     },
     {
+      "key": "camera.focusPeaking",
+      "value": "Focus Peaking"
+    },
+    {
+      "key": "camera.focusPeaking.description",
+      "value": "Tints whatever the lens has actually resolved, so focus can be judged on a preview this small. Viewfinder only — the overlay is drawn into a texture of its own and never reaches a photo, a recording or a stream."
+    },
+    {
+      "key": "camera.focusPeaking.colour",
+      "value": "Peak Colour"
+    },
+    {
+      "key": "camera.focusPeaking.colour.description",
+      "value": "Which colour resolved detail is painted."
+    },
+    {
+      "key": "camera.focusPeaking.red",
+      "value": "Red"
+    },
+    {
+      "key": "camera.focusPeaking.red.tooltip",
+      "value": "The default, and the colour least likely to be mistaken for part of a face or a skin tone."
+    },
+    {
+      "key": "camera.focusPeaking.green",
+      "value": "Green"
+    },
+    {
+      "key": "camera.focusPeaking.green.tooltip",
+      "value": "Reads clearly against red and orange subjects, where red peaks disappear."
+    },
+    {
+      "key": "camera.focusPeaking.blue",
+      "value": "Blue"
+    },
+    {
+      "key": "camera.focusPeaking.blue.tooltip",
+      "value": "For warm, sunlit scenes with no cool colour of their own."
+    },
+    {
+      "key": "camera.focusPeaking.yellow",
+      "value": "Yellow"
+    },
+    {
+      "key": "camera.focusPeaking.yellow.tooltip",
+      "value": "The brightest of the set, for a dark subject where the other colours are hard to pick out."
+    },
+    {
+      "key": "camera.focusPeaking.white",
+      "value": "White"
+    },
+    {
+      "key": "camera.focusPeaking.white.tooltip",
+      "value": "Neutral, for a saturated scene that fights every coloured overlay."
+    },
+    {
+      "key": "camera.focusPeaking.sensitivity",
+      "value": "Peak Sensitivity"
+    },
+    {
+      "key": "camera.focusPeaking.sensitivity.description",
+      "value": "How readily detail counts as resolved. Higher paints more of the frame; past a point film grain and noise start to peak too."
+    },
+    {
+      "key": "camera.focusPeaking.grey",
+      "value": "Grey The Picture"
+    },
+    {
+      "key": "camera.focusPeaking.grey.description",
+      "value": "Drains the colour out of everything but the peaks while peaking is on, which is what makes them unmistakable. The shot itself is unaffected."
+    },
+    {
       "key": "camera.exposureColour",
       "value": "Exposure & Colour"
     },
@@ -561,6 +645,78 @@
     {
       "key": "camera.lensDistortion",
       "value": "Lens Distortion"
+    },
+    {
+      "key": "camera.lensDistortionScale",
+      "value": "Distortion Scale"
+    },
+    {
+      "key": "camera.lensDistortionScale.description",
+      "value": "Zooms the image to cover the corners the distortion pulled in. Above 1 crops in, below 1 lets the edges show."
+    },
+    {
+      "key": "camera.bloomScatter",
+      "value": "Bloom Scatter"
+    },
+    {
+      "key": "camera.bloomScatter.description",
+      "value": "How far the glow spreads out from a highlight, as opposed to how bright it is. Higher is softer and wider."
+    },
+    {
+      "key": "camera.vignetteSmoothness",
+      "value": "Vignette Softness"
+    },
+    {
+      "key": "camera.vignetteSmoothness.description",
+      "value": "How far the darkening reaches in from the corners. Low is a hard circle, high fades across most of the frame."
+    },
+    {
+      "key": "camera.panini",
+      "value": "Panini Projection"
+    },
+    {
+      "key": "camera.panini.description",
+      "value": "Straightens the stretch a wide lens puts on anything near the edge of frame, the way a panorama is unwrapped. Zero is an ordinary shot."
+    },
+    {
+      "key": "camera.paniniCrop",
+      "value": "Crop To Fit"
+    },
+    {
+      "key": "camera.paniniCrop.description",
+      "value": "How much of the projection's own zoom is used to cover the edges it opened up."
+    },
+    {
+      "key": "camera.tonemapping",
+      "value": "Photo Grade"
+    },
+    {
+      "key": "camera.tonemapping.description",
+      "value": "Which tonemapper the saved photo is graded with. The viewfinder always shows Neutral, so a still is not expected to match it exactly."
+    },
+    {
+      "key": "camera.tonemapping.none",
+      "value": "None"
+    },
+    {
+      "key": "camera.tonemapping.none.description",
+      "value": "No grade at all. Bright areas clip rather than rolling off."
+    },
+    {
+      "key": "camera.tonemapping.neutral",
+      "value": "Neutral"
+    },
+    {
+      "key": "camera.tonemapping.neutral.description",
+      "value": "A light touch that keeps colours where they were. Matches the viewfinder."
+    },
+    {
+      "key": "camera.tonemapping.aces",
+      "value": "ACES"
+    },
+    {
+      "key": "camera.tonemapping.aces.description",
+      "value": "Filmic. Rolls highlights off gently and deepens contrast, which is what stops a bright scene going flat."
     },
     {
       "key": "camera.motionBlur",
@@ -12697,6 +12853,10 @@
       "value": "Modifiers"
     },
     {
+      "key": "camera.tab.effects",
+      "value": "Effects"
+    },
+    {
       "key": "camera.subject",
       "value": "Subject"
     },
@@ -12722,7 +12882,7 @@
     },
     {
       "key": "camera.modifier.effects.description",
-      "value": "Extras layered on top of the two slots."
+      "value": "Extras layered on top of the slots. Each can be fitted once, and each runs at the point in the solve where it makes sense — settling before anything films the subject, shake last of all."
     },
     {
       "key": "camera.modifier.addEffect",
@@ -12859,6 +13019,106 @@
     {
       "key": "camera.modifier.lensOverride.description",
       "value": "Drives the field of view from the stack instead of the lens slider."
+    },
+    {
+      "key": "camera.modifier.needsSubject",
+      "value": "Idle — this one needs somebody to film, and the Subject slot is empty."
+    },
+    {
+      "key": "camera.modifier.steadySubject",
+      "value": "Steady Subject"
+    },
+    {
+      "key": "camera.modifier.steadySubject.description",
+      "value": "Settles the subject before anything films them, so head bob and tracking jitter never reach the shot."
+    },
+    {
+      "key": "camera.modifier.avoidCollision",
+      "value": "Avoid Collision"
+    },
+    {
+      "key": "camera.modifier.avoidCollision.description",
+      "value": "Stops the camera travelling through anything solid on its way to where it is going."
+    },
+    {
+      "key": "camera.modifier.dollyZoom",
+      "value": "Dolly Zoom"
+    },
+    {
+      "key": "camera.modifier.dollyZoom.description",
+      "value": "Holds the subject the same size while the camera moves, so the world stretches away behind them."
+    },
+    {
+      "key": "camera.modifier.rigWeight",
+      "value": "Rig Weight"
+    },
+    {
+      "key": "camera.modifier.rigWeight.description",
+      "value": "Gives the rig weight, so a fast move carries past the mark and settles back onto it."
+    },
+    {
+      "key": "camera.steadySmoothing",
+      "value": "Settling"
+    },
+    {
+      "key": "camera.steadySmoothing.description",
+      "value": "Seconds of subject movement to average out before anything films them."
+    },
+    {
+      "key": "camera.steadyDeadZone",
+      "value": "Height Dead Zone"
+    },
+    {
+      "key": "camera.steadyDeadZone.description",
+      "value": "How far the subject may move up and down before the shot follows. Absorbs a jump or a crouch without the camera bobbing after it."
+    },
+    {
+      "key": "camera.collisionRadius",
+      "value": "Collision Radius"
+    },
+    {
+      "key": "camera.collisionRadius.description",
+      "value": "How much room the camera keeps around itself as it moves. Larger takes corners wider."
+    },
+    {
+      "key": "camera.collisionPadding",
+      "value": "Collision Clearance"
+    },
+    {
+      "key": "camera.collisionPadding.description",
+      "value": "Extra gap kept from whatever the camera would otherwise have hit."
+    },
+    {
+      "key": "camera.dollyZoomMin",
+      "value": "Narrowest Lens"
+    },
+    {
+      "key": "camera.dollyZoomMin.description",
+      "value": "Narrowest the lens may go while holding subject size. Reached by moving away from the subject."
+    },
+    {
+      "key": "camera.dollyZoomMax",
+      "value": "Widest Lens"
+    },
+    {
+      "key": "camera.dollyZoomMax.description",
+      "value": "Widest the lens may go while holding subject size. Reached by moving in toward the subject."
+    },
+    {
+      "key": "camera.rigWeightResponse",
+      "value": "Response"
+    },
+    {
+      "key": "camera.rigWeightResponse.description",
+      "value": "How quickly the rig catches up to where it is being aimed. Lower is heavier."
+    },
+    {
+      "key": "camera.rigWeightBounce",
+      "value": "Bounce"
+    },
+    {
+      "key": "camera.rigWeightBounce.description",
+      "value": "How far past the mark a fast move carries before settling. At zero the rig only lags, and never overshoots."
     },
     {
       "key": "camera.teleportDistance",
@@ -13071,6 +13331,206 @@
     {
       "key": "camera.dollyOffset.description",
       "value": "Rides the track at an offset from it, in the track's own frame."
+    },
+    {
+      "key": "camera.dollyMode",
+      "value": "Track Mode"
+    },
+    {
+      "key": "camera.dollyMode.description",
+      "value": "Manual scrubs the playhead by hand, Follow Subject slides to whoever is being filmed, and Play runs the move under the transport buttons."
+    },
+    {
+      "key": "camera.dollyPlay",
+      "value": "Play"
+    },
+    {
+      "key": "camera.dollyPlay.description",
+      "value": "Runs the camera along the track. An open track stops itself at the end; a looped one keeps going."
+    },
+    {
+      "key": "camera.dollyPause",
+      "value": "Pause"
+    },
+    {
+      "key": "camera.dollyRestart",
+      "value": "Restart"
+    },
+    {
+      "key": "camera.dollyRestart.description",
+      "value": "Sends the playhead back to the first waypoint."
+    },
+    {
+      "key": "camera.detachedMarker.off",
+      "value": "Off"
+    },
+    {
+      "key": "camera.detachedMarker.off.tooltip",
+      "value": "Nothing marks where the camera went. You will need Teleport To Me to get it back."
+    },
+    {
+      "key": "camera.detachedMarker.puck.tooltip",
+      "value": "A grabbable puck you can reach out and take hold of to fly the camera by hand."
+    },
+    {
+      "key": "camera.detachedMarker.wireframe.tooltip",
+      "value": "An outline of the camera drawn where it is, without anything to grab."
+    },
+    {
+      "key": "camera.bindingMode.subjectYaw",
+      "value": "Turns With Subject"
+    },
+    {
+      "key": "camera.bindingMode.subjectYaw.tooltip",
+      "value": "The offset turns as they turn, so the camera stays in front of them however they face."
+    },
+    {
+      "key": "camera.bindingMode.worldSpace",
+      "value": "World Axes"
+    },
+    {
+      "key": "camera.bindingMode.worldSpace.tooltip",
+      "value": "The offset is fixed to the world, so the subject can turn on the spot without moving the camera."
+    },
+    {
+      "key": "camera.bindingMode.simpleFollow",
+      "value": "Keep Current Side"
+    },
+    {
+      "key": "camera.bindingMode.simpleFollow.tooltip",
+      "value": "Holds the distance but keeps whatever side the camera is already on, so it never swings around them."
+    },
+    {
+      "key": "camera.noiseProfile.off",
+      "value": "Off"
+    },
+    {
+      "key": "camera.noiseProfile.off.tooltip",
+      "value": "Perfectly still."
+    },
+    {
+      "key": "camera.noiseProfile.handheld",
+      "value": "Handheld"
+    },
+    {
+      "key": "camera.noiseProfile.handheld.tooltip",
+      "value": "The small, slow drift of a camera held in someone's hands."
+    },
+    {
+      "key": "camera.noiseProfile.documentary",
+      "value": "Documentary"
+    },
+    {
+      "key": "camera.noiseProfile.documentary.tooltip",
+      "value": "Looser and more present than Handheld, as though the operator is moving with the scene."
+    },
+    {
+      "key": "camera.noiseProfile.drone",
+      "value": "Drone"
+    },
+    {
+      "key": "camera.noiseProfile.drone.tooltip",
+      "value": "Wide, slow float, like a camera hanging in the air."
+    },
+    {
+      "key": "camera.noiseProfile.shaky",
+      "value": "Shaky"
+    },
+    {
+      "key": "camera.noiseProfile.shaky.tooltip",
+      "value": "Fast and unsteady, for urgency."
+    },
+    {
+      "key": "camera.noiseProfile.custom",
+      "value": "Custom"
+    },
+    {
+      "key": "camera.noiseProfile.custom.tooltip",
+      "value": "Whatever the per-channel amounts were left at, rather than a named character."
+    },
+    {
+      "key": "camera.dollyMode.manual",
+      "value": "Manual"
+    },
+    {
+      "key": "camera.dollyMode.manual.tooltip",
+      "value": "You place the camera along the track with the playhead slider."
+    },
+    {
+      "key": "camera.dollyMode.followSubject",
+      "value": "Follow Subject"
+    },
+    {
+      "key": "camera.dollyMode.followSubject.tooltip",
+      "value": "Slides to whichever part of the track is nearest whoever is being filmed."
+    },
+    {
+      "key": "camera.dollyMode.play",
+      "value": "Play"
+    },
+    {
+      "key": "camera.dollyMode.play.tooltip",
+      "value": "Runs the move along the track under the Play and Restart buttons."
+    },
+    {
+      "key": "camera.background.world.tooltip",
+      "value": "The world as it is, behind the subject."
+    },
+    {
+      "key": "camera.background.greenScreen.tooltip",
+      "value": "Flat green behind the subject, with the world hidden, for keying out later."
+    },
+    {
+      "key": "camera.background.blueScreen.tooltip",
+      "value": "Flat blue behind the subject, for keying when the subject has green in it."
+    },
+    {
+      "key": "camera.background.black.tooltip",
+      "value": "Flat black behind the subject."
+    },
+    {
+      "key": "camera.background.white.tooltip",
+      "value": "Flat white behind the subject."
+    },
+    {
+      "key": "camera.background.magenta.tooltip",
+      "value": "Flat magenta behind the subject, for keying when the subject has both green and blue in it."
+    },
+    {
+      "key": "camera.background.custom.tooltip",
+      "value": "A colour you pick with the sliders below."
+    },
+    {
+      "key": "camera.dollySync",
+      "value": "Track Sharing"
+    },
+    {
+      "key": "camera.dollySync.description",
+      "value": "Whether anyone else in the instance can see this track, and whether they may move its points."
+    },
+    {
+      "key": "camera.dollySync.local",
+      "value": "Local Only"
+    },
+    {
+      "key": "camera.dollySync.local.tooltip",
+      "value": "Nobody else sees the track. Nothing is sent."
+    },
+    {
+      "key": "camera.dollySync.networked",
+      "value": "Shared"
+    },
+    {
+      "key": "camera.dollySync.networked.tooltip",
+      "value": "Everyone sees the track and anyone can pick a point up and move it, so a move can be built together."
+    },
+    {
+      "key": "camera.dollySync.locked",
+      "value": "Shared, Locked"
+    },
+    {
+      "key": "camera.dollySync.locked.tooltip",
+      "value": "Everyone sees the track but only you can move its points."
     },
     {
       "key": "camera.dolly",

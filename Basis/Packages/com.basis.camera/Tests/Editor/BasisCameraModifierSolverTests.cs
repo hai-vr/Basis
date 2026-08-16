@@ -457,7 +457,7 @@ namespace Basis.Tests.Camera
         public void TheCameraRidesToTheTrackPositionItWasGiven()
         {
             BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.DollyTrack);
-            stack.dolly.autoTrack = false;
+            stack.dolly.mode = BasisCameraDollyMode.Manual;
             stack.dolly.position = 1f;
 
             BasisCameraPose pose = StackFixture.Settle(stack, StackFixture.State(), TrackContext(StackFixture.Subject()));
@@ -470,7 +470,7 @@ namespace Basis.Tests.Camera
         public void AutoTrackSlidesToWhicheverPartOfTheTrackIsNearestTheSubject()
         {
             BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.DollyTrack);
-            stack.dolly.autoTrack = true;
+            stack.dolly.mode = BasisCameraDollyMode.FollowSubject;
 
             BasisCameraPose pose = StackFixture.Settle(stack, StackFixture.State(),
                 TrackContext(StackFixture.Subject(new Vector3(9.5f, 0f, 0f))));
@@ -512,7 +512,8 @@ namespace Basis.Tests.Camera
         public void TrackSpeedCarriesTheCameraAlongOverTime()
         {
             BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.DollyTrack);
-            stack.dolly.autoTrack = false;
+            stack.dolly.mode = BasisCameraDollyMode.Play;
+            stack.dolly.playing = true;
             stack.dolly.speed = 2f;
 
             BasisCameraModifierState state = StackFixture.State();
@@ -527,10 +528,90 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void APausedMoveHoldsThePlayheadExactlyWhereItGotTo()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.DollyTrack);
+            stack.dolly.mode = BasisCameraDollyMode.Play;
+            stack.dolly.playing = true;
+            stack.dolly.speed = 2f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            BasisCameraSolveContext context = TrackContext(StackFixture.Subject());
+
+            for (int Frame = 0; Frame < 30; Frame++)
+            {
+                BasisCameraModifierSolver.Solve(stack, state, context);
+            }
+
+            float paused = state.DollyPosition;
+            Assert.That(paused, Is.GreaterThan(0f), "It should have started moving.");
+
+            stack.dolly.playing = false;
+            for (int Frame = 0; Frame < 60; Frame++)
+            {
+                BasisCameraModifierSolver.Solve(stack, state, context);
+            }
+
+            Assert.That(state.DollyPosition, Is.EqualTo(paused).Within(1e-3f),
+                "Pausing must hold the playhead, not drift or snap back.");
+        }
+
+        [Test]
+        public void AnOpenTrackReportsTheMoveOverWhenItRunsOut()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.DollyTrack);
+            stack.dolly.mode = BasisCameraDollyMode.Play;
+            stack.dolly.playing = true;
+            stack.dolly.speed = 20f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            BasisCameraSolveContext context = TrackContext(StackFixture.Subject());
+
+            StackFixture.Settle(stack, state, context);
+
+            Assert.That(state.DollyCompleted, Is.True,
+                "A move that reaches the end of an open track has to say so, or the play button lies.");
+            Assert.That(state.DollyPosition,
+                Is.LessThanOrEqualTo(BasisCameraSpline.MaxPosition(3, false) + 1e-3f));
+        }
+
+        [Test]
+        public void ALoopedTrackNeverReportsTheMoveOver()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.DollyTrack);
+            stack.dolly.mode = BasisCameraDollyMode.Play;
+            stack.dolly.playing = true;
+            stack.dolly.speed = 20f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            StackFixture.Settle(stack, state, TrackContext(StackFixture.Subject(), looped: true));
+
+            Assert.That(state.DollyCompleted, Is.False, "A loop has no end to reach.");
+        }
+
+        [Test]
+        public void ManualModeIgnoresTheSpeedEntirely()
+        {
+            // The old behaviour silently ignored the position slider whenever speed was non-zero.
+            // The mode now says which one is in charge, so both keep meaning what they say.
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.DollyTrack);
+            stack.dolly.mode = BasisCameraDollyMode.Manual;
+            stack.dolly.position = 1f;
+            stack.dolly.speed = 5f;
+            stack.dolly.playing = true;
+
+            BasisCameraPose pose = StackFixture.Settle(stack, StackFixture.State(), TrackContext(StackFixture.Subject()));
+
+            Assert.That(pose.Position, Is.EqualTo(new Vector3(5f, 0f, 0f))
+                .Using(BasisCameraFollowModifierTests.Vec(1e-2f)),
+                "Manual mode must sit where the playhead says, whatever the speed is set to.");
+        }
+
+        [Test]
         public void TheDollyPositionIsClampedToTheTrackOnAnOpenPath()
         {
             BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.DollyTrack);
-            stack.dolly.autoTrack = false;
+            stack.dolly.mode = BasisCameraDollyMode.Manual;
             stack.dolly.position = 99f;
 
             BasisCameraModifierState state = StackFixture.State();
@@ -643,6 +724,470 @@ namespace Basis.Tests.Camera
             BasisCameraPose pose = StackFixture.Settle(stack, StackFixture.State(), StackFixture.Context());
 
             Assert.That(pose.Position.z, Is.EqualTo(4f).Within(1e-2f));
+        }
+    }
+
+    public class BasisCameraSteadySubjectEffectTests
+    {
+        private static BasisCameraModifierStack SteadyStack()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FollowSubject);
+            StackFixture.Offset(stack, new Vector3(0f, 0f, 2f));
+            StackFixture.Binding(stack, BasisCameraBindingMode.WorldSpace);
+            stack.follow.lateralTracking = 0f;
+            stack.steady.smoothing = 0.25f;
+            stack.steady.verticalDeadZone = 0f;
+            stack.AddEffect(BasisCameraEffectModifier.SteadySubject);
+            return stack;
+        }
+
+        [Test]
+        public void ASubjectThatJitters_LeavesTheCameraSteadierThanTheyAre()
+        {
+            BasisCameraModifierStack steady = SteadyStack();
+            BasisCameraModifierStack raw = SteadyStack();
+            raw.RemoveEffect(BasisCameraEffectModifier.SteadySubject);
+
+            BasisCameraModifierState steadyState = StackFixture.State();
+            BasisCameraModifierState rawState = StackFixture.State();
+
+            float steadyTravel = 0f;
+            float rawTravel = 0f;
+            Vector3 lastSteady = Vector3.zero;
+            Vector3 lastRaw = Vector3.zero;
+
+            for (int Frame = 0; Frame < 120; Frame++)
+            {
+                // A subject that ends every other frame back where they started: all wobble, no travel.
+                float wobble = (Frame % 2 == 0 ? 0.05f : -0.05f);
+                BasisCameraSolveContext context = StackFixture.Context(
+                    StackFixture.Subject(new Vector3(wobble, 0f, 0f)));
+
+                BasisCameraPose steadyPose = BasisCameraModifierSolver.Solve(steady, steadyState, context);
+                BasisCameraPose rawPose = BasisCameraModifierSolver.Solve(raw, rawState, context);
+
+                if (Frame > 10)
+                {
+                    steadyTravel += Vector3.Distance(steadyPose.Position, lastSteady);
+                    rawTravel += Vector3.Distance(rawPose.Position, lastRaw);
+                }
+                lastSteady = steadyPose.Position;
+                lastRaw = rawPose.Position;
+            }
+
+            Assert.That(steadyTravel, Is.LessThan(rawTravel * 0.5f),
+                "The filtered anchor should leave the camera moving far less than the raw one does.");
+        }
+
+        [Test]
+        public void TheAimPointMovesWithTheAnchor_SoTheShotStaysOnTheSubject()
+        {
+            BasisCameraModifierStack stack = SteadyStack();
+            stack.rotationModifier = BasisCameraRotationModifier.Hold;
+
+            BasisCameraModifierState state = StackFixture.State();
+            StackFixture.Settle(stack, state, StackFixture.Context());
+
+            // Once settled on a still subject the correction is spent, so the camera has to be
+            // exactly where it would have been with nothing fitted.
+            BasisCameraPose pose = StackFixture.Settle(stack, state, StackFixture.Context());
+            Assert.That(pose.Position, Is.EqualTo(new Vector3(0f, 0f, 2f))
+                .Using(BasisCameraFollowModifierTests.Vec(1e-3f)));
+        }
+
+        [Test]
+        public void TheDeadZoneAbsorbsAJumpThatLandsWhereItStarted()
+        {
+            BasisCameraModifierStack stack = SteadyStack();
+            stack.steady.smoothing = 0f;
+            stack.steady.verticalDeadZone = 0.5f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            StackFixture.Settle(stack, state, StackFixture.Context());
+            float restingHeight = state.Position.y;
+
+            BasisCameraPose mid = BasisCameraModifierSolver.Solve(stack, state,
+                StackFixture.Context(StackFixture.Subject(new Vector3(0f, 0.3f, 0f))));
+
+            Assert.That(mid.Position.y, Is.EqualTo(restingHeight).Within(1e-3f),
+                "A hop smaller than the dead zone must not move the shot at all.");
+        }
+
+        [Test]
+        public void MovementBeyondTheDeadZoneIsStillFollowed()
+        {
+            BasisCameraModifierStack stack = SteadyStack();
+            stack.steady.smoothing = 0f;
+            stack.steady.verticalDeadZone = 0.5f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            StackFixture.Settle(stack, state, StackFixture.Context());
+
+            BasisCameraPose pose = StackFixture.Settle(stack, state,
+                StackFixture.Context(StackFixture.Subject(new Vector3(0f, 4f, 0f))));
+
+            Assert.That(pose.Position.y, Is.EqualTo(4f - 0.5f).Within(1e-2f),
+                "Climbing a storey should carry the shot up, less the dead zone it spent getting out.");
+        }
+
+        [Test]
+        public void TheDeadZoneScalesWithTheAvatar()
+        {
+            BasisCameraModifierStack stack = SteadyStack();
+            stack.steady.smoothing = 0f;
+            stack.steady.verticalDeadZone = 0.5f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            StackFixture.Settle(stack, state, StackFixture.Context(StackFixture.Subject(scale: 2f)));
+
+            BasisCameraPose pose = StackFixture.Settle(stack, state,
+                StackFixture.Context(StackFixture.Subject(new Vector3(0f, 4f, 0f), scale: 2f)));
+
+            Assert.That(pose.Position.y, Is.EqualTo(4f - 1f).Within(1e-2f));
+        }
+
+        [Test]
+        public void TheFilterSurvivesTheModifiersThatResetSubjectHistoryEveryFrame()
+        {
+            // Orbit calls ResetSubjectHistory on every solve. If the settled anchor were cleared
+            // there too, the filter would re-seed each frame and the effect would do nothing.
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.Orbit);
+            stack.steady.smoothing = 0.5f;
+            stack.AddEffect(BasisCameraEffectModifier.SteadySubject);
+
+            BasisCameraModifierState state = StackFixture.State();
+            BasisCameraModifierSolver.Solve(stack, state, StackFixture.Context());
+            BasisCameraModifierSolver.Solve(stack, state, StackFixture.Context());
+
+            Assert.That(state.HasSteadyAnchor, Is.True);
+        }
+    }
+
+    public class BasisCameraCollisionEffectTests
+    {
+        private static BasisCameraModifierStack CollisionStack()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FreeFly);
+            stack.collision.radius = 0.2f;
+            stack.collision.padding = 0.1f;
+            stack.AddEffect(BasisCameraEffectModifier.AvoidCollision);
+            return stack;
+        }
+
+        private static BasisCameraSolveContext WithSweep(BasisCameraSolveContext context, float freeDistance, bool hit = true)
+        {
+            context.SweepProbe = (Vector3 origin, Vector3 direction, float distance, float radius, out float free) =>
+            {
+                free = freeDistance;
+                return hit;
+            };
+            return context;
+        }
+
+        [Test]
+        public void AWallInThePathStopsTheCameraShortOfIt()
+        {
+            BasisCameraModifierStack stack = CollisionStack();
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            BasisCameraSolveContext context = WithSweep(StackFixture.Context(), 1f);
+            context.OperatorPosition = new Vector3(0f, 0f, 5f);
+
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
+
+            Assert.That(pose.Position.z, Is.EqualTo(1f - 0.1f).Within(1e-3f),
+                "It should stop at the hit, less the clearance.");
+        }
+
+        [Test]
+        public void AClearPathIsTravelledInFull()
+        {
+            BasisCameraModifierStack stack = CollisionStack();
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            BasisCameraSolveContext context = WithSweep(StackFixture.Context(), 0f, hit: false);
+            context.OperatorPosition = new Vector3(0f, 0f, 5f);
+
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
+
+            Assert.That(pose.Position.z, Is.EqualTo(5f).Within(1e-3f));
+        }
+
+        [Test]
+        public void StartingInsideGeometryDoesNotPinTheCameraThere()
+        {
+            // A sweep that begins overlapping reports nothing free. Honouring that would leave the
+            // camera stuck wherever it was standing when the geometry arrived around it.
+            BasisCameraModifierStack stack = CollisionStack();
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            BasisCameraSolveContext context = WithSweep(StackFixture.Context(), 0f);
+            context.OperatorPosition = new Vector3(0f, 0f, 5f);
+
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
+
+            Assert.That(pose.Position.z, Is.EqualTo(5f).Within(1e-3f));
+        }
+
+        [Test]
+        public void ItNeverOvershootsThePathItWasAskedToTravel()
+        {
+            BasisCameraModifierStack stack = CollisionStack();
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            BasisCameraSolveContext context = WithSweep(StackFixture.Context(), 100f);
+            context.OperatorPosition = new Vector3(0f, 0f, 2f);
+
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
+
+            Assert.That(pose.Position.z, Is.EqualTo(2f).Within(1e-3f));
+        }
+
+        [Test]
+        public void AMissingProbeIsTreatedAsAnEmptyRoom()
+        {
+            BasisCameraModifierStack stack = CollisionStack();
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            BasisCameraSolveContext context = StackFixture.Context();
+            context.OperatorPosition = new Vector3(0f, 0f, 5f);
+
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
+
+            Assert.That(pose.Position.z, Is.EqualTo(5f).Within(1e-3f));
+        }
+    }
+
+    public class BasisCameraDollyZoomEffectTests
+    {
+        private static BasisCameraModifierStack DollyZoomStack()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FreeFly);
+            stack.dollyZoom.minFov = 5f;
+            stack.dollyZoom.maxFov = 120f;
+            stack.AddEffect(BasisCameraEffectModifier.DollyZoom);
+            return stack;
+        }
+
+        private static float ApparentSize(BasisCameraPose pose, Vector3 lookPoint)
+        {
+            float distance = Vector3.Distance(pose.Position, lookPoint);
+            return distance * Mathf.Tan(pose.Fov * 0.5f * Mathf.Deg2Rad);
+        }
+
+        [Test]
+        public void PullingBackWidensTheLensByExactlyWhatTheDistanceTook()
+        {
+            BasisCameraModifierStack stack = DollyZoomStack();
+            BasisCameraModifierState state = StackFixture.State();
+
+            BasisCameraSolveContext near = StackFixture.Context();
+            near.OperatorPosition = new Vector3(0f, 0f, 3f);
+            BasisCameraPose first = BasisCameraModifierSolver.Solve(stack, state, near);
+
+            BasisCameraSolveContext far = StackFixture.Context();
+            far.OperatorPosition = new Vector3(0f, 0f, 9f);
+            BasisCameraPose second = BasisCameraModifierSolver.Solve(stack, state, far);
+
+            Assert.That(second.Fov, Is.LessThan(first.Fov),
+                "Backing away has to narrow the lens to hold the subject the same size.");
+            Assert.That(ApparentSize(second, far.Subject.LookPoint),
+                Is.EqualTo(ApparentSize(first, near.Subject.LookPoint)).Within(1e-3f));
+        }
+
+        [Test]
+        public void TheLensStaysInsideItsAuthoredLimits()
+        {
+            BasisCameraModifierStack stack = DollyZoomStack();
+            stack.dollyZoom.minFov = 30f;
+            stack.dollyZoom.maxFov = 50f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            BasisCameraSolveContext near = StackFixture.Context();
+            near.OperatorPosition = new Vector3(0f, 0f, 3f);
+            BasisCameraModifierSolver.Solve(stack, state, near);
+
+            BasisCameraSolveContext miles = StackFixture.Context();
+            miles.OperatorPosition = new Vector3(0f, 0f, 400f);
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, miles);
+
+            Assert.That(pose.Fov, Is.EqualTo(30f).Within(1e-3f));
+        }
+
+        [Test]
+        public void TheReferenceIsTakenFromTheShotAsItStood()
+        {
+            BasisCameraModifierStack stack = DollyZoomStack();
+            BasisCameraModifierState state = StackFixture.State();
+
+            BasisCameraSolveContext context = StackFixture.Context();
+            context.OperatorPosition = new Vector3(0f, 0f, 3f);
+
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
+
+            Assert.That(pose.Fov, Is.EqualTo(context.Fov).Within(1e-3f),
+                "Fitting it must not move the lens on the frame it was fitted.");
+        }
+
+        [Test]
+        public void TheStackTakesTheLensChannelWhileItIsFitted()
+        {
+            BasisCameraModifierStack stack = DollyZoomStack();
+            Assert.That(stack.DrivesLens, Is.True);
+
+            stack.RemoveEffect(BasisCameraEffectModifier.DollyZoom);
+            Assert.That(stack.DrivesLens, Is.False);
+        }
+
+        [Test]
+        public void ReseedingRetakesTheReference()
+        {
+            BasisCameraModifierStack stack = DollyZoomStack();
+            BasisCameraModifierState state = StackFixture.State();
+
+            BasisCameraSolveContext near = StackFixture.Context();
+            near.OperatorPosition = new Vector3(0f, 0f, 3f);
+            BasisCameraModifierSolver.Solve(stack, state, near);
+
+            state.Reseed();
+
+            BasisCameraSolveContext far = StackFixture.Context();
+            far.OperatorPosition = new Vector3(0f, 0f, 9f);
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, far);
+
+            Assert.That(pose.Fov, Is.EqualTo(far.Fov).Within(1e-3f));
+        }
+    }
+
+    public class BasisCameraRigWeightEffectTests
+    {
+        private static BasisCameraModifierStack RigWeightStack()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.LockedOff);
+            stack.rotationModifier = BasisCameraRotationModifier.FreeLook;
+            stack.rigWeight.responsiveness = 3f;
+            stack.rigWeight.bounce = 1f;
+            stack.AddEffect(BasisCameraEffectModifier.RigWeight);
+            return stack;
+        }
+
+        private static BasisCameraSolveContext Aimed(float yawDegrees)
+        {
+            BasisCameraSolveContext context = StackFixture.Context();
+            context.OperatorRotation = BasisCameraDamping.Yaw(yawDegrees);
+            return context;
+        }
+
+        private static float Yaw(Quaternion rotation)
+            => BasisCameraDamping.NormalizeAngle(rotation.eulerAngles.y);
+
+        [Test]
+        public void AFastPanCarriesPastTheMarkBeforeSettling()
+        {
+            BasisCameraModifierStack stack = RigWeightStack();
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            float furthest = 0f;
+            for (int Frame = 0; Frame < 120; Frame++)
+            {
+                BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, Aimed(30f));
+                furthest = Mathf.Max(furthest, Yaw(pose.Rotation));
+            }
+
+            Assert.That(furthest, Is.GreaterThan(30f),
+                "At full bounce the rig has to overshoot, which is the thing damping cannot do.");
+        }
+
+        [Test]
+        public void ItSettlesOnTheAimItWasGiven()
+        {
+            BasisCameraModifierStack stack = RigWeightStack();
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            BasisCameraPose pose = default;
+            for (int Frame = 0; Frame < 600; Frame++)
+            {
+                pose = BasisCameraModifierSolver.Solve(stack, state, Aimed(30f));
+            }
+
+            Assert.That(Yaw(pose.Rotation), Is.EqualTo(30f).Within(0.5f));
+        }
+
+        [Test]
+        public void NoBounceArrivesWithoutCrossingTheMark()
+        {
+            BasisCameraModifierStack stack = RigWeightStack();
+            stack.rigWeight.bounce = 0f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            for (int Frame = 0; Frame < 600; Frame++)
+            {
+                BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, Aimed(30f));
+                Assert.That(Yaw(pose.Rotation), Is.LessThanOrEqualTo(30f + 1e-2f));
+            }
+        }
+
+        [Test]
+        public void ItStaysStableAtALongFrame()
+        {
+            // A stiff spring stepped once at a long frame gains energy rather than losing it. The
+            // substepping is what keeps a hitching frame from spiralling the camera.
+            BasisCameraModifierStack stack = RigWeightStack();
+            stack.rigWeight.responsiveness = 12f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            BasisCameraPose pose = default;
+            for (int Frame = 0; Frame < 400; Frame++)
+            {
+                BasisCameraSolveContext context = Aimed(30f);
+                context.DeltaTime = 0.25f;
+                pose = BasisCameraModifierSolver.Solve(stack, state, context);
+            }
+
+            Assert.That(Yaw(pose.Rotation), Is.EqualTo(30f).Within(1f));
+        }
+
+        [Test]
+        public void ACutIsSnappedRatherThanSwungThrough()
+        {
+            BasisCameraModifierStack stack = RigWeightStack();
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+            BasisCameraModifierSolver.Solve(stack, state, Aimed(0f));
+
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, Aimed(170f));
+
+            Assert.That(Mathf.Abs(Yaw(pose.Rotation)), Is.EqualTo(170f).Within(1e-2f),
+                "Past the snap angle the aim has cut, and springing across it would sweep the shot.");
+        }
+
+        [Test]
+        public void TheOperatorsOwnAimIsLeftUnlagged()
+        {
+            // The same trap shake carries: feeding the published pose back would let the lag
+            // accumulate, and the aim would walk away from where the sticks left it.
+            BasisCameraModifierStack stack = RigWeightStack();
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            for (int Frame = 0; Frame < 60; Frame++)
+            {
+                BasisCameraModifierSolver.Solve(stack, state, Aimed(30f));
+            }
+
+            Assert.That(Yaw(state.Rotation), Is.EqualTo(30f).Within(1e-2f),
+                "state.Rotation is what the operator continues from, so it must be the un-lagged aim.");
         }
     }
 

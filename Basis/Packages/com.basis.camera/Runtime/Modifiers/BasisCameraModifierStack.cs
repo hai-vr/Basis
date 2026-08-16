@@ -44,6 +44,10 @@ namespace Basis.Cinematics
         public BasisCameraOcclusionSettings occlusion;
         public BasisCameraNoiseSettings shake;
         public BasisCameraLensSettings lens;
+        public BasisCameraSteadySettings steady;
+        public BasisCameraCollisionSettings collision;
+        public BasisCameraDollyZoomSettings dollyZoom;
+        public BasisCameraRigWeightSettings rigWeight;
 
         public BasisCameraModifierStack() => ResetToDefaults();
 
@@ -71,6 +75,10 @@ namespace Basis.Cinematics
             occlusion = BasisCameraOcclusionSettings.Default;
             shake = BasisCameraNoiseSettings.ForProfile(BasisCameraNoiseProfile.Handheld);
             lens = BasisCameraLensSettings.Default;
+            steady = BasisCameraSteadySettings.Default;
+            collision = BasisCameraCollisionSettings.Default;
+            dollyZoom = BasisCameraDollyZoomSettings.Default;
+            rigWeight = BasisCameraRigWeightSettings.Default;
         }
 
         public bool DrivesPosition => BasisCameraModifiers.DrivesPosition(positionModifier);
@@ -89,6 +97,7 @@ namespace Basis.Cinematics
             BasisCameraModifiers.NeedsSubject(rotationModifier);
 
         public bool DrivesLens => HasEffect(BasisCameraEffectModifier.LensOverride) ||
+            HasEffect(BasisCameraEffectModifier.DollyZoom) ||
             (positionModifier == BasisCameraPositionModifier.FrameSubject && framing.usesZoom);
 
         public int EffectCount => effects?.Count ?? 0;
@@ -219,6 +228,10 @@ namespace Basis.Cinematics
             {
                 dolly.mode = BasisCameraDollyMode.Manual;
             }
+            if (!Enum.IsDefined(typeof(BasisCameraDollySync), dolly.syncMode))
+            {
+                dolly.syncMode = BasisCameraDollySync.LocalOnly;
+            }
 
             lookAt.damping = ClampDamping(lookAt.damping);
             matchSubject.damping = ClampDamping(matchSubject.damping);
@@ -237,6 +250,18 @@ namespace Basis.Cinematics
             orbit.headingDamping = Mathf.Max(0f, orbit.headingDamping);
             orbit.verticalDamping = Mathf.Max(0f, orbit.verticalDamping);
             orbit.verticalAxis = Mathf.Clamp01(orbit.verticalAxis);
+
+            steady.smoothing = Mathf.Max(0f, steady.smoothing);
+            steady.verticalDeadZone = Mathf.Max(0f, steady.verticalDeadZone);
+
+            collision.radius = Mathf.Clamp(collision.radius, 0.01f, 1f);
+            collision.padding = Mathf.Max(0f, collision.padding);
+
+            dollyZoom.minFov = Mathf.Clamp(dollyZoom.minFov, 5f, 120f);
+            dollyZoom.maxFov = Mathf.Clamp(dollyZoom.maxFov, dollyZoom.minFov, 120f);
+
+            rigWeight.responsiveness = Mathf.Clamp(rigWeight.responsiveness, 0.2f, 20f);
+            rigWeight.bounce = Mathf.Clamp01(rigWeight.bounce);
         }
 
         private static Vector3 ClampDamping(Vector3 damping)
@@ -281,6 +306,10 @@ namespace Basis.Cinematics
             occlusion = source.occlusion;
             shake = source.shake;
             lens = source.lens;
+            steady = source.steady;
+            collision = source.collision;
+            dollyZoom = source.dollyZoom;
+            rigWeight = source.rigWeight;
 
             Sanitize();
         }
@@ -333,7 +362,11 @@ namespace Basis.Cinematics
                 && MatchesLookAhead(a.lookAhead, b.lookAhead)
                 && MatchesOcclusion(a.occlusion, b.occlusion)
                 && MatchesShake(a.shake, b.shake)
-                && MatchesLens(a.lens, b.lens);
+                && MatchesLens(a.lens, b.lens)
+                && MatchesSteady(a.steady, b.steady)
+                && MatchesCollision(a.collision, b.collision)
+                && MatchesDollyZoom(a.dollyZoom, b.dollyZoom)
+                && MatchesRigWeight(a.rigWeight, b.rigWeight);
         }
 
         private const float Epsilon = 0.0001f;
@@ -361,6 +394,7 @@ namespace Basis.Cinematics
 
         private static bool MatchesDolly(in BasisCameraDollySettings a, in BasisCameraDollySettings b)
             => Near(a.position, b.position) && a.mode == b.mode && a.playing == b.playing &&
+               a.syncMode == b.syncMode &&
                Near(a.damping, b.damping) &&
                Near(a.speed, b.speed) && Near(a.offset, b.offset);
 
@@ -401,5 +435,17 @@ namespace Basis.Cinematics
 
         private static bool MatchesLens(in BasisCameraLensSettings a, in BasisCameraLensSettings b)
             => Near(a.fov, b.fov) && Near(a.damping, b.damping);
+
+        private static bool MatchesSteady(in BasisCameraSteadySettings a, in BasisCameraSteadySettings b)
+            => Near(a.smoothing, b.smoothing) && Near(a.verticalDeadZone, b.verticalDeadZone);
+
+        private static bool MatchesCollision(in BasisCameraCollisionSettings a, in BasisCameraCollisionSettings b)
+            => Near(a.radius, b.radius) && Near(a.padding, b.padding);
+
+        private static bool MatchesDollyZoom(in BasisCameraDollyZoomSettings a, in BasisCameraDollyZoomSettings b)
+            => Near(a.minFov, b.minFov) && Near(a.maxFov, b.maxFov);
+
+        private static bool MatchesRigWeight(in BasisCameraRigWeightSettings a, in BasisCameraRigWeightSettings b)
+            => Near(a.responsiveness, b.responsiveness) && Near(a.bounce, b.bounce);
     }
 }

@@ -166,6 +166,7 @@ public partial class BasisHandHeldCameraUI
         HHC.MetaData.whiteBalance = GetOrAddOverride<UnityEngine.Rendering.Universal.WhiteBalance>();
         HHC.MetaData.lensDistortion = GetOrAddOverride<UnityEngine.Rendering.Universal.LensDistortion>();
         HHC.MetaData.motionBlur = GetOrAddOverride<UnityEngine.Rendering.Universal.MotionBlur>();
+        HHC.MetaData.paniniProjection = GetOrAddOverride<UnityEngine.Rendering.Universal.PaniniProjection>();
     }
 
     private T GetOrAddOverride<T>() where T : UnityEngine.Rendering.VolumeComponent
@@ -669,6 +670,10 @@ public partial class BasisHandHeldCameraUI
             depthIsActive = HHC != null && HHC.MetaData.depthOfField != null && HHC.MetaData.depthOfField.active,
             // Applied on load but never captured, so the auto/manual focus choice reset every session.
             useManualFocus = currentDepthMode == DepthMode.Manual,
+            focusPeaking = HHC != null && HHC.focusPeakingEnabled,
+            focusPeakingSensitivity = HHC != null ? HHC.focusPeakingSensitivity : baseline.focusPeakingSensitivity,
+            focusPeakingColour = HHC != null ? HHC.focusPeakingColour : baseline.focusPeakingColour,
+            focusPeakingGreyPicture = HHC != null && HHC.focusPeakingGreyPicture,
             dofMode = HHC != null && HHC.MetaData.depthOfField != null ? (int)HHC.MetaData.depthOfField.mode.value : 2,
             dofFocalLength = HHC != null && HHC.MetaData.depthOfField != null ? HHC.MetaData.depthOfField.focalLength.value : 125f,
             dofBladeCount = HHC != null && HHC.MetaData.depthOfField != null ? HHC.MetaData.depthOfField.bladeCount.value : 5,
@@ -686,6 +691,12 @@ public partial class BasisHandHeldCameraUI
             whiteBalanceTemperature = HHC != null && HHC.MetaData.whiteBalance != null ? HHC.MetaData.whiteBalance.temperature.value : 0f,
             whiteBalanceTint = HHC != null && HHC.MetaData.whiteBalance != null ? HHC.MetaData.whiteBalance.tint.value : 0f,
             lensDistortion = HHC != null && HHC.MetaData.lensDistortion != null ? HHC.MetaData.lensDistortion.intensity.value : 0f,
+            lensDistortionScale = HHC != null && HHC.MetaData.lensDistortion != null ? HHC.MetaData.lensDistortion.scale.value : baseline.lensDistortionScale,
+            bloomScatter = HHC != null && HHC.MetaData.bloom != null ? HHC.MetaData.bloom.scatter.value : baseline.bloomScatter,
+            vignetteSmoothness = HHC != null && HHC.MetaData.vignette != null ? HHC.MetaData.vignette.smoothness.value : baseline.vignetteSmoothness,
+            paniniDistance = HHC != null && HHC.MetaData.paniniProjection != null ? HHC.MetaData.paniniProjection.distance.value : 0f,
+            paniniCropToFit = HHC != null && HHC.MetaData.paniniProjection != null ? HHC.MetaData.paniniProjection.cropToFit.value : baseline.paniniCropToFit,
+            captureTonemapping = HHC != null ? (int)HHC.CaptureTonemapping : baseline.captureTonemapping,
             motionBlurIntensity = HHC != null && HHC.MetaData.motionBlur != null ? HHC.MetaData.motionBlur.intensity.value : 0f,
             motionBlurClamp = HHC != null && HHC.MetaData.motionBlur != null ? HHC.MetaData.motionBlur.clamp.value : baseline.motionBlurClamp,
             motionBlurQuality = HHC != null && HHC.MetaData.motionBlur != null ? (int)HHC.MetaData.motionBlur.quality.value : baseline.motionBlurQuality,
@@ -707,6 +718,7 @@ public partial class BasisHandHeldCameraUI
             videoWidth = HHC != null ? HHC.VideoRecordingWidth : baseline.videoWidth,
             videoQuality = HHC != null ? HHC.VideoRecordingQuality : baseline.videoQuality,
             videoTimeLimit = HHC == null || HHC.VideoRecordingTimeLimit,
+            videoContinuousClips = HHC != null && HHC.VideoContinuousClips,
             backgroundMode = HHC != null ? (int)HHC.backgroundMode : 0,
             backgroundCustomColor = HHC != null ? HHC.backgroundCustomColor : BasisHandHeldCamera.ChromaGreen,
             backgroundKeepsWorld = HHC != null && HHC.backgroundKeepsWorld,
@@ -1019,6 +1031,11 @@ public partial class BasisHandHeldCameraUI
             SetDepthMode(settings.useManualFocus ? DepthMode.Manual : DepthMode.Auto);
             focusCursor?.SetActive(settings.depthIsActive);
 
+            HHC.SetFocusPeakingSensitivity(settings.focusPeakingSensitivity);
+            HHC.SetFocusPeakingColour(settings.focusPeakingColour);
+            HHC.SetFocusPeakingGreyPicture(settings.focusPeakingGreyPicture);
+            HHC.SetFocusPeakingEnabled(settings.focusPeaking);
+
             // Last: the mode is a statement about everything above it, so it can only be restored
             // once all of it has landed. Restoring earlier would have the re-derive compare the
             // saved mode against values the apply had not reached yet and call it Custom.
@@ -1075,17 +1092,26 @@ public partial class BasisHandHeldCameraUI
         {
             HHC.MetaData.bloom.intensity.value = settings.bloomIntensity;
             HHC.MetaData.bloom.threshold.value = settings.bloomThreshold;
+            ChangeBloomScatter(settings.bloomScatter);
         }
 
         if (HHC.MetaData.colorAdjustments != null)
             HHC.MetaData.colorAdjustments.hueShift.value = settings.hueShift;
 
+        // Shape before strength, the same order the motion blur block below uses: the strength owns
+        // whether the effect runs at all, so the shot is never drawn for a frame at the new strength
+        // with the last session's shape.
+        ChangeVignetteSmoothness(settings.vignetteSmoothness);
         ChangeVignette(settings.vignette);
         ChangeChromaticAberration(settings.chromaticAberration);
         ChangeFilmGrain(settings.filmGrain);
         ChangeWhiteBalanceTemperature(settings.whiteBalanceTemperature);
         ChangeWhiteBalanceTint(settings.whiteBalanceTint);
+        ChangeLensDistortionScale(settings.lensDistortionScale);
         ChangeLensDistortion(settings.lensDistortion);
+        ChangePaniniCropToFit(settings.paniniCropToFit);
+        ChangePaniniDistance(settings.paniniDistance);
+        HHC.SetCaptureTonemapping(settings.captureTonemapping);
         // Quality and mode before the strength: the strength owns whether the effect is on, so the
         // shot is never rendered for a frame at the right strength with last session's quality.
         SetMotionBlurQuality(settings.motionBlurQuality);
@@ -1115,6 +1141,7 @@ public partial class BasisHandHeldCameraUI
         HHC.SetVideoRecordingWidth(settings.videoWidth);
         HHC.SetVideoRecordingQuality(settings.videoQuality);
         HHC.VideoRecordingTimeLimit = settings.videoTimeLimit;
+        HHC.VideoContinuousClips = settings.videoContinuousClips;
 
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC.MetaData.VolumetricFogVolume != null)
@@ -1196,6 +1223,14 @@ public partial class BasisHandHeldCameraUI
     /// </summary>
     public const float MinMotionBlurClamp = 0f;
     public const float MaxMotionBlurClamp = 0.2f;
+
+    /// <summary>Range URP clamps <c>Vignette.smoothness</c> to. Zero is not in it — a hard-edged circle is still an edge.</summary>
+    public const float MinVignetteSmoothness = 0.01f;
+    public const float MaxVignetteSmoothness = 1f;
+
+    /// <summary>Range URP clamps <c>LensDistortion.scale</c> to.</summary>
+    public const float MinLensDistortionScale = 0.01f;
+    public const float MaxLensDistortionScale = 5f;
 
     public void DepthChangeFocusDistance(float value)
     {
@@ -1320,6 +1355,29 @@ public partial class BasisHandHeldCameraUI
         }
     }
 
+    /// <summary>
+    /// How far the darkening reaches in from the corners. Shape rather than strength, so it never
+    /// touches <c>active</c> — the intensity slider is what decides whether the effect runs.
+    /// </summary>
+    public void ChangeVignetteSmoothness(float value)
+    {
+        if (HHC.MetaData.vignette != null)
+        {
+            HHC.MetaData.vignette.smoothness.overrideState = true;
+            HHC.MetaData.vignette.smoothness.value = Mathf.Clamp(value, MinVignetteSmoothness, MaxVignetteSmoothness);
+        }
+    }
+
+    /// <summary>How wide the glow spreads from a highlight, as opposed to how bright it is.</summary>
+    public void ChangeBloomScatter(float value)
+    {
+        if (HHC.MetaData.bloom != null)
+        {
+            HHC.MetaData.bloom.scatter.overrideState = true;
+            HHC.MetaData.bloom.scatter.value = Mathf.Clamp01(value);
+        }
+    }
+
     public void ChangeChromaticAberration(float value)
     {
         if (HHC.MetaData.chromaticAberration != null)
@@ -1375,6 +1433,43 @@ public partial class BasisHandHeldCameraUI
             HHC.MetaData.lensDistortion.intensity.overrideState = true;
             HHC.MetaData.lensDistortion.intensity.value = value;
             HHC.MetaData.lensDistortion.active = value != 0f;
+        }
+    }
+
+    /// <summary>
+    /// Zooms the image to cover the corners the distortion pulled in. Shape rather than strength,
+    /// so the distortion slider stays the single owner of whether the effect runs.
+    /// </summary>
+    public void ChangeLensDistortionScale(float value)
+    {
+        if (HHC.MetaData.lensDistortion != null)
+        {
+            HHC.MetaData.lensDistortion.scale.overrideState = true;
+            HHC.MetaData.lensDistortion.scale.value = Mathf.Clamp(value, MinLensDistortionScale, MaxLensDistortionScale);
+        }
+    }
+
+    /// <summary>
+    /// Straightens the stretch a wide lens puts on anything near the edge of frame, the way a
+    /// panorama is unwrapped. Zero is an ordinary rectilinear shot.
+    /// </summary>
+    public void ChangePaniniDistance(float value)
+    {
+        if (HHC.MetaData.paniniProjection != null)
+        {
+            HHC.MetaData.paniniProjection.distance.overrideState = true;
+            HHC.MetaData.paniniProjection.distance.value = Mathf.Clamp01(value);
+            HHC.MetaData.paniniProjection.active = HHC.MetaData.paniniProjection.distance.value > 0f;
+        }
+    }
+
+    /// <summary>How much of the projection's own zoom is applied to cover the edges it opened up.</summary>
+    public void ChangePaniniCropToFit(float value)
+    {
+        if (HHC.MetaData.paniniProjection != null)
+        {
+            HHC.MetaData.paniniProjection.cropToFit.overrideState = true;
+            HHC.MetaData.paniniProjection.cropToFit.value = Mathf.Clamp01(value);
         }
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using Basis;
@@ -69,12 +70,14 @@ namespace Basis.Tests.Camera
             Assert.That(_camera.VideoRecordingWidth, Is.EqualTo(defaults.videoWidth));
             Assert.That(_camera.VideoRecordingQuality, Is.EqualTo(defaults.videoQuality));
             Assert.That(_camera.VideoRecordingTimeLimit, Is.EqualTo(defaults.videoTimeLimit));
+            Assert.That(_camera.VideoContinuousClips, Is.EqualTo(defaults.videoContinuousClips));
 
             Assert.That(defaults.videoDurationSeconds, Is.GreaterThan(0f));
             Assert.That(defaults.videoFrameRate, Is.GreaterThan(0));
             Assert.That(defaults.videoWidth, Is.GreaterThan(0));
             Assert.That(defaults.videoQuality, Is.GreaterThan(0));
             Assert.That(defaults.videoTimeLimit, Is.True, "Recordings stop themselves unless the player opts out.");
+            Assert.That(defaults.videoContinuousClips, Is.False, "The length ends the recording until the player asks for a run of clips.");
         }
 
         [Test]
@@ -339,6 +342,157 @@ namespace Basis.Tests.Camera
                 if (File.Exists(finalPath)) File.Delete(finalPath);
                 if (File.Exists(finalPath + ".tmp")) File.Delete(finalPath + ".tmp");
             }
+        }
+
+        // ---- a recording that rolls into new clips ------------------------------------------
+
+        [Test]
+        public void ReachingTheLengthOpensTheNextClipWithoutLeavingTheRecordingState()
+        {
+            var opened = new List<FakeSession>();
+            Func<IBasisFrameRecorderSession> factory = () =>
+            {
+                var next = new FakeSession($"clip{opened.Count + 1}.avi");
+                opened.Add(next);
+                return next;
+            };
+
+            var recorder = new BasisCameraFrameRecorder("Test");
+            // A zero length makes every tick a tick the deadline has already passed on.
+            Assert.That(recorder.Start(factory(), 4, 4, 30, 0f, false, factory), Is.True);
+
+            try
+            {
+                recorder.Tick(null, false);
+
+                Assert.That(recorder.State, Is.EqualTo(BasisCameraRecordingState.Recording),
+                    "A run of clips must never leave the recording state at a join — the feed the capture reads is gated on it.");
+                Assert.That(recorder.SegmentsCompleted, Is.EqualTo(1));
+                Assert.That(recorder.SegmentNumber, Is.EqualTo(2));
+                Assert.That(opened.Count, Is.EqualTo(2), "The roll opens the next clip in the same tick.");
+                Assert.That(opened[0].CompleteAddingCalls, Is.EqualTo(1), "The clip that closed is told exactly once.");
+                Assert.That(opened[1].CompleteAddingCalls, Is.Zero);
+                Assert.That(recorder.LastFileName, Is.EqualTo("clip1.avi"), "Each clip is reported as it lands.");
+
+                recorder.Tick(null, false);
+
+                Assert.That(recorder.SegmentsCompleted, Is.EqualTo(2));
+                Assert.That(opened.Count, Is.EqualTo(3));
+                Assert.That(recorder.LastFileName, Is.EqualTo("clip2.avi"));
+            }
+            finally
+            {
+                recorder.Shutdown();
+            }
+        }
+
+        [Test]
+        public void ReachingTheLengthWithoutAFactoryStillEndsTheRecording()
+        {
+            var only = new FakeSession("single.avi");
+            var recorder = new BasisCameraFrameRecorder("Test");
+            Assert.That(recorder.Start(only, 4, 4, 30, 0f, false), Is.True);
+            Assert.That(recorder.SegmentNumber, Is.Zero, "A single-clip recording has no clip number to show.");
+
+            recorder.Tick(null, false);
+
+            Assert.That(recorder.State, Is.EqualTo(BasisCameraRecordingState.Idle));
+            Assert.That(only.CompleteAddingCalls, Is.EqualTo(1));
+            Assert.That(recorder.LastFileName, Is.EqualTo("single.avi"));
+        }
+
+        [Test]
+        public void AClipThatWillNotOpenEndsTheRunAndKeepsWhatWasRecorded()
+        {
+            var first = new FakeSession("clip1.avi");
+            var recorder = new BasisCameraFrameRecorder("Test");
+            Assert.That(recorder.Start(first, 4, 4, 30, 0f, false, () => null), Is.True);
+
+            recorder.Tick(null, false);
+
+            Assert.That(recorder.State, Is.EqualTo(BasisCameraRecordingState.Idle));
+            Assert.That(first.CompleteAddingCalls, Is.EqualTo(1));
+            Assert.That(recorder.LastFileName, Is.EqualTo("clip1.avi"));
+        }
+
+        [Test]
+        public void StoppingMidRunFinishesTheClipInHandAndOpensNoMore()
+        {
+            var opened = new List<FakeSession>();
+            Func<IBasisFrameRecorderSession> factory = () =>
+            {
+                var next = new FakeSession($"clip{opened.Count + 1}.avi");
+                opened.Add(next);
+                return next;
+            };
+
+            var recorder = new BasisCameraFrameRecorder("Test");
+            recorder.Start(factory(), 4, 4, 30, 0f, false, factory);
+            recorder.Tick(null, false);
+
+            recorder.Stop();
+            recorder.Tick(null, false);
+
+            Assert.That(recorder.State, Is.EqualTo(BasisCameraRecordingState.Idle));
+            Assert.That(recorder.SegmentsCompleted, Is.EqualTo(1), "Stopping ends the run rather than rolling it again.");
+            Assert.That(opened.Count, Is.EqualTo(2));
+            Assert.That(opened[1].CompleteAddingCalls, Is.EqualTo(1));
+            Assert.That(recorder.LastFileName, Is.EqualTo("clip2.avi"));
+        }
+
+        [Test]
+        public void AClipWithTimeLeftIsNotRolled()
+        {
+            var opened = new List<FakeSession>();
+            Func<IBasisFrameRecorderSession> factory = () =>
+            {
+                var next = new FakeSession($"clip{opened.Count + 1}.avi");
+                opened.Add(next);
+                return next;
+            };
+
+            var recorder = new BasisCameraFrameRecorder("Test");
+            recorder.Start(factory(), 4, 4, 30, 600f, false, factory);
+
+            try
+            {
+                recorder.Tick(null, false);
+
+                Assert.That(recorder.SegmentsCompleted, Is.Zero);
+                Assert.That(recorder.SegmentNumber, Is.EqualTo(1));
+                Assert.That(opened.Count, Is.EqualTo(1));
+                Assert.That(opened[0].CompleteAddingCalls, Is.Zero);
+            }
+            finally
+            {
+                recorder.Shutdown();
+            }
+        }
+
+        /// <summary>
+        /// A session with no encoder behind it: records what the recorder hands it and reports
+        /// itself finished the moment it is told nothing more is coming, so a roll's bookkeeping
+        /// can be driven a tick at a time without a GPU, a worker or a file.
+        /// </summary>
+        private sealed class FakeSession : IBasisFrameRecorderSession
+        {
+            public FakeSession(string finalPath) => FinalPath = finalPath;
+
+            public int CompleteAddingCalls { get; private set; }
+
+            public string FinalPath { get; }
+            public int FramesQueued => 0;
+            public int FramesEncoded { get; private set; }
+            public bool IsFinished => CompleteAddingCalls > 0;
+            public string FailureMessage => null;
+
+            public bool TryAddFrame(NativeArray<byte> rgba, double timestamp)
+            {
+                FramesEncoded++;
+                return true;
+            }
+
+            public void CompleteAdding() => CompleteAddingCalls++;
         }
 
         private static short Sample(byte[] pcm, int index) =>

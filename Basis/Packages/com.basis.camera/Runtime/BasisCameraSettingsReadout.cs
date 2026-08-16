@@ -64,14 +64,20 @@ public static class BasisCameraSettingsReadout
         Row("camera.hueShift", Number(settings.hueShift));
         Row("camera.whiteBalanceTemp", Number(settings.whiteBalanceTemperature));
         Row("camera.whiteBalanceTint", Number(settings.whiteBalanceTint));
+        Row("camera.tonemapping", TonemappingLabel(settings.captureTonemapping));
 
         Section("camera.effects");
         Row("camera.bloomIntensity", Number(settings.bloomIntensity));
         Row("camera.bloomThreshold", Number(settings.bloomThreshold));
+        Row("camera.bloomScatter", Number(settings.bloomScatter));
         Row("camera.vignette", Number(settings.vignette));
+        Row("camera.vignetteSmoothness", Number(settings.vignetteSmoothness));
         Row("camera.chromaticAberration", Number(settings.chromaticAberration));
         Row("camera.filmGrain", Number(settings.filmGrain));
         Row("camera.lensDistortion", Number(settings.lensDistortion));
+        Row("camera.lensDistortionScale", Number(settings.lensDistortionScale));
+        Row("camera.panini", Number(settings.paniniDistance));
+        Row("camera.paniniCrop", Number(settings.paniniCropToFit));
         Row("camera.motionBlur", Number(settings.motionBlurIntensity));
         Row("camera.motionBlurClamp", Number(settings.motionBlurClamp));
         Row("camera.motionBlurQuality", MotionBlurQualityLabel(settings.motionBlurQuality));
@@ -96,6 +102,7 @@ public static class BasisCameraSettingsReadout
 
         Section("camera.video");
         Row("camera.video.timeLimit", OnOff(settings.videoTimeLimit));
+        Row("camera.video.autoNewClip", OnOff(settings.videoContinuousClips));
         Row("camera.video.length", Number(settings.videoDurationSeconds) + " s");
         Row("camera.video.frameRate", settings.videoFrameRate.ToString());
         Row("camera.video.size", settings.videoWidth + " px");
@@ -222,6 +229,16 @@ public static class BasisCameraSettingsReadout
 
     private static string MotionBlurModeLabel(int mode) =>
         BasisLocalization.Get(mode == 1 ? "camera.motionBlurMode.cameraAndObjects" : "camera.motionBlurMode.cameraOnly");
+
+    private static string TonemappingLabel(int mode)
+    {
+        switch (mode)
+        {
+            case 0: return BasisLocalization.Get("camera.tonemapping.none");
+            case 1: return BasisLocalization.Get("camera.tonemapping.neutral");
+            default: return BasisLocalization.Get("camera.tonemapping.aces");
+        }
+    }
 
     private static string DetachedMarkerLabel(int marker)
     {

@@ -24,12 +24,10 @@ public enum BasisCameraGizmoLayers
 /// the auto-follow rig's solve, the depth-of-field slab, and which pin space / modes are live.
 /// <para>
 /// Drawn through <see cref="BasisGizmoManager"/>, so it costs a batched instanced draw rather
-/// than GameObjects. These are world geometry on <see cref="BasisGizmoManager.RenderLayer"/>
-/// (Default), so every camera that renders that layer sees them — including this camera's own
-/// capture. Turn the layers off before shooting. That is deliberate: these document the rig for
-/// whoever is reading them, and a frustum you cannot photograph is harder to compare against the
-/// shot it describes. The detached marker, which does have to stay out of the shot, opts out with
-/// <see cref="BasisGizmoManager.SetGizmoLayer"/> instead.
+/// than GameObjects. Every one of them is put on the layer the capture camera culls, the same
+/// one the detached marker and the dolly track use, so the rig can be read while it is being shot
+/// without ever landing in the shot. They are debug drawing for whoever is operating the camera,
+/// and an operator should not have to remember to switch them off before pressing the button.
 /// </para>
 /// <para>
 /// Everything drawn is read back from the camera's own state on the frame it was computed; the
@@ -671,6 +669,14 @@ public sealed class BasisHandHeldCameraGizmos
     /// </summary>
     private sealed class GizmoSet
     {
+        /// <summary>
+        /// Every gizmo in the set is parked on the layer the capture camera culls, so the rig can
+        /// be read while it is being shot without appearing in the shot. Resolved per create — a
+        /// project without the layer hands back -1, which SetGizmoLayer reads as "stay where you
+        /// are", leaving a usable gizmo that the shot can see.
+        /// </summary>
+        private static int HiddenFromCaptureLayer => BasisHandHeldCamera.MarkerLayer;
+
         private readonly string _name;
         private readonly List<int> _spheres = new List<int>();
         private readonly List<int> _lines = new List<int>();
@@ -696,6 +702,7 @@ public sealed class BasisHandHeldCameraGizmos
             if (_sphereCursor == _spheres.Count)
             {
                 BasisGizmoManager.CreateSphereGizmo(_name, out int created, position, size, color);
+                BasisGizmoManager.SetGizmoLayer(created, HiddenFromCaptureLayer);
                 _spheres.Add(created);
                 _sphereCursor++;
                 return;
@@ -712,6 +719,7 @@ public sealed class BasisHandHeldCameraGizmos
             if (_lineCursor == _lines.Count)
             {
                 BasisGizmoManager.CreateLineGizmo(_name, out int created, start, end, width, color);
+                BasisGizmoManager.SetGizmoLayer(created, HiddenFromCaptureLayer);
                 _lines.Add(created);
                 _lineCursor++;
                 return;
@@ -728,6 +736,7 @@ public sealed class BasisHandHeldCameraGizmos
             if (_lineCursor == _lines.Count)
             {
                 BasisGizmoManager.CreateLineGizmo(_name, out int created, points, width, color, loop);
+                BasisGizmoManager.SetGizmoLayer(created, HiddenFromCaptureLayer);
                 _lines.Add(created);
                 _lineCursor++;
                 return;
@@ -745,6 +754,10 @@ public sealed class BasisHandHeldCameraGizmos
             if (_labelCursor == _labels.Count)
             {
                 BasisGizmoManager.CreateTextGizmo(_name, out id, position, text, color);
+
+                // After the create: a label rented back out of the pool starts on the container's
+                // layer, so this is the point at which the layer sticks.
+                BasisGizmoManager.SetGizmoLayer(id, HiddenFromCaptureLayer);
                 _labels.Add(id);
                 _labelCursor++;
             }

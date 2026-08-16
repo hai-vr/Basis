@@ -168,7 +168,8 @@ namespace Basis.Tests.Camera
                 s => s.framing.maxDistance += 1f,
                 s => s.framing.teleportDistance += 1f,
                 s => s.dolly.position += 1f,
-                s => s.dolly.autoTrack = !s.dolly.autoTrack,
+                s => s.dolly.mode = BasisCameraDollyMode.FollowSubject,
+                s => s.dolly.playing = !s.dolly.playing,
                 s => s.dolly.damping += 1f,
                 s => s.dolly.speed += 1f,
                 s => s.dolly.offset += Vector3.one,
@@ -208,6 +209,14 @@ namespace Basis.Tests.Camera
                 s => s.shake.rotationFrequency += Vector3.one,
                 s => s.lens.fov += 10f,
                 s => s.lens.damping += 1f,
+                s => s.steady.smoothing += 1f,
+                s => s.steady.verticalDeadZone += 1f,
+                s => s.collision.radius = 0.05f,
+                s => s.collision.padding += 1f,
+                s => s.dollyZoom.minFov += 5f,
+                s => s.dollyZoom.maxFov += 5f,
+                s => s.rigWeight.responsiveness += 1f,
+                s => s.rigWeight.bounce = 0.1f,
             };
 
             for (int Index = 0; Index < perturbations.Length; Index++)

@@ -349,6 +349,109 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void BloomScatter_ReachesTheOverrideWithoutSwitchingBloomOn()
+        {
+            _rig.Bloom.active = false;
+
+            _rig.UI.ChangeBloomScatter(0.35f);
+
+            Assert.That(_rig.Bloom.scatter.value, Is.EqualTo(0.35f).Within(1e-3f));
+            Assert.That(_rig.Bloom.scatter.overrideState, Is.True);
+            Assert.That(_rig.Bloom.active, Is.False,
+                "Scatter shapes the glow; the intensity is what decides whether there is one.");
+        }
+
+        [Test]
+        public void VignetteSmoothness_ReachesTheOverrideAndStaysInsideURPsRange()
+        {
+            _rig.UI.ChangeVignetteSmoothness(0.7f);
+            Assert.That(_rig.Vignette.smoothness.value, Is.EqualTo(0.7f).Within(1e-3f));
+            Assert.That(_rig.Vignette.smoothness.overrideState, Is.True);
+
+            _rig.UI.ChangeVignetteSmoothness(0f);
+            Assert.That(_rig.Vignette.smoothness.value,
+                Is.EqualTo(BasisHandHeldCameraUI.MinVignetteSmoothness).Within(1e-4f),
+                "URP clamps smoothness above zero, so the slider must not be able to ask for zero.");
+        }
+
+        [Test]
+        public void VignetteSmoothness_DoesNotSwitchTheVignetteOn()
+        {
+            _rig.Vignette.active = false;
+
+            _rig.UI.ChangeVignetteSmoothness(0.9f);
+
+            Assert.That(_rig.Vignette.active, Is.False);
+        }
+
+        [Test]
+        public void LensDistortionScale_ReachesTheOverrideWithoutSwitchingDistortionOn()
+        {
+            _rig.LensDistortion.active = false;
+
+            _rig.UI.ChangeLensDistortionScale(1.4f);
+
+            Assert.That(_rig.LensDistortion.scale.value, Is.EqualTo(1.4f).Within(1e-3f));
+            Assert.That(_rig.LensDistortion.scale.overrideState, Is.True);
+            Assert.That(_rig.LensDistortion.active, Is.False);
+        }
+
+        [Test]
+        public void PaniniProjection_ReachesTheOverrideAndSwitchesItselfOnAndOff()
+        {
+            _rig.UI.ChangePaniniDistance(0.6f);
+
+            Assert.That(_rig.PaniniProjection.distance.value, Is.EqualTo(0.6f).Within(1e-3f));
+            Assert.That(_rig.PaniniProjection.distance.overrideState, Is.True);
+            Assert.That(_rig.PaniniProjection.active, Is.True);
+
+            _rig.UI.ChangePaniniDistance(0f);
+            Assert.That(_rig.PaniniProjection.active, Is.False);
+        }
+
+        [Test]
+        public void PaniniCrop_ReachesTheOverrideWithoutSwitchingTheProjectionOn()
+        {
+            _rig.PaniniProjection.active = false;
+
+            _rig.UI.ChangePaniniCropToFit(0.25f);
+
+            Assert.That(_rig.PaniniProjection.cropToFit.value, Is.EqualTo(0.25f).Within(1e-3f));
+            Assert.That(_rig.PaniniProjection.cropToFit.overrideState, Is.True);
+            Assert.That(_rig.PaniniProjection.active, Is.False);
+        }
+
+        [Test]
+        public void CaptureTonemapping_IsTheStillsGradeAndDefaultsToWhatTheCaptureAlwaysUsed()
+        {
+            Assert.That(_rig.Camera.CaptureTonemapping, Is.EqualTo(TonemappingMode.ACES),
+                "The capture path hard-coded ACES before this was a choice, so that is the default.");
+
+            _rig.Camera.SetCaptureTonemapping((int)TonemappingMode.Neutral);
+            Assert.That(_rig.Camera.CaptureTonemapping, Is.EqualTo(TonemappingMode.Neutral));
+
+            _rig.Camera.SetCaptureTonemapping(99);
+            Assert.That(_rig.Camera.CaptureTonemapping, Is.EqualTo(TonemappingMode.ACES),
+                "A hand-edited file must not be able to name a mode URP has no entry for.");
+        }
+
+        [Test]
+        public void TheViewfinderGradeIsFixedAndSeparateFromTheStills()
+        {
+            Assert.That(BasisHandHeldCamera.PreviewTonemapping, Is.EqualTo(TonemappingMode.Neutral));
+            Assert.That(BasisHandHeldCamera.PreviewTonemapping, Is.Not.EqualTo(_rig.Camera.CaptureTonemapping),
+                "The preview and the still are graded separately, which is what the setting exists to say.");
+        }
+
+        [Test]
+        public void TonemappingSurvivesAProfileThatCarriesNoTonemapper()
+        {
+            // The rig supplies no Tonemapping override, exactly as a profile missing one would.
+            Assert.That(_rig.Camera.MetaData.tonemapping, Is.Null);
+            Assert.DoesNotThrow(() => _rig.Camera.ToggleToneMapping(TonemappingMode.ACES));
+        }
+
+        [Test]
         public void MotionBlur_ReachesTheOverrideAndSwitchesItselfOnAndOff()
         {
             _rig.UI.ChangeMotionBlur(0.6f);

@@ -113,9 +113,23 @@ namespace Basis.Cinematics
         };
     }
 
+    /// <summary>How a dolly track is shared with the rest of the instance.</summary>
+    public enum BasisCameraDollySync
+    {
+        /// <summary>Nobody else sees it. No traffic at all — the track is yours alone.</summary>
+        LocalOnly = 0,
+        /// <summary>Everyone sees it and anyone may pick a point up and move it.</summary>
+        Networked = 1,
+        /// <summary>Everyone sees it; only you may move the points.</summary>
+        NetworkedLocked = 2,
+    }
+
     [Serializable]
     public struct BasisCameraDollySettings
     {
+        [Tooltip("Whether anyone else can see the track, and whether they may move its points.")]
+        public BasisCameraDollySync syncMode;
+
         [Tooltip("Where on the track the camera sits, in waypoints. This is the playhead.")]
         public float position;
 
@@ -136,6 +150,7 @@ namespace Basis.Cinematics
         public static BasisCameraDollySettings Default => new BasisCameraDollySettings
         {
             position = 0f,
+            syncMode = BasisCameraDollySync.LocalOnly,
             mode = BasisCameraDollyMode.Manual,
             playing = false,
             damping = 0.5f,
@@ -204,6 +219,91 @@ namespace Basis.Cinematics
         {
             time = 0.25f,
             limit = 2f,
+        };
+    }
+
+    /// <summary>
+    /// Cleans up the subject before either slot reads them, as opposed to the damping on the slots
+    /// themselves, which chases the camera to wherever the subject already is. A head-tracked
+    /// subject is the jitteriest thing in a shot, and every modifier that aims at one inherits it.
+    /// </summary>
+    [Serializable]
+    public struct BasisCameraSteadySettings
+    {
+        [Tooltip("Seconds of subject movement to average out before anything films them.")]
+        public float smoothing;
+
+        [Tooltip("How far the subject may move up and down before the shot follows, in metres at default avatar scale. Absorbs a jump or a crouch without the camera bobbing after it.")]
+        public float verticalDeadZone;
+
+        public static BasisCameraSteadySettings Default => new BasisCameraSteadySettings
+        {
+            smoothing = 0.18f,
+            verticalDeadZone = 0.12f,
+        };
+    }
+
+    /// <summary>
+    /// Keeps the camera out of the scenery. Distinct from occlusion, which only shortens the shot
+    /// along the sight line to a subject: this sweeps wherever the camera is actually going, so it
+    /// covers a hand-flown camera and a dolly track laid through a wall, neither of which has a
+    /// sight line to shorten.
+    /// </summary>
+    [Serializable]
+    public struct BasisCameraCollisionSettings
+    {
+        [Tooltip("Radius of the cast that sweeps the camera's path, in metres. Roughly how much of a corner the camera keeps clear of.")]
+        public float radius;
+
+        [Tooltip("Clearance kept from whatever the camera would otherwise have hit, in metres.")]
+        public float padding;
+
+        public static BasisCameraCollisionSettings Default => new BasisCameraCollisionSettings
+        {
+            radius = 0.18f,
+            padding = 0.08f,
+        };
+    }
+
+    /// <summary>
+    /// The vertigo shot: hold the subject at the size they were when the effect was fitted, and let
+    /// the field of view make up whatever the camera's movement changed. The reference is taken from
+    /// the live shot rather than authored, so the move starts from the framing already set up.
+    /// </summary>
+    [Serializable]
+    public struct BasisCameraDollyZoomSettings
+    {
+        [Tooltip("Narrowest the lens may go while holding subject size.")]
+        [Range(5f, 120f)] public float minFov;
+
+        [Tooltip("Widest the lens may go while holding subject size.")]
+        [Range(5f, 120f)] public float maxFov;
+
+        public static BasisCameraDollyZoomSettings Default => new BasisCameraDollyZoomSettings
+        {
+            minFov = 12f,
+            maxFov = 100f,
+        };
+    }
+
+    /// <summary>
+    /// Weight in the rig, so a fast move carries past the mark and settles back. Damping cannot do
+    /// this — it converges on its target and never crosses it — and it is the overshoot rather than
+    /// the lag that reads as somebody holding the camera.
+    /// </summary>
+    [Serializable]
+    public struct BasisCameraRigWeightSettings
+    {
+        [Tooltip("How quickly the rig catches up to where it is being aimed, in hertz. Lower is heavier.")]
+        public float responsiveness;
+
+        [Tooltip("How far past the mark a fast move carries before settling. At 0 the rig only lags, and never overshoots.")]
+        [Range(0f, 1f)] public float bounce;
+
+        public static BasisCameraRigWeightSettings Default => new BasisCameraRigWeightSettings
+        {
+            responsiveness = 5f,
+            bounce = 0.35f,
         };
     }
 

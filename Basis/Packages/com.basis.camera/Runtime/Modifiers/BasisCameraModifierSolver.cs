@@ -40,6 +40,19 @@ namespace Basis.Cinematics
 
             Vector3 anchor = subject.AnchorPos;
             Vector3 lookPoint = subject.LookPoint;
+
+            // Settle first and lead second: leading a jittery anchor and smoothing the result would
+            // put the filter's lag on the lead as well, which is the one part of the shot that is
+            // supposed to be ahead of the subject.
+            if (subject.Valid && stack.HasEffect(BasisCameraEffectModifier.SteadySubject))
+            {
+                SteadySubject(stack, state, ref anchor, ref lookPoint, scale, deltaTime);
+            }
+            else
+            {
+                state.ResetSubjectSmoothing();
+            }
+
             if (subject.Valid && stack.HasEffect(BasisCameraEffectModifier.LookAhead))
             {
                 anchor = BasisCameraComposer.ApplyLookAhead(anchor, subject.Velocity, stack.lookAhead.time, stack.lookAhead.limit);
@@ -59,6 +72,13 @@ namespace Basis.Cinematics
                 state.HasOcclusionDistance = false;
             }
 
+            // After occlusion, which moves the camera along the sight line and so has a path of its
+            // own that wants sweeping.
+            if (stack.HasEffect(BasisCameraEffectModifier.AvoidCollision))
+            {
+                state.Position = SolveCollision(stack, state, context);
+            }
+
             SolveRotation(stack, state, context, subject, lookPoint, fov, deltaTime);
 
             if (stack.HasEffect(BasisCameraEffectModifier.LensOverride))
@@ -66,12 +86,36 @@ namespace Basis.Cinematics
                 fov = stack.lens.fov;
             }
 
-            state.Fov = stack.DrivesLens
-                ? BasisCameraDamping.Approach(state.Fov, fov, LensDamping(stack), deltaTime)
-                : fov;
+            // A vertigo move is the lens exactly cancelling the camera's own travel, so it publishes
+            // the angle it worked out rather than easing toward it — damping here would let the
+            // subject breathe by however far the lens was behind.
+            bool dollyZoom = stack.HasEffect(BasisCameraEffectModifier.DollyZoom) && subject.Valid;
+            if (dollyZoom)
+            {
+                state.Fov = SolveDollyZoom(stack, state, lookPoint, fov);
+            }
+            else
+            {
+                state.HasDollyZoomReference = false;
+                state.Fov = stack.DrivesLens
+                    ? BasisCameraDamping.Approach(state.Fov, fov, LensDamping(stack), deltaTime)
+                    : fov;
+            }
+
+            state.PreviousPosition = state.Position;
+            state.HasPreviousPosition = true;
 
             Vector3 position = state.Position;
             Quaternion rotation = state.Rotation;
+
+            if (stack.HasEffect(BasisCameraEffectModifier.RigWeight))
+            {
+                rotation = ApplyRigWeight(stack, state, rotation, deltaTime);
+            }
+            else
+            {
+                state.HasRigWeight = false;
+            }
 
             if (stack.HasEffect(BasisCameraEffectModifier.Shake))
             {
@@ -93,6 +137,191 @@ namespace Basis.Cinematics
 
         private static float LensDamping(BasisCameraModifierStack stack)
             => stack.HasEffect(BasisCameraEffectModifier.LensOverride) ? stack.lens.damping : stack.framing.damping.z;
+
+        /// <summary>
+        /// Corrects the subject toward a settled version of themselves and moves the aim point by the
+        /// same amount, so where the camera stands and where it points stay the same distance apart.
+        /// Filtering the two separately lets them disagree, which reads as the shot drifting off the
+        /// subject as they move.
+        /// </summary>
+        private static void SteadySubject(BasisCameraModifierStack stack, BasisCameraModifierState state,
+            ref Vector3 anchor, ref Vector3 lookPoint, float scale, float deltaTime)
+        {
+            Vector3 raw = anchor;
+
+            if (!state.HasSteadyAnchor)
+            {
+                state.SteadyAnchor = raw;
+                state.HasSteadyAnchor = true;
+                return;
+            }
+
+            Vector3 held = state.SteadyAnchor;
+            float smoothing = Mathf.Max(0f, stack.steady.smoothing);
+
+            held.x = BasisCameraDamping.Approach(held.x, raw.x, smoothing, deltaTime);
+            held.z = BasisCameraDamping.Approach(held.z, raw.z, smoothing, deltaTime);
+
+            // The dead zone follows only the part of the movement that leaves it, so a subject who
+            // jumps and lands back where they started never moves the shot at all.
+            float deadZone = Mathf.Max(0f, stack.steady.verticalDeadZone) * scale;
+            float verticalError = raw.y - held.y;
+            if (Mathf.Abs(verticalError) > deadZone)
+            {
+                float target = raw.y - Mathf.Sign(verticalError) * deadZone;
+                held.y = BasisCameraDamping.Approach(held.y, target, smoothing, deltaTime);
+            }
+
+            state.SteadyAnchor = held;
+
+            Vector3 correction = held - raw;
+            anchor += correction;
+            lookPoint += correction;
+        }
+
+        /// <summary>
+        /// Stops the camera short of anything solid on the path it took this frame. Nothing is eased:
+        /// arriving late at a wall is still arriving at it, and the modifier that produced the
+        /// movement is the one that owns how smoothly it happens.
+        /// </summary>
+        private static Vector3 SolveCollision(BasisCameraModifierStack stack, BasisCameraModifierState state,
+            in BasisCameraSolveContext context)
+        {
+            if (context.SweepProbe == null || !state.HasPreviousPosition)
+            {
+                return state.Position;
+            }
+
+            Vector3 from = state.PreviousPosition;
+            Vector3 delta = state.Position - from;
+            float distance = delta.magnitude;
+            if (distance <= 1e-4f)
+            {
+                return state.Position;
+            }
+
+            Vector3 direction = delta / distance;
+            float radius = Mathf.Max(0.01f, stack.collision.radius);
+            if (!context.SweepProbe(from, direction, distance, radius, out float freeDistance))
+            {
+                return state.Position;
+            }
+
+            // A sweep that begins already overlapping reports nothing free. Honouring that would pin
+            // the camera wherever it was standing when the geometry arrived around it, with no
+            // movement able to earn its way back out.
+            if (freeDistance <= 1e-4f)
+            {
+                return state.Position;
+            }
+
+            float allowed = Mathf.Clamp(freeDistance - stack.collision.padding, 0f, distance);
+            return from + direction * allowed;
+        }
+
+        /// <summary>
+        /// Holds the subject at the size the shot had when the effect was fitted, letting the field
+        /// of view make up whatever the camera's own travel changed.
+        /// </summary>
+        private static float SolveDollyZoom(BasisCameraModifierStack stack, BasisCameraModifierState state,
+            Vector3 lookPoint, float fov)
+        {
+            float distance = Vector3.Distance(state.Position, lookPoint);
+            if (distance <= 1e-3f)
+            {
+                return state.Fov;
+            }
+
+            if (!state.HasDollyZoomReference)
+            {
+                state.DollyZoomReference = distance * Mathf.Tan(Mathf.Clamp(fov, 1f, 179f) * 0.5f * Mathf.Deg2Rad);
+                state.HasDollyZoomReference = true;
+            }
+
+            if (state.DollyZoomReference <= 1e-5f)
+            {
+                return fov;
+            }
+
+            float held = 2f * Mathf.Atan(state.DollyZoomReference / distance) * Mathf.Rad2Deg;
+            return Mathf.Clamp(held, stack.dollyZoom.minFov, Mathf.Max(stack.dollyZoom.minFov, stack.dollyZoom.maxFov));
+        }
+
+        /// <summary>
+        /// Springs the finished aim toward where the stack pointed it, under-damped so a fast move
+        /// carries past the mark. Integrated in substeps: a stiff spring stepped once at a long frame
+        /// gains energy instead of losing it, and the camera spirals rather than settling.
+        /// </summary>
+        private static Quaternion ApplyRigWeight(BasisCameraModifierStack stack, BasisCameraModifierState state,
+            Quaternion target, float deltaTime)
+        {
+            if (!state.HasRigWeight)
+            {
+                state.RigWeightRotation = target;
+                state.RigWeightVelocity = Vector3.zero;
+                state.HasRigWeight = true;
+                return target;
+            }
+
+            if (deltaTime <= 1e-5f)
+            {
+                return state.RigWeightRotation;
+            }
+
+            Quaternion error = target * BasisCameraDamping.Conjugate(state.RigWeightRotation);
+            error.ToAngleAxis(out float angle, out Vector3 axis);
+            angle = BasisCameraDamping.NormalizeAngle(angle);
+
+            if (float.IsNaN(angle) || axis.sqrMagnitude < 1e-8f || Mathf.Abs(angle) < 1e-4f)
+            {
+                state.RigWeightVelocity = Vector3.zero;
+                state.RigWeightRotation = target;
+                return target;
+            }
+
+            // Past a certain distance this is no longer a move being followed, it is a cut. Springing
+            // across it would swing the camera through everything in between.
+            if (Mathf.Abs(angle) > RigWeightSnapAngle)
+            {
+                state.RigWeightVelocity = Vector3.zero;
+                state.RigWeightRotation = target;
+                return target;
+            }
+
+            Vector3 displacement = axis.normalized * angle;
+
+            float omega = 2f * Mathf.PI * Mathf.Max(0.2f, stack.rigWeight.responsiveness);
+            float zeta = Mathf.Lerp(1f, RigWeightLoosestDamping, Mathf.Clamp01(stack.rigWeight.bounce));
+
+            int steps = Mathf.Clamp(Mathf.CeilToInt(omega * deltaTime / RigWeightMaxStep), 1, RigWeightMaxSubsteps);
+            float step = deltaTime / steps;
+
+            Vector3 remaining = displacement;
+            Vector3 velocity = state.RigWeightVelocity;
+            for (int Index = 0; Index < steps; Index++)
+            {
+                velocity += (omega * omega * remaining - 2f * zeta * omega * velocity) * step;
+                remaining -= velocity * step;
+            }
+
+            state.RigWeightVelocity = velocity;
+
+            Vector3 applied = displacement - remaining;
+            if (applied.sqrMagnitude > 1e-10f)
+            {
+                state.RigWeightRotation = Quaternion.AngleAxis(applied.magnitude, applied.normalized) * state.RigWeightRotation;
+            }
+            return state.RigWeightRotation;
+        }
+
+        /// <summary>Beyond this the aim has cut rather than moved, and the spring is snapped instead.</summary>
+        public const float RigWeightSnapAngle = 90f;
+
+        /// <summary>Damping ratio at full bounce. Below 1 is what allows any overshoot at all.</summary>
+        private const float RigWeightLoosestDamping = 0.32f;
+
+        private const float RigWeightMaxStep = 0.3f;
+        private const int RigWeightMaxSubsteps = 8;
 
         private static void SolvePosition(BasisCameraModifierStack stack, BasisCameraModifierState state,
             in BasisCameraSolveContext context, in BasisCameraSubject subject, Vector3 anchor, float scale,

@@ -33,6 +33,7 @@ public abstract partial class BasisHandHeldCameraInteractable
 
     private readonly List<BasisCameraSubject> groupSubjects = new List<BasisCameraSubject>();
     private BasisCameraOcclusionProbe occlusionProbe;
+    private BasisCameraSweepProbe sweepProbe;
 
     /// <summary>Layers that never block a shot: the players themselves, UI, and the camera's own props.</summary>
     private static readonly string[] NonBlockingLayers =
@@ -60,6 +61,7 @@ public abstract partial class BasisHandHeldCameraInteractable
         modifiers.Sanitize();
         DollyTrack ??= new BasisCameraDollyTrack();
         occlusionProbe ??= ProbeOcclusion;
+        sweepProbe ??= ProbeSweep;
     }
 
     /// <summary>
@@ -73,6 +75,7 @@ public abstract partial class BasisHandHeldCameraInteractable
         {
             return;
         }
+        DollyTrack.SyncMode = Modifiers.dolly.syncMode;
         DollyTrack.Refresh(BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale, GetLabelFacing());
     }
 
@@ -148,6 +151,64 @@ public abstract partial class BasisHandHeldCameraInteractable
     }
 
     public bool HasModifierEffect(BasisCameraEffectModifier effect) => Modifiers.HasEffect(effect);
+
+    // ---- Dolly transport --------------------------------------------------------------------
+
+    /// <summary>Whether a dolly move is running right now.</summary>
+    public bool IsDollyPlaying =>
+        Modifiers.dolly.mode == BasisCameraDollyMode.Play && Modifiers.dolly.playing;
+
+    /// <summary>
+    /// Starts or stops the move. Starting from the far end of an open track rewinds first, so the
+    /// play button is never a button that does nothing.
+    /// </summary>
+    public void SetDollyPlaying(bool playing)
+    {
+        InitializeModifiers();
+
+        if (playing && modifierState.DollyCompleted)
+        {
+            RestartDolly();
+        }
+
+        modifiers.dolly.playing = playing;
+        modifierState.DollyCompleted = false;
+    }
+
+    /// <summary>Sends the playhead back to the start of the track.</summary>
+    public void RestartDolly()
+    {
+        InitializeModifiers();
+        modifiers.dolly.position = 0f;
+        modifierState.DollyPosition = 0f;
+        modifierState.DollyCompleted = false;
+    }
+
+    /// <summary>
+    /// Changes how the track is shared. The track reads the mode every refresh, so this only has
+    /// to record the choice — the markers pick up whether they may be grabbed on the next frame.
+    /// </summary>
+    public void SetDollySync(BasisCameraDollySync mode)
+    {
+        InitializeModifiers();
+        modifiers.dolly.syncMode = mode;
+        if (DollyTrack != null)
+        {
+            DollyTrack.SyncMode = mode;
+        }
+    }
+
+    /// <summary>How far through the track the move has got, in 0..1.</summary>
+    public float DollyProgress
+    {
+        get
+        {
+            if (DollyTrack == null || DollyTrack.Count == 0) return 0f;
+
+            float max = BasisCameraSpline.MaxPosition(DollyTrack.Count, DollyTrack.Looped);
+            return max > 1e-4f ? Mathf.Clamp01(modifierState.DollyPosition / max) : 0f;
+        }
+    }
 
     /// <summary>Fits a whole stack at once, for a preset or a saved mode.</summary>
     public void ApplyModifierStack(BasisCameraModifierStack stack, bool seedFromCamera = true)
@@ -234,6 +295,7 @@ public abstract partial class BasisHandHeldCameraInteractable
             lastFollowAnchorSubject = boundId;
             lastFollowAnchorWasGroup = group;
             modifierState.ResetSubjectHistory();
+            modifierState.ResetSubjectSmoothing();
             smoothedSubjectVelocity = Vector3.zero;
             hasLastSolveAnchor = false;
         }
@@ -275,9 +337,18 @@ public abstract partial class BasisHandHeldCameraInteractable
             OperatorPosition = operatorPosition,
             OperatorRotation = operatorRotation,
             OcclusionProbe = occlusionProbe,
+            SweepProbe = sweepProbe,
         };
 
         BasisCameraPose pose = BasisCameraModifierSolver.Solve(modifiers, modifierState, context);
+
+        // The solve only ever writes its own state, so it reports the end of the move rather than
+        // reaching into the stack to stop it. Clearing the transport here is what makes the panel's
+        // play button flip back on its own when the track runs out.
+        if (modifierState.DollyCompleted && modifiers.dolly.playing)
+        {
+            modifiers.dolly.playing = false;
+        }
 
         smoothedPosition = pose.Position;
         smoothedRotation = pose.Rotation;
@@ -497,6 +568,34 @@ public abstract partial class BasisHandHeldCameraInteractable
         if (Physics.SphereCast(target, radius, delta / distance, out RaycastHit hit, distance, occlusionMask, QueryTriggerInteraction.Ignore))
         {
             freeDistanceFromTarget = hit.distance;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Sweeps the camera's own path for anything solid. Shares the occlusion mask, so the layers
+    /// that never block a shot never stop the camera either — a camera that halted on the player it
+    /// was filming would be unable to pass them.
+    /// </summary>
+    private bool ProbeSweep(Vector3 origin, Vector3 direction, float distance, float radius, out float freeDistance)
+    {
+        freeDistance = 0f;
+
+        if (distance <= 1e-4f || direction.sqrMagnitude < 1e-8f)
+        {
+            return false;
+        }
+
+        if (!occlusionMaskBuilt)
+        {
+            BuildOcclusionMask();
+        }
+
+        if (Physics.SphereCast(origin, Mathf.Max(0.01f, radius), direction, out RaycastHit hit, distance,
+                occlusionMask, QueryTriggerInteraction.Ignore))
+        {
+            freeDistance = hit.distance;
             return true;
         }
         return false;

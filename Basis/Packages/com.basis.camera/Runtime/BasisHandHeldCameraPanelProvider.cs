@@ -21,7 +21,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private static readonly string[] FocusModeLabels = { "Follow Subject", "Manual" };
 
         // Ordered to match BasisCameraDetachedMarker (Off / Puck / Wireframe).
-        private static readonly string[] DetachedMarkerLabels = { "Off", "Puck", "Wireframe" };
+        private static readonly string[] DetachedMarkerKeys =
+        {
+            "camera.detachedMarker.off", "camera.detachedMarker.puck", "camera.detachedMarker.wireframe",
+        };
 
         // Ordered to match URP's MotionBlurQuality and MotionBlurMode, which the UI stores as their
         // index — a label reordered here silently picks a different enum entry.
@@ -34,6 +37,12 @@ namespace Basis.BasisUI.HandHeldCamera
         private static readonly string[] MotionBlurModeKeys =
         {
             "camera.motionBlurMode.cameraOnly", "camera.motionBlurMode.cameraAndObjects"
+        };
+
+        // In URP's TonemappingMode order, which is what the setting stores.
+        private static readonly string[] TonemappingKeys =
+        {
+            "camera.tonemapping.none", "camera.tonemapping.neutral", "camera.tonemapping.aces",
         };
 
         /// <summary>Preview height used until the row has a laid-out width to derive one from.</summary>
@@ -108,6 +117,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _focusSlider;
         private PanelSlider _dofFocalLengthSlider;
         private PanelSlider _dofBladeCountSlider;
+        private PanelToggle _focusPeakingToggle;
+        private PanelSlider _focusPeakingSensitivitySlider;
+        private PanelDropdown _focusPeakingColourDropdown;
+        private PanelToggle _focusPeakingGreyToggle;
         private PanelSlider _hueSlider;
         private PanelSlider _vignetteSlider;
         private PanelSlider _chromaticSlider;
@@ -115,6 +128,12 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _whiteBalanceTempSlider;
         private PanelSlider _whiteBalanceTintSlider;
         private PanelSlider _lensDistortionSlider;
+        private PanelSlider _lensDistortionScaleSlider;
+        private PanelSlider _bloomScatterSlider;
+        private PanelSlider _vignetteSmoothnessSlider;
+        private PanelSlider _paniniSlider;
+        private PanelSlider _paniniCropSlider;
+        private PanelDropdown _captureTonemappingDropdown;
         private PanelSlider _motionBlurSlider;
         private PanelSlider _motionBlurClampSlider;
         private PanelDropdown _motionBlurQualityDropdown;
@@ -259,10 +278,15 @@ namespace Basis.BasisUI.HandHeldCamera
             // up for a job and colours them by the part each one plays in it.
             AddTab("camera.modePreset", BuildModeTab);
 
+            // Taking the shot and where the shot goes are the same job, so they share a tab:
+            // what the button does, where the result is sent, and what sits behind the subject.
             AddTab("camera.capture", content =>
             {
                 BuildActionsGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_actionSection, _actionGroup, true, OnSectionExpanded);
+
+                BuildOutputGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_outputSection, _outputGroup, false, OnSectionExpanded);
 
                 BuildBackgroundGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_backgroundSection, _backgroundGroup, false, OnSectionExpanded);
@@ -289,13 +313,12 @@ namespace Basis.BasisUI.HandHeldCamera
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_videoSection, _videoGroup, false, OnSectionExpanded);
             });
 
-            AddTab("camera.output", content =>
-            {
-                BuildOutputGroup(content);
-                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_outputSection, _outputGroup, true, OnSectionExpanded);
-            });
-
             AddTab("camera.modifiers", BuildModifierSections);
+
+            // Its own page rather than a fifth section under the slots: the slots are one choice
+            // each and the effects are a list that grows, so together on one tab the thing you are
+            // adding to sits several screens below the thing you are adding.
+            AddTab("camera.tab.effects", BuildEffectSections);
 
             AddTab("camera.tab.advanced", content =>
             {
@@ -567,6 +590,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _focusSlider?.SetResetDefault(defaults.depthFocusDistance);
             _dofFocalLengthSlider?.SetResetDefault(defaults.dofFocalLength);
             _dofBladeCountSlider?.SetResetDefault(defaults.dofBladeCount);
+            _focusPeakingSensitivitySlider?.SetResetDefault(defaults.focusPeakingSensitivity * 100f);
 
             // Grading effects — neutral is 0 (no grade), matching a fresh camera.
             _contrastSlider?.SetResetDefault(0f);
@@ -578,6 +602,11 @@ namespace Basis.BasisUI.HandHeldCamera
             _chromaticSlider?.SetResetDefault(0f);
             _filmGrainSlider?.SetResetDefault(0f);
             _lensDistortionSlider?.SetResetDefault(0f);
+            _lensDistortionScaleSlider?.SetResetDefault(defaults.lensDistortionScale);
+            _bloomScatterSlider?.SetResetDefault(defaults.bloomScatter * 100f);
+            _vignetteSmoothnessSlider?.SetResetDefault(defaults.vignetteSmoothness * 100f);
+            _paniniSlider?.SetResetDefault(defaults.paniniDistance * 100f);
+            _paniniCropSlider?.SetResetDefault(defaults.paniniCropToFit * 100f);
             _motionBlurSlider?.SetResetDefault(defaults.motionBlurIntensity * 100f);
             _motionBlurClampSlider?.SetResetDefault(defaults.motionBlurClamp * 100f);
 #if Basis_VOLUMETRIC_SUPPORTED
@@ -596,6 +625,14 @@ namespace Basis.BasisUI.HandHeldCamera
             _followLookAtHeightSlider?.SetResetDefault(defaults.modifiers.subject.aimHeightOffset);
             _subjectRadiusSlider?.SetResetDefault(defaults.modifiers.subject.framingRadius);
             _followLateralSlider?.SetResetDefault(defaults.modifiers.follow.lateralTracking);
+            _steadySmoothingSlider?.SetResetDefault(defaults.modifiers.steady.smoothing);
+            _steadyDeadZoneSlider?.SetResetDefault(defaults.modifiers.steady.verticalDeadZone);
+            _collisionRadiusSlider?.SetResetDefault(defaults.modifiers.collision.radius);
+            _collisionPaddingSlider?.SetResetDefault(defaults.modifiers.collision.padding);
+            _dollyZoomMinSlider?.SetResetDefault(defaults.modifiers.dollyZoom.minFov);
+            _dollyZoomMaxSlider?.SetResetDefault(defaults.modifiers.dollyZoom.maxFov);
+            _rigWeightResponseSlider?.SetResetDefault(defaults.modifiers.rigWeight.responsiveness);
+            _rigWeightBounceSlider?.SetResetDefault(defaults.modifiers.rigWeight.bounce * 100f);
         }
 
         /// <summary>
@@ -690,6 +727,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _dofModeDropdown = null;
             _dofFocalLengthSlider = null;
             _dofBladeCountSlider = null;
+            _focusPeakingToggle = null;
+            _focusPeakingColourDropdown = null;
+            _focusPeakingSensitivitySlider = null;
+            _focusPeakingGreyToggle = null;
             _hueSlider = null;
             _vignetteSlider = null;
             _chromaticSlider = null;
@@ -697,6 +738,12 @@ namespace Basis.BasisUI.HandHeldCamera
             _whiteBalanceTempSlider = null;
             _whiteBalanceTintSlider = null;
             _lensDistortionSlider = null;
+            _lensDistortionScaleSlider = null;
+            _bloomScatterSlider = null;
+            _vignetteSmoothnessSlider = null;
+            _paniniSlider = null;
+            _paniniCropSlider = null;
+            _captureTonemappingDropdown = null;
             _motionBlurSlider = null;
             _motionBlurClampSlider = null;
             _motionBlurQualityDropdown = null;
@@ -910,6 +957,51 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisHandHeldCameraUI.MaxBladeCount, true, 0, ValueDisplayMode.Raw));
             _dofBladeCountSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.bokehBlades.description"));
             _dofBladeCountSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeDoFBladeCount(v);
+
+            BuildFocusPeakingControls(content);
+        }
+
+        /// <summary>
+        /// The focus aid, in the depth of field section because that is where focus is set from —
+        /// and because it is what makes a focus distance judgeable on a preview this small. It is
+        /// not gated on the blur being on: a shot with depth of field off is still one that can be
+        /// out of focus, and peaking answers that too.
+        /// </summary>
+        private void BuildFocusPeakingControls(RectTransform content)
+        {
+            _focusPeakingToggle = PanelToggle.CreateNewEntry(content);
+            _focusPeakingToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.focusPeaking"));
+            _focusPeakingToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.focusPeaking.description"));
+            _focusPeakingToggle.OnValueChanged = v =>
+            {
+                _activeCamera?.SetFocusPeakingEnabled(v);
+                RefreshFocusPeakingVisibility();
+            };
+
+            _focusPeakingColourDropdown = PanelDropdown.CreateNewEntry(content);
+            _focusPeakingColourDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.focusPeaking.colour"));
+            _focusPeakingColourDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.focusPeaking.colour.description"));
+            _focusPeakingColourDropdown.AssignLocalizedEntries(
+                new List<string>(BasisHandHeldCamera.FocusPeakingColourKeys),
+                new List<string>(BasisHandHeldCamera.FocusPeakingColourKeys));
+            _focusPeakingColourDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _focusPeakingColourDropdown == null) return;
+                int index = _focusPeakingColourDropdown.Index;
+                if (index >= 0) _activeCamera.SetFocusPeakingColour(index);
+            };
+
+            _focusPeakingSensitivitySlider = PanelSlider.CreateNew(content);
+            _focusPeakingSensitivitySlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(
+                BasisLocalization.Get("camera.focusPeaking.sensitivity")));
+            _focusPeakingSensitivitySlider.Descriptor.SetDescription(
+                BasisLocalization.Get("camera.focusPeaking.sensitivity.description"));
+            _focusPeakingSensitivitySlider.OnValueChanged = v => _activeCamera?.SetFocusPeakingSensitivity(v / 100f);
+
+            _focusPeakingGreyToggle = PanelToggle.CreateNewEntry(content);
+            _focusPeakingGreyToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.focusPeaking.grey"));
+            _focusPeakingGreyToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.focusPeaking.grey.description"));
+            _focusPeakingGreyToggle.OnValueChanged = v => _activeCamera?.SetFocusPeakingGreyPicture(v);
         }
 
         private void BuildColorGroup(RectTransform parent)
@@ -923,6 +1015,17 @@ namespace Basis.BasisUI.HandHeldCamera
             _exposureSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 BasisLocalization.Get("camera.exposure"), 0f, BasisHandHeldCameraUI.ExposureStopCount - 1, true, 0, ValueDisplayMode.Raw));
             _exposureSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeExposureCompensation(v);
+
+            _captureTonemappingDropdown = PanelDropdown.CreateNewEntry(content);
+            _captureTonemappingDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.tonemapping"));
+            _captureTonemappingDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.tonemapping.description"));
+            _captureTonemappingDropdown.AssignLocalizedEntries(
+                new List<string>(TonemappingKeys), new List<string>(TonemappingKeys));
+            _captureTonemappingDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _captureTonemappingDropdown == null) return;
+                _activeCamera.SetCaptureTonemapping(_captureTonemappingDropdown.Index);
+            };
 
             _exposureOnCameraToggle = PanelToggle.CreateNewEntry(content);
             _exposureOnCameraToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.exposureOnCamera"));
@@ -977,9 +1080,23 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisLocalization.Get("camera.bloomThreshold"), 0.1f, 2f, false, 2, ValueDisplayMode.Raw));
             _bloomThresholdSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeBloomThreshold(v);
 
+            _bloomScatterSlider = PanelSlider.CreateNew(content);
+            _bloomScatterSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(
+                BasisLocalization.Get("camera.bloomScatter")));
+            _bloomScatterSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.bloomScatter.description"));
+            _bloomScatterSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeBloomScatter(v / 100f);
+
             _vignetteSlider = PanelSlider.CreateNew(content);
             _vignetteSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("camera.vignette")));
             _vignetteSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeVignette(v / 100f);
+
+            _vignetteSmoothnessSlider = PanelSlider.CreateNew(content);
+            _vignetteSmoothnessSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.vignetteSmoothness"),
+                BasisHandHeldCameraUI.MinVignetteSmoothness * 100f, BasisHandHeldCameraUI.MaxVignetteSmoothness * 100f,
+                false, 0, ValueDisplayMode.Percentage));
+            _vignetteSmoothnessSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.vignetteSmoothness.description"));
+            _vignetteSmoothnessSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeVignetteSmoothness(v / 100f);
 
             _chromaticSlider = PanelSlider.CreateNew(content);
             _chromaticSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("camera.chromaticAberration")));
@@ -993,6 +1110,29 @@ namespace Basis.BasisUI.HandHeldCamera
             _lensDistortionSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 BasisLocalization.Get("camera.lensDistortion"), -100f, 100f, false, 0, ValueDisplayMode.Raw));
             _lensDistortionSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeLensDistortion(v / 100f);
+
+            _lensDistortionScaleSlider = PanelSlider.CreateNew(content);
+            _lensDistortionScaleSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.lensDistortionScale"),
+                BasisHandHeldCameraUI.MinLensDistortionScale, 2f, false, 2, ValueDisplayMode.Raw));
+            _lensDistortionScaleSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.lensDistortionScale.description"));
+            _lensDistortionScaleSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeLensDistortionScale(v);
+
+            _paniniSlider = PanelSlider.CreateNew(content);
+            _paniniSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("camera.panini")));
+            _paniniSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.panini.description"));
+            _paniniSlider.OnValueChanged = v =>
+            {
+                _activeCamera?.HandHeld.ChangePaniniDistance(v / 100f);
+                RefreshPaniniVisibility();
+            };
+
+            // Follows the projection the way the motion blur shape controls follow its strength:
+            // there is nothing to crop back until something has been unwrapped.
+            _paniniCropSlider = PanelSlider.CreateNew(content);
+            _paniniCropSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("camera.paniniCrop")));
+            _paniniCropSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.paniniCrop.description"));
+            _paniniCropSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangePaniniCropToFit(v / 100f);
 
             _motionBlurSlider = PanelSlider.CreateNew(content);
             _motionBlurSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("camera.motionBlur")));
@@ -1222,7 +1362,9 @@ namespace Basis.BasisUI.HandHeldCamera
             _subjectDropdown = PanelDropdown.CreateNewEntry(content);
             _subjectDropdown.Descriptor.SetTitle(BasisLocalization.Get(BasisCameraModifiers.SubjectSlotKey));
             _subjectDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.modifier.subject.description"));
-            _subjectDropdown.AssignEntries(LocalizedList(SubjectLabelKeys));
+            _subjectDropdown.AssignLocalizedEntries(
+                new List<string>(SubjectLabelKeys), new List<string>(SubjectLabelKeys),
+                DescriptionKeys(SubjectLabelKeys));
             _subjectDropdown.OnValueChanged = _ =>
             {
                 int index = _subjectDropdown != null ? _subjectDropdown.Index : -1;
@@ -1242,7 +1384,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _followMarkerDropdown = PanelDropdown.CreateNewEntry(content);
             _followMarkerDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.detachedMarker"));
             _followMarkerDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.detachedMarker.description"));
-            _followMarkerDropdown.AssignEntries(new List<string>(DetachedMarkerLabels));
+            _followMarkerDropdown.AssignLocalizedEntries(
+                new List<string>(DetachedMarkerKeys), new List<string>(DetachedMarkerKeys));
             _followMarkerDropdown.OnValueChanged = _ =>
             {
                 if (_activeCamera == null || _followMarkerDropdown == null) return;
@@ -1842,8 +1985,29 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastFocusFollows = _activeCamera.autoFocusFollowSubject;
             _focusModeDropdown?.SetValueWithoutNotify(FocusModeLabels[_activeCamera.autoFocusFollowSubject ? 0 : 1]);
 
+            _focusPeakingToggle?.SetValueWithoutNotify(_activeCamera.focusPeakingEnabled);
+            _focusPeakingGreyToggle?.SetValueWithoutNotify(_activeCamera.focusPeakingGreyPicture);
+            _focusPeakingSensitivitySlider?.SetValueWithoutNotify(_activeCamera.focusPeakingSensitivity * 100f);
+            _focusPeakingColourDropdown?.SetValueWithoutNotify(
+                BasisHandHeldCamera.FocusPeakingColourKeys[
+                    Mathf.Clamp(_activeCamera.focusPeakingColour, 0, BasisHandHeldCamera.FocusPeakingColourKeys.Length - 1)]);
+            RefreshFocusPeakingVisibility();
+
             if (metaData.vignette != null)
+            {
                 _vignetteSlider?.SetValueWithoutNotify(metaData.vignette.intensity.value * 100f);
+                _vignetteSmoothnessSlider?.SetValueWithoutNotify(metaData.vignette.smoothness.value * 100f);
+            }
+            if (metaData.bloom != null)
+                _bloomScatterSlider?.SetValueWithoutNotify(metaData.bloom.scatter.value * 100f);
+            if (metaData.paniniProjection != null)
+            {
+                _paniniSlider?.SetValueWithoutNotify(metaData.paniniProjection.distance.value * 100f);
+                _paniniCropSlider?.SetValueWithoutNotify(metaData.paniniProjection.cropToFit.value * 100f);
+            }
+            RefreshPaniniVisibility();
+            _captureTonemappingDropdown?.SetValueWithoutNotify(
+                TonemappingKeys[Mathf.Clamp((int)_activeCamera.CaptureTonemapping, 0, TonemappingKeys.Length - 1)]);
             if (metaData.chromaticAberration != null)
                 _chromaticSlider?.SetValueWithoutNotify(metaData.chromaticAberration.intensity.value * 100f);
             if (metaData.filmGrain != null)
@@ -1854,7 +2018,10 @@ namespace Basis.BasisUI.HandHeldCamera
                 _whiteBalanceTintSlider?.SetValueWithoutNotify(metaData.whiteBalance.tint.value);
             }
             if (metaData.lensDistortion != null)
+            {
                 _lensDistortionSlider?.SetValueWithoutNotify(metaData.lensDistortion.intensity.value * 100f);
+                _lensDistortionScaleSlider?.SetValueWithoutNotify(metaData.lensDistortion.scale.value);
+            }
             if (metaData.motionBlur != null)
             {
                 _motionBlurSlider?.SetValueWithoutNotify(metaData.motionBlur.intensity.value * 100f);
@@ -1910,8 +2077,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
             if (_followMarkerDropdown != null)
             {
-                int markerIndex = Mathf.Clamp((int)_activeCamera.detachedMarker, 0, DetachedMarkerLabels.Length - 1);
-                _followMarkerDropdown.SetValueWithoutNotify(DetachedMarkerLabels[markerIndex]);
+                int markerIndex = Mathf.Clamp((int)_activeCamera.detachedMarker, 0, DetachedMarkerKeys.Length - 1);
+                _followMarkerDropdown.SetValueWithoutNotify(DetachedMarkerKeys[markerIndex]);
             }
             // Each camera holds its own follow target, and the roster has not changed just because
             // the selected camera has — so drop the cached list to force the rebuild. Without it
@@ -2065,7 +2232,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private void RefreshPreviewTexture()
         {
             if (_previewImage == null) return;
-            Texture feed = _activeCamera != null ? _activeCamera.PreviewTexture : null;
+            Texture feed = _activeCamera != null ? _activeCamera.ViewfinderTexture : null;
             if (_previewImage.texture != feed) _previewImage.texture = feed;
             _previewImage.enabled = feed != null;
             ApplyPreviewAspect(feed);
@@ -2317,6 +2484,21 @@ namespace Basis.BasisUI.HandHeldCamera
         }
 
         /// <summary>
+        /// The three controls that shape the overlay follow the toggle that produces it, the way
+        /// the motion blur shape controls follow its strength.
+        /// </summary>
+        private void RefreshFocusPeakingVisibility()
+        {
+            bool peaking = _activeCamera != null && _activeCamera.focusPeakingEnabled;
+
+            _focusPeakingColourDropdown?.gameObject.SetActive(peaking);
+            _focusPeakingSensitivitySlider?.gameObject.SetActive(peaking);
+            _focusPeakingGreyToggle?.gameObject.SetActive(peaking);
+            RefreshSearch();
+            ForceLayoutRebuild(_dofGroup);
+        }
+
+        /// <summary>
         /// The clamp, quality and mode only describe blur that is already happening — at zero
         /// strength URP does not run the pass at all, so leaving them on screen offers three
         /// controls that visibly do nothing.
@@ -2331,6 +2513,18 @@ namespace Basis.BasisUI.HandHeldCamera
             _motionBlurClampSlider?.gameObject.SetActive(blurring);
             _motionBlurQualityDropdown?.gameObject.SetActive(blurring);
             _motionBlurModeDropdown?.gameObject.SetActive(blurring);
+            RefreshSearch();
+            ForceLayoutRebuild(_effectsGroup);
+        }
+
+        private void RefreshPaniniVisibility()
+        {
+            if (_activeCamera == null) return;
+
+            bool projecting = _activeCamera.MetaData.paniniProjection != null
+                && _activeCamera.MetaData.paniniProjection.distance.value > 0f;
+
+            _paniniCropSlider?.gameObject.SetActive(projecting);
             RefreshSearch();
             ForceLayoutRebuild(_effectsGroup);
         }
@@ -2357,7 +2551,32 @@ namespace Basis.BasisUI.HandHeldCamera
         // The dropdowns resolve a selection by its position in these tables, so a table that has
         // drifted from the enum it stands in for silently selects the wrong entry rather than
         // failing. Exposed so that correspondence can be asserted.
-        public static string[] DetachedMarkerLabelsForTest => DetachedMarkerLabels;
+        public static string[] DetachedMarkerKeysForTest => DetachedMarkerKeys;
+
+        /// <summary>Every option key the camera panel's concept dropdowns offer, for the text sweep.</summary>
+        public static string[] OptionKeysForTest
+        {
+            get
+            {
+                var all = new System.Collections.Generic.List<string>();
+                all.AddRange(DetachedMarkerKeys);
+                all.AddRange(SubjectLabelKeys);
+                all.AddRange(PositionLabelKeys);
+                all.AddRange(RotationLabelKeys);
+                all.AddRange(BindingModeKeys);
+                all.AddRange(NoiseProfileKeys);
+                all.AddRange(DollyModeKeys);
+                all.AddRange(BackgroundModeKeys);
+                all.AddRange(DollySyncKeys);
+                all.AddRange(TonemappingKeys);
+                all.AddRange(BasisHandHeldCamera.FocusPeakingColourKeys);
+                for (int Index = 0; Index < BasisCameraModifiers.Effects.Length; Index++)
+                {
+                    all.Add(BasisCameraModifiers.Effects[Index].NameKey);
+                }
+                return all.ToArray();
+            }
+        }
         public static string[] FocusModeLabelsForTest => FocusModeLabels;
         public static int[] MsaaSampleCountsForTest => MsaaSampleCounts;
         public static int[] VideoResolutionWidthsForTest => VideoResolutionWidths;

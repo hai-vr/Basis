@@ -168,6 +168,11 @@ public class BasisCameraUserMode
         if (left.dofBladeCount != right.dofBladeCount) return false;
         if (left.useManualFocus != right.useManualFocus) return false;
 
+        if (left.focusPeaking != right.focusPeaking) return false;
+        if (!Near(left.focusPeakingSensitivity, right.focusPeakingSensitivity, Epsilon)) return false;
+        if (left.focusPeakingColour != right.focusPeakingColour) return false;
+        if (left.focusPeakingGreyPicture != right.focusPeakingGreyPicture) return false;
+
         if (!Near(left.VolumetricFogVolumedensity, right.VolumetricFogVolumedensity, Epsilon)) return false;
         if (left.VolumetricFogenableAPVContribution != right.VolumetricFogenableAPVContribution) return false;
         if (left.VolumetricFogenableMainLightContribution != right.VolumetricFogenableMainLightContribution) return false;
@@ -178,6 +183,12 @@ public class BasisCameraUserMode
         if (!Near(left.whiteBalanceTemperature, right.whiteBalanceTemperature, Epsilon)) return false;
         if (!Near(left.whiteBalanceTint, right.whiteBalanceTint, Epsilon)) return false;
         if (!Near(left.lensDistortion, right.lensDistortion, Epsilon)) return false;
+        if (!Near(left.lensDistortionScale, right.lensDistortionScale, Epsilon)) return false;
+        if (!Near(left.bloomScatter, right.bloomScatter, Epsilon)) return false;
+        if (!Near(left.vignetteSmoothness, right.vignetteSmoothness, Epsilon)) return false;
+        if (!Near(left.paniniDistance, right.paniniDistance, Epsilon)) return false;
+        if (!Near(left.paniniCropToFit, right.paniniCropToFit, Epsilon)) return false;
+        if (left.captureTonemapping != right.captureTonemapping) return false;
 
         if (!Near(left.motionBlurIntensity, right.motionBlurIntensity, MotionBlurTolerance)) return false;
         if (!Near(left.motionBlurClamp, right.motionBlurClamp, Epsilon)) return false;
@@ -207,6 +218,7 @@ public class BasisCameraUserMode
         if (left.videoWidth != right.videoWidth) return false;
         if (left.videoQuality != right.videoQuality) return false;
         if (left.videoTimeLimit != right.videoTimeLimit) return false;
+        if (left.videoContinuousClips != right.videoContinuousClips) return false;
 
         if (left.backgroundMode != right.backgroundMode) return false;
         if (!Near(left.backgroundCustomColor, right.backgroundCustomColor)) return false;

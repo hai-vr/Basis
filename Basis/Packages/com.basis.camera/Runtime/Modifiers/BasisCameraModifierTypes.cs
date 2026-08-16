@@ -78,6 +78,14 @@ namespace Basis.Cinematics
         Shake = 2,
         /// <summary>Drive the field of view from the stack instead of the operator's slider.</summary>
         LensOverride = 3,
+        /// <summary>Settle the subject before anything films them, so head bob does not reach the shot.</summary>
+        SteadySubject = 4,
+        /// <summary>Stop the camera travelling through anything solid on its way to where it is going.</summary>
+        AvoidCollision = 5,
+        /// <summary>Hold the subject the same size while the camera moves, so the world stretches behind them.</summary>
+        DollyZoom = 6,
+        /// <summary>Give the rig weight, so a fast move carries past the mark and settles back onto it.</summary>
+        RigWeight = 7,
     }
 
     /// <summary>Which part of the pose a modifier writes. Shown as a badge beside its name.</summary>
@@ -163,15 +171,41 @@ namespace Basis.Cinematics
 
         public static readonly BasisCameraEffectDescriptor[] Effects =
         {
+            new BasisCameraEffectDescriptor(BasisCameraEffectModifier.SteadySubject, BasisCameraModifierChannel.Both,
+                BasisCameraEffectStage.Subject, "camera.modifier.steadySubject", "camera.modifier.steadySubject.description"),
             new BasisCameraEffectDescriptor(BasisCameraEffectModifier.LookAhead, BasisCameraModifierChannel.Both,
                 BasisCameraEffectStage.Subject, "camera.modifier.lookAhead", "camera.modifier.lookAhead.description"),
             new BasisCameraEffectDescriptor(BasisCameraEffectModifier.AvoidOcclusion, BasisCameraModifierChannel.Position,
                 BasisCameraEffectStage.Position, "camera.modifier.avoidOcclusion", "camera.modifier.avoidOcclusion.description"),
+            new BasisCameraEffectDescriptor(BasisCameraEffectModifier.AvoidCollision, BasisCameraModifierChannel.Position,
+                BasisCameraEffectStage.Position, "camera.modifier.avoidCollision", "camera.modifier.avoidCollision.description"),
             new BasisCameraEffectDescriptor(BasisCameraEffectModifier.LensOverride, BasisCameraModifierChannel.Lens,
                 BasisCameraEffectStage.Lens, "camera.modifier.lensOverride", "camera.modifier.lensOverride.description"),
+            new BasisCameraEffectDescriptor(BasisCameraEffectModifier.DollyZoom, BasisCameraModifierChannel.Lens,
+                BasisCameraEffectStage.Lens, "camera.modifier.dollyZoom", "camera.modifier.dollyZoom.description"),
+            new BasisCameraEffectDescriptor(BasisCameraEffectModifier.RigWeight, BasisCameraModifierChannel.Rotation,
+                BasisCameraEffectStage.Output, "camera.modifier.rigWeight", "camera.modifier.rigWeight.description"),
             new BasisCameraEffectDescriptor(BasisCameraEffectModifier.Shake, BasisCameraModifierChannel.Both,
                 BasisCameraEffectStage.Output, "camera.modifier.shake", "camera.modifier.shake.description"),
         };
+
+        /// <summary>
+        /// Whether the effect has nothing to work on without a subject. The fitted control still
+        /// shows — it is the subject slot that is missing, not the setting — but the solve skips it.
+        /// </summary>
+        public static bool NeedsSubject(BasisCameraEffectModifier effect)
+        {
+            switch (effect)
+            {
+                case BasisCameraEffectModifier.SteadySubject:
+                case BasisCameraEffectModifier.LookAhead:
+                case BasisCameraEffectModifier.AvoidOcclusion:
+                case BasisCameraEffectModifier.DollyZoom:
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
         public static string NameKey(BasisCameraSubjectModifier modifier)
         {

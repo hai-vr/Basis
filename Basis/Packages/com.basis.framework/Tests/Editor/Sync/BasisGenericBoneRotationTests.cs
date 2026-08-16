@@ -1,4 +1,5 @@
 using Basis.Network.Core.Compression;
+using Basis.Scripts.Common;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using NUnit.Framework;
 using Unity.Collections;
@@ -901,6 +902,91 @@ namespace Basis.Tests.Sync
             }
 
             Assert.That(worst, Is.LessThan(0.01f), $"hips rotation drifted {worst}° across rigs");
+        }
+
+        /// <summary>
+        /// The two rest quantities calibration records for a rig whose skeleton hangs off the
+        /// animator root through <paramref name="chain"/> (an <c>Armature</c> node, a Z-up
+        /// conversion) and whose anatomy points along <paramref name="basis"/> in root space.
+        /// </summary>
+        static BasisTransformMapping RigMapping(quaternion chain, quaternion basis, quaternion hipsRestLocal)
+        {
+            BasisTransformMapping mapping = new BasisTransformMapping();
+            mapping.TposeLocal[HumanBodyBones.Hips] = new BasisCalibratedCoords(Vector3.zero, hipsRestLocal);
+            // F is what a T-pose capture reads back off the root, so the chain above the hips is
+            // already inside it — which is the whole reason F and T differ.
+            mapping.TposeFromRoot[HumanBodyBones.Hips] =
+                new BasisCalibratedCoords(Vector3.zero, math.mul(chain, hipsRestLocal));
+            mapping.AvatarForwards = math.mul(basis, new float3(0f, 0f, 1f));
+            mapping.AvatarUpwards = math.mul(basis, new float3(0f, 1f, 0f));
+            return mapping;
+        }
+
+        /// <summary>
+        /// The root pose the remote pipeline derives is the hips' PARENT, and the animator root is
+        /// not the anatomical frame either — so on some perfectly legal rigs it is not a facing at
+        /// all. Nothing in the rendered avatar shows it (hips are applied in world space), which
+        /// left the follow camera as the only consumer, framing those people from behind.
+        /// </summary>
+        [Test]
+        public void DerivedRoot_ReadsAsFacingOnlyOnceTheRigConstantsAreDividedOut()
+        {
+            quaternion hipsRestLocal = AxisAngle(new float3(1, 0, 0), -8f);
+            quaternion worldFacing = AxisAngle(new float3(0, 1, 0), 37f);
+            quaternion flipped = AxisAngle(new float3(0, 1, 0), 180f);
+            quaternion zUp = AxisAngle(new float3(1, 0, 0), -90f);
+
+            (string Name, quaternion Chain, quaternion Basis)[] rigs =
+            {
+                ("hips straight off a +Z root", quaternion.identity, quaternion.identity),
+                ("model authored facing -Z", quaternion.identity, flipped),
+                ("Armature node rotated -90 about X", zUp, zUp),
+                ("both at once", zUp, math.mul(zUp, flipped)),
+            };
+
+            foreach ((string Name, quaternion Chain, quaternion Basis) rig in rigs)
+            {
+                BasisTransformMapping mapping = RigMapping(rig.Chain, rig.Basis, hipsRestLocal);
+
+                // What ApplyRootAndScaleJob writes: the received hips world pose with the live hips
+                // local rotation divided back out, which lands on the hips' parent.
+                quaternion derivedRoot = math.mul(worldFacing, rig.Chain);
+                quaternion anatomical = math.mul(worldFacing, rig.Basis);
+
+                quaternion corrected = math.mul(derivedRoot,
+                    BasisGenericBoneRotationUtils.GetDerivedRootToCharacterBasis(mapping));
+
+                Assert.That(AngleBetween(corrected, anatomical), Is.LessThan(0.01f),
+                    $"{rig.Name}: corrected root must face where the avatar faces");
+
+                if (AngleBetween(rig.Chain, rig.Basis) > 1f)
+                {
+                    Assert.That(AngleBetween(derivedRoot, anatomical), Is.GreaterThan(170f),
+                        $"{rig.Name}: this rig is only interesting because the raw root is the wrong " +
+                        "way round — if it stops being, the correction above is proving nothing");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Half a measurement must not move an avatar that reads correctly today: every incomplete
+        /// case degrades to the raw root frame, which is the behaviour that was already there.
+        /// </summary>
+        [Test]
+        public void DerivedRootCorrection_IsIdentityWithoutBothHipsRestRotations()
+        {
+            Assert.That(AngleDeg(BasisGenericBoneRotationUtils.GetDerivedRootToCharacterBasis(null)),
+                Is.LessThan(0.01f), "no mapping at all");
+
+            Assert.That(AngleDeg(BasisGenericBoneRotationUtils.GetDerivedRootToCharacterBasis(new BasisTransformMapping())),
+                Is.LessThan(0.01f), "a mapping calibration has not filled in yet");
+
+            // RecordPoses stores a bone the rig does not have as an all-zero coords pair.
+            BasisTransformMapping absent = new BasisTransformMapping();
+            absent.TposeLocal[HumanBodyBones.Hips] = default;
+            absent.TposeFromRoot[HumanBodyBones.Hips] = default;
+            Assert.That(AngleDeg(BasisGenericBoneRotationUtils.GetDerivedRootToCharacterBasis(absent)),
+                Is.LessThan(0.01f), "an all-zero coords pair is not a rotation");
         }
 
         /// <summary>

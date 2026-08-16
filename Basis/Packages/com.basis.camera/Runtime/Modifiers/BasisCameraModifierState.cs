@@ -32,6 +32,30 @@ namespace Basis.Cinematics
         public bool HasLastAnchor;
         public float SmoothedLateralSpeed;
 
+        /// <summary>The settled subject position, which the raw one is corrected toward.</summary>
+        public Vector3 SteadyAnchor;
+        public bool HasSteadyAnchor;
+
+        /// <summary>
+        /// Where the solve left the camera last frame, which is what a collision sweep travels from.
+        /// Written after every solve rather than by the modifier that moved it, so it is the whole
+        /// frame's movement that gets swept whichever modifier produced it.
+        /// </summary>
+        public Vector3 PreviousPosition;
+        public bool HasPreviousPosition;
+
+        /// <summary>
+        /// Subject size to hold, as the product of distance and the tangent of the half angle. Taken
+        /// from the shot as it stood when the effect was fitted, so a vertigo move starts from the
+        /// framing already set up rather than from an authored number.
+        /// </summary>
+        public float DollyZoomReference;
+        public bool HasDollyZoomReference;
+
+        public Quaternion RigWeightRotation = Quaternion.identity;
+        public Vector3 RigWeightVelocity;
+        public bool HasRigWeight;
+
         /// <summary>
         /// Continue from an explicit pose — the stack being fitted, or the camera being taken back
         /// from something else, so it eases from where it actually is rather than cutting.
@@ -43,7 +67,16 @@ namespace Basis.Cinematics
             Fov = fov;
             Initialized = true;
             HasOcclusionDistance = false;
+
+            PreviousPosition = position;
+            HasPreviousPosition = true;
+            RigWeightRotation = rotation;
+            RigWeightVelocity = Vector3.zero;
+            HasRigWeight = true;
+            HasDollyZoomReference = false;
+
             ResetSubjectHistory();
+            ResetSubjectSmoothing();
         }
 
         /// <summary>
@@ -56,7 +89,11 @@ namespace Basis.Cinematics
             Initialized = false;
             HasOcclusionDistance = false;
             DollyCompleted = false;
+            HasPreviousPosition = false;
+            HasDollyZoomReference = false;
+            HasRigWeight = false;
             ResetSubjectHistory();
+            ResetSubjectSmoothing();
         }
 
         /// <summary>
@@ -69,5 +106,13 @@ namespace Basis.Cinematics
             HasLastAnchor = false;
             SmoothedLateralSpeed = 0f;
         }
+
+        /// <summary>
+        /// Forget the settled subject position. Deliberately not part of
+        /// <see cref="ResetSubjectHistory"/>, which the position modifiers call every frame: the
+        /// smoothing runs before they do, so clearing it there would wipe the filter each frame and
+        /// leave the effect fitted and doing nothing.
+        /// </summary>
+        public void ResetSubjectSmoothing() => HasSteadyAnchor = false;
     }
 }
