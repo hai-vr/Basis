@@ -18,6 +18,14 @@ namespace Basis.BasisUI
         public bool HasCustomIconAddress;
         public string IconAddress;
 
+        /// <summary>
+        /// What the library shows this item as. Without one the address is used, which is an asset
+        /// name rather than a label and cannot be translated. A localization key rather than text,
+        /// so the item reads in the language the rest of the panel is in.
+        /// </summary>
+        public bool HasCustomDisplayName;
+        public string DisplayNameKey;
+
         public bool HasCustomBounds;
         public BasisBounds Bounds = new BasisBounds(Vector3.one, Vector3.zero);
 

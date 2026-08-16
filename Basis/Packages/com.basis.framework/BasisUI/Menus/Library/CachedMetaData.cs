@@ -230,9 +230,10 @@ namespace Basis.BasisUI
                     {
                         case BundledContentHolder.Mode.Avatar:
                         case BundledContentHolder.Mode.Prop:
+                            string displayName = EmbeddedItems.GetDisplayNameForEmbeddedItem(item);
                             cached = new CachedContent
                             {
-                                Name = item.Url,
+                                Name = displayName,
                                 AssetBundleDescription = "Embedded Item",
                                 CachedSprite = EmbeddedItems.GetSpriteForEmbeddedItem(item),
                                 DateOfCreation = string.Empty,
@@ -241,7 +242,7 @@ namespace Basis.BasisUI
                                 {
                                     BasisBundleDescription = new BasisBundleDescription()
                                     {
-                                        AssetBundleName = item.Url,
+                                        AssetBundleName = displayName,
                                         AssetBundleDescription = "Embedded Item"
                                     }
                                 },

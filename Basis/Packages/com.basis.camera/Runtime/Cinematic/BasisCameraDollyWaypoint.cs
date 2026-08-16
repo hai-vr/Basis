@@ -64,6 +64,15 @@ namespace Basis.Cinematics
             return waypoint;
         }
 
+        /// <summary>
+        /// Puts the marker where the network says it is. Separate from the grab path so a point
+        /// arriving from somebody else can never be mistaken for one this client is dragging.
+        /// </summary>
+        public void PlaceFromNetwork(Vector3 position, Quaternion rotation)
+        {
+            transform.SetPositionAndRotation(position, rotation);
+        }
+
         public void SetScale(float scale)
         {
             scale = Mathf.Max(0.05f, scale);

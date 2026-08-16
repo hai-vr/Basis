@@ -1169,7 +1169,7 @@ namespace Basis.BasisUI
             {
                 description = new BasisBundleDescription()
                 {
-                    AssetBundleName = item.Url,
+                    AssetBundleName = EmbeddedItems.GetDisplayNameForEmbeddedItem(item),
                     AssetBundleDescription = embedItem,
                 };
 
@@ -2126,7 +2126,9 @@ namespace Basis.BasisUI
         private static string TitleFromSpawnInstanceMetaData(BasisRuntimeSpawnRegistry.SpawnInstance k)
         {
             bool hasMetaData = k.bundleConnector != null;
-            return hasMetaData ? LibraryProviderStrUtil.TitleToCase(k.bundleConnector.BasisBundleDescription.AssetBundleName) : k.Url;
+            return hasMetaData
+                ? LibraryProviderStrUtil.TitleToCase(k.bundleConnector.BasisBundleDescription.AssetBundleName)
+                : EmbeddedItems.GetDisplayNameForUrl(k.Url);
         }
 
         private static void UpdateInstantiatedTab()
@@ -2860,7 +2862,9 @@ namespace Basis.BasisUI
         private static void CreateListEntry(BasisRuntimeSpawnRegistry.SpawnInstance itemKey, RectTransform parentTabGroup, string instanceID)
         {
             bool hasMetaData = itemKey.bundleConnector != null;
-            string title = hasMetaData ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName) : itemKey.Url;
+            string title = hasMetaData
+                ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName)
+                : EmbeddedItems.GetDisplayNameForUrl(itemKey.Url);
             //string description = hasMetaData ? (itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription.Length > 0 ? itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription : "No description was provided.") : (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded ? "Embedded Item" : "N/A");
 
             bool hasSelected = false; // used for if we have selected this item via the placement manager

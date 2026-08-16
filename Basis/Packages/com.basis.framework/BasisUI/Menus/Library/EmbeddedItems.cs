@@ -131,6 +131,35 @@ namespace Basis.BasisUI
             return AddressableAssets.GetSprite(GetAddressableSpriteForEmbeddedItem(item));
         }
 
+        /// <summary>
+        /// What to call the item in the library. Falls back to the address, which is what every
+        /// embedded item showed before any of them carried a name of their own.
+        /// </summary>
+        public static string GetDisplayNameForEmbeddedItem(ItemKey item)
+            => GetDisplayNameForUrl(item?.Url);
+
+        /// <summary>
+        /// The same lookup keyed by address alone, for the places that have a spawned instance
+        /// rather than a catalogue entry — the Instantiated tab holds a url and a bundle connector
+        /// that an embedded spawn never fills in.
+        /// </summary>
+        public static string GetDisplayNameForUrl(string url)
+        {
+            url ??= string.Empty;
+            EnsureLoaded();
+
+            if (DefinitionByUrl.TryGetValue(url, out EmbeddedItemDefinition definition) &&
+                definition.HasCustomDisplayName &&
+                !string.IsNullOrEmpty(definition.DisplayNameKey) &&
+                BasisLocalization.TryGet(definition.DisplayNameKey, out string localized) &&
+                !string.IsNullOrEmpty(localized))
+            {
+                return localized;
+            }
+
+            return url;
+        }
+
         public static BasisBounds GetBoundsForEmbeddedItem(ItemKey item)
         {
             if (!IsEmbeddedItem(item))

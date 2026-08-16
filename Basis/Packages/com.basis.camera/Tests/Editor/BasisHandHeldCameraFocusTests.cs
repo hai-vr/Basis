@@ -157,6 +157,49 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void AutoFocus_DoesNotDriveWhileTheStackIsFittedButFilmingNobody()
+        {
+            // A modifier can be fitted with the Subject slot on None — a dolly track needs no
+            // subject to run. Focus then falls back to the local player, which is the same shot-wide
+            // blur as holding the camera, so it must not drive here either.
+            _camera.SetPositionModifier(BasisCameraPositionModifier.DollyTrack);
+            _camera.SetSubjectModifier(BasisCameraSubjectModifier.None);
+
+            Assert.That(_camera.CanAutoFocusOnFollowSubject, Is.False);
+        }
+
+        [Test]
+        public void AutoFocus_ReportsHavingNoSubject_OnlyWhileFollowSubjectIsSelected()
+        {
+            // The notice under the focus dropdown reads this, so it has to be false whenever the
+            // dropdown says Manual — there is nothing to warn about when nothing is being followed.
+            _camera.autoFocusFollowSubject = false;
+            Assert.That(_camera.AutoFocusHasNoSubject, Is.False);
+
+            _camera.autoFocusFollowSubject = true;
+            Assert.That(_camera.AutoFocusHasNoSubject, Is.True,
+                "Follow Subject with the camera in hand and no target tracks nobody.");
+
+            _camera.SetFollowTargetPlayer(7);
+            Assert.That(_camera.AutoFocusHasNoSubject, Is.False);
+        }
+
+        [Test]
+        public void AutoFocus_StopsReportingNoSubject_OnceTheStackFilmsSomebody()
+        {
+            _camera.autoFocusFollowSubject = true;
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
+            _camera.SetSubjectModifier(BasisCameraSubjectModifier.None);
+
+            Assert.That(_camera.AutoFocusHasNoSubject, Is.True,
+                "A fitted slot with an empty Subject is still filming nobody.");
+
+            _camera.SetSubjectModifier(BasisCameraSubjectModifier.FollowPlayer);
+
+            Assert.That(_camera.AutoFocusHasNoSubject, Is.False);
+        }
+
+        [Test]
         public void ShippedDefaults_GiveAUsableDepthOfFieldAtPortraitRange()
         {
             var defaults = new BasisHandHeldCameraUI.CameraSettings();

@@ -484,9 +484,23 @@ public partial class BasisHandHeldCameraUI
     {
         if (HHC == null || HHC.MetaData.colorAdjustments == null) return;
 
-        int i = Mathf.Clamp((int)index, 0, ExposureStops.Length - 1);
-        ExposureIndex = i;
-        HHC.MetaData.colorAdjustments.postExposure.value = ExposureStops[i];
+        ExposureIndex = Mathf.Clamp((int)index, 0, ExposureStops.Length - 1);
+        ApplyPostExposure();
+    }
+
+    /// <summary>
+    /// The one place post exposure is written. Two things set it — the exposure control, and auto
+    /// brightness — and they are summed rather than fighting over the value: with auto brightness
+    /// on, the manual control goes on working as exposure compensation, which is the division of
+    /// labour a stills camera makes between its meter and its ±EV dial. Writing either one straight
+    /// to the effect would have it wiped by the next write of the other.
+    /// </summary>
+    public void ApplyPostExposure()
+    {
+        if (HHC == null || HHC.MetaData.colorAdjustments == null) return;
+
+        float compensation = ExposureStops[Mathf.Clamp(ExposureIndex, 0, ExposureStops.Length - 1)];
+        HHC.MetaData.colorAdjustments.postExposure.value = compensation + HHC.AutoBrightnessOffset;
     }
 
     private void CycleResolutionPreset()
@@ -674,6 +688,11 @@ public partial class BasisHandHeldCameraUI
             focusPeakingSensitivity = HHC != null ? HHC.focusPeakingSensitivity : baseline.focusPeakingSensitivity,
             focusPeakingColour = HHC != null ? HHC.focusPeakingColour : baseline.focusPeakingColour,
             focusPeakingGreyPicture = HHC != null && HHC.focusPeakingGreyPicture,
+            autoBrightness = HHC != null && HHC.autoBrightnessEnabled,
+            autoBrightnessTarget = HHC != null ? HHC.autoBrightnessTarget : baseline.autoBrightnessTarget,
+            autoBrightnessSpeed = HHC != null ? HHC.autoBrightnessSpeed : baseline.autoBrightnessSpeed,
+            autoBrightnessMetering = HHC != null ? HHC.autoBrightnessMetering : baseline.autoBrightnessMetering,
+            autoBrightnessRange = HHC != null ? HHC.autoBrightnessRange : baseline.autoBrightnessRange,
             dofMode = HHC != null && HHC.MetaData.depthOfField != null ? (int)HHC.MetaData.depthOfField.mode.value : 2,
             dofFocalLength = HHC != null && HHC.MetaData.depthOfField != null ? HHC.MetaData.depthOfField.focalLength.value : 125f,
             dofBladeCount = HHC != null && HHC.MetaData.depthOfField != null ? HHC.MetaData.depthOfField.bladeCount.value : 5,
@@ -1068,9 +1087,17 @@ public partial class BasisHandHeldCameraUI
         int clampedExposure = Mathf.Clamp(settings.exposureIndex, 0, ExposureStops.Length - 1);
         ExposureIndex = clampedExposure;
 
+        // Auto brightness before the exposure write: the two are summed, so the offset has to be
+        // settled before the sum is taken or the first frame is exposed without it.
+        HHC.SetAutoBrightnessTarget(settings.autoBrightnessTarget);
+        HHC.SetAutoBrightnessSpeed(settings.autoBrightnessSpeed);
+        HHC.SetAutoBrightnessMetering(settings.autoBrightnessMetering);
+        HHC.SetAutoBrightnessRange(settings.autoBrightnessRange);
+        HHC.SetAutoBrightnessEnabled(settings.autoBrightness);
+
         if (HHC.MetaData.colorAdjustments != null)
         {
-            HHC.MetaData.colorAdjustments.postExposure.value = ExposureStops[clampedExposure];
+            ApplyPostExposure();
             HHC.MetaData.colorAdjustments.contrast.value = settings.contrast;
             HHC.MetaData.colorAdjustments.saturation.value = settings.saturation;
         }

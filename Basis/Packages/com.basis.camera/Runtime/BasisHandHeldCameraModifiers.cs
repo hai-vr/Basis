@@ -75,12 +75,26 @@ public abstract partial class BasisHandHeldCameraInteractable
         {
             return;
         }
+        float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+        Quaternion facing = GetLabelFacing();
+
         DollyTrack.SyncMode = Modifiers.dolly.syncMode;
-        DollyTrack.Refresh(BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale, GetLabelFacing());
+        DollyTrack.Refresh(scale, facing);
+
+        // Everyone else's tracks are drawn from the same frame as our own, so a shared track is
+        // never a frame behind the one it is being laid out beside.
+        BasisCameraDollyManager.Tick(Time.time);
+        BasisCameraDollyManager.TickMirrors(scale, facing);
     }
 
     internal void DisposeModifiers()
     {
+        // Withdrawn before it is destroyed, or it stands on every other screen with nothing left
+        // to update it.
+        if (DollyTrack != null)
+        {
+            BasisCameraDollyManager.SetLocalTrack(null);
+        }
         DollyTrack?.Dispose();
         DollyTrack = null;
     }

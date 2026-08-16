@@ -358,6 +358,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisMirrorViewerRegistry.Unregister(captureCamera);
         ReleaseRenderTexture();
         ReleaseFocusPeaking();
+        ReleaseAutoBrightness();
         if (pooledScreenshot != null) { Destroy(pooledScreenshot); pooledScreenshot = null; }
         ReleaseSrgbResolveTarget();
         if (actualMaterial != null) { Destroy(actualMaterial); actualMaterial = null; }
@@ -830,8 +831,21 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// True when the follow subject is somewhere the camera could actually be pointed. Follow
     /// resolves to the local player whenever no remote is targeted, and while the camera is in
     /// hand that point sits behind the lens, so focusing on it blurs the whole shot.
+    /// <para>
+    /// A fitted modifier only counts while the Subject slot names somebody: with the slot on None
+    /// the stack is driving the camera at nothing in particular, and the fallback is again your own
+    /// head — the same shot-wide blur, arrived at from the other direction.
+    /// </para>
     /// </summary>
-    public bool CanAutoFocusOnFollowSubject => IsModifierDriven || IsFollowingRemotePlayer;
+    public bool CanAutoFocusOnFollowSubject =>
+        IsFollowingRemotePlayer || (IsModifierDriven && Modifiers.ResolvesSubject);
+
+    /// <summary>
+    /// True when Follow Subject focus is selected and there is nobody for it to keep sharp, which
+    /// is a state the operator cannot otherwise see: the focus mode reads Follow Subject, the
+    /// manual slider is quietly still in charge, and who the camera films is set on another page.
+    /// </summary>
+    public bool AutoFocusHasNoSubject => autoFocusFollowSubject && !CanAutoFocusOnFollowSubject;
 
     /// <summary>
     /// Shortest focus distance the blur solver can take, in metres. Its circle of confusion is
@@ -1317,6 +1331,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     private void SimulateLate()
     {
         UpdateRenderGate();
+
+        // Ahead of the render, so the exposure the meter settles on is the one this frame is shot at.
+        TickAutoBrightness();
 
         // Before every surface that binds a feed, so they are pointed at the overlay for the frame
         // it was produced in rather than the frame after.

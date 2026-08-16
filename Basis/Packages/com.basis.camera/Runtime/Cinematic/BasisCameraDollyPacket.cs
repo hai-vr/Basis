@@ -6,7 +6,7 @@ namespace Basis.Cinematics
     /// <summary>What a dolly packet is carrying.</summary>
     public enum BasisCameraDollyPacketType : byte
     {
-        /// <summary>The whole roster, from the camera's owner: the mode and every point.</summary>
+        /// <summary>The whole track, from the player who authored it: the mode and every point.</summary>
         Roster = 1,
         /// <summary>One point moving, from whoever is holding it.</summary>
         PointMove = 2,
@@ -15,30 +15,38 @@ namespace Basis.Cinematics
     }
 
     /// <summary>
-    /// The wire format for a networked dolly track.
+    /// The wire format for a shared dolly track.
     ///
     /// <para>Kept as a pure static codec with no <c>MonoBehaviour</c> and no transport, so the
-    /// format can be asserted on in full — a byte laid out wrongly here is a class of bug that
-    /// only shows up as points landing in the wrong place on somebody else's screen, which is
-    /// exactly the sort of thing that is miserable to debug live.</para>
+    /// format can be asserted on in full — a byte laid out wrongly here is a class of bug that only
+    /// shows up as points landing in the wrong place on somebody else's screen, which is miserable
+    /// to debug live.</para>
     ///
-    /// <para>Positions are full floats. A dolly point is authored once and then sits still, so the
-    /// traffic is tiny and bounded by <see cref="MaxPoints"/>; spending bits on quantisation would
-    /// buy nothing and would put a rounding error into a camera move whose whole purpose is to be
-    /// smooth.</para>
+    /// <para>A roster's author is the sender, so it carries no owner field. A move or a claim can
+    /// come from anyone, so those name the track they act on — without it, a remote reaching for
+    /// somebody's point would be indistinguishable from them editing their own.</para>
+    ///
+    /// <para>Positions are full floats. A point is authored once and then sits still, so the
+    /// traffic is tiny and bounded by <see cref="MaxPoints"/>; quantising would buy nothing and
+    /// would put a rounding error into a camera move whose whole purpose is to be smooth.</para>
     /// </summary>
     public static class BasisCameraDollyPacket
     {
-        /// <summary>Matches the panel's waypoint cap, so a roster can never outgrow one packet.</summary>
+        /// <summary>Matches the panel's waypoint cap, so a track can never outgrow one packet.</summary>
         public const int MaxPoints = 32;
 
         private const int HeaderSize = 1;
-        private const int PointSize = 28;      // position (12) + rotation (16)
-        private const int RosterHeader = HeaderSize + 1 + 1;   // type, mode, count
-        private const int MoveSize = HeaderSize + 1 + PointSize;
-        private const int ClaimSize = HeaderSize + 1 + 1;      // type, slot, claimed
+        private const int OwnerSize = 2;
+        private const int PointSize = 28;                       // position (12) + rotation (16)
+        private const int RosterHeader = HeaderSize + 1 + 1;    // type, mode, count
+        private const int MoveSize = HeaderSize + OwnerSize + 1 + PointSize;
+        private const int ClaimSize = HeaderSize + OwnerSize + 1 + 1;
 
         public static int RosterSize(int count) => RosterHeader + Mathf.Clamp(count, 0, MaxPoints) * PointSize;
+
+        public static int PointMoveSize => MoveSize;
+
+        public static int ClaimPacketSize => ClaimSize;
 
         /// <summary>One authored point on the wire.</summary>
         public struct Point
@@ -50,8 +58,8 @@ namespace Basis.Cinematics
         // ---- Writing ---------------------------------------------------------------------
 
         /// <summary>
-        /// Writes the whole roster. Returns the byte count, or 0 when the buffer is too small —
-        /// callers size with <see cref="RosterSize"/>, so a 0 means a caller bug rather than a
+        /// Writes the whole track. Returns the byte count, or 0 when the buffer is too small —
+        /// callers size with <see cref="RosterSize"/>, so 0 means a caller bug rather than a
         /// runtime condition to handle.
         /// </summary>
         public static int WriteRoster(byte[] buffer, BasisCameraDollySync mode, Point[] points, int count)
@@ -59,8 +67,7 @@ namespace Basis.Cinematics
             count = Mathf.Clamp(count, 0, MaxPoints);
             if (points == null) count = 0;
 
-            int size = RosterSize(count);
-            if (buffer == null || buffer.Length < size) return 0;
+            if (buffer == null || buffer.Length < RosterSize(count)) return 0;
 
             int offset = 0;
             buffer[offset++] = (byte)BasisCameraDollyPacketType.Roster;
@@ -74,35 +81,38 @@ namespace Basis.Cinematics
             return offset;
         }
 
-        public static int WritePointMove(byte[] buffer, int slot, Vector3 position, Quaternion rotation)
+        public static int WritePointMove(byte[] buffer, ushort owner, int slot, Vector3 position, Quaternion rotation)
         {
             if (buffer == null || buffer.Length < MoveSize) return 0;
             if (slot < 0 || slot >= MaxPoints) return 0;
 
             int offset = 0;
             buffer[offset++] = (byte)BasisCameraDollyPacketType.PointMove;
+            WriteUShort(buffer, ref offset, owner);
             buffer[offset++] = (byte)slot;
             WritePoint(buffer, ref offset, new Point { Position = position, Rotation = rotation });
             return offset;
         }
 
-        public static int WriteClaim(byte[] buffer, int slot, bool claimed)
+        public static int WriteClaim(byte[] buffer, ushort owner, int slot, bool claimed)
         {
             if (buffer == null || buffer.Length < ClaimSize) return 0;
             if (slot < 0 || slot >= MaxPoints) return 0;
 
-            buffer[0] = (byte)BasisCameraDollyPacketType.Claim;
-            buffer[1] = (byte)slot;
-            buffer[2] = (byte)(claimed ? 1 : 0);
-            return ClaimSize;
+            int offset = 0;
+            buffer[offset++] = (byte)BasisCameraDollyPacketType.Claim;
+            WriteUShort(buffer, ref offset, owner);
+            buffer[offset++] = (byte)slot;
+            buffer[offset++] = (byte)(claimed ? 1 : 0);
+            return offset;
         }
 
         // ---- Reading ---------------------------------------------------------------------
 
         /// <summary>
         /// The kind of packet this is, or false for anything this build does not understand — a
-        /// short buffer, a type from a newer client, or noise. Every read goes through here first
-        /// so an unknown packet is dropped rather than being read as whatever it resembles.
+        /// short buffer, a type from a newer client, or noise. Every read goes through here first,
+        /// so an unknown packet is dropped rather than read as whatever it happens to resemble.
         /// </summary>
         public static bool TryReadType(byte[] buffer, int length, out BasisCameraDollyPacketType type)
         {
@@ -115,8 +125,8 @@ namespace Basis.Cinematics
         }
 
         /// <summary>
-        /// Reads a roster into <paramref name="points"/>, which must hold <see cref="MaxPoints"/>.
-        /// Returns false when the packet is truncated or names a mode this build does not have.
+        /// Reads a track into <paramref name="points"/>, which must hold <see cref="MaxPoints"/>.
+        /// False when the packet is truncated or names a mode this build does not have.
         /// </summary>
         public static bool TryReadRoster(byte[] buffer, int length, Point[] points,
             out BasisCameraDollySync mode, out int count)
@@ -147,9 +157,10 @@ namespace Basis.Cinematics
             return true;
         }
 
-        public static bool TryReadPointMove(byte[] buffer, int length, out int slot,
+        public static bool TryReadPointMove(byte[] buffer, int length, out ushort owner, out int slot,
             out Vector3 position, out Quaternion rotation)
         {
+            owner = 0;
             slot = -1;
             position = Vector3.zero;
             rotation = Quaternion.identity;
@@ -160,18 +171,21 @@ namespace Basis.Cinematics
                 return false;
             }
             if (length < MoveSize) return false;
-            if (buffer[1] >= MaxPoints) return false;
 
-            slot = buffer[1];
-            int offset = 2;
+            int offset = HeaderSize;
+            owner = ReadUShort(buffer, ref offset);
+            if (buffer[offset] >= MaxPoints) return false;
+
+            slot = buffer[offset++];
             Point point = ReadPoint(buffer, ref offset);
             position = point.Position;
             rotation = point.Rotation;
             return true;
         }
 
-        public static bool TryReadClaim(byte[] buffer, int length, out int slot, out bool claimed)
+        public static bool TryReadClaim(byte[] buffer, int length, out ushort owner, out int slot, out bool claimed)
         {
+            owner = 0;
             slot = -1;
             claimed = false;
 
@@ -181,14 +195,30 @@ namespace Basis.Cinematics
                 return false;
             }
             if (length < ClaimSize) return false;
-            if (buffer[1] >= MaxPoints) return false;
 
-            slot = buffer[1];
-            claimed = buffer[2] != 0;
+            int offset = HeaderSize;
+            owner = ReadUShort(buffer, ref offset);
+            if (buffer[offset] >= MaxPoints) return false;
+
+            slot = buffer[offset++];
+            claimed = buffer[offset] != 0;
             return true;
         }
 
         // ---- Primitives ------------------------------------------------------------------
+
+        private static void WriteUShort(byte[] buffer, ref int offset, ushort value)
+        {
+            buffer[offset++] = (byte)value;
+            buffer[offset++] = (byte)(value >> 8);
+        }
+
+        private static ushort ReadUShort(byte[] buffer, ref int offset)
+        {
+            ushort value = (ushort)(buffer[offset] | (buffer[offset + 1] << 8));
+            offset += 2;
+            return value;
+        }
 
         private static void WritePoint(byte[] buffer, ref int offset, Point point)
         {
@@ -216,8 +246,8 @@ namespace Basis.Cinematics
                     ReadFloat(buffer, ref offset)),
             };
 
-            // A quaternion that arrived as all zeros — from a truncated or hand-made packet — is
-            // not a rotation, and handing one to a transform silently produces NaNs downstream.
+            // An all-zero quaternion is not a rotation, and handing one to a transform produces
+            // NaNs several frames later somewhere else entirely.
             if (point.Rotation.x == 0f && point.Rotation.y == 0f &&
                 point.Rotation.z == 0f && point.Rotation.w == 0f)
             {

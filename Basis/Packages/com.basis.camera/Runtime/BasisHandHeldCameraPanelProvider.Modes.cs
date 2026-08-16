@@ -596,6 +596,7 @@ namespace Basis.BasisUI.HandHeldCamera
             AddSectionTint(BasisCameraPanelSection.Layers, _layersSection, _layersGroup);
             AddSectionTint(BasisCameraPanelSection.Performance, _performanceSection, _performanceGroup);
             AddSectionTint(BasisCameraPanelSection.Gizmos, _gizmoSection, _gizmoGroup);
+            AddSectionTint(BasisCameraPanelSection.PhotoMetadata, _photoMetadataSection, _photoMetadataGroup);
         }
 
         private void AddSectionTint(

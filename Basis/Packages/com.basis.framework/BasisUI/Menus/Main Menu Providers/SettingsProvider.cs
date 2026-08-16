@@ -2514,47 +2514,10 @@ namespace Basis.BasisUI
                 toggleLeaveNotifications.AssignBinding(BasisSettingsDefaults.LeaveNotifications);
             }, false, _ => descriptor.ForceRebuild());
 
-            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
-                BasisLocalization.Get("settings.chat.camera.title"), () =>
-            {
-                PanelDropdown dropdownPhotoMetadata = PanelDropdown.CreateNewEntry(container);
-                dropdownPhotoMetadata.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photoMetadata"));
-                dropdownPhotoMetadata.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.photoMetadata.tooltip"));
-                dropdownPhotoMetadata.AssignLocalizedEntries(
-                    new List<string>
-                    {
-                        BasisSettingsDefaults.PhotoTagging_NoOne,
-                        BasisSettingsDefaults.PhotoTagging_EveryoneInPhoto,
-                        BasisSettingsDefaults.PhotoTagging_JustMe
-                    },
-                    new List<string> { "settings.chat.camera.photoMetadata.noOne", "settings.chat.camera.photoMetadata.everyone", "settings.chat.camera.photoMetadata.justMe" });
-                dropdownPhotoMetadata.AssignBinding(BasisSettingsDefaults.PhotoMetadataTagging);
-
-                PanelToggle togglePhotoPersonDetails = PanelToggle.CreateNewEntry(container);
-                togglePhotoPersonDetails.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.personDetails"));
-                togglePhotoPersonDetails.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.personDetails.tooltip"));
-                togglePhotoPersonDetails.AssignBinding(BasisSettingsDefaults.PhotoEmbedPersonDetails);
-
-                PanelToggle togglePhotoCameraSettings = PanelToggle.CreateNewEntry(container);
-                togglePhotoCameraSettings.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.cameraSettings"));
-                togglePhotoCameraSettings.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.cameraSettings.tooltip"));
-                togglePhotoCameraSettings.AssignBinding(BasisSettingsDefaults.PhotoEmbedCameraSettings);
-
-                PanelToggle togglePhotoCaptureInfo = PanelToggle.CreateNewEntry(container);
-                togglePhotoCaptureInfo.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.captureInfo"));
-                togglePhotoCaptureInfo.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.captureInfo.tooltip"));
-                togglePhotoCaptureInfo.AssignBinding(BasisSettingsDefaults.PhotoEmbedCaptureInfo);
-
-                PanelToggle togglePhotoPhotographer = PanelToggle.CreateNewEntry(container);
-                togglePhotoPhotographer.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photographer"));
-                togglePhotoPhotographer.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.photographer.tooltip"));
-                togglePhotoPhotographer.AssignBinding(BasisSettingsDefaults.PhotoEmbedPhotographer);
-
-                PanelToggle togglePhotoWorld = PanelToggle.CreateNewEntry(container);
-                togglePhotoWorld.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.world"));
-                togglePhotoWorld.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.world.tooltip"));
-                togglePhotoWorld.AssignBinding(BasisSettingsDefaults.PhotoEmbedWorld);
-            }, false, _ => descriptor.ForceRebuild());
+            // What gets written into a photo file used to sit here, under Chat. It belongs to the
+            // camera, so it now lives in the Camera Settings panel's Advanced tab — see
+            // BasisHandHeldCameraPanelProvider.BuildPhotoMetadataGroup. Its localization keys still
+            // read settings.chat.camera.* because they carry sixteen translations.
 
             BuildAppearanceContent(container, descriptor);
 

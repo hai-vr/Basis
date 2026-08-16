@@ -487,6 +487,14 @@
       "value": "Focus Distance"
     },
     {
+      "key": "camera.focus.noSubject",
+      "value": "Nobody Is Being Tracked"
+    },
+    {
+      "key": "camera.focus.noSubject.description",
+      "value": "Follow Subject has no one to keep sharp, so focus is not being driven and the distance slider is still in charge. Choose who the camera films on the Modifiers tab, under Subject — fit a position or rotation modifier there, or pick a Follow Target."
+    },
+    {
       "key": "camera.aperture",
       "value": "Aperture"
     },
@@ -589,6 +597,70 @@
     {
       "key": "camera.exposure",
       "value": "Exposure"
+    },
+    {
+      "key": "camera.autoBrightness",
+      "value": "Auto Brightness"
+    },
+    {
+      "key": "camera.autoBrightness.description",
+      "value": "Meters the picture and sets the exposure itself, so a walk from a dark room into daylight stays watchable. The Exposure control above keeps working and becomes compensation on top of what the meter decides."
+    },
+    {
+      "key": "camera.autoBrightness.metering",
+      "value": "Metering"
+    },
+    {
+      "key": "camera.autoBrightness.metering.description",
+      "value": "Which part of the frame the meter listens to."
+    },
+    {
+      "key": "camera.metering.average",
+      "value": "Average"
+    },
+    {
+      "key": "camera.metering.average.tooltip",
+      "value": "The whole frame, weighted evenly. The steadiest of the three, and the least likely to swing as things move through the shot."
+    },
+    {
+      "key": "camera.metering.centre",
+      "value": "Centre Weighted"
+    },
+    {
+      "key": "camera.metering.centre.tooltip",
+      "value": "The whole frame, but the middle counts for far more — the usual stills-camera meter, and the best default for filming a person."
+    },
+    {
+      "key": "camera.metering.spot",
+      "value": "Spot"
+    },
+    {
+      "key": "camera.metering.spot.tooltip",
+      "value": "Only a small circle at the centre, so a subject stays exposed against any background. Swings hard when the centre of the frame changes."
+    },
+    {
+      "key": "camera.autoBrightness.target",
+      "value": "Target Brightness"
+    },
+    {
+      "key": "camera.autoBrightness.target.description",
+      "value": "How bright the metered part of the picture is driven to. Raise it for a brighter, flatter look; lower it to protect highlights."
+    },
+    {
+      "key": "camera.autoBrightness.speed",
+      "value": "Response"
+    },
+    {
+      "key": "camera.autoBrightness.speed.description",
+      "value": "How quickly the exposure catches up. Low is a slow, cinematic drift; high reacts at once but can visibly hunt, since the meter is always reading a frame that has already been shown."
+    },
+    {
+      "key": "camera.autoBrightness.range",
+      "value": "Brightness Range"
+    },
+    {
+      "key": "camera.autoBrightness.range.description",
+      "value": "Furthest the meter may move the exposure on its own, in stops either way. Keeps a very dark room from being lifted into noise."
     },
     {
       "key": "camera.exposureOnCamera",
@@ -4927,6 +4999,10 @@
       "value": "Embedded Item"
     },
     {
+      "key": "library.embedded.handHeldCamera",
+      "value": "Hand Held Camera"
+    },
+    {
       "key": "library.noDescription",
       "value": "No description was provided."
     },
@@ -9129,6 +9205,14 @@
     {
       "key": "camera.debugGizmos",
       "value": "Debug Gizmos"
+    },
+    {
+      "key": "camera.photoMetadata",
+      "value": "Photo Metadata"
+    },
+    {
+      "key": "camera.photoMetadata.description",
+      "value": "What gets written into the photo file alongside the picture. These apply to every camera and are not changed by the reset below."
     },
     {
       "key": "camera.debugGizmos.description",

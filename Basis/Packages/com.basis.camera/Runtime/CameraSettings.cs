@@ -73,6 +73,13 @@ public partial class BasisHandHeldCameraUI
             focusPeakingColour = 0;
             focusPeakingGreyPicture = false;
 
+            // Same again for the meter: off, but already set up to behave the moment it is on.
+            autoBrightness = false;
+            autoBrightnessTarget = BasisHandHeldCamera.DefaultBrightnessTarget;
+            autoBrightnessSpeed = BasisHandHeldCamera.DefaultBrightnessSpeed;
+            autoBrightnessMetering = (int)BasisCameraMeteringMode.CentreWeighted;
+            autoBrightnessRange = BasisHandHeldCamera.DefaultBrightnessRange;
+
             // Off by default (a still photo of a moving world is not usually what is wanted), but
             // with the shape of the effect already sane for the moment it is switched on.
             motionBlurIntensity = 0f;
@@ -164,6 +171,18 @@ public partial class BasisHandHeldCameraUI
         /// <summary>Index into <see cref="BasisHandHeldCamera.FocusPeakingColours"/>; 0 is red.</summary>
         public int focusPeakingColour;
         public bool focusPeakingGreyPicture;
+
+        /// <summary>
+        /// Auto brightness. The stops the meter is currently adding are deliberately not saved:
+        /// they describe the room the camera was last in, and a file that restored them would open
+        /// every session mis-exposed until the loop had walked it back.
+        /// </summary>
+        public bool autoBrightness;
+        public float autoBrightnessTarget;
+        public float autoBrightnessSpeed;
+        /// <summary>Which part of the frame is metered, as <see cref="BasisCameraMeteringMode"/>.</summary>
+        public int autoBrightnessMetering;
+        public float autoBrightnessRange;
 
         public float VolumetricFogVolumedensity;
         public bool VolumetricFogenableAPVContribution;

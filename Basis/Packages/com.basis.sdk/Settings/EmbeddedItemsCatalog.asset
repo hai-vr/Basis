@@ -47,6 +47,8 @@ MonoBehaviour:
         IsEphemeral: 1
     HasCustomIconAddress: 1
     IconAddress: Packages/com.basis.sdk/Textures/Runtime/camera-outline.png
+    HasCustomDisplayName: 1
+    DisplayNameKey: library.embedded.handHeldCamera
     HasCustomBounds: 1
     Bounds:
       m_Center: {x: 0.25, y: 0.15, z: 0.1}

@@ -45,6 +45,14 @@ namespace Basis.BasisUI.HandHeldCamera
             "camera.tonemapping.none", "camera.tonemapping.neutral", "camera.tonemapping.aces",
         };
 
+        // Ordered to match the PhotoTagging_* values the binding stores.
+        private static readonly string[] PhotoTaggingKeys =
+        {
+            "settings.chat.camera.photoMetadata.noOne",
+            "settings.chat.camera.photoMetadata.everyone",
+            "settings.chat.camera.photoMetadata.justMe",
+        };
+
         /// <summary>Preview height used until the row has a laid-out width to derive one from.</summary>
         private const float PreviewFallbackHeight = 320f;
 
@@ -91,6 +99,8 @@ namespace Basis.BasisUI.HandHeldCamera
         private readonly Dictionary<int, PanelToggle> _layerToggles = new Dictionary<int, PanelToggle>();
         private PanelElementDescriptor _gizmoGroup;
         private PanelSectionToggle _gizmoSection;
+        private PanelElementDescriptor _photoMetadataGroup;
+        private PanelSectionToggle _photoMetadataSection;
         private readonly Dictionary<BasisCameraGizmoLayers, PanelToggle> _gizmoToggles =
             new Dictionary<BasisCameraGizmoLayers, PanelToggle>();
         private PanelElementDescriptor _performanceGroup;
@@ -117,6 +127,24 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _focusSlider;
         private PanelSlider _dofFocalLengthSlider;
         private PanelSlider _dofBladeCountSlider;
+        private PanelElementDescriptor _focusSubjectNotice;
+        private bool? _lastFocusHasNoSubject;
+        private PanelToggle _autoBrightnessToggle;
+        private PanelDropdown _autoBrightnessMeteringDropdown;
+        private PanelSlider _autoBrightnessTargetSlider;
+        private PanelSlider _autoBrightnessSpeedSlider;
+        private PanelSlider _autoBrightnessRangeSlider;
+
+        /// <summary>
+        /// Metering modes in <see cref="BasisCameraMeteringMode"/> order — the dropdown hands its
+        /// row number straight to the enum, so a table out of step picks a different meter.
+        /// </summary>
+        private static readonly string[] MeteringKeys =
+        {
+            "camera.metering.average",
+            "camera.metering.centre",
+            "camera.metering.spot",
+        };
         private PanelToggle _focusPeakingToggle;
         private PanelSlider _focusPeakingSensitivitySlider;
         private PanelDropdown _focusPeakingColourDropdown;
@@ -324,6 +352,9 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 BuildLayersGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_layersSection, _layersGroup, true, OnSectionExpanded);
+
+                BuildPhotoMetadataGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_photoMetadataSection, _photoMetadataGroup, false, OnSectionExpanded);
 
                 BuildPerformanceGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_performanceSection, _performanceGroup, false, OnSectionExpanded);
@@ -591,6 +622,9 @@ namespace Basis.BasisUI.HandHeldCamera
             _dofFocalLengthSlider?.SetResetDefault(defaults.dofFocalLength);
             _dofBladeCountSlider?.SetResetDefault(defaults.dofBladeCount);
             _focusPeakingSensitivitySlider?.SetResetDefault(defaults.focusPeakingSensitivity * 100f);
+            _autoBrightnessTargetSlider?.SetResetDefault(defaults.autoBrightnessTarget * 100f);
+            _autoBrightnessSpeedSlider?.SetResetDefault(defaults.autoBrightnessSpeed);
+            _autoBrightnessRangeSlider?.SetResetDefault(defaults.autoBrightnessRange);
 
             // Grading effects — neutral is 0 (no grade), matching a fresh camera.
             _contrastSlider?.SetResetDefault(0f);
@@ -727,6 +761,13 @@ namespace Basis.BasisUI.HandHeldCamera
             _dofModeDropdown = null;
             _dofFocalLengthSlider = null;
             _dofBladeCountSlider = null;
+            _focusSubjectNotice = null;
+            _lastFocusHasNoSubject = null;
+            _autoBrightnessToggle = null;
+            _autoBrightnessMeteringDropdown = null;
+            _autoBrightnessTargetSlider = null;
+            _autoBrightnessSpeedSlider = null;
+            _autoBrightnessRangeSlider = null;
             _focusPeakingToggle = null;
             _focusPeakingColourDropdown = null;
             _focusPeakingSensitivitySlider = null;
@@ -774,6 +815,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _layerToggles.Clear();
             _gizmoGroup = null;
             _gizmoSection = null;
+            _photoMetadataGroup = null;
+            _photoMetadataSection = null;
             _gizmoToggles.Clear();
             _performanceGroup = null;
             _performanceSection = null;
@@ -932,6 +975,12 @@ namespace Basis.BasisUI.HandHeldCamera
                 SetFocusFollowsSubject(_focusModeDropdown.Index == 0);
             };
 
+            // Directly under the dropdown it explains, because the state it reports is invisible
+            // from here: who the camera films is chosen on another page entirely.
+            _focusSubjectNotice = BuildRecordingStatusCard(
+                content, "camera.focus.noSubject", "camera.focus.noSubject.description");
+            _focusSubjectNotice.gameObject.SetActive(false);
+
             _focusSlider = PanelSlider.CreateNew(content);
             _focusSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 BasisLocalization.Get("camera.focusDistance"), BasisHandHeldCameraUI.MinFocusDistance,
@@ -1004,6 +1053,75 @@ namespace Basis.BasisUI.HandHeldCamera
             _focusPeakingGreyToggle.OnValueChanged = v => _activeCamera?.SetFocusPeakingGreyPicture(v);
         }
 
+        /// <summary>
+        /// The meter, directly under the exposure control it shares its output with. Sitting there
+        /// is the explanation: with it on, the slider above stops being the exposure and becomes
+        /// the compensation applied on top of whatever the meter decides.
+        /// </summary>
+        private void BuildAutoBrightnessControls(RectTransform content)
+        {
+            _autoBrightnessToggle = PanelToggle.CreateNewEntry(content);
+            _autoBrightnessToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.autoBrightness"));
+            _autoBrightnessToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.autoBrightness.description"));
+            _autoBrightnessToggle.OnValueChanged = v =>
+            {
+                _activeCamera?.SetAutoBrightnessEnabled(v);
+                RefreshAutoBrightnessVisibility();
+            };
+
+            _autoBrightnessMeteringDropdown = PanelDropdown.CreateNewEntry(content);
+            _autoBrightnessMeteringDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.autoBrightness.metering"));
+            _autoBrightnessMeteringDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.autoBrightness.metering.description"));
+            _autoBrightnessMeteringDropdown.AssignLocalizedEntries(
+                new List<string>(MeteringKeys), new List<string>(MeteringKeys));
+            _autoBrightnessMeteringDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _autoBrightnessMeteringDropdown == null) return;
+                int index = _autoBrightnessMeteringDropdown.Index;
+                if (index >= 0) _activeCamera.SetAutoBrightnessMetering(index);
+            };
+
+            _autoBrightnessTargetSlider = PanelSlider.CreateNew(content);
+            _autoBrightnessTargetSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.autoBrightness.target"),
+                BasisHandHeldCamera.MinBrightnessTarget * 100f, BasisHandHeldCamera.MaxBrightnessTarget * 100f,
+                false, 0, ValueDisplayMode.Percentage));
+            _autoBrightnessTargetSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.autoBrightness.target.description"));
+            _autoBrightnessTargetSlider.OnValueChanged = v => _activeCamera?.SetAutoBrightnessTarget(v / 100f);
+
+            _autoBrightnessSpeedSlider = PanelSlider.CreateNew(content);
+            _autoBrightnessSpeedSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.autoBrightness.speed"),
+                BasisHandHeldCamera.MinBrightnessSpeed, BasisHandHeldCamera.MaxBrightnessSpeed,
+                false, 1, ValueDisplayMode.Raw));
+            _autoBrightnessSpeedSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.autoBrightness.speed.description"));
+            _autoBrightnessSpeedSlider.OnValueChanged = v => _activeCamera?.SetAutoBrightnessSpeed(v);
+
+            _autoBrightnessRangeSlider = PanelSlider.CreateNew(content);
+            _autoBrightnessRangeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.autoBrightness.range"),
+                BasisHandHeldCamera.MinBrightnessRange, BasisHandHeldCamera.MaxBrightnessRange,
+                false, 1, ValueDisplayMode.Raw));
+            _autoBrightnessRangeSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.autoBrightness.range.description"));
+            _autoBrightnessRangeSlider.OnValueChanged = v => _activeCamera?.SetAutoBrightnessRange(v);
+        }
+
+        /// <summary>
+        /// The four controls that shape the meter follow the toggle that runs it, the way the motion
+        /// blur shape controls follow its strength.
+        /// </summary>
+        private void RefreshAutoBrightnessVisibility()
+        {
+            bool metering = _activeCamera != null && _activeCamera.autoBrightnessEnabled;
+
+            _autoBrightnessMeteringDropdown?.gameObject.SetActive(metering);
+            _autoBrightnessTargetSlider?.gameObject.SetActive(metering);
+            _autoBrightnessSpeedSlider?.gameObject.SetActive(metering);
+            _autoBrightnessRangeSlider?.gameObject.SetActive(metering);
+            RefreshSearch();
+            ForceLayoutRebuild(_colorGroup);
+        }
+
         private void BuildColorGroup(RectTransform parent)
         {
             _colorSection = PanelSectionToggle.CreateNewEntry(parent);
@@ -1015,6 +1133,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _exposureSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 BasisLocalization.Get("camera.exposure"), 0f, BasisHandHeldCameraUI.ExposureStopCount - 1, true, 0, ValueDisplayMode.Raw));
             _exposureSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeExposureCompensation(v);
+
+            BuildAutoBrightnessControls(content);
 
             _captureTonemappingDropdown = PanelDropdown.CreateNewEntry(content);
             _captureTonemappingDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.tonemapping"));
@@ -1669,6 +1789,50 @@ namespace Basis.BasisUI.HandHeldCamera
         /// on that camera's own visualiser, so the drawing keeps running once the panel is closed
         /// and two open cameras can be inspected independently.
         /// </summary>
+        /// <summary>
+        /// What gets written into the photo file itself. These are account-wide preferences bound
+        /// straight to the settings store rather than per-camera values, so they are deliberately
+        /// untouched by the page's Reset button — a privacy choice should not be undone by resetting
+        /// a camera. They lived under the Chat tab of the settings menu until they were moved here,
+        /// which is why their localization keys still read <c>settings.chat.camera.*</c>: the strings
+        /// are translated into sixteen languages and renaming the keys would discard all of them.
+        /// </summary>
+        private void BuildPhotoMetadataGroup(RectTransform parent)
+        {
+            _photoMetadataSection = PanelSectionToggle.CreateNewEntry(parent);
+            _photoMetadataGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                _photoMetadataSection, parent, BasisLocalization.Get("camera.photoMetadata"), false);
+            RectTransform content = _photoMetadataGroup.ContentParent;
+            _photoMetadataGroup.SetDescription(BasisLocalization.Get("camera.photoMetadata.description"));
+
+            PanelDropdown tagging = PanelDropdown.CreateNewEntry(content);
+            tagging.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photoMetadata"));
+            tagging.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.photoMetadata.description"));
+            tagging.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisSettingsDefaults.PhotoTagging_NoOne,
+                    BasisSettingsDefaults.PhotoTagging_EveryoneInPhoto,
+                    BasisSettingsDefaults.PhotoTagging_JustMe,
+                },
+                new List<string>(PhotoTaggingKeys));
+            tagging.AssignBinding(BasisSettingsDefaults.PhotoMetadataTagging);
+
+            AddPhotoMetadataToggle(content, "settings.chat.camera.personDetails", BasisSettingsDefaults.PhotoEmbedPersonDetails);
+            AddPhotoMetadataToggle(content, "settings.chat.camera.cameraSettings", BasisSettingsDefaults.PhotoEmbedCameraSettings);
+            AddPhotoMetadataToggle(content, "settings.chat.camera.captureInfo", BasisSettingsDefaults.PhotoEmbedCaptureInfo);
+            AddPhotoMetadataToggle(content, "settings.chat.camera.photographer", BasisSettingsDefaults.PhotoEmbedPhotographer);
+            AddPhotoMetadataToggle(content, "settings.chat.camera.world", BasisSettingsDefaults.PhotoEmbedWorld);
+        }
+
+        private static void AddPhotoMetadataToggle(RectTransform content, string key, BasisSettingsBinding<bool> binding)
+        {
+            PanelToggle toggle = PanelToggle.CreateNewEntry(content);
+            toggle.Descriptor.SetTitle(BasisLocalization.Get(key));
+            toggle.Descriptor.SetDescription(BasisLocalization.Get(key + ".description"));
+            toggle.AssignBinding(binding);
+        }
+
         private void BuildGizmoGroup(RectTransform parent)
         {
             _gizmoSection = PanelSectionToggle.CreateNewEntry(parent);
@@ -1985,6 +2149,14 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastFocusFollows = _activeCamera.autoFocusFollowSubject;
             _focusModeDropdown?.SetValueWithoutNotify(FocusModeLabels[_activeCamera.autoFocusFollowSubject ? 0 : 1]);
 
+            _autoBrightnessToggle?.SetValueWithoutNotify(_activeCamera.autoBrightnessEnabled);
+            _autoBrightnessTargetSlider?.SetValueWithoutNotify(_activeCamera.autoBrightnessTarget * 100f);
+            _autoBrightnessSpeedSlider?.SetValueWithoutNotify(_activeCamera.autoBrightnessSpeed);
+            _autoBrightnessRangeSlider?.SetValueWithoutNotify(_activeCamera.autoBrightnessRange);
+            _autoBrightnessMeteringDropdown?.SetValueWithoutNotify(
+                MeteringKeys[Mathf.Clamp(_activeCamera.autoBrightnessMetering, 0, MeteringKeys.Length - 1)]);
+            RefreshAutoBrightnessVisibility();
+
             _focusPeakingToggle?.SetValueWithoutNotify(_activeCamera.focusPeakingEnabled);
             _focusPeakingGreyToggle?.SetValueWithoutNotify(_activeCamera.focusPeakingGreyPicture);
             _focusPeakingSensitivitySlider?.SetValueWithoutNotify(_activeCamera.focusPeakingSensitivity * 100f);
@@ -2295,6 +2467,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_recordToggle, _activeCamera.enableRecordingView, ref _lastRecordingView);
             SyncToggle(_previewScreenToggle, _activeCamera.IsPreviewScreenVisible, ref _lastPreviewScreenVisible);
             SyncSharedControls();
+            RefreshFocusSubjectNotice();
             RefreshFollowTargets();
             TickModeState();
             TickModifierSections();
@@ -2479,8 +2652,31 @@ namespace Basis.BasisUI.HandHeldCamera
             _apertureSlider?.gameObject.SetActive(bokeh);
             _dofFocalLengthSlider?.gameObject.SetActive(bokeh);
             _dofBladeCountSlider?.gameObject.SetActive(bokeh);
+            RefreshFocusSubjectNotice(false);
             RefreshSearch();
             ForceLayoutRebuild(_dofGroup);
+        }
+
+        /// <summary>
+        /// Says so when Follow Subject focus has nobody to keep sharp. Polled rather than pushed:
+        /// the state turns over when a slot is fitted or a follow target is picked, both of which
+        /// happen on the Modifiers page with this one built and out of sight. Edge-gated, so an
+        /// unchanged notice never dirties the layout.
+        /// </summary>
+        /// <param name="rebuildLayout">
+        /// False while a caller is about to rebuild the group anyway, so the row is not measured twice.
+        /// </param>
+        private void RefreshFocusSubjectNotice(bool rebuildLayout = true)
+        {
+            if (_focusSubjectNotice == null) return;
+
+            bool warn = _activeCamera != null && _activeCamera.AutoFocusHasNoSubject;
+            if (_lastFocusHasNoSubject == warn) return;
+            _lastFocusHasNoSubject = warn;
+
+            _focusSubjectNotice.gameObject.SetActive(warn);
+            RefreshSearch();
+            if (rebuildLayout) ForceLayoutRebuild(_dofGroup);
         }
 
         /// <summary>
@@ -2569,7 +2765,9 @@ namespace Basis.BasisUI.HandHeldCamera
                 all.AddRange(BackgroundModeKeys);
                 all.AddRange(DollySyncKeys);
                 all.AddRange(TonemappingKeys);
+                all.AddRange(PhotoTaggingKeys);
                 all.AddRange(BasisHandHeldCamera.FocusPeakingColourKeys);
+                all.AddRange(MeteringKeys);
                 for (int Index = 0; Index < BasisCameraModifiers.Effects.Length; Index++)
                 {
                     all.Add(BasisCameraModifiers.Effects[Index].NameKey);
@@ -2577,6 +2775,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 return all.ToArray();
             }
         }
+        public static string[] MeteringKeysForTest => MeteringKeys;
         public static string[] FocusModeLabelsForTest => FocusModeLabels;
         public static int[] MsaaSampleCountsForTest => MsaaSampleCounts;
         public static int[] VideoResolutionWidthsForTest => VideoResolutionWidths;

@@ -46,6 +46,7 @@ public enum BasisCameraPanelSection
     Layers,
     Performance,
     Gizmos,
+    PhotoMetadata,
 }
 
 /// <summary>What a section is doing under the current mode. Drives the section's background tint.</summary>
@@ -127,7 +128,7 @@ public static class BasisCameraModes
         BasisCameraMode.Custom,
     };
 
-    private const int SectionCount = (int)BasisCameraPanelSection.Gizmos + 1;
+    private const int SectionCount = (int)BasisCameraPanelSection.PhotoMetadata + 1;
 
     // How far a section's background moves toward the mode colour. Driven has to be obvious at a
     // glance across a scrolling page; available is a hint that the panel belongs to a mode at all

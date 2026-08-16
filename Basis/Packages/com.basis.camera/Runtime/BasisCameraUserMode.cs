@@ -173,6 +173,12 @@ public class BasisCameraUserMode
         if (left.focusPeakingColour != right.focusPeakingColour) return false;
         if (left.focusPeakingGreyPicture != right.focusPeakingGreyPicture) return false;
 
+        if (left.autoBrightness != right.autoBrightness) return false;
+        if (!Near(left.autoBrightnessTarget, right.autoBrightnessTarget, Epsilon)) return false;
+        if (!Near(left.autoBrightnessSpeed, right.autoBrightnessSpeed, Epsilon)) return false;
+        if (left.autoBrightnessMetering != right.autoBrightnessMetering) return false;
+        if (!Near(left.autoBrightnessRange, right.autoBrightnessRange, Epsilon)) return false;
+
         if (!Near(left.VolumetricFogVolumedensity, right.VolumetricFogVolumedensity, Epsilon)) return false;
         if (left.VolumetricFogenableAPVContribution != right.VolumetricFogenableAPVContribution) return false;
         if (left.VolumetricFogenableMainLightContribution != right.VolumetricFogenableMainLightContribution) return false;
