@@ -513,6 +513,8 @@ public class ControlAndResourceMessageRoundTripTests
             SlowestSendRate = 1.75f,
             PeerLimit = 128,
             UplinkDeltaEnabled = true,
+            ImageShareEgressMegabitsPerSecond = 321,
+            ImagePickupRangeMeters = 72.5f,
         };
         msg.SetPermissions(new[] { "basis.moderation", "basis.moderation.kick", "custom.perm.alpha", "custom.perm.beta" });
 
@@ -530,6 +532,8 @@ public class ControlAndResourceMessageRoundTripTests
         Assert.Equal(1.75f, back.SlowestSendRate);
         Assert.Equal(128, back.PeerLimit);
         Assert.True(back.UplinkDeltaEnabled);
+        Assert.Equal(321, back.ImageShareEgressMegabitsPerSecond);
+        Assert.Equal(72.5f, back.ImagePickupRangeMeters);
         Assert.Equal(msg.PermissionsBitset, back.PermissionsBitset);
         Assert.Equal(new[] { "custom.perm.alpha", "custom.perm.beta" }, back.ExtraPermissions);
         Assert.True(back.GetPermissions().SetEquals(

@@ -58,6 +58,7 @@ namespace Basis.ImagePickup
         public const int SpawnRateBurstAllowance = MaxConcurrentImagesPerSender;
         public const float MinSecondsBetweenSpawnsPerSender = 0.5f;
         public const float InboundTransferTimeoutSeconds = 30f;
+        public const float RecipientRangeRefreshSeconds = 5f;
 
         /// <summary>How long a transfer may go without a chunk before it is reported as stalled.</summary>
         public const float StalledTransferWarningSeconds = 5f;

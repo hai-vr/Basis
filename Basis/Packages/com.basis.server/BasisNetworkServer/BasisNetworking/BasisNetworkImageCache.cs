@@ -578,7 +578,11 @@ namespace Basis.Network.Server.Generic
         /// </summary>
         public static void SendCachedImagesToPeer(NetPeer newConnection)
         {
-            if (!Enabled || newConnection == null)
+            if (
+                !Enabled
+                || newConnection == null
+                || (NetworkServer.Configuration?.ImagePickupRangeMeters ?? 64f) > 0f
+            )
             {
                 return;
             }

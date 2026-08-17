@@ -77,6 +77,7 @@ public class BasisNetworkImageCacheTests : IDisposable
             ImageCacheEnabled = true,
             ImageCacheMaxMegabytes = 4,
             ImageCacheMinimumPerOwnerMegabytes = 0,
+            ImagePickupRangeMeters = 0f,
         };
 
         BasisNetworkImageCache.Reset();
@@ -427,6 +428,18 @@ public class BasisNetworkImageCacheTests : IDisposable
         Guid id = Guid.NewGuid();
         Observe(7, EncodeSpawn(id, 7, "Sharer", totalChunks: 3));
         Observe(7, EncodeChunk(id, 0, ChunkBytes));
+
+        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
+        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+
+        Assert.Empty(joiner.Sent);
+    }
+
+    [Fact]
+    public void WithFiniteImageRange_AJoinerIsServedNothingByTheServerCache()
+    {
+        ShareImage(owner: 7);
+        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
 
         ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
         BasisNetworkImageCache.SendCachedImagesToPeer(joiner);

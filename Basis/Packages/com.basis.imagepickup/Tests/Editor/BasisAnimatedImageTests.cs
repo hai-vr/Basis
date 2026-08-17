@@ -966,6 +966,67 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
+        public void ImagePickupReplicationRangeUsesInclusiveRadiusAndZeroMeansUnlimited()
+        {
+            Vector3 image = new Vector3(10f, 2f, -3f);
+            Assert.That(
+                BasisImagePickupManager.IsWithinReplicationRange(
+                    image,
+                    image + new Vector3(64f, 0f, 0f),
+                    64f
+                ),
+                Is.True
+            );
+            Assert.That(
+                BasisImagePickupManager.IsWithinReplicationRange(
+                    image,
+                    image + new Vector3(64.01f, 0f, 0f),
+                    64f
+                ),
+                Is.False
+            );
+            Assert.That(
+                BasisImagePickupManager.IsWithinReplicationRange(
+                    image,
+                    image + new Vector3(10000f, 0f, 0f),
+                    0f
+                ),
+                Is.True
+            );
+        }
+
+        [Test]
+        public void RecipientSnapshotsKeepCatchupTransfersIndependent()
+        {
+            ushort[] initial = { 2, 5, 9 };
+            ushort[] sameInitial = { 2, 5, 9 };
+            ushort[] catchup = { 10 };
+            Assert.That(BasisImagePickupManager.RecipientSnapshotsMatch(initial, sameInitial), Is.True);
+            Assert.That(BasisImagePickupManager.RecipientSnapshotsMatch(initial, catchup), Is.False);
+            Assert.That(
+                BasisImagePickupManager.RecipientSnapshotsMatch(initial, new ushort[] { 9, 5, 2 }),
+                Is.False
+            );
+        }
+
+        [Test]
+        public void RemovingRecipientFromSnapshotPreservesOtherRecipients()
+        {
+            ushort[] original = { 2, 5, 9 };
+            CollectionAssert.AreEqual(
+                new ushort[] { 2, 9 },
+                BasisImagePickupManager.RemoveRecipientFromSnapshot(original, 5)
+            );
+            CollectionAssert.IsEmpty(
+                BasisImagePickupManager.RemoveRecipientFromSnapshot(new ushort[] { 5 }, 5)
+            );
+            Assert.That(
+                BasisImagePickupManager.RemoveRecipientFromSnapshot(original, 99),
+                Is.SameAs(original)
+            );
+        }
+
+        [Test]
         public void RemoteAnimationAggregateBudgetMatchesSenderAdmission()
         {
             Assert.That(

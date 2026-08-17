@@ -682,6 +682,7 @@ namespace BasisServerHandle
                     PeerLimit = Config.PeerLimit,
                     UplinkDeltaEnabled = Config.EnableUplinkAvatarDelta,
                     ImageShareEgressMegabitsPerSecond = Config.ImageShareEgressMegabitsPerSecond,
+                    ImagePickupRangeMeters = Math.Max(0f, Config.ImagePickupRangeMeters),
                 };
                 ServerMetaDataMessage.SetPermissions(PermissionIntegration.Manager.GetAllAllowedRules(UUID), PermissionIntegration.Manager.GetAllDeniedRules(UUID));
                 NetDataWriter Writer = NetworkServer.RentWriter();

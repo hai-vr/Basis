@@ -25,7 +25,8 @@ public class Configuration
     //    its doc comment instead of carrying a setting nothing reads.
     // 8: hybrid avatar-bundle codec (EnableAvatarBundleZstd and friends) added; bumped so existing
     //    files gain the four settings with their doc comments rather than only the bare fields.
-    public const int CurrentConfigVersion = 8;
+    // 9: image-pickup replication range added.
+    public const int CurrentConfigVersion = 9;
     /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
     public int ConfigVersion = 0;
 
@@ -166,6 +167,12 @@ public class Configuration
     /// accordingly. 0 leaves the client on its own conservative default.
     /// </summary>
     public int ImageShareEgressMegabitsPerSecond = 200;
+    /// <summary>
+    /// Maximum world-space distance, in metres, at which a player is eligible to receive an image
+    /// pickup. Players that later enter range receive a catch-up transfer from the owner. 0 disables
+    /// range filtering and allows the server image cache to serve late joiners directly.
+    /// </summary>
+    public float ImagePickupRangeMeters = 64f;
     public bool EnableBSRProfiling = false;
     /// <summary>
     /// Worker cap for the BSR tick's parallel phases (send loop, message processing, distance
