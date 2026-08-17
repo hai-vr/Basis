@@ -1163,6 +1163,9 @@ namespace Basis.BasisUI
             descriptor.SetTitle(BasisLocalization.Get("settings.microphone.title"));
             RectTransform container = descriptor.ContentParent;
 
+            void RebuildFrom(RectTransform changed) =>
+                PanelElementDescriptor.RebuildLayoutChain(changed, container);
+
 #if !BASIS_DISABLE_MICROPHONE
             // Snapshot
             SMDMicrophone.MicSettings snap = SMDMicrophone.Current;
@@ -1248,7 +1251,7 @@ namespace Basis.BasisUI
             dropdownMicrophoneIcon.AssignBinding(BasisSettingsDefaults.MicrophoneIcon);
 
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(microphoneToggle, microphoneGroup, true,
-                _ => descriptor.ForceRebuild());
+                _ => RebuildFrom(microphoneGroup.rectTransform));
 
             // -------------------- DSP SETTINGS (advanced) --------------------
 
@@ -1285,7 +1288,7 @@ namespace Basis.BasisUI
                     },
                     new List<string> { "settings.microphone.mute.shutdown", "settings.microphone.mute.keepOpen" });
                 dropdownMicMuteBehavior.AssignBinding(BasisSettingsDefaults.MicMuteBehavior);
-            }, false, _ => descriptor.ForceRebuild());
+            }, false, _ => RebuildFrom(advancedContent));
 
             void LimitThresholdChanged(float v)
             {
@@ -1324,7 +1327,7 @@ namespace Basis.BasisUI
 
                 sliderLimitThreshold.SliderComponent.onValueChanged.AddListener(LimitThresholdChanged);
                 sliderLimitKnee.SliderComponent.onValueChanged.AddListener(LimitKneeChanged);
-            }, false, _ => descriptor.ForceRebuild());
+            }, false, _ => RebuildFrom(advancedContent));
 
             void DenoiseWetChanged(float v)
             {
@@ -1363,7 +1366,7 @@ namespace Basis.BasisUI
 
                 sliderDenoiseWet.SliderComponent.onValueChanged.AddListener(DenoiseWetChanged);
                 sliderDenoiseMakeup.SliderComponent.onValueChanged.AddListener(DenoiseMakeupChanged);
-            }, false, _ => descriptor.ForceRebuild());
+            }, false, _ => RebuildFrom(advancedContent));
 
             // void AgcTargetChanged(float v)
             // {
@@ -1447,7 +1450,7 @@ namespace Basis.BasisUI
                 sliderAgcMaxGain.OnValueChanged += AgcMaxGainChanged;
                 sliderAgcAttack.OnValueChanged += AgcAttackChanged;
                 sliderAgcRelease.OnValueChanged += AgcReleaseChanged;
-            }, false, _ => descriptor.ForceRebuild());
+            }, false, _ => RebuildFrom(advancedContent));
 
             void NoiseGateThresholdChanged(float v)
             {
@@ -1512,7 +1515,7 @@ namespace Basis.BasisUI
                 sliderNoiseGateThreshold.OnValueChanged += NoiseGateThresholdChanged;
                 sliderNoiseGateAttack.OnValueChanged += NoiseGateAttackChanged;
                 sliderNoiseGateRelease.OnValueChanged += NoiseGateReleaseChanged;
-            }, false, _ => descriptor.ForceRebuild());
+            }, false, _ => RebuildFrom(advancedContent));
 
             // Mic Icon Position (advanced)
             PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(advancedContent,
@@ -1529,14 +1532,14 @@ namespace Basis.BasisUI
                     PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.iconPosition.vertical"), -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
                     BasisSettingsDefaults.MicrophoneIconOffsetY);
                 sliderMicIconOffsetY.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.iconPosition.vertical.tooltip"));
-            }, false, _ => descriptor.ForceRebuild());
+            }, false, _ => RebuildFrom(advancedContent));
 
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(toggleAdvanced, advancedGroup, false,
-                _ => descriptor.ForceRebuild());
+                _ => RebuildFrom(advancedGroup.rectTransform));
 
             RegisterPageReset("settings.tab.microphone", ResetMicrophoneDefaults);
 #endif
-            descriptor.ForceRebuild();
+            RebuildFrom(container);
             return tab;
         }
 
