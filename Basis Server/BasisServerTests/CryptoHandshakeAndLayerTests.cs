@@ -22,6 +22,7 @@ public class CryptoHandshakeAndLayerTests
     private const byte HeaderUnreliable = 0x00;
     private const byte HeaderChanneled = 0x01;
     private const byte HeaderMerged = 0x0C;
+    private const byte HeaderCompactMerged = 0x12;
 
     // ---------------------------------------------------------------- helpers
 
@@ -647,6 +648,7 @@ public class CryptoHandshakeAndLayerTests
     [InlineData(HeaderUnreliable)]
     [InlineData(HeaderChanneled)]
     [InlineData(HeaderMerged)]
+    [InlineData(HeaderCompactMerged)]
     [InlineData((byte)0xE1)] // Channeled with high header bits set
     [InlineData((byte)0x8C)] // Merged with high header bit set
     public void EncryptableProperties_AreEncrypted_IncludingMaskedHeaderBits(byte header)
