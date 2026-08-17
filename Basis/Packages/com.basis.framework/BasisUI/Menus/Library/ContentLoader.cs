@@ -199,12 +199,31 @@ namespace Basis.BasisUI
         public static event Func<string, bool> OnBeforePropSpawn;
 
         /// <summary>
+        /// Raised before a spawned prop is taken back down by a control that toggles it — the
+        /// pinned menu button, which despawns on a second press. A handler returning true has
+        /// taken responsibility for the press and nothing is despawned.
+        /// <para>
+        /// The pair to <see cref="OnBeforePropSpawn"/>, and there for the same reason: a handheld
+        /// camera that is hidden is still spawned, and a press in that state means bring it back
+        /// rather than destroy the session it kept running while it was invisible.
+        /// </para>
+        /// </summary>
+        public static event Func<string, bool> OnBeforePropDespawn;
+
+        /// <summary>
         /// Offers the spawn to each handler in turn. Multicast delegates only surface the last
         /// return value, so they are invoked one at a time and the first claim wins.
         /// </summary>
-        private static bool PropSpawnClaimed(string url)
+        private static bool PropSpawnClaimed(string url) => Claimed(OnBeforePropSpawn, url);
+
+        /// <summary>
+        /// Offers the despawn to each handler in turn, first claim wins. Public because the press
+        /// that reaches here comes from the menu rather than from a load.
+        /// </summary>
+        public static bool PropDespawnClaimed(string url) => Claimed(OnBeforePropDespawn, url);
+
+        private static bool Claimed(Func<string, bool> handlers, string url)
         {
-            Func<string, bool> handlers = OnBeforePropSpawn;
             if (handlers == null) return false;
 
             Delegate[] list = handlers.GetInvocationList();

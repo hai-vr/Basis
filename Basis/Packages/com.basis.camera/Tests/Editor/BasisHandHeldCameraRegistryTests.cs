@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -153,6 +154,52 @@ namespace Basis.Tests.Camera
             Assert.That(BasisHandHeldCameraRegistry.Count, Is.EqualTo(1));
             Assert.That(BasisHandHeldCameraRegistry.Cameras[0], Is.SameAs(second),
                 "Removing one camera must not disturb the other's entry.");
+        }
+
+        // The pinned menu button toggles: it spawns the item, and a second press despawns it. A
+        // hidden camera still counts as spawned, so both halves of that toggle have to be claimed
+        // or the button that should bring the camera back destroys the session instead.
+
+        [Test]
+        public void PressingTheMenuButtonWhileACameraIsHidden_BringsItBackInsteadOfDespawningIt()
+        {
+            BasisHandHeldCameraRegistry.RegisterSpawnClaim();
+
+            BasisHandHeldCamera camera = NewCamera("Hidden");
+            BasisHandHeldCameraRegistry.Add(camera);
+            camera.SetCameraHidden(true);
+
+            bool claimed = ContentLoader.PropDespawnClaimed(BasisHandHeldCameraRegistry.SpawnUrl);
+
+            Assert.That(claimed, Is.True,
+                "An unclaimed press despawns every instance of the item, hidden camera included.");
+            Assert.That(camera.IsCameraHidden, Is.False,
+                "Claiming the press is only worth anything if it brings the camera back.");
+        }
+
+        [Test]
+        public void PressingTheMenuButtonWhileTheCameraIsVisible_StillPutsItAway()
+        {
+            BasisHandHeldCameraRegistry.RegisterSpawnClaim();
+
+            BasisHandHeldCamera camera = NewCamera("Visible");
+            BasisHandHeldCameraRegistry.Add(camera);
+
+            Assert.That(ContentLoader.PropDespawnClaimed(BasisHandHeldCameraRegistry.SpawnUrl), Is.False,
+                "A camera you can see is closed by the same button that brought it out.");
+        }
+
+        [Test]
+        public void AnotherItemsDespawn_IsNeverClaimedByTheCamera()
+        {
+            BasisHandHeldCameraRegistry.RegisterSpawnClaim();
+
+            BasisHandHeldCamera camera = NewCamera("Hidden");
+            BasisHandHeldCameraRegistry.Add(camera);
+            camera.SetCameraHidden(true);
+
+            Assert.That(ContentLoader.PropDespawnClaimed("Personal Mirror"), Is.False,
+                "A hidden camera must not swallow the press that puts a different pinned item away.");
         }
     }
 }

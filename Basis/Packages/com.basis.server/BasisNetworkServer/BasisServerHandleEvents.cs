@@ -387,9 +387,14 @@ namespace BasisServerHandle
             BasisNetworkPIPCamera.RemovePlayer(id);
             BasisNetworkContentShare.RemovePlayerSpheres(id);
             BasisNetworkImageCache.RemovePlayerImages(id);
+            // Drops this peer's egress bucket and any replay still queued for it. Without this a
+            // recycled player id would inherit the previous holder's spent budget.
+            BasisImageBandwidthGovernor.RemovePeer(id);
             BasisNetworkPreloadResourceManagement.RemovePeer(id);
             BasisNetworkServer.Security.BasisUserOpusBitrateStateManager.ClearForPeer(id);
             BasisServerP2PBroker.RemovePeer(id);
+            BasisNetworkIDDatabase.RemovePeer(id);
+            Basis.Network.Server.Generic.BasisNetworkingGeneric.RemovePeerSceneEgress(id);
             BasisNetworkMessageProcessor.ClearPeerErrors(id);
             BasisServerMessageRegistry.ClearSubscription(id);
             JoinBroadcast.UnregisterPeer(id);
@@ -725,6 +730,7 @@ namespace BasisServerHandle
                 BasisNetworkServer.Security.BasisAvatarScaleLimitManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisResourceLimitManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisPlayerModeration.SendReductionSettingsToPeer(newPeer);
+                BasisNetworkServer.Security.BasisPlayerModeration.SendImageBandwidthToPeer(newPeer);
                 SendShoutStateToPeer(newPeer);
             }
             else

@@ -460,6 +460,53 @@ namespace Basis.BasisUI
             reductionDirty.WatchToggle(reductionProfilingToggle, () => BasisNetworkModeration.ServerEnableBSRProfiling);
             controller.DirtySections.Add(reductionDirty);
 
+            // --- Image / GIF bandwidth (upload is advertised AND enforced; download is server-only) ---
+            PanelSectionDirtyState imageBandwidthDirty = new PanelSectionDirtyState();
+            PanelSectionToggle imageBandwidthToggle = PanelSectionToggle.CreateNewEntry(container);
+            imageBandwidthToggle.SetTitle(BasisLocalization.Get("settings.admin.title.imageBandwidth"));
+            int imageBandwidthStart = container.childCount;
+
+            PanelTextField imageUploadField = PanelTextField.CreateNewEntry(container);
+            imageUploadField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.imageUploadMbps"));
+            imageUploadField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.imageUploadMbps.description"));
+            imageUploadField.SetValueWithoutNotify(BasisNetworkModeration.ServerImageUploadMegabitsPerSecond.ToString());
+
+            PanelTextField imageDownloadField = PanelTextField.CreateNewEntry(container);
+            imageDownloadField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.imageDownloadMbps"));
+            imageDownloadField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.imageDownloadMbps.description"));
+            imageDownloadField.SetValueWithoutNotify(BasisNetworkModeration.ServerImageDownloadMegabitsPerSecond.ToString());
+
+            PanelTextField imageEnforcementField = PanelTextField.CreateNewEntry(container);
+            imageEnforcementField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.imageEnforcementPercent"));
+            imageEnforcementField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.imageEnforcementPercent.description"));
+            imageEnforcementField.SetValueWithoutNotify(BasisNetworkModeration.ServerImageEgressEnforcementPercent.ToString());
+
+            void ApplyImageBandwidth()
+            {
+                // An unparseable field falls back to the server's current value rather than to a
+                // constant, so a typo in one box can never silently rewrite the other two.
+                if (!int.TryParse(imageUploadField.Value, out int upload)) upload = BasisNetworkModeration.ServerImageUploadMegabitsPerSecond;
+                if (!int.TryParse(imageDownloadField.Value, out int download)) download = BasisNetworkModeration.ServerImageDownloadMegabitsPerSecond;
+                if (!int.TryParse(imageEnforcementField.Value, out int enforcement)) enforcement = BasisNetworkModeration.ServerImageEgressEnforcementPercent;
+                BasisNetworkModeration.SetGlobalImageBandwidth(upload, download, enforcement);
+            }
+
+            controller.ImageUploadField = imageUploadField;
+            controller.ImageDownloadField = imageDownloadField;
+            controller.ImageEnforcementField = imageEnforcementField;
+
+            PanelButton imageBandwidthApply = MakeApplyButton(container, imageBandwidthDirty);
+            imageBandwidthApply.OnClicked += ApplyImageBandwidth;
+
+            PanelElementDescriptor imageBandwidthBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
+                imageBandwidthToggle, container, imageBandwidthStart, false, _ => descriptor.ForceRebuild());
+
+            imageBandwidthDirty.Attach(imageBandwidthToggle, imageBandwidthBox);
+            imageBandwidthDirty.WatchNumericText(imageUploadField, () => BasisNetworkModeration.ServerImageUploadMegabitsPerSecond);
+            imageBandwidthDirty.WatchNumericText(imageDownloadField, () => BasisNetworkModeration.ServerImageDownloadMegabitsPerSecond);
+            imageBandwidthDirty.WatchNumericText(imageEnforcementField, () => BasisNetworkModeration.ServerImageEgressEnforcementPercent);
+            controller.DirtySections.Add(imageBandwidthDirty);
+
             // --- Camera photo metadata policy (per-category disallow; default allowed) ---
             PanelSectionToggle cameraPolicyToggle = PanelSectionToggle.CreateNewEntry(container);
             cameraPolicyToggle.SetTitle(BasisLocalization.Get("settings.admin.title.cameraPhotoMetadata"));
@@ -952,6 +999,9 @@ namespace Basis.BasisUI
             public PanelTextField ReductionBundleMinMessagesField;
             public PanelTextField ReductionBundleMinBytesField;
             public PanelToggle ReductionProfilingToggle;
+            public PanelTextField ImageUploadField;
+            public PanelTextField ImageDownloadField;
+            public PanelTextField ImageEnforcementField;
             public bool ReductionBundleCompression;
             public bool ReductionProfiling;
             public System.Action<byte> ApplyCameraMask;
@@ -1031,6 +1081,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnResourceLimitsChanged += OnResourceLimitsChanged;
                 BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
                 BasisNetworkModeration.OnReductionSettingsChanged += OnReductionSettingsChanged;
+                BasisNetworkModeration.OnImageBandwidthChanged -= OnImageBandwidthChanged;
+                BasisNetworkModeration.OnImageBandwidthChanged += OnImageBandwidthChanged;
             }
 
             private void OnDisable()
@@ -1063,6 +1115,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
                 BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
+                BasisNetworkModeration.OnImageBandwidthChanged -= OnImageBandwidthChanged;
             }
 
             private void OnDestroy()
@@ -1093,6 +1146,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
                 BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
+                BasisNetworkModeration.OnImageBandwidthChanged -= OnImageBandwidthChanged;
             }
 
             private void OnGlobalLockStateChanged(bool avatars, bool props, bool worlds, bool servers)
@@ -1253,6 +1307,14 @@ namespace Basis.BasisUI
                 if (ReductionBundleMinBytesField != null) ReductionBundleMinBytesField.SetValueWithoutNotify(BasisNetworkModeration.ServerAvatarBundleMinBytes.ToString());
                 if (ReductionProfilingToggle != null) ReductionProfilingToggle.SetValueWithoutNotify(BasisNetworkModeration.ServerEnableBSRProfiling);
                 ReductionProfiling = BasisNetworkModeration.ServerEnableBSRProfiling;
+                ReevaluateDirty();
+            }
+
+            private void OnImageBandwidthChanged()
+            {
+                if (ImageUploadField != null) ImageUploadField.SetValueWithoutNotify(BasisNetworkModeration.ServerImageUploadMegabitsPerSecond.ToString());
+                if (ImageDownloadField != null) ImageDownloadField.SetValueWithoutNotify(BasisNetworkModeration.ServerImageDownloadMegabitsPerSecond.ToString());
+                if (ImageEnforcementField != null) ImageEnforcementField.SetValueWithoutNotify(BasisNetworkModeration.ServerImageEgressEnforcementPercent.ToString());
                 ReevaluateDirty();
             }
         }

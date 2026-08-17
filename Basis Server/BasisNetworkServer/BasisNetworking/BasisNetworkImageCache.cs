@@ -247,7 +247,13 @@ namespace Basis.Network.Server.Generic
                     return;
                 }
 
-                long cost = payloadLength;
+                // Charge the chunk-array backbone, not just the header. totalChunks is client-supplied
+                // and `new byte[totalChunks][]` costs totalChunks references; accounting only
+                // payloadLength let a client register an enormous totalChunks (an unbounded
+                // allocation, and gigabytes of retained backbone) while the cap saw a few bytes. With
+                // the backbone charged, an implausible count trips `cost > cap` inside TryReserve and
+                // is refused before anything is allocated.
+                long cost = (long)payloadLength + (long)totalChunks * IntPtr.Size;
                 if (!TryReserve(senderId, cost, id))
                 {
                     return;
@@ -293,7 +299,9 @@ namespace Basis.Network.Server.Generic
                     return;
                 }
 
-                long cost = payloadLength;
+                // Charge the animation chunk-array backbone too — same unbounded-allocation guard as
+                // the still spawn above.
+                long cost = (long)payloadLength + (long)totalChunks * IntPtr.Size;
                 if (!TryReserve(senderId, cost, id))
                 {
                     return;
@@ -600,8 +608,12 @@ namespace Basis.Network.Server.Generic
             }
             ordered.Sort((left, right) => left.Value.Sequence.CompareTo(right.Value.Sequence));
 
-            NetDataWriter writer = NetworkServer.RentWriter();
-            int sent = 0;
+            // Flatten first, in the order the room was built, so the pump can meter the stream
+            // without knowing anything about images. Ordering matters on the wire: a chunk before
+            // its spawn header is discarded by the receiver.
+            List<BasisImageBandwidthGovernor.PendingPayload> queued =
+                new List<BasisImageBandwidthGovernor.PendingPayload>();
+
             for (int index = 0; index < ordered.Count; index++)
             {
                 CachedImage entry = ordered[index].Value;
@@ -610,32 +622,73 @@ namespace Basis.Network.Server.Generic
                     continue;
                 }
 
-                sent += SendPayload(newConnection, writer, (ushort)managerNetId, entry.OwnerId, entry.Spawn);
+                queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.Spawn));
                 for (int chunk = 0; chunk < entry.Chunks.Length; chunk++)
                 {
-                    sent += SendPayload(newConnection, writer, (ushort)managerNetId, entry.OwnerId, entry.Chunks[chunk]);
+                    queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.Chunks[chunk]));
                 }
 
                 if (entry.AnimationComplete)
                 {
-                    sent += SendPayload(newConnection, writer, (ushort)managerNetId, entry.OwnerId, entry.AnimationSpawn);
+                    queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.AnimationSpawn));
                     for (int chunk = 0; chunk < entry.AnimationChunks.Length; chunk++)
                     {
-                        sent += SendPayload(
-                            newConnection,
-                            writer,
-                            (ushort)managerNetId,
-                            entry.OwnerId,
-                            entry.AnimationChunks[chunk]
-                        );
+                        queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.AnimationChunks[chunk]));
                     }
                 }
+            }
+
+            if (queued.Count == 0)
+            {
+                return;
+            }
+
+            // Paced when the operator has set a download rate, inline when they have not. Sending
+            // inline is the historical behaviour and stays reachable deliberately: a small instance
+            // on a fast LAN has nothing to gain from metering, and 0 should mean "as fast as it
+            // will go" rather than some hidden default.
+            BasisImageBandwidthGovernor.SendPayload = ReplaySinglePayload;
+            if (BasisImageBandwidthGovernor.EnqueueReplay(newConnection, queued))
+            {
+                BNL.Log($"Image cache queued {queued.Count} payload(s) for joining peer {newConnection.Id} (paced).");
+                return;
+            }
+
+            NetDataWriter writer = NetworkServer.RentWriter();
+            int sent = 0;
+            for (int index = 0; index < queued.Count; index++)
+            {
+                sent += SendPayload(newConnection, writer, (ushort)managerNetId, queued[index].OwnerId, queued[index].Payload);
             }
             NetworkServer.ReturnWriter(writer);
 
             if (sent > 0)
             {
                 BNL.Log($"Image cache served {sent} payload(s) to joining peer {newConnection.Id}.");
+            }
+        }
+
+        /// <summary>
+        /// Pump callback: one metered payload, rented writer and all. Resolves the manager id at
+        /// send time rather than capturing it, because a replay now spans many milliseconds and the
+        /// id can be reset by a despawn of the whole manager in between.
+        /// </summary>
+        private static void ReplaySinglePayload(NetPeer peer, ushort ownerId, byte[] payload)
+        {
+            int managerNetId = System.Threading.Volatile.Read(ref _managerNetId);
+            if (managerNetId < 0)
+            {
+                return;
+            }
+
+            NetDataWriter writer = NetworkServer.RentWriter();
+            try
+            {
+                SendPayload(peer, writer, (ushort)managerNetId, ownerId, payload);
+            }
+            finally
+            {
+                NetworkServer.ReturnWriter(writer);
             }
         }
 

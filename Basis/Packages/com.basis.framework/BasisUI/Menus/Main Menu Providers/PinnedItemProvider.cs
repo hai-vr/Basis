@@ -67,6 +67,13 @@ namespace Basis.BasisUI
         {
             if (IsSpawned)
             {
+                if (ContentLoader.PropDespawnClaimed(_key.Url))
+                {
+                    BasisDebug.Log($"Pinned Provider Despawn claimed for item = {_key.Url}");
+                    RefreshIndicator();
+                    return;
+                }
+
                 BasisDebug.Log($"Pinned Provider Despawn for item = {_key.Url}");
                 await DespawnAll();
                 RefreshIndicator();

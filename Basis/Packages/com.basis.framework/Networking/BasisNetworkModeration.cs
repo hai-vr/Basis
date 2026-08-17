@@ -474,6 +474,10 @@ public static class BasisNetworkModeration
                 HandleResourceLimits(reader);
                 break;
 
+            case AdminRequestMode.GlobalGetImageBandwidth:
+                HandleImageBandwidth(reader);
+                break;
+
             case AdminRequestMode.GlobalGetReductionSettings:
                 HandleReductionSettings(reader);
                 break;
@@ -1508,6 +1512,52 @@ public static class BasisNetworkModeration
 
     /// <summary>Fired when the server pushes new BSR reduction settings. The Server* values above hold the current set.</summary>
     public static event Action OnReductionSettingsChanged;
+
+    /// <summary>
+    /// Server-pushed image/gif bandwidth budgets, in megabits per second.
+    ///
+    /// Upload is per sharing player and is the same number the server advertises in
+    /// <c>ServerMetaDataMessage</c> for the image pickup system to pace itself against; it is
+    /// mirrored here so the admin panel can show and edit it. Download is the rate the server
+    /// replays cached images to one arriving player and has no client-side counterpart at all.
+    /// </summary>
+    public static int ServerImageUploadMegabitsPerSecond { get; private set; } = 200;
+    public static int ServerImageDownloadMegabitsPerSecond { get; private set; } = 200;
+
+    /// <summary>Headroom the server allows over the advertised upload budget before it drops, as a percentage.</summary>
+    public static int ServerImageEgressEnforcementPercent { get; private set; } = 150;
+
+    /// <summary>Fired when the server pushes new image bandwidth budgets.</summary>
+    public static event Action OnImageBandwidthChanged;
+
+    private static void HandleImageBandwidth(NetDataReader reader)
+    {
+        ServerImageUploadMegabitsPerSecond = reader.GetInt();
+        ServerImageDownloadMegabitsPerSecond = reader.GetInt();
+        ServerImageEgressEnforcementPercent = reader.GetInt();
+        OnImageBandwidthChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Admin: set the image/gif bandwidth budgets. Persisted to config.xml and applied live.
+    ///
+    /// Upload is what one sharer may spend of the server's egress — advertised to clients so they
+    /// pace themselves, and enforced server-side so a modified one cannot ignore it. Download is
+    /// the rate cached images are replayed to an arriving player. 0 means "unmetered" for download
+    /// and "leave the client on its own conservative default" for upload.
+    /// </summary>
+    public static void SetGlobalImageBandwidth(int uploadMegabits, int downloadMegabits, int enforcementPercent)
+    {
+        if (uploadMegabits < 0) uploadMegabits = 0;
+        if (downloadMegabits < 0) downloadMegabits = 0;
+        if (enforcementPercent < 100) enforcementPercent = 100;
+        if (enforcementPercent > 1000) enforcementPercent = 1000;
+        SendAdminRequest(
+            AdminRequestMode.SetGlobalImageBandwidth,
+            w => w.Put(uploadMegabits),
+            w => w.Put(downloadMegabits),
+            w => w.Put(enforcementPercent));
+    }
 
     private static void HandleReductionSettings(NetDataReader reader)
     {

@@ -166,7 +166,9 @@ public class ServerConfigurationDefaultsTests
         // 6: added BSRMaxSliceCount.
         // 7: removed EnableUplinkAvatarStream again.
         // 8: added the hybrid avatar-bundle codec settings (EnableAvatarBundleZstd and friends).
-        Assert.Equal(8, Configuration.CurrentConfigVersion);
+        // 9: added per-player abuse caps (MaxNetworkIdsPerPlayer, MaxLoadedResourcesPerPlayer) and the
+        //    opt-in scene-relay egress backstop (MaxSceneRelayMegabitsPerSecondPerPlayer).
+        Assert.Equal(9, Configuration.CurrentConfigVersion);
         Assert.Equal(0, new Configuration().ConfigVersion);
         Assert.Equal("config", Configuration.ConfigFolderName);
         Assert.Equal("logs", Configuration.LogsFolderName);

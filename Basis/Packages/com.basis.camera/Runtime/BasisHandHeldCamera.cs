@@ -512,6 +512,22 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // capture camera and stop the feed the moment the prop went invisible.
         UpdateRenderGate();
         UpdateOnPropUIVisibility();
+        UpdateHiddenInputLocks();
+    }
+
+    private void UpdateHiddenInputLocks()
+    {
+        if (!BasisDeviceManagement.IsUserInDesktop()) return;
+        if (IsFlying) return;
+
+        if (cameraHidden)
+        {
+            ReleasePlayerLocks();
+            ReleaseCursorLock();
+            return;
+        }
+
+        AcquireCursorLock();
     }
 
     /// <summary>

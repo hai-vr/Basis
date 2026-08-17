@@ -800,24 +800,76 @@ public class BasisNetworkIDDatabaseTests
     public void CounterExhaustion_DropsAtUshortLimit_AndStaysFullUntilReset()
     {
         BasisNetworkIDDatabase.Reset();
-        var peer = new OwnershipFakeNetPeer(9);
-        for (int i = 0; i <= ushort.MaxValue; i++)
+        // This test targets the shared ushort-space exhaustion (65,536 ids across the whole instance),
+        // which a single peer must be able to drive here. Lift the separate per-peer id cap out of the
+        // way for it; PerPeerIdCap_LimitsOneClient below covers that cap on its own. Capture/restore
+        // NetworkServer.Configuration so this never leaks a cap into the other shared-static tests.
+        Configuration savedConfig = NetworkServer.Configuration;
+        NetworkServer.Configuration = new Configuration { MaxNetworkIdsPerPlayer = ushort.MaxValue + 10 };
+        try
         {
-            BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:cap:" + i);
+            var peer = new OwnershipFakeNetPeer(9);
+            for (int i = 0; i <= ushort.MaxValue; i++)
+            {
+                BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:cap:" + i);
+            }
+            Assert.True(BasisNetworkIDDatabase.UshortNetworkDatabase.TryGetValue("net:cap:" + ushort.MaxValue, out ushort last));
+            Assert.Equal(ushort.MaxValue, last);
+
+            // At the ceiling requests are dropped, never thrown: ids arrive per client message, and a
+            // throw per message was an exception storm through the message processor.
+            BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:cap:overflow");
+            BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:cap:overflow-2");
+            Assert.False(BasisNetworkIDDatabase.UshortNetworkDatabase.ContainsKey("net:cap:overflow"));
+            Assert.Equal(ushort.MaxValue + 1, BasisNetworkIDDatabase.UshortNetworkDatabase.Count);
+
+            BasisNetworkIDDatabase.Reset();
+            BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:cap:post-reset");
+            Assert.True(BasisNetworkIDDatabase.UshortNetworkDatabase.TryGetValue("net:cap:post-reset", out ushort fresh));
+            Assert.Equal((ushort)0, fresh);
         }
-        Assert.True(BasisNetworkIDDatabase.UshortNetworkDatabase.TryGetValue("net:cap:" + ushort.MaxValue, out ushort last));
-        Assert.Equal(ushort.MaxValue, last);
+        finally
+        {
+            NetworkServer.Configuration = savedConfig;
+        }
+    }
 
-        // At the ceiling requests are dropped, never thrown: ids arrive per client message, and a
-        // throw per message was an exception storm through the message processor.
-        BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:cap:overflow");
-        BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:cap:overflow-2");
-        Assert.False(BasisNetworkIDDatabase.UshortNetworkDatabase.ContainsKey("net:cap:overflow"));
-        Assert.Equal(ushort.MaxValue + 1, BasisNetworkIDDatabase.UshortNetworkDatabase.Count);
-
+    [Fact]
+    public void PerPeerIdCap_LimitsOneClient_ButNotOthersOrExistingIds()
+    {
         BasisNetworkIDDatabase.Reset();
-        BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:cap:post-reset");
-        Assert.True(BasisNetworkIDDatabase.UshortNetworkDatabase.TryGetValue("net:cap:post-reset", out ushort fresh));
-        Assert.Equal((ushort)0, fresh);
+        Configuration savedConfig = NetworkServer.Configuration;
+        NetworkServer.Configuration = new Configuration { MaxNetworkIdsPerPlayer = 4 };
+        try
+        {
+            var greedy = new OwnershipFakeNetPeer(20);
+            for (int i = 0; i < 20; i++)
+            {
+                BasisNetworkIDDatabase.AddOrFindNetworkID(greedy, "net:greedy:" + i);
+            }
+            // Capped at its allowance no matter how many distinct ids it asks for — one client can no
+            // longer consume the shared id space and lock everyone else out.
+            Assert.Equal(4, BasisNetworkIDDatabase.UshortNetworkDatabase.Count);
+
+            // A different peer still gets ids; the greedy peer's exhausted allowance is its own.
+            var other = new OwnershipFakeNetPeer(21);
+            BasisNetworkIDDatabase.AddOrFindNetworkID(other, "net:other:0");
+            Assert.True(BasisNetworkIDDatabase.UshortNetworkDatabase.ContainsKey("net:other:0"));
+            Assert.Equal(5, BasisNetworkIDDatabase.UshortNetworkDatabase.Count);
+
+            // Looking up an id it already owns is not a new assignment and is never blocked by the cap.
+            BasisNetworkIDDatabase.AddOrFindNetworkID(greedy, "net:greedy:0");
+            Assert.Equal(5, BasisNetworkIDDatabase.UshortNetworkDatabase.Count);
+
+            // The count is per session: it clears on disconnect so a rejoin (or a reused id) starts fresh.
+            BasisNetworkIDDatabase.RemovePeer(greedy.Id);
+            BasisNetworkIDDatabase.AddOrFindNetworkID(greedy, "net:greedy:after-rejoin");
+            Assert.True(BasisNetworkIDDatabase.UshortNetworkDatabase.ContainsKey("net:greedy:after-rejoin"));
+        }
+        finally
+        {
+            NetworkServer.Configuration = savedConfig;
+            BasisNetworkIDDatabase.Reset();
+        }
     }
 }

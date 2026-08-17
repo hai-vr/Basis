@@ -13,6 +13,32 @@ namespace BasisNetworkCore
         public static ConcurrentDictionary<string, ushort> UshortNetworkDatabase = new ConcurrentDictionary<string, ushort>();
         private static int counter = -1; // Start at -1 so the first increment becomes 0
         private static int exhaustedLogged;
+
+        // How many ids each connected peer has been assigned this session. The shared ushort space is
+        // only reclaimed when the instance empties, so without a per-peer ceiling one client can
+        // register 65,536 distinct strings and permanently lock everyone else out of registering any
+        // networked object (plus a reliable broadcast + 3 log lines per assignment). Entries are never
+        // removed individually so this count only grows during a peer's session and is dropped on
+        // disconnect — it cannot drift.
+        private static readonly ConcurrentDictionary<int, int> PerPeerAssignedCount = new ConcurrentDictionary<int, int>();
+        // Peers we have already warned about hitting the cap, so a client that keeps requesting after
+        // the limit cannot turn one reject into a log flood (the flood this cap exists to stop).
+        private static readonly ConcurrentDictionary<int, byte> PerPeerCapWarned = new ConcurrentDictionary<int, byte>();
+        private const int DefaultMaxNetworkIdsPerPlayer = 32768;
+
+        private static int ResolveMaxIdsPerPlayer()
+        {
+            int configured = NetworkServer.Configuration?.MaxNetworkIdsPerPlayer ?? 0;
+            return configured > 0 ? configured : DefaultMaxNetworkIdsPerPlayer;
+        }
+
+        /// <summary>Drops a departed peer's per-session assignment count. The ids themselves persist
+        /// until the instance empties (Reset); this only frees the throttling counter.</summary>
+        public static void RemovePeer(int peerId)
+        {
+            PerPeerAssignedCount.TryRemove(peerId, out _);
+            PerPeerCapWarned.TryRemove(peerId, out _);
+        }
         public static void AddOrFindNetworkID(NetPeer NetPeer, string UniqueStringID)
         {
             if (UshortNetworkDatabase.TryGetValue(UniqueStringID, out ushort Value)) // This should basically never happen!
@@ -31,6 +57,19 @@ namespace BasisNetworkCore
             }
             else
             {
+                // Per-peer cap: stop one client consuming the shared id space and locking everyone
+                // else out. The count only grows during a session and is cleared on disconnect, so it
+                // cannot drift into a false reject.
+                int perPeerCap = ResolveMaxIdsPerPlayer();
+                if (PerPeerAssignedCount.TryGetValue(NetPeer.Id, out int assigned) && assigned >= perPeerCap)
+                {
+                    if (PerPeerCapWarned.TryAdd(NetPeer.Id, 0))
+                    {
+                        BNL.LogError($"Peer {NetPeer.Id} reached the per-player network-id limit ({perPeerCap}); dropping registration for {UniqueStringID} and further ids this session.");
+                    }
+                    return;
+                }
+
                 // Log that we are assigning a new ID
                 BNL.Log($"No existing ID found for {UniqueStringID}. Assigning a new ID.");
 
@@ -55,6 +94,7 @@ namespace BasisNetworkCore
 
                 // Add to the database
                 UshortNetworkDatabase[UniqueStringID] = newID;
+                PerPeerAssignedCount.AddOrUpdate(NetPeer.Id, 1, (_, c) => c + 1);
                 BNL.Log($"New ID {newID} assigned to {UniqueStringID}");
 
                 // Notify the requesting peer and broadcast to others
@@ -113,6 +153,8 @@ namespace BasisNetworkCore
         {
             BNL.Log("Resetting BasisNetworkIDDatabase...");
             UshortNetworkDatabase.Clear();
+            PerPeerAssignedCount.Clear();
+            PerPeerCapWarned.Clear();
             Interlocked.Exchange(ref counter, -1);
             Interlocked.Exchange(ref exhaustedLogged, 0);
             BNL.Log("Database reset complete. Counter set to -1.");

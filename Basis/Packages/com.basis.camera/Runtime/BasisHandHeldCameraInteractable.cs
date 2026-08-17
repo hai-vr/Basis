@@ -1252,6 +1252,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         if (DesktopEye == null) return;
         bool inDesktop = BasisDeviceManagement.IsUserInDesktop();
         if (!inDesktop) return;
+        if (HHC != null && HHC.IsCameraHidden) return;
 
         string className = nameof(BasisHandHeldCameraInteractable);
 

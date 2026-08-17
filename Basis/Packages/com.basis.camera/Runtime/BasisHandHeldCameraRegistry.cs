@@ -19,15 +19,18 @@ public static class BasisHandHeldCameraRegistry
     public static event Action OnChanged;
 
     /// <summary>
-    /// Claims the camera's own spawn request while a hidden camera exists, so pressing the
-    /// button brings that one back instead of leaving an invisible camera running and putting
-    /// a second one in your hand.
+    /// Claims the camera item's own spawn and despawn requests while a hidden camera exists, so
+    /// pressing the button brings that one back instead of leaving an invisible camera running
+    /// and putting a second one in your hand — or, because a hidden camera still counts as
+    /// spawned, destroying the session it kept running out of sight.
     /// </summary>
     [RuntimeInitializeOnLoadMethod]
     public static void RegisterSpawnClaim()
     {
         ContentLoader.OnBeforePropSpawn -= ClaimSpawnForHiddenCamera;
         ContentLoader.OnBeforePropSpawn += ClaimSpawnForHiddenCamera;
+        ContentLoader.OnBeforePropDespawn -= ClaimSpawnForHiddenCamera;
+        ContentLoader.OnBeforePropDespawn += ClaimSpawnForHiddenCamera;
     }
 
     private static bool ClaimSpawnForHiddenCamera(string url)

@@ -4,6 +4,7 @@
     "references": [
         "BasisCamera",
         "Basis Framework",
+        "BasisCommon",
         "BasisGizmos",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime",

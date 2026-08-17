@@ -34,6 +34,12 @@ namespace BasisNetworkServer
         private static readonly ConcurrentDictionary<int, ConcurrentDictionary<string, byte>> _peerSessions = new();
         private static readonly ConcurrentDictionary<long, byte> _offloadedPairs = new();
 
+        // A direct link needs one session per peer you punch to, so a real mesh is bounded by the
+        // instance population. This ceiling is far above any legitimate fan-out and only exists to
+        // stop one client opening unbounded sessions (each a server-side record keyed by its own
+        // token string, plus a reliable Request forwarded at a victim) as a memory/flood vector.
+        private const int MaxSessionsPerPeer = 4096;
+
         private static long PackPair(int a, int b)
         {
             int lo = a < b ? a : b;
@@ -173,6 +179,17 @@ namespace BasisNetworkServer
             }
             if (!NetworkServer.AuthenticatedPeers.TryGetValue(msg.otherPlayerId, out NetPeer target))
             {
+                SendSub(sender, BasisNetworkCommons.P2PSub_Cancel, msg.sessionToken, msg.otherPlayerId);
+                return;
+            }
+
+            // Reuse of an existing token by the same peer just refreshes that session below; only a
+            // genuinely new token grows the set, so cap on distinct outstanding sessions per peer.
+            if (_peerSessions.TryGetValue(sender.Id, out var openSessions)
+                && openSessions.Count >= MaxSessionsPerPeer
+                && !openSessions.ContainsKey(msg.sessionToken))
+            {
+                BNL.LogError($"[P2P] Peer {sender.Id} exceeded the per-peer session cap ({MaxSessionsPerPeer}); dropping Request.");
                 SendSub(sender, BasisNetworkCommons.P2PSub_Cancel, msg.sessionToken, msg.otherPlayerId);
                 return;
             }

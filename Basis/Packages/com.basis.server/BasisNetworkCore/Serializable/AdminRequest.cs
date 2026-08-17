@@ -230,6 +230,15 @@ namespace BasisNetworkCore.Serializable
             // skipping anyone holding basis.protection, so the client needs no new receive path.
             // Payload: [byte fields][float jumpHeight][float walkSpeed][float runSpeed][float gravity][byte mode]
             SetLocomotionOverrideAll,
+
+            // admin: set the image/gif bandwidth budgets. Persisted to config.xml and applied live.
+            // Upload is what one sharer may spend of the server's egress, and is BOTH advertised to
+            // clients (so they pace themselves) and enforced server-side (so a modified one cannot
+            // ignore it). Download is the rate the server replays cached images to one arriving
+            // player, which has no client half at all — the joiner never asked for it.
+            // Payload: [int uploadMbps][int downloadMbps][int enforcementPercent]
+            SetGlobalImageBandwidth,
+            GlobalGetImageBandwidth, // server→client: current image bandwidth budgets (same field order)
         }
     }
 }

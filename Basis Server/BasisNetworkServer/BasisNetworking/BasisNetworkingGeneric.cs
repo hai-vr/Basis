@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using static SerializableBasis;
@@ -53,6 +54,63 @@ namespace Basis.Network.Server.Generic
             return _seenRecipients;
         }
 
+        // ── Opt-in non-image scene-egress backstop ───────────────────────────────────────────────
+        // Per-sender token bucket on the bytes this relay fans out, charged the same way the image
+        // governor charges (payload × recipients). Disabled unless an operator sets
+        // MaxSceneRelayMegabitsPerSecondPerPlayer, so the default hot path is a single config read.
+        private sealed class SceneEgressBucket { public double Tokens; public long LastTicks; }
+        private static readonly ConcurrentDictionary<ushort, SceneEgressBucket> _sceneEgress =
+            new ConcurrentDictionary<ushort, SceneEgressBucket>();
+        private const double SceneMegabitsToBytes = 125_000.0;
+        private const double SceneBurstSeconds = 2.0;
+
+        private static bool SceneEgressAllowed(ushort senderId, long bytes)
+        {
+            int megabits = NetworkServer.Configuration?.MaxSceneRelayMegabitsPerSecondPerPlayer ?? 0;
+            if (megabits <= 0 || bytes <= 0)
+            {
+                return true; // disabled, or nothing to charge
+            }
+
+            double ratePerSecond = megabits * SceneMegabitsToBytes;
+            SceneEgressBucket bucket = _sceneEgress.GetOrAdd(senderId, _ => new SceneEgressBucket
+            {
+                Tokens = ratePerSecond * SceneBurstSeconds,
+                LastTicks = DateTime.UtcNow.Ticks,
+            });
+
+            lock (bucket)
+            {
+                long now = DateTime.UtcNow.Ticks;
+                double elapsed = (now - bucket.LastTicks) / (double)TimeSpan.TicksPerSecond;
+                if (elapsed > 0)
+                {
+                    bucket.LastTicks = now;
+                    double ceiling = ratePerSecond * SceneBurstSeconds;
+                    bucket.Tokens = Math.Min(ceiling, bucket.Tokens + ratePerSecond * elapsed);
+                }
+
+                // Gate on having credit rather than on the whole charge fitting, and let the bucket go
+                // negative: a single wide fan-out can exceed the burst, and demanding it fit would
+                // stall that sender forever. The long-run average is still exactly the budget.
+                if (bucket.Tokens <= 0)
+                {
+                    return false;
+                }
+                bucket.Tokens -= bytes;
+                return true;
+            }
+        }
+
+        /// <summary>Drops a departed peer's scene-egress bucket so a recycled id starts clean.</summary>
+        public static void RemovePeerSceneEgress(int peerId)
+        {
+            if (peerId >= 0 && peerId <= ushort.MaxValue)
+            {
+                _sceneEgress.TryRemove((ushort)peerId, out _);
+            }
+        }
+
         public static void HandleScene(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender, byte broadcastChannel = BasisNetworkCommons.SceneChannel)
         {
             SceneDataMessage SceneDataMessage = new SceneDataMessage();
@@ -64,9 +122,40 @@ namespace Basis.Network.Server.Generic
 
             // Observe only — the relay below is untouched, so a cache miss, a rejection or a
             // malformed payload can never interfere with the live send.
-            if (BasisNetworkImageCache.IsImageTraffic(SceneDataMessage.messageIndex))
+            bool isImageTraffic = BasisNetworkImageCache.IsImageTraffic(SceneDataMessage.messageIndex);
+            if (isImageTraffic)
             {
                 BasisNetworkImageCache.Observe((ushort)sender.Id, payload, payloadLength);
+            }
+
+            // Server-side floor under the client's own pacing. The sharer decides how to spend its
+            // budget — only it knows how the fan-out splits between relayed and direct peers — but a
+            // client that ignores the budget entirely must not be able to spend the server's egress
+            // on our behalf. Charged on fan-out, because that is what the relay actually costs.
+            //
+            // The untargeted branch below broadcasts to the snapshot minus the sender, so the fan-out
+            // is one less than its length.
+            NetPeer[] egressSnapshot = NetworkServer.PeerSnapshot;
+            int fanOut = SceneDataMessage.recipientsSize != 0
+                ? SceneDataMessage.recipientsSize
+                : (egressSnapshot != null ? egressSnapshot.Length - 1 : 0);
+            long egressBytes = (long)payloadLength * Math.Max(1, fanOut);
+
+            if (isImageTraffic)
+            {
+                // Image traffic has its own governor (advertised budget + per-owner buckets).
+                if (!BasisImageBandwidthGovernor.TryConsumeEgress((ushort)sender.Id, egressBytes))
+                {
+                    return;
+                }
+            }
+            else if (!SceneEgressAllowed((ushort)sender.Id, egressBytes))
+            {
+                // Everything else on this channel is interactive scene state measured in tens of
+                // bytes, so this backstop is OFF by default (MaxSceneRelayMegabitsPerSecondPerPlayer
+                // == 0). An operator can set a per-player ceiling to cap a modified client that
+                // broadcasts arbitrary scene payloads to the whole room.
+                return;
             }
 
             ServerSceneDataMessage serverSceneDataMessage = new ServerSceneDataMessage

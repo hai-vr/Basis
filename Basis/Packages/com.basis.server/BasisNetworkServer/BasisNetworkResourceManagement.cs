@@ -9,6 +9,66 @@ using static SerializableBasis;
 public static class BasisNetworkResourceManagement
 {
     public static ConcurrentDictionary<string, LocalLoadResource> UshortNetworkDatabase = new ConcurrentDictionary<string, LocalLoadResource>();
+
+    // Loaded-resource count per creator UUID, so the cap check is O(1) on the hot load path instead
+    // of an O(N) scan of the whole database (which turns a bulk load of thousands into O(N^2)). Kept
+    // in step with UshortNetworkDatabase by NoteResourceAdded/NoteResourceRemoved; CanCreatorLoadMore
+    // re-derives it from the database at the cap boundary so a missed decrement can never permanently
+    // block a legitimate creator.
+    private static readonly ConcurrentDictionary<string, int> PerCreatorCount = new ConcurrentDictionary<string, int>();
+    private const int DefaultMaxLoadedResourcesPerPlayer = 16384;
+
+    private static int ResolveMaxLoadedPerPlayer()
+    {
+        int configured = NetworkServer.Configuration?.MaxLoadedResourcesPerPlayer ?? 0;
+        return configured > 0 ? configured : DefaultMaxLoadedResourcesPerPlayer;
+    }
+
+    /// <summary>
+    /// True when <paramref name="uuid"/> is under its loaded-resource cap. Server-authoritative loads
+    /// (empty UUID) are never capped. The fast path is a single dictionary read; only a creator that
+    /// appears to be at the cap pays an O(N) recount, which also heals any counter drift.
+    /// </summary>
+    public static bool CanCreatorLoadMore(string uuid)
+    {
+        if (string.IsNullOrEmpty(uuid)) return true;
+        int cap = ResolveMaxLoadedPerPlayer();
+        int approx = PerCreatorCount.TryGetValue(uuid, out int c) ? c : 0;
+        if (approx < cap) return true;
+
+        int real = 0;
+        foreach (KeyValuePair<string, LocalLoadResource> kvp in UshortNetworkDatabase)
+        {
+            if (kvp.Value.UUIDOfCreator == uuid) real++;
+        }
+        PerCreatorCount[uuid] = real;
+        return real < cap;
+    }
+
+    /// <summary>Records that a resource created by <paramref name="uuid"/> was added to the database.</summary>
+    public static void NoteResourceAdded(string uuid)
+    {
+        if (string.IsNullOrEmpty(uuid)) return;
+        PerCreatorCount.AddOrUpdate(uuid, 1, (_, c) => c + 1);
+    }
+
+    /// <summary>Records that a resource created by <paramref name="uuid"/> was removed from the database.</summary>
+    public static void NoteResourceRemoved(string uuid)
+    {
+        if (string.IsNullOrEmpty(uuid)) return;
+        while (PerCreatorCount.TryGetValue(uuid, out int c))
+        {
+            if (c <= 1)
+            {
+                if (((ICollection<KeyValuePair<string, int>>)PerCreatorCount).Remove(new KeyValuePair<string, int>(uuid, c))) return;
+            }
+            else if (PerCreatorCount.TryUpdate(uuid, c - 1, c))
+            {
+                return;
+            }
+        }
+    }
+
     public static void Reset()
     {
         LocalLoadResource[] resourceArray = UshortNetworkDatabase.Values.ToArray();
@@ -38,7 +98,10 @@ public static class BasisNetworkResourceManagement
                 NetworkServer.ReturnWriter(writer);
 
                 // Remove the non-persistent resource from the database
-                UshortNetworkDatabase.Remove(llr.LoadedNetID,out LocalLoadResource Resource);
+                if (UshortNetworkDatabase.Remove(llr.LoadedNetID, out LocalLoadResource Resource))
+                {
+                    NoteResourceRemoved(Resource.UUIDOfCreator);
+                }
             }
         }
     }
@@ -68,7 +131,10 @@ public static class BasisNetworkResourceManagement
                 DeliveryMethod.ReliableOrdered
             );
             NetworkServer.ReturnWriter(writer);
-            UshortNetworkDatabase.Remove(llr.LoadedNetID, out LocalLoadResource Resource);
+            if (UshortNetworkDatabase.Remove(llr.LoadedNetID, out LocalLoadResource Resource))
+            {
+                NoteResourceRemoved(Resource.UUIDOfCreator);
+            }
         }
     }
     public static void SendOutAllResources(NetPeer NewConnection)
@@ -121,12 +187,18 @@ public static class BasisNetworkResourceManagement
     }
     public static void LoadResource(LocalLoadResource LocalLoadResource)
     {
+        if (!CanCreatorLoadMore(LocalLoadResource.UUIDOfCreator))
+        {
+            BNL.LogError($"Creator {LocalLoadResource.UUIDOfCreator} reached the per-player loaded-object limit ({ResolveMaxLoadedPerPlayer()}); dropping {LocalLoadResource.LoadedNetID}.");
+            return;
+        }
         if (UshortNetworkDatabase.ContainsKey(LocalLoadResource.LoadedNetID) == false)
         {
             NetDataWriter Writer = NetworkServer.RentWriter();
             LocalLoadResource.Serialize(Writer);
             if (UshortNetworkDatabase.TryAdd(LocalLoadResource.LoadedNetID, LocalLoadResource))
             {
+                NoteResourceAdded(LocalLoadResource.UUIDOfCreator);
                 BNL.Log("Adding Object " + LocalLoadResource.LoadedNetID);
                 NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.LoadResourceChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
             }
@@ -146,11 +218,12 @@ public static class BasisNetworkResourceManagement
     // Returns false if the resource was not found (TryRemove failed atomically).
     public static bool UnloadResource(UnLoadResource unLoadResource)
     {
-        if (!UshortNetworkDatabase.TryRemove(unLoadResource.LoadedNetID, out _))
+        if (!UshortNetworkDatabase.TryRemove(unLoadResource.LoadedNetID, out LocalLoadResource removedResource))
         {
             BNL.LogError($"[Server] Trying to unload an object that does not exist: {unLoadResource.LoadedNetID}");
             return false;
         }
+        NoteResourceRemoved(removedResource.UUIDOfCreator);
 
         NetDataWriter writer = NetworkServer.RentWriter();
         unLoadResource.Serialize(writer);
@@ -192,6 +265,7 @@ public static class BasisNetworkResourceManagement
             BNL.LogError($"Failed to remove object [{unLoadResource.LoadedNetID}] after validation.");
             return;
         }
+        NoteResourceRemoved(resource.UUIDOfCreator);
 
         NetDataWriter writer = NetworkServer.RentWriter();
         unLoadResource.Serialize(writer);

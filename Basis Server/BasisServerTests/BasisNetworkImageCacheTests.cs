@@ -77,9 +77,15 @@ public class BasisNetworkImageCacheTests : IDisposable
             ImageCacheEnabled = true,
             ImageCacheMaxMegabytes = 4,
             ImageCacheMinimumPerOwnerMegabytes = 0,
+            // Replay inline, which is what 0 means. These tests are about WHAT the cache serves,
+            // not how fast; leaving pacing on would make every one of them drive a pump to observe
+            // a result that has nothing to do with what it is asserting. The paced path has its own
+            // tests in BasisImageBandwidthGovernorTests.
+            ImageShareDownloadMegabitsPerSecond = 0,
         };
 
         BasisNetworkImageCache.Reset();
+        BasisImageBandwidthGovernor.Reset();
         BasisNetworkIDDatabase.UshortNetworkDatabase[BasisNetworkImageCache.ImageManagerIdentifier] = ManagerNetId;
     }
 

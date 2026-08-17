@@ -54,6 +54,12 @@ public static class BasisNetworkPreloadResourceManagement
             return;
         }
 
+        if (!BasisNetworkResourceManagement.CanCreatorLoadMore(resource.UUIDOfCreator))
+        {
+            BNL.LogError($"PreloadResourceManagement: Creator {resource.UUIDOfCreator} reached the per-player loaded-object limit; dropping synchronized load {netId}.");
+            return;
+        }
+
         var peerSnapshot = NetworkServer.PeerSnapshot;
         int peerCount = peerSnapshot.Length;
 
@@ -81,7 +87,10 @@ public static class BasisNetworkPreloadResourceManagement
         NetworkServer.ReturnWriter(writer);
 
         // Store in the main resource database too
-        BasisNetworkResourceManagement.UshortNetworkDatabase.TryAdd(netId, resource);
+        if (BasisNetworkResourceManagement.UshortNetworkDatabase.TryAdd(netId, resource))
+        {
+            BasisNetworkResourceManagement.NoteResourceAdded(resource.UUIDOfCreator);
+        }
 
         // No peers: complete immediately rather than waiting for the 5-minute timeout
         if (peerCount == 0)
@@ -202,7 +211,10 @@ public static class BasisNetworkPreloadResourceManagement
         NetDataWriter writer = NetworkServer.RentWriter();
         foreach (var scene in sceneResources)
         {
-            BasisNetworkResourceManagement.UshortNetworkDatabase.TryRemove(scene.LoadedNetID, out _);
+            if (BasisNetworkResourceManagement.UshortNetworkDatabase.TryRemove(scene.LoadedNetID, out _))
+            {
+                BasisNetworkResourceManagement.NoteResourceRemoved(scene.UUIDOfCreator);
+            }
 
             UnLoadResource unload = new UnLoadResource
             {

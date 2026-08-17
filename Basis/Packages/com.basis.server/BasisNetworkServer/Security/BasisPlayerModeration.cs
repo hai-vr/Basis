@@ -476,6 +476,11 @@ namespace BasisNetworkServer.Security
                         HandleReductionSettingsSet(peer, reader));
                     break;
 
+                case AdminRequestMode.SetGlobalImageBandwidth:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleImageBandwidthSet(peer, reader));
+                    break;
+
                 case AdminRequestMode.RequestAllLogs:
                     Require(peer, PermNodes.AdminLogs, () =>
                         BasisServerLogBundleService.SendAllLogsToPeer(peer));
@@ -1146,6 +1151,67 @@ namespace BasisNetworkServer.Security
             SaveConfig();
             BroadcastReductionSettings();
             SendBackMessage(peer, $"Reduction settings set: interval {config.BSRSMillisecondDefaultInterval}ms, base x{config.BSRBaseMultiplier}, rate {config.BSRSIncreaseRate}, slowest {config.BSRSlowestSendRate}, distances {config.HighQualityDistance}/{config.MediumQualityDistance}/{config.LowQualityDistance}m, bundle {config.EnableAvatarBundleCompression} (min {config.AvatarBundleMinMessages}msg/{config.AvatarBundleMinBytes}B), profiling {config.EnableBSRProfiling}. SlowestSendRate applies to new joins only.");
+        }
+
+        /// <summary>
+        /// Applies the image/gif bandwidth budgets from an admin.
+        ///
+        /// The upload figure lands live in two places at once: it is what the server enforces from
+        /// the next packet onward, and it is what new joiners are told to pace themselves to. It is
+        /// NOT re-advertised to players already connected — the number rides
+        /// <c>ServerMetaDataMessage</c>, which is only built at join and on a permission refresh —
+        /// so lowering it takes hold immediately as a limit and gradually as a request. That
+        /// asymmetry is safe in the direction that matters: the enforced value is the strict one.
+        /// </summary>
+        private static void HandleImageBandwidthSet(NetPeer peer, NetPacketReader reader)
+        {
+            var config = NetworkServer.Configuration;
+            config.ImageShareEgressMegabitsPerSecond = reader.GetInt();
+            config.ImageShareDownloadMegabitsPerSecond = reader.GetInt();
+            config.ImageShareEgressEnforcementPercent = reader.GetInt();
+
+            // 0 is meaningful on both rates — "unmetered" for download, "client keeps its own
+            // conservative default" for upload — so only negatives are corrected.
+            if (config.ImageShareEgressMegabitsPerSecond < 0) config.ImageShareEgressMegabitsPerSecond = 0;
+            if (config.ImageShareDownloadMegabitsPerSecond < 0) config.ImageShareDownloadMegabitsPerSecond = 0;
+
+            // Enforcing below what was advertised would drop honest clients doing exactly what they
+            // were told, which is the one outcome this feature must never produce.
+            if (config.ImageShareEgressEnforcementPercent < 100) config.ImageShareEgressEnforcementPercent = 100;
+            if (config.ImageShareEgressEnforcementPercent > 1000) config.ImageShareEgressEnforcementPercent = 1000;
+
+            SaveConfig();
+            BroadcastImageBandwidth();
+            SendBackMessage(peer,
+                $"Image bandwidth set: upload {config.ImageShareEgressMegabitsPerSecond} Mb/s per sharer " +
+                $"(enforced at {config.ImageShareEgressEnforcementPercent}%), " +
+                $"download {config.ImageShareDownloadMegabitsPerSecond} Mb/s per joining player. " +
+                "Upload applies live as a limit; the advertised figure reaches existing players on their next join or permission refresh.");
+        }
+
+        private static void WriteImageBandwidth(NetDataWriter writer)
+        {
+            var config = NetworkServer.Configuration;
+            new AdminRequest().Serialize(writer, AdminRequestMode.GlobalGetImageBandwidth);
+            writer.Put(config.ImageShareEgressMegabitsPerSecond);
+            writer.Put(config.ImageShareDownloadMegabitsPerSecond);
+            writer.Put(config.ImageShareEgressEnforcementPercent);
+        }
+
+        private static void BroadcastImageBandwidth()
+        {
+            var writer = NetworkServer.RentWriter();
+            WriteImageBandwidth(writer);
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.AdminChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        public static void SendImageBandwidthToPeer(NetPeer peer)
+        {
+            var writer = NetworkServer.RentWriter();
+            WriteImageBandwidth(writer);
+            NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
         }
 
         private static void WriteReductionSettings(NetDataWriter writer)

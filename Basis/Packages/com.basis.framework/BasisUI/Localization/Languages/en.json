@@ -12029,6 +12029,34 @@
       "value": "Avatar Reduction System"
     },
     {
+      "key": "settings.admin.title.imageBandwidth",
+      "value": "Image & GIF Bandwidth"
+    },
+    {
+      "key": "settings.admin.title.imageUploadMbps",
+      "value": "Upload (Mb/s per sharer)"
+    },
+    {
+      "key": "settings.admin.title.imageUploadMbps.description",
+      "value": "Server egress one sharing player may spend on an image or GIF. The server relays a share once per recipient, so this divided by the fan-out is the speed the sharer actually uploads at. Applies per sharer, not in total. 0 leaves clients on their own conservative default."
+    },
+    {
+      "key": "settings.admin.title.imageDownloadMbps",
+      "value": "Download (Mb/s per joining player)"
+    },
+    {
+      "key": "settings.admin.title.imageDownloadMbps.description",
+      "value": "Rate the server replays already-shared images to one arriving player, so nobody has to send them again. Without a limit a full cache lands on a joiner all at once. Applies per joining player. 0 = unlimited."
+    },
+    {
+      "key": "settings.admin.title.imageEnforcementPercent",
+      "value": "Upload Enforcement (%)"
+    },
+    {
+      "key": "settings.admin.title.imageEnforcementPercent.description",
+      "value": "How far over the upload budget a client may go before the server starts dropping its image traffic. Well-behaved clients pace themselves to the budget; this catches ones that ignore it. Headroom matters because client and server measure the rate slightly differently — 150 means drop only at half again the advertised rate. Minimum 100."
+    },
+    {
       "key": "settings.admin.title.defaultSendIntervalMs",
       "value": "Default Send Interval (ms)"
     },

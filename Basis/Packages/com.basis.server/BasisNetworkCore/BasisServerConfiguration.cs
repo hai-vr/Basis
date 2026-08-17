@@ -25,7 +25,10 @@ public class Configuration
     //    its doc comment instead of carrying a setting nothing reads.
     // 8: hybrid avatar-bundle codec (EnableAvatarBundleZstd and friends) added; bumped so existing
     //    files gain the four settings with their doc comments rather than only the bare fields.
-    public const int CurrentConfigVersion = 8;
+    // 9: per-player abuse caps (MaxNetworkIdsPerPlayer, MaxLoadedResourcesPerPlayer) and the opt-in
+    //    scene-relay egress backstop (MaxSceneRelayMegabitsPerSecondPerPlayer) added; bumped so
+    //    existing config.xml files gain the three settings with their doc comments.
+    public const int CurrentConfigVersion = 9;
     /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
     public int ConfigVersion = 0;
 
@@ -166,6 +169,38 @@ public class Configuration
     /// accordingly. 0 leaves the client on its own conservative default.
     /// </summary>
     public int ImageShareEgressMegabitsPerSecond = 200;
+
+    /// <summary>
+    /// Rate the server replays cached images to ONE arriving player, in megabits per second.
+    ///
+    /// This is the download side of image sharing, and it is the server's own send — not something
+    /// a client can be trusted to pace, because the client never asked for it. When somebody joins,
+    /// the cache hands them every image the room already holds so the original sharers do not have
+    /// to send them all again. That replay used to go out in a single synchronous burst: an
+    /// instance sitting near the cache ceiling would push hundreds of megabytes into one peer's
+    /// reliable queue the moment it connected, which is a bad first ten seconds for that player and
+    /// a spike in server memory for everyone.
+    ///
+    /// Sized per arriving player, so several joining at once cost this much each — the join burst
+    /// after a restart is the case to size for. 0 = unpaced, which restores the old behaviour.
+    /// </summary>
+    public int ImageShareDownloadMegabitsPerSecond = 200;
+
+    /// <summary>
+    /// Headroom the server-side egress backstop allows over
+    /// <see cref="ImageShareEgressMegabitsPerSecond"/> before it starts dropping, as a percentage.
+    ///
+    /// The advertised budget and the enforced one must not be the same number. A well-behaved
+    /// client paces itself to the advertised figure, but its accounting is not the server's: it
+    /// measures against its own clock, rounds chunks differently, and bursts across a tick
+    /// boundary. Enforcing at exactly the advertised rate would break honest transfers on jitter
+    /// alone, which is far worse than the abuse it is meant to stop.
+    ///
+    /// 150 = drop only once a sender is sustaining half again what it was told it could have, which
+    /// no honest client does and no rate-limited one can hide behind.
+    /// </summary>
+    public int ImageShareEgressEnforcementPercent = 150;
+
     public bool EnableBSRProfiling = false;
     /// <summary>
     /// Worker cap for the BSR tick's parallel phases (send loop, message processing, distance
@@ -240,6 +275,33 @@ public class Configuration
     public float MinAvatarEyeHeightMeters = 0.1f;
     public float MaxAvatarEyeHeightMeters = 100f;
     public int MaxContentSpheresPerPlayer = 32;
+    /// <summary>
+    /// Most distinct network ids one player may register in a session. Every synced object (prop,
+    /// synced transform, image manager) claims one from a shared 65,536-wide space that is only
+    /// reclaimed when the instance empties, so without a per-player ceiling one client can exhaust
+    /// the whole space and lock everyone else out of registering objects. Defaults to half the
+    /// space, which no honest client approaches; raise it only if a single user legitimately spawns
+    /// tens of thousands of networked objects. 0 or negative restores the generous default rather
+    /// than removing the cap.
+    /// </summary>
+    public int MaxNetworkIdsPerPlayer = 32768;
+    /// <summary>
+    /// Most loaded resources (props/worlds spawned via LoadResource) one player may hold at once.
+    /// Each retained entry keeps the resource's URL and metadata in server RAM and is rebroadcast to
+    /// every client, so an uncapped client can exhaust memory and flood the relay. Sized well above
+    /// normal heavy use (thousands per player); raise it for instances that legitimately hold more.
+    /// 0 or negative restores the default rather than removing the cap.
+    /// </summary>
+    public int MaxLoadedResourcesPerPlayer = 16384;
+    /// <summary>
+    /// Opt-in server-side ceiling on NON-image scene-relay egress one player may spend, in megabits
+    /// per second, charged on fan-out (payload times recipients). Image traffic is metered
+    /// separately by the image bandwidth governor. 0 (default) disables it entirely and preserves
+    /// the historical behaviour — a legitimate instance's scene-traffic ceiling is deployment
+    /// specific, so this is off until an operator sets a value. Set it as a backstop against a
+    /// modified client broadcasting arbitrary scene payloads to the whole room.
+    /// </summary>
+    public int MaxSceneRelayMegabitsPerSecondPerPlayer = 0;
     public bool PlayspaceMoverLocked = false;
     public bool DirectConnectLocked = false;
     /// <summary>
