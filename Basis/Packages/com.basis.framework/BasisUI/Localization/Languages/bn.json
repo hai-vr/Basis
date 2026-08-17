@@ -1598,6 +1598,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "অন্য কোনো খেলোয়াড় লিখিত বার্তা পাঠালে মৃদু বিজ্ঞপ্তি শব্দ বাজান।" },
     { "key": "settings.audio.sounds.microphone", "value": "মাইক্রোফোন মিউট শব্দ" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "আপনার মাইক্রোফোন মিউট বা আনমিউট করলে শব্দ বাজান।" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "মাইক্রোফোন মিউট শব্দ (পুশ টু টক)" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "পুশ টু টক চাপা ও ছাড়ার প্রতিবারও সেই শব্দটি বাজান। ডিফল্টভাবে বন্ধ, কারণ এটি প্রতিটি বাক্যে পুনরাবৃত্তি হয়।" },
     { "key": "settings.audio.sounds.camera", "value": "ক্যামেরার শব্দ" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "ছবি তোলার সময় শাটার ও কাউন্টডাউন টিক বাজান।" },
 

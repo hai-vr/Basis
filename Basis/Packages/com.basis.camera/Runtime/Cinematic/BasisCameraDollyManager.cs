@@ -58,6 +58,15 @@ namespace Basis.Cinematics
         private static BasisCameraDollySync _lastSentMode = BasisCameraDollySync.LocalOnly;
         private static bool _mirrorTickRequested;
 
+        /// <summary>
+        /// A move from somebody else has landed on the local track and has not been passed on yet.
+        /// Without it a drag by a remote changes nothing the send test can see — the count and the
+        /// mode are the same and no local hand is on a point — so the answer would only leave here
+        /// at the keyframe rate, and a roster captured before the drag would arrive after it and
+        /// pull the point back for as long as two seconds.
+        /// </summary>
+        private static bool _remoteMoveApplied;
+
         // ---- Lifecycle -------------------------------------------------------------------
 
         public static void Initialize()
@@ -168,6 +177,7 @@ namespace Basis.Cinematics
             _lastSentCount = -1;
             _nextRoster = 0f;
             _nextKeyframe = 0f;
+            _remoteMoveApplied = false;
         }
 
         /// <summary>
@@ -210,7 +220,8 @@ namespace Basis.Cinematics
                 return;
             }
 
-            bool changed = _local.Count != _lastSentCount || _local.SyncMode != _lastSentMode || LocalTrackIsHeld();
+            bool changed = _local.Count != _lastSentCount || _local.SyncMode != _lastSentMode
+                || LocalTrackIsHeld() || _remoteMoveApplied;
             bool due = changed ? time >= _nextRoster : time >= _nextKeyframe;
             if (!due) return;
 
@@ -219,6 +230,7 @@ namespace Basis.Cinematics
             _nextKeyframe = time + KeyframeInterval;
             _lastSentCount = _local.Count;
             _lastSentMode = _local.SyncMode;
+            _remoteMoveApplied = false;
         }
 
         /// <summary>
@@ -268,14 +280,19 @@ namespace Basis.Cinematics
         /// <summary>
         /// Reports a point somebody is dragging on another player's track. The author applies it;
         /// this client is only asking.
+        ///
+        /// <para>The frames of a drag are unreliable — the next one is along in a moment and is
+        /// worth more than a resend of a stale one. Where the point was let go of is not: it is
+        /// the whole answer, nothing follows it to paper over its loss, and dropping it leaves the
+        /// author holding a position from part-way through the drag.</para>
         /// </summary>
-        public static void SendPointMove(ushort owner, int slot, Vector3 position, Quaternion rotation)
+        public static void SendPointMove(ushort owner, int slot, Vector3 position, Quaternion rotation, bool settled = false)
         {
             if (!HasNetworkID) return;
 
             EnsureBuffer(BasisCameraDollyPacket.PointMoveSize);
             int written = BasisCameraDollyPacket.WritePointMove(_sendBuffer, owner, slot, position, rotation);
-            if (written > 0) Send(written, DeliveryMethod.Unreliable, null);
+            if (written > 0) Send(written, settled ? DeliveryMethod.ReliableOrdered : DeliveryMethod.Unreliable, null);
         }
 
         public static void SendClaim(ushort owner, int slot, bool claimed)
@@ -343,12 +360,15 @@ namespace Basis.Cinematics
 
             // Only the author applies a move to real waypoints, and only while the track is open
             // to it. A locked track ignores everyone else, which is the whole of what locked means.
-            if (_local != null && owner == LocalPlayerId())
+            if (TryGetLocalPlayerId(out ushort localId) && owner == localId)
             {
-                if (_local.SyncMode != BasisCameraDollySync.Networked) return;
+                if (_local == null || _local.SyncMode != BasisCameraDollySync.Networked) return;
 
                 BasisCameraDollyWaypoint waypoint = _local.GetWaypoint(slot);
-                if (waypoint != null) waypoint.PlaceFromNetwork(position, rotation);
+                if (waypoint == null || waypoint.IsGrabbed) return;
+
+                waypoint.PlaceFromNetwork(position, rotation);
+                _remoteMoveApplied = true;
                 return;
             }
 
@@ -444,16 +464,27 @@ namespace Basis.Cinematics
                 ? BasisLocalCameraDriver.CameraInstance.transform.rotation
                 : Quaternion.identity;
 
+            float time = Time.time;
             foreach (KeyValuePair<ushort, BasisCameraDollyMirror> pair in _mirrors)
             {
-                pair.Value.Refresh(scale, labelFacing);
+                pair.Value.Refresh(scale, labelFacing, time);
             }
         }
 
         // ---- Plumbing ---------------------------------------------------------------------
 
-        private static ushort LocalPlayerId()
-            => BasisNetworkConnection.LocalPlayerPeer != null ? (ushort)BasisNetworkConnection.LocalPlayerPeer.Id : (ushort)0;
+        private static bool TryGetLocalPlayerId(out ushort localId)
+        {
+            BasisNetworkPlayer local = BasisNetworkPlayer.LocalPlayer;
+            if (local == null)
+            {
+                localId = 0;
+                return false;
+            }
+
+            localId = local.playerId;
+            return true;
+        }
 
         private static void EnsureBuffer(int size)
         {

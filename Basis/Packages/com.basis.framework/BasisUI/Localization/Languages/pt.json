@@ -1587,6 +1587,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "Reproduz uma notificação suave quando outro jogador envia uma mensagem de texto." },
     { "key": "settings.audio.sounds.microphone", "value": "Som de Silenciar Microfone" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "Reproduz um som quando você silencia ou reativa seu microfone." },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "Som de Silenciar Microfone (Aperte Para Falar)" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "Também toca esse som sempre que você aperta e solta o aperte para falar. Desativado por padrão, pois se repete a cada frase." },
     { "key": "settings.audio.sounds.camera", "value": "Sons da Câmera" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "Reproduz o obturador e os tiques da contagem regressiva ao tirar uma foto." },
     { "key": "settings.microphone.group.title", "value": "Microfone" },

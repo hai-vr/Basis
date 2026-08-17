@@ -1598,6 +1598,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "Speelt een zachte melding af wanneer een andere speler een tekstbericht stuurt." },
     { "key": "settings.audio.sounds.microphone", "value": "Microfoon-dempgeluid" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "Speelt een geluid af wanneer je je microfoon dempt of het dempen opheft." },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "Microfoon-dempgeluid (push-to-talk)" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "Speelt dat geluid ook af telkens wanneer je push-to-talk indrukt en loslaat. Standaard uit, omdat het bij elke zin herhaalt." },
     { "key": "settings.audio.sounds.camera", "value": "Camerageluiden" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "Speelt de sluiter en de aftel-tikken af wanneer een foto wordt genomen." },
 

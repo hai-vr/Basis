@@ -379,9 +379,10 @@ public static class SettingsProviderControllerConfig
     }
 
     /// <summary>
-    /// Arms and shows the joystick slider bind (<see cref="BasisPanelJoystickBind"/>). Picking the
-    /// slider happens out on the pages themselves — press one with a hand while armed — so all this
-    /// section holds is the arm/cancel button, what is currently bound, and how fast the stick moves it.
+    /// Shows the joystick slider bind (<see cref="BasisPanelJoystickBind"/>). Taking the bind
+    /// happens out on the pages themselves — a slider's own options window offers it — so all this
+    /// section holds is what is bound right now, a way to give it back, and how fast the stick
+    /// moves it.
     /// </summary>
     private static void BuildJoystickBindSection(PanelElementDescriptor group)
     {
@@ -390,20 +391,6 @@ public static class SettingsProviderControllerConfig
         PanelElementDescriptor status = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group, parent);
         status.SetTitle(BasisLocalization.Get("settings.controls.joystickBind.status"));
-
-        PanelButton bindButton = PanelButton.CreateNew(parent);
-        bindButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.joystickBind.bind.tooltip"));
-        bindButton.OnClicked += () =>
-        {
-            if (BasisPanelJoystickBind.IsArmed)
-            {
-                BasisPanelJoystickBind.Cancel();
-            }
-            else
-            {
-                BasisPanelJoystickBind.Arm();
-            }
-        };
 
         PanelButton unbindButton = PanelButton.CreateNew(parent);
         unbindButton.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.joystickBind.unbind"));
@@ -416,25 +403,16 @@ public static class SettingsProviderControllerConfig
             BasisSettingsDefaults.JoystickBindSweepSeconds);
         sweepSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.joystickBind.sweep.tooltip"));
 
-        // A stick is what drives the slider, so there is nothing to bind to on desktop.
-        if (BasisDeviceManagement.IsUserInDesktop())
-        {
-            bindButton.SetInteractable(false, BasisLocalization.Get("settings.controls.joystickBind.vrOnly"));
-        }
-
         void Refresh()
         {
             // The page is rebuilt each time the tab opens; a build that has since been torn down
             // drops itself here rather than needing a teardown hook of its own.
-            if (bindButton == null)
+            if (unbindButton == null)
             {
                 BasisPanelJoystickBind.StateChanged -= Refresh;
                 return;
             }
 
-            bindButton.Descriptor.SetTitle(BasisLocalization.Get(BasisPanelJoystickBind.IsArmed
-                ? "settings.controls.joystickBind.cancel"
-                : "settings.controls.joystickBind.bind"));
             status.SetDescription(BasisPanelJoystickBind.StatusText);
 
             // Greyed rather than hidden: expanding the section re-activates everything under it,

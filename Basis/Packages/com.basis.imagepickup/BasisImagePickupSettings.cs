@@ -134,9 +134,12 @@ namespace Basis.ImagePickup
         public const int AnimationPacketBuildChunksPerJob = 32;
 
         /// <summary>
-        /// Share of each transport budget below that image replication may occupy; the rest stays free for
-        /// pose, voice, and object sync. The chunks-per-frame caps above bound per-frame cost only — these
-        /// are what bound the rate, and they are enforced by <see cref="BasisImagePickupBandwidth"/>.
+        /// Share of the measured uplink below that image replication may occupy; the rest stays free for
+        /// pose, voice, and object sync. The chunks-per-frame caps above bound per-frame cost only — this
+        /// is what bounds the rate, and it is enforced by <see cref="BasisImagePickupBandwidth"/>.
+        ///
+        /// Applies to the local uplink only. A server-advertised relay budget is already a deliberate
+        /// figure from whoever runs the server, so it is spent as given rather than halved again.
         /// </summary>
         public const float ShareBandwidthFraction = 0.5f;
 
@@ -197,10 +200,17 @@ namespace Basis.ImagePickup
         public const float LinkProbeQueueBackoffFactor = 0.5f;
 
         /// <summary>
-        /// Assumed server egress one client may cause, in bytes per second. A relayed packet costs this
-        /// budget once per recipient the server forwards it to; peers on a direct link cost it nothing.
+        /// Server egress one client may cause, in bytes per second, when the server has not said how much
+        /// it can afford. A relayed packet costs this budget once per recipient the server forwards it to;
+        /// peers on a direct link cost it nothing.
+        ///
+        /// Only a guess, and deliberately a timid one, because a client cannot see the far end of the
+        /// relay — which is why a server that does advertise a figure overrides it outright rather than
+        /// being averaged with it. Divided by the fan-out this is roughly 25 KB/s per sharer in a
+        /// twenty-player instance, so an instance running on the fallback shares pictures slowly no matter
+        /// how much pipe either end has. Servers should set ImageShareEgressMegabitsPerSecond.
         /// </summary>
-        public const long RelayEgressBudgetBytesPerSecond = 1024L * 1024L;
+        public const long RelayEgressBudgetBytesPerSecond = 512L * 1024L;
 
         /// <summary>How much unspent budget either bucket may bank, in seconds.</summary>
         public const float ShareBandwidthBurstSeconds = 0.25f;

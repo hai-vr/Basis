@@ -92,6 +92,10 @@ public static class BasisCameraSettingsReadout
         Row("camera.printPhoto", OnOff(settings.printPhoto));
         Row("camera.autoLevel", OnOff(settings.useAutoLeveling));
         Row("camera.vrStabilization", OnOff(settings.useVRHandheldSmoothing));
+        Row("camera.smoothDrag", OnOff(settings.useSmoothDrag));
+        Row("camera.smoothDrag.position", Number(settings.smoothDragPositionDamping) + " s");
+        Row("camera.smoothDrag.rotation", Number(settings.smoothDragRotationDamping) + " s");
+        Row("camera.smoothDrag.leash", Number(settings.smoothDragMaxDistance) + " m");
 
         Section("camera.gif");
         Row("camera.gif.length", Number(settings.gifDurationSeconds) + " s");

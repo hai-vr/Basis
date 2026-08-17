@@ -25,6 +25,8 @@ namespace Basis.Scripts.BasisCharacterController
 
         public void Tick(BasisLocalCharacterDriver ctx, float dt)
         {
+            ctx.SyncStanceSpeedSource();
+
             Quaternion facing = BasisLocalCharacterDriver.GetMovementFacing();
 
             // Planar

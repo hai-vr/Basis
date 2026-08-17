@@ -62,6 +62,8 @@ public struct BasisFootSimInput
     public bool hasChest;
     public bool groundHit;
     public float3 groundPoint;
+    public bool leftGroundValid, rightGroundValid;
+    public float leftGroundUp, rightGroundUp;
     public float splayWhenCrouched;
     public float3 playerUp;
 }

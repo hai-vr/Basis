@@ -86,6 +86,37 @@ public class PopulationScaleTests : IDisposable
         Assert.True(large > small, $"expected a 64 GB box to allow more than an 8 GB box; got {large} vs {small}");
     }
 
+    /// <summary>
+    /// The pool has to be able to take back what the queues can let go of.
+    ///
+    /// It was sized from a per-peer constant of 48 while the queues were population-scaled into the
+    /// millions — a 96,000-packet pool in front of 9.5 million packets of queue capacity at 1000
+    /// players. The surplus was not saved memory: <c>PoolRecycle</c> dropped it, and those packets
+    /// had already been promoted to gen2 by sitting in a queue, so the collector could neither
+    /// compact nor return the space.
+    ///
+    /// Measured at 1000 clients with only this cap varied: voice delivery 63.2% -> 85.8%, bulk drops
+    /// 2.94M -> 796k, GC pause ~2.1% -> ~1.2%, gen2 collections 9 -> 4. Starving the pool forces the
+    /// send path to allocate, the GC then takes CPU away from that same send path, and the server
+    /// falls further behind — the cap is upstream of a feedback loop, not a simple memory knob.
+    /// </summary>
+    [Fact]
+    public void PacketPool_CanAbsorbEverythingTheQueuesHold()
+    {
+        BasisPopulationScale.OverrideAvailableMemoryForTests(64 * Gb);
+
+        const int peers = 1000;
+        long queueCapacity = (long)peers *
+            (BasisPopulationScale.UnreliableQueuePerPeer(0, peers) +
+             BasisPopulationScale.PriorityQueuePerPeer(0, peers));
+
+        int pool = BasisPopulationScale.PacketPoolMax(0, peers, perPeer: 48);
+
+        Assert.True(pool >= queueCapacity,
+            $"pool cap {pool} cannot absorb {queueCapacity} packets of queue capacity — recycled " +
+            "packets past the cap are dropped, and having lived in a queue they are already in gen2");
+    }
+
     [Fact]
     public void UnreliableQueue_MeasuredWorkingPointIsReachable()
     {

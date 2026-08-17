@@ -93,6 +93,10 @@ public partial class BasisHandHeldCameraUI
 
             msaaSamples = 2;
 
+            smoothDragPositionDamping = 0.4f;
+            smoothDragRotationDamping = 0.5f;
+            smoothDragMaxDistance = 0.25f;
+
             gifDurationSeconds = 5f;
             gifFrameRate = 15;
             gifWidth = 480;
@@ -249,6 +253,16 @@ public partial class BasisHandHeldCameraUI
         public bool capture360;
         public bool useAutoLeveling;
         public bool useVRHandheldSmoothing;
+
+        /// <summary>
+        /// The held camera trails the hand instead of being locked to it. Off is the zero fill, so
+        /// an older file loads as the rigid hold it was written as, and the three numbers below it
+        /// are defaulted in the constructor rather than migrated.
+        /// </summary>
+        public bool useSmoothDrag;
+        public float smoothDragPositionDamping;
+        public float smoothDragRotationDamping;
+        public float smoothDragMaxDistance;
 
         // GIF recording. Every default is set in the constructor, so an older file that lacks
         // them loads the intended values without a migration.

@@ -9,8 +9,9 @@ using UnityEngine.InputSystem;
 namespace Basis.BasisUI
 {
     /// <summary>
-    /// Reset-to-default gesture for panel elements: while hovering a control, a right-click
-    /// (desktop) or a thumbstick click (VR) asks to reset it. Both are polled rather than handled
+    /// Options gesture for panel elements: while hovering a control, a right-click (desktop) or a
+    /// thumbstick click (VR) opens what can be done with it — a reset to default, and for a slider
+    /// the offer of this hand's thumbstick. Both are polled rather than handled
     /// as pointer buttons, because <c>BasisUIInput</c> never fills its right-button state (so a
     /// right-click produces no UI pointer event at all) and a thumbstick click is not a pointer
     /// button in the first place.
@@ -22,9 +23,9 @@ namespace Basis.BasisUI
     /// </para>
     ///
     /// <para>
-    /// It is a click, not a press: the reset runs on release, and only when the press both started
+    /// It is a click, not a press: the window opens on release, and only when the press both started
     /// and ended on the same control with the same device, within <see cref="MaxClickHoldSeconds"/>.
-    /// A stick pushed and held — locomotion, or a panel drag — is not a click and never resets.
+    /// A stick pushed and held — locomotion, or a panel drag — is not a click and never opens one.
     /// </para>
     ///
     /// Only one element can be hovered at a time, so the poll lives here as a single frame-clock
@@ -46,6 +47,14 @@ namespace Basis.BasisUI
         private static bool _wasDown;
         private static bool _pressArmed;
         private static float _pressStartTime;
+
+        /// <summary>
+        /// The hand whose gesture is opening an options window right now. Set only for the duration
+        /// of the <see cref="PanelComponent.RequestReset"/> call, so a window can offer things that
+        /// belong to a hand — a thumbstick bind — and offer them to the hand that asked. Null on
+        /// desktop, and for any pointer that could not be traced back to a device.
+        /// </summary>
+        public static BasisInput GestureDevice { get; private set; }
 
         /// <summary>
         /// One-line reminder of the gesture, for the hover tooltip of any control that offers it.
@@ -132,7 +141,17 @@ namespace Basis.BasisUI
 
                 if (armed && eligible && Time.unscaledTime - _pressStartTime <= MaxClickHoldSeconds)
                 {
-                    _hovered.RequestReset();
+                    // Cleared however the call leaves: a device left standing here would later hand
+                    // a bind to whichever hand happened to gesture last.
+                    GestureDevice = _hoveredInput;
+                    try
+                    {
+                        _hovered.RequestReset();
+                    }
+                    finally
+                    {
+                        GestureDevice = null;
+                    }
                 }
             }
         }

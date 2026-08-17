@@ -1598,6 +1598,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "Riproduce una notifica discreta quando un altro giocatore invia un messaggio di testo." },
     { "key": "settings.audio.sounds.microphone", "value": "Suono di muto del microfono" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "Riproduce un suono quando disattivi o riattivi il microfono." },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "Suono di muto del microfono (premi per parlare)" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "Riproduce quel suono anche ogni volta che premi e rilasci premi per parlare. Disattivato per impostazione predefinita, perché si ripete a ogni frase." },
     { "key": "settings.audio.sounds.camera", "value": "Suoni della fotocamera" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "Riproduce lo scatto e i tic del conto alla rovescia quando viene scattata una foto." },
 

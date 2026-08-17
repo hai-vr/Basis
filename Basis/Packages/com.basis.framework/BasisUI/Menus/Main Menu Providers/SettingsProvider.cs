@@ -1138,6 +1138,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.SoundGrab.ResetToDefault();
             BasisSettingsDefaults.SoundChat.ResetToDefault();
             BasisSettingsDefaults.SoundMicrophone.ResetToDefault();
+            BasisSettingsDefaults.SoundMicrophonePushToTalk.ResetToDefault();
             BasisSettingsDefaults.SoundCamera.ResetToDefault();
             BasisSettingsDefaults.UseOpenLipSyncLimit.ResetToDefault();
             BasisSettingsDefaults.OpenLipSyncMaxSlots.ResetToDefault();

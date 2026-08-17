@@ -1337,6 +1337,31 @@ namespace Basis.Network.Core
         public const byte RejectKind_ServerFull = 2;
 
         /// <summary>
+        /// Channels whose unreliable traffic must not be queued behind, or shed alongside, bulk
+        /// avatar state. Indexed by channel number; handed to the transport, which keeps these in a
+        /// separate per-peer queue drained ahead of everything else.
+        ///
+        /// The distinction is whether a newer packet supersedes an older one. An avatar update does:
+        /// the position queued behind it is the same player a moment later, so discarding the stale
+        /// one costs nothing anybody can see, and that is what makes the bulk queue's drop-oldest
+        /// policy correct. Voice is the opposite — every packet is a distinct slice of audio, so a
+        /// dropped one is a hole in what somebody said and a late one is no better than a lost one.
+        /// Sharing a queue meant voice was shed at the bulk stream's drop rate, which at overload
+        /// removed roughly every second voice packet on the instance.
+        ///
+        /// Only the voice DATA channels belong here. The recipient-list channels are control traffic:
+        /// low-rate, and their newest message genuinely does supersede the last, so they are bulk.
+        /// </summary>
+        public static bool[] BuildPriorityUnreliableChannelMap()
+        {
+            bool[] map = new bool[TotalChannels];
+            map[VoiceChannel] = true;
+            map[ShoutVoiceChannel] = true;
+            map[VoiceLargeChannel] = true;
+            return map;
+        }
+
+        /// <summary>
         /// Maps quality index (0‑3) + additional data presence → byte-ID channel.
         /// </summary>
         public static byte GetPlayerAvatarChannelForQuality(int qualityIndex, bool hasAdditionalData)

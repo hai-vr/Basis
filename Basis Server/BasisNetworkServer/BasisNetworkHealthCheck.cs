@@ -5,6 +5,7 @@ using System;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -142,6 +143,12 @@ namespace Basis.Network.Server
                     ? ",\"bsr\":" + BuildBsrJson()
                     : string.Empty;
 
+                // Always on, unlike the BSR block: these are a handful of counter reads, and GC
+                // behaviour is the one thing that was completely invisible here. Working set alone
+                // cannot distinguish a server holding live state from one drowning in collections,
+                // and those want opposite fixes.
+                string gc = ",\"gc\":" + BuildGcJson();
+
                 if (NetworkServer.Configuration.EnableStatistics && NetworkServer.Server != null)
                 {
                     int visitors = NetworkServer.Server.ConnectedPeersCount;
@@ -165,14 +172,26 @@ namespace Basis.Network.Server
                         // updates because it cannot drain what it produces — the one number that
                         // distinguishes "busy" from "past capacity", and there was no way to see it.
                         $"\"droppedUnreliable\":{NetworkServer.Server.UnreliableDropped}," +
+                        // Voice drops, counted apart from the line above. Bulk shedding is the
+                        // designed response to load and a busy instance will show plenty of it;
+                        // anything here is audio somebody did not hear, so the two must never be
+                        // read as one number. Non-zero means the priority queue overflowed, which
+                        // is a much louder signal than the same count of avatar updates.
+                        $"\"droppedVoice\":{NetworkServer.Server.PriorityUnreliableDropped}," +
                         // The bound those drops are measured against. Without it the drop count is
                         // unreadable — you cannot tell a server that is genuinely past capacity from
                         // one whose queue is simply sized too small, which is exactly the confusion
                         // that let a fixed 256 shed half of all avatar updates unnoticed.
                         $"\"queuePerPeer\":{(NetworkServer.Server as LNLNetManager)?.manager?.EffectiveUnreliableQueuePerPeer ?? 0}," +
+                        // The voice queue's own bound. Reported separately because it is sized on a
+                        // different budget and is expected to be the DEEPER of the two — reading a
+                        // voice drop against the bulk bound would make a correctly-tuned server look
+                        // misconfigured.
+                        $"\"voiceQueuePerPeer\":{(NetworkServer.Server as LNLNetManager)?.manager?.EffectivePriorityUnreliableQueuePerPeer ?? 0}," +
                         $"\"currentTime\":\"{nowUtc:O}\"," +
                         $"\"startTime\":\"{startTimeUtc:O}\"," +
                         $"\"version\":\"{BasisNetworkVersion.ServerVersion}\"" +
+                        gc +
                         bsr +
                         "}";
                 }
@@ -185,6 +204,7 @@ namespace Basis.Network.Server
                         $"\"currentTime\":\"{nowUtc:O}\"," +
                         $"\"startTime\":\"{startTimeUtc:O}\"," +
                         $"\"version\":\"{BasisNetworkVersion.ServerVersion}\"" +
+                        gc +
                         bsr +
                         "}";
                 }
@@ -210,6 +230,42 @@ namespace Basis.Network.Server
                 : value.ToString(format, CultureInfo.InvariantCulture);
 
         private static string Int(long value) => value.ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>
+        /// GC counters, so allocation pressure can be told apart from live state.
+        ///
+        /// <para><c>allocatedMb</c> is cumulative for the process; the useful reading is its slope
+        /// between two samples, which is the allocation RATE. <c>pauseTimePercent</c> is the runtime's
+        /// own figure for time spent paused in GC and is the single number that says whether
+        /// collections are costing throughput.</para>
+        ///
+        /// <para>Heap COUNT is deliberately absent: Server GC's heap count is adapted at runtime by
+        /// DATAS and the runtime exposes no supported way to read the current value, so any number
+        /// here would be inferred rather than measured. <c>committedMb</c> is the honest proxy —
+        /// DATAS scaling down shows up there.</para>
+        /// </summary>
+        private static string BuildGcJson()
+        {
+            // The richer counters are net5+; this assembly also targets netstandard2.1 for the Unity
+            // package, where the health endpoint does not run but still has to compile.
+            string extra = string.Empty;
+#if NET5_0_OR_GREATER
+            GCMemoryInfo info = GC.GetGCMemoryInfo();
+            extra = ",\"allocatedMb\":" + Num(GC.GetTotalAllocatedBytes(precise: false) / 1048576.0, "F1") +
+                    ",\"committedMb\":" + Num(info.TotalCommittedBytes / 1048576.0, "F1") +
+                    ",\"fragmentedMb\":" + Num(info.FragmentedBytes / 1048576.0, "F1") +
+                    ",\"pauseTimePercent\":" + Num(info.PauseTimePercentage, "F3");
+#endif
+            return "{" +
+                   "\"gen0\":" + Int(GC.CollectionCount(0)) +
+                   ",\"gen1\":" + Int(GC.CollectionCount(1)) +
+                   ",\"gen2\":" + Int(GC.CollectionCount(2)) +
+                   ",\"heapMb\":" + Num(GC.GetTotalMemory(forceFullCollection: false) / 1048576.0, "F1") +
+                   extra +
+                   ",\"serverGc\":" + (GCSettings.IsServerGC ? "true" : "false") +
+                   ",\"latencyMode\":\"" + GCSettings.LatencyMode + "\"" +
+                   "}";
+        }
 
         private static string BuildBsrJson()
         {

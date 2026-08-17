@@ -1598,6 +1598,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "जब कोई अन्य खिलाड़ी टेक्स्ट संदेश भेजे तो हल्की सूचना ध्वनि चलाएँ।" },
     { "key": "settings.audio.sounds.microphone", "value": "माइक्रोफ़ोन म्यूट ध्वनि" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "अपना माइक्रोफ़ोन म्यूट या अनम्यूट करने पर ध्वनि चलाएँ।" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "माइक्रोफ़ोन म्यूट ध्वनि (पुश टू टॉक)" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "पुश टू टॉक दबाने और छोड़ने पर भी हर बार वही ध्वनि बजाएँ। डिफ़ॉल्ट रूप से बंद, क्योंकि यह हर वाक्य पर दोहराई जाती है।" },
     { "key": "settings.audio.sounds.camera", "value": "कैमरा ध्वनियाँ" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "फ़ोटो लेते समय शटर और काउंटडाउन टिक चलाएँ।" },
 

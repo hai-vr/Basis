@@ -121,6 +121,12 @@ namespace Basis.Network
                         SniffBundle(clientIndex, reader);
                     }
                     break;
+                case BasisNetworkCommons.VoiceChannel:
+                    NoteVoiceDelivery(clientIndex, reader, largeId: false);
+                    break;
+                case BasisNetworkCommons.VoiceLargeChannel:
+                    NoteVoiceDelivery(clientIndex, reader, largeId: true);
+                    break;
                 case BasisNetworkCommons.AvatarChannel:
                     // HVR's reliable/low-frequency path (handshake, variable definitions,
                     // low-freq updates, high-frequency upgrades) — counting these splits
@@ -443,6 +449,28 @@ namespace Basis.Network
             ushort playerId = large ? (ushort)(raw[pos] | (raw[pos + 1] << 8)) : raw[pos];
             Basis.Network.MovementSender.VoiceSender.NoteAudible(clientIndex, playerId);
             NoteSenderSeen(playerId);
+        }
+
+        /// <summary>
+        /// Books one relayed voice frame against its sender's sequence, which is what turns "the
+        /// server says it sent voice" into "this receiver could actually have played it".
+        ///
+        /// Wire, as written by BasisServerHandleEvents: [playerId:1|2][sequence:1][silence:1][opus].
+        /// Read straight out of the buffer rather than through the reader, matching NoteVoiceRange —
+        /// the reader is left untouched for anything downstream.
+        /// </summary>
+        private static void NoteVoiceDelivery(int clientIndex, NetPacketReader reader, bool largeId)
+        {
+            if (!VoiceDeliveryStats.Enabled) return;
+
+            int pos = reader.Position;
+            byte[] raw = reader.RawData;
+            int idBytes = largeId ? 2 : 1;
+            if (raw == null || pos + idBytes + 1 > raw.Length) return;
+
+            int senderId = largeId ? (raw[pos] | (raw[pos + 1] << 8)) : raw[pos];
+            byte sequence = raw[pos + idBytes];
+            VoiceDeliveryStats.Note(clientIndex, senderId, sequence);
         }
 
         // ── Per-sender delivery fairness ──────────────────────────────────────────────────────

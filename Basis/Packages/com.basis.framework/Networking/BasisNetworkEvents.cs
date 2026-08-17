@@ -958,23 +958,32 @@ public static class BasisNetworkEvents
 
             // A current server attaches a structured, kind-tagged reject payload (version mismatch,
             // server full, ...). Older servers send a bare reason string, handled by the else path.
-            if (rejected && TryReadStructuredReject(extra, out byte kind, out ushort aux0, out ushort aux1, out string structuredMsg))
+            if (rejected && TryReadStructuredReject(extra, out byte kind, out ushort aux0, out _, out string structuredMsg))
             {
                 switch (kind)
                 {
                     case BasisNetworkCommons.RejectKind_VersionMismatch:
-                        title = "Update Required";
-                        body = !string.IsNullOrEmpty(structuredMsg)
-                            ? structuredMsg
-                            : $"This server requires Basis protocol v{aux0}; your client is v{aux1}. Please update.";
+                    {
+                        ushort localVersion = BasisNetworkVersion.ServerVersion;
+                        if (aux0 > localVersion)
+                        {
+                            title = BasisLocalization.Get("menu.servers.reject.updateClient.title");
+                            body = BasisLocalization.Get("menu.servers.reject.updateClient.body", aux0, localVersion);
+                        }
+                        else
+                        {
+                            title = BasisLocalization.Get("menu.servers.reject.updateServer.title");
+                            body = BasisLocalization.Get("menu.servers.reject.updateServer.body", aux0, localVersion);
+                        }
                         break;
+                    }
                     case BasisNetworkCommons.RejectKind_ServerFull:
-                        title = "Server Full";
-                        body = !string.IsNullOrEmpty(structuredMsg) ? structuredMsg : "This server is full. Please try again later.";
+                        title = BasisLocalization.Get("menu.servers.reject.serverFull.title");
+                        body = !string.IsNullOrEmpty(structuredMsg) ? structuredMsg : BasisLocalization.Get("menu.servers.reject.serverFull.body");
                         break;
                     default:
-                        title = "Connection Rejected";
-                        body = !string.IsNullOrEmpty(structuredMsg) ? structuredMsg : "The server rejected the connection.";
+                        title = BasisLocalization.Get("menu.servers.reject.title");
+                        body = !string.IsNullOrEmpty(structuredMsg) ? structuredMsg : BasisLocalization.Get("menu.servers.reject.body");
                         break;
                 }
             }
@@ -983,11 +992,13 @@ public static class BasisNetworkEvents
                 // Legacy bare-string reject, or a non-rejection disconnect (timeout, etc.). PeekString
                 // is defensive: an empty/malformed payload yields "".
                 string reason = extra?.PeekString();
-                title = rejected ? "Connection Rejected" : "Server Disconnected";
+                title = rejected
+                    ? BasisLocalization.Get("menu.servers.reject.title")
+                    : BasisLocalization.Get("menu.servers.disconnected.title");
                 body = !string.IsNullOrEmpty(reason)
                     ? reason
                     : (rejected
-                        ? "The server rejected the connection. It may be full, running a different Basis version, or you may not be authorized."
+                        ? BasisLocalization.Get("menu.servers.reject.bodyUnknown")
                         : disconnectInfo.Reason.ToString());
             }
 
@@ -998,7 +1009,7 @@ public static class BasisNetworkEvents
                 BasisMainMenu.Open();
                 if (BasisMainMenu.Instance != null)
                 {
-                    BasisMainMenu.Instance.OpenDialogue(title, body, "ok", value =>
+                    BasisMainMenu.Instance.OpenDialogue(title, body, BasisLocalization.Get("ui.ok"), value =>
                     {
                     }, category: BasisNotificationCategory.Network);
                 }

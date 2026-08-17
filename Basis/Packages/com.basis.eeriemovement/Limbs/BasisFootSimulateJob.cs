@@ -165,6 +165,10 @@ public struct BasisFootSimulateJob : IJob
             airborne = true;
         }
 
+        float reachLimit = standHipsAboveGround + avgLegReach * 0.15f;
+        float leftGroundUp = FootGroundUp(inp.leftGroundValid, inp.leftGroundUp, left.filteredNormal, up, hipsUpComponent, reachLimit, groundUpComponent);
+        float rightGroundUp = FootGroundUp(inp.rightGroundValid, inp.rightGroundUp, right.filteredNormal, up, hipsUpComponent, reachLimit, groundUpComponent);
+
         float moveDirGate = 0.034f * p.fastSpeedRef;
         float3 moveDir = math.lengthsq(velDir) > moveDirGate * moveDirGate ? math.normalize(velDir) : bodyFwd;
         float avgLeg = (p.leftLegLen + p.rightLegLen) * 0.5f;
@@ -203,6 +207,9 @@ public struct BasisFootSimulateJob : IJob
         EnforceSide(ref left.idealPos, hipsGround, rawRight, -1, halfStance * p.idealSideEnforceFraction);
         EnforceSide(ref right.idealPos, hipsGround, rawRight, +1, halfStance * p.idealSideEnforceFraction);
 
+        SetUpComponent(ref left.idealPos, leftGroundUp, up);
+        SetUpComponent(ref right.idealPos, rightGroundUp, up);
+
         float urgencyT = math.max(math.max(math.saturate(speed / p.fastSpeedRef), yawUrgency), accelUrgency);
 
         bool stationary = speed < p.idleSpeedThreshold && math.abs(sim.smoothedYawRateDeg) < 20f;
@@ -231,16 +238,10 @@ public struct BasisFootSimulateJob : IJob
         bool touchedDown = sim.wasAirborne && !airborne;
         sim.wasAirborne = airborne;
 
-        if (airborne)
+        if (airborne || touchedDown)
         {
-            float airUpComp = groundUpComponent;
-            if (left.phase == 0) { SetUpComponent(ref left.currentPos, airUpComp, up); SetUpComponent(ref left.plantedPos, airUpComp, up); }
-            if (right.phase == 0) { SetUpComponent(ref right.currentPos, airUpComp, up); SetUpComponent(ref right.plantedPos, airUpComp, up); }
-        }
-        else if (touchedDown)
-        {
-            if (left.phase == 0) { SetUpComponent(ref left.currentPos, groundUpComponent, up); SetUpComponent(ref left.plantedPos, groundUpComponent, up); }
-            if (right.phase == 0) { SetUpComponent(ref right.currentPos, groundUpComponent, up); SetUpComponent(ref right.plantedPos, groundUpComponent, up); }
+            if (left.phase == 0) { SetUpComponent(ref left.currentPos, leftGroundUp, up); SetUpComponent(ref left.plantedPos, leftGroundUp, up); }
+            if (right.phase == 0) { SetUpComponent(ref right.currentPos, rightGroundUp, up); SetUpComponent(ref right.plantedPos, rightGroundUp, up); }
         }
         else
         {
@@ -440,6 +441,13 @@ public struct BasisFootSimulateJob : IJob
                     + footFwd * (pivotArm * (1f - math.cos(th)))
                     + up * (pivotArm * math.sin(th));
                 swingU = 0f;
+
+                float3 toeAxis = math.cross(up, footFwd);
+                if (math.lengthsq(toeAxis) > 1e-6f)
+                {
+                    f.toeBendAxis = math.normalize(toeAxis);
+                    f.toeBendDeg = pitchDeg;
+                }
             }
             else
             {
@@ -505,6 +513,18 @@ public struct BasisFootSimulateJob : IJob
         }
     }
 
+    private float FootGroundUp(bool valid, float measuredUp, float3 normal, float3 up, float hipsUpComponent, float reachLimit, float shared)
+    {
+        if (!valid) return shared;
+        if (measuredUp > hipsUpComponent) return shared;
+        if (hipsUpComponent - measuredUp > reachLimit) return shared;
+
+        float lift = p.footHeightOffset;
+        if (math.lengthsq(normal) > 1e-6f) lift *= math.abs(math.dot(math.normalize(normal), up));
+
+        return measuredUp + lift;
+    }
+
     private float3 ComputeStepPrediction(ref BasisFootNativeState f, float3 bodyFwd, float3 smoothedVelocity, float speed, float stepDur, float3 up,
         float3 hipsGround, float yawRateDeg)
     {
@@ -525,6 +545,7 @@ public struct BasisFootSimulateJob : IJob
         float predYawDeg = math.clamp(yawRateDeg * stepDur, -p.maxPlantedYawDegrees, p.maxPlantedYawDegrees);
         quaternion yawPredict = quaternion.AxisAngle(up, math.radians(predYawDeg));
         float3 fromCenter = f.idealPos - hipsGround;
+        fromCenter -= up * math.dot(fromCenter, up);
         float3 predictedIdeal = hipsGround + math.mul(yawPredict, fromCenter);
 
         return predictedIdeal + moveDir * predAmount;

@@ -10,24 +10,35 @@ namespace Basis.ImagePickup
     /// relayed recipient. Peers on a direct link never touch the relay bucket, so an instance that is
     /// fully P2P transfers at the full uplink rate.
     ///
-    /// Each bucket hands image replication <see cref="BasisImagePickupSettings.ShareBandwidthFraction"/>
-    /// of its transport budget and leaves the remainder to pose, voice, and object sync. The uplink
-    /// budget is whatever <see cref="BasisImagePickupLinkProbe"/> currently measures the link as having
-    /// spare; the relay budget is a fixed ceiling, because how much a server can afford to forward is not
-    /// something this client is in a position to discover.
+    /// The uplink budget is whatever <see cref="BasisImagePickupLinkProbe"/> currently measures the link
+    /// as having spare, reduced by <see cref="BasisImagePickupSettings.ShareBandwidthFraction"/> so pose,
+    /// voice, and object sync keep the rest of a line nobody asked this feature to take over.
+    ///
+    /// The relay budget is whatever the server said it can afford to forward, and it is taken at face
+    /// value: an operator who names a figure has already decided what their pipe is worth, so discounting
+    /// it again would just mean half of what they asked for. Only the fallback used when a server says
+    /// nothing is a guess, and it is a small one.
     /// </summary>
     internal static class BasisImagePickupBandwidth
     {
         private static double _uplinkTokens;
         private static double _relayTokens;
 
+        /// <summary>
+        /// Server egress budget advertised for this client, in bytes per second, or 0 before a server has
+        /// said anything. Refreshed from the join handshake rather than read here so this stays testable
+        /// without a live connection.
+        /// </summary>
+        internal static long ServerRelayBudgetBytesPerSecond;
+
         internal static double UplinkBytesPerSecond =>
             BasisImagePickupLinkProbe.DiscoveredUplinkBytesPerSecond
             * BasisImagePickupSettings.ShareBandwidthFraction;
 
         internal static double RelayBytesPerSecond =>
-            BasisImagePickupSettings.RelayEgressBudgetBytesPerSecond
-            * BasisImagePickupSettings.ShareBandwidthFraction;
+            ServerRelayBudgetBytesPerSecond > 0
+                ? ServerRelayBudgetBytesPerSecond
+                : BasisImagePickupSettings.RelayEgressBudgetBytesPerSecond;
 
         internal static double UplinkCapacityBytes =>
             UplinkBytesPerSecond * BasisImagePickupSettings.ShareBandwidthBurstSeconds;
@@ -38,9 +49,14 @@ namespace Basis.ImagePickup
         internal static double UplinkTokens => _uplinkTokens;
         internal static double RelayTokens => _relayTokens;
 
-        /// <summary>Returns both buckets to full. Runs at arm/teardown so a session starts with its burst.</summary>
+        /// <summary>
+        /// Returns both buckets to full. Runs at arm/teardown so a session starts with its burst. The
+        /// advertised relay budget is dropped with them: it describes the server just left, and carrying a
+        /// generous one into an instance that advertises nothing would spend a pipe that is not there.
+        /// </summary>
         internal static void Reset()
         {
+            ServerRelayBudgetBytesPerSecond = 0;
             _uplinkTokens = UplinkCapacityBytes;
             _relayTokens = RelayCapacityBytes;
         }

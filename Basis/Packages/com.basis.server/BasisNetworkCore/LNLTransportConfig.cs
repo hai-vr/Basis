@@ -6,7 +6,7 @@ namespace Basis.Network.Core
     public sealed class LNLTransportConfig : IBasisTransportConfigMigration
     {
         /// <summary>Bump to force existing files to be rewritten; newly-added fields are healed automatically on load.</summary>
-        public const int CurrentConfigVersion = 9;
+        public const int CurrentConfigVersion = 10;
 
         /// <summary>Values written by version 7 and earlier that version 8 replaces with auto-scaling.</summary>
         private const int LegacyMaxUnreliableQueuePerPeer = 256;
@@ -190,5 +190,23 @@ namespace Basis.Network.Core
         /// Set a positive value only to pin it for a reproducible measurement.
         /// </summary>
         public int MaxUnreliableQueuePerPeer = 0;
+
+        /// <summary>
+        /// Maximum voice packets queued per peer before the oldest are dropped.
+        /// 0 = size automatically from player count and available memory, which is recommended.
+        ///
+        /// Voice does not share the bound above. It used to share the whole queue, and that was the
+        /// bug this setting exists to close: the bulk bound drops oldest-first because a newer avatar
+        /// update supersedes the one behind it, which is not true of audio. Voice was being shed at
+        /// the bulk stream's drop rate — and whatever survived arrived behind the backlog, too late
+        /// to play.
+        ///
+        /// This queue is deliberately allowed to be DEEPER than the bulk one, which reads backwards
+        /// and is the whole finding: bulk depth buys avatar frames the next frame replaces anyway,
+        /// while voice depth buys audio that has no replacement. Measured at 1000 clients on a
+        /// starved server, moving budget from bulk to voice improved both at once — 85.7% → 93.6%
+        /// voice delivered, peak RSS 7.8 GB → 4.6 GB.
+        /// </summary>
+        public int MaxPriorityUnreliableQueuePerPeer = 0;
     }
 }

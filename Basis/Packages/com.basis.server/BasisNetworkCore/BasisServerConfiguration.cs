@@ -151,6 +151,21 @@ public class Configuration
     /// their share evicts their own oldest image, never another player's.
     /// </summary>
     public int ImageCacheMinimumPerOwnerMegabytes = 32;
+    /// <summary>
+    /// Server egress one sharing player may spend on image replication, in megabits per second.
+    ///
+    /// A shared image is relayed to every player who is not on a direct P2P link, so the server
+    /// forwards it once per recipient: this budget divided by the fan-out is the rate the sharer
+    /// actually uploads at. The client cannot see how much pipe a server has, so before this was
+    /// advertised it assumed a deliberately timid 4 Mb/s and a busy instance took minutes to move
+    /// one picture no matter how fast either end was. Set it to the share of the uplink an image
+    /// transfer may occupy and the sharer will use it.
+    ///
+    /// Sized per sharer, not in total, so several people sharing at once can cost this much each.
+    /// The worst case is this times the number of simultaneous sharers; on a small pipe divide
+    /// accordingly. 0 leaves the client on its own conservative default.
+    /// </summary>
+    public int ImageShareEgressMegabitsPerSecond = 200;
     public bool EnableBSRProfiling = false;
     /// <summary>
     /// Worker cap for the BSR tick's parallel phases (send loop, message processing, distance

@@ -1602,6 +1602,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "其他玩家发送文字消息时播放轻柔的提示音。" },
     { "key": "settings.audio.sounds.microphone", "value": "麦克风静音音效" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "静音或取消静音麦克风时播放音效。" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "麦克风静音音效（按键通话）" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "在每次按下和松开按键通话时也播放该音效。默认关闭，因为它会在每句话都重复。" },
     { "key": "settings.audio.sounds.camera", "value": "相机音效" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "拍照时播放快门声和倒计时滴答声。" },
 

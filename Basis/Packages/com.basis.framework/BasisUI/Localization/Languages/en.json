@@ -1067,6 +1067,38 @@
       "value": "Smooth out hand shake when holding the camera in VR."
     },
     {
+      "key": "camera.smoothDrag",
+      "value": "Smooth Drag"
+    },
+    {
+      "key": "camera.smoothDrag.description",
+      "value": "Let the camera trail behind your hand as you drag it, then settle once you stop."
+    },
+    {
+      "key": "camera.smoothDrag.position",
+      "value": "Drag Lag"
+    },
+    {
+      "key": "camera.smoothDrag.position.description",
+      "value": "Seconds the camera takes to reach your hand. Higher trails further behind a move."
+    },
+    {
+      "key": "camera.smoothDrag.rotation",
+      "value": "Turn Lag"
+    },
+    {
+      "key": "camera.smoothDrag.rotation.description",
+      "value": "Seconds the camera takes to match how your hand is pointing."
+    },
+    {
+      "key": "camera.smoothDrag.leash",
+      "value": "Trail Distance"
+    },
+    {
+      "key": "camera.smoothDrag.leash.description",
+      "value": "Furthest the camera may fall behind your hand before it is pulled along."
+    },
+    {
       "key": "camera.openPhotosFolder",
       "value": "Open Photos Folder"
     },
@@ -6107,6 +6139,14 @@
       "value": "Play a sound when your microphone is muted or unmuted."
     },
     {
+      "key": "settings.audio.sounds.microphone.pushToTalk",
+      "value": "Microphone (Push To Talk)"
+    },
+    {
+      "key": "settings.audio.sounds.microphone.pushToTalk.tooltip",
+      "value": "Also play that sound every time you press and release push to talk. Off by default, because it repeats on every phrase."
+    },
+    {
       "key": "settings.audio.sounds.camera",
       "value": "Camera"
     },
@@ -6980,19 +7020,7 @@
     },
     {
       "key": "settings.controls.joystickBind.description",
-      "value": "Hand one slider to a thumbstick, so a value can be tuned while looking at what it changes instead of at the menu."
-    },
-    {
-      "key": "settings.controls.joystickBind.bind",
-      "value": "Bind a Slider"
-    },
-    {
-      "key": "settings.controls.joystickBind.bind.tooltip",
-      "value": "Then press any slider with a hand. That hand's stick moves it: forward raises, back lowers."
-    },
-    {
-      "key": "settings.controls.joystickBind.cancel",
-      "value": "Cancel Binding"
+      "value": "Hand one slider to a thumbstick, so a value can be tuned while looking at what it changes instead of at the menu. Open any slider's options to take the bind."
     },
     {
       "key": "settings.controls.joystickBind.unbind",
@@ -7027,12 +7055,12 @@
       "value": "How long a fully pushed stick takes to cross the whole slider. A small push moves far slower than this."
     },
     {
-      "key": "settings.controls.joystickBind.vrOnly",
-      "value": "VR only — a thumbstick is needed to move the slider."
+      "key": "ui.joystickBind.bind",
+      "value": "Use This Thumbstick"
     },
     {
-      "key": "ui.joystickBind.hint.pick",
-      "value": "Press to bind this to that hand's thumbstick."
+      "key": "ui.joystickBind.unbind",
+      "value": "Free the Thumbstick"
     },
     {
       "key": "ui.joystickBind.hint.bound",
@@ -10531,16 +10559,20 @@
       "value": "Reset all {0} settings to defaults?"
     },
     {
-      "key": "ui.resetValue.confirm",
-      "value": "Reset {0} to its default?"
+      "key": "ui.panelOptions.title",
+      "value": "Options"
+    },
+    {
+      "key": "ui.panelOptions.body",
+      "value": "Choose what to do with {0}."
     },
     {
       "key": "ui.resetValue.hint.desktop",
-      "value": "Right-click to reset to default."
+      "value": "Right-click for its options."
     },
     {
       "key": "ui.resetValue.hint.vr",
-      "value": "Click this hand's thumbstick to reset to default."
+      "value": "Click this hand's thumbstick for its options."
     },
     {
       "key": "ui.openFolder",
@@ -15231,6 +15263,46 @@
     {
       "key": "library.filter.notPlacedByMe.tooltip",
       "value": "Show only items placed by someone else."
+    },
+    {
+      "key": "menu.servers.reject.updateClient.title",
+      "value": "Update Required"
+    },
+    {
+      "key": "menu.servers.reject.updateClient.body",
+      "value": "This server is running a newer version of Basis (network protocol v{0}) than your client (v{1}). Update Basis to join."
+    },
+    {
+      "key": "menu.servers.reject.updateServer.title",
+      "value": "Server Out Of Date"
+    },
+    {
+      "key": "menu.servers.reject.updateServer.body",
+      "value": "This server is running an older version of Basis (network protocol v{0}) than your client (v{1}). The server has to update before you can join."
+    },
+    {
+      "key": "menu.servers.reject.serverFull.title",
+      "value": "Server Full"
+    },
+    {
+      "key": "menu.servers.reject.serverFull.body",
+      "value": "This server is full. Please try again later."
+    },
+    {
+      "key": "menu.servers.reject.title",
+      "value": "Connection Rejected"
+    },
+    {
+      "key": "menu.servers.reject.body",
+      "value": "The server rejected the connection."
+    },
+    {
+      "key": "menu.servers.reject.bodyUnknown",
+      "value": "The server rejected the connection. It may be full, running a different Basis version, or you may not be authorized."
+    },
+    {
+      "key": "menu.servers.disconnected.title",
+      "value": "Server Disconnected"
     }
   ]
 }

@@ -36,7 +36,18 @@ namespace Basis.Scripts.Audio
                 case BasisUISoundEvent.Grab: return BasisSettingsDefaults.SoundGrab.RawValue;
                 case BasisUISoundEvent.Chat: return BasisSettingsDefaults.SoundChat.RawValue;
                 case BasisUISoundEvent.MicMute:
-                case BasisUISoundEvent.MicUnmute: return BasisSettingsDefaults.SoundMicrophone.RawValue;
+                case BasisUISoundEvent.MicUnmute:
+                    if (BasisSettingsDefaults.SoundMicrophone.RawValue == false)
+                    {
+                        return false;
+                    }
+#if !BASIS_DISABLE_MICROPHONE
+                    if (SMDMicrophone.Current.TalkMode == SMDMicrophone.BasisMicrophoneMode.PushToTalk)
+                    {
+                        return BasisSettingsDefaults.SoundMicrophonePushToTalk.RawValue;
+                    }
+#endif
+                    return true;
                 case BasisUISoundEvent.CameraShutter:
                 case BasisUISoundEvent.CameraCountdownTick: return BasisSettingsDefaults.SoundCamera.RawValue;
                 default: return true;

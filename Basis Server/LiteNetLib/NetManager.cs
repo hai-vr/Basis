@@ -507,6 +507,27 @@ namespace LiteNetLib
         /// </summary>
         public int MaxUnreliableQueuePerPeer = 256;
 
+        /// <summary>
+        /// Channels whose unreliable traffic is latency-critical, indexed by channel number. Those
+        /// packets go to a separate per-peer queue that is drained first and bounded separately, so
+        /// a backlog of bulk state updates can neither delay them nor shed them.
+        ///
+        /// Null — the default — puts every channel in the bulk queue, which is stock behaviour.
+        /// LiteNetLib has no way to know which of a host's channels carry media rather than state,
+        /// so the classification is injected rather than guessed.
+        /// </summary>
+        public bool[] PriorityUnreliableChannels;
+
+        /// <summary>
+        /// Maximum priority unreliable packets queued per peer before the oldest are dropped.
+        /// 0 = unbounded.
+        ///
+        /// Sized in packets of media, not in fan-out: this queue holds one stream per talker rather
+        /// than one update per pair, so it does not grow with population the way the bulk bound has
+        /// to. A couple of seconds' worth is already more than any receiver will play.
+        /// </summary>
+        public int MaxPriorityUnreliableQueuePerPeer = 256;
+
         // Slow-pass diagnostics. A pass over this long means reliable delivery is queueing behind
         // it; 50ms is well inside the client's 4s direct-connect handshake budget but already far
         // enough from the normal sub-millisecond pass to be worth saying out loud.
@@ -545,6 +566,19 @@ namespace LiteNetLib
         public long UnreliableDropped => Interlocked.Read(ref _unreliableDropped);
 
         internal void NoteUnreliableDropped() => Interlocked.Increment(ref _unreliableDropped);
+
+        private long _priorityUnreliableDropped;
+
+        /// <summary>
+        /// Priority unreliable packets dropped because a peer's priority queue was over budget.
+        ///
+        /// Kept apart from <see cref="UnreliableDropped"/> because the two mean different things to
+        /// an operator: bulk drops are the designed response to overload and a healthy instance
+        /// under load will show some, while anything here is audio the receiver will hear a hole in.
+        /// </summary>
+        public long PriorityUnreliableDropped => Interlocked.Read(ref _priorityUnreliableDropped);
+
+        internal void NotePriorityUnreliableDropped() => Interlocked.Increment(ref _priorityUnreliableDropped);
 
         private ParallelOptions _peerUpdateOptions;
 

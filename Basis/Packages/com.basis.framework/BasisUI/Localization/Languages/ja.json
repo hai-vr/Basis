@@ -1598,6 +1598,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "他のプレイヤーがテキストメッセージを送信したときに、控えめな通知音を再生します。" },
     { "key": "settings.audio.sounds.microphone", "value": "マイクミュート音" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "マイクをミュート／ミュート解除したときに音を再生します。" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "マイクミュート音（プッシュトゥトーク）" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "プッシュトゥトークを押すたび、離すたびにもその音を再生します。ひと言ごとに繰り返されるため、既定ではオフです。" },
     { "key": "settings.audio.sounds.camera", "value": "カメラ音" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "写真撮影時にシャッター音とカウントダウン音を再生します。" },
 

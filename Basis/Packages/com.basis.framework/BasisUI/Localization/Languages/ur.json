@@ -1598,6 +1598,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "جب کوئی دوسرا کھلاڑی متنی پیغام بھیجے تو ہلکی اطلاعی آواز چلائیں۔" },
     { "key": "settings.audio.sounds.microphone", "value": "مائیکروفون خاموش کرنے کی آواز" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "جب آپ اپنا مائیکروفون خاموش یا بحال کریں تو آواز چلائیں۔" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "مائیکروفون خاموش کرنے کی آواز (بولنے کے لیے دبائیں)" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "ہر بار جب آپ بولنے کے لیے دبائیں کا بٹن دباتے اور چھوڑتے ہیں تو بھی وہی آواز چلائیں۔ بطور طے شدہ بند ہے، کیونکہ یہ ہر جملے پر دہرائی جاتی ہے۔" },
     { "key": "settings.audio.sounds.camera", "value": "کیمرہ کی آوازیں" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "تصویر لیتے وقت شٹر اور الٹی گنتی کی ٹک ٹک چلائیں۔" },
 

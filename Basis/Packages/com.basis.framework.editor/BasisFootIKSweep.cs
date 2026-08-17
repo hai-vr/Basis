@@ -365,6 +365,9 @@ namespace Basis.IK.Debugging
                     quaternion facing = quaternion.AxisAngle(Up, math.radians(s.FacingDeg));
                     bool groundHit = GroundRaycast(sc, hips, out float3 gp, out _);
 
+                    bool lGround = GroundRaycast(sc, feet[0].currentPos, out float3 lgp, out _) && feet[0].phase == 0;
+                    bool rGround = GroundRaycast(sc, feet[1].currentPos, out float3 rgp, out _) && feet[1].phase == 0;
+
                     input[0] = new BasisFootSimInput
                     {
                         dt = dt,
@@ -378,6 +381,10 @@ namespace Basis.IK.Debugging
                         hasChest = true,
                         groundHit = groundHit,
                         groundPoint = groundHit ? gp : float3.zero,
+                        leftGroundValid = lGround,
+                        rightGroundValid = rGround,
+                        leftGroundUp = math.dot(lgp, Up),
+                        rightGroundUp = math.dot(rgp, Up),
                         splayWhenCrouched = 1f,
                         playerUp = Up,
                     };

@@ -1476,6 +1476,7 @@ namespace Basis.ImagePickup
 
         private static void SimulateUpdateBody()
         {
+            RefreshServerRelayBudget();
             BasisImagePickupLinkProbe.Tick(Time.unscaledTime);
             BasisImagePickupBandwidth.Refill(Time.unscaledDeltaTime);
 
@@ -1583,6 +1584,24 @@ namespace Basis.ImagePickup
 #if !UNITY_SERVER
             UpdateTransferProgressGizmos(now);
 #endif
+        }
+
+        /// <summary>
+        /// Picks up the egress budget the server advertised in the join handshake, in whatever units the
+        /// operator configured it: megabits per second, because that is how a server's line is sold, rather
+        /// than the bytes per second the bucket meters in.
+        ///
+        /// Read every tick instead of once on join so a budget that arrives after this manager arms — or is
+        /// re-sent when permissions change — is picked up without needing an event of its own. Zero means no
+        /// server has said anything and the fallback in <see cref="BasisImagePickupSettings"/> stands.
+        /// </summary>
+        private static void RefreshServerRelayBudget()
+        {
+            int advertisedMegabits = BasisNetworkManagement
+                .ServerMetaDataMessage
+                .ImageShareEgressMegabitsPerSecond;
+            BasisImagePickupBandwidth.ServerRelayBudgetBytesPerSecond =
+                advertisedMegabits > 0 ? advertisedMegabits * 125_000L : 0L;
         }
 
         /// <summary>

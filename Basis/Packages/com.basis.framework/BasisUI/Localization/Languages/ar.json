@@ -1598,6 +1598,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "تشغيل تنبيه خفيف عندما يرسل لاعب آخر رسالة نصية." },
     { "key": "settings.audio.sounds.microphone", "value": "صوت كتم الميكروفون" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "تشغيل صوت عند كتم الميكروفون أو إلغاء كتمه." },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "صوت كتم الميكروفون (اضغط للتحدث)" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "تشغيل ذلك الصوت أيضًا في كل مرة تضغط فيها زر اضغط للتحدث وتفلته. معطّل افتراضيًا لأنه يتكرر مع كل جملة." },
     { "key": "settings.audio.sounds.camera", "value": "أصوات الكاميرا" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "تشغيل صوت الغالق ونقرات العد التنازلي عند التقاط صورة." },
 

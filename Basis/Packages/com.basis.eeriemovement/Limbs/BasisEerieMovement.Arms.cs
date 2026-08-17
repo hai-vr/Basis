@@ -431,10 +431,12 @@ namespace Basis.IK
                         Vector3 rawBend = rawBendV / rbLen;
                         bool seeded = swingHintInit[swingSlot] != 0;
                         float curReach = axLen / armLen;
+                        float armDt = Mathf.Min(stream.deltaTime, BasisElbowSwingCapCore.MaxSlewBudgetDt);
                         Vector3 cappedBend = seeded
                             ? (Vector3)BasisElbowSwingCapCore.Apply(swingHintBend[swingSlot], swingHintAxis[swingSlot],
                                                                     curAxis, rawBend, BasisElbowSwingCapCore.MaxGain,
-                                                                    curReach - swingHintReach[swingSlot], poleConditioning)
+                                                                    curReach - swingHintReach[swingSlot], poleConditioning,
+                                                                    BasisElbowSwingCapCore.SlewCapRad(stream.deltaTime))
                             : rawBend;
                         swingHintBend[swingSlot] = cappedBend;
                         swingHintAxis[swingSlot] = curAxis;
@@ -450,7 +452,7 @@ namespace Basis.IK
                         {
                             Quaternion bodyDelta = bodyRot * Quaternion.Inverse(swingHintBodyRot[swingSlot]);
                             outBend = (Vector3)BasisElbowDragCore.Apply(swingHintDrag[swingSlot], bodyDelta, curAxis, cappedBend,
-                                                                       BasisElbowDragCore.Alpha(elbowDragHz, stream.deltaTime));
+                                                                       BasisElbowDragCore.Alpha(elbowDragHz, armDt));
                         }
                         swingHintDrag[swingSlot] = outBend;
                         swingHintBodyRot[swingSlot] = bodyRot;

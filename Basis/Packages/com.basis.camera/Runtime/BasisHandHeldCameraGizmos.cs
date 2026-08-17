@@ -555,7 +555,8 @@ public sealed class BasisHandHeldCameraGizmos
                       (camera.HandHeld.IsSelfieMode ? 1 << 6 : 0) ^ (camera.enableRecordingView ? 1 << 7 : 0) ^
                       (camera.IsVideoOutputActive ? 1 << 8 : 0) ^ (camera.autoFocusFollowSubject ? 1 << 9 : 0) ^
                       (camera.useAutoLeveling ? 1 << 10 : 0) ^ (camera.useVRHandheldSmoothing ? 1 << 11 : 0) ^
-                      (Quantize(height, 20f) << 12);
+                      (camera.useSmoothDrag ? 1 << 12 : 0) ^
+                      (Quantize(height, 20f) << 13);
             if (_pinText == null || key != _pinKey)
             {
                 _pinKey = key;
@@ -588,6 +589,7 @@ public sealed class BasisHandHeldCameraGizmos
         AppendMode(ref written, camera.IsVideoOutputActive, "streaming");
         AppendMode(ref written, camera.useAutoLeveling, "auto-level");
         AppendMode(ref written, camera.useVRHandheldSmoothing, "vr-stab");
+        AppendMode(ref written, camera.useSmoothDrag, "smooth-drag");
         if (written == 0)
         {
             _builder.Append("no modes active");

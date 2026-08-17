@@ -107,6 +107,12 @@ namespace LiteNetLib
         public System.Func<int, int> ResolveUnreliableQueuePerPeer;
 
         /// <summary>
+        /// Host hook: given the connected peer count, returns the per-peer priority queue bound.
+        /// Null keeps <see cref="MaxPriorityUnreliableQueuePerPeer"/>, the standalone behaviour.
+        /// </summary>
+        public System.Func<int, int> ResolvePriorityUnreliableQueuePerPeer;
+
+        /// <summary>
         /// Resolved per-peer unreliable bound, refreshed by <see cref="RecomputePoolCap"/>.
         ///
         /// Cached as a plain field for the same reason <see cref="_effectivePoolCap"/> is: the
@@ -114,6 +120,9 @@ namespace LiteNetLib
         /// thousand players — and must not pay for a delegate call or a peer-count read there.
         /// </summary>
         public int EffectiveUnreliableQueuePerPeer = 256;
+
+        /// <summary>Resolved per-peer priority bound, refreshed by <see cref="RecomputePoolCap"/>.</summary>
+        public int EffectivePriorityUnreliableQueuePerPeer = 1024;
 
         /// <summary><see cref="PacketPoolSize"/> is the floor; peer count raises it up to the resolved ceiling.</summary>
         internal void RecomputePoolCap()
@@ -128,6 +137,11 @@ namespace LiteNetLib
                 ? queueResolver(peers)
                 : MaxUnreliableQueuePerPeer;
 
+            var priorityResolver = ResolvePriorityUnreliableQueuePerPeer;
+            EffectivePriorityUnreliableQueuePerPeer = priorityResolver != null
+                ? priorityResolver(peers)
+                : MaxPriorityUnreliableQueuePerPeer;
+
             var poolResolver = ResolvePacketPoolMax;
             int poolMax = poolResolver != null ? poolResolver(peers) : PacketPoolSizeMax;
 
@@ -137,12 +151,30 @@ namespace LiteNetLib
                 return;
             }
 
-            long scaled = (long)peers * PacketPoolSizePerPeer;
+            // Per peer, the pool has to cover that peer's working set AND whatever its send queues
+            // are allowed to hold — because every packet a queue lets go of, by draining or by
+            // trimming at the bound, arrives here to be recycled.
+            //
+            // Leaving the queue terms out is what made this a 96,000-packet pool standing in front
+            // of 9.5 million packets of queue capacity at 1000 players. The surplus did not vanish;
+            // PoolRecycle dropped it, and because those packets had lived in a queue long enough to
+            // reach gen2, the collector could neither compact nor return the space. Measured: 2.7 GB
+            // of a 7 GB working set was gen2 fragmentation, against 11 MB on the same build while it
+            // was keeping up.
+            //
+            // This raises a RETENTION ceiling, not an allocation. Peak memory is decided by how many
+            // packets the queues can hold; all this decides is whether those packets come back
+            // reusable or turn into holes.
+            long perPeerTotal = (long)PacketPoolSizePerPeer
+                                + EffectiveUnreliableQueuePerPeer
+                                + EffectivePriorityUnreliableQueuePerPeer;
+
+            long scaled = (long)peers * perPeerTotal;
             if (scaled < PacketPoolSize)
                 scaled = PacketPoolSize;
             if (poolMax > 0 && scaled > poolMax)
                 scaled = poolMax;
-            _effectivePoolCap = (int)scaled;
+            _effectivePoolCap = (int)Math.Min(scaled, int.MaxValue);
         }
 
         internal NetPacket PoolGetPacket(int size)

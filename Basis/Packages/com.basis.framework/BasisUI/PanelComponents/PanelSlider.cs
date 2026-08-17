@@ -211,6 +211,12 @@ namespace Basis.BasisUI
             BasisPanelJoystickBind.NotifySliderCreated(this);
         }
 
+        /// <summary>
+        /// A slider is the one control a thumbstick can drive, so its options window offers one.
+        /// </summary>
+        protected override void AddPanelOptions(BasisMenuDialoguePanel dialogue) =>
+            BasisPanelJoystickBind.AddDialogueOption(this, dialogue);
+
         public void OnPointerDown(PointerEventData eventData)
         {
             if (!Application.isPlaying) return;

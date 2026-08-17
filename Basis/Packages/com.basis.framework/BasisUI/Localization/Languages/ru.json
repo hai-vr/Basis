@@ -1598,6 +1598,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "Воспроизводить тихое уведомление, когда другой игрок отправляет текстовое сообщение." },
     { "key": "settings.audio.sounds.microphone", "value": "Звук отключения микрофона" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "Воспроизводить звук при включении или отключении микрофона." },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "Звук отключения микрофона (нажми и говори)" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "Проигрывать этот звук также при каждом нажатии и отпускании кнопки «нажми и говори». По умолчанию выключено, так как он повторяется на каждой фразе." },
     { "key": "settings.audio.sounds.camera", "value": "Звуки камеры" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "Воспроизводить затвор и тики обратного отсчёта при съёмке фото." },
 

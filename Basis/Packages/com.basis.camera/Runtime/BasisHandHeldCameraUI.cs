@@ -726,6 +726,10 @@ public partial class BasisHandHeldCameraUI
             capture360 = HHC != null && HHC.capture360Enabled,
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
             useVRHandheldSmoothing = HHC != null && HHC.useVRHandheldSmoothing,
+            useSmoothDrag = HHC != null && HHC.useSmoothDrag,
+            smoothDragPositionDamping = HHC != null ? HHC.smoothDragPositionDamping : baseline.smoothDragPositionDamping,
+            smoothDragRotationDamping = HHC != null ? HHC.smoothDragRotationDamping : baseline.smoothDragRotationDamping,
+            smoothDragMaxDistance = HHC != null ? HHC.smoothDragMaxDistance : baseline.smoothDragMaxDistance,
             printPhoto = HHC != null && HHC.printPhotoEnabled,
             gifDurationSeconds = HHC != null ? HHC.GifDurationSeconds : baseline.gifDurationSeconds,
             gifFrameRate = HHC != null ? HHC.GifFrameRate : baseline.gifFrameRate,
@@ -1154,6 +1158,10 @@ public partial class BasisHandHeldCameraUI
         HHC.capture360Enabled = settings.capture360;
         HHC.useAutoLeveling = settings.useAutoLeveling;
         HHC.useVRHandheldSmoothing = settings.useVRHandheldSmoothing;
+        HHC.useSmoothDrag = settings.useSmoothDrag;
+        HHC.SetSmoothDragPositionDamping(settings.smoothDragPositionDamping);
+        HHC.SetSmoothDragRotationDamping(settings.smoothDragRotationDamping);
+        HHC.SetSmoothDragMaxDistance(settings.smoothDragMaxDistance);
         HHC.printPhotoEnabled = settings.printPhoto;
 
         // Through the setters, not the fields: a settings file is text on disk, and these

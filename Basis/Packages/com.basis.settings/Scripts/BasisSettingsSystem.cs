@@ -85,6 +85,90 @@ public static class BasisSettingsSystem
     /// </summary>
     public static event Action<string, string> OnSettingChanged;
     public static event Action OnSettingsFinishedChanges;
+
+    private static int _batchDepth;
+    private static bool _batchSavePending;
+    private static bool _batchFinishPending;
+
+    /// <summary>
+    /// Coalesces the per-write tail of <see cref="SaveString"/> — the full-file save, the
+    /// <see cref="OnSettingsFinishedChanges"/> broadcast and <see cref="ForceQualityRefresh"/> —
+    /// across a burst of writes, so a caller that changes fifty settings at once pays for that
+    /// tail once instead of fifty times.
+    ///
+    /// <para>Per-key <see cref="OnSettingChanged"/> still fires inline, in write order, so every
+    /// module applies its value exactly when it did before. Only the once-per-change tail moves
+    /// to the end of the burst, which is where it always belonged: the save writes the whole
+    /// dictionary anyway, the finished-changes broadcast is a "push current state" pass, and
+    /// <c>SetQualityLevel(level, applyExpensiveChanges: true)</c> re-uploads every texture mip.
+    /// Running that chain per setting is what made a Performance Mode level change a
+    /// multi-second main-thread stall — long enough for the XR compositor to drop the app.</para>
+    ///
+    /// <para>Nesting is counted, so a batch inside a batch flushes once at the outermost exit.
+    /// Always pair with <see cref="EndBatch"/> in a <c>finally</c>, or use <see cref="Batch"/>.</para>
+    /// </summary>
+    public static void BeginBatch()
+    {
+        _batchDepth++;
+    }
+
+    /// <summary>Closes a <see cref="BeginBatch"/> scope, flushing the deferred tail at depth zero.</summary>
+    public static void EndBatch()
+    {
+        if (_batchDepth == 0)
+        {
+            return;
+        }
+
+        _batchDepth--;
+        if (_batchDepth != 0)
+        {
+            return;
+        }
+
+        bool save = _batchSavePending;
+        bool finish = _batchFinishPending;
+        _batchSavePending = false;
+        _batchFinishPending = false;
+
+        if (save)
+        {
+            SaveAllSettings();
+        }
+        if (finish)
+        {
+            OnSettingsFinishedChanges?.Invoke();
+            ForceQualityRefresh();
+        }
+    }
+
+    /// <summary><c>using (BasisSettingsSystem.Batch()) { ... }</c> form of <see cref="BeginBatch"/>.</summary>
+    public static BatchScope Batch()
+    {
+        BeginBatch();
+        return new BatchScope(_batchDepth);
+    }
+
+    public readonly struct BatchScope : IDisposable
+    {
+        // Depth this scope opened, always at least 1. A default(BatchScope) never opened one and
+        // carries 0, so disposing it can't close a batch it does not own.
+        private readonly int _depth;
+
+        internal BatchScope(int depth)
+        {
+            _depth = depth;
+        }
+
+        public void Dispose()
+        {
+            if (_depth != 0)
+            {
+                EndBatch();
+            }
+        }
+    }
+
     public static void Initialize()
     {
         BasisSettingsSystem.LoadAllSettings();
@@ -169,10 +253,22 @@ public static class BasisSettingsSystem
         // must not race the load.
         if (changed && _settingsLoaded)
         {
-            SaveAllSettings();
-            OnSettingChanged?.Invoke(uniqueSettingsName, value);
-            OnSettingsFinishedChanges?.Invoke();
-            ForceQualityRefresh();
+            if (_batchDepth > 0)
+            {
+                // The value is already in the dictionary, so the deferred save will carry it.
+                // The per-key notify still goes out now: modules apply in write order, and some
+                // of them depend on it (the quality level re-clamps shadows and HDR behind it).
+                _batchSavePending = true;
+                _batchFinishPending = true;
+                OnSettingChanged?.Invoke(uniqueSettingsName, value);
+            }
+            else
+            {
+                SaveAllSettings();
+                OnSettingChanged?.Invoke(uniqueSettingsName, value);
+                OnSettingsFinishedChanges?.Invoke();
+                ForceQualityRefresh();
+            }
         }
     }
 
@@ -196,7 +292,14 @@ public static class BasisSettingsSystem
 
         if (changed && _settingsLoaded)
         {
-            SaveAllSettings();
+            if (_batchDepth > 0)
+            {
+                _batchSavePending = true;
+            }
+            else
+            {
+                SaveAllSettings();
+            }
         }
     }
 
@@ -213,7 +316,14 @@ public static class BasisSettingsSystem
         settingsData.settings[uniqueSettingsName] = defaultValue;
         if (_settingsLoaded)
         {
-            SaveAllSettings();
+            if (_batchDepth > 0)
+            {
+                _batchSavePending = true;
+            }
+            else
+            {
+                SaveAllSettings();
+            }
         }
         return defaultValue;
     }

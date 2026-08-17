@@ -9,9 +9,10 @@ namespace Basis.BasisUI
 {
     /// <summary>
     /// Hands one panel slider to a thumbstick, so a value can be tuned while looking at what it
-    /// changes instead of at the menu. Bind is armed from the controller settings, and the next
-    /// slider pressed with a hand claims that hand's stick: forward raises the value, back lowers
-    /// it, for as long as the bind is held.
+    /// changes instead of at the menu. The bind is taken from the slider's own options window —
+    /// the same hover gesture that offers a reset (<see cref="BasisPanelResetGesture"/>) — and the
+    /// hand that opened that window owns the stick: forward raises the value, back lowers it, for
+    /// as long as the bind is held.
     ///
     /// <para>
     /// The bind is kept on the slider's <see cref="BasisSettingsBinding{T}"/> rather than the
@@ -53,30 +54,11 @@ namespace Basis.BasisUI
         private static float _liveValue;
         private static float _nextLiveApply;
 
-        /// <summary>True while waiting for a slider to be pressed.</summary>
-        public static bool IsArmed { get; private set; }
-
         /// <summary>True while a stick is driving something.</summary>
         public static bool HasBinding => _binding != null || _slider != null;
 
-        /// <summary>Raised when the bind is armed, taken, or dropped, for anything showing its state.</summary>
+        /// <summary>Raised when the bind is taken or dropped, for anything showing its state.</summary>
         public static event Action StateChanged;
-
-        /// <summary>Waits for the next slider press to take the bind. Harmless to call twice.</summary>
-        public static void Arm()
-        {
-            if (IsArmed) return;
-            IsArmed = true;
-            StateChanged?.Invoke();
-        }
-
-        /// <summary>Stops waiting for a slider. Leaves any bind already taken alone.</summary>
-        public static void Cancel()
-        {
-            if (!IsArmed) return;
-            IsArmed = false;
-            StateChanged?.Invoke();
-        }
 
         /// <summary>Gives the stick back. A sweep in progress is written out first rather than lost.</summary>
         public static void Clear()
@@ -96,27 +78,61 @@ namespace Basis.BasisUI
         public static bool CapturesStick(BasisBoneTrackedRole role) => HasBinding && role == _role;
 
         /// <summary>
-        /// Takes a press that landed on <paramref name="target"/>, returning true when it was spent
-        /// on the bind and must not reach the UI. Only presses on a slider are taken — everything
-        /// else keeps working normally, so the page holding the wanted slider can still be reached
-        /// while armed.
+        /// Puts this slider's thumbstick option on its open options window: bind it to the hand that
+        /// opened the window, or give the stick back when that hand already has it. Adds nothing
+        /// when there is no stick behind the gesture — desktop, or a pointer that isn't a hand — or
+        /// when a stick could not drive the slider, so the window never offers what it can't do.
+        ///
+        /// <para>
+        /// The hand is resolved here, while the gesture that opened the window is still known, and
+        /// the button remembers it: the window outlives the gesture by however long it is left up.
+        /// </para>
         /// </summary>
-        public static bool TryHandlePress(GameObject target, BasisInput input)
+        public static void AddDialogueOption(PanelSlider slider, BasisMenuDialoguePanel dialogue)
         {
-            if (!IsArmed || target == null || input == null) return false;
-            if (!input.TryGetRole(out BasisBoneTrackedRole role) ||
-                (role != BasisBoneTrackedRole.LeftHand && role != BasisBoneTrackedRole.RightHand))
+            if (slider == null || dialogue == null) return;
+
+            if (IsBound(slider))
             {
-                return false;
+                dialogue.EnableAlternate(BasisLocalization.Get("ui.joystickBind.unbind"), Clear);
+                return;
             }
 
-            PanelSlider slider = target.GetComponentInParent<PanelSlider>();
-            if (slider == null || !slider.IsInteractable) return false;
-            if (slider.Settings.SliderMax <= slider.Settings.SliderMin) return false;
+            if (!CanBind(slider)) return;
+
+            BasisInput input = BasisPanelResetGesture.GestureDevice;
+            if (input == null || !input.TryGetRole(out BasisBoneTrackedRole role)) return;
+            if (role != BasisBoneTrackedRole.LeftHand && role != BasisBoneTrackedRole.RightHand) return;
+
+            // "This" rather than the hand's name: the window was opened by the hand that is about
+            // to own the stick, so there is nothing to disambiguate.
+            dialogue.EnableAlternate(BasisLocalization.Get("ui.joystickBind.bind"), () => Bind(slider, role));
+        }
+
+        /// <summary>
+        /// True when a stick could drive <paramref name="slider"/> at all: it has to be usable, and
+        /// it has to have a range to move through.
+        /// </summary>
+        private static bool CanBind(PanelSlider slider) =>
+            slider != null && slider.IsInteractable && slider.Settings.SliderMax > slider.Settings.SliderMin;
+
+        /// <summary>
+        /// Hands <paramref name="slider"/> to <paramref name="role"/>'s stick, replacing whatever
+        /// that stick was driving before — only one slider is bound at a time, and the newer bind is
+        /// the one just asked for.
+        /// </summary>
+        private static void Bind(PanelSlider slider, BasisBoneTrackedRole role)
+        {
+            if (!CanBind(slider)) return;
+
+            // A sweep still running on the outgoing slider is written out rather than dropped.
+            if (_sweeping) Commit();
 
             Capture(slider, role);
-            input.PlayHaptic(0.1f, 0.6f, 0.5f);
-            return true;
+
+            // Felt on the hand that now owns the stick, which is not necessarily the hand that
+            // pressed the button in the window.
+            ResolveDevice(role)?.PlayHaptic(0.1f, 0.6f, 0.5f);
         }
 
         /// <summary>
@@ -150,16 +166,14 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
-        /// What a hovered control should add to its tooltip: the invitation to bind while armed,
-        /// and afterwards a reminder of which stick moves it. Null for anything a stick can't drive.
+        /// What a hovered control should add to its tooltip: a reminder of which stick moves it.
+        /// Null for anything not on a stick right now — the offer to take one lives in the control's
+        /// options window, which the reset hint already points at.
         /// </summary>
         public static string HintFor(PanelComponent component)
         {
             PanelSlider slider = component as PanelSlider;
-            if (slider == null) return null;
-
-            if (IsArmed) return BasisLocalization.Get("ui.joystickBind.hint.pick");
-            if (!IsBound(slider)) return null;
+            if (slider == null || !IsBound(slider)) return null;
             return string.Format(BasisLocalization.Get("ui.joystickBind.hint.bound"), HandName(_role));
         }
 
@@ -175,7 +189,6 @@ namespace Basis.BasisUI
             _sweeping = false;
             ReadRange();
 
-            IsArmed = false;
             StartTicking();
             StateChanged?.Invoke();
         }

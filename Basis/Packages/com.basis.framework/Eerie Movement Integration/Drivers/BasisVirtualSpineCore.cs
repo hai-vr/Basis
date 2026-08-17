@@ -93,6 +93,8 @@ namespace Basis.IK
 
             public float3 HeadRestFromEyeLocal;
 
+            public float3 YawPivotFromEyeLocal;
+
             public byte PostureModel;
             public float HipsCompressionStrength;
             public float HipsMaxDropMeters;
@@ -186,7 +188,13 @@ namespace Basis.IK
                     : math.max(s.StandingHeadRefY, headRestCandidate);
                 float stanceHeadDrop = math.max(0f, s.StandingHeadRefY - headPosWorld.y);
 
-                float3 leashEyePos = eyePosDevice;
+                bool feetSupported = P.LeftFootTracked != 0 && P.RightFootTracked != 0;
+
+                // Only the estimator path reads the HMD to guess where the user is standing, so only it
+                // has an arc to remove; the feet-midpoint path is measured and stays as it was.
+                float3 yawArm = feetSupported ? float3.zero : P.YawPivotFromEyeLocal * P.GazeSwingRemoval;
+
+                float3 leashEyePos = eyePosDevice + math.mul(headYawFromEye, yawArm);
                 if (P.GazeSwingRemoval > 0f)
                 {
                     float3 gazeFwd = math.mul(eyeRot, new float3(0f, 0f, 1f));
@@ -208,12 +216,12 @@ namespace Basis.IK
                 }
 
                 float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, leashEyePos, dt, P.StandingHeadLocalY, stanceHeadDrop, in torsoYawTarget, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
-                float3 hipsArm = math.mul(torsoYawTarget, P.HipsAnchorOffsetLocal);
+                float3 hipsArm = math.mul(torsoYawTarget, P.HipsAnchorOffsetLocal - yawArm);
                 desiredHipsXZ += new float3(hipsArm.x, 0f, hipsArm.z);
 
-                if (!(P.LeftFootTracked != 0 && P.RightFootTracked != 0))
+                if (!feetSupported)
                 {
-                    float3 headRestArm = math.mul(torsoYawTarget, P.HeadRestFromEyeLocal);
+                    float3 headRestArm = math.mul(torsoYawTarget, P.HeadRestFromEyeLocal - yawArm);
                     supportXZ += new float3(headRestArm.x, 0f, headRestArm.z);
                 }
 

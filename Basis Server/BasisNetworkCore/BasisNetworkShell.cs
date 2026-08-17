@@ -144,6 +144,14 @@ namespace Basis.Network.Core
         /// instance is past what it can deliver. Transports without a bounded queue report 0.
         /// </summary>
         public long UnreliableDropped => 0;
+
+        /// <summary>
+        /// Voice packets dropped because a peer's priority send queue was over budget. Separate from
+        /// <see cref="UnreliableDropped"/> because it means something far worse: bulk drops are the
+        /// designed response to load, while every drop here is audio a listener hears a hole in.
+        /// Should be flat at all times. Transports without a priority queue report 0.
+        /// </summary>
+        public long PriorityUnreliableDropped => 0;
     }
 
     public sealed partial class NetStatistics

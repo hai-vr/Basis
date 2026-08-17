@@ -1598,6 +1598,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "Joue une notification discrète lorsqu'un autre joueur envoie un message texte." },
     { "key": "settings.audio.sounds.microphone", "value": "Son de coupure du micro" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "Joue un son lorsque vous coupez ou réactivez votre microphone." },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "Son de coupure du micro (appuyer pour parler)" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "Joue également ce son à chaque fois que vous appuyez sur appuyer pour parler et le relâchez. Désactivé par défaut, car il se répète à chaque phrase." },
     { "key": "settings.audio.sounds.camera", "value": "Sons de l'appareil photo" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "Joue le déclencheur et les tics du compte à rebours lors de la prise d'une photo." },
 

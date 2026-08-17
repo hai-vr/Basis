@@ -19,6 +19,11 @@ public static partial class SerializableBasis
         // v42: server accepts client→server avatar deltas on DeltaAvatarChannel. When false the
         // client uploads full keyframes only (legacy behavior).
         public bool UplinkDeltaEnabled;
+        // Server egress one sharing client may spend replicating an image, in megabits per second.
+        // The client charges a relayed chunk once per recipient the server forwards it to, so this
+        // divided by the fan-out is what a sharer uploads at. 0 means the server said nothing and
+        // the client keeps its own conservative assumption.
+        public int ImageShareEgressMegabitsPerSecond;
         //want to include what permissions this player has to the client
         public byte[] PermissionsBitset;     // fast, fixed — known nodes as bits
         public string[] ExtraPermissions;    // dynamic fallback — compressed on the wire
@@ -74,6 +79,8 @@ public static partial class SerializableBasis
             }
 
             UplinkDeltaEnabled = Writer.AvailableBytes > 0 && Writer.GetByte() != 0;
+            ImageShareEgressMegabitsPerSecond =
+                Writer.AvailableBytes >= sizeof(int) ? Writer.GetInt() : 0;
         }
         public void Serialize(NetDataWriter Writer)
         {
@@ -119,6 +126,7 @@ public static partial class SerializableBasis
             }
 
             Writer.Put(UplinkDeltaEnabled ? (byte)1 : (byte)0);
+            Writer.Put(ImageShareEgressMegabitsPerSecond);
         }
     }
 }

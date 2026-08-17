@@ -26,6 +26,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> SoundGrab = new("soundgrab", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> SoundChat = new("soundchat", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> SoundMicrophone = new("soundmicrophone", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> SoundMicrophonePushToTalk = new("soundmicrophonepushtotalk", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> SoundCamera = new("soundcamera", new BasisPlatformDefault<bool>(true));
 
         public static BasisSettingsBinding<float> ControllerDeadZone = new("joystickdeadzone", new BasisPlatformDefault<float>(0.01f));
@@ -1693,13 +1694,20 @@ namespace Basis.BasisUI
         // was removed in favor of a hard-coded counterbalance/pendulum model in the virtual spine
         // driver — see BasisLocalVirtualSpineDriver.ComputeRealisticHipsXZ.)
         // How much of the gaze-induced eye swing is removed before the pelvis stance leash sees it. The leash
-        // estimates WHERE THE USER IS STANDING and tracks the eye, which is the only yaw-invariant point -- but
-        // the eye is not PITCH-invariant: a head pitches about the base of the neck, so a look-up carries the
-        // HMD ~8 cm backward and a look-down carries it forward, with the feet planted. The leash follows fast
-        // enough to adopt that in about a frame, so the pelvis rode the gaze and walked out from under the
-        // player. 1 = remove the whole modelled swing and leash only real travel; 0 = the old behaviour.
-        // Uses DesktopHeadSwingBackward for the look-up share, so the VR and desktop halves of the same model
-        // cannot drift apart. If a deep look-DOWN starts feeling different, this is the number to turn down.
+        // estimates WHERE THE USER IS STANDING and it tracks the HMD -- but the HMD is not a body-fixed point
+        // in EITHER axis, because the head swings about the base of the neck and the HMD sits a hand's width
+        // in front of that pivot. A look-up carries it ~8 cm backward and a look-down forward; a head TURN
+        // sweeps it sideways through a ~9 cm arc. The leash follows fast enough to adopt all of that in about
+        // a frame, with the feet planted, so the pelvis rode the gaze and walked out from under the player --
+        // sideways as "the hips jut out left and right", forward/back as a pelvis that wanders on a glance.
+        //
+        // This removes both halves, and it must remove both halves of each: the PITCH swing is modelled
+        // (DesktopHeadSwingBackward supplies the look-up share, so the VR and desktop halves of that model
+        // cannot drift apart), while the YAW arc is cancelled exactly -- the reference is carried back onto
+        // the neck, the pivot the head actually turns about, and the pelvis's own anchor arm is re-measured
+        // from that same pivot so the two cancel algebraically at any yaw. Both ends move together on this
+        // one number, which is why it is one number. 1 = leash only real travel; 0 = the old behaviour.
+        // If a deep look-DOWN starts feeling different, this is the number to turn down.
         public static BasisSettingsBinding<float> VSpineGazeSwingRemoval = new("vspinegazeswingremoval", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> VSpineHipsForwardBias = new("vspinehipsforwardbias_v2", new BasisPlatformDefault<float>(0f));
 
@@ -1910,6 +1918,7 @@ namespace Basis.BasisUI
             SoundGrab.LoadBindingValue();
             SoundChat.LoadBindingValue();
             SoundMicrophone.LoadBindingValue();
+            SoundMicrophonePushToTalk.LoadBindingValue();
             SoundCamera.LoadBindingValue();
 
             MicrophoneVolume.LoadBindingValue();

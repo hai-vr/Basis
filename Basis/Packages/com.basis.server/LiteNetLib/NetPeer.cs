@@ -85,6 +85,20 @@ namespace LiteNetLib
         //Channels
         private readonly ConcurrentQueue<NetPacket> _unreliableChannel = new ConcurrentQueue<NetPacket>();
 
+        /// <summary>
+        /// Latency-critical unreliable traffic, held apart from <see cref="_unreliableChannel"/> and
+        /// drained ahead of it. See <see cref="NetManager.PriorityUnreliableChannels"/>.
+        ///
+        /// The bulk queue's whole drop policy rests on newer entries superseding older ones, which
+        /// is true of state updates and false of a media stream: every voice packet is unique audio,
+        /// so a dropped one is a permanent gap rather than a stale frame nobody would have rendered.
+        /// Sharing one queue therefore shed voice at the bulk stream's drop rate — and because bulk
+        /// traffic outnumbers voice by orders of magnitude, a backlog of position updates was enough
+        /// to punch holes in every conversation on the instance. Anything that survived the trim was
+        /// still stuck behind the backlog, arriving too late for the receiver's jitter buffer.
+        /// </summary>
+        private readonly ConcurrentQueue<NetPacket> _priorityUnreliableChannel = new ConcurrentQueue<NetPacket>();
+
         private readonly ConcurrentQueue<BaseChannel> _channelSendQueue;
         private readonly BaseChannel[] _channels;
 
@@ -453,9 +467,34 @@ namespace LiteNetLib
         /// </summary>
         private int _unreliableCount;
 
+        /// <summary>Same, for <see cref="_priorityUnreliableChannel"/>.</summary>
+        private int _priorityUnreliableCount;
+
+        /// <summary>
+        /// Whether this packet belongs in the priority queue. Reads the channel byte an unreliable
+        /// packet always carries at offset 1, so no extra state has to be threaded down the send
+        /// path. A null map means the host declared no priority channels — every packet is bulk,
+        /// which is stock LiteNetLib behaviour.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool IsPriorityUnreliable(NetPacket packet)
+        {
+            bool[] map = NetManager.PriorityUnreliableChannels;
+            if (map == null)
+                return false;
+            byte channel = packet.RawData[1];
+            return channel < map.Length && map[channel];
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void EnqueueUnreliable(NetPacket packet)
         {
+            if (IsPriorityUnreliable(packet))
+            {
+                EnqueuePriorityUnreliable(packet);
+                return;
+            }
+
             _unreliableChannel.Enqueue(packet);
 
             // Counted unconditionally so the depth stays honest even while unbounded — the drain
@@ -482,6 +521,35 @@ namespace LiteNetLib
             {
                 Interlocked.Decrement(ref _unreliableCount);
                 NetManager.NoteUnreliableDropped();
+                NetManager.PoolRecycle(stale);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void EnqueuePriorityUnreliable(NetPacket packet)
+        {
+            _priorityUnreliableChannel.Enqueue(packet);
+            int depth = Interlocked.Increment(ref _priorityUnreliableCount);
+
+            // Bounded on its own budget, resolved from population like the bulk one.
+            //
+            // ⚠️ This is a fan-in, not a stream. A receiver in a crowd is fed by every audible talker
+            // at once, so the depth needed here scales with population exactly as the bulk queue's
+            // does — it is simply fed at a lower per-sender rate. Sizing it as "a couple of seconds
+            // of one conversation" (a flat 256) measured 32.8% voice delivery at 1000 clients
+            // against 93.6% once it scaled, because it was shedding continuously while the bulk
+            // queue beside it, twenty times deeper, was barely shedding at all.
+            int limit = NetManager.EffectivePriorityUnreliableQueuePerPeer;
+            if (limit <= 0 || depth <= limit) return;
+
+            // Oldest-first here too, but for a different reason than the bulk queue: nothing
+            // supersedes a voice packet, so this is not "drop the stale one" — it is "the receiver
+            // is far enough behind that the head of this queue is already unplayable". Counted
+            // separately so it can never be mistaken for ordinary bulk shedding.
+            while (Volatile.Read(ref _priorityUnreliableCount) > limit && _priorityUnreliableChannel.TryDequeue(out var stale))
+            {
+                Interlocked.Decrement(ref _priorityUnreliableCount);
+                NetManager.NotePriorityUnreliableDropped();
                 NetManager.PoolRecycle(stale);
             }
         }
@@ -1238,6 +1306,11 @@ namespace LiteNetLib
                 Interlocked.Decrement(ref _unreliableCount);
                 NetManager.PoolRecycle(queued);
             }
+            while (_priorityUnreliableChannel.TryDequeue(out NetPacket priorityQueued))
+            {
+                Interlocked.Decrement(ref _priorityUnreliableCount);
+                NetManager.PoolRecycle(priorityQueued);
+            }
             lock (_fragmentsLock)
             {
                 foreach (var frag in _holdedFragments.Values)
@@ -1749,6 +1822,17 @@ namespace LiteNetLib
                     // still has something to send, re-add it to the send queue
                     _channelSendQueue.Enqueue(channel);
                 }
+            }
+
+            // Priority first, so latency-critical traffic lands in the earliest datagrams this pass
+            // emits instead of behind however much bulk state the producer queued since the last
+            // one. At a full bulk queue that ordering is the difference between voice arriving
+            // inside the receiver's jitter window and arriving after it has already given up.
+            while (_priorityUnreliableChannel.TryDequeue(out var priorityPacket))
+            {
+                Interlocked.Decrement(ref _priorityUnreliableCount);
+                SendUserData(priorityPacket);
+                NetManager.PoolRecycle(priorityPacket);
             }
 
             while (_unreliableChannel.TryDequeue(out var packet))

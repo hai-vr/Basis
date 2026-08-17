@@ -317,7 +317,9 @@ public class TransportConfigStoreTests
         // 8: MaxUnreliableQueuePerPeer and PacketPoolSizeMax became 0 = auto-scaled, and the old
         // fixed values are actively migrated away because they were harmful at scale.
         // 9: added CompactMerged, so existing files get rewritten with it.
-        Assert.Equal(9, LNLTransportConfig.CurrentConfigVersion);
+        // 10: added MaxPriorityUnreliableQueuePerPeer, which splits voice out of the bulk queue.
+        Assert.Equal(10, LNLTransportConfig.CurrentConfigVersion);
+        Assert.Equal(0, cfg.MaxPriorityUnreliableQueuePerPeer);   // 0 = auto from population + memory
         Assert.True(cfg.CompactMerged);
         Assert.Equal(0, cfg.MaxSendSockets);   // 0 = auto: half the cores, 4 to 64
         Assert.Equal(0, cfg.PeerUpdatePeersPerWorker);

@@ -1598,6 +1598,8 @@
     { "key": "settings.audio.sounds.chat.tooltip", "value": "Spielt eine dezente Benachrichtigung ab, wenn ein anderer Spieler eine Textnachricht sendet." },
     { "key": "settings.audio.sounds.microphone", "value": "Mikrofon-Stummschalt-Sound" },
     { "key": "settings.audio.sounds.microphone.tooltip", "value": "Spielt einen Sound ab, wenn du dein Mikrofon stumm schaltest oder die Stummschaltung aufhebst." },
+    { "key": "settings.audio.sounds.microphone.pushToTalk", "value": "Mikrofon-Stummschalt-Sound (Push-to-Talk)" },
+    { "key": "settings.audio.sounds.microphone.pushToTalk.tooltip", "value": "Spielt diesen Sound auch bei jedem Drücken und Loslassen von Push-to-Talk ab. Standardmäßig aus, da er sich bei jedem Satz wiederholt." },
     { "key": "settings.audio.sounds.camera", "value": "Kamera-Sounds" },
     { "key": "settings.audio.sounds.camera.tooltip", "value": "Spielt den Auslöser und die Countdown-Ticks ab, wenn ein Foto aufgenommen wird." },
 

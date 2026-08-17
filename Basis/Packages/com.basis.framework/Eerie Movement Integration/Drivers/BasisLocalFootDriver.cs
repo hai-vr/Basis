@@ -223,6 +223,9 @@ public partial class BasisLocalFootDriver
     }
     private BasisFootProbePlan _probePlan;
 
+    private readonly float[] _footGroundUp = new float[2];
+    private readonly bool[] _footGroundValid = new bool[2];
+
     private BasisFootSimParams _cachedParams;
     private bool _paramsDirty = true;
 
@@ -235,6 +238,7 @@ public partial class BasisLocalFootDriver
     public void NotifyReEngaging()
     {
         DiscardPendingProbes();
+        _footGroundValid[0] = _footGroundValid[1] = false;
         var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
         left.currentPos = left.plantedPos = lf.position;
         left.phase = BasisFootPhase.Planted;
@@ -269,6 +273,7 @@ public partial class BasisLocalFootDriver
             _jobScheduled = false;
         }
         DiscardPendingProbes();
+        _footGroundValid[0] = _footGroundValid[1] = false;
 
         ShiftFoot(left, delta);
         ShiftFoot(right, delta);
@@ -801,6 +806,9 @@ public partial class BasisLocalFootDriver
             Vector3 snapped = hit.point + hit.normal * footHeightOffset;
             f.currentPos = f.plantedPos = f.idealPos = snapped;
             f.filteredNormal = hit.normal;
+            int side = f.sideSign < 0 ? 0 : 1;
+            _footGroundUp[side] = Vector3.Dot(hit.point, cachedPlayerUp);
+            _footGroundValid[side] = true;
         }
     }
 
@@ -851,6 +859,10 @@ public partial class BasisLocalFootDriver
             hasChest = chestCtrl != null,
             groundHit = groundHit,
             groundPoint = groundHit ? (float3)ch.point : float3.zero,
+            leftGroundValid = _footGroundValid[0],
+            rightGroundValid = _footGroundValid[1],
+            leftGroundUp = _footGroundUp[0],
+            rightGroundUp = _footGroundUp[1],
             splayWhenCrouched = SplayWhenCrouchedPercentage,
             playerUp = cachedPlayerUp,
         };
@@ -926,16 +938,20 @@ public partial class BasisLocalFootDriver
         float hipsUpComp = Vector3.Dot(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), cachedPlayerUp);
         Vector3 targetXZ = f.predictedTargetXZ;
         Vector3 rayOrig = targetXZ + cachedPlayerUp * rayCastRange * 0.5f;
+        int side = f.sideSign < 0 ? 0 : 1;
         if (GroundCast(rayOrig, -cachedPlayerUp, rayCastRange, raySphereRadius, hipsUpComp, out RaycastHit hit))
         {
             f.stepTargetPos = hit.point + hit.normal * footHeightOffset;
             f.filteredNormal = hit.normal;
+            _footGroundUp[side] = Vector3.Dot(hit.point, cachedPlayerUp);
+            _footGroundValid[side] = true;
         }
         else
         {
             float targetUpComp = hipsUpComp - hipToFoot - ankleHeight + footHeightOffset;
             Vector3 targetFlat = ProjectHorizontal(targetXZ);
             f.stepTargetPos = targetFlat + cachedPlayerUp * targetUpComp;
+            _footGroundValid[side] = false;
         }
 
         float3 bodyFwd = sim.smoothedBodyFwd;
@@ -1091,6 +1107,14 @@ public partial class BasisLocalFootDriver
         {
             float ballH = (ballAH + ballBH) * 0.5f;
 
+            int side = _probePlan.foot;
+            float span = Mathf.Max(1e-3f, heelD + ballD);
+            float ankleH = Mathf.Lerp(heelH, ballH, heelD / span);
+            _footGroundUp[side] = _footGroundValid[side]
+                ? Mathf.Lerp(_footGroundUp[side], ankleH, 1f - Mathf.Exp(-k_SurfaceNormalRate * dt))
+                : ankleH;
+            _footGroundValid[side] = true;
+
             Vector3 tFwd = fwd * (heelD + ballD) + up * (ballH - heelH);
             Vector3 tRight = right * (2f * halfW) + up * (ballAH - ballBH);
             Vector3 n = Vector3.Cross(tFwd, tRight);
@@ -1104,7 +1128,6 @@ public partial class BasisLocalFootDriver
                 f.filteredNormal = Vector3.Slerp(prev, n, 1f - Mathf.Exp(-k_SurfaceNormalRate * dt)).normalized;
             }
 
-            float span = Mathf.Max(1e-3f, heelD + ballD);
             float expectedToeH = ballH + (ballH - heelH) / span * (toeD - ballD);
             float toeDelta = toeH - expectedToeH;
 
@@ -1124,6 +1147,7 @@ public partial class BasisLocalFootDriver
         }
         else
         {
+            _footGroundValid[_probePlan.foot] = false;
             f.toeBendDeg = Mathf.Lerp(f.toeBendDeg, 0f, 1f - Mathf.Exp(-k_ToeBendRate * dt));
         }
     }
@@ -1352,15 +1376,19 @@ public partial class BasisLocalFootDriver
         }
 
         Vector3 bp = f.bone.position;
+        int side = f.sideSign < 0 ? 0 : 1;
         if (GroundCast(bp + cachedPlayerUp * (hipToFoot * 0.33f), -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), cachedPlayerUp), out RaycastHit hit))
         {
             f.currentPos = f.plantedPos = f.idealPos = hit.point + hit.normal * footHeightOffset;
             f.filteredNormal = hit.normal;
+            _footGroundUp[side] = Vector3.Dot(hit.point, cachedPlayerUp);
+            _footGroundValid[side] = true;
         }
         else
         {
             f.currentPos = f.plantedPos = f.idealPos = bp;
             f.filteredNormal = cachedPlayerUp;
+            _footGroundValid[side] = false;
         }
         Vector3 fwd = avatarTransform != null ? BasisLocalPose.GetRotation(BasisPoseSlot.AvatarRoot, avatarTransform) * Vector3.forward : Vector3.forward;
         f.currentRot = f.plantedRot = f.stepStartRot = FootRotation(fwd, f.filteredNormal, f.sideSign < 0 ? footAlignLeft : footAlignRight);

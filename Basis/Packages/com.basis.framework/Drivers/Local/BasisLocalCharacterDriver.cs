@@ -100,7 +100,12 @@ namespace Basis.Scripts.BasisCharacterController
             };
             airborneTimer = 0f;
             coyoteTimeCounter = 0f;
+            StanceSpeedBlend = CrouchBlend;
+            StanceSpeedProne = IsProne;
+            TakeoffStanceDrop = GetCrouchHeightDrop();
+            AirborneStanceLift = 0f;
             CurrentMode.Enter(this);
+            UpdateMovementSpeed(UseMaxSpeed);
             ModeChanged?.Invoke(mode);
         }
 
@@ -145,6 +150,25 @@ namespace Basis.Scripts.BasisCharacterController
         /// </summary>
         public float CrouchBlendDelta = 0f;
         /// <summary>
+        /// <see cref="CrouchBlend"/> as the horizontal speed model reads it. Republished from the live blend
+        /// every grounded frame by <see cref="SyncStanceSpeedSource"/> and then frozen for the whole airborne
+        /// window, so a stance change made in mid-air cannot alter horizontal speed.
+        /// </summary>
+        [System.NonSerialized] public float StanceSpeedBlend = 1f;
+        /// <summary>
+        /// <see cref="IsProne"/> as the horizontal speed model reads it. Latched alongside <see cref="StanceSpeedBlend"/>.
+        /// </summary>
+        [System.NonSerialized] public bool StanceSpeedProne;
+        /// <summary>
+        /// Viewpoint drop, in metres of player-root space, that the stance was applying at the moment the feet
+        /// last left the ground. <see cref="ConsumeStanceLift"/> measures against this.
+        /// </summary>
+        [System.NonSerialized] public float TakeoffStanceDrop;
+        /// <summary>
+        /// Root lift, in metres, currently applied to hold the viewpoint on its ballistic arc while the legs tuck.
+        /// </summary>
+        [System.NonSerialized] public float AirborneStanceLift;
+        /// <summary>
         /// Indicates whether the character is considered crouching based on the CrouchBlend value being less than the defined threshold.
         /// </summary>
         public bool IsCrouching => CrouchBlend <= LocalAnimatorDriver.CrouchThreshold;
@@ -168,6 +192,8 @@ namespace Basis.Scripts.BasisCharacterController
                 Validate();
                 CalculateCharacterSize();
                 characterController.enabled = value;
+                TakeoffStanceDrop = GetCrouchHeightDrop();
+                AirborneStanceLift = 0f;
             }
         }
 
@@ -458,6 +484,103 @@ namespace Basis.Scripts.BasisCharacterController
             }
 
             LastWasGrounded = groundedPlayer;
+            SyncStanceSpeedSource();
+        }
+
+        /// <summary>
+        /// Republishes the live stance into the horizontal speed model while the feet are on the ground, and
+        /// holds the last grounded value for as long as they are not.
+        ///
+        /// Horizontal motion is rebuilt from input every frame with no velocity state behind it, so a stance
+        /// change lands on the very next frame's displacement. On the ground that is the intended crouch
+        /// slowdown. In the air it is not — nothing the legs do mid-jump changes horizontal velocity — yet
+        /// crouching there dropped a running player from <see cref="MaximumMovementSpeed"/> to just above the
+        /// walk floor in a single frame. Fly and noclip have no ground to leave, so they always track live.
+        /// </summary>
+        public void SyncStanceSpeedSource()
+        {
+            if (CurrentModeKind == Mode.Walk && !groundedPlayer)
+            {
+                return;
+            }
+            if (StanceSpeedBlend == CrouchBlend && StanceSpeedProne == IsProne)
+            {
+                return;
+            }
+            StanceSpeedBlend = CrouchBlend;
+            StanceSpeedProne = IsProne;
+            UpdateMovementSpeed(UseMaxSpeed);
+        }
+
+        /// <summary>
+        /// Metres the crouch blend currently lowers the viewpoint by, in player-root space — the same term the
+        /// desktop and headless eye providers subtract from the head before placing the eye. Zero in VR, where
+        /// the headset reports a real head and no synthetic drop is applied, and zero before the head bone
+        /// exists. Deliberately reads <see cref="CrouchBlend"/> only: prone is a whole-body pose change, not a
+        /// leg tuck, so it is left out of the airborne compensation.
+        /// </summary>
+        public float GetCrouchHeightDrop()
+        {
+            if (BasisDeviceManagement.IsCurrentModeVR())
+            {
+                return 0f;
+            }
+            var head = BasisLocalBoneDriver.HeadControl;
+            if (head == null)
+            {
+                return 0f;
+            }
+            return CrouchHeightDrop(head.TposeLocalScaled.position.y, MinimumCrouchPercent, CrouchBlend);
+        }
+
+        /// <summary>
+        /// Pure form of <see cref="GetCrouchHeightDrop"/>: metres a crouch blend lowers a viewpoint sitting
+        /// <paramref name="headHeight"/> above the root. Zero for a head height that is not a usable number.
+        /// </summary>
+        public static float CrouchHeightDrop(float headHeight, float minimumCrouchPercent, float crouchBlend)
+        {
+            if (float.IsNaN(headHeight) || float.IsInfinity(headHeight) || headHeight <= 0f)
+            {
+                return 0f;
+            }
+            return headHeight * (1f - math.clamp(minimumCrouchPercent, 0f, 1f)) * (1f - math.clamp(crouchBlend, 0f, 1f));
+        }
+
+        /// <summary>
+        /// Root lift owed this frame so that a stance change made in mid-air moves the FEET rather than the head,
+        /// returned as a delta to fold into the frame's vertical movement.
+        ///
+        /// The viewpoint is placed relative to the player root and the root is what the jump arc acts on, so
+        /// lowering the stance in the air dragged the camera down off that arc. Lifting the root by exactly the
+        /// amount the viewpoint drops holds the head still and raises the capsule's bottom instead. The capsule
+        /// shrinks by the same amount, so its top does not move and the swept volume never exceeds the standing
+        /// one. Measured against the stance held at takeoff, so extending the legs again pushes the feet back
+        /// down rather than dropping the head.
+        /// </summary>
+        public float ConsumeStanceLift()
+        {
+            return ResolveStanceLift(groundedPlayer, GetCrouchHeightDrop(), ref TakeoffStanceDrop, ref AirborneStanceLift);
+        }
+
+        /// <summary>
+        /// Pure form of <see cref="ConsumeStanceLift"/>. While grounded the feet are pinned and the head is
+        /// free to move, which is the ordinary crouch, so the lift is discarded and the takeoff reference
+        /// re-armed against the stance the next jump will leave in. While airborne the lift tracks the change
+        /// in viewpoint drop since takeoff, and only the frame-to-frame difference is returned to be moved.
+        /// </summary>
+        public static float ResolveStanceLift(bool grounded, float currentDrop, ref float takeoffDrop, ref float appliedLift)
+        {
+            if (grounded)
+            {
+                takeoffDrop = currentDrop;
+                appliedLift = 0f;
+                return 0f;
+            }
+
+            float target = currentDrop - takeoffDrop;
+            float delta = target - appliedLift;
+            appliedLift = target;
+            return delta;
         }
 
         public void CrouchToggle()
@@ -502,8 +625,8 @@ namespace Basis.Scripts.BasisCharacterController
             var topSpeed = GetMultiplierForMovementSpeed(maxSpeed ? MaximumMovementSpeed : DefaultMovementSpeed);
             var boostSpeed = maxSpeed ? MaximumMovementSpeed / DefaultMovementSpeed : 1f;
             // inverse of crouch blend so standing is the least value, multiply by the boost that running gives
-            MovementSpeedBoost = (1 - CrouchBlend) * boostSpeed;
-            SetMovementSpeedMultiplier(topSpeed * CrouchBlend * MovementVector.magnitude);
+            MovementSpeedBoost = (1 - StanceSpeedBlend) * boostSpeed;
+            SetMovementSpeedMultiplier(topSpeed * StanceSpeedBlend * MovementVector.magnitude);
         }
 
         public float GetMultiplierForMovementSpeed(float speed)
@@ -549,7 +672,7 @@ namespace Basis.Scripts.BasisCharacterController
             Vector3 horizontalMoveDirection = new Vector3(MovementVector.x, 0, MovementVector.y).normalized;
 
             CurrentSpeed = math.lerp(MinimumMovementSpeed, MaximumMovementSpeed, MovementSpeedScale) + MinimumMovementSpeed * MovementSpeedBoost;
-            if (IsProne) CurrentSpeed = ProneMovementSpeed;
+            if (StanceSpeedProne) CurrentSpeed = ProneMovementSpeed;
 
             Vector3 totalMoveDirection = flattenedRotation * horizontalMoveDirection * CurrentSpeed * DeltaTime;
             if (MovementLock)

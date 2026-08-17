@@ -102,6 +102,23 @@ namespace Basis
 
             await clientManager.StartClientsAsync();
 
+            // Voice delivery accounting. On whenever voice is simulated: it is a per-frame dictionary
+            // touch on the receive path, which is nothing against the avatar traffic beside it, and
+            // without it a run can only report what the server chose to drop rather than what a
+            // listener would actually have heard.
+            if (Basis.Config.ConfigManager.SimulateVoice)
+            {
+                VoiceDeliveryStats.Enabled = true;
+                _ = Task.Run(async () =>
+                {
+                    while (_running)
+                    {
+                        await Task.Delay(5000);
+                        BNL.Log(VoiceDeliveryStats.Describe());
+                    }
+                });
+            }
+
             // Periodic observer summary so a timed run ends with machine-readable totals.
             if (MovementSender.EmitFaceData || MessageHandler.ObserveOnly)
             {

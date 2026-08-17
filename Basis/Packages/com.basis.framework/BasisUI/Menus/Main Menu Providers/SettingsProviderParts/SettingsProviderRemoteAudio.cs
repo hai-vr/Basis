@@ -170,6 +170,11 @@ namespace Basis.BasisUI
                 toggleSoundMicrophone.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.sounds.microphone"));
                 toggleSoundMicrophone.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.sounds.microphone.tooltip"));
 
+                PanelToggle toggleSoundMicrophonePushToTalk = PanelToggle.CreateNewEntry(container);
+                toggleSoundMicrophonePushToTalk.AssignBinding(BasisSettingsDefaults.SoundMicrophonePushToTalk);
+                toggleSoundMicrophonePushToTalk.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.sounds.microphone.pushToTalk"));
+                toggleSoundMicrophonePushToTalk.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.sounds.microphone.pushToTalk.tooltip"));
+
                 PanelToggle toggleSoundCamera = PanelToggle.CreateNewEntry(container);
                 toggleSoundCamera.AssignBinding(BasisSettingsDefaults.SoundCamera);
                 toggleSoundCamera.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.sounds.camera"));

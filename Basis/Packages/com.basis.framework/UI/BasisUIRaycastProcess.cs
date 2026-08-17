@@ -265,16 +265,7 @@ namespace Basis.Scripts.UI
                 {
                     GameObject pressTarget = hit.graphic.gameObject;
                     bool pressSuppressed = BasisPanelInputDelay.IsSuppressed(pressTarget);
-                    if (!pressSuppressed && BasisPanelJoystickBind.TryHandlePress(pressTarget, BaseInput))
-                    {
-                        // The press picked the slider up for the thumbstick instead of moving it.
-                        // Swallowed rather than delivered: a pointer down on a slider jumps its
-                        // handle to the ray, which would throw away the value being bound.
-                        currentEventData.WasLastDown = true;
-                        currentEventData.eligibleForClick = false;
-                        currentEventData.pointerPress = null;
-                    }
-                    else if (currentEventData.pointerEnter == pressTarget && !pressSuppressed)
+                    if (currentEventData.pointerEnter == pressTarget && !pressSuppressed)
                     {
                         currentEventData.pressPosition = hit.screenPosition;
                         currentEventData.pointerPressRaycast = raycastResult;

@@ -64,9 +64,11 @@ namespace Basis.BasisUI
             : (_hasExplicitResetDefault ? _resetDefault : Value);
 
         /// <summary>
-        /// Asks, via a confirmation dialogue, whether to reset this control to its default.
-        /// Confirming writes the default through the normal value path so bindings and callbacks
-        /// both update.
+        /// Opens this control's options window: what can be done with it from a hover. Reset to
+        /// default is the one every control offers, and it is the accept, so the gesture still
+        /// reaches it in a single press. Confirming writes the default through the normal value path
+        /// so bindings and callbacks both update; controls with more to offer add it in
+        /// <see cref="AddPanelOptions"/>.
         /// </summary>
         public override void RequestReset()
         {
@@ -78,20 +80,35 @@ namespace Basis.BasisUI
             BasisMenuBase<BasisMainMenu> menu = BasisMenuBase<BasisMainMenu>.Instance;
             if (menu == null)
             {
-                // No menu to host a dialogue — reset without asking rather than doing nothing.
+                // No menu to host a window — reset without asking rather than doing nothing.
                 ApplyReset(target);
                 return;
             }
 
+            // OpenDialogue refuses while another modal is already up, and would leave that one in
+            // Dialogue. Without this the options below would be grafted onto that unrelated window.
+            if (menu.Dialogue != null) return;
+
             menu.OpenDialogue(
-                BasisLocalization.Get("ui.reset"),
-                string.Format(BasisLocalization.Get("ui.resetValue.confirm"), label),
+                BasisLocalization.Get("ui.panelOptions.title"),
+                string.Format(BasisLocalization.Get("ui.panelOptions.body"), label),
                 BasisLocalization.Get("ui.reset"),
                 BasisLocalization.Get("ui.cancel"),
                 confirmed =>
                 {
                     if (confirmed) ApplyReset(target);
                 });
+
+            if (menu.Dialogue != null) AddPanelOptions(menu.Dialogue);
+        }
+
+        /// <summary>
+        /// Adds whatever this control offers beyond a reset to its open options window. The third
+        /// dialogue button is the only slot going spare, so a control gets one thing;
+        /// <see cref="PanelSlider"/> spends it on the thumbstick bind.
+        /// </summary>
+        protected virtual void AddPanelOptions(BasisMenuDialoguePanel dialogue)
+        {
         }
 
         /// <summary>

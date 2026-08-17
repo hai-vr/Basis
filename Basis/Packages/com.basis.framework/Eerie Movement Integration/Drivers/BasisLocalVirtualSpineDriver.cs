@@ -34,6 +34,8 @@ namespace Basis.IK
 
         private float3 _headFromEyeTposeXZ;
 
+        private float3 _yawPivotFromEyeTposeXZ;
+
         private float3 _eyeFromHeadTpose;
 
         private bool _lengthsDirty = true;
@@ -140,8 +142,10 @@ namespace Basis.IK
 
             Matrix4x4 parentMatrix = BasisLocalPlayer.localToWorldMatrix;
 
+            bool isVR = BasisDeviceManagement.IsCurrentModeVR();
+
             float torsoYawDeadzoneDeg = Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.RawValue;
-            if (BasisDeviceManagement.IsCurrentModeVR() && !Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawPlayInVR.RawValue)
+            if (isVR && !Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawPlayInVR.RawValue)
             {
                 torsoYawDeadzoneDeg = 0f;
             }
@@ -218,6 +222,9 @@ namespace Basis.IK
                 GazeSwingRemoval = Basis.BasisUI.BasisSettingsDefaults.VSpineGazeSwingRemoval.RawValue,
                 HipsAnchorOffsetLocal = _hipsFromEyeTposeXZ,
                 HeadRestFromEyeLocal = _headFromEyeTposeXZ,
+                // BasisDesktopEye already pins its simulated eye onto the yaw axis, so only a real HMD --
+                // a physical object out on the head's lever arm -- has an arc to remove.
+                YawPivotFromEyeLocal = isVR ? _yawPivotFromEyeTposeXZ : float3.zero,
                 PostureModel = (byte)(Basis.BasisUI.BasisSettingsDefaults.VSpinePostureModel.RawValue ? 1 : 0),
                 HipsCompressionStrength = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsCompressionStrength.RawValue,
                 HipsMaxDropMeters = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsMaxDropMeters.RawValue * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale,
@@ -289,6 +296,7 @@ namespace Basis.IK
             _eyeFromHeadTpose = pEye - pHead;
             _hipsFromEyeTposeXZ = new float3(pHips.x - pEye.x, 0f, pHips.z - pEye.z);
             _headFromEyeTposeXZ = new float3(pHead.x - pEye.x, 0f, pHead.z - pEye.z);
+            _yawPivotFromEyeTposeXZ = new float3(pNeck.x - pEye.x, 0f, pNeck.z - pEye.z);
         }
     }
 }

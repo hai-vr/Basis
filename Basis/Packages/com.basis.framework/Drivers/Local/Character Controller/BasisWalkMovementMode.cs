@@ -38,7 +38,7 @@ namespace Basis.Scripts.BasisCharacterController
             // amplitudes and step urgency at maximum and roughly doubled cadence at half size.
             ctx.CurrentSpeed = (math.lerp(ctx.MinimumMovementSpeed, ctx.MaximumMovementSpeed, ctx.MovementSpeedScale) + ctx.MinimumMovementSpeed * ctx.MovementSpeedBoost)
                 * BasisLocalCharacterDriver.LocomotionSpeedScale();
-            if (ctx.IsProne)
+            if (ctx.StanceSpeedProne)
             {
                 ctx.CurrentSpeed = ctx.ProneMovementSpeed * BasisLocalCharacterDriver.LocomotionSpeedScale();
             }
@@ -65,7 +65,7 @@ namespace Basis.Scripts.BasisCharacterController
             ctx.currentVerticalSpeed = Mathf.Max(ctx.currentVerticalSpeed, -BasisLocalCharacterDriver.TerminalVelocity());
             ctx.HasJumpAction = false;
 
-            move.y = ctx.currentVerticalSpeed * dt;
+            move.y = ctx.currentVerticalSpeed * dt + ctx.ConsumeStanceLift();
 
             if (ctx.MovementLock)
             {

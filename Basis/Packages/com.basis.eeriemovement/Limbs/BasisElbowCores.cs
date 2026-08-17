@@ -348,10 +348,23 @@ namespace Basis.IK
             return t * t * (3f - 2f * t);
         }
 
+        // The gain cap is relative to the hand, so a stalled frame hands it a proportionally huge budget:
+        // 5x of a 30-degree hand step is 150 degrees of elbow in one displayed frame. The gain cap stays
+        // the primary bound -- it is what makes the pose framerate-independent -- and this is only a
+        // ceiling on top of it, with dt clamped so a longer stall cannot buy a bigger budget.
+        public const float MaxSlewDegPerSec = 720f;
+        public const float MaxSlewBudgetDt = 1f / 30f;
+
+        public static float SlewCapRad(float dt)
+            => dt > 0f ? math.radians(MaxSlewDegPerSec) * math.min(dt, MaxSlewBudgetDt) : 0f;
+
         public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain)
-            => Apply(prevBend, prevAxis, curAxis, rawBend, maxGain, 0f, 0f);
+            => Apply(prevBend, prevAxis, curAxis, rawBend, maxGain, 0f, 0f, 0f);
 
         public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain, float dReach, float conditioning)
+            => Apply(prevBend, prevAxis, curAxis, rawBend, maxGain, dReach, conditioning, 0f);
+
+        public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain, float dReach, float conditioning, float slewCapRad)
         {
             float3 tp = prevBend - curAxis * math.dot(prevBend, curAxis);
             float tpLen = math.length(tp);
@@ -373,6 +386,10 @@ namespace Basis.IK
             }
 
             float cap = maxGain * (dHand + dRadial);
+            if (slewCapRad > 0f && slewCapRad < cap)
+            {
+                cap = slewCapRad;
+            }
             float capped = math.clamp(ang, -cap, cap);
             if (capped == ang)
             {

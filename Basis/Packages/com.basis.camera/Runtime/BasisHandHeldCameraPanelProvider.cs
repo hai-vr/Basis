@@ -193,6 +193,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelToggle _flyToggle;
         private PanelToggle _autoLevelToggle;
         private PanelToggle _vrStabToggle;
+        private PanelToggle _smoothDragToggle;
+        private PanelSlider _smoothDragPositionSlider;
+        private PanelSlider _smoothDragRotationSlider;
+        private PanelSlider _smoothDragLeashSlider;
         private PanelToggle _capture360Toggle;
         private PanelToggle _printPhotoToggle;
         private PanelElementDescriptor _photoStatus;
@@ -236,6 +240,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private bool? _lastFly;
         private bool? _lastAutoLevel;
         private bool? _lastVrStab;
+        private bool? _lastSmoothDrag;
+        private float _lastSmoothDragPosition = float.NaN;
+        private float _lastSmoothDragRotation = float.NaN;
+        private float _lastSmoothDragLeash = float.NaN;
         private bool? _lastCloseHides;
         private bool? _lastExposureOnCamera;
         private bool? _lastFocusFollows;
@@ -833,9 +841,17 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyToggle = null;
             _autoLevelToggle = null;
             _vrStabToggle = null;
+            _smoothDragToggle = null;
+            _smoothDragPositionSlider = null;
+            _smoothDragRotationSlider = null;
+            _smoothDragLeashSlider = null;
             _lastFly = null;
             _lastAutoLevel = null;
             _lastVrStab = null;
+            _lastSmoothDrag = null;
+            _lastSmoothDragPosition = float.NaN;
+            _lastSmoothDragRotation = float.NaN;
+            _lastSmoothDragLeash = float.NaN;
             _lastFov = float.NaN;
             _lastExposure = float.NaN;
             _lastAperture = float.NaN;
@@ -1664,6 +1680,42 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (_activeCamera != null) _activeCamera.useVRHandheldSmoothing = v;
             };
 
+            _smoothDragToggle = PanelToggle.CreateNewEntry(content);
+            _smoothDragToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.smoothDrag"));
+            _smoothDragToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.smoothDrag.description"));
+            _smoothDragToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera != null) _activeCamera.useSmoothDrag = v;
+                RefreshSmoothDragVisibility();
+            };
+
+            _smoothDragPositionSlider = PanelSlider.CreateNew(content);
+            _smoothDragPositionSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.smoothDrag.position"),
+                BasisHandHeldCameraInteractable.MinSmoothDragDamping,
+                BasisHandHeldCameraInteractable.MaxSmoothDragDamping,
+                false, 2, ValueDisplayMode.Raw));
+            _smoothDragPositionSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.smoothDrag.position.description"));
+            _smoothDragPositionSlider.OnValueChanged = v => _activeCamera?.SetSmoothDragPositionDamping(v);
+
+            _smoothDragRotationSlider = PanelSlider.CreateNew(content);
+            _smoothDragRotationSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.smoothDrag.rotation"),
+                BasisHandHeldCameraInteractable.MinSmoothDragDamping,
+                BasisHandHeldCameraInteractable.MaxSmoothDragDamping,
+                false, 2, ValueDisplayMode.Raw));
+            _smoothDragRotationSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.smoothDrag.rotation.description"));
+            _smoothDragRotationSlider.OnValueChanged = v => _activeCamera?.SetSmoothDragRotationDamping(v);
+
+            _smoothDragLeashSlider = PanelSlider.CreateNew(content);
+            _smoothDragLeashSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.smoothDrag.leash"),
+                BasisHandHeldCameraInteractable.MinSmoothDragDistance,
+                BasisHandHeldCameraInteractable.MaxSmoothDragDistance,
+                false, 2, ValueDisplayMode.Meters));
+            _smoothDragLeashSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.smoothDrag.leash.description"));
+            _smoothDragLeashSlider.OnValueChanged = v => _activeCamera?.SetSmoothDragMaxDistance(v);
+
             // Desktop only: there is a real file browser to open, and the shot lands in a
             // browsable Pictures folder rather than the app's sandboxed data path.
             if (BasisHandHeldCamera.CanOpenPhotosFolder)
@@ -1683,6 +1735,21 @@ namespace Basis.BasisUI.HandHeldCamera
                 openFolderButton.Descriptor.SetTitle(BasisLocalization.Get("camera.openPhotosFolder"));
                 openFolderButton.OnClicked += () => BasisHandHeldCamera.OpenPhotosFolder();
             }
+        }
+
+        /// <summary>
+        /// The three numbers that shape the trail follow the toggle that runs it, the way the auto
+        /// brightness meter's controls follow theirs.
+        /// </summary>
+        private void RefreshSmoothDragVisibility()
+        {
+            bool dragging = _activeCamera != null && _activeCamera.useSmoothDrag;
+
+            _smoothDragPositionSlider?.gameObject.SetActive(dragging);
+            _smoothDragRotationSlider?.gameObject.SetActive(dragging);
+            _smoothDragLeashSlider?.gameObject.SetActive(dragging);
+            RefreshSearch();
+            ForceLayoutRebuild(_actionGroup);
         }
 
         /// <summary>
@@ -2242,6 +2309,12 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_flyToggle, _activeCamera.IsFlyModeEnabled, ref _lastFly);
             _autoLevelToggle?.SetValueWithoutNotify(_activeCamera.useAutoLeveling);
             _vrStabToggle?.SetValueWithoutNotify(_activeCamera.useVRHandheldSmoothing);
+            _lastSmoothDrag = _activeCamera.useSmoothDrag;
+            _smoothDragToggle?.SetValueWithoutNotify(_activeCamera.useSmoothDrag);
+            _smoothDragPositionSlider?.SetValueWithoutNotify(_activeCamera.smoothDragPositionDamping);
+            _smoothDragRotationSlider?.SetValueWithoutNotify(_activeCamera.smoothDragRotationDamping);
+            _smoothDragLeashSlider?.SetValueWithoutNotify(_activeCamera.smoothDragMaxDistance);
+            RefreshSmoothDragVisibility();
             _capture360Toggle?.SetValueWithoutNotify(_activeCamera.capture360Enabled);
             _printPhotoToggle?.SetValueWithoutNotify(_activeCamera.printPhotoEnabled);
             _formatDropdown?.SetValueWithoutNotify(
@@ -2506,6 +2579,19 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_flyToggle, _activeCamera.IsFlyModeEnabled, ref _lastFly);
             SyncToggle(_autoLevelToggle, _activeCamera.useAutoLeveling, ref _lastAutoLevel);
             SyncToggle(_vrStabToggle, _activeCamera.useVRHandheldSmoothing, ref _lastVrStab);
+
+            // Applying a saved mode or resetting the page rewrites these under an open panel, and
+            // the drag numbers are only on screen while the toggle is on.
+            bool smoothDrag = _activeCamera.useSmoothDrag;
+            if (_lastSmoothDrag != smoothDrag)
+            {
+                _lastSmoothDrag = smoothDrag;
+                _smoothDragToggle?.SetValueWithoutNotify(smoothDrag);
+                RefreshSmoothDragVisibility();
+            }
+            SyncSlider(_smoothDragPositionSlider, _activeCamera.smoothDragPositionDamping, ref _lastSmoothDragPosition);
+            SyncSlider(_smoothDragRotationSlider, _activeCamera.smoothDragRotationDamping, ref _lastSmoothDragRotation);
+            SyncSlider(_smoothDragLeashSlider, _activeCamera.smoothDragMaxDistance, ref _lastSmoothDragLeash);
 
             // The prop carries its own Auto/Manual focus buttons, so this is a shared control like
             // the ones above — and it also decides whether the focus slider is on screen at all.

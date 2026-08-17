@@ -109,8 +109,12 @@ namespace Basis.Tests.IK
                 // ⚠️ THE LEASH TRACKS THE EYE, NOT THE HEAD -- and this fixture did not set it, so EyePos sat at
                 // (0,0,0) every frame and the support base could never move no matter what the follow law did.
                 // The pelvis read 0.00 cm on EVERY gate below, which is why three of them had been failing since
-                // the anchor moved from the head bone to the eye device: the eye is the only point that does not
-                // ORBIT when the view yaws, so the leash was re-anchored onto it and the fixture was not updated.
+                // the anchor moved from the head bone to the eye device: the head bone ORBITS the eye when the
+                // view yaws, so the leash was re-anchored onto the eye and the fixture was not updated.
+                // ⚠️ That re-anchoring only moved the orbit rather than removing it -- an HMD is itself a hand's
+                // width in front of the neck and sweeps its own arc on a turn (BasisHipsYawOrbitTests measures
+                // it). Nothing in THIS fixture sees that: every gate below holds EyeRot at identity, and the
+                // de-orbit is an exact no-op at constant yaw by construction.
                 // HeadScaledOffset is zero here, so head bone == input, and eye == head models a rig whose
                 // viewpoint sits on the head bone -- which is what every other field in this fixture assumes.
                 EyePos = head,

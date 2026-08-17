@@ -83,6 +83,49 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     private Quaternion smoothedHandheldWorldRot = Quaternion.identity;
     private bool handheldSmoothingInitialized = false;
 
+    [Header("Smooth Drag")]
+    /// <summary>
+    /// While the camera is held, the body eases toward the hand rather than being locked to it, so
+    /// dragging it swings it in behind the move and lets it settle once the hand stops.
+    /// </summary>
+    public bool useSmoothDrag = false;
+
+    /// <summary>Seconds the body takes to close the distance to the hand.</summary>
+    [Range(MinSmoothDragDamping, MaxSmoothDragDamping)]
+    public float smoothDragPositionDamping = 0.4f;
+
+    /// <summary>Seconds the body takes to close the angle to the hand.</summary>
+    [Range(MinSmoothDragDamping, MaxSmoothDragDamping)]
+    public float smoothDragRotationDamping = 0.5f;
+
+    /// <summary>How far the body may ever trail the hand, in metres at default avatar height.</summary>
+    [Range(MinSmoothDragDistance, MaxSmoothDragDistance)]
+    public float smoothDragMaxDistance = 0.25f;
+
+    public const float MinSmoothDragDamping = 0.05f;
+    public const float MaxSmoothDragDamping = 1.5f;
+    public const float MinSmoothDragDistance = 0.05f;
+    public const float MaxSmoothDragDistance = 1f;
+
+    private Vector3 smoothDragPosition;
+    private Quaternion smoothDragRotation = Quaternion.identity;
+    private bool smoothDragInitialized;
+
+    /// <summary>
+    /// Sets how long the body takes to reach the hand, clamped back into the range the panel
+    /// promises — a settings file is text on disk and can name any number at all.
+    /// </summary>
+    public void SetSmoothDragPositionDamping(float seconds)
+        => smoothDragPositionDamping = Mathf.Clamp(seconds, MinSmoothDragDamping, MaxSmoothDragDamping);
+
+    /// <inheritdoc cref="SetSmoothDragPositionDamping"/>
+    public void SetSmoothDragRotationDamping(float seconds)
+        => smoothDragRotationDamping = Mathf.Clamp(seconds, MinSmoothDragDamping, MaxSmoothDragDamping);
+
+    /// <inheritdoc cref="SetSmoothDragPositionDamping"/>
+    public void SetSmoothDragMaxDistance(float metres)
+        => smoothDragMaxDistance = Mathf.Clamp(metres, MinSmoothDragDistance, MaxSmoothDragDistance);
+
     // --- internal values / locks ---
     private readonly BasisLocks.LockContext LookLock = BasisLocks.GetContext(BasisLocks.LookRotation);
     private readonly BasisLocks.LockContext MovementLock = BasisLocks.GetContext(BasisLocks.Movement);
@@ -1042,7 +1085,12 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             PollVRControl();
         }
 
+        // After the scale, which measures the desktop fit from the prop's own distance to the eye
+        // and would follow the trail in and out otherwise; before the pin, which is what carries
+        // the trail through to the capture camera.
         ApplyCameraScale();
+
+        UpdateSmoothDrag();
 
         // Update pinning regardless of desktop/head-constraint logic
         PollCameraPin(Inputs.desktopCenterEye.Source);
@@ -1611,6 +1659,84 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         velocityMomentum = Vector3.zero;
         rotationMomentum = 0f;
     }
+    /// <summary>
+    /// Whether the body is being dragged right now. Desktop holds are a permanent head constraint,
+    /// so they qualify from the moment that constraint is armed; a VR hold has to actually be in a
+    /// hand. A camera that is flying or pinned away from the hand is driven by the modifier stack
+    /// and is not being dragged at all.
+    /// </summary>
+    private bool ShouldSmoothDrag()
+    {
+        if (!useSmoothDrag || PinSpace != CameraPinSpace.HandHeld || IsFlying)
+        {
+            return false;
+        }
+
+        if (BasisDeviceManagement.IsUserInDesktop())
+        {
+            return desktopSetup;
+        }
+
+        return GetActiveVRInput(out _);
+    }
+
+    /// <summary>
+    /// Trails the camera body behind the pose the hold has already written this frame, then leaves
+    /// the trailed pose on the transform for <see cref="PollCameraPin"/> and everything parented to
+    /// the prop to read. The hold writes from the hand rather than from the transform, so taking the
+    /// transform as the target closes no loop.
+    ///
+    /// The leash is what keeps a fast drag from parting the camera from the hand: past it the body
+    /// is pulled back onto the line to the hand, so the lag is a soft mount rather than a tether of
+    /// unbounded length that would swing the camera through the player or the room.
+    /// </summary>
+    private void UpdateSmoothDrag()
+    {
+        transform.GetPositionAndRotation(out Vector3 targetPosition, out Quaternion targetRotation);
+
+        if (!ShouldSmoothDrag())
+        {
+            smoothDragInitialized = false;
+            return;
+        }
+
+        if (!smoothDragInitialized)
+        {
+            smoothDragPosition = targetPosition;
+            smoothDragRotation = targetRotation;
+            smoothDragInitialized = true;
+            return;
+        }
+
+        SolveSmoothDrag(
+            ref smoothDragPosition, ref smoothDragRotation, targetPosition, targetRotation,
+            smoothDragPositionDamping, smoothDragRotationDamping,
+            smoothDragMaxDistance * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale,
+            Time.deltaTime);
+
+        transform.SetPositionAndRotation(smoothDragPosition, smoothDragRotation);
+    }
+
+    /// <summary>
+    /// One step of the trail: damp toward the pose the hand is at, then pull back onto the line to
+    /// it if the gap has opened past <paramref name="leash"/>.
+    /// </summary>
+    private static void SolveSmoothDrag(
+        ref Vector3 position, ref Quaternion rotation,
+        Vector3 targetPosition, Quaternion targetRotation,
+        float positionDamping, float rotationDamping, float leash, float deltaTime)
+    {
+        position = BasisCameraDamping.Approach(position, targetPosition, positionDamping, deltaTime);
+        rotation = BasisCameraDamping.ApproachRotation(rotation, targetRotation, rotationDamping, deltaTime);
+
+        Vector3 trail = position - targetPosition;
+        float distance = trail.magnitude;
+        if (distance > leash && distance > 0f)
+        {
+            position = targetPosition + trail * (leash / distance);
+        }
+    }
+
     private void UpdateVRHandheldSmoothing()
     {
         if (HHC == null || HHC.captureCamera == null)
@@ -1710,6 +1836,17 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 #if UNITY_INCLUDE_TESTS
     /// <summary>Yaw flattening, so the behaviour either side of vertical can be asserted.</summary>
     public static Quaternion FlattenToYawForTest(Quaternion rotation) => FlattenToYaw(rotation);
+
+    /// <summary>
+    /// One trail step, so the lag, the settle and the leash can be asserted without a hand, a
+    /// device mode or a frame.
+    /// </summary>
+    public static void SolveSmoothDragForTest(
+        ref Vector3 position, ref Quaternion rotation,
+        Vector3 targetPosition, Quaternion targetRotation,
+        float positionDamping, float rotationDamping, float leash, float deltaTime)
+        => SolveSmoothDrag(ref position, ref rotation, targetPosition, targetRotation,
+            positionDamping, rotationDamping, leash, deltaTime);
 
     /// <summary>
     /// Resolves a remote exactly as the follow solve does, surfacing the pieces of the private

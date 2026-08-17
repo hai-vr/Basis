@@ -316,6 +316,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             {
                 BNL.Log($"[CPU] {BasisCpuBudget.Describe()}");
                 BNL.Log($"[BSR] Send workers scale with population: 1 per {PlayersPerWorker} players, {BasisCpuBudget.MinWorkersPerPool} to {MaxAutoWorkers}.");
+                // The memory-scaled ceilings, logged for the same reason the CPU ones are: they are
+                // resolved from the box rather than read from the config file, so without this line
+                // there is no way to see what a server actually chose. Quoted at a nominal 1000
+                // players because the real values move with population as people join.
+                BNL.Log($"[POP] at 1000 players this box would resolve: {BasisPopulationScale.Describe(1000, new LNLTransportConfig().PacketPoolSizePerPeer)}");
             }
         }
 
