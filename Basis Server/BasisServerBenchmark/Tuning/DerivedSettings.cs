@@ -89,9 +89,14 @@ public static class DerivedSettings
                 (cores.HasSharpKnee
                     ? $"Short parallel regions stop converting cores into work past {cores.KneeWorkers} workers on " +
                       "this machine - a measured boundary, with efficiency falling away sharply beyond it. "
-                    : $"Efficiency decays smoothly here with no width the machine singles out; {cores.KneeWorkers} " +
-                      "is the widest still holding most of the narrow-pool efficiency, which is a stated " +
-                      "trade-off rather than a discovery. ") +
+                    : cores.IsRange
+                        ? $"Efficiency decays smoothly, so the machine singles out no width: anything from " +
+                          $"{cores.KneeWorkers} to {cores.WidestUsefulWorkers} workers is defensible and this takes " +
+                          "the conservative end. PROVISIONAL - expect it to move between runs, since a busy box " +
+                          "costs a wide pool more than a narrow one. A load sweep supersedes it. "
+                        : $"Efficiency decays smoothly here with no width the machine singles out; {cores.KneeWorkers} " +
+                          "is the widest still holding most of the narrow-pool efficiency, which is a stated " +
+                          "trade-off rather than a discovery. ") +
                 $"Running the full {machine.LogicalCores} costs {cores.WidthPenalty:F2}x the CPU for the same " +
                 $"output. At the {designPopulation:N0}-player design point, {peersPerWorker} peers per worker lands " +
                 $"the pass on {cores.KneeWorkers} workers. The shipped default of 128 caps workers by population " +

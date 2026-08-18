@@ -26,26 +26,110 @@ default of `1` the *entire* `MaxSendSockets` growth path silently no-ops. A serv
 can sit at 15% CPU with the reduction system maximally degraded while the kernel discards hundreds
 of thousands of datagrams per 10s, and nothing in the logs names the cause.
 
-## Modes
+## Running it
+
+No arguments. It finds the server and load-client directories relative to its own binary and opens
+a console:
 
 ```
-BasisServerBenchmark profile     # machine facts + offline microbenchmarks, ~2 min, no server
-BasisServerBenchmark autotune    # find the capacity knee, sweep, write a fitted config, ~30-60 min
-BasisServerBenchmark sweep       # the full research pass, hours
-BasisServerBenchmark measure     # one operating point, N windows, printed
+./BasisServerBenchmark
+bench> /help
 ```
 
-Typical operator run:
+| Command | What it does |
+|---|---|
+| `/machine` | What this box is, and whether the kernel is limiting it |
+| `/profile` | Offline benchmarks only — core scaling and codec cost. ~2 min, no server |
+| `/measure [players]` | One operating point at that population, printed |
+| `/auto [full]` | Climb until it breaks, fit the settings, confirm the combination. Hours |
+| `/status` `/stop` | Watch or end the running job |
+| `/findings` `/report` | What it has concluded, short or in full |
+| `/write [path]` | Write the tuning profile the server reads at boot |
+| `/show` `/set` | Run parameters — windows, window length, warmup, ladder ceiling |
+
+A job runs on its own thread so the prompt stays live while it prints; `/stop` ends it cleanly
+between windows rather than killing a server and a few thousand load clients mid-flight. Ctrl-C does
+the same rather than exiting, because the process is holding the operator's configs.
+
+Piped stdin runs commands **sequentially** instead of backgrounding them, so a script does what it
+reads like:
+
+```sh
+printf '/auto\n/report\n/write\n/quit\n' | ./BasisServerBenchmark
+```
+
+`--auto` is the same thing with no prompt at all, for systemd or `nohup`. `--server` and
+`--client` override the discovered paths.
+
+Before the first run, start the server and the load client once each by hand so both write their
+default configs — a server's first boot runs an *interactive* wizard this cannot answer.
+
+At defaults an `/auto` is roughly two hours: a ladder to 1000 players, then about twenty sweep arms
+at five minutes each. `/set windows 5` and `/set warmup-sec 45` roughly halve it at some cost in
+confidence; `/set max-players` bounds the climb.
+
+## First boot
+
+The benchmark ships inside the server build, under `benchmark/` beside the server binary, with the
+load client it drives under `benchmark/loadclient/`. On a server's **first** boot — after the setup
+wizard, before anything is served — it offers to tune the machine:
 
 ```
-BasisServerBenchmark autotune \
-  --server BasisServerConsole/bin/Release/net10.0 \
-  --client BasisNetworkClientConsole/BasisNetworkClientConsole/bin/Release/net10.0 \
-  --apply
+  This machine has not been tuned yet.
+  ...
+  Tune this machine now? [y/N]
 ```
 
-Start the server and the load client once each beforehand, so both have written their default
-config files. Configs are backed up and restored on exit, including on Ctrl-C.
+Say yes and it runs, writes the profile, applies it, and the server carries on with fitted settings.
+Say no and the server starts on its defaults, which is a supported configuration.
+
+`BASIS_AUTOTUNE=1` tunes without asking; `BASIS_AUTOTUNE=0` skips without asking. **With no terminal
+and no variable set, it skips** — a server started by systemd that silently vanished for two hours
+on its first boot would look like a failed deploy.
+
+### It is never loaded into the server
+
+The server launches the benchmark as a **child process** and names no type from it. That is not
+tidiness, it is the only thing that works: the benchmark measures the server by *restarting* it,
+repeatedly, because the values worth fitting include ones read once at socket bind and because the
+runtime's adaptive state carries across a reconfiguration. Something that has to restart the server
+cannot live inside it.
+
+It also settles the memory question completely. The CLR maps an assembly when a method referencing
+its types is first JITted — not when that code runs — so one direct call, however well guarded by an
+`if`, would load the benchmark and its two compression dependencies into every server process for
+the life of the instance. The project reference exists only for build ordering
+(`ReferenceOutputAssembly="false"`), the benchmark appears nowhere in the server's `deps.json`, and a
+normal boot costs one `File.Exists`.
+
+Shipping without it is `rm -rf benchmark/`; the server detects the absence and says so.
+
+## Handing the result to the server
+
+`/write` produces `config/tuning-profile.xml` beside the server's config. On its next boot the
+server finds it, applies each setting to whichever file declares it, and logs what changed:
+
+```
+[Tuning] Applying 'tuning-profile.xml' (measured 2026-08-18T11:00:00Z on linux-x64-64c, fitted at 1000 players)
+[Tuning]   PeerUpdatePeersPerWorker: 0 -> 62  [litenetlib.xml, Microbenchmark]
+[Tuning]   MultiSocketCount: 1 -> 8  [litenetlib.xml, Derived]
+[Tuning] 2 setting(s) written into the config. config.xml is authoritative from here.
+```
+
+**Applied once, then folded into config.xml.** Keeping the profile authoritative and re-reading it
+every boot is the obvious alternative and it is a trap: the operator later edits config.xml, the
+profile silently overrides them on the next restart, and the setting appears not to work with
+nothing anywhere explaining why. Instead the values are written into the config files, the profile
+is stamped, and from that moment config.xml is the single source of truth again.
+
+**It refuses to apply on different hardware.** Every setting in it is a function of the core count
+and kernel it was measured on, so a 64-core profile landing on a 4-vCPU container is worse than no
+profile at all. The fingerprint is coarse on purpose — OS family, architecture, core count — so
+adding a stick of RAM does not reject it. `<ApplyToAnyMachine>true</ApplyToAnyMachine>` overrides.
+
+Only findings that earned it get written. Anything measured on a topology that cannot judge it
+honestly stays in the text report, where a person can weigh the caveat, and out of the file, which
+a machine cannot.
 
 ## What it optimises, and what it refuses to
 

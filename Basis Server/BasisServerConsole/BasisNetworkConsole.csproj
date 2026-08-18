@@ -26,6 +26,56 @@
 		<ProjectReference Include="..\BasisNetworkCore\BasisNetworkCore.csproj" />
 		<ProjectReference Include="..\LiteNetLib\LiteNetLib.csproj" />
 	</ItemGroup>
+
+	<!--
+	  The benchmark ships beside the server but is NOT referenced by it.
+
+	  ReferenceOutputAssembly="false" is the whole point of these two lines: it buys build ordering
+	  so the copy below has something to copy, without putting the assemblies on this project's
+	  reference list. A real reference would let the CLR map the benchmark and its two compression
+	  dependencies into every server process the moment a method mentioning them was JITted — for a
+	  tool that runs once, on the first boot, out of a separate process. BasisFirstBootTuning launches
+	  it through Process.Start and names no type from it, so a normal boot costs one File.Exists.
+
+	  SkipGetTargetFrameworkProperties avoids the cross-targeting negotiation for a reference whose
+	  output we only ever copy as files.
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\BasisServerBenchmark\BasisServerBenchmark.csproj"
+		                  ReferenceOutputAssembly="false"
+		                  Private="false"
+		                  SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\BasisNetworkClientConsole\BasisNetworkClientConsole\BasisNetworkClientConsole.csproj"
+		                  ReferenceOutputAssembly="false"
+		                  Private="false"
+		                  SkipGetTargetFrameworkProperties="true" />
+	</ItemGroup>
+
+	<!--
+	  Laid out the way BasisFirstBootTuning looks for it: benchmark/ beside the server binary, with
+	  the load client it drives under benchmark/loadclient/. Kept out of the server's own folder so
+	  nothing here is mistaken for part of the server, and so deleting the folder is all it takes to
+	  ship without it.
+	-->
+	<Target Name="CopyBenchmarkTooling" AfterTargets="Build">
+		<PropertyGroup>
+			<BenchmarkOutDir>$(MSBuildThisFileDirectory)..\BasisServerBenchmark\bin\$(Configuration)\$(TargetFramework)\</BenchmarkOutDir>
+			<LoadClientOutDir>$(MSBuildThisFileDirectory)..\BasisNetworkClientConsole\BasisNetworkClientConsole\bin\$(Configuration)\$(TargetFramework)\</LoadClientOutDir>
+		</PropertyGroup>
+		<ItemGroup>
+			<BenchmarkFiles Include="$(BenchmarkOutDir)**\*" Exclude="$(BenchmarkOutDir)**\*.pdb" />
+			<LoadClientFiles Include="$(LoadClientOutDir)**\*" Exclude="$(LoadClientOutDir)**\*.pdb;$(LoadClientOutDir)Config.xml" />
+		</ItemGroup>
+		<Copy SourceFiles="@(BenchmarkFiles)"
+		      DestinationFiles="@(BenchmarkFiles->'$(OutDir)benchmark\%(RecursiveDir)%(Filename)%(Extension)')"
+		      SkipUnchangedFiles="true"
+		      Condition="'@(BenchmarkFiles)' != ''" />
+		<Copy SourceFiles="@(LoadClientFiles)"
+		      DestinationFiles="@(LoadClientFiles->'$(OutDir)benchmark\loadclient\%(RecursiveDir)%(Filename)%(Extension)')"
+		      SkipUnchangedFiles="true"
+		      Condition="'@(LoadClientFiles)' != ''" />
+	</Target>
+
 	<PropertyGroup>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	</PropertyGroup>

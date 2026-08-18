@@ -34,8 +34,24 @@ public sealed class CoreBenchResult
     /// On a smooth curve there is no width the machine picks out; the recommended one is a stated
     /// trade-off between cost and pass latency, and presenting a policy choice as a measurement is
     /// how a number nobody can defend ends up in a config file.</para>
+    ///
+    /// <para>⚠️ It also means the recommendation is <b>not reproducible between runs</b>. A
+    /// threshold on a smooth curve sits between two rungs, and contention with whatever else is on
+    /// the box costs a wide pool more than a narrow one — so a quiet machine flattens the curve and
+    /// the pick moves out a rung. Observed directly on the development box: three consecutive runs
+    /// chose 8, a fourth on an idler machine chose 16. Both are defensible, which is exactly why
+    /// <see cref="WidestUsefulWorkers"/> exists and why the load sweep is what settles it.</para>
     /// </summary>
     public required bool HasSharpKnee { get; init; }
+
+    /// <summary>
+    /// The widest width still worth considering, where <see cref="KneeWorkers"/> is the narrowest.
+    /// Equal when the curve has a real boundary; a range when it does not.
+    /// </summary>
+    public required int WidestUsefulWorkers { get; init; }
+
+    /// <summary>True when the two ends disagree, so the answer is a range rather than a value.</summary>
+    public bool IsRange => WidestUsefulWorkers > KneeWorkers;
 
     /// <summary>
     /// Efficiency at the knee against efficiency at full width. 1.0 means width is free on this
@@ -64,8 +80,13 @@ public sealed class CoreBenchResult
         sb.AppendLine(HasSharpKnee
             ? $"    Efficiency falls away sharply past {KneeWorkers} workers - a real boundary on this machine, " +
               "usually where logical cores stop being physical ones."
-            : $"    Efficiency decays smoothly here, with no width the machine singles out. {KneeWorkers} is the " +
-              "widest still holding most of the narrow-pool efficiency - a stated trade-off, not a discovery.");
+            : IsRange
+                ? $"    Efficiency decays smoothly, so the machine does not single out a width: anything from " +
+                  $"{KneeWorkers} to {WidestUsefulWorkers} is defensible and {KneeWorkers} is the conservative end. " +
+                  "Expect this pick to move between runs - a busy box costs a wide pool more than a narrow one, " +
+                  "so ambient load alone shifts it. The load sweep is what settles it."
+                : $"    Efficiency decays smoothly, with no width the machine singles out. {KneeWorkers} is the " +
+                  "widest still holding most of the narrow-pool efficiency - a stated trade-off, not a discovery.");
         sb.AppendLine($"    Running the full {Points.LastOrDefault()?.Workers ?? 0} costs {WidthPenalty:F2}x the CPU per unit of work.");
         return sb.ToString();
     }
@@ -156,11 +177,12 @@ public static class CoreBench
             points.Add(best!);
         }
 
-        (int knee, bool sharp) = FindKnee(points);
+        (int knee, int widest, bool sharp) = FindKnee(points);
         return new CoreBenchResult
         {
             Points = points,
             KneeWorkers = knee,
+            WidestUsefulWorkers = widest,
             HasSharpKnee = sharp,
             SingleCoreItemsPerSecond = points.Count > 0 ? points[0].ItemsPerSecond : 0,
             Frequency = frequency,
@@ -211,9 +233,20 @@ public static class CoreBench
     /// smooth decay is that there is no natural width and the choice is a policy, so that case is
     /// detected and reported rather than dressed up.</para>
     /// </summary>
-    private static (int Knee, bool Sharp) FindKnee(IReadOnlyList<CoreScalingPoint> points)
+    /// <summary>
+    /// Efficiency above this share of the narrow-pool figure is still arguably worth the width.
+    /// The gap between this and <see cref="SmoothDecayFloor"/> is the range the curve does not
+    /// resolve, and reporting it is more honest than picking a point inside it.
+    /// </summary>
+    private const double SmoothDecayGenerousFloor = 0.70;
+
+    private static (int Knee, int Widest, bool Sharp) FindKnee(IReadOnlyList<CoreScalingPoint> points)
     {
-        if (points.Count < 4) return (points.FirstOrDefault()?.Workers ?? 1, false);
+        if (points.Count < 4)
+        {
+            int only = points.FirstOrDefault()?.Workers ?? 1;
+            return (only, only, false);
+        }
 
         // ⚠️ The 1-worker rung is excluded from every comparison below, and kept only for the
         // table. Parallel.For with a degree of 1 does not schedule anything - it runs the body
@@ -222,7 +255,7 @@ public static class CoreBench
         // scaling curve. Including it inflated the typical-loss figure enough to move the detected
         // knee between runs of the same machine.
         int first = points[0].Workers == 1 ? 1 : 0;
-        if (points.Count - first < 3) return (points[first].Workers, false);
+        if (points.Count - first < 3) return (points[first].Workers, points[first].Workers, false);
 
         // Relative efficiency lost stepping from each rung to the next.
         var losses = new List<double>();
@@ -243,17 +276,28 @@ public static class CoreBench
             for (int i = 0; i < losses.Count; i++)
             {
                 if (losses[i] > typical * DiscontinuityFactor && losses[i] > 0.10)
-                    return (points[first + i].Workers, true);
+                {
+                    // A real boundary is a single answer, not a range: past it every wider rung is
+                    // worse for a reason the machine itself supplied.
+                    int at = points[first + i].Workers;
+                    return (at, at, true);
+                }
             }
         }
 
         double reference = points[first].ItemsPerCoreSecond;
         int knee = points[first].Workers;
+        int widest = knee;
         if (reference > 0)
+        {
             for (int i = first; i < points.Count; i++)
+            {
                 if (points[i].ItemsPerCoreSecond >= reference * SmoothDecayFloor) knee = points[i].Workers;
+                if (points[i].ItemsPerCoreSecond >= reference * SmoothDecayGenerousFloor) widest = points[i].Workers;
+            }
+        }
 
-        return (knee, false);
+        return (knee, Math.Max(widest, knee), false);
     }
 
     /// <summary>
