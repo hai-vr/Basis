@@ -1509,21 +1509,64 @@ namespace LiteNetLib
                     break;
 
                 case PacketProperty.CompactMerged:
-                    int compactPos = NetConstants.HeaderSize;
-                    while (compactPos < packet.Size)
+                    try
                     {
-                        if (!CompactMerge.TryReadEntry(packet.RawData, packet.Size, ref compactPos, out byte compactChannel, out int payloadLength))
-                            break;
+                        int compactPos = NetConstants.HeaderSize;
+                        while (compactPos < packet.Size)
+                        {
+                            if (!CompactMerge.TryReadEntry(
+                                    packet.RawData,
+                                    packet.Size,
+                                    ref compactPos,
+                                    out bool compactRawPacket,
+                                    out byte compactChannel,
+                                    out int payloadLength))
+                            {
+                                break;
+                            }
 
-                        NetPacket unreliable = NetManager.PoolGetPacket(NetConstants.UnreliableHeaderSize + payloadLength);
-                        unreliable.RawData[0] = (byte)PacketProperty.Unreliable;
-                        unreliable.RawData[1] = compactChannel;
-                        Buffer.BlockCopy(packet.RawData, compactPos, unreliable.RawData, NetConstants.UnreliableHeaderSize, payloadLength);
-                        compactPos += payloadLength;
+                            int payloadOffset = compactPos;
+                            compactPos += payloadLength;
 
-                        NetManager.CreateReceiveEvent(unreliable, DeliveryMethod.Unreliable, compactChannel, NetConstants.UnreliableHeaderSize, this);
+                            if (compactRawPacket)
+                            {
+                                NetPacket innerPacket = NetManager.PoolGetPacket(payloadLength);
+                                Buffer.BlockCopy(packet.RawData, payloadOffset, innerPacket.RawData, 0, payloadLength);
+                                innerPacket.Size = payloadLength;
+                                if (!innerPacket.Verify())
+                                {
+                                    NetManager.PoolRecycle(innerPacket);
+                                    break;
+                                }
+
+                                ProcessPacket(innerPacket);
+                                continue;
+                            }
+
+                            NetPacket unreliable = NetManager.PoolGetPacket(NetConstants.UnreliableHeaderSize + payloadLength);
+                            unreliable.RawData[0] = (byte)PacketProperty.Unreliable;
+                            unreliable.ConnectionNumber = _connectNum;
+                            unreliable.RawData[1] = compactChannel;
+                            Buffer.BlockCopy(
+                                packet.RawData,
+                                payloadOffset,
+                                unreliable.RawData,
+                                NetConstants.UnreliableHeaderSize,
+                                payloadLength);
+                            unreliable.Size = NetConstants.UnreliableHeaderSize + payloadLength;
+
+                            NetManager.CreateReceiveEvent(
+                                unreliable,
+                                DeliveryMethod.Unreliable,
+                                compactChannel,
+                                NetConstants.UnreliableHeaderSize,
+                                this);
+                        }
                     }
-                    NetManager.PoolRecycle(packet);
+                    finally
+                    {
+                        NetManager.PoolRecycle(packet);
+                    }
                     break;
 
                 //If we get ping, send pong
@@ -1592,35 +1635,80 @@ namespace LiteNetLib
         {
             if (_mergeCount == 0)
                 return;
+
             int bytesSent;
+
             // Batchable: this is bulk payload traffic and nothing reads the result beyond stats.
             // Outside a batching window this is exactly the old direct send.
             if (_mergeCount > 1)
             {
-                //NetDebug.Write("[P]Send merged: " + _mergePos + ", count: " + _mergeCount);
-                bytesSent = NetManager.SendRawBatchable(_mergeData.RawData, 0, NetConstants.HeaderSize + _mergePos, this);
+                bytesSent = NetManager.SendRawBatchable(
+                    _mergeData.RawData,
+                    0,
+                    NetConstants.HeaderSize + _mergePos,
+                    this);
             }
             else if (_mergeCompact)
             {
-                //Send a lone entry as the unreliable packet it was built from
                 int entryPos = NetConstants.HeaderSize;
-                if (CompactMerge.TryReadEntry(_mergeData.RawData, NetConstants.HeaderSize + _mergePos, ref entryPos, out byte channel, out int payloadLength))
+                if (!CompactMerge.TryReadEntry(
+                        _mergeData.RawData,
+                        NetConstants.HeaderSize + _mergePos,
+                        ref entryPos,
+                        out bool isRawPacket,
+                        out byte channel,
+                        out int payloadLength))
                 {
-                    Buffer.BlockCopy(_mergeData.RawData, entryPos, _mergeData.RawData, NetConstants.UnreliableHeaderSize, payloadLength);
-                    _mergeData.RawData[0] = (byte)((byte)PacketProperty.Unreliable | (_connectNum << 5));
-                    _mergeData.RawData[1] = channel;
-                    bytesSent = NetManager.SendRawBatchable(_mergeData.RawData, 0, NetConstants.UnreliableHeaderSize + payloadLength, this);
+                    byte firstEntryByte0 = _mergePos > 0
+                        ? _mergeData.RawData[NetConstants.HeaderSize]
+                        : (byte)0;
+                    byte firstEntryByte1 = _mergePos > 1
+                        ? _mergeData.RawData[NetConstants.HeaderSize + 1]
+                        : (byte)0;
+                    NetDebug.WriteError(
+                        $"[CompactMerged] Internal single-entry decode failure: count={_mergeCount}, " +
+                        $"pos={_mergePos}, entry0=0x{firstEntryByte0:X2}, entry1=0x{firstEntryByte1:X2}. " +
+                        "Dropping merge buffer.");
+                    _mergePos = 0;
+                    _mergeCount = 0;
+                    _mergeHeldMs = 0f;
+                    return;
+                }
+
+                if (isRawPacket)
+                {
+                    bytesSent = NetManager.SendRawBatchable(
+                        _mergeData.RawData,
+                        entryPos,
+                        payloadLength,
+                        this);
                 }
                 else
                 {
-                    bytesSent = NetManager.SendRawBatchable(_mergeData.RawData, 0, NetConstants.HeaderSize + _mergePos, this);
+                    // Rewrite the two bytes immediately before the payload as a normal Unreliable
+                    // header/channel. This avoids moving the payload for either header length.
+                    int sendOffset = entryPos - NetConstants.UnreliableHeaderSize;
+                    _mergeData.RawData[sendOffset] =
+                        (byte)((byte)PacketProperty.Unreliable | (_connectNum << 5));
+                    _mergeData.RawData[sendOffset + 1] = channel;
+                    bytesSent = NetManager.SendRawBatchable(
+                        _mergeData.RawData,
+                        sendOffset,
+                        NetConstants.UnreliableHeaderSize + payloadLength,
+                        this);
                 }
+
             }
             else
             {
-                //Send without length information and merging
-                bytesSent = NetManager.SendRawBatchable(_mergeData.RawData, NetConstants.HeaderSize + 2, _mergePos - 2, this);
+                // Legacy Merged stores the complete inner packet after a 16-bit length.
+                bytesSent = NetManager.SendRawBatchable(
+                    _mergeData.RawData,
+                    NetConstants.HeaderSize + 2,
+                    _mergePos - 2,
+                    this);
             }
+
 
             // The manager already counts a batched datagram when it flushes; counting here too
             // would double it.
@@ -1666,32 +1754,54 @@ namespace LiteNetLib
         internal void SendUserData(NetPacket packet)
         {
             packet.ConnectionNumber = _connectNum;
+            const int sizeThreshold = 20;
 
-            bool compact = NetManager.CompactMergeEnabled
-                && packet.Property == PacketProperty.Unreliable
-                && !packet.IsFragmented
-                && CompactMerge.CanCarryChannel(packet.RawData[1]);
+            bool isUnreliable = packet.Property == PacketProperty.Unreliable;
+            bool isRawTransport = packet.Property == PacketProperty.Ack || packet.Property == PacketProperty.Channeled;
+            int payloadSize = isUnreliable ? packet.Size - NetConstants.UnreliableHeaderSize : 0;
 
-            int payloadSize = compact ? packet.Size - NetConstants.UnreliableHeaderSize : 0;
-            int entrySize = compact ? CompactMerge.EntrySize(payloadSize) : packet.Size + 2;
-            int mergedPacketSize = NetConstants.HeaderSize + entrySize;
-            const int sizeTreshold = 20;
-            if (mergedPacketSize + sizeTreshold >= _mtu)
+
+            // With compact framing enabled, an out-of-range unreliable channel cannot use the
+            // six-bit channel field. Unreliable traffic is unordered, so bypass the accumulator
+            // without flushing an otherwise useful pending CompactMerged datagram.
+            if (isUnreliable && NetManager.CompactMergeEnabled && !CompactMerge.CanCarryChannel(packet.RawData[1]))
             {
-                //NetDebug.Write(NetLogLevel.Trace, "[P]SendingPacket: " + packet.Property);
                 int bytesSent = NetManager.SendRaw(packet, this);
-
                 if (NetManager.EnableStatistics)
                 {
                     Statistics.IncrementPacketsSent();
                     Statistics.AddBytesSent(bytesSent);
                 }
-
                 return;
             }
+
+            bool compact = NetManager.CompactMergeEnabled &&
+                ((isUnreliable && !packet.IsFragmented) || isRawTransport);
+            int compactPayloadSize = isRawTransport ? packet.Size : payloadSize;
+            int entrySize = compact ? CompactMerge.EntrySize(compactPayloadSize) : packet.Size + 2;
+            int mergedPacketSize = NetConstants.HeaderSize + entrySize;
+
+            if (mergedPacketSize + sizeThreshold >= _mtu)
+            {
+                // Channeled transport has ordering semantics. If an earlier entry is held in the
+                // accumulator, send it before a later Channeled packet that must bypass merging.
+                // Unreliable traffic is unordered and intentionally does not evict the accumulator.
+                if (!isUnreliable && _mergeCount > 0)
+                    SendMerged();
+
+                int bytesSent = NetManager.SendRaw(packet, this);
+                if (NetManager.EnableStatistics)
+                {
+                    Statistics.IncrementPacketsSent();
+                    Statistics.AddBytesSent(bytesSent);
+                }
+                return;
+            }
+
             if (_mergeCount > 0 && compact != _mergeCompact)
                 SendMerged();
-            if (_mergePos + mergedPacketSize > _mtu)
+
+            if (NetConstants.HeaderSize + _mergePos + entrySize > _mtu)
                 SendMerged();
 
             if (_mergeCount == 0)
@@ -1702,22 +1812,43 @@ namespace LiteNetLib
 
             if (compact)
             {
-                _mergePos += CompactMerge.WriteEntry(
-                    _mergeData.RawData,
-                    NetConstants.HeaderSize + _mergePos,
-                    packet.RawData[1],
-                    packet.RawData,
-                    NetConstants.UnreliableHeaderSize,
-                    payloadSize);
+                int entryOffset = NetConstants.HeaderSize + _mergePos;
+                if (isRawTransport)
+                {
+                    _mergePos += CompactMerge.WriteRawEntry(
+                        _mergeData.RawData,
+                        entryOffset,
+                        packet.RawData,
+                        0,
+                        packet.Size);
+                }
+                else
+                {
+                    _mergePos += CompactMerge.WriteUnreliableEntry(
+                        _mergeData.RawData,
+                        entryOffset,
+                        packet.RawData[1],
+                        packet.RawData,
+                        NetConstants.UnreliableHeaderSize,
+                        payloadSize);
+                }
             }
             else
             {
-                FastBitConverter.GetBytes(_mergeData.RawData, _mergePos + NetConstants.HeaderSize, (ushort)packet.Size);
-                Buffer.BlockCopy(packet.RawData, 0, _mergeData.RawData, _mergePos + NetConstants.HeaderSize + 2, packet.Size);
+                FastBitConverter.GetBytes(
+                    _mergeData.RawData,
+                    _mergePos + NetConstants.HeaderSize,
+                    (ushort)packet.Size);
+                Buffer.BlockCopy(
+                    packet.RawData,
+                    0,
+                    _mergeData.RawData,
+                    _mergePos + NetConstants.HeaderSize + 2,
+                    packet.Size);
                 _mergePos += packet.Size + 2;
             }
+
             _mergeCount++;
-            //DebugWriteForce("Merged: " + _mergePos + "/" + (_mtu - 2) + ", count: " + _mergeCount);
         }
 
         internal void Update(float deltaTime)

@@ -51,15 +51,22 @@ internal static class WireAssert
     internal static byte Property(byte[] datagram) => (byte)(datagram[0] & PropertyMask);
 
     /// <summary>Walks a CompactMerged datagram, returning the entries or throwing on ragged framing.</summary>
-    internal static List<(byte Channel, byte[] Payload)> ParseCompact(byte[] datagram)
+    internal static List<(bool Raw, byte Channel, byte[] Payload)> ParseCompact(byte[] datagram)
     {
-        var entries = new List<(byte, byte[])>();
+        var entries = new List<(bool, byte, byte[])>();
         int offset = 1;
         while (offset < datagram.Length)
         {
-            Assert.True(CompactMerge.TryReadEntry(datagram, datagram.Length, ref offset, out byte channel, out int length),
+            Assert.True(
+                CompactMerge.TryReadEntry(
+                    datagram,
+                    datagram.Length,
+                    ref offset,
+                    out bool isRaw,
+                    out byte channel,
+                    out int length),
                 $"CompactMerged datagram of {datagram.Length} B has a ragged entry at {offset}");
-            entries.Add((channel, datagram.AsSpan(offset, length).ToArray()));
+            entries.Add((isRaw, channel, datagram.AsSpan(offset, length).ToArray()));
             offset += length;
         }
         Assert.Equal(datagram.Length, offset);
@@ -170,7 +177,7 @@ public class CompactMergeWireTests
 
             var byProperty = new Dictionary<byte, int>();
             var legacyContents = new Dictionary<byte, int>();
-            int compactEntries = 0, compactDatagrams = 0, multiEntryCompact = 0, legacyDatagrams = 0;
+            int compactEntries = 0, compactDatagrams = 0, multiEntryCompact = 0, legacyDatagrams = 0, rawCompactEntries = 0;
 
             foreach (byte[] datagram in layer.Outbound)
             {
@@ -184,7 +191,18 @@ public class CompactMergeWireTests
                     compactEntries += entries.Count;
                     if (entries.Count > 1) multiEntryCompact++;
                     foreach (var e in entries)
+                    {
                         Assert.True(e.Channel <= CompactMerge.ChannelMask);
+                        if (e.Raw)
+                        {
+                            rawCompactEntries++;
+                            Assert.True(e.Payload.Length >= NetConstants.ChanneledHeaderSize);
+                            byte nestedProperty = WireAssert.Property(e.Payload);
+                            Assert.True(
+                                nestedProperty == (byte)PacketPropertyMirror.Channeled || nestedProperty == (byte)PacketPropertyMirror.Ack,
+                                $"raw CompactMerged entry carried unexpected property {nestedProperty}");
+                        }
+                    }
                 }
                 else if (property == (byte)PacketPropertyMirror.Merged)
                 {
@@ -201,16 +219,11 @@ public class CompactMergeWireTests
             _out.WriteLine($"compact datagrams {compactDatagrams} carrying {compactEntries} entries ({multiEntryCompact} held more than one); legacy merged datagrams {legacyDatagrams}");
             _out.WriteLine($"legacy Merged entries by nested property: {string.Join(", ", legacyContents.OrderBy(k => k.Key).Select(k => $"{(PacketPropertyMirror)k.Key}={k.Value}"))}");
 
-            // Legacy Merged is not a compatibility path: it is the only container that can carry
-            // Ack and Channeled packets, which have no representation in the compact framing.
             Assert.DoesNotContain((byte)PacketPropertyMirror.Unreliable, legacyContents.Keys);
-            Assert.True(legacyContents.ContainsKey((byte)PacketPropertyMirror.Channeled)
-                     || legacyContents.ContainsKey((byte)PacketPropertyMirror.Ack),
-                "legacy Merged carried neither Channeled nor Ack, so it is not doing the job claimed for it");
-
             Assert.True(compactDatagrams > 0, "no CompactMerged datagram was emitted at all");
             Assert.True(multiEntryCompact > 0, "compact framing never actually merged anything");
-            Assert.True(legacyDatagrams > 0, "reliable traffic never produced a legacy Merged datagram, so the mixed case was not covered");
+            Assert.True(rawCompactEntries > 0, "reliable traffic never produced a raw Ack/Channeled CompactMerged entry");
+            Assert.Equal(0, legacyDatagrams);
         }
         finally
         {
@@ -367,7 +380,7 @@ public class CompactMergeFuzzTests
                 int length = rng.Next(0, 400);
                 byte[] source = new byte[2 + length];
                 rng.NextBytes(source);
-                written += CompactMerge.WriteEntry(buffer, written, (byte)rng.Next(0, 128), source, 2, length);
+                written += CompactMerge.WriteEntry(buffer, written, (byte)rng.Next(0, 64), source, 2, length);
             }
 
             int cut = rng.Next(0, written + 1);
@@ -453,7 +466,7 @@ public class CompactMergeFuzzTests
             int length = rng.Next(0, 130);
             byte[] payload = new byte[length];
             rng.NextBytes(payload);
-            byte channel = (byte)rng.Next(0, 128);
+            byte channel = (byte)rng.Next(0, 64);
 
             byte[] source = new byte[2 + length];
             payload.CopyTo(source, 2);

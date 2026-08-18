@@ -15,7 +15,7 @@ namespace Basis.Network.Core
 	/// direction) established by an X25519 handshake; see <see cref="BasisCryptoHandshake"/>.
 	///
 	/// Only the user-data-bearing packet properties are encrypted (Unreliable,
-	/// Channeled, Merged). Connection setup, NAT, MTU and out-of-band probe packets
+	/// Channeled, Merged, CompactMerged). Connection setup, NAT, MTU and out-of-band probe packets
 	/// stay cleartext so the handshake itself never depends on a key being present.
 	///
 	/// Wire layout of an encrypted datagram:
@@ -29,10 +29,11 @@ namespace Basis.Network.Core
 		public const int Overhead = BasisAeadCipher.TagSize + CounterSize;
 
 		private const byte PropertyMask = 0x1F;
-		// Mirrors LiteNetLib.PacketProperty: Unreliable = 0, Channeled = 1, Merged = 12.
+		// Mirrors LiteNetLib.PacketProperty values used for user-data-bearing datagrams.
 		private const byte PropUnreliable = 0;
 		private const byte PropChanneled = 1;
 		private const byte PropMerged = 12;
+		private const byte PropCompactMerged = 18;
 
 		private sealed class Session
 		{
@@ -146,7 +147,8 @@ namespace Basis.Network.Core
 		}
 
 		private static bool IsEncryptable(byte property)
-			=> property == PropUnreliable || property == PropChanneled || property == PropMerged;
+			=> property == PropUnreliable || property == PropChanneled ||
+			   property == PropMerged || property == PropCompactMerged;
 
 		private static void DisposeSession(Session session)
 		{
