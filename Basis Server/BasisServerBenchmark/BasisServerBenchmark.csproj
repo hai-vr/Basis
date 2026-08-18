@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<StartupObject>Basis.Benchmark.Program</StartupObject>
+		<AssemblyName>BasisServerBenchmark</AssemblyName>
+		<RootNamespace>Basis.Benchmark</RootNamespace>
+		<InvariantGlobalization>true</InvariantGlobalization>
+	</PropertyGroup>
+
+	<!--
+	  Workstation GC, no tiered-PGO warmup games, and nothing that spawns background workers.
+	  This process runs ALONGSIDE the server it is measuring, so every core it takes is a core
+	  subtracted from the measurement. Server GC here would reserve a heap per core and add its
+	  own background threads for a process whose entire job is to poll an HTTP endpoint once a
+	  second. Do not "optimise" this by turning them on.
+	-->
+	<PropertyGroup>
+		<ServerGarbageCollection>false</ServerGarbageCollection>
+		<ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+		<TieredPGO>false</TieredPGO>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!--
+		  The real codecs, so the compression budget is measured against what the server actually
+		  runs rather than a reimplementation with the same name. BasisAvatarBundleZstd carries the
+		  windowLog, magicless framing and embedded dictionary that decide its ratio; a locally
+		  built Compressor would agree on the level and disagree on everything else.
+		-->
+		<ProjectReference Include="..\BasisNetworkCore\BasisNetworkCore.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Versions pinned to the server's, so a codec measurement here is the server's codec. -->
+		<PackageReference Include="K4os.Compression.LZ4" Version="1.3.8" />
+		<PackageReference Include="ZstdSharp.Port" Version="0.8.6" />
+	</ItemGroup>
+
+</Project>

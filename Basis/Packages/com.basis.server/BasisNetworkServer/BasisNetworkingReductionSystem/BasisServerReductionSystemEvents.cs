@@ -219,17 +219,28 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private const int InitialPlayerArrayCapacity = 256;
 
         /// <summary>
-        /// Default worker cap for the tick's parallel phases.
+        /// Cold-start figure for how many players one send worker carries, used only until this host
+        /// has timed a pass of its own.
         ///
-        /// This used to be <see cref="Environment.ProcessorCount"/>, which measured badly: the tick
+        /// It is a hypothesis about one machine, not a fact about the pool: fitted on a 32-thread
+        /// box with fast cores, where one worker gets through several times what it manages on a
+        /// host built from many slow cores and rather less than a few fast ones would. Sizing from
+        /// it permanently is how a large host ends up running this phase at a fraction of its width
+        /// while the tick sheds players and the cores the allocator granted it sit idle — the pool
+        /// cannot ask for them, because its own request is a population constant. So it seeds
+        /// <see cref="_pairsPerWorkerMs"/> and stops mattering once there is a measurement, the same
+        /// declared-then-measured arrangement BasisCoreLease uses for its ceiling.
+        ///
+        /// The pool's width used to be <see cref="Environment.ProcessorCount"/>, which measured badly: the tick
         /// runs ~275x/s, so each phase pays dispatch and wake cost per worker per tick, and each
         /// extra thread adds GC poll-point traffic. Measured at 500 players on a 32-thread box,
         /// same offered load throughout: 32 workers = 11.0 cores, 16 = 8.6, 8 = 6.6, 4 = 6.4 —
         /// two thirds of the CPU at 32 workers was spent getting threads to the work rather than
         /// doing it, and throughput was equal or better at the low end.
         ///
-        /// Scales with the population — one worker per <see cref="PlayersPerWorker"/> players — but
-        /// capped hard at <see cref="MaxAutoWorkers"/>, which matters more than the scaling does.
+        /// Sized from what a send pass actually costs on this host — see
+        /// <see cref="_pairsPerWorkerMs"/> — and capped hard at <see cref="MaxAutoWorkers"/>, which
+        /// matters more than the sizing does.
         ///
         /// This phase is throughput-bound, not latency-bound: it is already rate-limited by the
         /// tick budget via slicing, so extra workers do not let it deliver sooner, they just cost
@@ -244,6 +255,66 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private const int PlayersPerWorker = 128;
 
         /// <summary>
+        /// Sender/receiver pairs one worker gets through per millisecond the send pass is busy,
+        /// measured on this host. 0 until a pass has been timed.
+        ///
+        /// This is the number <see cref="PlayersPerWorker"/> was standing in for, in the unit the
+        /// phase actually costs in. Two things made a per-player figure wrong anywhere but the
+        /// machine it was fitted on. Core speed, which moves how much one worker gets through by
+        /// several times between a fast desktop core and a many-core server part — the same
+        /// population is a quarter of a pass on one and a whole pass on the other. And the unit: the
+        /// pass visits pairs, so its cost grows with the square of the population while a per-player
+        /// divisor grows linearly, which makes one constant two different policies at 500 players
+        /// and at 4000.
+        ///
+        /// Measuring pairs per worker-millisecond folds in core speed, avatar size, bundling and
+        /// whatever the load controller is currently shedding, because every one of those moves this
+        /// one number and nothing else has to know about them.
+        /// </summary>
+        private static double _pairsPerWorkerMs;
+
+        /// <summary>
+        /// Share of the tick period the send pass is sized against.
+        ///
+        /// Not the whole period: the drain, message processing, the distance slice and the transport
+        /// kick share the same tick, so sizing the send pass to fill it on its own guarantees the
+        /// overrun the load controller sheds players on.
+        /// </summary>
+        private const double SendPhaseBudgetShare = 0.6;
+
+        /// <summary>
+        /// Send pass duration over the budget above, smoothed; 1.0 means the pass exactly fills its
+        /// share of the period. Diagnostics — the width is sized from the measured rate rather than
+        /// steered from this — but it is what says whether the sizing is working on a given host.
+        /// </summary>
+        private static double _sendBudgetDutyEma;
+
+        /// <summary>
+        /// Shortest pass worth taking a rate from. Below roughly this, fork/join and timestamp
+        /// resolution are most of the sample, so a nearly empty server reads as a very slow pool and
+        /// would size the next population step several times too wide.
+        /// </summary>
+        private const double MinTimeableSendPassMs = 0.25;
+
+        /// <summary>
+        /// Utilisation above which the machine is full and widening moves contention around rather
+        /// than work. The same distinction the transport's per-peer pool draws, and the input every
+        /// attempt at automatic sizing here was missing: "the pass is slow" does not mean "give it
+        /// more workers" unless there are cores to give.
+        /// </summary>
+        private const double WidenBelowUtilization = 0.70;
+
+        /// <summary>
+        /// Workers the last send pass could actually run on — the configured degree, or the slice
+        /// if it was smaller. Dividing by the degree instead would read a slice too small to fill
+        /// the pool as a slow pool.
+        /// </summary>
+        private static int _lastSendWorkers;
+
+        /// <summary>Last time the worker count was allowed to move. See <see cref="TuneParallelism"/>.</summary>
+        private static long _lastDegreeStepTick;
+
+        /// <summary>
         /// Ceiling for the auto-sized worker count, from the machine-wide split in
         /// <see cref="BasisCpuBudget"/>. This pool and the transport's per-peer pool overlap, so
         /// the shares are decided in one place rather than each sizing itself against the whole box.
@@ -252,7 +323,25 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static int _configuredDegree;
 
-        private static int DegreeFor(int playerCount)
+        /// <summary>
+        /// Width the next send pass wants, from what the last ones cost rather than from a
+        /// population constant.
+        ///
+        /// The pass is throughput-bound against a budget: it has <see cref="SendPhaseBudgetShare"/>
+        /// of the tick period to get through the pairs the slice puts in front of it, and one worker
+        /// gets through <see cref="_pairsPerWorkerMs"/> of them per millisecond on this host. Those
+        /// three numbers are the whole sizing rule, and only the first is a constant.
+        ///
+        /// Estimating rather than reacting is the point: a population step raises the pair count
+        /// before the tick has overrun even once, so the pool widens ahead of the load instead of
+        /// after the load controller has already started shedding players for it.
+        ///
+        /// The same pool runs message processing and the distance slice, and it is sized from the
+        /// send pass alone because that is the phase whose cost the population actually moves — the
+        /// other two are bounded by the drain size and by amortisation respectively.
+        /// </summary>
+        /// <param name="current">Width the pool is running at, which bounds how far one step moves.</param>
+        private static int DegreeFor(int playerCount, int current)
         {
             int cores = Environment.ProcessorCount;
             if (_configuredDegree > 0)
@@ -272,7 +361,65 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 floor = 1;
             }
 
-            return Math.Clamp(playerCount / PlayersPerWorker, floor, ceiling);
+            double rate = _pairsPerWorkerMs;
+            if (rate <= 0)
+            {
+                // Nothing timed yet, so the declared per-player figure governs from a cold start —
+                // and stops governing a few milliseconds later, once a pass has been measured.
+                return Math.Clamp(playerCount / PlayersPerWorker, floor, ceiling);
+            }
+
+            // What the next pass will actually do. Receivers are sliced; the roster each of them is
+            // compared against is not, which is why pairs are the unit and players are not.
+            int sliceCount = Math.Max(1, _sliceCount);
+            double pairs = (double)((playerCount + sliceCount - 1) / sliceCount) * playerCount;
+            double budgetMs = Math.Max(1.0, intervalMs) * SendPhaseBudgetShare;
+            double needed = pairs / (rate * budgetMs);
+
+            // Compared before the cast: on a host where the measured rate has collapsed this is a
+            // number no int can hold, and the ceiling is the answer anyway.
+            int target = needed >= ceiling ? ceiling : (int)Math.Ceiling(needed);
+            if (target < floor)
+            {
+                target = floor;
+            }
+
+            if (current < floor)
+            {
+                current = floor;
+            }
+            if (current > ceiling)
+            {
+                current = ceiling;
+            }
+
+            if (target == current)
+            {
+                return current;
+            }
+
+            if (target < current)
+            {
+                // Give workers back one at a time. The estimate moves with the population and with
+                // whatever the load controller is shedding, and dropping straight to a momentarily
+                // low one turns a quiet second into a pool that has to climb again from the floor.
+                return current - 1;
+            }
+
+            // Widen only where there are cores to widen into. On a host that is already full the
+            // extra threads move contention around instead of doing work — measured at 2000 players
+            // on a saturated 32-thread box, widening cost 16.2 to 25.2 cores and left the pass just
+            // as slow. Unknown utilisation (0, a container that will not report it) is not treated
+            // as full: the grant this is clamped to is already a machine-wide share.
+            if (BasisCpuBudget.Utilization > WidenBelowUtilization)
+            {
+                return current;
+            }
+
+            // At most a doubling per step, so an estimate thrown off by one anomalous pass costs a
+            // single step of scheduling rather than the whole pool, while a join storm still reaches
+            // its width inside a few hundred milliseconds.
+            return Math.Min(target, current * 2);
         }
 
         private static readonly ParallelOptions parallelOptions = new()
@@ -281,16 +428,58 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         };
 
         /// <summary>
-        /// Retunes the worker cap for the current population. Called once per tick from the send
-        /// phase; assigning only on change keeps it free when the count is stable.
+        /// Retunes the worker count for what the next pass is expected to cost. Called once per tick
+        /// from the send phase, and moves on the core allocator's cadence rather than the tick's:
+        /// the grant it is clamped to only changes that often, and resizing a pool at ~275 Hz costs
+        /// more in thread-pool churn than the misallocation it would be correcting. Assigning only
+        /// on change keeps it free when the width is stable.
         /// </summary>
         private static void TuneParallelism(int playerCount)
         {
-            int desired = DegreeFor(playerCount);
-            if (parallelOptions.MaxDegreeOfParallelism != desired)
+            long now = Stopwatch.GetTimestamp();
+            if (_lastDegreeStepTick != 0 && now - _lastDegreeStepTick < RebalanceIntervalTicks)
+            {
+                return;
+            }
+            _lastDegreeStepTick = now;
+
+            int current = parallelOptions.MaxDegreeOfParallelism;
+            int desired = DegreeFor(playerCount, current);
+            if (current != desired)
             {
                 parallelOptions.MaxDegreeOfParallelism = desired;
             }
+        }
+
+        /// <summary>
+        /// Records what a send pass cost, in the unit the worker count is sized from: pairs per
+        /// millisecond the pass was busy, per worker that ran it.
+        ///
+        /// Per busy millisecond rather than per second of wall clock — the second is set by the tick
+        /// period and says nothing about how wide the pool should be. Per worker, because a pass at
+        /// twice the width is not evidence about one worker until that is divided back out.
+        /// </summary>
+        private static void NoteSendPassCost(long pairs, double busyMs)
+        {
+            double budgetMs = Math.Max(1.0, intervalMs) * SendPhaseBudgetShare;
+            double duty = busyMs / budgetMs;
+            _sendBudgetDutyEma = _sendBudgetDutyEma <= 0 ? duty : _sendBudgetDutyEma * 0.9 + duty * 0.1;
+
+            int workers = _lastSendWorkers;
+            if (pairs <= 0 || workers <= 0 || busyMs < MinTimeableSendPassMs)
+            {
+                return;
+            }
+
+            double rate = pairs / (busyMs * workers);
+            if (rate <= 0 || double.IsNaN(rate) || double.IsInfinity(rate))
+            {
+                return;
+            }
+
+            // Smoothed hard: one pass that straddled a GC pause is not a slower machine, and the
+            // width it would ask for is one the pool then has to unwind a worker at a time.
+            _pairsPerWorkerMs = _pairsPerWorkerMs <= 0 ? rate : _pairsPerWorkerMs * 0.9 + rate * 0.1;
         }
 
         // A dedicated worker pool was tried here in place of Parallel.For and did not pay for
@@ -315,7 +504,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             else
             {
                 BNL.Log($"[CPU] {BasisCpuBudget.Describe()}");
-                BNL.Log($"[BSR] Send workers scale with population: 1 per {PlayersPerWorker} players, {BasisCpuBudget.MinWorkersPerPool} to {MaxAutoWorkers}.");
+                BNL.Log($"[BSR] Send workers sized from measured pass cost against {SendPhaseBudgetShare * 100:F0}% of the tick period, " +
+                        $"{BasisCpuBudget.MinWorkersPerPool} to {MaxAutoWorkers} (seeded at 1 per {PlayersPerWorker} players until this host has timed a pass).");
                 // The memory-scaled ceilings, logged for the same reason the CPU ones are: they are
                 // resolved from the box rather than read from the config file, so without this line
                 // there is no way to see what a server actually chose. Quoted at a nominal 1000
@@ -651,7 +841,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 int peerWorkers = lnl?.PeerUpdateWorkers ?? 0;
                 int pop = NetworkServer.Server?.ConnectedPeersCount ?? 0;
                 BNL.Log(
-                    $"[CPU/POP] {pop} peers | send {parallelOptions.MaxDegreeOfParallelism}/{BasisCpuBudget.ReductionSendCap} wkr, " +
+                    $"[CPU/POP] {pop} peers | send {parallelOptions.MaxDegreeOfParallelism}/{BasisCpuBudget.ReductionSendCap} wkr " +
+                    $"({_pairsPerWorkerMs:F0} pairs/wkr-ms, budget {_sendBudgetDutyEma:F2}), " +
                     $"peer-upd {peerWorkers}/{BasisCpuBudget.PeerUpdateCap} wkr " +
                     $"(pass {lnl?.PeerUpdatePassMs ?? 0:F1}/{LiteNetLib.NetManager.PeerPassTargetMs:F0} ms), " +
                     $"machine {BasisCpuBudget.Utilization * 100:F0}% of {BasisCpuBudget.TotalCores} cores | " +
@@ -1286,6 +1477,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             //Phase 3: Send loop
             long now = Stopwatch.GetTimestamp();
             _lastSendPairs = 0;
+            _lastSendWorkers = 0;
             UpdateCommunicationAndDistances(now);
             long sendPhaseTicks = Stopwatch.GetTimestamp() - now;
             if (profiling)
@@ -1297,9 +1489,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // to find the width past which more send workers stop helping. Timed unconditionally
             // rather than under `profiling`, because the allocator runs on every server and a
             // measurement that only exists when someone is profiling is not one it can steer on.
+            double sendPhaseMs = sendPhaseTicks / MsToTick;
+            NoteSendPassCost(_lastSendPairs, sendPhaseMs);
             if (_lastSendPairs > 0)
             {
-                BasisCpuBudget.ReductionSendLease.AddWork(_lastSendPairs, sendPhaseTicks / MsToTick);
+                BasisCpuBudget.ReductionSendLease.AddWork(_lastSendPairs, sendPhaseMs);
             }
 
             //Phase 4: Network I/O
@@ -1822,6 +2016,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // proportional to the roster, so a population change mid-measurement would look like a
             // change in how well the pool parallelises.
             _lastSendPairs = (long)(end - start) * playerCount;
+
+            // Workers this pass can actually put to work. Parallel.For over a range never uses more
+            // of them than the range has items, so on a small slice the configured degree overstates
+            // the width — and a rate divided by a width that never ran reads as a slow host.
+            _lastSendWorkers = Math.Min(parallelOptions.MaxDegreeOfParallelism, end - start);
 
             bool bundlingEnabled = EnableAvatarBundleCompression;
 
