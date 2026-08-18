@@ -6,8 +6,9 @@ namespace BasisNetworkConsole
     /// <summary>
     /// First-boot setup wizard. Runs once, before the network server starts, when no
     /// config.xml existed at launch (a brand-new server). It walks the operator through
-    /// the core server settings and forces them to designate at least one admin, so a
+    /// the core server settings and asks them to designate at least one admin, so a
     /// fresh server is never left misconfigured or with nobody able to moderate it.
+    /// The admin step can be skipped for a server that does not want one yet.
     /// Admins are stored in permissions.xml as members of the "admin" group (full access),
     /// exactly like the runtime "/perm user group add &lt;uuid&gt; admin" command; the other
     /// settings are written straight back to config.xml.
@@ -66,7 +67,9 @@ namespace BasisNetworkConsole
             PrintIntro();
             RunSettingsWalkthrough(config, configFilePath);
             int admins = PromptAdmins(pm);
-            BNL.Log($"[Setup] First-time setup complete - {admins} admin(s) configured. Starting server...");
+            BNL.Log(admins == 0
+                ? "[Setup] First-time setup complete - no admin configured. Starting server..."
+                : $"[Setup] First-time setup complete - {admins} admin(s) configured. Starting server...");
         }
 
         // ----------------------------------------------------------------------------
@@ -111,37 +114,38 @@ namespace BasisNetworkConsole
         }
 
         // ----------------------------------------------------------------------------
-        // Admin (required)
+        // Admin
         // ----------------------------------------------------------------------------
 
         private static int PromptAdmins(PermissionManager pm)
         {
             BNL.Log("");
-            BNL.Log("--- Admin setup (required) ---");
+            BNL.Log("--- Admin setup ---");
             PrintAdminHelp();
 
             int adminCount = 0;
             while (true)
             {
                 Console.Write(adminCount == 0
-                    ? "Admin player UUID: "
+                    ? "Admin player UUID ('skip' to start without one): "
                     : "Add another admin UUID (leave blank to finish): ");
                 string input = (Console.ReadLine() ?? string.Empty).Trim();
-
-                if (input.Length == 0)
-                {
-                    if (adminCount == 0)
-                    {
-                        BNL.LogWarning("At least one admin is required before the server can start. Type 'help' if you're stuck.");
-                        continue;
-                    }
-                    break;
-                }
 
                 if (input.Equals("help", StringComparison.OrdinalIgnoreCase) || input == "?")
                 {
                     PrintAdminHelp();
                     continue;
+                }
+
+                if (input.Length == 0 || input.Equals("skip", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (adminCount > 0) break;
+                    if (!Confirm("Start this server with no admin? Nobody will be able to moderate or configure it in game."))
+                    {
+                        continue;
+                    }
+                    WarnSkippedAdmin();
+                    break;
                 }
 
                 if (!LooksLikeDid(input) && !Confirm($"'{input}' doesn't look like a did:key UUID. Add it anyway?"))
@@ -227,7 +231,7 @@ namespace BasisNetworkConsole
             BNL.Log("============================================================");
             BNL.Log("No config.xml was found, so this is a brand-new server.");
             BNL.Log("This quick wizard sets up the core server settings and has");
-            BNL.Log("you designate at least one admin before the server starts.");
+            BNL.Log("you designate an admin before the server starts.");
         }
 
         private static void PrintAdminHelp()
@@ -242,7 +246,21 @@ namespace BasisNetworkConsole
             BNL.Log("    their UUID as \"(UUID did:key:...)\".");
             BNL.Log("The UUID you enter is added to the \"admin\" group (full access).");
             BNL.Log("You can add more than one; leave the prompt blank once done.");
+            BNL.Log("Don't have it to hand? Type 'skip' to start without an admin and");
+            BNL.Log("add one later with:  /perm user group add <uuid> admin");
             BNL.Log("");
+        }
+
+        private static void WarnSkippedAdmin()
+        {
+            BNL.LogWarning("");
+            BNL.LogWarning("============================================================");
+            BNL.LogWarning(" Starting with NO ADMIN");
+            BNL.LogWarning("------------------------------------------------------------");
+            BNL.LogWarning(" Nobody can moderate or configure this server in game.");
+            BNL.LogWarning(" Add one at any time from this console with:");
+            BNL.LogWarning("   /perm user group add <uuid> admin");
+            BNL.LogWarning("============================================================");
         }
 
         private static void WarnNoAdmin()

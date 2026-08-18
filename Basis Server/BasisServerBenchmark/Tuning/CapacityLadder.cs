@@ -50,6 +50,15 @@ public sealed class CapacityResult
     public required string Bottleneck { get; init; }
 
     /// <summary>
+    /// True when a rung actually failed to deliver, so <see cref="FullQualityPlayers"/> is a real
+    /// ceiling. False when the climb simply ran out of rungs with everything still working — in
+    /// which case that figure is a LOWER BOUND and must be reported as "at least", never as a
+    /// capacity. Reporting the two the same way is how "comfortably 1,000" ends up describing a box
+    /// that was at 19% of its cores and had never been pushed.
+    /// </summary>
+    public required bool KneeFound { get; init; }
+
+    /// <summary>
     /// Whether the design point leaves the server with nothing to do — in which case no setting
     /// sweep run there can tell anything apart.
     ///
@@ -117,54 +126,75 @@ public static class CapacityLadder
     /// <summary>Delivery below this is a failed rung; there is nothing to learn above it.</summary>
     private const double AbandonBelow = 0.60;
 
+    /// <summary>
+    /// How many bisection steps to spend narrowing the knee once the coarse climb has bracketed it.
+    ///
+    /// Two, which cuts the bracket to a quarter of its width. The coarse rungs are far apart on
+    /// purpose — a doubling ladder is cheap but leaves the answer known only to within a factor of
+    /// two, and "somewhere between 1,000 and 2,000" is not a number anyone can set a player cap
+    /// from. Each step costs one more run, so this is where the budget goes furthest.
+    /// </summary>
+    private const int DefaultRefinements = 2;
+
+    /// <summary>
+    /// Climbs the coarse rungs until one fails, then bisects between the failure and the last
+    /// success to find where the knee actually is.
+    /// </summary>
     public static CapacityResult Run(
         LoadRunner runner,
         RunOptions template,
         IReadOnlyList<int> populations,
         Action<string> log,
-        CancellationToken cancel)
+        CancellationToken cancel,
+        int refinements = DefaultRefinements)
     {
         var rungs = new List<LadderRung>();
+        int lastGood = 0;
+        int firstBad = 0;
 
         foreach (int players in populations)
         {
             if (cancel.IsCancellationRequested) break;
 
-            log($"\n  Ladder rung: {players:N0} players");
-            var options = new RunOptions
-            {
-                ServerDirectory = template.ServerDirectory,
-                LoadClientDirectory = template.LoadClientDirectory,
-                Players = players,
-                Warmup = template.Warmup,
-                WindowLength = template.WindowLength,
-                Windows = template.Windows,
-                ConnectTimeout = template.ConnectTimeout,
-                Settings = template.Settings,
-                HealthHost = template.HealthHost,
-                HealthPort = template.HealthPort,
-                HealthPath = template.HealthPath,
-                Label = $"{players}p",
-            };
-
-            RunResult result = runner.Run(options, cancel);
-            var rung = new LadderRung(players, result);
-
-            if (!result.Completed)
-            {
-                log($"  {players:N0} players: {result.Failure}. Stopping the climb here.");
-                break;
-            }
+            LadderRung? rung = RunRung(runner, template, players, log, cancel);
+            if (rung == null) { firstBad = players; break; }
 
             rungs.Add(rung);
-            log($"  {players:N0} players: {rung.DeliveredPairHz:F2} Hz/pair, {LadderRung.Fmt(rung.Cores)} cores, delivery {rung.DeliveryRatio:P1}");
 
-            if (rung.DeliveryRatio < AbandonBelow)
+            if (rung.DeliveryRatio < FullQualityDeliveryFloor)
             {
-                log($"  Delivery has collapsed to {rung.DeliveryRatio:P0}; higher rungs would only measure how it sheds.");
+                firstBad = players;
+                if (rung.DeliveryRatio < AbandonBelow)
+                    log($"  Delivery has collapsed to {rung.DeliveryRatio:P0}; higher rungs would only measure how it sheds.");
                 break;
             }
+
+            lastGood = players;
         }
+
+        // Bisect the bracket. Only worth doing when the climb actually found one - a ladder that ran
+        // out of rungs while everything still worked has no knee to narrow, and halving an interval
+        // whose upper end was never tested would invent one.
+        for (int i = 0; i < refinements && firstBad > 0 && !cancel.IsCancellationRequested; i++)
+        {
+            int midpoint = (lastGood + firstBad) / 2;
+
+            // Stop once the bracket is tighter than the step, or the midpoint repeats a rung.
+            if (midpoint <= lastGood || midpoint >= firstBad) break;
+            if (rungs.Any(r => r.Players == midpoint)) break;
+
+            log($"\n  Narrowing: {lastGood:N0} held, {firstBad:N0} did not. Trying halfway.");
+            LadderRung? rung = RunRung(runner, template, midpoint, log, cancel);
+            if (rung == null) { firstBad = midpoint; continue; }
+
+            rungs.Add(rung);
+            if (rung.DeliveryRatio >= FullQualityDeliveryFloor) lastGood = midpoint;
+            else firstBad = midpoint;
+        }
+
+        // Sorted, because bisection appends out of order and every curve fitted downstream assumes
+        // ascending population.
+        rungs.Sort((a, b) => a.Players.CompareTo(b.Players));
 
         return new CapacityResult
         {
@@ -173,6 +203,11 @@ public static class CapacityLadder
                                  ?? rungs.FirstOrDefault()?.Players ?? 0,
             MaxStablePlayers = rungs.LastOrDefault()?.Players ?? 0,
             Bottleneck = DiagnoseBottleneck(rungs),
+            // Whether the climb ended because the machine gave out, or merely because it ran out of
+            // rungs. Without this the two are indistinguishable in the result, and the top rung of a
+            // ladder that simply stopped gets reported as a capacity - which is how "comfortably
+            // 1,000" ends up describing a box that was at 19% of its cores and never pushed.
+            KneeFound = rungs.Any(r => r.DeliveryRatio < FullQualityDeliveryFloor),
         };
     }
 
@@ -186,6 +221,40 @@ public static class CapacityLadder
     /// kernel discards inbound datagrams, and every CPU-side reading agrees that there is plenty of
     /// headroom. Diagnosed as "CPU", that box gets a bigger CPU and behaves identically.</para>
     /// </summary>
+    /// <summary>Runs one rung. Null when the server could not seat the crowd at all.</summary>
+    private static LadderRung? RunRung(
+        LoadRunner runner, RunOptions template, int players, Action<string> log, CancellationToken cancel)
+    {
+        log($"\n  Ladder rung: {players:N0} players");
+        var options = new RunOptions
+        {
+            ServerDirectory = template.ServerDirectory,
+            LoadClientDirectory = template.LoadClientDirectory,
+            Players = players,
+            Warmup = template.Warmup,
+            WindowLength = template.WindowLength,
+            Windows = template.Windows,
+            ConnectTimeout = template.ConnectTimeout,
+            Settings = template.Settings,
+            HealthHost = template.HealthHost,
+            HealthPort = template.HealthPort,
+            HealthPath = template.HealthPath,
+            Label = $"{players}p",
+        };
+
+        RunResult result = runner.Run(options, cancel);
+        if (!result.Completed)
+        {
+            log($"  {players:N0} players: {result.Failure}");
+            return null;
+        }
+
+        var rung = new LadderRung(players, result);
+        log($"  {players:N0} players: {rung.DeliveredPairHz:F2} Hz/pair, {LadderRung.Fmt(rung.Cores)} cores, " +
+            $"delivery {rung.DeliveryRatio:P1}");
+        return rung;
+    }
+
     private static string DiagnoseBottleneck(IReadOnlyList<LadderRung> rungs)
     {
         LadderRung? last = rungs.LastOrDefault();
@@ -213,15 +282,25 @@ public static class CapacityLadder
     }
 
     /// <summary>
-    /// The populations to climb. Doubling from a small base, so the ladder costs
-    /// log(capacity) runs rather than capacity/step runs, and the knee is bracketed rather than
-    /// hunted for.
+    /// The coarse rungs, deliberately few and far apart.
+    ///
+    /// <para>250 / 1,000 / 2,000 / 4,000 rather than a doubling from 250, because the intermediate
+    /// rungs of a doubling ladder mostly confirm what the one below already showed. Their job is
+    /// only to bracket the knee; the bisection afterwards is what locates it, and a run spent
+    /// narrowing a bracket buys far more than one spent widening it.</para>
+    ///
+    /// <para>It also bounds the cost. A doubling ladder gets slower the better the hardware is —
+    /// a strong box passes every rung and pays for all of them — which is a perverse way to spend
+    /// a test budget.</para>
     /// </summary>
     public static IReadOnlyList<int> DefaultPopulations(int maximum)
     {
         var values = new List<int>();
-        for (int p = 250; p <= maximum; p *= 2) values.Add(p);
+        foreach (int p in new[] { 250, 1000, 2000, 4000 })
+            if (p <= maximum) values.Add(p);
+
         if (values.Count == 0) values.Add(maximum);
+        else if (values[^1] < maximum && maximum >= values[^1] * 2) values.Add(maximum);
         return values;
     }
 }

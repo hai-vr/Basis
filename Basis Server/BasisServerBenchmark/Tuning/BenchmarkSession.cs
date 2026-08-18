@@ -6,6 +6,59 @@ using Basis.Benchmark.Output;
 
 namespace Basis.Benchmark.Tuning;
 
+/// <summary>How much of the tuning run to do.</summary>
+public enum AutoMode
+{
+    /// <summary>
+    /// Offline benchmarks, one load point, and a join burst. Around five minutes.
+    ///
+    /// <para>Produces every finding that does not need a curve: the codec settings, the per-peer
+    /// pass width, and the auth window. What it cannot produce is a scaling curve — one population
+    /// is a point, not a trend — so there is no memory or bandwidth ceiling and the player cap is
+    /// only "this much worked", not "this is where it stops".</para>
+    /// </summary>
+    Quick,
+
+    /// <summary>
+    /// Adds a three-rung capacity ladder. Around fifteen minutes.
+    ///
+    /// <para>The cheapest run that can say what limits this machine, because three points are the
+    /// fewest a quadratic can be fitted through — and the cost curve here genuinely is quadratic,
+    /// since every player is tracked against every other. This is where the player cap, the
+    /// binding constraint and the capability summary become real rather than indicative.</para>
+    /// </summary>
+    Medium,
+
+    /// <summary>
+    /// Full ladder plus the A/B setting sweep. A couple of hours.
+    ///
+    /// <para>The sweep is roughly three quarters of the wall time — one server restart per arm —
+    /// and on a box with headroom it most often concludes that nothing measurably changed, because
+    /// nothing was scarce enough for a setting to relieve. It earns its cost on a machine that is
+    /// actually working at the population it serves.</para>
+    /// </summary>
+    Long,
+}
+
+/// <summary>Timings and ladder shape for one mode.</summary>
+public sealed record RunProfile(
+    int WarmupSeconds,
+    int Windows,
+    int WindowSeconds,
+    int LadderRungs,
+    bool Sweep)
+{
+    public static RunProfile For(AutoMode mode) => mode switch
+    {
+        // Warmup never drops below 45s in any mode. It is not padding: the slicing controller
+        // oscillates over several windows, and under about 45s a run records wherever that
+        // oscillation happened to be rather than the steady state. Windows are what gets traded.
+        AutoMode.Quick => new RunProfile(45, 3, 20, 1, false),
+        AutoMode.Medium => new RunProfile(45, 4, 25, 3, false),
+        _ => new RunProfile(60, 6, 30, 99, true),
+    };
+}
+
 /// <summary>Run parameters an operator can change from the console between jobs.</summary>
 public sealed class SessionSettings
 {
@@ -23,6 +76,27 @@ public sealed class SessionSettings
     /// have moved.
     /// </summary>
     public HashSet<string> OnlyKnobs { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Settings the operator changed by hand this session.
+    ///
+    /// A mode carries its own timings, and applying them over the top of a deliberate /set would
+    /// silently throw that choice away — so the profile fills in only what nobody has an opinion
+    /// about, and says which of its values it skipped.
+    /// </summary>
+    private readonly HashSet<string> _explicit = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool WasSetByHand(string name) => _explicit.Contains(name);
+
+    /// <summary>Applies a mode's timings to everything not already set by hand.</summary>
+    public IReadOnlyList<string> ApplyProfile(RunProfile profile)
+    {
+        var kept = new List<string>();
+        if (WasSetByHand("warmup-sec")) kept.Add($"warmup-sec {WarmupSeconds}"); else WarmupSeconds = profile.WarmupSeconds;
+        if (WasSetByHand("windows")) kept.Add($"windows {Windows}"); else Windows = profile.Windows;
+        if (WasSetByHand("window-sec")) kept.Add($"window-sec {WindowSeconds}"); else WindowSeconds = profile.WindowSeconds;
+        return kept;
+    }
 
     public IEnumerable<(string Name, string Value, string Note)> Describe()
     {
@@ -42,6 +116,7 @@ public sealed class SessionSettings
 
     public bool TrySet(string name, string value, out string message)
     {
+        _explicit.Add(name);
         bool number = int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n);
         switch (name.ToLowerInvariant())
         {
@@ -194,15 +269,64 @@ public sealed class BenchmarkSession
         return sb.ToString();
     }
 
+    /// <summary>The most recent join-burst measurement, or null if none has run.</summary>
+    public AdmissionResult? Admission { get; private set; }
+
+    /// <summary>
+    /// Throws the whole crowd at the server at once, the way a restart does.
+    /// </summary>
+    public void RunBurst(int players, CancellationToken cancel)
+    {
+        using var configs = new ConfigPatcher(ServerDirectory, LoadClientDirectory);
+        configs.Backup();
+
+        var runner = new LoadRunner(configs, _log);
+        RunOptions options = Template(players, "burst");
+        Admission = AdmissionBurst.Run(runner, new RunOptions
+        {
+            ServerDirectory = ServerDirectory,
+            LoadClientDirectory = LoadClientDirectory,
+            Players = players,
+            ConnectTimeout = TimeSpan.FromMinutes(5),
+            HealthHost = options.HealthHost,
+            HealthPort = options.HealthPort,
+            // 0 is the whole point: clients start as fast as the loop runs rather than on the
+            // gentle 1 ms ramp the ladder uses.
+            ClientConnectIntervalMs = 0,
+            Label = $"burst {players}",
+        }, _log, cancel);
+
+        // So a standalone /burst still contributes its finding rather than measuring and forgetting.
+        RebuildRecommendations();
+    }
+
     // ── the whole thing ─────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Climbs until the machine stops delivering, then fits the settings at the population it
     /// actually serves, then confirms the combination.
     /// </summary>
-    public void RunAuto(bool full, CancellationToken cancel)
+    /// <summary>
+    /// Also sweep the settings loopback cannot judge honestly. They are reported with their caveat
+    /// and still never written — this only decides whether the measurement is taken at all.
+    /// </summary>
+    public bool IncludeUntrusted { get; set; }
+
+    public void RunAuto(AutoMode mode, CancellationToken cancel)
     {
-        LastMode = full ? "auto (full sweep)" : "auto";
+        LastMode = mode switch
+        {
+            AutoMode.Quick => "auto (quick)",
+            AutoMode.Medium => "auto (medium)",
+            _ => "auto (long, with sweep)",
+        };
+
+        RunProfile profile = RunProfile.For(mode);
+        IReadOnlyList<string> kept = Settings.ApplyProfile(profile);
+        _log($"  {mode} run: warmup {Settings.WarmupSeconds}s, {Settings.Windows} x {Settings.WindowSeconds}s windows" +
+             (profile.Sweep ? ", with the setting sweep." : ", no setting sweep."));
+        if (kept.Count > 0)
+            _log($"  Keeping what you set by hand: {string.Join(", ", kept)}.");
 
         if (Machine.Kernel?.AnyClamped == true)
         {
@@ -225,10 +349,16 @@ public sealed class BenchmarkSession
 
         var runner = new LoadRunner(configs, _log);
 
-        _log($"\n  Climbing to at most {Settings.MaxPlayers:N0} players. Each rung is about " +
-             $"{Template(1000, "x").EstimatedDuration.TotalMinutes:F0} min.");
-        Capacity = CapacityLadder.Run(runner, Template(0, "ladder"),
-            CapacityLadder.DefaultPopulations(Settings.MaxPlayers), _log, cancel);
+        // How far the ladder climbs is the mode's main lever. Three rungs is the fewest a quadratic
+        // can be fitted through, and the cost curve here genuinely is quadratic, so that is the
+        // line between "indicative" and "this is what limits your box".
+        var populations = CapacityLadder.DefaultPopulations(Settings.MaxPlayers)
+            .Take(profile.LadderRungs).ToList();
+        if (populations.Count == 0) populations.Add(Math.Min(500, Settings.MaxPlayers));
+
+        _log($"\n  Ladder: {string.Join(", ", populations.Select(p => p.ToString("N0")))} players, about " +
+             $"{populations.Sum(p => Template(p, "x").EstimatedDuration.TotalMinutes):F0} min in total.");
+        Capacity = CapacityLadder.Run(runner, Template(0, "ladder"), populations, _log, cancel);
         _log(Capacity.Describe());
 
         if (cancel.IsCancellationRequested) { RebuildRecommendations(); return; }
@@ -241,7 +371,32 @@ public sealed class BenchmarkSession
             return;
         }
 
+        // The burst runs in every mode. It is a minute and a half and it is the only thing that
+        // exercises admission at all, which is a different subsystem from the one the ladder just
+        // measured and the one an operator meets first after a restart.
+        // Run the burst at the population the ladder settled on. Admission is a different
+        // subsystem from steady state, so a box that serves this crowd well may still be unable
+        // to admit it after a restart - and that is the failure an operator meets first.
+        if (!cancel.IsCancellationRequested)
+        {
+            _log($"\n  Join burst at {design:N0} players - what a restart looks like");
+            RunBurst(design, cancel);
+        }
+
         RebuildRecommendations(design);
+
+        if (!profile.Sweep)
+        {
+            _log($"{Environment.NewLine}  {mode} run: stopping before the setting sweep. Everything above came from the ladder, the");
+            _log("  offline benchmarks and the burst - the auth window, the codec settings and the pass width,");
+            _log(populations.Count >= 3
+                ? "  plus the player cap and what limits this box."
+                : "  A single load point cannot give a scaling curve, so there is no memory or bandwidth ceiling"
+                  + Environment.NewLine
+                  + "  and the player cap is only 'this much worked'. /auto medium adds those for ten more minutes.");
+            _log("  The A/B-measured settings cost roughly another hour and a half: /auto long when it suits.");
+            return;
+        }
 
         string? idle = Capacity.IdleWarning(Machine.LogicalCores);
         if (idle != null)
@@ -252,7 +407,7 @@ public sealed class BenchmarkSession
         }
 
         var knobs = KnobCatalog.All
-            .Where(k => full || k.Confidence == LoopbackConfidence.Honest)
+            .Where(k => IncludeUntrusted || k.Confidence == LoopbackConfidence.Honest)
             .Where(k => !Recommendations.Any(r => r.Setting == k.Name && r.Evidence == Evidence.Derived))
             .Where(k => Settings.OnlyKnobs.Count == 0 || Settings.OnlyKnobs.Contains(k.Name))
             .ToList();
@@ -288,24 +443,42 @@ public sealed class BenchmarkSession
     /// </summary>
     public CapabilityModel? Capability { get; private set; }
 
+    /// <summary>
+    /// Recomputes every recommendation the session has the evidence for.
+    ///
+    /// <para>Each source is gated on what it actually needs rather than on a single all-or-nothing
+    /// check, so a command that measures one thing contributes what it measured. A standalone
+    /// <c>/burst</c> produces an auth-window finding without a ladder or the offline benches; a
+    /// <c>/profile</c> produces the codec and width findings without load. Requiring everything
+    /// before reporting anything silently discarded a measurement the operator had just paid
+    /// for.</para>
+    /// </summary>
     private void RebuildRecommendations(int designPlayers = 0)
     {
-        if (Cores == null || Compression == null) return;
         if (designPlayers <= 0) designPlayers = Capacity?.FullQualityPlayers > 0 ? Capacity.FullQualityPlayers : 1000;
 
         var configs = new ConfigPatcher(ServerDirectory, LoadClientDirectory);
         Func<string, string?> read = configs.ConfigsExist ? configs.Read : _ => null;
-        var recommendations = DerivedSettings.For(Machine, Cores, Compression, designPlayers, read, Capacity).ToList();
+
+        var recommendations = new List<Recommendation>();
+        if (Cores != null && Compression != null)
+            recommendations.AddRange(DerivedSettings.For(Machine, Cores, Compression, designPlayers, read, Capacity));
 
         // The player cap comes out of the capability model rather than the sweep, because it is not
         // a tuning choice at all - it is the measurement, written down. It needs the ladder, so it
         // only appears once one has run.
         Capability = Capacity == null
             ? null
-            : new CapabilityModel(Capacity.Rungs, Machine, Machine.Link, Capacity.FullQualityPlayers);
+            : new CapabilityModel(Capacity.Rungs, Machine, Machine.Link, Capacity.FullQualityPlayers,
+                Capacity.KneeFound);
 
         if (Capability != null && DerivedSettings.RecommendPeerLimit(Capability, read) is { } peerLimit)
             recommendations.Add(peerLimit);
+
+        // The auth window can only be fitted from a burst; the ladder ramps gently by design and
+        // never exercises the race this setting exists to survive.
+        if (DerivedSettings.RecommendAuthTimeout(Admission, read) is { } authWindow)
+            recommendations.Add(authWindow);
 
         Recommendations = recommendations;
     }

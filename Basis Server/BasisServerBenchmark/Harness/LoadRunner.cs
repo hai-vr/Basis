@@ -162,6 +162,100 @@ public sealed class LoadRunner
         }
     }
 
+    /// <summary>
+    /// Starts a server and throws the whole crowd at it at once, sampling the population as it
+    /// fills.
+    ///
+    /// <para>Separate from <see cref="Run"/> because it wants the opposite of what that does. There
+    /// is no warmup — the burst IS the measurement, and it is over before a warmup would have
+    /// finished — and no windows, because nothing here is a steady-state rate. What it needs
+    /// instead is a fine-grained sample of the ramp, which the normal one-second window cadence is
+    /// far too coarse to see.</para>
+    /// </summary>
+    public AdmissionResult RunBurst(RunOptions options, Action<double, int> onSample, CancellationToken cancel)
+    {
+        Process? server = null;
+        Process? client = null;
+
+        try
+        {
+            _configs.ResetToBackup();
+            _configs.Apply(options.Settings);
+            ApplyHarnessDefaults(options);
+            WriteLoadClientConfig(options);
+
+            server = StartServer(options);
+            if (!WaitForHealth(options, TimeSpan.FromSeconds(60), cancel))
+                return FailedBurst(options, "server never reported healthy");
+
+            var clock = Stopwatch.StartNew();
+            client = StartLoadClient(options, _ => { });
+
+            int peak = 0;
+            double peakAt = 0;
+            DateTime lastProgress = DateTime.UtcNow;
+
+            while (!cancel.IsCancellationRequested)
+            {
+                Thread.Sleep(SampleInterval);
+
+                HealthSample? sample = HealthPoller.TryRead(options.HealthUrl);
+                double seconds = clock.Elapsed.TotalSeconds;
+                int connected = sample?.Visitors ?? peak;
+
+                onSample(seconds, connected);
+
+                if (connected > peak)
+                {
+                    peak = connected;
+                    peakAt = seconds;
+                    lastProgress = DateTime.UtcNow;
+                }
+
+                if (peak >= options.Players) break;
+
+                // A burst that has stopped climbing is finished, whatever it reached. Waiting out
+                // the connect timeout on every stalled run costs minutes per attempt and tells us
+                // nothing the stall did not already.
+                if (DateTime.UtcNow - lastProgress > StallTimeout) break;
+                if (clock.Elapsed > options.ConnectTimeout) break;
+            }
+
+            return new AdmissionResult
+            {
+                Requested = options.Players,
+                Admitted = peak,
+                SecondsToFull = peakAt,
+                Curve = Array.Empty<AdmissionSample>(),
+                Completed = true,
+                Failure = null,
+            };
+        }
+        catch (Exception ex)
+        {
+            return FailedBurst(options, ex.Message);
+        }
+        finally
+        {
+            Kill(client);
+            Kill(server);
+            Thread.Sleep(3000);
+        }
+    }
+
+    private static readonly TimeSpan SampleInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(30);
+
+    private static AdmissionResult FailedBurst(RunOptions o, string reason) => new()
+    {
+        Requested = o.Players,
+        Admitted = 0,
+        SecondsToFull = 0,
+        Curve = Array.Empty<AdmissionSample>(),
+        Completed = false,
+        Failure = reason,
+    };
+
     private static RunResult Failed(RunOptions o, string reason, int peak, double voice, IReadOnlyList<MeasurementWindow> windows) =>
         new()
         {
@@ -267,6 +361,8 @@ public sealed class LoadRunner
 
         Set("ClientCount", options.Players.ToString(CultureInfo.InvariantCulture));
         Set("SimulateVoice", "true");
+        if (options.ClientConnectIntervalMs is { } interval)
+            Set("ClientConnectIntervalMs", interval.ToString(CultureInfo.InvariantCulture));
 
         string temp = path + ".benchtmp";
         doc.Save(temp);

@@ -41,6 +41,17 @@ public sealed class RunOptions
     /// <summary>Human-readable name for this arm, used in progress output and the report.</summary>
     public string Label { get; init; } = "baseline";
 
+    /// <summary>
+    /// Delay the load client leaves between starting each client, or null to leave its own setting
+    /// alone.
+    ///
+    /// <para>0 is the thundering herd — clients start as fast as the loop runs, which is what a
+    /// server restart actually produces. The default of 1 ms is a deliberately gentle ramp, and it
+    /// is right for the capacity ladder (which wants a steady state to measure, not a join storm)
+    /// and exactly wrong for measuring admission.</para>
+    /// </summary>
+    public int? ClientConnectIntervalMs { get; init; }
+
     public string HealthUrl => $"http://{HealthHost}:{HealthPort}{HealthPath}";
 
     /// <summary>Total wall time this run will take if nothing goes wrong.</summary>

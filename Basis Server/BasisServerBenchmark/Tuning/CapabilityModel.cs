@@ -23,6 +23,13 @@ public sealed record Ceiling(BindingConstraint Constraint, int Players, string E
     /// </summary>
     public bool BeyondUsefulRange { get; init; }
 
+    /// <summary>
+    /// True when this is "at least N" rather than "N". A ladder that ran out of rungs while
+    /// everything still worked has measured a floor, not a ceiling, and the two must never be
+    /// printed the same way.
+    /// </summary>
+    public bool IsLowerBound { get; init; }
+
     /// <summary>How to write the figure: a number, or an honest "further than we can say".</summary>
     public string PlayersText => BeyondUsefulRange
         ? $"over {Players:N0}"
@@ -64,12 +71,20 @@ public sealed class CapabilityModel
     /// <summary>Population the ladder found still delivering essentially everything it produced.</summary>
     public int FullQualityPlayers { get; }
 
-    public CapabilityModel(IReadOnlyList<LadderRung> rungs, MachineProfile machine, NetworkLink? link, int fullQualityPlayers)
+    /// <summary>
+    /// False when the ladder never found a failing rung, which makes
+    /// <see cref="FullQualityPlayers"/> a lower bound rather than a ceiling.
+    /// </summary>
+    public bool KneeFound { get; }
+
+    public CapabilityModel(IReadOnlyList<LadderRung> rungs, MachineProfile machine, NetworkLink? link,
+        int fullQualityPlayers, bool kneeFound = true)
     {
         Rungs = rungs;
         Machine = machine;
         Link = link;
         FullQualityPlayers = fullQualityPlayers;
+        KneeFound = kneeFound;
         MeasuredTo = rungs.Count == 0 ? 0 : rungs.Max(r => r.Players);
 
         // Rungs whose CPU could not be read are excluded outright rather than fitted as zero.
@@ -148,8 +163,11 @@ public sealed class CapabilityModel
     }
 
     public Ceiling QualityCeiling() => new(BindingConstraint.Quality, FullQualityPlayers,
-        "measured: the largest population still delivering essentially everything it produced",
-        false);
+        KneeFound
+            ? "measured: the largest population still delivering everything it produced, and the next rung did not"
+            : "measured, but a LOWER BOUND - this population delivered everything and the ladder stopped there "
+              + "rather than finding a limit",
+        false) { IsLowerBound = !KneeFound };
 
     /// <summary>
     /// How far past the measured range a fitted ceiling is still worth quoting as a number.

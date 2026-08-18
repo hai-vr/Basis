@@ -33,7 +33,7 @@ public static class Program
         // Unattended entry point, for systemd, nohup or CI: do the whole thing and exit, no prompt.
         if (startup.RunAutoImmediately)
         {
-            console.Dispatch("/auto");
+            console.Dispatch("/auto " + startup.AutoModeArgument);
             console.WaitForJob();
             console.Dispatch("/report");
             console.Dispatch("/expect");
@@ -81,17 +81,49 @@ public static class Program
                 console.StartJob($"measure {players}", cancel => session.RunMeasure(players, cancel));
             });
 
-        console.Register("/auto", "[full]", "The whole thing: climb until it breaks, fit the settings, confirm. Hours.",
+        console.Register("/auto", "[quick|medium|long] [full]",
+            "Measure and fit. quick ~5 min, medium ~15 min, long ~2 h. Default medium.",
             args =>
             {
                 if (!Ready(session, console)) return;
-                bool full = args.Length > 0 && args[0].Equals("full", StringComparison.OrdinalIgnoreCase);
-                console.Write(full
-                    ? "  Full sweep: every setting measured, including the ones loopback cannot judge honestly.\n" +
-                      "  Those are reported with their caveat and never written."
-                    : "  Sweeping the settings a single box can measure honestly; the rest are derived from the\n" +
-                      "  hardware. '/auto full' measures everything.");
-                console.StartJob("auto", cancel => session.RunAuto(full, cancel));
+
+                AutoMode mode = AutoMode.Medium;
+                bool untrusted = false;
+                foreach (string arg in args)
+                {
+                    if (Enum.TryParse(arg, ignoreCase: true, out AutoMode parsed)) mode = parsed;
+                    else if (arg.Equals("full", StringComparison.OrdinalIgnoreCase)) untrusted = true;
+                    else { console.Write($"  '{arg}' is not a mode. Use quick, medium or long, optionally with 'full'."); return; }
+                }
+
+                session.IncludeUntrusted = untrusted;
+                console.Write(mode switch
+                {
+                    AutoMode.Quick =>
+                        "  Quick: offline benchmarks, one load point, one join burst. Gives the codec settings,\n" +
+                        "  the pass width and the auth window - but one population is a point, not a curve, so it\n" +
+                        "  cannot say what limits this box.",
+                    AutoMode.Medium =>
+                        "  Medium: adds a three-rung ladder, which is the fewest a curve can be fitted through.\n" +
+                        "  This is where the player cap and the binding constraint become real.",
+                    _ =>
+                        "  Long: full ladder plus the A/B setting sweep. The sweep is most of the wall time, and on\n" +
+                        "  a box with headroom it usually finds nothing - it earns its cost on one that is working.",
+                });
+                if (untrusted)
+                    console.Write("  Including the settings loopback cannot judge. Measured and reported, never written.");
+
+                console.StartJob($"auto {mode}".ToLowerInvariant(), cancel => session.RunAuto(mode, cancel));
+            });
+
+        console.Register("/burst", "[players]", "Everyone connects at once, the way they do after a restart.",
+            args =>
+            {
+                if (!TryPlayers(args, console, out int players)) return;
+                if (!Ready(session, console)) return;
+                console.Write("  This measures admission, not throughput - a box that serves a crowd comfortably can");
+                console.Write("  still be unable to get that crowd in, and a restart is where you find out.");
+                console.StartJob($"burst {players}", cancel => session.RunBurst(players, cancel));
             });
 
         console.Register("/status", "", "What is running, and how far along.",
@@ -214,6 +246,9 @@ internal sealed class Startup
     public string LoadClientDirectory { get; private set; } = "";
     public string OutputDirectory { get; private set; } = "benchmark-results";
     public bool RunAutoImmediately { get; private set; }
+
+    /// <summary>Mode words passed through to /auto, e.g. "medium" or "long full".</summary>
+    public string AutoModeArgument { get; private set; } = "medium";
     public bool ShowHelp { get; private set; }
 
     public static Startup Parse(string[] args)
@@ -227,7 +262,13 @@ internal sealed class Startup
                 case "--server": startup.ServerDirectory = Next() ?? ""; break;
                 case "--client": startup.LoadClientDirectory = Next() ?? ""; break;
                 case "--out": startup.OutputDirectory = Next() ?? startup.OutputDirectory; break;
-                case "--auto": startup.RunAutoImmediately = true; break;
+                case "--auto":
+                    startup.RunAutoImmediately = true;
+                    // An optional mode word may follow. Peeked rather than consumed unconditionally,
+                    // so "--auto --server <dir>" still parses the way it reads.
+                    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                        startup.AutoModeArgument = args[++i];
+                    break;
                 case "--help" or "-h": startup.ShowHelp = true; break;
             }
         }

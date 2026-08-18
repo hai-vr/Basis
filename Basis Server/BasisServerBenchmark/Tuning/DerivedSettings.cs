@@ -334,8 +334,12 @@ public static class DerivedSettings
             Evidence = Evidence.Measured,
             Rationale =
                 $"This machine delivered full quality to {model.FullQualityPlayers:N0} players" +
+                (model.KneeFound ? "" : " and the ladder stopped there rather than finding a limit, so that figure is a floor") +
                 (limit < model.FullQualityPlayers
-                    ? $", but {Describe(binding.Constraint)} runs out at {binding.Players:N0}, so that is the cap."
+                    ? $", but {Describe(binding.Constraint)} is fitted to run out at {binding.Players:N0}, so that is the cap. " +
+                      "Those two do not contradict each other: the load clients shared this machine, so the traffic " +
+                      "that served those players never crossed the resource the fitted limit is measured against. The " +
+                      "bytes were real, the path was not, and a real deployment is held to the lower figure."
                     : ".") +
                 $" The shipped default is 65,535, which is no cap at all: the server admits everyone and then sheds " +
                 "avatar updates across the entire roster, so an overfull room degrades for every player in it rather " +
@@ -344,6 +348,66 @@ public static class DerivedSettings
                 (binding.Extrapolated && limit == binding.Players
                     ? " Note this ceiling is extrapolated beyond the populations actually run."
                     : ""),
+        };
+    }
+
+    /// <summary>
+    /// The auth window, from a measured join burst.
+    ///
+    /// <para>This is the setting the ladder can never fit, because admission and steady state are
+    /// different subsystems under different pressure — a box comfortable at 2,000 players can still
+    /// be unable to get 2,000 players in. The failure is a race that only exists during a burst:
+    /// every client in the queue is holding a half-open handshake while the server works through
+    /// the ones ahead of it, and the timeout is running the whole time. It has bitten here before,
+    /// with 596 of 4,000 clients unable to finish inside the window after a restart, and the only
+    /// log line said they were not in the authenticated set — the symptom, not the cause.</para>
+    /// </summary>
+    public static Recommendation? RecommendAuthTimeout(
+        Harness.AdmissionResult? admission, Func<string, string?> readCurrent)
+    {
+        if (admission is not { Completed: true } || admission.Requested <= 0) return null;
+        if (admission.SecondsToFull <= 0) return null;
+
+        int required = Harness.AdmissionBurst.RequiredBaseTimeoutMs(
+            admission.Requested, admission.WorstCaseWaitSeconds);
+
+        string current = readCurrent("AuthValidationTimeOutMiliseconds") ?? "9000";
+        bool everyoneIn = admission.EveryoneGotIn;
+
+        if (int.TryParse(current, NumberStyles.Integer, CultureInfo.InvariantCulture, out int existing)
+            && existing >= required)
+        {
+            return new Recommendation
+            {
+                Setting = "AuthValidationTimeOutMiliseconds",
+                File = SettingFile.Server,
+                CurrentValue = current,
+                ProposedValue = current,
+                Evidence = Evidence.NoChange,
+                Rationale =
+                    $"{admission.Admitted:N0} of {admission.Requested:N0} clients were admitted in " +
+                    $"{admission.SecondsToFull:F1}s ({admission.AverageRatePerSecond:N0}/s). The window already at " +
+                    $"{existing:N0} ms covers the {required:N0} ms that implies, so it is left alone.",
+            };
+        }
+
+        return new Recommendation
+        {
+            Setting = "AuthValidationTimeOutMiliseconds",
+            File = SettingFile.Server,
+            CurrentValue = current,
+            ProposedValue = required.ToString(CultureInfo.InvariantCulture),
+            Evidence = Evidence.Measured,
+            Rationale =
+                $"A join burst admitted {admission.Admitted:N0} of {admission.Requested:N0} clients in " +
+                $"{admission.SecondsToFull:F1}s, averaging {admission.AverageRatePerSecond:N0}/s" +
+                (everyoneIn ? "" : $" - {admission.Requested - admission.Admitted:N0} never got in at all") +
+                $". The last client in that queue waits the whole {admission.SecondsToFull:F1}s while its handshake is " +
+                "being timed, so the window has to cover it. Doubled for headroom, because this burst was the good " +
+                "case: every client was on this machine over loopback with no loss and no retransmits, and a real " +
+                "herd arrives over a network with all three. The server's own per-peer widening is subtracted out so " +
+                $"this is not double-counted, which leaves {required:N0} ms. A longer window does mean more half-open " +
+                "auth state held at once, which is the cost being accepted here.",
         };
     }
 

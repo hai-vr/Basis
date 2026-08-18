@@ -71,10 +71,11 @@ namespace BasisNetworkConsole
                 return false;
             }
 
-            if (!ShouldRun()) return false;
+            string mode = ChooseMode();
+            if (mode == null) return false;
 
-            BNL.Log("[Tuning] Running the benchmark. It starts and stops this server many times over, so the " +
-                    "instance will not be reachable until it finishes.");
+            BNL.Log($"[Tuning] Running the benchmark ({mode}). It starts and stops this server while it works, so " +
+                    "the instance will not be reachable until it finishes.");
 
             try
             {
@@ -88,6 +89,7 @@ namespace BasisNetworkConsole
                     UseShellExecute = false,
                 };
                 start.ArgumentList.Add("--auto");
+                start.ArgumentList.Add(mode);
                 start.ArgumentList.Add("--server");
                 start.ArgumentList.Add(baseDirectory);
                 start.ArgumentList.Add("--client");
@@ -122,47 +124,92 @@ namespace BasisNetworkConsole
         }
 
         /// <summary>
-        /// Whether to tune, asking only when there is somebody to ask.
+        /// Which depth of tuning to run, or null to skip.
         ///
-        /// The default when nobody answers is <b>no</b>. A server started by systemd or a container
-        /// runtime that silently disappeared for two hours on its first boot would look like a
-        /// failed deploy, and the operator would have no way to tell what it was doing.
+        /// <para>Three choices rather than yes/no, because the honest answer to "how long does this
+        /// take" ranges from five minutes to a couple of hours depending on how much is measured,
+        /// and offering only the long one gets it declined. The middle option is the default: it is
+        /// the cheapest run that can say what actually limits this machine, because three
+        /// populations are the fewest a curve can be fitted through.</para>
+        ///
+        /// <para>The default when nobody answers is <b>skip</b>. A server started by systemd or a
+        /// container runtime that silently disappeared on its first boot would look like a failed
+        /// deploy, and the operator would have no way to tell what it was doing.</para>
         /// </summary>
-        private static bool ShouldRun()
+        private static string ChooseMode()
         {
             string configured = Environment.GetEnvironmentVariable(EnvironmentSwitch);
             if (!string.IsNullOrEmpty(configured))
             {
-                bool wanted = configured == "1" || configured.Equals("true", StringComparison.OrdinalIgnoreCase);
-                BNL.Log($"[Tuning] {EnvironmentSwitch}={configured}, so tuning is {(wanted ? "running" : "skipped")}.");
-                return wanted;
+                string chosen = NormaliseMode(configured);
+                BNL.Log(chosen == null
+                    ? $"[Tuning] {EnvironmentSwitch}={configured}, so tuning is skipped."
+                    : $"[Tuning] {EnvironmentSwitch}={configured}, so a '{chosen}' run is starting.");
+                return chosen;
             }
 
             if (Console.IsInputRedirected)
             {
                 BNL.Log($"[Tuning] This machine has never been tuned, and there is no terminal to ask. Set " +
-                        $"{EnvironmentSwitch}=1 to tune on first boot, or run the benchmark under '{BenchmarkFolder}' " +
-                        "yourself later. Starting on the shipped defaults.");
-                return false;
+                        $"{EnvironmentSwitch} to quick, medium or long to tune on first boot, or run the benchmark " +
+                        $"under '{BenchmarkFolder}' yourself later. Starting on the shipped defaults.");
+                return null;
             }
 
             Console.WriteLine();
             Console.WriteLine("  This machine has not been tuned yet.");
             Console.WriteLine();
-            Console.WriteLine("  The benchmark can measure what this host actually does under load and fit the");
-            Console.WriteLine("  settings to it - how wide the parallel pools should run, what the compression");
-            Console.WriteLine("  budget is worth here, and how many players it serves before quality drops.");
+            Console.WriteLine("  The benchmark measures what this host actually does under load and fits the settings");
+            Console.WriteLine("  to it. The server is not reachable while it runs.");
             Console.WriteLine();
-            Console.WriteLine("  It takes a couple of hours and the server will not be reachable while it runs.");
-            Console.WriteLine("  Skipping is fine: the shipped defaults are a supported configuration, and you can");
-            Console.WriteLine($"  run the benchmark under '{BenchmarkFolder}' whenever it suits.");
+            Console.WriteLine("    1  quick    ~5 minutes    codec settings, parallel pass width, auth window");
+            Console.WriteLine("    2  medium   ~15 minutes   adds the player cap and what limits this box  (recommended)");
+            Console.WriteLine("    3  long     ~2 hours      adds the A/B setting sweep");
+            Console.WriteLine("    s  skip                   start now on the shipped defaults");
             Console.WriteLine();
-            Console.Write("  Tune this machine now? [y/N] ");
+            Console.WriteLine($"  Skipping is fine, and you can run the benchmark under '{BenchmarkFolder}' whenever it");
+            Console.WriteLine("  suits - it is the same tool, and it will offer the same choices.");
+            Console.WriteLine();
+            Console.Write("  Which? [2] ");
 
-            string answer = Console.ReadLine();
-            bool yes = answer != null && answer.Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);
-            if (!yes) BNL.Log("[Tuning] Skipped. Starting on the shipped defaults.");
-            return yes;
+            string answer = (Console.ReadLine() ?? string.Empty).Trim();
+            if (answer.Length == 0) return "medium";
+
+            // Menu digits are positional and mean something different from the environment
+            // variable's "1", which predates these modes and meant "yes". Translated here rather
+            // than in the shared mapper so the two cannot be confused for each other.
+            switch (answer.ToLowerInvariant())
+            {
+                case "1": return "quick";
+                case "2": return "medium";
+                case "3": return "long";
+            }
+
+            string mode = NormaliseMode(answer);
+            if (mode == null) BNL.Log("[Tuning] Skipped. Starting on the shipped defaults.");
+            return mode;
+        }
+
+        /// <summary>Maps an environment value to a mode word, or null to skip.</summary>
+        private static string NormaliseMode(string value)
+        {
+            switch (value.Trim().ToLowerInvariant())
+            {
+                case "quick":
+                    return "quick";
+                // "1"/"true" predate the three modes and meant "tune". Kept working, and pointed at
+                // the recommended depth rather than the longest one - a config that used to mean
+                // "yes please" should not silently become a two-hour outage.
+                case "1":
+                case "true":
+                case "medium":
+                    return "medium";
+                case "long":
+                case "full":
+                    return "long";
+                default:
+                    return null;
+            }
         }
 
         /// <summary>Finds a published executable by base name, whatever the platform calls it.</summary>

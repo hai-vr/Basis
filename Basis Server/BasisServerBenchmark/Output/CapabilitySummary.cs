@@ -59,43 +59,68 @@ public static class CapabilitySummary
 
     private static void AppendPlayerCounts(StringBuilder sb, CapabilityModel model)
     {
+        Ceiling quality = model.QualityCeiling();
+        Ceiling binding = model.Binding();
+        var physical = model.AllCeilings().Where(c => c.Constraint != BindingConstraint.Quality).ToList();
+        Ceiling? tightestPhysical = physical.FirstOrDefault();
+
         sb.AppendLine("HOW MANY PLAYERS");
         sb.AppendLine();
 
-        LadderRung? last = model.Rungs.LastOrDefault();
-        sb.AppendLine($"  Comfortably          {model.FullQualityPlayers,8:N0}   full quality - everyone receives everything the server produces");
-
-        if (last != null && last.Players > model.FullQualityPlayers)
-            sb.AppendLine($"  Degraded but up      {last.Players,8:N0}   still serving, but shedding " +
-                          $"{1 - last.DeliveryRatio:P0} of avatar updates");
-
-        Ceiling binding = model.Binding();
-        if (binding.Constraint != BindingConstraint.Quality && binding.Players > 0)
-            sb.AppendLine($"  Hard limit           {binding.PlayersText,8}   {Describe(binding.Constraint)} runs out" +
-                          (binding.Extrapolated ? "  (extrapolated)" : ""));
-
-        sb.AppendLine();
-        sb.AppendLine($"  What binds first: {Describe(binding.Constraint).ToUpperInvariant()}");
-        sb.AppendLine($"    {binding.Explanation}");
-        if (binding.Extrapolated)
-            sb.AppendLine($"    EXTRAPOLATED - the ladder only reached {model.MeasuredTo:N0} players, so this is a curve " +
-                          "fitted to the rungs below it rather than something observed. Treat it as an estimate.");
+        // One recommended number, then the evidence behind it. An earlier version listed every
+        // ceiling in descending order and produced "comfortably 500 / hard limit 386" - two true
+        // statements about different things, arranged so that they contradicted each other.
+        int recommended = binding.Players > 0 ? binding.Players : quality.Players;
+        sb.AppendLine($"  Recommended cap    {recommended,8:N0}   what this machine can actually serve");
         sb.AppendLine();
 
-        if (binding.Constraint == BindingConstraint.Quality)
+        sb.AppendLine("  It is the lower of two separate limits:");
+        sb.AppendLine();
+        sb.AppendLine($"    software/CPU     {(quality.IsLowerBound ? quality.Players.ToString("N0") + "+" : quality.Players.ToString("N0")),8}   " +
+                      (quality.IsLowerBound
+                          ? "measured - this held, and the ladder stopped rather than finding a limit"
+                          : "measured - this held and the next rung did not"));
+
+        if (tightestPhysical != null)
+            sb.AppendLine($"    {Describe(tightestPhysical.Constraint),-16} {tightestPhysical.PlayersText,8}   " +
+                          $"fitted - {tightestPhysical.Explanation}" +
+                          (tightestPhysical.Extrapolated ? " (extrapolated)" : ""));
+
+        sb.AppendLine();
+
+        if (quality.IsLowerBound)
         {
-            sb.AppendLine("    That is the healthy answer. The server is designed to degrade rather than fail, so on a");
-            sb.AppendLine("    machine with resources to spare it gives up delivering at full rate long before it runs");
-            sb.AppendLine("    out of anything physical. Nothing is broken and nothing needs buying.");
+            sb.AppendLine($"  NOTE: the ladder never found a population this machine could NOT serve. {model.MeasuredTo:N0} was");
+            sb.AppendLine("  simply the highest it tried, so the software limit above is a floor, not a ceiling - raise");
+            sb.AppendLine("  max-players and run again to find where it actually stops.");
             sb.AppendLine();
         }
 
-        var others = model.AllCeilings().Where(c => c.Constraint != binding.Constraint).ToList();
+        // The case that reads as nonsense unless it is spelled out: a fitted physical limit below a
+        // population the machine was observed serving perfectly well.
+        if (tightestPhysical != null && tightestPhysical.Players < quality.Players && tightestPhysical.Players > 0)
+        {
+            sb.AppendLine($"  These disagree, and that is not a contradiction. The server really did serve {quality.Players:N0}");
+            sb.AppendLine($"  players well - but the load clients shared this machine, so that traffic never crossed the");
+            sb.AppendLine($"  {Describe(tightestPhysical.Constraint)} the fitted limit is measured against. The bytes are real; the path they took");
+            sb.AppendLine($"  was not. Over a real deployment this box is held to about {tightestPhysical.PlayersText}, which is why that is");
+            sb.AppendLine("  the recommended cap.");
+            sb.AppendLine();
+        }
+        else if (binding.Constraint == BindingConstraint.Quality)
+        {
+            sb.AppendLine("  Nothing physical runs out first, which is the healthy answer. The server degrades by design,");
+            sb.AppendLine("  so on a machine with headroom it gives up delivering at full rate long before it exhausts a");
+            sb.AppendLine("  core, a byte or a bit. Nothing is broken and nothing needs buying.");
+            sb.AppendLine();
+        }
+
+        var others = physical.Skip(1).ToList();
         if (others.Count > 0)
         {
-            sb.AppendLine("  The other ceilings, for reference:");
+            sb.AppendLine("  The remaining ceilings, none of which bind here:");
             foreach (Ceiling ceiling in others)
-                sb.AppendLine($"    {Describe(ceiling.Constraint),-10} {ceiling.PlayersText,8}   {ceiling.Explanation}" +
+                sb.AppendLine($"    {Describe(ceiling.Constraint),-16} {ceiling.PlayersText,8}   {ceiling.Explanation}" +
                               (ceiling.BeyondUsefulRange ? "  (not a limit within anything measured)"
                                   : ceiling.Extrapolated ? "  (extrapolated)" : ""));
             sb.AppendLine();

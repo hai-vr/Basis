@@ -62,11 +62,17 @@ public sealed class NetworkLink
             try { mtu = best.GetIPProperties().GetIPv4Properties()?.Mtu ?? -1; }
             catch { /* no IPv4 on this interface */ }
 
+            // Speed is reported in bits/s, and is -1 or 0 on interfaces that will not say — which
+            // on Linux is the common case rather than the exception. virtio, veth and most cloud
+            // NICs report nothing through the managed API, so without the sysfs fallback the
+            // bandwidth ceiling would silently vanish on exactly the platform that hosts the large
+            // instances it matters for.
+            long speedMbps = best.Speed > 0 ? best.Speed / 1_000_000 : ReadLinuxSpeedMbps(best.Name);
+
             return new NetworkLink
             {
                 Name = best.Name,
-                // Speed is reported in bits/s and is -1 or 0 on interfaces that do not know.
-                SpeedMbps = best.Speed > 0 ? best.Speed / 1_000_000 : -1,
+                SpeedMbps = speedMbps,
                 Mtu = mtu > 0 ? mtu : ReadLinuxMtu(best.Name),
                 IsLoopback = false,
             };
@@ -75,6 +81,25 @@ public sealed class NetworkLink
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Link speed from sysfs, in Mbit/s, or -1.
+    ///
+    /// Returns -1 for interfaces with no fixed speed rather than guessing — reading it fails with
+    /// EINVAL on virtual devices, and a fabricated number here would produce a bandwidth ceiling
+    /// stated with total confidence about a link nobody measured.
+    /// </summary>
+    private static long ReadLinuxSpeedMbps(string name)
+    {
+        try
+        {
+            string text = File.ReadAllText($"/sys/class/net/{name}/speed").Trim();
+            return long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long mbps) && mbps > 0
+                ? mbps
+                : -1;
+        }
+        catch { return -1; }
     }
 
     /// <summary>Falls back to sysfs, which answers on containers where the managed API does not.</summary>

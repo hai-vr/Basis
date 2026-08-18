@@ -41,8 +41,10 @@ bench> /help
 | `/machine` | What this box is, and whether the kernel is limiting it |
 | `/profile` | Offline benchmarks only — core scaling and codec cost. ~2 min, no server |
 | `/measure [players]` | One operating point at that population, printed |
-| `/auto [full]` | Climb until it breaks, fit the settings, confirm the combination. Hours |
+| `/burst [players]` | Everyone connects at once — what a restart looks like |
+| `/auto [quick\|medium\|long] [full]` | Measure and fit — see the table below |
 | `/status` `/stop` | Watch or end the running job |
+| `/expect` | Plain-English capability sheet; also written to `what-to-expect.txt` |
 | `/findings` `/report` | What it has concluded, short or in full |
 | `/write [path]` | Write the tuning profile the server reads at boot |
 | `/show` `/set` | Run parameters — windows, window length, warmup, ladder ceiling |
@@ -58,15 +60,33 @@ reads like:
 printf '/auto\n/report\n/write\n/quit\n' | ./BasisServerBenchmark
 ```
 
-`--auto` is the same thing with no prompt at all, for systemd or `nohup`. `--server` and
-`--client` override the discovered paths.
+`--auto [mode]` is the same thing with no prompt at all, for systemd or `nohup`; it defaults to
+`medium`. `--server` and `--client` override the discovered paths.
 
 Before the first run, start the server and the load client once each by hand so both write their
 default configs — a server's first boot runs an *interactive* wizard this cannot answer.
 
-At defaults an `/auto` is roughly two hours: a ladder to 1000 players, then about twenty sweep arms
-at five minutes each. `/set windows 5` and `/set warmup-sec 45` roughly halve it at some cost in
-confidence; `/set max-players` bounds the climb.
+### Three depths
+
+| Mode | Time | What it can conclude |
+|---|---|---|
+| `quick` | ~5 min | Codec settings, parallel pass width, auth window. One load point is a *point*, not a curve — so no memory or bandwidth ceiling, and the player cap is only "this much worked" |
+| `medium` (default) | ~15 min | Adds a three-rung ladder, the fewest a curve can be fitted through. The player cap, the binding constraint and the capability sheet become real |
+| `long` | ~2 h | Adds the A/B setting sweep |
+
+The sweep is roughly three quarters of a long run's wall time — one full server restart per arm —
+and on a box with headroom it usually concludes that nothing measurably changed, because nothing was
+scarce enough for a setting to relieve. It earns its cost on a machine actually working at the
+population it serves. Add the word `full` to any mode to also *measure* the loopback-untrusted
+settings; they are still never written.
+
+Warmup never drops below 45s in any mode. That is not padding — the slicing controller oscillates
+over several windows, and under about 45s a run records wherever that oscillation happened to be
+rather than the steady state. Windows are what the modes trade.
+
+Anything you `/set` by hand survives a mode: the profile fills in only what you have no opinion
+about, and says which of its values it skipped. `/set knobs <name>` re-measures one setting after a
+change; `/set max-players` bounds the climb.
 
 ## First boot
 
@@ -76,16 +96,22 @@ wizard, before anything is served — it offers to tune the machine:
 
 ```
   This machine has not been tuned yet.
-  ...
-  Tune this machine now? [y/N]
+
+    1  quick    ~5 minutes    codec settings, parallel pass width, auth window
+    2  medium   ~15 minutes   adds the player cap and what limits this box  (recommended)
+    3  long     ~2 hours      adds the A/B setting sweep
+    s  skip                   start now on the shipped defaults
+
+  Which? [2]
 ```
 
-Say yes and it runs, writes the profile, applies it, and the server carries on with fitted settings.
-Say no and the server starts on its defaults, which is a supported configuration.
+Three choices rather than yes/no, because offering only the two-hour one gets it declined. Whatever
+it runs, it writes the profile, applies it, and the server carries on with fitted settings.
 
-`BASIS_AUTOTUNE=1` tunes without asking; `BASIS_AUTOTUNE=0` skips without asking. **With no terminal
-and no variable set, it skips** — a server started by systemd that silently vanished for two hours
-on its first boot would look like a failed deploy.
+`BASIS_AUTOTUNE` accepts `quick`, `medium` or `long`; `0`/`false` skips. `1`/`true` predate the modes
+and map to `medium` — a config that used to mean "yes please" should not silently become a two-hour
+outage. **With no terminal and no variable set, it skips** — a server started by systemd that
+silently vanished on its first boot would look like a failed deploy.
 
 ### It is never loaded into the server
 
@@ -194,6 +220,23 @@ the reduction system sheds across the whole roster, so an overfull room does not
 arrivals, it degrades for everyone at once. The benchmark writes the measured full-quality ceiling
 instead, lowered to a physical ceiling if one binds sooner, and leaves an operator's own tighter cap
 alone.
+
+## Admission is measured separately from throughput
+
+`/burst` starts every client at once (`ClientConnectIntervalMs=0`) and samples the population every
+100 ms as it fills. `/auto` runs one at the design population automatically.
+
+This needs its own test because admission and steady state are different subsystems under different
+pressure: a handshake with several round trips and a signature verification per client, all racing a
+per-client timeout, versus a send loop. **A box comfortable at 2,000 players can still be unable to
+get 2,000 players in** — which has happened here, with 596 of 4,000 clients missing the auth window
+after a restart, the only trace being a log line saying they were not in the authenticated set.
+
+The measurement is the *ramp*, not the endpoint. "Everyone got in eventually" hides the race: the
+last client in the queue waits for the whole burst to drain while its handshake is being timed. That
+worst-case wait is what `AuthValidationTimeOutMiliseconds` is fitted from — doubled for headroom
+(the burst is the good case: loopback, no loss, no retransmits) and with the server's own per-peer
+widening subtracted so it is not double-counted.
 
 ## What it optimises, and what it refuses to
 
