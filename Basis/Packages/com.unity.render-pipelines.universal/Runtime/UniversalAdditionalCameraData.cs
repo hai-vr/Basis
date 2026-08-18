@@ -477,6 +477,7 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] Vector4 m_ScreenCoordScaleBias;
 
         [NonSerialized] Camera m_Camera;
+        [NonSerialized] bool m_IsMirrorReflectionCamera;
         // Deprecated:
         [FormerlySerializedAs("requiresDepthTexture"), SerializeField]
         bool m_RequiresDepthTexture = false;
@@ -525,6 +526,16 @@ namespace UnityEngine.Rendering.Universal
                 camera.clearFlags = CameraClearFlags.Nothing;
         }
 
+
+        /// <summary>
+        /// Marks this camera as a Basis mirror reflection capture without changing CameraType.
+        /// This is runtime-only state used by URP passes that need mirror-specific matrix handling.
+        /// </summary>
+        public bool isMirrorReflectionCamera
+        {
+            get => m_IsMirrorReflectionCamera;
+            set => m_IsMirrorReflectionCamera = value;
+        }
 
         /// <summary>
         /// Controls if this camera should render shadows.

@@ -1198,6 +1198,7 @@ public class BasisSDKMirror : MonoBehaviour
         updateCameraClearFlags(newCamera, sourceCamera);
 
         cameraData = newCamera.GetUniversalAdditionalCameraData();
+        cameraData.isMirrorReflectionCamera = true;
         ApplyCameraOptions(newCamera, cameraData);
 
         if (cameraData != null)

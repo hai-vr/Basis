@@ -49,7 +49,7 @@ namespace UnityEngine.Rendering.Universal
                 // for scene geometry. The native camera-only skybox path does not preserve that setup
                 // correctly, and the oblique clip must not be applied to an infinitely distant skybox.
                 // Basis mirrors store their clean pre-oblique projection in nonJitteredProjectionMatrix.
-                if (cameraData.camera.gameObject.GetComponent("BasisMirrorReflectionCamera") != null)
+                if (cameraData.isMirrorReflectionCamera)
                 {
                     skyRendererListHandle = renderGraph.CreateSkyboxRendererList(
                         cameraData.camera,
