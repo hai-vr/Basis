@@ -515,7 +515,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             AnchorPos = anchorPos,
             GroundPos = rootPos,
             Yaw = anchorYaw,
-            LookPoint = GetAutoFollowLookTarget(new Vector3(anchorPos.x, rootPos.y, anchorPos.z), scale),
+            LookPoint = anchorPos + Vector3.up * (subjectSettings.aimHeightOffset * scale),
             Scale = scale,
         };
     }
@@ -710,23 +710,6 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     {
         position = smoothedPosition;
         rotation = smoothedRotation;
-    }
-
-    /// <summary>
-    /// The point auto-follow aims at: the player's head by default, so the shot frames the face,
-    /// shifted toward the body by the subject settings' aim height offset.
-    /// <para>
-    /// The height comes from the avatar's T-pose, not from the live head. Live head position
-    /// moves with every crouch, lean and head-bob, and the camera would swing to chase it —
-    /// so only the root translates the aim point, and its height off the ground is fixed.
-    /// </para>
-    /// </summary>
-    private Vector3 GetAutoFollowLookTarget(Vector3 rootPosition, float scale)
-    {
-        // Aim at head height by default so the shot frames the face; the offset drops it toward
-        // the body when wanted.
-        float headHeight = GetTposeHeadHeight();
-        return rootPosition + Vector3.up * (headHeight + subjectSettings.aimHeightOffset * scale);
     }
 
     /// <summary>
