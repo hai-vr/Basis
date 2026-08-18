@@ -283,6 +283,11 @@ public sealed class BenchmarkSession
         Recommendations = merged;
     }
 
+    /// <summary>
+    /// What this machine can be expected to do, fitted from the ladder. Null until one has run.
+    /// </summary>
+    public CapabilityModel? Capability { get; private set; }
+
     private void RebuildRecommendations(int designPlayers = 0)
     {
         if (Cores == null || Compression == null) return;
@@ -290,7 +295,19 @@ public sealed class BenchmarkSession
 
         var configs = new ConfigPatcher(ServerDirectory, LoadClientDirectory);
         Func<string, string?> read = configs.ConfigsExist ? configs.Read : _ => null;
-        Recommendations = DerivedSettings.For(Machine, Cores, Compression, designPlayers, read).ToList();
+        var recommendations = DerivedSettings.For(Machine, Cores, Compression, designPlayers, read, Capacity).ToList();
+
+        // The player cap comes out of the capability model rather than the sweep, because it is not
+        // a tuning choice at all - it is the measurement, written down. It needs the ladder, so it
+        // only appears once one has run.
+        Capability = Capacity == null
+            ? null
+            : new CapabilityModel(Capacity.Rungs, Machine, Machine.Link, Capacity.FullQualityPlayers);
+
+        if (Capability != null && DerivedSettings.RecommendPeerLimit(Capability, read) is { } peerLimit)
+            recommendations.Add(peerLimit);
+
+        Recommendations = recommendations;
     }
 
     private RunOptions Template(int players, string label) => new()

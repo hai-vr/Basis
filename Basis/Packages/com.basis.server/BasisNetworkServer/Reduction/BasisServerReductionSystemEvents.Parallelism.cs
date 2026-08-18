@@ -29,10 +29,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // few-KB array per step.
         private const int InitialPlayerArrayCapacity = 256;
 
-        // Cold-start figure only: fitted on a 32-thread box with fast cores, so it seeds
-        // _pairsPerWorkerMs and stops mattering once this host has timed a pass of its own.
-        private const int PlayersPerWorker = 128;
-
         // Sender/receiver pairs one worker gets through per millisecond the send pass is busy,
         // measured on this host. 0 until a pass has been timed. Pairs rather than players because
         // the pass visits pairs: its cost grows with the square of the population while a
@@ -45,7 +41,17 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // drain, message processing, the distance slice and the transport kick share the same
         // tick, so sizing the send pass to fill it alone guarantees the overrun the load
         // controller sheds players on.
-        private const double SendPhaseBudgetShare = 0.6;
+        //
+        // What that remainder costs is a property of the host rather than of this code, so the
+        // right split is too: 0.6 was fitted where the non-send phases came to about 30% of the
+        // period, and a box whose distance sweep or message drain is dearer than that wants a
+        // narrower send budget than one whose are cheaper. The server cannot close this loop from
+        // the inside — widening the budget makes the send pass fit its budget and the tick overrun
+        // anyway, which reads as success from within the send pass — so it is fitted offline by
+        // the benchmark, from the measured cost of the phases this one has to share with, and
+        // written into config.xml. See SetSendPhaseBudgetPercent.
+        private const double DefaultSendPhaseBudgetShare = 0.6;
+        private static double SendPhaseBudgetShare = DefaultSendPhaseBudgetShare;
 
         // Send pass duration over the budget above, smoothed; 1.0 means the pass exactly fills its
         // share of the period. Diagnostics — the width is sized from the measured rate, not
@@ -105,9 +111,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             double rate = _pairsPerWorkerMs;
             if (rate <= 0)
             {
-                // Nothing timed yet, so the declared per-player figure governs from a cold start —
-                // and stops governing a few milliseconds later, once a pass has been measured.
-                return Math.Clamp(playerCount / PlayersPerWorker, floor, ceiling);
+                // Nothing timed yet, and the floor is the whole answer. A pass becomes timeable at
+                // a couple of dozen players, while the population-derived seed this used to carry
+                // — one worker per 128 players, fitted on a 32-thread box — could not exceed a
+                // floor of 4 until 640 players, several hundred after the measured rate had taken
+                // over. It was a constant that no host ever actually reached.
+                return floor;
             }
 
             // What the next pass will actually do. Receivers are sliced; the roster each of them is
@@ -222,6 +231,45 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // of Parallel's overhead was smaller than the cost of waking a fixed set of threads on
         // every tick. Capping the degree is the win; replacing the scheduler is not.
 
+        /// <summary>
+        /// Sets the send pass's share of the tick period, as a percentage; 0 restores the fitted
+        /// default. Clamped to 20..85 because both ends stop meaning anything: under 20 the pool is
+        /// sized for a pass that would have to finish in a fifth of the period and asks for a width
+        /// no machine has, and over 85 there is nothing left for the drain, the distance slice and
+        /// the transport kick, which share the tick and are what a send budget is a share *of*.
+        /// </summary>
+        public static void SetSendPhaseBudgetPercent(int percent)
+        {
+            SendPhaseBudgetShare = percent <= 0
+                ? DefaultSendPhaseBudgetShare
+                : Math.Clamp(percent, 20, 85) / 100.0;
+        }
+
+        /// <summary>Workers the send pool is currently allowed to use.</summary>
+        public static int SendWorkers => parallelOptions.MaxDegreeOfParallelism;
+
+        /// <summary>Workers the core allocator currently grants the send pass.</summary>
+        public static int SendWorkerCeiling => MaxAutoWorkers;
+
+        /// <summary>
+        /// Measured sender/receiver pairs one worker gets through per busy millisecond on this
+        /// host. 0 until a pass has been timed. Published because it is the number the width is
+        /// sized from, and a host reading far off its neighbours' is the first sign of why.
+        /// </summary>
+        public static double PairsPerWorkerMs => _pairsPerWorkerMs;
+
+        /// <summary>
+        /// Send pass duration over its budget, smoothed. 1.0 means the pass exactly fills its
+        /// share of the period. Multiply by <see cref="SendPhaseBudgetPercent"/> to get the share
+        /// of the whole tick the send pass is actually taking — which, subtracted from the tick's
+        /// own duty, is what the rest of the tick costs and therefore what the budget share should
+        /// have been. That subtraction is the one the benchmark fits this setting with.
+        /// </summary>
+        public static double SendBudgetDuty => _sendBudgetDutyEma;
+
+        /// <summary>Share of the tick period the send pass is sized against, as a percentage.</summary>
+        public static int SendPhaseBudgetPercent => (int)Math.Round(SendPhaseBudgetShare * 100);
+
         public static void SetMaxDegreeOfParallelism(int configured)
         {
             _configuredDegree = configured;
@@ -234,8 +282,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             else
             {
                 BNL.Log($"[CPU] {BasisCpuBudget.Describe()}");
-                BNL.Log($"[BSR] Send workers sized from measured pass cost against {SendPhaseBudgetShare * 100:F0}% of the tick period, " +
-                        $"{BasisCpuBudget.MinWorkersPerPool} to {MaxAutoWorkers} (seeded at 1 per {PlayersPerWorker} players until this host has timed a pass).");
+                BNL.Log($"[BSR] Send workers sized from measured pass cost against {SendPhaseBudgetShare * 100:F0}% of the tick period" +
+                        (SendPhaseBudgetShare == DefaultSendPhaseBudgetShare ? " (default)" : " (fitted, from config)") +
+                        $", {BasisCpuBudget.MinWorkersPerPool} to {MaxAutoWorkers}; at the floor until this host has timed a pass.");
                 // The memory-scaled ceilings, logged for the same reason the CPU ones are: they are
                 // resolved from the box rather than read from the config file, so without this line
                 // there is no way to see what a server actually chose. Quoted at a nominal 1000

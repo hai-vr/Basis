@@ -33,6 +33,22 @@ public sealed record MeasurementWindow
     public required double PairHzBeforeLoss { get; init; }
 
     public required double TickMs { get; init; }
+
+    /// <summary>Send workers the pool actually ran at, averaged across the window.</summary>
+    public required double SendWorkers { get; init; }
+
+    /// <summary>Workers the core allocator was granting the send pass, averaged.</summary>
+    public required double SendWorkerCap { get; init; }
+
+    /// <summary>
+    /// What the tick's non-send phases cost, as a fraction of the period. What
+    /// BSRSendPhaseBudgetPercent has to leave room for; see HealthSample.NonSendShareOfPeriod for
+    /// why this and not the send pass's own duty is the thing to fit against.
+    /// </summary>
+    public required double NonSendShareOfPeriod { get; init; }
+
+    /// <summary>The budget share the server was running with while this window was measured.</summary>
+    public required double SendBudgetPercent { get; init; }
     public required double OverrunRatio { get; init; }
     public required double SliceCount { get; init; }
     public required double ShedTier { get; init; }
@@ -123,6 +139,14 @@ public sealed record MeasurementWindow
             SendsPerSecond = all.Where(s => s.SendsPerSecond > 0).DefaultIfEmpty(end).Average(s => s.SendsPerSecond),
             PairHzBeforeLoss = all.Where(s => s.PairHzBeforeLoss > 0).DefaultIfEmpty(end).Average(s => s.PairHzBeforeLoss),
             TickMs = all.Average(s => s.TickMs),
+            SendWorkers = all.Average(s => (double)s.SendWorkers),
+            SendWorkerCap = all.Average(s => (double)s.SendWorkerCap),
+            // Averaged only over samples that carried the fields, so a build predating them reads
+            // as 0 - "not reported" - rather than as a tick with no non-send phases in it.
+            NonSendShareOfPeriod = all.Where(s => s.SendBudgetPercent > 0)
+                .Select(s => s.NonSendShareOfPeriod).DefaultIfEmpty(0).Average(),
+            SendBudgetPercent = all.Where(s => s.SendBudgetPercent > 0)
+                .Select(s => (double)s.SendBudgetPercent).DefaultIfEmpty(0).Average(),
             OverrunRatio = all.Average(s => s.OverrunRatio),
             SliceCount = all.Average(s => (double)s.SliceCount),
             ShedTier = all.Average(s => (double)s.ShedTier),

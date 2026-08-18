@@ -51,6 +51,25 @@ public sealed record HealthSample
     public string ShedTierName { get; init; } = "";
     public int SliceCount { get; init; }
 
+    /// <summary>Workers the reduction system's send pass is currently allowed.</summary>
+    public int SendWorkers { get; init; }
+
+    /// <summary>Workers the core allocator currently grants that pass. Its ceiling, not its width.</summary>
+    public int SendWorkerCap { get; init; }
+
+    /// <summary>Share of the tick period the send pass is sized against, as a percentage.</summary>
+    public int SendBudgetPercent { get; init; }
+
+    /// <summary>
+    /// Send pass duration over the budget above. 1.0 means it exactly fills its share of the
+    /// period; this can and does exceed 1.0, which is a pass overrunning the slice it was sized
+    /// for rather than the tick overrunning outright.
+    /// </summary>
+    public double SendDuty { get; init; }
+
+    /// <summary>Pairs one send worker gets through per busy millisecond, measured by the server.</summary>
+    public double PairsPerWorkerMs { get; init; }
+
     public double HeapMb { get; init; }
     public double CommittedMb { get; init; }
     public double FragmentedMb { get; init; }
@@ -103,6 +122,32 @@ public sealed record HealthSample
     /// </summary>
     public double PairHzBeforeLoss => IntervalMs <= 0 || SliceCount <= 0 ? 0 : 1000.0 / IntervalMs / SliceCount;
 
+    /// <summary>
+    /// What fraction of the tick period the send pass itself takes.
+    ///
+    /// The server reports the pass against its own budget rather than against the period, because
+    /// the budget is what it sizes workers from. Multiplying back out gives the share of the whole
+    /// tick, which is the only form comparable with <see cref="TickMs"/>.
+    /// </summary>
+    public double SendShareOfPeriod =>
+        IntervalMs <= 0 || SendBudgetPercent <= 0 ? 0 : SendDuty * (SendBudgetPercent / 100.0);
+
+    /// <summary>
+    /// What the rest of the tick costs, as a fraction of the period — the drain, message
+    /// processing, the distance slice and the transport kick together.
+    ///
+    /// <para><b>This is the quantity BSRSendPhaseBudgetPercent is the complement of,</b> and the
+    /// reason it can be fitted at all. It is very nearly independent of the send pool's width:
+    /// widening the pool makes the send pass shorter and leaves these phases alone, so a budget
+    /// share derived from this does not move when the setting derived from it takes effect. A
+    /// figure read the other way round — from how full the send pass's own budget looks — would,
+    /// and would chase itself between runs.</para>
+    ///
+    /// <para>Negative or absurd values mean the fields were not both present; callers check.</para>
+    /// </summary>
+    public double NonSendShareOfPeriod =>
+        IntervalMs <= 0 ? 0 : TickMs / IntervalMs - SendShareOfPeriod;
+
     public static HealthSample? Parse(string json, DateTime sampledUtc)
     {
         try
@@ -138,6 +183,11 @@ public sealed record HealthSample
                 ShedTier = (int)Long(load, "shedTier"),
                 ShedTierName = String(load, "shedTierName"),
                 SliceCount = (int)Long(load, "sliceCount"),
+                SendWorkers = (int)Long(load, "sendWorkers"),
+                SendWorkerCap = (int)Long(load, "sendWorkerCap"),
+                SendBudgetPercent = (int)Long(load, "sendBudgetPercent"),
+                SendDuty = Double(load, "sendDuty"),
+                PairsPerWorkerMs = Double(load, "pairsPerWorkerMs"),
 
                 HeapMb = Double(gc, "heapMb"),
                 CommittedMb = Double(gc, "committedMb"),

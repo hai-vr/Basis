@@ -36,6 +36,7 @@ public static class Program
             console.Dispatch("/auto");
             console.WaitForJob();
             console.Dispatch("/report");
+            console.Dispatch("/expect");
             console.Dispatch("/write");
             return 0;
         }
@@ -126,6 +127,26 @@ public static class Program
                 }
                 string? destination = args.Length > 0 ? args[0] : null;
                 console.WriteBlock(TuningProfileWriter.Write(session, destination));
+            });
+
+        console.Register("/expect", "", "Plain-English summary of what this machine can do. Also written to disc.",
+            _ =>
+            {
+                if (session.Capability == null)
+                {
+                    console.Write("  Nothing measured under load yet - /auto builds this. /profile alone cannot:");
+                    console.Write("  player counts come from watching the machine actually fill up.");
+                    return;
+                }
+
+                console.WriteBlock("\n" + CapabilitySummary.Render(session, session.Capability));
+                try
+                {
+                    string path = CapabilitySummary.WriteTo(session.OutputDirectory, session, session.Capability);
+                    console.Write($"  Saved to {path}");
+                    console.Write($"  and to {Path.Combine(session.OutputDirectory, CapabilitySummary.FileName)}");
+                }
+                catch (Exception ex) { console.Write($"  Could not save it: {ex.Message}"); }
             });
 
         console.Register("/findings", "", "The recommendations so far, without the whole report.",

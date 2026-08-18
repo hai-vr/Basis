@@ -107,6 +107,7 @@ public static class NetworkServer
         }
 
         BasisNetworkUdpDropMonitor.Start();
+        BasisServerMemoryReclaim.Start();
 
         BNL.Log("Server Worker Threads Booted");
     }
@@ -123,6 +124,7 @@ public static class NetworkServer
             BNL.LogWarning($"NetworkServer.StopServer failed: {ex.Message}");
         }
         BasisNetworkUdpDropMonitor.Stop();
+        BasisServerMemoryReclaim.Stop();
         // StartServer builds a fresh AuthIdentity; without this the old one stays subscribed to
         // the static OnAuthReceived event — pinned forever, and handling every auth packet twice.
         // Left non-null so a straggling disconnect event can still resolve UUIDs while stopping.
@@ -137,6 +139,7 @@ public static class NetworkServer
     public static void InitializePulseSettings()
     {
         BasisServerReductionSystemEvents.SetMaxDegreeOfParallelism(Configuration.BSRMaxDegreeOfParallelism);
+        BasisServerReductionSystemEvents.SetSendPhaseBudgetPercent(Configuration.BSRSendPhaseBudgetPercent);
         int configuredMaxSockets = Basis.Network.Core.BasisTransportConfigStore
             .Get<Basis.Network.Core.LNLTransportConfig>(
                 Basis.Network.Core.BasisNetworkStackRegistry.LiteNetLibId).MaxSendSockets;

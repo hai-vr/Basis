@@ -25,6 +25,15 @@ public sealed class MachineProfile
     /// <summary>Kernel socket-buffer ceilings, Linux only; null elsewhere.</summary>
     public KernelTuning? Kernel { get; init; }
 
+    /// <summary>
+    /// The interface player traffic would leave by, or null when none could be identified.
+    ///
+    /// Read because egress is one of the four things that can run out, and it is the only one an
+    /// operator cannot infer from the spec sheet they bought — a 128-core host on a 1 Gbit link
+    /// runs out of link long before it runs out of anything else, and nothing in the server says so.
+    /// </summary>
+    public NetworkLink? Link { get; init; }
+
     public static MachineProfile Collect()
     {
         long total = 0;
@@ -51,6 +60,7 @@ public sealed class MachineProfile
             // merely less useful here — it is unusable, and must never be recommended.
             SupportsReusePort = linux,
             Kernel = linux ? KernelTuning.Read() : null,
+            Link = NetworkLink.Primary(),
         };
     }
 
@@ -75,6 +85,7 @@ public sealed class MachineProfile
         sb.AppendLine($"  OS             {Os} / {Architecture}");
         sb.AppendLine($"  Runtime        {RuntimeVersion}");
         sb.AppendLine($"  SO_REUSEPORT   {(SupportsReusePort ? "available" : "unavailable on this OS - multi-socket cannot be used")}");
+        if (Link != null) sb.Append(Link.Describe());
         if (Kernel != null) sb.Append(Kernel.Describe());
         return sb.ToString();
     }

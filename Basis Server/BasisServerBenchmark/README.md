@@ -17,7 +17,7 @@ What this tool covers is the remainder — the settings that *cannot* self-tune:
 |---|---|
 | Read once at boot, before any load exists to learn from | `MultiSocketCount` |
 | A constant fitted on one machine and shipped to every other | `PeerUpdatePeersPerWorker`, `PeerUpdateParallelism` |
-| A trade-off with no in-process feedback signal | `MergeHoldMs`, the bundle codec settings, the BSR rate constants |
+| A trade-off with no in-process feedback signal | `MergeHoldMs`, the bundle codec settings, `BSRSendPhaseBudgetPercent` |
 | Outside the process entirely | `net.core.rmem_max` / `wmem_max` |
 
 `MultiSocketCount` is the one worth reading twice. SO_REUSEPORT must be set on the primary socket
@@ -103,6 +103,21 @@ the life of the instance. The project reference exists only for build ordering
 normal boot costs one `File.Exists`.
 
 Shipping without it is `rm -rf benchmark/`; the server detects the absence and says so.
+
+### Two of them are fitted rather than swept
+
+`PeerUpdatePeersPerWorker` comes from the core-scaling microbenchmark's knee at the design
+population. `BSRSendPhaseBudgetPercent` comes from one subtraction on the ladder's own numbers: the
+server reports what its send pass costs and what its whole tick costs, and the difference is what
+the phases sharing that tick — the drain, message processing, the distance slice, the transport
+kick — cost. That remainder is what the send budget has to leave room for.
+
+Fitting beats sweeping here because of *which* number it uses. The obvious reading — how full the
+send pass's own budget looks — is unstable in the direction that hides it: widen the budget, the
+pool widens, the pass finishes sooner, its duty falls, and the next run reads the new value as
+roomy and widens again. The non-send phases do not respond to the send pool's width at all, so a
+share derived by subtracting them stays put once it is written. Four sweep arms would spend twenty
+minutes arriving at a noisier version of the same subtraction.
 
 ## Handing the result to the server
 

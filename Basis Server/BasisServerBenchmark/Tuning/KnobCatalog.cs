@@ -225,6 +225,26 @@ public static class KnobCatalog
 
         new()
         {
+            Name = "BSRSendPhaseBudgetPercent",
+            File = SettingFile.Server,
+            Confidence = LoopbackConfidence.Honest,
+            Summary =
+                "Share of the reduction tick the send pass is sized against, as a percentage; 0 = the " +
+                "shipped 60. The send pool's width is already measured - the server times its own pass " +
+                "and knows how many pairs a worker gets through per millisecond - so this is the other " +
+                "half of that sum, the milliseconds it is allowed to spend, and rate times milliseconds " +
+                "is the worker count. What it has to leave behind is the drain, message processing, the " +
+                "distance slice and the transport kick, and what those cost is a property of the box: 60 " +
+                "was fitted where they came to about 30% of the period. Set too high the send pass fits " +
+                "its budget while the tick overruns anyway and the load controller shows up as player " +
+                "shedding with nothing pointing here. Normally derived rather than swept - the run " +
+                "measures the non-send phases directly at the design population, which is both cheaper " +
+                "and less noisy than four arms - so this list is the fallback for a profile-only run.",
+            Candidates = new[] { "0", "45", "70", "80" },
+        },
+
+        new()
+        {
             Name = "MaxSendSockets",
             File = SettingFile.Transport,
             Confidence = LoopbackConfidence.Untrusted,

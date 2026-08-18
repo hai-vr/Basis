@@ -171,7 +171,9 @@ public class ServerConfigurationDefaultsTests
         // 9: added per-player abuse caps (MaxNetworkIdsPerPlayer, MaxLoadedResourcesPerPlayer) and the
         //    opt-in scene-relay egress backstop (MaxSceneRelayMegabitsPerSecondPerPlayer).
         // 10: added image-pickup replication range.
-        Assert.Equal(10, Configuration.CurrentConfigVersion);
+        // 11: added the population-drop memory reclaim settings.
+        // 12: added BSRSendPhaseBudgetPercent, the send pass's share of the reduction tick.
+        Assert.Equal(12, Configuration.CurrentConfigVersion);
         Assert.Equal(0, new Configuration().ConfigVersion);
         Assert.Equal("config", Configuration.ConfigFolderName);
         Assert.Equal("logs", Configuration.LogsFolderName);

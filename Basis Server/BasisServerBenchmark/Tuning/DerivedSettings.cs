@@ -25,7 +25,8 @@ public static class DerivedSettings
         CoreBenchResult cores,
         CompressionBenchResult compression,
         int designPopulation,
-        Func<string, string?> readCurrent)
+        Func<string, string?> readCurrent,
+        CapacityResult? capacity = null)
     {
         var results = new List<Recommendation>();
 
@@ -103,6 +104,15 @@ public static class DerivedSettings
                 "rather than by the machine, which is why it leaves a large host underused and overloads a small one.",
         });
 
+        // ── Send-phase budget share ─────────────────────────────────────────────────────
+        // Fitted, not swept. The server publishes what its send pass costs and what its whole tick
+        // costs, and the difference is what the phases sharing that tick cost - which is precisely
+        // the quantity this setting has to leave room for. Sweeping four candidates would spend
+        // twenty minutes arriving at a noisier version of a subtraction the ladder has already
+        // paid for.
+        Recommendation? budget = RecommendSendBudget(capacity, designPopulation, readCurrent);
+        if (budget != null) results.Add(budget);
+
         // ── Compression ─────────────────────────────────────────────────────────────────
         if (!compression.ZstdDictionaryPresent)
         {
@@ -179,6 +189,171 @@ public static class DerivedSettings
         int wanted = Math.Max(4, cores / 8);
         return Math.Min(wanted, ceiling);
     }
+
+    /// <summary>
+    /// Headroom left unclaimed by either the send pass or the phases beside it, as a fraction of
+    /// the period.
+    ///
+    /// <para>Not a safety margin in the vague sense - it is what the tick has to absorb a GC pause,
+    /// a join burst or a slice change in without missing its period, and missing the period is what
+    /// starts the load controller shedding. Ten points was chosen against the measured oscillation
+    /// of the slicing controller, which moves the non-send cost by several points on its own.</para>
+    /// </summary>
+    private const double TickHeadroomShare = 0.10;
+
+    /// <summary>Narrowest and widest share worth writing. Matches the server's own clamp.</summary>
+    private const int MinBudgetPercent = 20;
+    private const int MaxBudgetPercent = 85;
+
+    /// <summary>
+    /// Fits the send pass's share of the tick from what the rest of the tick was measured to cost
+    /// at the design population.
+    ///
+    /// <para>The arithmetic is one subtraction, and the care is all in which two numbers go into
+    /// it. The obvious reading - how full the send pass's own budget looked - is the wrong one and
+    /// is unstable in the direction that hides it: widening the budget widens the pool, the pass
+    /// gets shorter, its duty falls, and the next run reads the new value as roomy and widens
+    /// again. The non-send phases do not respond to the send pool's width at all, so a share
+    /// derived by subtracting them stays put once written, which is the only way an offline fit for
+    /// a runtime-adaptive system can be honest.</para>
+    ///
+    /// <para>Both inputs are the server's own 0.9/0.1 EMAs on the same per-tick cadence, so they
+    /// are comparably smoothed - but tick time is heavy-tailed and an EMA of it reads high (the
+    /// reduction system's own comments record 18 ms against a 13.2 ms real average at 2000
+    /// players). The tail lands in the tick total and only partly in the send phase, so the
+    /// subtraction overstates the non-send cost slightly and the fitted share comes out slightly
+    /// narrow. That is the safe direction - a send budget erring small overruns nothing - and it
+    /// is why this is a fit rather than an exact split.</para>
+    ///
+    /// <para>Returns null rather than a guess whenever the ladder cannot support the subtraction:
+    /// a server predating the health fields, a design point too idle to have a meaningful tick
+    /// cost, or a reading outside what a tick can physically contain.</para>
+    /// </summary>
+    private static Recommendation? RecommendSendBudget(
+        CapacityResult? capacity,
+        int designPopulation,
+        Func<string, string?> readCurrent)
+    {
+        LadderRung? rung = capacity?.Rungs.FirstOrDefault(r => r.Players == designPopulation)
+                           ?? capacity?.Rungs.LastOrDefault();
+        if (rung == null) return null;
+
+        double reportedShare = rung.Result.Median(w => w.SendBudgetPercent);
+        if (reportedShare <= 0) return null;   // server build predates the field
+
+        double nonSend = rung.Result.Median(w => w.NonSendShareOfPeriod);
+        double tickDuty = rung.Result.Median(w => w.TickMs) / Math.Max(1.0, rung.Result.Median(w => (double)w.IntervalMs));
+
+        // A tick that spends nothing outside the send pass is not a discovery about this machine,
+        // it is a reading taken while nothing was happening - and the value it implies (85, the
+        // ceiling) would be written onto a box that has never been loaded.
+        if (nonSend <= 0.02 || nonSend >= 1.0 || tickDuty <= 0) return null;
+
+        int fitted = (int)Math.Round((1.0 - nonSend - TickHeadroomShare) * 100 / 5.0) * 5;
+        fitted = Math.Clamp(fitted, MinBudgetPercent, MaxBudgetPercent);
+
+        string current = readCurrent("BSRSendPhaseBudgetPercent") ?? "0";
+        double sendShare = tickDuty - nonSend;
+
+        return new Recommendation
+        {
+            Setting = "BSRSendPhaseBudgetPercent",
+            File = SettingFile.Server,
+            Evidence = Evidence.Derived,
+            CurrentValue = current,
+            ProposedValue = fitted.ToString(CultureInfo.InvariantCulture),
+            Rationale =
+                $"At {rung.Players:N0} players the tick spent {tickDuty:P0} of its period working, of which the send " +
+                $"pass took {sendShare:P0} and everything else - the queue drain, message processing, the distance " +
+                $"slice, the transport kick - took {nonSend:P0}. Those other phases are what a send budget is a share " +
+                $"of, and unlike the send pass they do not get cheaper when the pool widens, so {nonSend:P0} plus " +
+                $"{TickHeadroomShare:P0} of headroom is what has to stay out of this number: {fitted}. The shipped 60 " +
+                (nonSend > 0.30
+                    ? $"assumes they cost about 30%, and here they cost {nonSend:P0} - so the send pool was being sized " +
+                      "for a slice of the tick this box does not have, and the overrun that produces is answered by " +
+                      "shedding players rather than by anything that names the cause."
+                    : $"assumes they cost about 30%, and here they cost only {nonSend:P0} - so there is period going " +
+                      "unused that the send pool could be sized into.") +
+                $" Measured with the server running at {reportedShare:F0}%; the figure it is derived from does not " +
+                "move when that changes, which is why it is derived this way round.",
+        };
+    }
+
+    /// <summary>
+    /// The player cap, from what the machine was measured to actually serve.
+    ///
+    /// <para><b>The most consequential thing this tool can write, and the easiest to leave out.</b>
+    /// <c>PeerLimit</c> ships at 65535 — effectively uncapped — so a server admits everyone who
+    /// knocks and then discovers it cannot serve them. That failure is quiet and collective: past
+    /// capacity the reduction system sheds avatar updates across the whole roster, so a room of
+    /// 2,000 does not fail for the last 500 to arrive, it degrades for all 2,000 at once. Capping
+    /// at what the box was measured to deliver converts that into the honest failure instead, where
+    /// the players who get in have a working session and the rest are told the server is full.</para>
+    ///
+    /// <para>Set to the full-quality ceiling, not to the largest population that stayed up. Those
+    /// are different numbers and the gap between them is exactly the region where the server is
+    /// still running and no longer delivering — which is a state to keep out of, not to sell.</para>
+    /// </summary>
+    public static Recommendation? RecommendPeerLimit(CapabilityModel model, Func<string, string?> readCurrent)
+    {
+        if (!model.HasData || model.FullQualityPlayers <= 0) return null;
+
+        int limit = model.FullQualityPlayers;
+        Ceiling binding = model.Binding();
+
+        // A physical ceiling below the measured quality ceiling wins: the box may deliver well at
+        // this population and still be unable to hold it once memory or the link is accounted for.
+        if (binding.Constraint != BindingConstraint.Quality && binding.Players > 0 && binding.Players < limit)
+            limit = binding.Players;
+
+        string current = readCurrent("PeerLimit") ?? "65535";
+        if (int.TryParse(current, NumberStyles.Integer, CultureInfo.InvariantCulture, out int existing)
+            && existing > 0 && existing < limit)
+        {
+            // An operator who already capped lower than the measurement meant it - they may be
+            // sharing the box, or selling a quality level above what the hardware merely survives.
+            return new Recommendation
+            {
+                Setting = "PeerLimit",
+                File = SettingFile.Server,
+                CurrentValue = current,
+                ProposedValue = current,
+                Evidence = Evidence.NoChange,
+                Rationale =
+                    $"Already capped at {existing:N0}, below the {limit:N0} this machine was measured to serve well. " +
+                    "Left alone - a cap tighter than the hardware is a deliberate choice, not a mistake to correct.",
+            };
+        }
+
+        return new Recommendation
+        {
+            Setting = "PeerLimit",
+            File = SettingFile.Server,
+            CurrentValue = current,
+            ProposedValue = limit.ToString(CultureInfo.InvariantCulture),
+            Evidence = Evidence.Measured,
+            Rationale =
+                $"This machine delivered full quality to {model.FullQualityPlayers:N0} players" +
+                (limit < model.FullQualityPlayers
+                    ? $", but {Describe(binding.Constraint)} runs out at {binding.Players:N0}, so that is the cap."
+                    : ".") +
+                $" The shipped default is 65,535, which is no cap at all: the server admits everyone and then sheds " +
+                "avatar updates across the entire roster, so an overfull room degrades for every player in it rather " +
+                "than turning the excess away. Capping at the measured figure keeps the sessions that do get in " +
+                "working." +
+                (binding.Extrapolated && limit == binding.Players
+                    ? " Note this ceiling is extrapolated beyond the populations actually run."
+                    : ""),
+        };
+    }
+
+    private static string Describe(BindingConstraint constraint) => constraint switch
+    {
+        BindingConstraint.Cpu => "CPU",
+        BindingConstraint.Memory => "memory",
+        BindingConstraint.Bandwidth => "link bandwidth",
+        _ => "capacity",
+    };
 
     /// <summary>
     /// Peers per worker, so the pass lands on the measured knee at the design population.

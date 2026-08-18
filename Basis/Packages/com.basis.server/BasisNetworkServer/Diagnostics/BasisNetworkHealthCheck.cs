@@ -280,6 +280,18 @@ namespace Basis.Network.Server
               .Append(",\"shedTier\":").Append(Int(BasisServerReductionSystemEvents.LoadShedTier))
               .Append(",\"shedTierName\":\"").Append(BasisServerReductionSystemEvents.LoadShedTierLabel).Append('"')
               .Append(",\"sliceCount\":").Append(Int(BasisServerReductionSystemEvents.SliceCount))
+              // The send phase, in the terms its worker count is actually sized in. On the always-on
+              // half of this payload rather than behind the profiler window, because the width is
+              // steered from these on every server and the benchmark fits BSRSendPhaseBudgetPercent
+              // from them - a reading that only exists when someone has switched profiling on is one
+              // neither of those can rely on. sendDuty x sendBudgetPercent is the send pass's share
+              // of the whole period; tickMs/intervalMs minus that is what the rest of the tick costs,
+              // which is the quantity the budget share is a complement of.
+              .Append(",\"sendWorkers\":").Append(Int(BasisServerReductionSystemEvents.SendWorkers))
+              .Append(",\"sendWorkerCap\":").Append(Int(BasisServerReductionSystemEvents.SendWorkerCeiling))
+              .Append(",\"sendBudgetPercent\":").Append(Int(BasisServerReductionSystemEvents.SendPhaseBudgetPercent))
+              .Append(",\"sendDuty\":").Append(Num(BasisServerReductionSystemEvents.SendBudgetDuty, "F4"))
+              .Append(",\"pairsPerWorkerMs\":").Append(Num(BasisServerReductionSystemEvents.PairsPerWorkerMs, "F2"))
               .Append('}');
 
             BSRProfilerSnapshot s = BSRProfiler.Latest;

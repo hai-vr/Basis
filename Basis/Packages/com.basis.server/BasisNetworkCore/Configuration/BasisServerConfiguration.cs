@@ -29,7 +29,10 @@ public class Configuration
     //    scene-relay egress backstop (MaxSceneRelayMegabitsPerSecondPerPlayer) added; bumped so
     //    existing config.xml files gain the three settings with their doc comments.
     // 10: image-pickup replication range (ImagePickupRangeMeters) added.
-    public const int CurrentConfigVersion = 10;
+    // 11: population-drop memory reclaim (IdleMemoryReclaim*) added.
+    // 12: BSRSendPhaseBudgetPercent added - the send pass's share of the reduction tick, which was
+    //     a constant fitted on one machine. Bumped so existing files gain it with its doc comment.
+    public const int CurrentConfigVersion = 12;
     /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
     public int ConfigVersion = 0;
 
@@ -45,6 +48,9 @@ public class Configuration
     public ushort HealthCheckPort = 10666;
     public string HealthPath = "/health";
     public bool HealthIncludeBSRProfiling = false;
+    public bool IdleMemoryReclaimEnabled = true;
+    public int IdleMemoryReclaimSettleSeconds = 30;
+    public int IdleMemoryReclaimMinimumPeak = 8;
     public int BSRSMillisecondDefaultInterval = 50;
     public int BSRBaseMultiplier = 1;
     public float BSRSIncreaseRate = 0.005f;
@@ -226,6 +232,24 @@ public class Configuration
     /// profile shows the send loop itself saturating.
     /// </summary>
     public int BSRMaxDegreeOfParallelism = 0;
+    /// <summary>
+    /// Share of the BSR tick period the send pass is sized against, as a percentage. 0 = the
+    /// fitted default of 60. Clamped to 20..85.
+    ///
+    /// The send pool's width comes from a throughput rate this host measures for itself, so what
+    /// is left to choose is not how fast a worker is but how many of the period's milliseconds the
+    /// pass may spend - that many pairs per millisecond, for that many milliseconds, is a worker
+    /// count. The remainder is not spare: the queue drain, message processing, the distance slice
+    /// and the transport kick run in the same tick, and what those cost is a property of the box,
+    /// which is why this is a setting rather than the constant it used to be. Too high and the
+    /// send pass fits its budget while the tick overruns anyway, which the load controller answers
+    /// by shedding players; too low and the pool is sized wider than the machine while the tick
+    /// sits half idle.
+    ///
+    /// Nothing in the process can fit this, because the send pass has no view of what the phases
+    /// beside it cost. BasisServerBenchmark measures that split under load and writes the value.
+    /// </summary>
+    public int BSRSendPhaseBudgetPercent = 0;
     /// <summary>
     /// Furthest the reduction system may slice its roster under load. 0 = scale with population.
     ///

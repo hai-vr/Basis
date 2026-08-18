@@ -7,7 +7,25 @@ public sealed record LadderRung(int Players, RunResult Result)
 {
     public double DeliveryRatio => Result.Median(w => w.DeliveryRatio);
     public double DeliveredPairHz => Result.Median(w => w.DeliveredPairHz);
-    public double Cores => Result.Median(w => w.ServerCores);
+    /// <summary>
+    /// Server CPU, or NaN when no window in this rung could read it. Unreadable samples are
+    /// excluded rather than counted as zero — see ProcessCpu.SampleCores for why that distinction
+    /// is worth carrying this far.
+    /// </summary>
+    public double Cores
+    {
+        get
+        {
+            var usable = Result.Windows.Select(w => w.ServerCores).Where(c => !double.IsNaN(c)).ToList();
+            return usable.Count == 0 ? double.NaN : Measure.Stats.Median(usable);
+        }
+    }
+
+    /// <summary>True when this rung's CPU figure is real and can be fitted against.</summary>
+    public bool HasCores => !double.IsNaN(Cores);
+
+    /// <summary>Renders cores, or "?" where the reading failed. Never a plausible-looking zero.</summary>
+    public static string Fmt(double cores) => double.IsNaN(cores) ? "?" : cores.ToString("F2");
     public double MegabytesPerSecond => Result.Median(w => w.MegabytesOutPerSecond);
     public double SliceCount => Result.Median(w => w.SliceCount);
     public double CommittedMb => Result.Median(w => w.CommittedMb);
@@ -47,7 +65,7 @@ public sealed class CapacityResult
     {
         LadderRung? rung = Rungs.FirstOrDefault(r => r.Players == FullQualityPlayers);
         if (rung == null) return false;
-        return rung.SliceCount <= 1.01 && rung.DeliveryRatio >= 0.999 && rung.Cores < cores * 0.25;
+        return rung.SliceCount <= 1.01 && rung.DeliveryRatio >= 0.999 && rung.HasCores && rung.Cores < cores * 0.25;
     }
 
     /// <summary>The population to sweep settings at, and why it may not be usable.</summary>
@@ -65,7 +83,7 @@ public sealed class CapacityResult
         foreach (LadderRung r in Rungs)
         {
             string mark = r.Players == FullQualityPlayers ? "  <-- full quality" : "";
-            sb.AppendLine($"   {r.Players,7}   {r.Cores,6:F2}   {r.MegabytesPerSecond,6:N0}   {r.DeliveredPairHz,7:F2}   {r.DeliveryRatio,8:P1}   {r.SliceCount,5:F1}   {r.CommittedMb,7:N0} MB{mark}");
+            sb.AppendLine($"   {r.Players,7}   {LadderRung.Fmt(r.Cores),6}   {r.MegabytesPerSecond,6:N0}   {r.DeliveredPairHz,7:F2}   {r.DeliveryRatio,8:P1}   {r.SliceCount,5:F1}   {r.CommittedMb,7:N0} MB{mark}");
         }
         sb.AppendLine();
         sb.AppendLine($"   Full-quality ceiling : {FullQualityPlayers:N0} players");
@@ -139,7 +157,7 @@ public static class CapacityLadder
             }
 
             rungs.Add(rung);
-            log($"  {players:N0} players: {rung.DeliveredPairHz:F2} Hz/pair, {rung.Cores:F2} cores, delivery {rung.DeliveryRatio:P1}");
+            log($"  {players:N0} players: {rung.DeliveredPairHz:F2} Hz/pair, {LadderRung.Fmt(rung.Cores)} cores, delivery {rung.DeliveryRatio:P1}");
 
             if (rung.DeliveryRatio < AbandonBelow)
             {
@@ -176,6 +194,9 @@ public static class CapacityLadder
         if (last.KernelDropsPerSecond > 100)
             return $"the kernel is discarding {last.KernelDropsPerSecond:N0} inbound datagrams/s - the receive path, " +
                    "not the CPU. Raise MultiSocketCount, and check net.core.rmem_max";
+
+        if (!last.HasCores)
+            return "undetermined - the server's CPU could not be read during this run";
 
         double coreShare = last.Cores / Environment.ProcessorCount;
         if (coreShare > 0.75)

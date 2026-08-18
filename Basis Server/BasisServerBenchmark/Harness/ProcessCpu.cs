@@ -38,21 +38,36 @@ public sealed class ProcessCpu
     public void Reset()
     {
         _lastTimestamp = Stopwatch.GetTimestamp();
-        _lastCpu = Read();
+        _lastReadValid = TryRead(out _lastCpu);
     }
 
-    /// <summary>Cores consumed since the previous call. Resets the interval.</summary>
+    /// <summary>
+    /// Cores consumed since the previous call, or <see cref="double.NaN"/> when the process would
+    /// not answer. Resets the interval either way.
+    ///
+    /// <para><b>NaN rather than zero, and the distinction is not pedantic.</b> Reading a child
+    /// process's CPU time fails occasionally and transiently, and the natural handling — return the
+    /// last known value, so the delta comes out at zero — produces a number that is not merely
+    /// wrong but wrong in the most damaging direction available. Zero cores does not read as a
+    /// failure; it reads as a server doing 20 MB/s for free. It was observed intermittently here,
+    /// and it fed a curve fit that concluded the machine would never run out of CPU. An
+    /// unmeasurable sample has to be able to say so.</para>
+    /// </summary>
     public double SampleCores()
     {
         long now = Stopwatch.GetTimestamp();
-        TimeSpan cpu = Read();
+        bool ok = TryRead(out TimeSpan cpu);
 
         double seconds = Stopwatch.GetElapsedTime(_lastTimestamp, now).TotalSeconds;
-        double cores = seconds <= 0 ? 0 : (cpu - _lastCpu).TotalSeconds / seconds;
+        double cores = !ok || !_lastReadValid || seconds <= 0
+            ? double.NaN
+            : (cpu - _lastCpu).TotalSeconds / seconds;
 
         _lastTimestamp = now;
-        _lastCpu = cpu;
-        return cores < 0 ? 0 : cores;
+        if (ok) _lastCpu = cpu;
+        _lastReadValid = ok;
+
+        return double.IsNaN(cores) ? double.NaN : cores < 0 ? 0 : cores;
     }
 
     /// <summary>Resident memory, MB. 0 when the process is gone.</summary>
@@ -70,18 +85,23 @@ public sealed class ProcessCpu
         }
     }
 
-    private TimeSpan Read()
+    private bool TryRead(out TimeSpan cpu)
     {
+        cpu = _lastCpu;
         try
         {
-            if (_process == null || _process.HasExited) return _lastCpu;
+            if (_process == null || _process.HasExited) return false;
             _process.Refresh();
-            return _process.TotalProcessorTime;
+            cpu = _process.TotalProcessorTime;
+            return true;
         }
         catch
         {
-            // A process that exits mid-window must not report negative CPU on the next sample.
-            return _lastCpu;
+            // Transient on Windows, and permanent once the process is gone. Either way the caller
+            // must not be handed a delta computed against a value that was never read.
+            return false;
         }
     }
+
+    private bool _lastReadValid;
 }
