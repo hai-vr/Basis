@@ -146,6 +146,19 @@ namespace Basis.Network.Server.Generic
             public int Cursor;
             public double Tokens;
             public long LastRefillTicks;
+
+            /// <summary>
+            /// Guards <see cref="Payloads"/> and <see cref="Cursor"/>. The cache appends to a live job
+            /// from the tick thread while the pump is draining it, and a List being grown underneath an
+            /// indexer is not something to leave to chance.
+            /// </summary>
+            public readonly object Sync = new object();
+
+            /// <summary>
+            /// Set under <see cref="Sync"/> when the pump has decided this job is finished, so an append
+            /// racing the removal starts a fresh job instead of writing into one nobody will drain.
+            /// </summary>
+            public bool Retired;
         }
 
         /// <summary>A cached payload plus the owner it must be stamped with on the way out.</summary>
@@ -198,6 +211,23 @@ namespace Basis.Network.Server.Generic
 
             double ratePerSecond = ReplayBytesPerSecond;
             if (ratePerSecond <= 0) return false;
+
+            // Append rather than replace. A peer picks up images repeatedly now - once on join and
+            // again each time they walk into range of another card - and overwriting the job would
+            // throw away whatever of the previous batch had not gone out yet.
+            if (_replays.TryGetValue(peer.Id, out ReplayJob existing))
+            {
+                lock (existing.Sync)
+                {
+                    if (!existing.Retired)
+                    {
+                        existing.Payloads.AddRange(payloads);
+                        existing.Peer = peer;
+                        EnsurePump();
+                        return true;
+                    }
+                }
+            }
 
             var job = new ReplayJob
             {
@@ -280,18 +310,30 @@ namespace Basis.Network.Server.Generic
                     job.Tokens = Math.Min(ceiling, job.Tokens + ratePerSecond * elapsedSeconds);
                 }
 
-                while (job.Cursor < job.Payloads.Count && job.Tokens > 0)
+                while (job.Tokens > 0)
                 {
-                    PendingPayload pending = job.Payloads[job.Cursor];
+                    PendingPayload pending;
+                    lock (job.Sync)
+                    {
+                        if (job.Cursor >= job.Payloads.Count) break;
+                        pending = job.Payloads[job.Cursor];
+                        job.Cursor++;
+                    }
+
                     int size = pending.Payload?.Length ?? 0;
-                    job.Cursor++;
                     if (size == 0) continue;
 
                     job.Tokens -= size;
                     send(job.Peer, pending.OwnerId, pending.Payload);
                 }
 
-                if (job.Cursor >= job.Payloads.Count)
+                bool retired;
+                lock (job.Sync)
+                {
+                    retired = job.Cursor >= job.Payloads.Count;
+                    job.Retired = retired;
+                }
+                if (retired)
                 {
                     _replays.TryRemove(pair.Key, out _);
                 }

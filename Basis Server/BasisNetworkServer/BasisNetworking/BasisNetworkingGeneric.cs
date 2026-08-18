@@ -125,7 +125,13 @@ namespace Basis.Network.Server.Generic
             bool isImageTraffic = BasisNetworkImageCache.IsImageTraffic(SceneDataMessage.messageIndex);
             if (isImageTraffic)
             {
-                BasisNetworkImageCache.Observe((ushort)sender.Id, payload, payloadLength);
+                BasisNetworkImageCache.Observe(
+                    (ushort)sender.Id,
+                    payload,
+                    payloadLength,
+                    SceneDataMessage.recipients,
+                    SceneDataMessage.recipientsSize
+                );
             }
 
             // Server-side floor under the client's own pacing. The sharer decides how to spend its

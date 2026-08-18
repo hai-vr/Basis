@@ -206,9 +206,10 @@ public class Configuration
     /// Maximum world-space distance, in metres, at which a player is eligible to receive an image
     /// pickup. Advertised to clients and applied by the sharing client, so it is a bandwidth budget
     /// rather than an access control - nothing here or on the receiver rejects an out-of-range image.
-    /// Players that later enter range receive a catch-up transfer from the owner. 0 disables range
-    /// filtering, which is also what turns the server image cache on: while a finite range is set the
-    /// cache neither retains nor replays, because a replay would bypass the owner's recipient choice.
+    ///
+    /// The server image cache applies the same figure to its own replays, so a joiner is handed the
+    /// nearby cards rather than the whole room, and picks up the rest as they walk toward them. 0 is
+    /// unlimited: every player receives every image, which is how it behaved before this setting.
     /// </summary>
     public float ImagePickupRangeMeters = 64f;
 

@@ -1304,6 +1304,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             //Phase 4: Network I/O
             BasisNetworkPIPCamera.UpdatePIPPositions(now);
+            Basis.Network.Server.Generic.BasisNetworkImageCache.SweepRangeCatchUp();
             if (NetworkServer.Server is LNLNetManager lnlReductionServer && lnlReductionServer.manager != null)
             {
                 lnlReductionServer.manager.TriggerUpdate();

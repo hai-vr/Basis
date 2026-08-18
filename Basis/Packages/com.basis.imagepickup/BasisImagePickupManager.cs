@@ -303,9 +303,9 @@ namespace Basis.ImagePickup
         private static readonly List<ReplicationCandidate> _scratchCandidates = new(256);
 
         /// <summary>
-        /// Images of ours the server is holding in its own buffer and can hand to arrivals itself when
-        /// range filtering is disabled. With a finite image range the owner remains responsible for
-        /// catch-up so the server cache cannot bypass spatial recipient selection.
+        /// Images of ours the server is holding in its own buffer and hands to arrivals itself. The
+        /// server applies the same replication range we do, so this holds at every range; it tells us
+        /// the moment it stops holding one and we resume providing from the next pass.
         /// </summary>
         private static readonly HashSet<Guid> _serverHeldImages = new();
         private static bool _initialized;
@@ -1951,9 +1951,9 @@ namespace Basis.ImagePickup
                 if (owned?.Object == null)
                     continue;
 
-                // Unlimited-range servers can use the new server-side image cache for late joiners.
-                // A finite range must stay owner-driven or the cache would replay to every arrival.
-                if (rangeMeters <= 0f && _serverHeldImages.Contains(entry.Key))
+                // The server holds this one and hands it to arrivals itself, range-filtered the same
+                // way we filter, so re-uploading it is pure waste.
+                if (_serverHeldImages.Contains(entry.Key))
                     continue;
 
                 ushort[] recipients = SnapshotEligibleRecipients(

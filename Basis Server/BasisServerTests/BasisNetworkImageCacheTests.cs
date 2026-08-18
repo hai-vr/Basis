@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using Basis.Network.Server.Generic;
 using BasisNetworkCore;
+using BasisNetworkServer.BasisNetworkingReductionSystem;
 using System.Net;
 using System.Text;
 using Xunit;
@@ -60,6 +61,7 @@ public class BasisNetworkImageCacheTests : IDisposable
 
     private const byte OpSpawn = 1;
     private const byte OpChunk = 2;
+    private const byte OpTransform = 3;
     private const byte OpDespawn = 4;
     private const byte OpAnimationSpawn = 6;
     private const byte OpAnimationChunk = 7;
@@ -68,6 +70,7 @@ public class BasisNetworkImageCacheTests : IDisposable
 
     private readonly Configuration _previous;
     private readonly List<int> _registeredPeerIds = new();
+    private readonly List<int> _placedPeerIds = new();
 
     public BasisNetworkImageCacheTests()
     {
@@ -99,6 +102,24 @@ public class BasisNetworkImageCacheTests : IDisposable
         {
             NetworkServer.AuthenticatedPeers.TryRemove(id, out _);
         }
+        foreach (int id in _placedPeerIds)
+        {
+            BasisServerReductionSystemEvents.playerStates.TryRemove(id, out _);
+        }
+    }
+
+    /// <summary>
+    /// Puts a peer on the reduction system's roster with a known position. The cache reads exactly
+    /// this to decide who is close enough, and treats a peer with no active state as unplaceable.
+    /// </summary>
+    private void PlacePeer(int peerId, float x, float y, float z)
+    {
+        BasisServerReductionSystemEvents.playerStates[peerId] = new PlayerState
+        {
+            IsActive = true,
+            Position = new Basis.Scripts.Networking.Compression.Vector3(x, y, z),
+        };
+        _placedPeerIds.Add(peerId);
     }
 
     /// <summary>
@@ -116,7 +137,15 @@ public class BasisNetworkImageCacheTests : IDisposable
 
     // ---- wire helpers: byte-for-byte what BasisImagePickupManager encodes -------------------
 
-    private static byte[] EncodeSpawn(Guid id, ushort ownerId, string ownerName, int totalChunks)
+    private static byte[] EncodeSpawn(
+        Guid id,
+        ushort ownerId,
+        string ownerName,
+        int totalChunks,
+        float positionX = 0f,
+        float positionY = 0f,
+        float positionZ = 0f
+    )
     {
         using MemoryStream stream = new MemoryStream();
         using BinaryWriter writer = new BinaryWriter(stream, Encoding.UTF8);
@@ -128,10 +157,32 @@ public class BasisNetworkImageCacheTests : IDisposable
         writer.Write(64);
         writer.Write(totalChunks * 16);
         writer.Write(totalChunks);
-        for (int axis = 0; axis < 7; axis++)
+        writer.Write(positionX);
+        writer.Write(positionY);
+        writer.Write(positionZ);
+        for (int axis = 0; axis < 4; axis++)
         {
             writer.Write(0f);
         }
+        writer.Flush();
+        return stream.ToArray();
+    }
+
+    /// <summary>OpTransform as the client encodes it: pose then uniform scale.</summary>
+    private static byte[] EncodeTransform(Guid id, float x, float y, float z)
+    {
+        using MemoryStream stream = new MemoryStream();
+        using BinaryWriter writer = new BinaryWriter(stream, Encoding.UTF8);
+        writer.Write(OpTransform);
+        writer.Write(id.ToByteArray());
+        writer.Write(x);
+        writer.Write(y);
+        writer.Write(z);
+        for (int axis = 0; axis < 4; axis++)
+        {
+            writer.Write(0f);
+        }
+        writer.Write(1f);
         writer.Flush();
         return stream.ToArray();
     }
@@ -182,10 +233,28 @@ public class BasisNetworkImageCacheTests : IDisposable
         BasisNetworkImageCache.Observe(sender, payload, payload.Length);
     }
 
-    private static Guid ShareImage(ushort owner, int chunks = 2, int chunkBytes = ChunkBytes, string name = "Sharer")
+    /// <summary>
+    /// Observes a share the sharer aimed at a specific set of players, which is what a client that
+    /// range-filters its own sends produces.
+    /// </summary>
+    private static void ObserveTargeted(ushort sender, byte[] payload, ushort[] recipients)
+    {
+        BasisNetworkImageCache.IsImageTraffic(ManagerNetId);
+        BasisNetworkImageCache.Observe(sender, payload, payload.Length, recipients, recipients.Length);
+    }
+
+    private static Guid ShareImage(
+        ushort owner,
+        int chunks = 2,
+        int chunkBytes = ChunkBytes,
+        string name = "Sharer",
+        float positionX = 0f,
+        float positionY = 0f,
+        float positionZ = 0f
+    )
     {
         Guid id = Guid.NewGuid();
-        Observe(owner, EncodeSpawn(id, owner, name, chunks));
+        Observe(owner, EncodeSpawn(id, owner, name, chunks, positionX, positionY, positionZ));
         for (int index = 0; index < chunks; index++)
         {
             Observe(owner, EncodeChunk(id, index, chunkBytes));
@@ -442,7 +511,22 @@ public class BasisNetworkImageCacheTests : IDisposable
     }
 
     [Fact]
-    public void WithFiniteImageRange_AJoinerIsServedNothingByTheServerCache()
+    public void WithFiniteImageRange_TheCacheStillRetains()
+    {
+        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
+
+        ShareImage(owner: 7);
+
+        Assert.True(BasisNetworkImageCache.BytesHeldFor(7) > 0);
+        Assert.Equal(1, BasisNetworkImageCache.ServableCount);
+    }
+
+    /// <summary>
+    /// A peer is unplaceable until they have sent their first avatar update, and an arriving one has
+    /// not. Serving them anyway would hand every joiner the cards standing near world zero.
+    /// </summary>
+    [Fact]
+    public void WithFiniteImageRange_APeerWithNoKnownPositionIsServedNothing()
     {
         ShareImage(owner: 7);
         NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
@@ -454,14 +538,131 @@ public class BasisNetworkImageCacheTests : IDisposable
     }
 
     [Fact]
-    public void WithFiniteImageRange_NothingIsRetained()
+    public void WithFiniteImageRange_ANearbyPeerIsServedAndADistantOneIsNot()
     {
         NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
-
         ShareImage(owner: 7);
 
-        Assert.Equal(0, BasisNetworkImageCache.BytesHeldFor(7));
-        Assert.Equal(0, BasisNetworkImageCache.TotalBytes);
+        ImageCacheRecordingPeer near = RegisterPeer(9);
+        PlacePeer(9, 10f, 0f, 0f);
+        BasisNetworkImageCache.SendCachedImagesToPeer(near);
+
+        ImageCacheRecordingPeer far = RegisterPeer(11);
+        PlacePeer(11, 500f, 0f, 0f);
+        BasisNetworkImageCache.SendCachedImagesToPeer(far);
+
+        Assert.NotEmpty(near.Sent);
+        Assert.Empty(far.Sent);
+    }
+
+    /// <summary>
+    /// The whole point of the sweep: somebody who was too far away when they joined gets the card
+    /// once they have walked over to it, without the owner having to notice.
+    /// </summary>
+    [Fact]
+    public void SweepRangeCatchUp_ServesAPeerWhoHasWalkedIntoRange()
+    {
+        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
+        ShareImage(owner: 7);
+
+        ImageCacheRecordingPeer walker = RegisterPeer(9);
+        PlacePeer(9, 500f, 0f, 0f);
+        BasisNetworkImageCache.ResetSweepClockForTests();
+        BasisNetworkImageCache.SweepRangeCatchUp();
+        Assert.Empty(walker.Sent);
+
+        PlacePeer(9, 5f, 0f, 0f);
+        BasisNetworkImageCache.ResetSweepClockForTests();
+        BasisNetworkImageCache.SweepRangeCatchUp();
+
+        Assert.NotEmpty(walker.Sent);
+    }
+
+    /// <summary>
+    /// The cache tracks the card's position as it is carried, so a picture walked across the room
+    /// reaches the people it is walked toward rather than the ones it was spawned beside.
+    /// </summary>
+    [Fact]
+    public void AnImageCarriedIntoRangeIsServedFromItsNewPosition()
+    {
+        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
+        Guid id = ShareImage(owner: 7, positionX: 500f);
+
+        ImageCacheRecordingPeer peer = RegisterPeer(9);
+        PlacePeer(9, 0f, 0f, 0f);
+        BasisNetworkImageCache.SendCachedImagesToPeer(peer);
+        Assert.Empty(peer.Sent);
+
+        Observe(7, EncodeTransform(id, 10f, 0f, 0f));
+        BasisNetworkImageCache.SendCachedImagesToPeer(peer);
+
+        Assert.NotEmpty(peer.Sent);
+    }
+
+    [Fact]
+    public void APeerIsNotServedTheSameImageTwice()
+    {
+        ShareImage(owner: 7);
+
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+        Assert.NotEmpty(joiner.Sent);
+
+        joiner.Sent.Clear();
+        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+
+        Assert.Empty(joiner.Sent);
+    }
+
+    /// <summary>
+    /// The sharer already sent this to peer 9, and the relay saw exactly who it was aimed at. Serving
+    /// it again from the cache would double the cost of every share for everyone standing nearby.
+    /// </summary>
+    [Fact]
+    public void APeerTheSharerAlreadyTargetedIsNotServedAgain()
+    {
+        ImageCacheRecordingPeer nearby = RegisterPeer(9);
+        PlacePeer(9, 0f, 0f, 0f);
+
+        Guid id = Guid.NewGuid();
+        ushort[] targeted = { 9 };
+        ObserveTargeted(7, EncodeSpawn(id, 7, "Sharer", totalChunks: 2), targeted);
+        for (int index = 0; index < 2; index++)
+        {
+            ObserveTargeted(7, EncodeChunk(id, index, ChunkBytes), targeted);
+        }
+
+        BasisNetworkImageCache.SendCachedImagesToPeer(nearby);
+
+        Assert.Empty(nearby.Sent);
+    }
+
+    [Fact]
+    public void APeerTheSharerCouldNotReachIsStillServedByTheCache()
+    {
+        Guid id = Guid.NewGuid();
+        ushort[] targeted = { 9 };
+        ObserveTargeted(7, EncodeSpawn(id, 7, "Sharer", totalChunks: 2), targeted);
+        for (int index = 0; index < 2; index++)
+        {
+            ObserveTargeted(7, EncodeChunk(id, index, ChunkBytes), targeted);
+        }
+
+        ImageCacheRecordingPeer latecomer = RegisterPeer(11);
+        BasisNetworkImageCache.SendCachedImagesToPeer(latecomer);
+
+        Assert.NotEmpty(latecomer.Sent);
+    }
+
+    [Fact]
+    public void AnOwnerIsNeverServedTheirOwnImage()
+    {
+        ShareImage(owner: 7);
+
+        ImageCacheRecordingPeer owner = RegisterPeer(7);
+        BasisNetworkImageCache.SendCachedImagesToPeer(owner);
+
+        Assert.Empty(owner.Sent);
     }
 
     [Fact]
