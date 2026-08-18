@@ -65,7 +65,7 @@ public sealed class CoreBenchResult
             ? $"    Efficiency falls away sharply past {KneeWorkers} workers - a real boundary on this machine, " +
               "usually where logical cores stop being physical ones."
             : $"    Efficiency decays smoothly here, with no width the machine singles out. {KneeWorkers} is the " +
-              "widest that still holds most of the single-worker efficiency - a stated trade-off, not a discovery.");
+              "widest still holding most of the narrow-pool efficiency - a stated trade-off, not a discovery.");
         sb.AppendLine($"    Running the full {Points.LastOrDefault()?.Workers ?? 0} costs {WidthPenalty:F2}x the CPU per unit of work.");
         return sb.ToString();
     }
@@ -110,6 +110,12 @@ public static class CoreBench
     /// <summary>Nominal frequency of the real pass, recorded for the report. Not used to pace this.</summary>
     private const int DefaultFrequencyHz = 275;
 
+    /// <summary>Shortest a rung may be timed for, whatever the caller asked.</summary>
+    private static readonly TimeSpan MinimumRung = TimeSpan.FromSeconds(4);
+
+    /// <summary>Timings per width, of which the most efficient is kept.</summary>
+    private const int Repetitions = 2;
+
     public static CoreBenchResult Run(int cores, TimeSpan perRung, Action<string>? progress = null)
     {
         int frequency = DefaultFrequencyHz;
@@ -126,24 +132,28 @@ public static class CoreBench
         // JIT and is reported as the slowest width, which inverts the whole curve.
         RunPass(state, 1, DateTime.UtcNow.AddMilliseconds(400), frequency, out _);
 
+        // Floored regardless of what the caller asked for. Below this the rung is short enough that
+        // one preemption moves it several percent, and the knee detection - which compares
+        // rung-to-rung differences of a few percent - starts reporting a different answer on every
+        // run of the same machine.
+        if (perRung < MinimumRung) perRung = MinimumRung;
+
         var points = new List<CoreScalingPoint>();
         foreach (int workers in widths)
         {
             progress?.Invoke($"    {workers} worker{(workers == 1 ? "" : "s")}...");
-            Process self = Process.GetCurrentProcess();
-            TimeSpan cpuBefore = self.TotalProcessorTime;
-            long start = Stopwatch.GetTimestamp();
 
-            RunPass(state, workers, DateTime.UtcNow + perRung, frequency, out long items);
-
-            double seconds = Stopwatch.GetElapsedTime(start).TotalSeconds;
-            self.Refresh();
-            double cpuSeconds = (self.TotalProcessorTime - cpuBefore).TotalSeconds;
-
-            points.Add(new CoreScalingPoint(
-                workers,
-                seconds <= 0 ? 0 : items / seconds,
-                seconds <= 0 ? 0 : cpuSeconds / seconds));
+            // Best of two, on efficiency. The noise here is one-sided - a preemption or a
+            // background process can only ever make a rung look worse than the machine is capable
+            // of - so the better reading is the more honest one, and averaging would fold the
+            // interference into the curve the knee is read off.
+            CoreScalingPoint? best = null;
+            for (int rep = 0; rep < Repetitions; rep++)
+            {
+                CoreScalingPoint point = MeasureWidth(state, workers, perRung, frequency);
+                if (best == null || point.ItemsPerCoreSecond > best.ItemsPerCoreSecond) best = point;
+            }
+            points.Add(best!);
         }
 
         (int knee, bool sharp) = FindKnee(points);
@@ -157,9 +167,27 @@ public static class CoreBench
         };
     }
 
+    private static CoreScalingPoint MeasureWidth(double[] state, int workers, TimeSpan duration, int frequency)
+    {
+        Process self = Process.GetCurrentProcess();
+        TimeSpan cpuBefore = self.TotalProcessorTime;
+        long start = Stopwatch.GetTimestamp();
+
+        RunPass(state, workers, DateTime.UtcNow + duration, frequency, out long items);
+
+        double seconds = Stopwatch.GetElapsedTime(start).TotalSeconds;
+        self.Refresh();
+        double cpuSeconds = (self.TotalProcessorTime - cpuBefore).TotalSeconds;
+
+        return new CoreScalingPoint(
+            workers,
+            seconds <= 0 ? 0 : items / seconds,
+            seconds <= 0 ? 0 : cpuSeconds / seconds);
+    }
+
     /// <summary>
-    /// Efficiency below this share of the single-worker figure is not worth the width. Only used
-    /// when no discontinuity was found, and reported as the policy it is.
+    /// Efficiency below this share of the two-worker figure is not worth the width. Only used when
+    /// no discontinuity was found, and reported as the policy it is.
     /// </summary>
     private const double SmoothDecayFloor = 0.80;
 
@@ -185,11 +213,20 @@ public static class CoreBench
     /// </summary>
     private static (int Knee, bool Sharp) FindKnee(IReadOnlyList<CoreScalingPoint> points)
     {
-        if (points.Count < 3) return (points.FirstOrDefault()?.Workers ?? 1, false);
+        if (points.Count < 4) return (points.FirstOrDefault()?.Workers ?? 1, false);
+
+        // ⚠️ The 1-worker rung is excluded from every comparison below, and kept only for the
+        // table. Parallel.For with a degree of 1 does not schedule anything - it runs the body
+        // inline on the calling thread - so that rung measures a different code path from every
+        // other one, and the 1-to-2 step is a jump between mechanisms rather than a point on the
+        // scaling curve. Including it inflated the typical-loss figure enough to move the detected
+        // knee between runs of the same machine.
+        int first = points[0].Workers == 1 ? 1 : 0;
+        if (points.Count - first < 3) return (points[first].Workers, false);
 
         // Relative efficiency lost stepping from each rung to the next.
         var losses = new List<double>();
-        for (int i = 1; i < points.Count; i++)
+        for (int i = first + 1; i < points.Count; i++)
         {
             double previous = points[i - 1].ItemsPerCoreSecond;
             losses.Add(previous <= 0 ? 0 : 1.0 - points[i].ItemsPerCoreSecond / previous);
@@ -206,15 +243,15 @@ public static class CoreBench
             for (int i = 0; i < losses.Count; i++)
             {
                 if (losses[i] > typical * DiscontinuityFactor && losses[i] > 0.10)
-                    return (points[i].Workers, true);
+                    return (points[first + i].Workers, true);
             }
         }
 
-        double reference = points[0].ItemsPerCoreSecond;
-        int knee = points[0].Workers;
+        double reference = points[first].ItemsPerCoreSecond;
+        int knee = points[first].Workers;
         if (reference > 0)
-            foreach (CoreScalingPoint p in points)
-                if (p.ItemsPerCoreSecond >= reference * SmoothDecayFloor) knee = p.Workers;
+            for (int i = first; i < points.Count; i++)
+                if (points[i].ItemsPerCoreSecond >= reference * SmoothDecayFloor) knee = points[i].Workers;
 
         return (knee, false);
     }

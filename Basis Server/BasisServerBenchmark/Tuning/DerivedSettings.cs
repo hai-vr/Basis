@@ -90,7 +90,7 @@ public static class DerivedSettings
                     ? $"Short parallel regions stop converting cores into work past {cores.KneeWorkers} workers on " +
                       "this machine - a measured boundary, with efficiency falling away sharply beyond it. "
                     : $"Efficiency decays smoothly here with no width the machine singles out; {cores.KneeWorkers} " +
-                      "is the widest still holding most of the single-worker efficiency, which is a stated " +
+                      "is the widest still holding most of the narrow-pool efficiency, which is a stated " +
                       "trade-off rather than a discovery. ") +
                 $"Running the full {machine.LogicalCores} costs {cores.WidthPenalty:F2}x the CPU for the same " +
                 $"output. At the {designPopulation:N0}-player design point, {peersPerWorker} peers per worker lands " +
