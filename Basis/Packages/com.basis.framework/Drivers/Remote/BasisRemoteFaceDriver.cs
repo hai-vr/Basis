@@ -46,6 +46,8 @@ namespace Basis.Scripts.Drivers
         public uint FaceGeneration;
         /// <summary>Index of this driver's pair in BasisRemoteFaceManagement's eye-transform registry, or -1 when unowned. Replaces a per-frame driver→pair dictionary lookup; maintained by the reconcile and validated against the live registry so a stale value is self-correcting.</summary>
         [System.NonSerialized] public int EyePairIndex = -1;
+        /// <summary>Slot this driver's eye/blink animation state occupies in BasisRemoteFaceManagement's per-slot arrays, or -1 when unassigned. The receiver snapshot reorders on every join/leave, so state is carried by this index rather than by snapshot position.</summary>
+        [System.NonSerialized] public int FaceSlotIndex = -1;
         /// <summary>Per-eye calibration computed once at avatar setup; converts canonical yaw/pitch to rig-local rotation.</summary>
         public BasisEyeCalibration calLeft;
         public BasisEyeCalibration calRight;

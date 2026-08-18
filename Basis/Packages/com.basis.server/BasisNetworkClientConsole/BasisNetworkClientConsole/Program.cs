@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Basis.Logging;
 using Basis.Network;
 using Basis.Config;
@@ -13,6 +14,7 @@ namespace Basis
         private const double MovementIntervalMs = 90.0;
         private const int MaxVoiceCatchUpFrames = 5;
         private static volatile bool _running = true;
+        private static int _shutdownStarted;
 
         /// <summary>Driver iterations that took longer than DriverTickMs — the harness falling behind.</summary>
         private static long DriverOverruns;
@@ -69,18 +71,30 @@ namespace Basis
             var clientManager = new ClientManager();
             clientManager.Prepare();
 
-            AppDomain.CurrentDomain.ProcessExit += (_, __) =>
+            // Every way this process is asked to stop ends in the same place, and all of them are
+            // reachable: Ctrl-C interactively, SIGTERM from docker stop or systemd, a "stop" line
+            // or a closed stdin from a harness driving it, and ProcessExit as the backstop for a
+            // plain return. Before this, only ProcessExit was handled, and ProcessExit runs on a
+            // budget measured in seconds - so a population of a few thousand never finished
+            // announcing and the server timed most of them out instead of being told.
+            AppDomain.CurrentDomain.ProcessExit += (_, __) => Shutdown(clientManager);
+
+            Console.CancelKeyPress += (_, e) =>
             {
-                Console.WriteLine("Shutting down...");
-                _running = false;
-                MicrophoneCapture.Stop();
-                clientManager.StopClientsAsync().GetAwaiter().GetResult();
-                // Close the capture file here rather than relying on the finalizer: a run is
-                // normally ended with Ctrl-C, and a half-written last record would make the
-                // whole capture unreadable to the trainer.
-                string captureSummary = BundleCaptureSink.Finish();
-                if (captureSummary != null) Console.WriteLine(captureSummary);
+                // Cancel the default kill so shutdown runs to completion rather than racing it.
+                e.Cancel = true;
+                Shutdown(clientManager);
+                Environment.Exit(0);
             };
+
+            using var sigTerm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, ctx =>
+            {
+                ctx.Cancel = true;
+                Shutdown(clientManager);
+                Environment.Exit(0);
+            });
+
+            StartStopRequestWatcher(clientManager);
 
             MovementSender.Initialize(clientManager.ClientCount);
             MovementSender.VoiceSender.Initialize(clientManager.ClientCount);
@@ -183,6 +197,81 @@ namespace Basis
             _ = StartRandomReconnectLoop(clientManager);
 
             await Task.Delay(-1); // keep main alive
+        }
+
+
+        /// <summary>
+        /// Runs the shutdown once, whoever asks for it first.
+        ///
+        /// <para>Ctrl-C, SIGTERM and ProcessExit can all fire for one stop - Ctrl-C in particular
+        /// runs its handler and then ProcessExit - so this has to be idempotent or the population
+        /// is torn down twice and the second pass throws on already-disposed transports.</para>
+        /// </summary>
+        private static void Shutdown(ClientManager clientManager)
+        {
+            if (Interlocked.Exchange(ref _shutdownStarted, 1) != 0) return;
+
+            Console.WriteLine("Shutting down...");
+            _running = false;
+            MicrophoneCapture.Stop();
+            clientManager.StopClientsAsync().GetAwaiter().GetResult();
+            // Close the capture file here rather than relying on the finalizer: a run is
+            // normally ended with Ctrl-C, and a half-written last record would make the
+            // whole capture unreadable to the trainer.
+            string captureSummary = BundleCaptureSink.Finish();
+            if (captureSummary != null) Console.WriteLine(captureSummary);
+        }
+
+        /// <summary>
+        /// Lets whatever started this process ask it to leave cleanly.
+        ///
+        /// <para>A harness cannot send SIGTERM on Windows, and killing the process runs no managed
+        /// code at all - which is exactly the case that leaves a server holding several thousand
+        /// peers until they time out. Watching stdin gives every platform one graceful stop: a
+        /// "stop" or "quit" line, or simply closing the stream, both mean leave now.</para>
+        ///
+        /// <para>Harmless when nobody is driving it. An interactive run just blocks on a console
+        /// nobody types into, and this thread is a background one, so it never holds up exit.</para>
+        /// </summary>
+        private static void StartStopRequestWatcher(ClientManager clientManager)
+        {
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        string line = Console.ReadLine();
+
+                        // End of stream is NOT a stop request. A process started with stdin closed
+                        // - nohup, systemd, a detached launch - reads EOF immediately, and treating
+                        // that as "leave now" would shut the run down the moment it started. Only an
+                        // explicit word means stop; EOF just means nobody is going to send one.
+                        if (line == null) return;
+
+                        line = line.Trim();
+                        if (line.Equals("stop", StringComparison.OrdinalIgnoreCase) ||
+                            line.Equals("quit", StringComparison.OrdinalIgnoreCase) ||
+                            line.Equals("exit", StringComparison.OrdinalIgnoreCase))
+                        {
+                            break;
+                        }
+                    }
+                }
+                catch
+                {
+                    // No console to read at all. Nothing to wait for, and nothing to stop.
+                    return;
+                }
+
+                Shutdown(clientManager);
+                Environment.Exit(0);
+            })
+            {
+                Name = "StopRequestWatcher",
+                IsBackground = true,
+            };
+            thread.Start();
         }
 
         public static void StopClient(ClientManager manager, int index)

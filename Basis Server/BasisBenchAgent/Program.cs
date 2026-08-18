@@ -192,6 +192,8 @@ public static class Program
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                // Open only so the client can be asked to leave the server before it is killed.
+                RedirectStandardInput = true,
             };
 
             Process process = Process.Start(info) ?? throw new InvalidOperationException("could not start the load client");
@@ -265,7 +267,7 @@ public static class Program
         if (process == null) return;
         try
         {
-            if (!process.HasExited)
+            if (!process.HasExited && !TryStopGracefully(process, TimeSpan.FromSeconds(10)))
             {
                 process.Kill(entireProcessTree: true);
                 process.WaitForExit(15000);
@@ -278,6 +280,35 @@ public static class Program
             Console.WriteLine("  load clients stopped");
         }
     }
+
+    /// <summary>
+    /// Asks the load client to leave the server before killing it, and returns whether it did.
+    ///
+    /// <para>Killing a process runs no managed code, so every client it was simulating vanishes
+    /// without a word and the server holds each one until it times out — which pollutes the next
+    /// run's population and its admission timings. Writing to stdin is the one graceful stop that
+    /// works on both platforms: there is no SIGTERM to send on Windows, and a console app cannot be
+    /// asked to close politely any other way.</para>
+    ///
+    /// <para>The kill still happens if it does not go quietly. This buys a clean departure when it
+    /// is available; it never trades away the guarantee that the process dies.</para>
+    /// </summary>
+    private static bool TryStopGracefully(Process process, TimeSpan timeout)
+    {
+        try
+        {
+            process.StandardInput.WriteLine("stop");
+            process.StandardInput.Flush();
+        }
+        catch
+        {
+            return false;
+        }
+
+        try { return process.WaitForExit((int)timeout.TotalMilliseconds); }
+        catch { return false; }
+    }
+
 
     private static string DiscoverClientDirectory()
     {

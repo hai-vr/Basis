@@ -252,10 +252,46 @@ namespace Basis.Network
                 BNL.Log($"Reconnected: {name} ({identity.Did}) at index {index}");
             }
         }
+        /// <summary>
+        /// Leaves the server cleanly, then tears down.
+        ///
+        /// <para>The two passes are the point. Departure notices are one datagram each and go out
+        /// in a few milliseconds for the whole population; the teardown behind them closes a socket
+        /// and joins a thread per client and takes far longer than the shutdown budget a killed or
+        /// Ctrl-C'd process gets. Interleaving them meant client N was still waiting on client
+        /// N-1's thread join when the process died, so most of a run's clients never told the
+        /// server anything and it had to time each of them out instead.</para>
+        ///
+        /// <para>Nothing is logged per client here for the same reason: a log line costs a console
+        /// lock and a file write, and a few thousand of them is itself enough to run the budget
+        /// out.</para>
+        /// </summary>
         public Task StopClientsAsync()
         {
-            if (FinalClients != null)
-                foreach (var client in FinalClients) client?.Disconnect();
+            var clients = FinalClients;
+            if (clients == null) return Task.CompletedTask;
+
+            int announced = 0;
+            foreach (var client in clients)
+            {
+                try
+                {
+                    if (client == null) continue;
+                    client.NotifyServerOfDeparture();
+                    announced++;
+                }
+                catch
+                {
+                    // A client that is already gone cannot leave twice, and one failure must not
+                    // stop the rest of the population from announcing.
+                }
+            }
+            BNL.Log($"Told the server {announced} client(s) are leaving; tearing down.");
+
+            foreach (var client in clients)
+            {
+                try { client?.Shutdown(); } catch { }
+            }
             return Task.CompletedTask;
         }
         public Configuration CreateConfig()

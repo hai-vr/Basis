@@ -71,7 +71,17 @@ public sealed class GpuDistanceSolver : IBasisDistanceSolver
                 return null;
             }
 
-            accelerator = device.CreateAccelerator(context);
+            // ScheduleBlockingSync, not the default.
+            //
+            // CUDA's default waits for a kernel by spinning, which is right for a process whose
+            // only job is the device and exactly wrong here: the point of the offload is to hand
+            // cores back to the send phase and the transport's per-peer pass, and a spinning wait
+            // hands back nothing. Measured on one sweep at 1000 players: 1.04 ms of CPU burned
+            // waiting with the default, 0.00 ms blocking, for the same work. Costs a few hundred
+            // microseconds of wakeup latency on a pass that runs at most a few times a second.
+            accelerator = device is CudaDevice cuda
+                ? cuda.CreateCudaAccelerator(context, CudaAcceleratorFlags.ScheduleBlockingSync)
+                : device.CreateAccelerator(context);
             var solver = new GpuDistanceSolver(context, accelerator);
             solver.Backend = device.AcceleratorType == AcceleratorType.Cuda ? "cuda" : "opencl";
             return solver;

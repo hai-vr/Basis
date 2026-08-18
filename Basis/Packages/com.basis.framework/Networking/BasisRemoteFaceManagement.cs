@@ -159,6 +159,12 @@ public static class BasisRemoteFaceManagement
         bool needRebuild = !eyeTransforms.isCreated || lastBuiltCount != count
             || eyeTransforms.length != eyeTransformPairCount * 2;
         bool fullScan = needRebuild || BasisNetworkPlayers.SnapshotVersion != lastSnapshotVersion;
+
+        if (fullScan && RemapSlotState(t))
+        {
+            needRebuild = true;
+        }
+
         unsafe
         {
             EyeCalibrationBlit* pCalL = (EyeCalibrationBlit*)eyeCalLeft.GetUnsafePtr();
@@ -741,53 +747,133 @@ public static class BasisRemoteFaceManagement
 
             for (int i = oldCap; i < newCap; i++)
             {
-                uint eyeSeed = HashToNonZero(baseSeed, (uint)(i * 2 + 1));
-                uint blinkSeed = HashToNonZero(baseSeed, (uint)(i * 2 + 2));
-
-                // Start pose from snapshot if it exists
-                float2 startTarget = float2.zero;
-                EyeOutput startEye = default;
-
-                if (i < requiredCount && snapshot != null)
-                {
-                    var arr = snapshot[i].EyesAndMouth;
-                    if (arr != null && arr.Length >= 4)
-                    {
-                        float vL = float.IsFinite(arr[0]) ? arr[0] : 0f;
-                        float hL = float.IsFinite(arr[1]) ? arr[1] : 0f;
-                        float vR = float.IsFinite(arr[2]) ? arr[2] : 0f;
-                        float hR = float.IsFinite(arr[3]) ? arr[3] : 0f;
-
-                        startTarget = new float2(hL, vL);
-                        startEye = new EyeOutput { vL = vL, hL = hL, vR = vR, hR = hR };
-                    }
-                }
-
-                pEyeStates[i] = new EyeState
-                {
-                    nextLookAroundTime = nowTime + Unity.Mathematics.Random.CreateFromIndex(eyeSeed)
-                        .NextFloat(MinLookAroundInterval, MaxLookAroundInterval),
-                    target = startTarget,
-                    isLooking = 0,
-                    rng = new Unity.Mathematics.Random(eyeSeed),
-                };
-
-                pBlinkStates[i] = new BlinkState
-                {
-                    nextBlinkTime = nowTime + Unity.Mathematics.Random.CreateFromIndex(blinkSeed)
-                        .NextFloat(MinBlinkInterval, MaxBlinkInterval),
-                    blinkStartTime = 0.0,
-                    openStartTime = 0.0,
-                    isClosing = 0,
-                    isOpening = 0,
-                    rng = new Unity.Mathematics.Random(blinkSeed),
-                };
-
-                pEyeOut[i] = startEye;
-                pBlinkOut[i] = 0f;
-                pLastBlinkApplied[i] = float.NaN;
+                float[] eyes = (i < requiredCount && snapshot != null) ? snapshot[i].EyesAndMouth : null;
+                SeedSlot(i, nowTime, eyes, baseSeed, pEyeStates, pBlinkStates, pEyeOut, pBlinkOut, pLastBlinkApplied);
             }
         }
+    }
+
+    static unsafe void SeedSlot(int i, double nowTime, float[] eyes, uint baseSeed,
+        EyeState* pEyeStates, BlinkState* pBlinkStates, EyeOutput* pEyeOut, float* pBlinkOut, float* pLastBlinkApplied)
+    {
+        uint eyeSeed = HashToNonZero(baseSeed, (uint)(i * 2 + 1));
+        uint blinkSeed = HashToNonZero(baseSeed, (uint)(i * 2 + 2));
+
+        // Start pose from snapshot if it exists
+        float2 startTarget = float2.zero;
+        EyeOutput startEye = default;
+
+        if (eyes != null && eyes.Length >= 4)
+        {
+            float vL = float.IsFinite(eyes[0]) ? eyes[0] : 0f;
+            float hL = float.IsFinite(eyes[1]) ? eyes[1] : 0f;
+            float vR = float.IsFinite(eyes[2]) ? eyes[2] : 0f;
+            float hR = float.IsFinite(eyes[3]) ? eyes[3] : 0f;
+
+            startTarget = new float2(hL, vL);
+            startEye = new EyeOutput { vL = vL, hL = hL, vR = vR, hR = hR };
+        }
+
+        pEyeStates[i] = new EyeState
+        {
+            nextLookAroundTime = nowTime + Unity.Mathematics.Random.CreateFromIndex(eyeSeed)
+                .NextFloat(MinLookAroundInterval, MaxLookAroundInterval),
+            target = startTarget,
+            isLooking = 0,
+            rng = new Unity.Mathematics.Random(eyeSeed),
+        };
+
+        pBlinkStates[i] = new BlinkState
+        {
+            nextBlinkTime = nowTime + Unity.Mathematics.Random.CreateFromIndex(blinkSeed)
+                .NextFloat(MinBlinkInterval, MaxBlinkInterval),
+            blinkStartTime = 0.0,
+            openStartTime = 0.0,
+            isClosing = 0,
+            isOpening = 0,
+            rng = new Unity.Mathematics.Random(blinkSeed),
+        };
+
+        pEyeOut[i] = startEye;
+        pBlinkOut[i] = 0f;
+        pLastBlinkApplied[i] = float.NaN;
+    }
+
+    /// <summary>
+    /// Re-binds the persistent per-slot eye/blink state (look-around target, blink phase, RNG, blendshape
+    /// write cache) to the driver that owns it. The receiver snapshot is a ConcurrentDictionary enumeration,
+    /// so a join or leave re-orders surviving players and the slot alone is not an identity. Drivers with no
+    /// valid prior slot are seeded fresh. Returns true when the mapping moved, which also invalidates
+    /// pairToSlot. Main thread, no eye job in flight.
+    /// </summary>
+    static unsafe bool RemapSlotState(double nowTime)
+    {
+        bool mappingChanged = false;
+        for (int Index = 0; Index < count; Index++)
+        {
+            if (snapshot[Index].RemotePlayer.RemoteFaceDriver.FaceSlotIndex != Index)
+            {
+                mappingChanged = true;
+                break;
+            }
+        }
+
+        if (!mappingChanged)
+        {
+            return false;
+        }
+
+        var prevEyeStates = new NativeArray<EyeState>(capacity, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+        var prevBlinkStates = new NativeArray<BlinkState>(capacity, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+        var prevEyeOut = new NativeArray<EyeOutput>(capacity, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+        var prevBlinkOut = new NativeArray<float>(capacity, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+        var prevLastBlink = new NativeArray<float>(capacity, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+
+        NativeArray<EyeState>.Copy(eyeStates, prevEyeStates, capacity);
+        NativeArray<BlinkState>.Copy(blinkStates, prevBlinkStates, capacity);
+        NativeArray<EyeOutput>.Copy(eyeOut, prevEyeOut, capacity);
+        NativeArray<float>.Copy(blinkOut, prevBlinkOut, capacity);
+        NativeArray<float>.Copy(lastBlinkApplied, prevLastBlink, capacity);
+
+        uint baseSeed = (uint)UnityEngine.Random.Range(1, int.MaxValue);
+
+        EyeState* pEyeStates = (EyeState*)eyeStates.GetUnsafePtr();
+        BlinkState* pBlinkStates = (BlinkState*)blinkStates.GetUnsafePtr();
+        EyeOutput* pEyeOut = (EyeOutput*)eyeOut.GetUnsafePtr();
+        float* pBlinkOut = (float*)blinkOut.GetUnsafePtr();
+        float* pLastBlinkApplied = (float*)lastBlinkApplied.GetUnsafePtr();
+
+        int cacheLength = faceCache.Length;
+
+        for (int Index = 0; Index < count; Index++)
+        {
+            BasisNetworkReceiver receiver = snapshot[Index];
+            BasisRemoteFaceDriver Face = receiver.RemotePlayer.RemoteFaceDriver;
+            int previous = Face.FaceSlotIndex;
+
+            if ((uint)previous < (uint)capacity && previous < cacheLength && ReferenceEquals(faceCache[previous], Face))
+            {
+                pEyeStates[Index] = prevEyeStates[previous];
+                pBlinkStates[Index] = prevBlinkStates[previous];
+                pEyeOut[Index] = prevEyeOut[previous];
+                pBlinkOut[Index] = prevBlinkOut[previous];
+                pLastBlinkApplied[Index] = prevLastBlink[previous];
+            }
+            else
+            {
+                SeedSlot(Index, nowTime, receiver.EyesAndMouth, baseSeed, pEyeStates, pBlinkStates, pEyeOut, pBlinkOut, pLastBlinkApplied);
+            }
+
+            Face.FaceSlotIndex = Index;
+        }
+
+        prevEyeStates.Dispose();
+        prevBlinkStates.Dispose();
+        prevEyeOut.Dispose();
+        prevBlinkOut.Dispose();
+        prevLastBlink.Dispose();
+
+        return true;
     }
 
     static uint HashToNonZero(uint a, uint b)

@@ -50,11 +50,29 @@ public class NetworkClient
     }
     public void Disconnect()
     {
-        IsInUse = false;
         BNL.Log("Client Called Disconnect from server");
-        peer?.Disconnect();
-        client?.Stop();
-
+        NotifyServerOfDeparture();
+        Shutdown();
         BNL.Log("Worker thread stopped.");
+    }
+    /// <summary>
+    /// Tells the server this client is leaving, and does nothing else.
+    ///
+    /// <para>Split out from <see cref="Shutdown"/> because the two costs are nothing alike. This
+    /// writes one datagram straight to the socket and returns; shutting the transport down closes
+    /// the socket and joins its logic thread. Anything stopping a whole population has to get
+    /// every one of these out before it starts paying for the teardown, or the last clients are
+    /// still queued behind thread joins when the process is killed and the server is left to time
+    /// them out one by one.</para>
+    /// </summary>
+    public void NotifyServerOfDeparture()
+    {
+        IsInUse = false;
+        peer?.Disconnect();
+    }
+    /// <summary>Closes the socket and joins the transport's threads.</summary>
+    public void Shutdown()
+    {
+        client?.Stop();
     }
 }

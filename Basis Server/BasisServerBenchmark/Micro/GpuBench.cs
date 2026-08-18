@@ -12,8 +12,20 @@ public sealed record GpuSweepPoint(
     double CpuMs,
     double GpuSolveMs,
     double GpuTotalMs,
-    double DownloadMegabytes)
+    double DownloadMegabytes,
+    double CpuProcessorMs,
+    double GpuProcessorMs)
 {
+    /// <summary>
+    /// Processor time the offload gives back per sweep.
+    ///
+    /// <para>This, not elapsed time, is what the offload is for. The send phase and the
+    /// transport's per-peer pass overlap on one machine, so a core handed back is worth more than
+    /// a millisecond saved inside the phase — and it only materialises if waiting on the device
+    /// blocks rather than spins, which is why the backend asks for ScheduleBlockingSync.</para>
+    /// </summary>
+    public double ProcessorMsFreed => CpuProcessorMs - GpuProcessorMs;
+
     /// <summary>How much faster the offload is once the transfer and the scatter are paid for.</summary>
     public double Speedup => GpuTotalMs > 0 ? CpuMs / GpuTotalMs : 0;
 
@@ -49,10 +61,10 @@ public sealed class GpuBenchResult
         sb.AppendLine("    The whole NxN sweep, both backends, against the cache the send loop reads.");
         sb.AppendLine("    GPU total includes upload, kernel, download and the scatter back into the cache.");
         sb.AppendLine();
-        sb.AppendLine("    players       CPU ms    solve ms   scatter ms   GPU total    download     speedup");
+        sb.AppendLine("    players    CPU wall   GPU wall    CPU proc   GPU proc   proc freed   speedup");
         foreach (GpuSweepPoint p in Points)
         {
-            sb.AppendLine($"    {p.Players,7}   {p.CpuMs,10:F2}  {p.GpuSolveMs,10:F2}   {p.ScatterMs,10:F2}  {p.GpuTotalMs,10:F2}   {p.DownloadMegabytes,7:F1} MB  {p.Speedup,8:F2}x");
+            sb.AppendLine($"    {p.Players,7}  {p.CpuMs,9:F2}  {p.GpuTotalMs,9:F2}  {p.CpuProcessorMs,10:F2} {p.GpuProcessorMs,10:F2}  {p.ProcessorMsFreed,10:F2}  {p.Speedup,8:F2}x");
         }
 
         sb.AppendLine();
@@ -190,9 +202,13 @@ public static class GpuBench
 
         sb.AppendLine($"Recommended: {design.Speedup:F2}x at {design.Players} players.");
         sb.AppendLine();
-        sb.AppendLine($"      Read as CPU saved, this is small: {cpuCores:F4} cores -> {gpuCores:F4}, so about");
-        sb.AppendLine($"      {cpuCores - gpuCores:F4} cores back at the shipped {sweepIntervalTicks}-tick refresh. That is not where a");
-        sb.AppendLine("      broadcast server's CPU goes and this should not be sold as if it were.");
+        double coresFreed = design.ProcessorMsFreed * cpuWorkers / (sweepSeconds * 1000.0) / cpuWorkers;
+        sb.AppendLine($"      Processor time given back: {design.CpuProcessorMs:F2} ms -> {design.GpuProcessorMs:F2} ms per sweep, which at the");
+        sb.AppendLine($"      shipped {sweepIntervalTicks}-tick refresh is about {design.ProcessorMsFreed / (sweepSeconds * 1000.0):F4} cores. Small in absolute terms - this is");
+        sb.AppendLine("      not where a broadcast server's CPU goes, and it should not be sold as if it were.");
+        sb.AppendLine();
+        sb.AppendLine("      It is only real because the backend waits with ScheduleBlockingSync. CUDA's default");
+        sb.AppendLine("      spins, which returns the wall time and none of the core.");
         sb.AppendLine();
         sb.AppendLine("      Read as staleness, it is worth more, and that is where the server spends it. The");
         sb.AppendLine("      refresh period is long because the sweep is expensive; the same tick budget buys a");
@@ -312,6 +328,9 @@ public static class GpuBench
         double gpuSolveMs = BestOf(() => solver.Solve(ref request, flatInterval, flatQuality));
         double gpuTotalMs = BestOf(() => { solver.Solve(ref request, flatInterval, flatQuality); Scatter(); });
 
+        double cpuProcessorMs = ProcessorCostOf(CpuFusedSweep);
+        double gpuProcessorMs = ProcessorCostOf(() => { solver.Solve(ref request, flatInterval, flatQuality); Scatter(); });
+
         CpuFusedSweep();
         var referenceInterval = new byte[resultLength];
         var referenceQuality = new byte[resultLength];
@@ -343,7 +362,23 @@ public static class GpuBench
         qualityDiff = qd;
         intervalDiff = id;
 
-        return new GpuSweepPoint(n, cpuMs, gpuSolveMs, gpuTotalMs, resultLength * 2 / (1024.0 * 1024.0));
+        return new GpuSweepPoint(n, cpuMs, gpuSolveMs, gpuTotalMs, resultLength * 2 / (1024.0 * 1024.0),
+            cpuProcessorMs, gpuProcessorMs);
+    }
+
+    /// <summary>
+    /// Processor time one call costs, averaged over a run long enough for the OS accounting clock
+    /// to resolve it. Averaged rather than best-of because the quantity of interest is what the
+    /// work actually consumes, not the least it could ever consume.
+    /// </summary>
+    private static double ProcessorCostOf(Action action)
+    {
+        const int Iterations = 40;
+        action();
+        System.Diagnostics.Process self = System.Diagnostics.Process.GetCurrentProcess();
+        TimeSpan before = self.TotalProcessorTime;
+        for (int i = 0; i < Iterations; i++) action();
+        return (self.TotalProcessorTime - before).TotalMilliseconds / Iterations;
     }
 
     private static double BestOf(Action action)
