@@ -131,7 +131,9 @@ namespace Basis.Network.Server.Generic
             }
         }
 
-        private static bool Enabled => NetworkServer.Configuration?.ImageCacheEnabled ?? false;
+        private static bool Enabled =>
+            (NetworkServer.Configuration?.ImageCacheEnabled ?? false)
+            && (NetworkServer.Configuration?.ImagePickupRangeMeters ?? 0f) <= 0f;
 
         private const long BytesPerMegabyte = 1024L * 1024L;
 

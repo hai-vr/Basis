@@ -1180,6 +1180,7 @@ namespace BasisPermissions
                     PeerLimit = config.PeerLimit,
                     UplinkDeltaEnabled = config.EnableUplinkAvatarDelta,
                     ImageShareEgressMegabitsPerSecond = config.ImageShareEgressMegabitsPerSecond,
+                    ImagePickupRangeMeters = Math.Max(0f, config.ImagePickupRangeMeters),
                 };
                 msg.SetPermissions(Manager.GetAllAllowedRules(uuid), Manager.GetAllDeniedRules(uuid));
 

@@ -82,6 +82,7 @@ public class BasisNetworkImageCacheTests : IDisposable
             // a result that has nothing to do with what it is asserting. The paced path has its own
             // tests in BasisImageBandwidthGovernorTests.
             ImageShareDownloadMegabitsPerSecond = 0,
+            ImagePickupRangeMeters = 0f,
         };
 
         BasisNetworkImageCache.Reset();
@@ -438,6 +439,29 @@ public class BasisNetworkImageCacheTests : IDisposable
         BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
 
         Assert.Empty(joiner.Sent);
+    }
+
+    [Fact]
+    public void WithFiniteImageRange_AJoinerIsServedNothingByTheServerCache()
+    {
+        ShareImage(owner: 7);
+        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
+
+        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
+        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+
+        Assert.Empty(joiner.Sent);
+    }
+
+    [Fact]
+    public void WithFiniteImageRange_NothingIsRetained()
+    {
+        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
+
+        ShareImage(owner: 7);
+
+        Assert.Equal(0, BasisNetworkImageCache.BytesHeldFor(7));
+        Assert.Equal(0, BasisNetworkImageCache.TotalBytes);
     }
 
     [Fact]

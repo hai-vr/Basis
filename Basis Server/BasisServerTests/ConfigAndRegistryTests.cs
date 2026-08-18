@@ -107,6 +107,8 @@ public class ServerConfigurationDefaultsTests
         Assert.Equal(2000, cfg.AvatarDeltaKeyframeMaxIntervalMs);
         Assert.True(cfg.StripAdditionalDataAtLowQuality);
         Assert.True(cfg.EnableUplinkAvatarDelta);
+        Assert.Equal(200, cfg.ImageShareEgressMegabitsPerSecond);
+        Assert.Equal(64f, cfg.ImagePickupRangeMeters);
     }
 
     [Fact]
@@ -168,7 +170,8 @@ public class ServerConfigurationDefaultsTests
         // 8: added the hybrid avatar-bundle codec settings (EnableAvatarBundleZstd and friends).
         // 9: added per-player abuse caps (MaxNetworkIdsPerPlayer, MaxLoadedResourcesPerPlayer) and the
         //    opt-in scene-relay egress backstop (MaxSceneRelayMegabitsPerSecondPerPlayer).
-        Assert.Equal(9, Configuration.CurrentConfigVersion);
+        // 10: added image-pickup replication range.
+        Assert.Equal(10, Configuration.CurrentConfigVersion);
         Assert.Equal(0, new Configuration().ConfigVersion);
         Assert.Equal("config", Configuration.ConfigFolderName);
         Assert.Equal("logs", Configuration.LogsFolderName);
