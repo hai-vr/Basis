@@ -1,4 +1,4 @@
-using Basis.BasisUI;
+﻿using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
@@ -604,7 +604,9 @@ namespace Basis.Scripts.UI.NamePlate
             }
             else
             {
-                BakeNameMesh(remotePlayer.DisplayName, namePlate.Filter, namePlate.Renderer);
+                // displayName, not DisplayName: the per-plate fallback must strip markup under the
+                // safe-names lock too, or a stripped-shader build renders the raw name.
+                BakeNameMesh(displayName, namePlate.Filter, namePlate.Renderer);
             }
         }
 

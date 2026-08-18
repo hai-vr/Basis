@@ -1,4 +1,4 @@
-using Basis.BasisUI;
+﻿using Basis.BasisUI;
 using Basis.Network.Core;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
@@ -259,6 +259,9 @@ namespace Basis.Scripts.Networking
                 BasisP2PManager.Shutdown();
                 BasisAvatarRateRegistry.Reset();
                 BasisLocomotionOverrides.RemoveAll(true);
+                // Server-pushed global locks are process-wide statics: drop them with the
+                // connection or they stay in force offline and into whatever loads next.
+                BasisNetworkModeration.ResetGlobalLockState();
                 await BasisNetworkLifeCycle.RebootManagement(true, peer, disconnectInfo);
                 BasisNetworkConnectionWatchdog.NotifyRebootComplete();
 #if UNITY_SERVER

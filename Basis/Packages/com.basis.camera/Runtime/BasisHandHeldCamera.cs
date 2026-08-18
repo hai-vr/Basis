@@ -1,4 +1,4 @@
-using Basis;
+﻿using Basis;
 using Basis.BasisUI;
 using Basis.ImagePickup;
 using Basis.Scripts.Audio;
@@ -1215,6 +1215,14 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             return;
         }
 
+        // Same gate CapturePhoto applies: the timer is just a delayed capture, so a locked client
+        // must not start one — and must not broadcast the countdown remotes replay.
+        if (BasisNetworkModeration.CameraCaptureBlockedLocally)
+        {
+            BasisDebug.LogWarning("Timer blocked: camera capture is locked by an admin.", BasisDebug.LogTag.Camera);
+            return;
+        }
+
         // Notify remote clients so they replay the same tick/shutter timing
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
@@ -1255,6 +1263,18 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         countdownText.text = "!";
         yield return new WaitForSeconds(0.5f);
 
+        countdownRoutine = null;
+
+        // Re-checked here because an admin can lock capture during the countdown, and before the
+        // shutter sound for the same reason CapturePhoto checks early: a refusal must not sound
+        // like a photo was taken.
+        if (BasisNetworkModeration.CameraCaptureBlockedLocally)
+        {
+            BasisDebug.LogWarning("Timer capture blocked: camera capture is locked by an admin.", BasisDebug.LogTag.Camera);
+            countdownText.text = string.Empty;
+            yield break;
+        }
+
         // Choose formats based on captureFormat
         GetCaptureFormats(out TextureFormat format, out RenderTextureFormat renderFormat);
 
@@ -1263,8 +1283,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             BasisUISounds.PlayAt(BasisUISoundEvent.CameraShutter, BasisDeviceManagement.Instance.CameraShutterSound, captureCamera.transform.position, SMModuleAudio.ActivePropVolume);
         }
-
-        countdownRoutine = null;
 
         if (capture360Enabled)
             StartCoroutine(TakeScreenshot360(captureFormat == "EXR"));

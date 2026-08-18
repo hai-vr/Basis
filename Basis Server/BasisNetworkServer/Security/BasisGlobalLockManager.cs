@@ -1,4 +1,4 @@
-using Basis.Network.Core;
+﻿using Basis.Network.Core;
 using System.Threading;
 using static BasisNetworkCore.Serializable.SerializableBasis;
 
@@ -75,6 +75,38 @@ namespace BasisNetworkServer.Security
             Interlocked.Exchange(ref _propGrabbingLocked, config.PropGrabbingLocked ? 1 : 0);
             Interlocked.Exchange(ref _safeDisplayNamesForced, config.SafeDisplayNamesForced ? 1 : 0);
             Interlocked.Exchange(ref _endEffectorIKDisabled, config.EndEffectorIKDisabled ? 1 : 0);
+        }
+
+        /// <summary>
+        /// Copies the live lock state back onto the configuration object so a caller can persist it
+        /// to config.xml. The mirror image of <see cref="InitializeFromConfig"/> — every field that
+        /// seeds a flag at boot is written here, or an admin's toggle silently reverts on restart.
+        /// </summary>
+        public static void WriteToConfig(Configuration config)
+        {
+            if (config == null)
+            {
+                return;
+            }
+
+            config.AvatarsLocked = AvatarsLocked;
+            config.PropsLocked = PropsLocked;
+            config.WorldsLocked = WorldsLocked;
+            config.ServersLocked = ServersLocked;
+            config.ThirdPersonDisabled = ThirdPersonDisabled;
+            config.AdditionalAvatarDataLock = AdditionalAvatarDataLock;
+            config.CameraMetadataDisallowMask = CameraMetadataDisallowMask;
+            config.PlayspaceMoverLocked = PlayspaceMoverLocked;
+            config.DirectConnectLocked = DirectConnectLocked;
+            config.CilboxLocked = CilboxLocked;
+            config.ImagesLocked = ImagesLocked;
+            config.TextChatLocked = TextChatLocked;
+            config.VoiceChatLocked = VoiceChatLocked;
+            config.MediaPlayerLocked = MediaPlayerLocked;
+            config.CameraCaptureLocked = CameraCaptureLocked;
+            config.PropGrabbingLocked = PropGrabbingLocked;
+            config.SafeDisplayNamesForced = SafeDisplayNamesForced;
+            config.EndEffectorIKDisabled = EndEffectorIKDisabled;
         }
 
         /// <summary>

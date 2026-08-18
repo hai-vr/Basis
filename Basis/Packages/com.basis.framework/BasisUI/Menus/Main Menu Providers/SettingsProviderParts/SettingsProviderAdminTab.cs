@@ -1,4 +1,4 @@
-using Basis.Scripts.Drivers;
+﻿using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using BasisNetworkCore.Security;
 using System;
@@ -21,6 +21,20 @@ namespace Basis.BasisUI
         /// <summary>Allow the Moderator tab (separate file) to fan-out player selection
         /// to the Permissions section that still lives on this tab.</summary>
         public static void RaisePlayerUuidSelected(string uuid) => OnPlayerUuidSelected?.Invoke(uuid);
+
+        /// <summary>
+        /// Sends a global-lock request and immediately snaps the switch back to the last state the
+        /// server broadcast. The server is authoritative: an accepted request comes back as a
+        /// GlobalGetLockState broadcast a moment later and flips the switch for real. A rejected one
+        /// (the tab only needs basis.permissions.view to be visible, while the locks need
+        /// basis.moderation.globallock) sends nothing back, and without this the switch would sit
+        /// there showing a lock that was never applied.
+        /// </summary>
+        private static void SendLockRequest(PanelToggle toggle, Action send, Func<bool> serverState)
+        {
+            send();
+            toggle.SetValueWithoutNotify(serverState());
+        }
 
         public static PanelTabPage AdminTab(PanelTabGroup tabGroup)
         {
@@ -55,37 +69,37 @@ namespace Basis.BasisUI
             avatarLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockAvatars"));
             avatarLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockAvatars.tooltip"));
             avatarLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalAvatarsLocked);
-            avatarLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleAvatars();
+            avatarLock.OnValueChanged += _ => SendLockRequest(avatarLock, BasisNetworkModeration.GlobalToggleAvatars, () => BasisNetworkModeration.GlobalAvatarsLocked);
 
             PanelToggle propLock = PanelToggle.CreateNewEntry(container);
             propLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockProps"));
             propLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockProps.tooltip"));
             propLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalPropsLocked);
-            propLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleProps();
+            propLock.OnValueChanged += _ => SendLockRequest(propLock, BasisNetworkModeration.GlobalToggleProps, () => BasisNetworkModeration.GlobalPropsLocked);
 
             PanelToggle worldLock = PanelToggle.CreateNewEntry(container);
             worldLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockWorlds"));
             worldLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockWorlds.tooltip"));
             worldLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalWorldsLocked);
-            worldLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleWorlds();
+            worldLock.OnValueChanged += _ => SendLockRequest(worldLock, BasisNetworkModeration.GlobalToggleWorlds, () => BasisNetworkModeration.GlobalWorldsLocked);
 
             PanelToggle serverShareLock = PanelToggle.CreateNewEntry(container);
             serverShareLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockServerSharing"));
             serverShareLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockServerSharing.tooltip"));
             serverShareLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalServersLocked);
-            serverShareLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleServers();
+            serverShareLock.OnValueChanged += _ => SendLockRequest(serverShareLock, BasisNetworkModeration.GlobalToggleServers, () => BasisNetworkModeration.GlobalServersLocked);
 
             PanelToggle headlessAudioToggle = PanelToggle.CreateNewEntry(container);
             headlessAudioToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.headlessAudioOff"));
             headlessAudioToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.headlessAudioOff.tooltip"));
             headlessAudioToggle.SetValueWithoutNotify(BasisNetworkModeration.GlobalHeadlessAudioOff);
-            headlessAudioToggle.OnValueChanged += value => BasisNetworkModeration.SetGlobalHeadlessAudio(value);
+            headlessAudioToggle.OnValueChanged += value => SendLockRequest(headlessAudioToggle, () => BasisNetworkModeration.SetGlobalHeadlessAudio(value), () => BasisNetworkModeration.GlobalHeadlessAudioOff);
 
             PanelToggle disallowHeadlessToggle = PanelToggle.CreateNewEntry(container);
             disallowHeadlessToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowHeadless"));
             disallowHeadlessToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowHeadless.tooltip"));
             disallowHeadlessToggle.SetValueWithoutNotify(BasisNetworkModeration.GlobalHeadlessDisallowed);
-            disallowHeadlessToggle.OnValueChanged += value => BasisNetworkModeration.SetGlobalHeadlessDisallow(value);
+            disallowHeadlessToggle.OnValueChanged += value => SendLockRequest(disallowHeadlessToggle, () => BasisNetworkModeration.SetGlobalHeadlessDisallow(value), () => BasisNetworkModeration.GlobalHeadlessDisallowed);
 
             // Server-broadcast lock for the desktop third-person camera. The toggle sends
             // GlobalToggleThirdPerson; the server flips, persists, and broadcasts the new
@@ -94,73 +108,73 @@ namespace Basis.BasisUI
             thirdPersonLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disableThirdPersonCamera"));
             thirdPersonLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disableThirdPersonCamera.tooltip"));
             thirdPersonLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalThirdPersonDisabled);
-            thirdPersonLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleThirdPerson();
+            thirdPersonLock.OnValueChanged += _ => SendLockRequest(thirdPersonLock, BasisNetworkModeration.GlobalToggleThirdPerson, () => BasisNetworkModeration.GlobalThirdPersonDisabled);
 
             PanelToggle additionalAvatarDataLock = PanelToggle.CreateNewEntry(container);
             additionalAvatarDataLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.stripAdditionalAvatarData"));
             additionalAvatarDataLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.stripAdditionalAvatarData.tooltip"));
             additionalAvatarDataLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalAdditionalAvatarDataLock);
-            additionalAvatarDataLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleAdditionalAvatarDataLock();
+            additionalAvatarDataLock.OnValueChanged += _ => SendLockRequest(additionalAvatarDataLock, BasisNetworkModeration.GlobalToggleAdditionalAvatarDataLock, () => BasisNetworkModeration.GlobalAdditionalAvatarDataLock);
 
             PanelToggle playspaceMoverLock = PanelToggle.CreateNewEntry(container);
             playspaceMoverLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockPlayspaceMover"));
             playspaceMoverLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockPlayspaceMover.tooltip"));
             playspaceMoverLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalPlayspaceMoverLocked);
-            playspaceMoverLock.OnValueChanged += _ => BasisNetworkModeration.GlobalTogglePlayspaceMover();
+            playspaceMoverLock.OnValueChanged += _ => SendLockRequest(playspaceMoverLock, BasisNetworkModeration.GlobalTogglePlayspaceMover, () => BasisNetworkModeration.GlobalPlayspaceMoverLocked);
 
             PanelToggle directConnectLock = PanelToggle.CreateNewEntry(container);
             directConnectLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockDirectConnect"));
             directConnectLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockDirectConnect.tooltip"));
             directConnectLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalDirectConnectLocked);
-            directConnectLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleDirectConnect();
+            directConnectLock.OnValueChanged += _ => SendLockRequest(directConnectLock, BasisNetworkModeration.GlobalToggleDirectConnect, () => BasisNetworkModeration.GlobalDirectConnectLocked);
 
             PanelToggle cilboxLock = PanelToggle.CreateNewEntry(container);
             cilboxLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockCilbox"));
             cilboxLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockCilbox.tooltip"));
             cilboxLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalCilboxLocked);
-            cilboxLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleCilbox();
+            cilboxLock.OnValueChanged += _ => SendLockRequest(cilboxLock, BasisNetworkModeration.GlobalToggleCilbox, () => BasisNetworkModeration.GlobalCilboxLocked);
 
             PanelToggle imagesLock = PanelToggle.CreateNewEntry(container);
             imagesLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockSharedImages"));
             imagesLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockSharedImages.tooltip"));
             imagesLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalImagesLocked);
-            imagesLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleImages();
+            imagesLock.OnValueChanged += _ => SendLockRequest(imagesLock, BasisNetworkModeration.GlobalToggleImages, () => BasisNetworkModeration.GlobalImagesLocked);
 
             PanelToggle textChatLock = PanelToggle.CreateNewEntry(container);
             textChatLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockTextChat"));
             textChatLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockTextChat.tooltip"));
             textChatLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalTextChatLocked);
-            textChatLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleTextChat();
+            textChatLock.OnValueChanged += _ => SendLockRequest(textChatLock, BasisNetworkModeration.GlobalToggleTextChat, () => BasisNetworkModeration.GlobalTextChatLocked);
 
             PanelToggle voiceChatLock = PanelToggle.CreateNewEntry(container);
             voiceChatLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockVoiceChat"));
             voiceChatLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockVoiceChat.tooltip"));
             voiceChatLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalVoiceChatLocked);
-            voiceChatLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleVoiceChat();
+            voiceChatLock.OnValueChanged += _ => SendLockRequest(voiceChatLock, BasisNetworkModeration.GlobalToggleVoiceChat, () => BasisNetworkModeration.GlobalVoiceChatLocked);
 
             PanelToggle mediaPlayerLock = PanelToggle.CreateNewEntry(container);
             mediaPlayerLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockMediaPlayer"));
             mediaPlayerLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockMediaPlayer.tooltip"));
             mediaPlayerLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalMediaPlayerLocked);
-            mediaPlayerLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleMediaPlayer();
+            mediaPlayerLock.OnValueChanged += _ => SendLockRequest(mediaPlayerLock, BasisNetworkModeration.GlobalToggleMediaPlayer, () => BasisNetworkModeration.GlobalMediaPlayerLocked);
 
             PanelToggle cameraCaptureLock = PanelToggle.CreateNewEntry(container);
             cameraCaptureLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockCameraCapture"));
             cameraCaptureLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockCameraCapture.tooltip"));
             cameraCaptureLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalCameraCaptureLocked);
-            cameraCaptureLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleCameraCapture();
+            cameraCaptureLock.OnValueChanged += _ => SendLockRequest(cameraCaptureLock, BasisNetworkModeration.GlobalToggleCameraCapture, () => BasisNetworkModeration.GlobalCameraCaptureLocked);
 
             PanelToggle propGrabbingLock = PanelToggle.CreateNewEntry(container);
             propGrabbingLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockPropGrabbing"));
             propGrabbingLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockPropGrabbing.tooltip"));
             propGrabbingLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalPropGrabbingLocked);
-            propGrabbingLock.OnValueChanged += _ => BasisNetworkModeration.GlobalTogglePropGrabbing();
+            propGrabbingLock.OnValueChanged += _ => SendLockRequest(propGrabbingLock, BasisNetworkModeration.GlobalTogglePropGrabbing, () => BasisNetworkModeration.GlobalPropGrabbingLocked);
 
             PanelToggle safeDisplayNamesToggle = PanelToggle.CreateNewEntry(container);
             safeDisplayNamesToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.safeDisplayNames"));
             safeDisplayNamesToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.safeDisplayNames.tooltip"));
             safeDisplayNamesToggle.SetValueWithoutNotify(BasisNetworkModeration.GlobalSafeDisplayNamesForced);
-            safeDisplayNamesToggle.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleSafeDisplayNames();
+            safeDisplayNamesToggle.OnValueChanged += _ => SendLockRequest(safeDisplayNamesToggle, BasisNetworkModeration.GlobalToggleSafeDisplayNames, () => BasisNetworkModeration.GlobalSafeDisplayNamesForced);
 
             // Enabled-facing: the toggle shows the feature ON (default); flipping it OFF disables it
             // server-wide. The wire flag is stored inverted (GlobalEndEffectorIKDisabled).
@@ -168,7 +182,7 @@ namespace Basis.BasisUI
             endEffectorIKToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.remoteEndEffectorIK"));
             endEffectorIKToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.remoteEndEffectorIK.tooltip"));
             endEffectorIKToggle.SetValueWithoutNotify(!BasisNetworkModeration.GlobalEndEffectorIKDisabled);
-            endEffectorIKToggle.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleEndEffectorIK();
+            endEffectorIKToggle.OnValueChanged += _ => SendLockRequest(endEffectorIKToggle, BasisNetworkModeration.GlobalToggleEndEffectorIK, () => !BasisNetworkModeration.GlobalEndEffectorIKDisabled);
 
             controller.AvatarLockToggle = avatarLock;
             controller.PropLockToggle = propLock;

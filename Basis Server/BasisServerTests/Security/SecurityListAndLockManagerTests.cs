@@ -1,4 +1,4 @@
-using Basis.Network.Core;
+﻿using Basis.Network.Core;
 using Basis.Network.Server.Auth;
 using BasisNetworkCore.Security;
 using BasisNetworkServer.BasisNetworking;
@@ -503,6 +503,7 @@ public class BasisGlobalLockManagerTests
         MediaPlayerLocked = false,
         CameraCaptureLocked = false,
         PropGrabbingLocked = false,
+        SafeDisplayNamesForced = false,
     };
 
     private static Configuration AllLocked() => new()
@@ -524,6 +525,7 @@ public class BasisGlobalLockManagerTests
         MediaPlayerLocked = true,
         CameraCaptureLocked = true,
         PropGrabbingLocked = true,
+        SafeDisplayNamesForced = true,
     };
 
     private static void AssertAllFlags(bool expected)
@@ -544,6 +546,50 @@ public class BasisGlobalLockManagerTests
         Assert.Equal(expected, BasisGlobalLockManager.MediaPlayerLocked);
         Assert.Equal(expected, BasisGlobalLockManager.CameraCaptureLocked);
         Assert.Equal(expected, BasisGlobalLockManager.PropGrabbingLocked);
+        Assert.Equal(expected, BasisGlobalLockManager.SafeDisplayNamesForced);
+    }
+
+    /// <summary>
+    /// Every lock seeds itself from Configuration at boot, so a toggle that never reaches
+    /// Configuration silently reverts on restart. WriteToConfig is the mirror of
+    /// InitializeFromConfig and must carry every field back — including the mask.
+    /// </summary>
+    [Fact]
+    public void WriteToConfig_RoundTripsEveryFlagAndTheMask()
+    {
+        try
+        {
+            BasisGlobalLockManager.InitializeFromConfig(AllLocked());
+
+            Configuration persisted = AllUnlocked();
+            BasisGlobalLockManager.WriteToConfig(persisted);
+
+            // Reseeding from what was written must reproduce the state that was written out.
+            BasisGlobalLockManager.InitializeFromConfig(AllUnlocked());
+            AssertAllFlags(false);
+            BasisGlobalLockManager.InitializeFromConfig(persisted);
+            AssertAllFlags(true);
+            Assert.Equal(0xAB, BasisGlobalLockManager.CameraMetadataDisallowMask);
+        }
+        finally
+        {
+            BasisGlobalLockManager.InitializeFromConfig(AllUnlocked());
+        }
+    }
+
+    [Fact]
+    public void WriteToConfig_IgnoresANullConfiguration()
+    {
+        BasisGlobalLockManager.InitializeFromConfig(AllLocked());
+        try
+        {
+            BasisGlobalLockManager.WriteToConfig(null);
+            AssertAllFlags(true);
+        }
+        finally
+        {
+            BasisGlobalLockManager.InitializeFromConfig(AllUnlocked());
+        }
     }
 
     [Fact]

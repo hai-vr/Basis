@@ -767,7 +767,8 @@ namespace BasisServerHandle
             ClientAvatarChangeMessage.Deserialize(Reader);
             Reader.Recycle();
 
-            // Global avatar lock: reject network broadcast but still save state locally
+            // Global avatar lock: drop the change outright — neither broadcast nor saved, so a
+            // late joiner isn't handed an avatar the lock exists to keep out of the instance.
             if (BasisNetworkServer.Security.BasisGlobalLockManager.AvatarsLocked)
             {
                 bool hasBypass = false;

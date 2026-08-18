@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.IO;
 using UnityEngine;
@@ -555,8 +555,9 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             BasisDebug.LogWarning("BasisMediaPlayer.LoadUrl called with empty URL.", BasisDebug.LogTag.Video);
             return;
         }
-        // Every URL load funnels through here — the local user setting one AND a peer's synced
-        // FullState applying one — so this single gate covers both directions of the admin lock.
+        // Refused up front so a locked client doesn't hand a page URL to the resolver. The synced
+        // FullState path only routes page URLs through here — a directly-playable URL goes straight
+        // to LoadSource — so LoadSource carries the same gate rather than relying on this one.
         if (BasisNetworkModeration.MediaPlayerBlockedLocally)
         {
             BasisDebug.LogWarning("BasisMediaPlayer.LoadUrl blocked: media players are locked by an admin.", BasisDebug.LogTag.Video);
@@ -656,6 +657,15 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         if (media == null)
         {
             throw new ArgumentNullException(nameof(media));
+        }
+
+        // The load funnel: LoadUrl's resolver continuation, a peer's synced FullState applying a
+        // directly-playable URL, and direct callers all land here, so the admin lock is enforced
+        // here as well as at LoadUrl.
+        if (BasisNetworkModeration.MediaPlayerBlockedLocally)
+        {
+            BasisDebug.LogWarning("BasisMediaPlayer.LoadSource blocked: media players are locked by an admin.", BasisDebug.LogTag.Video);
+            return;
         }
 
         // A plain LoadSource carries no continuation token; only the

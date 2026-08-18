@@ -1,4 +1,4 @@
-using Basis.BasisUI;
+﻿using Basis.BasisUI;
 using Basis.Network.Core;
 using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Players;
@@ -1206,6 +1206,60 @@ public static class BasisNetworkModeration
         }
         BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}, PlayspaceMover: {GlobalPlayspaceMoverLocked}, DirectConnect: {GlobalDirectConnectLocked}, Cilbox: {GlobalCilboxLocked}, Images: {GlobalImagesLocked}, EndEffectorIKDisabled: {GlobalEndEffectorIKDisabled}, TextChat: {GlobalTextChatLocked}, VoiceChat: {GlobalVoiceChatLocked}, MediaPlayer: {GlobalMediaPlayerLocked}, CameraCapture: {GlobalCameraCaptureLocked}, PropGrabbing: {GlobalPropGrabbingLocked}, SafeDisplayNames: {GlobalSafeDisplayNamesForced}", BasisDebug.LogTag.Networking);
         OnGlobalLockStateChanged?.Invoke(GlobalAvatarsLocked, GlobalPropsLocked, GlobalWorldsLocked, GlobalServersLocked);
+    }
+
+    /// <summary>
+    /// Drops every server-pushed global lock back to its default and notifies listeners. Called on
+    /// disconnect: these are process-wide statics, so without this a server's locks stay in force
+    /// offline and in whatever the client loads next — a locked camera or playspace mover would
+    /// stay locked in a local world until the player happened to join another server.
+    /// Each flag only fires its event when it actually changes, matching HandleGlobalLockState.
+    /// </summary>
+    public static void ResetGlobalLockState()
+    {
+        bool contentLocksChanged = GlobalAvatarsLocked || GlobalPropsLocked || GlobalWorldsLocked || GlobalServersLocked;
+        GlobalAvatarsLocked = false;
+        GlobalPropsLocked = false;
+        GlobalWorldsLocked = false;
+        GlobalServersLocked = false;
+
+        // Assign before firing so a listener reading the property back sees the cleared value.
+        if (GlobalThirdPersonDisabled) { GlobalThirdPersonDisabled = false; OnGlobalThirdPersonDisabledChanged?.Invoke(false); }
+        if (GlobalAdditionalAvatarDataLock) { GlobalAdditionalAvatarDataLock = false; OnGlobalAdditionalAvatarDataLockChanged?.Invoke(false); }
+        if (GlobalPlayspaceMoverLocked) { GlobalPlayspaceMoverLocked = false; OnGlobalPlayspaceMoverLockedChanged?.Invoke(false); }
+        if (GlobalDirectConnectLocked) { GlobalDirectConnectLocked = false; OnGlobalDirectConnectLockedChanged?.Invoke(false); }
+        if (GlobalCilboxLocked) { GlobalCilboxLocked = false; OnGlobalCilboxLockChanged?.Invoke(false); }
+        if (GlobalImagesLocked) { GlobalImagesLocked = false; OnGlobalImagesLockedChanged?.Invoke(false); }
+        if (GlobalTextChatLocked) { GlobalTextChatLocked = false; OnGlobalTextChatLockedChanged?.Invoke(false); }
+        if (GlobalVoiceChatLocked) { GlobalVoiceChatLocked = false; OnGlobalVoiceChatLockedChanged?.Invoke(false); }
+        if (GlobalMediaPlayerLocked) { GlobalMediaPlayerLocked = false; OnGlobalMediaPlayerLockedChanged?.Invoke(false); }
+        if (GlobalCameraCaptureLocked) { GlobalCameraCaptureLocked = false; OnGlobalCameraCaptureLockedChanged?.Invoke(false); }
+        if (GlobalPropGrabbingLocked) { GlobalPropGrabbingLocked = false; OnGlobalPropGrabbingLockedChanged?.Invoke(false); }
+        if (GlobalSafeDisplayNamesForced) { GlobalSafeDisplayNamesForced = false; OnGlobalSafeDisplayNamesForcedChanged?.Invoke(false); }
+
+        if (GlobalEndEffectorIKDisabled)
+        {
+            GlobalEndEffectorIKDisabled = false;
+            BasisNetworkReceiver.EndEffectorIKEnabled = true;
+            OnGlobalEndEffectorIKDisabledChanged?.Invoke(false);
+        }
+
+        if (GlobalCameraDisallowMask != 0)
+        {
+            GlobalCameraDisallowMask = 0;
+            OnGlobalCameraPolicyChanged?.Invoke(GlobalCameraDisallowMask);
+        }
+
+        if (GlobalUserRestrictionMode != BasisUserRestrictionMode.Normal)
+        {
+            GlobalUserRestrictionMode = BasisUserRestrictionMode.Normal;
+            OnGlobalRestrictionModeChanged?.Invoke(GlobalUserRestrictionMode);
+        }
+
+        if (contentLocksChanged)
+        {
+            OnGlobalLockStateChanged?.Invoke(false, false, false, false);
+        }
     }
 
     /// <summary>

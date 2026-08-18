@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -370,6 +370,13 @@ namespace Basis.ImagePickup
         private static bool _initialized;
         private static float _nextRecipientRangeRefreshTime;
 
+        /// <summary>
+        /// Last replication range we reported, so a server that never advertised one - the single most
+        /// common reason the range appears not to work at all - says so once rather than every frame.
+        /// NaN means nothing has been reported yet, so the first real read always prints.
+        /// </summary>
+        private static float _lastReportedRangeMeters = float.NaN;
+
         private static readonly List<BasisAnimatedImagePlayer> _players = new(64);
         private static readonly List<BasisAnimatedImagePlayer> _pendingRemoval = new(8);
         private static readonly List<BasisAnimatedImagePlayer> _pendingDecodedReleases = new(4);
@@ -408,6 +415,7 @@ namespace Basis.ImagePickup
             BasisImagePickupBandwidth.Reset();
             _nextRecipientRangeRefreshTime = 0f;
             _nextOfferRangeCheckTime = 0f;
+            _lastReportedRangeMeters = float.NaN;
             EnsureSchedulerResources();
             BasisEventDriver.OnUpdate += SimulateUpdate;
             BasisNetworkPlayer.OnLocalPlayerJoined += HandleLocalPlayerJoined;
@@ -507,6 +515,7 @@ namespace Basis.ImagePickup
             ReleaseOfferRangeResources();
             _pendingOffers.Clear();
             _nextOfferRangeCheckTime = 0f;
+            _lastReportedRangeMeters = float.NaN;
             foreach (BasisNativeAnimationPayload payload in _remoteAnimationPayloads.Values)
                 payload?.Dispose();
             _remoteAnimationPayloads.Clear();
@@ -1877,7 +1886,40 @@ namespace Basis.ImagePickup
 
         private static float ServerImagePickupRangeMeters()
         {
-            return Mathf.Max(0f, BasisNetworkManagement.ServerMetaDataMessage.ImagePickupRangeMeters);
+            float rangeMeters = Mathf.Max(0f, BasisNetworkManagement.ServerMetaDataMessage.ImagePickupRangeMeters);
+            ReportReplicationRange(rangeMeters);
+            return rangeMeters;
+        }
+
+        /// <summary>
+        /// Says out loud what range is actually in force, once per change. The range is a number the
+        /// server advertises in the join handshake, so every way this feature fails silently - an older
+        /// server, a server with the setting at 0, a handshake that never landed - looks identical from
+        /// in the world: every image loads at every distance. Printing the figure separates "the range
+        /// is not being applied" from "the range is unlimited because nobody set one".
+        /// </summary>
+        private static void ReportReplicationRange(float rangeMeters)
+        {
+            if (rangeMeters == _lastReportedRangeMeters)
+                return;
+            _lastReportedRangeMeters = rangeMeters;
+
+            if (rangeMeters <= 0f)
+            {
+                BasisDebug.LogWarning(
+                    "Image pickup replication range is UNLIMITED - every image replicates and loads at any "
+                        + "distance. The server advertised ImagePickupRangeMeters=0, or it is old enough not to "
+                        + "send the field at all. Set ImagePickupRangeMeters in the server config to enable "
+                        + "distance-based loading.",
+                    LogTag
+                );
+                return;
+            }
+
+            BasisDebug.Log(
+                $"Image pickup replication range is {rangeMeters:0.##}m (advertised by the server).",
+                LogTag
+            );
         }
 
         /// <summary>
@@ -3100,15 +3142,47 @@ namespace Basis.ImagePickup
             _offerRangeHandle.Complete();
             _offerRangeScheduled = false;
 
+            int requested = 0;
+            int deferred = 0;
+            float nearestDeferredSq = float.MaxValue;
+            bool haveViewer = TryGetLocalReplicationPosition(out Vector3 viewer);
+
             for (int index = 0; index < _offerRangeCount; index++)
             {
                 if (_offerRangeResults[index] == 0)
+                {
+                    deferred++;
+                    if (haveViewer)
+                    {
+                        float distanceSq = (_offerRangePositions[index] - viewer).sqrMagnitude;
+                        if (distanceSq < nearestDeferredSq)
+                            nearestDeferredSq = distanceSq;
+                    }
                     continue;
+                }
                 Guid id = _offerRangeIds[index];
                 if (!_pendingOffers.Remove(id))
                     continue;
+                requested++;
                 SendServerCacheRequest(id);
             }
+
+            if (requested > 0)
+            {
+                // Only the passes that actually do something say so; a player standing still next to a
+                // wall of pictures they have already asked for stays quiet.
+                string held = deferred > 0 && nearestDeferredSq < float.MaxValue
+                    ? $", still holding {deferred:N0} out of range (nearest {Mathf.Sqrt(nearestDeferredSq):0.#}m)"
+                    : deferred > 0
+                        ? $", still holding {deferred:N0} out of range"
+                        : string.Empty;
+                BasisDebug.Log(
+                    $"Image pickup requested {requested:N0} offered image(s) within "
+                        + $"{ServerImagePickupRangeMeters():0.##}m{held}.",
+                    LogTag
+                );
+            }
+
             _offerRangeCount = 0;
         }
 
