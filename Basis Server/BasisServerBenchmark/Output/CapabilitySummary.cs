@@ -71,7 +71,7 @@ public static class CapabilitySummary
 
         Ceiling binding = model.Binding();
         if (binding.Constraint != BindingConstraint.Quality && binding.Players > 0)
-            sb.AppendLine($"  Hard limit           {binding.Players,8:N0}   {Describe(binding.Constraint)} runs out" +
+            sb.AppendLine($"  Hard limit           {binding.PlayersText,8}   {Describe(binding.Constraint)} runs out" +
                           (binding.Extrapolated ? "  (extrapolated)" : ""));
 
         sb.AppendLine();
@@ -95,8 +95,9 @@ public static class CapabilitySummary
         {
             sb.AppendLine("  The other ceilings, for reference:");
             foreach (Ceiling ceiling in others)
-                sb.AppendLine($"    {Describe(ceiling.Constraint),-10} {ceiling.Players,8:N0}   {ceiling.Explanation}" +
-                              (ceiling.Extrapolated ? "  (extrapolated)" : ""));
+                sb.AppendLine($"    {Describe(ceiling.Constraint),-10} {ceiling.PlayersText,8}   {ceiling.Explanation}" +
+                              (ceiling.BeyondUsefulRange ? "  (not a limit within anything measured)"
+                                  : ceiling.Extrapolated ? "  (extrapolated)" : ""));
             sb.AppendLine();
         }
     }

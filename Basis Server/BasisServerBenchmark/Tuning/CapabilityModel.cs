@@ -15,7 +15,19 @@ public enum BindingConstraint
     Unknown,
 }
 
-public sealed record Ceiling(BindingConstraint Constraint, int Players, string Explanation, bool Extrapolated);
+public sealed record Ceiling(BindingConstraint Constraint, int Players, string Explanation, bool Extrapolated)
+{
+    /// <summary>
+    /// True when the fit put this ceiling so far above anything measured that the number is not
+    /// worth quoting — only the fact that this resource is not what limits the box.
+    /// </summary>
+    public bool BeyondUsefulRange { get; init; }
+
+    /// <summary>How to write the figure: a number, or an honest "further than we can say".</summary>
+    public string PlayersText => BeyondUsefulRange
+        ? $"over {Players:N0}"
+        : Players.ToString("N0");
+}
 
 /// <summary>
 /// What this machine can be expected to do, derived from the ladder rather than asserted.
@@ -139,6 +151,26 @@ public sealed class CapabilityModel
         "measured: the largest population still delivering essentially everything it produced",
         false);
 
+    /// <summary>
+    /// How far past the measured range a fitted ceiling is still worth quoting as a number.
+    ///
+    /// <para>Beyond this it is reported as "over N" instead. A curve fitted to three populations
+    /// and solved two hundred times past the largest of them is not an estimate of anything — the
+    /// quadratic term is within the noise at that distance, so the answer is set by measurement
+    /// error rather than by the machine. The useful content in such a result is only ever "this
+    /// resource is not what limits you", and printing a precise-looking 201,845 states something
+    /// far stronger than the data supports.</para>
+    /// </summary>
+    private const int ExtrapolationFactor = 10;
+
+    private Ceiling Bound(Ceiling ceiling)
+    {
+        int limit = Math.Max(1, MeasuredTo) * ExtrapolationFactor;
+        return ceiling.Players <= limit
+            ? ceiling
+            : ceiling with { Players = limit, BeyondUsefulRange = true };
+    }
+
     /// <summary>Every ceiling that could be computed, lowest first.</summary>
     public IReadOnlyList<Ceiling> AllCeilings()
     {
@@ -146,9 +178,9 @@ public sealed class CapabilityModel
         if (!HasData) return ceilings;
 
         if (FullQualityPlayers > 0) ceilings.Add(QualityCeiling());
-        if (CpuCeiling() is { } cpu) ceilings.Add(cpu);
-        ceilings.Add(MemoryCeiling());
-        if (BandwidthCeiling() is { } bandwidth) ceilings.Add(bandwidth);
+        if (CpuCeiling() is { } cpu) ceilings.Add(Bound(cpu));
+        ceilings.Add(Bound(MemoryCeiling()));
+        if (BandwidthCeiling() is { } bandwidth) ceilings.Add(Bound(bandwidth));
 
         return ceilings.Where(c => c.Players > 0).OrderBy(c => c.Players).ToList();
     }

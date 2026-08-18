@@ -146,6 +146,55 @@ Only findings that earned it get written. Anything measured on a topology that c
 honestly stays in the text report, where a person can weigh the caveat, and out of the file, which
 a machine cannot.
 
+## What to expect from this machine
+
+`/expect` writes `what-to-expect.txt` — a plain-English capability sheet for whoever has to decide
+how many players to advertise and whether the box needs more hardware. It answers four things the
+tuning report does not:
+
+**How many players**, three ways: the population served at full quality (measured), the population
+that stays up while shedding, and the hard limit where a resource actually runs out.
+
+**What binds first** — quality, CPU, memory or link bandwidth. Each is fitted separately against
+population and solved for where it runs out, so the answer names the thing to fix. Quality binding
+first is the *healthy* result: the server degrades by design, so on a machine with headroom it stops
+delivering at full rate long before it exhausts anything physical, and no hardware will move that
+number.
+
+**What it costs at the operating point** — cores, memory, egress, per player and in total, plus the
+share of voice frames a receiver actually heard.
+
+**How it scales**, with the superlinear step stated outright. Every player is tracked against every
+other, so cost grows with the square of the population: one run measured 2× the players costing 3.9×
+the CPU. Capacity cannot be estimated by multiplying up from a small test, and this is the most
+common way people get it wrong.
+
+### The honesty rules it keeps
+
+Fits are quadratic because the workload genuinely is — a linear fit through two rungs understates
+the top badly. Coefficients are clamped non-negative, since none of these costs can fall as
+population rises and three noisy points otherwise produce a downward curve that solves to nonsense.
+
+Anything above the highest rung actually run is marked **extrapolated**, and anything more than 10×
+past it is reported as "over N — not a limit within anything measured" rather than as a number. A
+curve fitted to three populations and solved 200× beyond the largest is set by measurement error,
+not by the machine; an early version printed a memory ceiling of 201,845 players, which is precise,
+confident and meaningless.
+
+A CPU sample that could not be read is carried as **unknown**, never as zero. That distinction is
+load-bearing: reading a child process's CPU fails transiently, and the natural handling — reuse the
+last value, so the delta is zero — produces "this server did 20 MB/s on no CPU at all", which then
+fits a curve concluding the machine never runs out. It was observed intermittently before the fix.
+
+## What it sets that you would otherwise have to guess
+
+`PeerLimit` is the one worth calling out. It ships at 65535 — no cap at all — so a server admits
+everyone and then discovers it cannot serve them. That failure is quiet and collective: past capacity
+the reduction system sheds across the whole roster, so an overfull room does not fail for the last
+arrivals, it degrades for everyone at once. The benchmark writes the measured full-quality ceiling
+instead, lowered to a physical ceiling if one binds sooner, and leaves an operator's own tighter cap
+alone.
+
 ## What it optimises, and what it refuses to
 
 **Delivered receiver visits per second — never CPU.** The two disagree at exactly the moment it
