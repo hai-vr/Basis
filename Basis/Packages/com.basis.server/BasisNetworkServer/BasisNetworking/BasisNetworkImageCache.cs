@@ -8,14 +8,18 @@ using static SerializableBasis;
 namespace Basis.Network.Server.Generic
 {
     /// <summary>
-    /// Keeps the bytes of every shared image in server RAM so a joining player can be handed the
-    /// images already in the instance, instead of the original sharer having to send them all over
-    /// again to each arrival.
+    /// Keeps the bytes of every shared image in server RAM so the rest of the room can be given a
+    /// picture the sharer only sent to the players standing near it, instead of the sharer having to
+    /// send it again to every arrival.
     ///
     /// The cache is deliberately dumb about what an image *is*: it retains the client's own scene
     /// payloads verbatim and replays them stamped with the original owner's player id. A receiving
     /// client therefore sees exactly the OpSpawn/OpChunk stream it would have got from the owner,
     /// and needs no knowledge that the server answered instead.
+    ///
+    /// It is just as dumb about *where* an image is. What it hands a player first is an offer - the
+    /// sharer's own spawn header, opcode swapped - and the position inside is bytes it copies without
+    /// reading. Nothing moves until that client measures the distance for itself and asks.
     ///
     /// Lifetime matches what clients already do with images, so the cache can never show a joiner
     /// something the room cannot see: an entry is dropped on despawn and when its owner disconnects.

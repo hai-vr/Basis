@@ -22,9 +22,10 @@ namespace Basis.ImagePickup
 {
     /// <summary>
     /// Per-client image pickup service. It shares a deterministic network identity across all clients, so any
-    /// client can message the others. The server (or the P2P link) relays the bytes and never stores them: an
-    /// image exists only while its spawner is connected, and a late joiner is served by the owner re-sending.
-    /// Anyone may delete any image for everyone.
+    /// client can message the others. A sharer sends the picture only to the players it judges close enough;
+    /// the server keeps a copy and offers it to everyone else, who measure the distance themselves and ask for
+    /// it once they are near enough to want it. An image exists only while its spawner is connected, and
+    /// anyone may delete any image for everyone.
     ///
     /// The animation scheduler lives here too. It advances image-pickup animations only while their front face
     /// is visible to a gameplay camera: a per-frame CPU facing/frustum broad phase rejects cards before depth,
@@ -2019,8 +2020,8 @@ namespace Basis.ImagePickup
                 if (owned?.Object == null)
                     continue;
 
-                // The server holds this one and hands it to arrivals itself, range-filtered the same
-                // way we filter, so re-uploading it is pure waste.
+                // The server holds this one and offers it to everyone else itself, so re-uploading it
+                // is pure waste. It tells us the moment it stops holding it and we start providing again.
                 if (_serverHeldImages.Contains(entry.Key))
                     continue;
 

@@ -63,7 +63,6 @@ public class BasisNetworkImageCacheTests : IDisposable
 
     private const byte OpSpawn = 1;
     private const byte OpChunk = 2;
-    private const byte OpTransform = 3;
     private const byte OpDespawn = 4;
     private const byte OpAnimationSpawn = 6;
     private const byte OpAnimationChunk = 7;
@@ -161,25 +160,6 @@ public class BasisNetworkImageCacheTests : IDisposable
         {
             writer.Write(0f);
         }
-        writer.Flush();
-        return stream.ToArray();
-    }
-
-    /// <summary>OpTransform as the client encodes it: pose then uniform scale.</summary>
-    private static byte[] EncodeTransform(Guid id, float x, float y, float z)
-    {
-        using MemoryStream stream = new MemoryStream();
-        using BinaryWriter writer = new BinaryWriter(stream, Encoding.UTF8);
-        writer.Write(OpTransform);
-        writer.Write(id.ToByteArray());
-        writer.Write(x);
-        writer.Write(y);
-        writer.Write(z);
-        for (int axis = 0; axis < 4; axis++)
-        {
-            writer.Write(0f);
-        }
-        writer.Write(1f);
         writer.Flush();
         return stream.ToArray();
     }
