@@ -1020,6 +1020,11 @@ public class BasisSDKMirror : MonoBehaviour
         // steep view angles and wrongly cull renderers that are actually visible in the mirror.
         portalCamera.cullingMatrix = xFlip * proj * xFlip * worldToCam;
 
+        // Skyboxes are infinitely distant and must not receive the mirror-plane oblique clip.
+        // Preserve the clean reflected projection so URP can render the skybox with the same
+        // reflected view as geometry but without the clip-plane distortion.
+        portalCamera.nonJitteredProjectionMatrix = xFlip * proj * xFlip;
+
         // Oblique clip to avoid "behind mirror"; clip normal chosen toward the eye.
         Vector3 clipNormal = planeNormal * Mathf.Sign(Vector3.Dot(eyeOriginWS - planePosWS, planeNormal));
         Vector4 clipPlaneCamSpace = BasisHelpers.CameraSpacePlane(
