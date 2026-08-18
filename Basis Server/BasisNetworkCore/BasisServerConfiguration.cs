@@ -207,9 +207,10 @@ public class Configuration
     /// pickup. Advertised to clients and applied by the sharing client, so it is a bandwidth budget
     /// rather than an access control - nothing here or on the receiver rejects an out-of-range image.
     ///
-    /// The server image cache applies the same figure to its own replays, so a joiner is handed the
-    /// nearby cards rather than the whole room, and picks up the rest as they walk toward them. 0 is
-    /// unlimited: every player receives every image, which is how it behaved before this setting.
+    /// The server image cache never learns where anybody is. It offers a joiner the spawn header of
+    /// each image it holds - tens of bytes - and that client measures the distance itself and asks for
+    /// the ones it wants, picking up the rest as it walks toward them. 0 is unlimited: every player
+    /// receives every image, which is how it behaved before this setting.
     /// </summary>
     public float ImagePickupRangeMeters = 64f;
 

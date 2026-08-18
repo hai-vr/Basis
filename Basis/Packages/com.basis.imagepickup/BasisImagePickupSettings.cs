@@ -60,6 +60,13 @@ namespace Basis.ImagePickup
         public const float InboundTransferTimeoutSeconds = 30f;
         public const float RecipientRangeRefreshSeconds = 5f;
 
+        /// <summary>
+        /// How often a client re-measures its distance to the images the server has offered it. Cheap
+        /// enough to run often - the work is one Burst job over a handful of positions - and short
+        /// enough that walking up to a picture loads it rather than making you wait for it.
+        /// </summary>
+        public const float OfferRangeCheckSeconds = 0.5f;
+
         /// <summary>How long a transfer may go without a chunk before it is reported as stalled.</summary>
         public const float StalledTransferWarningSeconds = 5f;
 

@@ -32,7 +32,6 @@ namespace Basis.Network.Server.Generic
         // Mirrored from BasisImagePickupManager. Wire protocol — changing either side is a break.
         private const byte OpSpawn = 1;
         private const byte OpChunk = 2;
-        private const byte OpTransform = 3;
         private const byte OpDespawn = 4;
         private const byte OpAnimationSpawn = 6;
         private const byte OpAnimationChunk = 7;
@@ -44,6 +43,21 @@ namespace Basis.Network.Server.Generic
         /// itself, so a message arriving under your own id cannot have come from another client.
         /// </summary>
         private const byte OpServerCacheState = 8;
+
+        /// <summary>
+        /// Server to client: "I am holding an image; here is its header, decide for yourself whether
+        /// you want it." The payload is the sharer's own spawn header replayed verbatim with only the
+        /// opcode byte changed, so the server hands over the position without ever reading it - the
+        /// distance decision belongs to the client, which is the only side that knows where it is
+        /// standing without being told.
+        /// </summary>
+        private const byte OpServerCacheOffer = 9;
+
+        /// <summary>
+        /// Client to server: "send me that one." Reaches the cache through the ordinary relay
+        /// observation path, the same way a despawn does.
+        /// </summary>
+        private const byte OpServerCacheRequest = 10;
 
         private const int OpcodeBytes = 1;
         private const int GuidBytes = 16;
@@ -61,20 +75,15 @@ namespace Basis.Network.Server.Generic
             public ushort OwnerId;
             public long Sequence;
 
-            /// <summary>
-            /// Where the card is standing, taken from the spawn header and kept current from the
-            /// OpTransform stream. This is what makes the replay spatial: without it the cache can
-            /// only offer a joiner everything or nothing.
-            /// </summary>
-            public float PositionX;
-            public float PositionY;
-            public float PositionZ;
+            /// <summary>Who has been told this image exists. One offer per player, ever.</summary>
+            public readonly HashSet<ushort> Offered = new HashSet<ushort>();
 
             /// <summary>
-            /// Who has already been handed this image. A player crossing the range boundary is served
-            /// once and then left alone, so walking back and forth does not re-send megabytes.
+            /// Who has actually been sent the bytes. Separate from <see cref="Offered"/> because a
+            /// player may sit on an offer for as long as they like before walking close enough to want
+            /// it, and because a repeated request must not buy a second copy.
             /// </summary>
-            public readonly HashSet<ushort> Served = new HashSet<ushort>();
+            public readonly HashSet<ushort> Delivered = new HashSet<ushort>();
 
             public byte[] Spawn;
             public byte[][] Chunks;
@@ -138,10 +147,6 @@ namespace Basis.Network.Server.Generic
             }
         }
 
-        /// <summary>Test seam: lets the next <see cref="SweepRangeCatchUp"/> run without waiting.</summary>
-        internal static void ResetSweepClockForTests() =>
-            System.Threading.Volatile.Write(ref _nextSweepTicks, 0);
-
         /// <summary>Bytes currently held on behalf of one player.</summary>
         public static long BytesHeldFor(ushort ownerId)
         {
@@ -152,24 +157,6 @@ namespace Basis.Network.Server.Generic
         }
 
         private static bool Enabled => NetworkServer.Configuration?.ImageCacheEnabled ?? false;
-
-        /// <summary>
-        /// Replication range in metres, or 0 for unlimited. The server applies the same figure it
-        /// advertises to clients, so a joiner is handed the cards a sharer would have sent them.
-        /// </summary>
-        private static float RangeMeters
-        {
-            get
-            {
-                float configured = NetworkServer.Configuration?.ImagePickupRangeMeters ?? 0f;
-                return configured > 0f ? configured : 0f;
-            }
-        }
-
-        /// <summary>How often the catch-up sweep looks for players who have come into range.</summary>
-        private const long SweepIntervalTicks = TimeSpan.TicksPerSecond * 2;
-
-        private static long _nextSweepTicks;
 
         private const long BytesPerMegabyte = 1024L * 1024L;
 
@@ -203,7 +190,6 @@ namespace Basis.Network.Server.Generic
                 System.Threading.Interlocked.Exchange(ref _totalBytes, 0);
                 _sequence = 0;
                 _managerNetId = -1;
-                System.Threading.Volatile.Write(ref _nextSweepTicks, 0);
             }
         }
 
@@ -257,8 +243,8 @@ namespace Basis.Network.Server.Generic
                     case OpChunk:
                         ObserveChunk(senderId, payload, payloadLength, animation: false);
                         break;
-                    case OpTransform:
-                        ObserveTransform(payload, payloadLength);
+                    case OpServerCacheRequest:
+                        ObserveRequest(senderId, payload, payloadLength);
                         break;
                     case OpAnimationSpawn:
                         ObserveAnimationSpawn(senderId, payload, payloadLength);
@@ -288,17 +274,7 @@ namespace Basis.Network.Server.Generic
         )
         {
             Guid id = ReadGuid(payload);
-            if (
-                !TryReadSpawnHeader(
-                    payload,
-                    payloadLength,
-                    out int totalChunks,
-                    out float positionX,
-                    out float positionY,
-                    out float positionZ
-                )
-                || totalChunks <= 0
-            )
+            if (!TryReadSpawnChunkCount(payload, payloadLength, out int totalChunks) || totalChunks <= 0)
             {
                 return;
             }
@@ -330,11 +306,8 @@ namespace Basis.Network.Server.Generic
                     Spawn = Copy(payload, payloadLength),
                     Chunks = new byte[totalChunks][],
                     Bytes = cost,
-                    PositionX = positionX,
-                    PositionY = positionY,
-                    PositionZ = positionZ,
                 };
-                SeedServedLocked(entry, recipients, recipientsSize);
+                SeedAlreadyHeldLocked(entry, recipients, recipientsSize);
                 Images[id] = entry;
                 System.Threading.Interlocked.Add(ref _totalBytes, cost);
             }
@@ -436,6 +409,7 @@ namespace Basis.Network.Server.Generic
             if (becameServable)
             {
                 NotifyOwner(senderId, id, held: true);
+                OfferToRoom(id);
             }
         }
 
@@ -647,72 +621,21 @@ namespace Basis.Network.Server.Generic
 
                 foreach (KeyValuePair<Guid, CachedImage> pair in Images)
                 {
-                    pair.Value.Served.Remove(ownerId);
+                    pair.Value.Offered.Remove(ownerId);
+                    pair.Value.Delivered.Remove(ownerId);
                 }
             }
         }
 
         /// <summary>
-        /// Replays the cached images an arriving peer is entitled to, in the order they were shared
-        /// so the room rebuilds the way it was built. Each payload goes out stamped with its
-        /// original owner, not the server, so the receiver attributes it correctly.
-        ///
-        /// With a finite range this serves nothing at the moment of joining - the peer has not sent
-        /// a position yet - and <see cref="SweepRangeCatchUp"/> picks them up as soon as they have.
+        /// Tells an arriving peer what the room is holding, in the order it was shared, and stops
+        /// there. Each offer is the sharer's own spawn header - tens of bytes - so a joiner arriving
+        /// into an instance full of pictures pays for a catalogue rather than a gallery, and decides
+        /// locally which entries are close enough to be worth asking for.
         /// </summary>
-        public static void SendCachedImagesToPeer(NetPeer newConnection)
+        public static void OfferCachedImagesToPeer(NetPeer newConnection)
         {
-            if (newConnection == null)
-            {
-                return;
-            }
-            ServePeer(newConnection, "joining");
-        }
-
-        /// <summary>
-        /// Hands every player the cards that have come within range of them since the last pass.
-        ///
-        /// A join-time replay alone cannot do this. An arriving peer has not sent an avatar update
-        /// yet, so the server does not know where they are standing; and once they are in, walking
-        /// toward a card is exactly the case the range is there to serve. This is the server's half
-        /// of the owner-driven catch-up the sharing client does, and it is why the cache can stay on
-        /// with a finite range instead of being switched off by one.
-        ///
-        /// Self-throttled, so the tick can call it unconditionally.
-        /// </summary>
-        public static void SweepRangeCatchUp()
-        {
-            if (!Enabled)
-            {
-                return;
-            }
-
-            long now = DateTime.UtcNow.Ticks;
-            if (now < System.Threading.Volatile.Read(ref _nextSweepTicks))
-            {
-                return;
-            }
-            System.Threading.Volatile.Write(ref _nextSweepTicks, now + SweepIntervalTicks);
-
-            if (Images.IsEmpty)
-            {
-                return;
-            }
-
-            foreach (KeyValuePair<int, NetPeer> pair in NetworkServer.AuthenticatedPeers)
-            {
-                ServePeer(pair.Value, "in-range");
-            }
-        }
-
-        /// <summary>
-        /// Queues whatever <paramref name="peer"/> is owed and has not already been given. Returns
-        /// without touching the ledger when nothing qualifies, so a quiet instance costs one
-        /// dictionary walk per sweep.
-        /// </summary>
-        private static void ServePeer(NetPeer peer, string reason)
-        {
-            if (!Enabled || peer == null)
+            if (!Enabled || newConnection == null)
             {
                 return;
             }
@@ -723,18 +646,149 @@ namespace Basis.Network.Server.Generic
                 return;
             }
 
-            int peerId = peer.Id;
+            int peerId = newConnection.Id;
             if (peerId < 0 || peerId > ushort.MaxValue)
             {
                 return;
             }
             ushort recipient = (ushort)peerId;
 
-            float rangeMeters = RangeMeters;
-            float x = 0f;
-            float y = 0f;
-            float z = 0f;
-            if (rangeMeters > 0f && !TryGetPeerPosition(peerId, out x, out y, out z))
+            List<byte[]> offers = new List<byte[]>();
+            lock (Gate)
+            {
+                List<KeyValuePair<Guid, CachedImage>> ordered =
+                    new List<KeyValuePair<Guid, CachedImage>>(Images);
+                ordered.Sort((left, right) => left.Value.Sequence.CompareTo(right.Value.Sequence));
+
+                for (int index = 0; index < ordered.Count; index++)
+                {
+                    CachedImage entry = ordered[index].Value;
+                    if (!ShouldOfferLocked(entry, recipient))
+                    {
+                        continue;
+                    }
+                    entry.Offered.Add(recipient);
+                    offers.Add(BuildOffer(entry));
+                }
+            }
+
+            SendOffers(newConnection, (ushort)managerNetId, offers);
+        }
+
+        /// <summary>
+        /// Tells everyone already in the room about an image that has just finished arriving. The
+        /// sharer only sent it to the players it considered close enough, so without this the rest of
+        /// the room would never learn the picture exists.
+        /// </summary>
+        private static void OfferToRoom(Guid id)
+        {
+            if (!Enabled)
+            {
+                return;
+            }
+
+            int managerNetId = System.Threading.Volatile.Read(ref _managerNetId);
+            if (managerNetId < 0)
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<int, NetPeer> pair in NetworkServer.AuthenticatedPeers)
+            {
+                int peerId = pair.Key;
+                if (peerId < 0 || peerId > ushort.MaxValue || pair.Value == null)
+                {
+                    continue;
+                }
+                ushort recipient = (ushort)peerId;
+
+                byte[] offer;
+                lock (Gate)
+                {
+                    if (!Images.TryGetValue(id, out CachedImage entry) || !ShouldOfferLocked(entry, recipient))
+                    {
+                        continue;
+                    }
+                    entry.Offered.Add(recipient);
+                    offer = BuildOffer(entry);
+                }
+
+                NetDataWriter writer = NetworkServer.RentWriter();
+                SendPayload(pair.Value, writer, (ushort)managerNetId, recipient, offer);
+                NetworkServer.ReturnWriter(writer);
+            }
+        }
+
+        private static bool ShouldOfferLocked(CachedImage entry, ushort recipient)
+        {
+            return entry.StillComplete
+                && entry.OwnerId != recipient
+                && !entry.Offered.Contains(recipient)
+                && !entry.Delivered.Contains(recipient);
+        }
+
+        /// <summary>
+        /// An offer is the retained spawn header with one byte changed. Copying rather than mutating
+        /// matters: the original is what gets replayed if the image is actually asked for.
+        /// </summary>
+        private static byte[] BuildOffer(CachedImage entry)
+        {
+            byte[] offer = new byte[entry.Spawn.Length];
+            Buffer.BlockCopy(entry.Spawn, 0, offer, 0, entry.Spawn.Length);
+            offer[0] = OpServerCacheOffer;
+            return offer;
+        }
+
+        /// <summary>
+        /// Offers go out unmetered and stamped with the recipient's own id rather than the sharer's.
+        /// They are a handful of bytes each, and the client only trusts an offer that arrives under
+        /// its own id - the relay never lets one client forge that.
+        /// </summary>
+        private static void SendOffers(NetPeer peer, ushort managerNetId, List<byte[]> offers)
+        {
+            if (offers.Count == 0)
+            {
+                return;
+            }
+
+            int peerId = peer.Id;
+            NetDataWriter writer = NetworkServer.RentWriter();
+            for (int index = 0; index < offers.Count; index++)
+            {
+                SendPayload(peer, writer, managerNetId, (ushort)peerId, offers[index]);
+            }
+            NetworkServer.ReturnWriter(writer);
+
+            BNL.Log($"Image cache offered {offers.Count} image(s) to peer {peerId}.");
+        }
+
+        /// <summary>
+        /// A client asking for one of the images it was offered. This is the only thing that moves
+        /// image bytes out of the cache, and it moves them once per player per image.
+        /// </summary>
+        private static void ObserveRequest(ushort senderId, byte[] payload, int payloadLength)
+        {
+            if (payloadLength < HeaderBytes)
+            {
+                return;
+            }
+            ServeRequestedImage(senderId, ReadGuid(payload));
+        }
+
+        internal static void ServeRequestedImage(ushort requesterId, Guid id)
+        {
+            if (!Enabled)
+            {
+                return;
+            }
+
+            int managerNetId = System.Threading.Volatile.Read(ref _managerNetId);
+            if (managerNetId < 0)
+            {
+                return;
+            }
+
+            if (!NetworkServer.AuthenticatedPeers.TryGetValue(requesterId, out NetPeer peer) || peer == null)
             {
                 return;
             }
@@ -747,41 +801,32 @@ namespace Basis.Network.Server.Generic
 
             lock (Gate)
             {
-                List<KeyValuePair<Guid, CachedImage>> ordered =
-                    new List<KeyValuePair<Guid, CachedImage>>(Images);
-                ordered.Sort((left, right) => left.Value.Sequence.CompareTo(right.Value.Sequence));
-
-                for (int index = 0; index < ordered.Count; index++)
+                if (!Images.TryGetValue(id, out CachedImage entry))
                 {
-                    CachedImage entry = ordered[index].Value;
-                    if (!entry.StillComplete || entry.OwnerId == recipient)
-                    {
-                        continue;
-                    }
-                    if (entry.Served.Contains(recipient))
-                    {
-                        continue;
-                    }
-                    if (!IsWithinRange(entry, rangeMeters, x, y, z))
-                    {
-                        continue;
-                    }
+                    return;
+                }
+                if (!entry.StillComplete || entry.OwnerId == requesterId)
+                {
+                    return;
+                }
+                if (!entry.Delivered.Add(requesterId))
+                {
+                    return;
+                }
+                entry.Offered.Add(requesterId);
 
-                    entry.Served.Add(recipient);
+                queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.Spawn));
+                for (int chunk = 0; chunk < entry.Chunks.Length; chunk++)
+                {
+                    queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.Chunks[chunk]));
+                }
 
-                    queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.Spawn));
-                    for (int chunk = 0; chunk < entry.Chunks.Length; chunk++)
+                if (entry.AnimationComplete)
+                {
+                    queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.AnimationSpawn));
+                    for (int chunk = 0; chunk < entry.AnimationChunks.Length; chunk++)
                     {
-                        queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.Chunks[chunk]));
-                    }
-
-                    if (entry.AnimationComplete)
-                    {
-                        queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.AnimationSpawn));
-                        for (int chunk = 0; chunk < entry.AnimationChunks.Length; chunk++)
-                        {
-                            queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.AnimationChunks[chunk]));
-                        }
+                        queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.AnimationChunks[chunk]));
                     }
                 }
             }
@@ -798,7 +843,7 @@ namespace Basis.Network.Server.Generic
             BasisImageBandwidthGovernor.SendPayload = ReplaySinglePayload;
             if (BasisImageBandwidthGovernor.EnqueueReplay(peer, queued))
             {
-                BNL.Log($"Image cache queued {queued.Count} payload(s) for {reason} peer {peerId} (paced).");
+                BNL.Log($"Image cache queued {queued.Count} payload(s) for requesting peer {requesterId} (paced).");
                 return;
             }
 
@@ -812,7 +857,7 @@ namespace Basis.Network.Server.Generic
 
             if (sent > 0)
             {
-                BNL.Log($"Image cache served {sent} payload(s) to {reason} peer {peerId}.");
+                BNL.Log($"Image cache served {sent} payload(s) to requesting peer {requesterId}.");
             }
         }
 
@@ -886,19 +931,9 @@ namespace Basis.Network.Server.Generic
         /// BinaryWriter string — a 7-bit encoded byte length then UTF8 — so the fields after it sit
         /// at a variable offset and have to be walked to rather than indexed.
         /// </summary>
-        private static bool TryReadSpawnHeader(
-            byte[] payload,
-            int payloadLength,
-            out int totalChunks,
-            out float positionX,
-            out float positionY,
-            out float positionZ
-        )
+        private static bool TryReadSpawnChunkCount(byte[] payload, int payloadLength, out int totalChunks)
         {
             totalChunks = 0;
-            positionX = 0f;
-            positionY = 0f;
-            positionZ = 0f;
 
             int offset = HeaderBytes + 2; // opcode + guid + ushort ownerId
             if (!TrySkipWireString(payload, payloadLength, ref offset))
@@ -914,63 +949,24 @@ namespace Basis.Network.Server.Generic
             }
 
             totalChunks = BitConverter.ToInt32(payload, offset);
-            offset += 4;
-
-            // position, then the rotation the replay does not need
-            if (offset + 12 > payloadLength)
-            {
-                return false;
-            }
-
-            positionX = BitConverter.ToSingle(payload, offset);
-            positionY = BitConverter.ToSingle(payload, offset + 4);
-            positionZ = BitConverter.ToSingle(payload, offset + 8);
             return true;
         }
 
         /// <summary>
-        /// Keeps a held card's position current as it is carried around. Taken from whoever is
-        /// sending transforms rather than the original owner, because a claimed pickup is driven by
-        /// the player holding it.
+        /// Marks whoever the sharer already sent this image to as holding it. The relay knows
+        /// precisely who that was, and without seeding it here the cache would offer the same picture
+        /// back to everyone who was standing nearby when it was shared. An untargeted share went to
+        /// the whole room, so everyone counts.
         /// </summary>
-        private static void ObserveTransform(byte[] payload, int payloadLength)
-        {
-            if (payloadLength < HeaderBytes + 12)
-            {
-                return;
-            }
-
-            Guid id = ReadGuid(payload);
-            float x = BitConverter.ToSingle(payload, HeaderBytes);
-            float y = BitConverter.ToSingle(payload, HeaderBytes + 4);
-            float z = BitConverter.ToSingle(payload, HeaderBytes + 8);
-
-            lock (Gate)
-            {
-                if (!Images.TryGetValue(id, out CachedImage entry))
-                {
-                    return;
-                }
-                entry.PositionX = x;
-                entry.PositionY = y;
-                entry.PositionZ = z;
-            }
-        }
-
-        /// <summary>
-        /// Marks whoever the sharer already sent this image to as served. The relay knows precisely
-        /// who that was, and without seeding it here the catch-up sweep would hand the same picture a
-        /// second time to everyone who was standing nearby when it was shared - the exact traffic the
-        /// range is there to avoid. An untargeted share went to the whole room, so everyone counts.
-        /// </summary>
-        private static void SeedServedLocked(CachedImage entry, ushort[] recipients, int recipientsSize)
+        private static void SeedAlreadyHeldLocked(CachedImage entry, ushort[] recipients, int recipientsSize)
         {
             if (recipients != null && recipientsSize > 0)
             {
                 int count = Math.Min(recipientsSize, recipients.Length);
                 for (int index = 0; index < count; index++)
                 {
-                    entry.Served.Add(recipients[index]);
+                    entry.Offered.Add(recipients[index]);
+                    entry.Delivered.Add(recipients[index]);
                 }
                 return;
             }
@@ -980,48 +976,10 @@ namespace Basis.Network.Server.Generic
                 int peerId = pair.Key;
                 if (peerId >= 0 && peerId <= ushort.MaxValue)
                 {
-                    entry.Served.Add((ushort)peerId);
+                    entry.Offered.Add((ushort)peerId);
+                    entry.Delivered.Add((ushort)peerId);
                 }
             }
-        }
-
-        private static bool IsWithinRange(CachedImage entry, float rangeMeters, float x, float y, float z)
-        {
-            if (rangeMeters <= 0f)
-            {
-                return true;
-            }
-            float dx = entry.PositionX - x;
-            float dy = entry.PositionY - y;
-            float dz = entry.PositionZ - z;
-            return dx * dx + dy * dy + dz * dz <= rangeMeters * rangeMeters;
-        }
-
-        /// <summary>
-        /// A peer's position as the reduction system last saw it. False until they have sent their
-        /// first avatar update, which matters: an arriving peer sits at the origin until then, and
-        /// treating that as real would hand them every card standing near world zero.
-        /// </summary>
-        private static bool TryGetPeerPosition(int peerId, out float x, out float y, out float z)
-        {
-            x = 0f;
-            y = 0f;
-            z = 0f;
-            if (
-                !BasisNetworkServer
-                    .BasisNetworkingReductionSystem
-                    .BasisServerReductionSystemEvents
-                    .playerStates.TryGetValue(peerId, out var state)
-                || state == null
-                || !state.IsActive
-            )
-            {
-                return false;
-            }
-            x = state.Position.x;
-            y = state.Position.y;
-            z = state.Position.z;
-            return true;
         }
 
         private static bool TrySkipWireString(byte[] payload, int payloadLength, ref int offset)

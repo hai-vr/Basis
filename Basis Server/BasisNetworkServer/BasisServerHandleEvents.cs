@@ -718,7 +718,7 @@ namespace BasisServerHandle
                 BasisNetworkOwnership.SendOutOwnershipInformation(newPeer);
                 BasisNetworkPIPCamera.SendPIPStateToPeer(newPeer);
                 BasisNetworkContentShare.SendAllSpheresToPeer(newPeer);
-                BasisNetworkImageCache.SendCachedImagesToPeer(newPeer);
+                BasisNetworkImageCache.OfferCachedImagesToPeer(newPeer);
                 BasisNetworkServer.Security.BasisGlobalLockManager.SendLockStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisHeadlessAudioStateManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisHeadlessConnectionPolicyManager.SendStateToPeer(newPeer);

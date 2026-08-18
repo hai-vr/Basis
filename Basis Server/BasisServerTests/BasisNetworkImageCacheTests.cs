@@ -1,7 +1,6 @@
 using Basis.Network.Core;
 using Basis.Network.Server.Generic;
 using BasisNetworkCore;
-using BasisNetworkServer.BasisNetworkingReductionSystem;
 using System.Net;
 using System.Text;
 using Xunit;
@@ -59,6 +58,9 @@ public class BasisNetworkImageCacheTests : IDisposable
     /// <summary>Chunk payload sized so a megabyte-granularity budget still exercises eviction.</summary>
     private const int ChunkBytes = 64 * 1024;
 
+    /// <summary>Server to client offer, mirrored from the cache's wire protocol.</summary>
+    private const byte OpServerCacheOffer = 9;
+
     private const byte OpSpawn = 1;
     private const byte OpChunk = 2;
     private const byte OpTransform = 3;
@@ -70,7 +72,6 @@ public class BasisNetworkImageCacheTests : IDisposable
 
     private readonly Configuration _previous;
     private readonly List<int> _registeredPeerIds = new();
-    private readonly List<int> _placedPeerIds = new();
 
     public BasisNetworkImageCacheTests()
     {
@@ -102,24 +103,6 @@ public class BasisNetworkImageCacheTests : IDisposable
         {
             NetworkServer.AuthenticatedPeers.TryRemove(id, out _);
         }
-        foreach (int id in _placedPeerIds)
-        {
-            BasisServerReductionSystemEvents.playerStates.TryRemove(id, out _);
-        }
-    }
-
-    /// <summary>
-    /// Puts a peer on the reduction system's roster with a known position. The cache reads exactly
-    /// this to decide who is close enough, and treats a peer with no active state as unplaceable.
-    /// </summary>
-    private void PlacePeer(int peerId, float x, float y, float z)
-    {
-        BasisServerReductionSystemEvents.playerStates[peerId] = new PlayerState
-        {
-            IsActive = true,
-            Position = new Basis.Scripts.Networking.Compression.Vector3(x, y, z),
-        };
-        _placedPeerIds.Add(peerId);
     }
 
     /// <summary>
@@ -136,6 +119,20 @@ public class BasisNetworkImageCacheTests : IDisposable
     }
 
     // ---- wire helpers: byte-for-byte what BasisImagePickupManager encodes -------------------
+
+    /// <summary>
+    /// The image payload inside one recorded send. ServerSceneDataMessage puts the player id and the
+    /// message index in front of it and writes the payload raw, so the offset is fixed.
+    /// </summary>
+    private static byte[] PayloadOf((byte Channel, byte[] Data) sent)
+    {
+        const int PayloadOffset = 2 + 2;
+        byte[] payload = new byte[sent.Data.Length - PayloadOffset];
+        Buffer.BlockCopy(sent.Data, PayloadOffset, payload, 0, payload.Length);
+        return payload;
+    }
+
+    private static byte PayloadOpcode((byte Channel, byte[] Data) sent) => PayloadOf(sent)[0];
 
     private static byte[] EncodeSpawn(
         Guid id,
@@ -469,15 +466,53 @@ public class BasisNetworkImageCacheTests : IDisposable
         Assert.Equal(0, BasisNetworkImageCache.Count);
     }
 
-    // ---- replay to a joiner ------------------------------------------------------------------
+    // ---- offer to a joiner, replay on request -------------------------------------------------
 
+    /// <summary>
+    /// Joining costs a catalogue, not a gallery. One offer per image and not a single chunk until
+    /// the client has decided the picture is close enough to be worth having.
+    /// </summary>
     [Fact]
-    public void AJoinerIsServedTheSpawnAndEveryChunk()
+    public void AJoinerIsOfferedEachImageAndSentNoChunks()
     {
         ShareImage(owner: 7, chunks: 3);
+        ShareImage(owner: 7, chunks: 3);
 
-        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
-        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        BasisNetworkImageCache.OfferCachedImagesToPeer(joiner);
+
+        Assert.Equal(2, joiner.Sent.Count);
+        Assert.All(joiner.Sent, sent => Assert.Equal(OpServerCacheOffer, PayloadOpcode(sent)));
+    }
+
+    /// <summary>
+    /// The offer is the sharer's own spawn header with one byte changed, so the position the client
+    /// needs rides along without the server ever reading it.
+    /// </summary>
+    [Fact]
+    public void AnOfferCarriesTheSharersSpawnHeaderVerbatimApartFromTheOpcode()
+    {
+        Guid id = ShareImage(owner: 7, chunks: 2, positionX: 12.5f, positionZ: -3f);
+
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        BasisNetworkImageCache.OfferCachedImagesToPeer(joiner);
+
+        byte[] offer = PayloadOf(joiner.Sent[0]);
+        byte[] expected = EncodeSpawn(id, 7, "Sharer", 2, 12.5f, 0f, -3f);
+        expected[0] = OpServerCacheOffer;
+        Assert.Equal(expected, offer);
+    }
+
+    [Fact]
+    public void RequestingAnOfferedImage_SendsTheSpawnAndEveryChunk()
+    {
+        Guid id = ShareImage(owner: 7, chunks: 3);
+
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        BasisNetworkImageCache.OfferCachedImagesToPeer(joiner);
+        joiner.Sent.Clear();
+
+        BasisNetworkImageCache.ServeRequestedImage(9, id);
 
         Assert.Equal(4, joiner.Sent.Count);
     }
@@ -488,141 +523,85 @@ public class BasisNetworkImageCacheTests : IDisposable
         // The image pickup manager registers a *direct* scene handler, so its traffic reaches it
         // only on DirectSceneServerChannel. Replaying on SceneChannel lands in the other handler
         // table, where nothing is registered, and the joiner silently sees no image at all.
-        ShareImage(owner: 7, chunks: 2);
+        Guid id = ShareImage(owner: 7, chunks: 2);
 
-        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
-        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        BasisNetworkImageCache.OfferCachedImagesToPeer(joiner);
+        BasisNetworkImageCache.ServeRequestedImage(9, id);
 
         Assert.NotEmpty(joiner.Sent);
         Assert.All(joiner.Sent, sent => Assert.Equal(BasisNetworkCommons.DirectSceneServerChannel, sent.Channel));
     }
 
     [Fact]
-    public void AnIncompleteImage_IsNotReplayed()
+    public void AnIncompleteImage_IsNotOffered()
     {
         Guid id = Guid.NewGuid();
         Observe(7, EncodeSpawn(id, 7, "Sharer", totalChunks: 3));
         Observe(7, EncodeChunk(id, 0, ChunkBytes));
 
-        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
-        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        BasisNetworkImageCache.OfferCachedImagesToPeer(joiner);
+
+        Assert.Empty(joiner.Sent);
+    }
+
+    /// <summary>
+    /// A request for something never offered - or never finished arriving - buys nothing. The cache
+    /// answers requests, it does not take instructions.
+    /// </summary>
+    [Fact]
+    public void RequestingAnIncompleteImage_SendsNothing()
+    {
+        Guid id = Guid.NewGuid();
+        Observe(7, EncodeSpawn(id, 7, "Sharer", totalChunks: 3));
+        Observe(7, EncodeChunk(id, 0, ChunkBytes));
+
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        BasisNetworkImageCache.ServeRequestedImage(9, id);
 
         Assert.Empty(joiner.Sent);
     }
 
     [Fact]
-    public void WithFiniteImageRange_TheCacheStillRetains()
+    public void RequestingTheSameImageTwice_SendsItOnce()
     {
-        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
+        Guid id = ShareImage(owner: 7, chunks: 2);
 
-        ShareImage(owner: 7);
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        BasisNetworkImageCache.ServeRequestedImage(9, id);
+        int first = joiner.Sent.Count;
+        Assert.True(first > 0);
 
-        Assert.True(BasisNetworkImageCache.BytesHeldFor(7) > 0);
-        Assert.Equal(1, BasisNetworkImageCache.ServableCount);
-    }
-
-    /// <summary>
-    /// A peer is unplaceable until they have sent their first avatar update, and an arriving one has
-    /// not. Serving them anyway would hand every joiner the cards standing near world zero.
-    /// </summary>
-    [Fact]
-    public void WithFiniteImageRange_APeerWithNoKnownPositionIsServedNothing()
-    {
-        ShareImage(owner: 7);
-        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
-
-        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
-        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+        joiner.Sent.Clear();
+        BasisNetworkImageCache.ServeRequestedImage(9, id);
 
         Assert.Empty(joiner.Sent);
     }
 
     [Fact]
-    public void WithFiniteImageRange_ANearbyPeerIsServedAndADistantOneIsNot()
-    {
-        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
-        ShareImage(owner: 7);
-
-        ImageCacheRecordingPeer near = RegisterPeer(9);
-        PlacePeer(9, 10f, 0f, 0f);
-        BasisNetworkImageCache.SendCachedImagesToPeer(near);
-
-        ImageCacheRecordingPeer far = RegisterPeer(11);
-        PlacePeer(11, 500f, 0f, 0f);
-        BasisNetworkImageCache.SendCachedImagesToPeer(far);
-
-        Assert.NotEmpty(near.Sent);
-        Assert.Empty(far.Sent);
-    }
-
-    /// <summary>
-    /// The whole point of the sweep: somebody who was too far away when they joined gets the card
-    /// once they have walked over to it, without the owner having to notice.
-    /// </summary>
-    [Fact]
-    public void SweepRangeCatchUp_ServesAPeerWhoHasWalkedIntoRange()
-    {
-        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
-        ShareImage(owner: 7);
-
-        ImageCacheRecordingPeer walker = RegisterPeer(9);
-        PlacePeer(9, 500f, 0f, 0f);
-        BasisNetworkImageCache.ResetSweepClockForTests();
-        BasisNetworkImageCache.SweepRangeCatchUp();
-        Assert.Empty(walker.Sent);
-
-        PlacePeer(9, 5f, 0f, 0f);
-        BasisNetworkImageCache.ResetSweepClockForTests();
-        BasisNetworkImageCache.SweepRangeCatchUp();
-
-        Assert.NotEmpty(walker.Sent);
-    }
-
-    /// <summary>
-    /// The cache tracks the card's position as it is carried, so a picture walked across the room
-    /// reaches the people it is walked toward rather than the ones it was spawned beside.
-    /// </summary>
-    [Fact]
-    public void AnImageCarriedIntoRangeIsServedFromItsNewPosition()
-    {
-        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
-        Guid id = ShareImage(owner: 7, positionX: 500f);
-
-        ImageCacheRecordingPeer peer = RegisterPeer(9);
-        PlacePeer(9, 0f, 0f, 0f);
-        BasisNetworkImageCache.SendCachedImagesToPeer(peer);
-        Assert.Empty(peer.Sent);
-
-        Observe(7, EncodeTransform(id, 10f, 0f, 0f));
-        BasisNetworkImageCache.SendCachedImagesToPeer(peer);
-
-        Assert.NotEmpty(peer.Sent);
-    }
-
-    [Fact]
-    public void APeerIsNotServedTheSameImageTwice()
+    public void APeerIsOfferedAnImageOnlyOnce()
     {
         ShareImage(owner: 7);
 
         ImageCacheRecordingPeer joiner = RegisterPeer(9);
-        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+        BasisNetworkImageCache.OfferCachedImagesToPeer(joiner);
         Assert.NotEmpty(joiner.Sent);
 
         joiner.Sent.Clear();
-        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+        BasisNetworkImageCache.OfferCachedImagesToPeer(joiner);
 
         Assert.Empty(joiner.Sent);
     }
 
     /// <summary>
-    /// The sharer already sent this to peer 9, and the relay saw exactly who it was aimed at. Serving
-    /// it again from the cache would double the cost of every share for everyone standing nearby.
+    /// The sharer already sent this to peer 9, and the relay saw exactly who it was aimed at.
+    /// Offering it back would invite them to download a picture they are already holding.
     /// </summary>
     [Fact]
-    public void APeerTheSharerAlreadyTargetedIsNotServedAgain()
+    public void APeerTheSharerAlreadyTargetedIsNotOffered()
     {
         ImageCacheRecordingPeer nearby = RegisterPeer(9);
-        PlacePeer(9, 0f, 0f, 0f);
 
         Guid id = Guid.NewGuid();
         ushort[] targeted = { 9 };
@@ -631,15 +610,22 @@ public class BasisNetworkImageCacheTests : IDisposable
         {
             ObserveTargeted(7, EncodeChunk(id, index, ChunkBytes), targeted);
         }
+        nearby.Sent.Clear();
 
-        BasisNetworkImageCache.SendCachedImagesToPeer(nearby);
+        BasisNetworkImageCache.OfferCachedImagesToPeer(nearby);
 
         Assert.Empty(nearby.Sent);
     }
 
+    /// <summary>
+    /// The other half: somebody the sharer decided was too far away is exactly who the cache exists
+    /// for, and they are told the moment the image finishes arriving rather than on their next join.
+    /// </summary>
     [Fact]
-    public void APeerTheSharerCouldNotReachIsStillServedByTheCache()
+    public void APeerTheSharerCouldNotReachIsOfferedTheImageAsItCompletes()
     {
+        ImageCacheRecordingPeer latecomer = RegisterPeer(11);
+
         Guid id = Guid.NewGuid();
         ushort[] targeted = { 9 };
         ObserveTargeted(7, EncodeSpawn(id, 7, "Sharer", totalChunks: 2), targeted);
@@ -648,36 +634,33 @@ public class BasisNetworkImageCacheTests : IDisposable
             ObserveTargeted(7, EncodeChunk(id, index, ChunkBytes), targeted);
         }
 
-        ImageCacheRecordingPeer latecomer = RegisterPeer(11);
-        BasisNetworkImageCache.SendCachedImagesToPeer(latecomer);
-
-        Assert.NotEmpty(latecomer.Sent);
+        Assert.Single(latecomer.Sent);
+        Assert.Equal(OpServerCacheOffer, PayloadOpcode(latecomer.Sent[0]));
     }
 
     [Fact]
-    public void AnOwnerIsNeverServedTheirOwnImage()
+    public void AnOwnerIsNeverOfferedTheirOwnImage()
     {
-        ShareImage(owner: 7);
-
         ImageCacheRecordingPeer owner = RegisterPeer(7);
-        BasisNetworkImageCache.SendCachedImagesToPeer(owner);
+
+        ShareImage(owner: 7);
+        owner.Sent.Clear();
+        BasisNetworkImageCache.OfferCachedImagesToPeer(owner);
 
         Assert.Empty(owner.Sent);
     }
 
     [Fact]
-    public void WithTheCacheOff_AJoinerIsServedNothing()
+    public void WithTheCacheOff_AJoinerIsOfferedNothing()
     {
         ShareImage(owner: 7);
         NetworkServer.Configuration.ImageCacheEnabled = false;
 
-        ImageCacheRecordingPeer joiner = new ImageCacheRecordingPeer(9);
-        BasisNetworkImageCache.SendCachedImagesToPeer(joiner);
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        BasisNetworkImageCache.OfferCachedImagesToPeer(joiner);
 
         Assert.Empty(joiner.Sent);
     }
-
-    // ---- owner notice ------------------------------------------------------------------------
 
     [Fact]
     public void TheOwnerIsToldOnTheSameChannelWhenTheirImageBecomesServable()
