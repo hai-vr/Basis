@@ -45,7 +45,21 @@ namespace UnityEngine.Rendering.Universal
             else
 #endif
             {
-                skyRendererListHandle = renderGraph.CreateSkyboxRendererList(cameraData.camera);
+                // Mirror reflection cameras use a custom reflected view and an oblique projection
+                // for scene geometry. The native camera-only skybox path does not preserve that setup
+                // correctly, and the oblique clip must not be applied to an infinitely distant skybox.
+                // Basis mirrors store their clean pre-oblique projection in nonJitteredProjectionMatrix.
+                if (cameraData.isMirrorReflectionCamera)
+                {
+                    skyRendererListHandle = renderGraph.CreateSkyboxRendererList(
+                        cameraData.camera,
+                        cameraData.camera.nonJitteredProjectionMatrix,
+                        cameraData.GetViewMatrix(0));
+                }
+                else
+                {
+                    skyRendererListHandle = renderGraph.CreateSkyboxRendererList(cameraData.camera);
+                }
             }
 
             return skyRendererListHandle;

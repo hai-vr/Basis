@@ -477,6 +477,7 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] Vector4 m_ScreenCoordScaleBias;
 
         [NonSerialized] Camera m_Camera;
+        [NonSerialized] public bool isMirrorReflectionCamera;
         // Deprecated:
         [FormerlySerializedAs("requiresDepthTexture"), SerializeField]
         bool m_RequiresDepthTexture = false;
@@ -524,7 +525,6 @@ namespace UnityEngine.Rendering.Universal
             if (m_CameraType == CameraRenderType.Overlay)
                 camera.clearFlags = CameraClearFlags.Nothing;
         }
-
 
         /// <summary>
         /// Controls if this camera should render shadows.

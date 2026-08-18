@@ -1699,6 +1699,7 @@ namespace UnityEngine.Rendering.Universal
             bool anyShadowsEnabled = settings.supportsMainLightShadows || settings.supportsAdditionalLightShadows;
             cameraData.maxShadowDistance = Mathf.Min(settings.shadowDistance, camera.farClipPlane);
             cameraData.maxShadowDistance = (anyShadowsEnabled && cameraData.maxShadowDistance >= camera.nearClipPlane) ? cameraData.maxShadowDistance : 0.0f;
+            cameraData.isMirrorReflectionCamera = additionalCameraData != null && additionalCameraData.isMirrorReflectionCamera;
 
             bool isSceneViewCamera = cameraData.isSceneViewCamera;
             if (isSceneViewCamera)

@@ -254,6 +254,7 @@ namespace UnityEngine.Rendering.Universal
         /// Returns true if XR rendering is enabled.
         /// </summary>
         public bool xrRendering;
+        internal bool isMirrorReflectionCamera;
 
         // True if GPU occlusion culling should be used when rendering this camera.
         internal bool useGPUOcclusionCulling;
@@ -653,6 +654,7 @@ namespace UnityEngine.Rendering.Universal
             requiresOpaqueTexture = false;
             postProcessingRequiresDepthTexture = false;
             xrRendering = false;
+            isMirrorReflectionCamera = false;
             useGPUOcclusionCulling = false;
             defaultOpaqueSortFlags = SortingCriteria.None;
             xr = default;
