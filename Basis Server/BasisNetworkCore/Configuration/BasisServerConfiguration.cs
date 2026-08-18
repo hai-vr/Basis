@@ -55,6 +55,10 @@ public class Configuration
     public int BSRBaseMultiplier = 1;
     public float BSRSIncreaseRate = 0.005f;
     public float BSRSlowestSendRate = 2.55f;
+    public int DistanceUpdateIntervalTicks = 125;
+    public bool EnableComputeOffload = true;
+    public string ComputeDevice = "";
+    public int ComputeDistanceUpdateIntervalTicks = 32;
     public float HighQualityDistance = 10f;
     public float MediumQualityDistance = 20f;
     public float LowQualityDistance = 40f;

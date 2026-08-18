@@ -165,6 +165,24 @@ public static class KnobCatalog
 
         new()
         {
+            Name = "DistanceUpdateIntervalTicks",
+            File = SettingFile.Server,
+            Confidence = LoopbackConfidence.Honest,
+            Summary =
+                "Ticks one full refresh of the per-pair distance cache is spread over. This is the " +
+                "setting the compute-offload question actually turns on: moving the sweep to a device " +
+                "saves almost no CPU, so the only thing a cheaper sweep can buy is a shorter period, " +
+                "and this measures whether a shorter period is worth anything. At the shipped 125 a " +
+                "player moving 5 m/s travels about 12 m between refreshes, which is more than the " +
+                "whole High-quality radius, so pairs are served at a tier fitted to where they used to " +
+                "be. Lower is fresher and quadratically more expensive; if delivered pair-Hz does not " +
+                "move across these arms then the sweep is not what limits quality and no offload of it " +
+                "is worth building.",
+            Candidates = new[] { "125", "64", "32", "250" },
+        },
+
+        new()
+        {
             Name = "AvatarBundleZstdLevel",
             File = SettingFile.Server,
             Confidence = LoopbackConfidence.Honest,

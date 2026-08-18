@@ -174,7 +174,7 @@ public class BundleDictionaryTrainer
         }
         finally
         {
-            BasisAvatarBundleZstd.OverrideDictionaryForTests(Array.Empty<byte>(), 0);
+            BasisAvatarBundleZstd.RestoreEmbeddedDictionaryForTests();
         }
     }
 
@@ -305,10 +305,60 @@ public class BundleDictionaryTrainer
     public void CodecIsInertWithoutADictionary()
     {
         BasisAvatarBundleZstd.OverrideDictionaryForTests(Array.Empty<byte>(), 0);
+        try
+        {
+            Assert.False(BasisAvatarBundleZstd.Available);
+            Assert.False(BasisAvatarBundleZstd.TryCompress(new byte[256], new byte[4096], out int written));
+            Assert.Equal(0, written);
+        }
+        finally
+        {
+            BasisAvatarBundleZstd.RestoreEmbeddedDictionaryForTests();
+        }
+    }
 
-        Assert.False(BasisAvatarBundleZstd.Available);
-        Assert.False(BasisAvatarBundleZstd.TryCompress(new byte[256], new byte[4096], out int written));
-        Assert.Equal(0, written);
+    /// <summary>
+    /// The dictionary this build actually ships has to work, not just an injected one. Every other
+    /// test here swaps its own dictionary in, so none of them would notice a generated file that
+    /// decodes to nothing — nor a test that left the codec blanked behind it.
+    ///
+    /// Reports and returns on a build with no dictionary yet, rather than failing: generation 0 is
+    /// the correct state before the first capture, not a broken one.
+    /// </summary>
+    [Fact]
+    public void EmbeddedDictionaryRoundTripsAndNamesItsGeneration()
+    {
+        if (BasisAvatarBundleDictionary.Generation == 0)
+        {
+            _out.WriteLine("no dictionary embedded — run TrainFromCaptureFile. Nothing to check.");
+            return;
+        }
+
+        Assert.True(BasisAvatarBundleZstd.Available);
+        Assert.Equal(BasisAvatarBundleDictionary.Generation, BasisAvatarBundleZstd.DictionaryGeneration);
+        Assert.NotEmpty(BasisAvatarBundleDictionary.Bytes);
+
+        long raw = 0, packed = 0;
+        foreach (byte[] body in BundleCompressionExperiment.BuildGroupedCorpus("idle", delta: false, chunks: 24, seed: 606))
+        {
+            var dst = new byte[BasisAvatarBundleZstd.MaximumOutputSize(body.Length)];
+            Assert.True(BasisAvatarBundleZstd.TryCompress(body, dst, out int len));
+
+            byte flags = BasisAvatarBundleZstd.PackFlags(
+                BasisAvatarBundleZstd.CodecZstdDict, BasisAvatarBundleZstd.DictionaryGeneration);
+            Assert.Equal(BasisAvatarBundleDictionary.Generation, BasisAvatarBundleZstd.DictGenerationOf(flags));
+
+            var back = new byte[body.Length];
+            Assert.True(BasisAvatarBundleZstd.TryDecompress(dst.AsSpan(0, len), back, out int backLen));
+            Assert.Equal(body.Length, backLen);
+            Assert.Equal(body, back);
+
+            raw += body.Length;
+            packed += len;
+        }
+
+        _out.WriteLine($"embedded dictionary gen {BasisAvatarBundleDictionary.Generation} " +
+                       $"({BasisAvatarBundleDictionary.Bytes.Length} bytes): raw {raw} -> {packed} ({(double)packed / raw:F4})");
     }
 
     /// <summary>
@@ -391,7 +441,7 @@ public class BundleDictionaryTrainer
         }
         finally
         {
-            BasisAvatarBundleZstd.OverrideDictionaryForTests(Array.Empty<byte>(), 0);
+            BasisAvatarBundleZstd.RestoreEmbeddedDictionaryForTests();
         }
     }
 
@@ -427,7 +477,7 @@ public class BundleDictionaryTrainer
         }
         finally
         {
-            BasisAvatarBundleZstd.OverrideDictionaryForTests(Array.Empty<byte>(), 0);
+            BasisAvatarBundleZstd.RestoreEmbeddedDictionaryForTests();
         }
         Assert.True(len > 0);
     }

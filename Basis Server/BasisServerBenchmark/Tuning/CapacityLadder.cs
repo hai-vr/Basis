@@ -30,6 +30,20 @@ public sealed record LadderRung(int Players, RunResult Result)
     public double SliceCount => Result.Median(w => w.SliceCount);
     public double CommittedMb => Result.Median(w => w.CommittedMb);
     public double KernelDropsPerSecond => Result.Median(w => w.KernelReceiveDropsPerSecond);
+
+    /// <summary>Load-client CPU, which is not part of the score but decides whether it can be trusted.</summary>
+    public double ClientCores => Result.Median(w => w.ClientCores);
+
+    /// <summary>
+    /// True when the harness and the server together left little of the machine spare.
+    ///
+    /// <para>The client's CPU is excluded from the server's figure, but not from the machine: past
+    /// a point the two are fighting for cores, cache and memory bandwidth, and the server's number
+    /// stops describing the server. It also raises a worse possibility - that the CLIENT ran out
+    /// first, so the server looks comfortable only because nothing was pushing it hard enough.</para>
+    /// </summary>
+    public bool Contended(int machineCores) =>
+        HasCores && machineCores > 0 && (Cores + ClientCores) > machineCores * 0.70;
 }
 
 public sealed class CapacityResult
@@ -77,6 +91,25 @@ public sealed class CapacityResult
         return rung.SliceCount <= 1.01 && rung.DeliveryRatio >= 0.999 && rung.HasCores && rung.Cores < cores * 0.25;
     }
 
+    /// <summary>
+    /// Rungs where the harness and the server together took most of the machine, so the server's
+    /// own figure is no longer only about the server.
+    /// </summary>
+    public string? ContentionWarning(int cores)
+    {
+        var contended = Rungs.Where(r => r.Contended(cores)).ToList();
+        if (contended.Count == 0) return null;
+
+        LadderRung worst = contended.OrderByDescending(r => r.Cores + r.ClientCores).First();
+        return
+            $"At {worst.Players:N0} players the server took {worst.Cores:F1} cores and the load client " +
+            $"{worst.ClientCores:F1}, which is {(worst.Cores + worst.ClientCores) / cores:P0} of this machine. " +
+            "The client's CPU is excluded from the server's score, but the contention is not: past this point " +
+            "the two compete for cores, cache and memory bandwidth, and it becomes possible that the CLIENT ran " +
+            "out first - which would make the server look comfortable only because nothing was pushing it. Run " +
+            "the load clients on another machine before trusting figures at this population.";
+    }
+
     /// <summary>The population to sweep settings at, and why it may not be usable.</summary>
     public string? IdleWarning(int cores) => !DesignPointIsIdle(cores) ? null :
         $"At {FullQualityPlayers:N0} players this machine is barely working - " +
@@ -88,11 +121,11 @@ public sealed class CapacityResult
     public string Describe()
     {
         var sb = new StringBuilder();
-        sb.AppendLine("   players    cores     MB/s   Hz/pair   delivery   slice   committed");
+        sb.AppendLine("   players    cores   client     MB/s   Hz/pair   delivery   slice   committed");
         foreach (LadderRung r in Rungs)
         {
             string mark = r.Players == FullQualityPlayers ? "  <-- full quality" : "";
-            sb.AppendLine($"   {r.Players,7}   {LadderRung.Fmt(r.Cores),6}   {r.MegabytesPerSecond,6:N0}   {r.DeliveredPairHz,7:F2}   {r.DeliveryRatio,8:P1}   {r.SliceCount,5:F1}   {r.CommittedMb,7:N0} MB{mark}");
+            sb.AppendLine($"   {r.Players,7}   {LadderRung.Fmt(r.Cores),6}   {r.ClientCores,6:F2}   {r.MegabytesPerSecond,6:N0}   {r.DeliveredPairHz,7:F2}   {r.DeliveryRatio,8:P1}   {r.SliceCount,5:F1}   {r.CommittedMb,7:N0} MB{mark}");
         }
         sb.AppendLine();
         sb.AppendLine($"   Full-quality ceiling : {FullQualityPlayers:N0} players");

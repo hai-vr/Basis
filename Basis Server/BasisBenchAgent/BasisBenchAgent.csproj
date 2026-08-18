@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<StartupObject>Basis.Bench.Agent.Program</StartupObject>
+		<AssemblyName>BasisBenchAgent</AssemblyName>
+		<RootNamespace>Basis.Bench.Agent</RootNamespace>
+		<InvariantGlobalization>true</InvariantGlobalization>
+	</PropertyGroup>
+
+	<!--
+	  This runs on the machine whose entire job is generating load, so everything it spends is
+	  subtracted from the load it can generate. Workstation GC, no background collector: it owns one
+	  socket and one child process, and a server GC's per-core heaps and background threads would
+	  cost more than the work.
+	-->
+	<PropertyGroup>
+		<ServerGarbageCollection>false</ServerGarbageCollection>
+		<ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+	</PropertyGroup>
+
+	<!--
+	  No project references at all. The agent starts the load client as a process and never links
+	  against it, which keeps this deployable on its own - copy the agent and the load client to a
+	  spare machine and nothing else has to come with them.
+	-->
+
+</Project>

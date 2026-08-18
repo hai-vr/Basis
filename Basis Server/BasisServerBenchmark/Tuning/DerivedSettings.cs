@@ -126,8 +126,10 @@ public static class DerivedSettings
                 Rationale =
                     "This build embeds no zstd dictionary, so the codec is inert by design and every bundle " +
                     "falls through to LZ4 regardless of what this setting says. Turning it off makes the " +
-                    "configuration say what is actually happening. Dictionary-less zstd is not a partial win " +
-                    "here - the dictionary is where the ratio comes from on payloads this small.",
+                    "configuration say what is actually happening. The zstd rows above are dictionary-less " +
+                    "and are not evidence either way about the configuration that would actually run - train " +
+                    "a dictionary from a real capture (see BundleDictionaryTrainer) and re-run before reading " +
+                    "them as a verdict on the codec.",
             });
         }
         else

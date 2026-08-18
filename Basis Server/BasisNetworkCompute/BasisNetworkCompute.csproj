@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AssemblyName>BasisNetworkCompute</AssemblyName>
+		<RootNamespace>Basis.Network.Compute</RootNamespace>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	</PropertyGroup>
+
+	<!--
+	  Standalone-only, and deliberately absent from com.basis.server. BasisNetworkServer carries an
+	  asmdef, so Unity compiles it; a PackageReference to ILGPU there would have to be vendored as a
+	  managed DLL and survive IL2CPP, for a path the client never runs. Keeping the GPU backend in a
+	  separate assembly the server resolves at runtime means Unity never sees ILGPU at all, and a
+	  host without a GPU never loads it either.
+	-->
+	<ItemGroup>
+		<PackageReference Include="ILGPU" Version="1.5.3" />
+	</ItemGroup>
+
+	<!--
+	  The protocol's own interval encoder, so DistanceMath.VerifyAgainstProtocol compares the
+	  kernel's transcription against the real thing rather than against a second copy of itself.
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\BasisNetworkCore\BasisNetworkCore.csproj" />
+	</ItemGroup>
+
+</Project>

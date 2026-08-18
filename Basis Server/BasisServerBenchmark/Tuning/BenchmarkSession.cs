@@ -46,16 +46,21 @@ public sealed record RunProfile(
     int Windows,
     int WindowSeconds,
     int LadderRungs,
-    bool Sweep)
+    bool Sweep,
+    int Refinements)
 {
     public static RunProfile For(AutoMode mode) => mode switch
     {
         // Warmup never drops below 45s in any mode. It is not padding: the slicing controller
         // oscillates over several windows, and under about 45s a run records wherever that
         // oscillation happened to be rather than the steady state. Windows are what gets traded.
-        AutoMode.Quick => new RunProfile(45, 3, 20, 1, false),
-        AutoMode.Medium => new RunProfile(45, 4, 25, 3, false),
-        _ => new RunProfile(60, 6, 30, 99, true),
+        //
+        // Refinements are bisection steps taken after the coarse rungs bracket the knee. They are
+        // the best value per run available here - each one halves the uncertainty in the player cap
+        // - but they are still runs, so the budget is per mode rather than fixed.
+        AutoMode.Quick => new RunProfile(45, 3, 20, 1, false, 0),
+        AutoMode.Medium => new RunProfile(45, 4, 25, 3, false, 1),
+        _ => new RunProfile(60, 6, 30, 99, true, 2),
     };
 }
 
@@ -67,6 +72,24 @@ public sealed class SessionSettings
     public int WarmupSeconds { get; set; } = 60;
     public int MaxPlayers { get; set; } = 4000;
     public string? CorpusPath { get; set; }
+
+    /// <summary>
+    /// Which compute device to measure, when the host has more than one. Empty measures the best
+    /// one. Same grammar as the server's ComputeDevice setting - an index or part of a name - so a
+    /// value that measured well here can be copied straight into config.xml.
+    /// </summary>
+    public string ComputeDevice { get; set; } = "";
+
+    /// <summary>
+    /// Write the tuning profile automatically when a run finishes. On by default.
+    ///
+    /// <para>Measuring and then requiring a separate command to act on it is a good way to have
+    /// nobody act on it — an operator who has just waited out a ladder has been told what to change
+    /// and is one forgotten step away from changing nothing. Writing is safe to do unprompted: the
+    /// profile is applied once, folded into config.xml, fingerprinted to this machine, and every
+    /// value is logged on the boot that consumes it.</para>
+    /// </summary>
+    public bool AutoWrite { get; set; } = true;
 
     /// <summary>
     /// Restrict the sweep to these settings; empty means every eligible one.
@@ -112,6 +135,8 @@ public sealed class SessionSettings
             "captured avatar bundles for the codec benchmark");
         yield return ("knobs", OnlyKnobs.Count == 0 ? "(all)" : string.Join(",", OnlyKnobs),
             "sweep only these settings; '-' for all");
+        yield return ("autowrite", AutoWrite ? "on" : "off",
+            "write the tuning profile when a run finishes");
     }
 
     public bool TrySet(string name, string value, out string message)
@@ -138,6 +163,11 @@ public sealed class SessionSettings
                 return true;
             case "max-players" when number && n >= 50:
                 MaxPlayers = n; message = $"max-players = {n}"; return true;
+            case "autowrite":
+                AutoWrite = value is "on" or "true" or "1" or "yes";
+                message = $"autowrite = {(AutoWrite ? "on" : "off")}" +
+                          (AutoWrite ? "" : ". Runs will report only; /write applies them.");
+                return true;
             case "corpus":
                 CorpusPath = value == "-" || value.Length == 0 ? null : value;
                 message = $"corpus = {CorpusPath ?? "(generated)"}";
@@ -178,6 +208,7 @@ public sealed class BenchmarkSession
         OutputDirectory = outputDirectory;
         _log = log;
         Machine = MachineProfile.Collect();
+        Gpu = GpuProfile.Collect();
     }
 
     public string ServerDirectory { get; }
@@ -185,9 +216,17 @@ public sealed class BenchmarkSession
     public string OutputDirectory { get; }
     public SessionSettings Settings { get; } = new();
 
+    /// <summary>
+    /// <c>DistanceUpdateIntervalTicks</c>, the period the server spreads one full sweep over. Held
+    /// here so the offload verdict is expressed against the refresh rate the server actually runs.
+    /// </summary>
+    private const int DistanceSweepIntervalTicks = 125;
+
     public MachineProfile Machine { get; }
+    public GpuProfile Gpu { get; }
     public CoreBenchResult? Cores { get; private set; }
     public CompressionBenchResult? Compression { get; private set; }
+    public GpuBenchResult? GpuOffload { get; private set; }
     public CapacityResult? Capacity { get; private set; }
     public SweepResult? Sweep { get; private set; }
     public IReadOnlyList<Recommendation> Recommendations { get; private set; } = Array.Empty<Recommendation>();
@@ -209,6 +248,15 @@ public sealed class BenchmarkSession
         _log("  Compression");
         Compression = CompressionBench.Run(LoadCorpus(), _log);
         _log(Compression.Describe());
+        if (cancel.IsCancellationRequested) return;
+
+        if (Gpu.Availability == GpuAvailability.Present)
+        {
+            _log("  Compute offload");
+            int designPlayers = DesignPlayers > 0 ? DesignPlayers : 1000;
+            GpuOffload = GpuBench.Run(Gpu, designPlayers, Cores.KneeWorkers, DistanceSweepIntervalTicks, Settings.ComputeDevice, _log);
+            if (GpuOffload != null) _log(GpuOffload.Describe());
+        }
 
         RebuildRecommendations();
         LastMode = "profile (offline only)";
@@ -312,6 +360,18 @@ public sealed class BenchmarkSession
     /// </summary>
     public bool IncludeUntrusted { get; set; }
 
+    /// <summary>
+    /// Where the crowd comes from. Null means local, which is the default and the compromised one.
+    ///
+    /// Held on the session rather than created per run so one control connection spans every arm of
+    /// a sweep - the agent stops its clients when that connection closes, so reconnecting per arm
+    /// would tear the crowd down between measurements.
+    /// </summary>
+    public ILoadClientDriver? Driver { get; set; }
+
+    /// <summary>True when the crowd runs off-box, which is what makes packet-rate findings usable.</summary>
+    public bool RemoteLoad => Driver?.IsRemote == true;
+
     public void RunAuto(AutoMode mode, CancellationToken cancel)
     {
         LastMode = mode switch
@@ -358,8 +418,12 @@ public sealed class BenchmarkSession
 
         _log($"\n  Ladder: {string.Join(", ", populations.Select(p => p.ToString("N0")))} players, about " +
              $"{populations.Sum(p => Template(p, "x").EstimatedDuration.TotalMinutes):F0} min in total.");
-        Capacity = CapacityLadder.Run(runner, Template(0, "ladder"), populations, _log, cancel);
+        Capacity = CapacityLadder.Run(runner, Template(0, "ladder"), populations, _log, cancel, profile.Refinements);
         _log(Capacity.Describe());
+
+        // Surfaced right after the table, because every CPU-derived conclusion below inherits it.
+        if (Capacity.ContentionWarning(Machine.LogicalCores) is { } contended)
+            _log("  ! " + contended + Environment.NewLine);
 
         if (cancel.IsCancellationRequested) { RebuildRecommendations(); return; }
 
@@ -395,6 +459,7 @@ public sealed class BenchmarkSession
                   + Environment.NewLine
                   + "  and the player cap is only 'this much worked'. /auto medium adds those for ten more minutes.");
             _log("  The A/B-measured settings cost roughly another hour and a half: /auto long when it suits.");
+            Apply();
             return;
         }
 
@@ -403,11 +468,14 @@ public sealed class BenchmarkSession
         {
             _log("\n  ! " + idle);
             _log("    Skipping the sweep - it would spend hours proving that nothing matters.");
+            Apply();
             return;
         }
 
         var knobs = KnobCatalog.All
-            .Where(k => IncludeUntrusted || k.Confidence == LoopbackConfidence.Honest)
+            // A remote crowd makes the packet-rate and socket settings measurable, so they join the
+            // sweep by default there instead of needing to be asked for.
+            .Where(k => IncludeUntrusted || RemoteLoad || k.Confidence == LoopbackConfidence.Honest)
             .Where(k => !Recommendations.Any(r => r.Setting == k.Name && r.Evidence == Evidence.Derived))
             .Where(k => Settings.OnlyKnobs.Count == 0 || Settings.OnlyKnobs.Contains(k.Name))
             .ToList();
@@ -416,6 +484,7 @@ public sealed class BenchmarkSession
         {
             _log("\n  Nothing left to sweep - every eligible setting is already derived, or the /set knobs " +
                  "filter excludes all of them.");
+            Apply();
             return;
         }
 
@@ -423,7 +492,7 @@ public sealed class BenchmarkSession
         _log($"\n  Sweeping {knobs.Count} setting(s) at {design:N0} players: {arms} arms, " +
              $"about {arms * Template(design, "x").EstimatedDuration.TotalHours:F1} hours. /stop to cut it short.");
 
-        var sweeper = new KnobSweeper(runner, configs, loopback: true,
+        var sweeper = new KnobSweeper(runner, configs, loopback: !RemoteLoad,
             Machine.LogicalCores, Machine.TotalMemoryBytes, _log);
         Sweep = sweeper.Run(Template(design, "sweep"), knobs, cancel);
 
@@ -436,6 +505,29 @@ public sealed class BenchmarkSession
             merged.Add(r);
         }
         Recommendations = merged;
+
+        Apply();
+    }
+
+    /// <summary>
+    /// Writes the tuning profile, unless the operator has turned that off.
+    ///
+    /// Called from every path out of a run that produced findings, rather than once at the end,
+    /// because most of those paths are early returns - a quick run, an idle box, a filtered sweep -
+    /// and each of them has still measured something worth keeping.
+    /// </summary>
+    private void Apply()
+    {
+        if (!Settings.AutoWrite)
+        {
+            int pending = Recommendations.Count(r => r.IsChange && r.Writable);
+            if (pending > 0)
+                _log($"{Environment.NewLine}  autowrite is off: {pending} change(s) measured but not written. /write applies them.");
+            return;
+        }
+
+        try { _log(Output.TuningProfileWriter.Write(this)); }
+        catch (Exception ex) { _log($"  Could not write the tuning profile: {ex.Message}"); }
     }
 
     /// <summary>
@@ -492,6 +584,7 @@ public sealed class BenchmarkSession
         WindowLength = TimeSpan.FromSeconds(Settings.WindowSeconds),
         Windows = Settings.Windows,
         Label = label,
+        Driver = Driver,
     };
 
     // ── output ──────────────────────────────────────────────────────────────────────────
@@ -500,10 +593,12 @@ public sealed class BenchmarkSession
     {
         StartedUtc = StartedUtc,
         Mode = LastMode,
-        Loopback = true,
+        Loopback = !RemoteLoad,
         Machine = Machine,
         Cores = Cores,
         Compression = Compression,
+        Gpu = Gpu,
+        GpuOffload = GpuOffload,
         Capacity = Capacity,
         Sweep = Sweep,
         Recommendations = Recommendations,

@@ -52,6 +52,18 @@ public sealed class RunOptions
     /// </summary>
     public int? ClientConnectIntervalMs { get; init; }
 
+    /// <summary>The server's game port, which a remote crowd needs in order to find it.</summary>
+    public ushort ServerPort { get; init; } = 4296;
+
+    /// <summary>
+    /// Supplies the crowd. Local by default; a remote agent when one was configured.
+    ///
+    /// Owned by the caller rather than this options object, because one driver holds a control
+    /// connection across every arm of a sweep - reconnecting per arm would cost the agent's
+    /// clients a teardown each time.
+    /// </summary>
+    public ILoadClientDriver? Driver { get; init; }
+
     public string HealthUrl => $"http://{HealthHost}:{HealthPort}{HealthPath}";
 
     /// <summary>Total wall time this run will take if nothing goes wrong.</summary>

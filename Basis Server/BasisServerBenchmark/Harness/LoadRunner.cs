@@ -82,8 +82,8 @@ public sealed class LoadRunner
     public RunResult Run(RunOptions options, CancellationToken cancel)
     {
         Process? server = null;
-        Process? client = null;
-        double voiceDelivered = -1;
+        ILoadClientDriver driver = options.Driver ?? new LocalLoadClientDriver();
+        bool ownsDriver = options.Driver == null;
         int peakConnected = 0;
         var windows = new List<MeasurementWindow>();
 
@@ -99,35 +99,31 @@ public sealed class LoadRunner
             // mechanism that covers both.
             _configs.Apply(options.Settings);
             ApplyHarnessDefaults(options);
-            WriteLoadClientConfig(options);
+
+            if (!PortIsClear(options, out string occupied))
+                return Failed(options, occupied, peakConnected, driver.VoiceDelivered, windows);
 
             _log($"  [{options.Label}] starting server...");
             server = StartServer(options);
-            if (!WaitForHealth(options, TimeSpan.FromSeconds(60), cancel))
-                return Failed(options, "server never reported healthy", peakConnected, voiceDelivered, windows);
+            if (!WaitForHealth(options, server, TimeSpan.FromSeconds(60), cancel, out string startupFailure))
+                return Failed(options, startupFailure, peakConnected, driver.VoiceDelivered, windows);
 
-            _log($"  [{options.Label}] starting {options.RequestedPlayersLabel()} load clients...");
-            client = StartLoadClient(options, line =>
-            {
-                Match m = VoiceLine.Match(line);
-                if (m.Success && double.TryParse(m.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double pct))
-                    Volatile.Write(ref voiceDelivered, pct / 100.0);
-            });
+            _log($"  [{options.Label}] starting {options.RequestedPlayersLabel()} load clients on {driver.Where}...");
+            driver.Start(options);
 
             if (!WaitForPopulation(options, ref peakConnected, cancel))
                 return Failed(options, $"only {peakConnected} of {options.Players} clients connected within {options.ConnectTimeout.TotalMinutes:F0} min",
-                    peakConnected, voiceDelivered, windows);
+                    peakConnected, driver.VoiceDelivered, windows);
 
             _log($"  [{options.Label}] {peakConnected} connected; warming up {options.Warmup.TotalSeconds:F0}s " +
                  "(the slicing controller oscillates, so this is not optional)...");
             Sleep(options.Warmup, cancel);
 
             var serverCpu = new ProcessCpu(server);
-            var clientCpu = new ProcessCpu(client);
 
             for (int i = 0; i < options.Windows && !cancel.IsCancellationRequested; i++)
             {
-                MeasurementWindow? window = CloseWindow(options, serverCpu, clientCpu, cancel);
+                MeasurementWindow? window = CloseWindow(options, serverCpu, driver, cancel);
                 if (window == null) break;
                 windows.Add(window);
                 peakConnected = Math.Max(peakConnected, window.Players);
@@ -145,16 +141,17 @@ public sealed class LoadRunner
                 Completed = windows.Count > 0,
                 Failure = windows.Count > 0 ? null : "no windows closed",
                 PeakConnected = peakConnected,
-                VoiceDeliveredFraction = Volatile.Read(ref voiceDelivered),
+                VoiceDeliveredFraction = driver.VoiceDelivered,
             };
         }
         catch (Exception ex)
         {
-            return Failed(options, ex.Message, peakConnected, voiceDelivered, windows);
+            return Failed(options, ex.Message, peakConnected, driver.VoiceDelivered, windows);
         }
         finally
         {
-            Kill(client);
+            driver.Stop();
+            if (ownsDriver) driver.Dispose();
             Kill(server);
             // The server holds its health port and log files briefly after exit; the next arm binds
             // the same port, so give the OS a moment rather than racing it.
@@ -184,9 +181,11 @@ public sealed class LoadRunner
             ApplyHarnessDefaults(options);
             WriteLoadClientConfig(options);
 
+            if (!PortIsClear(options, out string occupied)) return FailedBurst(options, occupied);
+
             server = StartServer(options);
-            if (!WaitForHealth(options, TimeSpan.FromSeconds(60), cancel))
-                return FailedBurst(options, "server never reported healthy");
+            if (!WaitForHealth(options, server, TimeSpan.FromSeconds(60), cancel, out string startupFailure))
+                return FailedBurst(options, startupFailure);
 
             var clock = Stopwatch.StartNew();
             client = StartLoadClient(options, _ => { });
@@ -369,14 +368,71 @@ public sealed class LoadRunner
         File.Move(temp, path, overwrite: true);
     }
 
-    private bool WaitForHealth(RunOptions options, TimeSpan timeout, CancellationToken cancel)
+    /// <summary>
+    /// Waits for the server this run started to become healthy.
+    ///
+    /// <para>⚠️ <b>The liveness check is not belt-and-braces, it is the whole point.</b> A health
+    /// endpoint answering does not mean OUR server answered it. If another instance already holds
+    /// the UDP port, the one we started fails to bind and exits within a second — and the port it
+    /// could not take belongs to a server that is still cheerfully serving /health. Without this
+    /// check the run proceeds against a process it does not own: CPU comes back unreadable, the
+    /// profiler fields are absent because that server was configured by somebody else, and the
+    /// numbers that do arrive describe a different server entirely. Observed exactly that,
+    /// reporting 255 MB/s alongside NaN cores and zero slicing.</para>
+    /// </summary>
+    private bool WaitForHealth(RunOptions options, Process server, TimeSpan timeout, CancellationToken cancel,
+        out string failure)
     {
+        failure = "";
         DateTime deadline = DateTime.UtcNow + timeout;
+
         while (DateTime.UtcNow < deadline && !cancel.IsCancellationRequested)
         {
+            bool exited;
+            try { exited = server.HasExited; }
+            catch { exited = true; }
+
+            if (exited)
+            {
+                failure =
+                    "the server exited during startup. The usual cause is another instance already holding the " +
+                    $"port - check for a running BasisNetworkConsole, or a stale one from an earlier run. Note that " +
+                    $"{options.HealthUrl} may still answer, because that is the OTHER server replying.";
+                return false;
+            }
+
             if (HealthPoller.TryRead(options.HealthUrl) is { Ready: true }) return true;
             Thread.Sleep(500);
         }
+
+        failure = "server never reported healthy";
+        return false;
+    }
+
+    /// <summary>
+    /// Refuses to start when something is already answering on the health port.
+    ///
+    /// <para>⚠️ <b>Checked before launching, because afterwards it is too late to tell.</b> Waiting
+    /// for health and checking the process is alive is not enough: a server that cannot bind takes
+    /// a moment to notice and exit, while the instance already holding the port answers instantly,
+    /// so the wait returns success on the first poll against a process the harness does not own.
+    /// The race is only closable from this side of the launch — if anything answers here, it is by
+    /// definition not ours.</para>
+    ///
+    /// <para>The symptom without this is quiet and convincing: real throughput and delivery
+    /// figures, alongside NaN CPU and zero slicing, because the numbers come from a stranger's
+    /// server that was never configured for profiling.</para>
+    /// </summary>
+    private bool PortIsClear(RunOptions options, out string failure)
+    {
+        failure = "";
+        if (HealthPoller.TryRead(options.HealthUrl) == null) return true;
+
+        failure =
+            $"something is already serving {options.HealthUrl}. That is another Basis server, and this run would " +
+            "measure it instead of the one it starts - the server it launches cannot bind the port and exits, " +
+            "leaving throughput figures from a process with no profiling enabled and no CPU this tool can read. " +
+            "Stop the running server (or point --health-port elsewhere) and try again.";
         return false;
     }
 
@@ -407,14 +463,14 @@ public sealed class LoadRunner
         return false;
     }
 
-    private MeasurementWindow? CloseWindow(RunOptions options, ProcessCpu serverCpu, ProcessCpu clientCpu, CancellationToken cancel)
+    private MeasurementWindow? CloseWindow(RunOptions options, ProcessCpu serverCpu, ILoadClientDriver driver, CancellationToken cancel)
     {
         HealthSample? start = HealthPoller.TryRead(options.HealthUrl);
         if (start == null) return null;
 
         long kernelDropsStart = KernelTuning.ReadUdpReceiveBufferErrors();
         serverCpu.Reset();
-        clientCpu.Reset();
+        driver.SampleCores();
 
         // Sampled once a second across the window rather than only at its edges. The instantaneous
         // fields - slice count, tick time, shed tier - oscillate, so an edge reading records a
@@ -432,7 +488,7 @@ public sealed class LoadRunner
         if (finish == null) return null;
 
         double serverCores = serverCpu.SampleCores();
-        double clientCores = clientCpu.SampleCores();
+        double clientCores = driver.SampleCores();
 
         long kernelDropsEnd = KernelTuning.ReadUdpReceiveBufferErrors();
         double kernelDropRate = kernelDropsStart >= 0 && kernelDropsEnd >= kernelDropsStart

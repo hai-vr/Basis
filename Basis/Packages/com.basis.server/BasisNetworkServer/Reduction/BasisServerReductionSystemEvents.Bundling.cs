@@ -261,6 +261,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static bool TryDeflateAndEmit(PlayerState stateI, NetPeer peer, int chunkStart, int chunkEnd, int rawLen, int budget, bool useZstd, ref long bundleCount, ref long bundleBytes, out int compressedLen)
         {
+            // rawLen rides the bundle header as a ushort, so an oversized chunk cannot be framed
+            // at all. Reported as a full-size 'compression' so the caller's retry shrinks the chunk
+            // hard rather than reading a zero as a spectacular ratio.
+            if (rawLen > ushort.MaxValue)
+            {
+                compressedLen = rawLen;
+                return false;
+            }
             compressedLen = 0;
             byte[] raw = stateI.BundleRawScratch;
             byte[] compressed = stateI.BundleCompressedScratch;
@@ -310,7 +318,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             compressed[0] = BasisAvatarBundleZstd.PackFlags(
                 codec,
                 codec == BasisAvatarBundleZstd.CodecZstdDict ? BasisAvatarBundleZstd.DictionaryGeneration : (byte)0);
-            BinaryPrimitives.WriteUInt16LittleEndian(compressed.AsSpan(1, 2), (ushort)Math.Min(rawLen, ushort.MaxValue));
+            BinaryPrimitives.WriteUInt16LittleEndian(compressed.AsSpan(1, 2), (ushort)rawLen);
 
             peer.SendUnreliableRawMerge(compressed, 0, wireLen, BasisNetworkCommons.CompressedAvatarBundleChannel);
             bundleCount++;

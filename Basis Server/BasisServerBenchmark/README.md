@@ -46,7 +46,7 @@ bench> /help
 | `/status` `/stop` | Watch or end the running job |
 | `/expect` | Plain-English capability sheet; also written to `what-to-expect.txt` |
 | `/findings` `/report` | What it has concluded, short or in full |
-| `/write [path]` | Write the tuning profile the server reads at boot |
+| `/write [path]` | Write the tuning profile by hand — `/auto` already does this |
 | `/show` `/set` | Run parameters — windows, window length, warmup, ladder ceiling |
 
 A job runs on its own thread so the prompt stays live while it prints; `/stop` ends it cleanly
@@ -71,8 +71,8 @@ default configs — a server's first boot runs an *interactive* wizard this cann
 | Mode | Time | What it can conclude |
 |---|---|---|
 | `quick` | ~5 min | Codec settings, parallel pass width, auth window. One load point is a *point*, not a curve — so no memory or bandwidth ceiling, and the player cap is only "this much worked" |
-| `medium` (default) | ~15 min | Adds a three-rung ladder, the fewest a curve can be fitted through. The player cap, the binding constraint and the capability sheet become real |
-| `long` | ~2 h | Adds the A/B setting sweep |
+| `medium` (default) | ~15 min | Adds a 250/1k/2k ladder plus one bisection step. Three points are the fewest a curve can be fitted through, so this is where the player cap, the binding constraint and the capability sheet become real |
+| `long` | ~2 h | Full ladder to 4k, two bisection steps, and the A/B setting sweep |
 
 The sweep is roughly three quarters of a long run's wall time — one full server restart per arm —
 and on a box with headroom it usually concludes that nothing measurably changed, because nothing was
@@ -146,6 +146,10 @@ share derived by subtracting them stays put once it is written. Four sweep arms 
 minutes arriving at a noisier version of the same subtraction.
 
 ## Handing the result to the server
+
+**A run applies its own findings.** `/auto` writes `config/tuning-profile.xml` when it finishes —
+measuring and then requiring a separate command to act on it is a good way to have nobody act on it.
+`/set autowrite off` turns that back into report-only, and `/write` still works by hand.
 
 `/write` produces `config/tuning-profile.xml` beside the server's config. On its next boot the
 server finds it, applies each setting to whichever file declares it, and logs what changed:
@@ -221,6 +225,38 @@ arrivals, it degrades for everyone at once. The benchmark writes the measured fu
 instead, lowered to a physical ceiling if one binds sooner, and leaves an operator's own tighter cap
 alone.
 
+## How the ladder finds the knee
+
+Coarse rungs at **250 / 1,000 / 2,000 / 4,000**, then **bisection** between the last success and the
+first failure — two refinement steps, cutting the bracket to a quarter of its width. If 2,000 fails
+and 1,000 held, it tries 1,500 next.
+
+Coarse-then-bisect rather than doubling, for two reasons. A doubling ladder leaves the answer known
+only to within a factor of two, and "somewhere between 1,000 and 2,000" is not a number anyone can
+set a player cap from. It also gets *slower the better the hardware is* — a strong box passes every
+rung and pays for all of them — which is a perverse way to spend a test budget.
+
+**A ladder that runs out of rungs has not found a limit.** `CapacityResult.KneeFound` records
+whether any rung actually failed; when none did, the top rung is reported as `250+` — a floor, not a
+ceiling — and the summary says so outright. Without that distinction a box sitting at 2% of its
+cores gets described as "comfortably 250".
+
+### Two limits, and why they can disagree
+
+The capability sheet reports the software/CPU limit (measured) and the tightest physical limit
+(fitted) side by side, and recommends the lower. These can look contradictory:
+
+```
+software/CPU     500   measured - this held and the next rung did not
+bandwidth        386   fitted - 700 Mbit/s of the link's 1 Gbit/s
+```
+
+That is not a contradiction, and the sheet now explains it inline rather than printing the two as a
+descending list. The server really did serve 500 players — but on a single-box run the load clients
+shared the machine, so that traffic never crossed the NIC the fitted limit is measured against. The
+bytes are real; the path they took is not. Over a real deployment the lower figure governs, which is
+why it becomes the cap.
+
 ## Admission is measured separately from throughput
 
 `/burst` starts every client at once (`ClientConnectIntervalMs=0`) and samples the population every
@@ -237,6 +273,56 @@ last client in the queue waits for the whole burst to drain while its handshake 
 worst-case wait is what `AuthValidationTimeOutMiliseconds` is fitted from — doubled for headroom
 (the burst is the good case: loopback, no loss, no retransmits) and with the server's own per-peer
 widening subtracted so it is not double-counted.
+
+## Running the crowd on another machine
+
+On a single box the load clients share the server's cores, cache and memory bandwidth — measured at
+**3.26 cores for the client alone at 1,000 players** — and the traffic never crosses a NIC. Both
+problems have the same fix.
+
+`BasisBenchAgent` runs on the load-generating machine:
+
+```sh
+# on the load machine
+./BasisBenchAgent --client ./loadclient
+
+# on the server machine
+./BasisServerBenchmark --agent 10.0.0.7 --server-host 10.0.0.5
+```
+
+`--server-host` is required and cannot be inferred: the address this box calls itself is not the one
+another machine uses to find it. A run that silently fell back to local load would produce
+packet-rate findings that look measured and are not, so an unreachable agent aborts rather than
+degrading.
+
+Line-delimited JSON over TCP on port **4297** — deliberately not 4296, which is the server's UDP game
+port that the clients on that machine are already talking to; sharing the number would stop the agent
+ever running on the server's own box and make a packet capture ambiguous. The control connection is
+held open for the whole run, because the agent stops its clients when it closes: a benchmark that
+dies mid-run must not leave a thousand clients hammering the server with nothing owning them.
+
+**What changes with an agent attached:** `MultiSocketCount`, `MergeHoldMs` and `MaxSendSockets` stop
+being `Untrusted` — they are swept by default and their results are written, because the topology can
+finally judge them. The report drops its loopback caveat.
+
+The control channel is unauthenticated and starts processes on request, so keep it on a trusted
+network.
+
+### What sharing a box actually does to the CPU figure
+
+The client's CPU is excluded from the server's score — both are sampled per process — but sharing a
+machine still moves the number, and **not reliably in one direction**:
+
+| | |
+|---|---|
+| inflates it | contention for cores, shared cache and memory bandwidth; lower boost clocks with more cores busy; loopback performs receive-side work inside the sender, so the server pays for delivery a NIC would have handled elsewhere |
+| deflates it | no driver, no checksums, no interrupts, no wire — per-packet costs are understated, which is why packet-rate settings cannot be judged locally at all |
+
+Which dominates is not known, so single-box CPU figures are indicative rather than a bound in either
+direction. Byte counts, delivery and egress are real. A ladder rung where the server and client
+together exceed 70% of the machine is flagged outright — past that it becomes possible that the
+*client* ran out first, which would make the server look comfortable for a reason that has nothing to
+do with the server.
 
 ## What it optimises, and what it refuses to
 

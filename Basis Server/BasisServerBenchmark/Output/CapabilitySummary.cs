@@ -71,7 +71,11 @@ public static class CapabilitySummary
         // ceiling in descending order and produced "comfortably 500 / hard limit 386" - two true
         // statements about different things, arranged so that they contradicted each other.
         int recommended = binding.Players > 0 ? binding.Players : quality.Players;
-        sb.AppendLine($"  Recommended cap    {recommended,8:N0}   what this machine can actually serve");
+        bool capIsFloor = quality.IsLowerBound && recommended == quality.Players;
+        sb.AppendLine($"  Recommended cap    {recommended,8:N0}   " +
+                      (capIsFloor
+                          ? "at least this - the ladder was not pushed further"
+                          : "what this machine can actually serve"));
         sb.AppendLine();
 
         sb.AppendLine("  It is the lower of two separate limits:");
@@ -296,11 +300,19 @@ public static class CapabilitySummary
               "ceiling, fitted from the rungs below it.");
         sb.AppendLine();
 
-        sb.AppendLine("  The load clients shared this machine with the server, so both were competing for the same");
-        sb.AppendLine("  cores and memory. Real players arrive over a network instead, which frees that back up - so");
-        sb.AppendLine("  the CPU and memory figures are, if anything, pessimistic. Packet-rate behaviour is the");
-        sb.AppendLine("  opposite: loopback does receive-side work inside the sender and charges by bytes rather than");
-        sb.AppendLine("  datagrams, so it flatters anything limited by packet rate. Byte counts and egress are real.");
+        sb.AppendLine("  The load clients shared this machine with the server. Their CPU is excluded from the server");
+        sb.AppendLine("  figures - both are sampled per process - but sharing a box still moves the number, and NOT");
+        sb.AppendLine("  reliably in one direction:");
+        sb.AppendLine();
+        sb.AppendLine("    inflates it   contention for cores, shared cache and memory bandwidth; lower boost clocks");
+        sb.AppendLine("                  with more cores busy; and loopback performs the receive-side work inside the");
+        sb.AppendLine("                  sender, so the server pays for delivery a NIC would have handled elsewhere");
+        sb.AppendLine("    deflates it   no driver, no checksums, no interrupts, no wire - per-packet costs are");
+        sb.AppendLine("                  understated, which is why packet-rate settings cannot be judged here at all");
+        sb.AppendLine();
+        sb.AppendLine("  Which dominates is not known, so treat the CPU figures as indicative rather than as a bound");
+        sb.AppendLine("  in either direction. Byte counts, delivery and egress are real. To remove the question");
+        sb.AppendLine("  entirely, run the load clients on another machine.");
         sb.AppendLine();
         sb.AppendLine("  A crowd that behaves differently will measure differently. The simulated one spreads across a");
         sb.AppendLine("  40 m radius and talks in bursts with occasional choruses; a crowd packed into one room, all");

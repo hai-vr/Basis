@@ -150,6 +150,10 @@ public static class NetworkServer
         BasisServerReductionSystemEvents.BSRBaseMultiplier = Configuration.BSRBaseMultiplier;
         BasisServerReductionSystemEvents.BSRSMillisecondDefaultInterval = Configuration.BSRSMillisecondDefaultInterval;
         BasisServerReductionSystemEvents.BSRSIncreaseRate = Configuration.BSRSIncreaseRate;
+        BasisServerReductionSystemEvents.DistanceUpdateIntervalTicks = Math.Max(1, Configuration.DistanceUpdateIntervalTicks);
+        BasisServerReductionSystemEvents.EnableComputeOffload = Configuration.EnableComputeOffload;
+        BasisServerReductionSystemEvents.ComputeDevice = Configuration.ComputeDevice;
+        BasisServerReductionSystemEvents.ComputeDistanceUpdateIntervalTicks = Math.Max(1, Configuration.ComputeDistanceUpdateIntervalTicks);
         BasisServerReductionSystemEvents.HighDistanceSq = Configuration.HighQualityDistance * Configuration.HighQualityDistance;
         BasisServerReductionSystemEvents.MediumDistanceSq = Configuration.MediumQualityDistance * Configuration.MediumQualityDistance;
         BasisServerReductionSystemEvents.LowDistanceSq = Configuration.LowQualityDistance * Configuration.LowQualityDistance;

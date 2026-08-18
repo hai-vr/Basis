@@ -191,14 +191,11 @@ public static class CompressionBench
             var dst = new byte[maxOut];
 
             // Without an embedded dictionary the server's wrapper refuses to compress at all, so
-            // fall back to a locally built compressor carrying the SAME parameters the server sets
-            // - level, magicless framing, windowLog. The point is to keep measuring this build's
-            // codec rather than a generic zstd, while still saying something on a build that has no
-            // dictionary yet.
-            using var fallback = dictionary ? null : new ZstdSharp.Compressor(level);
-            fallback?.SetParameter(ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_contentSizeFlag, 0);
-            fallback?.SetParameter(ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_checksumFlag, 0);
-            fallback?.SetParameter(ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_windowLog, 17);
+            // fall back to a bare compressor from the codec's own factory. Built there rather than
+            // here so the frame parameters cannot drift out of step with what the server emits: a
+            // hand-rolled copy of this setup was omitting magicless framing, which put 4 bytes of
+            // frame magic on every measured chunk that the server would never have sent.
+            using var fallback = dictionary ? null : BasisAvatarBundleZstd.CreateCompressor(level);
 
             int Compress(byte[] chunk)
             {

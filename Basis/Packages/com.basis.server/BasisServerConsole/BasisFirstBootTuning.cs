@@ -74,8 +74,7 @@ namespace BasisNetworkConsole
             string mode = ChooseMode();
             if (mode == null) return false;
 
-            BNL.Log($"[Tuning] Running the benchmark ({mode}). It starts and stops this server while it works, so " +
-                    "the instance will not be reachable until it finishes.");
+            AnnounceStart(mode);
 
             try
             {
@@ -120,6 +119,12 @@ namespace BasisNetworkConsole
                 return false;
             }
 
+            Console.WriteLine();
+            Console.WriteLine("  ----------------------------------------------------------------------------");
+            Console.WriteLine("   Tuning finished. Applying what it measured, then starting the server.");
+            Console.WriteLine($"   The full report is under '{BenchmarkFolder}/benchmark-results'.");
+            Console.WriteLine("  ----------------------------------------------------------------------------");
+            Console.WriteLine();
             return true;
         }
 
@@ -188,6 +193,49 @@ namespace BasisNetworkConsole
             string mode = NormaliseMode(answer);
             if (mode == null) BNL.Log("[Tuning] Skipped. Starting on the shipped defaults.");
             return mode;
+        }
+
+        /// <summary>Rough wall time per mode, so the wait is a stated expectation rather than a surprise.</summary>
+        private static string ExpectedDuration(string mode)
+        {
+            switch (mode)
+            {
+                case "quick": return "about 5 minutes";
+                case "long": return "a couple of hours";
+                default: return "about 15 minutes";
+            }
+        }
+
+        /// <summary>
+        /// Says clearly that the benchmark is running and roughly how long it will be.
+        ///
+        /// <para>Without this the operator sees the setup wizard finish and then, instead of a
+        /// server, an unexplained stream of another program's output for anywhere up to two hours.
+        /// The child inherits stdout so its progress is visible, which is useful once you know what
+        /// you are looking at and alarming when you do not — the boundary has to be drawn here,
+        /// before it starts, because nothing downstream knows this is a first boot.</para>
+        /// </summary>
+        private static void AnnounceStart(string mode)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  ============================================================================");
+            Console.WriteLine($"   TUNING THIS MACHINE - {mode}, {ExpectedDuration(mode)}");
+            Console.WriteLine("  ============================================================================");
+            Console.WriteLine();
+            Console.WriteLine("   The benchmark is running now. It starts and stops copies of this server under");
+            Console.WriteLine("   load to find out what this hardware actually does, so THE SERVER IS NOT UP YET");
+            Console.WriteLine("   and nobody can connect until it finishes.");
+            Console.WriteLine();
+            Console.WriteLine("   Progress appears below as it works through each population. When it is done the");
+            Console.WriteLine("   settings it measured are applied and the server starts on its own - there is");
+            Console.WriteLine("   nothing else for you to do.");
+            Console.WriteLine();
+            Console.WriteLine("   Ctrl-C stops the benchmark; the server then starts on the shipped defaults.");
+            Console.WriteLine();
+            Console.WriteLine("  ----------------------------------------------------------------------------");
+            Console.WriteLine();
+
+            BNL.Log($"[Tuning] Benchmark started ({mode}, {ExpectedDuration(mode)}). Server start is deferred until it finishes.");
         }
 
         /// <summary>Maps an environment value to a mode word, or null to skip.</summary>

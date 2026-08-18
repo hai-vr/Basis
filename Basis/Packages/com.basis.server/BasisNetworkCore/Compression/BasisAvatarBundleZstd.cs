@@ -88,13 +88,15 @@ namespace Basis.Network.Core.Compression
         private const int MagiclessFormat = 1;
 
         /// <summary>
-        /// 128 KiB. Bounds the window descriptor the frame header declares, which is what a
+        /// 128 KiB ceiling on the window descriptor the frame header declares, which is what a
         /// receiving context sizes its buffers from — worth having on Android/Quest clients.
         /// Comfortably covers the 16 KiB dictionary plus the largest raw bundle the packer can
         /// build (~28 KiB at the smallest permitted compression-ratio estimate).
         ///
-        /// Measured as neutral on both ratio and throughput, so this is a memory bound only —
-        /// do not re-tune it expecting a CPU win.
+        /// A ceiling and nothing else: zstd shrinks the window to fit the source once it knows
+        /// the size, so a real bundle declares far less than this — a 1.4 KiB body measures at
+        /// windowLog 11 (2 KiB). Neutral on ratio and throughput, so do not re-tune it expecting
+        /// a CPU win.
         /// </summary>
         private const int WindowLog = 17;
 
@@ -126,8 +128,13 @@ namespace Basis.Network.Core.Compression
         /// Test seam (InternalsVisibleTo): swaps in a dictionary without rebuilding the generated
         /// file, so tests and the trainer's evaluation pass exercise the real codec — magicless
         /// framing, pooled contexts, flags byte and all — rather than a second copy of the
-        /// parameter setup that could drift from it. Pass <c>generation: 0</c> to restore the
+        /// parameter setup that could drift from it. Pass <c>generation: 0</c> for the
         /// "no dictionary" state.
+        ///
+        /// This is process-global. Pair every call with <see cref="RestoreEmbeddedDictionaryForTests"/>
+        /// in a finally — blanking it instead leaves the codec inert for everything that runs
+        /// afterwards in the same process, which reads as "the server chose LZ4" rather than as a
+        /// failure.
         /// </summary>
         internal static void OverrideDictionaryForTests(byte[] dictionary, byte generation)
         {
@@ -136,6 +143,10 @@ namespace Basis.Network.Core.Compression
             // Pooled contexts hold the previous dictionary digested inside them.
             System.Threading.Interlocked.Increment(ref _epoch);
         }
+
+        /// <summary>Puts the generated dictionary back after <see cref="OverrideDictionaryForTests"/>.</summary>
+        internal static void RestoreEmbeddedDictionaryForTests()
+            => OverrideDictionaryForTests(BasisAvatarBundleDictionary.Bytes, BasisAvatarBundleDictionary.Generation);
 
         // ── Context pooling ──────────────────────────────────────────────────────────────────
         //
@@ -147,6 +158,31 @@ namespace Basis.Network.Core.Compression
         //
         // Epoch invalidates pooled contexts when the configured level changes at runtime; a
         // stale context is disposed on rent rather than reset, which is rare enough not to matter.
+
+        /// <summary>
+        /// A Compressor carrying this codec's frame parameters and no dictionary. Callers that
+        /// need to encode outside the pooled path — the benchmark measuring a build that has no
+        /// dictionary yet — go through this rather than repeating the parameter setup, so a
+        /// measurement cannot silently be of different framing than the server emits.
+        /// </summary>
+        public static Compressor CreateCompressor(int level)
+        {
+            var c = new Compressor(level);
+            c.SetParameter(ZSTD_cParameter.ZSTD_c_contentSizeFlag, 0);
+            c.SetParameter(ZSTD_cParameter.ZSTD_c_checksumFlag, 0);
+            c.SetParameter(ZSTD_cParameter.ZSTD_c_dictIDFlag, 0);
+            c.SetParameter(ZSTD_cParameter.ZSTD_c_windowLog, WindowLog);
+            c.SetParameter(ZSTD_c_format, MagiclessFormat);
+            return c;
+        }
+
+        /// <summary>Decompressor matching <see cref="CreateCompressor"/>'s framing, no dictionary.</summary>
+        public static Decompressor CreateDecompressor()
+        {
+            var d = new Decompressor();
+            d.SetParameter(ZSTD_d_format, MagiclessFormat);
+            return d;
+        }
 
         private sealed class Pooled<T> where T : IDisposable
         {
@@ -182,12 +218,7 @@ namespace Basis.Network.Core.Compression
                 pooled.Value.Dispose();
             }
 
-            var c = new Compressor(System.Threading.Volatile.Read(ref _level));
-            c.SetParameter(ZSTD_cParameter.ZSTD_c_contentSizeFlag, 0);
-            c.SetParameter(ZSTD_cParameter.ZSTD_c_checksumFlag, 0);
-            c.SetParameter(ZSTD_cParameter.ZSTD_c_dictIDFlag, 0);
-            c.SetParameter(ZSTD_cParameter.ZSTD_c_windowLog, WindowLog);
-            c.SetParameter(ZSTD_c_format, MagiclessFormat);
+            var c = CreateCompressor(System.Threading.Volatile.Read(ref _level));
             // Digested once per context and retained across compressions: ZSTD_compress2 resets
             // the session but keeps a dictionary loaded through ZSTD_CCtx_loadDictionary.
             c.LoadDictionary(System.Threading.Volatile.Read(ref _dictionary));
@@ -203,8 +234,7 @@ namespace Basis.Network.Core.Compression
                 pooled.Value.Dispose();
             }
 
-            var d = new Decompressor();
-            d.SetParameter(ZSTD_d_format, MagiclessFormat);
+            var d = CreateDecompressor();
             d.LoadDictionary(System.Threading.Volatile.Read(ref _dictionary));
             return new Pooled<Decompressor> { Value = d, Epoch = epoch };
         }

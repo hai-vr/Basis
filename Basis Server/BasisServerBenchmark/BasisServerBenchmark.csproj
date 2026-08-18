@@ -32,6 +32,24 @@
 		  built Compressor would agree on the level and disagree on everything else.
 		-->
 		<ProjectReference Include="..\BasisNetworkCore\BasisNetworkCore.csproj" />
+
+		<!--
+		  The server's own distance kernel, so the offload measurement runs the code that would
+		  actually run rather than a model of it. This is also the only place ILGPU enters a
+		  published artifact of this solution; BasisNetworkServer must not reference it, because
+		  Unity compiles that assembly.
+		-->
+		<ProjectReference Include="..\BasisNetworkCompute\BasisNetworkCompute.csproj" />
+	</ItemGroup>
+
+	<!--
+	  The agent's wire contract, compiled in rather than referenced. A project reference would make
+	  the benchmark depend on the agent assembly just to describe messages to it, and would let the
+	  two drift into "compiles on one side only". Linking the single source file makes a protocol
+	  change break both ends at once, which is the behaviour worth having.
+	-->
+	<ItemGroup>
+		<Compile Include="..\BasisBenchAgent\BenchAgentProtocol.cs" Link="Harness\BenchAgentProtocol.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

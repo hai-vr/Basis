@@ -1,5 +1,6 @@
 using System.Globalization;
 using Basis.Benchmark.Cli;
+using Basis.Benchmark.Harness;
 using Basis.Benchmark.Output;
 using Basis.Benchmark.Tuning;
 
@@ -15,6 +16,8 @@ public static class Program
         var console = new BenchmarkConsole();
         var session = new BenchmarkSession(startup.ServerDirectory, startup.LoadClientDirectory,
             startup.OutputDirectory, console.Write);
+
+        if (!AttachAgent(console, session, startup)) return 1;
 
         Register(console, session, startup);
 
@@ -37,7 +40,8 @@ public static class Program
             console.WaitForJob();
             console.Dispatch("/report");
             console.Dispatch("/expect");
-            console.Dispatch("/write");
+            // No /write here: the run writes its own profile now, and a second call would only
+            // reprint the same block against the same path.
             return 0;
         }
 
@@ -45,9 +49,57 @@ public static class Program
         return 0;
     }
 
+    /// <summary>
+    /// Connects to a remote agent when one was named, and refuses to start if it cannot.
+    ///
+    /// Failing here rather than at the first rung is deliberate: a run that silently fell back to
+    /// local load would produce packet-rate findings that look measured and are not, which is the
+    /// exact confusion --agent exists to remove.
+    /// </summary>
+    private static bool AttachAgent(BenchmarkConsole console, BenchmarkSession session, Startup startup)
+    {
+        if (startup.Agent == null) return true;
+
+        string host = startup.Agent;
+        int port = Basis.Bench.Agent.BenchAgentProtocol.DefaultPort;
+        int colon = host.LastIndexOf(':');
+        if (colon > 0 && int.TryParse(host[(colon + 1)..], out int parsed)) { port = parsed; host = host[..colon]; }
+
+        if (startup.ServerHost.Length == 0)
+        {
+            console.Write($"  --agent needs --server-host: the agent on {host} has to be told how to reach THIS");
+            console.Write("  machine, and the address this box calls itself is not the one another machine uses.");
+            return false;
+        }
+
+        try
+        {
+            var driver = new RemoteLoadClientDriver(host, port, startup.ServerHost);
+            Basis.Bench.Agent.AgentResponse hello = driver.Hello();
+            if (!hello.Ok)
+            {
+                console.Write($"  The agent at {host}:{port} refused: {hello.Error}");
+                return false;
+            }
+
+            session.Driver = driver;
+            console.Write($"{Environment.NewLine}  Load agent: {host}:{port} - {hello.Cores} cores, {hello.Os}");
+            console.Write($"  The crowd runs there and reaches this server at {startup.ServerHost}. Packet-rate and");
+            console.Write("  socket findings are measurable in this topology, unlike a single-box run.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            console.Write($"  Could not reach the agent at {host}:{port}: {ex.Message}");
+            console.Write("  Start BasisBenchAgent on that machine, or drop --agent to run the crowd locally.");
+            return false;
+        }
+    }
+
     private static string Banner(BenchmarkSession session) =>
         "\n  Basis server benchmark\n" +
         session.Machine.Describe() +
+        session.Gpu.Describe() +
         (session.HasConfigs
             ? $"  Server         {session.ServerDirectory}\n"
             : $"  ! No config under {session.ServerDirectory}/config - start the server once so it writes its\n" +
@@ -62,7 +114,7 @@ public static class Program
         console.Register("/machine", "", "What this box is, and whether the kernel is limiting it.",
             _ =>
             {
-                console.WriteBlock("\n" + session.Machine.Describe());
+                console.WriteBlock("\n" + session.Machine.Describe() + session.Gpu.Describe());
                 if (session.Machine.Kernel?.RemediationSnippet() is { } fix)
                 {
                     console.Write("  The kernel is clamping the 32 MB socket buffer the server asks for. Fix with:");
@@ -70,7 +122,7 @@ public static class Program
                 }
             });
 
-        console.Register("/profile", "", "Offline benchmarks only - core scaling and codec cost. ~2 min, no server.",
+        console.Register("/profile", "", "Offline benchmarks only - core scaling, codec cost, compute offload. ~2 min, no server.",
             _ => console.StartJob("profile", session.RunOffline));
 
         console.Register("/measure", "[players]", "One operating point at the given population, printed.",
@@ -82,7 +134,7 @@ public static class Program
             });
 
         console.Register("/auto", "[quick|medium|long] [full]",
-            "Measure and fit. quick ~5 min, medium ~15 min, long ~2 h. Default medium.",
+            "Measure, fit, and write the profile. quick ~5 min, medium ~15 min, long ~2 h. Default medium.",
             args =>
             {
                 if (!Ready(session, console)) return;
@@ -214,6 +266,19 @@ public static class Program
                 console.Write("  " + message);
             });
 
+        console.Register("/gpu", "[index|name]", "Compute devices on this box, and which one to measure.",
+            args =>
+            {
+                if (args.Length > 0)
+                {
+                    session.Settings.ComputeDevice = string.Join(" ", args);
+                    console.Write($"  ComputeDevice = '{session.Settings.ComputeDevice}' (copy this into config.xml to match).");
+                }
+                console.WriteBlock(Environment.NewLine + session.Gpu.Describe());
+                if (session.Settings.ComputeDevice.Length > 0)
+                    console.Write($"  Measuring: '{session.Settings.ComputeDevice}'");
+            });
+
         console.Register("/quit", "", "Stops anything running and exits.", _ => console.Quit());
         console.Register("/exit", "", "Same as /quit.", _ => console.Quit());
     }
@@ -251,6 +316,16 @@ internal sealed class Startup
     public string AutoModeArgument { get; private set; } = "medium";
     public bool ShowHelp { get; private set; }
 
+    /// <summary>host[:port] of a BasisBenchAgent that should generate the load, or null for local.</summary>
+    public string? Agent { get; private set; }
+
+    /// <summary>
+    /// How the AGENT's machine should reach this server. Only meaningful with --agent, and it
+    /// cannot be inferred: the address this box calls itself is rarely the one another machine
+    /// uses to find it.
+    /// </summary>
+    public string ServerHost { get; private set; } = "";
+
     public static Startup Parse(string[] args)
     {
         var startup = new Startup();
@@ -262,6 +337,8 @@ internal sealed class Startup
                 case "--server": startup.ServerDirectory = Next() ?? ""; break;
                 case "--client": startup.LoadClientDirectory = Next() ?? ""; break;
                 case "--out": startup.OutputDirectory = Next() ?? startup.OutputDirectory; break;
+                case "--agent": startup.Agent = Next(); break;
+                case "--server-host": startup.ServerHost = Next() ?? startup.ServerHost; break;
                 case "--auto":
                     startup.RunAutoImmediately = true;
                     // An optional mode word may follow. Peeked rather than consumed unconditionally,

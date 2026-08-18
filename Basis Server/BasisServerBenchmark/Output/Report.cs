@@ -14,8 +14,10 @@ public sealed class BenchmarkReport
     public required string Mode { get; init; }
     public required bool Loopback { get; init; }
     public required MachineProfile Machine { get; init; }
+    public GpuProfile? Gpu { get; init; }
     public CoreBenchResult? Cores { get; init; }
     public CompressionBenchResult? Compression { get; init; }
+    public GpuBenchResult? GpuOffload { get; init; }
     public CapacityResult? Capacity { get; init; }
     public SweepResult? Sweep { get; init; }
     public required IReadOnlyList<Recommendation> Recommendations { get; init; }
@@ -71,6 +73,7 @@ public static class Report
 
         sb.AppendLine("MACHINE");
         sb.Append(report.Machine.Describe());
+        if (report.Gpu != null) sb.Append(report.Gpu.Describe());
         sb.AppendLine();
 
         string[] blocking = report.BlockingFindings().ToArray();
@@ -97,6 +100,13 @@ public static class Report
         {
             sb.AppendLine("COMPRESSION BUDGET (offline)");
             sb.Append(report.Compression.Describe());
+            sb.AppendLine();
+        }
+
+        if (report.GpuOffload != null)
+        {
+            sb.AppendLine("COMPUTE OFFLOAD (offline)");
+            sb.Append(report.GpuOffload.Describe());
             sb.AppendLine();
         }
 
@@ -219,6 +229,40 @@ public static class Report
                 rmemMax = report.Machine.Kernel?.RmemMax,
                 wmemMax = report.Machine.Kernel?.WmemMax,
                 socketBufferClamped = report.Machine.Kernel?.AnyClamped,
+            },
+            gpu = report.Gpu == null ? null : new
+            {
+                availability = report.Gpu.Availability.ToString(),
+                failure = report.Gpu.Failure,
+                devices = report.Gpu.Devices.Select(d => new
+                {
+                    d.Name,
+                    backend = d.Backend.ToString(),
+                    memoryGb = Math.Round(d.MemoryGb, 2),
+                    d.Architecture,
+                    d.MultiProcessors,
+                }),
+            },
+            computeOffload = report.GpuOffload == null ? null : new
+            {
+                device = report.GpuOffload.DeviceName,
+                backend = report.GpuOffload.Backend,
+                recommended = report.GpuOffload.Recommended,
+                sweepIntervalTicks = report.GpuOffload.SweepIntervalTicks,
+                pairsVerified = report.GpuOffload.PairsVerified,
+                qualityDisagreements = report.GpuOffload.QualityDisagreements,
+                intervalDisagreements = report.GpuOffload.IntervalDisagreements,
+                encoderDrift = report.GpuOffload.EncoderDrift,
+                points = report.GpuOffload.Points.Select(pt => new
+                {
+                    pt.Players,
+                    cpuMs = Math.Round(pt.CpuMs, 3),
+                    solveMs = Math.Round(pt.GpuSolveMs, 3),
+                    scatterMs = Math.Round(pt.ScatterMs, 3),
+                    totalMs = Math.Round(pt.GpuTotalMs, 3),
+                    downloadMegabytes = Math.Round(pt.DownloadMegabytes, 2),
+                    speedup = Math.Round(pt.Speedup, 3),
+                }),
             },
             coreScaling = report.Cores == null ? null : new
             {

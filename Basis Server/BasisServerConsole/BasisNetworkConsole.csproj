@@ -40,6 +40,17 @@
 	  SkipGetTargetFrameworkProperties avoids the cross-targeting negotiation for a reference whose
 	  output we only ever copy as files.
 	-->
+	<!--
+	  The optional compute backend, copied beside the server binary because BasisComputeBackend
+	  resolves it by file name from AppContext.BaseDirectory. Referenced rather than copied by hand
+	  so its own dependency (ILGPU) comes with it, and named nowhere in code: the CLR maps an
+	  assembly when a method referencing its types is first JITted, so a server on a host with no
+	  GPU never loads either of them.
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\BasisNetworkCompute\BasisNetworkCompute.csproj" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<ProjectReference Include="..\BasisServerBenchmark\BasisServerBenchmark.csproj"
 		                  ReferenceOutputAssembly="false"
