@@ -448,6 +448,17 @@ public class BasisNetworkImageCacheTests : IDisposable
     }
 
     [Fact]
+    public void WithFiniteImageRange_NothingIsRetained()
+    {
+        NetworkServer.Configuration.ImagePickupRangeMeters = 64f;
+
+        ShareImage(owner: 7);
+
+        Assert.Equal(0, BasisNetworkImageCache.BytesHeldFor(7));
+        Assert.Equal(0, BasisNetworkImageCache.TotalBytes);
+    }
+
+    [Fact]
     public void WithTheCacheOff_AJoinerIsServedNothing()
     {
         ShareImage(owner: 7);

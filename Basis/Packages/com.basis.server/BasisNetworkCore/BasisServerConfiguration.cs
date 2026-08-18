@@ -169,8 +169,11 @@ public class Configuration
     public int ImageShareEgressMegabitsPerSecond = 200;
     /// <summary>
     /// Maximum world-space distance, in metres, at which a player is eligible to receive an image
-    /// pickup. Players that later enter range receive a catch-up transfer from the owner. 0 disables
-    /// range filtering and allows the server image cache to serve late joiners directly.
+    /// pickup. Advertised to clients and applied by the sharing client, so it is a bandwidth budget
+    /// rather than an access control - nothing here or on the receiver rejects an out-of-range image.
+    /// Players that later enter range receive a catch-up transfer from the owner. 0 disables range
+    /// filtering, which is also what turns the server image cache on: while a finite range is set the
+    /// cache neither retains nor replays, because a replay would bypass the owner's recipient choice.
     /// </summary>
     public float ImagePickupRangeMeters = 64f;
     public bool EnableBSRProfiling = false;

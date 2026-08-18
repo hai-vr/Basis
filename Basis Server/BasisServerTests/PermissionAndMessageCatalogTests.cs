@@ -590,7 +590,7 @@ public class PermissionMetaDataWireTests
         Assert.Empty(decoded.PermissionsBitset);
         Assert.Empty(decoded.ExtraPermissions);
         Assert.False(decoded.UplinkDeltaEnabled);
-        Assert.Equal(64f, decoded.ImagePickupRangeMeters);
+        Assert.Equal(0f, decoded.ImagePickupRangeMeters);
         Assert.Empty(decoded.GetPermissions());
     }
 }

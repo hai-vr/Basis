@@ -24,8 +24,9 @@ public static partial class SerializableBasis
         // divided by the fan-out is what a sharer uploads at. 0 means the server said nothing and
         // the client keeps its own conservative assumption.
         public int ImageShareEgressMegabitsPerSecond;
-        // Maximum distance for image-pickup replication. 0 means unlimited. Defaults to 64 m when
-        // deserializing metadata from an older server that does not provide the trailing field.
+        // Maximum distance a sharing client replicates an image pickup over, in metres. 0 means the
+        // server said nothing - an older server that does not provide the trailing field included -
+        // and replication stays unlimited the way it was before this field existed.
         public float ImagePickupRangeMeters;
         //want to include what permissions this player has to the client
         public byte[] PermissionsBitset;     // fast, fixed — known nodes as bits
@@ -85,7 +86,7 @@ public static partial class SerializableBasis
             ImageShareEgressMegabitsPerSecond =
                 Writer.AvailableBytes >= sizeof(int) ? Writer.GetInt() : 0;
             ImagePickupRangeMeters =
-                Writer.AvailableBytes >= sizeof(float) ? Writer.GetFloat() : 64f;
+                Writer.AvailableBytes >= sizeof(float) ? Writer.GetFloat() : 0f;
         }
         public void Serialize(NetDataWriter Writer)
         {

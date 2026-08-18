@@ -131,7 +131,9 @@ namespace Basis.Network.Server.Generic
             }
         }
 
-        private static bool Enabled => NetworkServer.Configuration?.ImageCacheEnabled ?? false;
+        private static bool Enabled =>
+            (NetworkServer.Configuration?.ImageCacheEnabled ?? false)
+            && (NetworkServer.Configuration?.ImagePickupRangeMeters ?? 0f) <= 0f;
 
         private const long BytesPerMegabyte = 1024L * 1024L;
 
@@ -578,11 +580,7 @@ namespace Basis.Network.Server.Generic
         /// </summary>
         public static void SendCachedImagesToPeer(NetPeer newConnection)
         {
-            if (
-                !Enabled
-                || newConnection == null
-                || (NetworkServer.Configuration?.ImagePickupRangeMeters ?? 64f) > 0f
-            )
+            if (!Enabled || newConnection == null)
             {
                 return;
             }

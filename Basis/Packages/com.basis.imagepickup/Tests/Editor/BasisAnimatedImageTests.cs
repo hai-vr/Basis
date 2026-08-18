@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
@@ -1024,6 +1025,86 @@ namespace Basis.ImagePickup.Tests
                 BasisImagePickupManager.RemoveRecipientFromSnapshot(original, 99),
                 Is.SameAs(original)
             );
+            CollectionAssert.IsEmpty(BasisImagePickupManager.RemoveRecipientFromSnapshot(null, 5));
+        }
+
+        private static List<BasisImagePickupManager.ReplicationCandidate> Candidates(
+            params (ushort Id, Vector3 Position)[] entries
+        )
+        {
+            List<BasisImagePickupManager.ReplicationCandidate> candidates = new();
+            foreach ((ushort id, Vector3 position) in entries)
+            {
+                candidates.Add(
+                    new BasisImagePickupManager.ReplicationCandidate
+                    {
+                        PlayerId = id,
+                        Position = position,
+                    }
+                );
+            }
+            return candidates;
+        }
+
+        [Test]
+        public void EligibleRecipientsAreRangeFilteredAndSorted()
+        {
+            Vector3 image = Vector3.zero;
+            List<BasisImagePickupManager.ReplicationCandidate> candidates = Candidates(
+                (9, new Vector3(1f, 0f, 0f)),
+                (2, new Vector3(0f, 0f, 63f)),
+                (5, new Vector3(0f, 0f, 65f))
+            );
+            List<ushort> results = new();
+
+            BasisImagePickupManager.SelectEligibleRecipients(candidates, image, 64f, null, results);
+
+            CollectionAssert.AreEqual(new ushort[] { 2, 9 }, results);
+        }
+
+        [Test]
+        public void EligibleRecipientsSkipPlayersAlreadyServedWithoutMutatingTheSet()
+        {
+            Vector3 image = Vector3.zero;
+            List<BasisImagePickupManager.ReplicationCandidate> candidates = Candidates(
+                (2, Vector3.zero),
+                (5, Vector3.zero),
+                (9, Vector3.zero)
+            );
+            HashSet<ushort> alreadySent = new() { 5 };
+            List<ushort> results = new();
+
+            BasisImagePickupManager.SelectEligibleRecipients(
+                candidates,
+                image,
+                64f,
+                alreadySent,
+                results
+            );
+
+            CollectionAssert.AreEqual(new ushort[] { 2, 9 }, results);
+            // The selection is a candidate list, not a commitment: a cohort that never queues must not
+            // leave players recorded as served.
+            CollectionAssert.AreEqual(new ushort[] { 5 }, new List<ushort>(alreadySent));
+        }
+
+        [Test]
+        public void EligibleRecipientsIgnoreRangeWhenTheServerSendsZero()
+        {
+            List<BasisImagePickupManager.ReplicationCandidate> candidates = Candidates(
+                (3, new Vector3(0f, 0f, 10000f))
+            );
+            List<ushort> results = new();
+
+            BasisImagePickupManager.SelectEligibleRecipients(
+                candidates,
+                Vector3.zero,
+                0f,
+                null,
+                results
+            );
+
+            CollectionAssert.AreEqual(new ushort[] { 3 }, results);
         }
 
         [Test]
