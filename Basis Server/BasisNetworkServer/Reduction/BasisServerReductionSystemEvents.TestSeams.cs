@@ -14,6 +14,45 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         internal static void TestOnly_SortPendingByChannel(PlayerState state, PendingAvatarSend[] pending, int count)
             => SortPendingByChannel(state, pending, count);
 
+        /// <summary>
+        /// Drives one widening verdict: pretends the send pool went <paramref name="from"/> to
+        /// <paramref name="current"/> workers with the whole-pool rate moving as given, and returns
+        /// the width left in force.
+        /// </summary>
+        internal static int TestOnly_ResolveWidenTrial(int from, int current, double rateBefore, double rateAfter, int playerCount)
+        {
+            _widenTrialFrom = from;
+            _aggregateRateAtWiden = rateBefore;
+            _aggregateRateEma = rateAfter;
+            _passesSinceWiden = WidenTrialPasses;
+            parallelOptions.MaxDegreeOfParallelism = current;
+            return ResolveWidenTrial(current, playerCount, System.Diagnostics.Stopwatch.GetTimestamp());
+        }
+
+        internal static int TestOnly_LearnedWidthCeiling => _learnedWidthCeiling;
+
+        internal static int TestOnly_SendWorkers => parallelOptions.MaxDegreeOfParallelism;
+
+        internal static void TestOnly_ExpireLearnedCeiling(int playerCount)
+            => ExpireLearnedCeiling(System.Diagnostics.Stopwatch.GetTimestamp(), playerCount);
+
+        /// <summary>Backdates the learned ceiling past its retry window.</summary>
+        internal static void TestOnly_AgeLearnedCeiling()
+            => _learnedCeilingTick -= LearnedCeilingRetryTicks + 1;
+
+        internal static void TestOnly_ResetPoolTuning(int workers)
+        {
+            _widenTrialFrom = 0;
+            _aggregateRateAtWiden = 0;
+            _passesSinceWiden = 0;
+            _aggregateRateEma = 0;
+            _learnedWidthCeiling = 0;
+            _learnedCeilingPlayers = 0;
+            _learnedCeilingSendCap = 0;
+            _learnedCeilingTick = 0;
+            parallelOptions.MaxDegreeOfParallelism = workers;
+        }
+
         internal static void TestOnly_RunDistanceSweep((int id, PlayerState state)[] roster)
         {
             SnapshotPositions(roster, roster.Length);
