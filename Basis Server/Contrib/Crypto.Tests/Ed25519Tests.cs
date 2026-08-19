@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using Xunit;
 
@@ -150,7 +149,7 @@ namespace Basis.Contrib.Crypto
 				var pubkey = new PubKey(Convert.FromHexString(e.Pubkey));
 				var payload = new Payload(Convert.FromHexString(e.Message));
 				var signature = new Signature(Convert.FromHexString(e.Signature));
-				Debug.Assert(Ed25519.Verify(pubkey, signature, payload));
+				Assert.True(Ed25519.Verify(pubkey, signature, payload));
 
 				i += 1;
 			}
@@ -174,20 +173,20 @@ namespace Basis.Contrib.Crypto
 				PubKey convertedPubkey =
 					Ed25519.ConvertPrivkeyToPubkey(privkey)
 					?? throw new Exception("should not have been null");
-				Debug.Assert(
+				Assert.True(
 					convertedPubkey == expectedPubkey,
 					"pubkey derived from privkey did not match what was expected"
 				);
 
-				Debug.Assert(
+				Assert.True(
 					Ed25519.Sign(privkey, payload, out Signature? sig),
 					"signing should always succeed with a valid pubkey"
 				);
-				Debug.Assert(
+				Assert.True(
 					sig is not null,
 					"sig should not be null when signing succeeds"
 				);
-				Debug.Assert(
+				Assert.True(
 					sig == expectedSignature,
 					"signature should match expected signature"
 				);
@@ -214,7 +213,7 @@ namespace Basis.Contrib.Crypto
 						"411D2E24033EA71821F8D5C65F45CFB3FA5E06E30F860B3D8E6DA309D668BBD1"
 					)
 				);
-				Debug.Assert(
+				Assert.True(
 					!Ed25519.Verify(badPubkey, signature, payload),
 					"Corrupting pubkey should have failed to verify"
 				);
@@ -222,7 +221,7 @@ namespace Basis.Contrib.Crypto
 				// Try mutating signature
 				var badSignature = new Signature(signature.V.ToArray()); // copy
 				badSignature.V[0] = (byte)(signature.V[0] ^ byte.MaxValue);
-				Debug.Assert(
+				Assert.True(
 					!Ed25519.Verify(pubkey, badSignature, payload),
 					"Corrupting signature should have failed to verify"
 				);
@@ -239,7 +238,7 @@ namespace Basis.Contrib.Crypto
 					tmp[0] = (byte)(pubkey.V[0] ^ byte.MaxValue);
 					badPayload = new Payload(tmp);
 				}
-				Debug.Assert(
+				Assert.True(
 					!Ed25519.Verify(pubkey, signature, badPayload),
 					"Corrupting payload should have failed to verify"
 				);
@@ -256,17 +255,17 @@ namespace Basis.Contrib.Crypto
 			var payload = new Payload(Convert.FromHexString(example.Message));
 			var signature = new Signature(Convert.FromHexString(example.Signature));
 
-			Debug.Assert(
+			Assert.True(
 				!Ed25519.Verify(new PubKey(Array.Empty<byte>()), signature, payload),
 				"empty pubkey should fail"
 			);
 
-			Debug.Assert(
+			Assert.True(
 				!Ed25519.Verify(pubkey, new Signature(Array.Empty<byte>()), payload),
 				"empty sig should fail"
 			);
 
-			Debug.Assert(
+			Assert.True(
 				!Ed25519.Verify(pubkey, signature, new Payload(Array.Empty<byte>())),
 				"empty payload should fail"
 			);
@@ -275,7 +274,7 @@ namespace Basis.Contrib.Crypto
 		[Fact]
 		public void EmptyPrivkeyShouldFailSigning()
 		{
-			Debug.Assert(
+			Assert.True(
 				!Ed25519.Sign(
 					new PrivKey(Array.Empty<byte>()),
 					new Payload(Array.Empty<byte>()),
@@ -283,7 +282,7 @@ namespace Basis.Contrib.Crypto
 				),
 				"empty privkey should fail signing and return false"
 			);
-			Debug.Assert(
+			Assert.True(
 				sig is null,
 				"empty privkey should fail signing and return null for sig"
 			);

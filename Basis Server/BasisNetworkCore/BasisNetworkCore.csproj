@@ -17,7 +17,6 @@
 		<InternalsVisibleTo Include="BasisServerTests" />
 	</ItemGroup>
 	<ItemGroup>
-	  <PackageReference Include="System.Threading.Tasks" Version="4.3.0" />
 	  <!-- Managed zstd port; no native binary, so the same assembly serves the server and the
 	       Unity client (netstandard2.1). Keep the version in step with the DLL vendored into
 	       Basis\Packages\org.basisvr.zstdsharp. -->

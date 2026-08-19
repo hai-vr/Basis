@@ -16,6 +16,8 @@ namespace LiteNetLib
         private Socket _udpSocketv4;
         private Socket _udpSocketv6;
         private Thread _receiveThread;
+        /// <summary>Second receive thread, owning the IPv6 socket. Null when IPv6 is not bound.</summary>
+        private Thread _receiveThreadV6;
         private IPEndPoint _bufferEndPointv4;
         private IPEndPoint _bufferEndPointv6;
         private EndPoint _receiveEndPoint4 = new IPEndPoint(IPAddress.Any, 0);
@@ -365,11 +367,37 @@ namespace LiteNetLib
 
         private void NativeReceiveLogic() => NativeReceiveLogicForSocketPair(_udpSocketv4, _udpSocketv6);
 
+        /// <summary>
+        /// Starts one receive thread for <paramref name="socketA"/> (and <paramref name="socketB"/>
+        /// if a pair is genuinely wanted). Passing null for the second socket puts the loop on its
+        /// blocking single-socket path, which is the point: no Select, no Available.
+        /// </summary>
+        private Thread StartReceiveThread(Socket socketA, Socket socketB, string name)
+        {
+            Thread t = new Thread(() =>
+            {
+                if (UseNativeSockets)
+                    NativeReceiveLogicForSocketPair(socketA, socketB);
+                else
+                    ReceiveLogicForSocketPair(socketA, socketB);
+            })
+            {
+                Name = name,
+                IsBackground = true
+            };
+            t.Start();
+            return t;
+        }
+
         private void NativeReceiveLogicForSocketPair(Socket socketv4, Socket socketV6)
         {
             IntPtr socketHandle4 = socketv4.Handle;
             IntPtr socketHandle6 = socketV6?.Handle ?? IntPtr.Zero;
-            byte[] addrBuffer4 = new byte[NativeSocket.IPv4AddrSize];
+            // Sized from the socket rather than assumed v4: with one thread per socket the first
+            // argument is whichever family that thread owns, and RecvFrom writes a sockaddr of
+            // that family into this buffer.
+            byte[] addrBuffer4 = new byte[socketv4.AddressFamily == AddressFamily.InterNetworkV6
+                ? NativeSocket.IPv6AddrSize : NativeSocket.IPv4AddrSize];
             byte[] addrBuffer6 = new byte[NativeSocket.IPv6AddrSize];
             var tempEndPoint = new IPEndPoint(IPAddress.Any, 0);
             var selectReadList = new List<Socket>(2);
@@ -525,7 +553,10 @@ namespace LiteNetLib
                     {
                         if (socketv4.Available == 0 && !socketv4.Poll(ReceivePollingTime, SelectMode.SelectRead))
                             continue;
-                        ReceiveFrom(socketv4, ref bufferEndPoint4);
+                        if (socketv4.AddressFamily == AddressFamily.InterNetworkV6)
+                            ReceiveFrom(socketv4, ref bufferEndPoint6);
+                        else
+                            ReceiveFrom(socketv4, ref bufferEndPoint4);
                     }
                     else
                     {
@@ -658,15 +689,28 @@ namespace LiteNetLib
 
             if (!manualMode)
             {
-                ThreadStart ts = ReceiveLogic;
-                if (UseNativeSockets)
-                    ts = NativeReceiveLogic;
-                _receiveThread = new Thread(ts)
+                // One thread per socket, each blocking in recvfrom on its own, rather than one
+                // thread multiplexing both with Socket.Select.
+                //
+                // Select was costing far more than the readiness answer is worth: it rebuilds
+                // native fd structures from the List<Socket> on every call, and the loop reached it
+                // once per received datagram, on top of an ioctlsocket per socket per iteration for
+                // Socket.Available. Measured at 1000 players it was ~4% of server CPU in managed
+                // marshalling plus ~1% in Available, to decide something a blocking recvfrom
+                // answers for free.
+                //
+                // Safe because the sockets carry ReceiveTimeout = 500 ms: a blocked thread returns
+                // with SocketError.TimedOut, which ProcessError treats as non-fatal, so the loop
+                // re-tests _isRunning twice a second and CloseSocket's Join still completes. That is
+                // the same mechanism the v6-disabled path has always relied on; shutdown latency
+                // goes from the 50 ms poll interval to that 500 ms timeout.
+                Socket primaryV4 = _udpSocketv4;
+                Socket primaryV6 = _udpSocketv6;
+                _receiveThread = StartReceiveThread(primaryV4, null, $"ReceiveThread({LocalPort})");
+                if (primaryV6 != null)
                 {
-                    Name = $"ReceiveThread({LocalPort})",
-                    IsBackground = true
-                };
-                _receiveThread.Start();
+                    _receiveThreadV6 = StartReceiveThread(primaryV6, null, $"ReceiveThread({LocalPort}v6)");
+                }
                 if (_logicThread == null)
                 {
                     _logicThread = new Thread(UpdateLogic) { Name = "LogicThread", IsBackground = true };
@@ -1121,6 +1165,9 @@ namespace LiteNetLib
             if (_receiveThread != null && _receiveThread != Thread.CurrentThread)
                 _receiveThread.Join();
             _receiveThread = null;
+            if (_receiveThreadV6 != null && _receiveThreadV6 != Thread.CurrentThread)
+                _receiveThreadV6.Join();
+            _receiveThreadV6 = null;
 
             foreach (var t in _extraReceiveThreads)
             {

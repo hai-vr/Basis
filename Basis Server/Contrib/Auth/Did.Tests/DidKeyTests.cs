@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Basis.Contrib.Auth.DecentralizedIds.Newtypes;
@@ -44,9 +43,9 @@ namespace Basis.Contrib.Auth.DecentralizedIds
 					)[0]
 				);
 				var document = await resolver.ResolveDocument(new Did(inputDid));
-				Debug.Assert(document.Pubkeys.Count == 1);
+				Assert.True(document.Pubkeys.Count == 1);
 				var resolvedJwk = document.Pubkeys[expectedFragment];
-				Debug.Assert(
+				Assert.True(
 					JsonSerializer.Serialize(resolvedJwk)
 						== JsonSerializer.Serialize(expectedJwk),
 					"resolved JWK did not match expected JWK"
@@ -65,7 +64,7 @@ namespace Basis.Contrib.Auth.DecentralizedIds
 				var encodedDid = DidKeyResolver.EncodePubkeyAsDid(
 					new PubKey(pubkeyBytes)
 				);
-				Debug.Assert(
+				Assert.True(
 					expectedDid.Equals(encodedDid.V),
 					$"encoded was {encodedDid}, expected {expectedDid}"
 				);

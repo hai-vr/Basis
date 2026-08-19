@@ -32,7 +32,8 @@ public class Configuration
     // 11: population-drop memory reclaim (IdleMemoryReclaim*) added.
     // 12: BSRSendPhaseBudgetPercent added - the send pass's share of the reduction tick, which was
     //     a constant fitted on one machine. Bumped so existing files gain it with its doc comment.
-    public const int CurrentConfigVersion = 12;
+    // 13: LogConnectionHandshake added - the per-connection auth chatter is now off by default.
+    public const int CurrentConfigVersion = 13;
     /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
     public int ConfigVersion = 0;
 
@@ -225,6 +226,19 @@ public class Configuration
     public float ImagePickupRangeMeters = 64f;
 
     public bool EnableBSRProfiling = false;
+
+    /// <summary>
+    /// Log the per-connection authentication handshake ("Processing connection from peer N",
+    /// "Sending out Writer with size : N").
+    ///
+    /// <para>Off by default because it is two lines per joiner on a path that is walked once per
+    /// join, and a mass rejoin walks it for everybody at once — a 2000-player instance coming back
+    /// after a restart writes four thousand lines that say nothing a reader can act on. The line
+    /// that matters, "Peer connected: N", is always logged, as is every rejection, so the default
+    /// still shows who got in and who did not. Turn this on to trace a handshake that is failing
+    /// between those two points.</para>
+    /// </summary>
+    public bool LogConnectionHandshake = false;
     /// <summary>
     /// Worker cap for the BSR tick's parallel phases (send loop, message processing, distance
     /// sweep). 0 = auto (a quarter of the cores, floored at 4 and capped at 8).
