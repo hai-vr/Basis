@@ -38,7 +38,8 @@ public static class BasisCameraSettingsReadout
         Builder.Clear();
 
         Section("camera.placement");
-        Row("camera.pinSpace", PinSpaceLabel(pinSpace));
+        Row("camera.anchor", PinSpaceLabel(pinSpace));
+        Row("camera.anchorFollowsBody", OnOff(settings.anchorFollowsBody));
 
         Section("camera.lens");
         Row("camera.fieldOfView", Number(settings.fov));
@@ -210,11 +211,13 @@ public static class BasisCameraSettingsReadout
         switch (pinSpace)
         {
             case (int)BasisHandHeldCameraInteractable.CameraPinSpace.HandHeld:
-                return BasisLocalization.Get("camera.pinSpace.handHeld");
+                return BasisLocalization.Get("camera.anchor.hand");
             case (int)BasisHandHeldCameraInteractable.CameraPinSpace.PlaySpace:
-                return BasisLocalization.Get("camera.pinSpace.playSpace");
+                return BasisLocalization.Get("camera.anchor.playspace");
+            case (int)BasisHandHeldCameraInteractable.CameraPinSpace.Attached:
+                return BasisLocalization.Get("camera.anchor.attached");
             default:
-                return BasisLocalization.Get("camera.pinSpace.worldSpace");
+                return BasisLocalization.Get("camera.anchor.world");
         }
     }
 

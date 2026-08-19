@@ -16,17 +16,13 @@ public sealed class GpuDistanceSolver : IBasisDistanceSolver
 {
     private readonly Context _context;
     private readonly Accelerator _accelerator;
-    private readonly Action<Index2D, ArrayView<float>, ArrayView<float>, ArrayView<float>,
-        ArrayView<byte>, ArrayView<byte>, int, int, float, float, float, float, float, int> _kernel;
-
+    private readonly Action<Index2D, ArrayView<float>, ArrayView<float>, ArrayView<float>, ArrayView<byte>, ArrayView<byte>, int, int, float, float, float, float, float, int> _kernel;
     private MemoryBuffer1D<float, Stride1D.Dense>? _posX;
     private MemoryBuffer1D<float, Stride1D.Dense>? _posY;
     private MemoryBuffer1D<float, Stride1D.Dense>? _posZ;
     private MemoryBuffer1D<byte, Stride1D.Dense>? _intervalByte;
     private MemoryBuffer1D<byte, Stride1D.Dense>? _quality;
-
     private bool _disposed;
-
     private GpuDistanceSolver(Context context, Accelerator accelerator)
     {
         _context = context;
@@ -35,9 +31,7 @@ public sealed class GpuDistanceSolver : IBasisDistanceSolver
             Index2D, ArrayView<float>, ArrayView<float>, ArrayView<float>,
             ArrayView<byte>, ArrayView<byte>, int, int, float, float, float, float, float, int>(Kernel);
     }
-
     public string Backend { get; private set; } = "gpu";
-
     public string DeviceName => _accelerator.Name;
 
     /// <summary>
@@ -169,7 +163,6 @@ public sealed class GpuDistanceSolver : IBasisDistanceSolver
                   string.Join(", ", devices.Select(d => d.Name));
         return null;
     }
-
     private static void Kernel(
         Index2D idx,
         ArrayView<float> posX, ArrayView<float> posY, ArrayView<float> posZ,

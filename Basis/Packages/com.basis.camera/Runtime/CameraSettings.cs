@@ -73,6 +73,13 @@ public partial class BasisHandHeldCameraUI
             focusPeakingColour = 0;
             focusPeakingGreyPicture = false;
 
+            // Same shape again: off, but already holding an opacity that reads, so the file a
+            // camera loads on the day the grid arrives is not one that switches it on at the
+            // faintest setting there is.
+            viewfinderGrid = false;
+            viewfinderGridPattern = (int)BasisCameraGridPattern.Thirds;
+            viewfinderGridOpacity = BasisHandHeldCamera.DefaultGridOpacity;
+
             // Same again for the meter: off, but already set up to behave the moment it is on.
             autoBrightness = false;
             autoBrightnessTarget = BasisHandHeldCamera.DefaultBrightnessTarget;
@@ -177,6 +184,15 @@ public partial class BasisHandHeldCameraUI
         public bool focusPeakingGreyPicture;
 
         /// <summary>
+        /// The viewfinder alignment grid, saved for the reason focus peaking is: a view preference
+        /// that no capture path can reach, but one with nowhere else to be remembered.
+        /// </summary>
+        public bool viewfinderGrid;
+        /// <summary>Which grid, as <see cref="BasisCameraGridPattern"/>; 0 is the rule of thirds.</summary>
+        public int viewfinderGridPattern;
+        public float viewfinderGridOpacity;
+
+        /// <summary>
         /// Auto brightness. The stops the meter is currently adding are deliberately not saved:
         /// they describe the room the camera was last in, and a file that restored them would open
         /// every session mis-exposed until the loop had walked it back.
@@ -248,6 +264,15 @@ public partial class BasisHandHeldCameraUI
         /// with nowhere to be saved, so it reset to Puck every session.
         /// </summary>
         public int detachedMarker;
+
+        /// <summary>
+        /// Whether a playspace anchor rides your body rather than your playspace origin. Off is the
+        /// zero fill and is the steadier of the two, so an older file loads as the playspace anchor
+        /// it was written as. Which anchor is selected is deliberately not saved, for the same
+        /// reason a fitted follow was not: a camera that restored bolted to a vehicle from the last
+        /// world has nothing to be bolted to in this one.
+        /// </summary>
+        public bool anchorFollowsBody;
 
         // Capture-mode toggles.
         public bool capture360;

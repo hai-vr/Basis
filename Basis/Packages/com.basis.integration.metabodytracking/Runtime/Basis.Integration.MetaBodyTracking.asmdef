@@ -1,0 +1,29 @@
+{
+    "name": "Basis.Integration.MetaBodyTracking",
+    "rootNamespace": "Basis.Integration.MetaBodyTracking",
+    "references": [
+        "Unity.XR.OpenXR",
+        "Basis Framework",
+        "BasisSDK",
+        "BasisSettings",
+        "BasisDebug",
+        "BasisCommon"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "BASIS_FRAMEWORK_EXISTS"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.basis.framework",
+            "expression": "",
+            "define": "BASIS_FRAMEWORK_EXISTS"
+        }
+    ],
+    "noEngineReferences": false
+}

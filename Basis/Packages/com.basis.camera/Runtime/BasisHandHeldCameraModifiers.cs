@@ -79,6 +79,8 @@ public abstract partial class BasisHandHeldCameraInteractable
         Quaternion facing = GetLabelFacing();
 
         DollyTrack.SyncMode = Modifiers.dolly.syncMode;
+        DollyTrack.Motion = Modifiers.dolly;
+        DollyTrack.MotionActive = Modifiers.positionModifier == BasisCameraPositionModifier.DollyTrack;
         DollyTrack.Refresh(scale, facing);
 
         // Claimed every frame rather than on the share dropdown, so a track that turns networked
@@ -273,7 +275,7 @@ public abstract partial class BasisHandHeldCameraInteractable
             }
 
             modifierState.Seed(smoothedPosition, smoothedRotation, GetCaptureFov());
-            PinSpace = CameraPinSpace.WorldSpace;
+            DetachFromHand();
             hasLastSolveAnchor = false;
         }
         else if (PinSpace == CameraPinSpace.WorldSpace && !IsFlying)
@@ -697,4 +699,116 @@ public abstract partial class BasisHandHeldCameraInteractable
     public void ClearDollyTrack() => DollyTrack?.Clear();
 
     public int DollyWaypointCount => DollyTrack?.Count ?? 0;
+
+    // ---- Dolly presets --------------------------------------------------------------------
+
+    /// <summary>
+    /// Takes the laid-out track down as a preset, anchored on where the player is standing. The
+    /// anchor is the player rather than the camera: a track is built by walking it, and it is the
+    /// walk that decides which way round the shape is.
+    /// </summary>
+    public BasisCameraDollyPreset CaptureDollyPreset(string name)
+    {
+        InitializeModifiers();
+
+        BasisCameraDollyPreset preset = new BasisCameraDollyPreset { name = name };
+        preset.looped = DollyTrack.Looped;
+        preset.gridSnap = DollyTrack.GridSnap;
+        preset.gridSize = DollyTrack.GridSize;
+
+        BasisCameraDollySettings motion = modifiers.dolly;
+        motion.playing = false;
+        motion.syncMode = BasisCameraDollySync.LocalOnly;
+        preset.motion = motion;
+
+        int count = DollyTrack.Count;
+        var positions = new List<Vector3>(count);
+        var rotations = new List<Quaternion>(count);
+        for (int Index = 0; Index < count; Index++)
+        {
+            BasisCameraDollyWaypoint waypoint = DollyTrack.GetWaypoint(Index);
+            if (waypoint == null) continue;
+
+            positions.Add(waypoint.Position);
+            rotations.Add(waypoint.Rotation);
+        }
+
+        ReadPlayerAnchor(out Vector3 anchor, out float yaw, out float scale);
+        preset.Capture(positions, rotations, anchor, yaw, scale);
+        return preset;
+    }
+
+    /// <summary>
+    /// Lays a preset out, replacing whatever track is there.
+    ///
+    /// <para><paramref name="inPlace"/> puts it back at the world coordinates it was captured at,
+    /// which is what you want for a track built for this spot. Without it the shape is rebuilt
+    /// around where the player is standing now and scaled to the avatar they are wearing, which is
+    /// what makes a preset something that can be reused at all — including one somebody else
+    /// built, whose world coordinates mean nothing here.</para>
+    ///
+    /// <para>The share mode is deliberately not restored. Whether a track goes out to the instance
+    /// is a decision about this session, not a property of the shape.</para>
+    /// </summary>
+    public bool ApplyDollyPreset(BasisCameraDollyPreset preset, bool inPlace)
+    {
+        if (preset == null || preset.Count == 0) return false;
+
+        InitializeModifiers();
+
+        Vector3 anchor;
+        float yaw;
+        float scale;
+        if (inPlace)
+        {
+            anchor = preset.anchorPosition;
+            yaw = preset.anchorYaw;
+            scale = preset.anchorScale;
+        }
+        else
+        {
+            ReadPlayerAnchor(out anchor, out yaw, out scale);
+        }
+
+        DollyTrack.Clear();
+        DollyTrack.Looped = preset.looped;
+        DollyTrack.SetGridSnap(preset.gridSnap, preset.gridSize);
+
+        float markerScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+        for (int Index = 0; Index < preset.Count; Index++)
+        {
+            preset.Resolve(Index, anchor, yaw, scale, out Vector3 position, out Quaternion rotation);
+            DollyTrack.AddWaypoint(position, rotation, markerScale);
+        }
+
+        BasisCameraDollySync sharing = modifiers.dolly.syncMode;
+        modifiers.dolly = preset.motion;
+        modifiers.dolly.syncMode = sharing;
+        modifiers.dolly.playing = false;
+        modifiers.Sanitize();
+
+        RestartDolly();
+        return true;
+    }
+
+    /// <summary>
+    /// Where the player is, which way they are facing, and how big they are — the frame a preset is
+    /// stored against and laid back out in. Falls back to the camera when there is no player, so a
+    /// preset saved in a scene without one is still saved against something.
+    /// </summary>
+    private void ReadPlayerAnchor(out Vector3 anchor, out float yaw, out float scale)
+    {
+        scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+        if (scale <= 0.001f) scale = 1f;
+
+        if (BasisLocalPlayer.Instance != null)
+        {
+            BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out anchor, out Quaternion rotation);
+            yaw = rotation.eulerAngles.y;
+            return;
+        }
+
+        transform.GetPositionAndRotation(out anchor, out Quaternion fallback);
+        yaw = fallback.eulerAngles.y;
+    }
 }

@@ -52,6 +52,8 @@ namespace Basis.Scripts.Drivers
         public Color DirectColorInactive = new Color(0.07294118f, 0.44941176f, 0.21176471f, 1f);
         public Color ThisPersonColorActive = new Color(1f, 0.3098039f, 0.627451f, 1f);
         public Color ThisPersonColorInactive = new Color(0.6f, 0.1858823f, 0.3764706f, 1f);
+        public Color NoOneColorActive = new Color(0.3921569f, 0.5882353f, 0.7843137f, 1f);
+        public Color NoOneColorInactive = new Color(0.2352941f, 0.3529412f, 0.4705882f, 1f);
 
         // Scale / FX
         public Vector3 StartingScale = Vector3.zero;
@@ -316,6 +318,8 @@ namespace Basis.Scripts.Drivers
                     return LocalIsTransmitting ? DirectColorActive : DirectColorInactive;
                 case BasisTalkMode.ThisPerson:
                     return LocalIsTransmitting ? ThisPersonColorActive : ThisPersonColorInactive;
+                case BasisTalkMode.NoOne:
+                    return LocalIsTransmitting ? NoOneColorActive : NoOneColorInactive;
                 default:
                     return LocalIsTransmitting ? UnMutedMutedIconColorActive : UnMutedMutedIconColorInactive;
             }

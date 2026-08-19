@@ -228,6 +228,12 @@ namespace Basis.Scripts.Networking.Transmitters
 #if UNITY_SERVER
             return;
 #else
+            if (BasisTalkModeManager.TransmitBlockedLocally)
+            {
+                _frameAccumFilled = 0;
+                return;
+            }
+
             // In shout mode we always send (everyone hears us).
             // In normal mode we only send if someone is in range.
             if (!IsInShoutMode && !NetworkedPlayer.HasReasonToSendAudio)

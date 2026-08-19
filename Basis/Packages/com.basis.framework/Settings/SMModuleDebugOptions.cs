@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Basis.BasisUI;
@@ -104,6 +105,41 @@ public class SMModuleDebugOptions : BasisSettingsBase
         // When the master gizmo system tears down, our cached IDs become stale —
         // the manager's destroy pass clears every entry in BasisGizmoManager.Gizmos.
         BasisGizmoManager.OnUseGizmosChanged += OnUseGizmosChanged;
+        HookSolveGizmoStages();
+    }
+
+    // The IK solve gizmo toggles are generated from BasisIKSolveGizmoStages rather than declared
+    // one by one in BasisSettingsDefaults, so they never reach ValidSettingsChange's key dispatch.
+    // Subscribing to the bindings keeps them feeding the derived render gate all the same.
+    private Action<bool> _solveGizmoStageChanged;
+
+    private void HookSolveGizmoStages()
+    {
+        if (_solveGizmoStageChanged != null)
+        {
+            return;
+        }
+        _solveGizmoStageChanged = _ => RecomputeUseGizmos();
+        BasisIKSolveGizmoStages.Enabled.OnChanged += _solveGizmoStageChanged;
+        for (int i = 0; i < BasisIKSolveGizmoStages.All.Length; i++)
+        {
+            BasisIKSolveGizmoStages.All[i].Binding.OnChanged += _solveGizmoStageChanged;
+        }
+        RecomputeUseGizmos();
+    }
+
+    private void UnhookSolveGizmoStages()
+    {
+        if (_solveGizmoStageChanged == null)
+        {
+            return;
+        }
+        BasisIKSolveGizmoStages.Enabled.OnChanged -= _solveGizmoStageChanged;
+        for (int i = 0; i < BasisIKSolveGizmoStages.All.Length; i++)
+        {
+            BasisIKSolveGizmoStages.All[i].Binding.OnChanged -= _solveGizmoStageChanged;
+        }
+        _solveGizmoStageChanged = null;
     }
 
     public new void OnDestroy()
@@ -113,6 +149,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
             Instance = null;
         }
         BasisGizmoManager.OnUseGizmosChanged -= OnUseGizmosChanged;
+        UnhookSolveGizmoStages();
         ClearTrackerGizmos();
         ClearLinkLines();
         BasisAudioGizmos.Shutdown();
@@ -121,6 +158,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
         BasisNetworkOverviewGizmos.Shutdown();
         BasisPointerRayGizmos.Shutdown();
         BasisHintOffsetGizmos.Shutdown();
+        BasisIKSolveGizmos.Shutdown();
         BasisHandGripGizmos.Shutdown();
         BasisMouthEyeGizmos.Shutdown();
         base.OnDestroy();
@@ -395,6 +433,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
             UseLinkedTrackerLines ||
             UseEyeGazeGizmo ||
             UseIKColliders ||
+            BasisIKSolveGizmoStages.Active ||
             BasisPointerRayGizmos.Show ||
             UseHintOffsets ||
             UseFootPlacement ||

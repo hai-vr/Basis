@@ -38,6 +38,17 @@ namespace Basis.IK
 
         private float3 _eyeFromHeadTpose;
 
+        private float _tposeNeckMinusEyeY;
+
+        /// <summary>
+        /// Learns the arm the HMD really swings on when the user nods. The avatar's authored eye-to-head
+        /// offset is only a rendering offset, so using it as the nod pivot leaves an unremoved arc that
+        /// translates the whole reconstructed body -- pelvis included -- on every look up or down.
+        /// </summary>
+        private readonly BasisNodPivotSampler _nodPivot = new BasisNodPivotSampler(30);
+
+        private float3 _gazeSwingLever;
+
         private bool _lengthsDirty = true;
 
         private NativeArray<BasisVirtualSpineCore.SpineSolveState> _solveState;
@@ -83,6 +94,11 @@ namespace Basis.IK
         private void OnHeightChanged(BasisHeightDriver.HeightModeChange _)
         {
             _lengthsDirty = true;
+
+            // The learned arm is measured against a particular avatar scale, so a rescale invalidates it
+            // along with the T-pose it was seeded from.
+            _nodPivot.Reset();
+            _gazeSwingLever = float3.zero;
 
             if (_solveState.IsCreated)
             {
@@ -132,7 +148,23 @@ namespace Basis.IK
             if (_lengthsDirty)
             {
                 RecomputeSegmentLengths(eye, head, neck, chest, spine, hips);
+                _gazeSwingLever = _eyeFromHeadTpose;
                 _lengthsDirty = false;
+            }
+
+            // Only a real HMD traces an arc worth fitting -- BasisDesktopEye synthesises its eye pose from
+            // the same swing model, so fitting that would just be reading our own output back.
+            if (BasisDeviceManagement.IsCurrentModeVR() &&
+                Basis.BasisUI.BasisSettingsDefaults.VSpineNodPivotEstimate.RawValue)
+            {
+                BasisNodPivotSettings pivotSettings = BasisNodPivotEstimatorCore.Defaults();
+                pivotSettings.Scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+                _gazeSwingLever = _nodPivot.Update(freshEye.position, freshEye.rotation, Time.deltaTime,
+                    _eyeFromHeadTpose, in pivotSettings);
+            }
+            else
+            {
+                _gazeSwingLever = _eyeFromHeadTpose;
             }
 
             if (!BasisLocalPlayer.Instance.LocalBoneDriver.TryGetSimStates(out NativeArray<BasisBoneSimState> simStates))
@@ -205,6 +237,7 @@ namespace Basis.IK
                 HipsForwardBias = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsForwardBias.RawValue,
 
                 NeckExtensionDamp = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckExtensionDamp.RawValue,
+                NeckFlexionDamp = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckFlexionDamp.RawValue,
                 TorsoYawDeadzoneDeg = torsoYawDeadzoneDeg,
                 TorsoYawBlendSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawBlendSpeed.RawValue,
 
@@ -218,7 +251,8 @@ namespace Basis.IK
                 StandingHipsLocalY = _standingHipsLocalY,
                 StandingHeadLocalY = _standingHeadLocalY,
                 EyePos = freshEye.position,
-                EyeFromHeadTpose = _eyeFromHeadTpose,
+                GazeSwingLever = _gazeSwingLever,
+                TposeNeckMinusEyeY = _tposeNeckMinusEyeY,
                 GazeSwingRemoval = Basis.BasisUI.BasisSettingsDefaults.VSpineGazeSwingRemoval.RawValue,
                 HipsAnchorOffsetLocal = _hipsFromEyeTposeXZ,
                 HeadRestFromEyeLocal = _headFromEyeTposeXZ,
@@ -297,6 +331,7 @@ namespace Basis.IK
             _hipsFromEyeTposeXZ = new float3(pHips.x - pEye.x, 0f, pHips.z - pEye.z);
             _headFromEyeTposeXZ = new float3(pHead.x - pEye.x, 0f, pHead.z - pEye.z);
             _yawPivotFromEyeTposeXZ = new float3(pNeck.x - pEye.x, 0f, pNeck.z - pEye.z);
+            _tposeNeckMinusEyeY = pNeck.y - pEye.y;
         }
     }
 }

@@ -134,6 +134,14 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.basis.integration.metabodytracking": {
+      "version": "file:com.basis.integration.metabodytracking",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.xr.openxr": "1.17.1"
+      }
+    },
     "com.basis.integration.slimevr": {
       "version": "file:com.basis.integration.slimevr",
       "depth": 0,

@@ -3,6 +3,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Basis.Scripts.BasisSdk.Interactions
@@ -26,6 +27,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         private Collider[] _resolvedColliders;
         private GameObject[] _resolvedColliderObjects;
+
+        private const int ColliderOwnerSweepWatermark = 4096;
+        private static readonly Dictionary<Collider, BasisInteractableObject> ColliderOwners = new Dictionary<Collider, BasisInteractableObject>();
+        private static readonly List<Collider> ColliderOwnerSweepBuffer = new List<Collider>();
 
         /// <summary>
         /// Collection of input sources bound to this interactable.
@@ -253,6 +258,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// </summary>
         public virtual void OnDestroy()
         {
+            UnregisterColliderOwners();
             BasisLocalPlayer.OnLocalPlayerInitialized -= SetupInputs;
             var Devices = Basis.Scripts.Device_Management.BasisDeviceManagement.Instance.AllInputDevices;
             Devices.OnListAdded -= OnInputAdded;
@@ -406,6 +412,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// </summary>
         public void RefreshColliders()
         {
+            UnregisterColliderOwners();
+
             Collider[] colliders = ScanColliders();
             GameObject[] owners = new GameObject[colliders.Length];
             for (int i = 0; i < colliders.Length; i++)
@@ -416,6 +424,113 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             _resolvedColliderObjects = owners;
             _resolvedColliders = colliders;
+
+            RegisterColliderOwners();
+        }
+
+        /// <summary>
+        /// Maps every resolved collider back to the interactable that owns it, so the per-frame target
+        /// search resolves a physics hit with one dictionary lookup instead of walking the hierarchy.
+        /// A miss means the collider is not part of any interactable's resolved set.
+        /// </summary>
+        public static BasisInteractableObject OwnerOfCollider(Collider collider)
+        {
+            if (collider == null)
+            {
+                return null;
+            }
+            if (!ColliderOwners.TryGetValue(collider, out BasisInteractableObject owner))
+            {
+                return null;
+            }
+            if (owner == null)
+            {
+                ColliderOwners.Remove(collider);
+                return null;
+            }
+            return owner;
+        }
+
+        /// <summary>
+        /// Whether the collider is part of some interactable's body, including one whose Awake never ran.
+        /// Used to keep interactable geometry transparent to the pointer search rather than blocking it.
+        /// </summary>
+        public static bool BelongsToInteractable(Collider collider)
+        {
+            if (collider == null)
+            {
+                return false;
+            }
+            if (OwnerOfCollider(collider) != null)
+            {
+                return true;
+            }
+            BasisInteractableObject ancestor = collider.GetComponentInParent<BasisInteractableObject>(true);
+            if (ancestor == null)
+            {
+                return false;
+            }
+            if (ancestor._resolvedColliders == null)
+            {
+                ancestor.RefreshColliders();
+            }
+            return true;
+        }
+
+        private void RegisterColliderOwners()
+        {
+            Collider[] colliders = _resolvedColliders;
+            if (colliders == null)
+            {
+                return;
+            }
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                Collider col = colliders[i];
+                if (col != null)
+                {
+                    ColliderOwners[col] = this;
+                }
+            }
+            SweepColliderOwners();
+        }
+
+        private void UnregisterColliderOwners()
+        {
+            Collider[] colliders = _resolvedColliders;
+            if (colliders == null)
+            {
+                return;
+            }
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                Collider col = colliders[i];
+                if (col != null && ColliderOwners.TryGetValue(col, out BasisInteractableObject owner) && ReferenceEquals(owner, this))
+                {
+                    ColliderOwners.Remove(col);
+                }
+            }
+        }
+
+        private static void SweepColliderOwners()
+        {
+            if (ColliderOwners.Count < ColliderOwnerSweepWatermark)
+            {
+                return;
+            }
+            ColliderOwnerSweepBuffer.Clear();
+            foreach (KeyValuePair<Collider, BasisInteractableObject> pair in ColliderOwners)
+            {
+                if (pair.Key == null || pair.Value == null)
+                {
+                    ColliderOwnerSweepBuffer.Add(pair.Key);
+                }
+            }
+            for (int i = 0; i < ColliderOwnerSweepBuffer.Count; i++)
+            {
+                ColliderOwners.Remove(ColliderOwnerSweepBuffer[i]);
+            }
+            ColliderOwnerSweepBuffer.Clear();
         }
 
         /// <summary>

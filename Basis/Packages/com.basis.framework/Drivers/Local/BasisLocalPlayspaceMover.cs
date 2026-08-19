@@ -110,6 +110,16 @@ namespace Basis.Scripts.Drivers
         /// <summary>Total horizontal play-space drag currently applied (world units).</summary>
         public static Vector3 CurrentOffset => _offsetPos;
 
+        /// <summary>Local-space height the active flip rotates about (the eye height it was captured at).</summary>
+        public static float FlipPivotY => _flipPivotY;
+
+        /// <summary>
+        /// This frame's hand state and the gate the mover stopped at, for <see cref="BasisPlayspaceGizmos"/>.
+        /// Written at every bail-out so the visualiser reports the mover's own reason instead of
+        /// re-deriving one that could drift away from it.
+        /// </summary>
+        public static BasisPlayspaceMoverSample GizmoSample;
+
         public static void Simulate(BasisLocalPlayer player, float deltaTime)
         {
             // Ticked ahead of every gate below so the restore still runs on the frame a script stops
@@ -133,6 +143,7 @@ namespace Basis.Scripts.Drivers
                 HasFlip = false;
                 FlipRotation = Quaternion.identity;
                 Stop();
+                ReportInactive(player);
                 return;
             }
 
@@ -146,6 +157,7 @@ namespace Basis.Scripts.Drivers
                 HasFlip = false;
                 FlipRotation = Quaternion.identity;
                 Stop();
+                SetGizmoState(BasisPlayspaceMoverState.AdminLocked);
                 return;
             }
 
@@ -164,6 +176,7 @@ namespace Basis.Scripts.Drivers
                 // Movement externally locked: stop dragging but keep the vertical offset (it's a static
                 // tracking shift, so you simply stay put — opening a menu mid-air won't drop you).
                 Stop();
+                SetGizmoState(BasisPlayspaceMoverState.MovementLocked);
                 return;
             }
 
@@ -174,6 +187,7 @@ namespace Basis.Scripts.Drivers
             if (AnyHandPointingAtUI())
             {
                 Stop();
+                SetGizmoState(BasisPlayspaceMoverState.PointingAtUI);
                 return;
             }
 
@@ -216,6 +230,16 @@ namespace Basis.Scripts.Drivers
             GatherHand(BasisBoneTrackedRole.LeftHand, mainInput, rotateInput, deviceDriven, out bool leftPresent, out bool leftMain, out bool leftRotate, out Vector3 leftLocal, out Vector3 leftUnscaled);
             GatherHand(BasisBoneTrackedRole.RightHand, mainInput, rotateInput, deviceDriven, out bool rightPresent, out bool rightMain, out bool rightRotate, out Vector3 rightLocal, out Vector3 rightUnscaled);
 
+            SetGizmoState(BasisPlayspaceMoverState.Idle);
+            GizmoSample.LeftPresent = leftPresent;
+            GizmoSample.RightPresent = rightPresent;
+            GizmoSample.LeftHeld = leftMain;
+            GizmoSample.RightHeld = rightMain;
+            GizmoSample.LeftRotate = leftRotate;
+            GizmoSample.RightRotate = rightRotate;
+            GizmoSample.LeftLocal = leftLocal;
+            GizmoSample.RightLocal = rightLocal;
+
             // The rotate input is a two-handed-only gesture (yaw); translation (one hand) and scale (two
             // hands) are driven by the MAIN input. A single hand on the rotate input must not engage, or a
             // lone trigger pull (the default rotate input, and also the UI click input) drags the play
@@ -253,6 +277,7 @@ namespace Basis.Scripts.Drivers
 
             if (count == 1)
             {
+                GizmoSample.State = BasisPlayspaceMoverState.Dragging;
                 _scaling = false;
                 CommitScaleIfPending();
                 Vector3 handNow = left ? leftLocal : rightLocal;
@@ -264,6 +289,9 @@ namespace Basis.Scripts.Drivers
             {
                 bool doRotate = allowRotate && leftRotate && rightRotate;
                 bool doScale = allowScale && leftMain && rightMain && doRotate == false;
+                GizmoSample.State = doScale
+                    ? BasisPlayspaceMoverState.Scaling
+                    : doRotate ? BasisPlayspaceMoverState.Rotating : BasisPlayspaceMoverState.Dragging;
 
                 Vector3 lNow = pcur + (qcur * leftLocal);
                 Vector3 rNow = pcur + (qcur * rightLocal);
@@ -458,6 +486,9 @@ namespace Basis.Scripts.Drivers
             float curDist = (leftUnscaled - rightUnscaled).magnitude;
             if (grabDist < 1e-4f || curDist < 1e-4f) return;
 
+            GizmoSample.SpanBase = grabDist;
+            GizmoSample.SpanCurrent = curDist;
+
             float target = Mathf.Clamp(_grabBaseHeight * (curDist / grabDist), MinHeight, MaxHeight);
 
             // Drive the full height/scale recompute live (same path the avatar-scale slider uses) so
@@ -476,6 +507,30 @@ namespace Basis.Scripts.Drivers
             _scaleDirty = false;
             BasisSettingsDefaults.CustomScale.SetValue(true);
             BasisSettingsDefaults.SelectedScale.SetValue(_pendingScaleHeight);
+        }
+
+        /// <summary>
+        /// Publishes the gate that stopped the mover, clearing last frame's hand state with it so the
+        /// visualiser never draws a grab that is no longer happening.
+        /// </summary>
+        private static void SetGizmoState(BasisPlayspaceMoverState state)
+        {
+            GizmoSample = default;
+            GizmoSample.State = state;
+        }
+
+        private static void ReportInactive(BasisLocalPlayer player)
+        {
+            BasisPlayspaceMoverState state = BasisPlayspaceMoverState.Disabled;
+            if (player != null && BasisLocalPlayer.PlayerReady && player.LocalSeatDriver.IsSeated)
+            {
+                state = BasisPlayspaceMoverState.Seated;
+            }
+            else if (BasisSettingsDefaults.EnablePlayspaceMover.RawValue && BasisDeviceManagement.IsCurrentModeVR() == false)
+            {
+                state = BasisPlayspaceMoverState.NotVR;
+            }
+            SetGizmoState(state);
         }
 
         private static void Stop()

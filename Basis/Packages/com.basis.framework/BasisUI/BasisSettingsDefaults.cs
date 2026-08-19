@@ -1,4 +1,4 @@
-﻿using Basis.Scripts.Networking.Receivers;
+using Basis.Scripts.Networking.Receivers;
 using System;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -208,6 +208,15 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> PlayspaceMoverFlipAngle = new("playspacemoverflipangle", new BasisPlatformDefault<float>(180f));
         public static BasisSettingsBinding<string> PlayspaceMoverFlipAxis = new("playspacemoverflipaxis", new BasisPlatformDefault<string>(BasisLocalPlayspaceMover.AxisRoll));
 
+        // Play-space visualiser (BasisPlayspaceGizmos). The master toggle is off by default; the layer
+        // toggles under it are on, so turning it on draws the whole picture rather than nothing.
+        public static BasisSettingsBinding<bool> PlayspaceGizmos = new("playspacegizmos", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> PlayspaceGizmoBoundary = new("playspacegizmoboundary", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> PlayspaceGizmoOrigin = new("playspacegizmoorigin", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> PlayspaceGizmoOffset = new("playspacegizmooffset", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> PlayspaceGizmoHands = new("playspacegizmohands", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> PlayspaceGizmoReadouts = new("playspacegizmoreadouts", new BasisPlatformDefault<bool>(true));
+
         // Lets the avatar you are wearing feed synthetic locomotion / play-space input through its
         // cilbox script. Only the locally worn avatar is ever accepted; turn off to ignore all of it.
         public static BasisSettingsBinding<bool> EnableScriptedPlayerInput = new("enablescriptedplayerinput", new BasisPlatformDefault<bool>(true));
@@ -275,6 +284,41 @@ namespace Basis.BasisUI
         /// produced on demand from the world's APV and used immediately.
         /// </summary>
         public static BasisSettingsBinding<bool> VolumetricFogBakedAPV = new("volumetricfogbakedapv", new BasisPlatformDefault<bool>(true));
+
+        /// <summary>
+        /// When enabled, motion blur is driven from a high-priority global Volume owned by
+        /// <c>SMModuleMotionBlurOverrideURP</c>, which outranks whatever the world authored.
+        /// </summary>
+        public static BasisSettingsBinding<bool> UseMotionBlurOverride = new("usemotionbluroverride", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
+        /// Motion blur strength — a multiplier on velocity. 0 turns motion blur off outright,
+        /// which is how a world's own motion blur gets suppressed.
+        /// Only applied when <see cref="UseMotionBlurOverride"/> is enabled.
+        /// </summary>
+        public static BasisSettingsBinding<float> MotionBlurIntensity = new("motionblurintensity", new BasisPlatformDefault<float>(0.5f));
+
+        /// <summary>
+        /// Longest a blur streak may get, as a fraction of the screen. This is what stops a fast
+        /// turn from smearing the whole view.
+        /// </summary>
+        public static BasisSettingsBinding<float> MotionBlurClamp = new("motionblurclamp", new BasisPlatformDefault<float>(0.05f));
+
+        /// <summary>Samples taken per streak: Low, Medium or High.</summary>
+        public static BasisSettingsBinding<string> MotionBlurQuality = new("motionblurquality", new BasisPlatformDefault<string>("Low"));
+
+        /// <summary>
+        /// Camera Only or Camera And Objects. Camera And Objects also blurs things moving in front
+        /// of a still view, and URP schedules a motion vector pass for it — see
+        /// <c>SMModuleMotionVectorsURP</c> for why that pass is otherwise kept off on Standalone.
+        /// </summary>
+        public static BasisSettingsBinding<string> MotionBlurMode = new("motionblurmode", new BasisPlatformDefault<string>("Camera Only"));
+
+        // URP's own ClampedFloatParameter ranges on MotionBlur.
+        public const float MOTION_BLUR_INTENSITY_MIN = 0f;
+        public const float MOTION_BLUR_INTENSITY_MAX = 1f;
+        public const float MOTION_BLUR_CLAMP_MIN = 0f;
+        public const float MOTION_BLUR_CLAMP_MAX = 0.2f;
 
         // Commented out 2026-08-04: the realtime-reflection-probe driver these described was
         // never implemented — no UI exposes them and nothing reads them (the Performance Mode
@@ -780,6 +824,8 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> MicStartBehavior = new("micstartbehavior", new BasisPlatformDefault<string>(BasisLocalMicrophoneDriver.SettingStartOff));
 
         public static BasisSettingsBinding<string> MicMuteBehavior = new("micmutebehavior", new BasisPlatformDefault<string>(BasisLocalMicrophoneDriver.SettingMuteShutdown));
+
+        public static BasisSettingsBinding<bool> TalkToNoOne = new("talktonoone", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> UseAutomaticGain = new("automaticgainenabled", new BasisPlatformDefault<bool>
         {
@@ -1524,6 +1570,9 @@ namespace Basis.BasisUI
         // 0.35 carry, matching DesktopHeadSwingBackward -- the same physiology measured from the eye end. 0 = the
         // old rigid re-attachment (a true off switch). Look-down and pure yaw are untouched at any value.
         public static BasisSettingsBinding<float> FBIKNeckExtensionDamp = new("fbikneckextensiondamp", new BasisPlatformDefault<float>(0.65f));
+        // Flexion is the look-DOWN half of the same lever. It was undamped, which left the neck estimate --
+        // and through it the pelvis -- rising 5 cm on a steep look down with the feet planted.
+        public static BasisSettingsBinding<float> FBIKNeckFlexionDamp = new("fbikneckflexiondamp", new BasisPlatformDefault<float>(0.5f));
         // Spine relax: crouch counterweight (hips shift back as the head drops)
         public static BasisSettingsBinding<float> FBIKMoveBodyBackWhenCrouching = new("fbikmovebodybackwhencrouching", new BasisPlatformDefault<float>(1f));
         // Postural counterbalance: how far the pelvis travels BACK as the trunk folds forward, as a fraction
@@ -1709,6 +1758,9 @@ namespace Basis.BasisUI
         // one number, which is why it is one number. 1 = leash only real travel; 0 = the old behaviour.
         // If a deep look-DOWN starts feeling different, this is the number to turn down.
         public static BasisSettingsBinding<float> VSpineGazeSwingRemoval = new("vspinegazeswingremoval", new BasisPlatformDefault<float>(1f));
+        // Learn the arm the HMD really nods on instead of trusting the avatar's authored eye-to-head
+        // offset, which is a rendering offset and has no reason to match the wearer's neck.
+        public static BasisSettingsBinding<bool> VSpineNodPivotEstimate = new("vspinenodpivotestimate", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> VSpineHipsForwardBias = new("vspinehipsforwardbias_v2", new BasisPlatformDefault<float>(0f));
 
         // Spine compression: the synthesized hips Y is neck - rigid spine length, so lowering the head
@@ -1932,6 +1984,7 @@ namespace Basis.BasisUI
             DisableDirectConnections.LoadBindingValue();
             MicStartBehavior.LoadBindingValue();
             MicMuteBehavior.LoadBindingValue();
+            TalkToNoOne.LoadBindingValue();
             UseAutomaticGain.LoadBindingValue();
             DenoiseMakeupDb.LoadBindingValue();
             DenoiseWet.LoadBindingValue();
@@ -2023,6 +2076,12 @@ namespace Basis.BasisUI
             PlayspaceMoverFlip.LoadBindingValue();
             PlayspaceMoverFlipAngle.LoadBindingValue();
             PlayspaceMoverFlipAxis.LoadBindingValue();
+            PlayspaceGizmos.LoadBindingValue();
+            PlayspaceGizmoBoundary.LoadBindingValue();
+            PlayspaceGizmoOrigin.LoadBindingValue();
+            PlayspaceGizmoOffset.LoadBindingValue();
+            PlayspaceGizmoHands.LoadBindingValue();
+            PlayspaceGizmoReadouts.LoadBindingValue();
             EnableScriptedPlayerInput.LoadBindingValue();
 
             // Rendering / Graphics
@@ -2039,6 +2098,11 @@ namespace Basis.BasisUI
             UseVolumetricFogOverride.LoadBindingValue();
             VolumetricFogDensity.LoadBindingValue();
             VolumetricFogBakedAPV.LoadBindingValue();
+            UseMotionBlurOverride.LoadBindingValue();
+            MotionBlurIntensity.LoadBindingValue();
+            MotionBlurClamp.LoadBindingValue();
+            MotionBlurQuality.LoadBindingValue();
+            MotionBlurMode.LoadBindingValue();
             //UseRealtimeReflectionProbes.LoadBindingValue();
             //RealtimeReflectionProbeRate.LoadBindingValue();
             ShowGizmos.LoadBindingValue();
@@ -2049,6 +2113,7 @@ namespace Basis.BasisUI
             LinkedTrackerLines.LoadBindingValue();
             GizmoEyeGaze.LoadBindingValue();
             GizmoIKColliders.LoadBindingValue();
+            Basis.Scripts.Debugging.BasisIKSolveGizmoStages.LoadAll();
             GizmoPointerRay.LoadBindingValue();
             GizmoHintOffsets.LoadBindingValue();
             GizmoFootPlacement.LoadBindingValue();
@@ -2494,6 +2559,7 @@ namespace Basis.BasisUI
             FBIKSpineGazeFollow.LoadBindingValue();
             FBIKNeckGazeFollow.LoadBindingValue();
             FBIKNeckExtensionDamp.LoadBindingValue();
+            FBIKNeckFlexionDamp.LoadBindingValue();
             FBIKMoveBodyBackWhenCrouching.LoadBindingValue();
             FBIKTrunkCounterbalance.LoadBindingValue();
             FBIKSwingSmoothRate.LoadBindingValue();
@@ -2543,6 +2609,7 @@ namespace Basis.BasisUI
             VSpineHipsRotationSpeed.LoadBindingValue();
             VSpineHipsForwardBias.LoadBindingValue();
             VSpineGazeSwingRemoval.LoadBindingValue();
+            VSpineNodPivotEstimate.LoadBindingValue();
             VSpineHipsCompressionStrength.LoadBindingValue();
             VSpineHipsMaxDropMeters.LoadBindingValue();
             VSpinePostureModel.LoadBindingValue();

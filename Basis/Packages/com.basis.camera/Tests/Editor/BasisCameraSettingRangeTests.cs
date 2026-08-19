@@ -365,6 +365,15 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void TheEaseDropdownsHaveOneLabelPerCurve()
+        {
+            // Both ease dropdowns cast their index straight to the enum, so a missing label makes a
+            // curve unreachable and a spare one selects a curve that does not exist.
+            Assert.That(BasisHandHeldCameraPanelProvider.DollyEaseKeysForTest.Length,
+                Is.EqualTo(Enum.GetValues(typeof(Basis.Cinematics.BasisCameraEase)).Length));
+        }
+
+        [Test]
         public void EveryDropdownOptionKeyHasATranslationAndATooltip()
         {
             // The options are keys rather than text, so a key with nothing behind it shows as the

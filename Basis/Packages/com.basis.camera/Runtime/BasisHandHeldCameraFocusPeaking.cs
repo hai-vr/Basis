@@ -74,11 +74,12 @@ public partial class BasisHandHeldCamera
     private static readonly int PeakDesaturateProperty = Shader.PropertyToID("_PeakDesaturate");
 
     /// <summary>
-    /// What the viewfinder surfaces show: the peaked copy while peaking is running, and the feed
-    /// itself otherwise. Falls back on its own during a capture, when the feed is briefly the
-    /// capture size and format and nothing should be paying to overlay it.
+    /// The peaked copy while peaking is running, and the feed itself otherwise. Falls back on its
+    /// own during a capture, when the feed is briefly the capture size and format and nothing
+    /// should be paying to overlay it. The alignment grid draws on top of this;
+    /// <see cref="ViewfinderTexture"/> is what the viewfinder surfaces actually bind.
     /// </summary>
-    public RenderTexture ViewfinderTexture =>
+    private RenderTexture PeakedTexture =>
         focusPeakingLive && focusPeakingTexture != null ? focusPeakingTexture : renderTexture;
 
     /// <summary>True while the viewfinder is showing peaks rather than the plain feed.</summary>

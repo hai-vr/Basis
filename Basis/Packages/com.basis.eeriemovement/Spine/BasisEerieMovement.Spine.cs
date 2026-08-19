@@ -479,7 +479,7 @@ namespace Basis.IK
         Vector3 ComputeNeckCue(Vector3 headTargetPos)
         {
             return BasisNeckCueCore.Solve(headTargetPos, targetRotationHead * targetOffsetHead,
-                tposeHeadToNeckLocal, playerUp, neckExtensionDamp);
+                tposeHeadToNeckLocal, playerUp, neckExtensionDamp, neckFlexionDamp);
         }
 
         Vector3 ApplyTrunkCounterbalance(Vector3 neckCue, Vector3 hipsPos, Vector3 playerUp, out float flexionFrac)

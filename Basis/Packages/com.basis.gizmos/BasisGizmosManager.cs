@@ -307,6 +307,53 @@ public static class BasisGizmoManager
     }
 
     /// <summary>
+    /// Pose, width and color of a two-point line in one lookup. For producers that replay a
+    /// whole batch of transient lines every frame (the FBIK solve gizmo queue), where each
+    /// pooled slot carries different geometry frame to frame and the separate
+    /// UpdateLineGizmo/UpdateGizmoColor pair would cost two dictionary probes per line.
+    /// </summary>
+    public static bool UpdateLineGizmo(int linkedID, Vector3 start, Vector3 end, float width, Color32 color)
+    {
+        if (!_linesByID.TryGetValue(linkedID, out LineSlot slot))
+        {
+            BasisDebug.LogError($"No LineGizmo found with ID {linkedID}. Use CreateLineGizmo first.", BasisDebug.LogTag.Gizmo);
+            return false;
+        }
+        if (slot.Count != 2)
+        {
+            slot.Points = new Vector3[2];
+            slot.Count = 2;
+        }
+        slot.Points[0] = start;
+        slot.Points[1] = end;
+        slot.HalfWidth = width * 0.5f;
+        slot.UniformColor = color;
+        slot.Loop = false;
+        slot.Gradient = null;
+        slot.PointColors = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Position, uniform size and color of a sphere in one lookup. Batch counterpart to
+    /// <see cref="UpdateLineGizmo(int, Vector3, Vector3, float, Color32)"/>.
+    /// </summary>
+    public static bool UpdateSphereGizmo(int linkedID, Vector3 position, float size, Color32 color)
+    {
+        if (!_sphereByID.TryGetValue(linkedID, out int slot))
+        {
+            BasisDebug.LogError($"No SphereGizmo found with ID {linkedID}. Use CreateSphereGizmo first.", BasisDebug.LogTag.Gizmo);
+            return false;
+        }
+        ref SphereSlot s = ref _spheres[slot];
+        s.Position = position;
+        s.Scale = new Vector3(size, size, size);
+        s.Color = (Color)color;
+        s.HasRotation = false;
+        return true;
+    }
+
+    /// <summary>
     /// Creates a multi-point line gizmo. Set <paramref name="loop"/> = true to close the
     /// polyline back to its first point — useful for drawing circles or wireframe caps
     /// with a single line gizmo rather than N edge segments.
@@ -361,6 +408,39 @@ public static class BasisGizmoManager
         }
         slot.Gradient = gradient;
         RefreshGradientColors(slot);
+        return true;
+    }
+
+    /// <summary>
+    /// Colours a multi-point line a point at a time. A <see cref="Gradient"/> holds eight keys, so
+    /// it cannot carry a value sampled densely along a path; this takes the samples straight.
+    /// Entries past the line's own point count are ignored, and a short array repeats its last
+    /// colour to the end rather than leaving the tail black.
+    /// </summary>
+    public static bool SetLineGizmoColors(int linkedID, Color32[] colors, int count)
+    {
+        if (!_linesByID.TryGetValue(linkedID, out LineSlot slot))
+        {
+            BasisDebug.LogError($"No LineGizmo found with ID {linkedID}. Use CreateLineGizmo first.", BasisDebug.LogTag.Gizmo);
+            return false;
+        }
+        if (colors == null || count <= 0 || slot.Count <= 0)
+        {
+            slot.Gradient = null;
+            slot.PointColors = null;
+            return false;
+        }
+
+        count = Math.Min(count, colors.Length);
+        slot.Gradient = null;
+        if (slot.PointColors == null || slot.PointColors.Length != slot.Count)
+        {
+            slot.PointColors = new Color32[slot.Count];
+        }
+        for (int i = 0; i < slot.Count; i++)
+        {
+            slot.PointColors[i] = colors[i < count ? i : count - 1];
+        }
         return true;
     }
 

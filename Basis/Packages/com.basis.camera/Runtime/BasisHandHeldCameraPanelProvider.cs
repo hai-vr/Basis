@@ -149,6 +149,9 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _focusPeakingSensitivitySlider;
         private PanelDropdown _focusPeakingColourDropdown;
         private PanelToggle _focusPeakingGreyToggle;
+        private PanelToggle _viewfinderGridToggle;
+        private PanelDropdown _viewfinderGridPatternDropdown;
+        private PanelSlider _viewfinderGridOpacitySlider;
         private PanelSlider _hueSlider;
         private PanelSlider _vignetteSlider;
         private PanelSlider _chromaticSlider;
@@ -630,6 +633,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _dofFocalLengthSlider?.SetResetDefault(defaults.dofFocalLength);
             _dofBladeCountSlider?.SetResetDefault(defaults.dofBladeCount);
             _focusPeakingSensitivitySlider?.SetResetDefault(defaults.focusPeakingSensitivity * 100f);
+            _viewfinderGridOpacitySlider?.SetResetDefault(defaults.viewfinderGridOpacity * 100f);
             _autoBrightnessTargetSlider?.SetResetDefault(defaults.autoBrightnessTarget * 100f);
             _autoBrightnessSpeedSlider?.SetResetDefault(defaults.autoBrightnessSpeed);
             _autoBrightnessRangeSlider?.SetResetDefault(defaults.autoBrightnessRange);
@@ -780,6 +784,9 @@ namespace Basis.BasisUI.HandHeldCamera
             _focusPeakingColourDropdown = null;
             _focusPeakingSensitivitySlider = null;
             _focusPeakingGreyToggle = null;
+            _viewfinderGridToggle = null;
+            _viewfinderGridPatternDropdown = null;
+            _viewfinderGridOpacitySlider = null;
             _hueSlider = null;
             _vignetteSlider = null;
             _chromaticSlider = null;
@@ -801,6 +808,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _followTargetDropdown = null;
             _followTargetIds.Clear();
             _followTargetsBuilt = false;
+            ClearAnchorReferences();
             _msaaDropdown = null;
 #if Basis_VOLUMETRIC_SUPPORTED
             _fogSlider = null;
@@ -961,6 +969,45 @@ namespace Basis.BasisUI.HandHeldCamera
                     _activeCamera.SetMsaaSamples(MsaaSampleCounts[index]);
                 }
             };
+
+            BuildViewfinderGridControls(content);
+        }
+
+        /// <summary>
+        /// The alignment grid, in the lens section because framing is what the lens above it
+        /// decides and the grid is how that framing is judged.
+        /// </summary>
+        private void BuildViewfinderGridControls(RectTransform content)
+        {
+            _viewfinderGridToggle = PanelToggle.CreateNewEntry(content);
+            _viewfinderGridToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.grid"));
+            _viewfinderGridToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.grid.description"));
+            _viewfinderGridToggle.OnValueChanged = v =>
+            {
+                _activeCamera?.SetViewfinderGridEnabled(v);
+                RefreshViewfinderGridVisibility();
+            };
+
+            _viewfinderGridPatternDropdown = PanelDropdown.CreateNewEntry(content);
+            _viewfinderGridPatternDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.grid.pattern"));
+            _viewfinderGridPatternDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.grid.pattern.description"));
+            _viewfinderGridPatternDropdown.AssignLocalizedEntries(
+                new List<string>(BasisHandHeldCamera.GridPatternKeys),
+                new List<string>(BasisHandHeldCamera.GridPatternKeys));
+            _viewfinderGridPatternDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _viewfinderGridPatternDropdown == null) return;
+                int index = _viewfinderGridPatternDropdown.Index;
+                if (index >= 0) _activeCamera.SetViewfinderGridPattern(index);
+            };
+
+            _viewfinderGridOpacitySlider = PanelSlider.CreateNew(content);
+            _viewfinderGridOpacitySlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.grid.opacity"),
+                BasisHandHeldCamera.MinGridOpacity * 100f, BasisHandHeldCamera.MaxGridOpacity * 100f,
+                false, 0, ValueDisplayMode.Percentage));
+            _viewfinderGridOpacitySlider.Descriptor.SetDescription(BasisLocalization.Get("camera.grid.opacity.description"));
+            _viewfinderGridOpacitySlider.OnValueChanged = v => _activeCamera?.SetViewfinderGridOpacity(v / 100f);
         }
 
         private void BuildDofGroup(RectTransform parent)
@@ -2135,6 +2182,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SetSectionActive(_rotationSection, _rotationGroup, active);
             SetSectionActive(_modifierEffectsSection, _modifierEffectsGroup, active);
             SetSectionActive(_dollySection, _dollyGroup, active);
+            SetSectionActive(_dollyPresetSection, _dollyPresetGroup, active);
             SetSectionActive(_backgroundSection, _backgroundGroup, active);
             SetSectionActive(_actionSection, _actionGroup, active);
             SetSectionActive(_layersSection, _layersGroup, active);
@@ -2231,6 +2279,13 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisHandHeldCamera.FocusPeakingColourKeys[
                     Mathf.Clamp(_activeCamera.focusPeakingColour, 0, BasisHandHeldCamera.FocusPeakingColourKeys.Length - 1)]);
             RefreshFocusPeakingVisibility();
+
+            _viewfinderGridToggle?.SetValueWithoutNotify(_activeCamera.viewfinderGridEnabled);
+            _viewfinderGridOpacitySlider?.SetValueWithoutNotify(_activeCamera.viewfinderGridOpacity * 100f);
+            _viewfinderGridPatternDropdown?.SetValueWithoutNotify(
+                BasisHandHeldCamera.GridPatternKeys[
+                    Mathf.Clamp(_activeCamera.viewfinderGridPattern, 0, BasisHandHeldCamera.GridPatternKeys.Length - 1)]);
+            RefreshViewfinderGridVisibility();
 
             if (metaData.vignette != null)
             {
@@ -2781,6 +2836,20 @@ namespace Basis.BasisUI.HandHeldCamera
         }
 
         /// <summary>
+        /// Which grid and how strongly it is drawn only describe a grid that is being drawn, so
+        /// they follow the toggle that produces it the way the peaking controls follow theirs.
+        /// </summary>
+        private void RefreshViewfinderGridVisibility()
+        {
+            bool gridding = _activeCamera != null && _activeCamera.viewfinderGridEnabled;
+
+            _viewfinderGridPatternDropdown?.gameObject.SetActive(gridding);
+            _viewfinderGridOpacitySlider?.gameObject.SetActive(gridding);
+            RefreshSearch();
+            ForceLayoutRebuild(_lensGroup);
+        }
+
+        /// <summary>
         /// The clamp, quality and mode only describe blur that is already happening — at zero
         /// strength URP does not run the pass at all, so leaving them on screen offers three
         /// controls that visibly do nothing.
@@ -2842,6 +2911,9 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 var all = new System.Collections.Generic.List<string>();
                 all.AddRange(DetachedMarkerKeys);
+                all.AddRange(AnchorSpaceKeys);
+                all.Add(AnchorTargetNoneKey);
+                all.Add(AnchorTargetLocalKey);
                 all.AddRange(SubjectLabelKeys);
                 all.AddRange(PositionLabelKeys);
                 all.AddRange(RotationLabelKeys);
@@ -2850,9 +2922,11 @@ namespace Basis.BasisUI.HandHeldCamera
                 all.AddRange(DollyModeKeys);
                 all.AddRange(BackgroundModeKeys);
                 all.AddRange(DollySyncKeys);
+                all.AddRange(DollyEaseKeys);
                 all.AddRange(TonemappingKeys);
                 all.AddRange(PhotoTaggingKeys);
                 all.AddRange(BasisHandHeldCamera.FocusPeakingColourKeys);
+                all.AddRange(BasisHandHeldCamera.GridPatternKeys);
                 all.AddRange(MeteringKeys);
                 for (int Index = 0; Index < BasisCameraModifiers.Effects.Length; Index++)
                 {
@@ -2862,6 +2936,7 @@ namespace Basis.BasisUI.HandHeldCamera
             }
         }
         public static string[] MeteringKeysForTest => MeteringKeys;
+        public static string[] DollyEaseKeysForTest => DollyEaseKeys;
         public static string[] FocusModeLabelsForTest => FocusModeLabels;
         public static int[] MsaaSampleCountsForTest => MsaaSampleCounts;
         public static int[] VideoResolutionWidthsForTest => VideoResolutionWidths;

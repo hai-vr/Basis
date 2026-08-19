@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
+using Basis.Scripts.UI;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Burst;
@@ -29,7 +30,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         // NOTE: this needs to be >= max number of colliders it can potentially hit in a scene, otherwise it will behave oddly
         public static int k_MaxPhysicHitCount = 128;
-        public static bool OnlySortClosest = true;
+        public static bool OnlySortClosest = false;
+
+        public static int OverlayUILayer;
+        public static int HandHeldCameraUILayer;
 
         [Tooltip("Search radius for direct grab detection around hand bones")]
         public static float grabSearchRadius = 0.25f;
@@ -91,6 +95,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
             LocalPlayerAvatar = LayerMask.NameToLayer("LocalPlayerAvatar");
 
             IgnoredByInteractable = LayerMask.NameToLayer("IgnoredByInteractable");
+            OverlayUILayer = LayerMask.NameToLayer(BasisPointRaycaster.OverlayUI);
+            HandHeldCameraUILayer = BasisLayerMapper.HandHeldCameraUILayer;
             // Create a LayerMask that includes all layers
             LayerMask allLayers = ~0;
 
@@ -251,33 +257,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                 // Poll hover — radius rescaled per frame so avatar scale changes apply immediately
                 hoverSphere.Radius = AvatarScaledRange(hoverRadius);
+                hoverSphere.OnlySortClosest = OnlySortClosest;
                 hoverSphere.PollSystem(interactInput.input.RaycastCoord.position);
 
-                BasisInteractableObject hitInteractable = PointRaycasterFindInteractable(interactInput);
-                bool isValidRayHit = hitInteractable != null;
+                BasisInteractableObject hitInteractable = SelectTarget(interactInput, hoverSphere);
 
-                bool isValidHoverHit = false;
-                if (hoverSphere.ResultCount != 0)
+                if (hitInteractable != null)
                 {
-                    if (ClosestInfluencableHover(hoverSphere, interactInput.input, out BasisHoverResult result, out BasisInteractableObject obj))
-                    {
-                        isValidHoverHit = true;
-                        hitInteractable = obj;
-                    }
-                }
-
-                if (isValidRayHit || isValidHoverHit)
-                {
-                    if (hitInteractable != null)
-                    {
-                        interactInput.HasvalidRay = true;
-                        // NOTE: this will skip a frame of hover after stopping interact
-                        UpdatePickupState(hitInteractable, ref interactInput);
-                    }
-                    else
-                    {
-                        BasisDebug.LogWarning("Player Interact expected a registered hit but found null. This is a bug, please report.");
-                    }
+                    interactInput.HasvalidRay = true;
+                    // NOTE: this will skip a frame of hover after stopping interact
+                    UpdatePickupState(hitInteractable, ref interactInput);
                 }
                 // Direct grab detection: hand-proximity grab for VR hands
                 else if (TryDetectDirectGrab(interactInput, gripPressedAgain, out BasisInteractableObject grabTarget))
@@ -432,35 +421,199 @@ namespace Basis.Scripts.BasisSdk.Interactions
 #endif
         }
 
-        private BasisInteractableObject PointRaycasterFindInteractable(BasisInteractInput interactInput)
+        /// <summary>
+        /// Picks the interactable this input is asking for, out of everything the pointer ray hits and
+        /// everything inside the proximity bubble, using <see cref="BasisInteractTargetPicker"/>.
+        /// The bubble used to overwrite the ray outright, so a prop beside the hand — or behind it —
+        /// stole the grab from the prop being pointed at.
+        /// </summary>
+        private BasisInteractableObject SelectTarget(BasisInteractInput interactInput, BasisHoverSphere hoverSphere)
         {
-            bool hit = interactInput.input.BasisPointRaycaster.FirstHit(out RaycastHit rayHit, AvatarScaledRange(raycastDistance));
-            if (!hit)
+            BasisInput input = interactInput.input;
+            BasisPointRaycaster caster = input.BasisPointRaycaster;
+            if (caster == null)
             {
                 return null;
             }
-            if (((1 << rayHit.collider.gameObject.layer) & Mask) == 0)
+
+            Ray aim = caster.ray;
+            Vector3 aimOrigin = aim.origin;
+            Vector3 aimDirection = aim.direction;
+            Vector3 handPosition = input.HasControl && input.Control != null
+                ? input.Control.OutgoingWorldData.position
+                : aimOrigin;
+
+            float reachRadius = AvatarScaledRange(hoverRadius);
+            float margin = AvatarScaledRange(BasisInteractTargetPicker.SwitchMargin);
+            BasisInteractableObject incumbent = interactInput.lastTarget;
+
+            BasisInteractableObject best = null;
+            BasisInteractReach bestReach = BasisInteractReach.None;
+            float bestScore = float.MaxValue;
+            bool bestIsIncumbent = false;
+
+            if (TryFindRayTarget(interactInput, out BasisInteractableObject rayTarget, out Vector3 rayPoint))
             {
-                return null;
+                Consider(rayTarget, rayPoint, input, aimOrigin, aimDirection, handPosition, reachRadius, margin, incumbent,
+                    ref best, ref bestReach, ref bestScore, ref bestIsIncumbent);
             }
-            // Try to get component from hit collider first.
-            BasisInteractableObject hitInteractable;
-            if (rayHit.collider.TryGetComponent(out hitInteractable))
+
+            int resultCount = hoverSphere.ResultCount;
+            for (int index = 0; index < resultCount; index++)
             {
-                return hitInteractable;
+                ref BasisHoverResult hit = ref hoverSphere.Results[index];
+                BasisInteractableObject owner = BasisInteractableObject.OwnerOfCollider(hit.collider);
+                if (owner == null)
+                {
+                    continue;
+                }
+                Consider(owner, hit.closestPointToCenter, input, aimOrigin, aimDirection, handPosition, reachRadius, margin, incumbent,
+                    ref best, ref bestReach, ref bestScore, ref bestIsIncumbent);
             }
-            // Try to get component from ancestors, but only consider if the hit collider is one of its colliders.
-            hitInteractable = rayHit.collider.GetComponentInParent<BasisInteractableObject>();
-            if (hitInteractable == null)
+
+            return best;
+        }
+
+        private static void Consider(
+            BasisInteractableObject candidate,
+            Vector3 point,
+            BasisInput input,
+            Vector3 aimOrigin,
+            Vector3 aimDirection,
+            Vector3 handPosition,
+            float reachRadius,
+            float margin,
+            BasisInteractableObject incumbent,
+            ref BasisInteractableObject best,
+            ref BasisInteractReach bestReach,
+            ref float bestScore,
+            ref bool bestIsIncumbent)
+        {
+            if (candidate == null)
             {
-                return null;
+                return;
             }
-            Collider[] colliders = hitInteractable.GetColliders();
-            if (colliders != null && colliders.Length > 0 && colliders.Contains(rayHit.collider))
+
+            bool isIncumbent = ReferenceEquals(candidate, incumbent);
+            float scale = isIncumbent ? BasisInteractTargetPicker.StickyScale : 1f;
+
+            BasisInteractReach reach = BasisInteractTargetPicker.Classify(
+                point, aimOrigin, aimDirection, handPosition,
+                AvatarScaledRange(candidate.GrabRadius), reachRadius, scale, out float score);
+            if (reach == BasisInteractReach.None)
             {
-                return hitInteractable;
+                return;
             }
-            return null;
+
+            float appliedMargin = bestIsIncumbent ? margin : (isIncumbent ? -margin : 0f);
+            if (!BasisInteractTargetPicker.Beats(reach, score, bestReach, bestScore, appliedMargin))
+            {
+                return;
+            }
+
+            // The held target is exempt: while interacting its state blocks both CanHover and CanInteract,
+            // and dropping it from the candidates would strand the interaction state machine.
+            if (!isIncumbent && !candidate.IsInfluencable(input))
+            {
+                return;
+            }
+
+            best = candidate;
+            bestReach = reach;
+            bestScore = score;
+            bestIsIncumbent = isIncumbent;
+        }
+
+        /// <summary>
+        /// Nearest interactable along the pointer ray. Geometry belonging to any interactable, and
+        /// trigger volumes, are transparent — an unlisted child collider or a decorative trigger in
+        /// front of a prop used to abort the search and make the prop ungrabbable. Solid non-interactable
+        /// geometry and UI still block.
+        /// </summary>
+        private bool TryFindRayTarget(BasisInteractInput interactInput, out BasisInteractableObject target, out Vector3 point)
+        {
+            target = null;
+            point = Vector3.zero;
+
+            BasisPointRaycaster caster = interactInput.input.BasisPointRaycaster;
+            if (caster == null || caster.BlocksOtherControl)
+            {
+                return false;
+            }
+
+            float maxDistance = AvatarScaledRange(raycastDistance);
+
+            if (caster.FirstHit(out RaycastHit first, maxDistance) && first.collider != null)
+            {
+                BasisInteractableObject owner = BasisInteractableObject.OwnerOfCollider(first.collider);
+                if (owner != null)
+                {
+                    target = owner;
+                    point = first.point;
+                    return true;
+                }
+                if (IsRayBlocker(first.collider))
+                {
+                    return false;
+                }
+            }
+
+            RaycastHit[] hits = caster.PhysicHits;
+            int hitCount = caster.PhysicHitCount;
+            if (hits == null || hitCount <= 0)
+            {
+                return false;
+            }
+
+            float targetDistance = float.MaxValue;
+            float blockerDistance = float.MaxValue;
+            for (int index = 0; index < hitCount; index++)
+            {
+                RaycastHit hit = hits[index];
+                Collider collider = hit.collider;
+                if (collider == null || hit.distance > maxDistance)
+                {
+                    continue;
+                }
+
+                BasisInteractableObject owner = BasisInteractableObject.OwnerOfCollider(collider);
+                if (owner != null)
+                {
+                    if (hit.distance < targetDistance)
+                    {
+                        targetDistance = hit.distance;
+                        target = owner;
+                        point = hit.point;
+                    }
+                    continue;
+                }
+
+                if (hit.distance < blockerDistance && IsRayBlocker(collider))
+                {
+                    blockerDistance = hit.distance;
+                }
+            }
+
+            if (target == null || targetDistance > blockerDistance)
+            {
+                target = null;
+                return false;
+            }
+            return true;
+        }
+
+        private static bool IsRayBlocker(Collider collider)
+        {
+            int layer = collider.gameObject.layer;
+            if (layer == OverlayUILayer || layer == HandHeldCameraUILayer)
+            {
+                return true;
+            }
+            if (collider.isTrigger)
+            {
+                return false;
+            }
+            return !BasisInteractableObject.BelongsToInteractable(collider);
         }
         private void UpdatePickupState(BasisInteractableObject hitInteractable, ref BasisInteractInput interactInput)
         {
@@ -703,23 +856,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 Collider col = _grabHitBuffer[i];
                 if (col == null) continue;
 
-                // Find interactable on collider or parent (matching existing lookup pattern)
-                BasisInteractableObject obj = col.GetComponent<BasisInteractableObject>();
-                if (obj == null)
-                {
-                    obj = col.GetComponentInParent<BasisInteractableObject>();
-                    if (obj != null)
-                    {
-                        Collider[] colliders = obj.GetColliders();
-                        if (colliders == null || !colliders.Contains(col))
-                            continue;
-                    }
-                }
+                BasisInteractableObject obj = BasisInteractableObject.OwnerOfCollider(col);
                 if (obj == null) continue;
 
                 // Check distance against object's specific grab radius
                 float dist = Vector3.Distance(obj.GetClosestPoint(handPos), handPos);
-                if (dist > obj.GrabRadius) continue;
+                if (dist > AvatarScaledRange(obj.GrabRadius)) continue;
 
                 // Check if object allows direct grab from this input
                 if (!obj.CanDirectGrab(input)) continue;
@@ -818,14 +960,14 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                 int drawn = 0;
                 int resultCount = input.hoverSphere.ResultCount;
-                for (int r = 1; r < resultCount; r++)
+                for (int r = 0; r < resultCount; r++)
                 {
                     BasisHoverResult hit = input.hoverSphere.Results[r];
                     if (hit.collider == null || hit.distanceToCenter == float.NegativeInfinity)
                     {
                         continue;
                     }
-                    if (!hit.collider.TryGetComponent(out BasisInteractableObject _))
+                    if (BasisInteractableObject.OwnerOfCollider(hit.collider) == null)
                     {
                         continue;
                     }
@@ -1081,26 +1223,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 ref var hit = ref hoverSphere.Results[index];
 
-                if (hit.collider == null) continue;
-
-                // Check the collider itself first, then check parent GameObjects.
-                // This matches PointRaycasterFindInteractable behavior — interactables
-                // often live on a parent with colliders on child objects.
-                BasisInteractableObject component = hit.collider.GetComponent<BasisInteractableObject>();
-                if (component == null)
-                {
-                    component = hit.collider.GetComponentInParent<BasisInteractableObject>();
-                    // Verify the hit collider belongs to this interactable
-                    if (component != null)
-                    {
-                        Collider[] colliders = component.GetColliders();
-                        if (colliders == null || !colliders.Contains(hit.collider))
-                        {
-                            component = null;
-                        }
-                    }
-                }
-
+                BasisInteractableObject component = BasisInteractableObject.OwnerOfCollider(hit.collider);
                 if (component != null && component.IsInfluencable(input))
                 {
                     result = hit;

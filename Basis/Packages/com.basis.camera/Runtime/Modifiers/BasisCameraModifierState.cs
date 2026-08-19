@@ -80,6 +80,36 @@ namespace Basis.Cinematics
         }
 
         /// <summary>
+        /// Carry the camera's own remembered poses through a rigid move of the frame they were
+        /// measured in, so a solve running on an anchored camera continues from where the anchor
+        /// has taken it rather than pulling back to where the world was.
+        ///
+        /// <para>Only the camera's poses move. <see cref="LastAnchor"/> and
+        /// <see cref="SteadyAnchor"/> are subject history, and the subject is resolved fresh in
+        /// world space every frame — a subject standing on the same moving thing has already
+        /// travelled with it, so transporting those as well would count the move twice.</para>
+        /// </summary>
+        public void Transport(Vector3 fromPosition, Quaternion fromRotation, Vector3 toPosition, Quaternion toRotation)
+        {
+            if (!Initialized) return;
+
+            Position = BasisCameraAnchorMath.TransportPoint(Position, fromPosition, fromRotation, toPosition, toRotation);
+            Rotation = BasisCameraAnchorMath.TransportRotation(Rotation, fromRotation, toRotation);
+
+            if (HasPreviousPosition)
+            {
+                PreviousPosition = BasisCameraAnchorMath.TransportPoint(
+                    PreviousPosition, fromPosition, fromRotation, toPosition, toRotation);
+            }
+
+            if (HasRigWeight)
+            {
+                RigWeightRotation = BasisCameraAnchorMath.TransportRotation(RigWeightRotation, fromRotation, toRotation);
+                RigWeightVelocity = BasisCameraAnchorMath.TransportDirection(RigWeightVelocity, fromRotation, toRotation);
+            }
+        }
+
+        /// <summary>
         /// Drop everything derived so the next solve re-derives from the subject. The teleport case,
         /// and the opposite of <see cref="Seed"/>: easing from the old pose after the subject jumps
         /// a hundred metres is the sweep being avoided, not the behaviour wanted.

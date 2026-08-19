@@ -45,12 +45,31 @@ namespace Basis.Cinematics
         private readonly List<int> labelIds = new List<int>();
 
         private Vector3[] lineBuffer = System.Array.Empty<Vector3>();
+        private Color32[] lineColors = System.Array.Empty<Color32>();
         private int lineId = -1;
         private bool lineCreated;
         private bool lineVisible;
+        private bool lineColored;
 
         public bool Looped;
         public bool Visible = true;
+
+        /// <summary>
+        /// Paint the path by how fast the camera passes through each part of it rather than one
+        /// flat colour. What the move is doing is otherwise invisible until it is played: a track
+        /// laid out with points far apart is covered faster there, and the ease settings decide
+        /// where it is still getting up to speed and where it is already coming off it.
+        /// </summary>
+        public bool ColorBySpeed = true;
+
+        /// <summary>
+        /// The move the speed colouring is drawn from. Set every frame from the fitted stack, so
+        /// the path answers a speed or an ease change as it is made.
+        /// </summary>
+        public BasisCameraDollySettings Motion = BasisCameraDollySettings.Default;
+
+        /// <summary>Whether a move is actually fitted. Manual and Follow have no speed to show.</summary>
+        public bool MotionActive;
 
         /// <summary>
         /// How the track is shared. Read every refresh rather than cached, so a change of mode
@@ -201,7 +220,7 @@ namespace Basis.Cinematics
                 waypoint.SetColor(ColorForIndex(Index, waypoints.Count));
             }
 
-            UpdateLine();
+            UpdateLine(scale);
             UpdateLabels(scale, labelFacing);
         }
 
@@ -226,6 +245,9 @@ namespace Basis.Cinematics
                 }
             }
         }
+
+        /// <summary>The path's own colour, for a track with no move fitted to read a speed off.</summary>
+        public static readonly Color RestingColor = new Color(0.4f, 0.85f, 1f);
 
         /// <summary>Direction of travel, green at the head of the queue through red at the tail.</summary>
         public static Color ColorForIndex(int index, int count)
@@ -271,7 +293,7 @@ namespace Basis.Cinematics
             }
         }
 
-        private void UpdateLine()
+        private void UpdateLine(float scale)
         {
             if (!HasPath)
             {
@@ -295,19 +317,74 @@ namespace Basis.Cinematics
 
             if (!lineCreated)
             {
-                BasisGizmoManager.CreateLineGizmo(GizmoName, out lineId, lineBuffer, LineWidth, new Color(0.4f, 0.85f, 1f), Looped);
+                BasisGizmoManager.CreateLineGizmo(GizmoName, out lineId, lineBuffer, LineWidth, RestingColor, Looped);
                 BasisGizmoManager.SetGizmoLayer(lineId, MarkerLayer);
                 lineCreated = true;
                 lineVisible = true;
+                lineColored = false;
+            }
+            else
+            {
+                if (!lineVisible)
+                {
+                    BasisGizmoManager.SetGizmoActive(lineId, true);
+                    lineVisible = true;
+                }
+                BasisGizmoManager.UpdateLineGizmo(lineId, lineBuffer);
+            }
+
+            ColorLine(samples, scale);
+        }
+
+        /// <summary>
+        /// Writes a colour per sample from the speed the camera will pass through it at.
+        ///
+        /// <para>The distances come out of the sample buffer that was just built rather than being
+        /// measured off the spline again: the playhead advances in waypoints at one rate, so how
+        /// fast a stretch is covered in the world is exactly how far apart its samples landed
+        /// against the average.</para>
+        /// </summary>
+        private void ColorLine(int samples, float scale)
+        {
+            if (!ColorBySpeed || !MotionActive || Motion.mode != BasisCameraDollyMode.Play)
+            {
+                if (lineColored)
+                {
+                    BasisGizmoManager.UpdateGizmoColor(lineId, RestingColor);
+                    lineColored = false;
+                }
                 return;
             }
 
-            if (!lineVisible)
+            if (lineColors.Length != samples)
             {
-                BasisGizmoManager.SetGizmoActive(lineId, true);
-                lineVisible = true;
+                lineColors = new Color32[samples];
             }
-            BasisGizmoManager.UpdateLineGizmo(lineId, lineBuffer);
+
+            float total = 0f;
+            for (int Index = 1; Index < samples; Index++)
+            {
+                total += Vector3.Distance(lineBuffer[Index - 1], lineBuffer[Index]);
+            }
+
+            int spans = samples - 1;
+            float mean = spans > 0 ? total / spans : 0f;
+            float denominator = spans > 0 ? spans : 1f;
+
+            for (int Index = 0; Index < samples; Index++)
+            {
+                int span = Mathf.Min(Index, spans - 1);
+                float stretch = mean > 1e-5f
+                    ? Vector3.Distance(lineBuffer[span], lineBuffer[span + 1]) / mean
+                    : 1f;
+
+                float metresPerSecond = BasisCameraDollySpeed.MetresPerSecond(
+                    Motion, Index / denominator, Looped, stretch);
+                lineColors[Index] = BasisCameraDollySpeed.Sample(metresPerSecond, scale);
+            }
+
+            BasisGizmoManager.SetLineGizmoColors(lineId, lineColors, samples);
+            lineColored = true;
         }
 
         private void UpdateLabels(float scale, Quaternion facing)

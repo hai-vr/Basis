@@ -47,6 +47,7 @@ public enum BasisCameraPanelSection
     Performance,
     Gizmos,
     PhotoMetadata,
+    Anchor,
 }
 
 /// <summary>What a section is doing under the current mode. Drives the section's background tint.</summary>
@@ -128,7 +129,7 @@ public static class BasisCameraModes
         BasisCameraMode.Custom,
     };
 
-    private const int SectionCount = (int)BasisCameraPanelSection.PhotoMetadata + 1;
+    private const int SectionCount = (int)BasisCameraPanelSection.Anchor + 1;
 
     // How far a section's background moves toward the mode colour. Driven has to be obvious at a
     // glance across a scrolling page; available is a hint that the panel belongs to a mode at all
@@ -236,6 +237,7 @@ public static class BasisCameraModes
                     driven: new[]
                     {
                         BasisCameraPanelSection.Actions,
+                        BasisCameraPanelSection.Anchor,
                         BasisCameraPanelSection.Lens,
                         BasisCameraPanelSection.DepthOfField,
                     },
@@ -250,6 +252,7 @@ public static class BasisCameraModes
                     driven: new[]
                     {
                         BasisCameraPanelSection.Actions,
+                        BasisCameraPanelSection.Anchor,
                         BasisCameraPanelSection.Lens,
                         BasisCameraPanelSection.DepthOfField,
                     },
@@ -264,6 +267,7 @@ public static class BasisCameraModes
                     driven: new[]
                     {
                         BasisCameraPanelSection.Actions,
+                        BasisCameraPanelSection.Anchor,
                         BasisCameraPanelSection.Subject,
                         BasisCameraPanelSection.Lens,
                         BasisCameraPanelSection.DepthOfField,
@@ -287,6 +291,7 @@ public static class BasisCameraModes
                     driven: new[]
                     {
                         BasisCameraPanelSection.Actions,
+                        BasisCameraPanelSection.Anchor,
                         BasisCameraPanelSection.PositionModifier,
                         BasisCameraPanelSection.RotationModifier,
                         BasisCameraPanelSection.Lens,
@@ -322,6 +327,7 @@ public static class BasisCameraModes
             new System.Collections.Generic.List<BasisCameraPanelSection>
             {
                 BasisCameraPanelSection.Actions,
+                BasisCameraPanelSection.Anchor,
                 BasisCameraPanelSection.Lens,
                 BasisCameraPanelSection.DepthOfField,
                 BasisCameraPanelSection.Colour,

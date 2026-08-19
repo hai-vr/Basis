@@ -232,6 +232,16 @@ namespace Basis.Cinematics
             {
                 dolly.syncMode = BasisCameraDollySync.LocalOnly;
             }
+            if (!BasisCameraEasing.IsDefined(dolly.easeIn))
+            {
+                dolly.easeIn = BasisCameraEase.Linear;
+            }
+            if (!BasisCameraEasing.IsDefined(dolly.easeOut))
+            {
+                dolly.easeOut = BasisCameraEase.Linear;
+            }
+            dolly.easeInPortion = Mathf.Clamp(dolly.easeInPortion, 0f, BasisCameraDollySpeed.MaximumEasePortion);
+            dolly.easeOutPortion = Mathf.Clamp(dolly.easeOutPortion, 0f, BasisCameraDollySpeed.MaximumEasePortion);
 
             lookAt.damping = ClampDamping(lookAt.damping);
             matchSubject.damping = ClampDamping(matchSubject.damping);
@@ -396,7 +406,9 @@ namespace Basis.Cinematics
             => Near(a.position, b.position) && a.mode == b.mode && a.playing == b.playing &&
                a.syncMode == b.syncMode &&
                Near(a.damping, b.damping) &&
-               Near(a.speed, b.speed) && Near(a.offset, b.offset);
+               Near(a.speed, b.speed) && Near(a.offset, b.offset) &&
+               a.easeIn == b.easeIn && a.easeOut == b.easeOut &&
+               Near(a.easeInPortion, b.easeInPortion) && Near(a.easeOutPortion, b.easeOutPortion);
 
         private static bool MatchesOrbit(in BasisCameraOrbitSettings a, in BasisCameraOrbitSettings b)
             => Near(a.top.height, b.top.height) && Near(a.top.radius, b.top.radius) &&

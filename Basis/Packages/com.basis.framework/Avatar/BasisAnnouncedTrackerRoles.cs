@@ -97,7 +97,9 @@ namespace Basis.Scripts.Avatar
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
         {
-            // Role announcements come through SteamVR, which only runs on desktop.
+            // The built-in SteamVR-role path only means anything on desktop, but a registered source
+            // can announce anywhere — standalone headsets announce their own solved body parts — so
+            // Android runs the scan too and simply never matches the SteamVR convention.
             switch (Application.platform)
             {
                 case RuntimePlatform.WindowsPlayer:
@@ -106,6 +108,7 @@ namespace Basis.Scripts.Avatar
                 case RuntimePlatform.LinuxEditor:
                 case RuntimePlatform.OSXPlayer:
                 case RuntimePlatform.OSXEditor:
+                case RuntimePlatform.Android:
                     break;
                 default:
                     return;

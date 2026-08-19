@@ -152,13 +152,28 @@ namespace Basis.IK
 
         public const float DefaultExtensionDamp = 0.65f;
 
+        public const float DefaultFlexionDamp = 0.65f;
+
         public static Vector3 Solve(Vector3 headTargetPos, Quaternion headWorldRot, Vector3 tposeHeadToNeckLocal,
             Vector3 playerUp, float extensionDamp)
         {
+            return Solve(headTargetPos, headWorldRot, tposeHeadToNeckLocal, playerUp, extensionDamp, 0f);
+        }
+
+        /// <summary>
+        /// Re-attaches the T-pose head-to-neck lever to the head target. Swinging the lever by the
+        /// HEAD's rotation assumes the nod pivoted at the neck bone; a real nod pivots at the base of
+        /// the skull and the neck bone barely moves, so the raw estimate walks the neck -- and, through
+        /// <c>hipsBase = neckPos - up * lenTotal</c>, the whole pelvis -- several centimetres on a steep
+        /// look. Both damps rotate the swung lever back about the gaze's horizontal axis; 0 is the old
+        /// undamped behaviour on that side, so an unset field cannot silently change anything.
+        /// </summary>
+        public static Vector3 Solve(Vector3 headTargetPos, Quaternion headWorldRot, Vector3 tposeHeadToNeckLocal,
+            Vector3 playerUp, float extensionDamp, float flexionDamp)
+        {
             Vector3 lever = headWorldRot * tposeHeadToNeckLocal;
 
-            float damp = Mathf.Clamp01(extensionDamp);
-            if (damp <= 0f || lever.sqrMagnitude < k_SqrEpsilon)
+            if (lever.sqrMagnitude < k_SqrEpsilon)
             {
                 return headTargetPos + lever;
             }
@@ -166,14 +181,19 @@ namespace Basis.IK
             Vector3 up = playerUp.sqrMagnitude < k_SqrEpsilon ? Vector3.up : playerUp.normalized;
             Vector3 gaze = headWorldRot * Vector3.forward;
             float upComp = Vector3.Dot(gaze, up);
-            if (upComp <= 0f)
+
+            // Signed: positive is extension (look up), negative is flexion (look down). Each side gets
+            // its own damp so enabling one cannot perturb the other.
+            bool isExtension = upComp > 0f;
+            float damp = Mathf.Clamp01(isExtension ? extensionDamp : flexionDamp);
+            if (damp <= 0f)
             {
                 return headTargetPos + lever;
             }
 
             Vector3 horiz = gaze - up * upComp;
             float horizMag = horiz.magnitude;
-            float extensionDeg = Mathf.Atan2(upComp, horizMag) * Mathf.Rad2Deg;
+            float pitchDeg = Mathf.Atan2(upComp, horizMag) * Mathf.Rad2Deg;
 
             Vector3 forwardAzimuth;
             if (horizMag > k_Epsilon)
@@ -182,13 +202,16 @@ namespace Basis.IK
             }
             else
             {
+                // At the pole the gaze carries no azimuth of its own, so take it from the head's up
+                // axis: it lies opposite the heading looking straight up and along it looking straight
+                // down.
                 Vector3 alt = headWorldRot * Vector3.up;
                 Vector3 altH = alt - up * Vector3.Dot(alt, up);
                 if (altH.sqrMagnitude < k_SqrEpsilon)
                 {
                     return headTargetPos + lever;
                 }
-                forwardAzimuth = -altH.normalized;
+                forwardAzimuth = isExtension ? -altH.normalized : altH.normalized;
             }
 
             Vector3 axis = Vector3.Cross(up, forwardAzimuth);
@@ -198,7 +221,7 @@ namespace Basis.IK
             }
             axis.Normalize();
 
-            Quaternion undo = BasisSpineAnatomyCore.AxisAngle(damp * extensionDeg, axis);
+            Quaternion undo = BasisSpineAnatomyCore.AxisAngle(damp * pitchDeg, axis);
             return headTargetPos + undo * lever;
         }
     }

@@ -63,7 +63,8 @@ public class SettingsData
 public static class BasisSettingsSystem
 {
     public const string SettingsJson = "settingsConfig.json";
-    private static readonly string filePath = Path.Combine(Application.persistentDataPath, SettingsJson);
+    private static string _filePath;
+    private static string FilePath => _filePath ??= Path.Combine(Application.persistentDataPath, SettingsJson);
     // private static readonly string currentVersion = "2.0.5";
     private static SettingsData settingsData = new SettingsData();
     private static bool _settingsLoaded = false;
@@ -333,7 +334,7 @@ public static class BasisSettingsSystem
         // Default blank (will fill from file or remain empty)
         settingsData.RebuildDictionary();
 
-        _freshSettingsFile = !File.Exists(filePath);
+        _freshSettingsFile = !File.Exists(FilePath);
         if (_freshSettingsFile)
         {
             // First run: no file yet. Just create an empty file at current version.
@@ -347,7 +348,7 @@ public static class BasisSettingsSystem
 
         try
         {
-            json = File.ReadAllText(filePath);
+            json = File.ReadAllText(FilePath);
             loaded = JsonUtility.FromJson<SettingsData>(json);
         }
         catch (Exception e)
@@ -361,8 +362,8 @@ public static class BasisSettingsSystem
             // Corrupt or unreadable file. OPTIONAL: backup the bad file for debugging.
             try
             {
-                string backupPath = filePath + ".corrupt_backup";
-                File.Copy(filePath, backupPath, true);
+                string backupPath = FilePath + ".corrupt_backup";
+                File.Copy(FilePath, backupPath, true);
             }
             catch (Exception e)
             {
@@ -421,17 +422,17 @@ public static class BasisSettingsSystem
 
             string json = JsonUtility.ToJson(settingsData, true);
 
-            string dir = Path.GetDirectoryName(filePath);
+            string dir = Path.GetDirectoryName(FilePath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             {
                 Directory.CreateDirectory(dir);
             }
 
-            File.WriteAllText(filePath, json);
+            File.WriteAllText(FilePath, json);
         }
         catch (Exception e)
         {
-            BasisDebug.LogError($"Failed to save settings to {filePath}: {e}");
+            BasisDebug.LogError($"Failed to save settings to {FilePath}: {e}");
         }
     }
 

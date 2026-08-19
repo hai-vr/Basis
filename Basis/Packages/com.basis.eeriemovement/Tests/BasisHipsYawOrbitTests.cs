@@ -221,7 +221,8 @@ namespace Basis.Tests.IK
                 StandingHeadLocalY = k_Head.y,
 
                 // The three arms the pelvis placement is built from, exactly as the driver bakes them.
-                EyeFromHeadTpose = k_Eye - k_Head,
+                GazeSwingLever = k_Eye - k_Head,
+                TposeNeckMinusEyeY = k_Neck.y - k_Eye.y,
                 GazeSwingRemoval = deOrbit,
                 HipsAnchorOffsetLocal = new float3(k_Hips.x - k_Eye.x, 0f, k_Hips.z - k_Eye.z),
                 HeadRestFromEyeLocal = new float3(k_Head.x - k_Eye.x, 0f, k_Head.z - k_Eye.z),

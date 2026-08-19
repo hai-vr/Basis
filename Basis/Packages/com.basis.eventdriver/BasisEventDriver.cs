@@ -1024,11 +1024,12 @@ namespace Basis.EventDriver
             // nearest-K label ranking). Sits at the very end of LateUpdate so every producer this
             // frame — the Update-tick consumers, IK/bone drivers, OnLateUpdate subscribers — is
             // captured before the draw; early-outs to nothing while no gizmos exist. The tracker
-            // marker balls tick immediately ahead of the submission so they carry this frame's
-            // latched device poses.
+            // marker balls and the play-space visualiser tick immediately ahead of the submission so
+            // they carry this frame's latched device poses.
             using (Prof.GizmoRender.Auto())
             {
                 BasisTrackerMarkerGizmos.Tick();
+                BasisPlayspaceGizmos.Tick();
                 BasisGizmoManager.Render(BasisLocalCameraDriver.Position);
             }
             // Join the avatar cull scheduled back at the frame-sync window and write the changed

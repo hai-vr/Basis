@@ -358,6 +358,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisMirrorViewerRegistry.Unregister(captureCamera);
         ReleaseRenderTexture();
         ReleaseFocusPeaking();
+        ReleaseViewfinderGrid();
         ReleaseAutoBrightness();
         if (pooledScreenshot != null) { Destroy(pooledScreenshot); pooledScreenshot = null; }
         ReleaseSrgbResolveTarget();
@@ -1372,6 +1373,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // Before every surface that binds a feed, so they are pointed at the overlay for the frame
         // it was produced in rather than the frame after.
         TickFocusPeaking();
+
+        // After the peaks, so the grid lies over them: it is the thing being aligned against.
+        TickViewfinderGrid();
 
         if (IsOverridingDesktopView)
         {

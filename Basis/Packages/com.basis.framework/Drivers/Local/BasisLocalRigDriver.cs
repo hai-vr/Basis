@@ -1,6 +1,7 @@
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
+using Basis.Scripts.Debugging;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -778,6 +779,7 @@ namespace Basis.Scripts.Drivers
         static readonly ProfilerMarker sMarkerIKDestApplyFit = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.ApplyFit");
         static readonly ProfilerMarker sMarkerIKDestSolve = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.Solve");
         static readonly ProfilerMarker sMarkerIKDestSolveJoin = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.SolveJoin");
+        static readonly ProfilerMarker sMarkerIKDestSolveGizmos = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.SolveGizmos");
         static readonly ProfilerMarker sMarkerIKDestPoseScatter = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.PoseScatter");
         static readonly ProfilerMarker sMarkerIKDestPublish = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.PublishWorldData");
 
@@ -1804,6 +1806,7 @@ namespace Basis.Scripts.Drivers
             data.spineGazeFollow = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineGazeFollow.RawValue;
             data.neckGazeFollow = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckGazeFollow.RawValue;
             data.neckExtensionDamp = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckExtensionDamp.RawValue;
+            data.neckFlexionDamp = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckFlexionDamp.RawValue;
             data.moveBodyBackWhenCrouching = Basis.BasisUI.BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.RawValue;
             data.trunkCounterbalance = Basis.BasisUI.BasisSettingsDefaults.FBIKTrunkCounterbalance.RawValue;
             data.swingSmoothRateDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowSwingEnabled.RawValue
@@ -2189,6 +2192,7 @@ namespace Basis.Scripts.Drivers
             sMarkerIKDestSolve.Begin();
             IKJob.poseStream = PoseSkeleton.Stream;
             IKJob.poseStream.deltaTime = deltaTime;
+            BasisIKSolveGizmos.Prepare(ref IKJob);
             _ikSolveHandle = IKJob.Schedule();
             _ikSolveScheduled = true;
             _ikScatterPending = true;
@@ -2204,6 +2208,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void CompleteIKSolve()
         {
+            bool solveRan = _ikSolveScheduled;
             if (_ikSolveScheduled)
             {
                 sMarkerIKDestSolveJoin.Begin();
@@ -2211,6 +2216,21 @@ namespace Basis.Scripts.Drivers
                 _ikSolveScheduled = false;
                 sMarkerIKDestSolveJoin.End();
             }
+
+            // Solve-stage gizmos are queued INSIDE the job the same way leg diagnostics are, so the
+            // replay belongs here rather than in the debug-options tick, which runs earlier in the
+            // frame than the join. A frame that never scheduled a solve clears the last one instead
+            // of leaving a stale skeleton on screen.
+            sMarkerIKDestSolveGizmos.Begin();
+            if (solveRan)
+            {
+                BasisIKSolveGizmos.Drain(ref IKJob, BasisLocalCameraDriver.Position);
+            }
+            else
+            {
+                BasisIKSolveGizmos.Hide();
+            }
+            sMarkerIKDestSolveGizmos.End();
 
             if (_ikScatterPending)
             {
