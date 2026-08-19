@@ -9,6 +9,54 @@ public class BasisVerticalSyncModule : BasisSettingsBase
     private enum VSyncMode { On, Capped, Half, Off }
     private static VSyncMode _requestedMode = VSyncMode.On;
 
+#if UNITY_SERVER
+    /// <summary>
+    /// Frames the headless loop runs per outgoing avatar send. The transmit accumulator in
+    /// <c>BasisTransmissionResults.ScheduleTick</c> can only fire on a frame boundary, so a frame
+    /// period that does not divide the server's send interval spaces sends unevenly — 25 FPS
+    /// (40ms) against the stock 50ms interval sends at 40/40/40/80ms, which reads as jitter even
+    /// though the average rate is a correct 20 Hz. Two frames per send divides the interval
+    /// exactly and leaves a frame of slack for frame-time variance.
+    /// </summary>
+    public const int HeadlessFramesPerSend = 2;
+
+    /// <summary>Bounds on the derived headless frame rate, for servers configured with an extreme send interval.</summary>
+    public const int HeadlessMinFrameRate = 20;
+    public const int HeadlessMaxFrameRate = 90;
+
+    private const int HeadlessFallbackSyncIntervalMs = 50;
+
+    private static int _appliedHeadlessFrameRate;
+
+    /// <summary>
+    /// Paces the headless loop against the server's advertised send interval. Called at startup
+    /// with the default interval and again from the server metadata handler once the real one is
+    /// known, so a server configured away from the stock 50ms retunes instead of beating.
+    /// </summary>
+    public static void ApplyHeadlessFrameRate()
+    {
+        int syncIntervalMs = Basis.Scripts.Networking.BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
+        if (syncIntervalMs <= 0)
+        {
+            syncIntervalMs = HeadlessFallbackSyncIntervalMs;
+        }
+
+        int rate = Mathf.RoundToInt(1000f * HeadlessFramesPerSend / syncIntervalMs);
+        rate = Mathf.Clamp(rate, HeadlessMinFrameRate, HeadlessMaxFrameRate);
+
+        QualitySettings.vSyncCount = 0;
+
+        if (_appliedHeadlessFrameRate == rate)
+        {
+            return;
+        }
+
+        _appliedHeadlessFrameRate = rate;
+        Application.targetFrameRate = rate;
+        BasisDebug.Log($"Headless frame rate set to {rate} FPS ({HeadlessFramesPerSend} frames per send) for a {syncIntervalMs}ms server send interval.");
+    }
+#endif
+
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
 #if UNITY_SERVER
@@ -62,8 +110,7 @@ public class BasisVerticalSyncModule : BasisSettingsBase
     public override void ChangedSettings()
     {
 #if UNITY_SERVER
-        QualitySettings.vSyncCount = 0;
-        Application.targetFrameRate = 25;
+        ApplyHeadlessFrameRate();
         return;
 #endif
 

@@ -621,6 +621,18 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(AvatarFileLocation))
+        {
+            try
+            {
+                await Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys.LoadKeys();
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogWarning($"Headless avatar selection could not read the item key store: {ex.Message}", BasisDebug.LogTag.Avatar);
+            }
+        }
+
         if (!TryResolveHeadlessAvatarSelection(out string avatarLocation, out byte avatarLoadMode, out string avatarPassword, out string avatarSource))
         {
             configuredAvatarApplied = true;
@@ -662,6 +674,11 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             return true;
         }
 
+        if (TryResolveStoredKeyHeadlessAvatar(out avatarLocation, out avatarLoadMode, out avatarPassword, out avatarSource))
+        {
+            return true;
+        }
+
         if (TryResolveEmbeddedDefaultHeadlessAvatar(out avatarLocation, out avatarLoadMode, out avatarPassword, out avatarSource))
         {
             return true;
@@ -688,6 +705,43 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             avatarPassword = AvatarPassword ?? string.Empty;
             avatarSource = "headless override";
             return true;
+        }
+
+        avatarLocation = string.Empty;
+        avatarLoadMode = BasisPlayer.LoadModeLocal;
+        avatarPassword = string.Empty;
+        avatarSource = string.Empty;
+        return false;
+    }
+
+    private static bool TryResolveStoredKeyHeadlessAvatar(out string avatarLocation, out byte avatarLoadMode, out string avatarPassword, out string avatarSource)
+    {
+        var storedKeys = Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys.DisplayKeys();
+        if (storedKeys != null)
+        {
+            List<Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys.ItemKey> eligibleAvatars = new List<Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys.ItemKey>();
+
+            foreach (var item in storedKeys)
+            {
+                if (item == null ||
+                    item.Mode != BundledContentHolder.Mode.Avatar ||
+                    string.IsNullOrWhiteSpace(item.Url))
+                {
+                    continue;
+                }
+
+                eligibleAvatars.Add(item);
+            }
+
+            if (eligibleAvatars.Count > 0)
+            {
+                var selectedAvatar = eligibleAvatars[new System.Random().Next(eligibleAvatars.Count)];
+                avatarLocation = selectedAvatar.Url;
+                avatarLoadMode = ResolveAvatarLoadMode(avatarLocation, BasisPlayer.LoadModeLocal);
+                avatarPassword = selectedAvatar.Pass ?? string.Empty;
+                avatarSource = $"random stored avatar key ({eligibleAvatars.Count} available)";
+                return true;
+            }
         }
 
         avatarLocation = string.Empty;

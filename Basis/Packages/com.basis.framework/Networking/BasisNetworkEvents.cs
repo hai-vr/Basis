@@ -503,6 +503,9 @@ public static class BasisNetworkEvents
             BasisLocalPlayer.Instance.UUID = SMDM.ClientMetaDataMessage.playerUUID;
             BasisLocalPlayer.Instance.DisplayName = SMDM.ClientMetaDataMessage.playerDisplayName;
             BasisNetworkManagement.ServerMetaDataMessage = SMDM;
+#if UNITY_SERVER
+            BasisVerticalSyncModule.ApplyHeadlessFrameRate();
+#endif
             BasisNetworkManagement.LocalPermissions = SMDM.GetPermissions();
             BasisNetworkManagement.OnlocalPermissionsChanged?.Invoke();
             if (BasisNetworkConnection.LocalPlayerIsConnected == false)
