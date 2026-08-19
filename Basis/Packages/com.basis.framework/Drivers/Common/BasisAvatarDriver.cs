@@ -273,6 +273,17 @@ namespace Basis.Scripts.Drivers
         /// </remarks>
         public void AddJiggleRigColliders(BasisTransformMapping Mapping, bool allowColliderLOD = false)
         {
+#if UNITY_SERVER
+            // Headless never simulates jiggle (BasisAvatarFactory.StoreJiggleRigs destroys the
+            // rigs on load), so registering per-avatar capsules would only grow JiggleMemoryBus
+            // collider capacity for a bus that has no trees to collide with. Leaving
+            // HasJiggleColliders false keeps RemoveJiggleRigColliders and the distance LOD
+            // no-ops for the rest of this avatar's life.
+            _jiggleColliderMapping = default;
+            _fingersBuilt = false;
+            HasJiggleColliders = false;
+            return;
+#else
             _jiggleColliderMapping = Mapping;
             _fingersBuilt = false;
             RefreshColliderScaleRebase(Mapping.HasAnimatorRoot ? Mapping.AnimatorRoot : null);
@@ -324,6 +335,7 @@ namespace Basis.Scripts.Drivers
             // Batch-add the full set at once to avoid O(n²) dedup in JiggleMemoryBus. The distance
             // LOD pass (BasisTransmissionResults) trims remote avatars back down afterward.
             JigglePhysics.AddJiggleColliders(JiggleColliders);
+#endif
         }
 
         private void BuildFingerColliders(BasisTransformMapping Mapping)

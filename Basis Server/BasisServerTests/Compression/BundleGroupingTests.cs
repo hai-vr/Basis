@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
@@ -163,8 +164,18 @@ public class BundleGroupingTests
         var state = new PlayerState();
         BasisServerReductionSystemEvents.TestOnly_SortPendingByChannel(state, pending, pending.Length);
 
-        for (int i = 1; i < pending.Length; i++)
-            Assert.True(pending[i - 1].Channel <= pending[i].Channel, "pending was not channel-ordered");
+        // What bundling actually needs is that each channel forms ONE run, so a chunk charges the
+        // group header once per channel rather than per entry. It used to be asserted as ascending
+        // channel order, which was only ever incidental — the sort now emits channels in flush
+        // priority (highest quality first), and ascending would fail while the property that
+        // matters still holds.
+        var seen = new HashSet<byte>();
+        for (int i = 0; i < pending.Length; i++)
+        {
+            if (i > 0 && pending[i].Channel == pending[i - 1].Channel) continue;
+            Assert.True(seen.Add(pending[i].Channel),
+                $"channel {pending[i].Channel} appears in more than one run");
+        }
     }
 
     [Fact]

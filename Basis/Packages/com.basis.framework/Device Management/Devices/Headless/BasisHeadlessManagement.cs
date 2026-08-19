@@ -54,6 +54,7 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
     private bool reconnectScheduled;
     private bool configuredAvatarApplied;
     private bool strictMemoryCleanupInProgress;
+    private bool strictMemoryCleanupRearmRequested;
     private bool headlessAudioPolicyKnown;
     private bool headlessAudioOff;
     private bool headlessAudioControlReady;
@@ -537,6 +538,11 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
         BasisDebug.Log(nameof(StartSDK), BasisDebug.LogTag.Device);
     }
 
+    private void Update()
+    {
+        BasisHeadlessMemoryProbe.Tick();
+    }
+
     private void OnDestroy()
     {
         isShuttingDown = true;
@@ -824,8 +830,17 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
 
     private void TriggerStrictMemoryCleanup(string reason)
     {
-        if (!StrictMemoryCleanupEnabled || strictMemoryCleanupInProgress || isShuttingDown)
+        if (!StrictMemoryCleanupEnabled || isShuttingDown)
         {
+            return;
+        }
+
+        if (strictMemoryCleanupInProgress)
+        {
+            // A join storm installs avatars faster than one unload pass completes. Dropping these
+            // requests outright would leave whatever loaded during the pass unswept until the next
+            // unrelated trigger, so re-arm instead and run one more pass when this one finishes.
+            strictMemoryCleanupRearmRequested = true;
             return;
         }
 
@@ -855,6 +870,9 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             }
 
             BasisDebug.Log($"Headless strict memory cleanup starting unload pass for {reason}.", BasisDebug.LogTag.Device);
+            long reservedBefore = UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong();
+            long heapBefore = GC.GetTotalMemory(false);
+
             AsyncOperation unloadOperation = Resources.UnloadUnusedAssets();
             while (!unloadOperation.isDone)
             {
@@ -865,7 +883,13 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             GC.WaitForPendingFinalizers();
             GC.Collect();
 
-            BasisDebug.Log($"Headless strict memory cleanup completed after {reason}.", BasisDebug.LogTag.Device);
+            const double ToMb = 1024d * 1024d;
+            BasisDebug.Log(
+                $"Headless strict memory cleanup completed after {reason}: reserved {reservedBefore / ToMb:F1} -> " +
+                $"{UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong() / ToMb:F1} MB, " +
+                $"managed heap {heapBefore / ToMb:F1} -> {GC.GetTotalMemory(false) / ToMb:F1} MB.",
+                BasisDebug.LogTag.Device);
+            BasisHeadlessMemoryProbe.RequestImmediateSample();
         }
         catch (Exception ex)
         {
@@ -874,6 +898,12 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
         finally
         {
             strictMemoryCleanupInProgress = false;
+        }
+
+        if (strictMemoryCleanupRearmRequested && !isShuttingDown)
+        {
+            strictMemoryCleanupRearmRequested = false;
+            TriggerStrictMemoryCleanup($"{reason} (re-armed)");
         }
     }
 
@@ -885,6 +915,41 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
     public static void StripTextureReferencesFromRoot(GameObject root)
     {
         RemoveMaterialTexturesFromRoot(root);
+    }
+
+    /// <summary>
+    /// Clears texture slots using an already-gathered renderer set. Avatar install has just
+    /// walked the tree for its harvest, so re-walking it here would double the cost of every
+    /// join in a load test.
+    /// </summary>
+    public static void StripTextureReferencesFromRenderers(Renderer[] renderers)
+    {
+        if (renderers == null)
+        {
+            return;
+        }
+
+        HashSet<Material> processedMats = new HashSet<Material>();
+        for (int rendererIndex = 0; rendererIndex < renderers.Length; rendererIndex++)
+        {
+            Renderer renderer = renderers[rendererIndex];
+            if (renderer == null)
+            {
+                continue;
+            }
+
+            Material[] materials = renderer.sharedMaterials;
+            for (int materialIndex = 0; materialIndex < materials.Length; materialIndex++)
+            {
+                Material mat = materials[materialIndex];
+                if (mat == null || !processedMats.Add(mat))
+                {
+                    continue;
+                }
+
+                ShaderUtilSafe.ClearAllKnownTextures(mat);
+            }
+        }
     }
 
     private void OnDisconnectedAfterReboot(DisconnectInfo disconnectInfo)

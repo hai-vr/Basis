@@ -225,6 +225,20 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private const int ChannelHistogramSize = 64;
 
+        /// <summary>
+        /// Groups a receiver's pending sends by channel so each bundle carries a few long runs
+        /// instead of an interleaved stream. Sorts in place from the caller's point of view.
+        ///
+        /// <para>⚠️ The scatter-then-copy-back looks like an obvious thing to optimise into a
+        /// buffer swap, and a profile will actively encourage you: <c>Array.Copy</c> here shows as
+        /// ~15% of server CPU at 1000 players. <b>That attribution is false and the swap was tried
+        /// and reverted.</b> The sampler charges GC-poll time to whichever method happens to hold
+        /// the poll point, and this copy was merely where threads parked; removing it moved exactly
+        /// the same time onto <see cref="EmitGreedyBundles"/> and changed nothing else. Measured in
+        /// isolation the whole sort is 286 ns per flush (7.3 ns/entry) and the copy is ~8 ns of it,
+        /// so a swap buys 3% of an operation that is 0.02 cores in total. Not worth handing the
+        /// caller back a different array than it passed in.</para>
+        /// </summary>
         private static void SortPendingByChannel(PlayerState stateI, PendingAvatarSend[] pending, int count)
         {
             if (count < 2) return;

@@ -86,6 +86,14 @@ public static class BasisHeadlessBuild
             Debug.LogWarning("[BasisHeadlessBuild] Addressables settings not found; continuing without Addressables override.");
         }
 
+        // Headless neither plays nor captures voice — every path in BasisAudioReceiver,
+        // BasisAudioTransmission and BasisNetworkEvents is compiled out under UNITY_SERVER, and
+        // BasisEventDriver's mic pump is excluded too. Initializing FMOD only reserves a mixer
+        // and DSP pool that nothing ever writes to. m_DisableAudio is a project-wide setting with
+        // no per-platform override, so it is toggled around this build and restored in the finally
+        // below — a leaked `true` would silently ship a mute desktop client.
+        bool audioSettingChanged = TrySetProjectAudioDisabled(true, out bool originalDisableAudio);
+
         try
         {
             BuildPlayerOptions options = new BuildPlayerOptions
@@ -116,6 +124,58 @@ public static class BasisHeadlessBuild
                 addressableSettings.BuildAddressablesWithPlayerBuild = originalBuildAddressablesWithPlayerBuild;
                 Debug.Log($"[BasisHeadlessBuild] Restored BuildAddressablesWithPlayerBuild={addressableSettings.BuildAddressablesWithPlayerBuild}");
             }
+
+            if (audioSettingChanged)
+            {
+                TrySetProjectAudioDisabled(originalDisableAudio, out _);
+                Debug.Log($"[BasisHeadlessBuild] Restored AudioManager.m_DisableAudio={originalDisableAudio}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Flips <c>AudioManager.m_DisableAudio</c> and reports the value it had before.
+    /// Returns false (and leaves <paramref name="previousValue"/> at the current setting) when the
+    /// property could not be reached or already held the requested value, so the caller knows not
+    /// to restore anything.
+    /// </summary>
+    private static bool TrySetProjectAudioDisabled(bool disabled, out bool previousValue)
+    {
+        previousValue = false;
+
+        try
+        {
+            UnityEngine.Object[] assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/AudioManager.asset");
+            if (assets == null || assets.Length == 0 || assets[0] == null)
+            {
+                Debug.LogWarning("[BasisHeadlessBuild] AudioManager.asset not loadable; leaving audio engine enabled.");
+                return false;
+            }
+
+            SerializedObject audioManager = new SerializedObject(assets[0]);
+            SerializedProperty disableAudio = audioManager.FindProperty("m_DisableAudio");
+            if (disableAudio == null)
+            {
+                Debug.LogWarning("[BasisHeadlessBuild] m_DisableAudio property not found; leaving audio engine enabled.");
+                return false;
+            }
+
+            previousValue = disableAudio.boolValue;
+            if (previousValue == disabled)
+            {
+                return false;
+            }
+
+            disableAudio.boolValue = disabled;
+            audioManager.ApplyModifiedPropertiesWithoutUndo();
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[BasisHeadlessBuild] AudioManager.m_DisableAudio {previousValue} -> {disabled}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[BasisHeadlessBuild] Could not toggle AudioManager.m_DisableAudio: {ex.Message}");
+            return false;
         }
     }
 

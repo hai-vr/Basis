@@ -991,6 +991,12 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void StartAudio(float MaxDistance)
         {
+#if UNITY_SERVER
+            // Headless never decodes (OnDecode* all early-return) and never owns an AudioSource,
+            // so the resample scratch pair is 8 KB per remote player that nothing ever reads.
+            // The guard used to sit below these allocations.
+            return;
+#else
             const int BufferSize = 1024;
             if (_inputScratch == null || _inputScratch.Length != BufferSize)
                 _inputScratch = new float[BufferSize];
@@ -1006,9 +1012,6 @@ namespace Basis.Scripts.Networking.Receivers
             _resampleRatio = (float)RemoteOpusSettings.NetworkSampleRate / _cachedOutputRate;
             WarmResampler();
             ResetAudioThreadState();
-#if UNITY_SERVER
-            return;
-#endif
             if (BasisNetworkReceiver == null)
             {
                 BasisDebug.LogError("Missing Network Receiver Audio Receiver!", BasisDebug.LogTag.Remote);
@@ -1025,6 +1028,7 @@ namespace Basis.Scripts.Networking.Receivers
                 return;
             }
             LoadAudioSource(MaxDistance);
+#endif
         }
 
         public async void LoadAudioSource(float MaxDistance)
