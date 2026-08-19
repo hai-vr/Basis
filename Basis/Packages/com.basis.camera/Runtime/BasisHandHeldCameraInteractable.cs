@@ -1,5 +1,6 @@
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -1179,6 +1180,12 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
                 // avatar fed every IK correction into the constraint as shake, and the playspace
                 // is the root by definition.
                 BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out Vector3 pinParentPos, out Quaternion pinParentRot);
+                // Desktop look yaw lives on the simulated eye rather than the player root. Treat it
+                // as playspace yaw so a pinned camera turns with the player's desktop facing too.
+                if (BasisDeviceManagement.IsUserInDesktop() && BasisDesktopEye.Instance != null)
+                {
+                    pinParentRot *= Quaternion.AngleAxis(BasisDesktopEye.Instance.rotationYaw, Vector3.up);
+                }
                 cameraPinConstraint.UpdateSourcePositionAndRotation(0, pinParentPos, pinParentRot);
 
                 MoveCameraFlying();

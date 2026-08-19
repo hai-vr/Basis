@@ -3122,6 +3122,12 @@
     { "key": "mirror.cutout.unavailable", "value": "কাটআউট উপলব্ধ নয়: কাটআউট শেডার অনুপস্থিত বা এখানে সমর্থিত নয়।" },
     { "key": "mirror.size", "value": "আকার" },
     { "key": "mirror.size.description", "value": "জগতে আয়নার পৃষ্ঠের প্রকৃত আকার।" },
-    { "key": "mirror.status.surfaceSize", "value": "পৃষ্ঠ {0} x {1} মি" }
+    { "key": "mirror.status.surfaceSize", "value": "পৃষ্ঠ {0} x {1} মি" },
+    { "key": "mirror.placement", "value": "স্থাপন" },
+    { "key": "mirror.placement.description", "value": "ব্যক্তিগত আয়নাটি কীভাবে সরানো যাবে এবং এটি কিসের সাথে সরবে।" },
+    { "key": "mirror.grabbable", "value": "ধরা যাবে" },
+    { "key": "mirror.grabbable.description", "value": "ব্যক্তিগত আয়নাটি ধরে সরানোর অনুমতি দিন।" },
+    { "key": "mirror.moveWithPlayspace", "value": "প্লে-স্পেসের সাথে সরান" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "ব্যক্তিগত আয়নাটিকে জগতে ফেলে না রেখে আপনার প্লে-স্পেসের সাথে সরান ও ঘোরান।" }
   ]
 }

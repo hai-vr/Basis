@@ -3122,6 +3122,12 @@
     { "key": "mirror.cutout.unavailable", "value": "کٹ آؤٹ دستیاب نہیں: کٹ آؤٹ شیڈر موجود نہیں یا یہاں معاون نہیں۔" },
     { "key": "mirror.size", "value": "سائز" },
     { "key": "mirror.size.description", "value": "دنیا میں آئینے کی سطح کا طبعی سائز۔" },
-    { "key": "mirror.status.surfaceSize", "value": "سطح {0} x {1} میٹر" }
+    { "key": "mirror.status.surfaceSize", "value": "سطح {0} x {1} میٹر" },
+    { "key": "mirror.placement", "value": "جگہ بندی" },
+    { "key": "mirror.placement.description", "value": "ذاتی آئینے کو کیسے حرکت دی جا سکتی ہے اور یہ کس کے ساتھ حرکت کرتا ہے۔" },
+    { "key": "mirror.grabbable", "value": "پکڑنے کے قابل" },
+    { "key": "mirror.grabbable.description", "value": "ذاتی آئینے کو پکڑنے اور حرکت دینے کی اجازت دیں۔" },
+    { "key": "mirror.moveWithPlayspace", "value": "پلے اسپیس کے ساتھ حرکت" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "ذاتی آئینے کو دنیا میں چھوڑنے کے بجائے اپنی پلے اسپیس کے ساتھ حرکت دیں اور گھمائیں۔" }
   ]
 }

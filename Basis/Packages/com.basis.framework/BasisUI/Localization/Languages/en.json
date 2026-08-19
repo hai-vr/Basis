@@ -14641,6 +14641,30 @@
       "value": "Surface {0} x {1} m"
     },
     {
+      "key": "mirror.placement",
+      "value": "Placement"
+    },
+    {
+      "key": "mirror.placement.description",
+      "value": "How the Personal Mirror can be moved and what it moves with."
+    },
+    {
+      "key": "mirror.grabbable",
+      "value": "Grabbable"
+    },
+    {
+      "key": "mirror.grabbable.description",
+      "value": "Allow the Personal Mirror to be grabbed and moved."
+    },
+    {
+      "key": "mirror.moveWithPlayspace",
+      "value": "Move With Playspace"
+    },
+    {
+      "key": "mirror.moveWithPlayspace.description",
+      "value": "Move and rotate the Personal Mirror with your playspace instead of leaving it in the world."
+    },
+    {
       "key": "settings.urlPrompt.scope.url.tooltip",
       "value": "Apply your answer to this exact link only."
     },

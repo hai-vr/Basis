@@ -3126,6 +3126,12 @@
     { "key": "mirror.cutout.unavailable", "value": "無法使用去背：去背著色器缺失或在此環境中不受支援。" },
     { "key": "mirror.size", "value": "尺寸" },
     { "key": "mirror.size.description", "value": "鏡面在世界中的物理尺寸。" },
-    { "key": "mirror.status.surfaceSize", "value": "鏡面 {0} x {1} 公尺" }
+    { "key": "mirror.status.surfaceSize", "value": "鏡面 {0} x {1} 公尺" },
+    { "key": "mirror.placement", "value": "放置方式" },
+    { "key": "mirror.placement.description", "value": "設定個人鏡子如何移動，以及它跟隨什麼一起移動。" },
+    { "key": "mirror.grabbable", "value": "可抓取" },
+    { "key": "mirror.grabbable.description", "value": "允許抓取並移動個人鏡子。" },
+    { "key": "mirror.moveWithPlayspace", "value": "隨遊玩空間移動" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "讓個人鏡子隨你的遊玩空間一起移動和旋轉，而不是留在世界中。" }
   ]
 }

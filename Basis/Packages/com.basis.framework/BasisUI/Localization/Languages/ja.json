@@ -3122,6 +3122,12 @@
     { "key": "mirror.cutout.unavailable", "value": "切り抜きを使用できません: 切り抜きシェーダーが見つからないか、この環境では未対応です。" },
     { "key": "mirror.size", "value": "サイズ" },
     { "key": "mirror.size.description", "value": "ワールド内でのミラー面の物理的な大きさです。" },
-    { "key": "mirror.status.surfaceSize", "value": "面 {0} x {1} m" }
+    { "key": "mirror.status.surfaceSize", "value": "面 {0} x {1} m" },
+    { "key": "mirror.placement", "value": "配置" },
+    { "key": "mirror.placement.description", "value": "パーソナルミラーをどう動かせるか、何に追従して動くかを設定します。" },
+    { "key": "mirror.grabbable", "value": "つかめる" },
+    { "key": "mirror.grabbable.description", "value": "パーソナルミラーをつかんで移動できるようにします。" },
+    { "key": "mirror.moveWithPlayspace", "value": "プレイスペースと一緒に移動" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "パーソナルミラーをワールドに置いたままにせず、プレイスペースと一緒に移動・回転させます。" }
   ]
 }

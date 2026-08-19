@@ -3122,6 +3122,12 @@
     { "key": "mirror.cutout.unavailable", "value": "Freistellen nicht verfügbar: Der Cutout-Shader fehlt oder wird hier nicht unterstützt." },
     { "key": "mirror.size", "value": "Größe" },
     { "key": "mirror.size.description", "value": "Physische Größe der Spiegelfläche in der Welt." },
-    { "key": "mirror.status.surfaceSize", "value": "Fläche {0} x {1} m" }
+    { "key": "mirror.status.surfaceSize", "value": "Fläche {0} x {1} m" },
+    { "key": "mirror.placement", "value": "Platzierung" },
+    { "key": "mirror.placement.description", "value": "Wie der persönliche Spiegel bewegt werden kann und womit er sich mitbewegt." },
+    { "key": "mirror.grabbable", "value": "Greifbar" },
+    { "key": "mirror.grabbable.description", "value": "Erlaubt, den persönlichen Spiegel zu greifen und zu bewegen." },
+    { "key": "mirror.moveWithPlayspace", "value": "Mit Spielbereich bewegen" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "Bewegt und dreht den persönlichen Spiegel mit deinem Spielbereich, statt ihn in der Welt zurückzulassen." }
   ]
 }

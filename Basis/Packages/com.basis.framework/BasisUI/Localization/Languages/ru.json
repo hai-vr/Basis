@@ -3122,6 +3122,12 @@
     { "key": "mirror.cutout.unavailable", "value": "Вырез недоступен: шейдер выреза отсутствует или не поддерживается здесь." },
     { "key": "mirror.size", "value": "Размер" },
     { "key": "mirror.size.description", "value": "Физический размер поверхности зеркала в мире." },
-    { "key": "mirror.status.surfaceSize", "value": "Поверхность {0} x {1} м" }
+    { "key": "mirror.status.surfaceSize", "value": "Поверхность {0} x {1} м" },
+    { "key": "mirror.placement", "value": "Размещение" },
+    { "key": "mirror.placement.description", "value": "Как можно перемещать личное зеркало и вместе с чем оно движется." },
+    { "key": "mirror.grabbable", "value": "Можно брать" },
+    { "key": "mirror.grabbable.description", "value": "Разрешить брать и перемещать личное зеркало." },
+    { "key": "mirror.moveWithPlayspace", "value": "Двигать с игровой зоной" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "Перемещает и поворачивает личное зеркало вместе с вашей игровой зоной, а не оставляет его в мире." }
   ]
 }
