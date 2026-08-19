@@ -103,8 +103,19 @@ namespace Basis.Network.Core.Compression
             Span<byte> mask = stackalloc byte[DirtyMaskBytes];
             mask.Clear();
 
+            // Which 8-byte words moved at all. A field none of whose words moved cannot have changed,
+            // so it skips the per-channel unpack entirely — which is nearly all of them, nearly always,
+            // since delta compression only pays off when most fields are still. The rest fall through
+            // to the exact comparison below, so the mask this produces is identical either way.
+            ulong dirtyWords = layout.WordMaskUsable
+                ? BasisPayloadDiff.WordDiffMask(current, keyframe, g.PayloadSize)
+                : ulong.MaxValue;
+            ulong[] fieldWords = layout.FieldWordMask;
+
             for (int f = 0; f < FieldCount; f++)
             {
+                if ((dirtyWords & fieldWords[f]) == 0) continue;
+
                 int start = layout.FieldChannelStart(f), end = layout.FieldChannelEnd(f);
                 for (int c = start; c < end; c++)
                 {
@@ -258,28 +269,13 @@ namespace Basis.Network.Core.Compression
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static uint ReadChannel(byte[] payload, in BasisAvatarChannel ch)
         {
-            int bit = ch.BitOffset;
-            return (uint)BasisBoneRotationCompression.ReadBits(payload, ref bit, ch.Width);
+            return (uint)BasisBitCodec.Read(payload, ch.BitOffset, ch.Width);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static void WriteChannel(byte[] payload, in BasisAvatarChannel ch, uint value)
         {
-            int bitPos = ch.BitOffset, bytePos = bitPos >> 3, inByte = bitPos & 7, left = ch.Width;
-            uint v = value;
-            while (left > 0)
-            {
-                int room = 8 - inByte;
-                int take = left < room ? left : room;
-                int lowMask = (1 << take) - 1;
-                int clear = lowMask << inByte;
-                byte chunk = (byte)(((int)(v & (uint)lowMask)) << inByte);
-                payload[bytePos] = (byte)((payload[bytePos] & ~clear) | chunk);
-                v >>= take;
-                left -= take;
-                bytePos++;
-                inByte = 0;
-            }
+            BasisBitCodec.Replace(payload, ch.BitOffset, value, ch.Width);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

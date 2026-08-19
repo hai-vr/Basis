@@ -1,5 +1,6 @@
 using Basis.Network.Core.Compression;
 using System;
+using System.Runtime.CompilerServices;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 
 namespace BasisNetworkServer.BasisNetworkingReductionSystem
@@ -211,66 +212,50 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             return (med, low, vlow);
         }
 
+        /// <summary>
+        /// Rescales one quantized value from <paramref name="bSrc"/> bits to <paramref name="bDst"/>
+        /// bits, rounding to nearest.
+        ///
+        /// <para>Every 3-DOF bone repacks three components into three lower tiers and every finger
+        /// two channels into three, so one avatar frame runs this ~250 times — and it used to end in
+        /// a 64-bit hardware divide, which is the slowest integer instruction on x86 by a wide margin
+        /// (tens of cycles, and not pipelined, so they cannot overlap). The divisor is
+        /// <c>2^bSrc - 1</c>: it depends only on the layout, never on the data, so it is known before
+        /// any player connects and the divide can be a multiply by a fixed reciprocal instead.</para>
+        ///
+        /// <para><b>Exact by exhaustive check, not by argument.</b> <see cref="QuantRescaleTable"/>
+        /// verifies each reciprocal against the real division across the divisor's ENTIRE input
+        /// domain at static init, and refuses to install one that disagrees anywhere. A pair that
+        /// fails falls back to a 32-bit divide — still cheaper than the 64-bit one this replaced,
+        /// because the operands provably fit (see the bound in the table).</para>
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static uint RescaleQuant(uint qSrc, int bSrc, int bDst)
         {
             if (bSrc == bDst) return qSrc;
             if (bDst <= 0) return 0;
-            ulong maxSrc = ((ulong)1 << bSrc) - 1UL;
-            ulong maxDst = ((ulong)1 << bDst) - 1UL;
-            ulong num = (ulong)qSrc * maxDst + (maxSrc >> 1);
-            return (uint)(num / maxSrc);
+            return QuantRescaleTable.Rescale(qSrc, bSrc, bDst);
         }
 
+        /// <summary>
+        /// The repacker addresses bits relative to the rotation region's base byte; the shared codec
+        /// takes an absolute bit position. Kept as thin named shims so the call sites below still
+        /// read as "read this field of that region".
+        /// </summary>
         static class BitReader
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static ulong ReadBitsU64(byte[] src, int baseByteOffset, int bitPos, int bitCount)
-            {
-                int bytePos = baseByteOffset + (bitPos >> 3);
-                int bitInByte = bitPos & 7;
-                ulong result = 0;
-                int outShift = 0;
-                int bitsLeft = bitCount;
-
-                while (bitsLeft > 0)
-                {
-                    int room = 8 - bitInByte;
-                    int take = bitsLeft < room ? bitsLeft : room;
-                    ulong cur = src[bytePos];
-                    cur >>= bitInByte;
-                    ulong mask = (1UL << take) - 1UL;
-                    ulong chunk = cur & mask;
-                    result |= (chunk << outShift);
-                    outShift += take;
-                    bitsLeft -= take;
-                    bytePos++;
-                    bitInByte = 0;
-                }
-                return result;
-            }
+                => BasisBitCodec.Read(src, (baseByteOffset << 3) + bitPos, bitCount);
         }
 
         static class BitWriter
         {
+            // The destination rotation region is Array.Clear'd before any of this runs, so OR is
+            // the correct and cheaper form.
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static void WriteBitsU64(byte[] dst, int baseByteOffset, int bitPos, ulong value, int bitCount)
-            {
-                int bytePos = baseByteOffset + (bitPos >> 3);
-                int bitInByte = bitPos & 7;
-                ulong v = value;
-                int bitsLeft = bitCount;
-
-                while (bitsLeft > 0)
-                {
-                    int room = 8 - bitInByte;
-                    int take = bitsLeft < room ? bitsLeft : room;
-                    ulong mask = (1UL << take) - 1UL;
-                    byte chunk = (byte)(v & mask);
-                    dst[bytePos] = (byte)(dst[bytePos] | (chunk << bitInByte));
-                    v >>= take;
-                    bitsLeft -= take;
-                    bytePos++;
-                    bitInByte = 0;
-                }
-            }
+                => BasisBitCodec.Or(dst, (baseByteOffset << 3) + bitPos, value, bitCount);
         }
     }
 }
