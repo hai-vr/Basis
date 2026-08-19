@@ -75,6 +75,29 @@ public static class BasisGizmoManager
     }
 
     /// <summary>
+    /// Whether gizmos punch through the world (ZTest Always, overlay queue) or are occluded
+    /// by whatever is in front of them (ZTest LessEqual, transparent queue). Off by default:
+    /// depth-testing is what tells you whether a probe is actually in front of the geometry
+    /// it describes, and gizmos that ignore depth read as a flat overlay with no relationship
+    /// to the scene. Covers all three primitive kinds: spheres, lines and text labels.
+    /// </summary>
+    public static bool DrawOnTop
+    {
+        get => drawOnTop;
+        set
+        {
+            if (drawOnTop == value)
+            {
+                return;
+            }
+            drawOnTop = value;
+            ApplyDepthMode();
+        }
+    }
+
+    private static bool drawOnTop;
+
+    /// <summary>
     /// Optional viewer-distance cull for sphere/line gizmos, in meters. Defaults to
     /// unlimited so nothing silently disappears; load-test sessions with hundreds of
     /// players can set a radius to only pay for nearby gizmos.
@@ -543,6 +566,53 @@ public static class BasisGizmoManager
         return _textOverlayShader;
     }
 
+    // The shader the font asset's own material came with, captured before the first overlay
+    // swap so DrawOnTop can put it back. A font whose material is already an Overlay variant
+    // has no depth-testing shader to return to, so the non-overlay counterpart is resolved by
+    // name ("TextMeshPro/[Mobile/]Distance Field Overlay" -> the same minus " Overlay").
+    private static Shader _textDepthShader;
+
+    private static Shader ResolveLabelShader(Shader fontShader)
+    {
+        if (_textDepthShader == null && fontShader != null)
+        {
+            _textDepthShader = fontShader.name.EndsWith(" Overlay", StringComparison.Ordinal)
+                ? Shader.Find(fontShader.name.Substring(0, fontShader.name.Length - " Overlay".Length)) ?? fontShader
+                : fontShader;
+        }
+        if (!drawOnTop)
+        {
+            return _textDepthShader;
+        }
+        Shader overlay = GetTextOverlayShader();
+        return overlay != null ? overlay : _textDepthShader;
+    }
+
+    private static void ApplyLabelDepthMode()
+    {
+        foreach (KeyValuePair<int, TextSlot> kvp in _textByID)
+        {
+            ApplyLabelDepthMode(kvp.Value.Component);
+        }
+        foreach (BasisTextGizmos pooled in _labelPool)
+        {
+            ApplyLabelDepthMode(pooled);
+        }
+    }
+
+    private static void ApplyLabelDepthMode(BasisTextGizmos component)
+    {
+        if (component == null || component.MaterialInstance == null)
+        {
+            return;
+        }
+        Shader target = ResolveLabelShader(component.MaterialInstance.shader);
+        if (target != null && component.MaterialInstance.shader != target)
+        {
+            component.MaterialInstance.shader = target;
+        }
+    }
+
     private static BasisTextGizmos RentLabel(string gizmoName, Vector3 position, string text, Color color)
     {
         BasisTextGizmos component = null;
@@ -612,16 +682,19 @@ public static class BasisGizmoManager
             meshRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
         }
 
-        // Like the sphere/line gizmos, labels must draw ON TOP of the avatar/world
-        // rather than be depth-occluded inside the body. TMP's default material
-        // depth-tests; swap this instance to the Overlay variant (ZTest Always).
+        // Like the sphere/line gizmos, labels follow DrawOnTop: TMP's default material
+        // depth-tests, so drawing on top swaps this instance to the Overlay variant
+        // (ZTest Always) and depth-respecting mode leaves the font's own shader in place.
         // fontMaterial instantiates a per-label clone — keep the reference so the
         // pool can destroy it instead of leaking one per label ever created.
         Material fontMaterialInstance = tmp.fontMaterial;
-        Shader overlay = GetTextOverlayShader();
-        if (overlay != null && fontMaterialInstance != null)
+        if (fontMaterialInstance != null)
         {
-            fontMaterialInstance.shader = overlay;
+            Shader target = ResolveLabelShader(fontMaterialInstance.shader);
+            if (target != null && fontMaterialInstance.shader != target)
+            {
+                fontMaterialInstance.shader = target;
+            }
         }
 
         BasisTextGizmos holder = go.AddComponent<BasisTextGizmos>();
@@ -883,6 +956,30 @@ public static class BasisGizmoManager
     private static readonly List<int> _sphereLayerScratch = new List<int>();
     private static readonly List<MaterialPropertyBlock> _sphereChunkBlocks = new List<MaterialPropertyBlock>();
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
+    private static readonly int ZTestProperty = Shader.PropertyToID("_ZTest");
+
+    /// <summary>
+    /// Pushes <see cref="DrawOnTop"/> onto the shared sphere/line materials and every live
+    /// label. Render state comes off the material itself — a MaterialPropertyBlock cannot
+    /// override a <c>ZTest [_ZTest]</c> expression — so the two batched materials carry the
+    /// mode for every gizmo drawn through them.
+    /// </summary>
+    private static void ApplyDepthMode()
+    {
+        ApplyMaterialDepthMode(_sphereMaterial);
+        ApplyMaterialDepthMode(_lineMaterial);
+        ApplyLabelDepthMode();
+    }
+
+    internal static void ApplyMaterialDepthMode(Material material)
+    {
+        if (material == null)
+        {
+            return;
+        }
+        material.SetFloat(ZTestProperty, (float)(drawOnTop ? CompareFunction.Always : CompareFunction.LessEqual));
+        material.renderQueue = (int)(drawOnTop ? RenderQueue.Overlay : RenderQueue.Transparent);
+    }
 
     // Field order mirrors the attribute order Unity requires in a vertex layout
     // (Position, then Color, then TexCoords) — SetVertexBufferParams rejects
@@ -1289,6 +1386,7 @@ public static class BasisGizmoManager
             {
                 enableInstancing = true,
             };
+            ApplyMaterialDepthMode(_sphereMaterial);
         }
         if (_sphereMesh == null)
         {
@@ -1318,6 +1416,7 @@ public static class BasisGizmoManager
                 return false;
             }
             _lineMaterial = new Material(shader);
+            ApplyMaterialDepthMode(_lineMaterial);
         }
         if (batch.Mesh == null)
         {

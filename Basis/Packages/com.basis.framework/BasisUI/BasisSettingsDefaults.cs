@@ -422,6 +422,12 @@ namespace Basis.BasisUI
         // (speaker name + gain %, hearing distance, cone angle). One switch for all.
         public static BasisSettingsBinding<bool> GizmoLabels = new("gizmolabels", new BasisPlatformDefault<bool>(false));
 
+        // Depth behaviour shared by every gizmo — spheres, lines and labels alike. Off (the
+        // default) depth-tests them so the world occludes them, which is the only way to see
+        // whether a probe is actually in front of the geometry it describes; on draws them
+        // through the world so a marker buried inside an avatar stays readable.
+        public static BasisSettingsBinding<bool> GizmoDrawOnTop = new("gizmodrawontop", new BasisPlatformDefault<bool>(false));
+
         // Network value-sync debug gizmos (see BasisSyncGizmos): from→to interpolation
         // window, live-position sphere, extrapolation overshoot, jitter-buffer-health colour.
         public static BasisSettingsBinding<bool> GizmoNetworkSync = new("gizmonetworksync", new BasisPlatformDefault<bool>(false));
@@ -2132,6 +2138,7 @@ namespace Basis.BasisUI
             GizmoNetworkPlayersBandwidth.LoadBindingValue();
             GizmoNetworkAdditionalInfo.LoadBindingValue();
             GizmoLabels.LoadBindingValue();
+            GizmoDrawOnTop.LoadBindingValue();
             EnableStatistics.LoadBindingValue();
             ShowVoiceRange.LoadBindingValue();
             AvatarDataDebugEnabled.LoadBindingValue();

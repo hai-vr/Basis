@@ -1,9 +1,15 @@
 // Camera-facing ribbon line for BasisGizmoManager. Every line gizmo lives in one
 // dynamic mesh; each vertex carries its segment's endpoints and a side sign, and
 // the width expansion happens here so the CPU never rebuilds geometry per line.
-// Blend/depth state mirrors the LineRenderer + Sprites/Default setup it replaces.
+// Blend state mirrors the LineRenderer + Sprites/Default setup it replaces; _ZTest is
+// driven from BasisGizmoManager.DrawOnTop — LessEqual (the default) to let the world
+// occlude the line, Always to punch through it.
 Shader "Basis/GizmoLine"
 {
+    Properties
+    {
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Float) = 4
+    }
     SubShader
     {
         Tags { "RenderType" = "Transparent" "Queue" = "Transparent" "RenderPipeline" = "UniversalPipeline" "IgnoreProjector" = "True" }
@@ -12,6 +18,7 @@ Shader "Basis/GizmoLine"
             Name "GizmoLine"
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
+            ZTest [_ZTest]
             Cull Off
 
             HLSLPROGRAM

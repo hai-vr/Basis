@@ -106,6 +106,33 @@ public class SMModuleDebugOptions : BasisSettingsBase
         // the manager's destroy pass clears every entry in BasisGizmoManager.Gizmos.
         BasisGizmoManager.OnUseGizmosChanged += OnUseGizmosChanged;
         HookSolveGizmoStages();
+        HookGizmoDrawOnTop();
+    }
+
+    // Driven off the binding rather than ValidSettingsChange so the current value lands on the
+    // manager at startup too — the settings file is read after this Awake on a cold boot, and
+    // the reload notifies through the same event.
+    private Action<bool> _gizmoDrawOnTopChanged;
+
+    private void HookGizmoDrawOnTop()
+    {
+        if (_gizmoDrawOnTopChanged != null)
+        {
+            return;
+        }
+        _gizmoDrawOnTopChanged = value => BasisGizmoManager.DrawOnTop = value;
+        BasisSettingsDefaults.GizmoDrawOnTop.OnChanged += _gizmoDrawOnTopChanged;
+        BasisGizmoManager.DrawOnTop = BasisSettingsDefaults.GizmoDrawOnTop.RawValue;
+    }
+
+    private void UnhookGizmoDrawOnTop()
+    {
+        if (_gizmoDrawOnTopChanged == null)
+        {
+            return;
+        }
+        BasisSettingsDefaults.GizmoDrawOnTop.OnChanged -= _gizmoDrawOnTopChanged;
+        _gizmoDrawOnTopChanged = null;
     }
 
     // The IK solve gizmo toggles are generated from BasisIKSolveGizmoStages rather than declared
@@ -150,6 +177,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
         }
         BasisGizmoManager.OnUseGizmosChanged -= OnUseGizmosChanged;
         UnhookSolveGizmoStages();
+        UnhookGizmoDrawOnTop();
         ClearTrackerGizmos();
         ClearLinkLines();
         BasisAudioGizmos.Shutdown();

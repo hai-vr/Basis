@@ -1687,6 +1687,10 @@
       "value": "Show text labels on the visible gizmos (tracker roles, linked pairs, IK colliders, audio)."
     },
     {
+      "key": "settings.developer.gizmoDrawOnTop.tooltip",
+      "value": "Draw every gizmo through the world so markers inside an avatar or behind a wall stay visible. Off by default, so gizmos depth-test like anything else and the world hides whatever is actually behind them."
+    },
+    {
       "key": "settings.general.networking.jitterBufferOverride.tooltip",
       "value": "Manually set the network jitter buffer instead of automatic."
     },
@@ -9361,6 +9365,10 @@
     {
       "key": "settings.developer.gizmoLabels",
       "value": "Gizmo Labels"
+    },
+    {
+      "key": "settings.developer.gizmoDrawOnTop",
+      "value": "Draw Gizmos On Top"
     },
     {
       "key": "settings.developer.eyeTracking.title",
