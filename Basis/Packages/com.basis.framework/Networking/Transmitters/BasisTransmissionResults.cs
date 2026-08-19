@@ -882,7 +882,6 @@ public partial class BasisTransmissionResults
         BasisTalkMode talkMode = BasisTalkModeManager.CurrentMode;
         bool restricted = talkMode == BasisTalkMode.Private || talkMode == BasisTalkMode.ThisPerson;
         bool direct = talkMode == BasisTalkMode.Direct;
-        bool noOne = talkMode == BasisTalkMode.NoOne;
 
         unsafe
         {
@@ -900,7 +899,7 @@ public partial class BasisTransmissionResults
                 {
                     include = BasisTalkModeManager.IsRecipient(id);
                 }
-                else if (direct || noOne)
+                else if (direct)
                 {
                     include = false;
                 }
@@ -920,11 +919,7 @@ public partial class BasisTransmissionResults
             }
         }
 
-        if (noOne)
-        {
-            BasisNetworkTransmitter.HasReasonToSendAudio = false;
-        }
-        else if (restricted)
+        if (restricted)
         {
             // Private / This-person route entirely through the server recipient list; P2P
             // broadcast is suppressed (see BasisAudioTransmission) so non-members can't hear.

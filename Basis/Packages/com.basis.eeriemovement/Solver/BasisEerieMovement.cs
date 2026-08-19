@@ -207,6 +207,10 @@ namespace Basis.IK
             ApplyTrackerOverrides(stream);
             sMarkerOverrides.End();
             RecordOverrideGizmos(stream);
+            RecordFrameGizmos(stream);
+            RecordLimitGizmos(stream);
+            RecordReachGizmos(stream);
+            RecordNumberGizmos(stream);
             RecordSkeletonGizmos(stream);
         }
 

@@ -981,7 +981,7 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             _viewfinderGridToggle = PanelToggle.CreateNewEntry(content);
             _viewfinderGridToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.grid"));
-            _viewfinderGridToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.grid.description"));
+            _viewfinderGridToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.grid.description"));
             _viewfinderGridToggle.OnValueChanged = v =>
             {
                 _activeCamera?.SetViewfinderGridEnabled(v);
@@ -1006,7 +1006,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisLocalization.Get("camera.grid.opacity"),
                 BasisHandHeldCamera.MinGridOpacity * 100f, BasisHandHeldCamera.MaxGridOpacity * 100f,
                 false, 0, ValueDisplayMode.Percentage));
-            _viewfinderGridOpacitySlider.Descriptor.SetDescription(BasisLocalization.Get("camera.grid.opacity.description"));
+            _viewfinderGridOpacitySlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.grid.opacity.description"));
             _viewfinderGridOpacitySlider.OnValueChanged = v => _activeCamera?.SetViewfinderGridOpacity(v / 100f);
         }
 
@@ -1125,7 +1125,7 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             _autoBrightnessToggle = PanelToggle.CreateNewEntry(content);
             _autoBrightnessToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.autoBrightness"));
-            _autoBrightnessToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.autoBrightness.description"));
+            _autoBrightnessToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.autoBrightness.description"));
             _autoBrightnessToggle.OnValueChanged = v =>
             {
                 _activeCamera?.SetAutoBrightnessEnabled(v);
@@ -1149,7 +1149,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisLocalization.Get("camera.autoBrightness.target"),
                 BasisHandHeldCamera.MinBrightnessTarget * 100f, BasisHandHeldCamera.MaxBrightnessTarget * 100f,
                 false, 0, ValueDisplayMode.Percentage));
-            _autoBrightnessTargetSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.autoBrightness.target.description"));
+            _autoBrightnessTargetSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.autoBrightness.target.description"));
             _autoBrightnessTargetSlider.OnValueChanged = v => _activeCamera?.SetAutoBrightnessTarget(v / 100f);
 
             _autoBrightnessSpeedSlider = PanelSlider.CreateNew(content);
@@ -1157,7 +1157,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisLocalization.Get("camera.autoBrightness.speed"),
                 BasisHandHeldCamera.MinBrightnessSpeed, BasisHandHeldCamera.MaxBrightnessSpeed,
                 false, 1, ValueDisplayMode.Raw));
-            _autoBrightnessSpeedSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.autoBrightness.speed.description"));
+            _autoBrightnessSpeedSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.autoBrightness.speed.description"));
             _autoBrightnessSpeedSlider.OnValueChanged = v => _activeCamera?.SetAutoBrightnessSpeed(v);
 
             _autoBrightnessRangeSlider = PanelSlider.CreateNew(content);
@@ -1165,7 +1165,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisLocalization.Get("camera.autoBrightness.range"),
                 BasisHandHeldCamera.MinBrightnessRange, BasisHandHeldCamera.MaxBrightnessRange,
                 false, 1, ValueDisplayMode.Raw));
-            _autoBrightnessRangeSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.autoBrightness.range.description"));
+            _autoBrightnessRangeSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.autoBrightness.range.description"));
             _autoBrightnessRangeSlider.OnValueChanged = v => _activeCamera?.SetAutoBrightnessRange(v);
         }
 
@@ -1201,7 +1201,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _captureTonemappingDropdown = PanelDropdown.CreateNewEntry(content);
             _captureTonemappingDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.tonemapping"));
-            _captureTonemappingDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.tonemapping.description"));
+            _captureTonemappingDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.tonemapping.description"));
             _captureTonemappingDropdown.AssignLocalizedEntries(
                 new List<string>(TonemappingKeys), new List<string>(TonemappingKeys));
             _captureTonemappingDropdown.OnValueChanged = _ =>

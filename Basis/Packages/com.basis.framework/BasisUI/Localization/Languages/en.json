@@ -7651,6 +7651,46 @@
       "value": "Every bone in the finished pose, fingers included. The heaviest option here; useful for spotting a bone nothing is driving."
     },
     {
+      "key": "settings.bodyTracking.ikGizmos.scratch",
+      "value": "Scratch Probes"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.scratch.tooltip",
+      "value": "One-off drawings written into the solver by hand - an arbitrary vector, point or frame someone needed to see. Separate from the body-part stages so a temporary probe stays visible on its own."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.frames",
+      "value": "Reference Frames"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.frames.tooltip",
+      "value": "The spaces the solver does its maths in: your up direction, the bind-cancelled hips frame, the chest frame, the shoulder line, and each spine joint's anatomical axes. Start here when a hint points somewhere unexpected - usually the vector is fine and the frame is not the one you assumed."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.limits",
+      "value": "Joint Limits"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.limits.tooltip",
+      "value": "How far each spine joint is allowed to bend, drawn as the cone it must stay inside, turning red on the frame it is held back. Also the live elbow and knee angles."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.reach",
+      "value": "Reach"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.reach.tooltip",
+      "value": "How much of each limb's length is being used, as a sphere at the shoulder or hip that the hand or foot rides inside. Fades from green to red near full extension, which is where elbows and knees start to snap."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.numbers",
+      "value": "Readouts"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.numbers.tooltip",
+      "value": "Live numbers in the world: leg reach and knee angle, raw against smoothed knee swivel, hip flexion, abduction and twist, and how far each hand, foot and the head ended up from what it was aiming at. Needs Show Labels."
+    },
+    {
       "key": "settings.bodyTracking.section.shoulders.title",
       "value": "Shoulders"
     },

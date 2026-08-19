@@ -31,8 +31,8 @@ namespace Basis.Scripts.Debugging
     /// </summary>
     public static class BasisIKSolveGizmoStages
     {
-        public const int DrawCapacity = 4096;
-        public const int LabelCapacity = 64;
+        public const int DrawCapacity = 12288;
+        public const int LabelCapacity = 128;
 
         public static readonly BasisSettingsBinding<bool> Enabled =
             new("gizmoiksolve_enabled", new BasisPlatformDefault<bool>(false));
@@ -79,6 +79,28 @@ namespace Basis.Scripts.Debugging
             new(BasisIKGizmoStage.Skeleton, "skeleton",
                 "settings.bodyTracking.ikGizmos.skeleton", "settings.bodyTracking.ikGizmos.skeleton.tooltip",
                 new Color(0.7f, 0.7f, 0.7f, 1f), false),
+
+            // Default on: a scratch probe is something someone deliberately wrote into the solve,
+            // so it should appear as soon as the gizmos are switched on at all.
+            new(BasisIKGizmoStage.Scratch, "scratch",
+                "settings.bodyTracking.ikGizmos.scratch", "settings.bodyTracking.ikGizmos.scratch.tooltip",
+                new Color(1f, 1f, 1f, 1f), true),
+
+            new(BasisIKGizmoStage.Frames, "frames",
+                "settings.bodyTracking.ikGizmos.frames", "settings.bodyTracking.ikGizmos.frames.tooltip",
+                new Color(0.9f, 0.9f, 0.35f, 1f), false),
+
+            new(BasisIKGizmoStage.Limits, "limits",
+                "settings.bodyTracking.ikGizmos.limits", "settings.bodyTracking.ikGizmos.limits.tooltip",
+                new Color(0.45f, 0.85f, 0.45f, 1f), false),
+
+            new(BasisIKGizmoStage.Reach, "reach",
+                "settings.bodyTracking.ikGizmos.reach", "settings.bodyTracking.ikGizmos.reach.tooltip",
+                new Color(0.6f, 0.9f, 0.6f, 1f), false),
+
+            new(BasisIKGizmoStage.Numbers, "numbers",
+                "settings.bodyTracking.ikGizmos.numbers", "settings.bodyTracking.ikGizmos.numbers.tooltip",
+                new Color(0.85f, 0.85f, 0.85f, 1f), false),
         };
 
         /// <summary>

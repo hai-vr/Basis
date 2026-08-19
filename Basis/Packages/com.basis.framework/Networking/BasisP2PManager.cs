@@ -397,6 +397,7 @@ namespace Basis.Scripts.Networking
         public static void BroadcastVoiceViaP2P(NetDataWriter clientFormatWriter)
         {
             if (clientFormatWriter == null || clientFormatWriter.Length == 0) return;
+            if (BasisTalkModeManager.TransmitBlockedLocally) return;
             if (!HasAnyConnectedSession()) return;
             if (!BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId)) return;
 
