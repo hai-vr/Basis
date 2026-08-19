@@ -241,6 +241,7 @@ namespace Basis.Scripts.Device_Management
             Basis.BasisUI.BasisLocalization.Initialize();
             Basis.BasisUI.BasisTMPFontFallbacks.RefreshJapanesePriority();
             BasisSettingsDefaults.LoadAll();
+            BasisPersistentDataMigrationPrompt.ShowIfPending();
             Basis.BasisUI.SettingsProvider.ApplyJiggleStartupSettings();
             // Applied here and nowhere else: the GPU Resident Drawer rebuild this triggers is only
             // cheap while the loading scene is the whole scene.
