@@ -6,8 +6,81 @@ namespace LiteNetLib
 {
     public partial class NetManager
     {
-        private readonly ConcurrentQueue<NetPacket> _pool = new ConcurrentQueue<NetPacket>();
-        private int _poolCount;
+        /// <summary>
+        /// The shared pool, split across independent queues.
+        ///
+        /// <para>One queue was the second-largest cost on a busy server: measured at 2000 players
+        /// with a 16-wide send pool, <c>PoolGetPacket</c> plus the
+        /// <c>ConcurrentQueueSegment.TryDequeue</c> beneath it was <b>21.6% of all server CPU</b>,
+        /// and it grew with worker count (1.5% at 1000 players on 5 workers). Every renting thread
+        /// was competing for the same segment head, so the harder the send pool was pushed the more
+        /// of that extra width went into cache-line ping-pong instead of sending.</para>
+        ///
+        /// <para><b>The per-thread cache in front of this does not help the renting side.</b> It was
+        /// built for threads that rent and recycle in a loop, and the send path is not one: BSR
+        /// workers only ever rent, hand the packet to a peer's queue, and a different thread sends
+        /// and recycles it. <c>PoolRecycle</c> profiles at 0.00% on those threads, so their local
+        /// list is empty on every get and every get reaches this.</para>
+        ///
+        /// <para>Stripe count comes from the machine rather than a constant, because the whole
+        /// failure being fixed is contention that scales with thread count — a number fitted to one
+        /// host would be wrong on a 24-core box and wronger on a 128-core one. Power of two so the
+        /// index is a mask.</para>
+        /// </summary>
+        private readonly ConcurrentQueue<NetPacket>[] _pool = CreatePoolStripes();
+
+        /// <summary>
+        /// Per-stripe counts, spaced a cache line apart. Packed into one array they would sit 16 to
+        /// a line and every recycle would invalidate the line for every other stripe — reintroducing
+        /// exactly the sharing the stripes exist to remove.
+        /// </summary>
+        private readonly int[] _poolCounts = new int[PoolStripeCount * CountStride];
+
+        private const int CountStride = 16;   // 64-byte line / sizeof(int)
+
+        /// <summary>Independent queues in the shared pool. Power of two, from the host's core count.</summary>
+        internal static readonly int PoolStripeCount = ComputePoolStripes();
+        private static readonly int PoolStripeMask = PoolStripeCount - 1;
+
+        private static int ComputePoolStripes()
+        {
+            // Round DOWN to a power of two so the mask is exact, and cap it: past a few dozen the
+            // stripes stop removing contention and start costing a longer steal scan when one runs
+            // dry. Floor of 1 keeps single-core and unit-test hosts on the original behaviour.
+            int cores = Environment.ProcessorCount;
+            int stripes = 1;
+            while (stripes * 2 <= cores && stripes < 64)
+                stripes *= 2;
+            return stripes;
+        }
+
+        private static ConcurrentQueue<NetPacket>[] CreatePoolStripes()
+        {
+            var stripes = new ConcurrentQueue<NetPacket>[PoolStripeCount];
+            for (int i = 0; i < stripes.Length; i++)
+                stripes[i] = new ConcurrentQueue<NetPacket>();
+            return stripes;
+        }
+
+        /// <summary>
+        /// This thread's home stripe, handed out round-robin on first use.
+        ///
+        /// Deliberately not <c>ManagedThreadId % stripes</c>: thread ids are not dense and collide
+        /// in clumps, which would leave some stripes serving several threads while others idle.
+        /// </summary>
+        [ThreadStatic] private static int t_poolStripe;
+        [ThreadStatic] private static bool t_poolStripeAssigned;
+        private static int s_poolStripeCursor = -1;
+
+        private static int HomeStripe()
+        {
+            if (!t_poolStripeAssigned)
+            {
+                t_poolStripe = Interlocked.Increment(ref s_poolStripeCursor) & PoolStripeMask;
+                t_poolStripeAssigned = true;
+            }
+            return t_poolStripe;
+        }
 
         /// <summary>
         /// Per-thread packet cache, in front of the shared pool.
@@ -43,7 +116,17 @@ namespace LiteNetLib
         /// </summary>
         public int PacketPoolSize = 1000;
 
-        public int PoolCount => _poolCount;
+        /// <summary>Packets held across every stripe. Advisory — the stripes are read unsynchronised.</summary>
+        public int PoolCount
+        {
+            get
+            {
+                int total = 0;
+                for (int i = 0; i < PoolStripeCount; i++)
+                    total += Volatile.Read(ref _poolCounts[i * CountStride]);
+                return total;
+            }
+        }
 
         private NetPacket PoolGetWithData(PacketProperty property, byte[] data, int start, int length)
         {
@@ -191,12 +274,24 @@ namespace LiteNetLib
             }
             else
             {
-                // Empty: this thread rents more than it recycles (a receive thread does exactly
+                // Empty: this thread rents more than it recycles (the BSR send path does exactly
                 // that). Fall through to the shared pool, which is where the other side's surplus
-                // ends up.
-                if (!_pool.TryDequeue(out packet))
-                    return new NetPacket(size);
-                Interlocked.Decrement(ref _poolCount);
+                // ends up. Home stripe first; if it is dry, walk the others before allocating,
+                // because the recycling threads have their own homes and a renter's stripe can be
+                // empty while the pool as a whole is full.
+                int stripe = HomeStripe();
+                if (!_pool[stripe].TryDequeue(out packet))
+                {
+                    stripe = -1;
+                    for (int i = 1; i < PoolStripeCount; i++)
+                    {
+                        int probe = (t_poolStripe + i) & PoolStripeMask;
+                        if (_pool[probe].TryDequeue(out packet)) { stripe = probe; break; }
+                    }
+                    if (stripe < 0)
+                        return new NetPacket(size);
+                }
+                Interlocked.Decrement(ref _poolCounts[stripe * CountStride]);
             }
 
             packet.Next = null;
@@ -237,12 +332,31 @@ namespace LiteNetLib
             //
             // Plain reads: both are advisory here, and this runs on every recycle, so the
             // read-modify-write the interlocked form implies is pure overhead at that rate.
-            if (Volatile.Read(ref _poolCount) >= _effectivePoolCap)
-                return;
+            // Cap is per stripe, so the total retained is unchanged by how many stripes exist.
+            int perStripeCap = _effectivePoolCap / PoolStripeCount;
+            if (perStripeCap < 1) perStripeCap = 1;
 
-            packet.Next = null;
-            _pool.Enqueue(packet);
-            Interlocked.Increment(ref _poolCount);
+            // Home stripe first, then spill into the others before giving up.
+            //
+            // ⚠️ The spill is not an optimisation, it is what makes the cap mean what it says. Far
+            // fewer threads recycle than rent — the send path hands packets to a peer queue and a
+            // transport thread returns them — so without it only the recyclers' own stripes ever
+            // fill. The rest would sit empty while those few hit their share of the cap and started
+            // dropping packets, cutting the pool's effective depth to (recycling threads / stripes)
+            // of what was configured and pushing the difference onto the allocator.
+            int stripe = HomeStripe();
+            for (int i = 0; i < PoolStripeCount; i++)
+            {
+                int probe = (stripe + i) & PoolStripeMask;
+                if (Volatile.Read(ref _poolCounts[probe * CountStride]) >= perStripeCap)
+                    continue;
+
+                packet.Next = null;
+                _pool[probe].Enqueue(packet);
+                Interlocked.Increment(ref _poolCounts[probe * CountStride]);
+                return;
+            }
+            // Every stripe is at its share: the pool is genuinely full, so this packet is surplus.
         }
     }
 }
