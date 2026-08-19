@@ -71,12 +71,23 @@
 	-->
 	<Target Name="CopyBenchmarkTooling" AfterTargets="Build">
 		<PropertyGroup>
-			<BenchmarkOutDir>$(MSBuildThisFileDirectory)..\BasisServerBenchmark\bin\$(Configuration)\$(TargetFramework)\</BenchmarkOutDir>
-			<LoadClientOutDir>$(MSBuildThisFileDirectory)..\BasisNetworkClientConsole\BasisNetworkClientConsole\bin\$(Configuration)\$(TargetFramework)\</LoadClientOutDir>
+			<BenchmarkBaseDir>$(MSBuildThisFileDirectory)..\BasisServerBenchmark\bin\$(Configuration)\$(TargetFramework)\</BenchmarkBaseDir>
+			<LoadClientBaseDir>$(MSBuildThisFileDirectory)..\BasisNetworkClientConsole\BasisNetworkClientConsole\bin\$(Configuration)\$(TargetFramework)\</LoadClientBaseDir>
+			<BenchmarkOutDir>$(BenchmarkBaseDir)</BenchmarkOutDir>
+			<LoadClientOutDir>$(LoadClientBaseDir)</LoadClientOutDir>
+			<BenchmarkOutDir Condition="'$(RuntimeIdentifier)' != '' And Exists('$(BenchmarkBaseDir)$(RuntimeIdentifier)')">$(BenchmarkBaseDir)$(RuntimeIdentifier)\</BenchmarkOutDir>
+			<LoadClientOutDir Condition="'$(RuntimeIdentifier)' != '' And Exists('$(LoadClientBaseDir)$(RuntimeIdentifier)')">$(LoadClientBaseDir)$(RuntimeIdentifier)\</LoadClientOutDir>
 		</PropertyGroup>
+		<!--
+		  Non-recursive on purpose. Both tools are a flat set of assemblies beside their host, and a
+		  '**' glob here also sweeps whatever else has collected in their bin folders: the RID
+		  subfolder a '-r linux-arm64' build leaves behind, saved benchmark runs, stray zips. Each of
+		  those then lands in the server's output and is swept again by the next RID build, which is
+		  how a 9 MB server grew an 87 MB folder holding six copies of BouncyCastle.
+		-->
 		<ItemGroup>
-			<BenchmarkFiles Include="$(BenchmarkOutDir)**\*" Exclude="$(BenchmarkOutDir)**\*.pdb" />
-			<LoadClientFiles Include="$(LoadClientOutDir)**\*" Exclude="$(LoadClientOutDir)**\*.pdb;$(LoadClientOutDir)Config.xml" />
+			<BenchmarkFiles Include="$(BenchmarkOutDir)*" Exclude="$(BenchmarkOutDir)*.pdb" />
+			<LoadClientFiles Include="$(LoadClientOutDir)*" Exclude="$(LoadClientOutDir)*.pdb;$(LoadClientOutDir)Config.xml;$(LoadClientOutDir)*.bak;$(LoadClientOutDir)*.zip" />
 		</ItemGroup>
 		<Copy SourceFiles="@(BenchmarkFiles)"
 		      DestinationFiles="@(BenchmarkFiles->'$(OutDir)benchmark\%(RecursiveDir)%(Filename)%(Extension)')"
