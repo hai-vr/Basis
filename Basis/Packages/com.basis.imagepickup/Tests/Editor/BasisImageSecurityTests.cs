@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Basis.BasisUI;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -142,7 +143,7 @@ namespace Basis.ImagePickup.Tests
         [Test]
         public void PopupKeepsDefaultSizeWhenDescriptionFits()
         {
-            Vector2 size = BasisImagePickupRejectionPopup.CalculateHeightFirstPanelSize(
+            Vector2 size = BasisMenuDialoguePanel.CalculateHeightFirstPanelSize(
                 new Vector2(700f, 500f),
                 240f,
                 220f,
@@ -155,7 +156,7 @@ namespace Basis.ImagePickup.Tests
         [Test]
         public void PopupExpandsHeightBeforeWidth()
         {
-            Vector2 size = BasisImagePickupRejectionPopup.CalculateHeightFirstPanelSize(
+            Vector2 size = BasisMenuDialoguePanel.CalculateHeightFirstPanelSize(
                 new Vector2(700f, 500f),
                 240f,
                 400f,
@@ -170,7 +171,7 @@ namespace Basis.ImagePickup.Tests
         [Test]
         public void PopupHeightIsClampedToViewportLimit()
         {
-            Vector2 size = BasisImagePickupRejectionPopup.CalculateHeightFirstPanelSize(
+            Vector2 size = BasisMenuDialoguePanel.CalculateHeightFirstPanelSize(
                 new Vector2(700f, 500f),
                 240f,
                 1200f,
