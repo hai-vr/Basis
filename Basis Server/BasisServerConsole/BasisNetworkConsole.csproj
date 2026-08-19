@@ -57,6 +57,7 @@
 		                  Private="false"
 		                  SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\BasisNetworkClientConsole\BasisNetworkClientConsole\BasisNetworkClientConsole.csproj"
+		                  Condition="Exists('$(MSBuildThisFileDirectory)..\..\Basis\Packages\com.avionblock.opussharp\OpusSharp.Core')"
 		                  ReferenceOutputAssembly="false"
 		                  Private="false"
 		                  SkipGetTargetFrameworkProperties="true" />
