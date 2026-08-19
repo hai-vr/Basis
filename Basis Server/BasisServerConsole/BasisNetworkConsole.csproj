@@ -64,10 +64,12 @@
 	</ItemGroup>
 
 	<!--
-	  Laid out the way BasisFirstBootTuning looks for it: benchmark/ beside the server binary, with
-	  the load client it drives under benchmark/loadclient/. Kept out of the server's own folder so
-	  nothing here is mistaken for part of the server, and so deleting the folder is all it takes to
-	  ship without it.
+	  Both tools land flat in the server's own folder, which is what the released artifact already
+	  looks like: CI publishes the solution into one directory, so a subfolder layout existed only
+	  in local builds and only ever cost duplication. The three apps share every dependency they
+	  have in common - one BouncyCastle instead of three - because each carries its own
+	  name-prefixed deps.json and runtimeconfig.json, so nothing collides but the assemblies that
+	  are byte-identical anyway.
 	-->
 	<Target Name="CopyBenchmarkTooling" AfterTargets="Build">
 		<PropertyGroup>
@@ -87,14 +89,14 @@
 		-->
 		<ItemGroup>
 			<BenchmarkFiles Include="$(BenchmarkOutDir)*" Exclude="$(BenchmarkOutDir)*.pdb" />
-			<LoadClientFiles Include="$(LoadClientOutDir)*" Exclude="$(LoadClientOutDir)*.pdb;$(LoadClientOutDir)Config.xml;$(LoadClientOutDir)*.bak;$(LoadClientOutDir)*.zip" />
+			<LoadClientFiles Include="$(LoadClientOutDir)*" Exclude="$(LoadClientOutDir)*.pdb;$(LoadClientOutDir)ClientSimConfig.xml;$(LoadClientOutDir)*.bak;$(LoadClientOutDir)*.zip" />
 		</ItemGroup>
 		<Copy SourceFiles="@(BenchmarkFiles)"
-		      DestinationFiles="@(BenchmarkFiles->'$(OutDir)benchmark\%(RecursiveDir)%(Filename)%(Extension)')"
+		      DestinationFolder="$(OutDir)"
 		      SkipUnchangedFiles="true"
 		      Condition="'@(BenchmarkFiles)' != ''" />
 		<Copy SourceFiles="@(LoadClientFiles)"
-		      DestinationFiles="@(LoadClientFiles->'$(OutDir)benchmark\loadclient\%(RecursiveDir)%(Filename)%(Extension)')"
+		      DestinationFolder="$(OutDir)"
 		      SkipUnchangedFiles="true"
 		      Condition="'@(LoadClientFiles)' != ''" />
 	</Target>

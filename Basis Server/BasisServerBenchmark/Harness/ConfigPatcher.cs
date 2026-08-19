@@ -42,7 +42,7 @@ public sealed class ConfigPatcher : IDisposable
         ConfigPath = Path.Combine(configDir, "config.xml");
         // The transport sidecar is named after the stack id, and litenetlib is the default stack.
         TransportConfigPath = Path.Combine(configDir, "transports", "litenetlib.xml");
-        LoadClientConfigPath = loadClientDirectory == null ? null : Path.Combine(loadClientDirectory, "Config.xml");
+        LoadClientConfigPath = loadClientDirectory == null ? null : Path.Combine(loadClientDirectory, "ClientSimConfig.xml");
     }
 
     /// <summary>True once both config files exist, which they do only after one server boot.</summary>

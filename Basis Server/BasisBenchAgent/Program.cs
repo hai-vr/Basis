@@ -53,7 +53,7 @@ public static class Program
 
         if (_clientDirectory.Length == 0) _clientDirectory = DiscoverClientDirectory();
 
-        if (FindExecutable(_clientDirectory) == null)
+        if (LaunchTarget.Find(_clientDirectory, "BasisNetworkClientConsole") == null)
         {
             Console.Error.WriteLine($"No BasisNetworkClientConsole under '{_clientDirectory}'. Pass --client <dir>.");
             return 1;
@@ -179,8 +179,10 @@ public static class Program
         if (request.Clients <= 0) return new AgentResponse { Ok = false, Error = "clients must be positive" };
         if (request.Host.Length == 0) return new AgentResponse { Ok = false, Error = "host is required" };
 
-        string? exe = FindExecutable(_clientDirectory);
-        if (exe == null) return new AgentResponse { Ok = false, Error = $"no load client under '{_clientDirectory}'" };
+        // Resolves the path AND repairs a missing execute bit, which is the usual reason a load
+        // client will not start on a Linux agent box. The error, if any, names the fix.
+        if (!LaunchTarget.TryResolve(_clientDirectory, "BasisNetworkClientConsole", out string? exe, out string? resolveError))
+            return new AgentResponse { Ok = false, Error = resolveError ?? $"no load client under '{_clientDirectory}'" };
 
         try
         {
@@ -228,10 +230,10 @@ public static class Program
     /// <summary>Points the load client at this run. Patches in place so its other settings survive.</summary>
     private static void WriteConfig(AgentRequest request)
     {
-        string path = Path.Combine(_clientDirectory, "Config.xml");
+        string path = Path.Combine(_clientDirectory, "ClientSimConfig.xml");
         if (!File.Exists(path))
             throw new FileNotFoundException(
-                $"No Config.xml at {path}. Run the load client once by hand so it writes its defaults.", path);
+                $"No ClientSimConfig.xml at {path}. Run the load client once by hand so it writes its defaults.", path);
 
         XDocument doc = XDocument.Load(path, LoadOptions.PreserveWhitespace);
         XElement root = doc.Root ?? throw new InvalidDataException($"{path} has no root element.");
@@ -320,18 +322,9 @@ public static class Program
                      here,
                  })
         {
-            if (FindExecutable(candidate) != null) return candidate;
+            if (LaunchTarget.Find(candidate, "BasisNetworkClientConsole") != null) return candidate;
         }
         return Path.Combine(here, "loadclient");
-    }
-
-    private static string? FindExecutable(string directory)
-    {
-        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return null;
-        string windows = Path.Combine(directory, "BasisNetworkClientConsole.exe");
-        if (File.Exists(windows)) return windows;
-        string unix = Path.Combine(directory, "BasisNetworkClientConsole");
-        return File.Exists(unix) ? unix : null;
     }
 
     private static string RuntimeOs() => System.Runtime.InteropServices.RuntimeInformation.OSDescription.Trim();
@@ -355,7 +348,7 @@ Run this on the machine that should generate the load, then point the benchmark 
 The control channel is unauthenticated and will start processes on request, so run it on a trusted
 network or bind it to one.
 
-Run the load client once by hand first so it writes its default Config.xml; the agent patches that
+Run the load client once by hand first so it writes its default ClientSimConfig.xml; the agent patches that
 file rather than replacing it, so its crowd settings - spawn radius, voice behaviour - are yours.
 ");
 }

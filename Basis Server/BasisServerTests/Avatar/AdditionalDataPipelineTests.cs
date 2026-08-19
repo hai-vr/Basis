@@ -496,18 +496,20 @@ public class AdditionalDataPipelineTests : IDisposable
     }
 
     [Fact]
-    public void PooledMessageReuse_DoesNotMutateSnapshottedEntries()
+    public void PooledMessageReuse_ReusesEntryBuffers_SoASnapshotMustClone()
     {
-        // The Unity client hands AdditionalAvatarData entries across threads (P2P socket thread →
-        // main thread) as a shallow copy of the pooled message's entry array. That is only safe
-        // while DeserializeAdditionalData allocates a fresh payload byte[] per entry per packet —
-        // if the serializer ever starts reusing entry payload buffers, this test must fail.
+        // Both the entry array AND each entry's payload byte[] are retained and overwritten in
+        // place when the next packet's sizes match — every frame of a steady face-tracking stream,
+        // which is why DeserializeAdditionalEntries stopped re-initialising the slot. A consumer
+        // that hands entries anywhere the next deserialize can reach (the P2P socket thread →
+        // main thread marshal in BasisNetworkAvatarDecompressor) must therefore clone the payload;
+        // a shallow Array.Copy of the entry array is NOT enough. Both halves are asserted below,
+        // because it is the shallow copy silently going stale that this is here to catch.
         var rng = new Random(1011);
         byte[] payload = S.MakeRealisticPayload(BitQuality.High, rng);
 
         var pooled = new LocalAvatarSyncMessage();
 
-        // Packet 1 arrives and is snapshotted (as the P2P receive path does).
         NetDataWriter wire1 = WriteUplinkKeyframe(1, payload, new[]
         {
             new AdditionalAvatarData { messageIndex = FaceMessageIndex, array = new byte[] { 16, 1, 11, 0, 200 } },
@@ -515,11 +517,21 @@ public class AdditionalDataPipelineTests : IDisposable
         var reader1 = new NetDataReader(wire1.CopyData());
         Assert.True(reader1.TryGetByte(out _));
         pooled.Deserialize(reader1, 3, true);
-        var snapshot = new AdditionalAvatarData[pooled.AdditionalAvatarDataSize];
-        Array.Copy(pooled.AdditionalAvatarDatas, snapshot, pooled.AdditionalAvatarDataSize);
 
-        // Packet 2 reuses the same pooled message (same entry count → outer array is reused).
+        // Shallow, as a naive consumer would take it; and deep, as the receive path actually does.
+        var shallow = new AdditionalAvatarData[pooled.AdditionalAvatarDataSize];
+        Array.Copy(pooled.AdditionalAvatarDatas, shallow, pooled.AdditionalAvatarDataSize);
+        var cloned = new AdditionalAvatarData[pooled.AdditionalAvatarDataSize];
+        for (int i = 0; i < pooled.AdditionalAvatarDataSize; i++)
+        {
+            AdditionalAvatarData entry = pooled.AdditionalAvatarDatas[i];
+            if (entry.array != null) entry.array = (byte[])entry.array.Clone();
+            cloned[i] = entry;
+        }
+
+        // Packet 2 reuses the same pooled message (same entry count and payload size).
         var outerBefore = pooled.AdditionalAvatarDatas;
+        var payloadBufferBefore = pooled.AdditionalAvatarDatas[0].array;
         NetDataWriter wire2 = WriteUplinkKeyframe(2, payload, new[]
         {
             new AdditionalAvatarData { messageIndex = FaceMessageIndex, array = new byte[] { 16, 1, 22, 0, 50 } },
@@ -527,12 +539,15 @@ public class AdditionalDataPipelineTests : IDisposable
         var reader2 = new NetDataReader(wire2.CopyData());
         Assert.True(reader2.TryGetByte(out _));
         pooled.Deserialize(reader2, 3, true);
-        Assert.Same(outerBefore, pooled.AdditionalAvatarDatas); // outer array IS pooled…
 
-        // …but the snapshot taken from packet 1 must still hold packet 1's bytes.
-        Assert.Equal(new byte[] { 16, 1, 11, 0, 200 }, snapshot[0].array);
+        Assert.Same(outerBefore, pooled.AdditionalAvatarDatas);
+        Assert.Same(payloadBufferBefore, pooled.AdditionalAvatarDatas[0].array);
         Assert.Equal(new byte[] { 16, 1, 22, 0, 50 }, pooled.AdditionalAvatarDatas[0].array);
-        Assert.NotSame(snapshot[0].array, pooled.AdditionalAvatarDatas[0].array);
+
+        // The shallow copy went stale with the buffer; the cloned one is what stays usable.
+        Assert.Equal(new byte[] { 16, 1, 22, 0, 50 }, shallow[0].array);
+        Assert.Equal(new byte[] { 16, 1, 11, 0, 200 }, cloned[0].array);
+        Assert.NotSame(cloned[0].array, pooled.AdditionalAvatarDatas[0].array);
     }
 
     [Fact]
