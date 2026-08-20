@@ -2,7 +2,6 @@ using System;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.IK
 {
     [Flags]
@@ -23,23 +22,19 @@ namespace Basis.IK
         Reach = 1 << 11,
         Numbers = 1 << 12,
     }
-
     public enum BasisIKGizmoKind : byte
     {
         Line = 0,
         Sphere = 1,
     }
-
     public struct BasisIKGizmoDraw
     {
-        public Vector3 A;
-        public Vector3 B;
+        public Vector3 A, B;
         public uint Color;
         public float Size;
         public byte Stage;
         public BasisIKGizmoKind Kind;
     }
-
     public struct BasisIKGizmoLabel
     {
         public Vector3 Position;
@@ -47,7 +42,6 @@ namespace Basis.IK
         public byte Stage;
         public FixedString64Bytes Text;
     }
-
     public static class BasisIKGizmoPalette
     {
         public const uint White = 0xFFFFFFFFu;
@@ -59,71 +53,54 @@ namespace Basis.IK
         public const uint Magenta = 0xFFFF00FFu;
         public const uint Orange = 0xFF0080FFu;
         public const uint Grey = 0xFF808080u;
-
         public static uint Rgba(byte r, byte g, byte b, byte a)
         {
             return r | ((uint)g << 8) | ((uint)b << 16) | ((uint)a << 24);
         }
-
         public static byte R(uint packed) => (byte)(packed & 0xFFu);
         public static byte G(uint packed) => (byte)((packed >> 8) & 0xFFu);
         public static byte B(uint packed) => (byte)((packed >> 16) & 0xFFu);
         public static byte A(uint packed) => (byte)((packed >> 24) & 0xFFu);
-
         public static uint WithAlpha(uint packed, byte alpha)
         {
             return (packed & 0x00FFFFFFu) | ((uint)alpha << 24);
         }
-
         public static uint From(Color color)
         {
             Color32 c = color;
             return Rgba(c.r, c.g, c.b, c.a);
         }
     }
-
     public struct BasisIKGizmoRecorder
     {
         public const int StageCount = 13;
         public const int CircleSegments = 20;
-
         public const int OverflowDraws = 0;
         public const int OverflowLabels = 1;
         public const int OverflowCount = 2;
-
-        const float k_MinMag = 1e-6f;
-        const float k_SqrEpsilon = 1e-8f;
-
+        const float minMag = 1e-6f;
+        const float sqrEpsilon = 1e-8f;
         public NativeList<BasisIKGizmoDraw> Draws;
         public NativeList<BasisIKGizmoLabel> Labels;
         public NativeArray<int> Overflow;
-
         public FixedList128Bytes<uint> StageColors;
-
         public int StageMask;
-        public float LineWidth;
-        public float PointSize;
-        public float AxisLength;
+        public float LineWidth, PointSize, AxisLength;
         public bool WantLabels;
-
         public bool IsCreated => Draws.IsCreated;
-
         public bool Wants(BasisIKGizmoStage stage)
         {
             return Draws.IsCreated && (StageMask & (int)stage) != 0;
         }
-
         public static int StageIndex(BasisIKGizmoStage stage)
         {
             return math.tzcnt((uint)stage);
         }
-
         public uint StageColor(BasisIKGizmoStage stage)
         {
             int index = StageIndex(stage);
             return (uint)index < (uint)StageColors.Length ? StageColors[index] : BasisIKGizmoPalette.White;
         }
-
         public void Clear()
         {
             if (Draws.IsCreated)
@@ -142,7 +119,6 @@ namespace Basis.IK
                 }
             }
         }
-
         void Push(BasisIKGizmoStage stage, BasisIKGizmoKind kind, Vector3 a, Vector3 b, float size, uint color)
         {
             if (Draws.Length >= Draws.Capacity)
@@ -163,62 +139,52 @@ namespace Basis.IK
                 Kind = kind,
             });
         }
-
         public void Line(BasisIKGizmoStage stage, Vector3 from, Vector3 to)
         {
             if (!Wants(stage)) return;
             Push(stage, BasisIKGizmoKind.Line, from, to, LineWidth, StageColor(stage));
         }
-
         public void Line(BasisIKGizmoStage stage, Vector3 from, Vector3 to, uint color)
         {
             if (!Wants(stage)) return;
             Push(stage, BasisIKGizmoKind.Line, from, to, LineWidth, color);
         }
-
         public void Line(BasisIKGizmoStage stage, Vector3 from, Vector3 to, uint color, float width)
         {
             if (!Wants(stage)) return;
             Push(stage, BasisIKGizmoKind.Line, from, to, width, color);
         }
-
         public void Point(BasisIKGizmoStage stage, Vector3 position)
         {
             if (!Wants(stage)) return;
             Push(stage, BasisIKGizmoKind.Sphere, position, position, PointSize, StageColor(stage));
         }
-
         public void Point(BasisIKGizmoStage stage, Vector3 position, uint color)
         {
             if (!Wants(stage)) return;
             Push(stage, BasisIKGizmoKind.Sphere, position, position, PointSize, color);
         }
-
         public void Point(BasisIKGizmoStage stage, Vector3 position, uint color, float size)
         {
             if (!Wants(stage)) return;
             Push(stage, BasisIKGizmoKind.Sphere, position, position, size, color);
         }
-
         public void Bone(BasisIKGizmoStage stage, Vector3 from, Vector3 to)
         {
             if (!Wants(stage)) return;
             Bone(stage, from, to, StageColor(stage));
         }
-
         public void Bone(BasisIKGizmoStage stage, Vector3 from, Vector3 to, uint color)
         {
             if (!Wants(stage)) return;
             Push(stage, BasisIKGizmoKind.Line, from, to, LineWidth, color);
             Push(stage, BasisIKGizmoKind.Sphere, from, from, PointSize, color);
         }
-
         public void Ray(BasisIKGizmoStage stage, Vector3 origin, Vector3 direction)
         {
             if (!Wants(stage)) return;
             Ray(stage, origin, direction, StageColor(stage));
         }
-
         public void Ray(BasisIKGizmoStage stage, Vector3 origin, Vector3 direction, uint color)
         {
             if (!Wants(stage)) return;
@@ -226,13 +192,13 @@ namespace Basis.IK
             Push(stage, BasisIKGizmoKind.Line, origin, tip, LineWidth, color);
 
             float length = direction.magnitude;
-            if (length <= k_MinMag)
+            if (length <= minMag)
             {
                 return;
             }
             Vector3 dir = direction / length;
             Vector3 side = Vector3.Cross(dir, Vector3.up);
-            if (side.sqrMagnitude < k_SqrEpsilon)
+            if (side.sqrMagnitude < sqrEpsilon)
             {
                 side = Vector3.Cross(dir, Vector3.right);
             }
@@ -241,19 +207,16 @@ namespace Basis.IK
             Push(stage, BasisIKGizmoKind.Line, tip, back + side, LineWidth, color);
             Push(stage, BasisIKGizmoKind.Line, tip, back - side, LineWidth, color);
         }
-
         public void Direction(BasisIKGizmoStage stage, Vector3 origin, Vector3 unitDirection, float length, uint color)
         {
             if (!Wants(stage)) return;
             Ray(stage, origin, unitDirection * length, color);
         }
-
         public void Axes(BasisIKGizmoStage stage, Vector3 origin, Quaternion rotation)
         {
             if (!Wants(stage)) return;
             Axes(stage, origin, rotation, AxisLength);
         }
-
         public void Axes(BasisIKGizmoStage stage, Vector3 origin, Quaternion rotation, float length)
         {
             if (!Wants(stage)) return;
@@ -261,7 +224,6 @@ namespace Basis.IK
             Push(stage, BasisIKGizmoKind.Line, origin, origin + rotation * Vector3.up * length, LineWidth, BasisIKGizmoPalette.Green);
             Push(stage, BasisIKGizmoKind.Line, origin, origin + rotation * Vector3.forward * length, LineWidth, BasisIKGizmoPalette.Blue);
         }
-
         public void Cross(BasisIKGizmoStage stage, Vector3 position, float size, uint color)
         {
             if (!Wants(stage)) return;
@@ -269,17 +231,16 @@ namespace Basis.IK
             Push(stage, BasisIKGizmoKind.Line, position - Vector3.up * size, position + Vector3.up * size, LineWidth, color);
             Push(stage, BasisIKGizmoKind.Line, position - Vector3.forward * size, position + Vector3.forward * size, LineWidth, color);
         }
-
         public void Circle(BasisIKGizmoStage stage, Vector3 centre, Vector3 normal, float radius, uint color)
         {
             if (!Wants(stage)) return;
-            if (radius <= k_MinMag || normal.sqrMagnitude < k_SqrEpsilon)
+            if (radius <= minMag || normal.sqrMagnitude < sqrEpsilon)
             {
                 return;
             }
             Vector3 axis = normal.normalized;
             Vector3 u = Vector3.Cross(axis, Vector3.up);
-            if (u.sqrMagnitude < k_SqrEpsilon)
+            if (u.sqrMagnitude < sqrEpsilon)
             {
                 u = Vector3.Cross(axis, Vector3.right);
             }
@@ -297,7 +258,6 @@ namespace Basis.IK
                 previous = next;
             }
         }
-
         public void Chain(BasisIKGizmoStage stage, ref BasisPoseStream stream, BasisBoneHandle from, BasisBoneHandle to, uint color)
         {
             if (!Wants(stage) || !stream.IsValid(from) || !stream.IsValid(to))
@@ -306,7 +266,6 @@ namespace Basis.IK
             }
             Bone(stage, stream.GetPosition(from), stream.GetPosition(to), color);
         }
-
         public void BoneAxes(BasisIKGizmoStage stage, ref BasisPoseStream stream, BasisBoneHandle handle, float length)
         {
             if (!Wants(stage) || !stream.IsValid(handle))
@@ -316,13 +275,11 @@ namespace Basis.IK
             stream.GetPositionAndRotation(handle, out Vector3 position, out Quaternion rotation);
             Axes(stage, position, rotation, length);
         }
-
         public void Label(BasisIKGizmoStage stage, Vector3 position, in FixedString64Bytes text)
         {
             if (!WantLabels || !Wants(stage)) return;
             Label(stage, position, text, StageColor(stage));
         }
-
         public void Label(BasisIKGizmoStage stage, Vector3 position, in FixedString64Bytes text, uint color)
         {
             if (!WantLabels || !Wants(stage) || !Labels.IsCreated)
@@ -345,12 +302,9 @@ namespace Basis.IK
                 Text = text,
             });
         }
-
-        // ── Shapes ─────────────────────────────────────────────────────────
-
         public void Arc(BasisIKGizmoStage stage, Vector3 centre, Vector3 fromDirection, Vector3 toDirection, float radius, uint color)
         {
-            if (!Wants(stage) || radius <= k_MinMag) return;
+            if (!Wants(stage) || radius <= minMag) return;
 
             Vector3 a = fromDirection.normalized;
             Vector3 b = toDirection.normalized;
@@ -360,10 +314,10 @@ namespace Basis.IK
             if (sweep <= 0.01f) return;
 
             Vector3 axis = Vector3.Cross(a, b);
-            if (axis.sqrMagnitude < k_SqrEpsilon)
+            if (axis.sqrMagnitude < sqrEpsilon)
             {
                 axis = Vector3.Cross(a, Vector3.up);
-                if (axis.sqrMagnitude < k_SqrEpsilon) axis = Vector3.Cross(a, Vector3.right);
+                if (axis.sqrMagnitude < sqrEpsilon) axis = Vector3.Cross(a, Vector3.right);
             }
             axis = axis.normalized;
 
@@ -377,7 +331,6 @@ namespace Basis.IK
                 previous = next;
             }
         }
-
         public void Angle(BasisIKGizmoStage stage, Vector3 centre, Vector3 fromDirection, Vector3 toDirection, float radius, uint color)
         {
             if (!Wants(stage)) return;
@@ -390,14 +343,12 @@ namespace Basis.IK
             FixedString64Bytes text = default;
             text.Append(sweep);
             Vector3 mid = fromDirection.normalized + toDirection.normalized;
-            if (mid.sqrMagnitude < k_SqrEpsilon) mid = fromDirection;
+            if (mid.sqrMagnitude < sqrEpsilon) mid = fromDirection;
             Label(stage, centre + mid.normalized * radius, text, color);
         }
-
-        public void SwingCone(BasisIKGizmoStage stage, Vector3 apex, Vector3 axis, Vector3 u, Vector3 w,
-            float limitU, float limitWPositive, float limitWNegative, float length, uint color)
+        public void SwingCone(BasisIKGizmoStage stage, Vector3 apex, Vector3 axis, Vector3 u, Vector3 w, float limitU, float limitWPositive, float limitWNegative, float length, uint color)
         {
-            if (!Wants(stage) || length <= k_MinMag) return;
+            if (!Wants(stage) || length <= minMag) return;
 
             Vector3 n = axis.normalized;
             if (n.sqrMagnitude < 0.5f) return;
@@ -439,7 +390,6 @@ namespace Basis.IK
             }
             Push(stage, BasisIKGizmoKind.Line, previous, first, LineWidth, color);
         }
-
         public void Cone(BasisIKGizmoStage stage, Vector3 apex, Vector3 axis, float halfAngleDeg, float length, uint color)
         {
             if (!Wants(stage)) return;
@@ -448,7 +398,6 @@ namespace Basis.IK
             Basis(n, out Vector3 u, out Vector3 w);
             SwingCone(stage, apex, n, u, w, halfAngleDeg, halfAngleDeg, halfAngleDeg, length, color);
         }
-
         public void Sphere(BasisIKGizmoStage stage, Vector3 centre, float radius, uint color)
         {
             if (!Wants(stage)) return;
@@ -456,14 +405,13 @@ namespace Basis.IK
             Circle(stage, centre, Vector3.right, radius, color);
             Circle(stage, centre, Vector3.forward, radius, color);
         }
-
         public void Capsule(BasisIKGizmoStage stage, Vector3 a, Vector3 b, float radius, uint color)
         {
-            if (!Wants(stage) || radius <= k_MinMag) return;
+            if (!Wants(stage) || radius <= minMag) return;
 
             Vector3 axis = b - a;
             float height = axis.magnitude;
-            Vector3 dir = height > k_MinMag ? axis / height : Vector3.up;
+            Vector3 dir = height > minMag ? axis / height : Vector3.up;
             Basis(dir, out Vector3 u, out Vector3 w);
 
             Push(stage, BasisIKGizmoKind.Line, a + u * radius, b + u * radius, LineWidth, color);
@@ -473,10 +421,9 @@ namespace Basis.IK
             Circle(stage, a, dir, radius, color);
             Circle(stage, b, dir, radius, color);
         }
-
         public void Plane(BasisIKGizmoStage stage, Vector3 centre, Vector3 normal, float halfSize, uint color)
         {
-            if (!Wants(stage) || halfSize <= k_MinMag) return;
+            if (!Wants(stage) || halfSize <= minMag) return;
             Vector3 n = normal.normalized;
             if (n.sqrMagnitude < 0.5f) return;
             Basis(n, out Vector3 u, out Vector3 w);
@@ -491,16 +438,14 @@ namespace Basis.IK
             Push(stage, BasisIKGizmoKind.Line, c3, c0, LineWidth, color);
             Ray(stage, centre, n * halfSize, color);
         }
-
         public void Normal(BasisIKGizmoStage stage, Vector3 centre, Vector3 normal, float radius, uint color)
         {
-            if (!Wants(stage) || radius <= k_MinMag) return;
+            if (!Wants(stage) || radius <= minMag) return;
             Vector3 n = normal.normalized;
             if (n.sqrMagnitude < 0.5f) return;
             Circle(stage, centre, n, radius, color);
             Push(stage, BasisIKGizmoKind.Line, centre - n * (radius * 0.5f), centre + n * (radius * 0.5f), LineWidth, color);
         }
-
         public void Box(BasisIKGizmoStage stage, Vector3 centre, Quaternion rotation, Vector3 halfExtents, uint color)
         {
             if (!Wants(stage)) return;
@@ -530,93 +475,68 @@ namespace Basis.IK
             Push(stage, BasisIKGizmoKind.Line, p110, p111, LineWidth, color);
             Push(stage, BasisIKGizmoKind.Line, p010, p011, LineWidth, color);
         }
-
         public static void Basis(Vector3 dir, out Vector3 u, out Vector3 w)
         {
             u = Vector3.Cross(dir, Vector3.up);
-            if (u.sqrMagnitude < k_SqrEpsilon)
+            if (u.sqrMagnitude < sqrEpsilon)
             {
                 u = Vector3.Cross(dir, Vector3.right);
             }
             u = u.normalized;
             w = Vector3.Cross(dir, u).normalized;
         }
-
-        // ── Scratch ────────────────────────────────────────────────────────────
-        // Ad-hoc probes that belong to no solve stage: an arbitrary vector, a point, a frame, a
-        // number. These skip the stage argument and land on BasisIKGizmoStage.Scratch, which has
-        // its own toggle so a throwaway probe never has to share visibility with a body part you
-        // were not asking about. Every draw here also exists as a stage-taking overload above.
-        //
-        // The recorder is a plain struct over shared native memory, so it can be passed BY VALUE
-        // into any static helper (BasisElbowCores, BasisSwivelHintCore, ...) and the draws still
-        // land in the same queue — reaching this from outside the job struct costs one parameter.
-
         public void Vector(Vector3 origin, Vector3 delta)
         {
             Ray(BasisIKGizmoStage.Scratch, origin, delta, StageColor(BasisIKGizmoStage.Scratch));
         }
-
         public void Vector(Vector3 origin, Vector3 delta, uint color)
         {
             Ray(BasisIKGizmoStage.Scratch, origin, delta, color);
         }
-
         public void Vector(Vector3 origin, Vector3 delta, Color color)
         {
             Ray(BasisIKGizmoStage.Scratch, origin, delta, BasisIKGizmoPalette.From(color));
         }
-
         public void Segment(Vector3 from, Vector3 to)
         {
             Line(BasisIKGizmoStage.Scratch, from, to, StageColor(BasisIKGizmoStage.Scratch));
         }
-
         public void Segment(Vector3 from, Vector3 to, uint color)
         {
             Line(BasisIKGizmoStage.Scratch, from, to, color);
         }
-
         public void Segment(Vector3 from, Vector3 to, Color color)
         {
             Line(BasisIKGizmoStage.Scratch, from, to, BasisIKGizmoPalette.From(color));
         }
-
         public void Marker(Vector3 position)
         {
             Point(BasisIKGizmoStage.Scratch, position, StageColor(BasisIKGizmoStage.Scratch));
         }
-
         public void Marker(Vector3 position, uint color)
         {
             Point(BasisIKGizmoStage.Scratch, position, color);
         }
-
         public void Marker(Vector3 position, Color color)
         {
             Point(BasisIKGizmoStage.Scratch, position, BasisIKGizmoPalette.From(color));
         }
-
         public void Frame(Vector3 origin, Quaternion rotation)
         {
             Axes(BasisIKGizmoStage.Scratch, origin, rotation, AxisLength);
         }
-
         public void Frame(Vector3 origin, Quaternion rotation, float length)
         {
             Axes(BasisIKGizmoStage.Scratch, origin, rotation, length);
         }
-
         public void Note(Vector3 position, in FixedString64Bytes text)
         {
             Label(BasisIKGizmoStage.Scratch, position, text, StageColor(BasisIKGizmoStage.Scratch));
         }
-
         public void Note(Vector3 position, in FixedString64Bytes text, Color color)
         {
             Label(BasisIKGizmoStage.Scratch, position, text, BasisIKGizmoPalette.From(color));
         }
-
         public void Note(Vector3 position, in FixedString64Bytes text, float value)
         {
             if (!WantLabels || !Wants(BasisIKGizmoStage.Scratch))
@@ -628,12 +548,10 @@ namespace Basis.IK
             line.Append(value);
             Label(BasisIKGizmoStage.Scratch, position, line, StageColor(BasisIKGizmoStage.Scratch));
         }
-
         public void Compare(Vector3 origin, Vector3 a, Vector3 b)
         {
             Compare(origin, a, b, BasisIKGizmoPalette.Green, BasisIKGizmoPalette.Magenta);
         }
-
         public void Compare(Vector3 origin, Vector3 a, Vector3 b, uint colorA, uint colorB)
         {
             if (!Wants(BasisIKGizmoStage.Scratch))
@@ -651,7 +569,6 @@ namespace Basis.IK
             line.Append(Vector3.Angle(a, b));
             Label(BasisIKGizmoStage.Scratch, origin + (a + b) * 0.5f, line, BasisIKGizmoPalette.White);
         }
-
         public void Create(int drawCapacity, int labelCapacity)
         {
             Dispose();
@@ -659,7 +576,6 @@ namespace Basis.IK
             Labels = new NativeList<BasisIKGizmoLabel>(labelCapacity, Allocator.Persistent);
             Overflow = new NativeArray<int>(OverflowCount, Allocator.Persistent);
         }
-
         public void Dispose()
         {
             if (Draws.IsCreated) Draws.Dispose();

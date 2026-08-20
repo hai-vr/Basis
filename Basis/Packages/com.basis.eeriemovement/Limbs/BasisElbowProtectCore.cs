@@ -3,66 +3,37 @@ namespace Basis.IK
 {
     public struct BasisElbowProtectInput
     {
-        public Vector3 Shoulder;
-        public Vector3 Elbow;
-        public Vector3 Hand;
-
-        public Vector3 HipsPos;
-        public Vector3 SpinePos;
-        public Vector3 ChestPos;
-        public Vector3 NeckPos;
-        public bool HasHips;
-        public bool HasSpine;
-
-        public float ChestRadiusBase;
-        public float CollisionSkin;
-        public float HandRadius;
-        public float HandSkin;
-
-        public Vector3 PlayerUp;
-
-        public Vector3 BodyRight;
+        public Vector3 Shoulder, Elbow, Hand, HipsPos, SpinePos, ChestPos, NeckPos;
+        public bool HasHips, HasSpine;
+        public float ChestRadiusBase, CollisionSkin, HandRadius, HandSkin;
+        public Vector3 PlayerUp, BodyRight;
     }
-
     public struct BasisElbowProtectResult
     {
         public bool Engaged;
         public int CollisionState;
         public Vector3 DesiredElbow;
-        public float WorstPenetration;
-        public float SideDot;
-        public float BlendUsed;
-        public float SwingAngleDeg;
-        public float ElbowRadius;
+        public float WorstPenetration, SideDot, BlendUsed, SwingAngleDeg, ElbowRadius;
         public Vector3 ElbowCenter;
         public float ResidualClearance;
     }
-
     public static class BasisElbowProtectCore
     {
-        const float k_Epsilon = 1e-5f;
-        const float k_ClearMargin = 0.003f;
-        const int k_SwivelSteps = 48;
-
-        const int k_ClearRefineSteps = 12;
-
-        const int k_MaxRefineSteps = 12;
-
-        const float k_SwingPreferenceRatio = 0.0125f;
-
-        const float k_ContactMarginRatio = 0.25f;
-
-        const float k_ChestDepthRatio = 0.68f;
-
-        const float k_AuthorityFadeStart = 0.95f;
-        const float k_AuthorityFadeEnd = 0.995f;
-
+        const float epsilon = 1e-5f;
+        const float clearMargin = 0.003f;
+        const int swivelSteps = 48;
+        const int clearRefineSteps = 12;
+        const int maxRefineSteps = 12;
+        const float swingPreferenceRatio = 0.0125f;
+        const float contactMarginRatio = 0.25f;
+        const float chestDepthRatio = 0.68f;
+        const float authorityFadeStart = 0.95f;
+        const float authorityFadeEnd = 0.995f;
         struct Frame
         {
             public Vector3 ShoulderPos, AcDir, CurrentDir, ElbowCenter, BodyLat, BodyFwd;
             public float ElbowRadius, UpperArmR, ChestR, SpineR, HipsR, ThetaOut, SwingPreference;
         }
-
         public static void Solve(in BasisElbowProtectInput i, out BasisElbowProtectResult r)
         {
             r = default;
@@ -75,7 +46,7 @@ namespace Basis.IK
 
             Vector3 acAxis = handPos - shoulderPos;
             float acSqr = Vector3.Dot(acAxis, acAxis);
-            if (acSqr <= k_Epsilon * k_Epsilon)
+            if (acSqr <= epsilon * epsilon)
             {
                 return;
             }
@@ -88,7 +59,7 @@ namespace Basis.IK
             f.ElbowRadius = (elbowPos - f.ElbowCenter).magnitude;
             r.ElbowCenter = f.ElbowCenter;
             r.ElbowRadius = f.ElbowRadius;
-            if (f.ElbowRadius <= k_Epsilon)
+            if (f.ElbowRadius <= epsilon)
             {
                 return;
             }
@@ -101,9 +72,9 @@ namespace Basis.IK
             f.SpineR = Mathf.Max(0f, chestRBase * 0.8f + skin);
             f.HipsR = Mathf.Max(0f, chestRBase * 1.4f + skin);
 
-            Vector3 upN = i.PlayerUp.sqrMagnitude > k_Epsilon * k_Epsilon ? i.PlayerUp.normalized : Vector3.up;
+            Vector3 upN = i.PlayerUp.sqrMagnitude > epsilon * epsilon ? i.PlayerUp.normalized : Vector3.up;
             Vector3 bodyLat = i.BodyRight - upN * Vector3.Dot(i.BodyRight, upN);
-            if (bodyLat.sqrMagnitude <= k_Epsilon * k_Epsilon)
+            if (bodyLat.sqrMagnitude <= epsilon * epsilon)
             {
                 Vector3 chestClosest = BasisEerieMovement.ClosestPointOnSegment(shoulderPos, i.ChestPos, i.NeckPos);
                 Vector3 off = shoulderPos - chestClosest;
@@ -111,12 +82,12 @@ namespace Basis.IK
             }
             Vector3 bodyFwd = Vector3.zero;
             float bodyLatLen = bodyLat.magnitude;
-            if (bodyLatLen > k_Epsilon)
+            if (bodyLatLen > epsilon)
             {
                 bodyLat /= bodyLatLen;
                 Vector3 fwd = Vector3.Cross(bodyLat, upN);
                 float fLen = fwd.magnitude;
-                bodyFwd = fLen > k_Epsilon ? fwd / fLen : Vector3.zero;
+                bodyFwd = fLen > epsilon ? fwd / fLen : Vector3.zero;
             }
             else
             {
@@ -125,8 +96,8 @@ namespace Basis.IK
             f.BodyLat = bodyLat;
             f.BodyFwd = bodyFwd;
 
-            float contactMargin = f.ChestR * k_ContactMarginRatio;
-            f.SwingPreference = f.ChestR * k_SwingPreferenceRatio;
+            float contactMargin = f.ChestR * contactMarginRatio;
+            f.SwingPreference = f.ChestR * swingPreferenceRatio;
 
             float natClear = MinTorsoClearance(i, f, elbowPos);
             float worstPen = natClear < 0f ? -natClear : 0f;
@@ -140,7 +111,7 @@ namespace Basis.IK
             Vector3 shoulderOut = shoulderPos - shoulderClosest;
             Vector3 shoulderPerp = shoulderOut - f.AcDir * Vector3.Dot(shoulderOut, f.AcDir);
             float shoulderPerpSqr = shoulderPerp.sqrMagnitude;
-            if (shoulderPerpSqr <= k_Epsilon * k_Epsilon)
+            if (shoulderPerpSqr <= epsilon * epsilon)
             {
                 return;
             }
@@ -149,19 +120,18 @@ namespace Basis.IK
             f.CurrentDir = (elbowPos - f.ElbowCenter) / f.ElbowRadius;
             r.SideDot = Vector3.Dot(f.CurrentDir, outDir);
 
-            f.ThetaOut = Mathf.Atan2(Vector3.Dot(Vector3.Cross(f.CurrentDir, outDir), f.AcDir),
-                Vector3.Dot(f.CurrentDir, outDir)) * Mathf.Rad2Deg;
+            f.ThetaOut = Mathf.Atan2(Vector3.Dot(Vector3.Cross(f.CurrentDir, outDir), f.AcDir), Vector3.Dot(f.CurrentDir, outDir)) * Mathf.Rad2Deg;
             float firstClearT = -1f;
             float lastBlockedT = 0f;
             float bestClear = float.NegativeInfinity;
             int bestClearK = 0;
-            for (int k = 0; k <= k_SwivelSteps; k++)
+            for (int k = 0; k <= swivelSteps; k++)
             {
-                float t = (float)k / k_SwivelSteps;
+                float t = (float)k / swivelSteps;
                 float c = SwivelClearance(i, f, t);
                 if (firstClearT < 0f)
                 {
-                    if (c >= k_ClearMargin)
+                    if (c >= clearMargin)
                     {
                         firstClearT = t;
                     }
@@ -177,7 +147,7 @@ namespace Basis.IK
                     bestClearK = k;
                 }
             }
-            float bestClearT = (float)bestClearK / k_SwivelSteps;
+            float bestClearT = (float)bestClearK / swivelSteps;
 
             bool cleared = firstClearT >= 0f;
             if (cleared)
@@ -185,11 +155,11 @@ namespace Basis.IK
                 if (firstClearT > 0f)
                 {
                     float lo = lastBlockedT, hi = firstClearT;
-                    for (int b = 0; b < k_ClearRefineSteps; b++)
+                    for (int b = 0; b < clearRefineSteps; b++)
                     {
                         float mid = 0.5f * (lo + hi);
                         float c = SwivelClearance(i, f, mid);
-                        if (c >= k_ClearMargin)
+                        if (c >= clearMargin)
                         {
                             hi = mid;
                         }
@@ -203,8 +173,8 @@ namespace Basis.IK
             }
             else
             {
-                float lo = (float)Mathf.Max(0, bestClearK - 1) / k_SwivelSteps;
-                float hi = (float)Mathf.Min(k_SwivelSteps, bestClearK + 1) / k_SwivelSteps;
+                float lo = (float)Mathf.Max(0, bestClearK - 1) / swivelSteps;
+                float hi = (float)Mathf.Min(swivelSteps, bestClearK + 1) / swivelSteps;
                 bestClearT = RefineClearanceMax(i, f, lo, hi);
             }
 
@@ -214,9 +184,8 @@ namespace Basis.IK
             chosenT += (1f - chosenT) * flipCommit;
 
             float totalLen = (elbowPos - shoulderPos).magnitude + (handPos - elbowPos).magnitude;
-            float reach = totalLen > k_Epsilon ? Mathf.Sqrt(acSqr) / totalLen : 1f;
-            float authority = 1f - Mathf.SmoothStep(0f, 1f,
-                Mathf.Clamp01((reach - k_AuthorityFadeStart) / (k_AuthorityFadeEnd - k_AuthorityFadeStart)));
+            float reach = totalLen > epsilon ? Mathf.Sqrt(acSqr) / totalLen : 1f;
+            float authority = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((reach - authorityFadeStart) / (authorityFadeEnd - authorityFadeStart)));
             chosenT *= authority;
 
             float approach = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(natClear / contactMargin));
@@ -228,11 +197,10 @@ namespace Basis.IK
             r.SwingAngleDeg = Mathf.Abs(f.ThetaOut * chosenT);
             r.BlendUsed = chosenT;
 
-            r.CollisionState = worstPen <= k_Epsilon ? 0 : (cleared ? 1 : 2);
+            r.CollisionState = worstPen <= epsilon ? 0 : (cleared ? 1 : 2);
             r.ResidualClearance = MinTorsoClearance(i, f, r.DesiredElbow);
             r.Engaged = true;
         }
-
         static float RefineClearanceMax(in BasisElbowProtectInput i, in Frame f, float lo, float hi)
         {
             const float invPhi = 0.6180339887f;
@@ -241,7 +209,7 @@ namespace Basis.IK
             float t2 = a + invPhi * (b - a);
             float f1 = SwivelClearance(i, f, t1) - f.SwingPreference * t1;
             float f2 = SwivelClearance(i, f, t2) - f.SwingPreference * t2;
-            for (int n = 0; n < k_MaxRefineSteps; n++)
+            for (int n = 0; n < maxRefineSteps; n++)
             {
                 if (f1 < f2)
                 {
@@ -258,13 +226,11 @@ namespace Basis.IK
             }
             return 0.5f * (a + b);
         }
-
         static float SwivelClearance(in BasisElbowProtectInput i, in Frame f, float t)
         {
             Vector3 d = Quaternion.AngleAxis(f.ThetaOut * t, f.AcDir) * f.CurrentDir;
             return MinTorsoClearance(i, f, f.ElbowCenter + d * f.ElbowRadius);
         }
-
         static float MinTorsoClearance(in BasisElbowProtectInput i, in Frame f, Vector3 elbowPos)
         {
             float worst = float.PositiveInfinity;
@@ -279,9 +245,7 @@ namespace Basis.IK
             worst = Mathf.Min(worst, SegmentClearance(f.ShoulderPos, elbowPos, f.UpperArmR, i.ChestPos, i.NeckPos, f.ChestR, f.ChestR, f.BodyLat, f.BodyFwd));
             return worst;
         }
-
-        static float SegmentClearance(Vector3 p1, Vector3 q1, float r1, Vector3 p2, Vector3 q2,
-            float latR0, float latR1, Vector3 bodyLat, Vector3 bodyFwd)
+        static float SegmentClearance(Vector3 p1, Vector3 q1, float r1, Vector3 p2, Vector3 q2, float latR0, float latR1, Vector3 bodyLat, Vector3 bodyFwd)
         {
             BasisEerieMovement.SegmentSegmentClosestPoints(p1, q1, p2, q2, out _, out float segT, out Vector3 c1, out Vector3 c2);
             Vector3 sep = c1 - c2;
@@ -289,22 +253,21 @@ namespace Basis.IK
 
             float latR = latR0 + (latR1 - latR0) * segT;
             float rEff = latR;
-            float apR = latR * k_ChestDepthRatio;
+            float apR = latR * chestDepthRatio;
             Vector3 axis = q2 - p2;
             float axisSqr = axis.sqrMagnitude;
-            if (apR > k_Epsilon && sepLen > k_Epsilon && axisSqr > k_Epsilon * k_Epsilon
-                && bodyLat.sqrMagnitude > k_Epsilon * k_Epsilon && bodyFwd.sqrMagnitude > k_Epsilon * k_Epsilon)
+            if (apR > epsilon && sepLen > epsilon && axisSqr > epsilon * epsilon && bodyLat.sqrMagnitude > epsilon * epsilon && bodyFwd.sqrMagnitude > epsilon * epsilon)
             {
                 Vector3 axisN = axis / Mathf.Sqrt(axisSqr);
                 Vector3 sepPerp = sep - axisN * Vector3.Dot(sep, axisN);
                 float sepPerpLen = sepPerp.magnitude;
-                if (sepPerpLen > k_Epsilon)
+                if (sepPerpLen > epsilon)
                 {
                     Vector3 sepDir = sepPerp / sepPerpLen;
                     float cu = Vector3.Dot(sepDir, bodyLat);
                     float cw = Vector3.Dot(sepDir, bodyFwd);
                     float denom = (cu * cu) / (latR * latR) + (cw * cw) / (apR * apR);
-                    if (denom > k_Epsilon)
+                    if (denom > epsilon)
                     {
                         rEff = 1f / Mathf.Sqrt(denom);
                     }

@@ -151,7 +151,7 @@ namespace Basis.Tests.IK
             // A VR user sitting on their real floor reports a depth far past any squat. The lean saturates
             // at the corpus deep-squat ceiling instead of folding the avatar in half.
             var r = Solve(1.2f * StandH);
-            Assert.That(r.SetbackMeters, Is.LessThanOrEqualTo(BasisCrouchOffsetCore.k_MaxLeanSin * Rest + 1e-4f));
+            Assert.That(r.SetbackMeters, Is.LessThanOrEqualTo(BasisCrouchOffsetCore.maxLeanSin * Rest + 1e-4f));
             Assert.That(r.LeanDeg, Is.LessThan(63f), $"chord lean {r.LeanDeg:F1} deg exceeds the corpus ceiling.");
         }
     }

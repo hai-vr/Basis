@@ -1,58 +1,32 @@
 using UnityEngine;
-
 namespace Basis.IK
 {
     public struct BasisSpineBendInput
     {
         public Quaternion HipsRot;
-        public Vector3 HipsPos;
-        public Vector3 ChestPos;
-        public Vector3 SmoothedHead;
-        public Quaternion HipsBind;
-        public Quaternion HeadTargetRot;
-
-        public float SpineMaxForwardDeg;
-        public float SpineMaxBackwardDeg;
-        public float SpineMaxLateralDeg;
-
-        public float SpineBendPitch, SpineBendYaw, SpineBendRoll;
-        public float UpperBendPitch, UpperBendYaw, UpperBendRoll;
-
-        public bool AnatDifferentialStiffness;
-        public bool AnatPelvicTwistRouting;
-        public float BendTwistCoupling;
-
-        public float SquishBoost;
-        public float RestLen;
-
-        public bool HasSpine;
-        public bool HasUpper;
+        public Vector3 HipsPos, ChestPos, SmoothedHead;
+        public Quaternion HipsBind, HeadTargetRot;
+        public float SpineMaxForwardDeg, SpineMaxBackwardDeg, SpineMaxLateralDeg, SpineBendPitch, SpineBendYaw;
+        public float SpineBendRoll, UpperBendPitch, UpperBendYaw, UpperBendRoll;
+        public bool AnatDifferentialStiffness, AnatPelvicTwistRouting;
+        public float BendTwistCoupling, SquishBoost, RestLen;
+        public bool HasSpine, HasUpper;
     }
-
     public struct BasisSpineBendResult
     {
         public bool EarlyOut;
         public bool WriteSpine; public Vector3 SpineEuler;
         public bool WriteUpper; public Vector3 UpperEuler;
-
-        public float BendPitchDeg;
-        public float TwistY;
-        public float SquishMult;
-        public float BendGate;
-        public float SpineYawEff;
-        public float UpperYawEff;
+        public float BendPitchDeg, TwistY, SquishMult, BendGate, SpineYawEff, UpperYawEff;
     }
-
     public static class BasisSpineBendCore
     {
-        const float k_SqrEpsilon = 1e-8f;
-        const float k_Epsilon = 1e-5f;
-        const float k_BendDeadbandDeg = 3f;
-        const float k_BendDeadbandWidthDeg = 7f;
-
-        const float k_TwistFadeFullHoriz = 0.342f;
-        const float k_TwistFadeZeroHoriz = 0.174f;
-
+        const float sqrEpsilon = 1e-8f;
+        const float epsilon = 1e-5f;
+        const float bendDeadbandDeg = 3f;
+        const float bendDeadbandWidthDeg = 7f;
+        const float twistFadeFullHoriz = 0.342f;
+        const float twistFadeZeroHoriz = 0.174f;
         public static void Solve(in BasisSpineBendInput i, out BasisSpineBendResult r)
         {
             r = default;
@@ -63,7 +37,7 @@ namespace Basis.IK
 
             Vector3 localChestDir = hipsSpace * (i.ChestPos - i.HipsPos);
             Vector3 localTargetDir = hipsSpace * (i.SmoothedHead - i.HipsPos);
-            if (localChestDir.sqrMagnitude < k_SqrEpsilon || localTargetDir.sqrMagnitude < k_SqrEpsilon)
+            if (localChestDir.sqrMagnitude < sqrEpsilon || localTargetDir.sqrMagnitude < sqrEpsilon)
             {
                 r.EarlyOut = true;
                 return;
@@ -75,9 +49,7 @@ namespace Basis.IK
             Vector3 bendCross = Vector3.Cross(chestDirN, targetDirN);
             float bendDot = Mathf.Clamp(Vector3.Dot(chestDirN, targetDirN), -1f, 1f);
             float bendAngleDeg = Mathf.Atan2(bendCross.magnitude, bendDot) * Mathf.Rad2Deg;
-            Vector3 bendAxisScaled = bendCross.sqrMagnitude > k_SqrEpsilon
-                ? bendCross.normalized * bendAngleDeg
-                : Vector3.zero;
+            Vector3 bendAxisScaled = bendCross.sqrMagnitude > sqrEpsilon ? bendCross.normalized * bendAngleDeg : Vector3.zero;
             float bendPitchDeg = bendAxisScaled.x;
             float bendRollDeg = bendAxisScaled.z;
             Vector3 bendEuler = new Vector3(bendPitchDeg, 0f, bendRollDeg);
@@ -85,9 +57,9 @@ namespace Basis.IK
             Quaternion headRotLocal = hipsSpace * i.HeadTargetRot;
             Vector3 headFwdLocal = headRotLocal * Vector3.forward;
             float horizMagSq = headFwdLocal.x * headFwdLocal.x + headFwdLocal.z * headFwdLocal.z;
-            float twistY = (horizMagSq < k_SqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
+            float twistY = (horizMagSq < sqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
 
-            float twistFadeT = Mathf.Clamp01((Mathf.Sqrt(horizMagSq) - k_TwistFadeZeroHoriz) / (k_TwistFadeFullHoriz - k_TwistFadeZeroHoriz));
+            float twistFadeT = Mathf.Clamp01((Mathf.Sqrt(horizMagSq) - twistFadeZeroHoriz) / (twistFadeFullHoriz - twistFadeZeroHoriz));
             twistY *= Mathf.SmoothStep(0f, 1f, twistFadeT);
 
             float maxFwd = Mathf.Max(0f, i.SpineMaxForwardDeg);
@@ -97,7 +69,7 @@ namespace Basis.IK
             float squishMult = ComputeSquishMultiplier(i.SmoothedHead - i.HipsPos, i.RestLen, i.SquishBoost);
 
             float bendMag = Mathf.Sqrt(bendEuler.x * bendEuler.x + bendEuler.z * bendEuler.z);
-            float bendT = Mathf.Clamp01((bendMag - k_BendDeadbandDeg) / k_BendDeadbandWidthDeg);
+            float bendT = Mathf.Clamp01((bendMag - bendDeadbandDeg) / bendDeadbandWidthDeg);
             float bendGate = Mathf.SmoothStep(0f, 1f, bendT);
 
             float spinePitchEff = Mathf.Clamp01(i.SpineBendPitch);
@@ -120,22 +92,14 @@ namespace Basis.IK
 
             if (i.HasSpine)
             {
-                Vector3 e = new Vector3(
-                    bendEuler.x * spinePitchEff * squishMult * bendGate,
-                    twistY * spineYawEff * squishMult,
-                    bendEuler.z * spineRollEff * squishMult * bendGate
-                );
+                Vector3 e = new Vector3( bendEuler.x * spinePitchEff * squishMult * bendGate, twistY * spineYawEff * squishMult, bendEuler.z * spineRollEff * squishMult * bendGate );
                 e.y += i.BendTwistCoupling * e.z;
                 r.SpineEuler = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 r.WriteSpine = true;
             }
             if (i.HasUpper)
             {
-                Vector3 e = new Vector3(
-                    bendEuler.x * upperPitchEff * squishMult * bendGate,
-                    twistY * upperYawEff * squishMult,
-                    bendEuler.z * upperRollEff * squishMult * bendGate
-                );
+                Vector3 e = new Vector3( bendEuler.x * upperPitchEff * squishMult * bendGate, twistY * upperYawEff * squishMult, bendEuler.z * upperRollEff * squishMult * bendGate );
                 e.y += i.BendTwistCoupling * e.z;
                 r.UpperEuler = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 r.WriteUpper = true;
@@ -148,19 +112,17 @@ namespace Basis.IK
             r.SpineYawEff = spineYawEff;
             r.UpperYawEff = upperYawEff;
         }
-
         public static Quaternion Compose(Vector3 e)
         {
             Quaternion yaw = BasisSpineAnatomyCore.AxisAngle(e.y, Vector3.up);
             float swingDeg = Mathf.Sqrt(e.x * e.x + e.z * e.z);
-            if (swingDeg <= k_Epsilon)
+            if (swingDeg <= epsilon)
             {
                 return yaw;
             }
             Quaternion swing = BasisSpineAnatomyCore.AxisAngle(swingDeg, new Vector3(e.x / swingDeg, 0f, e.z / swingDeg));
             return yaw * swing;
         }
-
         public static float ComputeSquishMultiplier(Vector3 hipsToHead, float restLen, float squishBoost)
         {
             float boost = Mathf.Clamp(squishBoost, 0f, 2f);
@@ -168,7 +130,7 @@ namespace Basis.IK
             {
                 return 1f;
             }
-            if (restLen < k_Epsilon)
+            if (restLen < epsilon)
             {
                 return 1f;
             }
@@ -177,7 +139,6 @@ namespace Basis.IK
             float t = Mathf.Clamp01((squish - 0.7f) / 0.6f);
             return Mathf.Lerp(1f + boost, Mathf.Max(0f, 1f - boost), t);
         }
-
         static Vector3 ClampAsymmetric(Vector3 e, float maxFwd, float maxBack, float maxLat)
         {
             if (e.x > 0f) e.x = Mathf.Min(e.x, maxFwd);
@@ -187,76 +148,55 @@ namespace Basis.IK
             return e;
         }
     }
-
     public struct BasisCrouchOffsetInput
     {
-        public Vector3 HeadTargetPos;
-        public Vector3 HipsPos;
-        public Quaternion HipsRot;
-
-        public Quaternion Bind;
+        public Vector3 HeadTargetPos, HipsPos;
+        public Quaternion HipsRot, Bind;
         public Vector3 PlayerUp;
-
-        public float Factor;
-
-        public float RestDist;
-
-        public float CrouchDepth;
-
-        public float StandingHeadHeight;
-
-        public float Fade;
+        public float Factor, RestDist, CrouchDepth, StandingHeadHeight, Fade;
     }
-
     public struct BasisCrouchOffsetResult
     {
         public Vector3 HipsPos;
         public bool Applied;
-        public float SetbackMeters;
-        public float LeanDeg;
+        public float SetbackMeters, LeanDeg;
     }
-
     public static class BasisCrouchOffsetCore
     {
-        const float k_SqrEpsilon = 1e-8f;
-        const float k_Epsilon = 1e-5f;
-
-        public const float k_DepthDeadzone = 0.03f;
-        public const float k_SetbackSlope = 2.57f;
-        public const float k_SetbackSat = 8.1f;
-
-        public const float k_MaxLeanSin = 0.88f;
-
-        public const float k_VerticalEngageFrac = 0.04f;
-
+        const float sqrEpsilon = 1e-8f;
+        const float epsilon = 1e-5f;
+        public const float depthDeadzone = 0.03f;
+        public const float setbackSlope = 2.57f;
+        public const float setbackSat = 8.1f;
+        public const float maxLeanSin = 0.88f;
+        public const float verticalEngageFrac = 0.04f;
         public static float EvaluateSetback(float crouchDepth, float standingHeadHeight, float factor, float fade, float restDist)
         {
-            if (factor <= 0f || fade <= 0f || crouchDepth <= 0f || standingHeadHeight <= k_Epsilon || restDist <= k_Epsilon)
+            if (factor <= 0f || fade <= 0f || crouchDepth <= 0f || standingHeadHeight <= epsilon || restDist <= epsilon)
             {
                 return 0f;
             }
-            float x = crouchDepth / standingHeadHeight - k_DepthDeadzone;
+            float x = crouchDepth / standingHeadHeight - depthDeadzone;
             if (x <= 0f)
             {
                 return 0f;
             }
-            float setback = k_SetbackSlope * x / (1f + k_SetbackSat * x) * standingHeadHeight;
+            float setback = setbackSlope * x / (1f + setbackSat * x) * standingHeadHeight;
             setback *= factor * Mathf.Clamp01(fade);
-            return BasisTrunkCounterbalanceCore.Saturate(setback, k_MaxLeanSin * restDist);
+            return BasisTrunkCounterbalanceCore.Saturate(setback, maxLeanSin * restDist);
         }
-
         public static void Solve(in BasisCrouchOffsetInput i, out BasisCrouchOffsetResult r)
         {
             r = default;
             r.HipsPos = i.HipsPos;
 
             float setback = EvaluateSetback(i.CrouchDepth, i.StandingHeadHeight, i.Factor, i.Fade, i.RestDist);
-            if (setback <= k_Epsilon)
+            if (setback <= epsilon)
             {
                 return;
             }
 
-            Vector3 up = i.PlayerUp.sqrMagnitude < k_SqrEpsilon ? Vector3.up : i.PlayerUp.normalized;
+            Vector3 up = i.PlayerUp.sqrMagnitude < sqrEpsilon ? Vector3.up : i.PlayerUp.normalized;
 
             Quaternion hipsAnat = i.HipsRot;
             float bindSq = i.Bind.x * i.Bind.x + i.Bind.y * i.Bind.y + i.Bind.z * i.Bind.z + i.Bind.w * i.Bind.w;
@@ -268,7 +208,7 @@ namespace Basis.IK
 
             Vector3 forward = hipsAnat * Vector3.forward;
             forward -= up * Vector3.Dot(forward, up);
-            if (forward.sqrMagnitude < k_SqrEpsilon)
+            if (forward.sqrMagnitude < sqrEpsilon)
             {
                 return;
             }
@@ -277,7 +217,7 @@ namespace Basis.IK
             horizontal -= up * Vector3.Dot(horizontal, up);
             horizontal -= forward.normalized * setback;
             float horizMag = horizontal.magnitude;
-            float horizCap = k_MaxLeanSin * i.RestDist;
+            float horizCap = maxLeanSin * i.RestDist;
             if (horizMag > horizCap)
             {
                 horizontal *= horizCap / horizMag;
@@ -286,7 +226,7 @@ namespace Basis.IK
 
             float sphereDrop = Mathf.Sqrt(Mathf.Max(i.RestDist * i.RestDist - horizMag * horizMag, 0f));
             float currentDrop = Vector3.Dot(i.HeadTargetPos - i.HipsPos, up);
-            float w = Mathf.Clamp01(setback / (k_VerticalEngageFrac * i.RestDist));
+            float w = Mathf.Clamp01(setback / (verticalEngageFrac * i.RestDist));
             float drop = Mathf.Lerp(currentDrop, sphereDrop, w);
 
             r.Applied = true;

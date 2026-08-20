@@ -5,7 +5,6 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Jobs;
-
 namespace Basis.Scripts.Drivers
 {
     public enum BasisFilterMode : byte
@@ -14,42 +13,28 @@ namespace Basis.Scripts.Drivers
         Fallback = 1,
         Euro = 2,
     }
-
     public struct BasisEuroVec3State
     {
-        public bool xHasPrev;
-        public bool dxHasPrev;
-        public float3 hatX;
-        public float3 hatDx;
+        public bool xHasPrev, dxHasPrev;
+        public float3 hatX, hatDx;
     }
-
     public struct BasisEuroQuatState
     {
         public bool hasPrev;
         public quaternion prev;
         public BasisEuroVec3State logVecState;
     }
-
     [BurstCompile]
     public struct BasisBatchPositionFilterJob : IJobParallelFor
     {
         [ReadOnly] public NativeArray<byte> mode;
         [ReadOnly] public NativeArray<float3> rawInputs;
         [ReadOnly] public NativeArray<float4> tuning;
-
         public NativeArray<BasisEuroVec3State> euroStates;
         public NativeArray<float3> fallbackStates;
-
         [WriteOnly] public NativeArray<float3> outputs;
-
         public float dt;
-
-        // Inputs and filter state are playspace-local; outputs leave in world through this
-        // matrix. Filtering locally means intentional playspace motion (stick locomotion,
-        // turning, teleports, seats) passes through with zero lag — only tracking-space
-        // motion, where the sensor noise actually lives, is smoothed.
         public float4x4 playspaceToWorld;
-
         public unsafe void Execute(int i)
         {
             byte m = UnsafeUtility.ReadArrayElement<byte>(mode.GetUnsafeReadOnlyPtr(), i);
@@ -77,24 +62,17 @@ namespace Basis.Scripts.Drivers
             UnsafeUtility.WriteArrayElement(outPtr, i, math.transform(playspaceToWorld, result));
         }
     }
-
     [BurstCompile]
     public struct BasisBatchRotationFilterJob : IJobParallelFor
     {
         [ReadOnly] public NativeArray<byte> mode;
         [ReadOnly] public NativeArray<quaternion> rawInputs;
         [ReadOnly] public NativeArray<float4> tuning;
-
         public NativeArray<BasisEuroQuatState> euroStates;
         public NativeArray<quaternion> fallbackStates;
-
         [WriteOnly] public NativeArray<quaternion> outputs;
-
         public float dt;
-
-        // Same playspace-local convention as the position job: local in, world out.
         public quaternion playspaceRotation;
-
         public unsafe void Execute(int i)
         {
             byte m = UnsafeUtility.ReadArrayElement<byte>(mode.GetUnsafeReadOnlyPtr(), i);
@@ -122,13 +100,11 @@ namespace Basis.Scripts.Drivers
             UnsafeUtility.WriteArrayElement(outPtr, i, math.mul(playspaceRotation, result));
         }
     }
-
     [BurstCompile]
     public struct BasisReadBoneWorldPoseJob : IJobParallelForTransform
     {
         public NativeArray<float3> Positions;
         public NativeArray<quaternion> Rotations;
-
         public void Execute(int index, TransformAccess transform)
         {
             transform.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
@@ -136,7 +112,6 @@ namespace Basis.Scripts.Drivers
             Rotations[index] = rotation;
         }
     }
-
     [BurstCompile]
     public static class BasisFilterMath
     {
@@ -145,7 +120,6 @@ namespace Basis.Scripts.Drivers
             float tau = 1.0f / (2.0f * math.PI * cutoff);
             return 1.0f / (1.0f + tau / math.max(dt, 1e-6f));
         }
-
         public static float3 EuroVec3(ref BasisEuroVec3State st, float3 x, float dt, float minCutoff, float beta, float dCutoff)
         {
             float3 prevHatX = st.xHasPrev ? st.hatX : x;
@@ -163,7 +137,6 @@ namespace Basis.Scripts.Drivers
 
             return st.hatX;
         }
-
         public static quaternion EuroQuat(ref BasisEuroQuatState st, quaternion q, float dt, float minCutoff, float beta, float dCutoff)
         {
             if (!st.hasPrev)
@@ -211,7 +184,6 @@ namespace Basis.Scripts.Drivers
             st.prev = outQ;
             return outQ;
         }
-
         public static quaternion SlerpShortest(quaternion a, quaternion b, float t)
         {
             float4 av = a.value;

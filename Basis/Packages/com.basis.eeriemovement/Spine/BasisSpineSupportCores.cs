@@ -1,11 +1,9 @@
 using UnityEngine;
-
 namespace Basis.IK
 {
     public static class BasisChestSpringCore
     {
-        public static void Step(Vector3 pos, Vector3 vel, Vector3 target, float dt, float hz, float damping,
-            out Vector3 newPos, out Vector3 newVel)
+        public static void Step(Vector3 pos, Vector3 vel, Vector3 target, float dt, float hz, float damping, out Vector3 newPos, out Vector3 newVel)
         {
             float omega = 2f * Mathf.PI * hz;
             float omegaSq = omega * omega;
@@ -16,11 +14,9 @@ namespace Basis.IK
             newPos = pos + dt * newVel;
         }
     }
-
     public static class BasisHipFrameSpringCore
     {
-        public static void Step(Quaternion rot, Vector3 angVel, Quaternion target, float dt, float hz, float damping,
-            out Quaternion newRot, out Vector3 newAngVel)
+        public static void Step(Quaternion rot, Vector3 angVel, Quaternion target, float dt, float hz, float damping, out Quaternion newRot, out Vector3 newAngVel)
         {
             Quaternion errQ = target * Quaternion.Inverse(rot);
             if (errQ.w < 0f) errQ = new Quaternion(-errQ.x, -errQ.y, -errQ.z, -errQ.w);
@@ -60,18 +56,13 @@ namespace Basis.IK
 
             Quaternion outRot = step * rot;
             float n = Mathf.Sqrt(outRot.x * outRot.x + outRot.y * outRot.y + outRot.z * outRot.z + outRot.w * outRot.w);
-            newRot = n > 1e-8f
-                ? new Quaternion(outRot.x / n, outRot.y / n, outRot.z / n, outRot.w / n)
-                : Quaternion.identity;
+            newRot = n > 1e-8f ? new Quaternion(outRot.x / n, outRot.y / n, outRot.z / n, outRot.w / n) : Quaternion.identity;
         }
     }
-
     public static class BasisHeadPitchSwingCore
     {
-        const float k_SqrEpsilon = 1e-10f;
-
-        public static void Solve(float pitchDeg, float yawDeg, Vector3 eyeFromNeck, float strength, float backwardScale,
-            out Vector3 offset, out float forwardMeters)
+        const float sqrEpsilon = 1e-10f;
+        public static void Solve(float pitchDeg, float yawDeg, Vector3 eyeFromNeck, float strength, float backwardScale, out Vector3 offset, out float forwardMeters)
         {
             offset = Vector3.zero;
             forwardMeters = 0f;
@@ -79,13 +70,7 @@ namespace Basis.IK
             float lever = eyeFromNeck.y;
             float forwardRest = eyeFromNeck.z;
 
-            // The swing is lever*sin(p) + forwardRest*cos(p) - forwardRest, which is a real arc for
-            // ANY non-degenerate arm -- the forwardRest*(cos p - 1) half alone is several centimetres
-            // at a steep look. Gating on lever > 0 silently returned a zero offset for every rig whose
-            // viewpoint is authored level with or below its head bone, which switched the whole
-            // gaze-swing removal off and let the pelvis ride the gaze again. Only an unpopulated arm
-            // (a T-pose that has not been captured yet) has nothing to remove.
-            if (!(lever * lever + forwardRest * forwardRest > k_SqrEpsilon)) return;
+            if (!(lever * lever + forwardRest * forwardRest > sqrEpsilon)) return;
             if (!(pitchDeg > -180f && pitchDeg < 180f)) return;
             if (!(yawDeg > -720f && yawDeg < 720f)) return;
             if (!(strength > 0f)) return;
@@ -107,16 +92,12 @@ namespace Basis.IK
             offset = new Vector3(heading.x * forward, 0f, heading.z * forward);
         }
     }
-
     public static class BasisHipHingeCore
     {
-        const float k_Epsilon = 1e-5f;
-        const float k_SqrEpsilon = 1e-8f;
-
+        const float epsilon = 1e-5f;
+        const float sqrEpsilon = 1e-8f;
         public const float PelvisFollowSlope = 1.0f;
-
-        public static bool Solve(Vector3 headPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUp,
-            float startDeg, float maxAddDeg, out Quaternion newHipsRot, out float leanDeg, out float addDeg)
+        public static bool Solve(Vector3 headPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUp, float startDeg, float maxAddDeg, out Quaternion newHipsRot, out float leanDeg, out float addDeg)
         {
             newHipsRot = hipsRot;
             leanDeg = float.NaN;
@@ -132,7 +113,7 @@ namespace Basis.IK
             Vector3 horizontal = hipsToHead - playerUp * upDot;
             float horizMag = horizontal.magnitude;
 
-            if (horizMag < k_Epsilon)
+            if (horizMag < epsilon)
             {
                 return false;
             }
@@ -147,7 +128,7 @@ namespace Basis.IK
             float capped = Saturate(excess, maxAddDeg);
 
             Vector3 hingeAxis = Vector3.Cross(playerUp, horizontal / horizMag);
-            if (hingeAxis.sqrMagnitude < k_SqrEpsilon)
+            if (hingeAxis.sqrMagnitude < sqrEpsilon)
             {
                 return false;
             }
@@ -157,7 +138,6 @@ namespace Basis.IK
             newHipsRot = Quaternion.AngleAxis(capped, hingeAxis) * hipsRot;
             return true;
         }
-
         public static float Saturate(float x, float cap) => BasisTrunkCounterbalanceCore.Saturate(x, cap);
     }
 }

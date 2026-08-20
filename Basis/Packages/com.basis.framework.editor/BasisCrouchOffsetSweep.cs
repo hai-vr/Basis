@@ -113,7 +113,7 @@ namespace Basis.IK.Debugging
 
                                     float magErr = Mathf.Abs(back - expected);
                                     // sphere check only once the vertical blend has fully engaged
-                                    bool sphereDue = expected > BasisCrouchOffsetCore.k_VerticalEngageFrac * rest + 1e-4f;
+                                    bool sphereDue = expected > BasisCrouchOffsetCore.verticalEngageFrac * rest + 1e-4f;
                                     float sphereErr = sphereDue ? Mathf.Abs(fromHead.magnitude - rest) : 0f;
                                     bool standingMove = expected <= 1e-6f && (res.HipsPos - input.HipsPos).magnitude > 1e-6f;
                                     bool monoBad = havePrev && res.SetbackMeters < prevSetback - 1e-5f;

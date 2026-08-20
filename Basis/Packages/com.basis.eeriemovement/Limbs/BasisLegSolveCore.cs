@@ -1,71 +1,41 @@
 using UnityEngine;
-
 namespace Basis.IK
 {
     public struct BasisLegSolveInput
     {
-        public Vector3 Root;
-        public Vector3 Mid;
-        public Vector3 Tip;
-        public Quaternion RootRotation;
-        public Quaternion MidRotation;
+        public Vector3 Root, Mid, Tip;
+        public Quaternion RootRotation, MidRotation;
         public Vector3 TargetPosition;
         public Quaternion TargetRotation;
         public Vector3 HintPosition;
-        public float HintWeight;
-
-        public float HintDistrust;
+        public float HintWeight, HintDistrust;
         public Quaternion TargetOffset;
-        public Vector3 BendNormal;
-
-        public Vector3 AnteriorNormal;
-
+        public Vector3 BendNormal, AnteriorNormal;
         public Quaternion HintRotation;
-
         public bool HintIsTracker;
     }
-
     public struct BasisLegSolveResult
     {
-        public Quaternion MidDelta;
-        public Quaternion RootDelta;
-        public Quaternion HintDelta;
-        public Quaternion MidPostRoll;
-        public Quaternion TipRotation;
+        public Quaternion MidDelta, RootDelta, HintDelta, MidPostRoll, TipRotation;
         public bool HintApplied;
         public float ShinRollDeg;
-
-        public Vector3 KneeSolved;
-        public Vector3 FootSolved;
-        public Quaternion RootRotationSolved;
-        public Quaternion MidRotationSolved;
-
-        public float UpperLength;
-        public float LowerLength;
-        public float TargetDistance;
-        public float ReachRatio;
-        public float KneeAngleDeg;
+        public Vector3 KneeSolved, FootSolved;
+        public Quaternion RootRotationSolved, MidRotationSolved;
+        public float UpperLength, LowerLength, TargetDistance, ReachRatio, KneeAngleDeg;
         public byte AxisSource;
         public float FootError;
     }
-
     public static class BasisLegSolveCore
     {
-        const float k_Epsilon = 1e-5f;
-        const float k_SqrEpsilon = 1e-8f;
-        const float k_PoleColinearSin = 0.5f;
-
+        const float epsilon = 1e-5f;
+        const float sqrEpsilon = 1e-8f;
+        const float poleColinearSin = 0.5f;
         public const float MinKneeInteriorDeg = 20f;
-
         public const float MaxKneeInteriorDeg = 176f;
-
         public const float KneeAnteriorSoftDeg = 85f;
         public const float KneeAnteriorHardDeg = 89.5f;
-
         public const float KneeAnteriorTaperStartDeg = 160f;
-
         public const float TrackerShinRollMaxDeg = 45f;
-
         public static float ClampKneeSwivelDeg(float swivelDeg, float softDeg, float hardDeg)
         {
             float wrapped = swivelDeg - 360f * Mathf.Floor((swivelDeg + 180f) / 360f);
@@ -101,7 +71,6 @@ namespace Basis.IK
 
             return wrapped < 0f ? -compressed : compressed;
         }
-
         public static void Solve(in BasisLegSolveInput i, out BasisLegSolveResult r)
         {
             r = default;
@@ -143,7 +112,7 @@ namespace Basis.IK
 
             byte axisSource = 0;
             Vector3 bendAxis = Vector3.Cross(ab, bc);
-            if (bendAxis.sqrMagnitude < k_SqrEpsilon)
+            if (bendAxis.sqrMagnitude < sqrEpsilon)
             {
                 if (hasHint)
                 {
@@ -151,19 +120,19 @@ namespace Basis.IK
                     axisSource = 1;
                 }
 
-                if (bendAxis.sqrMagnitude < k_SqrEpsilon)
+                if (bendAxis.sqrMagnitude < sqrEpsilon)
                 {
                     bendAxis = Vector3.Cross(atCorrected, bc);
                     axisSource = 2;
                 }
 
-                if (bendAxis.sqrMagnitude < k_SqrEpsilon)
+                if (bendAxis.sqrMagnitude < sqrEpsilon)
                 {
-                    Vector3 bcN = bcLen > k_Epsilon ? bc / bcLen : Vector3.zero;
+                    Vector3 bcN = bcLen > epsilon ? bc / bcLen : Vector3.zero;
                     bendAxis = i.BendNormal - bcN * Vector3.Dot(i.BendNormal, bcN);
                     axisSource = 3;
 
-                    if (bendAxis.sqrMagnitude < k_SqrEpsilon)
+                    if (bendAxis.sqrMagnitude < sqrEpsilon)
                     {
                         bendAxis = i.BendNormal;
                     }
@@ -182,7 +151,7 @@ namespace Basis.IK
             ac = cPosition - aPosition;
 
             Quaternion rootDelta = Quaternion.identity;
-            if (atCorrectedLen > k_Epsilon)
+            if (atCorrectedLen > epsilon)
             {
                 rootDelta = BasisQuaternionExt.FromToRotation(ac, atCorrected);
                 rootRot = rootDelta * rootRot;
@@ -196,7 +165,7 @@ namespace Basis.IK
 
             Vector3 acFinal = cPosition - aPosition;
             float acFinalSqr = acFinal.sqrMagnitude;
-            if (acFinalSqr > k_SqrEpsilon)
+            if (acFinalSqr > sqrEpsilon)
             {
                 Vector3 acNorm = acFinal / Mathf.Sqrt(acFinalSqr);
                 Vector3 kneeDir = Vector3.Cross(acNorm, rootDelta * bendAxis);
@@ -204,15 +173,15 @@ namespace Basis.IK
 
                 Vector3 bendPole = Vector3.Cross(acNorm, i.BendNormal);
                 bendPole -= acNorm * Vector3.Dot(bendPole, acNorm);
-                bool hasBendPole = bendPole.sqrMagnitude > k_SqrEpsilon;
+                bool hasBendPole = bendPole.sqrMagnitude > sqrEpsilon;
 
                 Vector3 anteriorPole = bendPole;
                 bool hasAnteriorPole = hasBendPole;
-                if (i.AnteriorNormal.sqrMagnitude > k_SqrEpsilon)
+                if (i.AnteriorNormal.sqrMagnitude > sqrEpsilon)
                 {
                     Vector3 ap = Vector3.Cross(acNorm, i.AnteriorNormal);
                     ap -= acNorm * Vector3.Dot(ap, acNorm);
-                    if (ap.sqrMagnitude > k_SqrEpsilon)
+                    if (ap.sqrMagnitude > sqrEpsilon)
                     {
                         anteriorPole = ap;
                         hasAnteriorPole = true;
@@ -226,22 +195,22 @@ namespace Basis.IK
                     Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
                     float ahLen = ah.magnitude;
 
-                    if (ahProj.sqrMagnitude > k_SqrEpsilon)
+                    if (ahProj.sqrMagnitude > sqrEpsilon)
                     {
                         pole = ahProj;
                     }
 
                     pole = GuardPoleAnterior(pole, anteriorPole, acNorm, hasAnteriorPole, ref axisSource);
 
-                    float poleSin = ahLen > k_Epsilon ? ahProj.magnitude / ahLen : 0f;
-                    if (poleSin < k_PoleColinearSin && hasBendPole && pole.sqrMagnitude > k_SqrEpsilon)
+                    float poleSin = ahLen > epsilon ? ahProj.magnitude / ahLen : 0f;
+                    if (poleSin < poleColinearSin && hasBendPole && pole.sqrMagnitude > sqrEpsilon)
                     {
-                        float blend = 1f - poleSin / k_PoleColinearSin;
+                        float blend = 1f - poleSin / poleColinearSin;
                         pole = Vector3.Slerp(pole.normalized, bendPole.normalized, blend);
                         axisSource = 4;
                     }
 
-                    if (i.HintDistrust > 0f && hasBendPole && pole.sqrMagnitude > k_SqrEpsilon)
+                    if (i.HintDistrust > 0f && hasBendPole && pole.sqrMagnitude > sqrEpsilon)
                     {
                         pole = Vector3.Slerp(pole.normalized, bendPole.normalized, Mathf.Clamp01(i.HintDistrust));
                         axisSource = 5;
@@ -254,7 +223,7 @@ namespace Basis.IK
 
                 float weight = hasHint ? hintWeight : 1f;
 
-                if (weight > 0f && kneeDir.sqrMagnitude > k_SqrEpsilon && pole.sqrMagnitude > k_SqrEpsilon)
+                if (weight > 0f && kneeDir.sqrMagnitude > sqrEpsilon && pole.sqrMagnitude > sqrEpsilon)
                 {
                     float swivel = ScaleSwivel(BasisIKMath.SignedAngleRad(kneeDir, pole, acNorm), weight);
                     hintR = BasisIKMath.AngleAxisRad(swivel, acNorm);
@@ -267,12 +236,11 @@ namespace Basis.IK
                 }
             }
 
-            float hintRotSqr = i.HintRotation.x * i.HintRotation.x + i.HintRotation.y * i.HintRotation.y
-                             + i.HintRotation.z * i.HintRotation.z + i.HintRotation.w * i.HintRotation.w;
+            float hintRotSqr = i.HintRotation.x * i.HintRotation.x + i.HintRotation.y * i.HintRotation.y + i.HintRotation.z * i.HintRotation.z + i.HintRotation.w * i.HintRotation.w;
             if (i.HintIsTracker && hintRotSqr > 0.5f)
             {
                 Vector3 shinRoll = cPosition - bPosition;
-                if (shinRoll.sqrMagnitude > k_SqrEpsilon)
+                if (shinRoll.sqrMagnitude > sqrEpsilon)
                 {
                     Vector3 shinRollN = shinRoll.normalized;
                     float roll = BasisIKMath.TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), shinRollN);
@@ -304,15 +272,14 @@ namespace Basis.IK
             r.UpperLength = abLen;
             r.LowerLength = bcLen;
             r.TargetDistance = atCorrectedLen;
-            r.ReachRatio = (maxReach > k_Epsilon) ? atCorrectedLen / maxReach : 0f;
+            r.ReachRatio = (maxReach > epsilon) ? atCorrectedLen / maxReach : 0f;
             r.KneeAngleDeg = BasisIKMath.AngleDeg(aPosition - bPosition, cPosition - bPosition);
             r.AxisSource = axisSource;
             r.FootError = (cPosition - tPosition).magnitude;
         }
-
         static Vector3 GuardPoleAnterior(Vector3 pole, Vector3 anteriorPole, Vector3 acNorm, bool hasAnteriorPole, ref byte axisSource)
         {
-            if (!hasAnteriorPole || !(pole.sqrMagnitude > k_SqrEpsilon))
+            if (!hasAnteriorPole || !(pole.sqrMagnitude > sqrEpsilon))
             {
                 return pole;
             }
@@ -329,7 +296,6 @@ namespace Basis.IK
 
             return pole;
         }
-
         static float ScaleSwivel(float radians, float weight)
         {
             if (weight >= 1f)
@@ -344,89 +310,68 @@ namespace Basis.IK
 
             return 2f * Mathf.Atan(weight * Mathf.Tan(0.5f * radians));
         }
-
         static float MinFlexionReach(float upper, float lower)
         {
             float c = Mathf.Cos(MinKneeInteriorDeg * Mathf.Deg2Rad);
             float d2 = upper * upper + lower * lower - 2f * upper * lower * c;
             return d2 > 0f ? Mathf.Sqrt(d2) : 0f;
         }
-
         static float MaxExtensionReach(float upper, float lower)
         {
             float c = Mathf.Cos(MaxKneeInteriorDeg * Mathf.Deg2Rad);
             float d2 = upper * upper + lower * lower - 2f * upper * lower * c;
             return d2 > 0f ? Mathf.Sqrt(d2) : 0f;
         }
-
     }
-
     public struct BasisKneeForwardInput
     {
-        public Vector3 HipPosition;
-        public Vector3 FootPosition;
-        public Vector3 FootForwardDir;
-        public Vector3 BodyForwardDir;
-        public Vector3 PlayerUp;
-        public float UpperLength;
-        public float Coupling;
-        public float Strength;
+        public Vector3 HipPosition, FootPosition, FootForwardDir, BodyForwardDir, PlayerUp;
+        public float UpperLength, Coupling, Strength;
     }
-
     public struct BasisKneeForwardResult
     {
-        public Vector3 KneeHint;
-        public Vector3 BendDir;
-        public float HintWeight;
-        public float Upright01;
-        public float FollowDeg;
+        public Vector3 KneeHint, BendDir;
+        public float HintWeight, Upright01, FollowDeg;
     }
-
     public static class BasisKneeForwardCore
     {
         public const float DefaultUprightCoupling = 1.0f;
-
         public const float FollowFadeStartDeg = 120f;
-
         public const float MaxFollowDeg = 60f;
-
         public const float LegUprightFadeStartDot = 0.25f;
         public const float LegUprightFadeFullDot = 0.55f;
-
         public const float RefCondSinFadeStart = 0.15f;
         public const float RefCondSinFadeFull = 0.35f;
-
-        const float k_Epsilon = 1e-5f;
-        const float k_SqrEpsilon = 1e-10f;
-
+        const float epsilon = 1e-5f;
+        const float sqrEpsilon = 1e-10f;
         public static void Solve(in BasisKneeForwardInput i, out BasisKneeForwardResult r)
         {
             r = default;
 
             Vector3 hipToFoot = i.FootPosition - i.HipPosition;
             float axisSqr = hipToFoot.sqrMagnitude;
-            float radius = i.UpperLength > k_Epsilon ? i.UpperLength : 0.4f;
+            float radius = i.UpperLength > epsilon ? i.UpperLength : 0.4f;
             Vector3 mid = (i.HipPosition + i.FootPosition) * 0.5f;
 
-            if (axisSqr < k_SqrEpsilon)
+            if (axisSqr < sqrEpsilon)
             {
-                r.BendDir = i.BodyForwardDir.sqrMagnitude > k_SqrEpsilon ? i.BodyForwardDir.normalized : Vector3.forward;
+                r.BendDir = i.BodyForwardDir.sqrMagnitude > sqrEpsilon ? i.BodyForwardDir.normalized : Vector3.forward;
                 r.KneeHint = mid + r.BendDir * radius;
                 r.HintWeight = 0f;
                 return;
             }
             Vector3 axis = hipToFoot / Mathf.Sqrt(axisSqr);
-            Vector3 up = i.PlayerUp.sqrMagnitude > k_SqrEpsilon ? i.PlayerUp.normalized : Vector3.up;
+            Vector3 up = i.PlayerUp.sqrMagnitude > sqrEpsilon ? i.PlayerUp.normalized : Vector3.up;
 
             Vector3 bodyPerp = Vector3.ProjectOnPlane(i.BodyForwardDir, axis);
-            if (bodyPerp.sqrMagnitude < k_SqrEpsilon)
+            if (bodyPerp.sqrMagnitude < sqrEpsilon)
             {
                 Vector3 fallback = Vector3.ProjectOnPlane(up, axis);
-                if (fallback.sqrMagnitude < k_SqrEpsilon)
+                if (fallback.sqrMagnitude < sqrEpsilon)
                 {
                     fallback = Vector3.Cross(axis, Vector3.right);
                 }
-                if (fallback.sqrMagnitude < k_SqrEpsilon)
+                if (fallback.sqrMagnitude < sqrEpsilon)
                 {
                     fallback = Vector3.Cross(axis, Vector3.up);
                 }
@@ -437,8 +382,7 @@ namespace Basis.IK
             }
             Vector3 bodyPerpN = bodyPerp.normalized;
             float fwdMag = i.BodyForwardDir.magnitude;
-            float refConditioning = Smoothstep(RefCondSinFadeStart, RefCondSinFadeFull,
-                fwdMag > k_Epsilon ? Mathf.Sqrt(bodyPerp.sqrMagnitude) / fwdMag : 0f);
+            float refConditioning = Smoothstep(RefCondSinFadeStart, RefCondSinFadeFull, fwdMag > epsilon ? Mathf.Sqrt(bodyPerp.sqrMagnitude) / fwdMag : 0f);
 
             float legVertical01 = Smoothstep(LegUprightFadeStartDot, LegUprightFadeFullDot, Mathf.Abs(Vector3.Dot(axis, up)));
             r.Upright01 = legVertical01;
@@ -448,7 +392,7 @@ namespace Basis.IK
             Vector3 footPerp = Vector3.ProjectOnPlane(i.FootForwardDir, axis);
             Vector3 bendDir;
             float followDeg;
-            if (footPerp.sqrMagnitude < k_SqrEpsilon || legVertical01 <= 0f)
+            if (footPerp.sqrMagnitude < sqrEpsilon || legVertical01 <= 0f)
             {
                 bendDir = bodyPerpN;
                 followDeg = 0f;
@@ -471,7 +415,7 @@ namespace Basis.IK
 
                 bendDir = Quaternion.AngleAxis(signedDeg < 0f ? -followDeg : followDeg, axis) * bodyPerpN;
                 bendDir = Vector3.ProjectOnPlane(bendDir, axis);
-                bendDir = bendDir.sqrMagnitude > k_SqrEpsilon ? bendDir.normalized : bodyPerpN;
+                bendDir = bendDir.sqrMagnitude > sqrEpsilon ? bendDir.normalized : bodyPerpN;
             }
 
             r.BendDir = bendDir;
@@ -479,42 +423,18 @@ namespace Basis.IK
             r.KneeHint = mid + bendDir * radius;
             r.HintWeight = strength * refConditioning;
         }
-
         static float Smoothstep(float a, float b, float v)
         {
             float t = Mathf.Approximately(a, b) ? (v >= b ? 1f : 0f) : BasisIKMath.Saturate((v - a) / (b - a));
             return t * t * (3f - 2f * t);
         }
     }
-
     public struct BasisLegDiagnostics
     {
-        public float ReachRatio;
-        public float KneeAngleDeg;
-        public float AxisSource;
-        public float HintApplied;
-        public float ModelHintUsed;
-        public float ModelConfidence;
-        public float HintDistrust;
-        public float RawSwivelDeg;
-        public float SmoothSwivelDeg;
-        public float Conditioning;
-        public float HoldGate;
-        public float AnteriorGuardApplied;
-        public float Seeded;
-        public float ShinRollDeg;
-
-        public float HipFlexionDeg;
-        public float HipAbductionDeg;
-        public float FemurTwistDeg;
-
-        public static string Header =>
-            "leg,reach,kneeDeg,axisSrc,hintApplied,modelUsed,modelConf,distrust,rawSwivel,smoothSwivel,cond,holdGate,antGuard,seeded,shinRoll,hipFlex,hipAbd,femurTwist";
-
-        public string ToRow(string leg) =>
-            $"{leg},{ReachRatio:F4},{KneeAngleDeg:F2},{AxisSource:F0},{HintApplied:F0},{ModelHintUsed:F0}," +
-            $"{ModelConfidence:F3},{HintDistrust:F3},{RawSwivelDeg:F2},{SmoothSwivelDeg:F2}," +
-            $"{Conditioning:F4},{HoldGate:F3},{AnteriorGuardApplied:F0},{Seeded:F0},{ShinRollDeg:F2}," +
-            $"{HipFlexionDeg:F2},{HipAbductionDeg:F2},{FemurTwistDeg:F2}";
+        public float ReachRatio, KneeAngleDeg, AxisSource, HintApplied, ModelHintUsed, ModelConfidence, HintDistrust;
+        public float RawSwivelDeg, SmoothSwivelDeg, Conditioning, HoldGate, AnteriorGuardApplied, Seeded, ShinRollDeg;
+        public float HipFlexionDeg, HipAbductionDeg, FemurTwistDeg;
+        public static string Header => "leg,reach,kneeDeg,axisSrc,hintApplied,modelUsed,modelConf,distrust,rawSwivel,smoothSwivel,cond,holdGate,antGuard,seeded,shinRoll,hipFlex,hipAbd,femurTwist";
+        public string ToRow(string leg) => $"{leg},{ReachRatio:F4},{KneeAngleDeg:F2},{AxisSource:F0},{HintApplied:F0},{ModelHintUsed:F0}," + $"{ModelConfidence:F3},{HintDistrust:F3},{RawSwivelDeg:F2},{SmoothSwivelDeg:F2}," + $"{Conditioning:F4},{HoldGate:F3},{AnteriorGuardApplied:F0},{Seeded:F0},{ShinRollDeg:F2}," + $"{HipFlexionDeg:F2},{HipAbductionDeg:F2},{FemurTwistDeg:F2}";
     }
 }

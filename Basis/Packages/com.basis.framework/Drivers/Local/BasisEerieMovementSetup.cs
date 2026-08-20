@@ -240,8 +240,8 @@ namespace Basis.Scripts.Drivers
             job.spineMaxIterations = 20;
             job.spineTolerance = 0.001f;
             job.chestSpring = new NativeArray<BasisChestSpringState>(1, Allocator.Persistent);
-            job.swingContinuity = new NativeArray<BasisSwingContinuityState>(BasisEerieMovement.k_SwingCount, Allocator.Persistent);
-            job.armState = new NativeArray<BasisArmSlotState>(BasisEerieMovement.k_SwingCount, Allocator.Persistent);
+            job.swingContinuity = new NativeArray<BasisSwingContinuityState>(BasisEerieMovement.swingCount, Allocator.Persistent);
+            job.armState = new NativeArray<BasisArmSlotState>(BasisEerieMovement.swingCount, Allocator.Persistent);
             job.legState = new NativeArray<BasisLegSlotState>(2, Allocator.Persistent);
             job.legDiagnostics = new NativeArray<BasisLegDiagnostics>(2, Allocator.Persistent);
         }

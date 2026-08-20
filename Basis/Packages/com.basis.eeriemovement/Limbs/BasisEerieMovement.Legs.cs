@@ -11,7 +11,6 @@ namespace Basis.IK
             SolveLeg(0);
             SolveLeg(1);
         }
-
         void SolveToePass()
         {
             if (leftToeEnabled) ApplyRotation(true, handleLeftToe, leftDrivenTargetRot, offsetRotationLeftToe);
@@ -20,28 +19,21 @@ namespace Basis.IK
             if (rightToeEnabled) ApplyRotation(true, handleRightToe, rightDrivenTargetRot, offsetRotationRightToe);
             else ApplyToeSurfaceBend(handleRightToe, rightToeBendDeg, rightToeBendAxis);
         }
-
         BasisSwivelFrame BuildLegFrame()
         {
-            if (!poseStream.IsValid(handleLeftUpperLeg) || !poseStream.IsValid(handleRightUpperLeg)
-                || !poseStream.IsValid(handleHips))
+            if (!poseStream.IsValid(handleLeftUpperLeg) || !poseStream.IsValid(handleRightUpperLeg) || !poseStream.IsValid(handleHips))
             {
                 return default;
             }
 
-            BasisBoneHandle upTo = poseStream.IsValid(handleChest) ? handleChest
-                : poseStream.IsValid(handleSpine) ? handleSpine
-                : poseStream.IsValid(handleNeck) ? handleNeck : handleHead;
+            BasisBoneHandle upTo = poseStream.IsValid(handleChest) ? handleChest : poseStream.IsValid(handleSpine) ? handleSpine : poseStream.IsValid(handleNeck) ? handleNeck : handleHead;
             if (!poseStream.IsValid(upTo))
             {
                 return default;
             }
 
-            return BasisSwivelHintCore.BuildFrame(
-                poseStream.GetPosition(handleLeftUpperLeg), poseStream.GetPosition(handleRightUpperLeg),
-                poseStream.GetPosition(handleHips), poseStream.GetPosition(upTo));
+            return BasisSwivelHintCore.BuildFrame( poseStream.GetPosition(handleLeftUpperLeg), poseStream.GetPosition(handleRightUpperLeg), poseStream.GetPosition(handleHips), poseStream.GetPosition(upTo));
         }
-
         public void SolveLeg(int legSlot)
         {
             bool isLeft = legSlot == 0;
@@ -89,8 +81,7 @@ namespace Basis.IK
                 float upperLen = (poseStream.GetPosition(mid) - hipPos).magnitude;
                 float lowerLen = (poseStream.GetPosition(tip) - poseStream.GetPosition(mid)).magnitude;
                 float legLen = upperLen + lowerLen;
-                if (BasisSwivelHintCore.LegHint(frame, hipPos, targetPos, legLen, isLeft,
-                                                out Vector3 modelHint, out float conf))
+                if (BasisSwivelHintCore.LegHint(frame, hipPos, targetPos, legLen, isLeft, out Vector3 modelHint, out float conf))
                 {
                     hint = modelHint;
                     hintW = 1f;
@@ -162,16 +153,11 @@ namespace Basis.IK
                 if (hintIsTracker || footIsTracker)
                 {
                     bool footDerivedPole = !hintIsTracker && footIsTracker && !usedModelHint;
-                    SmoothKneeSwivel(root, mid, tip, legSlot,
-                        trackedKneeSwivelMinCutoffHz, trackedKneeSwivelBeta, trackedKneeSwivelDerivCutoffHz,
-                        conditionOnPole: !hintIsTracker && (!footDerivedPole || kneeFootPoleConditioning),
-                        holdWhenSingular: !footDerivedPole || kneeFootPoleHold);
+                    SmoothKneeSwivel(root, mid, tip, legSlot, trackedKneeSwivelMinCutoffHz, trackedKneeSwivelBeta, trackedKneeSwivelDerivCutoffHz, conditionOnPole: !hintIsTracker && (!footDerivedPole || kneeFootPoleConditioning), holdWhenSingular: !footDerivedPole || kneeFootPoleHold);
                 }
                 else
                 {
-                    SmoothKneeSwivel(root, mid, tip, legSlot,
-                        BasisSwivelFilterCore.MinCutoffHz, BasisSwivelFilterCore.Beta, BasisSwivelFilterCore.DerivCutoffHz,
-                        conditionOnPole: true, holdWhenSingular: true);
+                    SmoothKneeSwivel(root, mid, tip, legSlot, BasisSwivelFilterCore.MinCutoffHz, BasisSwivelFilterCore.Beta, BasisSwivelFilterCore.DerivCutoffHz, conditionOnPole: true, holdWhenSingular: true);
                 }
             }
         }

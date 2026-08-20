@@ -1,65 +1,34 @@
 using UnityEngine;
-
 namespace Basis.IK
 {
     public struct BasisCervicalInput
     {
-        public float BaseDeg;
-        public float NeckShare;
-        public float MaxHeadPitchDeg;
-        public float ExtremeStartDeg;
-        public float ExtremeFullDeg;
-        public float ExtremeRollForwardMaxDeg;
-        public float ExtremeRollBackwardMaxDeg;
-        public float ExtremeHipsHorizontalMax;
-        public float ExtremeChestHorizontalMax;
-
-        public float ExtremeHipsHorizontalLookUp;
-        public float ExtremeChestHorizontalLookUp;
-        public float ExtremeHipsDownMax;
-        public float ExtremeChestDownMax;
-        public float ExtremeHipsDownLookUp;
-        public float ExtremeChestDownLookUp;
-        public float PitchGainDeg;
-
+        public float BaseDeg, NeckShare, MaxHeadPitchDeg, ExtremeStartDeg, ExtremeFullDeg, ExtremeRollForwardMaxDeg;
+        public float ExtremeRollBackwardMaxDeg, ExtremeHipsHorizontalMax, ExtremeChestHorizontalMax;
+        public float ExtremeHipsHorizontalLookUp, ExtremeChestHorizontalLookUp, ExtremeHipsDownMax, ExtremeChestDownMax;
+        public float ExtremeHipsDownLookUp, ExtremeChestDownLookUp, PitchGainDeg;
         public Vector3 ReferenceUp;
         public Quaternion HeadTargetRot;
         public bool HasUpperChest;
     }
-
     public struct BasisCervicalResult
     {
         public bool EarlyOut;
         public Quaternion HeadRotClamped;
-
-        public float BhDeg;
-        public float NeckDeg;
+        public float BhDeg, NeckDeg;
         public bool HasExtreme;
-        public float HipsForwardAmount;
-        public float HipsDownAmount;
-        public float ChestForwardAmount;
-        public float ChestDownAmount;
-
-        public float HeadPitchInputDeg;
-        public float HeadPitchClampedDeg;
-        public float LordosisDeg;
-        public float UpperChestLordosisDeg;
-        public float ExtremeFrac;
-        public float ExtremeRollDeg;
-        public float SignedPitch;
-        public float LookUpFrac;
-        public float LookDownFrac;
+        public float HipsForwardAmount, HipsDownAmount, ChestForwardAmount, ChestDownAmount, HeadPitchInputDeg;
+        public float HeadPitchClampedDeg, LordosisDeg, UpperChestLordosisDeg, ExtremeFrac, ExtremeRollDeg, SignedPitch;
+        public float LookUpFrac, LookDownFrac;
     }
-
     public static class BasisCervicalSolveCore
     {
-        const float k_SqrEpsilon = 1e-8f;
-
+        const float sqrEpsilon = 1e-8f;
         public static void Solve(in BasisCervicalInput i, out BasisCervicalResult r)
         {
             r = default;
 
-            Vector3 up = i.ReferenceUp.sqrMagnitude > k_SqrEpsilon ? i.ReferenceUp.normalized : Vector3.up;
+            Vector3 up = i.ReferenceUp.sqrMagnitude > sqrEpsilon ? i.ReferenceUp.normalized : Vector3.up;
 
             Quaternion headRot = i.HeadTargetRot;
             Vector3 hf = headRot * Vector3.forward;
@@ -79,7 +48,7 @@ namespace Basis.IK
                 {
                     Vector3 alt = headRot * Vector3.up;
                     Vector3 altH = alt - up * Vector3.Dot(alt, up);
-                    yawForward = altH.sqrMagnitude > k_SqrEpsilon ? altH.normalized : Vector3.Cross(up, Vector3.right).normalized;
+                    yawForward = altH.sqrMagnitude > sqrEpsilon ? altH.normalized : Vector3.Cross(up, Vector3.right).normalized;
                 }
                 Vector3 yawRight = Vector3.Cross(up, yawForward);
                 Quaternion correction = Quaternion.AngleAxis(-(pitchDeg - clampedDeg), yawRight);
@@ -142,36 +111,28 @@ namespace Basis.IK
             }
         }
     }
-
     public static class BasisNeckCueCore
     {
-        const float k_SqrEpsilon = 1e-8f;
-        const float k_Epsilon = 1e-5f;
-
+        const float sqrEpsilon = 1e-8f;
+        const float epsilon = 1e-5f;
         public const float DefaultExtensionDamp = 0.65f;
-
-        public static Vector3 Solve(Vector3 headTargetPos, Quaternion headWorldRot, Vector3 tposeHeadToNeckLocal,
-            Vector3 playerUp, float extensionDamp)
+        public static Vector3 Solve(Vector3 headTargetPos, Quaternion headWorldRot, Vector3 tposeHeadToNeckLocal, Vector3 playerUp, float extensionDamp)
         {
             return Solve(headTargetPos, headWorldRot, tposeHeadToNeckLocal, playerUp, extensionDamp, 0f);
         }
-
-        public static Vector3 Solve(Vector3 headTargetPos, Quaternion headWorldRot, Vector3 tposeHeadToNeckLocal,
-            Vector3 playerUp, float extensionDamp, float flexionDamp)
+        public static Vector3 Solve(Vector3 headTargetPos, Quaternion headWorldRot, Vector3 tposeHeadToNeckLocal, Vector3 playerUp, float extensionDamp, float flexionDamp)
         {
             Vector3 lever = headWorldRot * tposeHeadToNeckLocal;
 
-            if (lever.sqrMagnitude < k_SqrEpsilon)
+            if (lever.sqrMagnitude < sqrEpsilon)
             {
                 return headTargetPos + lever;
             }
 
-            Vector3 up = playerUp.sqrMagnitude < k_SqrEpsilon ? Vector3.up : playerUp.normalized;
+            Vector3 up = playerUp.sqrMagnitude < sqrEpsilon ? Vector3.up : playerUp.normalized;
             Vector3 gaze = headWorldRot * Vector3.forward;
             float upComp = Vector3.Dot(gaze, up);
 
-            // Signed: positive is extension (look up), negative is flexion (look down). Each side gets
-            // its own damp so enabling one cannot perturb the other.
             bool isExtension = upComp > 0f;
             float damp = Mathf.Clamp01(isExtension ? extensionDamp : flexionDamp);
             if (damp <= 0f)
@@ -184,18 +145,16 @@ namespace Basis.IK
             float pitchDeg = Mathf.Atan2(upComp, horizMag) * Mathf.Rad2Deg;
 
             Vector3 forwardAzimuth;
-            if (horizMag > k_Epsilon)
+            if (horizMag > epsilon)
             {
                 forwardAzimuth = horiz / horizMag;
             }
             else
             {
-                // At the pole the gaze carries no azimuth of its own, so take it from the head's up
-                // axis: it lies opposite the heading looking straight up and along it looking straight
-                // down.
+
                 Vector3 alt = headWorldRot * Vector3.up;
                 Vector3 altH = alt - up * Vector3.Dot(alt, up);
-                if (altH.sqrMagnitude < k_SqrEpsilon)
+                if (altH.sqrMagnitude < sqrEpsilon)
                 {
                     return headTargetPos + lever;
                 }
@@ -203,7 +162,7 @@ namespace Basis.IK
             }
 
             Vector3 axis = Vector3.Cross(up, forwardAzimuth);
-            if (axis.sqrMagnitude < k_SqrEpsilon)
+            if (axis.sqrMagnitude < sqrEpsilon)
             {
                 return headTargetPos + lever;
             }
@@ -213,16 +172,12 @@ namespace Basis.IK
             return headTargetPos + undo * lever;
         }
     }
-
     public static class BasisTrunkCounterbalanceCore
     {
-        const float k_Epsilon = 1e-5f;
-        const float k_SqrEpsilon = 1e-8f;
-
+        const float epsilon = 1e-5f;
+        const float sqrEpsilon = 1e-8f;
         public const float DerivedGain = 0.38f;
-
-        public static bool Solve(Vector3 hipsPos, Vector3 neckCue, Vector3 playerUp, float gain, float maxShift,
-            out Vector3 newHipsPos, out float flexionFrac, out float shiftMeters)
+        public static bool Solve(Vector3 hipsPos, Vector3 neckCue, Vector3 playerUp, float gain, float maxShift, out Vector3 newHipsPos, out float flexionFrac, out float shiftMeters)
         {
             newHipsPos = hipsPos;
             flexionFrac = 0f;
@@ -233,10 +188,10 @@ namespace Basis.IK
                 return false;
             }
 
-            Vector3 up = playerUp.sqrMagnitude < k_SqrEpsilon ? Vector3.up : playerUp.normalized;
+            Vector3 up = playerUp.sqrMagnitude < sqrEpsilon ? Vector3.up : playerUp.normalized;
             Vector3 trunk = neckCue - hipsPos;
             float len = trunk.magnitude;
-            if (len < k_Epsilon)
+            if (len < epsilon)
             {
                 return false;
             }
@@ -245,7 +200,7 @@ namespace Basis.IK
             float horizMag = horizontal.magnitude;
 
             flexionFrac = Mathf.Clamp01(horizMag / len);
-            if (horizMag < k_Epsilon)
+            if (horizMag < epsilon)
             {
                 return false;
             }
@@ -260,10 +215,9 @@ namespace Basis.IK
             newHipsPos = hipsPos - (horizontal / horizMag) * shift;
             return true;
         }
-
         public static float Saturate(float x, float cap)
         {
-            if (!(cap > k_Epsilon))
+            if (!(cap > epsilon))
             {
                 return 0f;
             }

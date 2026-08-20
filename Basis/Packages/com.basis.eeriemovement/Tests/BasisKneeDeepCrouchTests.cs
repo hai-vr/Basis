@@ -14,9 +14,9 @@ namespace Basis.Tests.IK
 
         static float SitBack(float dhat)
         {
-            float x = dhat - BasisCrouchOffsetCore.k_DepthDeadzone;
+            float x = dhat - BasisCrouchOffsetCore.depthDeadzone;
             if (x <= 0f) return 0f;
-            return BasisCrouchOffsetCore.k_SetbackSlope * x / (1f + BasisCrouchOffsetCore.k_SetbackSat * x) * S;
+            return BasisCrouchOffsetCore.setbackSlope * x / (1f + BasisCrouchOffsetCore.setbackSat * x) * S;
         }
 
         struct Step

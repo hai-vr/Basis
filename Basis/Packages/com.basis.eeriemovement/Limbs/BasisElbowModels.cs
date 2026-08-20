@@ -1,26 +1,20 @@
 using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.IK
 {
     [BurstCompile]
     public static class BasisElbowFieldModel
     {
-        static readonly float3 k_RestPole = new float3(0.35f, -1.0f, -0.15f);
-
+        static readonly float3 restPole = new float3(0.35f, -1.0f, -0.15f);
         public static float3 Elbow(float3 tipLocal)
         {
             float len = math.length(tipLocal);
             float3 t = len > 1f ? tipLocal / len : tipLocal;
             float x = t.x, y = t.y, z = t.z;
 
-            return new float3(
-                (+0.25611932f) + (+0.23203308f) * x + (+0.23016090f) * y + (-0.03095514f) * z,
-                (-0.16631846f) + (+0.09813791f) * x + (+0.35133371f) * y + (-0.10962090f) * z,
-                (-0.03474265f) + (-0.06358632f) * x + (+0.12388336f) * y + (+0.45664834f) * z);
+            return new float3( (+0.25611932f) + (+0.23203308f) * x + (+0.23016090f) * y + (-0.03095514f) * z, (-0.16631846f) + (+0.09813791f) * x + (+0.35133371f) * y + (-0.10962090f) * z, (-0.03474265f) + (-0.06358632f) * x + (+0.12388336f) * y + (+0.45664834f) * z);
         }
-
         public static float3 BendDirection(float3 tipLocal, float3 elbowLocal, out float conditioning)
         {
             float3 axis = math.normalizesafe(tipLocal, new float3(0f, -1f, 0f));
@@ -28,40 +22,36 @@ namespace Basis.IK
             float3 perp = elbowLocal - axis * math.dot(elbowLocal, axis);
             conditioning = math.length(perp);
 
-            float3 restPerp = k_RestPole - axis * math.dot(k_RestPole, axis);
+            float3 restPerp = restPole - axis * math.dot(restPole, axis);
             float3 rest = math.normalizesafe(restPerp, new float3(0f, 0f, -1f));
 
             return math.normalizesafe(perp, rest);
         }
     }
-
     [BurstCompile]
     public static class BasisElbowStereoModel
     {
-        static readonly float3 k_Zero = new float3(-0.97339949f, +0.20492621f, -0.10246310f);
-
-        static readonly float3 k_ChartA = new float3(+0.10468478f, +0.00000000f, -0.99450545f);
-        static readonly float3 k_ChartB = new float3(-0.20380023f, -0.97877743f, -0.02145266f);
-
-        static readonly float4 k_ThetaCos = new float4(+0.60690088f, -0.14357171f, +0.68042736f, +0.07441551f);
-        static readonly float4 k_ThetaSin = new float4(-0.38487204f, +0.42321954f, +0.78253400f, +0.25439812f);
-
+        static readonly float3 kZero = new float3(-0.97339949f, +0.20492621f, -0.10246310f);
+        static readonly float3 chartA = new float3(+0.10468478f, +0.00000000f, -0.99450545f);
+        static readonly float3 chartB = new float3(-0.20380023f, -0.97877743f, -0.02145266f);
+        static readonly float4 thetaCos = new float4(+0.60690088f, -0.14357171f, +0.68042736f, +0.07441551f);
+        static readonly float4 thetaSin = new float4(-0.38487204f, +0.42321954f, +0.78253400f, +0.25439812f);
         public static float3 BendDirection(float3 tipLocal, out float conditioning)
         {
             float3 d = math.normalizesafe(tipLocal, new float3(0f, -1f, 0f));
 
-            float ds = math.dot(d, k_Zero);
+            float ds = math.dot(d, kZero);
 
             float den = 1f - ds;
             den = math.abs(den) < 1e-6f ? (den < 0f ? -1e-6f : 1e-6f) : den;
 
-            float u = math.dot(d, k_ChartA) / den;
-            float v = math.dot(d, k_ChartB) / den;
+            float u = math.dot(d, chartA) / den;
+            float v = math.dot(d, chartB) / den;
             float r2 = u * u + v * v;
             float W = r2 + 1f;
 
-            float3 Dv = 2f * u * k_ChartA + 2f * v * k_ChartB + (r2 - 1f) * k_Zero;
-            float3 T = ((2f * k_ChartA + 2f * u * k_Zero) * W - Dv * (2f * u)) / (W * W);
+            float3 Dv = 2f * u * chartA + 2f * v * chartB + (r2 - 1f) * kZero;
+            float3 T = ((2f * chartA + 2f * u * kZero) * W - Dv * (2f * u)) / (W * W);
             T = T - d * math.dot(T, d);
             conditioning = math.length(T);
 
@@ -69,8 +59,8 @@ namespace Basis.IK
 
             float sc = 1f / (1f + r2);
             float4 f = new float4(1f, u * sc, v * sc, ds);
-            float ct = math.dot(f, k_ThetaCos);
-            float st = math.dot(f, k_ThetaSin);
+            float ct = math.dot(f, thetaCos);
+            float st = math.dot(f, thetaSin);
             float theta = math.atan2(st, ct);
 
             float3 cross = math.cross(d, baseDir);
@@ -79,7 +69,6 @@ namespace Basis.IK
             return math.normalizesafe(bend, baseDir);
         }
     }
-
     [BurstCompile]
     public static class BasisArmElbowNeuralFieldModel
     {

@@ -43,8 +43,6 @@ namespace Basis.Scripts.Drivers
         bool _simDirty = true;
         bool _landingLatch;
         float _freezeArmTimer;
-        bool _graphStopped;
-
         readonly BasisLocoContribution[] _contributionsManaged = new BasisLocoContribution[BasisLocomotionGraph.MaxContributions];
         int _contributionCount;
         NativeArray<BasisLocoContribution> _contributionsNative;
@@ -64,7 +62,6 @@ namespace Basis.Scripts.Drivers
         {
             CompleteIfPending();
             DisposeBakeData();
-            _graphStopped = false;
             _simDirty = true;
             _landingLatch = false;
             _freezeArmTimer = 0f;
@@ -235,7 +232,6 @@ namespace Basis.Scripts.Drivers
             {
                 _contributionsNative.Dispose();
             }
-            _graphStopped = false;
         }
     }
 }

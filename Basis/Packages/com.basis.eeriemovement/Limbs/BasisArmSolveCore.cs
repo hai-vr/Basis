@@ -1,16 +1,12 @@
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using UnityEngine;
-
 namespace Basis.IK
 {
     public struct BasisArmSolveInput
     {
-        public Vector3 Shoulder;
-        public Vector3 Elbow;
-        public Vector3 Hand;
-        public Quaternion RootRotation;
-        public Quaternion MidRotation;
+        public Vector3 Shoulder, Elbow, Hand;
+        public Quaternion RootRotation, MidRotation;
         public Vector3 TargetPosition;
         public Quaternion TargetRotation;
         public Vector3 HintPosition;
@@ -19,100 +15,47 @@ namespace Basis.IK
         public Vector3 PlayerUp;
         public float HintMaxStepDeg;
         public bool HintIsTracker;
-        public Quaternion TipRotation;
-
-        public Quaternion HintRotation;
-
-        // Tracker pole anchor state (previous frame): the last well-conditioned pole direction and the
-        // tracker rotation it was captured against. Zero/false = no history, anchor declines.
+        public Quaternion TipRotation, HintRotation;
         public bool HasPrevPole;
         public Vector3 PrevPoleDir;
         public Quaternion PrevHintRotation;
-
-        // Anatomy-guard branch hysteresis: the side (-1/+1) the guard chose last frame, 0 = no history.
-        // ElbowLateralOut (anatomically outward) seeds the first decision; TorsoUp is the guard's frame
-        // (falls back to PlayerUp when zero).
         public int PrevGuardSide;
-        public Vector3 ElbowLateralOut;
-        public Vector3 TorsoUp;
-
-        // Forearm demand-follow weight. 0 (the struct default) = legacy roll behaviour, bit-identical
-        // for every caller that predates the field; 1 = beyond the wrist's carpal keep the forearm rolls
-        // to carry the hand's axial demand. Never moves the hand off its rotation target.
+        public Vector3 ElbowLateralOut, TorsoUp;
         public float ForearmFollowWeight;
     }
-
     public struct BasisArmSolveResult
     {
-        public Quaternion MidDelta;
-        public Quaternion RootDelta;
-        public Quaternion HintDelta;
-        public Quaternion MidPostRoll;
-
-        public Quaternion TipRotation;
+        public Quaternion MidDelta, RootDelta, HintDelta, MidPostRoll, TipRotation;
         public bool HintApplied;
-
-        public Vector3 ElbowSolved;
-        public Vector3 HandSolved;
-        public Quaternion RootRotationSolved;
-        public Quaternion MidRotationSolved;
-
-        public float UpperLength;
-        public float LowerLength;
-        public float TargetDistance;
-        public float ReachRatio;
-        public float ElbowAngleDeg;
-        public float HintFade;
-        public float HintProjMag;
+        public Vector3 ElbowSolved, HandSolved;
+        public Quaternion RootRotationSolved, MidRotationSolved;
+        public float UpperLength, LowerLength, TargetDistance, ReachRatio, ElbowAngleDeg, HintFade, HintProjMag;
         public float ArmProjMag;
         public byte AxisSource;
-        public float HandError;
-        public float WristTwistDeg;
-        public float WristReliefDeg;
-        public float ForearmRollDeg;
-        public float WristResidualDeg;
-
+        public float HandError, WristTwistDeg, WristReliefDeg, ForearmRollDeg, WristResidualDeg;
         public bool PoleAnchorValid;
         public Vector3 PoleDirUsed;
         public Quaternion PoleRotUsed;
         public float PoleConditioning;
         public int GuardSideUsed;
     }
-
     public static class BasisArmSolveCore
     {
-        const float k_Epsilon = 1e-5f;
-        const float k_SqrEpsilon = 1e-8f;
-
+        const float epsilon = 1e-5f;
+        const float sqrEpsilon = 1e-8f;
         public const float MinElbowAngleDeg = 23f;
-
         public const float MaxElbowAngleDeg = 170f;
-
         public const float WristRollComfortDeg = 80f;
-
         public const float WristRollRampStartDeg = 55f;
-
         public const float WristRollMaxReliefDeg = 70f;
-
         public const float TrackerRollHandBlend = 0.5f;
-
         public const float TrackerForearmRollMaxDeg = 120f;
-
-        // Carpal share of an imposed hand roll. In vivo the radiocarpal joint has no active axial DOF:
-        // the carpus carries 10-20% of a hand rotation up to ~17 deg (SD 8-10), collapsing under grip
-        // (PubMed 15621322, 11415625, 1861019). Everything past the keep belongs to the forearm.
         public const float WristKeepFrac = 0.15f;
         public const float WristKeepMaxDeg = 15f;
-
-        // Tracker pole anchor conditioning band, as fractions of hint-lever-arm / total arm length:
-        // below AnchorFrac the measured pole is noise (hold the anchor), above TrustFrac it is fully
-        // trusted (refresh the anchor); between them the swivel eases from anchor to measured.
         public const float TrackerPoleAnchorFrac = 0.05f;
         public const float TrackerPoleTrustFrac = 0.12f;
-
-        const float k_WristWrapFadeStartDeg = 155f;
-        const float k_WristWrapFadeEndDeg = 178f;
-
+        const float wristWrapFadeStartDeg = 155f;
+        const float wristWrapFadeEndDeg = 178f;
         public static void Solve(in BasisArmSolveInput i, out BasisArmSolveResult r)
         {
             r = default;
@@ -147,10 +90,10 @@ namespace Basis.IK
 
             byte axisSource = 0;
             Vector3 axis = Vector3.Cross(ab, bc);
-            if (axis.sqrMagnitude < k_SqrEpsilon)
+            if (axis.sqrMagnitude < sqrEpsilon)
             {
-                Vector3 straightArm = ac.sqrMagnitude > k_SqrEpsilon ? ac : bc;
-                if (straightArm.sqrMagnitude > k_SqrEpsilon)
+                Vector3 straightArm = ac.sqrMagnitude > sqrEpsilon ? ac : bc;
+                if (straightArm.sqrMagnitude > sqrEpsilon)
                 {
                     Vector3 saN = straightArm.normalized;
                     Vector3 downPole = -i.PlayerUp - saN * Vector3.Dot(-i.PlayerUp, saN);
@@ -158,18 +101,18 @@ namespace Basis.IK
                     axisSource = 4;
                 }
 
-                if (axis.sqrMagnitude < k_SqrEpsilon)
+                if (axis.sqrMagnitude < sqrEpsilon)
                 {
                     axis = i.HintWeight ? Vector3.Cross(i.HintPosition - aPosition, bc) : Vector3.zero;
                     axisSource = 1;
                 }
-                if (axis.sqrMagnitude < k_SqrEpsilon)
+                if (axis.sqrMagnitude < sqrEpsilon)
                 {
                     axis = Vector3.Cross(atCorrected, bc);
                     axisSource = 2;
                 }
 
-                if (axis.sqrMagnitude < k_SqrEpsilon)
+                if (axis.sqrMagnitude < sqrEpsilon)
                 {
                     axis = i.PlayerUp;
                     axisSource = 3;
@@ -187,7 +130,7 @@ namespace Basis.IK
             ac = cPosition - aPosition;
 
             Quaternion rootDelta = Quaternion.identity;
-            if (atCorrectedLen > k_Epsilon)
+            if (atCorrectedLen > epsilon)
             {
                 rootDelta = BasisQuaternionExt.FromToRotation(ac, atCorrected);
                 rootRot = rootDelta * rootRot;
@@ -216,28 +159,20 @@ namespace Basis.IK
                     Vector3 ah = i.HintPosition - aPosition;
                     Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
                     Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
-                    // The swivel is measured from the TRUE projected elbow (abProj), so applying it lands
-                    // the elbow ON the pole plane wherever the animation left it -- and at full extension
-                    // abProj collapses and the hint declines instead of snapping on a noise-length lever.
+
                     Vector3 elbowDir = abProj;
                     hintProjMag = ahProj.magnitude;
                     armProjMag = abProj.magnitude;
 
                     hintFade = 1f;
 
-                    // Tracker pole anchor: as the arm straightens, the hint's lever arm (ahProj) collapses
-                    // and the measured pole degenerates into noise -- the swivel snapped up to 179 deg/frame
-                    // at full extension. Hold the last well-conditioned pole, carried by the tracker's own
-                    // rotation delta (a rigid puck carries its pole with it), and ease back to the measured
-                    // pole as conditioning returns.
                     Vector3 anchorCarriedRaw = Vector3.zero;
                     Vector3 anchorCarried = Vector3.zero;
                     bool hasAnchorCarried = false;
-                    bool poleMeasurable = ahProj.sqrMagnitude > k_SqrEpsilon;
-                    if (i.HintIsTracker && totalLen > k_Epsilon)
+                    bool poleMeasurable = ahProj.sqrMagnitude > sqrEpsilon;
+                    if (i.HintIsTracker && totalLen > epsilon)
                     {
-                        poleCondW = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
-                            (hintProjMag / totalLen - TrackerPoleAnchorFrac) / (TrackerPoleTrustFrac - TrackerPoleAnchorFrac)));
+                        poleCondW = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01( (hintProjMag / totalLen - TrackerPoleAnchorFrac) / (TrackerPoleTrustFrac - TrackerPoleAnchorFrac)));
 
                         if (i.HasPrevPole)
                         {
@@ -249,7 +184,7 @@ namespace Basis.IK
 
                             anchorCarriedRaw = carryRot * i.PrevPoleDir;
                             anchorCarried = anchorCarriedRaw - acNorm * Vector3.Dot(anchorCarriedRaw, acNorm);
-                            hasAnchorCarried = anchorCarried.sqrMagnitude > k_SqrEpsilon;
+                            hasAnchorCarried = anchorCarried.sqrMagnitude > sqrEpsilon;
                         }
 
                         if (poleMeasurable && (poleCondW >= 1f || !i.HasPrevPole))
@@ -272,7 +207,7 @@ namespace Basis.IK
                         }
                     }
 
-                    if (poleMeasurable && elbowDir.sqrMagnitude > k_SqrEpsilon)
+                    if (poleMeasurable && elbowDir.sqrMagnitude > sqrEpsilon)
                     {
                         float poleSwivel = BasisIKMath.SignedAngleRad(elbowDir, ahProj, acNorm);
                         if (i.HintIsTracker && i.HasPrevPole && poleCondW < 1f && hasAnchorCarried)
@@ -304,15 +239,15 @@ namespace Basis.IK
 
             if (i.HintWeight && !i.HintIsTracker)
             {
-                float poleCond = totalLen > k_Epsilon ? hintProjMag / totalLen : 1f;
+                float poleCond = totalLen > epsilon ? hintProjMag / totalLen : 1f;
                 float collapse = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((poleCond - 0.15f) / 0.15f));
                 Vector3 acStab = cPosition - aPosition;
-                if (collapse > 0f && acStab.sqrMagnitude > k_SqrEpsilon)
+                if (collapse > 0f && acStab.sqrMagnitude > sqrEpsilon)
                 {
                     Vector3 acStabN = acStab.normalized;
                     Vector3 downPole = -i.PlayerUp - acStabN * Vector3.Dot(-i.PlayerUp, acStabN);
                     Vector3 elbowPole = (bPosition - aPosition) - acStabN * Vector3.Dot(bPosition - aPosition, acStabN);
-                    if (downPole.sqrMagnitude > k_SqrEpsilon && elbowPole.sqrMagnitude > k_SqrEpsilon)
+                    if (downPole.sqrMagnitude > sqrEpsilon && elbowPole.sqrMagnitude > sqrEpsilon)
                     {
                         float stabSwivel = BasisIKMath.SignedAngleRad(elbowPole, downPole, acStabN) * collapse;
 
@@ -331,13 +266,12 @@ namespace Basis.IK
                 }
             }
 
-            float tipRotSqr = i.TipRotation.x * i.TipRotation.x + i.TipRotation.y * i.TipRotation.y
-                            + i.TipRotation.z * i.TipRotation.z + i.TipRotation.w * i.TipRotation.w;
+            float tipRotSqr = i.TipRotation.x * i.TipRotation.x + i.TipRotation.y * i.TipRotation.y + i.TipRotation.z * i.TipRotation.z + i.TipRotation.w * i.TipRotation.w;
             if (tipRotSqr > 0.5f && !i.HintIsTracker)
             {
                 Vector3 fore = cPosition - bPosition;
                 Vector3 acRelief = cPosition - aPosition;
-                if (fore.sqrMagnitude > k_SqrEpsilon && acRelief.sqrMagnitude > k_SqrEpsilon)
+                if (fore.sqrMagnitude > sqrEpsilon && acRelief.sqrMagnitude > sqrEpsilon)
                 {
                     Quaternion neutral = midRot * Quaternion.Inverse(i.MidRotation) * i.TipRotation;
                     float twistRad = BasisIKMath.TwistAngleRad(tRotation * Quaternion.Inverse(neutral), fore.normalized);
@@ -364,8 +298,7 @@ namespace Basis.IK
 
                     float reliefCap = WristRollMaxReliefDeg * Mathf.Deg2Rad;
                     if (relief > reliefCap) relief = reliefCap;
-                    relief *= 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
-                        (rollAbs * Mathf.Rad2Deg - k_WristWrapFadeStartDeg) / (k_WristWrapFadeEndDeg - k_WristWrapFadeStartDeg)));
+                    relief *= 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01( (rollAbs * Mathf.Rad2Deg - wristWrapFadeStartDeg) / (wristWrapFadeEndDeg - wristWrapFadeStartDeg)));
 
                     if (relief > 0f)
                     {
@@ -382,14 +315,13 @@ namespace Basis.IK
                 }
             }
 
-            Vector3 guardUp = i.TorsoUp.sqrMagnitude > k_SqrEpsilon ? i.TorsoUp : i.PlayerUp;
-            float guardSwivel = BasisElbowAnatomyCore.GuardSwivelRad(aPosition, bPosition, cPosition, guardUp, totalLen,
-                i.ElbowLateralOut, i.PrevGuardSide, out int guardSideUsed);
+            Vector3 guardUp = i.TorsoUp.sqrMagnitude > sqrEpsilon ? i.TorsoUp : i.PlayerUp;
+            float guardSwivel = BasisElbowAnatomyCore.GuardSwivelRad(aPosition, bPosition, cPosition, guardUp, totalLen, i.ElbowLateralOut, i.PrevGuardSide, out int guardSideUsed);
             r.GuardSideUsed = guardSideUsed;
             if (guardSwivel != 0f)
             {
                 Vector3 acGuard = cPosition - aPosition;
-                if (acGuard.sqrMagnitude > k_SqrEpsilon)
+                if (acGuard.sqrMagnitude > sqrEpsilon)
                 {
                     Vector3 acGuardN = acGuard.normalized;
                     Quaternion guard = BasisIKMath.AngleAxisRad(guardSwivel, acGuardN);
@@ -402,11 +334,10 @@ namespace Basis.IK
                 }
             }
 
-            float hintRotSqr = i.HintRotation.x * i.HintRotation.x + i.HintRotation.y * i.HintRotation.y
-                             + i.HintRotation.z * i.HintRotation.z + i.HintRotation.w * i.HintRotation.w;
+            float hintRotSqr = i.HintRotation.x * i.HintRotation.x + i.HintRotation.y * i.HintRotation.y + i.HintRotation.z * i.HintRotation.z + i.HintRotation.w * i.HintRotation.w;
             {
                 Vector3 foreRoll = cPosition - bPosition;
-                if (foreRoll.sqrMagnitude > k_SqrEpsilon)
+                if (foreRoll.sqrMagnitude > sqrEpsilon)
                 {
                     Vector3 foreRollN = foreRoll.normalized;
 
@@ -433,16 +364,11 @@ namespace Basis.IK
                             float d = handDemand - trackerRoll;
                             if (d > Mathf.PI) d -= 2f * Mathf.PI;
                             else if (d < -Mathf.PI) d += 2f * Mathf.PI;
-                            float fade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
-                                (Mathf.Abs(d) * Mathf.Rad2Deg - k_WristWrapFadeStartDeg) / (k_WristWrapFadeEndDeg - k_WristWrapFadeStartDeg)));
+                            float fade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01( (Mathf.Abs(d) * Mathf.Rad2Deg - wristWrapFadeStartDeg) / (wristWrapFadeEndDeg - wristWrapFadeStartDeg)));
                             roll = trackerRoll + TrackerRollHandBlend * d * fade;
                         }
                     }
 
-                    // The wrist keeps only its carpal share of whatever axial demand is still unmet; the
-                    // forearm follows the rest as a pure roll about its own long axis -- the elbow stays
-                    // on its pole and the hand stays on its rotation target. Faded to nothing toward the
-                    // +/-180 seam, where any continuous bound is topologically forced to release.
                     if (handDemandValid && i.ForearmFollowWeight > 0f)
                     {
                         float resid = handDemand - roll;
@@ -454,8 +380,7 @@ namespace Basis.IK
                         float seamBasisDeg = Mathf.Abs(r.WristTwistDeg);
                         float residAbsDeg = residAbs * Mathf.Rad2Deg;
                         if (residAbsDeg > seamBasisDeg) seamBasisDeg = residAbsDeg;
-                        float seam = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
-                            (seamBasisDeg - k_WristWrapFadeStartDeg) / (k_WristWrapFadeEndDeg - k_WristWrapFadeStartDeg)));
+                        float seam = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01( (seamBasisDeg - wristWrapFadeStartDeg) / (wristWrapFadeEndDeg - wristWrapFadeStartDeg)));
                         float w = i.ForearmFollowWeight < 1f ? i.ForearmFollowWeight : 1f;
                         float topUp = (residAbs - keep) * seam * w;
                         roll += resid < 0f ? -topUp : topUp;
@@ -500,7 +425,7 @@ namespace Basis.IK
             r.UpperLength = abLen;
             r.LowerLength = bcLen;
             r.TargetDistance = atCorrectedLen;
-            r.ReachRatio = (totalLen > k_Epsilon) ? atCorrectedLen / totalLen : 0f;
+            r.ReachRatio = (totalLen > epsilon) ? atCorrectedLen / totalLen : 0f;
             r.ElbowAngleDeg = BasisIKMath.AngleDeg(aPosition - bPosition, cPosition - bPosition);
             r.HintFade = hintFade;
             r.HintProjMag = hintProjMag;
@@ -508,18 +433,13 @@ namespace Basis.IK
             r.AxisSource = axisSource;
             r.HandError = (cPosition - tPosition).magnitude;
         }
-
-        static bool IsValidRotation(Quaternion q) =>
-            (q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w) > 0.5f;
-
+        static bool IsValidRotation(Quaternion q) => (q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w) > 0.5f;
     }
-
     public static class BasisArmBendLookup
     {
         public const int GridSize = 11;
         public const int GridSizeSq = GridSize * GridSize;
         public const int TotalEntries = GridSize * GridSize * GridSize;
-
         public static Vector3[] GenerateDefaultTable()
         {
             var table = new Vector3[TotalEntries];
@@ -560,11 +480,8 @@ namespace Basis.IK
 
             return table;
         }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static float ClampToGrid(float v) =>
-            v > 0f ? (v < GridSize - 1.001f ? v : GridSize - 1.001f) : 0f;
-
+        static float ClampToGrid(float v) => v > 0f ? (v < GridSize - 1.001f ? v : GridSize - 1.001f) : 0f;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector3 SampleTrilinear(NativeArray<Vector3> table, Vector3 normalizedPos)
         {

@@ -1,14 +1,12 @@
 using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.IK
 {
     [BurstCompile]
     public static class BasisLegSwivelModel
     {
         public static float SwivelRad(in float3 tipLocal) => SwivelRad(tipLocal, out _);
-
         public static float SwivelRad(in float3 tipLocal, out float confidence)
         {
             float len = math.length(tipLocal);
@@ -22,78 +20,13 @@ namespace Basis.IK
 
             float xx = x * x, yy = y * y, zz = z * z;
 
-            float sinPhi =
-                (-1.42401812e+00f) * 1f +
-                (+1.31204548e+01f) * x +
-                (-3.31436759e+00f) * y +
-                (-5.13963438e-01f) * z +
-                (+6.66022738e+00f) * xx +
-                (-2.45005945e+00f) * yy +
-                (-4.50550353e+00f) * zz +
-                (-3.15498676e+00f) * x*y +
-                (+5.80910259e+00f) * x*z +
-                (+3.01777196e+00f) * y*z +
-                (+3.05160822e+01f) * xx*x +
-                (-3.93460279e+00f) * yy*y +
-                (-1.49765399e+00f) * zz*z +
-                (+1.03666819e+01f) * xx*y +
-                (-4.68705092e+00f) * xx*z +
-                (+2.35052945e+01f) * yy*x +
-                (-1.50879292e-01f) * yy*z +
-                (+2.00408935e+01f) * zz*x +
-                (-6.37087268e+00f) * zz*y +
-                (+5.61328337e+00f) * x*y*z +
-                (+5.27662035e+00f) * r +
-                (-2.95335598e-01f) * r*r +
-                (-2.48469087e-01f) * elev +
-                (+9.79810298e-02f) * azim +
-                (-4.78069715e-01f) * elev*elev +
-                (-3.18820034e-03f) * azim*azim +
-                (+5.71968344e-02f) * elev*azim +
-                (-1.29454485e+00f) * r*elev +
-                (-2.69645049e-02f) * r*azim +
-                (-3.86597683e+01f) * r*x +
-                (+8.64175663e+00f) * r*y +
-                (+3.61784115e+00f) * r*z;
+            float sinPhi = (-1.42401812e+00f) * 1f + (+1.31204548e+01f) * x + (-3.31436759e+00f) * y + (-5.13963438e-01f) * z + (+6.66022738e+00f) * xx + (-2.45005945e+00f) * yy + (-4.50550353e+00f) * zz + (-3.15498676e+00f) * x*y + (+5.80910259e+00f) * x*z + (+3.01777196e+00f) * y*z + (+3.05160822e+01f) * xx*x + (-3.93460279e+00f) * yy*y + (-1.49765399e+00f) * zz*z + (+1.03666819e+01f) * xx*y + (-4.68705092e+00f) * xx*z + (+2.35052945e+01f) * yy*x + (-1.50879292e-01f) * yy*z + (+2.00408935e+01f) * zz*x + (-6.37087268e+00f) * zz*y + (+5.61328337e+00f) * x*y*z + (+5.27662035e+00f) * r + (-2.95335598e-01f) * r*r + (-2.48469087e-01f) * elev + (+9.79810298e-02f) * azim + (-4.78069715e-01f) * elev*elev + (-3.18820034e-03f) * azim*azim + (+5.71968344e-02f) * elev*azim + (-1.29454485e+00f) * r*elev + (-2.69645049e-02f) * r*azim + (-3.86597683e+01f) * r*x + (+8.64175663e+00f) * r*y + (+3.61784115e+00f) * r*z;
 
-            float cosPhi =
-                (+1.85948590e+00f) * 1f +
-                (-1.20585417e+01f) * x +
-                (+6.32805003e+00f) * y +
-                (+2.40511051e+00f) * z +
-                (+4.65230731e+00f) * xx +
-                (+1.41434861e+00f) * yy +
-                (-8.91840913e-01f) * zz +
-                (-6.32556301e-01f) * x*y +
-                (-2.72370080e+00f) * x*z +
-                (-3.00578998e+00f) * y*z +
-                (-2.24048593e+01f) * xx*x +
-                (+4.07902999e+00f) * yy*y +
-                (+5.14898048e+00f) * zz*z +
-                (+8.39313831e+00f) * xx*y +
-                (+2.01133078e+00f) * xx*z +
-                (-2.07737556e+01f) * yy*x +
-                (+4.14159751e+00f) * yy*z +
-                (-2.02538885e+01f) * zz*x +
-                (+4.10522062e+00f) * zz*y +
-                (-3.55015188e+00f) * x*y*z +
-                (-4.05832768e+00f) * r +
-                (+5.17481500e+00f) * r*r +
-                (-1.21892424e+00f) * elev +
-                (+8.97873668e-02f) * azim +
-                (-9.45650285e-01f) * elev*elev +
-                (+1.18024350e-02f) * azim*azim +
-                (+8.21939459e-02f) * elev*azim +
-                (-2.60449245e+00f) * r*elev +
-                (+2.60171548e-02f) * r*azim +
-                (+3.16231928e+01f) * r*x +
-                (-2.39213873e+00f) * r*y +
-                (-8.96357655e+00f) * r*z;
+            float cosPhi = (+1.85948590e+00f) * 1f + (-1.20585417e+01f) * x + (+6.32805003e+00f) * y + (+2.40511051e+00f) * z + (+4.65230731e+00f) * xx + (+1.41434861e+00f) * yy + (-8.91840913e-01f) * zz + (-6.32556301e-01f) * x*y + (-2.72370080e+00f) * x*z + (-3.00578998e+00f) * y*z + (-2.24048593e+01f) * xx*x + (+4.07902999e+00f) * yy*y + (+5.14898048e+00f) * zz*z + (+8.39313831e+00f) * xx*y + (+2.01133078e+00f) * xx*z + (-2.07737556e+01f) * yy*x + (+4.14159751e+00f) * yy*z + (-2.02538885e+01f) * zz*x + (+4.10522062e+00f) * zz*y + (-3.55015188e+00f) * x*y*z + (-4.05832768e+00f) * r + (+5.17481500e+00f) * r*r + (-1.21892424e+00f) * elev + (+8.97873668e-02f) * azim + (-9.45650285e-01f) * elev*elev + (+1.18024350e-02f) * azim*azim + (+8.21939459e-02f) * elev*azim + (-2.60449245e+00f) * r*elev + (+2.60171548e-02f) * r*azim + (+3.16231928e+01f) * r*x + (-2.39213873e+00f) * r*y + (-8.96357655e+00f) * r*z;
 
             confidence = math.sqrt(sinPhi * sinPhi + cosPhi * cosPhi);
             return math.atan2(sinPhi, cosPhi);
         }
-
         public static float3 BendDirection(float3 rootToTip, float3 reference, float swivelRad)
         {
             float3 axis = math.normalizesafe(rootToTip, new float3(0f, -1f, 0f));
@@ -103,12 +36,10 @@ namespace Basis.IK
             return u * cs + v * sn;
         }
     }
-
     [BurstCompile]
     public static class BasisLegSwivelNeuralModel
     {
         public static float SwivelRad(in float3 tipLocal) => SwivelRad(tipLocal, out _);
-
         public static float SwivelRad(in float3 tipLocal, out float confidence)
         {
             float len = math.length(tipLocal);

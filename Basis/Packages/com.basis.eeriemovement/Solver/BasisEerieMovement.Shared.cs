@@ -22,7 +22,6 @@ namespace Basis.IK
                 }
             }
         }
-
         public static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
             float angle = Quaternion.Angle(reference, current);
@@ -31,14 +30,14 @@ namespace Basis.IK
                 return current;
             }
 
-            float t = maxAngleDeg / Mathf.Max(angle, k_Epsilon);
+            float t = maxAngleDeg / Mathf.Max(angle, epsilon);
             return Quaternion.Slerp(reference, current, t);
         }
         public static Vector3 ClosestPointOnSegment(Vector3 p, Vector3 a, Vector3 b)
         {
             Vector3 ab = b - a;
             float abSqr = Vector3.Dot(ab, ab);
-            if (abSqr <= k_SqrEpsilon)
+            if (abSqr <= sqrEpsilon)
             {
                 return a;
             }
@@ -55,18 +54,18 @@ namespace Basis.IK
             float e = Vector3.Dot(d2, d2);
             float f = Vector3.Dot(d2, r);
 
-            if (a <= k_SqrEpsilon && e <= k_SqrEpsilon)
+            if (a <= sqrEpsilon && e <= sqrEpsilon)
             {
                 s = t = 0.0f; c1 = p1; c2 = p2; return;
             }
-            if (a <= k_SqrEpsilon)
+            if (a <= sqrEpsilon)
             {
                 s = 0.0f; t = Mathf.Clamp01(f / e);
             }
             else
             {
                 float c = Vector3.Dot(d1, r);
-                if (e <= k_SqrEpsilon)
+                if (e <= sqrEpsilon)
                 {
                     t = 0.0f; s = Mathf.Clamp01(-c / a);
                 }
@@ -97,17 +96,17 @@ namespace Basis.IK
             if (dSqr >= rSum * rSum) return Vector3.zero;
 
             Vector3 normal;
-            if (dSqr > k_SqrEpsilon) normal = n / Mathf.Sqrt(dSqr);
+            if (dSqr > sqrEpsilon) normal = n / Mathf.Sqrt(dSqr);
             else
             {
                 Vector3 axis = (q2 - p2);
                 normal = Vector3.Normalize(Vector3.Cross(axis, playerUp));
-                if (normal.sqrMagnitude < k_MinMag)
+                if (normal.sqrMagnitude < minMag)
                 {
                     normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.right));
                 }
 
-                if (normal.sqrMagnitude < k_MinMag)
+                if (normal.sqrMagnitude < minMag)
                 {
                     normal = playerUp;
                 }
@@ -123,7 +122,7 @@ namespace Basis.IK
             Vector3 qp = p - q;
             float dSqr = Vector3.Dot(qp, qp);
             if (dSqr >= radiusWithSkin * radiusWithSkin) return p;
-            float d = Mathf.Sqrt(Mathf.Max(dSqr, k_SqrEpsilon));
+            float d = Mathf.Sqrt(Mathf.Max(dSqr, sqrEpsilon));
             Vector3 n = (d > 0f) ? (qp / d) : playerUp;
             return q + n * radiusWithSkin;
         }
