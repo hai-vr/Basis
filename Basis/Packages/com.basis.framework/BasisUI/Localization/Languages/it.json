@@ -3143,6 +3143,12 @@
     { "key": "mirror.cutout.unavailable", "value": "Ritaglio non disponibile: lo shader di ritaglio manca o non è supportato qui." },
     { "key": "mirror.size", "value": "Dimensione" },
     { "key": "mirror.size.description", "value": "Dimensione fisica della superficie dello specchio nel mondo." },
-    { "key": "mirror.status.surfaceSize", "value": "Superficie {0} x {1} m" }
+    { "key": "mirror.status.surfaceSize", "value": "Superficie {0} x {1} m" },
+    { "key": "mirror.placement", "value": "Posizionamento" },
+    { "key": "mirror.placement.description", "value": "Come può essere spostato lo specchio personale e con cosa si sposta." },
+    { "key": "mirror.grabbable", "value": "Afferrabile" },
+    { "key": "mirror.grabbable.description", "value": "Consente di afferrare e spostare lo specchio personale." },
+    { "key": "mirror.moveWithPlayspace", "value": "Muovi con l’area di gioco" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "Sposta e ruota lo specchio personale con la tua area di gioco invece di lasciarlo nel mondo." }
   ]
 }

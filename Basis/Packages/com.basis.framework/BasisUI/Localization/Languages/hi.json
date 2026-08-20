@@ -3143,6 +3143,12 @@
     { "key": "mirror.cutout.unavailable", "value": "कटआउट उपलब्ध नहीं: कटआउट शेडर मौजूद नहीं है या यहाँ समर्थित नहीं है।" },
     { "key": "mirror.size", "value": "आकार" },
     { "key": "mirror.size.description", "value": "दुनिया में दर्पण की सतह का भौतिक आकार।" },
-    { "key": "mirror.status.surfaceSize", "value": "सतह {0} x {1} मी" }
+    { "key": "mirror.status.surfaceSize", "value": "सतह {0} x {1} मी" },
+    { "key": "mirror.placement", "value": "स्थान" },
+    { "key": "mirror.placement.description", "value": "पर्सनल मिरर को कैसे हिलाया जा सकता है और वह किसके साथ हिलता है।" },
+    { "key": "mirror.grabbable", "value": "पकड़ने योग्य" },
+    { "key": "mirror.grabbable.description", "value": "पर्सनल मिरर को पकड़कर हिलाने की अनुमति दें।" },
+    { "key": "mirror.moveWithPlayspace", "value": "प्लेस्पेस के साथ चलाएँ" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "पर्सनल मिरर को दुनिया में छोड़ने के बजाय अपने प्लेस्पेस के साथ चलाएँ और घुमाएँ।" }
   ]
 }

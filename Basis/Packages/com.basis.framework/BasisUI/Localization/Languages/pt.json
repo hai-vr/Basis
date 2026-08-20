@@ -3095,6 +3095,12 @@
     { "key": "mirror.cutout.unavailable", "value": "Recorte indisponível: o shader de recorte está ausente ou não é suportado aqui." },
     { "key": "mirror.size", "value": "Tamanho" },
     { "key": "mirror.size.description", "value": "Tamanho físico da superfície do espelho no mundo." },
-    { "key": "mirror.status.surfaceSize", "value": "Superfície {0} x {1} m" }
+    { "key": "mirror.status.surfaceSize", "value": "Superfície {0} x {1} m" },
+    { "key": "mirror.placement", "value": "Posicionamento" },
+    { "key": "mirror.placement.description", "value": "Como o espelho pessoal pode ser movido e com o que ele se move." },
+    { "key": "mirror.grabbable", "value": "Agarrável" },
+    { "key": "mirror.grabbable.description", "value": "Permite agarrar e mover o espelho pessoal." },
+    { "key": "mirror.moveWithPlayspace", "value": "Mover com o espaço de jogo" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "Move e gira o espelho pessoal com o seu espaço de jogo em vez de deixá-lo no mundo." }
   ]
 }

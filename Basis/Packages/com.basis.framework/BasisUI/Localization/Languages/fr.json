@@ -3143,6 +3143,12 @@
     { "key": "mirror.cutout.unavailable", "value": "Découpe indisponible : le shader de découpe est absent ou non pris en charge ici." },
     { "key": "mirror.size", "value": "Taille" },
     { "key": "mirror.size.description", "value": "Taille physique de la surface du miroir dans le monde." },
-    { "key": "mirror.status.surfaceSize", "value": "Surface {0} x {1} m" }
+    { "key": "mirror.status.surfaceSize", "value": "Surface {0} x {1} m" },
+    { "key": "mirror.placement", "value": "Placement" },
+    { "key": "mirror.placement.description", "value": "Comment le miroir personnel peut être déplacé et avec quoi il se déplace." },
+    { "key": "mirror.grabbable", "value": "Saisissable" },
+    { "key": "mirror.grabbable.description", "value": "Autorise la saisie et le déplacement du miroir personnel." },
+    { "key": "mirror.moveWithPlayspace", "value": "Déplacer avec l’espace de jeu" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "Déplace et fait pivoter le miroir personnel avec votre espace de jeu au lieu de le laisser dans le monde." }
   ]
 }

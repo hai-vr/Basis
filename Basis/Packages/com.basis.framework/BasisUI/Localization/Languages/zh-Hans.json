@@ -3147,6 +3147,12 @@
     { "key": "mirror.cutout.unavailable", "value": "无法使用抠像：抠像着色器缺失或在此环境中不受支持。" },
     { "key": "mirror.size", "value": "尺寸" },
     { "key": "mirror.size.description", "value": "镜面在世界中的物理尺寸。" },
-    { "key": "mirror.status.surfaceSize", "value": "镜面 {0} x {1} 米" }
+    { "key": "mirror.status.surfaceSize", "value": "镜面 {0} x {1} 米" },
+    { "key": "mirror.placement", "value": "放置方式" },
+    { "key": "mirror.placement.description", "value": "设置个人镜子如何移动，以及它跟随什么一起移动。" },
+    { "key": "mirror.grabbable", "value": "可抓取" },
+    { "key": "mirror.grabbable.description", "value": "允许抓取并移动个人镜子。" },
+    { "key": "mirror.moveWithPlayspace", "value": "随游玩空间移动" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "让个人镜子随你的游玩空间一起移动和旋转，而不是留在世界中。" }
   ]
 }
