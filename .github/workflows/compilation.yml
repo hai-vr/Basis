@@ -226,6 +226,10 @@ jobs:
       - name: "Create version string"
         id: version
         run: echo "gitversion=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+      - name: "Sanitize Android client project"
+        shell: bash
+        run: |
+          python3 .github/scripts/sanitize_android_client_ci.py "${projectPath}"
       - name: "Build Unity project"
         timeout-minutes: 100
         uses: BasisVR/unity-builder@main
