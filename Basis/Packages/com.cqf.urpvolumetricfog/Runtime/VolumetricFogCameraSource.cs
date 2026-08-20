@@ -19,17 +19,17 @@ public sealed class VolumetricFogCameraSource : MonoBehaviour
     /// <summary>Volume layers used when <see cref="UseWorldFog"/> is enabled.</summary>
     public LayerMask WorldVolumeLayerMask = 1;
 
-    private static readonly Dictionary<int, VolumetricFogCameraSource> Sources = new();
+    private static readonly Dictionary<EntityId, VolumetricFogCameraSource> Sources = new();
 
     private VolumeStack worldVolumeStack;
-    private int cameraInstanceId;
+    private EntityId cameraEntityId;
 
     public void Initialize(Camera camera)
     {
         if (camera == null) return;
 
-        cameraInstanceId = camera.GetInstanceID();
-        Sources[cameraInstanceId] = this;
+        cameraEntityId = camera.GetEntityId();
+        Sources[cameraEntityId] = this;
 
         VolumeManager manager = VolumeManager.instance;
         if (worldVolumeStack == null && manager.isInitialized)
@@ -41,7 +41,7 @@ public sealed class VolumetricFogCameraSource : MonoBehaviour
     public static bool TryGet(Camera camera, out VolumetricFogCameraSource source)
     {
         source = null;
-        return camera != null && Sources.TryGetValue(camera.GetInstanceID(), out source);
+        return camera != null && Sources.TryGetValue(camera.GetEntityId(), out source);
     }
 
     public VolumetricFogVolumeComponent ResolveFogVolume()
@@ -64,10 +64,10 @@ public sealed class VolumetricFogCameraSource : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (cameraInstanceId != 0)
+        if (cameraEntityId != EntityId.None)
         {
-            Sources.Remove(cameraInstanceId);
-            cameraInstanceId = 0;
+            Sources.Remove(cameraEntityId);
+            cameraEntityId = EntityId.None;
         }
 
         if (worldVolumeStack == null) return;
