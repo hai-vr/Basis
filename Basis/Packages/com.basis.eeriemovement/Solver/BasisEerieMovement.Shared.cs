@@ -47,12 +47,8 @@ namespace Basis.IK
         }
         public static void SegmentSegmentClosestPoints(Vector3 p1, Vector3 q1, Vector3 p2, Vector3 q2, out float s, out float t, out Vector3 c1, out Vector3 c2)
         {
-            Vector3 d1 = q1 - p1;
-            Vector3 d2 = q2 - p2;
-            Vector3 r = p1 - p2;
-            float a = Vector3.Dot(d1, d1);
-            float e = Vector3.Dot(d2, d2);
-            float f = Vector3.Dot(d2, r);
+            Vector3 d1 = q1 - p1, d2 = q2 - p2, r = p1 - p2;
+            float a = Vector3.Dot(d1, d1), e = Vector3.Dot(d2, d2), f = Vector3.Dot(d2, r);
 
             if (a <= sqrEpsilon && e <= sqrEpsilon)
             {
@@ -71,8 +67,7 @@ namespace Basis.IK
                 }
                 else
                 {
-                    float b = Vector3.Dot(d1, d2);
-                    float denom = a * e - b * b;
+                    float b = Vector3.Dot(d1, d2), denom = a * e - b * b;
 
                     if (denom != 0.0f) s = Mathf.Clamp01((b * f - c * e) / denom);
                     else s = 0.0f;
@@ -90,8 +85,7 @@ namespace Basis.IK
         {
             SegmentSegmentClosestPoints(p1, q1, p2, q2, out _, out _, out var c1, out var c2);
             Vector3 n = c1 - c2;
-            float dSqr = Vector3.Dot(n, n);
-            float rSum = r1 + r2;
+            float dSqr = Vector3.Dot(n, n), rSum = r1 + r2;
 
             if (dSqr >= rSum * rSum) return Vector3.zero;
 
@@ -112,14 +106,12 @@ namespace Basis.IK
                 }
             }
 
-            float d = Mathf.Sqrt(Mathf.Max(dSqr, 0f));
-            float penetration = (rSum - d);
+            float d = Mathf.Sqrt(Mathf.Max(dSqr, 0f)), penetration = (rSum - d);
             return normal * penetration;
         }
         public static Vector3 PushOutFromCapsule(Vector3 p, Vector3 a, Vector3 b, float radiusWithSkin, Vector3 playerUp)
         {
-            Vector3 q = ClosestPointOnSegment(p, a, b);
-            Vector3 qp = p - q;
+            Vector3 q = ClosestPointOnSegment(p, a, b), qp = p - q;
             float dSqr = Vector3.Dot(qp, qp);
             if (dSqr >= radiusWithSkin * radiusWithSkin) return p;
             float d = Mathf.Sqrt(Mathf.Max(dSqr, sqrEpsilon));
@@ -128,8 +120,7 @@ namespace Basis.IK
         }
         static float TwistDeg(Quaternion q, Vector3 axis)
         {
-            float s = q.x * axis.x + q.y * axis.y + q.z * axis.z;
-            float c = q.w;
+            float s = q.x * axis.x + q.y * axis.y + q.z * axis.z, c = q.w;
             if (c < 0f) { s = -s; c = -c; }
             if (!(s * s + c * c > 1e-8f))
             {

@@ -3,7 +3,6 @@ using System.Text;
 using Basis.IK.Mocap;
 using NUnit.Framework;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisFootRotationTests
@@ -12,15 +11,9 @@ namespace Basis.Tests.IK
         // Includes EXTREME rates (600-1200 deg/s = a fast physical whip / snap turn) -- the anti-overlap
         // backstop must hold there, which the tracking+widening alone did not.
         static readonly float[] Rates = { 60f, 120f, 240f, 360f, 600f, 900f, 1200f };
-
         const float MaxCollidePct = 3f;    // feet overlap (gap < foot length) on at most this % of ticks
         const float MaxCrossMaxCm = 3f;    // a foot may cross to the wrong side of the other by at most this (scaled below)
-
-        static string Row(float scale, float rate, bool stick, in BasisFootRotationResult r) =>
-            $"  {(stick ? "stick" : "phys"),-6} {scale,4:F1}x {rate,4:F0}deg/s | " +
-            $"crossMax {r.CrossMaxCm,6:F1}cm  crossed {r.CrossedPct,5:F1}%  minGap {r.MinGapCm,5:F1}cm  " +
-            $"collide {r.CollidePct,5:F1}%  bothStep {r.BothSteppingTicks}";
-
+        static string Row(float scale, float rate, bool stick, in BasisFootRotationResult r) => $"  {(stick ? "stick" : "phys"),-6} {scale,4:F1}x {rate,4:F0}deg/s | " + $"crossMax {r.CrossMaxCm,6:F1}cm  crossed {r.CrossedPct,5:F1}%  minGap {r.MinGapCm,5:F1}cm  " + $"collide {r.CollidePct,5:F1}%  bothStep {r.BothSteppingTicks}";
         [Test]
         public void Feet_DoNotStepOnEachOther_DuringFastRotation()
         {
@@ -58,7 +51,6 @@ namespace Basis.Tests.IK
             Debug.Log(report.ToString());
             if (failures.Count > 0) Assert.Fail("Fast-rotation crossover:\n  " + string.Join("\n  ", failures) + "\n\n" + report);
         }
-
         [Test]
         public void PlantedFoot_HoldsItsRotation_WhileTheBodyTurns()
         {
@@ -71,13 +63,11 @@ namespace Basis.Tests.IK
                     BasisFootRotationResult r = BasisMocapFootQuality.RunSpin(p, 90f, stick);
                     Debug.Log($"[planted-hold {scale:F1}x {(stick ? "stick" : "phys")}] yaw-follow {r.PlantedYawFollowFrac:F2}");
                     if (r.PlantedYawFollowFrac > 0.5f)
-                        failures.Add($"{(stick ? "stick" : "phys")} {scale:F1}x: planted foot follows the body {r.PlantedYawFollowFrac:F2} " +
-                                     "(it pivots with the turn instead of holding in the world)");
+                        failures.Add($"{(stick ? "stick" : "phys")} {scale:F1}x: planted foot follows the body {r.PlantedYawFollowFrac:F2} " +"(it pivots with the turn instead of holding in the world)");
                 }
             }
             if (failures.Count > 0) Assert.Fail(string.Join("\n", failures));
         }
-
         [Test]
         public void Rotation_IsScaleInvariant()
         {
@@ -103,7 +93,6 @@ namespace Basis.Tests.IK
             }
             if (failures.Count > 0) Assert.Fail(string.Join("\n", failures));
         }
-
         [Test]
         public void Rotation_IsFramerateIndependent()
         {
@@ -119,8 +108,7 @@ namespace Basis.Tests.IK
                     foreach (var (label, r) in new[] { ("30fps", r30), ("72fps", r72), ("144fps", r144) })
                         if (r.CollidePct > MaxCollidePct)
                             failures.Add($"{(stick ? "stick" : "phys")} {rate:F0}deg/s @ {label}: feet overlap {r.CollidePct:F1}%");
-                    float spread = Mathf.Max(r30.CrossMaxCm, r72.CrossMaxCm, r144.CrossMaxCm) -
-                                   Mathf.Min(r30.CrossMaxCm, r72.CrossMaxCm, r144.CrossMaxCm);
+                    float spread = Mathf.Max(r30.CrossMaxCm, r72.CrossMaxCm, r144.CrossMaxCm) - Mathf.Min(r30.CrossMaxCm, r72.CrossMaxCm, r144.CrossMaxCm);
                     if (spread > 6f)
                         failures.Add($"{(stick ? "stick" : "phys")} {rate:F0}deg/s: crossMax spans {spread:F1}cm across 30/72/144fps -- framerate-dependent");
                 }

@@ -2,42 +2,30 @@ using NUnit.Framework;
 using Unity.Collections;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisElbowDirectionTests
     {
         // Adult-ish arm, matching BasisArmIKSweepConfig.Default().
-        const float Upper = 0.28f;
-        const float Lower = 0.26f;
-        const float ArmLen = Upper + Lower;
-
+        const float Upper = 0.28f, Lower = 0.26f, ArmLen = Upper + Lower;
         static readonly Vector3 Shoulder = Vector3.zero;
-
         // Rest pose: elbow hangs down and slightly forward/out, forearm points forward (matches the sweep).
         static Vector3 RestElbow => Shoulder + new Vector3(0.15f, -0.95f, 0.27f).normalized * Upper;
         static Vector3 RestHand => RestElbow + new Vector3(0f, -0.30f, 0.95f).normalized * Lower;
-
         // Live solver rate limit: 540 deg/s. At 90 Hz that is 6 deg/frame.
-        const float Dt = 1f / 90f;
-        const float RateDegPerFrame = 540f * Dt;
-
+        const float Dt = 1f / 90f, RateDegPerFrame = 540f * Dt;
         NativeArray<Vector3> _table;
-
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
             _table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Persistent);
         }
-
         [OneTimeTearDown]
         public void OneTimeTearDown()
         {
             if (_table.IsCreated) _table.Dispose();
         }
-
         // ----------------------------------------------------------------- lookup-table invariants
-
         [Test]
         public void BendTable_NeverPointsUp_SoElbowDoesNotChickenWing()
         {
@@ -48,10 +36,8 @@ namespace Basis.Tests.IK
 
             // Every entry's Y must be <= 0: an up-pointing bend would wing the elbow above the
             // shoulder-hand line (chicken-wing). Measured max is about -0.21, far below the bound.
-            Assert.That(maxY, Is.LessThanOrEqualTo(1e-3f),
-                $"At least one bend direction points upward (max Y = {maxY:0.000}); the elbow would chicken-wing.");
+            Assert.That(maxY, Is.LessThanOrEqualTo(1e-3f), $"At least one bend direction points upward (max Y = {maxY:0.000}); the elbow would chicken-wing.");
         }
-
         [Test]
         public void BendTable_NeverPointsForward_SoElbowStaysBehindHand()
         {
@@ -62,10 +48,8 @@ namespace Basis.Tests.IK
 
             // Every entry's Z must be <= 0 (Z+ is forward). A forward-pointing bend is exactly the
             // "elbow out in front of where it should be" artifact. Measured max is about -0.42.
-            Assert.That(maxZ, Is.LessThanOrEqualTo(1e-3f),
-                $"At least one bend direction points forward (max Z = {maxZ:0.000}); the elbow would lead the hand.");
+            Assert.That(maxZ, Is.LessThanOrEqualTo(1e-3f), $"At least one bend direction points forward (max Z = {maxZ:0.000}); the elbow would lead the hand.");
         }
-
         [Test]
         public void BendTable_EntriesAreUnitLength()
         {
@@ -75,10 +59,8 @@ namespace Basis.Tests.IK
             foreach (var bend in table)
                 maxErr = Mathf.Max(maxErr, Mathf.Abs(bend.magnitude - 1f));
 
-            Assert.That(maxErr, Is.LessThanOrEqualTo(1e-3f),
-                $"Bend directions must be normalized (worst |len-1| = {maxErr:0.000000}).");
+            Assert.That(maxErr, Is.LessThanOrEqualTo(1e-3f), $"Bend directions must be normalized (worst |len-1| = {maxErr:0.000000}).");
         }
-
         [Test]
         public void BendTable_ForwardReachSamples_PointBackAndDown()
         {
@@ -89,13 +71,10 @@ namespace Basis.Tests.IK
             for (float fy = -0.4f; fy <= 0.4f; fy += 0.2f)
             {
                 Vector3 bend = SampleLookup(new Vector3(fx, fy, fz));
-                Assert.That(bend.z, Is.LessThan(-0.2f),
-                    $"Forward reach ({fx:0.0},{fy:0.0},{fz:0.0}) gave a non-backward bend {bend}; elbow would not stay behind the hand.");
-                Assert.That(bend.y, Is.LessThan(-0.1f),
-                    $"Forward reach ({fx:0.0},{fy:0.0},{fz:0.0}) gave a non-down bend {bend}; elbow would rise.");
+                Assert.That(bend.z, Is.LessThan(-0.2f), $"Forward reach ({fx:0.0},{fy:0.0},{fz:0.0}) gave a non-backward bend {bend}; elbow would not stay behind the hand.");
+                Assert.That(bend.y, Is.LessThan(-0.1f), $"Forward reach ({fx:0.0},{fy:0.0},{fz:0.0}) gave a non-down bend {bend}; elbow would rise.");
             }
         }
-
         [Test]
         public void BendTable_Samples_VarySmoothly_NoDiscontinuity()
         {
@@ -103,8 +82,7 @@ namespace Basis.Tests.IK
             // body and assert the bend direction never jumps between adjacent samples. Measured worst
             // step is about 0.24 deg, so 5 deg is a wide regression guard.
             const int steps = 200;
-            Vector3 from = new Vector3(0.7f, -0.1f, 0.6f);
-            Vector3 to = new Vector3(-0.7f, -0.1f, 0.6f);
+            Vector3 from = new Vector3(0.7f, -0.1f, 0.6f), to = new Vector3(-0.7f, -0.1f, 0.6f);
             float worst = 0f;
             Vector3 prev = Vector3.zero;
             for (int s = 0; s <= steps; s++)
@@ -114,34 +92,27 @@ namespace Basis.Tests.IK
                 prev = bend;
             }
 
-            Assert.That(worst, Is.LessThan(5f),
-                $"Bend direction jumps {worst:0.0} deg between adjacent hand positions; that discontinuity flips the elbow.");
+            Assert.That(worst, Is.LessThan(5f), $"Bend direction jumps {worst:0.0} deg between adjacent hand positions; that discontinuity flips the elbow.");
         }
-
         // ----------------------------------------------------------------- natural elbow placement
-
         [Test]
         public void Elbow_StaysBehindHand_OnForwardReach()
         {
             foreach (var frac in ForwardReachTargets())
             {
                 var r = SolveWithLookupHint(frac, out _);
-                Assert.That(r.ElbowSolved.z, Is.LessThan(r.HandSolved.z + 1e-3f),
-                    $"Forward reach {frac}: elbow Z {r.ElbowSolved.z:0.000} is in front of hand Z {r.HandSolved.z:0.000}.");
+                Assert.That(r.ElbowSolved.z, Is.LessThan(r.HandSolved.z + 1e-3f), $"Forward reach {frac}: elbow Z {r.ElbowSolved.z:0.000} is in front of hand Z {r.HandSolved.z:0.000}.");
             }
         }
-
         [Test]
         public void Elbow_HangsBelowShoulder_OnForwardReach()
         {
             foreach (var frac in ForwardReachTargets())
             {
                 var r = SolveWithLookupHint(frac, out _);
-                Assert.That(r.ElbowSolved.y, Is.LessThan(Shoulder.y),
-                    $"Forward reach {frac}: elbow Y {r.ElbowSolved.y:0.000} is above the shoulder; it should hang below.");
+                Assert.That(r.ElbowSolved.y, Is.LessThan(Shoulder.y), $"Forward reach {frac}: elbow Y {r.ElbowSolved.y:0.000} is above the shoulder; it should hang below.");
             }
         }
-
         [Test]
         public void Elbow_PoleHangsDown_OnForwardReach()
         {
@@ -156,13 +127,10 @@ namespace Basis.Tests.IK
                 // measured up to ~0.5) which is natural -- but it must never point grossly forward (~1),
                 // which is the elbow leading the hand. "Behind the hand" itself is asserted in
                 // Elbow_StaysBehindHand_OnForwardReach; here we pin the down-tuck.
-                Assert.That(pole.y, Is.LessThan(-0.3f),
-                    $"Forward reach {frac}: elbow pole {pole} does not hang down.");
-                Assert.That(pole.z, Is.LessThan(0.6f),
-                    $"Forward reach {frac}: elbow pole {pole} points grossly forward; elbow is leading the hand.");
+                Assert.That(pole.y, Is.LessThan(-0.3f), $"Forward reach {frac}: elbow pole {pole} does not hang down.");
+                Assert.That(pole.z, Is.LessThan(0.6f), $"Forward reach {frac}: elbow pole {pole} points grossly forward; elbow is leading the hand.");
             }
         }
-
         [Test]
         public void Elbow_SwivelStaysNatural_OnForwardReach()
         {
@@ -173,11 +141,9 @@ namespace Basis.Tests.IK
             {
                 var r = SolveWithLookupHint(frac, out _);
                 float swivel = Swivel(Shoulder, r.HandSolved, r.ElbowSolved);
-                Assert.That(Mathf.Abs(swivel), Is.LessThan(75f),
-                    $"Forward reach {frac}: elbow swivel {swivel:0.0} deg is far from natural (hanging) -- elbow has winged up/forward.");
+                Assert.That(Mathf.Abs(swivel), Is.LessThan(75f), $"Forward reach {frac}: elbow swivel {swivel:0.0} deg is far from natural (hanging) -- elbow has winged up/forward.");
             }
         }
-
         [Test]
         public void Elbow_DoesNotFlipUp_OnExtendedForwardReaches()
         {
@@ -207,10 +173,8 @@ namespace Basis.Tests.IK
             }
 
             Assert.That(tested, Is.GreaterThan(500), $"only {tested} extended forward reaches exercised; expected a dense sweep.");
-            Assert.That(flips, Is.EqualTo(0),
-                $"{flips}/{tested} extended forward reaches flip the elbow hard up (worst |swivel| {worstSwivel:0.0}° at {worstFrac}).");
+            Assert.That(flips, Is.EqualTo(0), $"{flips}/{tested} extended forward reaches flip the elbow hard up (worst |swivel| {worstSwivel:0.0}° at {worstFrac}).");
         }
-
         [Test]
         public void Solve_PreservesHandReach_ForReachableTargets()
         {
@@ -229,16 +193,12 @@ namespace Basis.Tests.IK
                 // (a folded arm cannot reach within ~0.2 arm-lengths of the shoulder).
                 if (reachR > 0.98f || reachR < 0.25f) continue;
                 var r = SolveWithLookupHint(Frac(fx, fy, fz), out _);
-                Assert.That(r.HandError, Is.LessThanOrEqualTo(tol),
-                    $"Reachable target {fracDir}: hand missed by {r.HandError:0.0000} m (> {tol:0.0000}); the elbow swivel disturbed reach.");
+                Assert.That(r.HandError, Is.LessThanOrEqualTo(tol), $"Reachable target {fracDir}: hand missed by {r.HandError:0.0000} m (> {tol:0.0000}); the elbow swivel disturbed reach.");
                 tested++;
             }
-            Assert.That(tested, Is.GreaterThan(1000),
-                $"reach grid only exercised {tested} targets; expected a dense sweep.");
+            Assert.That(tested, Is.GreaterThan(1000), $"reach grid only exercised {tested} targets; expected a dense sweep.");
         }
-
         // ----------------------------------------------------------------- anatomical flexion limit
-
         [Test]
         public void Elbow_FlexionStaysWithinAnatomicalRange()
         {
@@ -257,12 +217,10 @@ namespace Basis.Tests.IK
                 tested++;
                 minAngle = Mathf.Min(minAngle, r.ElbowAngleDeg);
                 maxAngle = Mathf.Max(maxAngle, r.ElbowAngleDeg);
-                Assert.That(r.ElbowAngleDeg, Is.InRange(BasisArmSolveCore.MinElbowAngleDeg - eps, BasisArmSolveCore.MaxElbowAngleDeg + eps),
-                    $"Target {fracDir}: elbow angle {r.ElbowAngleDeg:0.0}° is outside the anatomical range [{BasisArmSolveCore.MinElbowAngleDeg}, {BasisArmSolveCore.MaxElbowAngleDeg}].");
+                Assert.That(r.ElbowAngleDeg, Is.InRange(BasisArmSolveCore.MinElbowAngleDeg - eps, BasisArmSolveCore.MaxElbowAngleDeg + eps), $"Target {fracDir}: elbow angle {r.ElbowAngleDeg:0.0}° is outside the anatomical range [{BasisArmSolveCore.MinElbowAngleDeg}, {BasisArmSolveCore.MaxElbowAngleDeg}].");
             }
             Assert.That(tested, Is.GreaterThan(1000), $"only {tested} targets exercised.");
         }
-
         [Test]
         public void Elbow_DoesNotOverflex_OnTooCloseTarget()
         {
@@ -271,14 +229,10 @@ namespace Basis.Tests.IK
             Vector3 target = Shoulder + new Vector3(0.1f, -0.3f, 0.5f).normalized * 0.07f; // 7 cm: well inside ~11 cm min-flex
             var r = SolveWithLookupHint(target, out _);
 
-            Assert.That(r.ElbowAngleDeg, Is.GreaterThanOrEqualTo(BasisArmSolveCore.MinElbowAngleDeg - 1f),
-                $"elbow over-flexed to {r.ElbowAngleDeg:0.0}° (< min {BasisArmSolveCore.MinElbowAngleDeg}°).");
-            Assert.That(r.ElbowAngleDeg, Is.LessThan(BasisArmSolveCore.MinElbowAngleDeg + 4f),
-                $"elbow should hold at min flex for a too-close target; got {r.ElbowAngleDeg:0.0}°.");
-            Assert.That(r.HandError, Is.GreaterThan(0.01f),
-                "hand should fall short of a too-close target (pushed out), not fold the elbow to reach it.");
+            Assert.That(r.ElbowAngleDeg, Is.GreaterThanOrEqualTo(BasisArmSolveCore.MinElbowAngleDeg - 1f), $"elbow over-flexed to {r.ElbowAngleDeg:0.0}° (< min {BasisArmSolveCore.MinElbowAngleDeg}°).");
+            Assert.That(r.ElbowAngleDeg, Is.LessThan(BasisArmSolveCore.MinElbowAngleDeg + 4f), $"elbow should hold at min flex for a too-close target; got {r.ElbowAngleDeg:0.0}°.");
+            Assert.That(r.HandError, Is.GreaterThan(0.01f),"hand should fall short of a too-close target (pushed out), not fold the elbow to reach it.");
         }
-
         [Test]
         public void Elbow_DoesNotHyperextend_AtAndBeyondFullReach()
         {
@@ -287,13 +241,10 @@ namespace Basis.Tests.IK
             {
                 Vector3 target = Shoulder + new Vector3(0.1f, -0.1f, 1f).normalized * (reachFrac * ArmLen);
                 var r = SolveWithLookupHint(target, out _);
-                Assert.That(r.ElbowAngleDeg, Is.LessThanOrEqualTo(BasisArmSolveCore.MaxElbowAngleDeg + 1f),
-                    $"reach {reachFrac}: elbow angle {r.ElbowAngleDeg:0.0}° exceeds straight ({BasisArmSolveCore.MaxElbowAngleDeg}) -- hyperextension.");
+                Assert.That(r.ElbowAngleDeg, Is.LessThanOrEqualTo(BasisArmSolveCore.MaxElbowAngleDeg + 1f), $"reach {reachFrac}: elbow angle {r.ElbowAngleDeg:0.0}° exceeds straight ({BasisArmSolveCore.MaxElbowAngleDeg}) -- hyperextension.");
             }
         }
-
         // ----------------------------------------------------------------- flip resistance
-
         [Test]
         public void Solve_RateLimit_BoundsSwivelStepToCap()
         {
@@ -309,13 +260,10 @@ namespace Basis.Tests.IK
                 var r = SolveOne(Shoulder, RestElbow, RestHand, RestHand, wrongHint, true, cap);
                 float after = Swivel(Shoulder, r.HandSolved, r.ElbowSolved);
                 float step = Mathf.Abs(Mathf.DeltaAngle(before, after));
-                Assert.That(step, Is.LessThanOrEqualTo(cap + 0.6f),
-                    $"Rate cap {cap} deg exceeded: elbow swivelled {step:0.0} deg in one solve (a flip is not being rate-limited).");
-                Assert.That(r.HandError, Is.LessThanOrEqualTo(1e-3f),
-                    $"Rate-limited solve moved the hand ({r.HandError:0.0000} m); the swivel must preserve reach.");
+                Assert.That(step, Is.LessThanOrEqualTo(cap + 0.6f), $"Rate cap {cap} deg exceeded: elbow swivelled {step:0.0} deg in one solve (a flip is not being rate-limited).");
+                Assert.That(r.HandError, Is.LessThanOrEqualTo(1e-3f), $"Rate-limited solve moved the hand ({r.HandError:0.0000} m); the swivel must preserve reach.");
             }
         }
-
         [Test]
         public void Solve_WithoutRateLimit_ElbowCanFlip_WhichIsWhyTheCapExists()
         {
@@ -327,28 +275,23 @@ namespace Basis.Tests.IK
             var r = SolveOne(Shoulder, RestElbow, RestHand, RestHand, wrongHint, true, float.MaxValue);
             float step = Mathf.Abs(Mathf.DeltaAngle(before, Swivel(Shoulder, r.HandSolved, r.ElbowSolved)));
 
-            Assert.That(step, Is.GreaterThan(120f),
-                $"Expected the unclamped wrong-side hint to flip the elbow (>120 deg); got {step:0.0} deg.");
+            Assert.That(step, Is.GreaterThan(120f), $"Expected the unclamped wrong-side hint to flip the elbow (>120 deg); got {step:0.0} deg.");
         }
-
         [Test]
         public void Elbow_DoesNotPop_OnSmoothAcrossSweep()
         {
             AssertSmoothSweep(Frac(0.70f, -0.20f, 0.40f), Frac(-0.70f, -0.20f, 0.40f), 160, "across");
         }
-
         [Test]
         public void Elbow_DoesNotPop_OnSmoothVerticalSweep()
         {
             AssertSmoothSweep(Frac(0.10f, -0.80f, 0.30f), Frac(0.10f, 0.70f, 0.30f), 160, "vertical");
         }
-
         [Test]
         public void Elbow_DoesNotPop_OnReachUpAcrossSweep()
         {
             AssertSmoothSweep(Frac(0.60f, -0.60f, 0.20f), Frac(-0.50f, 0.50f, 0.30f), 160, "reach-up-across");
         }
-
         [Test]
         public void Elbow_DoesNotPop_OnCircleSweep()
         {
@@ -365,9 +308,7 @@ namespace Basis.Tests.IK
             }
             AssertSmoothSweep(pts, "circle");
         }
-
         // ----------------------------------------------------------------- full extension (pole collapse)
-
         [Test]
         public void Elbow_DoesNotFlip_OnFullExtensionAcrossSweep()
         {
@@ -376,7 +317,6 @@ namespace Basis.Tests.IK
             // "extend the arm out fully and the elbow flips to the wrong side". The elbow must ride along.
             AssertFullExtensionArc(ExtArc(new Vector3(0.75f, -0.15f, 0.70f), new Vector3(-0.75f, -0.15f, 0.70f), 0.95f, 180), "ext-across");
         }
-
         [Test]
         public void Elbow_DoesNotFlip_OnFullExtensionVerticalSweep()
         {
@@ -384,7 +324,6 @@ namespace Basis.Tests.IK
             // straight-out where the pole is most ill-defined.
             AssertFullExtensionArc(ExtArc(new Vector3(0.10f, -0.65f, 0.60f), new Vector3(0.10f, 0.35f, 0.70f), 0.95f, 180), "ext-vertical");
         }
-
         [Test]
         public void Elbow_DoesNotFlip_OnReachOutToFullExtensionAndBack()
         {
@@ -393,7 +332,6 @@ namespace Basis.Tests.IK
             // re-form on the SAME side -- not snap across as the arm straightens then unstraightens.
             AssertFullExtensionArc(ReachOutAndBack(new Vector3(0.12f, -0.18f, 1.0f), 0.6f, 0.97f, 90), "reach-out-back");
         }
-
         [Test]
         public void Elbow_DoesNotFlip_OnBackwardFullStretch()
         {
@@ -421,11 +359,9 @@ namespace Basis.Tests.IK
                 }
                 // A continuous backward sweep moves the swivel a few deg per sample; a flip is a >90 deg jump.
                 // 45 deg matches the harness pop gate (BasisIKTestGates.TrajMaxPopDeg) and cleanly separates them.
-                Assert.That(worst, Is.LessThan(45f),
-                    $"'{arc.name}' backward full-stretch: stateless elbow swivel jumps {worst:0.0} deg between adjacent samples (>45) -- the arm flips rapidly reaching behind.");
+                Assert.That(worst, Is.LessThan(45f), $"'{arc.name}' backward full-stretch: stateless elbow swivel jumps {worst:0.0} deg between adjacent samples (>45) -- the arm flips rapidly reaching behind.");
             }
         }
-
         [Test]
         public void Elbow_StaysContinuous_AcrossReachableWorkspace()
         {
@@ -444,10 +380,8 @@ namespace Basis.Tests.IK
             }
             // Continuous motion moves the swivel a few deg per sample; a flip is a >90 deg jump. 45 matches the
             // harness pop gate (BasisIKTestGates.TrajMaxPopDeg); measured worst is single digits.
-            Assert.That(worst, Is.LessThan(45f),
-                $"stateless elbow swivel jumps {worst:0.0} deg between adjacent samples at {where} -- a pole flip in the reachable workspace.");
+            Assert.That(worst, Is.LessThan(45f), $"stateless elbow swivel jumps {worst:0.0} deg between adjacent samples at {where} -- a pole flip in the reachable workspace.");
         }
-
         [Test]
         public void Elbow_DoesNotFlip_AcrossBackwardWorkspace()
         {
@@ -470,10 +404,8 @@ namespace Basis.Tests.IK
                     if (j > worst) { worst = j; where = $"elevation reach {reach:0.00} az {az:0.0}"; }
                 }
             }
-            Assert.That(worst, Is.LessThan(25f),
-                $"backward elbow swivel jumps {worst:0.0} deg between adjacent samples at {where} (>25) -- the arm flips reaching behind.");
+            Assert.That(worst, Is.LessThan(25f), $"backward elbow swivel jumps {worst:0.0} deg between adjacent samples at {where} (>25) -- the arm flips reaching behind.");
         }
-
         [Test]
         public void Elbow_DoesNotFlip_AcrossForwardWorkspace()
         {
@@ -497,10 +429,8 @@ namespace Basis.Tests.IK
                     if (j > worst) { worst = j; where = $"elevation reach {reach:0.00} az {az:0.0}"; }
                 }
             }
-            Assert.That(worst, Is.LessThan(25f),
-                $"forward elbow swivel jumps {worst:0.0} deg between adjacent samples at {where} (>25) -- the arm flips reaching straight forward.");
+            Assert.That(worst, Is.LessThan(25f), $"forward elbow swivel jumps {worst:0.0} deg between adjacent samples at {where} (>25) -- the arm flips reaching straight forward.");
         }
-
         [Test]
         public void Elbow_DoesNotFlip_OnForwardFullStretch()
         {
@@ -529,15 +459,11 @@ namespace Basis.Tests.IK
                     if (hasMid) worstRoll = Mathf.Max(worstRoll, Quaternion.Angle(prevMid, r.MidRotationSolved));
                     prevMid = r.MidRotationSolved; hasMid = true;
                 }
-                Assert.That(worstSw, Is.LessThan(45f),
-                    $"'{arc.name}' forward full-stretch: elbow swivel jumps {worstSw:0.0} deg between adjacent samples (>45) -- the arm flips reaching straight forward.");
-                Assert.That(worstRoll, Is.LessThan(45f),
-                    $"'{arc.name}' forward full-stretch: forearm orientation jumps {worstRoll:0.0} deg between adjacent samples (>45) -- the wrist/forearm rolls over as the elbow flips.");
+                Assert.That(worstSw, Is.LessThan(45f), $"'{arc.name}' forward full-stretch: elbow swivel jumps {worstSw:0.0} deg between adjacent samples (>45) -- the arm flips reaching straight forward.");
+                Assert.That(worstRoll, Is.LessThan(45f), $"'{arc.name}' forward full-stretch: forearm orientation jumps {worstRoll:0.0} deg between adjacent samples (>45) -- the wrist/forearm rolls over as the elbow flips.");
             }
         }
-
         // ----------------------------------------------------------------- elbow tracker placement / body size
-
         [Test]
         public void Elbow_TrackerReproducesNaturalBend_AcrossPlacementsAndSizes()
         {
@@ -559,8 +485,7 @@ namespace Basis.Tests.IK
             foreach (var size in new[] { (up: 0.22f, lo: 0.20f), (up: 0.28f, lo: 0.26f), (up: 0.34f, lo: 0.30f), (up: 0.32f, lo: 0.22f) })
             {
                 float upper = size.up, lower = size.lo, armLen = upper + lower;
-                Vector3 restElbow = Shoulder + restElbowDir * upper;
-                Vector3 restHand = restElbow + restForearmDir * lower;
+                Vector3 restElbow = Shoulder + restElbowDir * upper, restHand = restElbow + restForearmDir * lower;
 
                 foreach (var dirReach in new[]
                 {
@@ -592,9 +517,7 @@ namespace Basis.Tests.IK
                         // Tracker strapped to the natural arm: a point along the upper-arm or forearm segment,
                         // standing off the bone along the elbow pole by the limb radius + strap (the tracker
                         // sits proud of the bone on the elbow side). Fed raw as the hint, exactly like the rig.
-                        Vector3 bonePoint = upperMount
-                            ? Vector3.Lerp(Shoulder, nat.ElbowSolved, frac)
-                            : Vector3.Lerp(nat.ElbowSolved, nat.HandSolved, frac);
+                        Vector3 bonePoint = upperMount ? Vector3.Lerp(Shoulder, nat.ElbowSolved, frac) : Vector3.Lerp(nat.ElbowSolved, nat.HandSolved, frac);
                         Vector3 trackerPos = bonePoint + poleDir * radius;
 
                         var s = SolveOne(Shoulder, restElbow, restHand, target, trackerPos, true, float.MaxValue, hintIsTracker: true);
@@ -616,10 +539,8 @@ namespace Basis.Tests.IK
             // BasisArmSolveCore re-conditions the short-but-physical tracker pole (positions-only -> pronation-
             // safe), so it follows -- measured worst 0 deg / mean 0 over these combos. 15 is a regression guard
             // (a broken floor drags the elbow ~40-50 deg off toward world-down).
-            Assert.That(worst, Is.LessThan(15f),
-                $"elbow tracker moves the bend {worst:0.0} deg off the natural pose at {where} (>15) -- the strapped tracker is being dragged off natural for that placement/body size (re-conditioning floor regressed?).");
+            Assert.That(worst, Is.LessThan(15f), $"elbow tracker moves the bend {worst:0.0} deg off the natural pose at {where} (>15) -- the strapped tracker is being dragged off natural for that placement/body size (re-conditioning floor regressed?).");
         }
-
         [Test]
         public void Elbow_TrackerNotDraggedToDown_WhenPoleModeratelyCollapsed()
         {
@@ -647,14 +568,10 @@ namespace Basis.Tests.IK
             float devTracked = Mathf.Abs(Mathf.DeltaAngle(commanded, Swivel(Shoulder, tracked.HandSolved, tracked.ElbowSolved)));
             float devLookup = Mathf.Abs(Mathf.DeltaAngle(commanded, Swivel(Shoulder, lookupish.HandSolved, lookupish.ElbowSolved)));
 
-            Assert.That(devTracked, Is.LessThanOrEqualTo(devLookup + 1f),
-                $"HintIsTracker followed the tracker WORSE than the lookup path (tracked {devTracked:0.0} vs lookup {devLookup:0.0}) -- the tracker-trust window regressed.");
-            Assert.That(devTracked, Is.LessThan(35f),
-                $"a real tracker pole was not followed (off by {devTracked:0.0} deg) -- the elbow was dragged toward world-down instead of the tracker.");
-            Assert.That(tracked.HandError, Is.LessThanOrEqualTo(0.01f * ArmLen),
-                $"reach must be preserved: the tracker swivel moved the hand by {tracked.HandError:0.0000} m.");
+            Assert.That(devTracked, Is.LessThanOrEqualTo(devLookup + 1f), $"HintIsTracker followed the tracker WORSE than the lookup path (tracked {devTracked:0.0} vs lookup {devLookup:0.0}) -- the tracker-trust window regressed.");
+            Assert.That(devTracked, Is.LessThan(35f), $"a real tracker pole was not followed (off by {devTracked:0.0} deg) -- the elbow was dragged toward world-down instead of the tracker.");
+            Assert.That(tracked.HandError, Is.LessThanOrEqualTo(0.01f * ArmLen), $"reach must be preserved: the tracker swivel moved the hand by {tracked.HandError:0.0000} m.");
         }
-
         [Test]
         public void Elbow_StraightArmInput_PicksStableDownPole_NoThrash()
         {
@@ -677,10 +594,8 @@ namespace Basis.Tests.IK
                     worst = Mathf.Max(worst, Mathf.Abs(Mathf.DeltaAngle(prev, sw)));
                 prev = sw;
             }
-            Assert.That(worst, Is.LessThan(25f),
-                $"straight-arm input thrashes the bend plane: swivel jumps {worst:0.0} deg as the target sweeps (>25) -- the dead-straight fallback is not stable.");
+            Assert.That(worst, Is.LessThan(25f), $"straight-arm input thrashes the bend plane: swivel jumps {worst:0.0} deg as the target sweeps (>25) -- the dead-straight fallback is not stable.");
         }
-
         [Test]
         public void Elbow_StaysStable_UnderNoisyTrackerHint()
         {
@@ -696,10 +611,7 @@ namespace Basis.Tests.IK
             int pops = 0;
             for (int s = 0; s < 240; s++)
             {
-                Vector3 noise = new Vector3(
-                    (float)(rng.NextDouble() * 2 - 1),
-                    (float)(rng.NextDouble() * 2 - 1),
-                    (float)(rng.NextDouble() * 2 - 1)) * (0.08f * ArmLen);
+                Vector3 noise = new Vector3((float)(rng.NextDouble() * 2 - 1), (float)(rng.NextDouble() * 2 - 1), (float)(rng.NextDouble() * 2 - 1)) * (0.08f * ArmLen);
                 Vector3 hint = Shoulder + 0.5f * ArmLen * Vector3.down + noise;
                 var r = SolveOne(Shoulder, e, h, hand, hint, true, RateDegPerFrame);
                 e = r.ElbowSolved; h = r.HandSolved;
@@ -719,10 +631,8 @@ namespace Basis.Tests.IK
             }
 
             Assert.That(pops, Is.EqualTo(0), $"Elbow popped {pops} times under tracker noise.");
-            Assert.That(maxAbsSwivel, Is.LessThan(25f),
-                $"Elbow wandered {maxAbsSwivel:0.0} deg from straight-down under tracker noise; it should stay tucked.");
+            Assert.That(maxAbsSwivel, Is.LessThan(25f), $"Elbow wandered {maxAbsSwivel:0.0} deg from straight-down under tracker noise; it should stay tucked.");
         }
-
         [Test]
         public void Elbow_FollowsCrossSideHint_WithoutPopping()
         {
@@ -734,14 +644,12 @@ namespace Basis.Tests.IK
             Vector3 e = seed.ElbowSolved, h = seed.HandSolved;
             Vector3 axis = (hand - Shoulder).normalized;
             Vector3 downPole = Vector3.ProjectOnPlane(Vector3.down, axis).normalized;
-
             float prev = float.NaN, worstStep = 0f;
             int pops = 0;
             for (int s = 0; s <= 120; s++)
             {
                 float ang = (s / 120f) * 200f; // 0 deg (down) sweeping past 180 deg (up)
-                Vector3 pole = Quaternion.AngleAxis(ang, axis) * downPole;
-                Vector3 hint = Shoulder + 0.5f * ArmLen * pole;
+                Vector3 pole = Quaternion.AngleAxis(ang, axis) * downPole, hint = Shoulder + 0.5f * ArmLen * pole;
                 var r = SolveOne(Shoulder, e, h, hand, hint, true, RateDegPerFrame);
                 e = r.ElbowSolved; h = r.HandSolved;
 
@@ -756,12 +664,9 @@ namespace Basis.Tests.IK
             }
 
             Assert.That(pops, Is.EqualTo(0), $"Elbow popped {pops} times while the hint crossed sides.");
-            Assert.That(worstStep, Is.LessThan(RateDegPerFrame + 6f),
-                $"Elbow stepped {worstStep:0.0} deg in one frame while the hint crossed sides; the swivel is not eased.");
+            Assert.That(worstStep, Is.LessThan(RateDegPerFrame + 6f), $"Elbow stepped {worstStep:0.0} deg in one frame while the hint crossed sides; the swivel is not eased.");
         }
-
         // ----------------------------------------------------------------- helpers (test scaffolding)
-
         // Hand targets, in shoulder-local arm-length fractions, that are clearly "reaching forward".
         static Vector3[] ForwardReachTargets() => new[]
         {
@@ -772,9 +677,7 @@ namespace Basis.Tests.IK
             Frac(0.40f, -0.10f, 0.55f),
             Frac(-0.35f, -0.05f, 0.55f),
         };
-
         static Vector3 Frac(float fx, float fy, float fz) => Shoulder + new Vector3(fx, fy, fz) * ArmLen;
-
         // Great-circle arc on the FULL-EXTENSION sphere (radius reach*ArmLen about the shoulder), sweeping
         // direction a -> b. Mirror of BasisIKTrajectoryScan.Arc / the sweep's ext-* paths: |hand-shoulder|
         // stays fixed so only the pole rotates, holding the arm at constant (near-straight) extension.
@@ -786,7 +689,6 @@ namespace Basis.Tests.IK
                 pts[s] = Shoulder + Vector3.Slerp(ua, ub, s / (float)(steps - 1)) * (reach * ArmLen);
             return pts;
         }
-
         // Radial push out to (near) full extension and back along a fixed direction: reach ramps lo->hi->lo.
         // Exercises the pole collapsing as the arm straightens and re-forming as it folds.
         static Vector3[] ReachOutAndBack(Vector3 dir, float reachLo, float reachHi, int stepsEachWay)
@@ -799,7 +701,6 @@ namespace Basis.Tests.IK
                 pts[stepsEachWay + s] = Shoulder + u * (Mathf.Lerp(reachHi, reachLo, s / (float)(stepsEachWay - 1)) * ArmLen);
             return pts;
         }
-
         // Worst adjacent-sample elbow-swivel jump along a hand path, solved the way the LIVE rig does:
         // stateless (fresh rest pose each sample) with no rate limit. A jump is a pole flip.
         float StatelessWorstArcJump(Vector3[] pts)
@@ -815,7 +716,6 @@ namespace Basis.Tests.IK
             }
             return worst;
         }
-
         // A full 360 deg azimuth circle of hand targets at a fixed elevation (y fraction) and reach, on the
         // sphere about the shoulder -- one revolution passes through forward, both sides and fully behind.
         static Vector3[] LatitudeCircle(float elevationY, float reach, int n)
@@ -829,13 +729,9 @@ namespace Basis.Tests.IK
             }
             return pts;
         }
-
         Vector3 SampleLookup(Vector3 normalizedHandPos) => BasisArmBendLookup.SampleTrilinear(_table, normalizedHandPos);
-
         // Mirror of BasisArmIKSweep.ComputeLookupBend (right arm: no mirror).
-        Vector3 LookupBend(Vector3 shoulderToHand) =>
-            BasisArmBendLookup.SampleTrilinear(_table, shoulderToHand / ArmLen).normalized;
-
+        Vector3 LookupBend(Vector3 shoulderToHand) => BasisArmBendLookup.SampleTrilinear(_table, shoulderToHand / ArmLen).normalized;
         // Solve a fresh (rest-pose) reach to an absolute WORLD target using the lookup-derived elbow hint.
         BasisArmSolveResult SolveWithLookupHint(Vector3 worldTarget, out Vector3 hint)
         {
@@ -843,11 +739,9 @@ namespace Basis.Tests.IK
             hint = Shoulder + 0.5f * ArmLen * bend;
             return SolveOne(Shoulder, RestElbow, RestHand, worldTarget, hint, true, float.MaxValue);
         }
-
         // Mirror of BasisArmIKSweep.SolveOne: drive BasisArmSolveCore with identity rotations (positions
         // are unaffected by the rest rotations) so the result is pure geometry.
-        static BasisArmSolveResult SolveOne(Vector3 shoulder, Vector3 elbow, Vector3 hand,
-            Vector3 target, Vector3 hint, bool hintOn, float maxStep, bool hintIsTracker = false)
+        static BasisArmSolveResult SolveOne(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 target, Vector3 hint, bool hintOn, float maxStep, bool hintIsTracker = false)
         {
             BasisArmSolveInput input = default;
             input.Shoulder = shoulder;
@@ -866,7 +760,6 @@ namespace Basis.Tests.IK
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult r);
             return r;
         }
-
         // Mirror of BasisArmIKSweep.Swivel: signed elbow angle around the shoulder->hand axis from
         // straight-down. The headline "is the elbow where a human's would be" metric.
         static float Swivel(Vector3 shoulder, Vector3 hand, Vector3 elbow)
@@ -879,14 +772,12 @@ namespace Basis.Tests.IK
             if (refVec.sqrMagnitude < 1e-8f || poleVec.sqrMagnitude < 1e-8f) return float.NaN;
             return Vector3.SignedAngle(refVec, poleVec, axis);
         }
-
         void AssertSmoothSweep(Vector3 from, Vector3 to, int steps, string name)
         {
             var pts = new Vector3[steps];
             for (int s = 0; s < steps; s++) pts[s] = Vector3.Lerp(from, to, s / (float)(steps - 1));
             AssertSmoothSweep(pts, name);
         }
-
         // Drive a continuous hand path through the production (lookup-hint, no tracker) elbow solve,
         // feeding the previous frame's solved pose back in with the live 6 deg/frame rate limit -- the
         // same temporal model as BasisArmIKSweep.RunTemporal. A pole flip shows up as a swivel pop.
@@ -897,8 +788,7 @@ namespace Basis.Tests.IK
             int pops = 0;
             for (int s = 0; s < pts.Length; s++)
             {
-                Vector3 bend = LookupBend(pts[s] - Shoulder);
-                Vector3 hint = Shoulder + 0.5f * ArmLen * bend;
+                Vector3 bend = LookupBend(pts[s] - Shoulder), hint = Shoulder + 0.5f * ArmLen * bend;
                 var r = SolveOne(Shoulder, e, h, pts[s], hint, true, RateDegPerFrame);
                 e = r.ElbowSolved; h = r.HandSolved;
 
@@ -912,12 +802,9 @@ namespace Basis.Tests.IK
                 prev = swivel;
             }
 
-            Assert.That(pops, Is.EqualTo(0),
-                $"'{name}' sweep: elbow popped {pops} times on smooth motion (pole flip).");
-            Assert.That(worstStep, Is.LessThan(15f),
-                $"'{name}' sweep: worst per-frame swivel step {worstStep:0.0} deg (rate limit is {RateDegPerFrame:0.0}); elbow is jumping.");
+            Assert.That(pops, Is.EqualTo(0), $"'{name}' sweep: elbow popped {pops} times on smooth motion (pole flip).");
+            Assert.That(worstStep, Is.LessThan(15f), $"'{name}' sweep: worst per-frame swivel step {worstStep:0.0} deg (rate limit is {RateDegPerFrame:0.0}); elbow is jumping.");
         }
-
         // Same temporal lookup-hint drive as AssertSmoothSweep, but for a FULL-EXTENSION path where the elbow
         // pole collapses onto the shoulder->hand axis -- the case the user sees as "extend the arm out fully
         // and the elbow flips". Three guards: the live rate limiter must keep each step small (no snap), the
@@ -930,8 +817,7 @@ namespace Basis.Tests.IK
             int pops = 0;
             for (int s = 0; s < pts.Length; s++)
             {
-                Vector3 bend = LookupBend(pts[s] - Shoulder);
-                Vector3 hint = Shoulder + 0.5f * ArmLen * bend;
+                Vector3 bend = LookupBend(pts[s] - Shoulder), hint = Shoulder + 0.5f * ArmLen * bend;
                 var r = SolveOne(Shoulder, e, h, pts[s], hint, true, RateDegPerFrame);
                 e = r.ElbowSolved; h = r.HandSolved;
 
@@ -949,12 +835,9 @@ namespace Basis.Tests.IK
                 }
             }
 
-            Assert.That(pops, Is.EqualTo(0),
-                $"'{name}' full-extension sweep: elbow popped {pops} times (pole flip as the arm extends).");
-            Assert.That(worstStep, Is.LessThan(RateDegPerFrame + 6f),
-                $"'{name}' full-extension sweep: worst per-frame swivel step {worstStep:0.0} deg (rate limit {RateDegPerFrame:0.0}); the swivel is snapping, not easing.");
-            Assert.That(maxAbsSwivel, Is.LessThan(120f),
-                $"'{name}' full-extension sweep: elbow swung to |swivel| {maxAbsSwivel:0.0} deg (>120) -- it flipped up/wrong-side instead of staying tucked behind the hand.");
+            Assert.That(pops, Is.EqualTo(0), $"'{name}' full-extension sweep: elbow popped {pops} times (pole flip as the arm extends).");
+            Assert.That(worstStep, Is.LessThan(RateDegPerFrame + 6f), $"'{name}' full-extension sweep: worst per-frame swivel step {worstStep:0.0} deg (rate limit {RateDegPerFrame:0.0}); the swivel is snapping, not easing.");
+            Assert.That(maxAbsSwivel, Is.LessThan(120f), $"'{name}' full-extension sweep: elbow swung to |swivel| {maxAbsSwivel:0.0} deg (>120) -- it flipped up/wrong-side instead of staying tucked behind the hand.");
         }
     }
 }

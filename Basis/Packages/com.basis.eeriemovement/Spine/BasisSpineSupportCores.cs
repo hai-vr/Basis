@@ -5,10 +5,8 @@ namespace Basis.IK
     {
         public static void Step(Vector3 pos, Vector3 vel, Vector3 target, float dt, float hz, float damping, out Vector3 newPos, out Vector3 newVel)
         {
-            float omega = 2f * Mathf.PI * hz;
-            float omegaSq = omega * omega;
+            float omega = 2f * Mathf.PI * hz, omegaSq = omega * omega;
             float twoOmegaDamping = 2f * omega * Mathf.Max(0f, damping);
-
             float denom = 1f + dt * twoOmegaDamping + dt * dt * omegaSq;
             newVel = (vel + dt * omegaSq * (target - pos)) / denom;
             newPos = pos + dt * newVel;
@@ -33,10 +31,8 @@ namespace Basis.IK
                 e = 2f * ev;
             }
 
-            float omega = 2f * Mathf.PI * hz;
-            float omegaSq = omega * omega;
+            float omega = 2f * Mathf.PI * hz, omegaSq = omega * omega;
             float twoOmegaDamping = 2f * omega * Mathf.Max(0f, damping);
-
             float denom = 1f + dt * twoOmegaDamping + dt * dt * omegaSq;
             newAngVel = (angVel + dt * omegaSq * e) / denom;
 
@@ -45,8 +41,7 @@ namespace Basis.IK
             Quaternion step;
             if (ang > 1e-8f)
             {
-                float half = 0.5f * ang;
-                float s = Mathf.Sin(half) / ang;
+                float half = 0.5f * ang, s = Mathf.Sin(half) / ang;
                 step = new Quaternion(dTheta.x * s, dTheta.y * s, dTheta.z * s, Mathf.Cos(half));
             }
             else
@@ -67,17 +62,14 @@ namespace Basis.IK
             offset = Vector3.zero;
             forwardMeters = 0f;
 
-            float lever = eyeFromNeck.y;
-            float forwardRest = eyeFromNeck.z;
+            float lever = eyeFromNeck.y, forwardRest = eyeFromNeck.z;
 
             if (!(lever * lever + forwardRest * forwardRest > sqrEpsilon)) return;
             if (!(pitchDeg > -180f && pitchDeg < 180f)) return;
             if (!(yawDeg > -720f && yawDeg < 720f)) return;
             if (!(strength > 0f)) return;
 
-            float p = pitchDeg * Mathf.Deg2Rad;
-
-            float swung = lever * Mathf.Sin(p) + forwardRest * Mathf.Cos(p);
+            float p = pitchDeg * Mathf.Deg2Rad, swung = lever * Mathf.Sin(p) + forwardRest * Mathf.Cos(p);
             float forward = (swung - forwardRest) * strength;
 
             if (forward < 0f) forward *= backwardScale;
@@ -94,8 +86,7 @@ namespace Basis.IK
     }
     public static class BasisHipHingeCore
     {
-        const float epsilon = 1e-5f;
-        const float sqrEpsilon = 1e-8f;
+        const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;
         public const float PelvisFollowSlope = 1.0f;
         public static bool Solve(Vector3 headPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUp, float startDeg, float maxAddDeg, out Quaternion newHipsRot, out float leanDeg, out float addDeg)
         {
@@ -124,9 +115,7 @@ namespace Basis.IK
                 return false;
             }
 
-            float excess = (leanDeg - startDeg) * PelvisFollowSlope;
-            float capped = Saturate(excess, maxAddDeg);
-
+            float excess = (leanDeg - startDeg) * PelvisFollowSlope, capped = Saturate(excess, maxAddDeg);
             Vector3 hingeAxis = Vector3.Cross(playerUp, horizontal / horizMag);
             if (hingeAxis.sqrMagnitude < sqrEpsilon)
             {

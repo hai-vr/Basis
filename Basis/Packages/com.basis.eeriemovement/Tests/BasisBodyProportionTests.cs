@@ -2,7 +2,6 @@ using NUnit.Framework;
 using Unity.Collections;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisBodyProportionTests
@@ -10,32 +9,25 @@ namespace Basis.Tests.IK
         // Human inputs are capped short of the genuine full-extension singularity: a person holding a
         // controller almost never pins the arm dead straight, and the >0.95 regime has its own suite
         // (BasisElbowDirectionTests full-extension arcs). Beyond-reach inputs are tested UNCAPPED below.
-        const float ArmReachCap = 0.95f;
-        const float LegReachCap = 0.97f;
-
+        const float ArmReachCap = 0.95f, LegReachCap = 0.97f;
         static readonly Vector3 RestElbowDir = new Vector3(0.15f, -0.95f, 0.27f).normalized;
         static readonly Vector3 RestForearmDir = new Vector3(0f, -0.30f, 0.95f).normalized;
         static readonly Vector3 RestKneeDir = new Vector3(0f, -0.97f, 0.20f).normalized;
         static readonly Vector3 RestShinDir = new Vector3(0f, -0.98f, -0.10f).normalized;
         // KneeBendPref: the rig feeds the same hips-right bend normal to BOTH legs (BasisLocalRigDriver).
         static readonly Vector3 HipsRight = Vector3.right;
-
         NativeArray<Vector3> _table;
-
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
             _table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Persistent);
         }
-
         [OneTimeTearDown]
         public void OneTimeTearDown()
         {
             if (_table.IsCreated) _table.Dispose();
         }
-
         // ----------------------------------------------------------------- the body catalog
-
         // A body the tests solve against: right-side skeleton derived from height fractions.
         // Body faces +Z, +X is the body's right. Hip height is DERIVED from the leg segments
         // (thigh + shin + ankle clearance) so "standing" is exactly reachable on every profile,
@@ -52,9 +44,7 @@ namespace Basis.Tests.IK
             public Vector3 Shoulder, Hip;
             public Vector3 RestElbow, RestHand;
             public Vector3 RestKnee, RestAnkle;
-
-            public static BodyProfile Make(string name, float h, float shoulderYF, float shoulderXF,
-                float hipXF, float upperF, float foreF, float thighF, float shinF, float ankleYF)
+            public static BodyProfile Make(string name, float h, float shoulderYF, float shoulderXF, float hipXF, float upperF, float foreF, float thighF, float shinF, float ankleYF)
             {
                 BodyProfile b;
                 b.Name = name;
@@ -73,7 +63,6 @@ namespace Basis.Tests.IK
                 return b;
             }
         }
-
         // Ten bodies spanning what actually connects to a Basis instance. AverageAdult reproduces the
         // canonical suite skeleton (arm 0.28+0.26, leg 0.42+0.42); the rest bend every ratio the solver
         // sees: absolute scale (Chibi 0.6 m -> Giant 2.4 m), arm:height (TallLanky +10%, Stocky -8%),
@@ -92,16 +81,13 @@ namespace Basis.Tests.IK
             BodyProfile.Make("ForearmDominant",   1.75f, 0.818f, 0.105f, 0.050f, 0.126f, 0.1830f, 0.270f, 0.210f, 0.039f),
             BodyProfile.Make("LongLegs",          1.85f, 0.830f, 0.100f, 0.050f, 0.160f, 0.1486f, 0.270f, 0.265f, 0.039f),
         };
-
         // ----------------------------------------------------------------- the human pose catalogs
-
         struct ArmPose
         {
             public string Name;
             public Vector3 Touch;   // the world point the hand is trying to touch
             public bool Lowish;     // a pose where a natural elbow clearly hangs down (swivel is pinned)
         }
-
         // What a person does with their hands all session. Landmark poses (chin, opposite shoulder,
         // overhead, lower back, knee) move with the BODY, so their reach ratio and direction differ per
         // profile -- e.g. the opposite shoulder is a folded 0.52 reach on TallLanky but beyond-cap on
@@ -109,8 +95,7 @@ namespace Basis.Tests.IK
         static ArmPose[] ArmPoses(in BodyProfile b)
         {
             Vector3 s = b.Shoulder;
-            float h = b.Height;
-            float chinY = b.ShoulderY + 0.18f * (h - b.ShoulderY);
+            float h = b.Height, chinY = b.ShoulderY + 0.18f * (h - b.ShoulderY);
             return new[]
             {
                 new ArmPose { Name = "HandsAtSides",     Touch = s + new Vector3(0.02f, -1f, 0.06f).normalized * b.ArmLen, Lowish = true },
@@ -124,13 +109,11 @@ namespace Basis.Tests.IK
                 new ArmPose { Name = "LowReachKnee",     Touch = new Vector3(b.HipX + 0.04f * h, b.KneeY, 0.16f * h), Lowish = true },
             };
         }
-
         struct LegPose
         {
             public string Name;
             public Vector3 Ankle;   // the ankle/foot IK target
         }
-
         // Everyday leg use. Fraction poses exercise the thigh:shin ratio; landmark poses (a box of
         // ABSOLUTE knee-ish height, the other foot's position) couple leg:height and hip-width:leg-length,
         // so short-legged bodies climb the "same" step with a much more folded knee (Chibi solves
@@ -138,8 +121,7 @@ namespace Basis.Tests.IK
         static LegPose[] LegPoses(in BodyProfile b)
         {
             Vector3 p = b.Hip;
-            float l = b.LegLen;
-            float h = b.Height;
+            float l = b.LegLen, h = b.Height;
             return new[]
             {
                 new LegPose { Name = "StandingSoft",    Ankle = p + new Vector3(0f, -1f, 0.02f) * l },
@@ -154,9 +136,7 @@ namespace Basis.Tests.IK
                 new LegPose { Name = "InwardFold",      Ankle = p + new Vector3(-0.40f, -0.60f, 0.30f) * l },
             };
         }
-
         // ----------------------------------------------------------------- arm: reach + anatomy
-
         [Test]
         public void Arm_HumanPoses_ReachTargetAndStayAnatomical_AcrossBodyProportions()
         {
@@ -174,15 +154,12 @@ namespace Basis.Tests.IK
 
                     AssertFinite(r.HandSolved, $"{b.Name}/{pose.Name}: solved hand");
                     AssertFinite(r.ElbowSolved, $"{b.Name}/{pose.Name}: solved elbow");
-                    Assert.That(r.HandError, Is.LessThanOrEqualTo(tol),
-                        $"{b.Name}/{pose.Name}: hand missed a reachable human target by {r.HandError:0.0000} m (> {tol:0.0000}).");
-                    Assert.That(r.ElbowAngleDeg, Is.InRange(BasisArmSolveCore.MinElbowAngleDeg - 1f, BasisArmSolveCore.MaxElbowAngleDeg + 1f),
-                        $"{b.Name}/{pose.Name}: elbow angle {r.ElbowAngleDeg:0.0} deg left the anatomical range.");
+                    Assert.That(r.HandError, Is.LessThanOrEqualTo(tol), $"{b.Name}/{pose.Name}: hand missed a reachable human target by {r.HandError:0.0000} m (> {tol:0.0000}).");
+                    Assert.That(r.ElbowAngleDeg, Is.InRange(BasisArmSolveCore.MinElbowAngleDeg - 1f, BasisArmSolveCore.MaxElbowAngleDeg + 1f), $"{b.Name}/{pose.Name}: elbow angle {r.ElbowAngleDeg:0.0} deg left the anatomical range.");
                 }
             }
             Assert.That(tested, Is.EqualTo(Profiles().Length * ArmPoses(Profiles()[0]).Length), "pose matrix changed; update the calibration script too.");
         }
-
         [Test]
         public void Arm_ElbowHangsNatural_OnLowHumanPoses_AcrossBodyProportions()
         {
@@ -199,12 +176,10 @@ namespace Basis.Tests.IK
                     var r = SolveArmPose(b, pose.Touch);
                     float swivel = Swivel(b.Shoulder, r.HandSolved, r.ElbowSolved);
                     if (float.IsNaN(swivel)) continue;
-                    Assert.That(Mathf.Abs(swivel), Is.LessThan(60f),
-                        $"{b.Name}/{pose.Name}: elbow swivel {swivel:0.0} deg is far from the natural hang -- this body proportion wings the elbow.");
+                    Assert.That(Mathf.Abs(swivel), Is.LessThan(60f), $"{b.Name}/{pose.Name}: elbow swivel {swivel:0.0} deg is far from the natural hang -- this body proportion wings the elbow.");
                 }
             }
         }
-
         [Test]
         public void Arm_BeyondReachInputs_FallShortCleanly_AcrossBodyProportions()
         {
@@ -225,10 +200,8 @@ namespace Basis.Tests.IK
 
                     AssertFinite(r.HandSolved, $"{b.Name}/{pose.Name}: beyond-reach solved hand");
                     float expected = dist - b.ArmLen;
-                    Assert.That(Mathf.Abs(r.HandError - expected), Is.LessThanOrEqualTo(0.005f * b.ArmLen),
-                        $"{b.Name}/{pose.Name}: beyond-reach input should fall short by {expected:0.000} m, hand error was {r.HandError:0.000} m -- the arm is not extending straight toward it.");
-                    Assert.That(r.ElbowAngleDeg, Is.LessThanOrEqualTo(BasisArmSolveCore.MaxElbowAngleDeg + 0.5f),
-                        $"{b.Name}/{pose.Name}: beyond-reach elbow angle {r.ElbowAngleDeg:0.0} deg -- hyperextension.");
+                    Assert.That(Mathf.Abs(r.HandError - expected), Is.LessThanOrEqualTo(0.005f * b.ArmLen), $"{b.Name}/{pose.Name}: beyond-reach input should fall short by {expected:0.000} m, hand error was {r.HandError:0.000} m -- the arm is not extending straight toward it.");
+                    Assert.That(r.ElbowAngleDeg, Is.LessThanOrEqualTo(BasisArmSolveCore.MaxElbowAngleDeg + 0.5f), $"{b.Name}/{pose.Name}: beyond-reach elbow angle {r.ElbowAngleDeg:0.0} deg -- hyperextension.");
                 }
 
                 foreach (var pose in LegPoses(b))
@@ -241,15 +214,12 @@ namespace Basis.Tests.IK
 
                     AssertFinite(r.FootSolved, $"{b.Name}/{pose.Name}: beyond-reach solved foot");
                     float expected = dist - b.LegLen;
-                    Assert.That(Mathf.Abs(r.FootError - expected), Is.LessThanOrEqualTo(0.005f * b.LegLen),
-                        $"{b.Name}/{pose.Name}: beyond-reach input should fall short by {expected:0.000} m, foot error was {r.FootError:0.000} m -- the leg is not extending straight toward it.");
+                    Assert.That(Mathf.Abs(r.FootError - expected), Is.LessThanOrEqualTo(0.005f * b.LegLen), $"{b.Name}/{pose.Name}: beyond-reach input should fall short by {expected:0.000} m, foot error was {r.FootError:0.000} m -- the leg is not extending straight toward it.");
                 }
             }
             Assert.That(tested, Is.GreaterThanOrEqualTo(20), $"only {tested} beyond-reach inputs exercised; the landmark poses no longer overshoot short limbs.");
         }
-
         // ----------------------------------------------------------------- leg: reach + anatomy
-
         [Test]
         public void Leg_HumanPoses_ReachTargetAndStayAnatomical_AcrossBodyProportions()
         {
@@ -271,16 +241,13 @@ namespace Basis.Tests.IK
 
                         AssertFinite(r.FootSolved, $"{b.Name}/{pose.Name}/hint={hintOn}: solved foot");
                         AssertFinite(r.KneeSolved, $"{b.Name}/{pose.Name}/hint={hintOn}: solved knee");
-                        Assert.That(r.FootError, Is.LessThanOrEqualTo(tol),
-                            $"{b.Name}/{pose.Name}/hint={hintOn}: foot missed a reachable human target by {r.FootError:0.0000} m (> {tol:0.0000}).");
-                        Assert.That(r.KneeAngleDeg, Is.GreaterThanOrEqualTo(BasisLegSolveCore.MinKneeInteriorDeg - 1f),
-                            $"{b.Name}/{pose.Name}/hint={hintOn}: knee folded to {r.KneeAngleDeg:0.0} deg, past the anatomical limit.");
+                        Assert.That(r.FootError, Is.LessThanOrEqualTo(tol), $"{b.Name}/{pose.Name}/hint={hintOn}: foot missed a reachable human target by {r.FootError:0.0000} m (> {tol:0.0000}).");
+                        Assert.That(r.KneeAngleDeg, Is.GreaterThanOrEqualTo(BasisLegSolveCore.MinKneeInteriorDeg - 1f), $"{b.Name}/{pose.Name}/hint={hintOn}: knee folded to {r.KneeAngleDeg:0.0} deg, past the anatomical limit.");
                     }
                 }
             }
             Assert.That(tested, Is.EqualTo(Profiles().Length * LegPoses(Profiles()[0]).Length * 2), "pose matrix changed; update the calibration script too.");
         }
-
         [Test]
         public void Leg_KneeNeverInverts_OnHumanPoses_AcrossBodyProportions()
         {
@@ -299,15 +266,12 @@ namespace Basis.Tests.IK
                         var r = SolveLegPose(b, pose.Ankle, hintOn);
                         float fwd = KneeForwardFraction(b.Hip, r.FootSolved, r.KneeSolved);
                         if (float.IsNaN(fwd)) continue;
-                        Assert.That(fwd, Is.GreaterThan(0f),
-                            $"{b.Name}/{pose.Name}/hint={hintOn}: knee forward fraction {fwd:+0.00;-0.00} -- the knee is bending sideways-to-backward on this body.");
+                        Assert.That(fwd, Is.GreaterThan(0f), $"{b.Name}/{pose.Name}/hint={hintOn}: knee forward fraction {fwd:+0.00;-0.00} -- the knee is bending sideways-to-backward on this body.");
                     }
                 }
             }
         }
-
         // ----------------------------------------------------------------- proportion invariants
-
         [Test]
         public void Solve_IsScaleInvariant_FromChibiToGiant()
         {
@@ -319,8 +283,7 @@ namespace Basis.Tests.IK
             var baseline = Profiles()[0]; // AverageAdult, 1.75 m
             foreach (float scale in new[] { 0.343f, 1.371f }) // 0.60 m and 2.40 m
             {
-                var scaled = BodyProfile.Make("Scaled", baseline.Height * scale,
-                    0.818f, 0.105f, 0.050f, 0.160f, 0.1486f, 0.240f, 0.240f, 0.039f);
+                var scaled = BodyProfile.Make("Scaled", baseline.Height * scale, 0.818f, 0.105f, 0.050f, 0.160f, 0.1486f, 0.240f, 0.240f, 0.039f);
 
                 var basePoses = ArmPoses(baseline);
                 var scaledPoses = ArmPoses(scaled);
@@ -330,11 +293,9 @@ namespace Basis.Tests.IK
                     var r1 = SolveArmPose(scaled, scaledPoses[i].Touch);
                     float s0 = Swivel(baseline.Shoulder, r0.HandSolved, r0.ElbowSolved);
                     float s1 = Swivel(scaled.Shoulder, r1.HandSolved, r1.ElbowSolved);
-                    Assert.That(Mathf.Abs(r0.ElbowAngleDeg - r1.ElbowAngleDeg), Is.LessThan(0.25f),
-                        $"{basePoses[i].Name} @ x{scale}: elbow angle changed {r0.ElbowAngleDeg:0.00} -> {r1.ElbowAngleDeg:0.00} with pure scale -- an absolute-length constant is in the solve path.");
+                    Assert.That(Mathf.Abs(r0.ElbowAngleDeg - r1.ElbowAngleDeg), Is.LessThan(0.25f), $"{basePoses[i].Name} @ x{scale}: elbow angle changed {r0.ElbowAngleDeg:0.00} -> {r1.ElbowAngleDeg:0.00} with pure scale -- an absolute-length constant is in the solve path.");
                     if (!float.IsNaN(s0) && !float.IsNaN(s1))
-                        Assert.That(Mathf.Abs(Mathf.DeltaAngle(s0, s1)), Is.LessThan(0.25f),
-                            $"{basePoses[i].Name} @ x{scale}: elbow swivel changed {s0:0.00} -> {s1:0.00} with pure scale.");
+                        Assert.That(Mathf.Abs(Mathf.DeltaAngle(s0, s1)), Is.LessThan(0.25f), $"{basePoses[i].Name} @ x{scale}: elbow swivel changed {s0:0.00} -> {s1:0.00} with pure scale.");
                 }
 
                 var baseLegs = LegPoses(baseline);
@@ -345,13 +306,11 @@ namespace Basis.Tests.IK
                     {
                         var r0 = SolveLegPose(baseline, baseLegs[i].Ankle, hintOn);
                         var r1 = SolveLegPose(scaled, scaledLegs[i].Ankle, hintOn);
-                        Assert.That(Mathf.Abs(r0.KneeAngleDeg - r1.KneeAngleDeg), Is.LessThan(0.25f),
-                            $"{baseLegs[i].Name}/hint={hintOn} @ x{scale}: knee angle changed {r0.KneeAngleDeg:0.00} -> {r1.KneeAngleDeg:0.00} with pure scale.");
+                        Assert.That(Mathf.Abs(r0.KneeAngleDeg - r1.KneeAngleDeg), Is.LessThan(0.25f), $"{baseLegs[i].Name}/hint={hintOn} @ x{scale}: knee angle changed {r0.KneeAngleDeg:0.00} -> {r1.KneeAngleDeg:0.00} with pure scale.");
                     }
                 }
             }
         }
-
         [Test]
         public void Solve_IsMirrorSymmetric_AcrossBodyProportions()
         {
@@ -367,8 +326,7 @@ namespace Basis.Tests.IK
                     var right = SolveArmPose(b, pose.Touch);
                     var left = SolveArmPoseMirrored(b, pose.Touch);
                     float dev = (right.ElbowSolved - MirrorX(left.ElbowSolved)).magnitude / b.ArmLen;
-                    Assert.That(dev, Is.LessThan(1e-3f),
-                        $"{b.Name}/{pose.Name}: left elbow is {dev:0.00000} arm-lengths off the mirrored right elbow -- the solve is chirality-dependent.");
+                    Assert.That(dev, Is.LessThan(1e-3f), $"{b.Name}/{pose.Name}: left elbow is {dev:0.00000} arm-lengths off the mirrored right elbow -- the solve is chirality-dependent.");
                 }
                 foreach (var pose in LegPoses(b))
                 {
@@ -377,13 +335,11 @@ namespace Basis.Tests.IK
                         var right = SolveLegPose(b, pose.Ankle, hintOn);
                         var left = SolveLegPoseMirrored(b, pose.Ankle, hintOn);
                         float dev = (right.KneeSolved - MirrorX(left.KneeSolved)).magnitude / b.LegLen;
-                        Assert.That(dev, Is.LessThan(1e-3f),
-                            $"{b.Name}/{pose.Name}/hint={hintOn}: left knee is {dev:0.00000} leg-lengths off the mirrored right knee.");
+                        Assert.That(dev, Is.LessThan(1e-3f), $"{b.Name}/{pose.Name}/hint={hintOn}: left knee is {dev:0.00000} leg-lengths off the mirrored right knee.");
                     }
                 }
             }
         }
-
         [Test]
         public void Solve_StaysContinuous_AsLimbProportionsMorph()
         {
@@ -395,22 +351,19 @@ namespace Basis.Tests.IK
             // continuous drift from a flip.
             const int steps = 60;
             var baseBody = Profiles()[0];
-            int armPoseCount = ArmPoses(baseBody).Length;
-            int legPoseCount = LegPoses(baseBody).Length;
+            int armPoseCount = ArmPoses(baseBody).Length, legPoseCount = LegPoses(baseBody).Length;
 
             for (int p = 0; p < armPoseCount; p++)
             {
                 float prev = float.NaN;
                 for (int s = 0; s <= steps; s++)
                 {
-                    float f = Mathf.Lerp(0.35f, 0.65f, s / (float)steps);
-                    float armF = 0.160f + 0.1486f;
+                    float f = Mathf.Lerp(0.35f, 0.65f, s / (float)steps), armF = 0.160f + 0.1486f;
                     var b = BodyProfile.Make("Morph", 1.75f, 0.818f, 0.105f, 0.050f, armF * f, armF * (1f - f), 0.240f, 0.240f, 0.039f);
                     var r = SolveArmPose(b, ArmPoses(b)[p].Touch);
                     float sw = Swivel(b.Shoulder, r.HandSolved, r.ElbowSolved);
                     if (!float.IsNaN(sw) && !float.IsNaN(prev))
-                        Assert.That(Mathf.Abs(Mathf.DeltaAngle(prev, sw)), Is.LessThan(8f),
-                            $"arm pose #{p}: elbow swivel jumped {Mathf.Abs(Mathf.DeltaAngle(prev, sw)):0.0} deg between adjacent upper:lower ratios near {f:0.00} -- a segment-ratio pole flip.");
+                        Assert.That(Mathf.Abs(Mathf.DeltaAngle(prev, sw)), Is.LessThan(8f), $"arm pose #{p}: elbow swivel jumped {Mathf.Abs(Mathf.DeltaAngle(prev, sw)):0.0} deg between adjacent upper:lower ratios near {f:0.00} -- a segment-ratio pole flip.");
                     prev = sw;
                 }
             }
@@ -422,22 +375,18 @@ namespace Basis.Tests.IK
                     float prev = float.NaN;
                     for (int s = 0; s <= steps; s++)
                     {
-                        float f = Mathf.Lerp(0.35f, 0.65f, s / (float)steps);
-                        float legF = 0.240f + 0.240f;
+                        float f = Mathf.Lerp(0.35f, 0.65f, s / (float)steps), legF = 0.240f + 0.240f;
                         var b = BodyProfile.Make("Morph", 1.75f, 0.818f, 0.105f, 0.050f, 0.160f, 0.1486f, legF * f, legF * (1f - f), 0.039f);
                         var r = SolveLegPose(b, LegPoses(b)[p].Ankle, hintOn);
                         float sw = Swivel(b.Hip, r.FootSolved, r.KneeSolved);
                         if (!float.IsNaN(sw) && !float.IsNaN(prev))
-                            Assert.That(Mathf.Abs(Mathf.DeltaAngle(prev, sw)), Is.LessThan(8f),
-                                $"leg pose #{p}/hint={hintOn}: knee swivel jumped {Mathf.Abs(Mathf.DeltaAngle(prev, sw)):0.0} deg between adjacent thigh:shin ratios near {f:0.00} -- a segment-ratio pole flip.");
+                            Assert.That(Mathf.Abs(Mathf.DeltaAngle(prev, sw)), Is.LessThan(8f), $"leg pose #{p}/hint={hintOn}: knee swivel jumped {Mathf.Abs(Mathf.DeltaAngle(prev, sw)):0.0} deg between adjacent thigh:shin ratios near {f:0.00} -- a segment-ratio pole flip.");
                         prev = sw;
                     }
                 }
             }
         }
-
         // ----------------------------------------------------------------- helpers (test scaffolding)
-
         // Clamp a "trying to touch Q" input to the human reach cap along the same direction, the way a
         // person's hand simply arrives from their own body -- unreachable landmarks become a full
         // (capped) reach TOWARD the landmark, which is exactly the input shape production sees.
@@ -448,7 +397,6 @@ namespace Basis.Tests.IK
             if (dist < 1e-9f) return origin;
             return origin + d / dist * Mathf.Min(dist, cap * limbLen);
         }
-
         // Production right-arm solve: lookup-derived elbow hint, stateless, no rate limit -- the same
         // drive as BasisElbowDirectionTests.SolveWithLookupHint, but for an arbitrary body.
         BasisArmSolveResult SolveArmPose(in BodyProfile b, Vector3 touch)
@@ -456,30 +404,24 @@ namespace Basis.Tests.IK
             Vector3 target = TowardPoint(b.Shoulder, touch, b.ArmLen, ArmReachCap);
             return SolveArmAt(b, target);
         }
-
         BasisArmSolveResult SolveArmUncapped(in BodyProfile b, Vector3 touch) => SolveArmAt(b, touch);
-
         BasisArmSolveResult SolveArmAt(in BodyProfile b, Vector3 target)
         {
             Vector3 bend = BasisArmBendLookup.SampleTrilinear(_table, (target - b.Shoulder) / b.ArmLen).normalized;
             Vector3 hint = b.Shoulder + 0.5f * b.ArmLen * bend;
             return SolveArmCore(b.Shoulder, b.RestElbow, b.RestHand, target, hint);
         }
-
         // LEFT arm: mirror the body, the pose and the lookup sample across X (the rig samples the
         // shared right-handed table in mirrored space and mirrors the bend back), then solve. Callers
         // compare against MirrorX of the right-arm result.
         BasisArmSolveResult SolveArmPoseMirrored(in BodyProfile b, Vector3 touch)
         {
-            Vector3 shoulder = MirrorX(b.Shoulder);
-            Vector3 restElbow = MirrorX(b.RestElbow);
-            Vector3 restHand = MirrorX(b.RestHand);
+            Vector3 shoulder = MirrorX(b.Shoulder), restElbow = MirrorX(b.RestElbow), restHand = MirrorX(b.RestHand);
             Vector3 target = TowardPoint(shoulder, MirrorX(touch), b.ArmLen, ArmReachCap);
             Vector3 bend = MirrorX(BasisArmBendLookup.SampleTrilinear(_table, MirrorX(target - shoulder) / b.ArmLen).normalized);
             Vector3 hint = shoulder + 0.5f * b.ArmLen * bend;
             return SolveArmCore(shoulder, restElbow, restHand, target, hint);
         }
-
         static BasisArmSolveResult SolveArmCore(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 target, Vector3 hint)
         {
             BasisArmSolveInput input = default;
@@ -499,26 +441,21 @@ namespace Basis.Tests.IK
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult r);
             return r;
         }
-
         // Production leg solve: forward/slightly-out knee hint at 0.55 leg-lengths (hint mode) or the
         // hips-right KneeBendPref alone (no-tracker mode) -- the two ways BasisLocalRigDriver drives it.
         static readonly Vector3 KneeHintDir = new Vector3(0.15f, -0.25f, 1f).normalized;
-
         BasisLegSolveResult SolveLegPose(in BodyProfile b, Vector3 ankle, bool hintOn)
         {
             Vector3 target = TowardPoint(b.Hip, ankle, b.LegLen, LegReachCap);
             Vector3 hint = b.Hip + KneeHintDir * (0.55f * b.LegLen);
             return SolveLegCore(b.Hip, b.RestKnee, b.RestAnkle, target, hint, hintOn ? 1f : 0f);
         }
-
         BasisLegSolveResult SolveLegPoseMirrored(in BodyProfile b, Vector3 ankle, bool hintOn)
         {
-            Vector3 hip = MirrorX(b.Hip);
-            Vector3 target = TowardPoint(hip, MirrorX(ankle), b.LegLen, LegReachCap);
+            Vector3 hip = MirrorX(b.Hip), target = TowardPoint(hip, MirrorX(ankle), b.LegLen, LegReachCap);
             Vector3 hint = hip + MirrorX(KneeHintDir) * (0.55f * b.LegLen);
             return SolveLegCore(hip, MirrorX(b.RestKnee), MirrorX(b.RestAnkle), target, hint, hintOn ? 1f : 0f);
         }
-
         static BasisLegSolveResult SolveLegCore(Vector3 hip, Vector3 knee, Vector3 ankle, Vector3 target, Vector3 hint, float hintWeight)
         {
             BasisLegSolveInput input = default;
@@ -536,7 +473,6 @@ namespace Basis.Tests.IK
             BasisLegSolveCore.Solve(input, out BasisLegSolveResult r);
             return r;
         }
-
         // Signed pole angle around the root->tip axis, measured from straight-down (arm convention;
         // reused for the knee where only CONTINUITY of the value matters, not its zero).
         static float Swivel(Vector3 root, Vector3 tip, Vector3 mid)
@@ -549,7 +485,6 @@ namespace Basis.Tests.IK
             if (refVec.sqrMagnitude < 1e-8f || poleVec.sqrMagnitude < 1e-8f) return float.NaN;
             return Vector3.SignedAngle(refVec, poleVec, axis);
         }
-
         // Forward (+Z) component of the knee's unit offset from the hip->ankle line -- the
         // BasisLegInversionSweep classifier: negative-and-large means a backward-bending knee.
         static float KneeForwardFraction(Vector3 hip, Vector3 ankle, Vector3 knee)
@@ -561,14 +496,10 @@ namespace Basis.Tests.IK
             if (off.sqrMagnitude < 1e-6f) return float.NaN;
             return off.normalized.z;
         }
-
         static Vector3 MirrorX(Vector3 v) => new Vector3(-v.x, v.y, v.z);
-
         static void AssertFinite(Vector3 v, string what)
         {
-            Assert.That(!float.IsNaN(v.x) && !float.IsNaN(v.y) && !float.IsNaN(v.z)
-                     && !float.IsInfinity(v.x) && !float.IsInfinity(v.y) && !float.IsInfinity(v.z),
-                $"{what} is not finite: {v}.");
+            Assert.That(!float.IsNaN(v.x) && !float.IsNaN(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.x) && !float.IsInfinity(v.y) && !float.IsInfinity(v.z), $"{what} is not finite: {v}.");
         }
     }
 }

@@ -1,7 +1,6 @@
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisHipFrameSpringTests
@@ -16,10 +15,8 @@ namespace Basis.Tests.IK
             for (int i = 0; i < 600; i++)
                 BasisHipFrameSpringCore.Step(rot, vel, target, dt, 8f, 1f, out rot, out vel);
 
-            Assert.That(Quaternion.Angle(rot, target), Is.LessThan(0.5f),
-                "the spring must settle on a static target (no steady-state error).");
+            Assert.That(Quaternion.Angle(rot, target), Is.LessThan(0.5f),"the spring must settle on a static target (no steady-state error).");
         }
-
         [Test]
         public void Spring_IsStable_AcrossHzAndFps()
         {
@@ -40,16 +37,13 @@ namespace Basis.Tests.IK
                     BasisHipFrameSpringCore.Step(rot, vel, target, dt, hz, 1f, out rot, out vel);
                     Assert.IsTrue(IsFinite(rot) && IsFinite(vel), $"diverged at hz={hz}, dt={dt:0.0000}, frame {i}.");
                 }
-                Assert.That(Quaternion.Angle(rot, target), Is.LessThan(2f),
-                    $"did not converge at hz={hz}, dt={dt:0.0000} (angle {Quaternion.Angle(rot, target):0.0}).");
+                Assert.That(Quaternion.Angle(rot, target), Is.LessThan(2f), $"did not converge at hz={hz}, dt={dt:0.0000} (angle {Quaternion.Angle(rot, target):0.0}).");
             }
         }
-
         [Test]
         public void Spring_LagsStep_WithoutOvershoot()
         {
-            Quaternion target = Quaternion.AngleAxis(50f, Vector3.up);
-            Quaternion rot = Quaternion.identity;
+            Quaternion target = Quaternion.AngleAxis(50f, Vector3.up), rot = Quaternion.identity;
             Vector3 vel = Vector3.zero;
             float dt = 1f / 90f;
 
@@ -67,12 +61,10 @@ namespace Basis.Tests.IK
                 BasisHipFrameSpringCore.Step(rot, vel, target, dt, 8f, 1f, out rot, out vel);
                 float gap = Quaternion.Angle(rot, target);
                 Assert.That(gap, Is.LessThanOrEqualTo(prevGap + 0.01f), $"overshoot at frame {i} (gap {gap:0.00} > prev {prevGap:0.00}).");
-                Assert.That(Quaternion.Angle(rot, Quaternion.identity), Is.LessThanOrEqualTo(50f + 0.5f),
-                    $"rotated past the target (overshoot) at frame {i}.");
+                Assert.That(Quaternion.Angle(rot, Quaternion.identity), Is.LessThanOrEqualTo(50f + 0.5f), $"rotated past the target (overshoot) at frame {i}.");
                 prevGap = gap;
             }
         }
-
         [Test]
         public void Spring_RejectsHighFrequencyMoreThanLowFrequency()
         {
@@ -80,13 +72,11 @@ namespace Basis.Tests.IK
             // critically-damped spring passes the slow sway and strongly attenuates the fast jitter -- exactly
             // "hip movements don't affect the connecting bones as much". Peak output amplitude proves it.
             const float amplitude = 20f;
-            float peakLow = PeakResponseDeg(1f, amplitude);
-            float peakHigh = PeakResponseDeg(25f, amplitude);
+            float peakLow = PeakResponseDeg(1f, amplitude), peakHigh = PeakResponseDeg(25f, amplitude);
 
             Assert.That(peakLow, Is.GreaterThan(0.6f * amplitude), $"the slow sway should pass largely intact (peak {peakLow:0.0} of {amplitude}).");
             Assert.That(peakHigh, Is.LessThan(0.6f * peakLow), $"fast jitter must be attenuated far more than slow sway (high {peakHigh:0.0} vs low {peakLow:0.0}).");
         }
-
         // Steady-state peak |output yaw| (deg) for a sinusoidal yaw target of the given frequency/amplitude,
         // through the 8 Hz critically-damped spring. Measured over the back half (steady state).
         static float PeakResponseDeg(float freqHz, float amplitudeDeg)
@@ -106,9 +96,7 @@ namespace Basis.Tests.IK
             }
             return peak;
         }
-
-        static bool IsFinite(Quaternion q) => !float.IsNaN(q.x) && !float.IsInfinity(q.x) && !float.IsNaN(q.y) && !float.IsInfinity(q.y)
-            && !float.IsNaN(q.z) && !float.IsInfinity(q.z) && !float.IsNaN(q.w) && !float.IsInfinity(q.w);
+        static bool IsFinite(Quaternion q) => !float.IsNaN(q.x) && !float.IsInfinity(q.x) && !float.IsNaN(q.y) && !float.IsInfinity(q.y) && !float.IsNaN(q.z) && !float.IsInfinity(q.z) && !float.IsNaN(q.w) && !float.IsInfinity(q.w);
         static bool IsFinite(Vector3 v) => !float.IsNaN(v.x) && !float.IsInfinity(v.x) && !float.IsNaN(v.y) && !float.IsInfinity(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.z);
     }
 }

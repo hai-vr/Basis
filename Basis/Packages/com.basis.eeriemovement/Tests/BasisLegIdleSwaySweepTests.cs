@@ -3,7 +3,6 @@ using System.Text;
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisLegIdleSwaySweepTests
@@ -11,20 +10,15 @@ namespace Basis.Tests.IK
         const float Upper = 0.45f, Lower = 0.45f; // typical adult thigh/shin; equal segments
         const float HintForward = 0.30f;          // knee hint placed forward of the knee (foot-IK biases knee fwd)
         static float MaxReach => Upper + Lower;
-
         static readonly Vector3 Right = Vector3.right;   // knee hinge axis = hipsRot * right (upright hips)
         static readonly Vector3 Fwd = Vector3.forward;   // body sway "back and forwards"
         static readonly Vector3 Up = Vector3.up;
-
         enum SwayAxis { Horizontal, Vertical, Arc }
-
         struct SwayMetrics
         {
             public float StandExtension;
             public string Axis;
-            public float BodyPeakToPeakMeters;
-            public float KneeTotalPeakToPeakMeters;
-            public float KneeForwardPeakToPeakMeters;
+            public float BodyPeakToPeakMeters, KneeTotalPeakToPeakMeters, KneeForwardPeakToPeakMeters;
             public float KneeUpPeakToPeakMeters;
             public float Gain;                  // KneeTotal / Body
             public float KneeAnglePeakToPeakDeg;
@@ -32,9 +26,7 @@ namespace Basis.Tests.IK
             public float MaxFootErrorMeters;    // how far the foot left the plant
             public string AxisSources;
         }
-
         // ----------------------------------------------------------------- characterization (pass)
-
         [Test]
         public void HorizontalIdleSway_IsNatural_KneeTracksTheMidpoint()
         {
@@ -44,14 +36,10 @@ namespace Basis.Tests.IK
             // order, so the high-gain term is not excited. This isolates the vertical case below as the cause.
             var m = Measure(0.96f, SwayAxis.Horizontal, 0.02f);
             Log("Horizontal +-2cm @ ext 0.96", m);
-            Assert.That(m.Gain, Is.LessThan(0.8f),
-                $"horizontal idle sway moved the knee {m.Gain:0.00}x the body travel; a planted leg should track the midpoint (~0.5x).");
-            Assert.That(m.KneeAnglePeakToPeakDeg, Is.LessThan(1.5f),
-                $"horizontal idle sway flexed the knee {m.KneeAnglePeakToPeakDeg:0.0} deg; it should barely change angle.");
-            Assert.That(m.WorstStepMeters, Is.LessThan(0.002f),
-                $"knee jumped {m.WorstStepMeters * 1000f:0.0} mm between adjacent sway steps.");
+            Assert.That(m.Gain, Is.LessThan(0.8f), $"horizontal idle sway moved the knee {m.Gain:0.00}x the body travel; a planted leg should track the midpoint (~0.5x).");
+            Assert.That(m.KneeAnglePeakToPeakDeg, Is.LessThan(1.5f), $"horizontal idle sway flexed the knee {m.KneeAnglePeakToPeakDeg:0.0} deg; it should barely change angle.");
+            Assert.That(m.WorstStepMeters, Is.LessThan(0.002f), $"knee jumped {m.WorstStepMeters * 1000f:0.0} mm between adjacent sway steps.");
         }
-
         [Test]
         public void VerticalIdleBob_KneeGain_GrowsWithExtension_AndDwarfsHorizontal()
         {
@@ -65,20 +53,16 @@ namespace Basis.Tests.IK
             {
                 var m = Measure(ext, SwayAxis.Vertical, 0.01f);
                 rows.Add(m);
-                Assert.That(m.Gain, Is.GreaterThan(prev),
-                    $"vertical-bob knee gain should grow as the leg straightens; ext {ext:0.00} gave {m.Gain:0.00} <= prev {prev:0.00}.");
+                Assert.That(m.Gain, Is.GreaterThan(prev), $"vertical-bob knee gain should grow as the leg straightens; ext {ext:0.00} gave {m.Gain:0.00} <= prev {prev:0.00}.");
                 prev = m.Gain;
             }
             LogTable("Vertical bob +-1cm vs standing extension", rows);
 
             var nearLock = rows[rows.Count - 1];
             var horiz = Measure(0.97f, SwayAxis.Horizontal, 0.01f);
-            Assert.That(nearLock.Gain, Is.GreaterThan(2f),
-                $"near-locked knee should show the over-extension blow-up; got gain {nearLock.Gain:0.00}.");
-            Assert.That(nearLock.Gain, Is.GreaterThan(horiz.Gain * 3f),
-                $"vertical-bob gain {nearLock.Gain:0.00} should dwarf horizontal-sway gain {horiz.Gain:0.00} at the same amplitude.");
+            Assert.That(nearLock.Gain, Is.GreaterThan(2f), $"near-locked knee should show the over-extension blow-up; got gain {nearLock.Gain:0.00}.");
+            Assert.That(nearLock.Gain, Is.GreaterThan(horiz.Gain * 3f), $"vertical-bob gain {nearLock.Gain:0.00} should dwarf horizontal-sway gain {horiz.Gain:0.00} at the same amplitude.");
         }
-
         [Test]
         public void Characterize_PrintAllSweepTables()
         {
@@ -99,7 +83,6 @@ namespace Basis.Tests.IK
             }
             Assert.Pass("see attached sweep tables");
         }
-
         [Test]
         public void AllOutputs_StayFinite_AcrossTheFullSweep()
         {
@@ -115,8 +98,7 @@ namespace Basis.Tests.IK
                         for (int s = 0; s < res.Count; s++)
                         {
                             BasisLegSolveResult r = res[s];
-                            Assert.That(IsFinite(r.KneeSolved) && IsFinite(r.FootSolved) && IsFinite(r.KneeAngleDeg),
-                                Is.True, $"{axis} ext {ext:0.000} amp {amp:0.000}: a leg-solve output is non-finite.");
+                            Assert.That(IsFinite(r.KneeSolved) && IsFinite(r.FootSolved) && IsFinite(r.KneeAngleDeg), Is.True, $"{axis} ext {ext:0.000} amp {amp:0.000}: a leg-solve output is non-finite.");
 
                             // "The knee must not invert" means the knee must stay forward OF THE HIP->FOOT LINE.
                             // Measure it against that line, not against world z: RunSweep translates the whole leg
@@ -136,22 +118,17 @@ namespace Basis.Tests.IK
                             Vector3 offAxis = kneeVec - legAxis * Vector3.Dot(kneeVec, legAxis);
                             float forward = Vector3.Dot(offAxis, Vector3.forward);
 
-                            Assert.That(forward, Is.GreaterThan(-0.02f),
-                                $"{axis} ext {ext:0.000} amp {amp:0.000}: knee bent {-forward * 100f:0.0}cm BEHIND the " +
-                                $"hip->foot line (inverted).");
+                            Assert.That(forward, Is.GreaterThan(-0.02f), $"{axis} ext {ext:0.000} amp {amp:0.000}: knee bent {-forward * 100f:0.0}cm BEHIND the " + $"hip->foot line (inverted).");
                         }
                     }
                 }
             }
         }
-
         // ----------------------------------------------------------------- harness
-
         // Build the standing leg, translate it rigidly by every body offset across +-amp (foot planted),
         // solve, and return the raw per-step results. steps is the sweep resolution; bodyP2P/hip0 are echoed
         // back for the metric maths.
-        static List<BasisLegSolveResult> RunSweep(float ratio, SwayAxis axis, float amp, int steps,
-            float hintWeight, out float bodyP2P, out Vector3 hip0)
+        static List<BasisLegSolveResult> RunSweep(float ratio, SwayAxis axis, float amp, int steps, float hintWeight, out float bodyP2P, out Vector3 hip0)
         {
             BuildStanding(ratio, out Vector3 hip, out Vector3 knee, out Vector3 foot);
             hip0 = hip;
@@ -164,7 +141,6 @@ namespace Basis.Tests.IK
             {
                 float t = steps == 1 ? 0f : Mathf.Lerp(-amp, amp, s / (float)(steps - 1));
                 Vector3 o = Offset(axis, t, h);
-
                 BasisLegSolveInput i = default;
                 i.Root = hip + o;
                 i.Mid = knee + o;
@@ -183,7 +159,6 @@ namespace Basis.Tests.IK
             }
             return results;
         }
-
         static SwayMetrics Measure(float ratio, SwayAxis axis, float amp, int steps = 81, float hintWeight = 1f)
         {
             var res = RunSweep(ratio, axis, amp, steps, hintWeight, out float bodyP2P, out _);
@@ -229,7 +204,6 @@ namespace Basis.Tests.IK
                 AxisSources = string.Join("/", srcList),
             };
         }
-
         // Body offset for a given sway parameter. Horizontal = fwd/back translate; Vertical = hip-height bob;
         // Arc = the hip swinging on a small pendulum about the planted foot.
         static Vector3 Offset(SwayAxis axis, float s, float hipHeight)
@@ -243,7 +217,6 @@ namespace Basis.Tests.IK
                     return new Vector3(0f, hipHeight * (Mathf.Cos(ang) - 1f), hipHeight * Mathf.Sin(ang));
             }
         }
-
         // A standing leg at the given extension ratio: foot at origin, hip straight above, knee bulged
         // forward by planar two-bone geometry (the natural slight bend).
         static void BuildStanding(float ratio, out Vector3 hip, out Vector3 knee, out Vector3 foot)
@@ -253,7 +226,6 @@ namespace Basis.Tests.IK
             hip = new Vector3(0f, chord, 0f);
             knee = RestKnee(hip, foot);
         }
-
         static Vector3 RestKnee(Vector3 hip, Vector3 foot)
         {
             Vector3 chord = foot - hip;
@@ -265,19 +237,12 @@ namespace Basis.Tests.IK
             if (Vector3.Dot(perp, Fwd) < 0f) perp = -perp;
             return hip + along * proj + perp * h;
         }
-
         static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
         static bool IsFinite(Vector3 v) => IsFinite(v.x) && IsFinite(v.y) && IsFinite(v.z);
-
         static void Log(string title, SwayMetrics m)
         {
-            TestContext.WriteLine(
-                $"{title}: body {m.BodyPeakToPeakMeters * 1000f:0.0}mm -> knee {m.KneeTotalPeakToPeakMeters * 1000f:0.0}mm " +
-                $"(fwd {m.KneeForwardPeakToPeakMeters * 1000f:0.0}mm, up {m.KneeUpPeakToPeakMeters * 1000f:0.0}mm), " +
-                $"GAIN {m.Gain:0.00}x, knee flex {m.KneeAnglePeakToPeakDeg:0.0} deg, worst step {m.WorstStepMeters * 1000f:0.00}mm, " +
-                $"foot err {m.MaxFootErrorMeters * 1000f:0.0}mm, axisSrc {m.AxisSources}");
+            TestContext.WriteLine($"{title}: body {m.BodyPeakToPeakMeters * 1000f:0.0}mm -> knee {m.KneeTotalPeakToPeakMeters * 1000f:0.0}mm " + $"(fwd {m.KneeForwardPeakToPeakMeters * 1000f:0.0}mm, up {m.KneeUpPeakToPeakMeters * 1000f:0.0}mm), " + $"GAIN {m.Gain:0.00}x, knee flex {m.KneeAnglePeakToPeakDeg:0.0} deg, worst step {m.WorstStepMeters * 1000f:0.00}mm, " + $"foot err {m.MaxFootErrorMeters * 1000f:0.0}mm, axisSrc {m.AxisSources}");
         }
-
         static void LogTable(string title, IEnumerable<SwayMetrics> rows)
         {
             var sb = new StringBuilder();
@@ -285,11 +250,7 @@ namespace Basis.Tests.IK
             sb.AppendLine(" standExt  bodyP2P  kneeP2P   GAIN  kneeFwd  kneeUp  flexDeg  worstStep  footErr  axisSrc");
             foreach (var m in rows)
             {
-                sb.AppendLine(string.Format(
-                    "  {0:0.000}  {1,6:0.0}mm {2,6:0.0}mm  {3,4:0.00}  {4,5:0.0}mm {5,5:0.0}mm  {6,5:0.0}   {7,6:0.00}mm  {8,5:0.0}mm   {9}",
-                    m.StandExtension, m.BodyPeakToPeakMeters * 1000f, m.KneeTotalPeakToPeakMeters * 1000f, m.Gain,
-                    m.KneeForwardPeakToPeakMeters * 1000f, m.KneeUpPeakToPeakMeters * 1000f, m.KneeAnglePeakToPeakDeg,
-                    m.WorstStepMeters * 1000f, m.MaxFootErrorMeters * 1000f, m.AxisSources));
+                sb.AppendLine(string.Format("  {0:0.000}  {1,6:0.0}mm {2,6:0.0}mm  {3,4:0.00}  {4,5:0.0}mm {5,5:0.0}mm  {6,5:0.0}   {7,6:0.00}mm  {8,5:0.0}mm   {9}", m.StandExtension, m.BodyPeakToPeakMeters * 1000f, m.KneeTotalPeakToPeakMeters * 1000f, m.Gain, m.KneeForwardPeakToPeakMeters * 1000f, m.KneeUpPeakToPeakMeters * 1000f, m.KneeAnglePeakToPeakDeg, m.WorstStepMeters * 1000f, m.MaxFootErrorMeters * 1000f, m.AxisSources));
             }
             TestContext.WriteLine(sb.ToString());
         }

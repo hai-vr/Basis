@@ -3,15 +3,9 @@ using Unity.Mathematics;
 using UnityEngine;
 namespace Basis.IK
 {
-    public struct BasisSwivelFilterState
-    {
-        public float Raw, Vel, Smooth;
-    }
     public static class BasisSwivelFilterCore
     {
-        public const float MinCutoffHz = 1.0f;
-        public const float DerivCutoffHz = 1.0f;
-        public const float Beta = 0.05f;
+        public const float MinCutoffHz = 1.0f, DerivCutoffHz = 1.0f, Beta = 0.05f;
         public static float Alpha(float cutoff, float dt)
         {
             float tau = 1f / (2f * Mathf.PI * Mathf.Max(cutoff, 1e-3f));
@@ -34,26 +28,15 @@ namespace Basis.IK
             return new BasisSwivelFilterState { Raw = curSwivel, Vel = velHat, Smooth = smooth };
         }
     }
-    public struct BasisSwivelFrame
-    {
-        public Vector3 Right, Up, Forward;
-        public bool Valid;
-    }
     [BurstCompile]
     public static class BasisSwivelHintCore
     {
-        const float sqrEpsilon = 1e-10f;
-        const float epsilon = 1e-5f;
+        const float sqrEpsilon = 1e-10f, epsilon = 1e-5f;
         static readonly float3 elbowTuckPole = new float3(-1f, -0.35f, 0f);
         public const float ElbowTuckWeight = 0.12f;
         static readonly float3 elbowDownPole = new float3(0f, -1f, 0f);
-        public const float ElbowDownWeight = 0.85f;
-        public const float ElbowDownReachStart = 0.90f;
-        public const float ElbowDownReachFull = 0.99f;
-        public const float LegTrustLo = 0.30f;
-        public const float LegTrustHi = 0.70f;
-        public const float LegDomainReachLo = 0.45f;
-        public const float LegDomainReachHi = 0.60f;
+        public const float ElbowDownWeight = 0.85f, ElbowDownReachStart = 0.90f, ElbowDownReachFull = 0.99f;
+        public const float LegTrustLo = 0.30f, LegTrustHi = 0.70f, LegDomainReachLo = 0.45f, LegDomainReachHi = 0.60f;
         public static float LegDomainTrust(float reach)
         {
             float t = Mathf.Clamp01((reach - LegDomainReachLo) / (LegDomainReachHi - LegDomainReachLo));
@@ -67,7 +50,6 @@ namespace Basis.IK
         public static BasisSwivelFrame BuildFrame(Vector3 leftAnchor, Vector3 rightAnchor, Vector3 upFrom, Vector3 upTo)
         {
             BasisSwivelFrame f = default;
-
             Vector3 up = upTo - upFrom;
             float upSqr = up.sqrMagnitude;
 
@@ -94,9 +76,7 @@ namespace Basis.IK
         }
         public static void Features(in BasisSwivelFrame frameNow, Vector3 rootPos, Vector3 tipPos, float limbLen, bool isLeft, out float3 tipLocal)
         {
-            Vector3 bOut = isLeft ? -frameNow.Right : frameNow.Right;
-
-            Vector3 r2t = tipPos - rootPos;
+            Vector3 bOut = isLeft ? -frameNow.Right : frameNow.Right, r2t = tipPos - rootPos;
             float inv = 1f / Mathf.Max(limbLen, epsilon);
             tipLocal = new float3(Vector3.Dot(r2t, bOut) * inv, Vector3.Dot(r2t, frameNow.Up) * inv, Vector3.Dot(r2t, frameNow.Forward) * inv);
         }
@@ -170,8 +150,7 @@ namespace Basis.IK
                 swivel = -swivel;
             }
 
-            Vector3 gOut = isLeft ? -frameNow.Right : frameNow.Right;
-            Vector3 h2f = footPos - hip;
+            Vector3 gOut = isLeft ? -frameNow.Right : frameNow.Right, h2f = footPos - hip;
             float3 bend = BasisLegSwivelModel.BendDirection( new float3(h2f.x, h2f.y, h2f.z), new float3(gOut.x, gOut.y, gOut.z), swivel);
 
             if (!IsFinite(bend))
@@ -184,35 +163,10 @@ namespace Basis.IK
         }
         static bool IsFinite(in float3 v) => math.all(math.isfinite(v));
     }
-    public struct BasisSwivelSmootherInput
-    {
-        public Vector3 Root, Mid, Tip;
-        public Quaternion BodyRotation;
-        public Vector3 ReferenceLocal, FallbackLocal, TransportHomeLocal;
-        public float Dt, MinCutoffHz, Beta, DerivCutoffHz;
-        public BasisSwivelFilterState State;
-        public bool Seeded, ConditionOnPole;
-        public float SingularMinCutoffHz;
-        public bool GuardAnteriorHalfSpace;
-        public float AnteriorSoftDeg, AnteriorHardDeg;
-        public bool HoldWhenSingular;
-        public float HoldCondLo, HoldCondHi;
-    }
-    public struct BasisSwivelSmootherResult
-    {
-        public bool Valid, WriteState, Seeded;
-        public BasisSwivelFilterState State;
-        public Vector3 DesiredMid;
-        public float RawSwivelDeg, SmoothSwivelDeg, Conditioning;
-        public bool AnteriorGuardApplied;
-        public float HoldGate;
-    }
     public static class BasisSwivelSmootherCore
     {
-        const float epsilon = 1e-5f;
-        const float sqrEpsilon = 1e-8f;
-        public const float DefaultHoldCondLo = 0.05f;
-        public const float DefaultHoldCondHi = 0.12f;
+        const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;
+        public const float DefaultHoldCondLo = 0.05f, DefaultHoldCondHi = 0.12f;
         const float holdReseedDeg = 25f;
         public static void Solve(in BasisSwivelSmootherInput i, out BasisSwivelSmootherResult r)
         {
@@ -238,9 +192,7 @@ namespace Basis.IK
             {
                 return;
             }
-            Vector3 axis = ac / Mathf.Sqrt(acSqr);
-
-            Vector3 refDir = Vector3.zero;
+            Vector3 axis = ac / Mathf.Sqrt(acSqr), refDir = Vector3.zero;
             bool transported = false;
             if (i.TransportHomeLocal.sqrMagnitude > sqrEpsilon)
             {
@@ -251,8 +203,7 @@ namespace Basis.IK
                     home /= Mathf.Sqrt(homeSqr);
 
                     Vector3 swingXyz = Vector3.Cross(home, axis);
-                    float swingW = 1f + Vector3.Dot(home, axis);
-                    float swingSqr = swingXyz.sqrMagnitude + swingW * swingW;
+                    float swingW = 1f + Vector3.Dot(home, axis), swingSqr = swingXyz.sqrMagnitude + swingW * swingW;
                     if (swingW > 1e-4f && swingSqr > sqrEpsilon)
                     {
                         float inv = 1f / Mathf.Sqrt(swingSqr);
@@ -272,8 +223,7 @@ namespace Basis.IK
                     refDir = Vector3.ProjectOnPlane(body * i.FallbackLocal, axis);
                 }
             }
-            Vector3 upper = i.Mid - i.Root;
-            Vector3 pole = Vector3.ProjectOnPlane(upper, axis);
+            Vector3 upper = i.Mid - i.Root, pole = Vector3.ProjectOnPlane(upper, axis);
             if (refDir.sqrMagnitude < sqrEpsilon || pole.sqrMagnitude < sqrEpsilon)
             {
                 return;
@@ -305,8 +255,7 @@ namespace Basis.IK
                 return;
             }
 
-            float minCutoffHz = i.MinCutoffHz;
-            float beta = i.Beta;
+            float minCutoffHz = i.MinCutoffHz, beta = i.Beta;
             if (i.ConditionOnPole)
             {
                 beta *= conditioning;
@@ -314,7 +263,6 @@ namespace Basis.IK
             }
 
             BasisSwivelFilterState state = BasisSwivelFilterCore.Step(i.State, guardedSwivel, i.Dt, minCutoffHz, beta, i.DerivCutoffHz);
-
             float holdGate = 1f;
             if (i.HoldWhenSingular)
             {

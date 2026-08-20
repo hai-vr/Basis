@@ -4,13 +4,8 @@ namespace Basis.IK
 {
     public partial struct BasisEerieMovement
     {
-        const uint gizmoTarget = 0xFF00D7FFu;
-        const uint gizmoHint = 0xFFFFFF00u;
-        const uint gizmoResidual = 0xFF3030FFu;
-        const uint gizmoRaw = 0xFF909090u;
-        const uint gizmoLeft = 0xFF4090FFu;
-        const uint gizmoRight = 0xFFFF9040u;
-        const uint gizmoReach = 0x60FFFFFFu;
+        const uint gizmoTarget = 0xFF00D7FFu, gizmoHint = 0xFFFFFF00u, gizmoResidual = 0xFF3030FFu;
+        const uint gizmoRaw = 0xFF909090u, gizmoLeft = 0xFF4090FFu, gizmoRight = 0xFFFF9040u, gizmoReach = 0x60FFFFFFu;
         static uint SideColor(bool isLeft) => isLeft ? gizmoLeft : gizmoRight;
         void RecordTargetGizmos()
         {
@@ -221,8 +216,7 @@ namespace Basis.IK
             }
 
             uint color = SideColor(isLeft);
-            Vector3 hipPos = poseStream.GetPosition(root);
-            Vector3 kneePos = poseStream.GetPosition(mid);
+            Vector3 hipPos = poseStream.GetPosition(root), kneePos = poseStream.GetPosition(mid);
             Vector3 footPos = poseStream.GetPosition(tip);
 
             gizmos.Bone(stage, hipPos, kneePos, color);
@@ -231,8 +225,7 @@ namespace Basis.IK
             gizmos.BoneAxes(stage, ref poseStream, tip, gizmos.AxisLength);
             gizmos.Line(stage, footPos, target, gizmoResidual);
 
-            Vector3 limbAxis = footPos - hipPos;
-            Vector3 bendPlane = Vector3.Cross(kneePos - hipPos, footPos - kneePos);
+            Vector3 limbAxis = footPos - hipPos, bendPlane = Vector3.Cross(kneePos - hipPos, footPos - kneePos);
             if (bendPlane.sqrMagnitude > sqrEpsilon)
             {
                 gizmos.Normal(stage, kneePos, bendPlane.normalized, gizmos.AxisLength * 0.6f, BasisIKGizmoPalette.Cyan);
@@ -279,8 +272,7 @@ namespace Basis.IK
             }
 
             uint color = SideColor(isLeft);
-            Vector3 shoulderPos = poseStream.GetPosition(root);
-            Vector3 elbowPos = poseStream.GetPosition(mid);
+            Vector3 shoulderPos = poseStream.GetPosition(root), elbowPos = poseStream.GetPosition(mid);
             Vector3 handPos = poseStream.GetPosition(tip);
 
             gizmos.Bone(stage, shoulderPos, elbowPos, color);
@@ -485,8 +477,7 @@ namespace Basis.IK
             {
                 return;
             }
-            Vector3 midPos = poseStream.GetPosition(mid);
-            Vector3 toRoot = poseStream.GetPosition(root) - midPos;
+            Vector3 midPos = poseStream.GetPosition(mid), toRoot = poseStream.GetPosition(root) - midPos;
             Vector3 toTip = poseStream.GetPosition(tip) - midPos;
             if (toRoot.sqrMagnitude <= sqrEpsilon || toTip.sqrMagnitude <= sqrEpsilon)
             {
@@ -514,15 +505,11 @@ namespace Basis.IK
                 Quaternion parentRot = poseStream.GetRotation(chainHeadToSpine[i + 1]);
                 Quaternion boneRot = poseStream.GetRotation(chainHeadToSpine[i]);
                 Quaternion local = BasisSpineAnatomyCore.Conj(parentRot) * boneRot;
-
                 BasisSpineRom rom = BasisSpineAnatomy.Rom(frame.Segment);
                 BasisSpineAnatomyCore.Clamp(local, frame, rom, out BasisSpineClampInfo info);
 
-                Vector3 pos = poseStream.GetPosition(chainHeadToSpine[i]);
-                Vector3 up = parentRot * frame.Up;
-                Vector3 right = parentRot * frame.Right;
-                Vector3 forward = parentRot * frame.Forward;
-
+                Vector3 pos = poseStream.GetPosition(chainHeadToSpine[i]), up = parentRot * frame.Up;
+                Vector3 right = parentRot * frame.Right, forward = parentRot * frame.Forward;
                 float coneLength = (poseStream.IsValid(chainHeadToSpine[i - 1]) ? (poseStream.GetPosition(chainHeadToSpine[i - 1]) - pos).magnitude : gizmos.AxisLength * 2f);
                 if (coneLength <= minMag)
                 {
@@ -567,8 +554,7 @@ namespace Basis.IK
             {
                 return;
             }
-            Vector3 rootPos = poseStream.GetPosition(root);
-            Vector3 midPos = poseStream.GetPosition(mid);
+            Vector3 rootPos = poseStream.GetPosition(root), midPos = poseStream.GetPosition(mid);
             Vector3 tipPos = poseStream.GetPosition(tip);
             float maxReach = (midPos - rootPos).magnitude + (tipPos - midPos).magnitude;
             if (!(maxReach > minMag))
@@ -642,7 +628,6 @@ namespace Basis.IK
             Vector3 pos = poseStream.GetPosition(knee);
             uint color = SideColor(slot == 0);
             float step = gizmos.AxisLength * 0.6f;
-
             FixedString64Bytes reach = "reach ";
             reach.Append(d.ReachRatio);
             reach.Append(' ');

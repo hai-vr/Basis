@@ -4,13 +4,11 @@ using System.Text;
 using Basis.IK.Mocap;
 using NUnit.Framework;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     public class BasisDynamicCorpusTests
     {
         static string CorpusDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~/dynamic");
-
         static List<BasisMotionClip> RequireCorpus()
         {
             var clips = new List<BasisMotionClip>();
@@ -20,14 +18,12 @@ namespace Basis.Tests.IK
             System.Array.Sort(files);
             foreach (string f in files)
             {
-                Assert.That(BasisBvhLoader.TryLoad(f, out BasisMotionClip clip, out string err), Is.True,
-                    $"failed to load {Path.GetFileName(f)}: {err}");
+                Assert.That(BasisBvhLoader.TryLoad(f, out BasisMotionClip clip, out string err), Is.True, $"failed to load {Path.GetFileName(f)}: {err}");
                 clips.Add(clip);
             }
             if (clips.Count == 0) Assert.Ignore($"no .bvh in {CorpusDir}");
             return clips;
         }
-
         [Test]
         public void DynamicCorpus_EveryClipIsAnatomicallySane()
         {
@@ -39,7 +35,6 @@ namespace Basis.Tests.IK
             }
             Assert.That(n, Is.GreaterThan(20), $"expected a substantial dynamic corpus, loaded {n}");
         }
-
         [Test]
         public void TheSolver_StaysReachPreservingRigidAndFinite_AcrossDynamicMotion()
         {
@@ -58,9 +53,7 @@ namespace Basis.Tests.IK
                 BasisMocapAccuracySummary s = BasisMocapAccuracy.Run(clip, BasisMocapHintSource.Lookup, csv);
                 Assert.That(s.Ok, Is.True, $"{clip.Name}: {s.Error}");   // Ok = false includes a NaN/parse blow-up
 
-                log.AppendLine(
-                    $"  {clip.Name,-10}  {s.Frames,6}   {s.ElbowMeanM * 100f,5:F1}/{s.ElbowP95M * 100f,4:F1}/{s.ElbowMaxM * 100f,4:F1}      " +
-                    $"{s.KneeMeanM * 100f,5:F1}      {s.HandMaxM * 1000f,6:F2}mm {s.FootMaxM * 1000f,6:F2}mm {s.RigidityMaxM * 1000f,5:F2}mm  {s.ElbowPops}/{s.KneePops}");
+                log.AppendLine($"  {clip.Name,-10}  {s.Frames,6}   {s.ElbowMeanM * 100f,5:F1}/{s.ElbowP95M * 100f,4:F1}/{s.ElbowMaxM * 100f,4:F1}      " + $"{s.KneeMeanM * 100f,5:F1}      {s.HandMaxM * 1000f,6:F2}mm {s.FootMaxM * 1000f,6:F2}mm {s.RigidityMaxM * 1000f,5:F2}mm  {s.ElbowPops}/{s.KneePops}");
 
                 // HARD invariants (must hold on any motion). Bounds match BasisMocapAccuracy.Gate, loosened a
                 // hair for the extra excursion of dance/throws so they fail ONLY on a real regression.
@@ -75,15 +68,12 @@ namespace Basis.Tests.IK
                 measured++;
             }
 
-            log.AppendLine($"\n  {measured} clips, elbow-pops total {totalElbowPops}, knee-pops total {totalKneePops}. " +
-                           $"CSVs: {Path.Combine(Application.persistentDataPath, "DynamicCorpus")}");
+            log.AppendLine($"\n  {measured} clips, elbow-pops total {totalElbowPops}, knee-pops total {totalKneePops}. " + $"CSVs: {Path.Combine(Application.persistentDataPath, "DynamicCorpus")}");
             TestContext.WriteLine(log.ToString());
 
             Assert.That(measured, Is.GreaterThan(20), $"measured only {measured} dynamic clips -- corpus not found?");
-            Assert.That(failures, Is.Empty,
-                "the solver broke a hard invariant on dynamic real-human motion:\n" + string.Join("\n", failures));
+            Assert.That(failures, Is.Empty, "the solver broke a hard invariant on dynamic real-human motion:\n" + string.Join("\n", failures));
         }
-
         [Test]
         public void ElbowAnatomyGuard_ReproducesLegitimateOverheadElbows_DoesNotClampThemDown()
         {
@@ -103,9 +93,7 @@ namespace Basis.Tests.IK
 
                 // Handed the true elbow, the solver must land essentially on it. 5 cm is generous headroom over
                 // the ~1 cm this produces; a guard fighting the overhead pose would blow well past it.
-                Assert.That(s.ElbowMeanM, Is.LessThan(0.05f),
-                    $"{clip.Name}: the solver placed the elbow {s.ElbowMeanM * 100f:F1} cm from the TRUE overhead elbow -- " +
-                    "the anatomy guard is fighting a legitimate arms-up pose (it should only forbid a HIGH elbow when the hand is LOW).");
+                Assert.That(s.ElbowMeanM, Is.LessThan(0.05f), $"{clip.Name}: the solver placed the elbow {s.ElbowMeanM * 100f:F1} cm from the TRUE overhead elbow -- " +"the anatomy guard is fighting a legitimate arms-up pose (it should only forbid a HIGH elbow when the hand is LOW).");
                 checkedClips++;
             }
 

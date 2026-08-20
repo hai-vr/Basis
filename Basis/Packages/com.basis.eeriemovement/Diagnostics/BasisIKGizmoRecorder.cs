@@ -27,31 +27,10 @@ namespace Basis.IK
         Line = 0,
         Sphere = 1,
     }
-    public struct BasisIKGizmoDraw
-    {
-        public Vector3 A, B;
-        public uint Color;
-        public float Size;
-        public byte Stage;
-        public BasisIKGizmoKind Kind;
-    }
-    public struct BasisIKGizmoLabel
-    {
-        public Vector3 Position;
-        public uint Color;
-        public byte Stage;
-        public FixedString64Bytes Text;
-    }
     public static class BasisIKGizmoPalette
     {
-        public const uint White = 0xFFFFFFFFu;
-        public const uint Red = 0xFF0000FFu;
-        public const uint Green = 0xFF00FF00u;
-        public const uint Blue = 0xFFFF0000u;
-        public const uint Yellow = 0xFF00FFFFu;
-        public const uint Cyan = 0xFFFFFF00u;
-        public const uint Magenta = 0xFFFF00FFu;
-        public const uint Orange = 0xFF0080FFu;
+        public const uint White = 0xFFFFFFFFu, Red = 0xFF0000FFu, Green = 0xFF00FF00u, Blue = 0xFFFF0000u;
+        public const uint Yellow = 0xFF00FFFFu, Cyan = 0xFFFFFF00u, Magenta = 0xFFFF00FFu, Orange = 0xFF0080FFu;
         public const uint Grey = 0xFF808080u;
         public static uint Rgba(byte r, byte g, byte b, byte a)
         {
@@ -73,13 +52,8 @@ namespace Basis.IK
     }
     public struct BasisIKGizmoRecorder
     {
-        public const int StageCount = 13;
-        public const int CircleSegments = 20;
-        public const int OverflowDraws = 0;
-        public const int OverflowLabels = 1;
-        public const int OverflowCount = 2;
-        const float minMag = 1e-6f;
-        const float sqrEpsilon = 1e-8f;
+        public const int StageCount = 13, CircleSegments = 20, OverflowDraws = 0, OverflowLabels = 1, OverflowCount = 2;
+        const float minMag = 1e-6f, sqrEpsilon = 1e-8f;
         public NativeList<BasisIKGizmoDraw> Draws;
         public NativeList<BasisIKGizmoLabel> Labels;
         public NativeArray<int> Overflow;
@@ -196,8 +170,7 @@ namespace Basis.IK
             {
                 return;
             }
-            Vector3 dir = direction / length;
-            Vector3 side = Vector3.Cross(dir, Vector3.up);
+            Vector3 dir = direction / length, side = Vector3.Cross(dir, Vector3.up);
             if (side.sqrMagnitude < sqrEpsilon)
             {
                 side = Vector3.Cross(dir, Vector3.right);
@@ -238,8 +211,7 @@ namespace Basis.IK
             {
                 return;
             }
-            Vector3 axis = normal.normalized;
-            Vector3 u = Vector3.Cross(axis, Vector3.up);
+            Vector3 axis = normal.normalized, u = Vector3.Cross(axis, Vector3.up);
             if (u.sqrMagnitude < sqrEpsilon)
             {
                 u = Vector3.Cross(axis, Vector3.right);
@@ -306,8 +278,7 @@ namespace Basis.IK
         {
             if (!Wants(stage) || radius <= minMag) return;
 
-            Vector3 a = fromDirection.normalized;
-            Vector3 b = toDirection.normalized;
+            Vector3 a = fromDirection.normalized, b = toDirection.normalized;
             if (a.sqrMagnitude < 0.5f || b.sqrMagnitude < 0.5f) return;
 
             float sweep = Vector3.Angle(a, b);
@@ -325,8 +296,7 @@ namespace Basis.IK
             Vector3 previous = centre + a * radius;
             for (int i = 1; i <= steps; i++)
             {
-                Vector3 dir = Quaternion.AngleAxis(sweep * i / steps, axis) * a;
-                Vector3 next = centre + dir * radius;
+                Vector3 dir = Quaternion.AngleAxis(sweep * i / steps, axis) * a, next = centre + dir * radius;
                 Push(stage, BasisIKGizmoKind.Line, previous, next, LineWidth, color);
                 previous = next;
             }
@@ -353,26 +323,16 @@ namespace Basis.IK
             Vector3 n = axis.normalized;
             if (n.sqrMagnitude < 0.5f) return;
 
-            float lu = math.max(limitU, 0.01f);
-            float lwp = math.max(limitWPositive, 0.01f);
-            float lwn = math.max(limitWNegative, 0.01f);
-
-            float step = math.PI * 2f / CircleSegments;
-            Vector3 first = default;
-            Vector3 previous = default;
+            float lu = math.max(limitU, 0.01f), lwp = math.max(limitWPositive, 0.01f);
+            float lwn = math.max(limitWNegative, 0.01f), step = math.PI * 2f / CircleSegments;
+            Vector3 first = default, previous = default;
             for (int i = 0; i <= CircleSegments; i++)
             {
-                float t = step * i;
-                float cu = math.cos(t);
-                float cw = math.sin(t);
-                float lw = cw >= 0f ? lwp : lwn;
-                float su = cu / lu;
-                float sw = cw / lw;
-                float halfAngle = 1f / math.max(math.sqrt(su * su + sw * sw), 1e-4f);
+                float t = step * i, cu = math.cos(t), cw = math.sin(t), lw = cw >= 0f ? lwp : lwn, su = cu / lu;
+                float sw = cw / lw, halfAngle = 1f / math.max(math.sqrt(su * su + sw * sw), 1e-4f);
                 halfAngle = math.min(halfAngle, 179f) * math.TORADIANS;
 
-                Vector3 d = u * cu + w * cw;
-                Vector3 rim = apex + (n * math.cos(halfAngle) + d * math.sin(halfAngle)) * length;
+                Vector3 d = u * cu + w * cw, rim = apex + (n * math.cos(halfAngle) + d * math.sin(halfAngle)) * length;
 
                 if (i == 0)
                 {
@@ -428,10 +388,8 @@ namespace Basis.IK
             if (n.sqrMagnitude < 0.5f) return;
             Basis(n, out Vector3 u, out Vector3 w);
 
-            Vector3 c0 = centre + (u + w) * halfSize;
-            Vector3 c1 = centre + (u - w) * halfSize;
-            Vector3 c2 = centre - (u + w) * halfSize;
-            Vector3 c3 = centre - (u - w) * halfSize;
+            Vector3 c0 = centre + (u + w) * halfSize, c1 = centre + (u - w) * halfSize;
+            Vector3 c2 = centre - (u + w) * halfSize, c3 = centre - (u - w) * halfSize;
             Push(stage, BasisIKGizmoKind.Line, c0, c1, LineWidth, color);
             Push(stage, BasisIKGizmoKind.Line, c1, c2, LineWidth, color);
             Push(stage, BasisIKGizmoKind.Line, c2, c3, LineWidth, color);
@@ -449,17 +407,10 @@ namespace Basis.IK
         public void Box(BasisIKGizmoStage stage, Vector3 centre, Quaternion rotation, Vector3 halfExtents, uint color)
         {
             if (!Wants(stage)) return;
-            Vector3 x = rotation * Vector3.right * halfExtents.x;
-            Vector3 y = rotation * Vector3.up * halfExtents.y;
-            Vector3 z = rotation * Vector3.forward * halfExtents.z;
-
-            Vector3 p000 = centre - x - y - z;
-            Vector3 p100 = centre + x - y - z;
-            Vector3 p110 = centre + x + y - z;
-            Vector3 p010 = centre - x + y - z;
-            Vector3 p001 = centre - x - y + z;
-            Vector3 p101 = centre + x - y + z;
-            Vector3 p111 = centre + x + y + z;
+            Vector3 x = rotation * Vector3.right * halfExtents.x, y = rotation * Vector3.up * halfExtents.y;
+            Vector3 z = rotation * Vector3.forward * halfExtents.z, p000 = centre - x - y - z;
+            Vector3 p100 = centre + x - y - z, p110 = centre + x + y - z, p010 = centre - x + y - z;
+            Vector3 p001 = centre - x - y + z, p101 = centre + x - y + z, p111 = centre + x + y + z;
             Vector3 p011 = centre - x + y + z;
 
             Push(stage, BasisIKGizmoKind.Line, p000, p100, LineWidth, color);

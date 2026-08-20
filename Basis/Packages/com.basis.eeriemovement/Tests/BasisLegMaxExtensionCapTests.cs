@@ -2,55 +2,48 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisLegMaxExtensionCapTests
     {
-        const float k_Thigh = 0.45f, k_Shin = 0.42f, k_Leg = k_Thigh + k_Shin;
-        static readonly Vector3 k_Hip = new Vector3(0.09f, 0.90f, 0f);
-        static readonly Vector3 k_BendNormal = Vector3.right; // hips-right -> knee bends forward
-
+        const float thigh = 0.45f, shin = 0.42f, k_Leg = thigh + shin;
+        static readonly Vector3 hip = new Vector3(0.09f, 0.90f, 0f);
+        static readonly Vector3 bendNormal = Vector3.right; // hips-right -> knee bends forward
         static BasisLegSolveResult SolveTo(Vector3 target)
         {
             BasisLegSolveInput i = default;
-            i.Root = k_Hip;
-            i.Mid = k_Hip + new Vector3(0.02f, -0.98f, 0.20f).normalized * k_Thigh;
-            i.Tip = i.Mid + new Vector3(0.0f, -0.99f, 0.10f).normalized * k_Shin;
+            i.Root = hip;
+            i.Mid = hip + new Vector3(0.02f, -0.98f, 0.20f).normalized * thigh;
+            i.Tip = i.Mid + new Vector3(0.0f, -0.99f, 0.10f).normalized * shin;
             i.RootRotation = Quaternion.identity;
             i.MidRotation = Quaternion.identity;
             i.TargetPosition = target;
             i.TargetRotation = Quaternion.identity;
             i.TargetOffset = Quaternion.identity;
-            i.HintPosition = k_Hip + new Vector3(0.35f, -0.55f, 0.75f).normalized * (0.5f * k_Leg);
+            i.HintPosition = hip + new Vector3(0.35f, -0.55f, 0.75f).normalized * (0.5f * k_Leg);
             i.HintWeight = 1f;
-            i.BendNormal = k_BendNormal;
+            i.BendNormal = bendNormal;
             BasisLegSolveCore.Solve(i, out BasisLegSolveResult r);
             return r;
         }
-
         static float LeverArm(in BasisLegSolveResult r)
         {
-            Vector3 ac = r.FootSolved - k_Hip;
+            Vector3 ac = r.FootSolved - hip;
             if (ac.sqrMagnitude < 1e-8f) return 0f;
-            Vector3 acN = ac.normalized;
-            Vector3 ae = r.KneeSolved - k_Hip;
+            Vector3 acN = ac.normalized, ae = r.KneeSolved - hip;
             return (ae - acN * Vector3.Dot(ae, acN)).magnitude;
         }
-
         // The lever arm the cap guarantees at its interior angle, from the two segment lengths.
         static float CapLeverArm()
         {
             float chord = LegChord(BasisLegSolveCore.MaxKneeInteriorDeg);
-            return k_Thigh * k_Shin * Mathf.Sin(BasisLegSolveCore.MaxKneeInteriorDeg * Mathf.Deg2Rad) / chord;
+            return thigh * shin * Mathf.Sin(BasisLegSolveCore.MaxKneeInteriorDeg * Mathf.Deg2Rad) / chord;
         }
-
         static float LegChord(float interiorDeg)
         {
             float c = Mathf.Cos(interiorDeg * Mathf.Deg2Rad);
-            return Mathf.Sqrt(k_Thigh * k_Thigh + k_Shin * k_Shin - 2f * k_Thigh * k_Shin * c);
+            return Mathf.Sqrt(thigh * thigh + shin * shin - 2f * thigh * shin * c);
         }
-
         [Test]
         public void TheKnee_AlwaysHasALeverArm_EvenFarBeyondTheLegsReach()
         {
@@ -62,23 +55,16 @@ namespace Basis.Tests.IK
             Vector3 worstAt = default;
             for (int i = 0; i < 4000; i++)
             {
-                Vector3 dir = new Vector3(
-                    (float)(rng.NextDouble() * 2 - 1),
-                    (float)(rng.NextDouble() * 2 - 1),
-                    (float)(rng.NextDouble() * 2 - 1));
+                Vector3 dir = new Vector3((float)(rng.NextDouble() * 2 - 1), (float)(rng.NextDouble() * 2 - 1), (float)(rng.NextDouble() * 2 - 1));
                 if (dir.sqrMagnitude < 1e-4f) continue;
                 float reach = Mathf.Lerp(0.50f, 1.50f, (float)rng.NextDouble());
-                Vector3 target = k_Hip + dir.normalized * (reach * k_Leg);
+                Vector3 target = hip + dir.normalized * (reach * k_Leg);
                 float rho = LeverArm(SolveTo(target));
                 if (rho < worst) { worst = rho; worstAt = target; }
             }
 
-            Assert.Greater(worst, floor,
-                $"the knee's lever arm collapsed to {worst * 100f:F2} cm (target {worstAt}). At rho = 0 the knee " +
-                "lies ON the hip->ankle axis: a pole cannot position it, only ROLL the leg about its own length. " +
-                "MaxKneeInteriorDeg is what floors it.");
+            Assert.Greater(worst, floor, $"the knee's lever arm collapsed to {worst * 100f:F2} cm (target {worstAt}). At rho = 0 the knee " + "lies ON the hip->ankle axis: a pole cannot position it, only ROLL the leg about its own length. " +"MaxKneeInteriorDeg is what floors it.");
         }
-
         [Test]
         public void KneeConditioning_StaysBounded_ThroughFullExtension()
         {
@@ -95,7 +81,7 @@ namespace Basis.Tests.IK
             {
                 for (float reach = 0.90f; reach <= 1.02f; reach += 0.002f)
                 {
-                    Vector3 target = k_Hip + u * (reach * k_Leg);
+                    Vector3 target = hip + u * (reach * k_Leg);
                     foreach (Vector3 ax in new[] { Vector3.right, Vector3.up, Vector3.forward })
                     {
                         var rp = SolveTo(target + ax * eps);
@@ -108,39 +94,29 @@ namespace Basis.Tests.IK
                 }
             }
 
-            Assert.Less(worst, gate,
-                $"knee conditioning spiked to {worst:F1}x foot travel at reach {worstReach:F3} -- the free-spinning " +
-                "stick at full extension. With MaxKneeInteriorDeg < 180 the knee keeps a lever arm and this stays bounded.");
+            Assert.Less(worst, gate, $"knee conditioning spiked to {worst:F1}x foot travel at reach {worstReach:F3} -- the free-spinning " +"stick at full extension. With MaxKneeInteriorDeg < 180 the knee keeps a lever arm and this stays bounded.");
         }
-
         [Test]
         public void TheCap_CostsAlmostNothing_ForReachableTargets()
         {
             foreach (float reach in new[] { 0.30f, 0.50f, 0.70f, 0.90f, 0.95f, 0.98f })
             {
-                Vector3 dir = new Vector3(0.05f, -0.95f, 0.30f).normalized;
-                Vector3 target = k_Hip + dir * (reach * k_Leg);
-                Assert.AreEqual(0f, Vector3.Distance(SolveTo(target).FootSolved, target), 1.5e-3f,
-                    $"at {reach:P0} of reach the foot must land on target -- the cap must only bind at the very limit");
+                Vector3 dir = new Vector3(0.05f, -0.95f, 0.30f).normalized, target = hip + dir * (reach * k_Leg);
+                Assert.AreEqual(0f, Vector3.Distance(SolveTo(target).FootSolved, target), 1.5e-3f, $"at {reach:P0} of reach the foot must land on target -- the cap must only bind at the very limit");
             }
 
-            Vector3 far = k_Hip + new Vector3(0.05f, -0.95f, 0.30f).normalized * (1.0f * k_Leg);
-            float shortBy = k_Leg - (SolveTo(far).FootSolved - k_Hip).magnitude;
-            Assert.Less(shortBy, 0.003f,
-                $"the foot fell {shortBy * 1000f:F1} mm short at full stretch; the cap should cost well under a millimetre");
+            Vector3 far = hip + new Vector3(0.05f, -0.95f, 0.30f).normalized * (1.0f * k_Leg);
+            float shortBy = k_Leg - (SolveTo(far).FootSolved - hip).magnitude;
+            Assert.Less(shortBy, 0.003f, $"the foot fell {shortBy * 1000f:F1} mm short at full stretch; the cap should cost well under a millimetre");
         }
-
         [Test]
         public void TheKnee_NeverLocksDeadStraight()
         {
-            Assert.Less(BasisLegSolveCore.MaxKneeInteriorDeg, 179f,
-                "a knee allowed to reach ~180 has NO lever arm there and every swivel becomes pure roll of the leg");
-            Assert.Greater(BasisLegSolveCore.MaxKneeInteriorDeg, 168f,
-                "below ~168 the standing bend becomes a visible crouch");
+            Assert.Less(BasisLegSolveCore.MaxKneeInteriorDeg, 179f,"a knee allowed to reach ~180 has NO lever arm there and every swivel becomes pure roll of the leg");
+            Assert.Greater(BasisLegSolveCore.MaxKneeInteriorDeg, 168f,"below ~168 the standing bend becomes a visible crouch");
 
-            Vector3 straightDown = k_Hip + Vector3.down * (2f * k_Leg); // twice its reach
-            Assert.Less(SolveTo(straightDown).KneeAngleDeg, 178f,
-                "driven at a target twice its reach the leg still locked dead straight");
+            Vector3 straightDown = hip + Vector3.down * (2f * k_Leg); // twice its reach
+            Assert.Less(SolveTo(straightDown).KneeAngleDeg, 178f,"driven at a target twice its reach the leg still locked dead straight");
         }
     }
 }

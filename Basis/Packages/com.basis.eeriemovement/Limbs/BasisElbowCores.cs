@@ -5,14 +5,9 @@ namespace Basis.IK
 {
     public static class BasisElbowAnatomyCore
     {
-        const float epsilon = 1e-5f;
-        const float sqrEpsilon = 1e-8f;
-        public const float SoftMarginFracLimb = 0.05f;
-        public const float HardMarginFracLimb = 0.15f;
-        public const float SoftMarginMaxFracRadius = 0.5f;
-        public const float TieBandFracRadius = 0.10f;
-        public const float ConditioningFadeLo = 0.04f;
-        public const float ConditioningFadeHi = 0.10f;
+        const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;
+        public const float SoftMarginFracLimb = 0.05f, HardMarginFracLimb = 0.15f, SoftMarginMaxFracRadius = 0.5f;
+        public const float TieBandFracRadius = 0.10f, ConditioningFadeLo = 0.04f, ConditioningFadeHi = 0.10f;
         public static float ConditioningFade(float radius, float totalLen)
         {
             if (!(totalLen > epsilon))
@@ -45,10 +40,7 @@ namespace Basis.IK
             }
             up /= Mathf.Sqrt(upSqr);
 
-            Vector3 acN = ac / Mathf.Sqrt(acSqr);
-
-            Vector3 ae = elbow - shoulder;
-            Vector3 aeProj = ae - acN * Vector3.Dot(ae, acN);
+            Vector3 acN = ac / Mathf.Sqrt(acSqr), ae = elbow - shoulder, aeProj = ae - acN * Vector3.Dot(ae, acN);
             float radius = aeProj.magnitude;
 
             if (!(radius > epsilon))
@@ -63,14 +55,9 @@ namespace Basis.IK
                 return 0f;
             }
 
-            Vector3 upN = upProj / upLen;
-            Vector3 w = Vector3.Cross(acN, upN);
-
-            float handUp = Vector3.Dot(ac, up);
-            float ceiling = handUp > 0f ? handUp : 0f;
-
-            float softRise = SoftMarginFracLimb * totalLen;
-            float hardRise = HardMarginFracLimb * totalLen;
+            Vector3 upN = upProj / upLen, w = Vector3.Cross(acN, upN);
+            float handUp = Vector3.Dot(ac, up), ceiling = handUp > 0f ? handUp : 0f;
+            float softRise = SoftMarginFracLimb * totalLen, hardRise = HardMarginFracLimb * totalLen;
             float riseCap = SoftMarginMaxFracRadius * radius;
             if (softRise > riseCap)
             {
@@ -78,10 +65,7 @@ namespace Basis.IK
                 softRise = riseCap;
             }
 
-            float hSoft = ceiling + softRise;
-            float hHard = ceiling + hardRise;
-
-            float h = Vector3.Dot(ae, up);
+            float hSoft = ceiling + softRise, hHard = ceiling + hardRise, h = Vector3.Dot(ae, up);
 
             if (!(h > hSoft))
             {
@@ -94,11 +78,8 @@ namespace Basis.IK
                 return 0f;
             }
 
-            float e = h - hSoft;
-            float hGuarded = hSoft + M * e / (M + e);
-
-            float along = Vector3.Dot(ae, acN) * Vector3.Dot(acN, up);
-            float denom = radius * upLen;
+            float e = h - hSoft, hGuarded = hSoft + M * e / (M + e);
+            float along = Vector3.Dot(ae, acN) * Vector3.Dot(acN, up), denom = radius * upLen;
             float cG = (hGuarded - along) / denom;
             cG = cG > 1f ? 1f : (cG > -1f ? cG : -1f);
 
@@ -131,7 +112,6 @@ namespace Basis.IK
 
             sideUsed = side;
             float sG = side * Mathf.Sqrt(Mathf.Max(1f - cG * cG, 0f));
-
             Vector3 poleGuarded = upN * cG + w * sG;
             return BasisIKMath.SignedAngleRad(poleDir, poleGuarded, acN) * ConditioningFade(radius, totalLen);
         }
@@ -180,14 +160,8 @@ namespace Basis.IK
     }
     public static class BasisElbowFlareCore
     {
-        const float capEngageEnd = 0.3f;
-        const float rollProjFadeStart = 0.10f;
-        const float rollProjFadeFull = 0.25f;
-        const float basisFadeStart = 0.20f;
-        const float basisFadeFull = 0.50f;
-        const float bendProjFadeStart = 0.05f;
-        const float bendProjFadeFull = 0.20f;
-        const float rollWrapFadeDeg = 40f;
+        const float capEngageEnd = 0.3f, rollProjFadeStart = 0.10f, rollProjFadeFull = 0.25f, basisFadeStart = 0.20f;
+        const float basisFadeFull = 0.50f, bendProjFadeStart = 0.05f, bendProjFadeFull = 0.20f, rollWrapFadeDeg = 40f;
         public static Vector3 ApplyFlare(Vector3 bend, Vector3 shoulderToHand, Vector3 outwardDir, Vector3 playerUp, float engage01, float maxFlareDeg)
         {
             float r = Mathf.Clamp01(engage01);
@@ -199,16 +173,13 @@ namespace Basis.IK
             if (r <= 0f) return bend;
 
             float cap = Mathf.Max(0f, maxFlareDeg);
-
             Vector3 bendProj = Vector3.ProjectOnPlane(bend, axis);
             float bendMag = bendProj.magnitude;
             r *= Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((bendMag - bendProjFadeStart) / (bendProjFadeFull - bendProjFadeStart)));
             if (r <= 0f) return bend;
 
             float s0 = Mathf.Atan2(Vector3.Dot(bendProj, outPole), Vector3.Dot(bendProj, downPole)) * Mathf.Rad2Deg;
-
             float s = Mathf.Lerp(s0, cap, r);
-
             float capNow = Mathf.Lerp(180f, cap, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(r / capEngageEnd)));
             s = Mathf.Clamp(s, -capNow, capNow);
 
@@ -230,9 +201,7 @@ namespace Basis.IK
 
             float aDeg = Mathf.Atan2(Vector3.Dot(hUp, outPole), Vector3.Dot(hUp, -downPole)) * Mathf.Rad2Deg;
             float engage = Mathf.Clamp01((aDeg / Mathf.Max(1f, fullRollDeg)) * inwardGain);
-
             float wrapFade = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((180f - Mathf.Abs(aDeg)) / rollWrapFadeDeg));
-
             float confidence = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((proj - rollProjFadeStart) / (rollProjFadeFull - rollProjFadeStart)));
 
             return engage * confidence * basisConfidence * wrapFade;
@@ -268,10 +237,7 @@ namespace Basis.IK
     [BurstCompile]
     public static class BasisElbowSwingCapCore
     {
-        public const float MaxGain = 5f;
-        public const float ReachGain = 3f;
-        public const float ReachTrustLo = 0.06f;
-        public const float ReachTrustHi = 0.10f;
+        public const float MaxGain = 5f, ReachGain = 3f, ReachTrustLo = 0.06f, ReachTrustHi = 0.10f;
         public static float ReachTrust(float conditioning)
         {
             if (!(conditioning > ReachTrustLo))
@@ -281,8 +247,7 @@ namespace Basis.IK
             float t = math.saturate((conditioning - ReachTrustLo) / (ReachTrustHi - ReachTrustLo));
             return t * t * (3f - 2f * t);
         }
-        public const float MaxSlewDegPerSec = 720f;
-        public const float MaxSlewBudgetDt = 1f / 30f;
+        public const float MaxSlewDegPerSec = 720f, MaxSlewBudgetDt = 1f / 30f;
         public static float SlewCapRad(float dt) => dt > 0f ? math.radians(MaxSlewDegPerSec) * math.min(dt, MaxSlewBudgetDt) : 0f;
         public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain) => Apply(prevBend, prevAxis, curAxis, rawBend, maxGain, 0f, 0f, 0f);
         public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain, float dReach, float conditioning) => Apply(prevBend, prevAxis, curAxis, rawBend, maxGain, dReach, conditioning, 0f);
@@ -298,10 +263,8 @@ namespace Basis.IK
 
             float3 cross = math.cross(curAxis, tp);
             float ang = math.atan2(math.dot(rawBend, cross), math.dot(rawBend, tp));
-
             float dHand = math.atan2(math.length(math.cross(prevAxis, curAxis)), math.dot(prevAxis, curAxis));
-            float dRadial = 0f;
-            float absReach = math.abs(dReach);
+            float dRadial = 0f, absReach = math.abs(dReach);
             if (absReach > 0f && math.isfinite(absReach))
             {
                 dRadial = ReachGain * ReachTrust(conditioning) * absReach;

@@ -343,257 +343,257 @@ public class SMModuleCalibration : BasisSettingsBase
 
             // ---------- HIPS ----------
             case var s when s == K_HIPS_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var b0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_Hips] = b0;
+                if (bool.TryParse(optionValue, out var b0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sHips] = b0;
                 break;
 
             case var s when s == K_HIPS_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var b1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_Hips] = b1;
+                if (bool.TryParse(optionValue, out var b1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sHips] = b1;
                 break;
 
             case var s when s == K_HIPS_EURO_POS:
-                if (bool.TryParse(optionValue, out var b2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_Hips] = b2;
+                if (bool.TryParse(optionValue, out var b2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sHips] = b2;
                 break;
 
             case var s when s == K_HIPS_EURO_ROT:
-                if (bool.TryParse(optionValue, out var b3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_Hips] = b3;
+                if (bool.TryParse(optionValue, out var b3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sHips] = b3;
                 break;
 
             // ---------- HEAD ----------
             case var s when s == K_HEAD_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var bh0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_Head] = bh0;
+                if (bool.TryParse(optionValue, out var bh0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sHead] = bh0;
                 break;
 
             case var s when s == K_HEAD_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var bh1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_Head] = bh1;
+                if (bool.TryParse(optionValue, out var bh1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sHead] = bh1;
                 break;
 
             case var s when s == K_HEAD_EURO_POS:
-                if (bool.TryParse(optionValue, out var bh2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_Head] = bh2;
+                if (bool.TryParse(optionValue, out var bh2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sHead] = bh2;
                 break;
 
             case var s when s == K_HEAD_EURO_ROT:
-                if (bool.TryParse(optionValue, out var bh3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_Head] = bh3;
+                if (bool.TryParse(optionValue, out var bh3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sHead] = bh3;
                 break;
 
             // ---------- LEFT FOOT ----------
             case var s when s == K_LF_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var blf0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftFoot] = blf0;
+                if (bool.TryParse(optionValue, out var blf0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sLeftFoot] = blf0;
                 break;
 
             case var s when s == K_LF_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var blf1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftFoot] = blf1;
+                if (bool.TryParse(optionValue, out var blf1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sLeftFoot] = blf1;
                 break;
 
             case var s when s == K_LF_EURO_POS:
-                if (bool.TryParse(optionValue, out var blf2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftFoot] = blf2;
+                if (bool.TryParse(optionValue, out var blf2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sLeftFoot] = blf2;
                 break;
 
             case var s when s == K_LF_EURO_ROT:
-                if (bool.TryParse(optionValue, out var blf3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftFoot] = blf3;
+                if (bool.TryParse(optionValue, out var blf3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sLeftFoot] = blf3;
                 break;
 
             // ---------- RIGHT FOOT ----------
             case var s when s == K_RF_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var brf0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightFoot] = brf0;
+                if (bool.TryParse(optionValue, out var brf0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sRightFoot] = brf0;
                 break;
 
             case var s when s == K_RF_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var brf1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightFoot] = brf1;
+                if (bool.TryParse(optionValue, out var brf1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sRightFoot] = brf1;
                 break;
 
             case var s when s == K_RF_EURO_POS:
-                if (bool.TryParse(optionValue, out var brf2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightFoot] = brf2;
+                if (bool.TryParse(optionValue, out var brf2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sRightFoot] = brf2;
                 break;
 
             case var s when s == K_RF_EURO_ROT:
-                if (bool.TryParse(optionValue, out var brf3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightFoot] = brf3;
+                if (bool.TryParse(optionValue, out var brf3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sRightFoot] = brf3;
                 break;
 
             // ---------- CHEST ----------
             case var s when s == K_CHEST_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var bc0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_Chest] = bc0;
+                if (bool.TryParse(optionValue, out var bc0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sChest] = bc0;
                 break;
 
             case var s when s == K_CHEST_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var bc1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_Chest] = bc1;
+                if (bool.TryParse(optionValue, out var bc1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sChest] = bc1;
                 break;
 
             case var s when s == K_CHEST_EURO_POS:
-                if (bool.TryParse(optionValue, out var bc2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_Chest] = bc2;
+                if (bool.TryParse(optionValue, out var bc2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sChest] = bc2;
                 break;
 
             case var s when s == K_CHEST_EURO_ROT:
-                if (bool.TryParse(optionValue, out var bc3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_Chest] = bc3;
+                if (bool.TryParse(optionValue, out var bc3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sChest] = bc3;
                 break;
 
             // ---------- LEFT LOWER LEG ----------
             case var s when s == K_LLL_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var blll0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftLowerLeg] = blll0;
+                if (bool.TryParse(optionValue, out var blll0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sLeftLowerLeg] = blll0;
                 break;
 
             case var s when s == K_LLL_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var blll1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftLowerLeg] = blll1;
+                if (bool.TryParse(optionValue, out var blll1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sLeftLowerLeg] = blll1;
                 break;
 
             case var s when s == K_LLL_EURO_POS:
-                if (bool.TryParse(optionValue, out var blll2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftLowerLeg] = blll2;
+                if (bool.TryParse(optionValue, out var blll2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sLeftLowerLeg] = blll2;
                 break;
 
             case var s when s == K_LLL_EURO_ROT:
-                if (bool.TryParse(optionValue, out var blll3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftLowerLeg] = blll3;
+                if (bool.TryParse(optionValue, out var blll3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sLeftLowerLeg] = blll3;
                 break;
 
             // ---------- RIGHT LOWER LEG ----------
             case var s when s == K_RLL_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var brll0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightLowerLeg] = brll0;
+                if (bool.TryParse(optionValue, out var brll0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sRightLowerLeg] = brll0;
                 break;
 
             case var s when s == K_RLL_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var brll1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightLowerLeg] = brll1;
+                if (bool.TryParse(optionValue, out var brll1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sRightLowerLeg] = brll1;
                 break;
 
             case var s when s == K_RLL_EURO_POS:
-                if (bool.TryParse(optionValue, out var brll2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightLowerLeg] = brll2;
+                if (bool.TryParse(optionValue, out var brll2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sRightLowerLeg] = brll2;
                 break;
 
             case var s when s == K_RLL_EURO_ROT:
-                if (bool.TryParse(optionValue, out var brll3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightLowerLeg] = brll3;
+                if (bool.TryParse(optionValue, out var brll3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sRightLowerLeg] = brll3;
                 break;
 
             // ---------- LEFT HAND ----------
             case var s when s == K_LH_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var blh0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftHand] = blh0;
+                if (bool.TryParse(optionValue, out var blh0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sLeftHand] = blh0;
                 break;
 
             case var s when s == K_LH_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var blh1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftHand] = blh1;
+                if (bool.TryParse(optionValue, out var blh1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sLeftHand] = blh1;
                 break;
 
             case var s when s == K_LH_EURO_POS:
-                if (bool.TryParse(optionValue, out var blh2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftHand] = blh2;
+                if (bool.TryParse(optionValue, out var blh2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sLeftHand] = blh2;
                 break;
 
             case var s when s == K_LH_EURO_ROT:
-                if (bool.TryParse(optionValue, out var blh3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftHand] = blh3;
+                if (bool.TryParse(optionValue, out var blh3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sLeftHand] = blh3;
                 break;
 
             // ---------- RIGHT HAND ----------
             case var s when s == K_RH_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var brh0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightHand] = brh0;
+                if (bool.TryParse(optionValue, out var brh0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sRightHand] = brh0;
                 break;
 
             case var s when s == K_RH_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var brh1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightHand] = brh1;
+                if (bool.TryParse(optionValue, out var brh1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sRightHand] = brh1;
                 break;
 
             case var s when s == K_RH_EURO_POS:
-                if (bool.TryParse(optionValue, out var brh2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightHand] = brh2;
+                if (bool.TryParse(optionValue, out var brh2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sRightHand] = brh2;
                 break;
 
             case var s when s == K_RH_EURO_ROT:
-                if (bool.TryParse(optionValue, out var brh3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightHand] = brh3;
+                if (bool.TryParse(optionValue, out var brh3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sRightHand] = brh3;
                 break;
 
             // ---------- LEFT LOWER ARM ----------
             case var s when s == K_LLA_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var blla0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftLowerArm] = blla0;
+                if (bool.TryParse(optionValue, out var blla0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sLeftLowerArm] = blla0;
                 break;
 
             case var s when s == K_LLA_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var blla1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftLowerArm] = blla1;
+                if (bool.TryParse(optionValue, out var blla1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sLeftLowerArm] = blla1;
                 break;
 
             case var s when s == K_LLA_EURO_POS:
-                if (bool.TryParse(optionValue, out var blla2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftLowerArm] = blla2;
+                if (bool.TryParse(optionValue, out var blla2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sLeftLowerArm] = blla2;
                 break;
 
             case var s when s == K_LLA_EURO_ROT:
-                if (bool.TryParse(optionValue, out var blla3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftLowerArm] = blla3;
+                if (bool.TryParse(optionValue, out var blla3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sLeftLowerArm] = blla3;
                 break;
 
             // ---------- RIGHT LOWER ARM ----------
             case var s when s == K_RLA_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var brla0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightLowerArm] = brla0;
+                if (bool.TryParse(optionValue, out var brla0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sRightLowerArm] = brla0;
                 break;
 
             case var s when s == K_RLA_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var brla1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightLowerArm] = brla1;
+                if (bool.TryParse(optionValue, out var brla1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sRightLowerArm] = brla1;
                 break;
 
             case var s when s == K_RLA_EURO_POS:
-                if (bool.TryParse(optionValue, out var brla2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightLowerArm] = brla2;
+                if (bool.TryParse(optionValue, out var brla2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sRightLowerArm] = brla2;
                 break;
 
             case var s when s == K_RLA_EURO_ROT:
-                if (bool.TryParse(optionValue, out var brla3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightLowerArm] = brla3;
+                if (bool.TryParse(optionValue, out var brla3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sRightLowerArm] = brla3;
                 break;
 
             // ---------- LEFT TOE ----------
             case var s when s == K_LT_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var blt0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftToe] = blt0;
+                if (bool.TryParse(optionValue, out var blt0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sLeftToe] = blt0;
                 break;
 
             case var s when s == K_LT_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var blt1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftToe] = blt1;
+                if (bool.TryParse(optionValue, out var blt1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sLeftToe] = blt1;
                 break;
 
             case var s when s == K_LT_EURO_POS:
-                if (bool.TryParse(optionValue, out var blt2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftToe] = blt2;
+                if (bool.TryParse(optionValue, out var blt2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sLeftToe] = blt2;
                 break;
 
             case var s when s == K_LT_EURO_ROT:
-                if (bool.TryParse(optionValue, out var blt3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftToe] = blt3;
+                if (bool.TryParse(optionValue, out var blt3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sLeftToe] = blt3;
                 break;
 
             // ---------- RIGHT TOE ----------
             case var s when s == K_RT_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var brt0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightToe] = brt0;
+                if (bool.TryParse(optionValue, out var brt0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sRightToe] = brt0;
                 break;
 
             case var s when s == K_RT_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var brt1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightToe] = brt1;
+                if (bool.TryParse(optionValue, out var brt1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sRightToe] = brt1;
                 break;
 
             case var s when s == K_RT_EURO_POS:
-                if (bool.TryParse(optionValue, out var brt2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightToe] = brt2;
+                if (bool.TryParse(optionValue, out var brt2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sRightToe] = brt2;
                 break;
 
             case var s when s == K_RT_EURO_ROT:
-                if (bool.TryParse(optionValue, out var brt3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightToe] = brt3;
+                if (bool.TryParse(optionValue, out var brt3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sRightToe] = brt3;
                 break;
 
             // ---------- LEFT SHOULDER ----------
             case var s when s == K_LS_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var bls0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftShoulder] = bls0;
+                if (bool.TryParse(optionValue, out var bls0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sLeftShoulder] = bls0;
                 break;
 
             case var s when s == K_LS_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var bls1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftShoulder] = bls1;
+                if (bool.TryParse(optionValue, out var bls1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sLeftShoulder] = bls1;
                 break;
 
             case var s when s == K_LS_EURO_POS:
-                if (bool.TryParse(optionValue, out var bls2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftShoulder] = bls2;
+                if (bool.TryParse(optionValue, out var bls2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sLeftShoulder] = bls2;
                 break;
 
             case var s when s == K_LS_EURO_ROT:
-                if (bool.TryParse(optionValue, out var bls3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftShoulder] = bls3;
+                if (bool.TryParse(optionValue, out var bls3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sLeftShoulder] = bls3;
                 break;
 
             // ---------- RIGHT SHOULDER ----------
             case var s when s == K_RS_SMOOTH_POS:
-                if (bool.TryParse(optionValue, out var brs0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightShoulder] = brs0;
+                if (bool.TryParse(optionValue, out var brs0)) BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.sRightShoulder] = brs0;
                 break;
 
             case var s when s == K_RS_SMOOTH_ROT:
-                if (bool.TryParse(optionValue, out var brs1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightShoulder] = brs1;
+                if (bool.TryParse(optionValue, out var brs1)) BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.sRightShoulder] = brs1;
                 break;
 
             case var s when s == K_RS_EURO_POS:
-                if (bool.TryParse(optionValue, out var brs2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightShoulder] = brs2;
+                if (bool.TryParse(optionValue, out var brs2)) BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.sRightShoulder] = brs2;
                 break;
 
             case var s when s == K_RS_EURO_ROT:
-                if (bool.TryParse(optionValue, out var brs3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightShoulder] = brs3;
+                if (bool.TryParse(optionValue, out var brs3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.sRightShoulder] = brs3;
                 break;
 
             // ---------- IK COLLIDER & TUNING ----------

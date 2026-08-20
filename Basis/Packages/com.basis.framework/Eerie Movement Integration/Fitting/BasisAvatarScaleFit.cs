@@ -6,28 +6,23 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections.Generic;
 using UnityEngine;
-
 public static class BasisAutoScaleEstimator
 {
     const float MinEyeHeight = 1.10f;
     const float MaxEyeHeight = 2.10f;
     const float ReapplyThreshold = 0.03f;
     const float ReleaseRate = 0.03f;
-
     public static bool HasEstimate;
     public static float EstimatedEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
     public static float EstimatedArmSpan = BasisHeightDriver.FallbackHeightInMeters;
-
-    static float _maxArmSpan;
-
+    static float maxArmSpan;
     public static void Reset()
     {
         HasEstimate = false;
-        _maxArmSpan = 0f;
+        maxArmSpan = 0f;
         EstimatedEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
         EstimatedArmSpan = BasisHeightDriver.FallbackHeightInMeters;
     }
-
     public static void Tick(float deltaTime)
     {
         if (Basis.BasisUI.BasisSettingsDefaults.ContinuousBodyMeasurement.RawValue) return;
@@ -38,9 +33,7 @@ public static class BasisAutoScaleEstimator
         var headInput = BasisLocalCameraDriver.Instance?.BasisLockToInput?.BasisInput;
         if (headInput == null) return;
 
-        float sample = headInput.UnscaledDeviceCoord.position.y
-            - BasisLocalPlayspaceMover.VerticalOffset
-            - BasisHeightDriver.HeightModeGroundingOffset;
+        float sample = headInput.UnscaledDeviceCoord.position.y - BasisLocalPlayspaceMover.VerticalOffset - BasisHeightDriver.HeightModeGroundingOffset;
         if (sample >= MinEyeHeight && sample <= MaxEyeHeight)
         {
             if (!HasEstimate || sample > EstimatedEyeHeight)
@@ -65,75 +58,66 @@ public static class BasisAutoScaleEstimator
             BasisHeightDriver.ApplyScaleAndHeight();
         }
     }
-
     static float EstimateArmSpan(float eyeHeight)
     {
         float lo = eyeHeight * 0.70f;
         float hi = eyeHeight * 1.30f;
 
         var dm = BasisDeviceManagement.Instance;
-        if (dm != null
-            && dm.FindDevice(out BasisInput left, BasisBoneTrackedRole.LeftHand)
-            && dm.FindDevice(out BasisInput right, BasisBoneTrackedRole.RightHand))
+        if (dm != null && dm.FindDevice(out BasisInput left, BasisBoneTrackedRole.LeftHand) && dm.FindDevice(out BasisInput right, BasisBoneTrackedRole.RightHand))
         {
             Vector3 l = left.UnscaledDeviceCoord.position;
             Vector3 r = right.UnscaledDeviceCoord.position;
             float span = Vector3.Distance(new Vector3(l.x, 0f, l.z), new Vector3(r.x, 0f, r.z));
-            _maxArmSpan = Mathf.Max(_maxArmSpan, span);
+            maxArmSpan = Mathf.Max(maxArmSpan, span);
         }
 
-        return _maxArmSpan > 0f ? Mathf.Clamp(_maxArmSpan, lo, hi) : eyeHeight;
+        return maxArmSpan > 0f ? Mathf.Clamp(maxArmSpan, lo, hi) : eyeHeight;
     }
 }
-
 public static class BasisCalibrationRefitGate
 {
-    static readonly HashSet<BasisInteractableObject> s_held = new();
-
+    static readonly HashSet<BasisInteractableObject> sheld = new();
     public static void MarkInteracting(BasisInteractableObject interactable)
     {
         if (interactable != null)
         {
-            s_held.Add(interactable);
+            sheld.Add(interactable);
         }
     }
-
     public static void MarkReleased(BasisInteractableObject interactable)
     {
         if (interactable != null)
         {
-            s_held.Remove(interactable);
+            sheld.Remove(interactable);
         }
     }
-
-    static readonly List<BasisInteractableObject> s_stale = new();
-
+    static readonly List<BasisInteractableObject> stale = new();
     public static bool IsHoldingSomething()
     {
-        if (s_held.Count == 0)
+        if (sheld.Count == 0)
         {
             return false;
         }
 
-        s_stale.Clear();
+        stale.Clear();
         bool holding = false;
-        foreach (BasisInteractableObject held in s_held)
+        foreach (BasisInteractableObject held in sheld)
         {
             if (held == null || !held.Inputs.AnyInteracting(false))
             {
-                s_stale.Add(held);
+                stale.Add(held);
                 continue;
             }
             holding = true;
         }
-        for (int Index = 0; Index < s_stale.Count; Index++)
+        for (int Index = 0; Index < stale.Count; Index++)
         {
-            s_held.Remove(s_stale[Index]);
+            sheld.Remove(stale[Index]);
         }
-        s_stale.Clear();
+        stale.Clear();
         return holding;
     }
-
     public static bool ShouldHoldRefit(out string reason)
     {
         reason = null;

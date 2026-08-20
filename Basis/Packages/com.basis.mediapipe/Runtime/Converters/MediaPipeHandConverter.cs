@@ -2,42 +2,26 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.MediaPipe
 {
     public sealed class MediaPipeHandConverter
     {
-        public float CurlGain = 1f;
-        public float ThumbMaxAngle = 100f;
-        public float FingerMaxAngle = 160f;
-        public float MaxSplayDegrees = 20f;
-        public float SplayGain = 1f;
-        public float FingerSmoothing = 0.5f;
-        public float PoseSmoothing = 0.5f;
+        public float CurlGain = 1f, ThumbMaxAngle = 100f, FingerMaxAngle = 160f, MaxSplayDegrees = 20f, SplayGain = 1f;
+        public float FingerSmoothing = 0.5f, PoseSmoothing = 0.5f;
         public bool UseRotation = true;
-
-        private const float CutoffResponsive = 10f;
-        private const float CutoffSmooth = 1.5f;
-        private const float Beta = 3.25f;
-        private const float DerivativeCutoff = 1f;
-
-        private RotationFilter _leftRot, _rightRot;
-
+        private const float CutoffResponsive = 10f, CutoffSmooth = 1.5f, Beta = 3.25f, DerivativeCutoff = 1f;
+        private RotationFilter leftRot, _rightRot;
         private float RotationCutoff => Mathf.Lerp(CutoffResponsive, CutoffSmooth, Mathf.Clamp01(PoseSmoothing));
-
         private struct RotationFilter
         {
             public BasisEuroQuatState Euro;
-            public Quaternion Sampled;
-            public Quaternion Carried;
+            public Quaternion Sampled, Carried;
             public bool HasSample;
-
             public Quaternion Apply(Quaternion target, in MediaPipeTiming timing, float cutoff)
             {
                 if (timing.IsNewSample || !HasSample)
                 {
-                    Sampled = BasisFilterMath.EuroQuat(ref Euro, target, timing.SampleDelta,
-                        cutoff, Beta, DerivativeCutoff);
+                    Sampled = BasisFilterMath.EuroQuat(ref Euro, target, timing.SampleDelta, cutoff, Beta, DerivativeCutoff);
 
                     if (!HasSample)
                     {
@@ -47,36 +31,26 @@ namespace Basis.MediaPipe
                     }
                 }
 
-                Carried = Quaternion.Slerp(Carried, Sampled,
-                    BasisFilterMath.Alpha(timing.CarryCutoff, timing.RenderDelta));
+                Carried = Quaternion.Slerp(Carried, Sampled, BasisFilterMath.Alpha(timing.CarryCutoff, timing.RenderDelta));
                 return Carried;
             }
-
             public void Reset()
             {
                 Euro = default;
                 HasSample = false;
             }
         }
-
         public struct AvatarHandRig
         {
-            public Quaternion Body;
-            public Quaternion LeftCorrection;
-            public Quaternion RightCorrection;
-            public Quaternion LeftIkOffsetInverse;
-            public Quaternion RightIkOffsetInverse;
+            public Quaternion Body, LeftCorrection, RightCorrection, LeftIkOffsetInverse, RightIkOffsetInverse;
             public bool Valid;
         }
-
         public void Reset()
         {
-            _leftRot.Reset();
+            leftRot.Reset();
             _rightRot.Reset();
         }
-
-        public bool TryGetHandRotation(in BasisMediaPipeResult result, in AvatarHandRig rig, bool left,
-            in MediaPipeTiming timing, out Quaternion rotation)
+        public bool TryGetHandRotation(in BasisMediaPipeResult result, in AvatarHandRig rig, bool left, in MediaPipeTiming timing, out Quaternion rotation)
         {
             rotation = Quaternion.identity;
             if (!UseRotation || !rig.Valid) return false;
@@ -103,30 +77,23 @@ namespace Basis.MediaPipe
             // the old, uncancelled behaviour instead of a dead hand. Cheap, and it makes the struct impossible to
             // hold wrong.
             Quaternion ikOffsetInverse = left ? rig.LeftIkOffsetInverse : rig.RightIkOffsetInverse;
-            float ikSqrNorm = ikOffsetInverse.x * ikOffsetInverse.x + ikOffsetInverse.y * ikOffsetInverse.y
-                + ikOffsetInverse.z * ikOffsetInverse.z + ikOffsetInverse.w * ikOffsetInverse.w;
+            float ikSqrNorm = ikOffsetInverse.x * ikOffsetInverse.x + ikOffsetInverse.y * ikOffsetInverse.y + ikOffsetInverse.z * ikOffsetInverse.z + ikOffsetInverse.w * ikOffsetInverse.w;
             if (ikSqrNorm < 0.5f) ikOffsetInverse = Quaternion.identity;
 
             float cutoff = RotationCutoff;
-            Quaternion smoothed = left
-                ? _leftRot.Apply(handInBody, in timing, cutoff)
-                : _rightRot.Apply(handInBody, in timing, cutoff);
+            Quaternion smoothed = left ? leftRot.Apply(handInBody, in timing, cutoff) : _rightRot.Apply(handInBody, in timing, cutoff);
 
             // `rig.Body * smoothed * correction` is the finished HAND BONE rotation. The IK will multiply its own
             // palm->bone offset onto whatever we report, so pre-cancel it here (see AvatarHandRig).
             rotation = rig.Body * smoothed * correction * ikOffsetInverse;
             return true;
         }
-
         public void Apply(in BasisMediaPipeResult result, in MediaPipeTiming timing)
         {
             BasisLocalHandDriver driver = BasisLocalPlayer.Instance.LocalHandDriver;
             // Fingers only ever need the carry pass: the curl target is a plain function of the held landmarks,
             // so approaching it every rendered frame already turns the camera's steps into continuous motion.
-            float alpha = BasisFilterMath.Alpha(
-                Mathf.Min(Mathf.Lerp(CutoffResponsive, CutoffSmooth, Mathf.Clamp01(FingerSmoothing)), timing.CarryCutoff),
-                timing.RenderDelta);
-
+            float alpha = BasisFilterMath.Alpha(Mathf.Min(Mathf.Lerp(CutoffResponsive, CutoffSmooth, Mathf.Clamp01(FingerSmoothing)), timing.CarryCutoff), timing.RenderDelta);
             Vector3[] left = Fingers(result.LeftHandWorldLandmarks, result.LeftHandLandmarks);
             if (result.HasLeftHand && left != null)
             {
@@ -139,13 +106,11 @@ namespace Basis.MediaPipe
                 ApplyHand(right, driver.RightHand, false, alpha);
             }
         }
-
         private static Vector3[] Fingers(Vector3[] world, Vector3[] image)
         {
             if (world != null && world.Length >= MediaPipeSpace.HandCount) return world;
             return image != null && image.Length >= MediaPipeSpace.HandCount ? image : null;
         }
-
         private void ApplyHand(Vector3[] lm, BasisFingerPose pose, bool isLeft, float t)
         {
             pose.ThumbPercentage = Vector2.Lerp(pose.ThumbPercentage, new Vector2(Curl(lm, 1, 2, 3, 4, ThumbMaxAngle), Splay(lm, 2, 3, 5, 6, isLeft)), t);
@@ -154,24 +119,17 @@ namespace Basis.MediaPipe
             pose.RingPercentage = Vector2.Lerp(pose.RingPercentage, new Vector2(Curl(lm, 13, 14, 15, 16, FingerMaxAngle), Splay(lm, 13, 14, 9, 10, isLeft)), t);
             pose.LittlePercentage = Vector2.Lerp(pose.LittlePercentage, new Vector2(Curl(lm, 17, 18, 19, 20, FingerMaxAngle), Splay(lm, 17, 18, 13, 14, isLeft)), t);
         }
-
         private float Curl(Vector3[] lm, int a, int b, int c, int d, float maxAngle)
         {
-            Vector3 s1 = lm[b] - lm[a];
-            Vector3 s2 = lm[c] - lm[b];
-            Vector3 s3 = lm[d] - lm[c];
+            Vector3 s1 = lm[b] - lm[a], s2 = lm[c] - lm[b], s3 = lm[d] - lm[c];
             float angle = Vector3.Angle(s1, s2) + Vector3.Angle(s2, s3);
             float curl01 = Mathf.Clamp01(angle / maxAngle * CurlGain);
             return 1f - curl01 * 2f;
         }
-
         private float Splay(Vector3[] lm, int baseMcp, int basePip, int refMcp, int refPip, bool isLeft)
         {
-            Vector3 dir = lm[basePip] - lm[baseMcp];
-            Vector3 refDir = lm[refPip] - lm[refMcp];
-            Vector3 palmNormal = Vector3.Cross(
-                lm[MediaPipeSpace.HandIndexMcp] - lm[MediaPipeSpace.HandWrist],
-                lm[MediaPipeSpace.HandPinkyMcp] - lm[MediaPipeSpace.HandWrist]);
+            Vector3 dir = lm[basePip] - lm[baseMcp], refDir = lm[refPip] - lm[refMcp];
+            Vector3 palmNormal = Vector3.Cross(lm[MediaPipeSpace.HandIndexMcp] - lm[MediaPipeSpace.HandWrist], lm[MediaPipeSpace.HandPinkyMcp] - lm[MediaPipeSpace.HandWrist]);
             float signed = Vector3.SignedAngle(refDir, dir, palmNormal);
             float splay = Mathf.Clamp(signed / MaxSplayDegrees * SplayGain, -1f, 1f);
             return isLeft ? splay : -splay;

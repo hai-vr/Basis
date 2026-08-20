@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -22,8 +21,6 @@ namespace Basis.ImagePickup
         private const int VisibilityStrideBytes = sizeof(uint);
         private const float CapacityRetryDelaySeconds = 5f;
 
-        private static readonly ProfilerMarker PrepareMarker = new("Basis.ImagePickup.AnimatedImage.DepthPrepare");
-        private static readonly ProfilerMarker ReadbackMarker = new("Basis.ImagePickup.AnimatedImage.DepthReadback");
 
         private static Vector4[] _sampleUpload = Array.Empty<Vector4>();
         private static BasisAnimatedImagePlayer[] _preparedPlayers =
@@ -67,7 +64,7 @@ namespace Basis.ImagePickup
 
         internal static void PrepareFrame(List<BasisAnimatedImagePlayer> players, Camera camera, float unscaledTime)
         {
-            using var scope = PrepareMarker.Auto();
+            using var scope = BasisImagePickupMarkers.DepthPrepare.Auto();
 
             if (!CanUseDepthCamera(camera))
             {
@@ -288,7 +285,7 @@ namespace Basis.ImagePickup
 
         private static void CompleteReadback(AsyncGPUReadbackRequest request, int generation, Camera camera, int frame)
         {
-            using var scope = ReadbackMarker.Auto();
+            using var scope = BasisImagePickupMarkers.DepthReadback.Auto();
             if (!_readbackInFlight || generation != _readbackInFlightGeneration)
             {
                 return;

@@ -2,7 +2,6 @@ using System.Text;
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisLowerLegFloatTests
@@ -10,18 +9,13 @@ namespace Basis.Tests.IK
         const float Dt = 1f / 90f;
         const float Thigh = 0.42f, Shin = 0.42f;
         const float LegLen = Thigh + Shin;
-
-        static readonly Vector3 Hips = new Vector3(0f, 0.95f, 0f);
-        static readonly Vector3 Chest = new Vector3(0f, 1.25f, 0f);
-        static readonly Vector3 LeftHip = new Vector3(-0.09f, 0.90f, 0f);
-        static readonly Vector3 RightHip = new Vector3(0.09f, 0.90f, 0f);
+        static readonly Vector3 Hips = new Vector3(0f, 0.95f, 0f), Chest = new Vector3(0f, 1.25f, 0f);
+        static readonly Vector3 LeftHip = new Vector3(-0.09f, 0.90f, 0f), RightHip = new Vector3(0.09f, 0.90f, 0f);
         static readonly Quaternion HipsRot = Quaternion.identity;
-
         // Lock-step with the shipping constants.
         const float ButterflyRate = 8f;                                                    // BasisLocalRigDriver.ButterflyKneeSmoothRate
         const float TrackedMinCutoffHz = 1.5f, TrackedBeta = 0.20f, TrackedDerivHz = 1.0f; // k_TrackedKneeSwivel*
         const float MaxOpenDeg = 60f;                                                      // FBIKButterflyKneeMaxOpenDeg
-
         struct Legs
         {
             public Vector3 HintState;
@@ -29,20 +23,13 @@ namespace Basis.Tests.IK
             public BasisSwivelFilterState Swivel;
             public bool Seeded;
         }
-
         struct Frame
         {
             public Vector3 KneeRigid;    // the solve's knee, BEFORE the output One-Euro
             public Vector3 KneeFinal;    // after it — what actually renders
-            public float RawSwivelDeg;
-            public float SmoothSwivelDeg;
-            public float Conditioning;
-            public float ButterflyWeight;
-            public float ModelConfidence;
+            public float RawSwivelDeg, SmoothSwivelDeg, Conditioning, ButterflyWeight, ModelConfidence;
         }
-
-        static Frame Step(Vector3 footPos, Quaternion footRot, ref Legs s, bool butterflyOn, bool swivelSmoothing,
-                          bool trustModelBlindly = false)
+        static Frame Step(Vector3 footPos, Quaternion footRot, ref Legs s, bool butterflyOn, bool swivelSmoothing, bool trustModelBlindly = false)
         {
             Frame f = default;
 
@@ -146,9 +133,7 @@ namespace Basis.Tests.IK
 
             return f;
         }
-
-        static Frame[] Run(System.Func<int, (Vector3 pos, Quaternion rot)> footAt, int frames,
-                           bool butterflyOn, bool swivelSmoothing)
+        static Frame[] Run(System.Func<int, (Vector3 pos, Quaternion rot)> footAt, int frames, bool butterflyOn, bool swivelSmoothing)
         {
             var s = new Legs();
             (Vector3 p0, Quaternion r0) = footAt(0);
@@ -162,14 +147,11 @@ namespace Basis.Tests.IK
             }
             return track;
         }
-
         // --------------------------------------------------------------- motions
-
         const float MoveSecs = 0.45f, HoldSecs = 1.5f;
         static int Frames => Mathf.RoundToInt((MoveSecs + HoldSecs) / Dt);
         static int StopFrame => Mathf.RoundToInt(MoveSecs / Dt);
         static float T(int i) => Mathf.Clamp01(i * Dt / MoveSecs);
-
         // A REACHABLE envelope. The hips do not move in this probe, so the foot must stay inside the leg:
         // sliding a foot 30 cm sideways from a standing 0.82 m drop puts it 0.87 m from the hip, past the
         // 0.84 m leg, and the solver simply pins the leg straight -- conditioning 0, swivel meaningless, and
@@ -177,29 +159,21 @@ namespace Basis.Tests.IK
         // constant leg length, which is the same thing from the leg's point of view.
         const float StandReach = 0.95f;                       // a standing leg carries a slight knee bend
         static float LegDist => StandReach * LegLen;          // 0.80 m hip->ankle
-        static Vector3 FootAt(float outDeg, float fwdDeg) =>
-            LeftHip + (Quaternion.AngleAxis(outDeg, Vector3.forward) * Quaternion.AngleAxis(fwdDeg, Vector3.right)
-                       * Vector3.down) * LegDist;
-
+        static Vector3 FootAt(float outDeg, float fwdDeg) => LeftHip + (Quaternion.AngleAxis(outDeg, Vector3.forward) * Quaternion.AngleAxis(fwdDeg, Vector3.right) * Vector3.down) * LegDist;
         static (Vector3, Quaternion) SwingOut(int i) => (FootAt(22f * T(i), 0f), Quaternion.identity);
-
         static (Vector3, Quaternion) StepAbout(int i) => (FootAt(12f * T(i), 22f * T(i)), Quaternion.identity);
-
         static (Vector3, Quaternion) LiftKnee(int i)
         {
             float t = T(i);
             Vector3 rest = FootAt(0f, 0f);
             return (rest + (Vector3.up * 0.35f + Vector3.forward * 0.20f) * t, Quaternion.identity);
         }
-
         // --------------------------------------------------------------- the probe
-
         [Test]
         public void Abduction_DoesNotFlingTheKnee()
         {
             var s = new Legs();
             BasisSwivelFrame frame = BasisSwivelHintCore.BuildFrame(LeftHip, RightHip, Hips, Chest);
-
             float restFwd = 0f, worstFwdLoss = 0f, prevLat = float.NaN, worstReversal = 0f, minConf = 99f;
             for (int i = 0; i <= 90; i++)
             {
@@ -209,8 +183,7 @@ namespace Basis.Tests.IK
                 minConf = Mathf.Min(minConf, conf);
 
                 Vector3 rel = f.KneeFinal - LeftHip;
-                float fwd = Vector3.Dot(rel, Vector3.forward);
-                float lat = Vector3.Dot(rel, Vector3.left);
+                float fwd = Vector3.Dot(rel, Vector3.forward), lat = Vector3.Dot(rel, Vector3.left);
                 if (i == 0) restFwd = fwd;
                 worstFwdLoss = Mathf.Max(worstFwdLoss, restFwd - fwd);
                 if (!float.IsNaN(prevLat)) worstReversal = Mathf.Max(worstReversal, prevLat - lat);
@@ -221,15 +194,10 @@ namespace Basis.Tests.IK
                 "test wiring: this swing is supposed to walk the model OUT of its fitted domain "
                 + $"(worst confidence {minConf:F2}); if it no longer does, the gate proves nothing");
 
-            Assert.Less(worstFwdLoss, 0.03f,
-                $"the knee lost {worstFwdLoss * 100f:F1} cm of its FORWARD offset during a plain leg abduction "
-                + "-- it is being rotated out of the sagittal plane and flung backwards");
+            Assert.Less(worstFwdLoss, 0.03f, $"the knee lost {worstFwdLoss * 100f:F1} cm of its FORWARD offset during a plain leg abduction " + "-- it is being rotated out of the sagittal plane and flung backwards");
 
-            Assert.Less(worstReversal, 0.01f,
-                $"the knee REVERSED direction by {worstReversal * 100f:F1} cm while the foot kept swinging one way. "
-                + "A knee that backs up while the foot goes out is the 'floating' the user sees.");
+            Assert.Less(worstReversal, 0.01f, $"the knee REVERSED direction by {worstReversal * 100f:F1} cm while the foot kept swinging one way. " + "A knee that backs up while the foot goes out is the 'floating' the user sees.");
         }
-
         [Test]
         public void TrustingTheModelBlindly_Fails_SoTheGateCannotRotIntoATautology()
         {
@@ -237,29 +205,22 @@ namespace Basis.Tests.IK
             float restFwd = 0f, worstFwdLoss = 0f;
             for (int i = 0; i <= 90; i++)
             {
-                Frame f = Step(FootAt(22f * (i / 90f), 0f), Quaternion.identity, ref s,
-                               butterflyOn: true, swivelSmoothing: true, trustModelBlindly: true);
+                Frame f = Step(FootAt(22f * (i / 90f), 0f), Quaternion.identity, ref s, butterflyOn: true, swivelSmoothing: true, trustModelBlindly: true);
                 float fwd = Vector3.Dot(f.KneeFinal - LeftHip, Vector3.forward);
                 if (i == 0) restFwd = fwd;
                 worstFwdLoss = Mathf.Max(worstFwdLoss, restFwd - fwd);
             }
 
-            Assert.Greater(worstFwdLoss, 0.05f,
-                $"trusting BasisLegSwivelModel blindly is supposed to fling the knee (it lost {worstFwdLoss * 100f:F1} cm "
-                + "of forward offset); if it no longer does, the gate above is testing nothing");
+            Assert.Greater(worstFwdLoss, 0.05f, $"trusting BasisLegSwivelModel blindly is supposed to fling the knee (it lost {worstFwdLoss * 100f:F1} cm " + "of forward offset); if it no longer does, the gate above is testing nothing");
         }
-
         [Test]
         public void InsideTheFittedDomain_TheGateIsExactlyANoOp()
         {
             foreach (float conf in new[] { BasisSwivelHintCore.LegTrustHi, 0.75f, 0.85f, 0.95f, 1.0f, 1.4f })
             {
-                Assert.AreEqual(1f, BasisSwivelHintCore.LegModelTrust(conf), 1e-6f,
-                    $"a confident model (|s,c| = {conf:F2}) must be trusted completely -- anything less silently "
-                    + "re-tunes the knee everywhere the model actually works");
+                Assert.AreEqual(1f, BasisSwivelHintCore.LegModelTrust(conf), 1e-6f, $"a confident model (|s,c| = {conf:F2}) must be trusted completely -- anything less silently " + "re-tunes the knee everywhere the model actually works");
             }
-            Assert.AreEqual(0f, BasisSwivelHintCore.LegModelTrust(BasisSwivelHintCore.LegTrustLo), 1e-6f,
-                "at the floor the model has no opinion and the solve must fall back to its own bend pole");
+            Assert.AreEqual(0f, BasisSwivelHintCore.LegModelTrust(BasisSwivelHintCore.LegTrustLo), 1e-6f,"at the floor the model has no opinion and the solve must fall back to its own bend pole");
 
             // ...and it must be CONTINUOUS in between, or the pole kinks and the knee pops.
             float prev = 0f;
@@ -271,7 +232,6 @@ namespace Basis.Tests.IK
                 prev = t;
             }
         }
-
         static Frame StepNoHint(Vector3 footPos, ref Legs s)
         {
             BasisLegSolveInput li = default;
@@ -311,7 +271,6 @@ namespace Basis.Tests.IK
                 Conditioning = sr.Conditioning,
             };
         }
-
         [Test]
         public void Probe_ButterflyStillSplaysTheKnee()
         {
@@ -320,8 +279,7 @@ namespace Basis.Tests.IK
             // reads Max(0, dot) = 0, and the butterfly never engages -- which is how the first version of
             // this test managed to "prove" the feature was off.)
             Quaternion tilted = Quaternion.AngleAxis(55f, Vector3.forward);
-            Assert.Greater(Vector3.Dot(tilted * Vector3.up, -(HipsRot * Vector3.right)), 0.5f,
-                "test wiring: the foot's instep must actually lean OUTWARD or the butterfly cannot engage");
+            Assert.Greater(Vector3.Dot(tilted * Vector3.up, -(HipsRot * Vector3.right)), 0.5f,"test wiring: the foot's instep must actually lean OUTWARD or the butterfly cannot engage");
 
             Vector3 pulledIn = LeftHip + Vector3.down * 0.45f + Vector3.forward * 0.25f;   // foot pulled toward the hip
 
@@ -338,14 +296,10 @@ namespace Basis.Tests.IK
             float splayOn = Vector3.Dot(f.KneeFinal - LeftHip, outward);
             float splayOff = Vector3.Dot(off.KneeFinal - LeftHip, outward);
 
-            Debug.Log($"[BUTTERFLY] insteps rolled out 55 deg, foot pulled in:\n"
-                    + $"   butterfly weight     {f.ButterflyWeight:F2}\n"
-                    + $"   knee OUTWARD splay   {splayOn * 100f:F1} cm   (butterfly OFF: {splayOff * 100f:F1} cm)\n"
-                    + $"   delta                {(splayOn - splayOff) * 100f:F1} cm of splay attributable to butterfly");
+            Debug.Log($"[BUTTERFLY] insteps rolled out 55 deg, foot pulled in:\n" + $"   butterfly weight     {f.ButterflyWeight:F2}\n" + $"   knee OUTWARD splay   {splayOn * 100f:F1} cm   (butterfly OFF: {splayOff * 100f:F1} cm)\n" + $"   delta                {(splayOn - splayOff) * 100f:F1} cm of splay attributable to butterfly");
 
             Assert.Greater(f.ButterflyWeight, 0.5f, "butterfly did not engage on a proper butterfly pose");
-            Assert.Greater(splayOn - splayOff, 0.05f,
-                "butterfly is engaged but the knee is not actually splaying outward -- the feature is broken");
+            Assert.Greater(splayOn - splayOff, 0.05f,"butterfly is engaged but the knee is not actually splaying outward -- the feature is broken");
         }
     }
 }

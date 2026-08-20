@@ -2,16 +2,12 @@ using System;
 using Basis.IK.Motion;
 using NUnit.Framework;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisMotionAnalyzerTests
     {
-        const float k_Fs = 120f;
-        const float k_Dt = 1f / 120f;
-
+        const float fs = 120f, k_Dt = 1f / 120f;
         // ---------------------------------------------------------------- filter
-
         [Test]
         public void LowPass_HasUnityGainAtDc()
         {
@@ -24,7 +20,6 @@ namespace Basis.Tests.IK
             for (int i = 0; i < y.Length; i++)
                 Assert.AreEqual(3.7f, y[i], 1e-4f, $"DC gain is not 1 at sample {i}");
         }
-
         [Test]
         public void LowPass_IsZeroPhase()
         {
@@ -43,13 +38,9 @@ namespace Basis.Tests.IK
             float[] y = BasisMotionSignal.LowPass(x, k_Dt, 6f);
             BasisFreqResponse r = BasisMotionResponse.Sine(x, y, k_Dt, 1.5f);
 
-            Assert.AreEqual(0f, r.LagMs, 1f,
-                $"the filter shifted the signal by {r.LagMs:F2} ms -- it is not zero-phase, and every lag " +
-                "number this harness reports would be the analyser's own");
-            Assert.AreEqual(1f, r.Gain, 0.05f,
-                $"1.5 Hz is well inside a 6 Hz passband; amplitude should survive (gain {r.Gain:F3})");
+            Assert.AreEqual(0f, r.LagMs, 1f, $"the filter shifted the signal by {r.LagMs:F2} ms -- it is not zero-phase, and every lag " +"number this harness reports would be the analyser's own");
+            Assert.AreEqual(1f, r.Gain, 0.05f, $"1.5 Hz is well inside a 6 Hz passband; amplitude should survive (gain {r.Gain:F3})");
         }
-
         [Test]
         public void LowPass_LeavesNoEdgeTransient_OnASignalWithAStrongTrend()
         {
@@ -69,19 +60,13 @@ namespace Basis.Tests.IK
             for (int i = 0; i < x.Length; i++) res[i] = x[i] - y[i];
 
             int edge = x.Length * 8 / 100;
-            float edgeRms = Mathf.Max(
-                BasisMotionSignal.Rms(res, 0, edge),
-                BasisMotionSignal.Rms(res, x.Length - edge, x.Length));
+            float edgeRms = Mathf.Max(BasisMotionSignal.Rms(res, 0, edge), BasisMotionSignal.Rms(res, x.Length - edge, x.Length));
             float midRms = BasisMotionSignal.Rms(res, edge, x.Length - edge);
 
             Assert.Less(edgeRms, 0.01f, $"edge transient: {edgeRms:F5} -- the padding is not absorbing it");
-            Assert.Less(edgeRms, 20f * Mathf.Max(midRms, 1e-6f),
-                $"edge RMS {edgeRms:F5} dwarfs middle RMS {midRms:F5}; any metric taken over the whole " +
-                "window is measuring the filter's startup, not the motion");
+            Assert.Less(edgeRms, 20f * Mathf.Max(midRms, 1e-6f), $"edge RMS {edgeRms:F5} dwarfs middle RMS {midRms:F5}; any metric taken over the whole " +"window is measuring the filter's startup, not the motion");
         }
-
         // ---------------------------------------------------------------- derivatives
-
         [Test]
         public void Derivative_OfAKnownQuadratic_IsExactInTheInterior()
         {
@@ -98,9 +83,7 @@ namespace Basis.Tests.IK
             for (int i = 1; i < p.Length - 1; i++)
                 Assert.AreEqual(10f * i * k_Dt, v[i].x, 1e-3f, $"velocity wrong at {i}");
         }
-
         // ---------------------------------------------------------------- FFT
-
         [Test]
         public void Fft_MatchesANaiveDft()
         {
@@ -126,9 +109,7 @@ namespace Basis.Tests.IK
                 Assert.AreEqual(di, im[k], 1e-3, $"FFT imag part differs from DFT at bin {k}");
             }
         }
-
         // ---------------------------------------------------------------- SPARC
-
         [Test]
         public void Sparc_OnAMinimumJerkReach_MatchesTheLiteratureValue()
         {
@@ -138,12 +119,9 @@ namespace Basis.Tests.IK
             // harness is calibrated relative to it.
             Vector3[] p = BasisMotionSignal.MinJerk(Vector3.zero, new Vector3(0.4f, 0.1f, 0f), 120);
             float[] speed = BasisMotionSignal.Magnitude(BasisMotionSignal.Derivative(p, k_Dt));
-
             float sparc = BasisMotionSpectrum.Sparc(speed, k_Dt);
-            Assert.AreEqual(-1.4f, sparc, 0.15f,
-                $"SPARC of a min-jerk reach is {sparc:F3}, literature says ~-1.4. The metric is wrong.");
+            Assert.AreEqual(-1.4f, sparc, 0.15f, $"SPARC of a min-jerk reach is {sparc:F3}, literature says ~-1.4. The metric is wrong.");
         }
-
         [Test]
         public void Sparc_RanksAJitteredReachWorseThanACleanOne()
         {
@@ -151,18 +129,13 @@ namespace Basis.Tests.IK
             var noisy = new Vector3[clean.Length];
             var rng = new System.Random(7);
             for (int i = 0; i < clean.Length; i++)
-                noisy[i] = clean[i] + new Vector3(
-                    (float)(rng.NextDouble() - 0.5) * 0.004f,
-                    (float)(rng.NextDouble() - 0.5) * 0.004f,
-                    (float)(rng.NextDouble() - 0.5) * 0.004f);
+                noisy[i] = clean[i] + new Vector3((float)(rng.NextDouble() - 0.5) * 0.004f, (float)(rng.NextDouble() - 0.5) * 0.004f, (float)(rng.NextDouble() - 0.5) * 0.004f);
 
             float a = BasisMotionSpectrum.Sparc(BasisMotionSignal.Magnitude(BasisMotionSignal.Derivative(clean, k_Dt)), k_Dt);
             float b = BasisMotionSpectrum.Sparc(BasisMotionSignal.Magnitude(BasisMotionSignal.Derivative(noisy, k_Dt)), k_Dt);
             Assert.Less(b, a, $"SPARC did not rank the jittered reach ({b:F3}) as worse than the clean one ({a:F3})");
         }
-
         // ---------------------------------------------------------------- the two-sided lesson
-
         [Test]
         public void Jerk_IsAFloorNotACeiling_BecauseOverSmoothingCollapsesIt()
         {
@@ -180,13 +153,9 @@ namespace Basis.Tests.IK
             var h = BasisMotionQuality.Analyze(human, 0.6f, k_Dt, "human");
             var m = BasisMotionQuality.Analyze(mush, 0.6f, k_Dt, "over-smoothed");
 
-            Assert.Less(m.JerkPerLimb, h.JerkPerLimb * 0.5f,
-                $"over-smoothing should collapse jerk far below the source ({m.JerkPerLimb:F0} vs {h.JerkPerLimb:F0})");
-            Assert.Greater(m.Sparc, h.Sparc,
-                $"over-smoothed motion should score BETTER on SPARC ({m.Sparc:F2} vs {h.Sparc:F2}) -- that is " +
-                "precisely why SPARC alone cannot be trusted as a naturalness gate");
+            Assert.Less(m.JerkPerLimb, h.JerkPerLimb * 0.5f, $"over-smoothing should collapse jerk far below the source ({m.JerkPerLimb:F0} vs {h.JerkPerLimb:F0})");
+            Assert.Greater(m.Sparc, h.Sparc, $"over-smoothed motion should score BETTER on SPARC ({m.Sparc:F2} vs {h.Sparc:F2}) -- that is " +"precisely why SPARC alone cannot be trusted as a naturalness gate");
         }
-
         [Test]
         public void ShapeDistance_CatchesOverSmoothing_WhichEverySmoothnessMetricRewards()
         {
@@ -194,27 +163,19 @@ namespace Basis.Tests.IK
             // DISTRIBUTION of energy across frequency even though it is "smoother", and spectral shape
             // distance sees that. Jitter, which smoothness metrics DO catch, barely moves it -- the two
             // metrics are sensitive to opposite failures, which is exactly the point of carrying both.
-            Vector3[] human = SyntheticReachSequence(600, seed: 4);
-            Vector3[] mush = OneFilter(human, 0.15f, k_Dt);
+            Vector3[] human = SyntheticReachSequence(600, seed: 4), mush = OneFilter(human, 0.15f, k_Dt);
 
             var rng = new System.Random(11);
             var buzzy = new Vector3[human.Length];
             for (int i = 0; i < human.Length; i++)
-                buzzy[i] = human[i] + new Vector3(
-                    (float)(rng.NextDouble() - 0.5) * 0.003f,
-                    (float)(rng.NextDouble() - 0.5) * 0.003f,
-                    (float)(rng.NextDouble() - 0.5) * 0.003f);
+                buzzy[i] = human[i] + new Vector3((float)(rng.NextDouble() - 0.5) * 0.003f, (float)(rng.NextDouble() - 0.5) * 0.003f, (float)(rng.NextDouble() - 0.5) * 0.003f);
 
             var mushS = BasisMotionQuality.Analyze(mush, 0.6f, k_Dt, "mush", reference: human);
             var buzzS = BasisMotionQuality.Analyze(buzzy, 0.6f, k_Dt, "buzz", reference: human);
 
-            Assert.Greater(mushS.ShapeDistance, 3f * buzzS.ShapeDistance,
-                $"shape distance should react far more strongly to over-smoothing ({mushS.ShapeDistance:F3}) " +
-                $"than to added jitter ({buzzS.ShapeDistance:F3}) -- it is the anti-mush metric");
-            Assert.Greater(buzzS.JitterFracLimb, mushS.JitterFracLimb,
-                "and the jitter metric must react the other way round, or the two are measuring the same thing");
+            Assert.Greater(mushS.ShapeDistance, 3f * buzzS.ShapeDistance, $"shape distance should react far more strongly to over-smoothing ({mushS.ShapeDistance:F3}) " + $"than to added jitter ({buzzS.ShapeDistance:F3}) -- it is the anti-mush metric");
+            Assert.Greater(buzzS.JitterFracLimb, mushS.JitterFracLimb,"and the jitter metric must react the other way round, or the two are measuring the same thing");
         }
-
         [Test]
         public void PopStats_FindsASingleFrameTeleport_AndIgnoresSmoothMotion()
         {
@@ -228,9 +189,7 @@ namespace Basis.Tests.IK
             Assert.GreaterOrEqual(s2.Pops, 1, "an 8 cm single-frame teleport must register as a pop");
             Assert.AreEqual(119, s2.WorstPopFrame, 2, "and it must report WHERE");
         }
-
         // ---------------------------------------------------------------- response
-
         [Test]
         public void Step_OfAKnownExponential_RecoversItsTimeConstant()
         {
@@ -249,7 +208,6 @@ namespace Basis.Tests.IK
             Assert.AreEqual(1000f / rate, r.T63Ms, 3f, $"t63 should be 1/rate = {1000f / rate:F1} ms, got {r.T63Ms:F1}");
             Assert.AreEqual(0f, r.OvershootPct, 0.01f, "a first-order blend cannot overshoot");
         }
-
         [Test]
         public void Sine_RecoversTheAnalyticLagOfAOnePoleFilter()
         {
@@ -270,32 +228,25 @@ namespace Basis.Tests.IK
             }
 
             BasisFreqResponse r = BasisMotionResponse.Sine(inp, outp, k_Dt, hz);
-
-            double w = 2 * Math.PI * hz * k_Dt;
-            double phase = -Math.Atan2((1 - a) * Math.Sin(w), 1 - (1 - a) * Math.Cos(w));
+            double w = 2 * Math.PI * hz * k_Dt, phase = -Math.Atan2((1 - a) * Math.Sin(w), 1 - (1 - a) * Math.Cos(w));
             float expectedLagMs = (float)(-phase / (2 * Math.PI * hz) * 1000.0);
             double expectedGain = a / Math.Sqrt(1 + (1 - a) * (1 - a) - 2 * (1 - a) * Math.Cos(w));
 
             Assert.AreEqual(expectedLagMs, r.LagMs, 2f, $"lag should be {expectedLagMs:F1} ms, got {r.LagMs:F1}");
             Assert.AreEqual(expectedGain, r.Gain, 0.02, $"gain should be {expectedGain:F3}, got {r.Gain:F3}");
         }
-
         // ---------------------------------------------------------------- framerate invariance
-
         [Test]
         public void Invariance_PassesTheExponentialForm()
         {
             // The GUARDRAIL. This is the form the codebase's correct blends use, and if the invariance
             // gate ever fails it, the gate is broken and will be muted -- which is how a good test dies.
-            BasisInvarianceResult r = BasisMotionResponse.Invariance(
-                (dt, frames) => Chase(dt, frames, BasisMotionResponse.ExpAlpha(40f, dt)), 0.6f, "exp(40)");
+            BasisInvarianceResult r = BasisMotionResponse.Invariance((dt, frames) => Chase(dt, frames, BasisMotionResponse.ExpAlpha(40f, dt)), 0.6f, "exp(40)");
 
             Assert.IsTrue(r.Ok, r.Error);
-            Assert.Less(r.WorstDeviation, BasisMotionResponse.MaxFramerateDeviation,
-                $"1 - exp(-rate*dt) IS framerate-independent; the gate must not flag it. {r}");
+            Assert.Less(r.WorstDeviation, BasisMotionResponse.MaxFramerateDeviation, $"1 - exp(-rate*dt) IS framerate-independent; the gate must not flag it. {r}");
             Assert.Less(r.T63SpreadMs, 3f, $"and its time constant must be the same on every headset. {r}");
         }
-
         [Test]
         public void Invariance_PassesMoveTowards()
         {
@@ -313,10 +264,8 @@ namespace Basis.Tests.IK
             }, 0.6f, "MoveTowards(20)");
 
             Assert.IsTrue(r.Ok, r.Error);
-            Assert.Less(r.WorstDeviation, BasisMotionResponse.MaxFramerateDeviation,
-                $"MoveTowards is framerate-independent; the gate must not flag it. {r}");
+            Assert.Less(r.WorstDeviation, BasisMotionResponse.MaxFramerateDeviation, $"MoveTowards is framerate-independent; the gate must not flag it. {r}");
         }
-
         [Test]
         public void Invariance_FailsTheSaturateForm_SoTheGateCannotRotIntoATautology()
         {
@@ -325,14 +274,11 @@ namespace Basis.Tests.IK
             //
             // saturate(dt * speed) is the form that shipped in BasisLocalVirtualSpineDriver. Its time
             // constant is a function of the user's GPU, and above dt*speed = 1 it stops blending at all.
-            BasisInvarianceResult r = BasisMotionResponse.Invariance(
-                (dt, frames) => Chase(dt, frames, BasisMotionResponse.LegacySaturateAlpha(40f, dt)), 0.6f, "saturate(40)");
+            BasisInvarianceResult r = BasisMotionResponse.Invariance((dt, frames) => Chase(dt, frames, BasisMotionResponse.LegacySaturateAlpha(40f, dt)), 0.6f, "saturate(40)");
 
             Assert.IsTrue(r.Ok, r.Error);
-            Assert.Greater(r.WorstDeviation, BasisMotionResponse.MaxFramerateDeviation * 2f,
-                $"the gate FAILED TO CATCH the framerate-dependent form. It is no longer measuring anything. {r}");
+            Assert.Greater(r.WorstDeviation, BasisMotionResponse.MaxFramerateDeviation * 2f, $"the gate FAILED TO CATCH the framerate-dependent form. It is no longer measuring anything. {r}");
         }
-
         [Test]
         public void SaturateForm_GetsLAGGIER_AsFramerateRises()
         {
@@ -357,13 +303,9 @@ namespace Basis.Tests.IK
             }
 
             float lag72 = Lag(72), lag144 = Lag(144);
-            Assert.Greater(lag144, lag72 * 1.3f,
-                $"saturate(dt*speed) must get LAGGIER at higher framerate (72Hz:{lag72:F1}ms 144Hz:{lag144:F1}ms) -- " +
-                "if this stops being true the legacy form has been silently corrected somewhere");
+            Assert.Greater(lag144, lag72 * 1.3f, $"saturate(dt*speed) must get LAGGIER at higher framerate (72Hz:{lag72:F1}ms 144Hz:{lag144:F1}ms) -- " +"if this stops being true the legacy form has been silently corrected somewhere");
         }
-
         // ---------------------------------------------------------------- helpers
-
         static float[] Chase(float dt, int frames, float alpha)
         {
             var y = new float[frames];
@@ -371,7 +313,6 @@ namespace Basis.Tests.IK
             for (int i = 0; i < frames; i++) { x += alpha * (1f - x); y[i] = x; }
             return y;
         }
-
         static Vector3[] OneFilter(Vector3[] p, float tauSeconds, float dt)
         {
             float a = 1f - Mathf.Exp(-dt / tauSeconds);
@@ -380,7 +321,6 @@ namespace Basis.Tests.IK
             for (int i = 1; i < p.Length; i++) o[i] = o[i - 1] + a * (p[i] - o[i - 1]);
             return o;
         }
-
         static Vector3[] SyntheticReachSequence(int frames, int seed)
         {
             var rng = new System.Random(seed);
@@ -390,10 +330,7 @@ namespace Basis.Tests.IK
             while (i < frames)
             {
                 int len = Mathf.Min(frames - i, 50 + rng.Next(70));
-                var next = new Vector3(
-                    (float)(rng.NextDouble() - 0.5) * 0.5f,
-                    (float)(rng.NextDouble() - 0.5) * 0.4f,
-                    (float)(rng.NextDouble() - 0.5) * 0.5f);
+                var next = new Vector3((float)(rng.NextDouble() - 0.5) * 0.5f, (float)(rng.NextDouble() - 0.5) * 0.4f, (float)(rng.NextDouble() - 0.5) * 0.5f);
                 Vector3[] seg = BasisMotionSignal.MinJerk(cur, next, len);
                 Array.Copy(seg, 0, p, i, len);
                 cur = next;

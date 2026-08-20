@@ -283,8 +283,6 @@ namespace Basis.Scripts.Device_Management
             }
             BasisRemoteNamePlateDriver.Dispose();
         }
-        static readonly Unity.Profiling.ProfilerMarker sMarkerLoop = new Unity.Profiling.ProfilerMarker("BasisDriver.DeviceManagement.Loop");
-        static readonly Unity.Profiling.ProfilerMarker sMarkerBaseTypes = new Unity.Profiling.ProfilerMarker("BasisDriver.DeviceManagement.BaseTypes");
         /// <summary>
         /// Starts asynchronous per-frame device work (e.g. the SteamVR input update on a worker
         /// thread). Called by the driver earlier in LateUpdate than <see cref="Simulate"/>, which
@@ -300,11 +298,11 @@ namespace Basis.Scripts.Device_Management
         }
         public void Simulate()
         {
-            using (sMarkerLoop.Auto())
+            using (BasisDeviceMarkers.Loop.Auto())
             {
                 OnDeviceManagementLoop?.Invoke();
             }
-            using (sMarkerBaseTypes.Auto())
+            using (BasisDeviceMarkers.BaseTypes.Auto())
             {
                 int Count = BaseTypes.Length;
                 for (int Index = 0; Index < Count; Index++)

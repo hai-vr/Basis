@@ -14,7 +14,6 @@ using GatorDragonGames.JigglePhysics;
 using System;
 using System.Collections;
 using System.Threading.Tasks;
-using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using static Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys;
@@ -22,14 +21,6 @@ using static BasisHeightDriver;
 
 namespace Basis.Scripts.BasisSdk.Players
 {
-    public enum BasisTeleportMode
-    {
-        WorldRoot = 0,
-        WorldFeet = 1,
-        FacePoint = 2,
-        ToPlayer = 3,
-    }
-
     public class BasisLocalPlayer : BasisPlayer, IBasisLocalPlayer
     {
         public static BasisLocalPlayer Instance { get; private set; }
@@ -424,17 +415,6 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalVisemeDriver.ProcessAudioSamples(BasisLocalMicrophoneDriver.processBufferArray,1,BasisLocalMicrophoneDriver.processBufferArray.Length);
 #endif
         }
-        static readonly ProfilerMarker sMarkerLocoPoseSchedule = new ProfilerMarker("BasisDriver.LocalPlayer.LocoPoseSchedule");
-        static readonly ProfilerMarker sMarkerMovement = new ProfilerMarker("BasisDriver.LocalPlayer.Movement");
-        static readonly ProfilerMarker sMarkerPlayspaceMover = new ProfilerMarker("BasisDriver.LocalPlayer.PlayspaceMover");
-        static readonly ProfilerMarker sMarkerVirtualData = new ProfilerMarker("BasisDriver.LocalPlayer.VirtualData");
-        static readonly ProfilerMarker sMarkerLateSimulateBones = new ProfilerMarker("BasisDriver.LocalPlayer.LateSimulateBones");
-        static readonly ProfilerMarker sMarkerBoneDriver = new ProfilerMarker("BasisDriver.LocalPlayer.BoneDriver");
-        static readonly ProfilerMarker sMarkerVirtualSpine = new ProfilerMarker("BasisDriver.LocalPlayer.VirtualSpine");
-        static readonly ProfilerMarker sMarkerIKDestinations = new ProfilerMarker("BasisDriver.LocalPlayer.IKDestinations");
-        static readonly ProfilerMarker sMarkerAnimator = new ProfilerMarker("BasisDriver.LocalPlayer.Animator");
-        static readonly ProfilerMarker sMarkerHandDriver = new ProfilerMarker("BasisDriver.LocalPlayer.HandDriver");
-        static readonly ProfilerMarker sMarkerAfterSimulate = new ProfilerMarker("BasisDriver.LocalPlayer.AfterSimulateOnLate");
 
         public void Simulate(float DeltaTime)
         {
@@ -444,26 +424,26 @@ namespace Basis.Scripts.BasisSdk.Players
 
             // Kick the locomotion pose job first: when active it fills the IK stream on a worker
             // while everything below runs, and is joined inside SimulateIKDestinations.
-            using (sMarkerLocoPoseSchedule.Auto())
+            using (BasisLocalPlayerMarkers.LocoPoseSchedule.Auto())
             {
                 LocalRigDriver.ScheduleLocomotionPose(this, DeltaTime);
             }
 
             // now lets move the local player position.
-            using (sMarkerMovement.Auto())
+            using (BasisLocalPlayerMarkers.Movement.Auto())
             {
                 LocalCharacterDriver.SimulateMovement(DeltaTime);
             }
             BasisFiniteWatchdog.Checkpoint("LocalSim/PostCharacterMovement");
 
             // VR play space grab/drag override (no-op unless enabled and a controller input is held).
-            using (sMarkerPlayspaceMover.Auto())
+            using (BasisLocalPlayerMarkers.PlayspaceMover.Auto())
             {
                 BasisLocalPlayspaceMover.Simulate(this, DeltaTime);
             }
             BasisFiniteWatchdog.Checkpoint("LocalSim/PostPlayspaceMover");
 
-            using (sMarkerVirtualData.Auto())
+            using (BasisLocalPlayerMarkers.VirtualData.Auto())
             {
                 // Apply virtual data (e.g. seat driver) before polling input devices so that
                 // localToWorldMatrix reflects the seat-adjusted player position. This ensures
@@ -482,7 +462,7 @@ namespace Basis.Scripts.BasisSdk.Players
             }
             BasisFiniteWatchdog.Checkpoint("LocalSim/PostVirtualData (seat / flip)");
 
-            using (sMarkerLateSimulateBones.Auto())
+            using (BasisLocalPlayerMarkers.LateSimulateBones.Auto())
             {
                 OnLateSimulateBones(this);
             }
@@ -491,7 +471,7 @@ namespace Basis.Scripts.BasisSdk.Players
             // Virtual spine derives head/neck/chest/spine/hips from the freshly polled eye, and
             // runs ahead of the bone sim so the sim's follower chains (untracked legs and arms
             // hang off the hips via their targets) read this frame's hips rather than last frame's.
-            using (sMarkerVirtualSpine.Auto())
+            using (BasisLocalPlayerMarkers.VirtualSpine.Auto())
             {
                 LocalVirtualSpineDriver.Simulate();
             }
@@ -499,7 +479,7 @@ namespace Basis.Scripts.BasisSdk.Players
 
             // moves all bones to where they belong
             // This also drives head and camera movement.
-            using (sMarkerBoneDriver.Auto())
+            using (BasisLocalPlayerMarkers.BoneDriver.Auto())
             {
                 LocalBoneDriver.Simulate(DeltaTime, localToWorldMatrix);
             }
@@ -515,21 +495,21 @@ namespace Basis.Scripts.BasisSdk.Players
             }
 
             // Simulate Final Destination of IK then process Animator and IK processes.
-            using (sMarkerIKDestinations.Auto())
+            using (BasisLocalPlayerMarkers.IKDestinations.Auto())
             {
                 LocalRigDriver.SimulateIKDestinations(DeltaTime);
             }
             BasisFiniteWatchdog.Checkpoint("LocalSim/PostIKDestinations");
 
             // schedule finger slerp job (completed by Apply in BasisEventDriver)
-            using (sMarkerHandDriver.Auto())
+            using (BasisLocalPlayerMarkers.HandDriver.Auto())
             {
                 LocalHandDriver.Simulate(DeltaTime);
             }
             BasisFiniteWatchdog.Checkpoint("LocalSim/PostHandSchedule");
 
             // Apply Animator Weights using most current data and outside movement effectors.
-            using (sMarkerAnimator.Auto())
+            using (BasisLocalPlayerMarkers.Animator.Auto())
             {
                 LocalAnimatorDriver.SimulateAnimator(DeltaTime);
             }
@@ -541,7 +521,7 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalRigDriver.CompleteIKSolve();
             BasisFiniteWatchdog.Checkpoint("LocalFinish/PostIKSolveJoin");
 
-            using (sMarkerAfterSimulate.Auto())
+            using (BasisLocalPlayerMarkers.AfterSimulateOnLate.Auto())
             {
                 AfterSimulateOnLate?.Invoke();
             }

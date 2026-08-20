@@ -1,12 +1,10 @@
 using Basis.Scripts.Common;
 using UnityEngine;
-
 namespace Basis.IK
 {
     public static class BasisBodyFitApply
     {
         public const int BoneCount = 17;
-
         public static void CollectBones(BasisTransformMapping mapping, Transform[] bones)
         {
             if (mapping == null || bones == null || bones.Length < BoneCount)
@@ -34,7 +32,6 @@ namespace Basis.IK
             bones[15] = mapping.neck;
             bones[16] = mapping.head;
         }
-
         public static void CollectScales(in BasisBodyFitResult fit, float[] scales)
         {
             if (scales == null || scales.Length < BoneCount)
@@ -60,10 +57,8 @@ namespace Basis.IK
                 scales[i] = torso;
             }
         }
-
-        static readonly Transform[] s_bones = new Transform[BoneCount];
-        static readonly float[] s_scales = new float[BoneCount];
-
+        static readonly Transform[] sbones = new Transform[BoneCount];
+        static readonly float[] sscales = new float[BoneCount];
         public static void Apply(BasisPoseSkeleton skeleton, BasisTransformMapping mapping, in BasisBodyFitResult fit)
         {
             if (skeleton == null || !skeleton.IsCreated || mapping == null)
@@ -73,14 +68,14 @@ namespace Basis.IK
 
             skeleton.ResetFit();
 
-            CollectBones(mapping, s_bones);
-            CollectScales(in fit, s_scales);
+            CollectBones(mapping, sbones);
+            CollectScales(in fit, sscales);
 
             for (int i = 0; i < BoneCount; i++)
             {
-                if (s_bones[i] != null && s_scales[i] != 1f)
+                if (sbones[i] != null && sscales[i] != 1f)
                 {
-                    skeleton.SetFitScale(s_bones[i], s_scales[i]);
+                    skeleton.SetFitScale(sbones[i], sscales[i]);
                 }
             }
         }

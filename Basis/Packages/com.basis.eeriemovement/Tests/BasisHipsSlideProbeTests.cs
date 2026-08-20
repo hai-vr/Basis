@@ -4,18 +4,15 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisHipsSlideProbeTests
     {
         const int Head = 0, Neck = 1, Chest = 2, Spine = 3, Hips = 4;
         const int BoneCount = 5;
-
         const float StandingHeadY = 1.60f;
         const float StanceRadius = 0.12f * StandingHeadY;   // 19.2 cm
         const float FollowFrac = 0.25f;
-
         static float3[] RunSpine(float dt, int frames, System.Func<int, float3> headAt, bool bothFeetTracked)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
@@ -54,7 +51,6 @@ namespace Basis.Tests.IK
                 solve.Dispose();
             }
         }
-
         static BasisVirtualSpineCore.SpineSolveParams MakeParams(float dt, float3 head, bool bothFeetTracked)
         {
             return new BasisVirtualSpineCore.SpineSolveParams
@@ -127,28 +123,22 @@ namespace Basis.Tests.IK
                 HipsMaxDropMeters = 0.30f,
             };
         }
-
         static System.Func<int, float3> Ramp(float dt, float moveSecs, float dist) => i =>
         {
             float t = Mathf.Clamp01(i * dt / moveSecs);
             return new float3(0f, StandingHeadY, dist * t);
         };
-
         static (float driftM, float restMs) DriftAfterStop(float3[] hips, float dt, int stopFrame)
         {
             float3 settled = hips[hips.Length - 1];
-            float drift = math.abs(settled.z - hips[stopFrame].z);
-
-            float restMs = 0f;
+            float drift = math.abs(settled.z - hips[stopFrame].z), restMs = 0f;
             for (int i = hips.Length - 1; i >= stopFrame; i--)
             {
                 if (math.abs(hips[i].z - settled.z) > 0.002f) { restMs = (i + 1 - stopFrame) * dt * 1000f; break; }
             }
             return (drift, restMs);
         }
-
         // ------------------------------------------------------------------ the gates
-
         [Test]
         public void TheFollowLawIsContinuous_WithNoThresholdAnywhere()
         {
@@ -168,18 +158,12 @@ namespace Basis.Tests.IK
             for (int i = 1; i < moves.Length; i++)
             {
                 float jump = Mathf.Abs(carried[i] - carried[i - 1]);
-                Assert.Less(jump, 0.10f,
-                    $"the pelvis carried {carried[i - 1] * 100f:F0}% of a {moves[i - 1] * 100f:F0} cm move but "
-                    + $"{carried[i] * 100f:F0}% of a {moves[i] * 100f:F0} cm one -- a {jump * 100f:F0} point step for "
-                    + "2 cm more travel. That cliff is a mode switch, and it is what reads as stop-start.");
+                Assert.Less(jump, 0.10f, $"the pelvis carried {carried[i - 1] * 100f:F0}% of a {moves[i - 1] * 100f:F0} cm move but " + $"{carried[i] * 100f:F0}% of a {moves[i] * 100f:F0} cm one -- a {jump * 100f:F0} point step for " + "2 cm more travel. That cliff is a mode switch, and it is what reads as stop-start.");
             }
 
             for (int i = 0; i < moves.Length; i++)
             {
-                Assert.Greater(carried[i], 0.85f,
-                    $"the pelvis carried only {carried[i] * 100f:F0}% of a {moves[i] * 100f:F0} cm move -- smooth, but "
-                    + "smoothly not following. This assert is what stops the continuity gate above from being "
-                    + "satisfied by a pelvis that simply never moves.");
+                Assert.Greater(carried[i], 0.85f, $"the pelvis carried only {carried[i] * 100f:F0}% of a {moves[i] * 100f:F0} cm move -- smooth, but " + "smoothly not following. This assert is what stops the continuity gate above from being " + "satisfied by a pelvis that simply never moves.");
             }
 
             // PAIRED NEGATIVE: the latch form, reproduced inline. Nothing at all happens inside the radius, then
@@ -191,8 +175,7 @@ namespace Basis.Tests.IK
                 bool stepping = false;
                 for (int f = 0; f < frames; f++)
                 {
-                    float head = Mathf.Clamp01(f * dt / moveSecs) * moves[i];
-                    float d = Mathf.Abs(head - b);
+                    float head = Mathf.Clamp01(f * dt / moveSecs) * moves[i], d = Mathf.Abs(head - b);
                     if (!stepping) { if (d > StanceRadius) stepping = true; }
                     else if (d < StanceRadius * 0.15f) stepping = false;
                     b = Mathf.Lerp(b, head, 1f - Mathf.Exp(-(stepping ? 200f : 0.35f) * dt));
@@ -204,11 +187,8 @@ namespace Basis.Tests.IK
             {
                 worstLatchJump = Mathf.Max(worstLatchJump, Mathf.Abs(latch[i] - latch[i - 1]));
             }
-            Assert.Greater(worstLatchJump, 0.30f,
-                $"the latch form is supposed to have a cliff at the stance radius (its worst step was "
-                + $"{worstLatchJump * 100f:F0} points) -- if it no longer does, this gate is testing nothing");
+            Assert.Greater(worstLatchJump, 0.30f, $"the latch form is supposed to have a cliff at the stance radius (its worst step was " + $"{worstLatchJump * 100f:F0} points) -- if it no longer does, this gate is testing nothing");
         }
-
         [Test]
         public void TheBaseIsSoftWhenItIsAlreadyUnderTheHead_NotASnap()
         {
@@ -218,32 +198,22 @@ namespace Basis.Tests.IK
 
             // A 1 cm step input, held. Nothing ramps -- this is the impulse response.
             float3[] hips = RunSpine(dt, frames, i => new float3(0f, StandingHeadY, i == 0 ? 0f : nudge), false);
-
             float afterOneFrame = (hips[1].z - hips[0].z) / nudge;
-            Assert.Less(afterOneFrame, 0.5f,
-                $"the pelvis took {afterOneFrame * 100f:F0}% of a 1 cm head nudge in a single frame. The support "
-                + "base is being welded to the head, so tracker noise goes straight into the pelvis.");
+            Assert.Less(afterOneFrame, 0.5f, $"the pelvis took {afterOneFrame * 100f:F0}% of a 1 cm head nudge in a single frame. The support " + "base is being welded to the head, so tracker noise goes straight into the pelvis.");
 
             float afterASecond = (hips[frames - 1].z - hips[0].z) / nudge;
-            Assert.Greater(afterASecond, 0.9f,
-                $"the pelvis only reached {afterASecond * 100f:F0}% of a 1 cm nudge after a second -- soft has "
-                + "become stuck, which is the dead zone this law exists to remove.");
+            Assert.Greater(afterASecond, 0.9f, $"the pelvis only reached {afterASecond * 100f:F0}% of a 1 cm nudge after a second -- soft has " + "become stuck, which is the dead zone this law exists to remove.");
         }
-
         [Test]
         public void AWalk_KeepsThePelvisUnderTheWalker_NotTrailingBehindIt()
         {
             const int fps = 90;
             const float dt = 1f / fps, speed = 1.2f, secs = 3f;
             int frames = Mathf.RoundToInt(secs * fps);
-
             float3[] hips = RunSpine(dt, frames, i => new float3(0f, StandingHeadY, speed * i * dt), false);
-            float headEnd = speed * (frames - 1) * dt;
-            float lag = headEnd - (hips[frames - 1].z - hips[0].z);
+            float headEnd = speed * (frames - 1) * dt, lag = headEnd - (hips[frames - 1].z - hips[0].z);
 
-            Assert.Less(lag, 0.06f,
-                $"the pelvis trailed {lag * 100f:F1} cm behind a {speed:F1} m/s walk. The support base is not "
-                + "keeping up, so the body is permanently behind the player while they move.");
+            Assert.Less(lag, 0.06f, $"the pelvis trailed {lag * 100f:F1} cm behind a {speed:F1} m/s walk. The support base is not " + "keeping up, so the body is permanently behind the player while they move.");
 
             // PAIRED NEGATIVE: the deadband law, reproduced inline. Its base stalls at head - radius and stays
             // there for the whole walk. Never call this from shipping code -- it is the bug.
@@ -255,18 +225,14 @@ namespace Basis.Tests.IK
                 baseline = Mathf.Lerp(baseline, head, 1f - Mathf.Exp(-200f * over * over * dt));
             }
             float oldLag = headEnd - Mathf.Lerp(baseline, headEnd, FollowFrac);
-            Assert.Greater(oldLag, 0.10f,
-                $"the deadband law is supposed to trail the walker badly (it trailed {oldLag * 100f:F1} cm) -- if it "
-                + "no longer does, this gate is testing nothing");
+            Assert.Greater(oldLag, 0.10f, $"the deadband law is supposed to trail the walker badly (it trailed {oldLag * 100f:F1} cm) -- if it " + "no longer does, this gate is testing nothing");
         }
-
         [Test]
         public void AStep_MovesTheSupportBase_ButStillSettlesPromptly()
         {
             const int fps = 90;
             const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 2.0f, step = 0.30f;
-            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
-            int stopFrame = Mathf.RoundToInt(moveSecs * fps);
+            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps), stopFrame = Mathf.RoundToInt(moveSecs * fps);
 
             Assert.Greater(step, StanceRadius, "sanity: this test is only meaningful if the step is OUTSIDE the radius");
 
@@ -275,14 +241,11 @@ namespace Basis.Tests.IK
 
             // The base DID follow — the pelvis ended up well past the pure-counterbalance answer.
             float moved = hips[frames - 1].z - hips[0].z;
-            Assert.Greater(moved, FollowFrac * step,
-                $"the pelvis only moved {moved * 100f:F2} cm on a {step * 100f:F0} cm step -- the support base is "
-                + "NOT following, so a user who walks would be left behind their own legs");
+            Assert.Greater(moved, FollowFrac * step, $"the pelvis only moved {moved * 100f:F2} cm on a {step * 100f:F0} cm step -- the support base is " + "NOT following, so a user who walks would be left behind their own legs");
 
             Assert.Less(drift, 0.025f, $"the pelvis drifted {drift * 100f:F2} cm after the head stopped");
             Assert.Less(restMs, 300f, $"the pelvis took {restMs:F0} ms to settle after the head stopped");
         }
-
         [Test]
         public void TrackerJitter_DoesNotRatchetTheSupportBaseOutward()
         {
@@ -302,39 +265,29 @@ namespace Basis.Tests.IK
 
             float creep = math.abs(hips[frames - 1].z - hips[fps].z);   // drift over the last 9 s
 
-            Assert.Less(creep, 0.01f,
-                $"the support base is ratcheting outward under tracker jitter -- the pelvis crept "
-                + $"{creep * 100f:F2} cm in {seconds} s of standing still. The squared-exceedance pull exists "
-                + "precisely to make this impossible.");
+            Assert.Less(creep, 0.01f, $"the support base is ratcheting outward under tracker jitter -- the pelvis crept " + $"{creep * 100f:F2} cm in {seconds} s of standing still. The squared-exceedance pull exists " + "precisely to make this impossible.");
         }
-
         [Test]
         public void WithBothFeetTracked_ThePelvisStillHasNoDriftAtAll()
         {
             const int fps = 90;
             const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 2.0f;
-            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
-            int stopFrame = Mathf.RoundToInt(moveSecs * fps);
+            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps), stopFrame = Mathf.RoundToInt(moveSecs * fps);
 
             foreach (float dist in new[] { 0.15f, 0.30f })
             {
                 (float drift, _) = DriftAfterStop(RunSpine(dt, frames, Ramp(dt, moveSecs, dist), true), dt, stopFrame);
-                Assert.Less(drift, 0.002f,
-                    $"the both-feet-tracked path drifted {drift * 100f:F2} cm on a {dist * 100f:F0} cm move. That "
-                    + "path reads the feet midpoint directly and must remain exact.");
+                Assert.Less(drift, 0.002f, $"the both-feet-tracked path drifted {drift * 100f:F2} cm on a {dist * 100f:F0} cm move. That " + "path reads the feet midpoint directly and must remain exact.");
             }
         }
-
         [Test]
         public void ALateralShift_TheHipsCarryMostOfIt_NotTheSagittalCounterbalance()
         {
             const int fps = 90;
             const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 1.0f, shift = 0.15f;
-            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
-            int stopFrame = Mathf.RoundToInt(moveSecs * fps);
+            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps), stopFrame = Mathf.RoundToInt(moveSecs * fps);
 
-            Assert.Less(shift, StanceRadius, "sanity: the shift is smaller than the stance radius, so under any of "
-                + "the switch-based laws this was the case that got left behind");
+            Assert.Less(shift, StanceRadius, "sanity: the shift is smaller than the stance radius, so under any of " + "the switch-based laws this was the case that got left behind");
 
             // Eye rotation is identity in MakeParams, so the torso faces +Z and +X is pure lateral.
             float3[] latHips = RunSpine(dt, frames, i =>
@@ -345,21 +298,15 @@ namespace Basis.Tests.IK
 
             float movedX = latHips[stopFrame].x - latHips[0].x;
 
-            Assert.Greater(movedX, 0.6f * shift,
-                $"the hips carried only {movedX * 100f:F2} cm of a {shift * 100f:F0} cm sideways shift -- a weight "
-                + "shift must keep the pelvis under the head, not lag it the way a forward bend does.");
-            Assert.Less(movedX, 1.05f * shift,
-                $"the hips moved {movedX * 100f:F2} cm on a {shift * 100f:F0} cm shift -- they must not overshoot the head.");
+            Assert.Greater(movedX, 0.6f * shift, $"the hips carried only {movedX * 100f:F2} cm of a {shift * 100f:F0} cm sideways shift -- a weight " + "shift must keep the pelvis under the head, not lag it the way a forward bend does.");
+            Assert.Less(movedX, 1.05f * shift, $"the hips moved {movedX * 100f:F2} cm on a {shift * 100f:F0} cm shift -- they must not overshoot the head.");
 
             // (b) PAIRED NEGATIVE: the shipped-before law followed BOTH axes at CounterbalanceFollowFrac, so on
             // this shift it carried only ~3.75 cm. Reproduced ONLY so this negative can bite; never call from
             // shipping code. If the job ever regresses to it, movedX collapses toward this and (a) fires.
             float oldIsotropic = FollowFrac * shift;
-            Assert.Greater(movedX, oldIsotropic + 0.04f,
-                $"the shipped hips ({movedX * 100f:F2} cm) are no better than the old isotropic 0.25 follow "
-                + $"({oldIsotropic * 100f:F2} cm) -- the anisotropic lateral follow is not in effect.");
+            Assert.Greater(movedX, oldIsotropic + 0.04f, $"the shipped hips ({movedX * 100f:F2} cm) are no better than the old isotropic 0.25 follow " + $"({oldIsotropic * 100f:F2} cm) -- the anisotropic lateral follow is not in effect.");
         }
-
         [Test]
         public void AStep_LandsTheSupportBaseUnderTheWalker_NotAStanceRadiusShort()
         {
@@ -372,10 +319,7 @@ namespace Basis.Tests.IK
             float3[] hips = RunSpine(dt, frames, Ramp(dt, moveSecs, step), false);
             float carried = hips[frames - 1].z - hips[0].z;
 
-            Assert.Greater(carried, 0.95f * step,
-                $"the pelvis carried {carried * 100f:F2} cm of a {step * 100f:F0} cm step -- it must end up under the "
-                + "walker. A base that stops at the detection threshold leaves the pelvis (and the legs hanging off "
-                + "it) a stance radius behind, permanently.");
+            Assert.Greater(carried, 0.95f * step, $"the pelvis carried {carried * 100f:F2} cm of a {step * 100f:F0} cm step -- it must end up under the " + "walker. A base that stops at the detection threshold leaves the pelvis (and the legs hanging off " + "it) a stance radius behind, permanently.");
 
             // PAIRED NEGATIVE: the deadband pull, reproduced inline. It stalls at head - radius, so it carries
             // only baseline + FollowFrac*radius. Never call this from shipping code -- it is the bug.
@@ -387,37 +331,28 @@ namespace Basis.Tests.IK
                 baseline = Mathf.Lerp(baseline, headZ, 1f - Mathf.Exp(-200f * over * over * dt));
             }
             float oldCarried = Mathf.Lerp(baseline, step, FollowFrac);
-            Assert.Less(oldCarried, 0.85f * step,
-                $"the deadband pull is supposed to stall short of the walker (it carried {oldCarried * 100f:F2} cm of "
-                + $"{step * 100f:F0} cm) -- if it no longer does, this gate is testing nothing");
+            Assert.Less(oldCarried, 0.85f * step, $"the deadband pull is supposed to stall short of the walker (it carried {oldCarried * 100f:F2} cm of " + $"{step * 100f:F0} cm) -- if it no longer does, this gate is testing nothing");
         }
-
         [Test]
         public void APersistentHeightOffset_DoesNotInflateTheStanceRadius()
         {
             const int fps = 90;
             const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 0.5f;
             const float seatedHeadY = StandingHeadY - 0.45f;
-            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
-            int stopFrame = Mathf.RoundToInt(moveSecs * fps);
+            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps), stopFrame = Mathf.RoundToInt(moveSecs * fps);
 
             // (a) A 25 cm move is OUTSIDE the true 19.2 cm radius, so it is a step and must be carried. With the
             //     T-pose-referenced radius (50.7 cm) it fell inside, and the pelvis carried only ~7.5 cm of it.
             const float step = 0.25f;
             Assert.Greater(step, StanceRadius, "sanity: the move must be outside the UN-inflated radius");
-            float3[] stepped = RunSpine(dt, frames, i =>
-                new float3(0f, seatedHeadY, step * Mathf.Clamp01(i * dt / moveSecs)), false);
+            float3[] stepped = RunSpine(dt, frames, i => new float3(0f, seatedHeadY, step * Mathf.Clamp01(i * dt / moveSecs)), false);
             float carried = stepped[stopFrame].z - stepped[0].z;
-            Assert.Greater(carried, 0.8f * step,
-                $"sat {(StandingHeadY - seatedHeadY) * 100f:F0} cm low, the pelvis carried only {carried * 100f:F2} cm "
-                + $"of a {step * 100f:F0} cm move. A constant head-height offset is being read as a crouch and "
-                + "inflating the stance radius, so the support base never follows.");
+            Assert.Greater(carried, 0.8f * step, $"sat {(StandingHeadY - seatedHeadY) * 100f:F0} cm low, the pelvis carried only {carried * 100f:F2} cm " + $"of a {step * 100f:F0} cm move. A constant head-height offset is being read as a crouch and " + "inflating the stance radius, so the support base never follows.");
 
             // (b) PAIRED NEGATIVE: what the seated user actually got -- the deadband pull against a radius the
             //     T-pose reference had inflated to 50.7 cm, so the move never even registered as travel.
             //     Reproduced ONLY so this negative can bite; never call either half from shipping code.
-            float inflatedRadius = StanceRadius + 0.70f * (StandingHeadY - seatedHeadY);
-            float baseline = 0f;
+            float inflatedRadius = StanceRadius + 0.70f * (StandingHeadY - seatedHeadY), baseline = 0f;
             for (int i = 0; i <= stopFrame; i++)
             {
                 float head = step * Mathf.Clamp01(i * dt / moveSecs);
@@ -425,10 +360,7 @@ namespace Basis.Tests.IK
                 baseline = Mathf.Lerp(baseline, head, 1f - Mathf.Exp(-200f * over * over * dt));
             }
             float oldCarried = Mathf.Lerp(baseline, step, FollowFrac);
-            Assert.Less(oldCarried, 0.5f * step,
-                $"the T-pose-referenced radius ({inflatedRadius * 100f:F0} cm) is supposed to swallow a "
-                + $"{step * 100f:F0} cm move whole (it carried {oldCarried * 100f:F2} cm) -- if it no longer does, "
-                + "this gate is testing nothing");
+            Assert.Less(oldCarried, 0.5f * step, $"the T-pose-referenced radius ({inflatedRadius * 100f:F0} cm) is supposed to swallow a " + $"{step * 100f:F0} cm move whole (it carried {oldCarried * 100f:F2} cm) -- if it no longer does, " + "this gate is testing nothing");
         }
     }
 }

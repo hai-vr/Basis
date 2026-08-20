@@ -4,20 +4,16 @@ using Basis.IK.Mocap;
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
-
     public sealed class BasisSpineGazeContaminationTests
     {
         // A T-posed adult, in the hips' own frame: +Y up, +Z forward. These are the only numbers that matter
         // -- the lever arm from the neck to the head is what converts a nod into a phantom lean.
-        static readonly Vector3 k_Hips = new Vector3(0f, 0.95f, 0f);
-        static readonly Vector3 k_Chest = new Vector3(0f, 1.25f, 0f);
+        static readonly Vector3 k_Hips = new Vector3(0f, 0.95f, 0f), k_Chest = new Vector3(0f, 1.25f, 0f);
         static readonly Vector3 k_Neck = new Vector3(0f, 1.45f, 0f);
         static readonly Vector3 k_Head = new Vector3(0f, 1.55f, 0f);   // 10 cm above the neck: the lever arm
-
         static BasisSpineBendInput BaseInput()
         {
             BasisSpineBendInput i = default;
@@ -38,14 +34,12 @@ namespace Basis.Tests.IK
             i.HasUpper = true;
             return i;
         }
-
         static void GazeDown(float deg, out Vector3 headPos, out Quaternion headRot)
         {
             Quaternion q = Quaternion.AngleAxis(deg, Vector3.right);   // +X = pitch the face down toward +Z
             headPos = k_Neck + q * (k_Head - k_Neck);
             headRot = q;
         }
-
         [Test]
         public void PureGaze_MakesTheShippedCore_InventAForwardLean()
         {
@@ -76,36 +70,25 @@ namespace Basis.Tests.IK
             report.AppendLine("because the bend cue is hips->HEAD and the head orbits the neck.");
             Debug.Log(report.ToString());
 
-            Assert.Greater(worst, 3f,
-                $"the shipped core must be shown to invent a real amount of chest pitch from pure gaze " +
-                $"(worst {worst:F2} deg) -- if it does not, this whole diagnosis is wrong and the fix below " +
-                "is solving a problem that does not exist");
+            Assert.Greater(worst, 3f, $"the shipped core must be shown to invent a real amount of chest pitch from pure gaze " + $"(worst {worst:F2} deg) -- if it does not, this whole diagnosis is wrong and the fix below " +"is solving a problem that does not exist");
         }
-
         [Test]
         public void TheSquishMultiplier_AmplifiesTheBend_ExactlyWhenTheTorsoIsCompressed()
         {
             float restLen = (k_Head - k_Hips).magnitude;
             const float boost = 0.5f;
-
             float atRest = BasisSpineBendCore.ComputeSquishMultiplier(k_Head - k_Hips, restLen, boost);
             // The head 25% closer to the hips -- which is exactly what BENDING OVER does.
             float compressed = BasisSpineBendCore.ComputeSquishMultiplier((k_Head - k_Hips) * 0.75f, restLen, boost);
 
-            Debug.Log($"squish multiplier: upright {atRest:F3}, torso compressed 25% {compressed:F3} " +
-                      $"(x{compressed / atRest:F2} more spine rotation, purely because the head got closer)");
+            Debug.Log($"squish multiplier: upright {atRest:F3}, torso compressed 25% {compressed:F3} " + $"(x{compressed / atRest:F2} more spine rotation, purely because the head got closer)");
 
             Assert.AreEqual(1f, atRest, 0.05f, "upright must be a no-op");
-            Assert.Greater(compressed, 1.2f * atRest,
-                "the shipped coupling amplifies the spine's ROTATION as the torso COMPRESSES -- which is the " +
-                "complaint, written as a multiplier: a body that should be translating down is instead being " +
-                "told to rotate harder");
+            Assert.Greater(compressed, 1.2f * atRest, "the shipped coupling amplifies the spine's ROTATION as the torso COMPRESSES -- which is the " + "complaint, written as a multiplier: a body that should be translating down is instead being " +"told to rotate harder");
         }
-
         // =========================================================================================
         // AND NOW WHAT A REAL HUMAN ACTUALLY DOES, because "some" is not the same as "this much".
         // =========================================================================================
-
         [Test]
         public void HowMuchAHumansChestActuallyPitches_PerDegreeOfGaze()
         {
@@ -129,12 +112,8 @@ namespace Basis.Tests.IK
                     Vector3 head = c.Get(f, BasisMocapJoint.Head).Position;
                     Quaternion hipsRot = c.Get(f, BasisMocapJoint.Hips).Rotation;
                     Quaternion neckRot = c.Get(f, BasisMocapJoint.Neck).Rotation;
-                    Quaternion headRot = c.Get(f, BasisMocapJoint.Head).Rotation;
-
-                    Quaternion inv = Quaternion.Inverse(hipsRot);
-                    Vector3 dChest = inv * (chest - hips);
-                    Vector3 dNeck = inv * (neck - hips);
-                    Vector3 dHead = inv * (head - hips);
+                    Quaternion headRot = c.Get(f, BasisMocapJoint.Head).Rotation, inv = Quaternion.Inverse(hipsRot);
+                    Vector3 dChest = inv * (chest - hips), dNeck = inv * (neck - hips), dHead = inv * (head - hips);
                     if (dChest.sqrMagnitude < 1e-8f || dNeck.sqrMagnitude < 1e-8f || dHead.sqrMagnitude < 1e-8f) continue;
 
                     // The rig's own formula, verbatim (BasisSpineBendCore line 80).
@@ -169,8 +148,7 @@ namespace Basis.Tests.IK
             {
                 double det = A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0];
                 if (System.Math.Abs(det) < 1e-9) return (double.NaN, double.NaN);
-                return ((rhs[0] * A[1, 1] - A[0, 1] * rhs[1]) / det,
-                        (A[0, 0] * rhs[1] - rhs[0] * A[1, 0]) / det);
+                return ((rhs[0] * A[1, 1] - A[0, 1] * rhs[1]) / det, (A[0, 0] * rhs[1] - rhs[0] * A[1, 0]) / det);
             }
 
             (double _, double bRig) = Solve2(rhsRig);
@@ -196,9 +174,7 @@ namespace Basis.Tests.IK
             // nothing. So the correct amount of chest rotation to produce from a pure gaze is ZERO -- not
             // "a little", not "damped". That is what makes the exact algebraic cancellation in the fix the
             // right shape of answer rather than merely a tidy one.
-            Assert.Less(System.Math.Abs(bChest), 0.10,
-                $"a real human's chest barely moves with gaze ({bChest:F3} deg/deg). If this corpus said " +
-                "otherwise, the fix would be wrong and the rig's phantom lean would be a feature.");
+            Assert.Less(System.Math.Abs(bChest), 0.10, $"a real human's chest barely moves with gaze ({bChest:F3} deg/deg). If this corpus said " +"otherwise, the fix would be wrong and the rig's phantom lean would be a feature.");
 
             // ⚠ WHAT THIS CORPUS CANNOT TELL YOU, AND WHY THE GEOMETRY TEST ABOVE EXISTS.
             //
@@ -213,11 +189,8 @@ namespace Basis.Tests.IK
             // So: the CORPUS says what the answer should be (zero). The GEOMETRY says what the rig actually
             // does (8-10 deg). Neither alone is the case; both together are. I originally asserted the corpus
             // would show a large contamination, it did not, and the assertion was wrong rather than the data.
-            Assert.Less(System.Math.Abs(bNeck), System.Math.Abs(bRig),
-                $"even on a skeleton whose head barely leaves its neck, cueing off the NECK must be less " +
-                $"gaze-contaminated than cueing off the HEAD (neck {bNeck:F3} vs head {bRig:F3} deg/deg)");
+            Assert.Less(System.Math.Abs(bNeck), System.Math.Abs(bRig), $"even on a skeleton whose head barely leaves its neck, cueing off the NECK must be less " + $"gaze-contaminated than cueing off the HEAD (neck {bNeck:F3} vs head {bRig:F3} deg/deg)");
         }
-
         [Test]
         public void TheNeckCue_InventsNoLeanAtAll_ForAnyGaze()
         {
@@ -238,8 +211,7 @@ namespace Basis.Tests.IK
                 Vector3 neckCue = headPos + headRot * tposeHeadToNeckLocal;
 
                 // It must reconstruct the neck EXACTLY -- that is the whole mechanism.
-                Assert.AreEqual(0f, Vector3.Distance(neckCue, k_Neck), 1e-5f,
-                    $"the reconstructed neck must land on the real neck at gaze {gaze:F0} deg");
+                Assert.AreEqual(0f, Vector3.Distance(neckCue, k_Neck), 1e-5f, $"the reconstructed neck must land on the real neck at gaze {gaze:F0} deg");
 
                 BasisSpineBendInput i = BaseInput();
                 i.SmoothedHead = neckCue;
@@ -256,16 +228,13 @@ namespace Basis.Tests.IK
                     report.AppendLine($"{gaze,10:F0} {r.BendPitchDeg,10:F3} {r.SquishMult,8:F3} {total,18:F3}");
                 }
 
-                Assert.AreEqual(0f, r.BendPitchDeg, 1e-3f,
-                    $"a pure gaze of {gaze:F0} deg must bend the spine by EXACTLY nothing");
-                Assert.AreEqual(0f, total, 1e-3f,
-                    $"...and therefore pitch the chest by exactly nothing ({total:F4} deg at gaze {gaze:F0})");
+                Assert.AreEqual(0f, r.BendPitchDeg, 1e-3f, $"a pure gaze of {gaze:F0} deg must bend the spine by EXACTLY nothing");
+                Assert.AreEqual(0f, total, 1e-3f, $"...and therefore pitch the chest by exactly nothing ({total:F4} deg at gaze {gaze:F0})");
 
                 // And the squish coupling must not fire either: the neck did not move, so the spine did not
                 // compress, so there is nothing to amplify. Gazing down used to shorten hips->HEAD and drive
                 // this to 1.42x -- multiplying a phantom bend by a phantom squish.
-                Assert.AreEqual(1f, r.SquishMult, 1e-3f,
-                    $"a gaze must not compress the spine (squish {r.SquishMult:F3} at gaze {gaze:F0})");
+                Assert.AreEqual(1f, r.SquishMult, 1e-3f, $"a gaze must not compress the spine (squish {r.SquishMult:F3} at gaze {gaze:F0})");
             }
 
             report.AppendLine();

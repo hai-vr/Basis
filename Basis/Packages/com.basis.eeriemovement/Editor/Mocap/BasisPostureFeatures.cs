@@ -1,5 +1,4 @@
 using UnityEngine;
-
 namespace Basis.IK.Mocap
 {
     public struct BasisPostureSample
@@ -8,12 +7,9 @@ namespace Basis.IK.Mocap
         public float HeadFwd;     // in: |headXZ - supportXZ| / standHeadY,  >= 0
         public float HipsDrop;    // out: (standHipsY - hipsY) / standHeadY
         public float HipsFwd;     // out: dot(hipsXZ - supportXZ, headLeanDir) / standHeadY   (signed)
-
         public float HeadPitch;
-
         public bool Valid;
     }
-
     public static class BasisPostureFeatures
     {
         public static void StandingReference(BasisMotionClip c, out float standHeadY, out float standHipsY)
@@ -30,21 +26,17 @@ namespace Basis.IK.Mocap
                 }
             }
         }
-
         public static Vector2 SupportXZ(BasisMotionClip c, int f)
         {
-            Vector3 l = c.Get(f, BasisMocapJoint.LeftFoot).Position;
-            Vector3 r = c.Get(f, BasisMocapJoint.RightFoot).Position;
+            Vector3 l = c.Get(f, BasisMocapJoint.LeftFoot).Position, r = c.Get(f, BasisMocapJoint.RightFoot).Position;
             return new Vector2(0.5f * (l.x + r.x), 0.5f * (l.z + r.z));
         }
-
         public static BasisPostureSample Extract(BasisMotionClip c, int f, float standHeadY, float standHipsY)
         {
             BasisPostureSample s = default;
             if (!(standHeadY > 0.1f)) return s;   // reject-unless-good: a NaN or absurd reference fails here
 
-            Vector3 head = c.Get(f, BasisMocapJoint.Head).Position;
-            Vector3 hips = c.Get(f, BasisMocapJoint.Hips).Position;
+            Vector3 head = c.Get(f, BasisMocapJoint.Head).Position, hips = c.Get(f, BasisMocapJoint.Hips).Position;
             Vector2 sup = SupportXZ(c, f);
 
             var headXZ = new Vector2(head.x - sup.x, head.z - sup.y);
@@ -67,8 +59,7 @@ namespace Basis.IK.Mocap
             Vector3 fwd = c.Get(f, BasisMocapJoint.Head).Rotation * Vector3.forward;
             s.HeadPitch = Mathf.Asin(Mathf.Clamp(-fwd.y, -1f, 1f));
 
-            s.Valid = !(float.IsNaN(s.HeadDrop) || float.IsNaN(s.HeadFwd)
-                        || float.IsNaN(s.HipsDrop) || float.IsNaN(s.HipsFwd) || float.IsNaN(s.HeadPitch));
+            s.Valid = !(float.IsNaN(s.HeadDrop) || float.IsNaN(s.HeadFwd) || float.IsNaN(s.HipsDrop) || float.IsNaN(s.HipsFwd) || float.IsNaN(s.HeadPitch));
             return s;
         }
     }

@@ -3,8 +3,7 @@ namespace Basis.IK
 {
     public static class BasisSpineAnatomy
     {
-        const float epsilon = 1e-5f;
-        const float sqrEpsilon = 1e-8f;
+        const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;
         public static BasisSpineRom Rom(BasisSpineSegment segment)
         {
             switch (segment)
@@ -39,7 +38,6 @@ namespace Basis.IK
             rightW /= Mathf.Sqrt(rSqr);
 
             Vector3 fwdW = Vector3.Cross(rightW, upW);
-
             Quaternion invParent = BasisSpineAnatomyCore.Conj(parentWorldRot);
             f.Right = invParent * rightW;
             f.Up = invParent * upW;
@@ -56,33 +54,13 @@ namespace Basis.IK
         UpperThoracic = 2,
         Cervical = 3,
     }
-    public struct BasisSpineRom
-    {
-        public float FlexDeg, ExtDeg, LatDeg, AxialDeg;
-        public BasisSpineRom(float flexDeg, float extDeg, float latDeg, float axialDeg)
-        {
-            FlexDeg = flexDeg;
-            ExtDeg = extDeg;
-            LatDeg = latDeg;
-            AxialDeg = axialDeg;
-        }
-    }
-    public struct BasisSpineRestFrame
-    {
-        public Quaternion RestLocalRot;
-        public Vector3 Right, Up, Forward;
-        public BasisSpineSegment Segment;
-        public bool Valid;
-    }
     public static class BasisSpineAnatomyCore
     {
-        const float epsilon = 1e-5f;
-        const float sqrEpsilon = 1e-8f;
+        const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;
         public static Quaternion Conj(Quaternion q) => new Quaternion(-q.x, -q.y, -q.z, q.w);
         public static Quaternion AxisAngle(float deg, Vector3 axis)
         {
-            float h = deg * (0.5f * Mathf.Deg2Rad);
-            float s = Mathf.Sin(h);
+            float h = deg * (0.5f * Mathf.Deg2Rad), s = Mathf.Sin(h);
             return new Quaternion(axis.x * s, axis.y * s, axis.z * s, Mathf.Cos(h));
         }
         public const float OvershootAsymptote = 1.25f;
@@ -108,24 +86,17 @@ namespace Basis.IK
             }
 
             float axialLim = Mathf.Max(0f, rom.AxialDeg);
-            float flexLim = Mathf.Max(0f, flexDeg >= 0f ? rom.FlexDeg : rom.ExtDeg);
-            float latLim = Mathf.Max(0f, rom.LatDeg);
-
-            float fN = flexDeg / Mathf.Max(flexLim, epsilon);
-            float lN = latDeg / Mathf.Max(latLim, epsilon);
-            float q = fN * fN + lN * lN;
-
-            float swingScale = 1f;
+            float flexLim = Mathf.Max(0f, flexDeg >= 0f ? rom.FlexDeg : rom.ExtDeg), latLim = Mathf.Max(0f, rom.LatDeg);
+            float fN = flexDeg / Mathf.Max(flexLim, epsilon), lN = latDeg / Mathf.Max(latLim, epsilon);
+            float q = fN * fN + lN * lN, swingScale = 1f;
             if (q > 1f)
             {
-                float rNow = Mathf.Sqrt(q);
-                float rGuard = Saturate(rNow, 1f, OvershootAsymptote);
+                float rNow = Mathf.Sqrt(q), rGuard = Saturate(rNow, 1f, OvershootAsymptote);
                 swingScale = rGuard / rNow;
                 info.SwingClamped = true;
             }
 
-            float axialGuard = axialDeg;
-            float axialAbs = axialDeg < 0f ? -axialDeg : axialDeg;
+            float axialGuard = axialDeg, axialAbs = axialDeg < 0f ? -axialDeg : axialDeg;
             if (axialAbs > axialLim)
             {
                 float mag = Saturate(axialAbs, axialLim, axialLim * OvershootAsymptote);
@@ -153,7 +124,6 @@ namespace Basis.IK
 
             Vector3 v = new Vector3(delta.x, delta.y, delta.z);
             float proj = Vector3.Dot(v, frame.Up);
-
             Quaternion twist = new Quaternion(frame.Up.x * proj, frame.Up.y * proj, frame.Up.z * proj, delta.w);
             float twistNorm = Mathf.Sqrt(twist.x * twist.x + twist.y * twist.y + twist.z * twist.z + twist.w * twist.w);
             if (!(twistNorm > epsilon))
@@ -177,8 +147,7 @@ namespace Basis.IK
             }
 
             Vector3 sv = new Vector3(swing.x, swing.y, swing.z);
-            float svLen = sv.magnitude;
-            float swingDeg = 2f * Mathf.Atan2(svLen, swing.w) * Mathf.Rad2Deg;
+            float svLen = sv.magnitude, swingDeg = 2f * Mathf.Atan2(svLen, swing.w) * Mathf.Rad2Deg;
             Vector3 swingVec = svLen > epsilon ? (sv / svLen) * swingDeg : Vector3.zero;
 
             flexDeg = Vector3.Dot(swingVec, frame.Right);
@@ -207,11 +176,5 @@ namespace Basis.IK
             float e = x - soft;
             return soft + m * e / (m + e);
         }
-    }
-    public struct BasisSpineClampInfo
-    {
-        public bool SwingClamped, TwistClamped;
-        public float FlexDeg, LatDeg, AxialDeg;
-        public bool Touched => SwingClamped || TwistClamped;
     }
 }

@@ -5,7 +5,6 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisWalkingTrackerAttachmentTests
@@ -13,22 +12,17 @@ namespace Basis.Tests.IK
         const float Dt = 1f / 90f;
         const float WalkSpeed = 1.5f;          // m/s, brisk walk on the stick
         const float TurnDegPerSec = 45f;       // smooth turn while walking
-        const int WarmupFrames = 30;
-        const int MeasureFrames = 90;
-
+        const int WarmupFrames = 30, MeasureFrames = 90;
         // The "Light" preset (PresetForHardware Lighthouse/InsideOut): minCutoff 8, beta 2, dCutoff 3.
         static float4 LightPosTuning => new float4(8f, 2f, 3f, BasisFilterMath.Alpha(30f, Dt));
         static float4 LightRotTuning => new float4(8f, 2f, 3f, BasisFilterMath.Alpha(35f, Dt));
-
         static readonly float3 LocalHead = new float3(0f, 1.6f, 0.1f);
-
         static float4x4 PlayspaceAt(int frame)
         {
             float t = frame * Dt;
             quaternion yaw = quaternion.AxisAngle(math.up(), math.radians(TurnDegPerSec * t));
             return float4x4.TRS(new float3(0f, 0f, WalkSpeed * t), yaw, new float3(1f, 1f, 1f));
         }
-
         static float RunPositionFilterWalk(byte mode, bool worldSpaceInputs, out float maxLag)
         {
             var modes = new NativeArray<byte>(1, Allocator.TempJob);
@@ -85,44 +79,32 @@ namespace Basis.Tests.IK
 
             return steadyLag;
         }
-
         [Test]
         public void AWalk_PassesThroughTheFilters_WithZeroLag()
         {
             foreach (byte mode in new[] { (byte)BasisFilterMode.Passthrough, (byte)BasisFilterMode.Fallback, (byte)BasisFilterMode.Euro })
             {
                 RunPositionFilterWalk(mode, worldSpaceInputs: false, out float maxLag);
-                Assert.Less(maxLag, 1e-4f,
-                    $"filter mode {(BasisFilterMode)mode} let the head target trail the tracker by "
-                    + $"{maxLag * 1000f:F2} mm during a plain stick walk — playspace motion is leaking "
-                    + "into the smoothing state again.");
+                Assert.Less(maxLag, 1e-4f, $"filter mode {(BasisFilterMode)mode} let the head target trail the tracker by " + $"{maxLag * 1000f:F2} mm during a plain stick walk — playspace motion is leaking " + "into the smoothing state again.");
             }
         }
-
         [Test]
         public void WorldSpaceFiltering_TrailsTheTrackerWhileWalking()
         {
             float euroLag = RunPositionFilterWalk((byte)BasisFilterMode.Euro, worldSpaceInputs: true, out _);
-            Assert.Greater(euroLag, 0.008f,
-                $"world-space euro filtering only trailed by {euroLag * 1000f:F1} mm at walk speed — the "
-                + "defect this suite documents is no longer reproducible on this tuning.");
+            Assert.Greater(euroLag, 0.008f, $"world-space euro filtering only trailed by {euroLag * 1000f:F1} mm at walk speed — the " + "defect this suite documents is no longer reproducible on this tuning.");
 
             float fallbackLag = RunPositionFilterWalk((byte)BasisFilterMode.Fallback, worldSpaceInputs: true, out _);
-            Assert.Greater(fallbackLag, 0.004f,
-                $"world-space fallback smoothing only trailed by {fallbackLag * 1000f:F1} mm at walk speed.");
+            Assert.Greater(fallbackLag, 0.004f, $"world-space fallback smoothing only trailed by {fallbackLag * 1000f:F1} mm at walk speed.");
         }
-
         [Test]
         public void TrackingNoise_IsStillSmoothed_WhileWalking()
         {
             float euroP2P = RunNoisyWalk((byte)BasisFilterMode.Euro);
             float rawP2P = RunNoisyWalk((byte)BasisFilterMode.Passthrough);
 
-            Assert.Less(euroP2P, rawP2P * 0.6f,
-                $"euro filtering no longer attenuates tracking-space noise during a walk: filtered p2p "
-                + $"{euroP2P * 1000f:F2} mm vs raw {rawP2P * 1000f:F2} mm.");
+            Assert.Less(euroP2P, rawP2P * 0.6f, $"euro filtering no longer attenuates tracking-space noise during a walk: filtered p2p " + $"{euroP2P * 1000f:F2} mm vs raw {rawP2P * 1000f:F2} mm.");
         }
-
         static float RunNoisyWalk(byte mode)
         {
             var modes = new NativeArray<byte>(1, Allocator.TempJob);
@@ -142,10 +124,7 @@ namespace Basis.Tests.IK
                 for (int frame = 0; frame < WarmupFrames + MeasureFrames; frame++)
                 {
                     float4x4 playspace = PlayspaceAt(frame);
-                    float3 jitter = new float3(
-                        (float)(rng.NextDouble() * 2.0 - 1.0),
-                        (float)(rng.NextDouble() * 2.0 - 1.0),
-                        (float)(rng.NextDouble() * 2.0 - 1.0)) * 0.002f;
+                    float3 jitter = new float3((float)(rng.NextDouble() * 2.0 - 1.0), (float)(rng.NextDouble() * 2.0 - 1.0), (float)(rng.NextDouble() * 2.0 - 1.0)) * 0.002f;
                     inputs[0] = LocalHead + jitter;
 
                     new BasisBatchPositionFilterJob
@@ -180,14 +159,11 @@ namespace Basis.Tests.IK
 
             return max - min;
         }
-
         // ────────────────────────────────────────────────────────────────────────────────────────
         //  Virtual spine ordering: sim-then-spine must track the CURRENT frame's eye.
         // ────────────────────────────────────────────────────────────────────────────────────────
-
         const int Eye = 0, Head = 1, Neck = 2, Chest = 3, Spine = 4, Hips = 5;
         const int ControlCount = 6;
-
         static BasisVirtualSpineCore.SpineSolveParams SpineParamsFromEye(float3 eyePos, quaternion eyeRot)
         {
             return new BasisVirtualSpineCore.SpineSolveParams
@@ -242,7 +218,6 @@ namespace Basis.Tests.IK
                 HipsMaxDropMeters = 0.30f,
             };
         }
-
         static float RunEyePipeline(bool freshEyeParams)
         {
             var chain = new NativeArray<int>(ControlCount, Allocator.TempJob);
@@ -269,7 +244,6 @@ namespace Basis.Tests.IK
                 {
                     // A physical lean/step: the eye moves through tracking space at walk speed.
                     float3 eyeNow = new float3(0f, 1.6f, 0f) + new float3(0f, 0f, WalkSpeed * frame * Dt);
-
                     BasisBoneSimInput eyeInput = inputs[Eye];
                     eyeInput.IncomingPosition = eyeNow;
                     inputs[Eye] = eyeInput;
@@ -321,30 +295,20 @@ namespace Basis.Tests.IK
 
             return maxHeadError;
         }
-
         [Test]
         public void TheVirtualSpine_ConsumesTheCurrentFramesEye()
         {
             float error = RunEyePipeline(freshEyeParams: true);
-            Assert.Less(error, 1e-4f,
-                $"the virtual spine's head missed the same-frame eye by {error * 1000f:F2} mm — the "
-                + "pipeline is feeding the spine stale eye data again.");
+            Assert.Less(error, 1e-4f, $"the virtual spine's head missed the same-frame eye by {error * 1000f:F2} mm — the " + "pipeline is feeding the spine stale eye data again.");
         }
-
         [Test]
         public void SpineFedThePreSimOutgoing_LagsTheEyeByExactlyOneFrame()
         {
-            float error = RunEyePipeline(freshEyeParams: false);
-            float oneFrame = WalkSpeed * Dt;
+            float error = RunEyePipeline(freshEyeParams: false), oneFrame = WalkSpeed * Dt;
 
-            Assert.Greater(error, oneFrame * 0.75f,
-                $"the stale-eye order only lagged {error * 1000f:F2} mm; the one-frame defect this suite "
-                + "documents is no longer reproducible.");
-            Assert.Less(error, oneFrame * 1.25f,
-                $"the stale-eye order lagged {error * 1000f:F2} mm — more than one frame; something besides "
-                + "the ordering is stale.");
+            Assert.Greater(error, oneFrame * 0.75f, $"the stale-eye order only lagged {error * 1000f:F2} mm; the one-frame defect this suite " + "documents is no longer reproducible.");
+            Assert.Less(error, oneFrame * 1.25f, $"the stale-eye order lagged {error * 1000f:F2} mm — more than one frame; something besides " + "the ordering is stale.");
         }
-
         [Test]
         public void FollowerChain_SeesTheSameFramesVirtualHips()
         {
@@ -352,31 +316,24 @@ namespace Basis.Tests.IK
             float errSimFirst = RunFollowerPipeline(spineBeforeSim: false, out float hipsTravelB);
 
             Assert.Greater(hipsTravelA, 1e-5f, "sanity: the virtual hips must actually move in this scenario");
-            Assert.AreEqual(hipsTravelA, hipsTravelB, hipsTravelA * 0.05f,
-                "sanity: both orders must see the same hips motion for the comparison to mean anything");
+            Assert.AreEqual(hipsTravelA, hipsTravelB, hipsTravelA * 0.05f,"sanity: both orders must see the same hips motion for the comparison to mean anything");
 
             float gap = errSimFirst - errSpineFirst;
-            Assert.Greater(gap, hipsTravelA * 0.5f,
-                $"sim-before-spine should trail the fresh hips by about one frame of hips travel "
-                + $"({hipsTravelA * 1000f:F2} mm) more than spine-before-sim, but the gap was only "
-                + $"{gap * 1000f:F2} mm — the follower-staleness defect is no longer reproducible.");
+            Assert.Greater(gap, hipsTravelA * 0.5f, $"sim-before-spine should trail the fresh hips by about one frame of hips travel " + $"({hipsTravelA * 1000f:F2} mm) more than spine-before-sim, but the gap was only " + $"{gap * 1000f:F2} mm — the follower-staleness defect is no longer reproducible.");
             Assert.Less(errSpineFirst, errSimFirst,
                 "the production order (spine before sim) must be the one whose followers track the "
                 + "same-frame hips.");
         }
-
         static float RunFollowerPipeline(bool spineBeforeSim, out float avgHipsTravel)
         {
-            const int Follower = 6;
-            const int Count = 7;
+            const int Follower = 6, Count = 7;
             var chain = new NativeArray<int>(Count, Allocator.TempJob);
             var inputs = new NativeArray<BasisBoneSimInput>(Count, Allocator.TempJob);
             var states = new NativeArray<BasisBoneSimState>(Count, Allocator.TempJob);
             var solve = new NativeArray<BasisVirtualSpineCore.SpineSolveState>(1, Allocator.TempJob);
 
             float3 followOffset = new float3(0f, -0.4f, 0f);
-            float errSum = 0f;
-            float travelSum = 0f;
+            float errSum = 0f, travelSum = 0f;
             int measured = 0;
 
             try
@@ -457,7 +414,6 @@ namespace Basis.Tests.IK
             avgHipsTravel = travelSum / math.max(1, measured - 1);
             return errSum / math.max(1, measured);
         }
-
         [Test]
         public void TrackedTorsoBones_KeepTheSimPose()
         {
@@ -495,15 +451,13 @@ namespace Basis.Tests.IK
                 Assert.AreEqual(0f, math.length(states[Hips].OutgoingPosition - trackedHips), 0f,
                     "a hips bone flagged tracker-owned was overwritten by the virtual spine — with the "
                     + "spine now running after the sim, that clobbers live FBT tracker data.");
-                Assert.AreNotEqual(0f, math.length(states[Head].OutgoingPosition),
-                    "unskipped bones must still be written");
+                Assert.AreNotEqual(0f, math.length(states[Head].OutgoingPosition),"unskipped bones must still be written");
 
                 // And with default flags the hips ARE the spine's to write (historical behavior for
                 // the sweeps/tests that construct this job without flags).
                 job.SkipHips = 0;
                 job.Execute();
-                Assert.AreNotEqual(0f, math.length(states[Hips].OutgoingPosition - trackedHips),
-                    "with default flags the virtual spine must own the hips again");
+                Assert.AreNotEqual(0f, math.length(states[Hips].OutgoingPosition - trackedHips),"with default flags the virtual spine must own the hips again");
             }
             finally
             {
@@ -511,13 +465,10 @@ namespace Basis.Tests.IK
                 solve.Dispose();
             }
         }
-
         // ────────────────────────────────────────────────────────────────────────────────────────
         //  Top-to-bottom: the spine solve holds the head pin while the playspace walks.
         // ────────────────────────────────────────────────────────────────────────────────────────
-
         static readonly float[] Heights = { 0.95f, 1.06f, 1.21f, 1.33f, 1.45f, 1.57f };
-
         [Test]
         public void AWalkingHead_StaysPinned_ThroughTheSpineSolve()
         {
@@ -586,7 +537,6 @@ namespace Basis.Tests.IK
                 job.poseStream = skeleton.Stream;
                 job.SolveSequentialSpineIK(restHead + localOffset, Quaternion.identity);
                 float standingErr = (skeleton.Stream.GetPosition(chain[0]) - (restHead + localOffset)).magnitude;
-
                 float maxDivergence = 0f;
                 for (int frame = 0; frame < 100; frame++)
                 {
@@ -604,10 +554,7 @@ namespace Basis.Tests.IK
                     if (divergence > maxDivergence) maxDivergence = divergence;
                 }
 
-                Assert.Less(maxDivergence, 0.002f,
-                    $"walking changed the solved head's residual by {maxDivergence * 1000f:F2} mm vs the "
-                    + $"identical standing pose ({standingErr * 1000f:F2} mm) — the spine solve is not "
-                    + "translation-equivariant, i.e. the head detaches specifically while moving.");
+                Assert.Less(maxDivergence, 0.002f, $"walking changed the solved head's residual by {maxDivergence * 1000f:F2} mm vs the " + $"identical standing pose ({standingErr * 1000f:F2} mm) — the spine solve is not " + "translation-equivariant, i.e. the head detaches specifically while moving.");
             }
             finally
             {

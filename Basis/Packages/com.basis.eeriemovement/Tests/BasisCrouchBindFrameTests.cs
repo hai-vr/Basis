@@ -1,7 +1,6 @@
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisCrouchBindFrameTests
@@ -14,11 +13,8 @@ namespace Basis.Tests.IK
             Quaternion.AngleAxis(-90f, Vector3.right),   // Blender export -- collapsed the slide entirely pre-fix
             Quaternion.Euler(20f, -35f, 110f),
         };
-
-        const float StandH = 1.60f;
-        const float Rest = 0.55f;
+        const float StandH = 1.60f, Rest = 0.55f;
         const float Depth = 0.40f; // dhat 0.25: mid squat, well past the deadzone, below the lean cap
-
         // Anatomical scene: hips face forward (hipsAnat = identity, so HipsRot = the bind itself), head dropped
         // Depth below standing, hips arriving as the LockHead stage leaves them (Rest straight below the head).
         // Anatomical forward is +Z, so the hips must slide toward −Z and onto the Rest sphere.
@@ -39,7 +35,6 @@ namespace Basis.Tests.IK
             BasisCrouchOffsetCore.Solve(i, out BasisCrouchOffsetResult r);
             return r;
         }
-
         [Test]
         public void CrouchSlide_IsInvariant_ToTheHipsBindConvention([ValueSource(nameof(Binds))] Quaternion bind)
         {
@@ -48,21 +43,17 @@ namespace Basis.Tests.IK
 
             var r = SolveCrouch(bind);
             Assert.That(r.Applied, Is.True, $"crouch did not fire on bind {bind} (the Blender-rig collapse).");
-            Assert.That((r.HipsPos - reference.HipsPos).magnitude, Is.LessThan(1e-4f),
-                $"crouch placed the hips differently on bind {bind}: {r.HipsPos} vs {reference.HipsPos}.");
+            Assert.That((r.HipsPos - reference.HipsPos).magnitude, Is.LessThan(1e-4f), $"crouch placed the hips differently on bind {bind}: {r.HipsPos} vs {reference.HipsPos}.");
 
             // The slide is anatomically backward (−Z) with no sideways leak.
-            Vector3 head = new Vector3(0f, StandH - Depth, 0f);
-            Vector3 fromHead = r.HipsPos - head;
+            Vector3 head = new Vector3(0f, StandH - Depth, 0f), fromHead = r.HipsPos - head;
             Assert.That(fromHead.z, Is.LessThan(-1e-3f), $"crouch did not slide backward on bind {bind} ({fromHead}).");
             Assert.That(Mathf.Abs(fromHead.x), Is.LessThan(1e-4f), $"crouch slid sideways on bind {bind} ({fromHead}).");
 
             // And the hips landed on the rest-length sphere -- the spine neither compresses nor stretches,
             // the lean IS the sit-back (measured: real 3D head-hips distance stays ~0.95-1.0 of standing).
-            Assert.That(Mathf.Abs(fromHead.magnitude - Rest), Is.LessThan(1e-4f),
-                $"hips left the rest sphere on bind {bind}: |head->hips| {fromHead.magnitude} vs {Rest}.");
+            Assert.That(Mathf.Abs(fromHead.magnitude - Rest), Is.LessThan(1e-4f), $"hips left the rest sphere on bind {bind}: |head->hips| {fromHead.magnitude} vs {Rest}.");
         }
-
         [Test]
         public void DegenerateBind_FallsBackToHipsRotForward_Unchanged()
         {
@@ -89,8 +80,7 @@ namespace Basis.Tests.IK
             Vector3 horizontal = -fwd.normalized * s;
             Vector3 expected = head + horizontal - Vector3.up * Mathf.Sqrt(Rest * Rest - s * s);
             Assert.That(r.Applied, Is.True);
-            Assert.That((r.HipsPos - expected).magnitude, Is.LessThan(1e-4f),
-                "degenerate bind did not reproduce the raw HipsRot-forward slide.");
+            Assert.That((r.HipsPos - expected).magnitude, Is.LessThan(1e-4f),"degenerate bind did not reproduce the raw HipsRot-forward slide.");
         }
     }
 }

@@ -54,14 +54,14 @@ namespace Basis.Scripts.TransformBinders.BoneControl
 
         // ===== Native-backed pose: lives in Owner's store at Index, reached via raw pointer =====
 
-        private unsafe bool HasStore => Owner != null && Owner._simInputsPtr != null && Owner._simStatesPtr != null;
+        private unsafe bool HasStore => Owner != null && Owner.simInputPtr != null && Owner.simStatePtr != null;
 
         public unsafe BasisCalibratedCoords IncomingData
         {
             get
             {
                 if (HasStore == false) return BasisCalibratedCoords.Identity;
-                ref BasisBoneSimInput i = ref Owner._simInputsPtr[Index];
+                ref BasisBoneSimInput i = ref Owner.simInputPtr[Index];
                 return new BasisCalibratedCoords(i.IncomingPosition, i.IncomingRotation);
             }
         }
@@ -71,7 +71,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
             get
             {
                 if (HasStore == false) return BasisCalibratedCoords.Identity;
-                ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+                ref BasisBoneSimState s = ref Owner.simStatePtr[Index];
                 return new BasisCalibratedCoords(s.OutgoingPosition, s.OutgoingRotation);
             }
         }
@@ -81,7 +81,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
             get
             {
                 if (HasStore == false) return BasisCalibratedCoords.Identity;
-                ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+                ref BasisBoneSimState s = ref Owner.simStatePtr[Index];
                 return new BasisCalibratedCoords(s.OutgoingWorldPosition, s.OutgoingWorldRotation);
             }
         }
@@ -91,7 +91,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
             get
             {
                 if (HasStore == false) return BasisCalibratedCoords.Identity;
-                ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+                ref BasisBoneSimState s = ref Owner.simStatePtr[Index];
                 return new BasisCalibratedCoords(s.IKWorldPosition, s.IKWorldRotation);
             }
         }
@@ -101,7 +101,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
             get
             {
                 if (HasStore == false) return false;
-                ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+                ref BasisBoneSimState s = ref Owner.simStatePtr[Index];
                 quaternion r = s.IKWorldRotation;
                 return r.value.x != 0f || r.value.y != 0f || r.value.z != 0f || r.value.w != 0f;
             }
@@ -110,7 +110,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         public unsafe void SetIKWorldData(Vector3 position, Quaternion rotation)
         {
             if (HasStore == false) return;
-            ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+            ref BasisBoneSimState s = ref Owner.simStatePtr[Index];
             s.IKWorldPosition = position;
             s.IKWorldRotation = rotation;
         }
@@ -120,7 +120,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
             get
             {
                 if (HasStore == false) return BasisCalibratedCoords.Identity;
-                ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+                ref BasisBoneSimState s = ref Owner.simStatePtr[Index];
                 return new BasisCalibratedCoords(s.LastRunPosition, s.LastRunRotation);
             }
         }
@@ -130,38 +130,38 @@ namespace Basis.Scripts.TransformBinders.BoneControl
             get
             {
                 if (HasStore == false) return BasisCalibratedCoords.Identity;
-                ref BasisBoneSimInput i = ref Owner._simInputsPtr[Index];
+                ref BasisBoneSimInput i = ref Owner.simInputPtr[Index];
                 return new BasisCalibratedCoords(i.InverseOffsetPosition, i.InverseOffsetRotation);
             }
         }
 
         public unsafe float3 ScaledOffset
         {
-            get => HasStore == false ? float3.zero : Owner._simInputsPtr[Index].ScaledOffset;
+            get => HasStore == false ? float3.zero : Owner.simInputPtr[Index].ScaledOffset;
             set
             {
                 if (HasStore == false) return;
-                Owner._simInputsPtr[Index].ScaledOffset = value;
+                Owner.simInputPtr[Index].ScaledOffset = value;
             }
         }
 
         public unsafe bool HasVirtualOverride
         {
-            get => HasStore && Owner._simInputsPtr[Index].HasVirtualOverride != 0;
+            get => HasStore && Owner.simInputPtr[Index].HasVirtualOverride != 0;
             set
             {
                 if (HasStore == false) return;
-                Owner._simInputsPtr[Index].HasVirtualOverride = value ? (byte)1 : (byte)0;
+                Owner.simInputPtr[Index].HasVirtualOverride = value ? (byte)1 : (byte)0;
             }
         }
 
         public unsafe bool UseInverseOffset
         {
-            get => HasStore && Owner._simInputsPtr[Index].UseInverseOffset != 0;
+            get => HasStore && Owner.simInputPtr[Index].UseInverseOffset != 0;
             set
             {
                 if (HasStore == false) return;
-                Owner._simInputsPtr[Index].UseInverseOffset = value ? (byte)1 : (byte)0;
+                Owner.simInputPtr[Index].UseInverseOffset = value ? (byte)1 : (byte)0;
             }
         }
 
@@ -175,7 +175,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
                     hasTrackerDriver = value;
                     if (HasStore)
                     {
-                        Owner._simInputsPtr[Index].HasTracker = (value == BasisHasTracked.HasTracker) ? (byte)1 : (byte)0;
+                        Owner.simInputPtr[Index].HasTracker = (value == BasisHasTracked.HasTracker) ? (byte)1 : (byte)0;
                     }
                     OnHasTrackerDriverChanged?.Invoke(value);
                 }
@@ -200,7 +200,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         public unsafe void SetIncoming(Vector3 position, Quaternion rotation)
         {
             if (HasStore == false) return;
-            ref BasisBoneSimInput i = ref Owner._simInputsPtr[Index];
+            ref BasisBoneSimInput i = ref Owner.simInputPtr[Index];
             i.IncomingPosition = position;
             i.IncomingRotation = rotation;
         }
@@ -208,7 +208,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         public unsafe void SetOutgoing(Vector3 position, Quaternion rotation)
         {
             if (HasStore == false) return;
-            ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+            ref BasisBoneSimState s = ref Owner.simStatePtr[Index];
             s.OutgoingPosition = position;
             s.OutgoingRotation = rotation;
         }
@@ -216,7 +216,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         public unsafe void SetOutgoingWorld(Vector3 position, Quaternion rotation)
         {
             if (HasStore == false) return;
-            ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+            ref BasisBoneSimState s = ref Owner.simStatePtr[Index];
             s.OutgoingWorldPosition = position;
             s.OutgoingWorldRotation = rotation;
         }
@@ -224,13 +224,13 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         public unsafe void SetOutgoingWorldPosition(Vector3 position)
         {
             if (HasStore == false) return;
-            Owner._simStatesPtr[Index].OutgoingWorldPosition = position;
+            Owner.simStatePtr[Index].OutgoingWorldPosition = position;
         }
 
         public unsafe void SetLastRun(Vector3 position, Quaternion rotation)
         {
             if (HasStore == false) return;
-            ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+            ref BasisBoneSimState s = ref Owner.simStatePtr[Index];
             s.LastRunPosition = position;
             s.LastRunRotation = rotation;
         }
@@ -238,7 +238,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         public unsafe void SetInverseOffset(Vector3 position, Quaternion rotation)
         {
             if (HasStore == false) return;
-            ref BasisBoneSimInput i = ref Owner._simInputsPtr[Index];
+            ref BasisBoneSimInput i = ref Owner.simInputPtr[Index];
             i.InverseOffsetPosition = position;
             i.InverseOffsetRotation = rotation;
         }
@@ -246,7 +246,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         public unsafe void SetInverseOffset(in BasisCalibratedCoords value)
         {
             if (HasStore == false) return;
-            ref BasisBoneSimInput i = ref Owner._simInputsPtr[Index];
+            ref BasisBoneSimInput i = ref Owner.simInputPtr[Index];
             i.InverseOffsetPosition = value.position;
             i.InverseOffsetRotation = value.rotation;
         }

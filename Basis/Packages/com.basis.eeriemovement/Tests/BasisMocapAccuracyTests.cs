@@ -4,13 +4,11 @@ using System.Text;
 using Basis.IK.Mocap;
 using NUnit.Framework;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     public class BasisMocapAccuracyTests
     {
         static string CorpusDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~");
-
         static List<BasisMotionClip> LoadCorpus()
         {
             var clips = new List<BasisMotionClip>();
@@ -20,13 +18,11 @@ namespace Basis.Tests.IK
             System.Array.Sort(files);
             foreach (string f in files)
             {
-                Assert.That(BasisBvhLoader.TryLoad(f, out BasisMotionClip clip, out string err), Is.True,
-                    $"failed to load {Path.GetFileName(f)}: {err}");
+                Assert.That(BasisBvhLoader.TryLoad(f, out BasisMotionClip clip, out string err), Is.True, $"failed to load {Path.GetFileName(f)}: {err}");
                 clips.Add(clip);
             }
             return clips;
         }
-
         static List<BasisMotionClip> RequireCorpus()
         {
             List<BasisMotionClip> clips = LoadCorpus();
@@ -36,7 +32,6 @@ namespace Basis.Tests.IK
             }
             return clips;
         }
-
         [Test]
         public void Corpus_LoadsAsAnAnatomicallySaneHuman()
         {
@@ -44,13 +39,11 @@ namespace Basis.Tests.IK
             {
                 Assert.That(BasisBvhLoader.Validate(clip, out string why), Is.True, $"{clip.Name}: {why}");
 
-                float arm = Vector3.Distance(clip.Get(0, BasisMocapJoint.LeftUpperArm).Position, clip.Get(0, BasisMocapJoint.LeftLowerArm).Position)
-                          + Vector3.Distance(clip.Get(0, BasisMocapJoint.LeftLowerArm).Position, clip.Get(0, BasisMocapJoint.LeftHand).Position);
+                float arm = Vector3.Distance(clip.Get(0, BasisMocapJoint.LeftUpperArm).Position, clip.Get(0, BasisMocapJoint.LeftLowerArm).Position) + Vector3.Distance(clip.Get(0, BasisMocapJoint.LeftLowerArm).Position, clip.Get(0, BasisMocapJoint.LeftHand).Position);
                 // Normalised to an 0.85 m leg, so the arm must land in adult range or the scaling is off.
                 Assert.That(arm, Is.InRange(0.40f, 0.80f), $"{clip.Name}: arm length {arm:F2} m is not human after scaling");
             }
         }
-
         [Test]
         public void GivenTheTrueJoint_TheSolverReproducesIt()
         {
@@ -66,7 +59,6 @@ namespace Basis.Tests.IK
             }
             Assert.That(failures, Is.Empty, string.Join("\n", failures));
         }
-
         [Test]
         public void ShippedElbow_MeasuredAgainstRealHumans()
         {
@@ -89,8 +81,7 @@ namespace Basis.Tests.IK
                     BasisMocapAccuracySummary s = BasisMocapAccuracy.Run(clip, hint, csv);
                     Assert.That(s.Ok, Is.True, $"{clip.Name} [{hint}]: {s.Error}");
 
-                    log.AppendLine($"  {clip.Name,-12}  {hint,-10}  {s.ElbowMeanM * 100f,8:F1}  {s.ElbowP95M * 100f,6:F1}  {s.ElbowMaxM * 100f,6:F1}   " +
-                                   $"{s.ElbowMeanFracArm * 100f,7:F1}%   {s.KneeMeanM * 100f,8:F1}     {s.ElbowPops}/{s.KneePops}");
+                    log.AppendLine($"  {clip.Name,-12}  {hint,-10}  {s.ElbowMeanM * 100f,8:F1}  {s.ElbowP95M * 100f,6:F1}  {s.ElbowMaxM * 100f,6:F1}   " + $"{s.ElbowMeanFracArm * 100f,7:F1}%   {s.KneeMeanM * 100f,8:F1}     {s.ElbowPops}/{s.KneePops}");
 
                     if (hint == BasisMocapHintSource.Lookup) lookupElbow.Add(s.ElbowMeanM);
                     if (hint == BasisMocapHintSource.TruthJoint) truthElbow.Add(s.ElbowMeanM);
@@ -111,12 +102,9 @@ namespace Basis.Tests.IK
 
             // The one thing we can assert without a settled baseline: the shipped lookup must not be WORSE than
             // simply handing the solver the true elbow. If it were, the lookup would be actively harmful.
-            float lookupMean = Mean(lookupElbow);
-            float truthMean = Mean(truthElbow);
-            Assert.That(lookupMean, Is.GreaterThanOrEqualTo(truthMean - 1e-4f),
-                $"the shipped lookup elbow ({lookupMean * 100f:F1} cm) beat the TRUE elbow ({truthMean * 100f:F1} cm) -- impossible, the harness is wrong");
+            float lookupMean = Mean(lookupElbow), truthMean = Mean(truthElbow);
+            Assert.That(lookupMean, Is.GreaterThanOrEqualTo(truthMean - 1e-4f), $"the shipped lookup elbow ({lookupMean * 100f:F1} cm) beat the TRUE elbow ({truthMean * 100f:F1} cm) -- impossible, the harness is wrong");
         }
-
         static float Mean(List<float> v) { float t = 0f; foreach (float x in v) t += x; return v.Count > 0 ? t / v.Count : float.NaN; }
     }
 }

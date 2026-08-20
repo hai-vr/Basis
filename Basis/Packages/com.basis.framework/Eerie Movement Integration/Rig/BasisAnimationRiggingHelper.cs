@@ -4,19 +4,16 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 using Basis.IK;
-
 public static class BasisAnimationRiggingHelper
 {
     public static Quaternion CalibratedRotationOffset(BasisLocalBoneControl control, Transform animatorRoot, Transform avatarBone)
     {
         return CalibratedRotationOffset(control.OutgoingWorldData.rotation, avatarBone.rotation);
     }
-
     public static Quaternion CalibratedRotationOffset(Quaternion boneOutgoingWorldRotation, Quaternion avatarBoneRotation)
     {
         return Quaternion.Inverse(boneOutgoingWorldRotation) * avatarBoneRotation;
     }
-
     public static void CreateBasisFullBodyRIG(BasisLocalPlayer player, BasisTransformMapping Mapping, ref BasisEerieMovement job)
     {
         BasisEerieMovementSetup.SetDefaultValues(ref job);
@@ -30,24 +27,24 @@ public static class BasisAnimationRiggingHelper
         Quaternion leftLandmarkBind = Quaternion.identity;
         Quaternion rightLandmarkBind = Quaternion.identity;
 
-        Quaternion _lastGoodLeftRot = Quaternion.identity;
-        Quaternion _lastGoodRightRot = Quaternion.identity;
-        bool _hasLastLeft = false;
-        bool _hasLastRight = false;
+        Quaternion lastGoodLeftRot = Quaternion.identity;
+        Quaternion lastGoodRightRot = Quaternion.identity;
+        bool hasLastLeft = false;
+        bool hasLastRight = false;
 
         if (Mapping.HasleftHand)
         {
             Vector3 wrist = Mapping.leftHand.position;
             var a = new[] { GetLM(Mapping.LeftIndex, 0), GetLM(Mapping.LeftIndex, 0), GetLM(Mapping.LeftMiddle, 0) };
             var b = new[] { GetLM(Mapping.LeftLittle, 0), GetLM(Mapping.LeftMiddle, 0), GetLM(Mapping.LeftLittle, 0) };
-            leftLandmarkBind = ComputeHandRotationWithFallback(wrist, a, b, ref _hasLastLeft, ref _lastGoodLeftRot);
+            leftLandmarkBind = ComputeHandRotationWithFallback(wrist, a, b, ref hasLastLeft, ref lastGoodLeftRot);
         }
         if (Mapping.HasrightHand)
         {
             Vector3 wrist = Mapping.rightHand.position;
             var a = new[] { GetLM(Mapping.RightIndex, 0), GetLM(Mapping.RightIndex, 0), GetLM(Mapping.RightMiddle, 0) };
             var b = new[] { GetLM(Mapping.RightLittle, 0), GetLM(Mapping.RightMiddle, 0), GetLM(Mapping.RightLittle, 0) };
-            rightLandmarkBind = ComputeHandRotationWithFallback(wrist, a, b, ref _hasLastRight, ref _lastGoodRightRot);
+            rightLandmarkBind = ComputeHandRotationWithFallback(wrist, a, b, ref hasLastRight, ref lastGoodRightRot);
         }
 
         Quaternion leftBoneBind = Mapping.leftHand.rotation;
@@ -93,7 +90,6 @@ public static class BasisAnimationRiggingHelper
 
         job.ikLockMode = SMModuleCalibration.CurrentIKLockMode;
     }
-
     private static void RecordControlRest(string label, Basis.Scripts.TransformBinders.BoneControl.BasisLocalBoneControl c)
     {
         if (c == null)
@@ -106,7 +102,6 @@ public static class BasisAnimationRiggingHelper
         BasisCalibrationDebugRecorder.Pose("Offsets", label + ".TposeLocalScaled", "local", c.TposeLocalScaled.position, c.TposeLocalScaled.rotation, Vector3.one);
         BasisCalibrationDebugRecorder.Pose("Offsets", label + ".InverseOffsetFromBone", "local", c.InverseOffsetFromBone.position, c.InverseOffsetFromBone.rotation, Vector3.one);
     }
-
     private static (bool valid, Vector3 pos) GetLM(Transform[] arr, int i)
     {
         if (arr != null && i >= 0 && i < arr.Length && arr[i] != null)

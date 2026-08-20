@@ -7,7 +7,6 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Jobs;
 
@@ -117,9 +116,6 @@ public class BasisLocalEyeDriver
     const float SelectIntervalSeconds = 1f / 20f;
     private static float _selectAccumulator;
 
-    private static readonly ProfilerMarker s_gazeGatherMarker = new ProfilerMarker("BasisEye.GazeGather");
-    private static readonly ProfilerMarker s_gazeFramesMarker = new ProfilerMarker("BasisEye.GazeFrames");
-    private static readonly ProfilerMarker s_gazeRunMarker = new ProfilerMarker("BasisEye.GazeRun");
 
 #if UNITY_EDITOR
     private static int _dbgAvatarsInRange;
@@ -489,7 +485,7 @@ public class BasisLocalEyeDriver
     /// </summary>
     private static unsafe void RescoreGazeTarget(float3 localHeadPos, float3 localHeadFwd)
     {
-        s_gazeGatherMarker.Begin();
+        BasisEyeMarkers.GazeGather.Begin();
 
         // ── Phase 1: main-thread input prep (gaze targets only) ─────────────
         var activeTargets = BasisGazeTarget.ActiveTargets;
@@ -520,10 +516,10 @@ public class BasisLocalEyeDriver
             _jobTargetManagedRefs[targetSlots] = target;
             targetSlots++;
         }
-        s_gazeGatherMarker.End();
+        BasisEyeMarkers.GazeGather.End();
 
         // ── Phase 2: run the Burst job inline (.Run, not Schedule().Complete) ─
-        s_gazeFramesMarker.Begin();
+        BasisEyeMarkers.GazeFrames.Begin();
         var remoteFrames = RemoteBoneJobSystem.GetRemoteFrameArray();
         var playerKeys = RemoteBoneJobSystem.GetPlayerKeyArray();
         // AuthoringLength is the live slot count; clamp against both arrays so a mid-frame
@@ -531,7 +527,7 @@ public class BasisLocalEyeDriver
         int playerSlots = (remoteFrames.IsCreated && playerKeys.IsCreated)
             ? math.min(RemoteBoneJobSystem.AuthoringLength, math.min(remoteFrames.Length, playerKeys.Length))
             : 0;
-        s_gazeFramesMarker.End();
+        BasisEyeMarkers.GazeFrames.End();
 
         GazeJobResult r;
         if (playerSlots == 0 && targetSlots == 0)
@@ -561,9 +557,9 @@ public class BasisLocalEyeDriver
                 targetIsCurrent = _jobTargetIsCurrent,
                 result = _jobResult,
             };
-            s_gazeRunMarker.Begin();
+            BasisEyeMarkers.GazeRun.Begin();
             job.Run();
-            s_gazeRunMarker.End();
+            BasisEyeMarkers.GazeRun.End();
 
             r = _jobResult[0];
         }

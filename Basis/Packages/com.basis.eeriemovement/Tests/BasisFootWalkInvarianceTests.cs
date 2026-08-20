@@ -2,13 +2,11 @@ using System.Collections.Generic;
 using Basis.IK.Mocap;
 using NUnit.Framework;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisFootWalkInvarianceTests
     {
         static readonly float[] WalkSpeeds = { 0.20f, 0.30f, 0.42f };   // v-hat, the walking band
-
         [Test]
         public void WalkGait_IsScaleInvariant()
         {
@@ -18,10 +16,7 @@ namespace Basis.Tests.IK
                 BasisFootWalkResult chibi = BasisMocapFootQuality.RunWalk(BasisMocapFootQuality.BuildReferenceParams(0.6f), vhat);
                 BasisFootWalkResult adult = BasisMocapFootQuality.RunWalk(BasisMocapFootQuality.BuildReferenceParams(1.0f), vhat);
                 BasisFootWalkResult giant = BasisMocapFootQuality.RunWalk(BasisMocapFootQuality.BuildReferenceParams(1.8f), vhat);
-                Debug.Log($"[scale vhat={vhat:F2}] duty {chibi.Duty:F2}/{adult.Duty:F2}/{giant.Duty:F2}  " +
-                          $"dsup {chibi.DoubleSupport:F2}/{adult.DoubleSupport:F2}/{giant.DoubleSupport:F2}  " +
-                          $"clear {chibi.ClearFrac:F3}/{adult.ClearFrac:F3}/{giant.ClearFrac:F3}  " +
-                          $"cad {chibi.CadenceHat:F2}/{adult.CadenceHat:F2}/{giant.CadenceHat:F2}");
+                Debug.Log($"[scale vhat={vhat:F2}] duty {chibi.Duty:F2}/{adult.Duty:F2}/{giant.Duty:F2}  " + $"dsup {chibi.DoubleSupport:F2}/{adult.DoubleSupport:F2}/{giant.DoubleSupport:F2}  " + $"clear {chibi.ClearFrac:F3}/{adult.ClearFrac:F3}/{giant.ClearFrac:F3}  " + $"cad {chibi.CadenceHat:F2}/{adult.CadenceHat:F2}/{giant.CadenceHat:F2}");
                 Check(failures, vhat, "duty", chibi.Duty, adult.Duty, giant.Duty, 0.06f);
                 Check(failures, vhat, "dsup", chibi.DoubleSupport, adult.DoubleSupport, giant.DoubleSupport, 0.06f);
                 Check(failures, vhat, "clear", chibi.ClearFrac, adult.ClearFrac, giant.ClearFrac, 0.03f);
@@ -31,7 +26,6 @@ namespace Basis.Tests.IK
             }
             if (failures.Count > 0) Assert.Fail("scale-invariance:\n  " + string.Join("\n  ", failures));
         }
-
         [Test]
         public void WalkGait_IsFramerateIndependent()
         {
@@ -42,9 +36,7 @@ namespace Basis.Tests.IK
                 BasisFootWalkResult r30 = BasisMocapFootQuality.RunWalk(p, vhat, dt: 1f / 30f);
                 BasisFootWalkResult r72 = BasisMocapFootQuality.RunWalk(p, vhat, dt: 1f / 72f);
                 BasisFootWalkResult r144 = BasisMocapFootQuality.RunWalk(p, vhat, dt: 1f / 144f);
-                Debug.Log($"[fps vhat={vhat:F2}] duty {r30.Duty:F2}/{r72.Duty:F2}/{r144.Duty:F2}  " +
-                          $"clear {r30.ClearFrac:F3}/{r72.ClearFrac:F3}/{r144.ClearFrac:F3}  " +
-                          $"cad {r30.CadenceHat:F2}/{r72.CadenceHat:F2}/{r144.CadenceHat:F2}");
+                Debug.Log($"[fps vhat={vhat:F2}] duty {r30.Duty:F2}/{r72.Duty:F2}/{r144.Duty:F2}  " + $"clear {r30.ClearFrac:F3}/{r72.ClearFrac:F3}/{r144.ClearFrac:F3}  " + $"cad {r30.CadenceHat:F2}/{r72.CadenceHat:F2}/{r144.CadenceHat:F2}");
                 Check(failures, vhat, "duty", r30.Duty, r72.Duty, r144.Duty, 0.07f);
                 Check(failures, vhat, "clear", r30.ClearFrac, r72.ClearFrac, r144.ClearFrac, 0.03f);
                 // cadence is a step COUNT over a fixed window, so it quantizes +/-1 step with the timestep even
@@ -53,7 +45,6 @@ namespace Basis.Tests.IK
             }
             if (failures.Count > 0) Assert.Fail("framerate-independence:\n  " + string.Join("\n  ", failures));
         }
-
         [Test]
         public void Stepper_DoesNotMicroStep_WhenStandingStill()
         {
@@ -68,15 +59,11 @@ namespace Basis.Tests.IK
             }
             if (failures.Count > 0) Assert.Fail(string.Join("\n", failures));
         }
-
         static void Check(List<string> f, float vhat, string name, float a, float b, float c, float tol)
         {
             float spread = Mathf.Max(a, b, c) - Mathf.Min(a, b, c);
             if (spread > tol) f.Add($"vhat {vhat:F2}: {name} spans {spread:F3} (>{tol}) across sizes/rates -- not invariant");
         }
-
-        static bool Finite(in BasisFootWalkResult r) =>
-            !(float.IsNaN(r.Duty) || float.IsInfinity(r.Duty) || float.IsNaN(r.ClearFrac) || float.IsInfinity(r.ClearFrac) ||
-              float.IsNaN(r.CadenceHat) || float.IsInfinity(r.CadenceHat) || float.IsNaN(r.ExtP95));
+        static bool Finite(in BasisFootWalkResult r) => !(float.IsNaN(r.Duty) || float.IsInfinity(r.Duty) || float.IsNaN(r.ClearFrac) || float.IsInfinity(r.ClearFrac) || float.IsNaN(r.CadenceHat) || float.IsInfinity(r.CadenceHat) || float.IsNaN(r.ExtP95));
     }
 }

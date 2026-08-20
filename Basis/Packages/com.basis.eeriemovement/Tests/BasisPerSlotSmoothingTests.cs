@@ -7,7 +7,6 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using Basis.Scripts.Drivers;
-
 namespace Basis.Tests.IK
 {
     public class BasisPerSlotSmoothingTests
@@ -15,19 +14,13 @@ namespace Basis.Tests.IK
         const float Dt = 1f / 90f;      // VR frame time
         const int WarmupFrames = 90;    // one second: let the euro state settle before measuring
         const int MeasureFrames = 270;  // three seconds of steady-state
-
         // Residual tracking noise of a player trying to hold still: zero-mean, high frequency. The derivative
         // low-pass sees ~0 mean velocity, so the cutoff stays at its floor and the signal is heavily smoothed.
         static float Jitter(float t) => 0.01f * (0.6f * Mathf.Sin(2f * Mathf.PI * 5f * t) + 0.4f * Mathf.Sin(2f * Mathf.PI * 11f * t + 1.3f));
-
         // Heavy = IMU-class tracker (low cutoff floor). Light = lighthouse-class (high floor, near passthrough).
         static readonly float4 HeavyTuning = new float4(0.5f, 0f, 1f, 0.08f);
         static readonly float4 LightTuning = new float4(20f, 0f, 3f, 0.85f);
-
-        const int SlotHeavy = 0;
-        const int SlotLight = 1;
-        const int SlotCount = 2;
-
+        const int SlotHeavy = 0, SlotLight = 1, SlotCount = 2;
         static float RunPositionFilter(byte mode, float4 heavyTuning, float4 lightTuning, int readSlot)
         {
             var modes = new NativeArray<byte>(SlotCount, Allocator.TempJob);
@@ -42,8 +35,7 @@ namespace Basis.Tests.IK
             tuning[SlotHeavy] = heavyTuning;
             tuning[SlotLight] = lightTuning;
 
-            float min = float.MaxValue;
-            float max = float.MinValue;
+            float min = float.MaxValue, max = float.MinValue;
 
             try
             {
@@ -86,7 +78,6 @@ namespace Basis.Tests.IK
 
             return max - min;
         }
-
         [Test]
         public void EuroTuningIsPerSlot()
         {
@@ -95,20 +86,16 @@ namespace Basis.Tests.IK
 
             // The heavily-tuned slot must be materially stiller than the lightly-tuned one in the SAME batch.
             // A 2x margin is well inside the measured gap and leaves room for Burst/mono float drift.
-            Assert.Less(heavyP2P, lightP2P * 0.5f,
-                $"per-slot euro tuning did not diverge: heavy p2p {heavyP2P:F6} vs light p2p {lightP2P:F6}");
+            Assert.Less(heavyP2P, lightP2P * 0.5f, $"per-slot euro tuning did not diverge: heavy p2p {heavyP2P:F6} vs light p2p {lightP2P:F6}");
         }
-
         [Test]
         public void FallbackAlphaIsPerSlot()
         {
             float heavyP2P = RunPositionFilter((byte)BasisFilterMode.Fallback, HeavyTuning, LightTuning, SlotHeavy);
             float lightP2P = RunPositionFilter((byte)BasisFilterMode.Fallback, HeavyTuning, LightTuning, SlotLight);
 
-            Assert.Less(heavyP2P, lightP2P * 0.5f,
-                $"per-slot fallback alpha did not diverge: heavy p2p {heavyP2P:F6} vs light p2p {lightP2P:F6}");
+            Assert.Less(heavyP2P, lightP2P * 0.5f, $"per-slot fallback alpha did not diverge: heavy p2p {heavyP2P:F6} vs light p2p {lightP2P:F6}");
         }
-
         [Test]
         public void UniformTuningKeepsSlotsIdentical()
         {
@@ -117,20 +104,16 @@ namespace Basis.Tests.IK
             float slotA = RunPositionFilter((byte)BasisFilterMode.Euro, HeavyTuning, HeavyTuning, SlotHeavy);
             float slotB = RunPositionFilter((byte)BasisFilterMode.Euro, HeavyTuning, HeavyTuning, SlotLight);
 
-            Assert.AreEqual(slotA, slotB, 1e-9f,
-                $"uniform tuning diverged across slots: {slotA:F9} vs {slotB:F9}");
+            Assert.AreEqual(slotA, slotB, 1e-9f, $"uniform tuning diverged across slots: {slotA:F9} vs {slotB:F9}");
         }
-
         [Test]
         public void PassthroughIgnoresTuning()
         {
             float heavyP2P = RunPositionFilter((byte)BasisFilterMode.Passthrough, HeavyTuning, LightTuning, SlotHeavy);
             float lightP2P = RunPositionFilter((byte)BasisFilterMode.Passthrough, HeavyTuning, LightTuning, SlotLight);
 
-            Assert.AreEqual(heavyP2P, lightP2P, 1e-9f,
-                "Passthrough must emit the raw signal regardless of tuning");
+            Assert.AreEqual(heavyP2P, lightP2P, 1e-9f,"Passthrough must emit the raw signal regardless of tuning");
         }
-
         [Test]
         public void RotationTuningIsPerSlot()
         {
@@ -196,13 +179,10 @@ namespace Basis.Tests.IK
                 fallbackStates.Dispose();
             }
 
-            float heavyP2P = heavyMax - heavyMin;
-            float lightP2P = lightMax - lightMin;
+            float heavyP2P = heavyMax - heavyMin, lightP2P = lightMax - lightMin;
 
-            Assert.Less(heavyP2P, lightP2P * 0.5f,
-                $"per-slot euro tuning did not diverge on rotation: heavy p2p {heavyP2P:F4}deg vs light p2p {lightP2P:F4}deg");
+            Assert.Less(heavyP2P, lightP2P * 0.5f, $"per-slot euro tuning did not diverge on rotation: heavy p2p {heavyP2P:F4}deg vs light p2p {lightP2P:F4}deg");
         }
-
         [Test]
         public void EverySlotMapsToAValidGroup()
         {
@@ -222,12 +202,10 @@ namespace Basis.Tests.IK
                 Assert.IsTrue(seen[group], $"smoothing group {(BasisSmoothingGroup)group} owns no slot");
             }
         }
-
         [Test]
         public void PresetTableIsConsistent()
         {
-            Assert.AreEqual(BasisSmoothingProfiles.PresetOrder.Length, BasisSmoothingProfiles.PresetLocalizationKeys.Length,
-                "every preset needs a localization key");
+            Assert.AreEqual(BasisSmoothingProfiles.PresetOrder.Length, BasisSmoothingProfiles.PresetLocalizationKeys.Length,"every preset needs a localization key");
 
             // Off must not resolve to a tuning curve -- it is a passthrough sentinel handled by the driver.
             Assert.IsTrue(BasisSmoothingProfiles.IsOff(BasisSmoothingProfiles.PresetOff));
@@ -243,8 +221,7 @@ namespace Basis.Tests.IK
             Assert.IsFalse(BasisSmoothingProfiles.IsOff(BasisSmoothingProfiles.PresetCustom));
             Assert.IsFalse(BasisSmoothingProfiles.IsCustom(BasisSmoothingProfiles.PresetStandard));
 
-            Assert.AreEqual(BasisSmoothingProfiles.PresetOrder.Length, new HashSet<string>(BasisSmoothingProfiles.PresetOrder).Count,
-                "preset ids must be unique -- the dropdown resolves a selection back to a value by string match");
+            Assert.AreEqual(BasisSmoothingProfiles.PresetOrder.Length, new HashSet<string>(BasisSmoothingProfiles.PresetOrder).Count,"preset ids must be unique -- the dropdown resolves a selection back to a value by string match");
 
             Assert.IsTrue(BasisSmoothingProfiles.TryGetPreset(BasisSmoothingProfiles.PresetLight, out var light));
             Assert.IsTrue(BasisSmoothingProfiles.TryGetPreset(BasisSmoothingProfiles.PresetHeavy, out var heavy));
@@ -257,7 +234,6 @@ namespace Basis.Tests.IK
             Assert.Greater(heavy.Beta, light.Beta, "Heavy needs more speed adaptation than Light");
             Assert.Greater(optical.Beta, heavy.Beta, "Optical needs more speed adaptation than Heavy");
         }
-
         [Test]
         public void AutoResolvesEachHardwareToASelectablePreset()
         {
@@ -266,12 +242,10 @@ namespace Basis.Tests.IK
             Assert.IsTrue(BasisSmoothingProfiles.IsAuto(BasisSmoothingProfiles.PresetAuto));
             Assert.IsFalse(BasisSmoothingProfiles.TryGetPreset(BasisSmoothingProfiles.PresetAuto, out _));
 
-            Assert.AreEqual(BasisSmoothingProfiles.PresetHeavy, BasisSmoothingProfiles.PresetForHardware(BasisTrackingHardware.Inertial),
-                "IMU trackers drift and buzz -- filtering them lightly is the bug Auto exists to prevent");
+            Assert.AreEqual(BasisSmoothingProfiles.PresetHeavy, BasisSmoothingProfiles.PresetForHardware(BasisTrackingHardware.Inertial),"IMU trackers drift and buzz -- filtering them lightly is the bug Auto exists to prevent");
             Assert.AreEqual(BasisSmoothingProfiles.PresetLight, BasisSmoothingProfiles.PresetForHardware(BasisTrackingHardware.Lighthouse));
             Assert.AreEqual(BasisSmoothingProfiles.PresetOptical, BasisSmoothingProfiles.PresetForHardware(BasisTrackingHardware.Optical));
-            Assert.AreEqual(BasisSmoothingProfiles.PresetStandard, BasisSmoothingProfiles.PresetForHardware(BasisTrackingHardware.Unknown),
-                "unidentified hardware must behave exactly as it did before Auto existed");
+            Assert.AreEqual(BasisSmoothingProfiles.PresetStandard, BasisSmoothingProfiles.PresetForHardware(BasisTrackingHardware.Unknown),"unidentified hardware must behave exactly as it did before Auto existed");
 
             foreach (BasisTrackingHardware hardware in Enum.GetValues(typeof(BasisTrackingHardware)))
             {
@@ -281,18 +255,15 @@ namespace Basis.Tests.IK
                 Assert.IsFalse(BasisSmoothingProfiles.IsCustom(resolved), $"{hardware} handed the user's own sliders back as an automatic choice");
             }
         }
-
         [Test]
         public void TrackingHardwareIsOrderedByFilteringNeed()
         {
-            Assert.Less((byte)BasisTrackingHardware.Unknown, (byte)BasisTrackingHardware.Simulated,
-                "Unknown must lose to any device that identified itself");
+            Assert.Less((byte)BasisTrackingHardware.Unknown, (byte)BasisTrackingHardware.Simulated,"Unknown must lose to any device that identified itself");
             Assert.Less((byte)BasisTrackingHardware.Simulated, (byte)BasisTrackingHardware.Lighthouse);
             Assert.Less((byte)BasisTrackingHardware.Lighthouse, (byte)BasisTrackingHardware.InsideOut);
             Assert.Less((byte)BasisTrackingHardware.InsideOut, (byte)BasisTrackingHardware.Optical);
             Assert.Less((byte)BasisTrackingHardware.Optical, (byte)BasisTrackingHardware.Estimated);
             Assert.Less((byte)BasisTrackingHardware.Estimated, (byte)BasisTrackingHardware.Inertial);
         }
-
     }
 }

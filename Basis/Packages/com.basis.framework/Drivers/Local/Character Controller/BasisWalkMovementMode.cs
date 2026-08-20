@@ -1,6 +1,5 @@
 using Basis.Scripts.Drivers;
 using Unity.Mathematics;
-using Unity.Profiling;
 using UnityEngine;
 
 namespace Basis.Scripts.BasisCharacterController
@@ -73,7 +72,7 @@ namespace Basis.Scripts.BasisCharacterController
                 move.z = 0;
             }
 
-            using (BasisLocalCharacterDriver.MovePhysicsMarker.Auto())
+            using (BasisLocalPlayerMarkers.MovePhysics.Auto())
             {
                 ctx.Flags = ctx.characterController.Move(move);
             }

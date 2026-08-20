@@ -1,7 +1,6 @@
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisSpineChestTargetTests
@@ -12,7 +11,6 @@ namespace Basis.Tests.IK
         const float ChestWeight = 0.5f;   // the job's k_ChestIkWeight
         const int ChestIters = 8;         // the job's k_ChestIkIters
         const int RestoreSweeps = 2;      // the job's k_ChestIkHeadRestoreSweeps
-
         // TIP -> ROOT, exactly the job's chainHeadToSpine convention: index 0 = head (tip), index N-1 = hips
         // (root, fixed). The parent of joint i is i+1. Offset[i] is the local vector from that parent to i.
         sealed class Chain
@@ -22,7 +20,6 @@ namespace Basis.Tests.IK
             public Vector3 RootPos;      // hips, at index N-1
             public Quaternion RootRot;
             public int N => Local.Length;
-
             public void Fk(Vector3[] wp, Quaternion[] wr)
             {
                 int root = N - 1;
@@ -33,7 +30,6 @@ namespace Basis.Tests.IK
                     wp[j] = wp[j + 1] + wr[j + 1] * Offset[j];
                 }
             }
-
             public void SetWorldRot(int j, Quaternion newWr)
             {
                 var wp = new Vector3[N]; var wr = new Quaternion[N];
@@ -42,7 +38,6 @@ namespace Basis.Tests.IK
                 Local[j] = Quaternion.Inverse(parent) * newWr;
             }
         }
-
         static Quaternion FromTo(Vector3 a, Vector3 b)
         {
             a = a.normalized; b = b.normalized;
@@ -58,23 +53,19 @@ namespace Basis.Tests.IK
             float s = Mathf.Sqrt((1f + d) * 2f), inv = 1f / s;
             return new Quaternion(c.x * inv, c.y * inv, c.z * inv, s * 0.5f);
         }
-
         static void ReachHead(Chain ch, Vector3 headTarget, int i, int first, float span, Vector3 up)
         {
             var wp = new Vector3[ch.N]; var wr = new Quaternion[ch.N];
             ch.Fk(wp, wr);
-            Vector3 cur = wp[0] - wp[i];
-            Vector3 tgt = headTarget - wp[i];
+            Vector3 cur = wp[0] - wp[i], tgt = headTarget - wp[i];
             if (cur.sqrMagnitude < 1e-10f || tgt.sqrMagnitude < 1e-10f) return;
             Quaternion delta = FromTo(cur, tgt);
-            float t = (i - first) / span;
-            float twistKeep = Mathf.Lerp(0.9f, 0.25f, t);
+            float t = (i - first) / span, twistKeep = Mathf.Lerp(0.9f, 0.25f, t);
             float swingScale = 1f - 0.3f * (1f - Mathf.Abs(2f * t - 1f));
             delta = BasisTwistSolveCore.ShapeReachStep(delta, up, twistKeep, swingScale);
             delta = Quaternion.Slerp(Quaternion.identity, delta, Relax);
             ch.SetWorldRot(i, delta * wr[i]);
         }
-
         // Mirrors the job: Phase A (head only), then Phase B (chest via lower spine, head restored by upper).
         static void Solve(Chain ch, Vector3 headTarget, Vector3 chestTarget, int chestIdx, float chestWeight)
         {
@@ -92,14 +83,12 @@ namespace Basis.Tests.IK
 
             if (chestWeight > 0f && last > first && last > chestIdx)
             {
-                float st = (last - first) / span;
-                float twistKeep = Mathf.Lerp(0.9f, 0.25f, st);
+                float st = (last - first) / span, twistKeep = Mathf.Lerp(0.9f, 0.25f, st);
                 float swingScale = 1f - 0.3f * (1f - Mathf.Abs(2f * st - 1f));
                 for (int c = 0; c < ChestIters; c++)
                 {
                     ch.Fk(wp, wr);
-                    Vector3 cCur = wp[chestIdx] - wp[last];
-                    Vector3 cTgt = chestTarget - wp[last];
+                    Vector3 cCur = wp[chestIdx] - wp[last], cTgt = chestTarget - wp[last];
                     if (cCur.sqrMagnitude > 1e-10f && cTgt.sqrMagnitude > 1e-10f)
                     {
                         Quaternion d = FromTo(cCur, cTgt);
@@ -112,7 +101,6 @@ namespace Basis.Tests.IK
                 }
             }
         }
-
         // A straight chain in the job's TIP->ROOT order: head(0), neck(1), upperChest(2), chest(3),
         // spine(4), hips(5). Each bone points +Y from its parent (toward the root) up to the tip.
         static Chain Straight()
@@ -126,16 +114,13 @@ namespace Basis.Tests.IK
             }
             return new Chain { Offset = off, Local = loc, RootPos = Vector3.zero, RootRot = Quaternion.identity };
         }
-
         const int ChestIdx = 3;   // the Chest bone = chainLen-3, exactly as the job computes it
-
         // Head target requires a real forward bend. The chest target is a REACHABLE chest position -- read
         // off a pose where the spine (the joint that owns the chest) is rotated a little -- so it sits on the
         // chest's reachable arc, exactly like the live rig's target (which comes from the avatar's own
         // skeleton). It is deliberately NOT where the head-only solve leaves the chest, so weight>0 has a real
         // ~several-cm correction to make.
         static readonly Vector3 k_Head = new Vector3(0f, 0.9f, 0.35f);
-
         static (Vector3 head, Vector3 chest) Targets()
         {
             int last = 6 - 2;   // spine
@@ -148,21 +133,17 @@ namespace Basis.Tests.IK
             probe.Fk(wp, wr);
             return (k_Head, wp[ChestIdx]);
         }
-
         static float HeadErr(Chain ch, Vector3 head)
         {
             var wp = new Vector3[ch.N]; var wr = new Quaternion[ch.N]; ch.Fk(wp, wr);
             return (wp[0] - head).magnitude;
         }
-
         static float ChestErr(Chain ch, Vector3 chest)
         {
             var wp = new Vector3[ch.N]; var wr = new Quaternion[ch.N]; ch.Fk(wp, wr);
             return (wp[ChestIdx] - chest).magnitude;
         }
-
         // -------------------------------------------------------------------------------------------------
-
         [Test]
         public void WeightZero_IsExactlyTheHeadOnlySolve()
         {
@@ -175,7 +156,6 @@ namespace Basis.Tests.IK
                 Assert.AreEqual(0f, Quaternion.Angle(a.Local[j], b.Local[j]), 1e-4f, $"joint {j} not deterministic");
             Assert.Greater(ChestErr(a, chest), 0.02f, "the test setup must leave a real chest error at weight 0");
         }
-
         [Test]
         public void TheHead_IsNeverTradedAwayForTheChest()
         {
@@ -190,11 +170,9 @@ namespace Basis.Tests.IK
                 // the head must stay at least as well placed as head-only, within a hair. At the shipped
                 // weight it is measurably BETTER (the restore sweeps tighten it) -- that is a bonus, not the
                 // requirement. The requirement is: turning the chest on does not push the head off the HMD.
-                Assert.LessOrEqual(he, baseHead + 0.005f,
-                    $"weight {w}: head error {he:F4} m worse than head-only {baseHead:F4} m -- the head was sacrificed");
+                Assert.LessOrEqual(he, baseHead + 0.005f, $"weight {w}: head error {he:F4} m worse than head-only {baseHead:F4} m -- the head was sacrificed");
             }
         }
-
         [Test]
         public void TheChest_LandsCloserToItsTarget()
         {
@@ -202,12 +180,9 @@ namespace Basis.Tests.IK
             Chain w0 = Straight(); Solve(w0, head, chest, ChestIdx, 0f);
             Chain w5 = Straight(); Solve(w5, head, chest, ChestIdx, ChestWeight);
 
-            float e0 = ChestErr(w0, chest);
-            float e5 = ChestErr(w5, chest);
-            Assert.Less(e5, e0 * 0.8f,
-                $"chest targeting barely moved the chest: {e0 * 100f:F1} cm -> {e5 * 100f:F1} cm (want a real reduction)");
+            float e0 = ChestErr(w0, chest), e5 = ChestErr(w5, chest);
+            Assert.Less(e5, e0 * 0.8f, $"chest targeting barely moved the chest: {e0 * 100f:F1} cm -> {e5 * 100f:F1} cm (want a real reduction)");
         }
-
         [Test]
         public void MoreWeight_MovesTheChestMonotonicallyCloser()
         {
@@ -221,7 +196,6 @@ namespace Basis.Tests.IK
                 prev = e;
             }
         }
-
         [Test]
         public void TheWeightIsContinuous_NoPopAcrossTheSweep()
         {
@@ -243,7 +217,6 @@ namespace Basis.Tests.IK
             // large discontinuity here.
             Assert.Less(worstStep, 0.02f, $"chest jumped {worstStep * 100f:F1} cm across a 0.05 weight step (a pop)");
         }
-
         [Test]
         public void TheHeadStaysReachable_AtEveryWeight()
         {

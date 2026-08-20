@@ -1,31 +1,18 @@
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisCervicalDirectionTests
     {
         // Production defaults, matching BasisFullBodyIK.SetDefaults() and BasisHeadSweepConfig.Default().
-        const float BaseDeg = 5f;
-        const float NeckShare = 0.65f;
-        const float MaxHeadPitchDeg = 80f;
-        const float ExtremeStartDeg = 50f;
-        const float ExtremeFullDeg = 80f;
-        const float PitchGainDeg = 8f;
-        const float ExtremeRollForwardMaxDeg = 10f;
-        const float ExtremeRollBackwardMaxDeg = 4f;
-        const float ExtremeHipsHorizontalMax = 0.025f;
-        const float ExtremeChestHorizontalMax = 0.04f;
-        const float ExtremeHipsHorizontalLookUp = 0.025f;
-        const float ExtremeChestHorizontalLookUp = 0.010f;
-        const float ExtremeHipsDownMax = 0.015f;
-        const float ExtremeChestDownMax = 0.025f;
-        const float ExtremeHipsDownLookUp = 0.0005f;
+        const float BaseDeg = 5f, NeckShare = 0.65f, MaxHeadPitchDeg = 80f, ExtremeStartDeg = 50f, ExtremeFullDeg = 80f;
+        const float PitchGainDeg = 8f, ExtremeRollForwardMaxDeg = 10f, ExtremeRollBackwardMaxDeg = 4f;
+        const float ExtremeHipsHorizontalMax = 0.025f, ExtremeChestHorizontalMax = 0.04f;
+        const float ExtremeHipsHorizontalLookUp = 0.025f, ExtremeChestHorizontalLookUp = 0.010f;
+        const float ExtremeHipsDownMax = 0.015f, ExtremeChestDownMax = 0.025f, ExtremeHipsDownLookUp = 0.0005f;
         const float ExtremeChestDownLookUp = 0.001f;
-
         // ----------------------------------------------------------------- sign convention
-
         [Test]
         public void Convention_LookingDownIsPositivePitch_LookingUpIsNegative()
         {
@@ -42,9 +29,7 @@ namespace Basis.Tests.IK
             Assert.That(up.LookUpFrac, Is.GreaterThan(0f), "look-up did not register an up fraction.");
             Assert.That(up.LookDownFrac, Is.EqualTo(0f), "look-up spuriously registered a down fraction.");
         }
-
         // ----------------------------------------------------------------- resting pose (the headline)
-
         [Test]
         public void RestingNeck_IsGentleForwardCurl_NotAForwardPokedChickenNeck()
         {
@@ -54,15 +39,11 @@ namespace Basis.Tests.IK
             // 12 deg ceiling lets the base bend be tuned UP a little before it reads as a forward poke,
             // while a runaway value (e.g. someone bumping the base to 20+) trips it.
             var r = Solve(0f);
-            Assert.That(r.NeckDeg, Is.GreaterThan(0f),
-                $"resting neck bend {r.NeckDeg:0.00} deg is backward; the neck should rest in a gentle forward lordosis.");
-            Assert.That(r.NeckDeg, Is.LessThan(12f),
-                $"resting neck bend {r.NeckDeg:0.00} deg is a forward poke (chicken neck); it should be a gentle curl (~3.25 deg).");
+            Assert.That(r.NeckDeg, Is.GreaterThan(0f), $"resting neck bend {r.NeckDeg:0.00} deg is backward; the neck should rest in a gentle forward lordosis.");
+            Assert.That(r.NeckDeg, Is.LessThan(12f), $"resting neck bend {r.NeckDeg:0.00} deg is a forward poke (chicken neck); it should be a gentle curl (~3.25 deg).");
             // Total torso curl (neck + upper-chest) is likewise just the base bend at level gaze.
-            Assert.That(r.NeckDeg + r.UpperChestLordosisDeg, Is.LessThan(15f),
-                "resting neck + upper-chest curl is excessive; the whole upper torso is poking forward.");
+            Assert.That(r.NeckDeg + r.UpperChestLordosisDeg, Is.LessThan(15f),"resting neck + upper-chest curl is excessive; the whole upper torso is poking forward.");
         }
-
         [Test]
         public void RestingLordosis_EqualsBaseBend_Exactly()
         {
@@ -71,12 +52,9 @@ namespace Basis.Tests.IK
             // no hidden offset. If the smoothing constants drift apart the resting pose silently shifts
             // (a permanent forward/back lean creeping into every avatar) -- this pins them together.
             var r = Solve(0f);
-            Assert.That(r.LordosisDeg, Is.EqualTo(BaseDeg).Within(1e-3f),
-                $"resting lordosis {r.LordosisDeg:0.0000} deg != base {BaseDeg} (the level-gaze smoothing offset has drifted).");
+            Assert.That(r.LordosisDeg, Is.EqualTo(BaseDeg).Within(1e-3f), $"resting lordosis {r.LordosisDeg:0.0000} deg != base {BaseDeg} (the level-gaze smoothing offset has drifted).");
         }
-
         // ----------------------------------------------------------------- neck/upper-chest distribution
-
         [Test]
         public void NeckAndUpperChest_ShareSumsToTotalLordosis()
         {
@@ -86,11 +64,9 @@ namespace Basis.Tests.IK
             for (float pitch = -90f; pitch <= 90f; pitch += 5f)
             {
                 var r = Solve(pitch);
-                Assert.That(r.NeckDeg + r.UpperChestLordosisDeg, Is.EqualTo(r.LordosisDeg).Within(1e-3f),
-                    $"pitch {pitch:0}: neck {r.NeckDeg:0.000} + upperChest {r.UpperChestLordosisDeg:0.000} != lordosis {r.LordosisDeg:0.000}.");
+                Assert.That(r.NeckDeg + r.UpperChestLordosisDeg, Is.EqualTo(r.LordosisDeg).Within(1e-3f), $"pitch {pitch:0}: neck {r.NeckDeg:0.000} + upperChest {r.UpperChestLordosisDeg:0.000} != lordosis {r.LordosisDeg:0.000}.");
             }
         }
-
         [Test]
         public void WithoutUpperChest_NeckCarriesTheWholeLordosis()
         {
@@ -99,15 +75,11 @@ namespace Basis.Tests.IK
             for (float pitch = -60f; pitch <= 60f; pitch += 15f)
             {
                 var r = Solve(pitch, hasUpperChest: false);
-                Assert.That(r.NeckDeg, Is.EqualTo(r.LordosisDeg).Within(1e-3f),
-                    $"pitch {pitch:0}: neck {r.NeckDeg:0.000} != full lordosis {r.LordosisDeg:0.000} without an upper-chest.");
-                Assert.That(r.UpperChestLordosisDeg, Is.EqualTo(0f),
-                    $"pitch {pitch:0}: upper-chest curl {r.UpperChestLordosisDeg:0.000} written with no upper-chest bone.");
+                Assert.That(r.NeckDeg, Is.EqualTo(r.LordosisDeg).Within(1e-3f), $"pitch {pitch:0}: neck {r.NeckDeg:0.000} != full lordosis {r.LordosisDeg:0.000} without an upper-chest.");
+                Assert.That(r.UpperChestLordosisDeg, Is.EqualTo(0f), $"pitch {pitch:0}: upper-chest curl {r.UpperChestLordosisDeg:0.000} written with no upper-chest bone.");
             }
         }
-
         // ----------------------------------------------------------------- gaze response (direction)
-
         [Test]
         public void ForwardCurl_GrowsLookingDown_ShrinksLookingUp_Monotonically()
         {
@@ -122,18 +94,14 @@ namespace Basis.Tests.IK
             for (float pitch = -85f; pitch <= 85f; pitch += 2f)
             {
                 float neck = Solve(pitch).NeckDeg;
-                Assert.That(neck, Is.GreaterThanOrEqualTo(prev - 1e-3f),
-                    $"neck curl dropped from {prev:0.000} to {neck:0.000} as gaze moved toward down at pitch {pitch:0} (non-monotonic).");
+                Assert.That(neck, Is.GreaterThanOrEqualTo(prev - 1e-3f), $"neck curl dropped from {prev:0.000} to {neck:0.000} as gaze moved toward down at pitch {pitch:0} (non-monotonic).");
                 prev = neck;
             }
 
             // And the endpoints are clearly ordered: down flexes forward, up extends back, through zero.
-            Assert.That(Solve(60f).NeckDeg, Is.GreaterThan(Solve(0f).NeckDeg + 1f),
-                "looking down did not flex the neck further forward than level.");
-            Assert.That(Solve(0f).NeckDeg, Is.GreaterThan(Solve(-60f).NeckDeg + 1f),
-                "looking up did not extend the neck back relative to level.");
+            Assert.That(Solve(60f).NeckDeg, Is.GreaterThan(Solve(0f).NeckDeg + 1f),"looking down did not flex the neck further forward than level.");
+            Assert.That(Solve(0f).NeckDeg, Is.GreaterThan(Solve(-60f).NeckDeg + 1f),"looking up did not extend the neck back relative to level.");
         }
-
         [Test]
         public void LookingUp_PastTheRestingCurl_ExtendsNeckBackward()
         {
@@ -145,13 +113,10 @@ namespace Basis.Tests.IK
             for (float pitch = -40f; pitch >= -80f; pitch -= 20f)
             {
                 var r = Solve(pitch);
-                Assert.That(r.NeckDeg, Is.LessThan(0f),
-                    $"look-up {pitch:0} deg curled the neck forward ({r.NeckDeg:0.00} deg) instead of extending it back.");
+                Assert.That(r.NeckDeg, Is.LessThan(0f), $"look-up {pitch:0} deg curled the neck forward ({r.NeckDeg:0.00} deg) instead of extending it back.");
             }
         }
-
         // ----------------------------------------------------------------- head-pitch clamp
-
         [Test]
         public void HeadGaze_IsClampedToTheAnatomicalLimit()
         {
@@ -161,19 +126,15 @@ namespace Basis.Tests.IK
             foreach (float cmd in new[] { 81f, 85f, 90f, 95f, 100f, -85f, -95f })
             {
                 var r = Solve(cmd);
-                Assert.That(Mathf.Abs(r.HeadPitchClampedDeg), Is.LessThanOrEqualTo(MaxHeadPitchDeg + 1e-3f),
-                    $"command {cmd:0}: reported clamped pitch {r.HeadPitchClampedDeg:0.0} exceeds the {MaxHeadPitchDeg} deg limit.");
+                Assert.That(Mathf.Abs(r.HeadPitchClampedDeg), Is.LessThanOrEqualTo(MaxHeadPitchDeg + 1e-3f), $"command {cmd:0}: reported clamped pitch {r.HeadPitchClampedDeg:0.0} exceeds the {MaxHeadPitchDeg} deg limit.");
 
                 Vector3 fwd = r.HeadRotClamped * Vector3.forward;
                 float horiz = Mathf.Sqrt(fwd.x * fwd.x + fwd.z * fwd.z);
                 float actualPitch = Mathf.Atan2(-fwd.y, horiz) * Mathf.Rad2Deg;
-                Assert.That(Mathf.Abs(actualPitch), Is.LessThanOrEqualTo(MaxHeadPitchDeg + 1f),
-                    $"command {cmd:0}: the clamped head still gazes {actualPitch:0.0} deg, past the {MaxHeadPitchDeg} deg limit.");
+                Assert.That(Mathf.Abs(actualPitch), Is.LessThanOrEqualTo(MaxHeadPitchDeg + 1f), $"command {cmd:0}: the clamped head still gazes {actualPitch:0.0} deg, past the {MaxHeadPitchDeg} deg limit.");
             }
         }
-
         // ----------------------------------------------------------------- smoothness at the common pose
-
         [Test]
         public void NeckBend_HasNoRateKink_AtLevelGaze()
         {
@@ -186,18 +147,13 @@ namespace Basis.Tests.IK
             float worst = 0f, worstAt = 0f;
             for (float pitch = -19f; pitch <= 19f; pitch += step)
             {
-                float a = Solve(pitch - step).NeckDeg;
-                float b = Solve(pitch).NeckDeg;
-                float c = Solve(pitch + step).NeckDeg;
+                float a = Solve(pitch - step).NeckDeg, b = Solve(pitch).NeckDeg, c = Solve(pitch + step).NeckDeg;
                 float secondDiff = Mathf.Abs(a - 2f * b + c);
                 if (secondDiff > worst) { worst = secondDiff; worstAt = pitch; }
             }
-            Assert.That(worst, Is.LessThan(0.03f),
-                $"neck bend has a {worst:0.000} deg rate kink near level gaze (pitch {worstAt:0}); it would snap as the user nods through level.");
+            Assert.That(worst, Is.LessThan(0.03f), $"neck bend has a {worst:0.000} deg rate kink near level gaze (pitch {worstAt:0}); it would snap as the user nods through level.");
         }
-
         // ----------------------------------------------------------------- extreme-region counterbalance
-
         [Test]
         public void ExtremeCounterbalance_StaysDormant_ThroughNormalGaze()
         {
@@ -214,7 +170,6 @@ namespace Basis.Tests.IK
                 Assert.That(r.ChestForwardAmount, Is.EqualTo(0f), $"pitch {pitch:0}: chest slid {r.ChestForwardAmount:0.0000} m in the normal range.");
             }
         }
-
         [Test]
         public void ExtremeCounterbalance_EngagesPastOnset_AndRampsToFull()
         {
@@ -228,12 +183,10 @@ namespace Basis.Tests.IK
             for (float pitch = ExtremeStartDeg; pitch <= ExtremeFullDeg; pitch += 2f)
             {
                 float frac = Solve(pitch).ExtremeFrac;
-                Assert.That(frac, Is.GreaterThanOrEqualTo(prev - 1e-4f),
-                    $"pitch {pitch:0}: extreme fraction dropped from {prev:0.000} to {frac:0.000} (non-monotonic onset).");
+                Assert.That(frac, Is.GreaterThanOrEqualTo(prev - 1e-4f), $"pitch {pitch:0}: extreme fraction dropped from {prev:0.000} to {frac:0.000} (non-monotonic onset).");
                 prev = frac;
             }
         }
-
         [Test]
         public void ExtremeCounterbalance_PushesTheBodyTheRightWay_AndStaysBounded()
         {
@@ -251,19 +204,13 @@ namespace Basis.Tests.IK
             for (float pitch = -100f; pitch <= 100f; pitch += 2f)
             {
                 var r = Solve(pitch);
-                Assert.That(Mathf.Abs(r.HipsForwardAmount), Is.LessThanOrEqualTo(ExtremeHipsHorizontalMax + 1e-4f),
-                    $"pitch {pitch:0}: hips slid {r.HipsForwardAmount:0.0000} m, past the {ExtremeHipsHorizontalMax} m cap.");
-                Assert.That(Mathf.Abs(r.ChestForwardAmount), Is.LessThanOrEqualTo(ExtremeChestHorizontalMax + 1e-4f),
-                    $"pitch {pitch:0}: chest slid {r.ChestForwardAmount:0.0000} m, past the {ExtremeChestHorizontalMax} m cap.");
-                Assert.That(r.HipsDownAmount, Is.InRange(-1e-4f, ExtremeHipsDownMax + 1e-4f),
-                    $"pitch {pitch:0}: hips dropped {r.HipsDownAmount:0.0000} m, outside [0, {ExtremeHipsDownMax}].");
-                Assert.That(r.ChestDownAmount, Is.InRange(-1e-4f, ExtremeChestDownMax + 1e-4f),
-                    $"pitch {pitch:0}: chest dropped {r.ChestDownAmount:0.0000} m, outside [0, {ExtremeChestDownMax}].");
+                Assert.That(Mathf.Abs(r.HipsForwardAmount), Is.LessThanOrEqualTo(ExtremeHipsHorizontalMax + 1e-4f), $"pitch {pitch:0}: hips slid {r.HipsForwardAmount:0.0000} m, past the {ExtremeHipsHorizontalMax} m cap.");
+                Assert.That(Mathf.Abs(r.ChestForwardAmount), Is.LessThanOrEqualTo(ExtremeChestHorizontalMax + 1e-4f), $"pitch {pitch:0}: chest slid {r.ChestForwardAmount:0.0000} m, past the {ExtremeChestHorizontalMax} m cap.");
+                Assert.That(r.HipsDownAmount, Is.InRange(-1e-4f, ExtremeHipsDownMax + 1e-4f), $"pitch {pitch:0}: hips dropped {r.HipsDownAmount:0.0000} m, outside [0, {ExtremeHipsDownMax}].");
+                Assert.That(r.ChestDownAmount, Is.InRange(-1e-4f, ExtremeChestDownMax + 1e-4f), $"pitch {pitch:0}: chest dropped {r.ChestDownAmount:0.0000} m, outside [0, {ExtremeChestDownMax}].");
             }
         }
-
         // ----------------------------------------------------------------- degenerate / safety
-
         [Test]
         public void NegligibleConfig_EarlyOutsWithoutWritingTheNeck()
         {
@@ -277,7 +224,6 @@ namespace Basis.Tests.IK
             Assert.That(r.EarlyOut, Is.True, "a negligible config did not early-out.");
             Assert.That(r.NeckDeg, Is.EqualTo(0f), $"a negligible config still wrote {r.NeckDeg:0.0000} deg to the neck.");
         }
-
         [Test]
         public void AllOutputs_StayFinite_AcrossTheFullPitchSweep()
         {
@@ -287,26 +233,17 @@ namespace Basis.Tests.IK
             for (float pitch = -110f; pitch <= 110f; pitch += 1f)
             {
                 var r = Solve(pitch);
-                Assert.That(IsFinite(r.NeckDeg) && IsFinite(r.LordosisDeg) && IsFinite(r.UpperChestLordosisDeg)
-                            && IsFinite(r.BhDeg) && IsFinite(r.ExtremeFrac)
-                            && IsFinite(r.HipsForwardAmount) && IsFinite(r.HipsDownAmount)
-                            && IsFinite(r.ChestForwardAmount) && IsFinite(r.ChestDownAmount),
-                    Is.True, $"pitch {pitch:0}: a cervical output is non-finite.");
-                Assert.That(Mathf.Abs(r.NeckDeg), Is.LessThan(90f),
-                    $"pitch {pitch:0}: neck bend {r.NeckDeg:0.0} deg is an inhuman contortion.");
+                Assert.That(IsFinite(r.NeckDeg) && IsFinite(r.LordosisDeg) && IsFinite(r.UpperChestLordosisDeg) && IsFinite(r.BhDeg) && IsFinite(r.ExtremeFrac) && IsFinite(r.HipsForwardAmount) && IsFinite(r.HipsDownAmount) && IsFinite(r.ChestForwardAmount) && IsFinite(r.ChestDownAmount), Is.True, $"pitch {pitch:0}: a cervical output is non-finite.");
+                Assert.That(Mathf.Abs(r.NeckDeg), Is.LessThan(90f), $"pitch {pitch:0}: neck bend {r.NeckDeg:0.0} deg is an inhuman contortion.");
             }
         }
-
         // ----------------------------------------------------------------- helpers (test scaffolding)
-
         static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
-
         static BasisCervicalResult Solve(float pitchDeg, float yawDeg = 0f, bool hasUpperChest = true)
         {
             BasisCervicalSolveCore.Solve(DefaultInput(pitchDeg, yawDeg, hasUpperChest), out var r);
             return r;
         }
-
         // Build the production-default cervical input at a given gaze. Head rotation matches the sweep
         // (and the live job): yaw about up, then pitch about right -- positive pitch is look-down.
         static BasisCervicalInput DefaultInput(float pitchDeg, float yawDeg = 0f, bool hasUpperChest = true)

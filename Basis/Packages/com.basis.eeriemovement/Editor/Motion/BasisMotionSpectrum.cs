@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-
 namespace Basis.IK.Motion
 {
     public static class BasisMotionSpectrum
@@ -33,8 +32,7 @@ namespace Basis.IK.Motion
                     for (int k = 0; k < len / 2; k++)
                     {
                         int a = i + k, b = i + k + len / 2;
-                        float xr = re[b] * cr - im[b] * ci;
-                        float xi = re[b] * ci + im[b] * cr;
+                        float xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
                         re[b] = re[a] - xr; im[b] = im[a] - xi;
                         re[a] += xr; im[a] += xi;
                         float ncr = cr * wr - ci * wi;
@@ -44,18 +42,15 @@ namespace Basis.IK.Motion
                 }
             }
         }
-
         static int NextPow2(int n)
         {
             int p = 1;
             while (p < n) p <<= 1;
             return p;
         }
-
         public static float[] Power(float[] x, float dt, out float[] freqHz)
         {
-            int n = x.Length;
-            int nfft = NextPow2(n);
+            int n = x.Length, nfft = NextPow2(n);
             var re = new float[nfft];
             var im = new float[nfft];
 
@@ -82,7 +77,6 @@ namespace Basis.IK.Motion
             }
             return p;
         }
-
         public static float HighBandRatio(float[] x, float dt, float cutoffHz)
         {
             if (x == null || x.Length < 16) return float.NaN;
@@ -95,7 +89,6 @@ namespace Basis.IK.Motion
             }
             return tot <= 0 ? float.NaN : (float)(hi / tot);
         }
-
         public static float DominantAbove(float[] x, float dt, float cutoffHz)
         {
             if (x == null || x.Length < 16) return float.NaN;
@@ -105,9 +98,7 @@ namespace Basis.IK.Motion
                 if (f[i] > cutoffHz && p[i] > best) { best = p[i]; at = f[i]; }
             return at;
         }
-
-        static readonly float[] k_BandEdgesHz = { 0.2f, 0.5f, 1f, 2f, 4f, 6f };
-
+        static readonly float[] bandEdgesHz = { 0.2f, 0.5f, 1f, 2f, 4f, 6f };
         public static float ShapeDistance(float[] a, float[] b, float dt)
         {
             if (a == null || b == null || a.Length < 16 || b.Length < 16) return float.NaN;
@@ -117,10 +108,8 @@ namespace Basis.IK.Motion
             Array.Copy(a, aa, n);
             Array.Copy(b, bb, n);
 
-            float[] pa = Power(aa, dt, out float[] f);
-            float[] pb = Power(bb, dt, out _);
-
-            int nb = k_BandEdgesHz.Length - 1;
+            float[] pa = Power(aa, dt, out float[] f), pb = Power(bb, dt, out _);
+            int nb = bandEdgesHz.Length - 1;
             var ea = new double[nb];
             var eb = new double[nb];
             for (int i = 0; i < pa.Length; i++)
@@ -139,15 +128,13 @@ namespace Basis.IK.Motion
             for (int k = 0; k < nb; k++) tv += Math.Abs(ea[k] / sa - eb[k] / sb);
             return (float)(0.5 * tv);
         }
-
         static int BandOf(float hz)
         {
-            for (int k = 0; k < k_BandEdgesHz.Length - 1; k++)
-                if (hz >= k_BandEdgesHz[k] && hz < k_BandEdgesHz[k + 1])
+            for (int k = 0; k < bandEdgesHz.Length - 1; k++)
+                if (hz >= bandEdgesHz[k] && hz < bandEdgesHz[k + 1])
                     return k;
             return -1;
         }
-
         public static float Sparc(float[] speed, float dt, float fcHz = 10f, float ampThreshold = 0.05f)
         {
             if (speed == null || speed.Length < 8) return float.NaN;
@@ -184,15 +171,13 @@ namespace Basis.IK.Motion
             }
             if (first < 0 || last <= first) return float.NaN;
 
-            float df = fs / nfft;
-            float span = (last - first) * df;
+            float df = fs / nfft, span = (last - first) * df;
             if (span <= 0f) return float.NaN;
 
             double arc = 0;
             for (int i = first; i < last; i++)
             {
-                double dfn = df / span;
-                double dm = mag[i + 1] - mag[i];
+                double dfn = df / span, dm = mag[i + 1] - mag[i];
                 arc += Math.Sqrt(dfn * dfn + dm * dm);
             }
             return (float)(-arc);

@@ -2,7 +2,6 @@ using System;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.IK.Mocap
 {
     // "Does the procedural stepper walk like a human?" -- measured against real mocap, the foot analog of
@@ -22,13 +21,11 @@ namespace Basis.IK.Mocap
     public struct BasisFootQualitySummary
     {
         public bool Ok;
-        public string Error;
-        public string Clip;
+        public string Error, Clip;
         public int Frames;
         public float Dt;
         public float LegLen;          // metres (normalised to ~0.85)
         public float VHat;            // v / sqrt(g L), the dimensionless speed
-
         // Real vs synthesised, all dimensionless.
         public float DutyReal, DutySyn;              // fraction of time a foot is planted
         public float DoubleSupportReal, DoubleSupportSyn;  // fraction of time BOTH feet are planted
@@ -39,7 +36,6 @@ namespace Basis.IK.Mocap
         public float ExtP50, ExtP95, ExtMax;         // synth foot-to-hips distance / standing reach
         public bool ChiralityOk;                     // synth-left really tracks the body's left side
     }
-
     // Result of the synthetic in-place-spin probe -- reproduces "fast hip rotation makes the feet step on
     // each other" headlessly (no BVH), mirror of scratchpad/spin.py.
     public struct BasisFootRotationResult
@@ -54,19 +50,16 @@ namespace Basis.IK.Mocap
         // the body (the OLD "preserveTip" behaviour). This exercises the foot ROTATION the driver now consumes.
         public float PlantedYawFollowFrac;
     }
-
     // Result of the synthetic straight-walk probe -- dimensionless gait metrics, no BVH needed.
     public struct BasisFootWalkResult
     {
         public float Duty, DoubleSupport, ClearFrac, CadenceHat, ExtP95, SlideMm;
         public int Steps;
     }
-
     public static class BasisMocapFootQuality
     {
         static readonly float3 Up = new float3(0, 1, 0);
         const float G = 9.81f;
-
         // ── naturalness gate thresholds (loose -- catch "that is not a walk", not subtle feel) ──
         // Double-support is a BAND on the SYNTH gait, not a per-clip differential: the stepper synthesises one
         // gait and cannot know THIS person's cadence -- a fast walker (v-hat ~0.5) legitimately has almost no
@@ -77,18 +70,13 @@ namespace Basis.IK.Mocap
         public const float MaxClearFrac = 0.26f;          // ...nor a march
         public const float MaxPlantedSlideMm = 6f;        // a planted foot must stay put
         public const float MaxExtP95 = 1.22f;             // 95% of frames within reach (the tail is the no-flight-phase ceiling)
-
         public static BasisFootQualitySummary Run(BasisMotionClip clip)
         {
             var r = new BasisFootQualitySummary { Ok = false, Clip = clip?.Name };
             try
             {
                 if (clip == null || clip.FrameCount < 8) { r.Error = "clip too short"; return r; }
-                if (!clip.Has(BasisMocapJoint.Hips) || !clip.Has(BasisMocapJoint.Head) ||
-                    !clip.Has(BasisMocapJoint.LeftFoot) || !clip.Has(BasisMocapJoint.RightFoot) ||
-                    !clip.Has(BasisMocapJoint.LeftToes) || !clip.Has(BasisMocapJoint.RightToes) ||
-                    !clip.Has(BasisMocapJoint.LeftUpperLeg) || !clip.Has(BasisMocapJoint.RightUpperLeg) ||
-                    !clip.Has(BasisMocapJoint.LeftLowerLeg) || !clip.Has(BasisMocapJoint.RightLowerLeg))
+                if (!clip.Has(BasisMocapJoint.Hips) || !clip.Has(BasisMocapJoint.Head) || !clip.Has(BasisMocapJoint.LeftFoot) || !clip.Has(BasisMocapJoint.RightFoot) || !clip.Has(BasisMocapJoint.LeftToes) || !clip.Has(BasisMocapJoint.RightToes) || !clip.Has(BasisMocapJoint.LeftUpperLeg) || !clip.Has(BasisMocapJoint.RightUpperLeg) || !clip.Has(BasisMocapJoint.LeftLowerLeg) || !clip.Has(BasisMocapJoint.RightLowerLeg))
                 { r.Error = "clip is missing a required leg/foot/head joint"; return r; }
 
                 int n = clip.FrameCount;
@@ -106,8 +94,7 @@ namespace Basis.IK.Mocap
                 // mean horizontal hip speed -> v-hat
                 float3 h0 = clip.Get(0, BasisMocapJoint.Hips).Position;
                 float3 hEnd = clip.Get(n - 1, BasisMocapJoint.Hips).Position;
-                float travel = math.length(Flat(hEnd - h0, Up));
-                float vmean = travel / math.max(1e-3f, (n - 1) * dt);
+                float travel = math.length(Flat(hEnd - h0, Up)), vmean = travel / math.max(1e-3f, (n - 1) * dt);
                 r.VHat = vmean / math.sqrt(G * legLen);
 
                 int warm = Mathf.Clamp(Mathf.RoundToInt(0.6f / dt), 0, n - 4);
@@ -115,8 +102,7 @@ namespace Basis.IK.Mocap
                 // ── real feet ──
                 bool[] cLr = Contacts(clip, BasisMocapJoint.LeftFoot, BasisMocapJoint.LeftToes, legLen, dt);
                 bool[] cRr = Contacts(clip, BasisMocapJoint.RightFoot, BasisMocapJoint.RightToes, legLen, dt);
-                float3[] realL = Track(clip, BasisMocapJoint.LeftFoot);
-                float3[] realR = Track(clip, BasisMocapJoint.RightFoot);
+                float3[] realL = Track(clip, BasisMocapJoint.LeftFoot), realR = Track(clip, BasisMocapJoint.RightFoot);
 
                 GaitStats(realL, cLr, legLen, dt, out float dutyLr, out float clrLr, out float slLr, out int stepsLr);
                 GaitStats(realR, cRr, legLen, dt, out float dutyRr, out float clrRr, out float slRr, out int stepsRr);
@@ -154,7 +140,6 @@ namespace Basis.IK.Mocap
             }
             return r;
         }
-
         public static (bool pass, string reason) Gate(in BasisFootQualitySummary s)
         {
             if (!s.Ok) return (false, s.Error);
@@ -167,7 +152,6 @@ namespace Basis.IK.Mocap
             if (s.ExtP95 > MaxExtP95) return (false, $"leg over-extends: ext p95 {s.ExtP95:F2} (> {MaxExtP95})");
             return (true, null);
         }
-
         // ───────────────────────── calibration + params (MUST mirror BasisLocalFootDriver) ─────────────────────────
         // The CMU skeleton has no authored T-pose; a real Basis avatar is measured from one with straight legs.
         // So take the correct bone LENGTHS (rigid, pose-independent) and synthesise that T-pose: feet under the
@@ -184,7 +168,6 @@ namespace Basis.IK.Mocap
             Vector3 rf = clip.Get(0, BasisMocapJoint.RightFoot).Position;
             Vector3 lt = clip.Get(0, BasisMocapJoint.LeftToes).Position;
             Vector3 rt = clip.Get(0, BasisMocapJoint.RightToes).Position;
-
             float leftThigh = Vector3.Distance(lul, lll), leftShin = Vector3.Distance(lll, lf);
             float rightThigh = Vector3.Distance(rul, rll), rightShin = Vector3.Distance(rll, rf);
             float leftLeg = leftThigh + leftShin, rightLeg = rightThigh + rightShin;
@@ -193,8 +176,7 @@ namespace Basis.IK.Mocap
 
             float socketBelowHips = hips.y - 0.5f * (lul.y + rul.y);
             Vector3 sw = rul - lul; sw.y = 0f;
-            float stanceWidth = Mathf.Max(0.04f, sw.magnitude);
-            float hipToFoot = socketBelowHips + avgLeg;
+            float stanceWidth = Mathf.Max(0.04f, sw.magnitude), hipToFoot = socketBelowHips + avgLeg;
             float upperLegToFootVertical = avgLeg;
             float ankleHeight = Mathf.Max(0.005f, 0.5f * (Mathf.Abs(lf.y - lt.y) + Mathf.Abs(rf.y - rt.y)));
             float footLength = Mathf.Max(0.02f, 0.5f * (Vector3.Distance(lf, lt) + Vector3.Distance(rf, rt)));
@@ -210,34 +192,29 @@ namespace Basis.IK.Mocap
             }
             groundY = Percentile(lows, 3);
 
-            return Derive(leftThigh, leftShin, rightThigh, rightShin, stanceWidth, hipToFoot,
-                          upperLegToFootVertical, ankleHeight, footLength);
+            return Derive(leftThigh, leftShin, rightThigh, rightShin, stanceWidth, hipToFoot, upperLegToFootVertical, ankleHeight, footLength);
         }
-
         // The ONE place the clamp math lives on the harness side (both the mocap path and the synthetic
         // rotation probe route through it). MUST match BasisLocalFootDriver.DeriveStepParameters +
         // BasisFootIKSweep.BuildParams -- a tune only has to change one copy on this side.
-        static BasisFootSimParams Derive(float leftThigh, float leftShin, float rightThigh, float rightShin,
-            float stanceWidth, float hipToFoot, float upperLegToFootVertical, float ankleHeight, float footLength)
+        static BasisFootSimParams Derive(float leftThigh, float leftShin, float rightThigh, float rightShin, float stanceWidth, float hipToFoot, float upperLegToFootVertical, float ankleHeight, float footLength)
         {
             float leftLeg = leftThigh + leftShin, rightLeg = rightThigh + rightShin;
-            float avgLeg = 0.5f * (leftLeg + rightLeg);
-            float avgShin = 0.5f * (leftShin + rightShin);
-            const float k_RefLeg = 0.87f;
-            float pendulum = Mathf.PI * Mathf.Sqrt(avgLeg / G);
-            float speedRef = Mathf.Sqrt(avgLeg * G);
+            float avgLeg = 0.5f * (leftLeg + rightLeg), avgShin = 0.5f * (leftShin + rightShin);
+            const float refLeg = 0.87f;
+            float pendulum = Mathf.PI * Mathf.Sqrt(avgLeg / G), speedRef = Mathf.Sqrt(avgLeg * G);
             // inspector defaults, kept in lock-step with the driver (tuned 2026-07-18 vs real walk)
             const float raySphereRadiusMul = 0.3f, footHeightOffsetMul = 0.2f, stepTriggerMul = 0.18f,
                         strideScaleMul = 0.15f, stepHeightMul = 0.30f, stepDurSlowMul = 0.30f, stepDurFastMul = 0.18f,
                         fastSpeedMul = 1.2f;
 
-            float raySphereRadius = Mathf.Clamp(footLength * raySphereRadiusMul, avgLeg * (0.02f / k_RefLeg), avgLeg * (0.12f / k_RefLeg));
+            float raySphereRadius = Mathf.Clamp(footLength * raySphereRadiusMul, avgLeg * (0.02f / refLeg), avgLeg * (0.12f / refLeg));
             float desiredOffset = ankleHeight * footHeightOffsetMul;
             float straightLegLimit = upperLegToFootVertical + ankleHeight - avgLeg;
-            float footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), avgLeg * (0.001f / k_RefLeg), avgLeg * (0.05f / k_RefLeg));
-            float stepTriggerDist = Mathf.Clamp(avgLeg * stepTriggerMul, avgLeg * (0.04f / k_RefLeg), avgLeg * (0.18f / k_RefLeg));
-            float strideScale = Mathf.Clamp(avgLeg * strideScaleMul, avgLeg * (0.02f / k_RefLeg), avgLeg * (0.22f / k_RefLeg));
-            float stepHeightCalc = Mathf.Clamp(avgShin * stepHeightMul, avgLeg * (0.03f / k_RefLeg), avgLeg * (0.20f / k_RefLeg));
+            float footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), avgLeg * (0.001f / refLeg), avgLeg * (0.05f / refLeg));
+            float stepTriggerDist = Mathf.Clamp(avgLeg * stepTriggerMul, avgLeg * (0.04f / refLeg), avgLeg * (0.18f / refLeg));
+            float strideScale = Mathf.Clamp(avgLeg * strideScaleMul, avgLeg * (0.02f / refLeg), avgLeg * (0.22f / refLeg));
+            float stepHeightCalc = Mathf.Clamp(avgShin * stepHeightMul, avgLeg * (0.03f / refLeg), avgLeg * (0.20f / refLeg));
             float stepDurSlow = Mathf.Clamp(pendulum * stepDurSlowMul, pendulum * (0.10f / 0.9356f), pendulum * (0.30f / 0.9356f));
             float stepDurFast = Mathf.Clamp(pendulum * stepDurFastMul, pendulum * (0.06f / 0.9356f), pendulum * (0.18f / 0.9356f));
             float fastSpeedRef = Mathf.Clamp(fastSpeedMul * speedRef, speedRef * (1.0f / 2.921f), speedRef * 2.5f);
@@ -265,7 +242,6 @@ namespace Basis.IK.Mocap
                 rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLeg, rightLeg)) + 1f,
             };
         }
-
         // A reference adult avatar (0.87 m leg) scaled by `scale` -- params without a mocap clip, for the
         // scale-invariance and synthetic rotation/crossover checks.
         public static BasisFootSimParams BuildReferenceParams(float scale)
@@ -273,10 +249,8 @@ namespace Basis.IK.Mocap
             float s = scale;
             return Derive(0.45f * s, 0.42f * s, 0.45f * s, 0.42f * s, 0.18f * s, 0.92f * s, 0.87f * s, 0.08f * s, 0.13f * s);
         }
-
         // ───────────────────────── drive the real job ─────────────────────────
-        static void RunStepper(BasisMotionClip clip, BasisFootSimParams p, float groundY,
-            float3[] outL, float3[] outR, bool[] plantedL, bool[] plantedR)
+        static void RunStepper(BasisMotionClip clip, BasisFootSimParams p, float groundY, float3[] outL, float3[] outR, bool[] plantedL, bool[] plantedR)
         {
             int n = clip.FrameCount;
             // constant avatar forward = frame-0 hips facing (physical locomotion: the playspace does not rotate)
@@ -334,7 +308,6 @@ namespace Basis.IK.Mocap
             }
             finally { feet.Dispose(); simState.Dispose(); input.Dispose(); output.Dispose(); }
         }
-
         static BasisFootNativeState InitFoot(in BasisFootSimParams p, int sideSign, float3 hips, float groundY, float3 bodyRight)
         {
             float half = p.stanceWidth * 0.5f;
@@ -353,7 +326,6 @@ namespace Basis.IK.Mocap
                 kneeHint = (hips + planted) * 0.5f,
             };
         }
-
         // Flat-ground FinalizeStep (mirror of BasisLocalFootDriver.FinalizeStep with the raycast collapsed to a
         // constant floor level -- a walk clip is on flat ground).
         static void FinalizeStepFlat(ref BasisFootNativeState f, in BasisFootSimState sim, in BasisFootSimParams p, float3 hips, float groundY)
@@ -374,30 +346,25 @@ namespace Basis.IK.Mocap
 
             float3 rawR = math.cross(Up, sim.smoothedBodyFwd);
             rawR = math.lengthsq(rawR) < 0.001f ? new float3(1, 0, 0) : math.normalize(rawR);
-            float3 stp = f.stepTargetPos;
-            float3 hGround = new float3(Flat(hips, Up).x, math.dot(stp, Up), Flat(hips, Up).z);
+            float3 stp = f.stepTargetPos, hGround = new float3(Flat(hips, Up).x, math.dot(stp, Up), Flat(hips, Up).z);
             EnforceSide(ref stp, hGround, rawR, f.sideSign, p.stanceWidth * p.stepTargetSideFraction);
             f.stepTargetPos = stp;
         }
-
         static void EnforceSide(ref float3 pos, float3 center, float3 bodyRight, int sideSign, float minDist)
         {
             float lateral = math.dot(pos - center, bodyRight);
             if (sideSign > 0 && lateral < sideSign * minDist) pos += bodyRight * (sideSign * minDist - lateral);
             else if (sideSign < 0 && lateral > -minDist) pos -= bodyRight * (lateral + minDist);
         }
-
         // ───────────────────────── synthetic rotation / crossover probe ─────────────────────────
         // Drive the REAL job through an in-place spin at omegaDps and measure the scissor. stick=false is a
         // PHYSICAL spin (playspace fixed, body yaws -- the hard case the anti-cross fix targets); stick=true is
         // a character-controller turn (root carries the yaw). No BVH -- uses BuildReferenceParams. Mirror of spin.py.
-        public static BasisFootRotationResult RunSpin(in BasisFootSimParams p, float omegaDps, bool stick,
-            float durSec = 6f, float dt = 1f / 90f)
+        public static BasisFootRotationResult RunSpin(in BasisFootSimParams p, float omegaDps, bool stick, float durSec = 6f, float dt = 1f / 90f)
         {
             int n = Mathf.Max(4, Mathf.RoundToInt(durSec / dt));
             float standH = p.hipToFoot + p.ankleHeight;
-            float3 fwd0 = new float3(0, 0, 1);
-            float3 avatarRight0 = math.normalize(math.cross(Up, fwd0));
+            float3 fwd0 = new float3(0, 0, 1), avatarRight0 = math.normalize(math.cross(Up, fwd0));
             float3 hips0 = new float3(0, standH, 0);
 
             var feet = new NativeArray<BasisFootNativeState>(2, Allocator.Persistent);
@@ -419,8 +386,7 @@ namespace Basis.IK.Mocap
                     float th = math.radians(omegaDps * f * dt);
                     float3 fwd = new float3(math.sin(th), 0, math.cos(th));
                     quaternion rot = quaternion.AxisAngle(Up, th);
-                    float3 av = stick ? fwd : fwd0;
-                    float3 avr = math.normalize(math.cross(Up, av));
+                    float3 av = stick ? fwd : fwd0, avr = math.normalize(math.cross(Up, av));
                     input[0] = new BasisFootSimInput
                     {
                         dt = dt, headPos = hips0, hipsPos = hips0, hipsRot = rot, chestRot = rot, headRot = rot,
@@ -444,8 +410,7 @@ namespace Basis.IK.Mocap
                     prevFootYaw = footYaw; prevPlanted = lPlanted;
 
                     if (f < warm) continue;
-                    float3 br = math.normalize(math.cross(Up, fwd));
-                    float3 d = feet[0].currentPos - feet[1].currentPos;
+                    float3 br = math.normalize(math.cross(Up, fwd)), d = feet[0].currentPos - feet[1].currentPos;
                     float crossSep = math.dot(d, br);        // >0 => left foot is on the right of the right foot
                     float gap = math.length(Flat(d, Up));
                     res.CrossMaxCm = math.max(res.CrossMaxCm, crossSep * 100f);
@@ -463,13 +428,11 @@ namespace Basis.IK.Mocap
             finally { feet.Dispose(); simState.Dispose(); input.Dispose(); output.Dispose(); }
             return res;
         }
-
         public static float RunCrouchKneeSplay(in BasisFootSimParams p, float crouchFrac, float durSec = 1.5f, float dt = 1f / 90f)
         {
             int n = Mathf.Max(4, Mathf.RoundToInt(durSec / dt));
             float standH = p.hipToFoot + p.ankleHeight;
-            float3 fwd = new float3(0, 0, 1);
-            float3 right = math.normalize(math.cross(Up, fwd));
+            float3 fwd = new float3(0, 0, 1), right = math.normalize(math.cross(Up, fwd));
             float3 hipsStand = new float3(0, standH, 0);
 
             var feet = new NativeArray<BasisFootNativeState>(2, Allocator.Persistent);
@@ -498,18 +461,15 @@ namespace Basis.IK.Mocap
             }
             finally { feet.Dispose(); simState.Dispose(); input.Dispose(); output.Dispose(); }
         }
-
         // A synthetic straight walk at dimensionless speed vhat = v / sqrt(g L) (walk ~0.2-0.45), returning the
         // same dimensionless gait metrics as the mocap path -- for scale-invariance, framerate-independence and
         // idle checks that need no BVH. No rotation, flat ground.
         public static BasisFootWalkResult RunWalk(in BasisFootSimParams p, float vhat, float durSec = 6f, float dt = 1f / 90f)
         {
             int n = Mathf.Max(8, Mathf.RoundToInt(durSec / dt));
-            float avgLeg = 0.5f * (p.leftLegLen + p.rightLegLen);
-            float v = vhat * math.sqrt(G * avgLeg);
+            float avgLeg = 0.5f * (p.leftLegLen + p.rightLegLen), v = vhat * math.sqrt(G * avgLeg);
             float standH = p.hipToFoot + p.ankleHeight;
-            float3 fwd = new float3(0, 0, 1);
-            float3 right = math.normalize(math.cross(Up, fwd));
+            float3 fwd = new float3(0, 0, 1), right = math.normalize(math.cross(Up, fwd));
             quaternion rot = quaternion.identity;
 
             var feet = new NativeArray<BasisFootNativeState>(2, Allocator.Persistent);
@@ -563,7 +523,6 @@ namespace Basis.IK.Mocap
             }
             finally { feet.Dispose(); simState.Dispose(); input.Dispose(); output.Dispose(); }
         }
-
         // ───────────────────────── metrics ─────────────────────────
         static float3[] Track(BasisMotionClip clip, BasisMocapJoint j)
         {
@@ -571,7 +530,6 @@ namespace Basis.IK.Mocap
             for (int f = 0; f < clip.FrameCount; f++) t[f] = clip.Get(f, j).Position;
             return t;
         }
-
         // Real-foot contact = LOW and horizontally SLOW, against a PER-FOOT robust floor + hysteresis.
         static bool[] Contacts(BasisMotionClip clip, BasisMocapJoint foot, BasisMocapJoint toe, float L, float dt)
         {
@@ -596,7 +554,6 @@ namespace Basis.IK.Mocap
             }
             return Hysteresis(raw, math.max(2, Mathf.RoundToInt(0.03f / dt)));
         }
-
         static bool[] Hysteresis(bool[] raw, int minRun)
         {
             var o = (bool[])raw.Clone(); int n = raw.Length, i = 0;
@@ -608,9 +565,7 @@ namespace Basis.IK.Mocap
             }
             return o;
         }
-
-        static void GaitStats(float3[] foot, bool[] planted, float L, float dt,
-            out float duty, out float clearMed, out float stepLenMed, out int steps)
+        static void GaitStats(float3[] foot, bool[] planted, float L, float dt, out float duty, out float clearMed, out float stepLenMed, out int steps)
         {
             int n = foot.Length; int on = 0; for (int f = 0; f < n; f++) if (planted[f]) on++;
             duty = (float)on / n;
@@ -637,13 +592,11 @@ namespace Basis.IK.Mocap
             steps = strides.Count;
             clearMed = Median(clears); stepLenMed = Median(strides);
         }
-
         static float BothFrac(bool[] a, bool[] b)
         {
             int both = 0; for (int i = 0; i < a.Length; i++) if (a[i] && b[i]) both++;
             return (float)both / a.Length;
         }
-
         static float PlantedSlideMm(float3[] foot, bool[] planted)
         {
             var d = new System.Collections.Generic.List<float>();
@@ -651,7 +604,6 @@ namespace Basis.IK.Mocap
                 if (planted[i] && planted[i - 1]) d.Add(math.length(Flat(foot[i] - foot[i - 1], Up)) * 1000f);
             return Median(d);
         }
-
         static float LateralSign(BasisMotionClip clip, float3[] foot, int warm)
         {
             double s = 0; int c = 0;
@@ -665,7 +617,6 @@ namespace Basis.IK.Mocap
             }
             return c > 0 ? (float)(s / c) : 0f;
         }
-
         // ───────────────────────── helpers ─────────────────────────
         static float3 Flat(float3 v, float3 up) => v - up * math.dot(v, up);
         static float Median2(float a, float b)

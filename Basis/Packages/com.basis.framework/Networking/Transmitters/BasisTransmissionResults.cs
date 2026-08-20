@@ -24,14 +24,6 @@ public partial class BasisTransmissionResults
     // branches (audio start/stop, avatar reload, LOD swap) are marked individually because
     // they are the only work in the loop that can cost milliseconds on a single player —
     // everything else in the loop is flag arithmetic and stays under the loop marker.
-    static readonly ProfilerMarker sMarkerFillPositions = new ProfilerMarker("BasisDriver.Network.Transmit.FillPositions");
-    static readonly ProfilerMarker sMarkerCompress = new ProfilerMarker("BasisDriver.Network.Transmit.Compress");
-    static readonly ProfilerMarker sMarkerJobComplete = new ProfilerMarker("BasisDriver.Network.Transmit.JobComplete");
-    static readonly ProfilerMarker sMarkerPostProcess = new ProfilerMarker("BasisDriver.Network.Transmit.PostProcess");
-    static readonly ProfilerMarker sMarkerAudioTransition = new ProfilerMarker("BasisDriver.Network.Transmit.AudioStartStop");
-    static readonly ProfilerMarker sMarkerAvatarReload = new ProfilerMarker("BasisDriver.Network.Transmit.ReloadAvatar");
-    static readonly ProfilerMarker sMarkerMeshLod = new ProfilerMarker("BasisDriver.Network.Transmit.ChangeMeshLOD");
-    static readonly ProfilerMarker sMarkerTalkingPoints = new ProfilerMarker("BasisDriver.Network.Transmit.TalkingPoints");
 
     // Jobs
     [System.NonSerialized] public BasisDistanceJobParallel distanceJob;
@@ -315,7 +307,7 @@ public partial class BasisTransmissionResults
         // Also pre-compute stickiness flags for the avatar cap so the
         // NativeArray sort never needs to touch managed objects.
         // Uses unsafe pointers to bypass NativeArray safety checks (~3ms savings at 1k players).
-        using (sMarkerFillPositions.Auto())
+        using (BasisNetworkMarkers.TransmitFillPositions.Auto())
         unsafe
         {
             float3* pTargetPositions = (float3*)targetPositions.GetUnsafePtr();
@@ -508,7 +500,7 @@ public partial class BasisTransmissionResults
         }
 #endif
         // Do work that doesn't depend on distance results
-        using (sMarkerCompress.Auto())
+        using (BasisNetworkMarkers.TransmitCompress.Auto())
         {
             BasisNetworkAvatarCompressor.Compress(BasisNetworkTransmitter, avatar.Animator, Time.timeAsDouble);
         }
@@ -522,7 +514,7 @@ public partial class BasisTransmissionResults
         }
 #endif
         // Finish before consuming results — single sync point via CombineDependencies
-        using (sMarkerJobComplete.Auto())
+        using (BasisNetworkMarkers.TransmitJobComplete.Auto())
         {
             CompleteScheduledJobs(dampenEnabled);
         }
@@ -599,7 +591,7 @@ public partial class BasisTransmissionResults
         // allowed to cost, since an install is a build plus a full remote calibration.
         int farLodTransitionBudget = BasisAvatarFarLOD.MaxTransitionsPerTick;
         BasisAvatarFarLOD.BeginTickBudget();
-        using (sMarkerPostProcess.Auto())
+        using (BasisNetworkMarkers.TransmitPostProcess.Auto())
         unsafe
         {
             bool* pHearingRange = (bool*)hearingRange.GetUnsafeReadOnlyPtr();
@@ -638,7 +630,7 @@ public partial class BasisTransmissionResults
                         {
                             audioStartsAdmitted++;
                             sAudioStartClock.Start();
-                            using (sMarkerAudioTransition.Auto())
+                            using (BasisNetworkMarkers.TransmitAudioStartStop.Auto())
                             {
                                 audio.StartAudio(ConvertedVoiceDistance);
                                 remote.OutOfRangeFromLocal = false;
@@ -648,7 +640,7 @@ public partial class BasisTransmissionResults
                     }
                     else
                     {
-                        using (sMarkerAudioTransition.Auto())
+                        using (BasisNetworkMarkers.TransmitAudioStartStop.Auto())
                         {
                             audio.StopAudio();
                             remote.OutOfRangeFromLocal = true;
@@ -742,7 +734,7 @@ public partial class BasisTransmissionResults
                                 {
                                     avatarReloadsAdmitted++;
                                     sAvatarReloadClock.Start();
-                                    using (sMarkerAvatarReload.Auto())
+                                    using (BasisNetworkMarkers.TransmitReloadAvatar.Auto())
                                     {
                                         remote.ReloadAvatar();
                                     }
@@ -760,7 +752,7 @@ public partial class BasisTransmissionResults
 
                 if (lodChange && pMeshLodRange[i])
                 {
-                    using (sMarkerMeshLod.Auto())
+                    using (BasisNetworkMarkers.TransmitChangeMeshLOD.Auto())
                     {
                         remote.ChangeMeshLOD(pMeshLodLevel[i]);
                     }
@@ -811,7 +803,7 @@ public partial class BasisTransmissionResults
         // Update who we are talking to (serialize without allocations)
         if (microphoneChange)
         {
-            using (sMarkerTalkingPoints.Auto())
+            using (BasisNetworkMarkers.TransmitTalkingPoints.Auto())
             {
                 BuildAndSendTalkingPoints(snapshot, receiverCount);
             }

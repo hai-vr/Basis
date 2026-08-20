@@ -4,24 +4,16 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Settings;
 using System.Globalization;
 using UnityEngine;
-
 public static class BasisStatedHeight
 {
     public const float MinMeters = 1.0f;
     public const float MaxMeters = 2.4f;
-
     public const float EyeTolerance = 0.08f;
-
     public const float SpanTolerance = 0.12f;
-
     public static float Meters => Sanitize(Basis.BasisUI.BasisSettingsDefaults.StatedBodyHeight.RawValue);
-
     public static bool IsSet => Meters > 0f;
-
     public static float ImpliedEyeHeight => IsSet ? Meters * BasisCalibrationMath.EyeToHeightRatio : 0f;
-
     public static float ImpliedArmSpan => IsSet ? Meters * BasisCalibrationMath.SpanToHeightRatio : 0f;
-
     static float Sanitize(float meters)
     {
         if (float.IsNaN(meters) || float.IsInfinity(meters) || meters < MinMeters || meters > MaxMeters)
@@ -30,7 +22,6 @@ public static class BasisStatedHeight
         }
         return meters;
     }
-
     public static bool IsPlausibleEye(float eyeMeters)
     {
         if (!IsSet || eyeMeters <= 0f)
@@ -40,7 +31,6 @@ public static class BasisStatedHeight
         float expected = ImpliedEyeHeight;
         return Mathf.Abs(eyeMeters - expected) <= expected * EyeTolerance;
     }
-
     public static bool IsPlausibleSpan(float spanMeters)
     {
         if (!IsSet || spanMeters <= 0f)
@@ -49,7 +39,6 @@ public static class BasisStatedHeight
         }
         return spanMeters <= ImpliedArmSpan * (1f + SpanTolerance);
     }
-
     public static bool TryParse(string text, out float meters)
     {
         meters = 0f;
@@ -80,8 +69,7 @@ public static class BasisStatedHeight
         }
 
         string[] parts = s.Split(new[] { ' ', '\t' }, System.StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 2 && TryNumber(parts[0], out float f2) && TryNumber(parts[1], out float i2)
-            && f2 >= 3f && f2 <= 8f && i2 >= 0f && i2 < 12f)
+        if (parts.Length == 2 && TryNumber(parts[0], out float f2) && TryNumber(parts[1], out float i2) && f2 >= 3f && f2 <= 8f && i2 >= 0f && i2 < 12f)
         {
             meters = (f2 * 12f + i2) * 0.0254f;
             return Validate(ref meters);
@@ -93,12 +81,9 @@ public static class BasisStatedHeight
         }
         bool saidCm = s.Contains("cm");
         bool saidM = !saidCm && s.Contains("m");
-        meters = saidCm ? value * 0.01f
-               : saidM ? value
-               : (value > 3f ? value * 0.01f : value);
+        meters = saidCm ? value * 0.01f : saidM ? value : (value > 3f ? value * 0.01f : value);
         return Validate(ref meters);
     }
-
     static bool Validate(ref float meters)
     {
         if (float.IsNaN(meters) || float.IsInfinity(meters) || meters < MinMeters || meters > MaxMeters)
@@ -108,7 +93,6 @@ public static class BasisStatedHeight
         }
         return true;
     }
-
     static bool TryLeadingNumber(string s, out float value)
     {
         value = 0f;
@@ -129,7 +113,6 @@ public static class BasisStatedHeight
         }
         return started && float.TryParse(digits.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
-
     static bool TryNumber(string s, out float value)
     {
         value = 0f;
@@ -147,12 +130,10 @@ public static class BasisStatedHeight
         }
         return float.TryParse(digits.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
-
     public static string FormatCompact(float meters)
     {
         return meters > 0f ? $"{Mathf.RoundToInt(meters * 100f)} cm" : string.Empty;
     }
-
     public static string Format(float meters)
     {
         if (meters <= 0f)
@@ -166,36 +147,23 @@ public static class BasisStatedHeight
         return $"{cm} cm ({feet}' {inches}\")";
     }
 }
-
 public static class BasisBodyFitSummary
 {
     public struct Facts
     {
         public float BodyHeight;
         public BasisHeightDriver.BasisBodyMeasurementSource HeightSource;
-
         public float Reach;
         public BasisHeightDriver.BasisBodyMeasurementSource ReachSource;
-
         public bool ReachMeasured;
-
         public float ReachConfidence;
-
         public bool HasAvatar;
-
-        public float AvatarArmDifference;
-        public float AvatarLegDifference;
-
-        public bool ArmsFitted;
-        public bool LegsFitted;
-
+        public float AvatarArmDifference, AvatarLegDifference;
+        public bool ArmsFitted, LegsFitted;
         public BasisScaleFitStatus FitStatus;
-
         public float ScaleDeviation;
-
         public bool DifferentPersonSuspected;
     }
-
     public static Facts Gather()
     {
         var facts = new Facts
@@ -225,7 +193,6 @@ public static class BasisBodyFitSummary
         facts.AvatarLegDifference = scaleFit.HipResidual - 1f;
         return facts;
     }
-
     public static string Build()
     {
         Facts facts = Gather();
@@ -259,7 +226,6 @@ public static class BasisBodyFitSummary
 
         return sb.ToString();
     }
-
     static string DescribeSource(BasisHeightDriver.BasisBodyMeasurementSource source) => source switch
     {
         BasisHeightDriver.BasisBodyMeasurementSource.Measured => BasisLocalization.Get("calibration.summary.source.measured"),
@@ -268,7 +234,6 @@ public static class BasisBodyFitSummary
         BasisHeightDriver.BasisBodyMeasurementSource.SlimeVR => BasisLocalization.Get("calibration.summary.source.slimevr"),
         _ => BasisLocalization.Get("calibration.summary.source.fallback"),
     };
-
     static string DescribeAvatar(in Facts facts)
     {
         float arm = facts.AvatarArmDifference;
@@ -278,68 +243,53 @@ public static class BasisBodyFitSummary
         }
         string key = arm > 0f ? "calibration.summary.avatar.armsLonger" : "calibration.summary.avatar.armsShorter";
         string phrase = string.Format(BasisLocalization.Get(key), Mathf.Abs(arm));
-        string handling = facts.ArmsFitted
-            ? BasisLocalization.Get("calibration.summary.avatar.adjusted")
-            : BasisLocalization.Get("calibration.summary.avatar.beyondAdjustment");
+        string handling = facts.ArmsFitted ? BasisLocalization.Get("calibration.summary.avatar.adjusted") : BasisLocalization.Get("calibration.summary.avatar.beyondAdjustment");
         return $"{phrase} {handling}";
     }
-
     static string DescribeFit(in Facts facts)
     {
         switch (facts.FitStatus)
         {
-            case BasisScaleFitStatus.EyeExact:
-                return BasisLocalization.Get("calibration.summary.fit.exact");
-            case BasisScaleFitStatus.Adjusted:
-                return string.Format(BasisLocalization.Get("calibration.summary.fit.adjusted"), Mathf.Abs(facts.ScaleDeviation));
-            case BasisScaleFitStatus.Compromised:
-                return BasisLocalization.Get("calibration.summary.fit.compromised");
-            default:
-                return BasisLocalization.Get("calibration.summary.fit.none");
+            case BasisScaleFitStatus.EyeExact: return BasisLocalization.Get("calibration.summary.fit.exact");
+            case BasisScaleFitStatus.Adjusted: return string.Format(BasisLocalization.Get("calibration.summary.fit.adjusted"), Mathf.Abs(facts.ScaleDeviation));
+            case BasisScaleFitStatus.Compromised: return BasisLocalization.Get("calibration.summary.fit.compromised");
+            default: return BasisLocalization.Get("calibration.summary.fit.none");
         }
     }
 }
-
 public static class BasisPerAvatarScale
 {
     public const float Min = 0.5f;
     public const float Max = 2f;
     public const float None = 1f;
-
     public static float Current { get; private set; } = None;
-
-    static string s_loadedForAvatar;
-
+    static string loadedForAvatar;
     static string KeyFor(string avatarId)
     {
         return $"avatarscale::{(uint)avatarId.GetHashCode():X8}";
     }
-
     public static void RefreshForCurrentAvatar()
     {
         string avatarId = BasisLocalPlayer.CurrentAvatarUniqueID;
         if (string.IsNullOrEmpty(avatarId))
         {
             Current = None;
-            s_loadedForAvatar = null;
+            loadedForAvatar = null;
             return;
         }
-        if (avatarId == s_loadedForAvatar)
+        if (avatarId == loadedForAvatar)
         {
             return;
         }
 
-        s_loadedForAvatar = avatarId;
+        loadedForAvatar = avatarId;
         string key = KeyFor(avatarId);
-        Current = BasisSettingsSystem.HasSaveData(key)
-            ? Sanitize(BasisSettingsSystem.LoadFloat(key, None))
-            : None;
+        Current = BasisSettingsSystem.HasSaveData(key) ? Sanitize(BasisSettingsSystem.LoadFloat(key, None)) : None;
         if (!Mathf.Approximately(Current, None))
         {
             BasisDebug.Log($"Per-avatar size nudge for this avatar: {Current:P0}", BasisDebug.LogTag.Avatar);
         }
     }
-
     public static void SetForCurrentAvatar(float scale)
     {
         string avatarId = BasisLocalPlayer.CurrentAvatarUniqueID;
@@ -347,16 +297,13 @@ public static class BasisPerAvatarScale
         {
             return;
         }
-        s_loadedForAvatar = avatarId;
+        loadedForAvatar = avatarId;
         Current = Sanitize(scale);
         BasisSettingsSystem.SaveFloat(KeyFor(avatarId), Current);
         BasisHeightDriver.ApplyScaleAndHeight();
     }
-
     public static void ClearForCurrentAvatar() => SetForCurrentAvatar(None);
-
     public static bool IsOverridden => !Mathf.Approximately(Current, None);
-
     static float Sanitize(float scale)
     {
         if (float.IsNaN(scale) || float.IsInfinity(scale))

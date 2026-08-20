@@ -1,7 +1,6 @@
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers; // for BasisLocalInputActions
 using Unity.Mathematics;
-using Unity.Profiling;
 using UnityEngine;
 
 namespace Basis.Scripts.BasisCharacterController
@@ -46,7 +45,7 @@ namespace Basis.Scripts.BasisCharacterController
 
             if (ctx.MovementLock) move = Vector3.zero;
 
-            using (BasisLocalCharacterDriver.MovePhysicsMarker.Auto())
+            using (BasisLocalPlayerMarkers.MovePhysics.Auto())
             {
                 ctx.Flags = ctx.characterController.Move(move);
             }

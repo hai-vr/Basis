@@ -2,7 +2,6 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-
 namespace Basis.Scripts.Drivers
 {
     [BurstCompile]
@@ -10,7 +9,6 @@ namespace Basis.Scripts.Drivers
     {
         [ReadOnly] public NativeArray<BasisLocoContribution> Contributions;
         public int ContributionCount;
-
         [ReadOnly] public NativeArray<quaternion> Rotations;
         [ReadOnly] public NativeArray<float3> HipsPositions;
         [ReadOnly] public NativeArray<float3> SnapshotScales;
@@ -19,14 +17,10 @@ namespace Basis.Scripts.Drivers
         [ReadOnly] public NativeArray<int> ClipSampleCount;
         [ReadOnly] public NativeArray<float> ClipLength;
         [ReadOnly] public NativeArray<float3> RestPositions;
-
-        public int NodeCount;
-        public int HipsNode;
-
+        public int NodeCount, HipsNode;
         public NativeArray<float3> OutLocalPosition;
         public NativeArray<quaternion> OutLocalRotation;
         public NativeArray<float3> OutLocalScale;
-
         void SampleIndices(int clip, float time, out int a, out int b, out float t)
         {
             int samples = ClipSampleCount[clip];
@@ -38,7 +32,6 @@ namespace Basis.Scripts.Drivers
             b = math.min(a + 1, samples - 1);
             t = x - a;
         }
-
         public void Execute()
         {
             if (ContributionCount <= 0)
@@ -62,10 +55,7 @@ namespace Basis.Scripts.Drivers
                     BasisLocoContribution contribution = Contributions[c];
                     SampleIndices(contribution.Clip, contribution.Time, out int a, out int b, out float t);
                     int rotationBase = ClipRotationOffset[contribution.Clip];
-                    quaternion sampled = math.slerp(
-                        Rotations[rotationBase + a * NodeCount + node],
-                        Rotations[rotationBase + b * NodeCount + node],
-                        t);
+                    quaternion sampled = math.slerp( Rotations[rotationBase + a * NodeCount + node], Rotations[rotationBase + b * NodeCount + node], t);
                     float4 value = sampled.value;
                     if (c == 0)
                     {
@@ -79,9 +69,7 @@ namespace Basis.Scripts.Drivers
                 }
 
                 float lengthSq = math.lengthsq(accumulated);
-                OutLocalRotation[node] = lengthSq > 1e-10f
-                    ? new quaternion(accumulated * math.rsqrt(lengthSq))
-                    : new quaternion(reference);
+                OutLocalRotation[node] = lengthSq > 1e-10f ? new quaternion(accumulated * math.rsqrt(lengthSq)) : new quaternion(reference);
                 OutLocalScale[node] = SnapshotScales[node];
                 OutLocalPosition[node] = RestPositions[node];
             }

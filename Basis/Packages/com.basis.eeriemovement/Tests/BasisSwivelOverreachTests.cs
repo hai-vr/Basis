@@ -5,7 +5,6 @@ using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisSwivelOverreachTests
@@ -17,12 +16,10 @@ namespace Basis.Tests.IK
                 for (int az = 0; az < 360; az += 30)
                 {
                     float e = elev * Mathf.Deg2Rad, a = az * Mathf.Deg2Rad;
-                    list.Add(math.normalize(new float3(
-                        math.cos(e) * math.sin(a), math.sin(e), math.cos(e) * math.cos(a))));
+                    list.Add(math.normalize(new float3(math.cos(e) * math.sin(a), math.sin(e), math.cos(e) * math.cos(a))));
                 }
             return list.ToArray();
         }
-
         // Worst per-step swivel change (deg) in the three reach regions, over all directions.
         static (float inReach, float boundary, float beyond) WorstStep(Func<float3, float> swivel)
         {
@@ -34,8 +31,7 @@ namespace Basis.Tests.IK
                 float prev = 0f;
                 for (int i = 0; i < N; i++)
                 {
-                    float r = r0 + (r1 - r0) * i / (N - 1);
-                    float phi = swivel(r * d);
+                    float r = r0 + (r1 - r0) * i / (N - 1), phi = swivel(r * d);
                     if (i > 0)
                     {
                         float step = Mathf.Abs(Mathf.DeltaAngle(prev * Mathf.Rad2Deg, phi * Mathf.Rad2Deg));
@@ -49,7 +45,6 @@ namespace Basis.Tests.IK
             }
             return (inR, bnd, bey);
         }
-
         [Test]
         public void NeuralPoleModels_AreBoundedAndSmooth_PastReach()
         {
@@ -90,14 +85,10 @@ namespace Basis.Tests.IK
 
             // (3) NO REGRESSION vs the polynomial it replaces: the neural pole must be at least as smooth at the
             //     reach boundary and in-reach. Measured ~10x smoother; the +1 deg margin is slack, not headroom.
-            Assert.LessOrEqual(w["arm  neural(BasisArmSwivelNeuralModel)"].inR,
-                               w["arm  poly  (BasisArmSwivelModel)"].inR + 1f, "arm neural rougher in-reach than the poly");
-            Assert.LessOrEqual(w["arm  neural(BasisArmSwivelNeuralModel)"].bnd,
-                               w["arm  poly  (BasisArmSwivelModel)"].bnd + 1f, "arm neural rougher at the boundary than the poly");
-            Assert.LessOrEqual(w["knee neural(BasisLegSwivelNeuralModel)"].inR,
-                               w["knee poly  (BasisLegSwivelModel)"].inR + 1f, "knee neural rougher in-reach than the poly");
-            Assert.LessOrEqual(w["knee neural(BasisLegSwivelNeuralModel)"].bnd,
-                               w["knee poly  (BasisLegSwivelModel)"].bnd + 1f, "knee neural rougher at the boundary than the poly");
+            Assert.LessOrEqual(w["arm  neural(BasisArmSwivelNeuralModel)"].inR, w["arm  poly  (BasisArmSwivelModel)"].inR + 1f, "arm neural rougher in-reach than the poly");
+            Assert.LessOrEqual(w["arm  neural(BasisArmSwivelNeuralModel)"].bnd, w["arm  poly  (BasisArmSwivelModel)"].bnd + 1f, "arm neural rougher at the boundary than the poly");
+            Assert.LessOrEqual(w["knee neural(BasisLegSwivelNeuralModel)"].inR, w["knee poly  (BasisLegSwivelModel)"].inR + 1f, "knee neural rougher in-reach than the poly");
+            Assert.LessOrEqual(w["knee neural(BasisLegSwivelNeuralModel)"].bnd, w["knee poly  (BasisLegSwivelModel)"].bnd + 1f, "knee neural rougher at the boundary than the poly");
         }
     }
 }

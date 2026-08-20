@@ -54,7 +54,6 @@ namespace Basis.IK
             Quaternion chestRot = poseStream.GetRotation(handleChest);
             Quaternion chestLocal = Quaternion.Inverse(hipsRot) * chestRot;
             float chestYaw = BasisTwistSolveCore.SignedTwistAngleDeg(chestLocal, Vector3.up);
-
             float excess = Mathf.Abs(chestYaw) - shoulderSlideStartDeg;
             if (excess <= 0f)
                 return;
@@ -83,8 +82,7 @@ namespace Basis.IK
                 return;
             }
 
-            bool leftEnabled = enabledLeftHand > 0f;
-            bool rightEnabled = enabledRightHand > 0f;
+            bool leftEnabled = enabledLeftHand > 0f, rightEnabled = enabledRightHand > 0f;
             if (!leftEnabled && !rightEnabled)
             {
                 return;
@@ -97,13 +95,10 @@ namespace Basis.IK
             Quaternion hipsAnat = poseStream.GetRotation(handleHips) * Quaternion.Inverse(offsetRotationHips);
             Quaternion invHipsAnat = Quaternion.Inverse(hipsAnat);
             Vector3 localMid = invHipsAnat * (handMid - hipsPos);
-
             float forwardDist = Mathf.Max(0.1f, Mathf.Abs(localMid.z));
             float yawDeg = Mathf.Atan2(localMid.x, forwardDist) * Mathf.Rad2Deg * factor;
-
             Vector3 localMidChest = invHipsAnat * (handMid - poseStream.GetPosition(handleChest));
             float pitchDeg = Mathf.Atan2(-localMidChest.y, forwardDist) * Mathf.Rad2Deg * factor;
-
             float maxDeg = chestArmSwingMaxDeg;
             if (maxDeg > 0f)
             {
@@ -133,8 +128,7 @@ namespace Basis.IK
             if (!poseStream.IsValid(parent) || !poseStream.IsValid(child))
                 return;
 
-            Vector3 parentPos = poseStream.GetPosition(parent);
-            Vector3 childPos = poseStream.GetPosition(child);
+            Vector3 parentPos = poseStream.GetPosition(parent), childPos = poseStream.GetPosition(child);
             float positionFraction = BasisTwistSolveCore.SegmentPositionFraction(parentPos, childPos, poseStream.GetPosition(twist));
 
             if (BasisTwistSolveCore.Solve(poseStream.GetRotation(parent), poseStream.GetRotation(child), childPos - parentPos, positionFraction * fraction, childBind, twistBind, out Quaternion twistWorld, out _, out _))
@@ -196,10 +190,7 @@ namespace Basis.IK
         }
         public void SwingElbowAroundAC(BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 desiredB)
         {
-            Vector3 A = poseStream.GetPosition(root);
-            Vector3 C = poseStream.GetPosition(tip);
-            Vector3 B = poseStream.GetPosition(mid);
-
+            Vector3 A = poseStream.GetPosition(root), C = poseStream.GetPosition(tip), B = poseStream.GetPosition(mid);
             Vector3 AC = C - A;
             float acSqr = Vector3.Dot(AC, AC);
             if (acSqr <= sqrEpsilon) return;
@@ -208,15 +199,13 @@ namespace Basis.IK
             Vector3 v1 = B - A; v1 -= n * Vector3.Dot(v1, n);
             Vector3 v2 = desiredB - A; v2 -= n * Vector3.Dot(v2, n);
 
-            float v1Sqr = Vector3.Dot(v1, v1);
-            float v2Sqr = Vector3.Dot(v2, v2);
+            float v1Sqr = Vector3.Dot(v1, v1), v2Sqr = Vector3.Dot(v2, v2);
             if (v1Sqr <= sqrEpsilon || v2Sqr <= sqrEpsilon) return;
 
             v1 /= Mathf.Sqrt(v1Sqr);
             v2 /= Mathf.Sqrt(v2Sqr);
 
-            float dot = Mathf.Clamp(Vector3.Dot(v1, v2), -1f, 1f);
-            float ang = Mathf.Acos(dot);
+            float dot = Mathf.Clamp(Vector3.Dot(v1, v2), -1f, 1f), ang = Mathf.Acos(dot);
             Vector3 cross = Vector3.Cross(v1, v2);
             float dir = Mathf.Sign(Vector3.Dot(cross, n));
             Quaternion swing = Quaternion.AngleAxis(ang * dir * Mathf.Rad2Deg, n);
@@ -230,9 +219,7 @@ namespace Basis.IK
                 return;
             }
 
-            Vector3 a = poseStream.GetPosition(root);
-            Vector3 c = poseStream.GetPosition(tip);
-            Vector3 b = poseStream.GetPosition(mid);
+            Vector3 a = poseStream.GetPosition(root), c = poseStream.GetPosition(tip), b = poseStream.GetPosition(mid);
 
             ref BasisSwingContinuityState state = ref Ref(swingContinuity, slot);
             int collided = armState.IsCreated && (uint)slot < (uint)armState.Length ? armState[slot].Collided : 0;
@@ -273,33 +260,26 @@ namespace Basis.IK
             Quaternion targetOffset = isLeft ? offsetRotationLeftHand : offsetRotationRightHand;
             int swingSlot = isLeft ? swingLeftElbow : swingRightElbow;
             bool slotOk = armState.IsCreated && (uint)swingSlot < (uint)armState.Length;
-
-            Quaternion origRootRot = poseStream.GetRotation(root);
-            Quaternion origMidRot = poseStream.GetRotation(mid);
+            Quaternion origRootRot = poseStream.GetRotation(root), origMidRot = poseStream.GetRotation(mid);
             Quaternion origTipRot = poseStream.GetRotation(tip);
-
             Vector3 bodyRight = (poseStream.IsValid(handleLeftUpperArm) && poseStream.IsValid(handleRightUpperArm)) ? poseStream.GetPosition(handleRightUpperArm) - poseStream.GetPosition(handleLeftUpperArm) : Vector3.zero;
             bool usedModel = false;
 
             if (!hasHint)
             {
                 BasisSwivelFrame frame = BuildArmFrame();
-
                 Vector3 shoulderPos = poseStream.GetPosition(root);
                 float upperLen = (poseStream.GetPosition(mid) - shoulderPos).magnitude;
                 float lowerLen = (poseStream.GetPosition(tip) - poseStream.GetPosition(mid)).magnitude;
                 float armLen = upperLen + lowerLen;
                 if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft, out Vector3 modelHint, out float poleConditioning))
                 {
-                    Vector3 curAxisV = tgtPos - shoulderPos;
-                    Vector3 rawBendV = modelHint - shoulderPos;
-                    float axLen = curAxisV.magnitude;
-                    float rbLen = rawBendV.magnitude;
+                    Vector3 curAxisV = tgtPos - shoulderPos, rawBendV = modelHint - shoulderPos;
+                    float axLen = curAxisV.magnitude, rbLen = rawBendV.magnitude;
                     if (axLen > 1e-5f && rbLen > 1e-5f && slotOk)
                     {
                         ref BasisArmSlotState arm = ref Ref(armState, swingSlot);
-                        Vector3 curAxis = curAxisV / axLen;
-                        Vector3 rawBend = rawBendV / rbLen;
+                        Vector3 curAxis = curAxisV / axLen, rawBend = rawBendV / rbLen;
                         bool seeded = arm.HintSeeded;
                         float curReach = axLen / armLen;
                         float armDt = Mathf.Min(poseStream.deltaTime, BasisElbowSwingCapCore.MaxSlewBudgetDt);
@@ -309,7 +289,6 @@ namespace Basis.IK
                         arm.HintReach = curReach;
 
                         Quaternion bodyRot = frame.Valid ? Quaternion.LookRotation(frame.Forward, frame.Up) : poseStream.IsValid(handleHips) ? poseStream.GetRotation(handleHips) : Quaternion.identity;
-
                         Vector3 outBend = cappedBend;
                         if (elbowDragEnabled && seeded)
                         {

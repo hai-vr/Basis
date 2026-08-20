@@ -8,25 +8,19 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
-
 public class BasisIKPlaybackDriver : MonoBehaviour
 {
     [Header("Animation")]
     [Tooltip("Humanoid animation clip to play back through the IK system")]
     public AnimationClip Clip;
-
     [Tooltip("Playback speed multiplier (1 = normal, 0.5 = half speed, etc.)")]
     public float PlaybackSpeed = 1f;
-
     [Tooltip("Loop the animation when it reaches the end")]
     public bool Loop = true;
-
     [Header("Playback State")]
     public bool IsPlaying;
-
     [Tooltip("Current playback position in seconds")]
     public float PlaybackTime;
-
     [Header("Tracked Roles")]
     [Tooltip("Which bone roles to drive from the animation")]
     public bool DriveHead = true;
@@ -36,14 +30,11 @@ public class BasisIKPlaybackDriver : MonoBehaviour
     public bool DriveChest = false;
     public bool DriveElbows = false;
     public bool DriveKnees = false;
-
-    private GameObject _refRoot;
-    private Animator _refAnimator;
-    private PlayableGraph _playableGraph;
-    private AnimationClipPlayable _clipPlayable;
-
-    private Dictionary<HumanBodyBones, Transform> _refBones = new();
-
+    private GameObject refRoot;
+    private Animator refAnimator;
+    private PlayableGraph playbackGraph;
+    private AnimationClipPlayable clipPlayable;
+    private Dictionary<HumanBodyBones, Transform> refBones = new();
     private struct PlaybackTarget
     {
         public BasisBoneTrackedRole Role;
@@ -51,9 +42,8 @@ public class BasisIKPlaybackDriver : MonoBehaviour
         public Transform RefBoneTransform;
         public BasisInputXRSimulate Device;
     }
-    private List<PlaybackTarget> _targets = new();
-    private bool _initialized;
-
+    private List<PlaybackTarget> targets = new();
+    private bool initialized;
     private static readonly (HumanBodyBones bone, BasisBoneTrackedRole role, string group)[] BoneRoleMap =
     {
         (HumanBodyBones.Head,          BasisBoneTrackedRole.Head,          "head"),
@@ -68,7 +58,6 @@ public class BasisIKPlaybackDriver : MonoBehaviour
         (HumanBodyBones.LeftLowerLeg,  BasisBoneTrackedRole.LeftLowerLeg,  "knees"),
         (HumanBodyBones.RightLowerLeg, BasisBoneTrackedRole.RightLowerLeg, "knees"),
     };
-
     public void Play()
     {
         if (Clip == null)
@@ -77,7 +66,7 @@ public class BasisIKPlaybackDriver : MonoBehaviour
             return;
         }
 
-        if (!_initialized)
+        if (!initialized)
         {
             Initialize();
         }
@@ -85,28 +74,25 @@ public class BasisIKPlaybackDriver : MonoBehaviour
         PlaybackTime = 0f;
         IsPlaying = true;
     }
-
     public void Pause()
     {
         IsPlaying = false;
     }
-
     public void Stop()
     {
         IsPlaying = false;
         PlaybackTime = 0f;
         Cleanup();
     }
-
     private void Update()
     {
         if (!IsPlaying || Clip == null)
             return;
 
-        if (!_initialized)
+        if (!initialized)
         {
             Initialize();
-            if (!_initialized) return;
+            if (!initialized) return;
         }
 
         PlaybackTime += Time.deltaTime * PlaybackSpeed;
@@ -128,7 +114,6 @@ public class BasisIKPlaybackDriver : MonoBehaviour
 
         UpdateTrackerPositions();
     }
-
     private void Initialize()
     {
         var localPlayer = BasisLocalPlayer.Instance;
@@ -143,10 +128,9 @@ public class BasisIKPlaybackDriver : MonoBehaviour
 
         CreateSimulatedDevices();
 
-        _initialized = true;
-        BasisDebug.Log($"BasisIKPlaybackDriver: Initialized with {_targets.Count} tracked roles, clip length = {Clip.length:F2}s", BasisDebug.LogTag.IK);
+        initialized = true;
+        BasisDebug.Log($"BasisIKPlaybackDriver: Initialized with {targets.Count} tracked roles, clip length = {Clip.length:F2}s", BasisDebug.LogTag.IK);
     }
-
     private bool CreateReferenceSkeleton(BasisLocalPlayer localPlayer)
     {
         Animator sourceAnimator = localPlayer.BasisAvatar != null ? localPlayer.BasisAvatar.Animator : null;
@@ -156,34 +140,33 @@ public class BasisIKPlaybackDriver : MonoBehaviour
             return false;
         }
 
-        _refRoot = new GameObject("IK_Playback_Reference");
-        _refRoot.hideFlags = HideFlags.HideAndDontSave;
-        _refRoot.SetActive(true);
+        refRoot = new GameObject("IK_Playback_Reference");
+        refRoot.hideFlags = HideFlags.HideAndDontSave;
+        refRoot.SetActive(true);
 
-        DuplicateBoneHierarchy(sourceAnimator.transform, _refRoot.transform);
+        DuplicateBoneHierarchy(sourceAnimator.transform, refRoot.transform);
 
-        _refAnimator = _refRoot.AddComponent<Animator>();
-        _refAnimator.avatar = sourceAnimator.avatar;
-        _refAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+        refAnimator = refRoot.AddComponent<Animator>();
+        refAnimator.avatar = sourceAnimator.avatar;
+        refAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
-        _refRoot.transform.position = sourceAnimator.transform.position;
-        _refRoot.transform.rotation = sourceAnimator.transform.rotation;
-        _refRoot.transform.localScale = sourceAnimator.transform.lossyScale;
+        refRoot.transform.position = sourceAnimator.transform.position;
+        refRoot.transform.rotation = sourceAnimator.transform.rotation;
+        refRoot.transform.localScale = sourceAnimator.transform.lossyScale;
 
-        _playableGraph = PlayableGraph.Create("IKPlayback");
-        _playableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
+        playbackGraph = PlayableGraph.Create("IKPlayback");
+        playbackGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
 
-        _clipPlayable = AnimationClipPlayable.Create(_playableGraph, Clip);
-        var output = AnimationPlayableOutput.Create(_playableGraph, "output", _refAnimator);
-        output.SetSourcePlayable(_clipPlayable);
+        clipPlayable = AnimationClipPlayable.Create(playbackGraph, Clip);
+        var output = AnimationPlayableOutput.Create(playbackGraph, "output", refAnimator);
+        output.SetSourcePlayable(clipPlayable);
 
-        _playableGraph.Play();
+        playbackGraph.Play();
 
         CacheReferenceBones();
 
         return true;
     }
-
     private void DuplicateBoneHierarchy(Transform source, Transform destParent)
     {
         for (int i = 0; i < source.childCount; i++)
@@ -199,24 +182,22 @@ public class BasisIKPlaybackDriver : MonoBehaviour
             DuplicateBoneHierarchy(child, clone.transform);
         }
     }
-
     private void CacheReferenceBones()
     {
-        _refBones.Clear();
+        refBones.Clear();
 
         foreach (var (bone, role, group) in BoneRoleMap)
         {
-            Transform boneTransform = _refAnimator.GetBoneTransform(bone);
+            Transform boneTransform = refAnimator.GetBoneTransform(bone);
             if (boneTransform != null)
             {
-                _refBones[bone] = boneTransform;
+                refBones[bone] = boneTransform;
             }
         }
     }
-
     private void CreateSimulatedDevices()
     {
-        _targets.Clear();
+        targets.Clear();
 
         BasisSimulateXR simulator = null;
         var Instance = BasisDeviceManagement.Instance;
@@ -246,7 +227,7 @@ public class BasisIKPlaybackDriver : MonoBehaviour
             if (!IsGroupEnabled(group))
                 continue;
 
-            if (!_refBones.ContainsKey(bone))
+            if (!refBones.ContainsKey(bone))
                 continue;
 
             if (BasisDeviceManagement.Instance.FindDevice(out BasisInput existing, role))
@@ -256,31 +237,24 @@ public class BasisIKPlaybackDriver : MonoBehaviour
             }
 
             string deviceId = $"IKPlayback_{role}";
-            BasisInputXRSimulate device = simulator.CreatePhysicalTrackedDevice(
-                UniqueID: deviceId,
-                UnUniqueID: "IKPlaybackDevice",
-                Role: role,
-                hasrole: true,
-                subSystems: "BasisIKPlayback"
-            );
+            BasisInputXRSimulate device = simulator.CreatePhysicalTrackedDevice( UniqueID: deviceId, UnUniqueID: "IKPlaybackDevice", Role: role, hasrole: true, subSystems: "BasisIKPlayback" );
 
-            _targets.Add(new PlaybackTarget
+            targets.Add(new PlaybackTarget
             {
                 Role = role,
                 HumanBone = bone,
-                RefBoneTransform = _refBones[bone],
+                RefBoneTransform = refBones[bone],
                 Device = device
             });
 
             BasisDebug.Log($"BasisIKPlaybackDriver: Created simulated device for {role}", BasisDebug.LogTag.IK);
         }
 
-        if (_targets.Count > 0)
+        if (targets.Count > 0)
         {
             Basis.Scripts.Avatar.BasisAvatarIKStageCalibration.FullBodyCalibration();
         }
     }
-
     private bool IsGroupEnabled(string group)
     {
         return group switch
@@ -295,23 +269,21 @@ public class BasisIKPlaybackDriver : MonoBehaviour
             _ => false
         };
     }
-
     private void SampleAnimation(float time)
     {
-        if (!_playableGraph.IsValid())
+        if (!playbackGraph.IsValid())
             return;
 
-        _clipPlayable.SetTime(time);
-        _playableGraph.Evaluate();
+        clipPlayable.SetTime(time);
+        playbackGraph.Evaluate();
     }
-
     private void UpdateTrackerPositions()
     {
         Transform playerTransform = BasisLocalPlayer.Instance.transform;
 
-        for (int i = 0; i < _targets.Count; i++)
+        for (int i = 0; i < targets.Count; i++)
         {
-            PlaybackTarget target = _targets[i];
+            PlaybackTarget target = targets[i];
             if (target.Device == null || target.RefBoneTransform == null)
                 continue;
 
@@ -322,12 +294,11 @@ public class BasisIKPlaybackDriver : MonoBehaviour
             target.Device.FollowMovement.localRotation = Quaternion.Inverse(playerTransform.rotation) * worldRot;
         }
     }
-
     private void Cleanup()
     {
-        for (int i = 0; i < _targets.Count; i++)
+        for (int i = 0; i < targets.Count; i++)
         {
-            PlaybackTarget target = _targets[i];
+            PlaybackTarget target = targets[i];
             if (target.Device != null)
             {
                 target.Device.UnAssignTracker();
@@ -338,24 +309,23 @@ public class BasisIKPlaybackDriver : MonoBehaviour
                     Destroy(target.Device.gameObject);
             }
         }
-        _targets.Clear();
+        targets.Clear();
 
-        if (_playableGraph.IsValid())
+        if (playbackGraph.IsValid())
         {
-            _playableGraph.Destroy();
+            playbackGraph.Destroy();
         }
 
-        if (_refRoot != null)
+        if (refRoot != null)
         {
-            Destroy(_refRoot);
-            _refRoot = null;
+            Destroy(refRoot);
+            refRoot = null;
         }
 
-        _refAnimator = null;
-        _refBones.Clear();
-        _initialized = false;
+        refAnimator = null;
+        refBones.Clear();
+        initialized = false;
     }
-
     private void OnDestroy()
     {
         Cleanup();

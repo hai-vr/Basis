@@ -10,7 +10,6 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Jobs;
 
@@ -1525,7 +1524,6 @@ public static class RemoteBoneJobSystem
     /// Commits all queued registrations. Caller must have completed any in-flight bone jobs first
     /// so the SoA/TAA mutations are safe.
     /// </summary>
-    static readonly ProfilerMarker sMarkerCommitAdds = new ProfilerMarker("BasisDriver.Network.CommitAvatarAdds");
 
     static void DrainPendingAdds()
     {
@@ -1535,7 +1533,7 @@ public static class RemoteBoneJobSystem
         // SyncBoneCount TransformAccessArray Adds per avatar actually land here, one frame stage
         // later and under a completely different parent marker. Attributed so a load-in spike
         // isn't split between two places that look unrelated.
-        using (sMarkerCommitAdds.Auto())
+        using (BasisNetworkMarkers.CommitAvatarAdds.Auto())
         {
             for (int i = 0; i < n; i++)
             {

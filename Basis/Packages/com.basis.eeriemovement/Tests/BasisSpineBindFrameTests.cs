@@ -1,7 +1,6 @@
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisSpineBindFrameTests
@@ -10,10 +9,7 @@ namespace Basis.Tests.IK
         const float SpineBendPitch = 0.45f, SpineBendYaw = 0.10f, SpineBendRoll = 0.35f;
         const float UpperBendPitch = 0.25f, UpperBendYaw = 0.30f, UpperBendRoll = 0.20f;
         const float SpineMaxForwardDeg = 60f, SpineMaxBackwardDeg = 25f, SpineMaxLateralDeg = 25f;
-        const float SquishBoost = 0.5f;
-        const float BendTwistCoupling = 0.15f;
-        const float RestLen = 1f;
-
+        const float SquishBoost = 0.5f, BendTwistCoupling = 0.15f, RestLen = 1f;
         // A spread of hips BIND conventions a real avatar ships with: identity, rolled about Z (some
         // humanoid rigs), Blender's -90 about X, and an off-axis mix so nothing is special-cased.
         static readonly Quaternion[] Binds =
@@ -24,9 +20,7 @@ namespace Basis.Tests.IK
             Quaternion.AngleAxis(126f, Vector3.forward),  // continuum worst case from the offline sweep
             Quaternion.Euler(20f, -35f, 110f),            // arbitrary off-axis
         };
-
         // ----------------------------------------------------------------- the headline: no snap
-
         [Test]
         public void ChestBend_DoesNotSnap_OnRolledBind_ScanningAcrossCenterLookingDown([ValueSource(nameof(Binds))] Quaternion bind)
         {
@@ -45,9 +39,7 @@ namespace Basis.Tests.IK
 
                 if (have)
                 {
-                    float step = Mathf.Max(
-                        Mathf.Abs(r.SpineEuler.y - prevSpineY) + Mathf.Abs(r.SpineEuler.z - prevSpineZ),
-                        Mathf.Abs(r.UpperEuler.y - prevUpperY) + Mathf.Abs(r.UpperEuler.z - prevUpperZ));
+                    float step = Mathf.Max(Mathf.Abs(r.SpineEuler.y - prevSpineY) + Mathf.Abs(r.SpineEuler.z - prevSpineZ), Mathf.Abs(r.UpperEuler.y - prevUpperY) + Mathf.Abs(r.UpperEuler.z - prevUpperZ));
                     maxStep = Mathf.Max(maxStep, step);
                 }
                 prevSpineY = r.SpineEuler.y; prevSpineZ = r.SpineEuler.z;
@@ -58,12 +50,9 @@ namespace Basis.Tests.IK
             // A 0.5 deg yaw step moves the bend a fraction of a degree when the frame is right; the pre-fix
             // flip cleared 30+ deg in one step. 5 deg is comfortably above the smooth motion and far below
             // the snap, so it fails loudly on a regression without being brittle.
-            Assert.That(maxStep, Is.LessThan(5f),
-                $"chest bend snapped {maxStep:0.0} deg across a 0.5 deg head-yaw step on bind {bind} -- the atan2 pole flip is back.");
+            Assert.That(maxStep, Is.LessThan(5f), $"chest bend snapped {maxStep:0.0} deg across a 0.5 deg head-yaw step on bind {bind} -- the atan2 pole flip is back.");
         }
-
         // ----------------------------------------------------------------- the property behind the fix
-
         [Test]
         public void ChestBend_IsInvariant_ToTheHipsBindConvention()
         {
@@ -75,19 +64,15 @@ namespace Basis.Tests.IK
             // carried the bind and this failed by tens of degrees.
             var reference = SolveRolled(Quaternion.identity, pitchDown: 55f, yaw: 18f);
             Assert.That(reference.WriteSpine && reference.WriteUpper, Is.True, "reference bend was not written.");
-            Assert.That(Mathf.Abs(reference.SpineEuler.y) + Mathf.Abs(reference.SpineEuler.x), Is.GreaterThan(1f),
-                "reference pose is too neutral to distinguish bind frames -- the test would be vacuous.");
+            Assert.That(Mathf.Abs(reference.SpineEuler.y) + Mathf.Abs(reference.SpineEuler.x), Is.GreaterThan(1f),"reference pose is too neutral to distinguish bind frames -- the test would be vacuous.");
 
             foreach (Quaternion bind in Binds)
             {
                 var r = SolveRolled(bind, pitchDown: 55f, yaw: 18f);
-                Assert.That(Delta(r.SpineEuler, reference.SpineEuler), Is.LessThan(0.5f),
-                    $"spine bend depended on the hips bind convention (bind {bind}): {r.SpineEuler} vs {reference.SpineEuler}.");
-                Assert.That(Delta(r.UpperEuler, reference.UpperEuler), Is.LessThan(0.5f),
-                    $"upper-chest bend depended on the hips bind convention (bind {bind}): {r.UpperEuler} vs {reference.UpperEuler}.");
+                Assert.That(Delta(r.SpineEuler, reference.SpineEuler), Is.LessThan(0.5f), $"spine bend depended on the hips bind convention (bind {bind}): {r.SpineEuler} vs {reference.SpineEuler}.");
+                Assert.That(Delta(r.UpperEuler, reference.UpperEuler), Is.LessThan(0.5f), $"upper-chest bend depended on the hips bind convention (bind {bind}): {r.UpperEuler} vs {reference.UpperEuler}.");
             }
         }
-
         [Test]
         public void IdentityBind_IsUnchanged_ByTheFix()
         {
@@ -100,12 +85,9 @@ namespace Basis.Tests.IK
             // Twist follows the 20 deg facing the same way it does in the level-gaze baseline, and the spine
             // twists the same side as the upper chest -- the identity path still produces the motion it did.
             Assert.That(r.UpperEuler.y, Is.GreaterThan(1f), "upper-chest lost its facing twist at identity bind.");
-            Assert.That(Mathf.Sign(r.SpineEuler.y), Is.EqualTo(Mathf.Sign(r.UpperEuler.y)),
-                "spine and upper-chest twisted opposite ways at identity bind.");
+            Assert.That(Mathf.Sign(r.SpineEuler.y), Is.EqualTo(Mathf.Sign(r.UpperEuler.y)),"spine and upper-chest twisted opposite ways at identity bind.");
         }
-
         // ----------------------------------------------------------------- helpers
-
         // Solve with an anatomical (identity) hips frame wearing bind rotation `bind`. The chest sits above
         // the hips and the head is placed down+forward by the look-down pitch and swung by yaw, in WORLD
         // space -- so the anatomical pose is identical for every bind and only the convention differs.
@@ -116,7 +98,6 @@ namespace Basis.Tests.IK
             // head world pose: gaze = yaw about up then pitch about right; the head orbits down+forward.
             Quaternion gaze = Quaternion.AngleAxis(yaw, Vector3.up) * Quaternion.AngleAxis(pitchDown, Vector3.right);
             Vector3 head = new Vector3(0f, 1f, 0f) + gaze * new Vector3(0f, 0f, 0.12f);
-
             BasisSpineBendInput i;
             i.HipsRot = hipsAnatomical * bind;
             i.HipsPos = Vector3.zero;
@@ -143,7 +124,6 @@ namespace Basis.Tests.IK
             BasisSpineBendCore.Solve(i, out BasisSpineBendResult r);
             return r;
         }
-
         static float Delta(Vector3 a, Vector3 b) => Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y) + Mathf.Abs(a.z - b.z);
         static bool Finite(Vector3 v) => !float.IsNaN(v.x) && !float.IsInfinity(v.x) && !float.IsNaN(v.y) && !float.IsInfinity(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.z);
     }

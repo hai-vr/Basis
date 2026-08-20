@@ -709,8 +709,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         private readonly System.Threading.ManualResetEventSlim inputDone = new System.Threading.ManualResetEventSlim(true);
         private volatile bool inputThreadRun;
         private bool inputKicked;
-        static readonly Unity.Profiling.ProfilerMarker sMarkerJoinInput = new Unity.Profiling.ProfilerMarker("BasisDriver.DeviceManagement.JoinInput");
-        static readonly Unity.Profiling.ProfilerMarker sMarkerHMDPresence = new Unity.Profiling.ProfilerMarker("BasisDriver.DeviceManagement.HMDPresence");
 
         public override void SimulateKick()
         {
@@ -808,7 +806,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                     // The main-thread half is independent of action state, so it fills the
                     // remaining wait instead of running after the join.
                     SteamVR_Render.SimulatePosesAndEvents();
-                    using (sMarkerJoinInput.Auto())
+                    using (BasisOpenVRMarkers.JoinInput.Auto())
                     {
                         inputDone.Wait();
                     }
@@ -821,7 +819,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                     SteamVR_Render.SimulatePosesAndEvents();
                 }
             }
-            using (sMarkerHMDPresence.Auto())
+            using (BasisOpenVRMarkers.HMDPresence.Auto())
             {
                 PollHMDPresence();
             }

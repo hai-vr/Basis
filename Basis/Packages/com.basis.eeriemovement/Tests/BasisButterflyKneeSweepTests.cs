@@ -3,39 +3,30 @@ using System.Text;
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisButterflyKneeSweepTests
     {
         const float Thigh = 0.45f, Shin = 0.45f;
-        const float MaxReach = Thigh + Shin;
-        const float DefaultMax = BasisButterflyKneeCore.DefaultMaxOpenDeg;
-
+        const float MaxReach = Thigh + Shin, DefaultMax = BasisButterflyKneeCore.DefaultMaxOpenDeg;
         // Supine world frame: lying on the back, belly toward the ceiling.
         static readonly Vector3 Up = Vector3.up;            // player up (ceiling)
         static readonly Vector3 BellyUp = Vector3.up;       // hips-forward (belly) when supine -> faces the ceiling
         static readonly Vector3 BellyFwd = Vector3.forward; // hips-forward when standing upright (belly faces ahead)
         static readonly Vector3 HipsRight = Vector3.right;  // pelvis left-right axis; the KneeBendPref bend axis
-
         // Right leg, butterfly: hip a little right of + above the centerline; foot pulled toward center + pelvis.
         static readonly Vector3 RightHip = new Vector3(0.12f, 0.12f, 0f);
         static readonly Vector3 FootDirRight = new Vector3(-0.5f, 0f, 0.85f); // from hip toward centerline + head
-
         const float DeepFoldDist = 0.33f;   // foot pulled right in -> knee folded -> pull-in ~1
         const float ExtendedDist = 0.80f;   // leg nearly straight -> pull-in ~0.2
-
         struct Row
         {
             public float TiltDeg, Dist;
             public float Supine01, FootTilt01, PullIn01;
             public float OpenAngleDeg, HintWeight;
-            public float KneeOutwardCm;
-            public float KneeAngleDeg;
+            public float KneeOutwardCm, KneeAngleDeg;
         }
-
         // ----------------------------------------------------------------- the contract (asserted)
-
         [Test]
         public void Clamp_OpenAngleNeverExceedsMax_AcrossEveryInput()
         {
@@ -51,17 +42,14 @@ namespace Basis.Tests.IK
                 var i = MakeInput(supine, tilt, dist, maxOpen, strength, isLeft: false);
                 BasisButterflyKneeCore.Solve(i, out var r);
 
-                Assert.That(r.OpenAngleDeg, Is.LessThanOrEqualTo(maxOpen + 0.01f),
-                    $"open angle {r.OpenAngleDeg:0.0} exceeded the {maxOpen:0} cap (supine {supine}, tilt {tilt}, dist {dist}, str {strength}).");
+                Assert.That(r.OpenAngleDeg, Is.LessThanOrEqualTo(maxOpen + 0.01f), $"open angle {r.OpenAngleDeg:0.0} exceeded the {maxOpen:0} cap (supine {supine}, tilt {tilt}, dist {dist}, str {strength}).");
                 Assert.That(r.OpenAngleDeg, Is.GreaterThanOrEqualTo(-0.01f), "open angle went negative.");
 
                 // The pole must be placed at exactly OpenAngleDeg off the sagittal default, toward outward.
                 float placed = HintAngleFromDefault(i, r);
-                Assert.That(placed, Is.EqualTo(r.OpenAngleDeg).Within(0.5f),
-                    $"pole placed at {placed:0.0} deg but reported {r.OpenAngleDeg:0.0} deg.");
+                Assert.That(placed, Is.EqualTo(r.OpenAngleDeg).Within(0.5f), $"pole placed at {placed:0.0} deg but reported {r.OpenAngleDeg:0.0} deg.");
             }
         }
-
         [Test]
         public void Gated_Off_WhenStandingOrFeetFlat()
         {
@@ -82,7 +70,6 @@ namespace Basis.Tests.IK
             BasisButterflyKneeCore.Solve(off, out var rOff);
             Assert.That(rOff.HintWeight, Is.EqualTo(0f).Within(1e-4f), "butterfly engaged while disabled.");
         }
-
         [Test]
         public void Upright_ButterflyEngages_WithSupineFloor_ButStillNeedsFootTilt()
         {
@@ -103,7 +90,6 @@ namespace Basis.Tests.IK
             Assert.That(rFlat.HintWeight, Is.EqualTo(0f).Within(1e-4f), "flat feet upright must not engage even with SupineFloor on.");
             Assert.That(rFlat.OpenAngleDeg, Is.EqualTo(0f).Within(1e-4f), "flat feet upright must not open the knee.");
         }
-
         [Test]
         public void OpenAngle_RisesMonotonically_WithFootTilt_WhenSupine()
         {
@@ -115,17 +101,14 @@ namespace Basis.Tests.IK
             {
                 var r = Eval(supine: 1f, tilt: tilt, dist: DeepFoldDist, maxOpen: DefaultMax, strength: 1f, isLeft: false);
                 rows.Add(r);
-                Assert.That(r.OpenAngleDeg, Is.GreaterThanOrEqualTo(prev - 0.01f),
-                    $"open angle dropped as the foot tilted further out (tilt {tilt}: {r.OpenAngleDeg:0.0} < prev {prev:0.0}).");
+                Assert.That(r.OpenAngleDeg, Is.GreaterThanOrEqualTo(prev - 0.01f), $"open angle dropped as the foot tilted further out (tilt {tilt}: {r.OpenAngleDeg:0.0} < prev {prev:0.0}).");
                 prev = r.OpenAngleDeg;
             }
             LogTable("Foot tilt sweep (supine, folded)", rows);
 
             var full = rows[rows.Count - 1];
-            Assert.That(full.OpenAngleDeg, Is.GreaterThan(DefaultMax * 0.9f),
-                $"a full outward tilt should open the knee near the {DefaultMax:0} deg cap; got {full.OpenAngleDeg:0.0}.");
+            Assert.That(full.OpenAngleDeg, Is.GreaterThan(DefaultMax * 0.9f), $"a full outward tilt should open the knee near the {DefaultMax:0} deg cap; got {full.OpenAngleDeg:0.0}.");
         }
-
         [Test]
         public void PullingFeetIn_AmplifiesTheOpenAngle()
         {
@@ -136,10 +119,8 @@ namespace Basis.Tests.IK
             var extended = Eval(supine: 1f, tilt: tilt, dist: ExtendedDist, maxOpen: DefaultMax, strength: 1f, isLeft: false);
 
             Assert.That(folded.PullIn01, Is.GreaterThan(extended.PullIn01), "folded leg should read a higher pull-in.");
-            Assert.That(folded.OpenAngleDeg, Is.GreaterThan(extended.OpenAngleDeg + 1f),
-                $"pulling the feet in should open the knee further: folded {folded.OpenAngleDeg:0.0} vs extended {extended.OpenAngleDeg:0.0}.");
+            Assert.That(folded.OpenAngleDeg, Is.GreaterThan(extended.OpenAngleDeg + 1f), $"pulling the feet in should open the knee further: folded {folded.OpenAngleDeg:0.0} vs extended {extended.OpenAngleDeg:0.0}.");
         }
-
         [Test]
         public void Knee_SwingsOutward_Monotonically_ThroughTheLegSolver()
         {
@@ -154,17 +135,14 @@ namespace Basis.Tests.IK
                 var r = Eval(supine: 1f, tilt: tilt, dist: DeepFoldDist, maxOpen: DefaultMax, strength: 1f, isLeft: false);
                 rows.Add(r);
                 Assert.That(IsFinite(r.KneeOutwardCm), Is.True, $"knee position non-finite at tilt {tilt}.");
-                Assert.That(r.KneeOutwardCm, Is.GreaterThanOrEqualTo(prev - 0.05f),
-                    $"solved knee moved inward as the foot tilted further (tilt {tilt}: {r.KneeOutwardCm:0.0}cm < prev {prev:0.0}cm).");
+                Assert.That(r.KneeOutwardCm, Is.GreaterThanOrEqualTo(prev - 0.05f), $"solved knee moved inward as the foot tilted further (tilt {tilt}: {r.KneeOutwardCm:0.0}cm < prev {prev:0.0}cm).");
                 prev = r.KneeOutwardCm;
             }
             LogTable("Solved-knee outward excursion (supine, folded)", rows);
 
             var full = rows[rows.Count - 1];
-            Assert.That(full.KneeOutwardCm, Is.GreaterThan(baseline.KneeOutwardCm + 3f),
-                $"full butterfly should push the knee clearly outward vs the flat-foot baseline ({full.KneeOutwardCm:0.0}cm vs {baseline.KneeOutwardCm:0.0}cm).");
+            Assert.That(full.KneeOutwardCm, Is.GreaterThan(baseline.KneeOutwardCm + 3f), $"full butterfly should push the knee clearly outward vs the flat-foot baseline ({full.KneeOutwardCm:0.0}cm vs {baseline.KneeOutwardCm:0.0}cm).");
         }
-
         [Test]
         public void Knee_OutwardExcursion_IsBounded_ByTheCap()
         {
@@ -174,14 +152,10 @@ namespace Basis.Tests.IK
             var mid = Eval(supine: 1f, tilt: 90f, dist: DeepFoldDist, maxOpen: 55f, strength: 1f, isLeft: false);
             var wide = Eval(supine: 1f, tilt: 90f, dist: DeepFoldDist, maxOpen: 80f, strength: 1f, isLeft: false);
 
-            Assert.That(tight.OpenAngleDeg, Is.LessThan(mid.OpenAngleDeg).And.LessThan(wide.OpenAngleDeg),
-                "a tighter cap must yield a smaller open angle.");
-            Assert.That(mid.KneeOutwardCm, Is.GreaterThan(tight.KneeOutwardCm),
-                $"a wider cap should let the knee swing further out ({mid.KneeOutwardCm:0.0}cm vs {tight.KneeOutwardCm:0.0}cm).");
-            Assert.That(wide.KneeOutwardCm, Is.GreaterThan(mid.KneeOutwardCm),
-                $"a wider cap should let the knee swing further out ({wide.KneeOutwardCm:0.0}cm vs {mid.KneeOutwardCm:0.0}cm).");
+            Assert.That(tight.OpenAngleDeg, Is.LessThan(mid.OpenAngleDeg).And.LessThan(wide.OpenAngleDeg),"a tighter cap must yield a smaller open angle.");
+            Assert.That(mid.KneeOutwardCm, Is.GreaterThan(tight.KneeOutwardCm), $"a wider cap should let the knee swing further out ({mid.KneeOutwardCm:0.0}cm vs {tight.KneeOutwardCm:0.0}cm).");
+            Assert.That(wide.KneeOutwardCm, Is.GreaterThan(mid.KneeOutwardCm), $"a wider cap should let the knee swing further out ({wide.KneeOutwardCm:0.0}cm vs {mid.KneeOutwardCm:0.0}cm).");
         }
-
         [Test]
         public void BothLegs_OpenSymmetrically()
         {
@@ -193,7 +167,6 @@ namespace Basis.Tests.IK
             Assert.That(leftLeg.HintWeight, Is.EqualTo(rightLeg.HintWeight).Within(0.01f), "legs engaged by different amounts.");
             Assert.That(leftLeg.KneeOutwardCm, Is.EqualTo(rightLeg.KneeOutwardCm).Within(0.3f), "legs swung out by different amounts.");
         }
-
         [Test]
         public void AllOutputs_StayFinite_AcrossTheFullSweep()
         {
@@ -202,12 +175,10 @@ namespace Basis.Tests.IK
             foreach (float dist in new[] { 0.20f, 0.45f, 0.70f, 0.92f })
             {
                 var r = Eval(supine, tilt, dist, DefaultMax, 1f, isLeft: false);
-                Assert.That(IsFinite(r.OpenAngleDeg) && IsFinite(r.HintWeight) && IsFinite(r.KneeOutwardCm) && IsFinite(r.KneeAngleDeg),
-                    Is.True, $"a butterfly output went non-finite (supine {supine}, tilt {tilt}, dist {dist}).");
+                Assert.That(IsFinite(r.OpenAngleDeg) && IsFinite(r.HintWeight) && IsFinite(r.KneeOutwardCm) && IsFinite(r.KneeAngleDeg), Is.True, $"a butterfly output went non-finite (supine {supine}, tilt {tilt}, dist {dist}).");
                 Assert.That(r.HintWeight, Is.InRange(0f, 1f), "hint weight left [0,1].");
             }
         }
-
         [Test]
         public void Characterize_PrintAllSweepTables()
         {
@@ -220,9 +191,7 @@ namespace Basis.Tests.IK
             }
             Assert.Pass("see attached sweep tables");
         }
-
         // ----------------------------------------------------------------- harness
-
         static Row Eval(float supine, float tilt, float dist, float maxOpen, float strength, bool isLeft)
         {
             var i = MakeInput(supine, tilt, dist, maxOpen, strength, isLeft);
@@ -241,7 +210,6 @@ namespace Basis.Tests.IK
                 KneeAngleDeg = kneeAngle,
             };
         }
-
         static BasisButterflyKneeInput MakeInput(float supineDot, float tiltDeg, float dist, float maxOpenDeg, float strength, bool isLeft)
         {
             Vector3 outward = isLeft ? -HipsRight : HipsRight;
@@ -250,7 +218,6 @@ namespace Basis.Tests.IK
 
             // Belly between forward (upright) and up (supine) so dot(belly, up) == supineDot exactly.
             Vector3 belly = (BellyFwd * Mathf.Sqrt(Mathf.Max(0f, 1f - supineDot * supineDot)) + BellyUp * supineDot).normalized;
-
             BasisButterflyKneeInput i;
             i.HipPosition = hip;
             i.FootPosition = hip + footDir * dist;
@@ -266,7 +233,6 @@ namespace Basis.Tests.IK
             i.SupineFloor = 0f;                         // default: laying-down gated (upright tests opt in)
             return i;
         }
-
         // Instep normal for a foot tilted `tiltDeg` outward: rotate the foot "up" (soles-down) toward the outward
         // direction. dot(instep, outward) = sin(tiltDeg), exactly the signal the core reads.
         static Vector3 Instep(float tiltDeg, Vector3 outward)
@@ -274,7 +240,6 @@ namespace Basis.Tests.IK
             float a = tiltDeg * Mathf.Deg2Rad;
             return (Up * Mathf.Cos(a) + outward.normalized * Mathf.Sin(a)).normalized;
         }
-
         // Feed the core's pole through the real two-bone leg solver the way BasisLocalRigDriver does. Output knee
         // position is independent of the input bone rotations, so those are left identity.
         static void SolveLeg(in BasisButterflyKneeInput i, in BasisButterflyKneeResult core, out Vector3 kneeSolved, out float kneeAngleDeg)
@@ -283,7 +248,6 @@ namespace Basis.Tests.IK
             Vector3 restPerp = Vector3.ProjectOnPlane(i.DefaultBendDir, axis);
             restPerp = restPerp.sqrMagnitude > 1e-6f ? restPerp.normalized : Vector3.ProjectOnPlane(Vector3.forward, axis).normalized;
             Vector3 restKnee = (i.HipPosition + i.FootPosition) * 0.5f + restPerp * 0.05f;
-
             BasisLegSolveInput li = default;
             li.Root = i.HipPosition;
             li.Mid = restKnee;
@@ -301,20 +265,16 @@ namespace Basis.Tests.IK
             kneeSolved = lr.KneeSolved;
             kneeAngleDeg = lr.KneeAngleDeg;
         }
-
         // Angle of the placed pole off the sagittal default, in the plane perpendicular to the leg axis.
         static float HintAngleFromDefault(in BasisButterflyKneeInput i, in BasisButterflyKneeResult r)
         {
-            Vector3 axis = (i.FootPosition - i.HipPosition).normalized;
-            Vector3 mid = (i.HipPosition + i.FootPosition) * 0.5f;
+            Vector3 axis = (i.FootPosition - i.HipPosition).normalized, mid = (i.HipPosition + i.FootPosition) * 0.5f;
             Vector3 hintPerp = Vector3.ProjectOnPlane(r.KneeHint - mid, axis);
             Vector3 defPerp = Vector3.ProjectOnPlane(i.DefaultBendDir, axis);
             if (hintPerp.sqrMagnitude < 1e-8f || defPerp.sqrMagnitude < 1e-8f) return 0f;
             return Vector3.Angle(defPerp.normalized, hintPerp.normalized);
         }
-
         static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
-
         static void LogTable(string title, IEnumerable<Row> rows)
         {
             var sb = new StringBuilder();
@@ -322,9 +282,7 @@ namespace Basis.Tests.IK
             sb.AppendLine("  tiltDeg  supine  footTilt  pullIn   openDeg  weight   kneeOut   kneeFlexDeg");
             foreach (var m in rows)
             {
-                sb.AppendLine(string.Format(
-                    "  {0,5:0.0}    {1,4:0.00}   {2,5:0.00}    {3,4:0.00}   {4,5:0.0}    {5,4:0.00}   {6,6:0.0}cm   {7,5:0.0}",
-                    m.TiltDeg, m.Supine01, m.FootTilt01, m.PullIn01, m.OpenAngleDeg, m.HintWeight, m.KneeOutwardCm, m.KneeAngleDeg));
+                sb.AppendLine(string.Format("  {0,5:0.0}    {1,4:0.00}   {2,5:0.00}    {3,4:0.00}   {4,5:0.0}    {5,4:0.00}   {6,6:0.0}cm   {7,5:0.0}", m.TiltDeg, m.Supine01, m.FootTilt01, m.PullIn01, m.OpenAngleDeg, m.HintWeight, m.KneeOutwardCm, m.KneeAngleDeg));
             }
             TestContext.WriteLine(sb.ToString());
         }

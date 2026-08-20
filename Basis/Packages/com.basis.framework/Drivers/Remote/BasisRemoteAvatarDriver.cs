@@ -11,7 +11,6 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
-using Unity.Profiling;
 using UnityEngine;
 
 namespace Basis.Scripts.Drivers
@@ -22,21 +21,10 @@ namespace Basis.Scripts.Drivers
         // Remote calibration is the main-thread half of every avatar load, reload, far LOD swap
         // and range re-entry, and it reported one number for ~20 different stages. These split it
         // so a load-in spike attributes to the stage that owns it instead of "calibration".
-        static readonly ProfilerMarker sMarkerCalibrate = new ProfilerMarker("BasisDriver.Avatar.Calibrate");
-        static readonly ProfilerMarker sMarkerTpose = new ProfilerMarker("BasisDriver.Avatar.Calibrate.Tpose");
-        static readonly ProfilerMarker sMarkerDetect = new ProfilerMarker("BasisDriver.Avatar.Calibrate.DetectReferences");
-        static readonly ProfilerMarker sMarkerBoneData = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BoneData");
-        static readonly ProfilerMarker sMarkerBodyFit = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BodyFit");
-        static readonly ProfilerMarker sMarkerFace = new ProfilerMarker("BasisDriver.Avatar.Calibrate.Face");
-        static readonly ProfilerMarker sMarkerRenderers = new ProfilerMarker("BasisDriver.Avatar.Calibrate.Renderers");
-        static readonly ProfilerMarker sMarkerRegister = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BoneJobRegister");
         // BoneJobRegister measured as ~92% of calibration, so it gets split again. Three
         // candidates live under it and they have completely different fixes: a main-thread job
         // fence, TransformAccessArray mutation of the SyncBoneCount x players skeleton array, and
         // the per-player interpolation slot seed (which fences the interpolation job separately).
-        static readonly ProfilerMarker sMarkerRegisterSlot = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BoneJobRegister.SlotSeed");
-        static readonly ProfilerMarker sMarkerRegisterAdd = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BoneJobRegister.Add");
-        static readonly ProfilerMarker sMarkerJiggle = new ProfilerMarker("BasisDriver.Avatar.Calibrate.Jiggle");
 
         public Action CalibrationComplete;
 
@@ -117,7 +105,7 @@ namespace Basis.Scripts.Drivers
             NeedsTposeReset = !Player.BasisAvatar.IsFarLodAvatar;
             if (NeedsTposeReset)
             {
-                using (sMarkerTpose.Auto())
+                using (BasisAvatarMarkers.CalibrateTpose.Auto())
                 {
                     PutAvatarIntoTPose();
                 }
@@ -138,7 +126,7 @@ namespace Basis.Scripts.Drivers
             // segments, and the twist helpers sit partway along those segments. Scaling the arm without
             // moving the twists leaves them at the wrong fraction of a now-longer bone, which shows up as
             // mesh distortion around the elbow. Cost is a one-time child-name search per arm at load.
-            using (sMarkerDetect.Auto())
+            using (BasisAvatarMarkers.CalibrateDetectReferences.Auto())
             {
                 BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, Player.BasisAvatar.Animator.transform, ref References, detectArmTwist: true, humanoidBones: Player.BasisAvatar.TransformStorage?.HumanoidBones);
                 BasisAvatarModelCache.RecordPosesCached(References, Player.BasisAvatar.Animator);
@@ -146,7 +134,7 @@ namespace Basis.Scripts.Drivers
 
             // ── Capture T-pose bone rotations and bone transforms for the receiver ──
             // This enables direct bone transform writes (no SetHumanPose needed).
-            using (sMarkerBoneData.Auto())
+            using (BasisAvatarMarkers.CalibrateBoneData.Auto())
             {
                 CaptureReceiverBoneData(RemotePlayer);
             }
@@ -156,7 +144,7 @@ namespace Basis.Scripts.Drivers
             // Seeding from CACM covers every path that supplies an avatar record — a live avatar change,
             // initial load, and the server's late-join replay all set it before calibration runs — while
             // a fit-only update that arrived since is already in AppliedBodyFit and survives the reseed.
-            using (sMarkerBodyFit.Auto())
+            using (BasisAvatarMarkers.CalibrateBodyFit.Auto())
             {
                 SeedBodyFitFromAvatarRecord(RemotePlayer);
                 CaptureBodyFitRestLocal();
@@ -181,7 +169,7 @@ namespace Basis.Scripts.Drivers
                 BasisDebug.LogError("Missing Avatar On Remote", BasisDebug.LogTag.Avatar);
             }
             SkinnedMeshRenderer faceVisemeMesh = RemotePlayer.BasisAvatar.FaceVisemeMesh;
-            using (sMarkerFace.Auto())
+            using (BasisAvatarMarkers.CalibrateFace.Auto())
             {
                 if (Player.FaceRenderer != null)
                 {
@@ -211,7 +199,7 @@ namespace Basis.Scripts.Drivers
                 // for avatars that only have eye bones.
                 RemotePlayer.RemoteFaceDriver.Initialize(Player, RemotePlayer.BasisAvatar);
             }
-            using (sMarkerRenderers.Auto())
+            using (BasisAvatarMarkers.CalibrateRenderers.Auto())
             {
                 // Renderer perf flags
                 RemoteRenderMeshSettings(BasisLayerMapper.RemoteAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer);
@@ -235,7 +223,7 @@ namespace Basis.Scripts.Drivers
             // Sampled before the network rescale below writes this same transform — jiggle collider
             // radii are authored in metres against this scale and rebased off it at build time.
             ColliderScaleReference = animatorRoot.localScale;
-            using (sMarkerRegister.Auto())
+            using (BasisAvatarMarkers.CalibrateBoneJobRegister.Auto())
             {
                 RegisterAvatarWithBoneJobSystem(RemotePlayer, snapToNetworkPose: false);
             }
@@ -243,13 +231,13 @@ namespace Basis.Scripts.Drivers
             // player.RemoteBoneDriver.InitializeFromAvatar(player);
             RemotePlayer.BasisAvatar.Animator.enabled = false;
 
-            using (sMarkerJiggle.Auto())
+            using (BasisAvatarMarkers.CalibrateJiggle.Auto())
             {
                 SetupAvatarJiggleColliders();
             }
             if (NeedsTposeReset)
             {
-                using (sMarkerTpose.Auto())
+                using (BasisAvatarMarkers.CalibrateTpose.Auto())
                 {
                     ResetAvatarAnimator();
                 }
@@ -326,7 +314,7 @@ namespace Basis.Scripts.Drivers
             // BasisAvatarFactory.InitializePlayerAvatar), so by the time we get
             // here the tree has already been trimmed to the allowed count — this
             // loop just wires up whatever's left.
-            using (sMarkerJiggle.Auto())
+            using (BasisAvatarMarkers.CalibrateJiggle.Auto())
             {
                 for (int Index = 0; Index < jiggleRigCount; Index++)
                 {
@@ -411,7 +399,7 @@ namespace Basis.Scripts.Drivers
             // BeginWrite's lazy init runs (LateUpdate tail), so a cached/fallback avatar that
             // calibrates within a frame of joining would otherwise be read from uninitialized
             // memory and pose as NaN.
-            using (sMarkerRegisterSlot.Auto())
+            using (BasisAvatarMarkers.CalibrateBoneJobRegisterSlotSeed.Auto())
             {
                 BasisRemoteNetworkDriver.EnsureSlotInitialized(receiver.playerId);
             }
@@ -423,7 +411,7 @@ namespace Basis.Scripts.Drivers
                 CaptureNamePlateAnchor(RemotePlayer);
             }
 
-            using (sMarkerRegisterAdd.Auto())
+            using (BasisAvatarMarkers.CalibrateBoneJobRegisterAdd.Auto())
             {
                 RemoteBoneJobSystem.AddRemotePlayer(
                     key: receiver.playerId,

@@ -6,15 +6,12 @@ using Basis.IK.Motion;
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
-
     public sealed class BasisKneePopLocaliserTests
     {
         static string CorpusDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~");
-
         static List<BasisMotionClip> LoadCorpus()
         {
             var clips = new List<BasisMotionClip>();
@@ -28,7 +25,6 @@ namespace Basis.Tests.IK
             }
             return clips;
         }
-
         static void Steps(Vector3[] p, out float[] d, out float med)
         {
             int n = p.Length - 1;
@@ -37,7 +33,6 @@ namespace Basis.Tests.IK
             med = n > 0 ? BasisMotionSignal.Quantile(d, 0.5f) : 0f;
             if (med <= 1e-9f) med = 1e-9f;
         }
-
         [Test]
         public void KneePops_Localised_AcrossTheCorpus()
         {
@@ -93,8 +88,7 @@ namespace Basis.Tests.IK
 
                         if (total <= 60)   // keep the log readable; the aggregate below covers the rest
                         {
-                            report.AppendLine($"{clip.Name,-10} {i + 1,6} {dSolved[i],8:F4} " +
-                                              $"{dSolved[i] / medSolved,7:F1} {reach,7:F3} {axis,5} {(human ? "YES" : "no"),7}");
+                            report.AppendLine($"{clip.Name,-10} {i + 1,6} {dSolved[i],8:F4} " + $"{dSolved[i] / medSolved,7:F1} {reach,7:F3} {axis,5} {(human ? "YES" : "no"),7}");
                         }
                     }
                 }

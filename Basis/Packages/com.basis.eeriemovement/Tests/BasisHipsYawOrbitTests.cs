@@ -5,31 +5,23 @@ using System.Text;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisHipsYawOrbitTests
     {
         const int Head = 0, Neck = 1, Chest = 2, Spine = 3, Hips = 4;
         const int BoneCount = 5;
-
         // A T-posed adult, in player-local space. The only number that drives this whole file is the
         // 9 cm of FORWARD offset between the eye and the neck -- that is the lever the turn sweeps.
-        static readonly float3 k_Hips = new float3(0f, 0.95f, 0f);
-        static readonly float3 k_Spine = new float3(0f, 1.05f, 0f);
-        static readonly float3 k_Chest = new float3(0f, 1.25f, 0f);
-        static readonly float3 k_Neck = new float3(0f, 1.45f, 0f);
-        static readonly float3 k_Head = new float3(0f, 1.52f, 0f);
-        static readonly float3 k_Eye = new float3(0f, 1.60f, 0.09f);
-
-        static readonly float k_EyeLeverXZ = math.length(new float2(k_Eye.x - k_Neck.x, k_Eye.z - k_Neck.z));
-
+        static readonly float3 k_Hips = new float3(0f, 0.95f, 0f), spine = new float3(0f, 1.05f, 0f);
+        static readonly float3 k_Chest = new float3(0f, 1.25f, 0f), k_Neck = new float3(0f, 1.45f, 0f);
+        static readonly float3 k_Head = new float3(0f, 1.52f, 0f), eye = new float3(0f, 1.60f, 0.09f);
+        static readonly float eyeLeverXZ = math.length(new float2(eye.x - k_Neck.x, eye.z - k_Neck.z));
         static void HeadTurn(float yawDeg, out float3 eyePos, out quaternion eyeRot)
         {
             eyeRot = quaternion.AxisAngle(new float3(0f, 1f, 0f), math.radians(yawDeg));
-            eyePos = k_Neck + math.mul(eyeRot, k_Eye - k_Neck);
+            eyePos = k_Neck + math.mul(eyeRot, eye - k_Neck);
         }
-
         static float3[] RunSpine(float dt, int frames, System.Func<int, float> yawAt, float deOrbit, float deadzoneDeg)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
@@ -67,7 +59,6 @@ namespace Basis.Tests.IK
                 solve.Dispose();
             }
         }
-
         static float3[] RunSpineWalking(float dt, int frames, float yawDeg, float speed, float deOrbit)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
@@ -106,7 +97,6 @@ namespace Basis.Tests.IK
                 solve.Dispose();
             }
         }
-
         static BasisVirtualSpineCore.SpineSolveParams MakeParams(float dt, float3 eyePos, quaternion eyeRot, float deOrbit, float deadzoneDeg)
         {
             float lenTotal = k_Neck.y - k_Hips.y;
@@ -131,13 +121,13 @@ namespace Basis.Tests.IK
                 SpineTargetPos = eyePos,
                 SpineTargetRot = eyeRot,
 
-                HeadScaledOffset = k_Head - k_Eye,
-                NeckScaledOffset = k_Neck - k_Eye,
-                ChestScaledOffset = k_Chest - k_Eye,
-                SpineScaledOffset = k_Spine - k_Eye,
+                HeadScaledOffset = k_Head - eye,
+                NeckScaledOffset = k_Neck - eye,
+                ChestScaledOffset = k_Chest - eye,
+                SpineScaledOffset = spine - eye,
 
                 ChestTposeY = k_Chest.y,
-                SpineTposeY = k_Spine.y,
+                SpineTposeY = spine.y,
                 TposeHips = k_Hips,
 
                 LeftFootTracked = 0,
@@ -162,25 +152,24 @@ namespace Basis.Tests.IK
 
                 LenTotal = lenTotal,
                 TChest = (k_Neck.y - k_Chest.y) / lenTotal,
-                TSpine = (k_Neck.y - k_Spine.y) / lenTotal,
+                TSpine = (k_Neck.y - spine.y) / lenTotal,
 
                 StandingHipsLocalY = k_Neck.y - lenTotal,
                 StandingHeadLocalY = k_Head.y,
 
                 // The three arms the pelvis placement is built from, exactly as the driver bakes them.
-                GazeSwingLever = k_Eye - k_Head,
-                TposeNeckMinusEyeY = k_Neck.y - k_Eye.y,
+                GazeSwingLever = eye - k_Head,
+                TposeNeckMinusEyeY = k_Neck.y - eye.y,
                 GazeSwingRemoval = deOrbit,
-                HipsAnchorOffsetLocal = new float3(k_Hips.x - k_Eye.x, 0f, k_Hips.z - k_Eye.z),
-                HeadRestFromEyeLocal = new float3(k_Head.x - k_Eye.x, 0f, k_Head.z - k_Eye.z),
-                YawPivotFromEyeLocal = new float3(k_Neck.x - k_Eye.x, 0f, k_Neck.z - k_Eye.z),
+                HipsAnchorOffsetLocal = new float3(k_Hips.x - eye.x, 0f, k_Hips.z - eye.z),
+                HeadRestFromEyeLocal = new float3(k_Head.x - eye.x, 0f, k_Head.z - eye.z),
+                YawPivotFromEyeLocal = new float3(k_Neck.x - eye.x, 0f, k_Neck.z - eye.z),
 
                 PostureModel = 1,
                 HipsCompressionStrength = 0.85f,
                 HipsMaxDropMeters = 0.30f,
             };
         }
-
         static float WorstSlide(float3[] hips)
         {
             float worst = 0f;
@@ -191,12 +180,8 @@ namespace Basis.Tests.IK
             }
             return worst;
         }
-
-        static System.Func<int, float> Turn(float dt, float turnSecs, float deg) =>
-            i => deg * Mathf.Clamp01(i * dt / turnSecs);
-
+        static System.Func<int, float> Turn(float dt, float turnSecs, float deg) => i => deg * Mathf.Clamp01(i * dt / turnSecs);
         // ------------------------------------------------------------------ the gates
-
         [Test]
         public void APureHeadTurn_DoesNotSlideThePelvisSideways()
         {
@@ -205,7 +190,7 @@ namespace Basis.Tests.IK
 
             var report = new StringBuilder();
             report.AppendLine("PURE HEAD TURN -> PELVIS SLIDE (the body is byte-identical on every row)");
-            report.AppendLine($"  eye sits {k_EyeLeverXZ * 100f:F1} cm in front of the neck's yaw axis; the artefact is");
+            report.AppendLine($"  eye sits {eyeLeverXZ * 100f:F1} cm in front of the neck's yaw axis; the artefact is");
             report.AppendLine("  2 * lever * sin(yaw lag / 2), so it scales with BOTH how far and how FAST you turn");
             report.AppendLine();
             report.AppendLine($"{"turn deg",10} {"over",8} {"de-orbited",12} {"legacy",12}");
@@ -227,17 +212,12 @@ namespace Basis.Tests.IK
             }
             Debug.Log(report.ToString());
 
-            Assert.Less(worstFixed, 0.005f,
-                $"a head turn slid the pelvis {worstFixed * 100f:F2} cm sideways. The body did not move: every "
-                + "millimetre of that is the HMD's orbit about the neck leaking into the stance leash.");
+            Assert.Less(worstFixed, 0.005f, $"a head turn slid the pelvis {worstFixed * 100f:F2} cm sideways. The body did not move: every " + "millimetre of that is the HMD's orbit about the neck leaking into the stance leash.");
 
             // PAIRED NEGATIVE: GazeSwingRemoval = 0 is the pre-fix law exactly (leash on the raw eye, anchor
             // arm measured from the eye). It must still jut, or this gate is measuring nothing.
-            Assert.Greater(bestLegacy, 0.02f,
-                $"the pre-fix leash is supposed to carry the pelvis sideways on a head turn (worst "
-                + $"{bestLegacy * 100f:F2} cm) -- if it no longer does, this gate is testing nothing");
+            Assert.Greater(bestLegacy, 0.02f, $"the pre-fix leash is supposed to carry the pelvis sideways on a head turn (worst " + $"{bestLegacy * 100f:F2} cm) -- if it no longer does, this gate is testing nothing");
         }
-
         [Test]
         public void AHeadHeldInsideTheYawDeadzone_LeavesThePelvisStandingWhereItWas()
         {
@@ -245,51 +225,35 @@ namespace Basis.Tests.IK
             const float dt = 1f / fps, turnSecs = 0.30f, holdSecs = 2.0f;
             const float held = 40f;   // inside the 45 deg cone, so the torso never breaks and never relocks
             int frames = Mathf.RoundToInt((turnSecs + holdSecs) * fps);
-
             float3[] fixedHips = RunSpine(dt, frames, Turn(dt, turnSecs, held), 1f, 45f);
             float3[] legacyHips = RunSpine(dt, frames, Turn(dt, turnSecs, held), 0f, 45f);
-
             float settledFixed = math.length(new float2(fixedHips[frames - 1].x - fixedHips[0].x, fixedHips[frames - 1].z - fixedHips[0].z));
             float settledLegacy = math.length(new float2(legacyHips[frames - 1].x - legacyHips[0].x, legacyHips[frames - 1].z - legacyHips[0].z));
 
-            Debug.Log($"head held at {held:F0} deg inside the deadzone for {holdSecs:F1} s -- pelvis offset: "
-                + $"de-orbited {settledFixed * 100f:F2} cm, legacy {settledLegacy * 100f:F2} cm "
-                + $"(geometry says 2*{k_EyeLeverXZ * 100f:F1}*sin({held / 2f:F0} deg) = {2f * k_EyeLeverXZ * math.sin(math.radians(held * 0.5f)) * 100f:F2} cm)");
+            Debug.Log($"head held at {held:F0} deg inside the deadzone for {holdSecs:F1} s -- pelvis offset: " + $"de-orbited {settledFixed * 100f:F2} cm, legacy {settledLegacy * 100f:F2} cm " + $"(geometry says 2*{eyeLeverXZ * 100f:F1}*sin({held / 2f:F0} deg) = {2f * eyeLeverXZ * math.sin(math.radians(held * 0.5f)) * 100f:F2} cm)");
 
-            Assert.Less(settledFixed, 0.005f,
-                $"the pelvis settled {settledFixed * 100f:F2} cm from where the user is standing while they simply "
-                + "looked to one side. A deadzone that holds the torso still must not also hold the pelvis out.");
+            Assert.Less(settledFixed, 0.005f, $"the pelvis settled {settledFixed * 100f:F2} cm from where the user is standing while they simply " + "looked to one side. A deadzone that holds the torso still must not also hold the pelvis out.");
 
-            Assert.Greater(settledLegacy, 0.03f,
-                $"the pre-fix law is supposed to park the pelvis to one side of a held turn (it parked it "
-                + $"{settledLegacy * 100f:F2} cm) -- if it no longer does, this gate is testing nothing");
+            Assert.Greater(settledLegacy, 0.03f, $"the pre-fix law is supposed to park the pelvis to one side of a held turn (it parked it " + $"{settledLegacy * 100f:F2} cm) -- if it no longer does, this gate is testing nothing");
         }
-
         [Test]
         public void WithAConstantHeadYaw_TheDeOrbitIsExactlyANoOp()
         {
             const int fps = 90;
             const float dt = 1f / fps, speed = 1.2f;
             int frames = Mathf.RoundToInt(2.0f * fps);
-
             float3[] deOrbited = RunSpineWalking(dt, frames, 30f, speed, 1f);
             float3[] legacy = RunSpineWalking(dt, frames, 30f, speed, 0f);
-
             float worst = 0f;
             for (int i = 0; i < frames; i++)
             {
                 worst = math.max(worst, math.length(deOrbited[i] - legacy[i]));
             }
 
-            Debug.Log($"walking 2 s at {speed:F1} m/s with the head held 30 deg off-axis: worst pelvis difference "
-                + $"between the de-orbited and legacy laws = {worst * 1000f:F4} mm");
+            Debug.Log($"walking 2 s at {speed:F1} m/s with the head held 30 deg off-axis: worst pelvis difference " + $"between the de-orbited and legacy laws = {worst * 1000f:F4} mm");
 
-            Assert.Less(worst, 1e-5f,
-                $"the de-orbit moved the pelvis by {worst * 1000f:F4} mm on a motion with no head-yaw change. "
-                + "It is supposed to cancel exactly there -- if it does not, it is not a pure de-orbit and the "
-                + "existing stance-leash gates are no longer covering the shipping law.");
+            Assert.Less(worst, 1e-5f, $"the de-orbit moved the pelvis by {worst * 1000f:F4} mm on a motion with no head-yaw change. " + "It is supposed to cancel exactly there -- if it does not, it is not a pure de-orbit and the " + "existing stance-leash gates are no longer covering the shipping law.");
         }
-
         [Test]
         public void RealTravelIsStillFollowed_TheDeOrbitRemovesAnArcNotAWalk()
         {
@@ -335,9 +299,7 @@ namespace Basis.Tests.IK
                 solve.Dispose();
             }
 
-            Assert.Greater(carried, 0.9f * dist,
-                $"the pelvis carried only {carried * 100f:F1} cm of a {dist * 100f:F0} cm sideways step. The "
-                + "de-orbit must remove the head's ARC and nothing else -- a user who steps must keep their hips.");
+            Assert.Greater(carried, 0.9f * dist, $"the pelvis carried only {carried * 100f:F1} cm of a {dist * 100f:F0} cm sideways step. The " + "de-orbit must remove the head's ARC and nothing else -- a user who steps must keep their hips.");
         }
     }
 }

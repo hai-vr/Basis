@@ -4,21 +4,17 @@ using Basis.IK.Mocap;
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
-
     public sealed class BasisHipHingeCoreTests
     {
         // hips at origin, head leaned `deg` forward (+Z) off vertical (+Y). => the core reads lean == deg.
         static bool Lean(float deg, out Quaternion hipsRot, out float leanDeg, out float addDeg, float start = 30f, float maxAdd = 50f)
         {
             float r = deg * Mathf.Deg2Rad;
-            return BasisHipHingeCore.Solve(new Vector3(0f, Mathf.Cos(r), Mathf.Sin(r)), Vector3.zero,
-                Quaternion.identity, Vector3.up, start, maxAdd, out hipsRot, out leanDeg, out addDeg);
+            return BasisHipHingeCore.Solve(new Vector3(0f, Mathf.Cos(r), Mathf.Sin(r)), Vector3.zero, Quaternion.identity, Vector3.up, start, maxAdd, out hipsRot, out leanDeg, out addDeg);
         }
-
         [Test]
         public void BelowStart_TheHingeDoesNothing()
         {
@@ -27,7 +23,6 @@ namespace Basis.Tests.IK
             Assert.AreEqual(0f, addDeg, 1e-4f);
             Assert.AreEqual(0f, Quaternion.Angle(Quaternion.identity, hipsRot), 1e-4f);
         }
-
         [Test]
         public void PastStart_ThePelvisFollowsTheLeanOneForOne()
         {
@@ -38,7 +33,6 @@ namespace Basis.Tests.IK
             Assert.AreEqual(20f, addDeg, 0.2f, "the pelvis is not following the lean one-for-one");
             Assert.AreEqual(50f, leanDeg, 0.1f);
         }
-
         [Test]
         public void ApproachingTheCap_ItEasesAndNeverReachesIt()
         {
@@ -47,20 +41,17 @@ namespace Basis.Tests.IK
             Assert.Greater(addDeg, 40f, "the deep-bend tilt collapsed");
             Assert.Less(addDeg, 50f, "the tilt reached or passed its asymptote (should ease, never touch)");
         }
-
         [Test]
         public void ItWorksPastNinetyDegrees_HeadBelowTheHips()
         {
             // ⭐ THE FIX. A toe-touch puts the head BELOW the hips, where a real pelvis is MAXIMALLY tilted.
             // The old model bailed on `upDot <= 0` and gave zero here -- weakest exactly where the fold is
             // deepest. Now it keeps going.
-            bool applied = BasisHipHingeCore.Solve(new Vector3(0f, -0.2f, 0.9f), Vector3.zero,
-                Quaternion.identity, Vector3.up, 45f, 50f, out _, out float leanDeg, out float addDeg);
+            bool applied = BasisHipHingeCore.Solve(new Vector3(0f, -0.2f, 0.9f), Vector3.zero, Quaternion.identity, Vector3.up, 45f, 50f, out _, out float leanDeg, out float addDeg);
             Assert.IsTrue(applied, "the hinge switched off with the head below the hips (the old bug)");
             Assert.Greater(leanDeg, 90f, "lean should read past 90 deg for a head below the hips");
             Assert.Greater(addDeg, 25f, "a deep toe-touch should tilt the pelvis a lot");
         }
-
         [Test]
         public void ThePelvisPitchesForward_NotBackward()
         {
@@ -70,7 +61,6 @@ namespace Basis.Tests.IK
             Vector3 up = hipsRot * Vector3.up;
             Assert.Greater(up.z, 0.05f, "the pelvis top did not rotate toward the lean direction");
         }
-
         [Test]
         public void MaxAddZero_IsANoOp()
         {
@@ -78,7 +68,6 @@ namespace Basis.Tests.IK
             Assert.IsFalse(applied);
             Assert.AreEqual(0f, Quaternion.Angle(Quaternion.identity, hipsRot), 1e-4f);
         }
-
         [Test]
         public void Saturate_IsLinearThenAsymptotic()
         {
@@ -92,15 +81,12 @@ namespace Basis.Tests.IK
             }
             Assert.AreEqual(0f, BasisHipHingeCore.Saturate(-5f, 50f), 1e-4f, "negative clamps to 0");
         }
-
         // ---------------------------------------------------------------------------------------------
         // THE CORPUS: does the fitted curve actually reproduce real human pelvis tilt?
-
         static List<BasisMotionClip> LoadCorpus()
         {
             var clips = new List<BasisMotionClip>();
-            foreach (string dir in new[] { Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~"),
-                                           Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~/posture") })
+            foreach (string dir in new[] { Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~"), Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~/posture") })
             {
                 if (!Directory.Exists(dir)) continue;
                 foreach (string f in Directory.GetFiles(dir, "*.bvh"))
@@ -109,7 +95,6 @@ namespace Basis.Tests.IK
             if (clips.Count == 0) Assert.Ignore("no corpus");
             return clips;
         }
-
         // The old model, measured on the same frames so the comparison is apples-to-apples: half the excess
         // past 30, capped at 15, and OFF once the head passes hip height (upDot <= 0 <=> lean >= 90).
         static float OldModel(float leanDeg)
@@ -117,7 +102,6 @@ namespace Basis.Tests.IK
             if (leanDeg >= 90f) return 0f;
             return Mathf.Min(Mathf.Max(leanDeg - 30f, 0f) * 0.5f, 15f);
         }
-
         [Test]
         public void TheFittedCurve_TracksRealDeepBendsFarBetterThanTheOldModel()
         {
@@ -140,8 +124,7 @@ namespace Basis.Tests.IK
                 var tilts = new float[c.FrameCount];
                 for (int f = 0; f < c.FrameCount; f++)
                 {
-                    BasisMocapPose hips = c.Get(f, BasisMocapJoint.Hips);
-                    BasisMocapPose head = c.Get(f, BasisMocapJoint.Head);
+                    BasisMocapPose hips = c.Get(f, BasisMocapJoint.Hips), head = c.Get(f, BasisMocapJoint.Head);
                     Vector3 chord = head.Position - hips.Position;
                     float hm = new Vector3(chord.x, 0f, chord.z).magnitude;
                     leans[f] = hm < 1e-3f ? 0f : Mathf.Atan2(hm, chord.y) * Mathf.Rad2Deg;
@@ -156,8 +139,7 @@ namespace Basis.Tests.IK
                 {
                     if (leans[f] <= deep) continue;
                     float realTilt = tilts[f] - baseline;
-                    BasisHipHingeCore.Solve(c.Get(f, BasisMocapJoint.Head).Position, c.Get(f, BasisMocapJoint.Hips).Position,
-                        Quaternion.identity, Vector3.up, start, cap, out _, out _, out float addDeg);
+                    BasisHipHingeCore.Solve(c.Get(f, BasisMocapJoint.Head).Position, c.Get(f, BasisMocapJoint.Hips).Position, Quaternion.identity, Vector3.up, start, cap, out _, out _, out float addDeg);
                     errNew.Add(Mathf.Abs(addDeg - realTilt));
                     errOld.Add(Mathf.Abs(OldModel(leans[f]) - realTilt));
                     realDeep.Add(realTilt);
@@ -166,14 +148,11 @@ namespace Basis.Tests.IK
 
             Assert.Greater(errNew.Count, 300, "too few deep-bend frames to trust");
             float mNew = Median(errNew), mOld = Median(errOld), realMed = Median(realDeep);
-            Debug.Log($"[hip hinge] deep bends (lean>{deep}): real pelvis tilt median {realMed:F1} deg; " +
-                      $"model error NEW {mNew:F2} vs OLD {mOld:F2} deg ({100f * (1f - mNew / mOld):F0}% better), {errNew.Count} frames");
+            Debug.Log($"[hip hinge] deep bends (lean>{deep}): real pelvis tilt median {realMed:F1} deg; " + $"model error NEW {mNew:F2} vs OLD {mOld:F2} deg ({100f * (1f - mNew / mOld):F0}% better), {errNew.Count} frames");
             // sanity: the corpus really does tilt the pelvis a lot at deep bends (else the loader lost it)
             Assert.Greater(realMed, 20f, $"deep-bend real pelvis tilt only {realMed:F0} deg -- expected 30+; loader/axis issue");
-            Assert.Less(mNew, mOld * 0.7f,
-                $"the fitted curve ({mNew:F1} deg) is not clearly better than the old model ({mOld:F1} deg) at deep bends");
+            Assert.Less(mNew, mOld * 0.7f, $"the fitted curve ({mNew:F1} deg) is not clearly better than the old model ({mOld:F1} deg) at deep bends");
         }
-
         static float Median(List<float> xs)
         {
             if (xs.Count == 0) return 0f;

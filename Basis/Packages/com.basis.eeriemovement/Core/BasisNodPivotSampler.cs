@@ -9,9 +9,7 @@ namespace Basis.IK
         private float sampleAccum, solveAccum;
         private float3 armEstimate;
         private bool hasArmEstimate;
-        public float SampleIntervalSeconds = 1f / 30f;
-        public float SolveIntervalSeconds = 0.25f;
-        public float BlendPerAcceptance = 0.15f;
+        public float SampleIntervalSeconds = 1f / 30f, SolveIntervalSeconds = 0.25f, BlendPerAcceptance = 0.15f;
         public BasisNodPivotResult LastResult;
         public bool HasEstimate => hasArmEstimate;
         public BasisNodPivotSampler(int capacity = 30)

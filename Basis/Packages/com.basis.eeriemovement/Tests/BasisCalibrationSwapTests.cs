@@ -1,5 +1,4 @@
 using NUnit.Framework;
-
 namespace Basis.Tests.IK
 {
     public class BasisCalibrationSwapTests
@@ -7,11 +6,8 @@ namespace Basis.Tests.IK
         static readonly float[] StandingEye = { 1.40f, 1.61f, 1.90f };
         static readonly float[] AvatarA = { 1.30f, 1.61f, 1.72f };
         static readonly float[] AvatarB = { 1.45f, 1.55f, 1.80f };
-
         static float RenderedViewpoint(float trueStandingEye, float deviceScale) => trueStandingEye * deviceScale;
-
         // ---- recapture decision: when a load re-polls vs reuses ------------------------------------
-
         [Test]
         public void Swap_ReusesGenuineValue_EverythingElseRepolls()
         {
@@ -22,7 +18,6 @@ namespace Basis.Tests.IK
             Assert.That(BasisCalibrationMath.ShouldRecaptureEyeHeight(true, true), Is.True, "explicit recalibration must always re-measure.");
             Assert.That(BasisCalibrationMath.ShouldRecaptureEyeHeight(true, false), Is.True);
         }
-
         [Test]
         public void GenuineFlag_FreezesOnlyRealMeasurements_FallbackKeepsRepolling()
         {
@@ -32,17 +27,13 @@ namespace Basis.Tests.IK
 
             bool fallbackIsGenuine = false;
             hasGenuine = fallbackIsGenuine;
-            Assert.That(BasisCalibrationMath.ShouldRecaptureEyeHeight(false, hasGenuine), Is.True,
-                "a fallback eye height must not be frozen in across swaps.");
+            Assert.That(BasisCalibrationMath.ShouldRecaptureEyeHeight(false, hasGenuine), Is.True,"a fallback eye height must not be frozen in across swaps.");
 
             bool realIsGenuine = true; // HMD now tracking
             hasGenuine = realIsGenuine;
-            Assert.That(BasisCalibrationMath.ShouldRecaptureEyeHeight(false, hasGenuine), Is.False,
-                "after a real measurement, subsequent swaps reuse it.");
+            Assert.That(BasisCalibrationMath.ShouldRecaptureEyeHeight(false, hasGenuine), Is.False,"after a real measurement, subsequent swaps reuse it.");
         }
-
         // ---- the remap is RIGHT: rescale by exactly the avatar eye ratio --------------------------
-
         [Test]
         public void Swap_RemapsByExactlyTheAvatarEyeRatio_NothingElseLeaksIn()
         {
@@ -55,11 +46,9 @@ namespace Basis.Tests.IK
                     {
                         float scaleA = BasisCalibrationMath.ComputeDeviceScale(A, 1f, E, o + correction, nudge);
                         float scaleB = BasisCalibrationMath.ComputeDeviceScale(B, 1f, E, o + correction, nudge);
-                        Assert.That(scaleB / scaleA, Is.EqualTo(B / A).Within(1e-5f),
-                            $"E={E} A={A} B={B}: a swap must rescale by exactly B/A and carry nothing else over.");
+                        Assert.That(scaleB / scaleA, Is.EqualTo(B / A).Within(1e-5f), $"E={E} A={A} B={B}: a swap must rescale by exactly B/A and carry nothing else over.");
                     }
         }
-
         [Test]
         public void Swap_WithACorrectDenominator_LandsEachAvatarsViewpointOnItsOwnEye()
         {
@@ -75,9 +64,7 @@ namespace Basis.Tests.IK
                         Assert.That(RenderedViewpoint(E, scaleB), Is.EqualTo(B).Within(1e-4f), $"E={E} B={B}: after swap, viewpoint must land on avatar B's eye.");
                     }
         }
-
         // ---- the bug it fixes: re-poll WAS stance-dependent (wrong) --------------------------------
-
         [Test]
         public void ReusedDenominator_IsStanceIndependent_WhereTheOldRepollDrifted()
         {
@@ -94,11 +81,9 @@ namespace Basis.Tests.IK
                     float reused = BasisCalibrationMath.ComputeDeviceScale(A, 1f, E, 0f, 0f);          // NEW: reuse genuine
                     float repolled = BasisCalibrationMath.ComputeDeviceScale(A, 1f, livePollNow, 0f, 0f); // OLD: re-poll stance
 
-                    Assert.That(reused, Is.EqualTo(correct).Within(1e-6f),
-                        $"E={E} drop={stanceDrop}: the reused scale must not depend on swap-time stance.");
+                    Assert.That(reused, Is.EqualTo(correct).Within(1e-6f), $"E={E} drop={stanceDrop}: the reused scale must not depend on swap-time stance.");
                     if (stanceDrop > 0f)
-                        Assert.That(repolled, Is.GreaterThan(reused),
-                            $"E={E} drop={stanceDrop}: the old live re-poll drifts taller as the head drops at swap time.");
+                        Assert.That(repolled, Is.GreaterThan(reused), $"E={E} drop={stanceDrop}: the old live re-poll drifts taller as the head drops at swap time.");
                 }
             }
         }

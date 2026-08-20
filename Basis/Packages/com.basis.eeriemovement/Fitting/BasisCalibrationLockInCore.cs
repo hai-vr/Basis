@@ -2,8 +2,7 @@ using UnityEngine;
 public static class BasisCalibrationLockInCore
 {
     const float epsilon = 1e-6f;
-    public const float DefaultMaxYawDeg = 18f;
-    public const float DefaultMaxTiltDeg = 35f;
+    public const float DefaultMaxYawDeg = 18f, DefaultMaxTiltDeg = 35f;
     public static float ProximityWeight(float distance, float captureRadius, float falloffRadius)
     {
         if (falloffRadius - captureRadius <= epsilon)
@@ -23,8 +22,7 @@ public static class BasisCalibrationLockInCore
     }
     public static float FootYawDegrees(Vector3 bodyForward, Vector3 footForward, Vector3 up)
     {
-        Vector3 b = Vector3.ProjectOnPlane(bodyForward, up);
-        Vector3 f = Vector3.ProjectOnPlane(footForward, up);
+        Vector3 b = Vector3.ProjectOnPlane(bodyForward, up), f = Vector3.ProjectOnPlane(footForward, up);
         if (b.sqrMagnitude < epsilon || f.sqrMagnitude < epsilon)
         {
             return 0f;
@@ -45,8 +43,7 @@ public static class BasisCalibrationLockInCore
     }
     public static float FootAlignmentScore(float yawDeg, float tiltDeg, float maxYawDeg, float maxTiltDeg)
     {
-        float yaw = AxisScore(Mathf.Abs(yawDeg), maxYawDeg);
-        float tilt = AxisScore(Mathf.Abs(tiltDeg), maxTiltDeg);
+        float yaw = AxisScore(Mathf.Abs(yawDeg), maxYawDeg), tilt = AxisScore(Mathf.Abs(tiltDeg), maxTiltDeg);
         return Mathf.Min(yaw, tilt);
     }
     static float AxisScore(float absDeg, float maxDeg)

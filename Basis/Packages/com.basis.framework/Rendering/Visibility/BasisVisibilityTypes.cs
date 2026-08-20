@@ -1,6 +1,5 @@
 using System;
 using Unity.Mathematics;
-using Unity.Profiling;
 using UnityEngine;
 
 namespace Basis.Scripts.Rendering
@@ -49,11 +48,4 @@ namespace Basis.Scripts.Rendering
         }
     }
 
-    internal static class BasisVisibilityMarkers
-    {
-        public static readonly ProfilerMarker CollectCameras = new ProfilerMarker("BasisVisibility.CollectCameras");
-        public static readonly ProfilerMarker Dispatch = new ProfilerMarker("BasisVisibility.Dispatch");
-        public static readonly ProfilerMarker Join = new ProfilerMarker("BasisVisibility.Join");
-        public static readonly ProfilerMarker Apply = new ProfilerMarker("BasisVisibility.Apply");
-    }
 }

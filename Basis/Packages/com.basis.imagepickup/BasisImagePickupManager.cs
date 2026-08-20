@@ -14,7 +14,6 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
-using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -89,12 +88,6 @@ namespace Basis.ImagePickup
         private const int RaycastHitBufferSize = 16;
         private const int MaximumCpuFacingCameraBits = 64;
 
-        private static readonly ProfilerMarker ScheduleMarker = new("Basis.ImagePickup.AnimatedImage.Schedule");
-        private static readonly ProfilerMarker GpuCommandsMarker = new("Basis.ImagePickup.AnimatedImage.GpuCommands");
-        private static readonly ProfilerMarker JobFlushMarker = new("Basis.ImagePickup.AnimatedImage.JobFlush");
-        private static readonly ProfilerMarker CpuFrontFacingMarker = new(
-            "Basis.ImagePickup.AnimatedImage.CpuFrontFacing"
-        );
 
         public static bool HasNetworkID;
         public static ushort NetworkID;
@@ -4989,7 +4982,7 @@ namespace Basis.ImagePickup
                 return;
             }
 
-            using (ScheduleMarker.Auto())
+            using (BasisImagePickupMarkers.Schedule.Auto())
             {
                 int registeredPlayerCount = _players.Count;
                 for (int i = registeredPlayerCount - 1; i >= 0; i--)
@@ -5061,7 +5054,7 @@ namespace Basis.ImagePickup
 
                 if (gpuCommandsAdded)
                 {
-                    using (GpuCommandsMarker.Auto())
+                    using (BasisImagePickupMarkers.GpuCommands.Auto())
                     {
                         Graphics.ExecuteCommandBuffer(_commands);
                     }
@@ -5101,7 +5094,7 @@ namespace Basis.ImagePickup
 
             try
             {
-                using (JobFlushMarker.Auto())
+                using (BasisImagePickupMarkers.JobFlush.Auto())
                 {
                     for (int i = 0; i < pendingCount; i++)
                     {
@@ -5159,7 +5152,7 @@ namespace Basis.ImagePickup
 
         private static void PrepareCpuFrontFacingPlayers(int frame, float unscaledTime)
         {
-            using var scope = CpuFrontFacingMarker.Auto();
+            using var scope = BasisImagePickupMarkers.CpuFrontFacing.Auto();
             _cpuFrontFacingPlayers.Clear();
             int playerCount = _players.Count;
             for (int playerIndex = 0; playerIndex < playerCount; playerIndex++)

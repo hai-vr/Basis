@@ -1,5 +1,4 @@
 using UnityEngine;
-
 public static class BasisCalibrationMath
 {
     public static void ComputeInverseOffset(Vector3 trackerPos, Quaternion trackerRot, Vector3 bonePos, Quaternion boneRot, out Vector3 inverseOffsetPosition, out Quaternion inverseOffsetRotation)
@@ -8,19 +7,16 @@ public static class BasisCalibrationMath
         inverseOffsetPosition = invTrack * (bonePos - trackerPos);
         inverseOffsetRotation = invTrack * boneRot;
     }
-
     public static void ApplyInverseOffset(Vector3 trackerPos, Quaternion trackerRot, Vector3 inverseOffsetPosition, Quaternion inverseOffsetRotation, out Vector3 bonePos, out Quaternion boneRot)
     {
         bonePos = trackerPos + trackerRot * inverseOffsetPosition;
         boneRot = trackerRot * inverseOffsetRotation;
     }
-
     public static void ScaleDeviceCoord(Vector3 unscaledPos, Quaternion unscaledRot, float deviceScale, Vector3 offsetPos, Quaternion offsetRot, out Vector3 scaledPos, out Quaternion scaledRot)
     {
         scaledPos = offsetPos + offsetRot * (unscaledPos * deviceScale);
         scaledRot = offsetRot * unscaledRot;
     }
-
     public static void UnscaleDeviceCoord(Vector3 scaledPos, Quaternion scaledRot, float deviceScale, Vector3 offsetPos, Quaternion offsetRot, out Vector3 unscaledPos, out Quaternion unscaledRot)
     {
         Quaternion invOffset = Quaternion.Inverse(offsetRot);
@@ -28,13 +24,7 @@ public static class BasisCalibrationMath
         unscaledPos = (invOffset * (scaledPos - offsetPos)) / safeScale;
         unscaledRot = invOffset * scaledRot;
     }
-
-    public static void ReprojectInverseOffsetPosition(
-        Vector3 calibUnscaledTrackerPos, Quaternion calibUnscaledTrackerRot,
-        Vector3 calibUnscaledHeadPos, Quaternion calibUnscaledHeadRot,
-        float deviceScale, Vector3 offsetPos, Quaternion offsetRot,
-        Vector3 headTposeLocalScaled, Vector3 boneTposeLocalScaled,
-        out Vector3 inverseOffsetPosition)
+    public static void ReprojectInverseOffsetPosition( Vector3 calibUnscaledTrackerPos, Quaternion calibUnscaledTrackerRot, Vector3 calibUnscaledHeadPos, Quaternion calibUnscaledHeadRot, float deviceScale, Vector3 offsetPos, Quaternion offsetRot, Vector3 headTposeLocalScaled, Vector3 boneTposeLocalScaled, out Vector3 inverseOffsetPosition)
     {
         ScaleDeviceCoord(calibUnscaledTrackerPos, calibUnscaledTrackerRot, deviceScale, offsetPos, offsetRot, out Vector3 trackerPos, out Quaternion trackerRot);
         ScaleDeviceCoord(calibUnscaledHeadPos, calibUnscaledHeadRot, deviceScale, offsetPos, offsetRot, out Vector3 headPos, out Quaternion headRot);
@@ -44,7 +34,6 @@ public static class BasisCalibrationMath
         Vector3 reference = rootPos + rootRot * boneTposeLocalScaled;
         ComputeInverseOffset(trackerPos, trackerRot, reference, Quaternion.identity, out inverseOffsetPosition, out _);
     }
-
     public static void ComputeTposeAnchor(Vector3 headPos, Quaternion headRot, Vector3 headTposeLocalScaled, out Vector3 anchorPos, out Quaternion anchorRot)
     {
         Vector3 flatFwd = headRot * Vector3.forward;
@@ -52,12 +41,10 @@ public static class BasisCalibrationMath
         anchorRot = flatFwd.sqrMagnitude < 1e-6f ? Quaternion.identity : Quaternion.LookRotation(flatFwd.normalized, Vector3.up);
         anchorPos = headPos - anchorRot * headTposeLocalScaled;
     }
-
     public static float StandingEyeDenominator(float playerMeasuredHeight, float eyeReference, float additionalPlayerHeight)
     {
         return additionalPlayerHeight + eyeReference + playerMeasuredHeight;
     }
-
     public static float ComputeDeviceScale(float avatarUnscaledMetric, float appliedUpScale, float playerMeasuredHeight, float eyeReference, float additionalPlayerHeight)
     {
         float avatarScaledMetric = avatarUnscaledMetric * appliedUpScale;
@@ -68,7 +55,6 @@ public static class BasisCalibrationMath
         }
         return avatarScaledMetric / denominator;
     }
-
     public static float ArmSpanFloorGroundingLift(float avatarUnscaledEye, float appliedUpScale, float deviceScale, float playerMeasuredEye)
     {
         if (deviceScale <= 1e-5f)
@@ -78,25 +64,17 @@ public static class BasisCalibrationMath
         float desiredUnscaledEye = (avatarUnscaledEye * appliedUpScale) / deviceScale;
         return Mathf.Max(0f, desiredUnscaledEye - playerMeasuredEye);
     }
-
     public const float ArmToHeightBlendMin = 0f;
     public const float ArmToHeightBlendMax = 1f;
-
     public static float BlendEyeSpanMetric(float eyeMetric, float spanMetric, float blend)
     {
         return Mathf.Lerp(eyeMetric, spanMetric, Mathf.Clamp(blend, ArmToHeightBlendMin, ArmToHeightBlendMax));
     }
-
     public const float EyeToHeightRatio = 0.93f;
-
     public const float SpanToHeightRatio = 1.0f;
-
     public const float AutoModeEyePreferenceBand = 1.08f;
-
     public static float ImpliedHeightFromEye(float playerEye) => playerEye / EyeToHeightRatio;
-
     public static float ImpliedHeightFromSpan(float playerSpan) => playerSpan / SpanToHeightRatio;
-
     public static bool AutoHeightModePicksArmSpan(float playerEye, float playerSpan)
     {
         if (playerEye <= 0f)
@@ -109,18 +87,13 @@ public static class BasisCalibrationMath
         }
         return ImpliedHeightFromSpan(playerSpan) > ImpliedHeightFromEye(playerEye) * AutoModeEyePreferenceBand;
     }
-
     public static bool ShouldRecaptureEyeHeight(bool recapture, bool hasGenuine)
     {
         return recapture || !hasGenuine;
     }
-
     public const float FootMountAllowanceMeters = 0.07f;
-
     public const float FootBandMeters = 0.22f;
-
     public const int MinFootBandTrackers = 2;
-
     public static bool TryEstimateFloorFromTrackers(System.Collections.Generic.IReadOnlyList<float> trackerHeights, float hmdHeight, out float floorHeight)
     {
         floorHeight = 0f;
@@ -147,12 +120,9 @@ public static class BasisCalibrationMath
 
         floorHeight = lowest - FootMountAllowanceMeters;
         float impliedEye = hmdHeight - floorHeight;
-        return impliedEye >= BasisHeightDriver.MinPlausibleBodyMeasure
-            && impliedEye <= BasisHeightDriver.MaxPlausibleBodyMeasure;
+        return impliedEye >= BasisHeightDriver.MinPlausibleBodyMeasure && impliedEye <= BasisHeightDriver.MaxPlausibleBodyMeasure;
     }
-
     public const float EyeOverSpanPersistBand = 1.15f;
-
     public static bool EyeHeightLooksLiftPoisoned(float playerEye, float playerSpan)
     {
         if (playerEye <= 0f || playerSpan <= 0f)

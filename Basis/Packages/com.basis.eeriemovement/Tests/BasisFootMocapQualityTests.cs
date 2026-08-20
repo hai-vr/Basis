@@ -4,19 +4,15 @@ using System.Text;
 using Basis.IK.Mocap;
 using NUnit.Framework;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     // Disambiguate against the SDK's global-namespace BasisMotionClip ScriptableObject (see
     // BasisMocapMotionQualityTests.cs). Must live INSIDE the namespace.
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
-
     public sealed class BasisFootMocapQualityTests
     {
         static string CorpusDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~");
-
         const float WalkLo = 0.14f, WalkHi = 0.60f;   // v-hat range that is walking (Fr < 0.5)
-
         static List<BasisMotionClip> LoadWalks()
         {
             if (!Directory.Exists(CorpusDir))
@@ -43,17 +39,8 @@ namespace Basis.Tests.IK
             if (walks.Count == 0) Assert.Ignore("no walking clips found in the corpus");
             return walks;
         }
-
-        static string Header =>
-            $"{"clip",-12}{"vhat",6} {"chir",5} | {"duty s/r",11} {"dsup s/r",11} {"clear s/r",13} " +
-            $"{"stepL s/r",13} {"cad s/r",11} | {"extP95",7} {"extMax",7} {"slide",6}";
-
-        static string Row(in BasisFootQualitySummary s) =>
-            $"{s.Clip,-12}{s.VHat,6:F2} {(s.ChiralityOk ? "ok" : "X!"),5} | " +
-            $"{s.DutySyn,4:F2}/{s.DutyReal,-4:F2}  {s.DoubleSupportSyn,4:F2}/{s.DoubleSupportReal,-4:F2}  " +
-            $"{s.ClearSyn,5:F3}/{s.ClearReal,-5:F3}  {s.StepLenSyn,5:F2}/{s.StepLenReal,-5:F2}  " +
-            $"{s.CadenceSyn,4:F2}/{s.CadenceReal,-4:F2} | {s.ExtP95,7:F2} {s.ExtMax,7:F2} {s.PlantedSlideSyn,6:F1}";
-
+        static string Header => $"{"clip",-12}{"vhat",6} {"chir",5} | {"duty s/r",11} {"dsup s/r",11} {"clear s/r",13} " + $"{"stepL s/r",13} {"cad s/r",11} | {"extP95",7} {"extMax",7} {"slide",6}";
+        static string Row(in BasisFootQualitySummary s) => $"{s.Clip,-12}{s.VHat,6:F2} {(s.ChiralityOk ? "ok" : "X!"),5} | " + $"{s.DutySyn,4:F2}/{s.DutyReal,-4:F2}  {s.DoubleSupportSyn,4:F2}/{s.DoubleSupportReal,-4:F2}  " + $"{s.ClearSyn,5:F3}/{s.ClearReal,-5:F3}  {s.StepLenSyn,5:F2}/{s.StepLenReal,-5:F2}  " + $"{s.CadenceSyn,4:F2}/{s.CadenceReal,-4:F2} | {s.ExtP95,7:F2} {s.ExtMax,7:F2} {s.PlantedSlideSyn,6:F1}";
         [Test]
         public void RealHumanGait_MatchesLiterature()
         {
@@ -66,8 +53,7 @@ namespace Basis.Tests.IK
             {
                 BasisFootQualitySummary s = BasisMocapFootQuality.Run(clip);
                 if (!s.Ok) continue;
-                sb.AppendLine($"{s.Clip,-12}{s.VHat,6:F2} {s.DutyReal,6:F2} {s.DoubleSupportReal,6:F2} " +
-                              $"{s.ClearReal,7:F3} {s.StepLenReal,7:F2} {s.CadenceReal,8:F2}");
+                sb.AppendLine($"{s.Clip,-12}{s.VHat,6:F2} {s.DutyReal,6:F2} {s.DoubleSupportReal,6:F2} " + $"{s.ClearReal,7:F3} {s.StepLenReal,7:F2} {s.CadenceReal,8:F2}");
                 dutySum += s.DutyReal; dsSum += s.DoubleSupportReal; clrSum += s.ClearReal; nn++;
             }
             float duty = dutySum / nn, dsup = dsSum / nn, clr = clrSum / nn;
@@ -81,7 +67,6 @@ namespace Basis.Tests.IK
             Assert.That(dsup, Is.InRange(0.08f, 0.32f), "real-human DOUBLE-SUPPORT out of band -- contact detector is broken");
             Assert.That(clr, Is.InRange(0.11f, 0.22f), "real-human CLEARANCE out of band -- leg normalisation or detector is broken");
         }
-
         [Test]
         public void Stepper_WalksLikeAHuman_AcrossTheCorpus()
         {
@@ -107,8 +92,7 @@ namespace Basis.Tests.IK
             Debug.Log(report.ToString());
 
             if (failures.Count > 0)
-                Assert.Fail($"{failures.Count} of {walks.Count} walking clips fail the naturalness gate:\n  " +
-                            string.Join("\n  ", failures) + "\n\n" + report);
+                Assert.Fail($"{failures.Count} of {walks.Count} walking clips fail the naturalness gate:\n  " + string.Join("\n  ", failures) + "\n\n" + report);
         }
     }
 }

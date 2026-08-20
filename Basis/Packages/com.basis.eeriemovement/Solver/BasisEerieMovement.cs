@@ -2,18 +2,14 @@ using System.Runtime.CompilerServices;
 using Basis.Scripts.Common;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Profiling;
 using UnityEngine;
 namespace Basis.IK
 {
     [Unity.Burst.BurstCompile]
     public partial struct BasisEerieMovement : Unity.Jobs.IJob
     {
-        public const float epsilon = 1e-5f;
-        public const float minMag = 1e-6f;
-        public const float sqrEpsilon = 1e-8f;
-        public const int Count = 22;
-        public const int UpperChestSlot = Count - 1;
+        public const float epsilon = 1e-5f, minMag = 1e-6f, sqrEpsilon = 1e-8f;
+        public const int Count = 22, UpperChestSlot = Count - 1;
         public FixedList512Bytes<Vector3> slotPositions;
         public FixedList512Bytes<Quaternion> slotRotations, slotOffsets;
         public FixedList64Bytes<bool> slotWeights;
@@ -132,39 +128,33 @@ namespace Basis.IK
             }
         }
         public void Execute() => ProcessAnimation();
-        static readonly ProfilerMarker sMarkerSpinePass = new ProfilerMarker("BasisEerie.Spine");
-        static readonly ProfilerMarker sMarkerShoulderPass = new ProfilerMarker("BasisEerie.Shoulders");
-        static readonly ProfilerMarker sMarkerLegPass = new ProfilerMarker("BasisEerie.Legs");
-        static readonly ProfilerMarker sMarkerArmPass = new ProfilerMarker("BasisEerie.Arms");
-        static readonly ProfilerMarker sMarkerToePass = new ProfilerMarker("BasisEerie.Toes");
-        static readonly ProfilerMarker sMarkerOverrides = new ProfilerMarker("BasisEerie.TrackerOverrides");
         public void ProcessAnimation()
         {
             poseStream.InvalidateWorldCache();
             RecordTargetGizmos();
-            sMarkerSpinePass.Begin();
+            BasisEerieMarkers.Spine.Begin();
             SolveSpinePass();
-            sMarkerSpinePass.End();
+            BasisEerieMarkers.Spine.End();
             RecordSpineGizmos();
-            sMarkerShoulderPass.Begin();
+            BasisEerieMarkers.Shoulders.Begin();
             SolveShoulderPass();
-            sMarkerShoulderPass.End();
+            BasisEerieMarkers.Shoulders.End();
             RecordShoulderGizmos();
-            sMarkerLegPass.Begin();
+            BasisEerieMarkers.Legs.Begin();
             SolveLegPass();
-            sMarkerLegPass.End();
+            BasisEerieMarkers.Legs.End();
             RecordLegGizmos();
-            sMarkerArmPass.Begin();
+            BasisEerieMarkers.Arms.Begin();
             SolveArmPass();
-            sMarkerArmPass.End();
+            BasisEerieMarkers.Arms.End();
             RecordArmGizmos();
-            sMarkerToePass.Begin();
+            BasisEerieMarkers.Toes.Begin();
             SolveToePass();
-            sMarkerToePass.End();
+            BasisEerieMarkers.Toes.End();
             RecordToeGizmos();
-            sMarkerOverrides.Begin();
+            BasisEerieMarkers.TrackerOverrides.Begin();
             ApplyTrackerOverrides();
-            sMarkerOverrides.End();
+            BasisEerieMarkers.TrackerOverrides.End();
             RecordOverrideGizmos();
             RecordFrameGizmos();
             RecordLimitGizmos();
@@ -253,26 +243,5 @@ namespace Basis.IK
 
             gizmos.Dispose();
         }
-    }
-    public struct BasisChestSpringState
-    {
-        public Vector3 Pos, Vel;
-        public bool Seeded;
-    }
-    public struct BasisArmSlotState
-    {
-        public Vector3 HintBend, HintAxis, HintDrag;
-        public Quaternion HintBodyRot;
-        public float HintReach;
-        public bool HintSeeded;
-        public Vector3 PoleDir;
-        public Quaternion PoleRot;
-        public bool PoleValid;
-        public int Collided, GuardSide;
-    }
-    public struct BasisLegSlotState
-    {
-        public BasisSwivelFilterState Swivel;
-        public bool SwivelSeeded;
     }
 }

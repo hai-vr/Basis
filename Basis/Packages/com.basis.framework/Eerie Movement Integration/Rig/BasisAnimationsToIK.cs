@@ -7,21 +7,17 @@ using Basis.Scripts.Device_Management.Devices.Desktop;
 public class BasisAnimationsToIK : MonoBehaviour
 {
     public Animator Animator;
-
-    private readonly List<TrackerBinding> _bindings = new List<TrackerBinding>();
-
+    private readonly List<TrackerBinding> trackerBindings = new List<TrackerBinding>();
     private class TrackerBinding
     {
         public BasisInputXRSimulate Tracker;
         public Transform Bone;
-
         public Vector3 LocalOffsetPosition;
         public Quaternion LocalOffsetRotation;
     }
-
     void OnEnable()
     {
-        _bindings.Clear();
+        trackerBindings.Clear();
 
         BasisSimulateXR simulated = FindAnyObjectByType<BasisSimulateXR>();
         if (simulated == null || Animator == null)
@@ -58,7 +54,7 @@ public class BasisAnimationsToIK : MonoBehaviour
 
                 if (humanoidBone == HumanBodyBones.LeftHand || humanoidBone == HumanBodyBones.RightHand)
                 {
-                    _bindings.Add(new TrackerBinding
+                    trackerBindings.Add(new TrackerBinding
                     {
                         Tracker = tracker,
                         Bone = bone,
@@ -68,7 +64,7 @@ public class BasisAnimationsToIK : MonoBehaviour
                 }
                 else
                 {
-                    _bindings.Add(new TrackerBinding
+                    trackerBindings.Add(new TrackerBinding
                     {
                         Tracker = tracker,
                         Bone = bone,
@@ -83,9 +79,9 @@ public class BasisAnimationsToIK : MonoBehaviour
     }
     void Update()
     {
-        for (int Index = 0; Index < _bindings.Count; Index++)
+        for (int Index = 0; Index < trackerBindings.Count; Index++)
         {
-            TrackerBinding b = _bindings[Index];
+            TrackerBinding b = trackerBindings[Index];
             if (b.Tracker == null || b.Bone == null)
             {
                 continue;

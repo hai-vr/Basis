@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
-using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -51,9 +50,6 @@ public static class BasisFarAvatarBuilder
     // Install phase markers. BasisAvatarFarLOD's FarLodInstall marker reports one number for the
     // whole swap; these split it so a spike attributes to the stage that owns it — first-wearer
     // asset construction, the per-player clone, or the factory swap and remote calibration.
-    static readonly ProfilerMarker sMarkerShared = new ProfilerMarker("BasisDriver.Network.Transmit.FarLodShared");
-    static readonly ProfilerMarker sMarkerBuild = new ProfilerMarker("BasisDriver.Network.Transmit.FarLodBuild");
-    static readonly ProfilerMarker sMarkerFactory = new ProfilerMarker("BasisDriver.Network.Transmit.FarLodFactory");
 
     /// <summary>
     /// Builds this player's far avatar and installs it as their current avatar through the
@@ -235,7 +231,7 @@ public static class BasisFarAvatarBuilder
     private static bool InstallWithPayload(BasisRemotePlayer remote, string uniqueVersion, BasisFarLodPayload payload)
     {
         SharedAssets shared;
-        using (sMarkerShared.Auto())
+        using (BasisNetworkMarkers.TransmitFarLodShared.Auto())
         {
             shared = AcquireShared(uniqueVersion, payload);
         }
@@ -246,7 +242,7 @@ public static class BasisFarAvatarBuilder
         }
 
         BasisAvatar avatar;
-        using (sMarkerBuild.Auto())
+        using (BasisNetworkMarkers.TransmitFarLodBuild.Auto())
         {
             avatar = BuildAvatar(shared, remote.DisplayName);
         }
@@ -257,7 +253,7 @@ public static class BasisFarAvatarBuilder
             return false;
         }
 
-        using (sMarkerFactory.Auto())
+        using (BasisNetworkMarkers.TransmitFarLodFactory.Auto())
         {
             BasisAvatarFactory.SetupFarAvatar(remote, avatar);
         }

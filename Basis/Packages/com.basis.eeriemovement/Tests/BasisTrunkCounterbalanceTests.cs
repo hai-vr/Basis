@@ -4,30 +4,22 @@ using Basis.IK.Mocap;
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
-
     public sealed class BasisTrunkCounterbalanceTests
     {
-        const float k_TrunkLen = 0.5f;
-        const float k_MaxShift = 0.25f;
-
+        const float k_TrunkLen = 0.5f, k_MaxShift = 0.25f;
         // neck folded `deg` off vertical (+Y) toward +Z, for hips at the origin.
         static Vector3 FoldCue(float deg, float trunkLen = k_TrunkLen)
         {
             float r = deg * Mathf.Deg2Rad;
             return new Vector3(0f, Mathf.Cos(r), Mathf.Sin(r)) * trunkLen;
         }
-
-        static bool Fold(float deg, out Vector3 hipsPos, out float flexionFrac, out float shiftMeters,
-            float gain = BasisTrunkCounterbalanceCore.DerivedGain, float maxShift = k_MaxShift)
+        static bool Fold(float deg, out Vector3 hipsPos, out float flexionFrac, out float shiftMeters, float gain = BasisTrunkCounterbalanceCore.DerivedGain, float maxShift = k_MaxShift)
         {
-            return BasisTrunkCounterbalanceCore.Solve(Vector3.zero, FoldCue(deg), Vector3.up, gain, maxShift,
-                out hipsPos, out flexionFrac, out shiftMeters);
+            return BasisTrunkCounterbalanceCore.Solve(Vector3.zero, FoldCue(deg), Vector3.up, gain, maxShift, out hipsPos, out flexionFrac, out shiftMeters);
         }
-
         [Test]
         public void Upright_NothingMoves()
         {
@@ -37,7 +29,6 @@ namespace Basis.Tests.IK
             Assert.AreEqual(0f, flexionFrac, 1e-4f);
             Assert.AreEqual(0f, Vector3.Distance(Vector3.zero, hips), 1e-6f);
         }
-
         [Test]
         public void GainZero_IsExactlyTheIdentity()
         {
@@ -46,7 +37,6 @@ namespace Basis.Tests.IK
             Assert.IsFalse(applied);
             Assert.AreEqual(0f, Vector3.Distance(Vector3.zero, hips), 0f, "gain 0 moved the hips");
         }
-
         [Test]
         public void TheShiftIsGainTimesTheTrunksHorizontalTravel()
         {
@@ -60,7 +50,6 @@ namespace Basis.Tests.IK
                 Assert.AreEqual(expected, shift, 1e-4f, $"wrong shift at {deg} deg");
             }
         }
-
         [Test]
         public void TheShiftOpposesTheFoldAndIsPurelyHorizontal()
         {
@@ -71,21 +60,17 @@ namespace Basis.Tests.IK
             Assert.AreEqual(0f, hips.y, 1e-5f, "the counterbalance changed the pelvis height");
             Assert.AreEqual(0f, hips.x, 1e-5f, "the counterbalance introduced lateral drift");
         }
-
         [Test]
         public void ItAnswersOffSagittalFoldsInTheirOwnDirection()
         {
             // A forward-LEFT fold must be answered back-RIGHT. A model built on the pelvis' forward axis
             // would only handle pure sagittal bends (and would drag in the bind-frame problem).
             Quaternion yaw = Quaternion.AngleAxis(37f, Vector3.up);
-            BasisTrunkCounterbalanceCore.Solve(Vector3.zero, yaw * FoldCue(50f), Vector3.up,
-                BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 hips, out _, out _);
+            BasisTrunkCounterbalanceCore.Solve(Vector3.zero, yaw * FoldCue(50f), Vector3.up, BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 hips, out _, out _);
 
             Vector3 leanDir = yaw * Vector3.forward;
-            Assert.AreEqual(-1f, Vector3.Dot(hips.normalized, leanDir), 1e-4f,
-                "the shift is not anti-parallel to the fold direction");
+            Assert.AreEqual(-1f, Vector3.Dot(hips.normalized, leanDir), 1e-4f,"the shift is not anti-parallel to the fold direction");
         }
-
         [Test]
         public void FlexionFracIsSineOfFlexion_AndZeroWhenTheTermIsOff()
         {
@@ -100,7 +85,6 @@ namespace Basis.Tests.IK
                 Assert.AreEqual(0f, offFrac, 0f, $"FlexionFrac leaked at {deg} deg with the term disabled");
             }
         }
-
         [Test]
         public void ItSaturatesBelowTheCapAndNeverReachesIt()
         {
@@ -110,7 +94,6 @@ namespace Basis.Tests.IK
                 Assert.Less(shift, k_MaxShift, $"shift reached the cap at {deg} deg (a hard clamp pops)");
             }
         }
-
         [Test]
         public void SaturationAddsNoStepOfItsOwn()
         {
@@ -119,17 +102,14 @@ namespace Basis.Tests.IK
             // observed step by that is the real assertion. A flat threshold would just be measuring sin's
             // own slope at whatever gain the test happened to pick.
             const float gain = 2f;
-            float bound = gain * k_TrunkLen * Mathf.Deg2Rad * 1.05f;
-            float prev = 0f;
+            float bound = gain * k_TrunkLen * Mathf.Deg2Rad * 1.05f, prev = 0f;
             for (float deg = 0f; deg <= 130f; deg += 1f)
             {
                 Fold(deg, out _, out _, out float shift, gain: gain);
-                Assert.LessOrEqual(Mathf.Abs(shift - prev), bound,
-                    $"shift stepped {Mathf.Abs(shift - prev):F5} m at {deg} deg, past the unsaturated bound {bound:F5}");
+                Assert.LessOrEqual(Mathf.Abs(shift - prev), bound, $"shift stepped {Mathf.Abs(shift - prev):F5} m at {deg} deg, past the unsaturated bound {bound:F5}");
                 prev = shift;
             }
         }
-
         [Test]
         public void PastHorizontal_TheShiftEasesBackOff()
         {
@@ -140,63 +120,49 @@ namespace Basis.Tests.IK
             Assert.Less(at125, at90, "the shift did not ease off past horizontal");
             Assert.Greater(at125, 0f, "the shift collapsed entirely past horizontal");
         }
-
         [Test]
         public void ItIsEquivariant_TheAnswerRidesTheFrame()
         {
             // Positions only, no bone axes, so this should hold exactly. BasisFullBodyIK's clamps have shipped
             // frame bugs precisely where this was never asserted -- see the space-conformance suite.
-            Vector3 hips0 = new Vector3(0.3f, 1.1f, -0.7f);
-            Vector3 cue0 = FoldCue(65f) + hips0;
-            BasisTrunkCounterbalanceCore.Solve(hips0, cue0, Vector3.up,
-                BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 flatHips, out _, out float flatShift);
+            Vector3 hips0 = new Vector3(0.3f, 1.1f, -0.7f), cue0 = FoldCue(65f) + hips0;
+            BasisTrunkCounterbalanceCore.Solve(hips0, cue0, Vector3.up, BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 flatHips, out _, out float flatShift);
 
             Quaternion R = Quaternion.Euler(23f, -51f, 17f);
             Vector3 pivot = new Vector3(-2f, 0.4f, 3f);
-            BasisTrunkCounterbalanceCore.Solve(R * (hips0 - pivot) + pivot, R * (cue0 - pivot) + pivot, R * Vector3.up,
-                BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 rotatedHips, out _, out float rotatedShift);
+            BasisTrunkCounterbalanceCore.Solve(R * (hips0 - pivot) + pivot, R * (cue0 - pivot) + pivot, R * Vector3.up, BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 rotatedHips, out _, out float rotatedShift);
 
             Vector3 expected = R * (flatHips - pivot) + pivot;
             Assert.AreEqual(0f, Vector3.Distance(expected, rotatedHips), 1e-4f, "not equivariant");
             Assert.AreEqual(flatShift, rotatedShift, 1e-5f);
         }
-
         [Test]
         public void AGazeCannotMoveThePelvis()
         {
             // The whole reason the input is a NECK cue and not the head target. Replicates
             // BasisFullBodyIK.ComputeNeckCue exactly: orbit the head about a fixed neck by any rotation and
             // the reconstructed cue -- and therefore the pelvis -- must not move at all.
-            Vector3 neck = new Vector3(0f, 1.4f, 0.15f);
-            Vector3 headRest = new Vector3(0f, 1.65f, 0.05f);
+            Vector3 neck = new Vector3(0f, 1.4f, 0.15f), headRest = new Vector3(0f, 1.65f, 0.05f);
             Quaternion headRestRot = Quaternion.identity;
             // tposeHeadToNeckLocal == inv(headRot) * (neck - head), captured at rest.
-            Vector3 headToNeckLocal = Quaternion.Inverse(headRestRot) * (neck - headRest);
-
-            Vector3 baseline = Vector3.zero;
+            Vector3 headToNeckLocal = Quaternion.Inverse(headRestRot) * (neck - headRest), baseline = Vector3.zero;
             foreach (float gaze in new[] { 0f, -20f, -45f, -70f, -90f, 30f })
             {
-                Quaternion q = Quaternion.AngleAxis(gaze, Vector3.right);
-                Quaternion headRot = q * headRestRot;
+                Quaternion q = Quaternion.AngleAxis(gaze, Vector3.right), headRot = q * headRestRot;
                 Vector3 headPos = neck + q * (headRest - neck);       // the head ORBITS the neck
                 Vector3 cue = headPos + headRot * headToNeckLocal;    // == ComputeNeckCue
 
-                BasisTrunkCounterbalanceCore.Solve(new Vector3(0f, 0.95f, 0f), cue, Vector3.up,
-                    BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 hips, out _, out _);
+                BasisTrunkCounterbalanceCore.Solve(new Vector3(0f, 0.95f, 0f), cue, Vector3.up, BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 hips, out _, out _);
                 if (gaze == 0f) baseline = hips;
-                Assert.AreEqual(0f, Vector3.Distance(baseline, hips), 1e-5f,
-                    $"gazing {gaze} deg moved the pelvis -- the cue is contaminated");
+                Assert.AreEqual(0f, Vector3.Distance(baseline, hips), 1e-5f, $"gazing {gaze} deg moved the pelvis -- the cue is contaminated");
             }
         }
-
         // ---------------------------------------------------------------------------------------------
         // THE CORPUS: do real humans actually counterweight a fold by ~0.38 of the trunk's forward travel?
-
         static List<BasisMotionClip> LoadCorpus()
         {
             var clips = new List<BasisMotionClip>();
-            foreach (string dir in new[] { Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~"),
-                                           Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~/posture") })
+            foreach (string dir in new[] { Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~"), Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~/posture") })
             {
                 if (!Directory.Exists(dir)) continue;
                 foreach (string f in Directory.GetFiles(dir, "*.bvh"))
@@ -205,7 +171,6 @@ namespace Basis.Tests.IK
             if (clips.Count == 0) Assert.Ignore("no corpus");
             return clips;
         }
-
         [Test]
         public void TheCorpusAgreesWithTheGainTheSegmentMassesPredict()
         {
@@ -247,8 +212,7 @@ namespace Basis.Tests.IK
                 for (int f = 0; f < c.FrameCount; f++)
                 {
                     Vector3 h = c.Get(f, BasisMocapJoint.Hips).Position;
-                    Vector3 mf = (c.Get(f, BasisMocapJoint.LeftFoot).Position +
-                                  c.Get(f, BasisMocapJoint.RightFoot).Position) * 0.5f;
+                    Vector3 mf = (c.Get(f, BasisMocapJoint.LeftFoot).Position + c.Get(f, BasisMocapJoint.RightFoot).Position) * 0.5f;
                     standH = Mathf.Max(standH, h.y - mf.y);
                 }
                 if (standH < 0.3f) continue;
@@ -260,8 +224,7 @@ namespace Basis.Tests.IK
                     Vector3 hips = c.Get(f, BasisMocapJoint.Hips).Position;
                     Vector3 neck = c.Get(f, BasisMocapJoint.Neck).Position;
                     Vector3 lf = c.Get(f, BasisMocapJoint.LeftFoot).Position;
-                    Vector3 rf = c.Get(f, BasisMocapJoint.RightFoot).Position;
-                    Vector3 midFoot = (lf + rf) * 0.5f;
+                    Vector3 rf = c.Get(f, BasisMocapJoint.RightFoot).Position, midFoot = (lf + rf) * 0.5f;
 
                     // standing: pelvis still well above the feet, both feet at roughly one level
                     if (hips.y - midFoot.y < 0.75f * standH) continue;
@@ -270,8 +233,7 @@ namespace Basis.Tests.IK
                     Vector3 trunk = neck - hips;
                     if (trunk.magnitude < 1e-3f) continue;
                     Vector3 horizontal = new Vector3(trunk.x, 0f, trunk.z);
-                    float travel = horizontal.magnitude;
-                    float flexDeg = Mathf.Atan2(travel, trunk.y) * Mathf.Rad2Deg;
+                    float travel = horizontal.magnitude, flexDeg = Mathf.Atan2(travel, trunk.y) * Mathf.Rad2Deg;
                     if (flexDeg < minFlexDeg || travel < 1e-3f) continue;
 
                     float setback = Vector3.Dot(hips - midFoot, -(horizontal / travel));
@@ -288,17 +250,13 @@ namespace Basis.Tests.IK
 
             Assert.GreaterOrEqual(slopes.Count, 8, "too few usable clips to fit a gain");
             slopes.Sort();
-            float slope = slopes[slopes.Count / 2];
-            float derived = BasisTrunkCounterbalanceCore.DerivedGain;
+            float slope = slopes[slopes.Count / 2], derived = BasisTrunkCounterbalanceCore.DerivedGain;
 
-            Debug.Log($"[trunk counterbalance] corpus pelvis setback vs trunk travel: per-clip slope median " +
-                      $"{slope:F3} (IQR [{slopes[slopes.Count / 4]:F3}, {slopes[(3 * slopes.Count) / 4]:F3}]), " +
-                      $"derived {derived:F2}, {nTotal} standing folded frames from {slopes.Count} clips");
+            Debug.Log($"[trunk counterbalance] corpus pelvis setback vs trunk travel: per-clip slope median " + $"{slope:F3} (IQR [{slopes[slopes.Count / 4]:F3}, {slopes[(3 * slopes.Count) / 4]:F3}]), " + $"derived {derived:F2}, {nTotal} standing folded frames from {slopes.Count} clips");
 
             Assert.Greater(slope, 0.10f, $"the corpus shows no pelvis setback at all (slope {slope:F3}) -- axis/units issue?");
             Assert.Less(slope, 1.2f, $"implausible corpus slope {slope:F3}");
-            Assert.AreEqual(slope, derived, 0.35f,
-                $"the derived gain {derived:F2} is outside the band the corpus supports (slope {slope:F3})");
+            Assert.AreEqual(slope, derived, 0.35f, $"the derived gain {derived:F2} is outside the band the corpus supports (slope {slope:F3})");
         }
     }
 }

@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisLimbRollConditioningTests
@@ -11,27 +10,22 @@ namespace Basis.Tests.IK
         const float LegReach = ThighLen + ShinLen;
         const float UpperLen = 0.30f, ForeLen = 0.30f;
         const float ArmReach = UpperLen + ForeLen;
-
         static readonly Vector3 LegBoneAxis = Vector3.down;    // hip → knee in the thigh's own frame
         static readonly Vector3 ArmBoneAxis = Vector3.right;   // shoulder → elbow, a T-pose arm
         static readonly Vector3 BendNormal = Vector3.right;    // a knee bends in the sagittal plane
         static readonly Vector3 Root = Vector3.zero;
-
         const float RollGateDeg = 2.0f;
-
         static readonly Vector3[] Nudges =
         {
             new Vector3(0.001f, 0f, 0f), new Vector3(-0.001f, 0f, 0f),
             new Vector3(0f, 0.001f, 0f), new Vector3(0f, -0.001f, 0f),
             new Vector3(0f, 0f, 0.001f), new Vector3(0f, 0f, -0.001f),
         };
-
         static IEnumerable<float> Extensions()
         {
             for (float e = 0.95f; e < 0.99f; e += 0.01f) yield return e;
             for (float e = 0.99f; e <= 1.0021f; e += 0.0005f) yield return e;
         }
-
         static float RollDeg(Quaternion before, Quaternion after, Vector3 boneLocalAxis)
         {
             Vector3 axis = (after * boneLocalAxis).normalized;
@@ -41,16 +35,12 @@ namespace Basis.Tests.IK
             float twist = 2f * Mathf.Atan2(Vector3.Dot(v, axis), delta.w) * Mathf.Rad2Deg;
             return Mathf.Abs(Mathf.DeltaAngle(0f, twist));
         }
-
-        static void Pose(float flexDeg, float bulgeAzimDeg, float rollDeg, Vector3 boneAxis, Vector3 straight,
-                         float upper, float lower, out Vector3 mid, out Vector3 tip,
-                         out Quaternion rootRot, out Quaternion midRot)
+        static void Pose(float flexDeg, float bulgeAzimDeg, float rollDeg, Vector3 boneAxis, Vector3 straight, float upper, float lower, out Vector3 mid, out Vector3 tip, out Quaternion rootRot, out Quaternion midRot)
         {
             float f = flexDeg * Mathf.Deg2Rad;
             Vector3 seed = Mathf.Abs(Vector3.Dot(straight, Vector3.forward)) > 0.9f ? Vector3.up : Vector3.forward;
             Vector3 bulge0 = Vector3.Cross(straight, Vector3.Cross(seed, straight)).normalized;
             Vector3 bulge = Quaternion.AngleAxis(bulgeAzimDeg, straight) * bulge0;
-
             Vector3 upperDir = (straight * Mathf.Cos(f) + bulge * Mathf.Sin(f)).normalized;
             Vector3 lowerDir = (straight * Mathf.Cos(f) - bulge * Mathf.Sin(f)).normalized;
 
@@ -59,27 +49,21 @@ namespace Basis.Tests.IK
             mid = Root + rootRot * boneAxis * upper;
             tip = mid + midRot * boneAxis * lower;
         }
-
         static Vector3 Anterior(Vector3 target)
         {
-            Vector3 axis = (target - Root).normalized;
-            Vector3 a = Vector3.Cross(axis, BendNormal);
+            Vector3 axis = (target - Root).normalized, a = Vector3.Cross(axis, BendNormal);
             return a.sqrMagnitude < 1e-8f ? Vector3.forward : a.normalized;
         }
-
         static Vector3 LegTarget(float extension, float elevDeg, float azimDeg, Vector3 nudge)
         {
             Vector3 dir = Quaternion.AngleAxis(azimDeg, Vector3.up) * (Quaternion.AngleAxis(elevDeg, Vector3.right) * Vector3.down);
             return Root + dir.normalized * (extension * LegReach) + nudge;
         }
-
         static BasisLegSolveResult SolveLeg(Vector3 target, float poleAzimDeg, float animFlexDeg, float animAzimDeg)
         {
-            Pose(animFlexDeg, animAzimDeg, 12f, LegBoneAxis, Vector3.down, ThighLen, ShinLen,
-                 out Vector3 knee, out Vector3 ankle, out Quaternion rootRot, out Quaternion midRot);
+            Pose(animFlexDeg, animAzimDeg, 12f, LegBoneAxis, Vector3.down, ThighLen, ShinLen, out Vector3 knee, out Vector3 ankle, out Quaternion rootRot, out Quaternion midRot);
 
-            Vector3 axis = (target - Root).normalized;
-            Vector3 dir = Quaternion.AngleAxis(poleAzimDeg, axis) * Anterior(target);
+            Vector3 axis = (target - Root).normalized, dir = Quaternion.AngleAxis(poleAzimDeg, axis) * Anterior(target);
 
             var input = new BasisLegSolveInput
             {
@@ -93,20 +77,16 @@ namespace Basis.Tests.IK
             BasisLegSolveCore.Solve(input, out BasisLegSolveResult r);
             return r;
         }
-
         static Vector3 ArmTarget(float extension, float elevDeg, float azimDeg, Vector3 nudge)
         {
             Vector3 dir = Quaternion.AngleAxis(azimDeg, Vector3.up) * (Quaternion.AngleAxis(elevDeg, Vector3.forward) * Vector3.right);
             return Root + dir.normalized * (extension * ArmReach) + nudge;
         }
-
         static BasisArmSolveResult SolveArm(Vector3 target, float poleAzimDeg, float animFlexDeg, float animAzimDeg)
         {
-            Pose(animFlexDeg, animAzimDeg, 15f, ArmBoneAxis, Vector3.right, UpperLen, ForeLen,
-                 out Vector3 elbow, out Vector3 hand, out Quaternion rootRot, out Quaternion midRot);
+            Pose(animFlexDeg, animAzimDeg, 15f, ArmBoneAxis, Vector3.right, UpperLen, ForeLen, out Vector3 elbow, out Vector3 hand, out Quaternion rootRot, out Quaternion midRot);
 
-            Vector3 axis = (target - Root).normalized;
-            Vector3 down = Vector3.down - axis * Vector3.Dot(Vector3.down, axis);
+            Vector3 axis = (target - Root).normalized, down = Vector3.down - axis * Vector3.Dot(Vector3.down, axis);
             down = down.sqrMagnitude < 1e-8f ? Vector3.forward : down.normalized;
             Vector3 dir = Quaternion.AngleAxis(poleAzimDeg, axis) * down;
 
@@ -124,9 +104,7 @@ namespace Basis.Tests.IK
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult r);
             return r;
         }
-
         // ── THE DEFECT ────────────────────────────────────────────────────────────────────────────────────
-
         [Test]
         public void Leg_TheThighDoesNotRoll_WhenTheFootTargetIsNudgedAMillimetre()
         {
@@ -154,11 +132,8 @@ namespace Basis.Tests.IK
                                     }
                                 }
 
-            Assert.That(worst, Is.LessThan(RollGateDeg),
-                $"A 1 mm nudge of the foot target rolled the thigh {worst:0.0}° about its own axis ({where}). " +
-                $"The foot never left its target and the knee barely moved — this is the leg spinning inside its mesh.");
+            Assert.That(worst, Is.LessThan(RollGateDeg), $"A 1 mm nudge of the foot target rolled the thigh {worst:0.0}° about its own axis ({where}). " + $"The foot never left its target and the knee barely moved — this is the leg spinning inside its mesh.");
         }
-
         [Test]
         public void Arm_TheUpperArmDoesNotRoll_WhenTheHandTargetIsNudgedAMillimetre()
         {
@@ -186,13 +161,9 @@ namespace Basis.Tests.IK
                                     }
                                 }
 
-            Assert.That(worst, Is.LessThan(RollGateDeg),
-                $"A 1 mm nudge of the hand target rolled the upper arm {worst:0.0}° about its own axis ({where}). " +
-                $"A VR user reaching or pointing lives here: 57% of the mocap corpus is past 95% extension.");
+            Assert.That(worst, Is.LessThan(RollGateDeg), $"A 1 mm nudge of the hand target rolled the upper arm {worst:0.0}° about its own axis ({where}). " + $"A VR user reaching or pointing lives here: 57% of the mocap corpus is past 95% extension.");
         }
-
         // ── THE GUARDRAILS. Without these, "never swivel" passes everything above. ────────────────────────
-
         [Test]
         public void Leg_TheKneeStillLandsOnItsCommandedPole_AtEveryExtension()
         {
@@ -207,9 +178,7 @@ namespace Basis.Tests.IK
                 {
                     Vector3 target = LegTarget(ext, 0f, 0f, Vector3.zero);
                     BasisLegSolveResult r = SolveLeg(target, pole, 3f, 200f);
-
-                    Vector3 axis = (target - Root).normalized;
-                    Vector3 perp = Vector3.ProjectOnPlane(r.KneeSolved - Root, axis);
+                    Vector3 axis = (target - Root).normalized, perp = Vector3.ProjectOnPlane(r.KneeSolved - Root, axis);
                     if (perp.sqrMagnitude < 1e-12f) continue;   // dead straight: the azimuth is genuinely undefined
 
                     float landed = Vector3.SignedAngle(Anterior(target), perp, axis);
@@ -217,11 +186,8 @@ namespace Basis.Tests.IK
                     if (err > worst) { worst = err; where = $"extension {ext:0.0000}, pole {pole:0}°"; }
                 }
 
-            Assert.That(worst, Is.LessThan(1.0f),
-                $"The knee missed its commanded pole by {worst:0.00}° ({where}). The hint must keep FULL authority " +
-                $"at every extension — surrendering it near straight is the defect the near-extension fade was deleted for.");
+            Assert.That(worst, Is.LessThan(1.0f), $"The knee missed its commanded pole by {worst:0.00}° ({where}). The hint must keep FULL authority " + $"at every extension — surrendering it near straight is the defect the near-extension fade was deleted for.");
         }
-
         [Test]
         public void Leg_TheKneeNeverInverts_ThroughAFullPoleSweep_AtEveryExtension()
         {
@@ -233,20 +199,15 @@ namespace Basis.Tests.IK
                 {
                     Vector3 target = LegTarget(ext, 0f, 0f, Vector3.zero);
                     BasisLegSolveResult r = SolveLeg(target, pole, 3f, 0f);
-
-                    Vector3 axis = (target - Root).normalized;
-                    Vector3 perp = Vector3.ProjectOnPlane(r.KneeSolved - Root, axis);
+                    Vector3 axis = (target - Root).normalized, perp = Vector3.ProjectOnPlane(r.KneeSolved - Root, axis);
                     if (perp.sqrMagnitude < 1e-12f) continue;
 
                     float dot = Vector3.Dot(perp.normalized, Anterior(target));
                     if (dot < worstDot) { worstDot = dot; where = $"extension {ext:0.0000}, pole {pole:0}°"; }
                 }
 
-            Assert.That(worstDot, Is.GreaterThan(0f),
-                $"The knee reached the POSTERIOR half-space (dot {worstDot:0.0000}, {where}). A knee is a hinge: " +
-                $"behind the hip→ankle axis is not unnatural, it is anatomically unrepresentable.");
+            Assert.That(worstDot, Is.GreaterThan(0f), $"The knee reached the POSTERIOR half-space (dot {worstDot:0.0000}, {where}). A knee is a hinge: " + $"behind the hip→ankle axis is not unnatural, it is anatomically unrepresentable.");
         }
-
         [Test]
         public void Leg_TheFootStaysOnItsTarget_AtEveryExtension()
         {
@@ -267,16 +228,12 @@ namespace Basis.Tests.IK
                             Vector3 tgt = LegTarget(ext, elev, 0f, Vector3.zero);
                             BasisLegSolveResult r = SolveLeg(tgt, pole, flex, 0f);
                             Vector3 dir = tgt - Root;
-                            float perp = dir.sqrMagnitude < 1e-12f ? 0f
-                                : Vector3.ProjectOnPlane(r.FootSolved - Root, dir.normalized).magnitude;
+                            float perp = dir.sqrMagnitude < 1e-12f ? 0f : Vector3.ProjectOnPlane(r.FootSolved - Root, dir.normalized).magnitude;
                             worst = Mathf.Max(worst, perp);
                         }
 
-            Assert.That(worst * 1000f, Is.LessThan(0.5f),
-                $"The foot slid {worst * 1000f:0.00} mm sideways off the hip→target ray. The swivel is a rotation " +
-                $"ABOUT the hip→foot axis and the foot lies ON that axis, so this is supposed to be structurally impossible.");
+            Assert.That(worst * 1000f, Is.LessThan(0.5f), $"The foot slid {worst * 1000f:0.00} mm sideways off the hip→target ray. The swivel is a rotation " + $"ABOUT the hip→foot axis and the foot lies ON that axis, so this is supposed to be structurally impossible.");
         }
-
         [Test]
         public void Arm_TheHandStaysOnItsTarget_AtEveryExtension()
         {
@@ -288,8 +245,7 @@ namespace Basis.Tests.IK
                         foreach (float flex in new[] { 1f, 20f, 45f })
                             worst = Mathf.Max(worst, SolveArm(ArmTarget(ext, elev, 0f, Vector3.zero), pole, flex, 0f).HandError);
 
-            Assert.That(worst * 1000f, Is.LessThan(0.5f),
-                $"The hand left its target by {worst * 1000f:0.00} mm.");
+            Assert.That(worst * 1000f, Is.LessThan(0.5f), $"The hand left its target by {worst * 1000f:0.00} mm.");
         }
     }
 }

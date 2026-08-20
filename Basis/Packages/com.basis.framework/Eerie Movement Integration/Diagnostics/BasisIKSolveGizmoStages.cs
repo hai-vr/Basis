@@ -1,17 +1,14 @@
 using Basis.IK;
 using Basis.Scripts.Settings;
 using UnityEngine;
-
 namespace Basis.Scripts.Debugging
 {
     public sealed class BasisIKSolveGizmoStageInfo
     {
         public readonly BasisIKGizmoStage Stage;
-        public readonly string TitleKey;
-        public readonly string TooltipKey;
+        public readonly string TitleKey, TooltipKey;
         public readonly Color Color;
         public readonly BasisSettingsBinding<bool> Binding;
-
         public BasisIKSolveGizmoStageInfo(BasisIKGizmoStage stage, string id, string titleKey, string tooltipKey, Color color, bool defaultOn)
         {
             Stage = stage;
@@ -21,81 +18,43 @@ namespace Basis.Scripts.Debugging
             Binding = new BasisSettingsBinding<bool>("gizmoiksolve_" + id, new BasisPlatformDefault<bool>(defaultOn));
         }
     }
-
     public static class BasisIKSolveGizmoStages
     {
         public const int DrawCapacity = 12288;
         public const int LabelCapacity = 128;
-
-        public static readonly BasisSettingsBinding<bool> Enabled =
-            new("gizmoiksolve_enabled", new BasisPlatformDefault<bool>(false));
-
-        public static readonly BasisSettingsBinding<bool> Labels =
-            new("gizmoiksolve_labels", new BasisPlatformDefault<bool>(false));
-
-        public static readonly BasisSettingsBinding<float> Scale =
-            new("gizmoiksolve_scale", new BasisPlatformDefault<float>(1f));
-
+        public static readonly BasisSettingsBinding<bool> Enabled = new("gizmoiksolve_enabled", new BasisPlatformDefault<bool>(false));
+        public static readonly BasisSettingsBinding<bool> Labels = new("gizmoiksolve_labels", new BasisPlatformDefault<bool>(false));
+        public static readonly BasisSettingsBinding<float> Scale = new("gizmoiksolve_scale", new BasisPlatformDefault<float>(1f));
         public const float ScaleMin = 0.25f;
         public const float ScaleMax = 4f;
-
         public static readonly BasisIKSolveGizmoStageInfo[] All =
         {
-            new(BasisIKGizmoStage.Targets, "targets",
-                "settings.bodyTracking.ikGizmos.targets", "settings.bodyTracking.ikGizmos.targets.tooltip",
-                new Color(1f, 0.84f, 0f, 1f), true),
+            new(BasisIKGizmoStage.Targets, "targets", "settings.bodyTracking.ikGizmos.targets", "settings.bodyTracking.ikGizmos.targets.tooltip", new Color(1f, 0.84f, 0f, 1f), true),
 
-            new(BasisIKGizmoStage.Spine, "spine",
-                "settings.bodyTracking.ikGizmos.spine", "settings.bodyTracking.ikGizmos.spine.tooltip",
-                new Color(0.2f, 1f, 0.35f, 1f), true),
+            new(BasisIKGizmoStage.Spine, "spine", "settings.bodyTracking.ikGizmos.spine", "settings.bodyTracking.ikGizmos.spine.tooltip", new Color(0.2f, 1f, 0.35f, 1f), true),
 
-            new(BasisIKGizmoStage.Shoulders, "shoulders",
-                "settings.bodyTracking.ikGizmos.shoulders", "settings.bodyTracking.ikGizmos.shoulders.tooltip",
-                new Color(1f, 0.35f, 1f, 1f), false),
+            new(BasisIKGizmoStage.Shoulders, "shoulders", "settings.bodyTracking.ikGizmos.shoulders", "settings.bodyTracking.ikGizmos.shoulders.tooltip", new Color(1f, 0.35f, 1f, 1f), false),
 
-            new(BasisIKGizmoStage.Legs, "legs",
-                "settings.bodyTracking.ikGizmos.legs", "settings.bodyTracking.ikGizmos.legs.tooltip",
-                new Color(1f, 0.55f, 0.15f, 1f), false),
+            new(BasisIKGizmoStage.Legs, "legs", "settings.bodyTracking.ikGizmos.legs", "settings.bodyTracking.ikGizmos.legs.tooltip", new Color(1f, 0.55f, 0.15f, 1f), false),
 
-            new(BasisIKGizmoStage.Arms, "arms",
-                "settings.bodyTracking.ikGizmos.arms", "settings.bodyTracking.ikGizmos.arms.tooltip",
-                new Color(0.2f, 0.9f, 1f, 1f), false),
+            new(BasisIKGizmoStage.Arms, "arms", "settings.bodyTracking.ikGizmos.arms", "settings.bodyTracking.ikGizmos.arms.tooltip", new Color(0.2f, 0.9f, 1f, 1f), false),
 
-            new(BasisIKGizmoStage.Toes, "toes",
-                "settings.bodyTracking.ikGizmos.toes", "settings.bodyTracking.ikGizmos.toes.tooltip",
-                new Color(0.55f, 0.75f, 1f, 1f), false),
+            new(BasisIKGizmoStage.Toes, "toes", "settings.bodyTracking.ikGizmos.toes", "settings.bodyTracking.ikGizmos.toes.tooltip", new Color(0.55f, 0.75f, 1f, 1f), false),
 
-            new(BasisIKGizmoStage.Overrides, "overrides",
-                "settings.bodyTracking.ikGizmos.overrides", "settings.bodyTracking.ikGizmos.overrides.tooltip",
-                new Color(1f, 0.25f, 0.25f, 1f), false),
+            new(BasisIKGizmoStage.Overrides, "overrides", "settings.bodyTracking.ikGizmos.overrides", "settings.bodyTracking.ikGizmos.overrides.tooltip", new Color(1f, 0.25f, 0.25f, 1f), false),
 
-            new(BasisIKGizmoStage.Skeleton, "skeleton",
-                "settings.bodyTracking.ikGizmos.skeleton", "settings.bodyTracking.ikGizmos.skeleton.tooltip",
-                new Color(0.7f, 0.7f, 0.7f, 1f), false),
+            new(BasisIKGizmoStage.Skeleton, "skeleton", "settings.bodyTracking.ikGizmos.skeleton", "settings.bodyTracking.ikGizmos.skeleton.tooltip", new Color(0.7f, 0.7f, 0.7f, 1f), false),
 
-            // Default on: a scratch probe is something someone deliberately wrote into the solve,
-            // so it should appear as soon as the gizmos are switched on at all.
-            new(BasisIKGizmoStage.Scratch, "scratch",
-                "settings.bodyTracking.ikGizmos.scratch", "settings.bodyTracking.ikGizmos.scratch.tooltip",
-                new Color(1f, 1f, 1f, 1f), true),
+            new(BasisIKGizmoStage.Scratch, "scratch", "settings.bodyTracking.ikGizmos.scratch", "settings.bodyTracking.ikGizmos.scratch.tooltip", new Color(1f, 1f, 1f, 1f), true),
 
-            new(BasisIKGizmoStage.Frames, "frames",
-                "settings.bodyTracking.ikGizmos.frames", "settings.bodyTracking.ikGizmos.frames.tooltip",
-                new Color(0.9f, 0.9f, 0.35f, 1f), false),
+            new(BasisIKGizmoStage.Frames, "frames", "settings.bodyTracking.ikGizmos.frames", "settings.bodyTracking.ikGizmos.frames.tooltip", new Color(0.9f, 0.9f, 0.35f, 1f), false),
 
-            new(BasisIKGizmoStage.Limits, "limits",
-                "settings.bodyTracking.ikGizmos.limits", "settings.bodyTracking.ikGizmos.limits.tooltip",
-                new Color(0.45f, 0.85f, 0.45f, 1f), false),
+            new(BasisIKGizmoStage.Limits, "limits", "settings.bodyTracking.ikGizmos.limits", "settings.bodyTracking.ikGizmos.limits.tooltip", new Color(0.45f, 0.85f, 0.45f, 1f), false),
 
-            new(BasisIKGizmoStage.Reach, "reach",
-                "settings.bodyTracking.ikGizmos.reach", "settings.bodyTracking.ikGizmos.reach.tooltip",
-                new Color(0.6f, 0.9f, 0.6f, 1f), false),
+            new(BasisIKGizmoStage.Reach, "reach", "settings.bodyTracking.ikGizmos.reach", "settings.bodyTracking.ikGizmos.reach.tooltip", new Color(0.6f, 0.9f, 0.6f, 1f), false),
 
-            new(BasisIKGizmoStage.Numbers, "numbers",
-                "settings.bodyTracking.ikGizmos.numbers", "settings.bodyTracking.ikGizmos.numbers.tooltip",
-                new Color(0.85f, 0.85f, 0.85f, 1f), false),
+            new(BasisIKGizmoStage.Numbers, "numbers", "settings.bodyTracking.ikGizmos.numbers", "settings.bodyTracking.ikGizmos.numbers.tooltip", new Color(0.85f, 0.85f, 0.85f, 1f), false),
         };
-
         public static void LoadAll()
         {
             Enabled.ReloadAndNotify();
@@ -106,7 +65,6 @@ namespace Basis.Scripts.Debugging
                 All[i].Binding.ReloadAndNotify();
             }
         }
-
         public static void ResetToDefaults()
         {
             Enabled.ResetToDefault();
@@ -117,7 +75,6 @@ namespace Basis.Scripts.Debugging
                 All[i].Binding.ResetToDefault();
             }
         }
-
         public static int Mask()
         {
             if (!Enabled.RawValue)
@@ -134,15 +91,12 @@ namespace Basis.Scripts.Debugging
             }
             return mask;
         }
-
         public static bool Active => Mask() != 0;
-
         public static uint PackedColor(int index)
         {
             Color32 c = All[index].Color;
             return BasisIKGizmoPalette.Rgba(c.r, c.g, c.b, c.a);
         }
-
         public static Color ColorForStageIndex(int stageIndex)
         {
             for (int i = 0; i < All.Length; i++)

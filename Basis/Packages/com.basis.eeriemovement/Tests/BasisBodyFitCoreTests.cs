@@ -1,13 +1,11 @@
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisBodyFitCoreTests
     {
         const float Eps = 1e-4f;
-
         static BasisBodyFitMeasurements Baseline()
         {
             return new BasisBodyFitMeasurements
@@ -23,7 +21,6 @@ namespace Basis.Tests.IK
                 AvatarShoulderWidth = 0.35f,
             };
         }
-
         [Test]
         public void MatchingProportions_IsExactIdentity()
         {
@@ -34,7 +31,6 @@ namespace Basis.Tests.IK
             Assert.AreEqual(1f, fit.TorsoScale, Eps);
             Assert.IsTrue(fit.IsIdentity);
         }
-
         [Test]
         public void ZeroDeviation_IsExactIdentity()
         {
@@ -48,7 +44,6 @@ namespace Basis.Tests.IK
             Assert.IsFalse(fit.HasArmFit);
             Assert.IsFalse(fit.HasBodyFit);
         }
-
         [Test]
         public void LongApeIndex_StretchesArms()
         {
@@ -64,7 +59,6 @@ namespace Basis.Tests.IK
             float playerArm = (m.PlayerArmSpan - m.AvatarShoulderWidth) * 0.5f;
             Assert.AreEqual(playerArm / avatarArm, fit.ArmScale, Eps);
         }
-
         [Test]
         public void ShortArms_CollapseArms()
         {
@@ -76,7 +70,6 @@ namespace Basis.Tests.IK
             Assert.IsTrue(fit.HasArmFit);
             Assert.Less(fit.ArmScale, 1f);
         }
-
         [Test]
         public void ArmScale_NeverExceedsDeviation()
         {
@@ -87,7 +80,6 @@ namespace Basis.Tests.IK
 
             Assert.AreEqual(1.15f, fit.ArmScale, Eps);
         }
-
         [Test]
         public void ArmFit_UsesPlayerScaledIntoAvatarSpace()
         {
@@ -99,7 +91,6 @@ namespace Basis.Tests.IK
 
             Assert.AreEqual(1f, fit.ArmScale, Eps);
         }
-
         [Test]
         public void BodyFit_LongLegsRaiseHipsAndShortenTorso()
         {
@@ -112,7 +103,6 @@ namespace Basis.Tests.IK
             Assert.Greater(fit.LegScale, 1f);
             Assert.Less(fit.TorsoScale, 1f);
         }
-
         [Test]
         public void BodyFit_ShortLegsLowerHipsAndLengthenTorso()
         {
@@ -125,7 +115,6 @@ namespace Basis.Tests.IK
             Assert.Less(fit.LegScale, 1f);
             Assert.Greater(fit.TorsoScale, 1f);
         }
-
         [Test]
         public void BodyFit_IsHeightNeutral()
         {
@@ -135,15 +124,12 @@ namespace Basis.Tests.IK
                 m.PlayerHipHeight = hip;
 
                 BasisBodyFitResult fit = BasisBodyFitCore.Solve(m, 0.15f);
-
                 float legDelta = (fit.LegScale - 1f) * m.AvatarLegSpan;
                 float spineDelta = (fit.TorsoScale - 1f) * m.AvatarSpineSpan;
 
-                Assert.AreEqual(0f, legDelta + spineDelta, Eps,
-                    $"hip {hip:F2} shifted total standing height by {legDelta + spineDelta:F6} m");
+                Assert.AreEqual(0f, legDelta + spineDelta, Eps, $"hip {hip:F2} shifted total standing height by {legDelta + spineDelta:F6} m");
             }
         }
-
         [Test]
         public void BodyFit_HipsLandOnTargetInsideTheBudget()
         {
@@ -151,11 +137,9 @@ namespace Basis.Tests.IK
             m.PlayerHipHeight = 0.94f;
 
             BasisBodyFitResult fit = BasisBodyFitCore.Solve(m, 0.15f);
-
             float fittedHip = m.AvatarHipHeight + (fit.LegScale - 1f) * m.AvatarLegSpan;
             Assert.AreEqual(m.PlayerHipHeight, fittedHip, Eps);
         }
-
         [Test]
         public void BodyFit_NeitherSegmentExceedsDeviation()
         {
@@ -170,7 +154,6 @@ namespace Basis.Tests.IK
                 Assert.LessOrEqual(Mathf.Abs(fit.TorsoScale - 1f), 0.15f + Eps, $"torso at hip {hip:F2}");
             }
         }
-
         [Test]
         public void NoHipsTracker_LeavesBodyUnfittedButStillFitsArms()
         {
@@ -185,7 +168,6 @@ namespace Basis.Tests.IK
             Assert.AreEqual(1f, fit.LegScale, Eps);
             Assert.AreEqual(1f, fit.TorsoScale, Eps);
         }
-
         [Test]
         public void NonsenseMeasurements_StayInert()
         {
@@ -205,7 +187,6 @@ namespace Basis.Tests.IK
             m.AvatarShoulderWidth = 2f;
             Assert.IsFalse(BasisBodyFitCore.Solve(m, 0.15f).HasArmFit);
         }
-
         [Test]
         public void EveryRefusalReportsItsOwnReason()
         {
@@ -265,7 +246,6 @@ namespace Basis.Tests.IK
             m.AvatarHipHeight = 0.40f;
             Assert.AreEqual(BasisBodyFitStatus.HipRatioOutOfBand, BasisBodyFitCore.Solve(m, 0.15f).BodyStatus);
         }
-
         [Test]
         public void RepeatedCalibrationsDoNotDrift()
         {
@@ -283,7 +263,6 @@ namespace Basis.Tests.IK
                 Assert.AreEqual(first.TorsoScale, again.TorsoScale, 0f, $"torso scale moved on pass {pass}");
             }
         }
-
         [Test]
         public void FeedingBackFittedAvatarMeasurementsWouldDrift_SoTheyMustStayAuthored()
         {
@@ -298,15 +277,11 @@ namespace Basis.Tests.IK
             Assert.Greater(correct.ArmScale, 1f);
 
             BasisBodyFitMeasurements remeasured = authored;
-            remeasured.AvatarArmSpan =
-                authored.AvatarShoulderWidth +
-                (authored.AvatarArmSpan - authored.AvatarShoulderWidth) * correct.ArmScale;
+            remeasured.AvatarArmSpan = authored.AvatarShoulderWidth + (authored.AvatarArmSpan - authored.AvatarShoulderWidth) * correct.ArmScale;
 
             BasisBodyFitResult drifted = BasisBodyFitCore.Solve(remeasured, 0.15f);
-            Assert.AreEqual(1f, drifted.ArmScale, 1e-3f,
-                "re-measuring a fitted avatar yields a no-op scale, which is why avatar terms must come from the load-time snapshot");
+            Assert.AreEqual(1f, drifted.ArmScale, 1e-3f,"re-measuring a fitted avatar yields a no-op scale, which is why avatar terms must come from the load-time snapshot");
         }
-
         [Test]
         public void EveryStatusHasAHumanReadableDescription()
         {

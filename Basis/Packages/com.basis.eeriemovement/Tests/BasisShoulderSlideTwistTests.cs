@@ -1,7 +1,6 @@
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisShoulderSlideTwistTests
@@ -11,7 +10,6 @@ namespace Basis.Tests.IK
             float y = q.eulerAngles.y;
             return y > 180f ? y - 360f : y;
         }
-
         [Test]
         public void PureYaw_MatchesEulerAngles_SoOrdinaryTwistIsUnchanged()
         {
@@ -19,13 +17,10 @@ namespace Basis.Tests.IK
             {
                 Quaternion chestLocal = Quaternion.Euler(0f, yaw, 0f);
                 float swing = BasisTwistSolveCore.SignedTwistAngleDeg(chestLocal, Vector3.up);
-                Assert.That(Mathf.DeltaAngle(swing, yaw), Is.EqualTo(0f).Within(1e-3f),
-                    $"swing-twist disagreed with the pure-yaw angle at {yaw} deg (got {swing}).");
-                Assert.That(Mathf.DeltaAngle(swing, EulerY(chestLocal)), Is.EqualTo(0f).Within(1e-3f),
-                    $"swing-twist is not a no-op vs eulerAngles.y at {yaw} deg.");
+                Assert.That(Mathf.DeltaAngle(swing, yaw), Is.EqualTo(0f).Within(1e-3f), $"swing-twist disagreed with the pure-yaw angle at {yaw} deg (got {swing}).");
+                Assert.That(Mathf.DeltaAngle(swing, EulerY(chestLocal)), Is.EqualTo(0f).Within(1e-3f), $"swing-twist is not a no-op vs eulerAngles.y at {yaw} deg.");
             }
         }
-
         [Test]
         public void StaysContinuous_AsTheChestPitchesThroughVertical()
         {
@@ -46,8 +41,7 @@ namespace Basis.Tests.IK
             }
             // Each step is 0.5 deg of pitch; the twist moves a fraction of a degree. 5 deg is far above the
             // real motion and far below the ~165 deg euler jump this replaced.
-            Assert.That(maxStep, Is.LessThan(5f),
-                $"chest-twist measure jumped {maxStep:0.0} deg through the pitch pole -- the gimbal phantom is back.");
+            Assert.That(maxStep, Is.LessThan(5f), $"chest-twist measure jumped {maxStep:0.0} deg through the pitch pole -- the gimbal phantom is back.");
         }
     }
 }

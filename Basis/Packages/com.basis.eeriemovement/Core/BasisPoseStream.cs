@@ -15,8 +15,7 @@ namespace Basis.IK
         const float floatMin = 1e-10f;
         public static Quaternion FromToRotation(Vector3 from, Vector3 to)
         {
-            Vector3 fromN = from.normalized;
-            Vector3 toN = to.normalized;
+            Vector3 fromN = from.normalized, toN = to.normalized;
             if (fromN.sqrMagnitude < 0.5f || toN.sqrMagnitude < 0.5f)
             {
                 return Quaternion.identity;
@@ -122,10 +121,8 @@ namespace Basis.IK
         {
             bool cached = WorldCacheStamp.IsCreated;
             int generation = cached ? WorldCacheStamp[Count] : 0;
-
             int* chain = stackalloc int[MaxDepth];
-            int depth = 0;
-            int walk = index;
+            int depth = 0, walk = index;
             while (walk >= 0 && depth < MaxDepth)
             {
                 if (cached && WorldCacheStamp[walk] == generation)
@@ -225,8 +222,7 @@ namespace Basis.IK
 
             if (TranslationFree.IsCreated && index < TranslationFree.Length && TranslationFree[index] == 0)
             {
-                float bind = BindLength[index];
-                float length = math.length(local);
+                float bind = BindLength[index], length = math.length(local);
                 if (bind > 0f && length > bind && length > 1e-6f)
                 {
                     local *= bind / length;

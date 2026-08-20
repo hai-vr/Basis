@@ -19,35 +19,10 @@ namespace Basis.IK
         AvatarSpineSpanDegenerate,
         HipRatioOutOfBand,
     }
-    public struct BasisBodyFitMeasurements
-    {
-        public float PlayerEyeHeight, PlayerArmSpan, PlayerHipHeight, AvatarEyeHeight, AvatarArmSpan, AvatarHipHeight;
-        public float AvatarLegSpan, AvatarSpineSpan, AvatarShoulderWidth, UniformScale;
-    }
-    public struct BasisBodyFitResult
-    {
-        public float ArmScale, LegScale, TorsoScale;
-        public BasisBodyFitStatus ArmStatus, BodyStatus;
-        public bool HasArmFit => ArmStatus == BasisBodyFitStatus.Fitted;
-        public bool HasBodyFit => BodyStatus == BasisBodyFitStatus.Fitted;
-        public static BasisBodyFitResult Identity => new BasisBodyFitResult
-        {
-            ArmScale = 1f,
-            LegScale = 1f,
-            TorsoScale = 1f,
-            ArmStatus = BasisBodyFitStatus.Disabled,
-            BodyStatus = BasisBodyFitStatus.Disabled,
-        };
-        public bool IsIdentity => Mathf.Approximately(ArmScale, 1f) && Mathf.Approximately(LegScale, 1f) && Mathf.Approximately(TorsoScale, 1f);
-    }
     public static class BasisBodyFitCore
     {
-        public const float DefaultMaxDeviation = 0.15f;
-        public const float MaxDeviationCeiling = 0.5f;
-        const float minSegmentMeters = 0.05f;
-        const float minRatio = 0.5f;
-        const float maxRatio = 2f;
-        const float minHipFraction = 0.35f;
+        public const float DefaultMaxDeviation = 0.15f, MaxDeviationCeiling = 0.5f;
+        const float minSegmentMeters = 0.05f, minRatio = 0.5f, maxRatio = 2f, minHipFraction = 0.35f;
         const float maxHipFraction = 0.75f;
         public static string Describe(BasisBodyFitStatus status) => status switch
         {
@@ -82,7 +57,6 @@ namespace Basis.IK
         public static BasisBodyFitResult Solve(in BasisBodyFitMeasurements m, float maxDeviation)
         {
             BasisBodyFitResult result = BasisBodyFitResult.Identity;
-
             float deviation = Mathf.Clamp(maxDeviation, 0f, MaxDeviationCeiling);
             if (deviation <= 0f)
             {
@@ -194,32 +168,11 @@ namespace Basis.IK
         static bool Plausible(float value) => value > minSegmentMeters && !float.IsNaN(value) && !float.IsInfinity(value);
         static bool InRatioBand(float ratio) => ratio >= minRatio && ratio <= maxRatio;
     }
-    public struct BasisBodyEvidenceTrack
-    {
-        public FixedList64Bytes<float> Top;
-        public int SampleCount;
-        public float Previous;
-        public bool HasPrevious;
-        public int LowStreak;
-    }
-    public struct BasisBodyEvidenceSample
-    {
-        public float HeadY, HandSpan, InjectedVerticalOffset, DeltaSeconds;
-        public bool HeadValid, HandsValid;
-    }
-    public struct BasisBodyEvidenceState
-    {
-        public BasisBodyEvidenceTrack Eye, ArmSpan;
-    }
     public static class BasisBodyEvidenceCore
     {
-        public const int Capacity = 8;
-        public const int OutlierRejection = 2;
-        public const int MinSamplesForConfidence = 24;
+        public const int Capacity = 8, OutlierRejection = 2, MinSamplesForConfidence = 24;
         public const int SamplesForFullConfidence = 120;
-        public const float MaxEyeSettleSpeed = 0.35f;
-        public const float MaxSpanSettleSpeed = 0.8f;
-        public const float DifferentPersonDrop = 0.12f;
+        public const float MaxEyeSettleSpeed = 0.35f, MaxSpanSettleSpeed = 0.8f, DifferentPersonDrop = 0.12f;
         public const int DifferentPersonStreak = 900;
         public static void Reset(ref BasisBodyEvidenceState state)
         {
@@ -285,8 +238,7 @@ namespace Basis.IK
         }
         static void InsertDescending(ref FixedList64Bytes<float> top, float value)
         {
-            int length = top.Length;
-            int index = length;
+            int length = top.Length, index = length;
             for (int i = 0; i < length; i++)
             {
                 if (value > top[i])
@@ -360,16 +312,6 @@ namespace Basis.IK
             return impliedEye >= minPlausible && impliedEye <= maxPlausible;
         }
     }
-    public struct BasisScaleFitSample
-    {
-        public float Player, Avatar, Slack, Weight;
-        public static BasisScaleFitSample None => default;
-    }
-    public struct BasisScaleFitInput
-    {
-        public BasisScaleFitSample Eye, ArmSpan, HipHeight;
-        public float MaxEyeDeviation;
-    }
     public enum BasisScaleFitStatus
     {
         NoData,
@@ -377,40 +319,15 @@ namespace Basis.IK
         Adjusted,
         Compromised,
     }
-    public struct BasisScaleFitResult
-    {
-        public float Scale;
-        public BasisScaleFitStatus Status;
-        public int UsedCount;
-        public float EyeResidual, ArmResidual, HipResidual;
-        public bool IsValid => Status != BasisScaleFitStatus.NoData && Scale > 0f;
-        public static BasisScaleFitResult Invalid => new BasisScaleFitResult
-        {
-            Scale = 0f,
-            Status = BasisScaleFitStatus.NoData,
-            UsedCount = 0,
-            EyeResidual = 1f,
-            ArmResidual = 1f,
-            HipResidual = 1f,
-        };
-    }
     public static class BasisScaleFitCore
     {
-        public const float MinMeasureMeters = 0.05f;
-        public const float MinRatio = 0.5f;
-        public const float MaxRatio = 2f;
-        public const float DefaultMaxEyeDeviation = 0.15f;
-        public const float EyeWeight = 1f;
-        public const float ArmSpanWeight = 0.7f;
-        public const float HipWeight = 0.4f;
+        public const float MinMeasureMeters = 0.05f, MinRatio = 0.5f, MaxRatio = 2f, DefaultMaxEyeDeviation = 0.15f;
+        public const float EyeWeight = 1f, ArmSpanWeight = 0.7f, HipWeight = 0.4f;
         public static BasisScaleFitResult Solve(in BasisScaleFitInput input)
         {
             BasisScaleFitResult result = BasisScaleFitResult.Invalid;
-
-            bool hasEye = TryRatio(input.Eye, out float eyeRatio);
-            bool hasArm = TryRatio(input.ArmSpan, out float armRatio);
+            bool hasEye = TryRatio(input.Eye, out float eyeRatio), hasArm = TryRatio(input.ArmSpan, out float armRatio);
             bool hasHip = TryRatio(input.HipHeight, out float hipRatio);
-
             int used = (hasEye ? 1 : 0) + (hasArm ? 1 : 0) + (hasHip ? 1 : 0);
             if (used == 0)
             {
@@ -418,12 +335,10 @@ namespace Basis.IK
             }
             result.UsedCount = used;
 
-            float lo = float.NegativeInfinity;
-            float hi = float.PositiveInfinity;
+            float lo = float.NegativeInfinity, hi = float.PositiveInfinity;
             AccumulateBand(hasArm, input.ArmSpan, ref lo, ref hi);
             AccumulateBand(hasHip, input.HipHeight, ref lo, ref hi);
             bool feasible = lo <= hi;
-
             float logScale;
             if (hasEye)
             {
@@ -478,21 +393,18 @@ namespace Basis.IK
             {
                 return;
             }
-            float slack = Mathf.Max(0f, sample.Slack);
-            float lowTarget = sample.Avatar - slack;
+            float slack = Mathf.Max(0f, sample.Slack), lowTarget = sample.Avatar - slack;
             if (lowTarget < MinMeasureMeters)
             {
                 lowTarget = MinMeasureMeters;
             }
-            float low = Mathf.Log(lowTarget / sample.Player);
-            float high = Mathf.Log((sample.Avatar + slack) / sample.Player);
+            float low = Mathf.Log(lowTarget / sample.Player), high = Mathf.Log((sample.Avatar + slack) / sample.Player);
             if (low > lo) lo = low;
             if (high < hi) hi = high;
         }
         static float WeightedLogMean( in BasisScaleFitInput input, bool hasEye, float eyeRatio, bool hasArm, float armRatio, bool hasHip, float hipRatio)
         {
-            float sum = 0f;
-            float weights = 0f;
+            float sum = 0f, weights = 0f;
             Accumulate(hasEye, eyeRatio, input.Eye.Weight, ref sum, ref weights);
             Accumulate(hasArm, armRatio, input.ArmSpan.Weight, ref sum, ref weights);
             Accumulate(hasHip, hipRatio, input.HipHeight.Weight, ref sum, ref weights);

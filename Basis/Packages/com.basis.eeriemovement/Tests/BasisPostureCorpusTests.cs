@@ -5,15 +5,12 @@ using System.Text;
 using Basis.IK.Mocap;
 using NUnit.Framework;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
-
     public sealed class BasisPostureCorpusTests
     {
         internal static string PostureDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~/posture");
-
         internal static List<BasisMotionClip> LoadPostureCorpus()
         {
             if (!Directory.Exists(PostureDir)) Assert.Ignore($"no posture corpus at {PostureDir}");
@@ -29,9 +26,7 @@ namespace Basis.Tests.IK
             }
             return clips;
         }
-
         static string F(float v) => v.ToString("0.######", CultureInfo.InvariantCulture);
-
         [Test]
         public void PostureCorpus_LoadsAndCoversBothWaysOfGettingLow()
         {
@@ -62,9 +57,7 @@ namespace Basis.Tests.IK
                     BasisPostureSample s = BasisPostureFeatures.Extract(c, f, standHeadY, standHipsY);
                     if (!s.Valid) continue;
 
-                    dump.Append(c.Name).Append(',').Append(F(s.HeadDrop)).Append(',').Append(F(s.HeadFwd))
-                        .Append(',').Append(F(s.HeadPitch))
-                        .Append(',').Append(F(s.HipsDrop)).Append(',').Append(F(s.HipsFwd)).Append('\n');
+                    dump.Append(c.Name).Append(',').Append(F(s.HeadDrop)).Append(',').Append(F(s.HeadFwd)).Append(',').Append(F(s.HeadPitch)).Append(',').Append(F(s.HipsDrop)).Append(',').Append(F(s.HipsFwd)).Append('\n');
                     frames++; total++;
 
                     if (s.HeadDrop > 0.05f) { vn += s.HeadDrop * s.HipsDrop; vd += s.HeadDrop * s.HeadDrop; deep++; }
@@ -76,10 +69,7 @@ namespace Basis.Tests.IK
                 coverDropMax = Mathf.Max(coverDropMax, maxDrop);
                 coverFwdMax = Mathf.Max(coverFwdMax, maxFwd);
 
-                string verdict = float.IsNaN(slope) ? "upright (anchor)"
-                               : slope > 0.60f ? "SQUAT-like (pelvis rides the head down)"
-                               : slope > 0.30f ? "mixed"
-                               : "WAIST-BEND-like (pelvis stays high)";
+                string verdict = float.IsNaN(slope) ? "upright (anchor)" : slope > 0.60f ? "SQUAT-like (pelvis rides the head down)" : slope > 0.30f ? "mixed" : "WAIST-BEND-like (pelvis stays high)";
                 if (!float.IsNaN(slope) && slope > 0.60f) squatish++;
                 if (!float.IsNaN(slope) && slope <= 0.30f) bendish++;
 

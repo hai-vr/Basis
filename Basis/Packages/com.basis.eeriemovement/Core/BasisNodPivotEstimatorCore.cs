@@ -2,23 +2,10 @@ using Unity.Burst;
 using Unity.Mathematics;
 namespace Basis.IK
 {
-    public struct BasisNodPivotSettings
-    {
-        public float PriorWeight, MinPitchRangeDeg, MinFitQuality, MaxPivotSpreadMeters, MaxVerticalRangeMeters;
-        public float3 MaxArm;
-        public float Scale;
-    }
-    public struct BasisNodPivotResult
-    {
-        public float3 Arm;
-        public bool Accepted;
-        public float FitQuality, PitchRangeDeg, PivotSpreadMeters, VerticalRangeMeters;
-    }
     [BurstCompile]
     public static class BasisNodPivotEstimatorCore
     {
-        private const float detEpsilon = 1e-12f;
-        private const float minVariance = 1e-8f;
+        private const float detEpsilon = 1e-12f, minVariance = 1e-8f;
         public static BasisNodPivotSettings Defaults()
         {
             BasisNodPivotSettings s;
@@ -40,21 +27,18 @@ namespace Basis.IK
             if (positions == null || rotations == null || count < 4) return;
             if (count > positions.Length || count > rotations.Length) return;
 
-            float minPitch = float.MaxValue;
-            float maxPitch = float.MinValue;
+            float minPitch = float.MaxValue, maxPitch = float.MinValue;
             for (int i = 0; i < count; i++)
             {
                 float3 fwd = math.mul(rotations[i], new float3(0f, 0f, 1f));
-                float horiz = math.sqrt(fwd.x * fwd.x + fwd.z * fwd.z);
-                float pitch = math.degrees(math.atan2(fwd.y, horiz));
+                float horiz = math.sqrt(fwd.x * fwd.x + fwd.z * fwd.z), pitch = math.degrees(math.atan2(fwd.y, horiz));
                 minPitch = math.min(minPitch, pitch);
                 maxPitch = math.max(maxPitch, pitch);
             }
             result.PitchRangeDeg = maxPitch - minPitch;
             if (!(result.PitchRangeDeg >= settings.MinPitchRangeDeg)) return;
 
-            float minY = float.MaxValue;
-            float maxY = float.MinValue;
+            float minY = float.MaxValue, maxY = float.MinValue;
             for (int i = 0; i < count; i++)
             {
                 minY = math.min(minY, positions[i].y);
@@ -110,7 +94,6 @@ namespace Basis.IK
             if (!(result.FitQuality >= settings.MinFitQuality)) return;
 
             float scale = math.max(1e-3f, settings.Scale);
-
             float3 pivotMean = float3.zero;
             for (int i = 0; i < count; i++) pivotMean += positions[i] - math.mul(rotations[i], arm);
             pivotMean *= inv;
@@ -140,19 +123,11 @@ namespace Basis.IK
 
             float a00 = M.c0.x, a01 = M.c1.x, a02 = M.c2.x;
             float a11 = M.c1.y, a12 = M.c2.y;
-            float a22 = M.c2.z;
-
-            float c00 = a11 * a22 - a12 * a12;
-            float c01 = a02 * a12 - a01 * a22;
-            float c02 = a01 * a12 - a02 * a11;
-
+            float a22 = M.c2.z, c00 = a11 * a22 - a12 * a12, c01 = a02 * a12 - a01 * a22, c02 = a01 * a12 - a02 * a11;
             float det = a00 * c00 + a01 * c01 + a02 * c02;
             if (!(math.abs(det) > detEpsilon)) return false;
 
-            float c11 = a00 * a22 - a02 * a02;
-            float c12 = a02 * a01 - a00 * a12;
-            float c22 = a00 * a11 - a01 * a01;
-
+            float c11 = a00 * a22 - a02 * a02, c12 = a02 * a01 - a00 * a12, c22 = a00 * a11 - a01 * a01;
             float invDet = 1f / det;
             x = new float3( (c00 * b.x + c01 * b.y + c02 * b.z) * invDet, (c01 * b.x + c11 * b.y + c12 * b.z) * invDet, (c02 * b.x + c12 * b.y + c22 * b.z) * invDet);
             return true;

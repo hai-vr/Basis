@@ -5,18 +5,15 @@ using Basis.IK.Mocap;
 using Basis.IK.Motion;
 using NUnit.Framework;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     // Disambiguate against the SDK's global-namespace BasisMotionClip ScriptableObject. Must live INSIDE the
     // namespace: at file scope the alias itself sits in the global namespace and collides with the type it is
     // disambiguating (CS0576). See BasisMocapMotionQuality.cs.
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
-
     public sealed class BasisMocapMotionQualityTests
     {
         static string CorpusDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~");
-
         static List<BasisMotionClip> LoadCorpus()
         {
             var clips = new List<BasisMotionClip>();
@@ -37,7 +34,6 @@ namespace Basis.Tests.IK
             }
             return clips;
         }
-
         [Test]
         public void ShippedSolver_MovesLikeAHuman_AcrossTheCorpus()
         {
@@ -54,8 +50,7 @@ namespace Basis.Tests.IK
             report.AppendLine("hintRaw / hintFlared = jitter of the elbow HINT itself, before and after the");
             report.AppendLine("          chicken-wing flare. Localises WHICH stage invents the buzz.");
             report.AppendLine();
-            report.AppendLine($"{"clip",-12} {"frames",6} | {"elbow jerk x",12} {"jit+%L",7} {"pops+",5} " +
-                              $"| {"hintRaw",7} {"hintFlare",9} | {"engJit",9} {"dpP05",8} {"dpMin",8}");
+            report.AppendLine($"{"clip",-12} {"frames",6} | {"elbow jerk x",12} {"jit+%L",7} {"pops+",5} " + $"| {"hintRaw",7} {"hintFlare",9} | {"engJit",9} {"dpP05",8} {"dpMin",8}");
             report.AppendLine(new string('-', 108));
 
             var failures = new List<string>();
@@ -70,10 +65,7 @@ namespace Basis.Tests.IK
                     continue;
                 }
 
-                report.AppendLine(
-                    $"{clip.Name,-12} {s.Frames,6} | {s.ElbowJerkRatio,12:F2} {s.ElbowJitterExcess * 100f,7:F3} " +
-                    $"{s.ElbowPopExcess,5} | {s.HintRawJitter * 100f,7:F3} {s.HintFlaredJitter * 100f,9:F3} " +
-                    $"| {s.FlareEngageJitter,9:F5} {s.FlareDownProjP05,8:F3} {s.FlareDownProjMin,8:F3}");
+                report.AppendLine($"{clip.Name,-12} {s.Frames,6} | {s.ElbowJerkRatio,12:F2} {s.ElbowJitterExcess * 100f,7:F3} " + $"{s.ElbowPopExcess,5} | {s.HintRawJitter * 100f,7:F3} {s.HintFlaredJitter * 100f,9:F3} " + $"| {s.FlareEngageJitter,9:F5} {s.FlareDownProjP05,8:F3} {s.FlareDownProjMin,8:F3}");
 
                 (bool pass, string reason) = BasisMocapMotionQuality.Gate(s);
                 if (!pass) failures.Add($"{clip.Name}: {reason}");
@@ -82,10 +74,8 @@ namespace Basis.Tests.IK
             Debug.Log(report.ToString());
 
             if (failures.Count > 0)
-                Assert.Fail($"{failures.Count} of {clips.Count} clips fail the naturalness gate:\n  " +
-                            string.Join("\n  ", failures) + "\n\n" + report);
+                Assert.Fail($"{failures.Count} of {clips.Count} clips fail the naturalness gate:\n  " + string.Join("\n  ", failures) + "\n\n" + report);
         }
-
         [Test]
         public void HintSources_Compared_ForMotionQualityNotJustAccuracy()
         {
@@ -138,13 +128,11 @@ namespace Basis.Tests.IK
                 {
                     if (hint == BasisMocapHintSource.SwivelModel)
                     {
-                        BasisMocapAccuracy.s_legDump ??= new StringBuilder(
-                            "clip,side,x,y,z,phi,rad,ex,ey,ez\n");
-                        BasisMocapAccuracy.s_swivelDump ??= new StringBuilder(
-                            "clip,side,x,y,z,phi,rad,ex,ey,ez\n");
-                        BasisMocapAccuracy.s_swivelDiffSum = 0f;
+                        BasisMocapAccuracy.legDump ??= new StringBuilder("clip,side,x,y,z,phi,rad,ex,ey,ez\n");
+                        BasisMocapAccuracy.swivelDump ??= new StringBuilder("clip,side,x,y,z,phi,rad,ex,ey,ez\n");
+                        BasisMocapAccuracy.swivelDiffSum = 0f;
                         BasisMocapAccuracy.s_swivelSumSum = 0f;
-                        BasisMocapAccuracy.s_swivelN = 0;
+                        BasisMocapAccuracy.swivelN = 0;
                     }
                     BasisMocapMotionSummary s = BasisMocapMotionQuality.Run(clip, hint);
                     if (!s.Ok)
@@ -152,24 +140,16 @@ namespace Basis.Tests.IK
                         report.AppendLine($"{clip.Name,-12} {hint,-14} ERROR: {s.Error}");
                         continue;
                     }
-                    if (hint == BasisMocapHintSource.SwivelModel && BasisMocapAccuracy.s_swivelN > 0)
+                    if (hint == BasisMocapHintSource.SwivelModel && BasisMocapAccuracy.swivelN > 0)
                     {
-                        int n = BasisMocapAccuracy.s_swivelN;
-                        Debug.Log($"[SWIVEL PROBE] {clip.Name}: |pred - true| = " +
-                                  $"{BasisMocapAccuracy.s_swivelDiffSum / n:F1} deg,  " +
-                                  $"|(-pred) - true| = {BasisMocapAccuracy.s_swivelSumSum / n:F1} deg  " +
-                                  "(if the SECOND is small, the sign is flipped)");
+                        int n = BasisMocapAccuracy.swivelN;
+                        Debug.Log($"[SWIVEL PROBE] {clip.Name}: |pred - true| = " + $"{BasisMocapAccuracy.swivelDiffSum / n:F1} deg,  " + $"|(-pred) - true| = {BasisMocapAccuracy.s_swivelSumSum / n:F1} deg  " +"(if the SECOND is small, the sign is flipped)");
                     }
 
-                    report.AppendLine(
-                        $"{clip.Name,-12} {hint,-14} {s.ElbowJitterExcess * 100f,7:F3} {s.ElbowPopExcess,6} " +
-                        $"{s.ElbowJerkRatio,7:F2} | {s.ElbowErrFracArm * 100f,9:F2} {s.FlareEngageMean,8:F3}");
+                    report.AppendLine($"{clip.Name,-12} {hint,-14} {s.ElbowJitterExcess * 100f,7:F3} {s.ElbowPopExcess,6} " + $"{s.ElbowJerkRatio,7:F2} | {s.ElbowErrFracArm * 100f,9:F2} {s.FlareEngageMean,8:F3}");
 
                     agg.TryGetValue(hint, out var a);
-                    agg[hint] = (a.jit + s.ElbowJitterExcess, a.pops + s.ElbowPopExcess,
-                                 a.err + s.ElbowErrFracArm, a.jerk + s.ElbowJerkRatio,
-                                 a.kerr + s.KneeErrFracLeg, a.kpops + s.KneePopExcess,
-                                 a.einv + s.ElbowPopsInvented, a.kinv + s.KneePopsInvented, a.n + 1);
+                    agg[hint] = (a.jit + s.ElbowJitterExcess, a.pops + s.ElbowPopExcess, a.err + s.ElbowErrFracArm, a.jerk + s.ElbowJerkRatio, a.kerr + s.KneeErrFracLeg, a.kpops + s.KneePopExcess, a.einv + s.ElbowPopsInvented, a.kinv + s.KneePopsInvented, a.n + 1);
 
                     if (hint == BasisMocapHintSource.TruthJoint) truthShape[clip.Name] = s.ElbowShape;
                     if (hint == BasisMocapHintSource.Lookup) lookupShape[clip.Name] = s.ElbowShape;
@@ -188,25 +168,24 @@ namespace Basis.Tests.IK
             foreach (KeyValuePair<BasisMocapHintSource, (float jit, int pops, float err, float jerk, float kerr, int kpops, int einv, int kinv, int n)> kv in agg)
             {
                 (float jit, int pops, float err, float jerk, float kerr, int kpops, int einv, int kinv, int n) = kv.Value;
-                report.AppendLine($"{kv.Key,-20} | {err / n * 100f,10:F2} {jit / n * 100f,7:F3} {pops,5} {einv,9} " +
-                                  $"| {kerr / n * 100f,9:F2} {kpops,5} {kinv,9}");
+                report.AppendLine($"{kv.Key,-20} | {err / n * 100f,10:F2} {jit / n * 100f,7:F3} {pops,5} {einv,9} " + $"| {kerr / n * 100f,9:F2} {kpops,5} {kinv,9}");
             }
 
             Debug.Log(report.ToString());
 
-            if (BasisMocapAccuracy.s_legDump != null)
+            if (BasisMocapAccuracy.legDump != null)
             {
                 string ldump = Path.Combine(Path.GetTempPath(), "basis_leg_train.csv");
-                File.WriteAllText(ldump, BasisMocapAccuracy.s_legDump.ToString());
+                File.WriteAllText(ldump, BasisMocapAccuracy.legDump.ToString());
                 Debug.Log($"[LEG TRAIN] wrote -> {ldump}");
-                BasisMocapAccuracy.s_legDump = null;
+                BasisMocapAccuracy.legDump = null;
             }
-            if (BasisMocapAccuracy.s_swivelDump != null)
+            if (BasisMocapAccuracy.swivelDump != null)
             {
                 string dump = Path.Combine(Path.GetTempPath(), "basis_swivel_train.csv");
-                File.WriteAllText(dump, BasisMocapAccuracy.s_swivelDump.ToString());
-                Debug.Log($"[SWIVEL TRAIN] wrote {BasisMocapAccuracy.s_swivelN} rows -> {dump}");
-                BasisMocapAccuracy.s_swivelDump = null;
+                File.WriteAllText(dump, BasisMocapAccuracy.swivelDump.ToString());
+                Debug.Log($"[SWIVEL TRAIN] wrote {BasisMocapAccuracy.swivelN} rows -> {dump}");
+                BasisMocapAccuracy.swivelDump = null;
             }
 
             // THE SANITY CHECK, and the reason ShapeDistance is not a gate.
@@ -233,11 +212,8 @@ namespace Basis.Tests.IK
             }
 
             if (suspect.Count > 0)
-                Debug.LogWarning("[MotionQuality] ShapeDistance is not yet trustworthy as an absolute gate -- " +
-                                 $"the TRUE elbow scores WORSE than a lookup guess on {suspect.Count}/{truthShape.Count} " +
-                                 "clips, which is impossible:\n  " + string.Join("\n  ", suspect));
+                Debug.LogWarning("[MotionQuality] ShapeDistance is not yet trustworthy as an absolute gate -- " + $"the TRUE elbow scores WORSE than a lookup guess on {suspect.Count}/{truthShape.Count} " + "clips, which is impossible:\n  " + string.Join("\n  ", suspect));
         }
-
         [Test]
         public void SolverDoesNotBuzz_WhenTheHumanIsStandingStill()
         {
@@ -252,16 +228,12 @@ namespace Basis.Tests.IK
                 BasisMocapMotionSummary s = BasisMocapMotionQuality.Run(clip, BasisMocapHintSource.Lookup);
                 if (!s.Ok) { failures.Add($"{clip.Name}: {s.Error}"); continue; }
 
-                Debug.Log($"[idle] {clip.Name}: elbow jitter+{s.ElbowJitterExcess * 100f:F3}%L @ " +
-                          $"{s.SolvedElbow.JitterHz:F0}Hz, knee jitter+{s.KneeJitterExcess * 100f:F3}%L @ " +
-                          $"{s.SolvedKnee.JitterHz:F0}Hz");
+                Debug.Log($"[idle] {clip.Name}: elbow jitter+{s.ElbowJitterExcess * 100f:F3}%L @ " + $"{s.SolvedElbow.JitterHz:F0}Hz, knee jitter+{s.KneeJitterExcess * 100f:F3}%L @ " + $"{s.SolvedKnee.JitterHz:F0}Hz");
 
                 if (s.ElbowJitterExcess > BasisMocapMotionQuality.MaxJitterExcess)
-                    failures.Add($"{clip.Name}: elbow buzzes {s.ElbowJitterExcess * 100f:F2}%L above 8 Hz " +
-                                 $"at {s.SolvedElbow.JitterHz:F0}Hz while the human stands still");
+                    failures.Add($"{clip.Name}: elbow buzzes {s.ElbowJitterExcess * 100f:F2}%L above 8 Hz " + $"at {s.SolvedElbow.JitterHz:F0}Hz while the human stands still");
                 if (s.KneeJitterExcess > BasisMocapMotionQuality.MaxJitterExcess)
-                    failures.Add($"{clip.Name}: knee buzzes {s.KneeJitterExcess * 100f:F2}%L above 8 Hz " +
-                                 $"at {s.SolvedKnee.JitterHz:F0}Hz while the human stands still");
+                    failures.Add($"{clip.Name}: knee buzzes {s.KneeJitterExcess * 100f:F2}%L above 8 Hz " + $"at {s.SolvedKnee.JitterHz:F0}Hz while the human stands still");
             }
 
             if (failures.Count > 0) Assert.Fail(string.Join("\n", failures));

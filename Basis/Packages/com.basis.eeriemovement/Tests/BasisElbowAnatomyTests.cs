@@ -1,63 +1,47 @@
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisElbowAnatomyTests
     {
-        const float k_Upper = 0.30f;
-        const float k_Lower = 0.30f;
-        const float k_Arm = k_Upper + k_Lower;
-        static readonly Vector3 k_Shoulder = new Vector3(0.17f, 1.40f, 0f);
-        static readonly Vector3 k_Up = Vector3.up;
-
+        const float upper = 0.30f, lower = 0.30f, arm = upper + lower;
+        static readonly Vector3 shoulder = new Vector3(0.17f, 1.40f, 0f), k_Up = Vector3.up;
         static Vector3 ElbowAt(Vector3 hand, float swivelDeg)
         {
-            Vector3 ac = hand - k_Shoulder;
+            Vector3 ac = hand - shoulder;
             float d = ac.magnitude;
             Vector3 axis = ac / d;
-            float a = (k_Upper * k_Upper - k_Lower * k_Lower + d * d) / (2f * d);
-            float radius = Mathf.Sqrt(Mathf.Max(k_Upper * k_Upper - a * a, 0f));
-            Vector3 centre = k_Shoulder + axis * a;
-
-            Vector3 refDown = Vector3.down;
-            Vector3 u = (refDown - axis * Vector3.Dot(refDown, axis)).normalized;
-            Vector3 v = Vector3.Cross(axis, u);
+            float a = (upper * upper - lower * lower + d * d) / (2f * d);
+            float radius = Mathf.Sqrt(Mathf.Max(upper * upper - a * a, 0f));
+            Vector3 centre = shoulder + axis * a, refDown = Vector3.down;
+            Vector3 u = (refDown - axis * Vector3.Dot(refDown, axis)).normalized, v = Vector3.Cross(axis, u);
             float rad = swivelDeg * Mathf.Deg2Rad;
             return centre + radius * (u * Mathf.Cos(rad) + v * Mathf.Sin(rad));
         }
-
         static Vector3 Guarded(Vector3 hand, Vector3 elbow)
         {
-            float sw = BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, elbow, hand, k_Up, k_Arm);
+            float sw = BasisElbowAnatomyCore.GuardSwivelRad(shoulder, elbow, hand, k_Up, arm);
             if (sw == 0f) return elbow;
-            Vector3 axis = (hand - k_Shoulder).normalized;
-            return k_Shoulder + Quaternion.AngleAxis(sw * Mathf.Rad2Deg, axis) * (elbow - k_Shoulder);
+            Vector3 axis = (hand - shoulder).normalized;
+            return shoulder + Quaternion.AngleAxis(sw * Mathf.Rad2Deg, axis) * (elbow - shoulder);
         }
-
         static void RequireInReach(Vector3 hand)
         {
-            float d = Vector3.Distance(k_Shoulder, hand);
-            Assert.Less(d, 0.98f * k_Arm,
-                $"the test's own hand is {d:F3} from a {k_Arm:F2} arm -- out of reach, so the elbow has no " +
-                "circle to sit on and this test would prove nothing");
-            float a = (k_Upper * k_Upper - k_Lower * k_Lower + d * d) / (2f * d);
-            float radius = Mathf.Sqrt(Mathf.Max(k_Upper * k_Upper - a * a, 0f));
-            Assert.Greater(radius, 0.02f,
-                $"the elbow's circle has radius {radius:F4} -- too collapsed for this test to mean anything");
+            float d = Vector3.Distance(shoulder, hand);
+            Assert.Less(d, 0.98f * arm, $"the test's own hand is {d:F3} from a {arm:F2} arm -- out of reach, so the elbow has no " +"circle to sit on and this test would prove nothing");
+            float a = (upper * upper - lower * lower + d * d) / (2f * d);
+            float radius = Mathf.Sqrt(Mathf.Max(upper * upper - a * a, 0f));
+            Assert.Greater(radius, 0.02f, $"the elbow's circle has radius {radius:F4} -- too collapsed for this test to mean anything");
         }
-
         static float Ceiling(Vector3 hand)
         {
-            float handUp = Vector3.Dot(hand - k_Shoulder, k_Up);
+            float handUp = Vector3.Dot(hand - shoulder, k_Up);
             return Mathf.Max(0f, handUp);
         }
-
         // ============================================================================================
         // 1. THE IMPOSSIBLE MUST BECOME UNREACHABLE.
         // ============================================================================================
-
         [Test]
         public void AnElbowPointedAtTheSky_IsPulledBackUnderTheCeiling()
         {
@@ -79,31 +63,24 @@ namespace Basis.Tests.IK
 
             foreach ((Vector3 offset, string what) in chickenWings)
             {
-                Vector3 hand = k_Shoulder + offset;
+                Vector3 hand = shoulder + offset;
                 RequireInReach(hand);
 
                 // The elbow, driven to the very top of its circle: pointing at the sky.
                 Vector3 sky = ElbowAt(hand, 180f);
-                float skyH = Vector3.Dot(sky - k_Shoulder, k_Up);
-                Assert.Greater(skyH, Ceiling(hand),
-                    $"the test must start from a pose that is BOTH reachable AND illegal ({what}); the top of " +
-                    $"the elbow's circle here is {skyH:F3} against a ceiling of {Ceiling(hand):F3}. If the " +
-                    "circle cannot clear the ceiling, the guard has nothing to do and this proves nothing.");
+                float skyH = Vector3.Dot(sky - shoulder, k_Up);
+                Assert.Greater(skyH, Ceiling(hand), $"the test must start from a pose that is BOTH reachable AND illegal ({what}); the top of " + $"the elbow's circle here is {skyH:F3} against a ceiling of {Ceiling(hand):F3}. If the " +"circle cannot clear the ceiling, the guard has nothing to do and this proves nothing.");
 
                 Vector3 got = Guarded(hand, sky);
-
-                float h = Vector3.Dot(got - k_Shoulder, k_Up);
-                float hard = Ceiling(hand) + BasisElbowAnatomyCore.HardMarginFracLimb * k_Arm;
-                Assert.Less(h, hard,
-                    $"an elbow commanded at the sky ({what}) must be pulled back inside the anatomical " +
-                    $"envelope -- it ended at {h:F3}, the hard limit is {hard:F3}");
+                float h = Vector3.Dot(got - shoulder, k_Up);
+                float hard = Ceiling(hand) + BasisElbowAnatomyCore.HardMarginFracLimb * arm;
+                Assert.Less(h, hard, $"an elbow commanded at the sky ({what}) must be pulled back inside the anatomical " + $"envelope -- it ended at {h:F3}, the hard limit is {hard:F3}");
 
                 // ...and it must still be a real elbow: the bone lengths are not negotiable.
-                Assert.AreEqual(k_Upper, Vector3.Distance(k_Shoulder, got), 1e-3f, "upper-arm length must be preserved");
-                Assert.AreEqual(k_Lower, Vector3.Distance(got, hand), 1e-3f, "forearm length must be preserved");
+                Assert.AreEqual(upper, Vector3.Distance(shoulder, got), 1e-3f, "upper-arm length must be preserved");
+                Assert.AreEqual(lower, Vector3.Distance(got, hand), 1e-3f, "forearm length must be preserved");
             }
         }
-
         [Test]
         public void TheGuard_NeverMovesTheHand_AtAnyExtension()
         {
@@ -111,47 +88,36 @@ namespace Basis.Tests.IK
             for (int t = 0; t < 400; t++)
             {
                 float reach = Mathf.Lerp(0.35f, 0.999f, (float)rng.NextDouble());
-                var dir = new Vector3(
-                    (float)(rng.NextDouble() * 2 - 1),
-                    (float)(rng.NextDouble() * 2 - 1),
-                    (float)(rng.NextDouble() * 2 - 1));
+                var dir = new Vector3((float)(rng.NextDouble() * 2 - 1), (float)(rng.NextDouble() * 2 - 1), (float)(rng.NextDouble() * 2 - 1));
                 if (dir.sqrMagnitude < 1e-4f) continue;
-                Vector3 hand = k_Shoulder + dir.normalized * (reach * k_Arm);
-
+                Vector3 hand = shoulder + dir.normalized * (reach * arm);
                 float swivel = (float)(rng.NextDouble() * 360.0 - 180.0);
-                Vector3 elbow = ElbowAt(hand, swivel);
-                Vector3 got = Guarded(hand, elbow);
+                Vector3 elbow = ElbowAt(hand, swivel), got = Guarded(hand, elbow);
 
-                Assert.AreEqual(k_Upper, Vector3.Distance(k_Shoulder, got), 1e-3f,
-                    $"upper-arm length must survive the guard (iter {t})");
-                Assert.AreEqual(k_Lower, Vector3.Distance(got, hand), 1e-3f,
-                    $"the guard must not move the hand: forearm length changed (iter {t}, reach {reach:P0})");
+                Assert.AreEqual(upper, Vector3.Distance(shoulder, got), 1e-3f, $"upper-arm length must survive the guard (iter {t})");
+                Assert.AreEqual(lower, Vector3.Distance(got, hand), 1e-3f, $"the guard must not move the hand: forearm length changed (iter {t}, reach {reach:P0})");
             }
         }
-
         [Test]
         public void NoPointOnTheCircle_CanEndUpAboveTheHardLimit()
         {
             foreach (float handY in new[] { -0.30f, -0.15f, 0f, 0.20f })
             {
-                Vector3 hand = k_Shoulder + new Vector3(0.22f, handY, 0.30f);
+                Vector3 hand = shoulder + new Vector3(0.22f, handY, 0.30f);
                 RequireInReach(hand);   // no circle, no test -- see the note above
-                float hard = Ceiling(hand) + BasisElbowAnatomyCore.HardMarginFracLimb * k_Arm;
+                float hard = Ceiling(hand) + BasisElbowAnatomyCore.HardMarginFracLimb * arm;
 
                 for (float sw = -180f; sw < 180f; sw += 2f)
                 {
                     Vector3 got = Guarded(hand, ElbowAt(hand, sw));
-                    float h = Vector3.Dot(got - k_Shoulder, k_Up);
-                    Assert.Less(h, hard + 1e-4f,
-                        $"swivel {sw:F0} deg with hand y={handY:F2} escaped the envelope: elbow at {h:F3}, limit {hard:F3}");
+                    float h = Vector3.Dot(got - shoulder, k_Up);
+                    Assert.Less(h, hard + 1e-4f, $"swivel {sw:F0} deg with hand y={handY:F2} escaped the envelope: elbow at {h:F3}, limit {hard:F3}");
                 }
             }
         }
-
         // ============================================================================================
         // 2. THE POSSIBLE MUST BE UNTOUCHED -- exactly, not approximately.
         // ============================================================================================
-
         [Test]
         public void EveryPoseARealHumanHolds_PassesThroughUntouched()
         {
@@ -171,85 +137,67 @@ namespace Basis.Tests.IK
 
             foreach ((Vector3 offset, float swivel, string what) in poses)
             {
-                Vector3 hand = k_Shoulder + offset;
-                Vector3 elbow = ElbowAt(hand, swivel);
-
-                float sw = BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, elbow, hand, k_Up, k_Arm);
-                Assert.AreEqual(0f, sw,
-                    $"the guard must be the EXACT identity on a pose a human actually holds ({what}); " +
-                    $"it returned {sw * Mathf.Rad2Deg:F3} deg. If this fires, the margins are too tight and " +
-                    "the guard is bending legal poses to fix illegal ones.");
+                Vector3 hand = shoulder + offset, elbow = ElbowAt(hand, swivel);
+                float sw = BasisElbowAnatomyCore.GuardSwivelRad(shoulder, elbow, hand, k_Up, arm);
+                Assert.AreEqual(0f, sw, $"the guard must be the EXACT identity on a pose a human actually holds ({what}); " + $"it returned {sw * Mathf.Rad2Deg:F3} deg. If this fires, the margins are too tight and " +"the guard is bending legal poses to fix illegal ones.");
             }
         }
-
         [Test]
         public void TheGuard_IsScaleFree()
         {
-            Vector3 handOff = new Vector3(0.25f, -0.10f, 0.40f);
-            Vector3 hand = k_Shoulder + handOff;
+            Vector3 handOff = new Vector3(0.25f, -0.10f, 0.40f), hand = shoulder + handOff;
             Vector3 elbow = ElbowAt(hand, 175f);   // illegal: near the top of the circle
 
-            float small = BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, elbow, hand, k_Up, k_Arm);
+            float small = BasisElbowAnatomyCore.GuardSwivelRad(shoulder, elbow, hand, k_Up, arm);
 
             // The same pose on an avatar twice the size: every length doubles, so the SWIVEL must be identical.
             const float s = 2f;
-            Vector3 shoulder2 = k_Shoulder;
-            Vector3 hand2 = shoulder2 + handOff * s;
-            Vector3 elbow2 = shoulder2 + (elbow - k_Shoulder) * s;
-            float big = BasisElbowAnatomyCore.GuardSwivelRad(shoulder2, elbow2, hand2, k_Up, k_Arm * s);
+            Vector3 shoulder2 = shoulder, hand2 = shoulder2 + handOff * s, elbow2 = shoulder2 + (elbow - shoulder) * s;
+            float big = BasisElbowAnatomyCore.GuardSwivelRad(shoulder2, elbow2, hand2, k_Up, arm * s);
 
-            Assert.AreEqual(small, big, 1e-4f,
-                "the same posture on a bigger avatar must produce the same corrective swivel");
+            Assert.AreEqual(small, big, 1e-4f,"the same posture on a bigger avatar must produce the same corrective swivel");
         }
-
         // ============================================================================================
         // 3. IT MUST NOT BLOW UP.
         // ============================================================================================
-
         [Test]
         public void DegenerateAndNaNInputs_DeclineRatherThanCorrupt()
         {
-            Vector3 hand = k_Shoulder + new Vector3(0.25f, -0.10f, 0.40f);
+            Vector3 hand = shoulder + new Vector3(0.25f, -0.10f, 0.40f);
 
             // A straight arm: the circle has collapsed, there is no swivel that moves the elbow anywhere.
-            Vector3 straightHand = k_Shoulder + new Vector3(k_Arm, 0f, 0f);
-            Vector3 straightElbow = k_Shoulder + new Vector3(k_Upper, 0f, 0f);
-            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, straightElbow, straightHand, k_Up, k_Arm),
-                "a straight arm has nothing to guard");
+            Vector3 straightHand = shoulder + new Vector3(arm, 0f, 0f);
+            Vector3 straightElbow = shoulder + new Vector3(upper, 0f, 0f);
+            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(shoulder, straightElbow, straightHand, k_Up, arm),"a straight arm has nothing to guard");
 
             // Hand on top of the shoulder: no axis.
-            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, ElbowAt(hand, 90f), k_Shoulder, k_Up, k_Arm),
-                "a zero-length arm axis must decline");
+            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(shoulder, ElbowAt(hand, 90f), shoulder, k_Up, arm),"a zero-length arm axis must decline");
 
             // Arm pointing straight UP: the elbow's circle is horizontal, so no swivel changes its height.
-            Vector3 upHand = k_Shoulder + new Vector3(0f, 0.55f, 0f);
-            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, ElbowAt(upHand, 40f), upHand, k_Up, k_Arm),
-                "a vertical arm axis makes the constraint inexpressible as a swivel; it must decline, not guess");
+            Vector3 upHand = shoulder + new Vector3(0f, 0.55f, 0f);
+            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(shoulder, ElbowAt(upHand, 40f), upHand, k_Up, arm),"a vertical arm axis makes the constraint inexpressible as a swivel; it must decline, not guess");
 
             // NaN in, zero out. A NaN transform PERSISTS in Unity -- the arm would never recover.
             var nan = new Vector3(float.NaN, 0f, 0f);
-            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, nan, hand, k_Up, k_Arm));
-            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, ElbowAt(hand, 90f), nan, k_Up, k_Arm));
-            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, ElbowAt(hand, 90f), hand, nan, k_Arm));
-            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, ElbowAt(hand, 90f), hand, k_Up, float.NaN));
-            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, ElbowAt(hand, 90f), hand, k_Up, 0f));
+            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(shoulder, nan, hand, k_Up, arm));
+            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(shoulder, ElbowAt(hand, 90f), nan, k_Up, arm));
+            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(shoulder, ElbowAt(hand, 90f), hand, nan, arm));
+            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(shoulder, ElbowAt(hand, 90f), hand, k_Up, float.NaN));
+            Assert.AreEqual(0f, BasisElbowAnatomyCore.GuardSwivelRad(shoulder, ElbowAt(hand, 90f), hand, k_Up, 0f));
         }
-
         // ============================================================================================
         // 4. END TO END, THROUGH THE REAL SOLVER.
         // ============================================================================================
-
         [Test]
         public void TheSolver_RefusesASkyPointingHint_AndKeepsTheHandOnTarget()
         {
-            Vector3 hand = k_Shoulder + new Vector3(0.25f, -0.15f, 0.42f);
+            Vector3 hand = shoulder + new Vector3(0.25f, -0.15f, 0.42f);
 
             // A hint demanding the elbow at the top of its circle.
             Vector3 skyElbow = ElbowAt(hand, 180f);
-            Vector3 skyHint = k_Shoulder + (skyElbow - k_Shoulder).normalized * (0.5f * k_Arm);
-
+            Vector3 skyHint = shoulder + (skyElbow - shoulder).normalized * (0.5f * arm);
             BasisArmSolveInput i = default;
-            i.Shoulder = k_Shoulder;
+            i.Shoulder = shoulder;
             i.Elbow = ElbowAt(hand, 20f);     // a sane animated start
             i.Hand = hand;
             i.RootRotation = Quaternion.identity;
@@ -265,15 +213,11 @@ namespace Basis.Tests.IK
 
             BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
 
-            float h = Vector3.Dot(r.ElbowSolved - k_Shoulder, k_Up);
-            float hard = Ceiling(hand) + BasisElbowAnatomyCore.HardMarginFracLimb * k_Arm;
+            float h = Vector3.Dot(r.ElbowSolved - shoulder, k_Up);
+            float hard = Ceiling(hand) + BasisElbowAnatomyCore.HardMarginFracLimb * arm;
 
-            Assert.Less(h, hard,
-                $"even handed a hint that explicitly demands a sky-pointing elbow, the solver must not deliver " +
-                $"one -- it ended at {h:F3} against a hard limit of {hard:F3}");
-            Assert.AreEqual(0f, Vector3.Distance(r.HandSolved, hand), 2e-3f,
-                "and the hand must still be exactly on its target: the guard is a swivel about the " +
-                "shoulder->hand axis, so it cannot move the hand");
+            Assert.Less(h, hard, $"even handed a hint that explicitly demands a sky-pointing elbow, the solver must not deliver " + $"one -- it ended at {h:F3} against a hard limit of {hard:F3}");
+            Assert.AreEqual(0f, Vector3.Distance(r.HandSolved, hand), 2e-3f, "and the hand must still be exactly on its target: the guard is a swivel about the " +"shoulder->hand axis, so it cannot move the hand");
         }
     }
 }

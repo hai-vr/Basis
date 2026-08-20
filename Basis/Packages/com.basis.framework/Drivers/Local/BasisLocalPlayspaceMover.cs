@@ -590,7 +590,7 @@ namespace Basis.Scripts.Drivers
                     delta.y = -Mathf.Max(driver.characterController.skinWidth * 4f, 0.02f);
                 }
 
-                using (BasisLocalCharacterDriver.MovePhysicsMarker.Auto())
+                using (BasisLocalPlayerMarkers.MovePhysics.Auto())
                 {
                     driver.characterController.Move(delta);
                 }

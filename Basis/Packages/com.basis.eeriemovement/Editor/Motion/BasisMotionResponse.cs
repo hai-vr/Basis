@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-
 namespace Basis.IK.Motion
 {
     public struct BasisStepResponse
@@ -13,49 +12,37 @@ namespace Basis.IK.Motion
         public float SettleMs;     // time after which it stays inside +/-2%
         public override string ToString() => $"t63={T63Ms:F1}ms t90={T90Ms:F1}ms overshoot={OvershootPct:F1}% settle={SettleMs:F0}ms";
     }
-
     public struct BasisFreqResponse
     {
         public float Hz;
         public float Gain;    // 1.0 = passes the motion through untouched; < 1 = attenuates it
-        public float LagMs;
-        public float PhaseDeg;
+        public float LagMs, PhaseDeg;
         public override string ToString() => $"{Hz:F2}Hz: gain={Gain:F3} lag={LagMs:F1}ms";
     }
-
     public struct BasisInvarianceResult
     {
         public bool Ok;
-        public string Error;
-        public string Label;
+        public string Error, Label;
         public int[] Fps;
         public float[] T63Ms;         // per rate
         public float WorstDeviation;  // worst disagreement between any two rates, at coincident sample times
         public int WorstFpsA, WorstFpsB;
         public float T63SpreadMs;
-
         public override string ToString()
         {
             var sb = new System.Text.StringBuilder();
-            sb.Append(Label).Append(": dev=").Append(WorstDeviation.ToString("F4"))
-              .Append(" (").Append(WorstFpsA).Append(" vs ").Append(WorstFpsB).Append("Hz)")
-              .Append(" t63spread=").Append(T63SpreadMs.ToString("F1")).Append("ms  [");
+            sb.Append(Label).Append(": dev=").Append(WorstDeviation.ToString("F4")).Append(" (").Append(WorstFpsA).Append(" vs ").Append(WorstFpsB).Append("Hz)").Append(" t63spread=").Append(T63SpreadMs.ToString("F1")).Append("ms  [");
             for (int i = 0; i < Fps.Length; i++)
                 sb.Append(Fps[i]).Append("Hz:").Append(T63Ms[i].ToString("F1")).Append(i < Fps.Length - 1 ? "  " : "");
             return sb.Append(']').ToString();
         }
     }
-
     public delegate float[] BasisBlendSampler(float dt, int frames);
-
     public static class BasisMotionResponse
     {
         public static readonly int[] VrFrameRates = { 72, 80, 90, 120, 144 };
-
         public const float MaxFramerateDeviation = 0.015f;
-
         // ------------------------------------------------------------------ step response
-
         public static BasisStepResponse Step(float[] y, float dt, float target = 1f)
         {
             var r = new BasisStepResponse { T63Ms = float.NaN, T90Ms = float.NaN, SettleMs = float.NaN };
@@ -83,7 +70,6 @@ namespace Basis.IK.Motion
             r.Ok = true;
             return r;
         }
-
         static float CrossTime(float[] y, float dt, float level)
         {
             for (int i = 0; i < y.Length; i++)
@@ -96,9 +82,7 @@ namespace Basis.IK.Motion
             }
             return float.NaN;
         }
-
         // ------------------------------------------------------------------ frequency response
-
         public static BasisFreqResponse Sine(float[] input, float[] output, float dt, float hz)
         {
             var r = new BasisFreqResponse { Hz = hz, Gain = float.NaN, LagMs = float.NaN, PhaseDeg = float.NaN };
@@ -119,8 +103,7 @@ namespace Basis.IK.Motion
             if (m == 0) return r;
             os /= m; oc /= m; ins /= m; inc /= m;
 
-            double outMag = Math.Sqrt(os * os + oc * oc);
-            double inMag = Math.Sqrt(ins * ins + inc * inc);
+            double outMag = Math.Sqrt(os * os + oc * oc), inMag = Math.Sqrt(ins * ins + inc * inc);
             if (inMag < 1e-12) return r;
 
             r.Gain = (float)(outMag / inMag);
@@ -131,11 +114,8 @@ namespace Basis.IK.Motion
             r.LagMs = (float)(-phase / (2 * Math.PI * hz) * 1000.0);
             return r;
         }
-
         // ------------------------------------------------------------------ framerate invariance
-
-        public static BasisInvarianceResult Invariance(
-            BasisBlendSampler run, float durationSec, string label, int[] fps = null)
+        public static BasisInvarianceResult Invariance(BasisBlendSampler run, float durationSec, string label, int[] fps = null)
         {
             fps ??= VrFrameRates;
             var r = new BasisInvarianceResult
@@ -194,17 +174,13 @@ namespace Basis.IK.Motion
             r.Ok = true;
             return r;
         }
-
         static int Gcd(int a, int b)
         {
             while (b != 0) { (a, b) = (b, a % b); }
             return a;
         }
-
         // ------------------------------------------------------------------ the two blend forms
-
         public static float ExpAlpha(float rate, float dt) => 1f - Mathf.Exp(-Mathf.Max(0f, rate) * dt);
-
         public static float LegacySaturateAlpha(float speed, float dt) => Mathf.Clamp01(dt * Mathf.Max(0f, speed));
     }
 }

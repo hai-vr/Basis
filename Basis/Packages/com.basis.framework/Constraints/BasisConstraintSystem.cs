@@ -4,7 +4,6 @@ using Basis.Scripts.BasisSdk.Constraints;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Jobs;
 
@@ -409,11 +408,6 @@ namespace Basis.Scripts.Constraints
         /// the whole main-thread cost of a frame of constraints and says nothing about which part of
         /// it moved. Four stages, in the order they run.
         /// </summary>
-        private static readonly ProfilerMarker ProfRebuild = new ProfilerMarker("BasisConstraints.Rebuild");
-        private static readonly ProfilerMarker ProfClassify = new ProfilerMarker("BasisConstraints.Classify");
-        private static readonly ProfilerMarker ProfSample = new ProfilerMarker("BasisConstraints.ScheduleSample");
-        private static readonly ProfilerMarker ProfRefresh = new ProfilerMarker("BasisConstraints.Refresh");
-        private static readonly ProfilerMarker ProfSolve = new ProfilerMarker("BasisConstraints.ScheduleSolve");
 
         /// <summary>
         /// Samples, solves and writes every constraint. Call once per frame after the pose the
@@ -438,7 +432,7 @@ namespace Basis.Scripts.Constraints
             // be caught here too: its transform would otherwise still be in the write array.
             if (sDirty || HasDestroyedRegistration() || HasDesyncedTransforms())
             {
-                using (ProfRebuild.Auto())
+                using (BasisConstraintMarkers.Rebuild.Auto())
                 {
                     Rebuild();
                 }
@@ -451,14 +445,14 @@ namespace Basis.Scripts.Constraints
             // Which avatars are re-read this frame is decided here, ahead of the sample, because
             // deciding it means reading transforms — see ClassifyRefreshGroups. Everything past
             // the kick below touches managed component fields only.
-            using (ProfClassify.Auto())
+            using (BasisConstraintMarkers.Classify.Auto())
             {
                 ClassifyRefreshGroups();
             }
 
             JobHandle read;
             JobHandle clear;
-            using (ProfSample.Auto())
+            using (BasisConstraintMarkers.ScheduleSample.Auto())
             {
                 int readWorkers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
                 read = new BasisConstraintReadJob
@@ -480,12 +474,12 @@ namespace Basis.Scripts.Constraints
                 JobHandle.ScheduleBatchedJobs();
             }
 
-            using (ProfRefresh.Auto())
+            using (BasisConstraintMarkers.Refresh.Auto())
             {
                 RefreshDueGroups();
             }
 
-            using (ProfSolve.Auto())
+            using (BasisConstraintMarkers.ScheduleSolve.Auto())
             {
                 // One iteration per group, in small batches so the work is handed out as workers
                 // come free rather than carved up in advance between groups of very different cost.

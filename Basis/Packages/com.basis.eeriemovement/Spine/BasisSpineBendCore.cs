@@ -1,40 +1,15 @@
 using UnityEngine;
 namespace Basis.IK
 {
-    public struct BasisSpineBendInput
-    {
-        public Quaternion HipsRot;
-        public Vector3 HipsPos, ChestPos, SmoothedHead;
-        public Quaternion HipsBind, HeadTargetRot;
-        public float SpineMaxForwardDeg, SpineMaxBackwardDeg, SpineMaxLateralDeg, SpineBendPitch, SpineBendYaw;
-        public float SpineBendRoll, UpperBendPitch, UpperBendYaw, UpperBendRoll;
-        public bool AnatDifferentialStiffness, AnatPelvicTwistRouting;
-        public float BendTwistCoupling, SquishBoost, RestLen;
-        public bool HasSpine, HasUpper;
-    }
-    public struct BasisSpineBendResult
-    {
-        public bool EarlyOut;
-        public bool WriteSpine; public Vector3 SpineEuler;
-        public bool WriteUpper; public Vector3 UpperEuler;
-        public float BendPitchDeg, TwistY, SquishMult, BendGate, SpineYawEff, UpperYawEff;
-    }
     public static class BasisSpineBendCore
     {
-        const float sqrEpsilon = 1e-8f;
-        const float epsilon = 1e-5f;
-        const float bendDeadbandDeg = 3f;
-        const float bendDeadbandWidthDeg = 7f;
-        const float twistFadeFullHoriz = 0.342f;
-        const float twistFadeZeroHoriz = 0.174f;
+        const float sqrEpsilon = 1e-8f, epsilon = 1e-5f, bendDeadbandDeg = 3f, bendDeadbandWidthDeg = 7f;
+        const float twistFadeFullHoriz = 0.342f, twistFadeZeroHoriz = 0.174f;
         public static void Solve(in BasisSpineBendInput i, out BasisSpineBendResult r)
         {
             r = default;
 
-            Quaternion invHips = Quaternion.Inverse(i.HipsRot);
-
-            Quaternion hipsSpace = i.HipsBind * invHips;
-
+            Quaternion invHips = Quaternion.Inverse(i.HipsRot), hipsSpace = i.HipsBind * invHips;
             Vector3 localChestDir = hipsSpace * (i.ChestPos - i.HipsPos);
             Vector3 localTargetDir = hipsSpace * (i.SmoothedHead - i.HipsPos);
             if (localChestDir.sqrMagnitude < sqrEpsilon || localTargetDir.sqrMagnitude < sqrEpsilon)
@@ -43,40 +18,28 @@ namespace Basis.IK
                 return;
             }
 
-            Vector3 chestDirN = localChestDir.normalized;
-            Vector3 targetDirN = localTargetDir.normalized;
-
+            Vector3 chestDirN = localChestDir.normalized, targetDirN = localTargetDir.normalized;
             Vector3 bendCross = Vector3.Cross(chestDirN, targetDirN);
             float bendDot = Mathf.Clamp(Vector3.Dot(chestDirN, targetDirN), -1f, 1f);
             float bendAngleDeg = Mathf.Atan2(bendCross.magnitude, bendDot) * Mathf.Rad2Deg;
             Vector3 bendAxisScaled = bendCross.sqrMagnitude > sqrEpsilon ? bendCross.normalized * bendAngleDeg : Vector3.zero;
-            float bendPitchDeg = bendAxisScaled.x;
-            float bendRollDeg = bendAxisScaled.z;
+            float bendPitchDeg = bendAxisScaled.x, bendRollDeg = bendAxisScaled.z;
             Vector3 bendEuler = new Vector3(bendPitchDeg, 0f, bendRollDeg);
-
             Quaternion headRotLocal = hipsSpace * i.HeadTargetRot;
             Vector3 headFwdLocal = headRotLocal * Vector3.forward;
             float horizMagSq = headFwdLocal.x * headFwdLocal.x + headFwdLocal.z * headFwdLocal.z;
             float twistY = (horizMagSq < sqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
-
             float twistFadeT = Mathf.Clamp01((Mathf.Sqrt(horizMagSq) - twistFadeZeroHoriz) / (twistFadeFullHoriz - twistFadeZeroHoriz));
             twistY *= Mathf.SmoothStep(0f, 1f, twistFadeT);
 
-            float maxFwd = Mathf.Max(0f, i.SpineMaxForwardDeg);
-            float maxBack = Mathf.Max(0f, i.SpineMaxBackwardDeg);
+            float maxFwd = Mathf.Max(0f, i.SpineMaxForwardDeg), maxBack = Mathf.Max(0f, i.SpineMaxBackwardDeg);
             float maxLat = Mathf.Max(0f, i.SpineMaxLateralDeg);
-
             float squishMult = ComputeSquishMultiplier(i.SmoothedHead - i.HipsPos, i.RestLen, i.SquishBoost);
-
             float bendMag = Mathf.Sqrt(bendEuler.x * bendEuler.x + bendEuler.z * bendEuler.z);
             float bendT = Mathf.Clamp01((bendMag - bendDeadbandDeg) / bendDeadbandWidthDeg);
-            float bendGate = Mathf.SmoothStep(0f, 1f, bendT);
-
-            float spinePitchEff = Mathf.Clamp01(i.SpineBendPitch);
-            float spineYawEff = Mathf.Clamp01(i.SpineBendYaw);
-            float spineRollEff = Mathf.Clamp01(i.SpineBendRoll);
-            float upperPitchEff = Mathf.Clamp01(i.UpperBendPitch);
-            float upperYawEff = Mathf.Clamp01(i.UpperBendYaw);
+            float bendGate = Mathf.SmoothStep(0f, 1f, bendT), spinePitchEff = Mathf.Clamp01(i.SpineBendPitch);
+            float spineYawEff = Mathf.Clamp01(i.SpineBendYaw), spineRollEff = Mathf.Clamp01(i.SpineBendRoll);
+            float upperPitchEff = Mathf.Clamp01(i.UpperBendPitch), upperYawEff = Mathf.Clamp01(i.UpperBendYaw);
             float upperRollEff = Mathf.Clamp01(i.UpperBendRoll);
             if (i.AnatDifferentialStiffness)
             {
@@ -134,8 +97,7 @@ namespace Basis.IK
             {
                 return 1f;
             }
-            float currentMag = hipsToHead.magnitude;
-            float squish = currentMag / restLen;
+            float currentMag = hipsToHead.magnitude, squish = currentMag / restLen;
             float t = Mathf.Clamp01((squish - 0.7f) / 0.6f);
             return Mathf.Lerp(1f + boost, Mathf.Max(0f, 1f - boost), t);
         }
@@ -148,27 +110,10 @@ namespace Basis.IK
             return e;
         }
     }
-    public struct BasisCrouchOffsetInput
-    {
-        public Vector3 HeadTargetPos, HipsPos;
-        public Quaternion HipsRot, Bind;
-        public Vector3 PlayerUp;
-        public float Factor, RestDist, CrouchDepth, StandingHeadHeight, Fade;
-    }
-    public struct BasisCrouchOffsetResult
-    {
-        public Vector3 HipsPos;
-        public bool Applied;
-        public float SetbackMeters, LeanDeg;
-    }
     public static class BasisCrouchOffsetCore
     {
-        const float sqrEpsilon = 1e-8f;
-        const float epsilon = 1e-5f;
-        public const float depthDeadzone = 0.03f;
-        public const float setbackSlope = 2.57f;
-        public const float setbackSat = 8.1f;
-        public const float maxLeanSin = 0.88f;
+        const float sqrEpsilon = 1e-8f, epsilon = 1e-5f;
+        public const float depthDeadzone = 0.03f, setbackSlope = 2.57f, setbackSat = 8.1f, maxLeanSin = 0.88f;
         public const float verticalEngageFrac = 0.04f;
         public static float EvaluateSetback(float crouchDepth, float standingHeadHeight, float factor, float fade, float restDist)
         {
@@ -197,7 +142,6 @@ namespace Basis.IK
             }
 
             Vector3 up = i.PlayerUp.sqrMagnitude < sqrEpsilon ? Vector3.up : i.PlayerUp.normalized;
-
             Quaternion hipsAnat = i.HipsRot;
             float bindSq = i.Bind.x * i.Bind.x + i.Bind.y * i.Bind.y + i.Bind.z * i.Bind.z + i.Bind.w * i.Bind.w;
             if (bindSq > 0.5f)
@@ -216,8 +160,7 @@ namespace Basis.IK
             Vector3 horizontal = i.HipsPos - i.HeadTargetPos;
             horizontal -= up * Vector3.Dot(horizontal, up);
             horizontal -= forward.normalized * setback;
-            float horizMag = horizontal.magnitude;
-            float horizCap = maxLeanSin * i.RestDist;
+            float horizMag = horizontal.magnitude, horizCap = maxLeanSin * i.RestDist;
             if (horizMag > horizCap)
             {
                 horizontal *= horizCap / horizMag;

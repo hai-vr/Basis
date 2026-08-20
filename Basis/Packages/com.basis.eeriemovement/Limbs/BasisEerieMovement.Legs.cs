@@ -57,26 +57,19 @@ namespace Basis.IK
             Vector3 bendNormal = isLeft ? kneeBendPrefLeft : kneeBendPrefRight;
             bool hintIsTracker = isLeft ? hintIsTrackerLeftLowerLeg : hintIsTrackerRightLowerLeg;
             bool footIsTracker = isLeft ? footIsTrackerLeftLeg : footIsTrackerRightLeg;
-
-            Quaternion origRootRot = poseStream.GetRotation(root);
-            Quaternion origMidRot = poseStream.GetRotation(mid);
+            Quaternion origRootRot = poseStream.GetRotation(root), origMidRot = poseStream.GetRotation(mid);
             Quaternion origTipRot = poseStream.GetRotation(tip);
-
             Quaternion tRot = isLeft ? targetRotationLeftLowerLeg : targetRotationRightLowerLeg;
             float tRotSqrLen = tRot.x * tRot.x + tRot.y * tRot.y + tRot.z * tRot.z + tRot.w * tRot.w;
             bool preserveTip = !(tRotSqrLen > 0.5f);
             if (preserveTip) tRot = origTipRot;
 
-            Vector3 targetPos = isLeft ? targetPositionLeftLowerLeg : targetPositionRightLowerLeg;
-            Vector3 hint = hintPos;
-
+            Vector3 targetPos = isLeft ? targetPositionLeftLowerLeg : targetPositionRightLowerLeg, hint = hintPos;
             float hintDistrust = 0f;
-            bool usedModelHint = false;
-            bool fabricatedLeg = !hintIsTracker && !footIsTracker;
+            bool usedModelHint = false, fabricatedLeg = !hintIsTracker && !footIsTracker;
             if (!(hintW > 0f) || fabricatedLeg)
             {
                 BasisSwivelFrame frame = BuildLegFrame();
-
                 Vector3 hipPos = poseStream.GetPosition(root);
                 float upperLen = (poseStream.GetPosition(mid) - hipPos).magnitude;
                 float lowerLen = (poseStream.GetPosition(tip) - poseStream.GetPosition(mid)).magnitude;
@@ -174,8 +167,7 @@ namespace Basis.IK
                 return;
             }
 
-            Quaternion hipsRot = poseStream.GetRotation(handleHips);
-            Quaternion hipsInv = Quaternion.Inverse(hipsRot);
+            Quaternion hipsRot = poseStream.GetRotation(handleHips), hipsInv = Quaternion.Inverse(hipsRot);
             Vector3 femurLocal = (hipsInv * femur).normalized;
 
             ref BasisLegDiagnostics d = ref Ref(legDiagnostics, slot);

@@ -1,6 +1,5 @@
 using Basis.IK.Mocap;
 using UnityEngine;
-
 namespace Basis.IK.Motion
 {
     // There are TWO BasisMotionClip types in this project: the mocap one, and a ScriptableObject in the SDK
@@ -14,44 +13,24 @@ namespace Basis.IK.Motion
     // (CS0576: "namespace <global> contains a definition conflicting with alias"). Hoisting it up to the other
     // usings looks tidier and does not compile.
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
-
     public struct BasisMocapMotionSummary
     {
         public bool Ok;
-        public string Error;
-        public string Clip;
+        public string Error, Clip;
         public BasisMocapHintSource Hint;
         public int Frames;
-
         public BasisMotionQualitySummary HumanElbow, SolvedElbow;
         public BasisMotionQualitySummary HumanKnee, SolvedKnee;
-
         public float ElbowJerkRatio, KneeJerkRatio;
-
         public float ElbowJitterExcess, KneeJitterExcess;
-
         public float ElbowShape, KneeShape;
-
         public int ElbowPopExcess, KneePopExcess;
-
         public int ElbowPopsInvented, KneePopsInvented;
-
         public float HintRawJitter, HintFlaredJitter;
-
         public float FlareEngageJitter, FlareDownProjP05, FlareDownProjMin;
-
-        public float FlareEngageMean;
-
-        public float ElbowErrFracArm;
-
-        public float KneeErrFracLeg;
-
-        public override string ToString() =>
-            $"{Clip}/{Hint}: elbow jerk x{ElbowJerkRatio:F2} jitter+{ElbowJitterExcess * 100f:F2}%L " +
-            $"shape {ElbowShape:F3} pops+{ElbowPopExcess} | knee jerk x{KneeJerkRatio:F2} " +
-            $"jitter+{KneeJitterExcess * 100f:F2}%L shape {KneeShape:F3} pops+{KneePopExcess}";
+        public float FlareEngageMean, ElbowErrFracArm, KneeErrFracLeg;
+        public override string ToString() => $"{Clip}/{Hint}: elbow jerk x{ElbowJerkRatio:F2} jitter+{ElbowJitterExcess * 100f:F2}%L " + $"shape {ElbowShape:F3} pops+{ElbowPopExcess} | knee jerk x{KneeJerkRatio:F2} " + $"jitter+{KneeJitterExcess * 100f:F2}%L shape {KneeShape:F3} pops+{KneePopExcess}";
     }
-
     public static class BasisMocapMotionQuality
     {
         // ---------------------------------------------------------------------------------------------
@@ -61,15 +40,8 @@ namespace Basis.IK.Motion
         // BasisMocapMotionQualityTests has printed the real solver's numbers across the whole corpus.
         // Tighten them from measured data, not from taste.
         // ---------------------------------------------------------------------------------------------
-
-        public const float MinJerkRatio = 0.35f;
-
-        public const float MaxJerkRatio = 3.0f;
-
-        public const float MaxJitterExcess = 0.005f;
-
+        public const float MinJerkRatio = 0.35f, MaxJerkRatio = 3.0f, MaxJitterExcess = 0.005f;
         public const float ReportOnlyShapeDistance = 0.20f;
-
         public static BasisMocapMotionSummary Run(BasisMotionClip clip, BasisMocapHintSource hint)
         {
             var s = new BasisMocapMotionSummary { Hint = hint };
@@ -86,11 +58,9 @@ namespace Basis.IK.Motion
             float dt = tracks.Dt;
 
             s.HumanElbow = BasisMotionQuality.Analyze(tracks.TruthElbow, tracks.ArmLen, dt, "human.elbow");
-            s.SolvedElbow = BasisMotionQuality.Analyze(tracks.SolvedElbow, tracks.ArmLen, dt, "solved.elbow",
-                                                       reference: tracks.TruthElbow);
+            s.SolvedElbow = BasisMotionQuality.Analyze(tracks.SolvedElbow, tracks.ArmLen, dt, "solved.elbow", reference: tracks.TruthElbow);
             s.HumanKnee = BasisMotionQuality.Analyze(tracks.TruthKnee, tracks.LegLen, dt, "human.knee");
-            s.SolvedKnee = BasisMotionQuality.Analyze(tracks.SolvedKnee, tracks.LegLen, dt, "solved.knee",
-                                                      reference: tracks.TruthKnee);
+            s.SolvedKnee = BasisMotionQuality.Analyze(tracks.SolvedKnee, tracks.LegLen, dt, "solved.knee", reference: tracks.TruthKnee);
 
             if (!s.HumanElbow.Ok || !s.SolvedElbow.Ok || !s.HumanKnee.Ok || !s.SolvedKnee.Ok)
             {
@@ -142,21 +112,17 @@ namespace Basis.IK.Motion
             s.Ok = true;
             return s;
         }
-
         static float Ratio(float solved, float human) => human > 1e-6f ? solved / human : float.NaN;
-
         static int PopsInvented(bool[] solved, bool[] human)
         {
             if (solved == null) return 0;
-            int n = human == null ? solved.Length : Mathf.Min(solved.Length, human.Length);
-            int invented = 0;
+            int n = human == null ? solved.Length : Mathf.Min(solved.Length, human.Length), invented = 0;
             for (int i = 0; i < n; i++)
             {
                 if (solved[i] && (human == null || !human[i])) invented++;
             }
             return invented;
         }
-
         public static (bool pass, string reason) Gate(in BasisMocapMotionSummary s)
         {
             if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
@@ -164,8 +130,7 @@ namespace Basis.IK.Motion
             // Jerk band, elbow. Checked FIRST and from BOTH sides, because the failure this catches --
             // motion that is too DEAD -- is the one every other metric here would happily call a pass.
             if (s.ElbowJerkRatio < MinJerkRatio)
-                return (false, $"elbow moves like a puppet: jerk is {s.ElbowJerkRatio:F2}x the human's " +
-                               $"(floor {MinJerkRatio}) -- something upstream is eating the motion");
+                return (false, $"elbow moves like a puppet: jerk is {s.ElbowJerkRatio:F2}x the human's " + $"(floor {MinJerkRatio}) -- something upstream is eating the motion");
             if (s.ElbowJerkRatio > MaxJerkRatio)
                 return (false, $"elbow is busier than a human's: jerk {s.ElbowJerkRatio:F2}x (ceiling {MaxJerkRatio})");
 
@@ -175,11 +140,9 @@ namespace Basis.IK.Motion
                 return (false, $"knee is busier than a human's: jerk {s.KneeJerkRatio:F2}x (ceiling {MaxJerkRatio})");
 
             if (s.ElbowJitterExcess > MaxJitterExcess)
-                return (false, $"elbow buzzes: {s.ElbowJitterExcess * 100f:F2}% of arm length above 8 Hz beyond " +
-                               $"the human's, at {s.SolvedElbow.JitterHz:F0} Hz (ceiling {MaxJitterExcess * 100f:F1}%)");
+                return (false, $"elbow buzzes: {s.ElbowJitterExcess * 100f:F2}% of arm length above 8 Hz beyond " + $"the human's, at {s.SolvedElbow.JitterHz:F0} Hz (ceiling {MaxJitterExcess * 100f:F1}%)");
             if (s.KneeJitterExcess > MaxJitterExcess)
-                return (false, $"knee buzzes: {s.KneeJitterExcess * 100f:F2}% of leg length above 8 Hz beyond the " +
-                               $"human's, at {s.SolvedKnee.JitterHz:F0} Hz (ceiling {MaxJitterExcess * 100f:F1}%)");
+                return (false, $"knee buzzes: {s.KneeJitterExcess * 100f:F2}% of leg length above 8 Hz beyond the " + $"human's, at {s.SolvedKnee.JitterHz:F0} Hz (ceiling {MaxJitterExcess * 100f:F1}%)");
 
             // ShapeDistance is deliberately NOT gated -- see ReportOnlyShapeDistance. It is carried in the
             // summary and printed, but it does not fail a build until the 02_01 anomaly is understood.

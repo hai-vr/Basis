@@ -6,7 +6,6 @@ using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
-using Unity.Profiling;
 using UnityEngine;
 
 /// <summary>
@@ -42,8 +41,6 @@ public static class BasisAvatarFarLOD
     // Tick runs under the transmit marker, which reports one number for the whole loop. These
     // separate the budgeted swaps — the only work here that costs milliseconds — from the
     // per-player flag reconciliation, so a spike says which one it was.
-    static readonly ProfilerMarker sMarkerFarInstall = new ProfilerMarker("BasisDriver.Network.Transmit.FarLodInstall");
-    static readonly ProfilerMarker sMarkerFarReload = new ProfilerMarker("BasisDriver.Network.Transmit.FarLodReload");
 
     private static readonly System.Diagnostics.Stopwatch sTransitionClock = new System.Diagnostics.Stopwatch();
     private static long sTransitionBudgetTicks = long.MaxValue;
@@ -78,7 +75,7 @@ public static class BasisAvatarFarLOD
     private static void ChargedReload(BasisRemotePlayer remote)
     {
         sTransitionClock.Start();
-        using (sMarkerFarReload.Auto())
+        using (BasisNetworkMarkers.TransmitFarLodReload.Auto())
         {
             remote.ReloadAvatar();
         }
@@ -138,7 +135,7 @@ public static class BasisAvatarFarLOD
         {
             transitionBudget--;
             sTransitionClock.Start();
-            using (sMarkerFarReload.Auto())
+            using (BasisNetworkMarkers.TransmitFarLodReload.Auto())
             {
                 BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(remote, Vector3.zero, Quaternion.identity);
             }
@@ -204,7 +201,7 @@ public static class BasisAvatarFarLOD
                 {
                     bool installed;
                     sTransitionClock.Start();
-                    using (sMarkerFarInstall.Auto())
+                    using (BasisNetworkMarkers.TransmitFarLodInstall.Auto())
                     {
                         installed = BasisFarAvatarBuilder.TryInstall(remote);
                     }

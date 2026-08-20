@@ -7,7 +7,6 @@ using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using System;
 using Unity.Mathematics;
-using Unity.Profiling;
 using UnityEngine;
 using static Basis.Scripts.BasisSdk.Players.BasisPlayer;
 namespace Basis.Scripts.BasisCharacterController
@@ -253,10 +252,6 @@ namespace Basis.Scripts.BasisCharacterController
                 body.AddForce(pushDir * pushPower, ForceMode.Impulse);
             }
         }
-        static readonly ProfilerMarker sMarkerMoveSize = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Size");
-        static readonly ProfilerMarker sMarkerMoveMode = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Mode");
-        static readonly ProfilerMarker sMarkerMoveTurn = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Turn");
-        public static readonly ProfilerMarker MovePhysicsMarker = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Physics");
 
         public void SimulateMovement(float DeltaTime)
         {
@@ -268,7 +263,7 @@ namespace Basis.Scripts.BasisCharacterController
                 BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(Position, Rotation, BasisLocalPose.GetLossyScale(BasisPoseSlot.PlayerRoot, BasisLocalPlayerTransform));
                 return;
             }
-            sMarkerMoveSize.Begin();
+            BasisLocalPlayerMarkers.MoveSize.Begin();
             ApplyLocomotionOverrides();
             BasisScriptedPlayerInput.ApplyLocomotion(this);
             LastBottomPoint = bottomPointLocalSpace;
@@ -289,10 +284,10 @@ namespace Basis.Scripts.BasisCharacterController
                 landingCrouchEffect = Mathf.Lerp(landingCrouchEffect, 0f, landingRecoverySpeed * DeltaTime);
                 if (landingCrouchEffect < 0.001f) landingCrouchEffect = 0f;
             }
-            sMarkerMoveSize.End();
+            BasisLocalPlayerMarkers.MoveSize.End();
 
             // Delegate movement, gravity, and ground checking to the active mode.
-            sMarkerMoveMode.Begin();
+            BasisLocalPlayerMarkers.MoveMode.Begin();
             if (CurrentMode != null)
             {
                 CurrentMode.Tick(this, DeltaTime);
@@ -302,9 +297,9 @@ namespace Basis.Scripts.BasisCharacterController
                 HandleMovement(DeltaTime);
                 GroundCheck(DeltaTime);
             }
-            sMarkerMoveMode.End();
+            BasisLocalPlayerMarkers.MoveMode.End();
 
-            sMarkerMoveTurn.Begin();
+            BasisLocalPlayerMarkers.MoveTurn.Begin();
             // Calculate the rotation amount for this frame
             bool lookLocked = LookRotationLock;
             float rotationAmount;
@@ -371,7 +366,7 @@ namespace Basis.Scripts.BasisCharacterController
 
             // If you want basis localToWorld using the *new* pose:
             BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(newPos, newRot, BasisLocalPose.GetLossyScale(BasisPoseSlot.PlayerRoot, BasisLocalPlayerTransform));
-            sMarkerMoveTurn.End();
+            BasisLocalPlayerMarkers.MoveTurn.End();
         }
 
         public float GetVerticalMovement()

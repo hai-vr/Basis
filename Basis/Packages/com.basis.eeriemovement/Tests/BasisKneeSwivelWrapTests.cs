@@ -1,57 +1,40 @@
 using NUnit.Framework;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisKneeSwivelWrapTests
     {
-        const float k_Dt = 1f / 90f;
-        const float k_Thigh = 0.42f;
-        const float k_Shin = 0.42f;
-        static readonly Vector3 k_Hip = new Vector3(0.09f, 0.90f, 0f);
-
+        const float k_Dt = 1f / 90f, thigh = 0.42f, shin = 0.42f;
+        static readonly Vector3 hip = new Vector3(0.09f, 0.90f, 0f);
         static float Soft => BasisLegSolveCore.KneeAnteriorSoftDeg;
         static float Hard => BasisLegSolveCore.KneeAnteriorHardDeg;
-
         static float Clamp(float deg) => BasisLegSolveCore.ClampKneeSwivelDeg(deg, Soft, Hard);
-
         static float LegacyClamp(float swivelDeg)
         {
             float mag = Mathf.Abs(swivelDeg);
             if (!(mag > Soft)) return swivelDeg;
-            float maxExcess = Hard - Soft;
-            float excess = mag - Soft;
+            float maxExcess = Hard - Soft, excess = mag - Soft;
             float compressed = Soft + maxExcess * excess / (maxExcess + excess);
             return swivelDeg < 0f ? -compressed : compressed;
         }
-
         // ── 1. THE GUARD IS CONTINUOUS ALL THE WAY ROUND ────────────────────────────────────────────────
-
         [Test]
         public void Guard_DoesNotFlip_AcrossThePosteriorRay()
         {
-            float plus = Clamp(179.9f);
-            float minus = Clamp(-179.9f);
+            float plus = Clamp(179.9f), minus = Clamp(-179.9f);
 
-            Assert.Less(Mathf.Abs(plus - minus), 1f,
-                $"clamp(+179.9) = {plus:F2} but clamp(-179.9) = {minus:F2}. Those are the same knee direction to " +
-                "within 0.2deg, so that difference is exactly the click the user reported.");
+            Assert.Less(Mathf.Abs(plus - minus), 1f, $"clamp(+179.9) = {plus:F2} but clamp(-179.9) = {minus:F2}. Those are the same knee direction to " +"within 0.2deg, so that difference is exactly the click the user reported.");
         }
-
         [Test]
         public void LegacyGuard_DoesFlip_AcrossThePosteriorRay()
         {
             // ANTI-TAUTOLOGY. Without this, the gate above could be passing because the sweep never reaches the
             // cut, or because the constants happen to line up -- rather than because the fold was removed.
-            float plus = LegacyClamp(179.9f);
-            float minus = LegacyClamp(-179.9f);
+            float plus = LegacyClamp(179.9f), minus = LegacyClamp(-179.9f);
 
-            Assert.Greater(Mathf.Abs(plus - minus), 170f,
-                "the pre-fix guard was supposed to flip ~178deg here; if it no longer does, this gate has stopped " +
-                "measuring the defect and the one above proves nothing");
+            Assert.Greater(Mathf.Abs(plus - minus), 170f, "the pre-fix guard was supposed to flip ~178deg here; if it no longer does, this gate has stopped " +"measuring the defect and the one above proves nothing");
         }
-
         [Test]
         public void Guard_HasBoundedGain_EverywhereOnTheCircle()
         {
@@ -63,9 +46,7 @@ namespace Basis.Tests.IK
 
             for (float deg = -180f + step; deg <= 180f + step; deg += step)
             {
-                float sample = deg > 180f ? deg - 360f : deg;
-                float cur = Clamp(sample);
-                float gain = Mathf.Abs(cur - prev) / step;
+                float sample = deg > 180f ? deg - 360f : deg, cur = Clamp(sample), gain = Mathf.Abs(cur - prev) / step;
                 if (gain > worstGain) { worstGain = gain; worstAt = sample; }
                 prev = cur;
             }
@@ -73,11 +54,8 @@ namespace Basis.Tests.IK
             // The taper window is narrow, so the ease is steeper inside it -- ~6.7x, reached only past 160deg.
             // 10 leaves room to widen the window without going stale. It is 500x below the 714x fold either way;
             // the property being defended is "bounded and smooth", not a specific number.
-            Assert.Less(worstGain, 10f,
-                $"guard gain peaked at {worstGain:F1}x near {worstAt:F1}deg -- a knee that moves several degrees " +
-                "per degree of pole motion reads as a snap");
+            Assert.Less(worstGain, 10f, $"guard gain peaked at {worstGain:F1}x near {worstAt:F1}deg -- a knee that moves several degrees " +"per degree of pole motion reads as a snap");
         }
-
         [Test]
         public void Guard_IsBitIdentical_BelowTheTaperWindow()
         {
@@ -94,13 +72,9 @@ namespace Basis.Tests.IK
             // So below the taper window the guard must be the ORIGINAL function, exactly -- not close, exactly.
             foreach (float deg in new[] { 86f, 90f, 100f, 110f, 120f, 140f, 155f, BasisLegSolveCore.KneeAnteriorTaperStartDeg })
             {
-                Assert.AreEqual(LegacyClamp(deg), Clamp(deg), 1e-4f,
-                    $"a {deg}deg pole no longer matches the pre-fix guard. The click fix is not licensed to " +
-                    "re-pose the leg, re-couple it to the hips, or make it track noise -- raise " +
-                    "BasisLegSolveCore.KneeAnteriorTaperStartDeg.");
+                Assert.AreEqual(LegacyClamp(deg), Clamp(deg), 1e-4f, $"a {deg}deg pole no longer matches the pre-fix guard. The click fix is not licensed to " + "re-pose the leg, re-couple it to the hips, or make it track noise -- raise " +"BasisLegSolveCore.KneeAnteriorTaperStartDeg.");
             }
         }
-
         [Test]
         public void Guard_StillRejectsPoleNoise_WhereItUsedTo()
         {
@@ -112,14 +86,10 @@ namespace Basis.Tests.IK
             // cannot drift if the constants are retuned.
             foreach (float mean in new[] { 100f, 120f, 140f })
             {
-                float legacy = Amplification(mean, LegacyClamp);
-                float now = Amplification(mean, Clamp);
-                Assert.Less(now, legacy + 0.05f,
-                    $"at a {mean}deg pole the guard now passes {now:F2}deg of knee per degree of pole jitter " +
-                    $"(was {legacy:F2}). That is the knee tracking noise it used to swallow -- jelly.");
+                float legacy = Amplification(mean, LegacyClamp), now = Amplification(mean, Clamp);
+                Assert.Less(now, legacy + 0.05f, $"at a {mean}deg pole the guard now passes {now:F2}deg of knee per degree of pole jitter " + $"(was {legacy:F2}). That is the knee tracking noise it used to swallow -- jelly.");
             }
         }
-
         static float Amplification(float meanDeg, System.Func<float, float> f)
         {
             const float jitter = 2f;
@@ -132,7 +102,6 @@ namespace Basis.Tests.IK
             }
             return (hi - lo) / (2f * jitter);
         }
-
         [Test]
         public void Guard_IsStillTheExactIdentity_InTheFreeBand()
         {
@@ -144,7 +113,6 @@ namespace Basis.Tests.IK
                 Assert.AreEqual(deg, Clamp(deg), 0f, $"guard perturbed a legitimate {deg}deg pose");
             }
         }
-
         [Test]
         public void Guard_StaysInsideTheAnteriorHalfSpace_EverywhereOnTheCircle()
         {
@@ -155,7 +123,6 @@ namespace Basis.Tests.IK
                 Assert.Less(Mathf.Abs(Clamp(deg)), 90f, $"{deg}deg escaped the anterior half-space");
             }
         }
-
         [Test]
         public void Guard_StillBarelyTouches_ADeadLateralKnee()
         {
@@ -165,9 +132,7 @@ namespace Basis.Tests.IK
             Assert.Greater(perturbation, 0f, "a dead-lateral knee must still be pulled inside the half-space");
             Assert.Less(perturbation, 5f, $"guard bent a LEGAL lateral knee by {perturbation:F1}deg");
         }
-
         // ── 2. THE SOLVE CORE NO LONGER SNAPS THE KNEE ACROSS THE BACK OF THE LEG ───────────────────────
-
         [Test]
         public void Solve_DoesNotSnapTheKnee_AsTheHintCrossesBehindTheLeg()
         {
@@ -193,13 +158,9 @@ namespace Basis.Tests.IK
                     have = true;
                 }
 
-                Assert.Less(worstGain, 5f,
-                    $"at reach {reach:F2} the knee moved {worstGain:F0}deg per degree of hint motion near " +
-                    $"{worstAt:F0}deg. Note this fires at EVERY reach ratio, so it is the posterior-ray fold, " +
-                    "not the full-extension pole singularity.");
+                Assert.Less(worstGain, 5f, $"at reach {reach:F2} the knee moved {worstGain:F0}deg per degree of hint motion near " + $"{worstAt:F0}deg. Note this fires at EVERY reach ratio, so it is the posterior-ray fold, " +"not the full-extension pole singularity.");
             }
         }
-
         [Test]
         public void Solve_DoesNotSnapTheKnee_WhenTheHintSitsNearTheLegAxis()
         {
@@ -230,33 +191,26 @@ namespace Basis.Tests.IK
                     have = true;
                 }
 
-                Assert.Less(worstGain, 5f,
-                    $"at reach {reach:F2} a near-axis hint moved the knee {worstGain:F0}deg per degree near " +
-                    $"{worstAt:F0}deg -- the near-colinear ease is being handed an anti-parallel slerp again");
+                Assert.Less(worstGain, 5f, $"at reach {reach:F2} a near-axis hint moved the knee {worstGain:F0}deg per degree near " + $"{worstAt:F0}deg -- the near-colinear ease is being handed an anti-parallel slerp again");
             }
         }
-
         static bool SolveKneeDir(float reachRatio, float hintRadius, float phiDeg, out Vector3 kneeDir)
         {
             kneeDir = Vector3.zero;
-            float dist = reachRatio * (k_Thigh + k_Shin);
-            Vector3 down = Vector3.down;
-            Vector3 target = k_Hip + down * dist;
-            Vector3 anterior = Vector3.forward;
+            float dist = reachRatio * (thigh + shin);
+            Vector3 down = Vector3.down, target = hip + down * dist, anterior = Vector3.forward;
             Vector3 perp = (Quaternion.AngleAxis(phiDeg, down) * anterior).normalized;
-            float half = 0.5f * dist;
-            float rho = Mathf.Sqrt(Mathf.Max(k_Thigh * k_Thigh - half * half, 1e-6f));
-
+            float half = 0.5f * dist, rho = Mathf.Sqrt(Mathf.Max(thigh * thigh - half * half, 1e-6f));
             BasisLegSolveInput i = default;
-            i.Root = k_Hip;
-            i.Mid = k_Hip + down * half + anterior * rho;
+            i.Root = hip;
+            i.Mid = hip + down * half + anterior * rho;
             i.Tip = target;
             i.RootRotation = Quaternion.identity;
             i.MidRotation = Quaternion.identity;
             i.TargetPosition = target;
             i.TargetRotation = Quaternion.identity;
             i.TargetOffset = Quaternion.identity;
-            i.HintPosition = k_Hip + down * half + perp * hintRadius;
+            i.HintPosition = hip + down * half + perp * hintRadius;
             i.HintWeight = 1f;
             i.BendNormal = Vector3.right;
             i.AnteriorNormal = Vector3.right;
@@ -265,38 +219,29 @@ namespace Basis.Tests.IK
 
             BasisLegSolveCore.Solve(i, out BasisLegSolveResult r);
 
-            Vector3 ac = r.FootSolved - k_Hip;
+            Vector3 ac = r.FootSolved - hip;
             if (ac.sqrMagnitude < 1e-10f) return false;
-            Vector3 acN = ac.normalized;
-            Vector3 lever = r.KneeSolved - k_Hip;
+            Vector3 acN = ac.normalized, lever = r.KneeSolved - hip;
             lever -= acN * Vector3.Dot(lever, acN);
             if (lever.sqrMagnitude < 1e-12f) return false;
             kneeDir = lever.normalized;
             return true;
         }
-
         // ── 3. THE SMOOTHER'S REFERENCE NO LONGER REVERSES ──────────────────────────────────────────────
-
         [Test]
         public void TransportedReference_DoesNotReverse_AsTheLegSweepsThroughBodyForward()
         {
             float worst = WorstKneeJumpAcrossLegPitch(transport: true, out float at);
-            Assert.Less(worst, 5f,
-                $"the knee jumped {worst:F1}deg for half a degree of leg pitch at {at:F1}deg -- that is the leg " +
-                "passing through body-forward, i.e. sitting on the floor with the legs out, or a front kick");
+            Assert.Less(worst, 5f, $"the knee jumped {worst:F1}deg for half a degree of leg pitch at {at:F1}deg -- that is the leg " +"passing through body-forward, i.e. sitting on the floor with the legs out, or a front kick");
         }
-
         [Test]
         public void ProjectedReference_DoesReverse_AsTheLegSweepsThroughBodyForward()
         {
             // ANTI-TAUTOLOGY for the gate above: with the transport off (zero TransportHomeLocal = the shipping
             // projection) the reversal must still be there, or the test is measuring nothing.
             float worst = WorstKneeJumpAcrossLegPitch(transport: false, out _);
-            Assert.Greater(worst, 45f,
-                "the projected reference was supposed to reverse through body-forward; if it no longer does, the " +
-                "gate above has stopped measuring the defect");
+            Assert.Greater(worst, 45f, "the projected reference was supposed to reverse through body-forward; if it no longer does, the " +"gate above has stopped measuring the defect");
         }
-
         static float WorstKneeJumpAcrossLegPitch(bool transport, out float worstAt)
         {
             const float step = 0.5f;
@@ -313,12 +258,8 @@ namespace Basis.Tests.IK
                 Vector3 axis = (Quaternion.AngleAxis(pitch, Vector3.right) * Vector3.down).normalized;
                 Vector3 kneeOut = Vector3.Cross(axis, Vector3.right).normalized;
                 const float half = 0.40f;
-                float rho = Mathf.Sqrt(Mathf.Max(k_Thigh * k_Thigh - half * half, 1e-8f));
-
-                Vector3 root = k_Hip;
-                Vector3 tip = k_Hip + axis * 0.80f;
-                Vector3 mid = k_Hip + axis * half + kneeOut * rho;
-
+                float rho = Mathf.Sqrt(Mathf.Max(thigh * thigh - half * half, 1e-8f));
+                Vector3 root = hip, tip = hip + axis * 0.80f, mid = hip + axis * half + kneeOut * rho;
                 BasisSwivelSmootherInput i = MakeInput(root, mid, tip, transport);
                 // Seed ON the current measurement so this isolates the GEOMETRY from filter memory.
                 i.State = BasisSwivelFilterCore.Seed(RawSwivel(root, mid, tip, transport));
@@ -342,7 +283,6 @@ namespace Basis.Tests.IK
             }
             return worst;
         }
-
         [Test]
         public void TransportedReference_IsTheExactProjection_ForEverySagittalPose()
         {
@@ -351,14 +291,12 @@ namespace Basis.Tests.IK
             for (float pitch = -80f; pitch <= 80f; pitch += 2f)
             {
                 Vector3 axis = (Quaternion.AngleAxis(pitch, Vector3.right) * Vector3.down).normalized;
-
                 Vector3 proj = Vector3.ProjectOnPlane(Vector3.forward, axis);
                 if (proj.sqrMagnitude < 1e-6f) continue;
                 proj.Normalize();
 
                 Vector3 sx = Vector3.Cross(Vector3.down, axis);
-                float sw = 1f + Vector3.Dot(Vector3.down, axis);
-                float ssq = sx.sqrMagnitude + sw * sw;
+                float sw = 1f + Vector3.Dot(Vector3.down, axis), ssq = sx.sqrMagnitude + sw * sw;
                 if (!(sw > 1e-4f) || ssq < 1e-8f) continue;
                 float inv = 1f / Mathf.Sqrt(ssq);
                 Quaternion swing = new Quaternion(sx.x * inv, sx.y * inv, sx.z * inv, sw * inv);
@@ -366,42 +304,31 @@ namespace Basis.Tests.IK
                 tr -= axis * Vector3.Dot(tr, axis);
                 tr.Normalize();
 
-                Assert.Less(Vector3.Angle(proj, tr), 0.05f,
-                    $"transport and projection disagree by more than a rounding error at leg pitch {pitch}deg, " +
-                    "which is an ordinary sagittal pose -- the leg tuning would move");
+                Assert.Less(Vector3.Angle(proj, tr), 0.05f, $"transport and projection disagree by more than a rounding error at leg pitch {pitch}deg, " +"which is an ordinary sagittal pose -- the leg tuning would move");
             }
         }
-
         [Test]
         public void ButterflyKnee_StaysInsideTheGuardsFreeBand_UnderTheTransportedReference()
         {
             // The transport moves the measured swivel for OUT-OF-sagittal poses (~13deg on a cobbler sit). That is
             // only acceptable while it leaves legal poses inside the free band, where the guard is the identity --
             // otherwise the fix trades a click for a compressed butterfly.
-            Vector3 axis = (Quaternion.AngleAxis(55f, Vector3.up) *
-                           (Quaternion.AngleAxis(55f, Vector3.right) * Vector3.down)).normalized;
-
+            Vector3 axis = (Quaternion.AngleAxis(55f, Vector3.up) * (Quaternion.AngleAxis(55f, Vector3.right) * Vector3.down)).normalized;
             Vector3 solveAnterior = Vector3.Cross(axis, Vector3.right);
             solveAnterior -= axis * Vector3.Dot(solveAnterior, axis);
             solveAnterior.Normalize();
             Vector3 pole = Quaternion.AngleAxis(BasisButterflyKneeCore.DefaultMaxOpenDeg, axis) * solveAnterior;
-
             Vector3 sx = Vector3.Cross(Vector3.down, axis);
-            float sw = 1f + Vector3.Dot(Vector3.down, axis);
-            float inv = 1f / Mathf.Sqrt(sx.sqrMagnitude + sw * sw);
+            float sw = 1f + Vector3.Dot(Vector3.down, axis), inv = 1f / Mathf.Sqrt(sx.sqrMagnitude + sw * sw);
             Quaternion swing = new Quaternion(sx.x * inv, sx.y * inv, sx.z * inv, sw * inv);
             Vector3 refDir = swing * Vector3.forward;
             refDir -= axis * Vector3.Dot(refDir, axis);
             refDir.Normalize();
 
             float swivel = Vector3.SignedAngle(refDir, pole, axis);
-            Assert.Less(Mathf.Abs(swivel), Soft,
-                $"a full butterfly splay reads {swivel:F1}deg against the transported reference, which is past the " +
-                $"{Soft}deg soft edge -- the guard would start compressing a legal cobbler sit");
+            Assert.Less(Mathf.Abs(swivel), Soft, $"a full butterfly splay reads {swivel:F1}deg against the transported reference, which is past the " + $"{Soft}deg soft edge -- the guard would start compressing a legal cobbler sit");
         }
-
         // ── 4. END TO END: A NOISY POLE PARKED BEHIND THE LEG MUST NOT CLICK ────────────────────────────
-
         [Test]
         public void ANoisyPoleParkedBehindTheLeg_ProducesNoClicks()
         {
@@ -412,11 +339,8 @@ namespace Basis.Tests.IK
             const int frames = 270;
             Vector3 axis = Vector3.down;
             const float cond = 0.35f;
-            float rho = cond * k_Thigh;
-            float along = Mathf.Sqrt(Mathf.Max(k_Thigh * k_Thigh - rho * rho, 1e-8f));
-            Vector3 root = k_Hip;
-            Vector3 tip = k_Hip + axis * 0.8395f;
-
+            float rho = cond * thigh, along = Mathf.Sqrt(Mathf.Max(thigh * thigh - rho * rho, 1e-8f));
+            Vector3 root = hip, tip = hip + axis * 0.8395f;
             BasisSwivelFilterState state = default;
             bool seeded = false;
             int clicks = 0;
@@ -426,10 +350,8 @@ namespace Basis.Tests.IK
 
             for (int f = 0; f < frames; f++)
             {
-                float t = f / (float)(frames - 1);
-                float phi = 178f + Mathf.Sin(t * 61f) * 1.6f + Mathf.Sin(t * 23.7f) * 0.9f;
+                float t = f / (float)(frames - 1), phi = 178f + Mathf.Sin(t * 61f) * 1.6f + Mathf.Sin(t * 23.7f) * 0.9f;
                 Vector3 mid = root + axis * along + (Quaternion.AngleAxis(phi, axis) * Vector3.forward).normalized * rho;
-
                 BasisSwivelSmootherInput i = MakeInput(root, mid, tip, transport: true);
                 i.State = state;
                 i.Seeded = seeded;
@@ -453,20 +375,15 @@ namespace Basis.Tests.IK
                 have = true;
             }
 
-            Assert.AreEqual(0, clicks,
-                $"{clicks} frames moved the knee more than 20deg (worst {worst:F1}deg). A human knee tops out near " +
-                "500deg/s, which is 5.6deg per frame at 90fps.");
+            Assert.AreEqual(0, clicks, $"{clicks} frames moved the knee more than 20deg (worst {worst:F1}deg). A human knee tops out near " +"500deg/s, which is 5.6deg per frame at 90fps.");
         }
-
         static float RawSwivel(Vector3 root, Vector3 mid, Vector3 tip, bool transport)
         {
-            Vector3 axis = (tip - root).normalized;
-            Vector3 refDir;
+            Vector3 axis = (tip - root).normalized, refDir;
             if (transport)
             {
                 Vector3 sx = Vector3.Cross(Vector3.down, axis);
-                float sw = 1f + Vector3.Dot(Vector3.down, axis);
-                float inv = 1f / Mathf.Sqrt(sx.sqrMagnitude + sw * sw);
+                float sw = 1f + Vector3.Dot(Vector3.down, axis), inv = 1f / Mathf.Sqrt(sx.sqrMagnitude + sw * sw);
                 Quaternion swing = new Quaternion(sx.x * inv, sx.y * inv, sx.z * inv, sw * inv);
                 refDir = swing * Vector3.forward;
                 refDir -= axis * Vector3.Dot(refDir, axis);
@@ -479,7 +396,6 @@ namespace Basis.Tests.IK
             refDir.Normalize();
             return Clamp(Vector3.SignedAngle(refDir, Vector3.ProjectOnPlane(mid - root, axis), axis));
         }
-
         static BasisSwivelSmootherInput MakeInput(Vector3 root, Vector3 mid, Vector3 tip, bool transport)
         {
             BasisSwivelSmootherInput i = default;

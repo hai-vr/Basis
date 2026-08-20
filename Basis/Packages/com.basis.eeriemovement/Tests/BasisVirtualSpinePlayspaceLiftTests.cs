@@ -4,28 +4,18 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     public sealed class BasisVirtualSpinePlayspaceLiftTests
     {
         const int Head = 0, Neck = 1, Chest = 2, Spine = 3, Hips = 4;
         const int BoneCount = 5;
-
-        const float StandingHeadY = 1.60f;
-        const float StandingHipsY = 0.95f;
-        const float ChestTposeY = 1.30f;
-        const float SpineTposeY = 1.10f;
-        const float NeckDrop = 0.12f;
-        const float LenTotal = 0.65f;
-
+        const float StandingHeadY = 1.60f, StandingHipsY = 0.95f, ChestTposeY = 1.30f, SpineTposeY = 1.10f;
+        const float NeckDrop = 0.12f, LenTotal = 0.65f;
         struct TorsoPose
         {
-            public float3 HipsPos;
-            public float3 ChestPos;
-            public float3 SpinePos;
+            public float3 HipsPos, ChestPos, SpinePos;
         }
-
         static TorsoPose RunSpineOnce(float3 headPos, float trackingLiftY)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
@@ -61,7 +51,6 @@ namespace Basis.Tests.IK
                 solve.Dispose();
             }
         }
-
         static BasisVirtualSpineCore.SpineSolveParams MakeParams(float3 headPos, float trackingLiftY)
         {
             return new BasisVirtualSpineCore.SpineSolveParams
@@ -121,9 +110,7 @@ namespace Basis.Tests.IK
                 HipsMaxDropMeters = 0.30f,
             };
         }
-
         static float3 StandingHead(float lift) => new float3(0f, StandingHeadY + lift, 0f);
-
         [Test]
         public void AVerticalSpaceDrag_ShiftsTheWholeTorsoWithTheBody()
         {
@@ -133,48 +120,33 @@ namespace Basis.Tests.IK
             {
                 TorsoPose dragged = RunSpineOnce(StandingHead(lift), lift);
 
-                Assert.AreEqual(baseline.HipsPos.y + lift, dragged.HipsPos.y, 0.005f,
-                    $"hips did not ride a {lift:+0.00;-0.00} m space drag with the body -- the untracked leg "
-                    + "chain hangs off this pelvis, so every leg bone is wrong by the same gap and the "
-                    + "calibration lock-in guides can never latch the leg/hip trackers.");
-                Assert.AreEqual(baseline.ChestPos.y + lift, dragged.ChestPos.y, 0.005f,
-                    $"chest did not ride a {lift:+0.00;-0.00} m space drag -- its Y-pin is still anchored to "
-                    + "the floor-relative T-pose height instead of the lifted tracking space.");
-                Assert.AreEqual(baseline.SpinePos.y + lift, dragged.SpinePos.y, 0.005f,
-                    $"spine did not ride a {lift:+0.00;-0.00} m space drag.");
+                Assert.AreEqual(baseline.HipsPos.y + lift, dragged.HipsPos.y, 0.005f, $"hips did not ride a {lift:+0.00;-0.00} m space drag with the body -- the untracked leg " + "chain hangs off this pelvis, so every leg bone is wrong by the same gap and the " + "calibration lock-in guides can never latch the leg/hip trackers.");
+                Assert.AreEqual(baseline.ChestPos.y + lift, dragged.ChestPos.y, 0.005f, $"chest did not ride a {lift:+0.00;-0.00} m space drag -- its Y-pin is still anchored to " + "the floor-relative T-pose height instead of the lifted tracking space.");
+                Assert.AreEqual(baseline.SpinePos.y + lift, dragged.SpinePos.y, 0.005f, $"spine did not ride a {lift:+0.00;-0.00} m space drag.");
             }
         }
-
         [Test]
         public void WithTheLiftUnplumbed_ADownwardDrag_ReadsAsAPhantomSquat()
         {
             const float drag = -0.8f;
-            TorsoPose baseline = RunSpineOnce(StandingHead(0f), 0f);
-            TorsoPose broken = RunSpineOnce(StandingHead(drag), 0f);
-
+            TorsoPose baseline = RunSpineOnce(StandingHead(0f), 0f), broken = RunSpineOnce(StandingHead(drag), 0f);
             float hipsError = Mathf.Abs((baseline.HipsPos.y + drag) - broken.HipsPos.y);
-            Assert.Greater(hipsError, 0.15f,
-                $"the un-lifted law only misplaced the hips by {hipsError * 100f:F1} cm on a {-drag * 100f:F0} cm "
-                + "downward drag -- the phantom-squat misread this suite guards against is no longer "
-                + "reproducible, so the equivariance gate is not being exercised.");
+            Assert.Greater(hipsError, 0.15f, $"the un-lifted law only misplaced the hips by {hipsError * 100f:F1} cm on a {-drag * 100f:F0} cm " + "downward drag -- the phantom-squat misread this suite guards against is no longer " + "reproducible, so the equivariance gate is not being exercised.");
 
             float chestError = Mathf.Abs((baseline.ChestPos.y + drag) - broken.ChestPos.y);
             Assert.AreEqual(-drag, chestError, 0.01f,
                 "the un-lifted chest pin should miss by exactly the drag (it is pinned to the floor-relative "
                 + "T-pose Y); if it no longer does, the chest gate above is not measuring the pin.");
         }
-
         [Test]
         public void ARealCrouch_ReadsTheSame_WithOrWithoutASpaceDrag()
         {
             const float crouch = 0.35f;
-
             TorsoPose standingFlat = RunSpineOnce(StandingHead(0f), 0f);
             TorsoPose crouchFlat = RunSpineOnce(new float3(0f, StandingHeadY - crouch, 0f), 0f);
             float pelvisDropFlat = standingFlat.HipsPos.y - crouchFlat.HipsPos.y;
 
-            Assert.Greater(pelvisDropFlat, 0.05f,
-                "sanity: this crouch should move the pelvis at all, or the invariance below is vacuous");
+            Assert.Greater(pelvisDropFlat, 0.05f,"sanity: this crouch should move the pelvis at all, or the invariance below is vacuous");
 
             foreach (float lift in new[] { -0.8f, 0.8f })
             {
@@ -182,9 +154,7 @@ namespace Basis.Tests.IK
                 TorsoPose crouchLifted = RunSpineOnce(new float3(0f, StandingHeadY + lift - crouch, 0f), lift);
                 float pelvisDropLifted = standingLifted.HipsPos.y - crouchLifted.HipsPos.y;
 
-                Assert.AreEqual(pelvisDropFlat, pelvisDropLifted, 0.01f,
-                    $"the same {crouch * 100f:F0} cm crouch produced a different pelvis drop under a "
-                    + $"{lift:+0.00;-0.00} m space drag -- the posture law is no longer play-space equivariant.");
+                Assert.AreEqual(pelvisDropFlat, pelvisDropLifted, 0.01f, $"the same {crouch * 100f:F0} cm crouch produced a different pelvis drop under a " + $"{lift:+0.00;-0.00} m space drag -- the posture law is no longer play-space equivariant.");
             }
         }
     }

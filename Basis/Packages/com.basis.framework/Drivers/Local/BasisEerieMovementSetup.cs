@@ -30,7 +30,6 @@ namespace Basis.Scripts.Drivers
 
             job.playerUp = Vector3.up;
 
-            // Avatar-measured; the rig driver overwrites both once the T-pose spine is known.
             job.minHeadSpineHeight = 0f;
             job.minFactor = 0.95f;
             job.maxFactor = 1.05f;
@@ -42,13 +41,10 @@ namespace Basis.Scripts.Drivers
             job.targetRotationHips = Quaternion.identity;
             job.offsetRotationHips = Quaternion.identity;
 
-            // Integrated driven TR defaults
-
             job.leftDrivenTargetRot = job.rightDrivenTargetRot = Quaternion.identity;
             job.leftToeEnabled = false;
             job.rightToeEnabled = false;
 
-            // Chest/hand capsule defaults — read from persisted settings
             job.chestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue;
             job.collisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue;
             job.collisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
@@ -105,11 +101,9 @@ namespace Basis.Scripts.Drivers
             job.neckFlexionDamp = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckFlexionDamp.RawValue;
             job.moveBodyBackWhenCrouching = Basis.BasisUI.BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.RawValue;
             job.crouchDepth = 0f;
-            job.standingHeadHeight = 0f; // 0 = sit-back inert until the rig driver packs the real height
+            job.standingHeadHeight = 0f;
             job.trunkCounterbalance = Basis.BasisUI.BasisSettingsDefaults.FBIKTrunkCounterbalance.RawValue;
-            job.swingSmoothRateDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowSwingEnabled.RawValue
-                ? Basis.BasisUI.BasisSettingsDefaults.FBIKSwingSmoothRate.RawValue
-                : 0f;
+            job.swingSmoothRateDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowSwingEnabled.RawValue ? Basis.BasisUI.BasisSettingsDefaults.FBIKSwingSmoothRate.RawValue : 0f;
             job.chestArmSwingFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingFactor.RawValue;
             job.chestArmSwingMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.RawValue;
             job.lowerArmTwistFraction = Basis.BasisUI.BasisSettingsDefaults.FBIKLowerArmTwistFraction.RawValue;
@@ -140,14 +134,12 @@ namespace Basis.Scripts.Drivers
             job.lordosisExtremeChestDownMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestDownMax.RawValue;
             job.lordosisExtremeHipsDownLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsDownLookUp.RawValue;
             job.lordosisExtremeChestDownLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestDownLookUp.RawValue;
-            // 1.0 (was 0.8), retuned against the mocap corpus: full relax is strictly better measured —
-            // closer to the human spine AND a quieter standing noise floor. See FBIKSpineCCDRelax.
+
             job.spineCCDRelax = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineCCDRelax.RawValue;
             job.neckMaxConeDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckMaxConeDeg.RawValue;
             job.spineTwistKeep = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineTwistKeep.RawValue;
             job.spineNeckTwistKeep = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineNeckTwistKeep.RawValue;
 
-            // Slots: identity rotations, zero positions, weights disabled.
             job.slotPositions.Length = BasisEerieMovement.Count;
             job.slotRotations.Length = BasisEerieMovement.Count;
             job.slotOffsets.Length = BasisEerieMovement.Count;
@@ -169,7 +161,6 @@ namespace Basis.Scripts.Drivers
 
             return Quaternion.Inverse(parent.rotation) * bone.rotation;
         }
-
         public static void Create(ref BasisEerieMovement job, BasisPoseSkeleton skeleton, BasisTransformMapping Mapping)
         {
             job.handleHips = skeleton.Bind(Mapping.Hips);
@@ -199,34 +190,20 @@ namespace Basis.Scripts.Drivers
             job.handleLeftShoulder = skeleton.Bind(Mapping.leftShoulder);
             job.handleRightShoulder = skeleton.Bind(Mapping.RightShoulder);
 
-            // Baked T-pose data for shoulder solve
             job.tposeLeftShoulderRot = Mapping.leftShoulder != null ? Mapping.leftShoulder.rotation : Quaternion.identity;
             job.tposeRightShoulderRot = Mapping.RightShoulder != null ? Mapping.RightShoulder.rotation : Quaternion.identity;
-            job.tposeChestRot = Mapping.Upperchest != null ? Mapping.Upperchest.rotation
-                : Mapping.chest != null ? Mapping.chest.rotation : Quaternion.identity;
-            job.tposeLeftShoulderLocalDir = (Mapping.leftShoulder != null && Mapping.leftUpperArm != null)
-                ? (Mapping.leftUpperArm.position - Mapping.leftShoulder.position).normalized : Vector3.left;
-            job.tposeRightShoulderLocalDir = (Mapping.RightShoulder != null && Mapping.RightUpperArm != null)
-                ? (Mapping.RightUpperArm.position - Mapping.RightShoulder.position).normalized : Vector3.right;
-            // 0.6 m is an adult arm; on a small avatar it is the same shoulder-inert / shrug-latched failure
-            // a stale bake produces, so the fallback tracks avatar size too.
-            float fallbackArmLength = 0.6f * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
-            job.tposeShoulderToHandLeft = (Mapping.leftShoulder != null && Mapping.leftHand != null)
-                ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftHand.position) : fallbackArmLength;
-            job.tposeShoulderToHandRight = (Mapping.RightShoulder != null && Mapping.rightHand != null)
-                ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.rightHand.position) : fallbackArmLength;
-            job.tposeClavicleLenLeft = (Mapping.leftShoulder != null && Mapping.leftUpperArm != null)
-                ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftUpperArm.position) : 0f;
-            job.tposeClavicleLenRight = (Mapping.RightShoulder != null && Mapping.RightUpperArm != null)
-                ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.RightUpperArm.position) : 0f;
-            job.tposeShoulderToElbowLeft = (Mapping.leftShoulder != null && Mapping.leftLowerArm != null)
-                ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftLowerArm.position) : 0f;
-            job.tposeShoulderToElbowRight = (Mapping.RightShoulder != null && Mapping.RightLowerArm != null)
-                ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.RightLowerArm.position) : 0f;
+            job.tposeChestRot = Mapping.Upperchest != null ? Mapping.Upperchest.rotation : Mapping.chest != null ? Mapping.chest.rotation : Quaternion.identity;
+            job.tposeLeftShoulderLocalDir = (Mapping.leftShoulder != null && Mapping.leftUpperArm != null) ? (Mapping.leftUpperArm.position - Mapping.leftShoulder.position).normalized : Vector3.left;
+            job.tposeRightShoulderLocalDir = (Mapping.RightShoulder != null && Mapping.RightUpperArm != null) ? (Mapping.RightUpperArm.position - Mapping.RightShoulder.position).normalized : Vector3.right;
 
-            // Baked T-pose binds for the arm twist solve. Both ends need one: the helper so its authored
-            // rotation survives the write, and the driving child so its authored roll is not mistaken for
-            // live twist. Same T-posed read as the shoulder bake above.
+            float fallbackArmLength = 0.6f * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+            job.tposeShoulderToHandLeft = (Mapping.leftShoulder != null && Mapping.leftHand != null) ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftHand.position) : fallbackArmLength;
+            job.tposeShoulderToHandRight = (Mapping.RightShoulder != null && Mapping.rightHand != null) ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.rightHand.position) : fallbackArmLength;
+            job.tposeClavicleLenLeft = (Mapping.leftShoulder != null && Mapping.leftUpperArm != null) ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftUpperArm.position) : 0f;
+            job.tposeClavicleLenRight = (Mapping.RightShoulder != null && Mapping.RightUpperArm != null) ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.RightUpperArm.position) : 0f;
+            job.tposeShoulderToElbowLeft = (Mapping.leftShoulder != null && Mapping.leftLowerArm != null) ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftLowerArm.position) : 0f;
+            job.tposeShoulderToElbowRight = (Mapping.RightShoulder != null && Mapping.RightLowerArm != null) ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.RightLowerArm.position) : 0f;
+
             job.tposeLeftLowerArmTwistBind = BindLocal(Mapping.leftLowerArm, Mapping.leftLowerArmTwist);
             job.tposeLeftLowerArmChildBind = BindLocal(Mapping.leftLowerArm, Mapping.leftHand);
             job.tposeRightLowerArmTwistBind = BindLocal(Mapping.RightLowerArm, Mapping.RightLowerArmTwist);
@@ -251,14 +228,14 @@ namespace Basis.Scripts.Drivers
             job.chainSpineRestFrames = new NativeArray<BasisSpineRestFrame>(n, Allocator.Persistent);
             if (Mapping.leftUpperArm == null || Mapping.RightUpperArm == null)
             {
-                return;   // every frame stays Valid=false, so the guard is a no-op. Decline, never guess.
+                return;
             }
             Vector3 hipsRight = Mapping.RightUpperArm.position - Mapping.leftUpperArm.position;
 
-            for (int i = 1; i <= n - 2; i++)   // skip the head (0) and the hips (n-1)
+            for (int i = 1; i <= n - 2; i++)
             {
                 Transform bone = chain[i];
-                Transform child = chain[i - 1];    // the chain runs tip -> root, so the CHILD is i-1
+                Transform child = chain[i - 1];
                 Transform parent = chain[i + 1];
                 if (bone == null || child == null || parent == null)
                 {
@@ -287,18 +264,14 @@ namespace Basis.Scripts.Drivers
                     continue;
                 }
 
-                BasisSpineRestFrame frame = BasisSpineAnatomy.BuildRestFrame(
-                    bone.position, child.position, bone.rotation, parent.rotation, hipsRight);
+                BasisSpineRestFrame frame = BasisSpineAnatomy.BuildRestFrame( bone.position, child.position, bone.rotation, parent.rotation, hipsRight);
                 frame.Segment = segment;
                 job.chainSpineRestFrames[i] = frame;
             }
         }
         public static void GenerateHeadToSpine(ref BasisEerieMovement job, BasisPoseSkeleton skeleton, BasisTransformMapping Mapping)
         {
-            // Neck / upperChest / chest are optional humanoid bones. The chain carries only the bones the
-            // avatar has -- an unbound handle anywhere in it would switch the whole spine solve (and the
-            // head pin welded to the HMD) off for that avatar. Head, spine and hips are required: without
-            // them there is no chain (the solver treats fewer than 3 links as unsolvable).
+
             Transform[] candidates = { Mapping.head, Mapping.neck, Mapping.Upperchest, Mapping.chest, Mapping.spine, Mapping.Hips };
             bool solvable = Mapping.head != null && Mapping.spine != null && Mapping.Hips != null;
             int presentCount = 0;
@@ -335,9 +308,7 @@ namespace Basis.Scripts.Drivers
             {
                 job.chainHeadToSpine[i] = skeleton.Bind(HeadToSpine[i]);
             }
-            Vector3 headToHips = Mapping.Hips != null && Mapping.head != null
-                ? Mapping.head.position - Mapping.Hips.position
-                : Vector3.zero;
+            Vector3 headToHips = Mapping.Hips != null && Mapping.head != null ? Mapping.head.position - Mapping.Hips.position : Vector3.zero;
             if (Mapping.head != null && Mapping.neck != null)
             {
                 job.tposeHeadToNeckLocal = Quaternion.Inverse(Mapping.head.rotation) * (Mapping.neck.position - Mapping.head.position);
@@ -356,7 +327,6 @@ namespace Basis.Scripts.Drivers
                 job.tposeLengthNeckToHips = headToHips;
             }
 
-            // Record the size these were measured at, so a later rescale can carry them along.
             job.tposeBakeScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
         }
     }

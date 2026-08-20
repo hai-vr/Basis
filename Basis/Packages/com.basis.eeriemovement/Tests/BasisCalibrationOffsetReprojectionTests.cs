@@ -1,6 +1,5 @@
 using NUnit.Framework;
 using UnityEngine;
-
 namespace Basis.Tests.IK
 {
     public class BasisCalibrationOffsetReprojectionTests
@@ -9,21 +8,14 @@ namespace Basis.Tests.IK
         static readonly Vector3 HeadUnscaled = new Vector3(0.03f, 1.65f, -0.02f);
         static readonly Vector3 TrackerUnscaled = new Vector3(0.05f, 0.94f, 0.02f);
         static readonly Quaternion TrackerRotUnscaled = Quaternion.Euler(10f, 40f, -5f);
-
         // Avatar T-pose binds (root-local, scaled space): head and hip of the calibration avatar,
         // plus a differently proportioned swap target (shorter, wider hips).
-        static readonly Vector3 HeadTposeA = new Vector3(0f, 1.58f, 0.04f);
-        static readonly Vector3 HipTposeA = new Vector3(0.02f, 0.92f, 0f);
+        static readonly Vector3 HeadTposeA = new Vector3(0f, 1.58f, 0.04f), HipTposeA = new Vector3(0.02f, 0.92f, 0f);
         static readonly Vector3 HeadTposeB = new Vector3(0f, 1.10f, 0.02f);
         static readonly Vector3 HipTposeB = new Vector3(0.06f, 0.58f, -0.01f);
-
         // What BasisInput.CalculateOffset produces at a live calibration: the avatar is DriveTpose'd to
         // the (scaled) head and the offset captured against the bone's anchored T-pose position.
-        static Vector3 CaptureLive(Vector3 headUnscaled, Quaternion headRotUnscaled,
-            Vector3 trackerUnscaled, Quaternion trackerRotUnscaled,
-            float scale, Vector3 offPos, Quaternion offRot,
-            Vector3 headTpose, Vector3 boneTpose,
-            out Vector3 trackerScaledPos, out Quaternion trackerScaledRot, out Vector3 reference)
+        static Vector3 CaptureLive(Vector3 headUnscaled, Quaternion headRotUnscaled, Vector3 trackerUnscaled, Quaternion trackerRotUnscaled, float scale, Vector3 offPos, Quaternion offRot, Vector3 headTpose, Vector3 boneTpose, out Vector3 trackerScaledPos, out Quaternion trackerScaledRot, out Vector3 reference)
         {
             BasisCalibrationMath.ScaleDeviceCoord(trackerUnscaled, trackerRotUnscaled, scale, offPos, offRot, out trackerScaledPos, out trackerScaledRot);
             BasisCalibrationMath.ScaleDeviceCoord(headUnscaled, headRotUnscaled, scale, offPos, offRot, out Vector3 headScaled, out Quaternion headScaledRot);
@@ -37,10 +29,7 @@ namespace Basis.Tests.IK
             BasisCalibrationMath.ComputeInverseOffset(trackerScaledPos, trackerScaledRot, reference, Quaternion.identity, out Vector3 invOff, out _);
             return invOff;
         }
-
-        static Vector3 RuntimeBone(Vector3 trackerScaledPos, Quaternion trackerScaledRot, Vector3 invOffPos)
-            => trackerScaledPos + trackerScaledRot * invOffPos;
-
+        static Vector3 RuntimeBone(Vector3 trackerScaledPos, Quaternion trackerScaledRot, Vector3 invOffPos) => trackerScaledPos + trackerScaledRot * invOffPos;
         [Test]
         public void UnscaleDeviceCoord_IsExactInverseOfScaleDeviceCoord()
         {
@@ -57,7 +46,6 @@ namespace Basis.Tests.IK
                 Assert.That(Quaternion.Angle(ur2, ur), Is.LessThan(1e-3f), $"scale {scale}: unscale did not invert scale (rot).");
             }
         }
-
         [Test]
         public void Reproject_SameAvatarSameScale_ReproducesCapturedOffsetExactly()
         {
@@ -67,19 +55,13 @@ namespace Basis.Tests.IK
             foreach (var headRot in new[] { Quaternion.identity, Quaternion.Euler(0f, 90f, 0f), Quaternion.Euler(15f, -130f, 0f) })
             foreach (float scale in new[] { 0.62f, 1f, 1.38f })
             {
-                Vector3 captured = CaptureLive(HeadUnscaled, headRot, TrackerUnscaled, TrackerRotUnscaled,
-                    scale, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out _, out _, out _);
+                Vector3 captured = CaptureLive(HeadUnscaled, headRot, TrackerUnscaled, TrackerRotUnscaled, scale, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out _, out _, out _);
 
-                BasisCalibrationMath.ReprojectInverseOffsetPosition(
-                    TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot,
-                    scale, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA,
-                    out Vector3 reprojected);
+                BasisCalibrationMath.ReprojectInverseOffsetPosition(TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot, scale, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out Vector3 reprojected);
 
-                Assert.That((reprojected - captured).magnitude, Is.LessThan(1e-5f),
-                    $"heading {headRot.eulerAngles} scale {scale}: same-state reprojection moved the offset by {(reprojected - captured).magnitude:0.000000} m.");
+                Assert.That((reprojected - captured).magnitude, Is.LessThan(1e-5f), $"heading {headRot.eulerAngles} scale {scale}: same-state reprojection moved the offset by {(reprojected - captured).magnitude:0.000000} m.");
             }
         }
-
         [Test]
         public void Reproject_ScaleChange_LandsBoneExactlyOnRebuiltReference()
         {
@@ -88,28 +70,17 @@ namespace Basis.Tests.IK
             // must land the bone exactly on the anchor rebuilt at s1.
             float s0 = 1.00f, s1 = 0.63f;
             Quaternion headRot = Quaternion.Euler(5f, 25f, 0f);
-
-            Vector3 stale = CaptureLive(HeadUnscaled, headRot, TrackerUnscaled, TrackerRotUnscaled,
-                s0, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out _, out _, out _);
+            Vector3 stale = CaptureLive(HeadUnscaled, headRot, TrackerUnscaled, TrackerRotUnscaled, s0, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out _, out _, out _);
 
             // Ground truth at s1 = what a fresh T-pose capture would produce.
-            Vector3 fresh = CaptureLive(HeadUnscaled, headRot, TrackerUnscaled, TrackerRotUnscaled,
-                s1, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA,
-                out Vector3 trackerS1Pos, out Quaternion trackerS1Rot, out Vector3 referenceS1);
+            Vector3 fresh = CaptureLive(HeadUnscaled, headRot, TrackerUnscaled, TrackerRotUnscaled, s1, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out Vector3 trackerS1Pos, out Quaternion trackerS1Rot, out Vector3 referenceS1);
 
-            BasisCalibrationMath.ReprojectInverseOffsetPosition(
-                TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot,
-                s1, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA,
-                out Vector3 reprojected);
+            BasisCalibrationMath.ReprojectInverseOffsetPosition(TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot, s1, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out Vector3 reprojected);
 
-            Assert.That((reprojected - fresh).magnitude, Is.LessThan(1e-5f),
-                "reprojected offset must equal a fresh T-pose capture at the new scale.");
-            Assert.That((RuntimeBone(trackerS1Pos, trackerS1Rot, reprojected) - referenceS1).magnitude, Is.LessThan(1e-5f),
-                "bone must land exactly on the rebuilt reference at the new scale.");
-            Assert.That((RuntimeBone(trackerS1Pos, trackerS1Rot, stale) - referenceS1).magnitude, Is.GreaterThan(0.05f),
-                "the stale offset was expected to visibly miss at the new scale; the scenario no longer exercises the bug.");
+            Assert.That((reprojected - fresh).magnitude, Is.LessThan(1e-5f),"reprojected offset must equal a fresh T-pose capture at the new scale.");
+            Assert.That((RuntimeBone(trackerS1Pos, trackerS1Rot, reprojected) - referenceS1).magnitude, Is.LessThan(1e-5f),"bone must land exactly on the rebuilt reference at the new scale.");
+            Assert.That((RuntimeBone(trackerS1Pos, trackerS1Rot, stale) - referenceS1).magnitude, Is.GreaterThan(0.05f),"the stale offset was expected to visibly miss at the new scale; the scenario no longer exercises the bug.");
         }
-
         [Test]
         public void Reproject_AvatarProportionChange_LandsBoneOnNewAvatarsBone()
         {
@@ -118,22 +89,13 @@ namespace Basis.Tests.IK
             // the NEW avatar's hip — equal to what a fresh T-pose on that avatar would capture.
             float scale = 0.85f;
             Quaternion headRot = Quaternion.Euler(0f, -60f, 0f);
+            Vector3 fresh = CaptureLive(HeadUnscaled, headRot, TrackerUnscaled, TrackerRotUnscaled, scale, Vector3.zero, Quaternion.identity, HeadTposeB, HipTposeB, out Vector3 trackerPos, out Quaternion trackerRot, out Vector3 referenceB);
 
-            Vector3 fresh = CaptureLive(HeadUnscaled, headRot, TrackerUnscaled, TrackerRotUnscaled,
-                scale, Vector3.zero, Quaternion.identity, HeadTposeB, HipTposeB,
-                out Vector3 trackerPos, out Quaternion trackerRot, out Vector3 referenceB);
+            BasisCalibrationMath.ReprojectInverseOffsetPosition(TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot, scale, Vector3.zero, Quaternion.identity, HeadTposeB, HipTposeB, out Vector3 reprojected);
 
-            BasisCalibrationMath.ReprojectInverseOffsetPosition(
-                TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot,
-                scale, Vector3.zero, Quaternion.identity, HeadTposeB, HipTposeB,
-                out Vector3 reprojected);
-
-            Assert.That((reprojected - fresh).magnitude, Is.LessThan(1e-5f),
-                "reprojection onto a differently-proportioned avatar must equal a fresh capture on it.");
-            Assert.That((RuntimeBone(trackerPos, trackerRot, reprojected) - referenceB).magnitude, Is.LessThan(1e-5f),
-                "bone must land on the new avatar's own T-pose hip.");
+            Assert.That((reprojected - fresh).magnitude, Is.LessThan(1e-5f),"reprojection onto a differently-proportioned avatar must equal a fresh capture on it.");
+            Assert.That((RuntimeBone(trackerPos, trackerRot, reprojected) - referenceB).magnitude, Is.LessThan(1e-5f),"bone must land on the new avatar's own T-pose hip.");
         }
-
         [Test]
         public void Reproject_SurvivesOffsetCoordsChange()
         {
@@ -144,22 +106,13 @@ namespace Basis.Tests.IK
             Quaternion headRot = Quaternion.Euler(0f, 35f, 0f);
             Vector3 seatPos = new Vector3(1.4f, 0.1f, -2.2f);
             Quaternion seatRot = Quaternion.Euler(0f, 155f, 0f);
+            Vector3 fresh = CaptureLive(HeadUnscaled, headRot, TrackerUnscaled, TrackerRotUnscaled, scale, seatPos, seatRot, HeadTposeA, HipTposeA, out Vector3 trackerPos, out Quaternion trackerRot, out Vector3 reference);
 
-            Vector3 fresh = CaptureLive(HeadUnscaled, headRot, TrackerUnscaled, TrackerRotUnscaled,
-                scale, seatPos, seatRot, HeadTposeA, HipTposeA,
-                out Vector3 trackerPos, out Quaternion trackerRot, out Vector3 reference);
+            BasisCalibrationMath.ReprojectInverseOffsetPosition(TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot, scale, seatPos, seatRot, HeadTposeA, HipTposeA, out Vector3 reprojected);
 
-            BasisCalibrationMath.ReprojectInverseOffsetPosition(
-                TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot,
-                scale, seatPos, seatRot, HeadTposeA, HipTposeA,
-                out Vector3 reprojected);
-
-            Assert.That((reprojected - fresh).magnitude, Is.LessThan(1e-5f),
-                "reprojection into a world-seat frame must equal a fresh capture in that frame.");
-            Assert.That((RuntimeBone(trackerPos, trackerRot, reprojected) - reference).magnitude, Is.LessThan(1e-5f),
-                "bone must land on the reference rebuilt in the seat frame.");
+            Assert.That((reprojected - fresh).magnitude, Is.LessThan(1e-5f),"reprojection into a world-seat frame must equal a fresh capture in that frame.");
+            Assert.That((RuntimeBone(trackerPos, trackerRot, reprojected) - reference).magnitude, Is.LessThan(1e-5f),"bone must land on the reference rebuilt in the seat frame.");
         }
-
         [Test]
         public void Reproject_IsIdempotent_RepeatedResolvesDoNotDrift()
         {
@@ -169,12 +122,8 @@ namespace Basis.Tests.IK
             float scale = 1.21f;
             Quaternion headRot = Quaternion.Euler(3f, 200f, 0f);
 
-            BasisCalibrationMath.ReprojectInverseOffsetPosition(
-                TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot,
-                scale, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out Vector3 first);
-            BasisCalibrationMath.ReprojectInverseOffsetPosition(
-                TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot,
-                scale, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out Vector3 second);
+            BasisCalibrationMath.ReprojectInverseOffsetPosition(TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot, scale, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out Vector3 first);
+            BasisCalibrationMath.ReprojectInverseOffsetPosition(TrackerUnscaled, TrackerRotUnscaled, HeadUnscaled, headRot, scale, Vector3.zero, Quaternion.identity, HeadTposeA, HipTposeA, out Vector3 second);
 
             Assert.That(second, Is.EqualTo(first), "reprojection must be deterministic.");
         }

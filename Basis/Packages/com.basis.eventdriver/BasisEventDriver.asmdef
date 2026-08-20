@@ -13,7 +13,8 @@
         "Unity.RenderPipelines.Core.Runtime",
         "HVR.Basis.Comms",
         "BasisGizmos",
-        "BasisDebug"
+        "BasisDebug",
+        "BasisCommon"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

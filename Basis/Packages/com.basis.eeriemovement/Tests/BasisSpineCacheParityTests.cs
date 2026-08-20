@@ -2,44 +2,40 @@ using NUnit.Framework;
 using Unity.Collections;
 using UnityEngine;
 using Basis.IK;
-
 namespace Basis.Tests.IK
 {
     public class BasisSpineCacheParityTests
     {
-        GameObject _root;
-        BasisPoseSkeleton _skeleton;
+        GameObject root;
+        BasisPoseSkeleton skeleton;
         NativeArray<BasisBoneHandle> _chain;
-
         [TearDown]
         public void TearDown()
         {
             DisposeRig();
         }
-
         void DisposeRig()
         {
             if (_chain.IsCreated)
             {
                 _chain.Dispose();
             }
-            _skeleton?.Dispose();
-            _skeleton = null;
-            if (_root != null)
+            skeleton?.Dispose();
+            skeleton = null;
+            if (root != null)
             {
-                Object.DestroyImmediate(_root);
-                _root = null;
+                Object.DestroyImmediate(root);
+                root = null;
             }
         }
-
         Transform[] BuildChainRig(float[] heights, bool[] twistBetween, float boneScale = 1f, float rootScale = 1f, Quaternion? boneRot = null)
         {
             DisposeRig();
-            _root = new GameObject("SpineCacheRig");
-            _root.transform.localScale = Vector3.one * rootScale;
+            root = new GameObject("SpineCacheRig");
+            root.transform.localScale = Vector3.one * rootScale;
             string[] names = { "Hips", "Spine", "Chest", "Neck", "Head" };
             var chainBones = new Transform[names.Length];
-            Transform parent = _root.transform;
+            Transform parent = root.transform;
             Quaternion rot = boneRot ?? Quaternion.identity;
             for (int i = 0; i < names.Length; i++)
             {
@@ -59,22 +55,20 @@ namespace Basis.Tests.IK
                 chainBones[i] = go.transform;
                 parent = go.transform;
             }
-            _skeleton = new BasisPoseSkeleton();
-            _skeleton.Build(chainBones[0], chainBones);
-            _skeleton.GatherNow();
+            skeleton = new BasisPoseSkeleton();
+            skeleton.Build(chainBones[0], chainBones);
+            skeleton.GatherNow();
             return chainBones;
         }
-
         NativeArray<BasisBoneHandle> BindChainTipFirst(Transform[] chainRootFirst)
         {
             var chain = new NativeArray<BasisBoneHandle>(chainRootFirst.Length, Allocator.Persistent);
             for (int i = 0; i < chainRootFirst.Length; i++)
             {
-                chain[i] = _skeleton.Bind(chainRootFirst[chainRootFirst.Length - 1 - i]);
+                chain[i] = skeleton.Bind(chainRootFirst[chainRootFirst.Length - 1 - i]);
             }
             return chain;
         }
-
         BasisEerieMovement CcdJob()
         {
             return new BasisEerieMovement
@@ -99,17 +93,16 @@ namespace Basis.Tests.IK
                 spineAnatomicalRom = false,
             };
         }
-
         BasisEerieMovement WireJob(Transform[] bones)
         {
             var job = CcdJob();
             job.chainHeadToSpine = _chain;
             job.chainChestIdx = 2;
-            job.handleHips = _skeleton.Bind(bones[0]);
-            job.handleSpine = _skeleton.Bind(bones[1]);
-            job.handleChest = _skeleton.Bind(bones[2]);
-            job.handleNeck = _skeleton.Bind(bones[3]);
-            job.handleHead = _skeleton.Bind(bones[4]);
+            job.handleHips = skeleton.Bind(bones[0]);
+            job.handleSpine = skeleton.Bind(bones[1]);
+            job.handleChest = skeleton.Bind(bones[2]);
+            job.handleNeck = skeleton.Bind(bones[3]);
+            job.handleHead = skeleton.Bind(bones[4]);
             job.enabledSpineIK = true;
             job.ikLockMode = BasisIKLockMode.LockHead;
             job.hasHipsTracker = true;
@@ -121,27 +114,21 @@ namespace Basis.Tests.IK
             job.targetPositionHips = bones[0].position;
             return job;
         }
-
         static readonly float[] Heights = { 0.95f, 1.10f, 1.25f, 1.45f, 1.57f };
-
         void AssertStreamFinite(string context)
         {
-            var stream = _skeleton.Stream;
+            var stream = skeleton.Stream;
             for (int i = 0; i < stream.Count; i++)
             {
                 Quaternion q = stream.LocalRotation[i];
-                Assert.IsTrue(float.IsFinite(q.x) && float.IsFinite(q.y) && float.IsFinite(q.z) && float.IsFinite(q.w),
-                    $"{context}: LocalRotation[{i}] is not finite: {q.x},{q.y},{q.z},{q.w}");
+                Assert.IsTrue(float.IsFinite(q.x) && float.IsFinite(q.y) && float.IsFinite(q.z) && float.IsFinite(q.w), $"{context}: LocalRotation[{i}] is not finite: {q.x},{q.y},{q.z},{q.w}");
                 Vector3 p = stream.LocalPosition[i];
-                Assert.IsTrue(float.IsFinite(p.x) && float.IsFinite(p.y) && float.IsFinite(p.z),
-                    $"{context}: LocalPosition[{i}] is not finite: {p}");
+                Assert.IsTrue(float.IsFinite(p.x) && float.IsFinite(p.y) && float.IsFinite(p.z), $"{context}: LocalPosition[{i}] is not finite: {p}");
                 float magSq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
                 Assert.Greater(magSq, 0.5f, $"{context}: LocalRotation[{i}] degenerated toward zero (magSq {magSq})");
             }
         }
-
         // ------------------------------------------------ the intermediate-bone (non-contiguous) path
-
         [Test]
         public void TwistBoneChain_HeadIsStillPinnedToTheGaze()
         {
@@ -154,17 +141,16 @@ namespace Basis.Tests.IK
             job.targetPositionHead = headTarget;
             job.targetRotationHead = gaze;
 
-            job.poseStream = _skeleton.Stream;
+            job.poseStream = skeleton.Stream;
             job.SolveSpine();
 
             AssertStreamFinite("twist-bone chain");
-            float rotErr = Quaternion.Angle(_skeleton.Stream.GetRotation(_chain[0]), gaze);
-            float posErr = (_skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
+            float rotErr = Quaternion.Angle(skeleton.Stream.GetRotation(_chain[0]), gaze);
+            float posErr = (skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
             TestContext.WriteLine($"head rot err {rotErr:F4} deg, pos err {posErr * 1000f:F2} mm");
             Assert.Less(rotErr, 0.1f, "with twist bones between every chain link the head must still be pinned to the gaze");
             Assert.Less(posErr, 0.01f, "with twist bones between every chain link the head must still reach its target");
         }
-
         [Test]
         public void TwistBoneChain_MatchesTheContiguousChainsReach()
         {
@@ -175,9 +161,9 @@ namespace Basis.Tests.IK
             Vector3 headTarget = bones[4].position + new Vector3(-0.06f, -0.04f, 0.05f);
             job.targetPositionHead = headTarget;
             job.targetRotationHead = gaze;
-            job.poseStream = _skeleton.Stream;
+            job.poseStream = skeleton.Stream;
             job.SolveSpine();
-            float contiguousErr = (_skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
+            float contiguousErr = (skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
 
             var twistBones = BuildChainRig(Heights, new[] { false, true, true, false });
             _chain = BindChainTipFirst(twistBones);
@@ -185,17 +171,15 @@ namespace Basis.Tests.IK
             headTarget = twistBones[4].position + new Vector3(-0.06f, -0.04f, 0.05f);
             twistJob.targetPositionHead = headTarget;
             twistJob.targetRotationHead = gaze;
-            twistJob.poseStream = _skeleton.Stream;
+            twistJob.poseStream = skeleton.Stream;
             twistJob.SolveSpine();
             AssertStreamFinite("mixed twist-bone chain");
-            float twistErr = (_skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
+            float twistErr = (skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
 
             TestContext.WriteLine($"contiguous {contiguousErr * 1000f:F2} mm vs twist-bone {twistErr * 1000f:F2} mm");
             Assert.Less(twistErr, 0.01f, "the twist-bone chain must reach the same target the contiguous chain reaches");
         }
-
         // ------------------------------------------------ degenerate targets must never write NaN
-
         [Test]
         public void TargetAtTheRoot_WritesOnlyFiniteRotations()
         {
@@ -205,11 +189,10 @@ namespace Basis.Tests.IK
 
             job.targetPositionHead = bones[0].position;
             job.targetRotationHead = Quaternion.identity;
-            job.poseStream = _skeleton.Stream;
+            job.poseStream = skeleton.Stream;
             job.SolveSpine();
             AssertStreamFinite("target at root");
         }
-
         [Test]
         public void TargetAtTheCurrentTip_WritesOnlyFiniteRotations()
         {
@@ -219,11 +202,10 @@ namespace Basis.Tests.IK
 
             job.targetPositionHead = bones[4].position;
             job.targetRotationHead = Quaternion.Euler(0f, 180f, 0f);
-            job.poseStream = _skeleton.Stream;
+            job.poseStream = skeleton.Stream;
             job.SolveSpine();
             AssertStreamFinite("target at current tip");
         }
-
         [Test]
         public void RepeatedSolves_StayFinite_WhenTheTargetWhipsAcrossFrames()
         {
@@ -244,14 +226,12 @@ namespace Basis.Tests.IK
             {
                 job.targetPositionHead = targets[frame];
                 job.targetRotationHead = Quaternion.Euler(frame * 47f, frame * 91f, frame * 13f);
-                job.poseStream = _skeleton.Stream;
+                job.poseStream = skeleton.Stream;
                 job.SolveSpine();
                 AssertStreamFinite($"whip frame {frame}");
             }
         }
-
         // ------------------------------------------------ real-rig conventions
-
         [Test]
         public void BlenderScaledRig_WithRolledBind_StaysFiniteAndPinned()
         {
@@ -265,15 +245,14 @@ namespace Basis.Tests.IK
             Vector3 headTarget = bones[4].position + new Vector3(0.04f, -0.05f, 0.06f);
             job.targetPositionHead = headTarget;
             job.targetRotationHead = gaze;
-            job.poseStream = _skeleton.Stream;
+            job.poseStream = skeleton.Stream;
             job.SolveSpine();
 
             AssertStreamFinite("rolled bind rig");
-            float posErr = (_skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
+            float posErr = (skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
             TestContext.WriteLine($"pos err {posErr * 1000f:F2} mm");
             Assert.Less(posErr, 0.01f, "a rolled-bind rig with twist bones must still reach the head target");
         }
-
         [Test]
         public void TinyBoneScaleUnderBigRoot_StaysFinite()
         {
@@ -282,13 +261,13 @@ namespace Basis.Tests.IK
             {
                 bones[i].localScale = Vector3.one * (i == 0 ? 0.01f : 1f);
             }
-            _skeleton.GatherNow();
+            skeleton.GatherNow();
             _chain = BindChainTipFirst(bones);
             var job = WireJob(bones);
 
             job.targetPositionHead = bones[4].position + new Vector3(0.02f, -0.02f, 0.02f);
             job.targetRotationHead = Quaternion.Euler(5f, 10f, 0f);
-            job.poseStream = _skeleton.Stream;
+            job.poseStream = skeleton.Stream;
             job.SolveSpine();
             AssertStreamFinite("tiny bone scale under big root");
         }

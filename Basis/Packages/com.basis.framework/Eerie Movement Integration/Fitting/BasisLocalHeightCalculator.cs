@@ -4,13 +4,10 @@ using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
-
 public static class BasisLocalHeightCalculator
 {
     private const float EyeArmTolerance = 0.30f;
-
-    private static Vector3 HandSpanPoint(BasisInput input) =>
-        input is BasisInputController controller ? controller.UnscaledHandTarget : input.UnscaledDeviceCoord.position;
+    private static Vector3 HandSpanPoint(BasisInput input) => input is BasisInputController controller ? controller.UnscaledHandTarget : input.UnscaledDeviceCoord.position;
     public static void CalculatePlayerArmSpan()
     {
         bool hasLeft = BasisDeviceManagement.Instance.FindDevice(out BasisInput left, BasisBoneTrackedRole.LeftHand);
@@ -18,8 +15,7 @@ public static class BasisLocalHeightCalculator
 
         if (!hasLeft && !hasRight)
         {
-            if (BasisHeightDriver.PlayerArmSpan < BasisHeightDriver.MinPlausibleBodyMeasure
-                || BasisHeightDriver.PlayerArmSpan > BasisHeightDriver.MaxPlausibleBodyMeasure)
+            if (BasisHeightDriver.PlayerArmSpan < BasisHeightDriver.MinPlausibleBodyMeasure || BasisHeightDriver.PlayerArmSpan > BasisHeightDriver.MaxPlausibleBodyMeasure)
             {
                 BasisDebug.LogWarning("No hands found. Using fallback.", BasisDebug.LogTag.Avatar);
                 BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
@@ -32,8 +28,7 @@ public static class BasisLocalHeightCalculator
         {
             if (lockToInput?.BasisInput == null)
             {
-                if (BasisHeightDriver.PlayerArmSpan < BasisHeightDriver.MinPlausibleBodyMeasure
-                    || BasisHeightDriver.PlayerArmSpan > BasisHeightDriver.MaxPlausibleBodyMeasure)
+                if (BasisHeightDriver.PlayerArmSpan < BasisHeightDriver.MinPlausibleBodyMeasure || BasisHeightDriver.PlayerArmSpan > BasisHeightDriver.MaxPlausibleBodyMeasure)
                 {
                     BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
                 }
@@ -69,7 +64,6 @@ public static class BasisLocalHeightCalculator
         BasisHeightDriver.HasGenuinePlayerArmSpan = true;
         BasisDebug.Log($"Player hand-to-hand arm span: {BasisHeightDriver.PlayerArmSpan}", BasisDebug.LogTag.Avatar);
     }
-
     public static void CalculatePlayerHipHeight()
     {
         if (SMModuleSitStand.IsSteatedMode)
@@ -104,7 +98,6 @@ public static class BasisLocalHeightCalculator
 
         BasisDebug.Log($"Player hip height {BasisHeightDriver.PlayerHipHeight:F4} (eye {BasisHeightDriver.PlayerEyeHeight:F4} - drop {drop:F4})", BasisDebug.LogTag.Avatar);
     }
-
     public static void CalculateAvatarBodySegments()
     {
         BasisHeightDriver.AvatarHipHeight = 0f;
@@ -130,25 +123,20 @@ public static class BasisLocalHeightCalculator
             BasisHeightDriver.AvatarSpineSpan = headBind.position.y - hipsBind.position.y;
         }
 
-        if (snapshot.TryGetValue(BasisBoneTrackedRole.LeftUpperLeg, out var upperLegBind)
-            && snapshot.TryGetValue(BasisBoneTrackedRole.LeftFoot, out var footBind))
+        if (snapshot.TryGetValue(BasisBoneTrackedRole.LeftUpperLeg, out var upperLegBind) && snapshot.TryGetValue(BasisBoneTrackedRole.LeftFoot, out var footBind))
         {
             BasisHeightDriver.AvatarLegSpan = upperLegBind.position.y - footBind.position.y;
         }
 
-        if (snapshot.TryGetValue(BasisBoneTrackedRole.LeftUpperArm, out var leftArmBind)
-            && snapshot.TryGetValue(BasisBoneTrackedRole.RightUpperArm, out var rightArmBind))
+        if (snapshot.TryGetValue(BasisBoneTrackedRole.LeftUpperArm, out var leftArmBind) && snapshot.TryGetValue(BasisBoneTrackedRole.RightUpperArm, out var rightArmBind))
         {
             Vector3 la = leftArmBind.position;
             Vector3 ra = rightArmBind.position;
-            BasisHeightDriver.AvatarShoulderWidth = Vector3.Distance(
-                new Vector3(la.x, 0f, la.z),
-                new Vector3(ra.x, 0f, ra.z));
+            BasisHeightDriver.AvatarShoulderWidth = Vector3.Distance( new Vector3(la.x, 0f, la.z), new Vector3(ra.x, 0f, ra.z));
         }
 
         BasisDebug.Log($"Avatar segments hip {BasisHeightDriver.AvatarHipHeight:F3} legSpan {BasisHeightDriver.AvatarLegSpan:F3} spineSpan {BasisHeightDriver.AvatarSpineSpan:F3} shoulderWidth {BasisHeightDriver.AvatarShoulderWidth:F3}", BasisDebug.LogTag.Avatar);
     }
-
     public static void CalculatePlayerEyeHeight()
     {
         var headInput = BasisLocalCameraDriver.Instance?.BasisLockToInput?.BasisInput;
@@ -160,9 +148,7 @@ public static class BasisLocalHeightCalculator
         {
             BasisHeightDriver.PlayerCenterEyeVerticalOffset = 0f;
 
-            BasisHeightDriver.PlayerEyeHeight = BasisStatedHeight.IsSet
-                ? BasisStatedHeight.ImpliedEyeHeight
-                : BasisHeightDriver.FallbackHeightInMeters;
+            BasisHeightDriver.PlayerEyeHeight = BasisStatedHeight.IsSet ? BasisStatedHeight.ImpliedEyeHeight : BasisHeightDriver.FallbackHeightInMeters;
 
             genuine = false;
             BasisDebug.Log($"Seated mode; using {(BasisStatedHeight.IsSet ? "your stated" : "standard")} eye height {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
@@ -182,9 +168,7 @@ public static class BasisLocalHeightCalculator
                 }
                 else
                 {
-                    BasisHeightDriver.PlayerEyeHeight = rawEyeY
-                        - BasisLocalPlayspaceMover.VerticalOffset
-                        - BasisHeightDriver.HeightModeGroundingOffset;
+                    BasisHeightDriver.PlayerEyeHeight = rawEyeY - BasisLocalPlayspaceMover.VerticalOffset - BasisHeightDriver.HeightModeGroundingOffset;
                     BasisDebug.Log($"Player raw eye height from device: {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
                 }
             }
@@ -207,9 +191,7 @@ public static class BasisLocalHeightCalculator
 
         BasisHeightDriver.HasGenuinePlayerEyeHeight = genuine;
     }
-
-    private static readonly System.Collections.Generic.List<float> s_trackerHeights = new(16);
-
+    private static readonly System.Collections.Generic.List<float> strackerHeights = new(16);
     private static bool TryGetTrackedFloor(float hmdY, out float floorY)
     {
         floorY = 0f;
@@ -219,7 +201,7 @@ public static class BasisLocalHeightCalculator
             return false;
         }
 
-        s_trackerHeights.Clear();
+        strackerHeights.Clear();
         BasisObservableList<BasisInput> devices = manager.AllInputDevices;
         int count = devices.Count;
         for (int Index = 0; Index < count; Index++)
@@ -232,12 +214,11 @@ public static class BasisLocalHeightCalculator
 
             Vector3 unscaled = input.UnscaledDeviceCoord.position;
             if (unscaled.sqrMagnitude < 1e-4f) continue;
-            s_trackerHeights.Add(unscaled.y);
+            strackerHeights.Add(unscaled.y);
         }
 
-        return BasisCalibrationMath.TryEstimateFloorFromTrackers(s_trackerHeights, hmdY, out floorY);
+        return BasisCalibrationMath.TryEstimateFloorFromTrackers(strackerHeights, hmdY, out floorY);
     }
-
     public static void CalculateAvatarEyeHeight()
     {
         BasisLocalPlayer Local = BasisLocalPlayer.Instance;
@@ -263,9 +244,7 @@ public static class BasisLocalHeightCalculator
             return;
         }
 
-        if (BasisLocalAvatarDriver.HasTposeBoneSnapshot
-            && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(BasisBoneTrackedRole.LeftHand, out var leftBind)
-            && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(BasisBoneTrackedRole.RightHand, out var rightBind))
+        if (BasisLocalAvatarDriver.HasTposeBoneSnapshot && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(BasisBoneTrackedRole.LeftHand, out var leftBind) && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(BasisBoneTrackedRole.RightHand, out var rightBind))
         {
             Vector3 lb = leftBind.position;
             Vector3 rb = rightBind.position;
@@ -313,11 +292,7 @@ public static class BasisLocalHeightCalculator
         float minAllowed = eyeHeight * (1f - EyeArmTolerance);
         if (armSpan < minAllowed)
         {
-            BasisDebug.LogWarning(
-                $"{label} arm span ({armSpan}) is >{EyeArmTolerance:P0} smaller than {label} eye height ({eyeHeight}). " +
-                $"Clamping to min allowed: {minAllowed}",
-                BasisDebug.LogTag.Avatar
-            );
+            BasisDebug.LogWarning( $"{label} arm span ({armSpan}) is >{EyeArmTolerance:P0} smaller than {label} eye height ({eyeHeight}). " + $"Clamping to min allowed: {minAllowed}", BasisDebug.LogTag.Avatar );
             armSpan = minAllowed;
         }
 
@@ -326,42 +301,21 @@ public static class BasisLocalHeightCalculator
         {
             if (armSpan > maxAbsoluteSpan)
             {
-                BasisDebug.LogWarning(
-                    $"{label} arm span ({armSpan}) exceeds the absolute plausibility cap {maxAbsoluteSpan}. Clamping.",
-                    BasisDebug.LogTag.Avatar
-                );
+                BasisDebug.LogWarning( $"{label} arm span ({armSpan}) exceeds the absolute plausibility cap {maxAbsoluteSpan}. Clamping.", BasisDebug.LogTag.Avatar );
                 armSpan = maxAbsoluteSpan;
             }
             else
             {
-                BasisDebug.Log(
-                    $"{label} arm span ({armSpan}) is >{EyeArmTolerance:P0} larger than {label} eye height ({eyeHeight}); " +
-                    "keeping it — the eye height was likely under-measured (seated/slouched capture).",
-                    BasisDebug.LogTag.Avatar
-                );
+                BasisDebug.Log( $"{label} arm span ({armSpan}) is >{EyeArmTolerance:P0} larger than {label} eye height ({eyeHeight}); " + "keeping it — the eye height was likely under-measured (seated/slouched capture).", BasisDebug.LogTag.Avatar );
             }
         }
     }
-
     public static void ValidateEyeToArmSizesPlayer()
     {
-        ValidateEyeToArm(
-            ref BasisHeightDriver.PlayerEyeHeight,
-            ref BasisHeightDriver.PlayerArmSpan,
-            BasisHeightDriver.FallbackHeightInMeters,
-            "Player",
-            BasisHeightDriver.MaxPlausibleBodyMeasure
-        );
+        ValidateEyeToArm( ref BasisHeightDriver.PlayerEyeHeight, ref BasisHeightDriver.PlayerArmSpan, BasisHeightDriver.FallbackHeightInMeters, "Player", BasisHeightDriver.MaxPlausibleBodyMeasure );
     }
-
     public static void ValidateEyeToArmSizesAvatar()
     {
-        ValidateEyeToArm(
-            ref BasisHeightDriver.AvatarEyeHeight,
-            ref BasisHeightDriver.AvatarArmSpan,
-            BasisHeightDriver.FallbackHeightInMeters,
-            "Avatar",
-            float.MaxValue
-        );
+        ValidateEyeToArm( ref BasisHeightDriver.AvatarEyeHeight, ref BasisHeightDriver.AvatarArmSpan, BasisHeightDriver.FallbackHeightInMeters, "Avatar", float.MaxValue );
     }
 }
