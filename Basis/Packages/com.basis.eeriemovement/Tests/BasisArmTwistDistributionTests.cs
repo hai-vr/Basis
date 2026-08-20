@@ -73,6 +73,89 @@ namespace Basis.Tests.IK
                 $"expected a fixed-fraction wrist-end bone to over-twist its short span (got {wristSpanRate:0.0}x the even rate).");
         }
 
+        // A rig that authors BOTH the helper and the driving child off-axis from the arm bone -- hands posed
+        // palm-down under the forearm, helpers exported carrying their own roll. Neither is live twist.
+        static readonly Quaternion TwistBind = Quaternion.AngleAxis(35f, Axis);
+        static readonly Quaternion ChildBind = Quaternion.AngleAxis(-50f, Axis);
+
+        [Test]
+        public void BindPose_LeavesTwistBoneOnItsAuthoredRotation()
+        {
+            // Nothing has moved off the T-pose, so the helper must land exactly where the rig authored it.
+            // Reading raw locals instead put it at parent * roll-share, throwing the authored rotation away
+            // -- a constant wrong twist on every frame, worst on the upper arm where it reads as the whole
+            // limb being rolled.
+            Quaternion parent = Quaternion.Euler(15f, -40f, 70f);
+            var input = new BasisTwistSolveInput
+            {
+                ParentRotation = parent,
+                ChildRotation = parent * ChildBind,       // child sitting on its bind
+                ParentToChild = parent * (Axis * BoneLen),
+                Fraction = 0.5f,
+                ChildBindLocal = ChildBind,
+                TwistBindLocal = TwistBind,
+            };
+
+            BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult r);
+
+            Assert.That(r.Apply, Is.True, "bind pose should still resolve a twist write.");
+            Assert.That(r.TwistAngleDeg, Is.EqualTo(0f).Within(0.01f),
+                $"authored child roll read as live twist ({r.TwistAngleDeg:0.00} deg with nothing moving).");
+            Assert.That(Quaternion.Angle(r.TwistWorldRotation, parent * TwistBind), Is.LessThan(0.01f),
+                "twist bone left its authored rotation in a clean T-pose.");
+        }
+
+        [Test]
+        public void LiveRoll_IsMeasuredFromBind_AndComposesOntoIt()
+        {
+            // Same off-axis rig, now genuinely rolled: the recovered angle is the departure from bind, and
+            // the helper takes its share of that measured from its own authored rotation.
+            const float Roll = 60f;
+            const float Fraction = 0.5f;
+            Quaternion parent = Quaternion.Euler(-25f, 12f, 5f);
+            var input = new BasisTwistSolveInput
+            {
+                ParentRotation = parent,
+                ChildRotation = parent * Quaternion.AngleAxis(Roll, Axis) * ChildBind,
+                ParentToChild = parent * (Axis * BoneLen),
+                Fraction = Fraction,
+                ChildBindLocal = ChildBind,
+                TwistBindLocal = TwistBind,
+            };
+
+            BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult r);
+
+            Assert.That(r.Apply, Is.True);
+            Assert.That(r.TwistAngleDeg, Is.EqualTo(Roll).Within(0.01f),
+                "recovered twist should be the roll past bind, with the authored roll cancelled out.");
+            Assert.That(Quaternion.Angle(r.TwistWorldRotation, parent * TwistBind), Is.EqualTo(Roll * Fraction).Within(0.01f),
+                "helper's share should be measured from its authored rotation, not from the parent.");
+        }
+
+        [Test]
+        public void UnbakedBinds_FallBackToIdentity()
+        {
+            // default(BasisTwistSolveInput) leaves the bind fields as the zero quaternion, and every call
+            // site that predates bind cancellation (sweeps, equivariance) still builds inputs that way.
+            // Those must keep the raw behaviour rather than normalising a zero into NaN.
+            const float Roll = 40f;
+            BasisTwistSolveInput unbaked = default;
+            unbaked.ParentRotation = Quaternion.identity;
+            unbaked.ChildRotation = Quaternion.AngleAxis(Roll, Axis);
+            unbaked.ParentToChild = Axis * BoneLen;
+            unbaked.Fraction = 1f;
+
+            BasisTwistSolveCore.Solve(unbaked, out BasisTwistSolveResult r);
+
+            Assert.That(r.Apply, Is.True);
+            Assert.That(r.TwistAngleDeg, Is.EqualTo(Roll).Within(0.01f), "zero bind quaternions should read as identity.");
+            Assert.That(IsFinite(r.TwistWorldRotation), Is.True, "zero bind quaternion normalised into a non-finite rotation.");
+        }
+
+        static bool IsFinite(Quaternion q) =>
+            !(float.IsNaN(q.x) || float.IsNaN(q.y) || float.IsNaN(q.z) || float.IsNaN(q.w) ||
+              float.IsInfinity(q.x) || float.IsInfinity(q.y) || float.IsInfinity(q.z) || float.IsInfinity(q.w));
+
         // One twist solve: child rolled by 'roll' about the bone axis; returns the twist bone's roll magnitude.
         static float SolveBoneRoll(float fraction, float roll)
         {

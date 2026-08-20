@@ -85,6 +85,14 @@ namespace Basis.IK
         public float tposeClavicleLenLeft, tposeClavicleLenRight;
         public float tposeShoulderToElbowLeft, tposeShoulderToElbowRight;
 
+        // Arm twist binds, each pair in its own arm bone's frame: ...TwistBind is the helper's authored
+        // rotation, ...ChildBind the authored rotation of the bone whose roll drives it (hand for the
+        // forearm helper, forearm for the upper-arm one). Scale-free, so RescaleTpose leaves them alone.
+        public Quaternion tposeLeftLowerArmTwistBind, tposeLeftLowerArmChildBind;
+        public Quaternion tposeRightLowerArmTwistBind, tposeRightLowerArmChildBind;
+        public Quaternion tposeLeftUpperArmTwistBind, tposeLeftUpperArmChildBind;
+        public Quaternion tposeRightUpperArmTwistBind, tposeRightUpperArmChildBind;
+
         public BasisIKLockMode ikLockMode;
         public int spineMaxIterations;
         public float spineTolerance;

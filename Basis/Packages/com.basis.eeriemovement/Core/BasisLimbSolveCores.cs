@@ -267,6 +267,14 @@ namespace Basis.IK
         public Quaternion ChildRotation;
         public Vector3 ParentToChild;
         public float Fraction;
+
+        // Bind (authored) frames, both expressed in the PARENT bone's frame. Rig authoring is not live
+        // twist: a hand posed palm-down under a forearm, or a helper exported carrying its own roll,
+        // reads as a permanent twist if the solve works off raw locals. Left zero -- the default, and
+        // what every call site that does not bake binds leaves behind -- both fall back to identity,
+        // which is the pre-bind-cancellation behaviour.
+        public Quaternion ChildBindLocal;
+        public Quaternion TwistBindLocal;
     }
 
     public struct BasisTwistSolveResult
@@ -295,12 +303,20 @@ namespace Basis.IK
                 return;
             }
 
+            // Twist is the child's departure FROM ITS BIND, not its raw local: in a clean T-pose that
+            // delta is identity, so the helper lands exactly on the rotation the rig was authored with.
+            Quaternion childBind = BindOrIdentity(i.ChildBindLocal);
+            Quaternion twistBind = BindOrIdentity(i.TwistBindLocal);
             Quaternion childLocal = Quaternion.Inverse(i.ParentRotation) * i.ChildRotation;
-            Quaternion twistOnly = ExtractTwist(childLocal, axis);
+            Quaternion childDelta = childLocal * Quaternion.Inverse(childBind);
+            Quaternion twistOnly = ExtractTwist(childDelta, axis);
             Quaternion partialTwist = Quaternion.Slerp(Quaternion.identity, twistOnly, Mathf.Clamp01(i.Fraction));
 
             r.Apply = true;
-            r.TwistWorldRotation = i.ParentRotation * partialTwist;
+            // Pre-multiplied: partialTwist lives in the parent's frame, so it composes ONTO the helper's
+            // bind instead of replacing it. Without the bind term the write lands as a bare roll and
+            // throws the authored local rotation away every frame.
+            r.TwistWorldRotation = i.ParentRotation * partialTwist * twistBind;
             r.TwistOnly = twistOnly;
             r.TwistAngleDeg = Quaternion.Angle(Quaternion.identity, twistOnly);
         }
@@ -327,6 +343,20 @@ namespace Basis.IK
 
             float invMag = 1f / Mathf.Sqrt(magSq);
             return new Quaternion(twist.x * invMag, twist.y * invMag, twist.z * invMag, twist.w * invMag);
+        }
+
+        // A zero quaternion is what an un-baked bind field holds, and normalising it would produce NaN.
+        // Callers that never bake binds get identity, i.e. the behaviour from before bind cancellation.
+        public static Quaternion BindOrIdentity(Quaternion q)
+        {
+            float magSq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+            if (magSq < k_SqrEpsilon)
+            {
+                return Quaternion.identity;
+            }
+
+            float invMag = 1f / Mathf.Sqrt(magSq);
+            return new Quaternion(q.x * invMag, q.y * invMag, q.z * invMag, q.w * invMag);
         }
 
         public static float SegmentPositionFraction(Vector3 parentPos, Vector3 childPos, Vector3 twistPos)

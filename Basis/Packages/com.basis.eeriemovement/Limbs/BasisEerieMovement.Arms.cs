@@ -46,10 +46,10 @@ namespace Basis.IK
 
             float lowerTwist = lowerArmTwistFraction;
             float upperTwist = upperArmTwistFraction;
-            SolveArmTwist(stream, handleLeftLowerArm, handleLeftHand, handleLeftLowerArmTwist, lowerTwist);
-            SolveArmTwist(stream, handleRightLowerArm, handleRightHand, handleRightLowerArmTwist, lowerTwist);
-            SolveArmTwist(stream, handleLeftUpperArm, handleLeftLowerArm, handleLeftUpperArmTwist, upperTwist);
-            SolveArmTwist(stream, handleRightUpperArm, handleRightLowerArm, handleRightUpperArmTwist, upperTwist);
+            SolveArmTwist(stream, handleLeftLowerArm, handleLeftHand, handleLeftLowerArmTwist, lowerTwist, tposeLeftLowerArmChildBind, tposeLeftLowerArmTwistBind);
+            SolveArmTwist(stream, handleRightLowerArm, handleRightHand, handleRightLowerArmTwist, lowerTwist, tposeRightLowerArmChildBind, tposeRightLowerArmTwistBind);
+            SolveArmTwist(stream, handleLeftUpperArm, handleLeftLowerArm, handleLeftUpperArmTwist, upperTwist, tposeLeftUpperArmChildBind, tposeLeftUpperArmTwistBind);
+            SolveArmTwist(stream, handleRightUpperArm, handleRightLowerArm, handleRightUpperArmTwist, upperTwist, tposeRightUpperArmChildBind, tposeRightUpperArmTwistBind);
         }
 
         void ApplyShoulderSlide(BasisPoseStream stream)
@@ -137,7 +137,11 @@ namespace Basis.IK
                 handleChest.SetRotation(stream, deltaWorld * handleChest.GetRotation(stream));
             }
         }
-        void SolveArmTwist(BasisPoseStream stream, BasisBoneHandle parent, BasisBoneHandle child, BasisBoneHandle twist, float fraction)
+        // Bind-cancelled like its siblings: childBind / twistBind are the T-pose rotations of the driving
+        // child and of the helper itself, both in this parent's frame. Without them a rig that authors
+        // either one off-axis from the arm bone -- palm-down hands, exported roll on the helper -- carries
+        // a constant twist that is already there in a clean T-pose.
+        void SolveArmTwist(BasisPoseStream stream, BasisBoneHandle parent, BasisBoneHandle child, BasisBoneHandle twist, float fraction, Quaternion childBind, Quaternion twistBind)
         {
             if (!twist.IsValid(stream) || fraction <= 0f)
                 return;
@@ -153,6 +157,8 @@ namespace Basis.IK
             input.ChildRotation = child.GetRotation(stream);
             input.ParentToChild = childPos - parentPos;
             input.Fraction = positionFraction * fraction;
+            input.ChildBindLocal = childBind;
+            input.TwistBindLocal = twistBind;
 
             BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult result);
             if (result.Apply)

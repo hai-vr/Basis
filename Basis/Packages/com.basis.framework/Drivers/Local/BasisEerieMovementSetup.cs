@@ -28,6 +28,10 @@ namespace Basis.Scripts.Drivers
             job.enabledLeftShoulder = job.enabledRightShoulder = false;
             job.offsetRotationHead = job.offsetRotationLeftFoot = job.offsetRotationRightFoot = Quaternion.identity;
             job.offsetRotationLeftHand = job.offsetRotationRightHand = Quaternion.identity;
+            job.tposeLeftLowerArmTwistBind = job.tposeLeftLowerArmChildBind = Quaternion.identity;
+            job.tposeRightLowerArmTwistBind = job.tposeRightLowerArmChildBind = Quaternion.identity;
+            job.tposeLeftUpperArmTwistBind = job.tposeLeftUpperArmChildBind = Quaternion.identity;
+            job.tposeRightUpperArmTwistBind = job.tposeRightUpperArmChildBind = Quaternion.identity;
 
             job.playerUp = Vector3.up;
 
@@ -162,6 +166,22 @@ namespace Basis.Scripts.Drivers
                 job.slotWeights[i] = false;
             }
         }
+        /// <summary>
+        /// Authored rotation of <paramref name="bone"/> in <paramref name="parent"/>'s frame, read off the
+        /// still-T-posed avatar. Composed from world rotations rather than localRotation so it stays right
+        /// when a rig puts extra nodes between the two -- an Armature-style intermediate, or a twist helper
+        /// the hand itself hangs off. A missing bone gives identity, which is the no-op bind.
+        /// </summary>
+        private static Quaternion BindLocal(Transform parent, Transform bone)
+        {
+            if (parent == null || bone == null)
+            {
+                return Quaternion.identity;
+            }
+
+            return Quaternion.Inverse(parent.rotation) * bone.rotation;
+        }
+
         public static void Create(ref BasisEerieMovement job, BasisPoseSkeleton skeleton, BasisTransformMapping Mapping)
         {
             job.handleHips = BindHandle(skeleton, Mapping.Hips);
@@ -215,6 +235,18 @@ namespace Basis.Scripts.Drivers
                 ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftLowerArm.position) : 0f;
             job.tposeShoulderToElbowRight = (Mapping.RightShoulder != null && Mapping.RightLowerArm != null)
                 ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.RightLowerArm.position) : 0f;
+
+            // Baked T-pose binds for the arm twist solve. Both ends need one: the helper so its authored
+            // rotation survives the write, and the driving child so its authored roll is not mistaken for
+            // live twist. Same T-posed read as the shoulder bake above.
+            job.tposeLeftLowerArmTwistBind = BindLocal(Mapping.leftLowerArm, Mapping.leftLowerArmTwist);
+            job.tposeLeftLowerArmChildBind = BindLocal(Mapping.leftLowerArm, Mapping.leftHand);
+            job.tposeRightLowerArmTwistBind = BindLocal(Mapping.RightLowerArm, Mapping.RightLowerArmTwist);
+            job.tposeRightLowerArmChildBind = BindLocal(Mapping.RightLowerArm, Mapping.rightHand);
+            job.tposeLeftUpperArmTwistBind = BindLocal(Mapping.leftUpperArm, Mapping.leftUpperArmTwist);
+            job.tposeLeftUpperArmChildBind = BindLocal(Mapping.leftUpperArm, Mapping.leftLowerArm);
+            job.tposeRightUpperArmTwistBind = BindLocal(Mapping.RightUpperArm, Mapping.RightUpperArmTwist);
+            job.tposeRightUpperArmChildBind = BindLocal(Mapping.RightUpperArm, Mapping.RightLowerArm);
 
             // Pair each slot with its bone handle, in HumanBodyBones order.
             job.slotHandles.Length = BasisEerieMovement.Count;
