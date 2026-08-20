@@ -245,30 +245,24 @@ namespace Basis.Tests.IK
         [Test]
         public void HipHinge_IsEquivariant()
         {
-            BasisHipHingeInput baseIn = default;
-            baseIn.HeadPos = new Vector3(0f, 1.30f, 0.35f); // leaning forward
-            baseIn.HipsPos = new Vector3(0f, 0.95f, 0f);
-            baseIn.HipsRot = Quaternion.Euler(0f, 20f, 0f);
-            baseIn.PlayerUp = Vector3.up;
-            baseIn.StartDeg = 30f;
-            baseIn.MaxAddDeg = 15f;
+            Vector3 headPos = new Vector3(0f, 1.30f, 0.35f); // leaning forward
+            Vector3 hipsPos = new Vector3(0f, 0.95f, 0f);
+            Quaternion hipsRot = Quaternion.Euler(0f, 20f, 0f);
+            const float startDeg = 30f, maxAddDeg = 15f;
 
-            BasisHipHingeCore.Solve(baseIn, out BasisHipHingeResult base_);
+            bool baseApplied = BasisHipHingeCore.Solve(headPos, hipsPos, hipsRot, Vector3.up, startDeg, maxAddDeg,
+                out Quaternion baseHipsRot, out float baseLeanDeg, out float baseAddDeg);
 
             foreach (Rigid t in Transforms)
             {
-                BasisHipHingeInput i = baseIn;
-                i.HeadPos = t.Point(baseIn.HeadPos);
-                i.HipsPos = t.Point(baseIn.HipsPos);
-                i.HipsRot = t.Rot(baseIn.HipsRot);
-                i.PlayerUp = t.Dir(baseIn.PlayerUp);
+                bool applied = BasisHipHingeCore.Solve(t.Point(headPos), t.Point(hipsPos), t.Rot(hipsRot),
+                    t.Dir(Vector3.up), startDeg, maxAddDeg,
+                    out Quaternion newHipsRot, out float leanDeg, out float addDeg);
 
-                BasisHipHingeCore.Solve(i, out BasisHipHingeResult r);
-
-                SameRot(t.Rot(base_.HipsRot), r.HipsRot, t, "hip hinge HipsRot");
-                SameScalar(base_.LeanDeg, r.LeanDeg, t, "hip hinge LeanDeg");
-                SameScalar(base_.AddDeg, r.AddDeg, t, "hip hinge AddDeg");
-                Assert.That(r.Applied, Is.EqualTo(base_.Applied),
+                SameRot(t.Rot(baseHipsRot), newHipsRot, t, "hip hinge HipsRot");
+                SameScalar(baseLeanDeg, leanDeg, t, "hip hinge LeanDeg");
+                SameScalar(baseAddDeg, addDeg, t, "hip hinge AddDeg");
+                Assert.That(applied, Is.EqualTo(baseApplied),
                     $"[{t.Name}] hip hinge engaged differently depending on world placement");
             }
         }
@@ -379,27 +373,23 @@ namespace Basis.Tests.IK
         [Test]
         public void TwistSolve_IsEquivariant()
         {
-            BasisTwistSolveInput baseIn = default;
-            baseIn.ParentRotation = Quaternion.Euler(10f, 40f, -75f);
-            baseIn.ChildRotation = Quaternion.Euler(10f, 40f, -20f); // rolled about the bone axis
-            baseIn.ParentToChild = new Vector3(0.26f, -0.05f, 0f);
-            baseIn.Fraction = 0.5f;
+            Quaternion parentRot = Quaternion.Euler(10f, 40f, -75f);
+            Quaternion childRot = Quaternion.Euler(10f, 40f, -20f); // rolled about the bone axis
+            Vector3 parentToChild = new Vector3(0.26f, -0.05f, 0f);
+            const float fraction = 0.5f;
 
-            BasisTwistSolveCore.Solve(baseIn, out BasisTwistSolveResult base_);
+            bool baseApply = BasisTwistSolveCore.Solve(parentRot, childRot, parentToChild, fraction, default, default,
+                out Quaternion baseTwistWorld, out _, out float baseTwistAngleDeg);
 
             foreach (Rigid t in Transforms)
             {
-                BasisTwistSolveInput i = baseIn;
-                i.ParentRotation = t.Rot(baseIn.ParentRotation);
-                i.ChildRotation = t.Rot(baseIn.ChildRotation);
-                i.ParentToChild = t.Dir(baseIn.ParentToChild);
+                bool apply = BasisTwistSolveCore.Solve(t.Rot(parentRot), t.Rot(childRot), t.Dir(parentToChild),
+                    fraction, default, default, out Quaternion twistWorld, out _, out float twistAngleDeg);
 
-                BasisTwistSolveCore.Solve(i, out BasisTwistSolveResult r);
-
-                Assert.That(r.Apply, Is.EqualTo(base_.Apply), $"[{t.Name}] twist Apply flipped");
-                if (!base_.Apply) continue;
-                SameRot(t.Rot(base_.TwistWorldRotation), r.TwistWorldRotation, t, "twist TwistWorldRotation");
-                SameScalar(base_.TwistAngleDeg, r.TwistAngleDeg, t, "twist TwistAngleDeg");
+                Assert.That(apply, Is.EqualTo(baseApply), $"[{t.Name}] twist Apply flipped");
+                if (!baseApply) continue;
+                SameRot(t.Rot(baseTwistWorld), twistWorld, t, "twist TwistWorldRotation");
+                SameScalar(baseTwistAngleDeg, twistAngleDeg, t, "twist TwistAngleDeg");
             }
         }
 

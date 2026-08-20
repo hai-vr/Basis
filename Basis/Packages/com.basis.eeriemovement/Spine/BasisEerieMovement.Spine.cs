@@ -90,14 +90,16 @@ namespace Basis.IK
                 float crouchFade = 1f;
                 if (!hasHipsTracker)
                 {
-                    hipsTargetPos = ApplyTrunkCounterbalance(neckCue, hipsTargetPos, up, out float flexionFrac);
+                    BasisTrunkCounterbalanceCore.Solve(hipsTargetPos, neckCue, up, trunkCounterbalance,
+                        trunkCounterbalanceMaxSpineFrac * minHeadSpineHeight, out hipsTargetPos, out float flexionFrac, out _);
                     crouchFade = 1f - flexionFrac;
                 }
                 hipsTargetPos = ApplyCrouchBodyOffset(stream, headTargetPos, hipsTargetPos, hipDesired, up, crouchFade);
                 targetPositionHips = hipsTargetPos;
                 if (!hasHipsTracker)
                 {
-                    hipDesired = ApplyHipHinge(stream, neckCue, hipsTargetPos, hipDesired, up);
+                    BasisHipHingeCore.Solve(neckCue, hipsTargetPos, hipDesired, up, hipHingeStartDeg, hipHingeMaxAddDeg,
+                        out hipDesired, out _, out _);
                 }
 
                 if (handleHips.IsValid(stream))
@@ -227,10 +229,6 @@ namespace Basis.IK
                 }
             }
 
-            float ccdRelax = spineCCDRelax;
-            float lumbarTwistKeep = spineTwistKeep;
-            float cervicalTwistKeep = spineNeckTwistKeep;
-
             Quaternion hipsTwistRot = handleHips.IsValid(stream) ? handleHips.GetRotation(stream) : Quaternion.identity;
             float hipsBindMagSq = offsetRotationHips.x * offsetRotationHips.x + offsetRotationHips.y * offsetRotationHips.y
                 + offsetRotationHips.z * offsetRotationHips.z + offsetRotationHips.w * offsetRotationHips.w;
@@ -241,8 +239,6 @@ namespace Basis.IK
             Vector3 ccdUp = hipsTwistRot * Vector3.up;
             if (ccdUp.sqrMagnitude < k_SqrEpsilon) ccdUp = playerUp;
             float jointSpan = Mathf.Max(1, lastJoint - firstJoint);
-            float neckCone = neckMaxConeDeg;
-            float chestCone = maxChestDeltaDeg;
             int chestIdx = chainChestIdx != 0 ? chainChestIdx : (chainLen >= 5 ? chainLen - 3 : -1);
             Quaternion finalHeadRot = headTargetRot * targetOffsetHead;
 
@@ -254,20 +250,17 @@ namespace Basis.IK
 
                 for (int i = lastJoint; i >= firstJoint; i--)
                 {
-                    ReachHeadJoint(stream, i, headTargetPos, firstJoint, chestIdx, jointSpan,
-                        cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
+                    ReachHeadJoint(stream, i, headTargetPos, firstJoint, chestIdx, jointSpan, ccdUp);
                 }
             }
 
-            SolveChestTarget(stream, headTargetPos, firstJoint, lastJoint, chestIdx, jointSpan,
-                cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone, tolSqr);
+            SolveChestTarget(stream, headTargetPos, firstJoint, lastJoint, chestIdx, jointSpan, ccdUp, tolSqr);
 
             chainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
         }
 
         void ReachHeadJoint(BasisPoseStream stream, int i, Vector3 headTargetPos, int firstJoint, int chestIdx,
-            float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp, float ccdRelax,
-            float neckCone, float chestCone)
+            float jointSpan, Vector3 ccdUp)
         {
             const int tipIdx = 0;
             Vector3 jointPos = chainHeadToSpine[i].GetPosition(stream);
@@ -280,26 +273,25 @@ namespace Basis.IK
 
             Quaternion delta = BasisQuaternionExt.FromToRotation(cur, tgt);
             float t = (i - firstJoint) / jointSpan;
-            float jointTwistKeep = Mathf.Lerp(cervicalTwistKeep, lumbarTwistKeep, t);
+            float jointTwistKeep = Mathf.Lerp(spineNeckTwistKeep, spineTwistKeep, t);
             float jointSwingScale = 1f - thoracicBendStiffen * (1f - Mathf.Abs(2f * t - 1f));
             delta = BasisTwistSolveCore.ShapeReachStep(delta, ccdUp, jointTwistKeep, jointSwingScale);
-            delta = Quaternion.Slerp(Quaternion.identity, delta, ccdRelax);
+            delta = Quaternion.Slerp(Quaternion.identity, delta, spineCCDRelax);
             chainHeadToSpine[i].SetRotation(stream, delta * chainHeadToSpine[i].GetRotation(stream));
 
             if (i == firstJoint)
             {
-                ClampNeckCone(stream, i, neckCone);
+                ClampNeckCone(stream, i, neckMaxConeDeg);
             }
             else if (i == chestIdx)
             {
-                ClampChestCone(stream, i, chestCone);
+                ClampChestCone(stream, i, maxChestDeltaDeg);
             }
 
             GuardSpineJoint(stream, i);
         }
         void SolveChestTarget(BasisPoseStream stream, Vector3 headTargetPos, int firstJoint, int lastJoint,
-            int chestBoneIdx, float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp,
-            float ccdRelax, float neckCone, float chestCone, float tolSqr)
+            int chestBoneIdx, float jointSpan, Vector3 ccdUp, float tolSqr)
         {
             if (!chestIkTarget)
                 return;
@@ -314,7 +306,7 @@ namespace Basis.IK
                 return;
 
             float spineT = (lastJoint - firstJoint) / jointSpan;
-            float spineTwistKeep = Mathf.Lerp(cervicalTwistKeep, lumbarTwistKeep, spineT);
+            float chestTwistKeep = Mathf.Lerp(spineNeckTwistKeep, spineTwistKeep, spineT);
             float spineSwingScale = 1f - thoracicBendStiffen * (1f - Mathf.Abs(2f * spineT - 1f));
 
             for (int citer = 0; citer < chestIkIterations; citer++)
@@ -333,9 +325,9 @@ namespace Basis.IK
                 if (cCur.sqrMagnitude > k_SqrEpsilon && cTgt.sqrMagnitude > k_SqrEpsilon)
                 {
                     Quaternion cDelta = BasisQuaternionExt.FromToRotation(cCur, cTgt);
-                    cDelta = BasisTwistSolveCore.ShapeReachStep(cDelta, ccdUp, spineTwistKeep, spineSwingScale);
+                    cDelta = BasisTwistSolveCore.ShapeReachStep(cDelta, ccdUp, chestTwistKeep, spineSwingScale);
 
-                    cDelta = Quaternion.Slerp(Quaternion.identity, cDelta, ccdRelax * chestIkWeight);
+                    cDelta = Quaternion.Slerp(Quaternion.identity, cDelta, spineCCDRelax * chestIkWeight);
                     chainHeadToSpine[lastJoint].SetRotation(stream, cDelta * chainHeadToSpine[lastJoint].GetRotation(stream));
                     GuardSpineJoint(stream, lastJoint);
                 }
@@ -344,8 +336,7 @@ namespace Basis.IK
                 {
                     for (int i = lastJoint - 1; i >= firstJoint; i--)
                     {
-                        ReachHeadJoint(stream, i, headTargetPos, firstJoint, chestBoneIdx, jointSpan,
-                            cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
+                        ReachHeadJoint(stream, i, headTargetPos, firstJoint, chestBoneIdx, jointSpan, ccdUp);
                     }
                 }
             }
@@ -482,18 +473,6 @@ namespace Basis.IK
                 tposeHeadToNeckLocal, playerUp, neckExtensionDamp, neckFlexionDamp);
         }
 
-        Vector3 ApplyTrunkCounterbalance(Vector3 neckCue, Vector3 hipsPos, Vector3 playerUp, out float flexionFrac)
-        {
-            BasisTrunkCounterbalanceInput input;
-            input.HipsPos = hipsPos;
-            input.NeckCue = neckCue;
-            input.PlayerUp = playerUp;
-            input.Gain = trunkCounterbalance;
-            input.MaxShift = trunkCounterbalanceMaxSpineFrac * minHeadSpineHeight;
-            BasisTrunkCounterbalanceCore.Solve(input, out BasisTrunkCounterbalanceResult result);
-            flexionFrac = result.FlexionFrac;
-            return result.HipsPos;
-        }
         public void DistributeSpineBend(BasisPoseStream stream, Vector3 headTargetPos)
         {
             if (!handleHips.IsValid(stream) || !handleChest.IsValid(stream))
@@ -610,19 +589,6 @@ namespace Basis.IK
             return newPos;
         }
         static bool IsFinite(Vector3 v) => !float.IsNaN(v.x) && !float.IsInfinity(v.x) && !float.IsNaN(v.y) && !float.IsInfinity(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.z);
-
-        Quaternion ApplyHipHinge(BasisPoseStream stream, Vector3 headPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUp)
-        {
-            BasisHipHingeInput input;
-            input.HeadPos = headPos;
-            input.HipsPos = hipsPos;
-            input.HipsRot = hipsRot;
-            input.PlayerUp = playerUp;
-            input.StartDeg = hipHingeStartDeg;
-            input.MaxAddDeg = hipHingeMaxAddDeg;
-            BasisHipHingeCore.Solve(input, out BasisHipHingeResult result);
-            return result.HipsRot;
-        }
 
         Vector3 ApplyCrouchBodyOffset(BasisPoseStream stream, Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir, float fade)
         {

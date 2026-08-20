@@ -316,15 +316,12 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             if (Basis.BasisUI.BasisSettingsDefaults.DesktopHeadSwingEnabled.RawValue &&
                 BasisLocalBoneDriver.NeckControl != null)
             {
-                BasisHeadPitchSwingInput swing;
-                swing.PitchDeg = rotationPitch;
-                swing.YawDeg = rotationYaw;
-                swing.EyeFromNeck = tposeEyeWorld - BasisLocalBoneDriver.NeckControl.TposeLocal.position;
-                swing.Strength = Basis.BasisUI.BasisSettingsDefaults.DesktopHeadSwingStrength.RawValue;
-                swing.BackwardScale = Basis.BasisUI.BasisSettingsDefaults.DesktopHeadSwingBackward.RawValue;
-
-                BasisHeadPitchSwingCore.Solve(swing, out BasisHeadPitchSwingResult swung);
-                eyeWorld += swung.Offset;
+                BasisHeadPitchSwingCore.Solve(rotationPitch, rotationYaw,
+                    tposeEyeWorld - BasisLocalBoneDriver.NeckControl.TposeLocal.position,
+                    Basis.BasisUI.BasisSettingsDefaults.DesktopHeadSwingStrength.RawValue,
+                    Basis.BasisUI.BasisSettingsDefaults.DesktopHeadSwingBackward.RawValue,
+                    out Vector3 swingOffset, out _);
+                eyeWorld += swingOffset;
             }
 
             // Output transforms

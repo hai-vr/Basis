@@ -20,27 +20,20 @@ namespace Basis.Tests.IK
     public sealed class BasisHipHingeCoreTests
     {
         // hips at origin, head leaned `deg` forward (+Z) off vertical (+Y). => the core reads lean == deg.
-        static BasisHipHingeInput Lean(float deg, float start = 30f, float maxAdd = 50f)
+        static bool Lean(float deg, out Quaternion hipsRot, out float leanDeg, out float addDeg, float start = 30f, float maxAdd = 50f)
         {
             float r = deg * Mathf.Deg2Rad;
-            return new BasisHipHingeInput
-            {
-                HipsPos = Vector3.zero,
-                HeadPos = new Vector3(0f, Mathf.Cos(r), Mathf.Sin(r)),
-                HipsRot = Quaternion.identity,
-                PlayerUp = Vector3.up,
-                StartDeg = start,
-                MaxAddDeg = maxAdd,
-            };
+            return BasisHipHingeCore.Solve(new Vector3(0f, Mathf.Cos(r), Mathf.Sin(r)), Vector3.zero,
+                Quaternion.identity, Vector3.up, start, maxAdd, out hipsRot, out leanDeg, out addDeg);
         }
 
         [Test]
         public void BelowStart_TheHingeDoesNothing()
         {
-            BasisHipHingeCore.Solve(Lean(20f, start: 30f), out BasisHipHingeResult r);
-            Assert.IsFalse(r.Applied, "hinge fired below the start angle");
-            Assert.AreEqual(0f, r.AddDeg, 1e-4f);
-            Assert.AreEqual(0f, Quaternion.Angle(Quaternion.identity, r.HipsRot), 1e-4f);
+            bool applied = Lean(20f, out Quaternion hipsRot, out _, out float addDeg, start: 30f);
+            Assert.IsFalse(applied, "hinge fired below the start angle");
+            Assert.AreEqual(0f, addDeg, 1e-4f);
+            Assert.AreEqual(0f, Quaternion.Angle(Quaternion.identity, hipsRot), 1e-4f);
         }
 
         [Test]
@@ -48,19 +41,19 @@ namespace Basis.Tests.IK
         {
             // lean 50, start 30, cap 50 -> excess 20 (below the 0.8*cap=40 soft point) -> pelvis takes ALL 20.
             // (The OLD model took half -- 10. The corpus says the pelvis takes essentially all of it.)
-            BasisHipHingeCore.Solve(Lean(50f, start: 30f, maxAdd: 50f), out BasisHipHingeResult r);
-            Assert.IsTrue(r.Applied);
-            Assert.AreEqual(20f, r.AddDeg, 0.2f, "the pelvis is not following the lean one-for-one");
-            Assert.AreEqual(50f, r.LeanDeg, 0.1f);
+            bool applied = Lean(50f, out _, out float leanDeg, out float addDeg, start: 30f, maxAdd: 50f);
+            Assert.IsTrue(applied);
+            Assert.AreEqual(20f, addDeg, 0.2f, "the pelvis is not following the lean one-for-one");
+            Assert.AreEqual(50f, leanDeg, 0.1f);
         }
 
         [Test]
         public void ApproachingTheCap_ItEasesAndNeverReachesIt()
         {
             // lean 85, start 30, cap 50 -> excess 55, past the soft point -> eased to ~46, strictly under 50.
-            BasisHipHingeCore.Solve(Lean(85f, start: 30f, maxAdd: 50f), out BasisHipHingeResult r);
-            Assert.Greater(r.AddDeg, 40f, "the deep-bend tilt collapsed");
-            Assert.Less(r.AddDeg, 50f, "the tilt reached or passed its asymptote (should ease, never touch)");
+            Lean(85f, out _, out _, out float addDeg, start: 30f, maxAdd: 50f);
+            Assert.Greater(addDeg, 40f, "the deep-bend tilt collapsed");
+            Assert.Less(addDeg, 50f, "the tilt reached or passed its asymptote (should ease, never touch)");
         }
 
         [Test]
@@ -69,37 +62,29 @@ namespace Basis.Tests.IK
             // ⭐ THE FIX. A toe-touch puts the head BELOW the hips, where a real pelvis is MAXIMALLY tilted.
             // The old model bailed on `upDot <= 0` and gave zero here -- weakest exactly where the fold is
             // deepest. Now it keeps going.
-            var i = new BasisHipHingeInput
-            {
-                HipsPos = Vector3.zero,
-                HeadPos = new Vector3(0f, -0.2f, 0.9f),   // head below hip height
-                HipsRot = Quaternion.identity,
-                PlayerUp = Vector3.up,
-                StartDeg = 45f,
-                MaxAddDeg = 50f,
-            };
-            BasisHipHingeCore.Solve(i, out BasisHipHingeResult r);
-            Assert.IsTrue(r.Applied, "the hinge switched off with the head below the hips (the old bug)");
-            Assert.Greater(r.LeanDeg, 90f, "lean should read past 90 deg for a head below the hips");
-            Assert.Greater(r.AddDeg, 25f, "a deep toe-touch should tilt the pelvis a lot");
+            bool applied = BasisHipHingeCore.Solve(new Vector3(0f, -0.2f, 0.9f), Vector3.zero,
+                Quaternion.identity, Vector3.up, 45f, 50f, out _, out float leanDeg, out float addDeg);
+            Assert.IsTrue(applied, "the hinge switched off with the head below the hips (the old bug)");
+            Assert.Greater(leanDeg, 90f, "lean should read past 90 deg for a head below the hips");
+            Assert.Greater(addDeg, 25f, "a deep toe-touch should tilt the pelvis a lot");
         }
 
         [Test]
         public void ThePelvisPitchesForward_NotBackward()
         {
-            BasisHipHingeCore.Solve(Lean(70f, start: 30f), out BasisHipHingeResult r);
-            Vector3 fwd = r.HipsRot * Vector3.forward;
+            Lean(70f, out Quaternion hipsRot, out _, out _, start: 30f);
+            Vector3 fwd = hipsRot * Vector3.forward;
             Assert.Less(fwd.y, -0.05f, $"the pelvis pitched the wrong way: forward axis = {fwd}");
-            Vector3 up = r.HipsRot * Vector3.up;
+            Vector3 up = hipsRot * Vector3.up;
             Assert.Greater(up.z, 0.05f, "the pelvis top did not rotate toward the lean direction");
         }
 
         [Test]
         public void MaxAddZero_IsANoOp()
         {
-            BasisHipHingeCore.Solve(Lean(90f, start: 30f, maxAdd: 0f), out BasisHipHingeResult r);
-            Assert.IsFalse(r.Applied);
-            Assert.AreEqual(0f, Quaternion.Angle(Quaternion.identity, r.HipsRot), 1e-4f);
+            bool applied = Lean(90f, out Quaternion hipsRot, out _, out _, start: 30f, maxAdd: 0f);
+            Assert.IsFalse(applied);
+            Assert.AreEqual(0f, Quaternion.Angle(Quaternion.identity, hipsRot), 1e-4f);
         }
 
         [Test]
@@ -179,14 +164,9 @@ namespace Basis.Tests.IK
                 {
                     if (leans[f] <= deep) continue;
                     float realTilt = tilts[f] - baseline;
-                    var input = new BasisHipHingeInput
-                    {
-                        HipsPos = c.Get(f, BasisMocapJoint.Hips).Position,
-                        HeadPos = c.Get(f, BasisMocapJoint.Head).Position,
-                        HipsRot = Quaternion.identity, PlayerUp = Vector3.up, StartDeg = start, MaxAddDeg = cap,
-                    };
-                    BasisHipHingeCore.Solve(input, out BasisHipHingeResult r);
-                    errNew.Add(Mathf.Abs(r.AddDeg - realTilt));
+                    BasisHipHingeCore.Solve(c.Get(f, BasisMocapJoint.Head).Position, c.Get(f, BasisMocapJoint.Hips).Position,
+                        Quaternion.identity, Vector3.up, start, cap, out _, out _, out float addDeg);
+                    errNew.Add(Mathf.Abs(addDeg - realTilt));
                     errOld.Add(Mathf.Abs(OldModel(leans[f]) - realTilt));
                     realDeep.Add(realTilt);
                 }

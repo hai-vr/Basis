@@ -141,30 +141,22 @@ namespace Basis.IK
         public bool Seeded;
     }
 
-    public struct BasisSwingContinuityResult
-    {
-        public bool Valid;
-        public bool ApplySwing;
-        public Vector3 NewDir;
-        public BasisSwingContinuityState State;
-    }
-
     public static class BasisSwingContinuityCore
     {
         const float k_SqrEpsilon = 1e-8f;
         const float k_Epsilon = 1e-5f;
 
-        public static void Step(BasisSwingContinuityState s, Vector3 a, Vector3 b, Vector3 c,
-            Vector3 targetPos, int collided, float rateDegPerSec, float dt, out BasisSwingContinuityResult r)
+        public static bool Step(ref BasisSwingContinuityState s, Vector3 a, Vector3 b, Vector3 c,
+            Vector3 targetPos, int collided, float rateDegPerSec, float dt, out bool applySwing, out Vector3 newDir)
         {
-            r = default;
-            r.State = s;
+            applySwing = false;
+            newDir = Vector3.zero;
 
             Vector3 ac = c - a;
             float acSqr = ac.sqrMagnitude;
             if (acSqr < k_SqrEpsilon)
             {
-                return;
+                return false;
             }
             Vector3 axis = ac / Mathf.Sqrt(acSqr);
 
@@ -173,10 +165,9 @@ namespace Basis.IK
             float perpSqr = perp.sqrMagnitude;
             if (perpSqr < k_SqrEpsilon)
             {
-                return;
+                return false;
             }
             Vector3 currentDir = perp / Mathf.Sqrt(perpSqr);
-            r.Valid = true;
 
             bool armed = s.SmoothState < 0;
             bool collisionChanged = !armed && collided != s.SmoothState;
@@ -187,7 +178,7 @@ namespace Basis.IK
             bool teleport = seeded && (targetPos - s.LastTarget).sqrMagnitude > teleThresh * teleThresh;
             if (rateDegPerSec <= 0f || !seeded || teleport || (!armed && !collisionChanged))
             {
-                r.State = new BasisSwingContinuityState
+                s = new BasisSwingContinuityState
                 {
                     LastDir = currentDir,
                     LastAxis = axis,
@@ -195,7 +186,7 @@ namespace Basis.IK
                     SmoothState = collided,
                     Seeded = true,
                 };
-                return;
+                return true;
             }
 
             int smoothState = -1;
@@ -211,10 +202,10 @@ namespace Basis.IK
                 float maxStep = rateDegPerSec * dt;
                 if (angleDeg > maxStep && angleDeg > k_Epsilon)
                 {
-                    Vector3 newDir = Vector3.Slerp(carried, currentDir, maxStep / angleDeg);
-                    r.ApplySwing = true;
-                    r.NewDir = newDir;
-                    currentDir = newDir;
+                    Vector3 eased = Vector3.Slerp(carried, currentDir, maxStep / angleDeg);
+                    applySwing = true;
+                    newDir = eased;
+                    currentDir = eased;
                     easing = true;
                 }
             }
@@ -224,7 +215,7 @@ namespace Basis.IK
                 smoothState = collided;
             }
 
-            r.State = new BasisSwingContinuityState
+            s = new BasisSwingContinuityState
             {
                 LastDir = currentDir,
                 LastAxis = axis,
@@ -232,6 +223,7 @@ namespace Basis.IK
                 SmoothState = smoothState,
                 Seeded = true,
             };
+            return true;
         }
     }
 
@@ -261,64 +253,48 @@ namespace Basis.IK
         }
     }
 
-    public struct BasisTwistSolveInput
-    {
-        public Quaternion ParentRotation;
-        public Quaternion ChildRotation;
-        public Vector3 ParentToChild;
-        public float Fraction;
-
-        // Bind (authored) frames, both expressed in the PARENT bone's frame. Rig authoring is not live
-        // twist: a hand posed palm-down under a forearm, or a helper exported carrying its own roll,
-        // reads as a permanent twist if the solve works off raw locals. Left zero -- the default, and
-        // what every call site that does not bake binds leaves behind -- both fall back to identity,
-        // which is the pre-bind-cancellation behaviour.
-        public Quaternion ChildBindLocal;
-        public Quaternion TwistBindLocal;
-    }
-
-    public struct BasisTwistSolveResult
-    {
-        public bool Apply;
-        public Quaternion TwistWorldRotation;
-        public Quaternion TwistOnly;
-        public float TwistAngleDeg;
-    }
-
     public static class BasisTwistSolveCore
     {
         const float k_SqrEpsilon = 1e-8f;
 
-        public static void Solve(in BasisTwistSolveInput i, out BasisTwistSolveResult r)
+        // childBindLocal / twistBindLocal are the bind (authored) frames, both expressed in the PARENT
+        // bone's frame. Rig authoring is not live twist: a hand posed palm-down under a forearm, or a
+        // helper exported carrying its own roll, reads as a permanent twist if the solve works off raw
+        // locals. Left zero -- the default, and what every call site that does not bake binds leaves
+        // behind -- both fall back to identity, which is the pre-bind-cancellation behaviour.
+        public static bool Solve(Quaternion parentRotation, Quaternion childRotation, Vector3 parentToChild,
+            float fraction, Quaternion childBindLocal, Quaternion twistBindLocal,
+            out Quaternion twistWorldRotation, out Quaternion twistOnly, out float twistAngleDeg)
         {
-            r = default;
-            if (i.Fraction <= 0f || i.ParentToChild.sqrMagnitude < k_SqrEpsilon)
+            twistWorldRotation = default;
+            twistOnly = default;
+            twistAngleDeg = 0f;
+            if (fraction <= 0f || parentToChild.sqrMagnitude < k_SqrEpsilon)
             {
-                return;
+                return false;
             }
 
-            Vector3 axis = (Quaternion.Inverse(i.ParentRotation) * i.ParentToChild).normalized;
+            Vector3 axis = (Quaternion.Inverse(parentRotation) * parentToChild).normalized;
             if (axis.sqrMagnitude < k_SqrEpsilon)
             {
-                return;
+                return false;
             }
 
             // Twist is the child's departure FROM ITS BIND, not its raw local: in a clean T-pose that
             // delta is identity, so the helper lands exactly on the rotation the rig was authored with.
-            Quaternion childBind = BindOrIdentity(i.ChildBindLocal);
-            Quaternion twistBind = BindOrIdentity(i.TwistBindLocal);
-            Quaternion childLocal = Quaternion.Inverse(i.ParentRotation) * i.ChildRotation;
+            Quaternion childBind = BindOrIdentity(childBindLocal);
+            Quaternion twistBind = BindOrIdentity(twistBindLocal);
+            Quaternion childLocal = Quaternion.Inverse(parentRotation) * childRotation;
             Quaternion childDelta = childLocal * Quaternion.Inverse(childBind);
-            Quaternion twistOnly = ExtractTwist(childDelta, axis);
-            Quaternion partialTwist = Quaternion.Slerp(Quaternion.identity, twistOnly, Mathf.Clamp01(i.Fraction));
+            twistOnly = ExtractTwist(childDelta, axis);
+            Quaternion partialTwist = Quaternion.Slerp(Quaternion.identity, twistOnly, Mathf.Clamp01(fraction));
 
-            r.Apply = true;
             // Pre-multiplied: partialTwist lives in the parent's frame, so it composes ONTO the helper's
             // bind instead of replacing it. Without the bind term the write lands as a bare roll and
             // throws the authored local rotation away every frame.
-            r.TwistWorldRotation = i.ParentRotation * partialTwist * twistBind;
-            r.TwistOnly = twistOnly;
-            r.TwistAngleDeg = Quaternion.Angle(Quaternion.identity, twistOnly);
+            twistWorldRotation = parentRotation * partialTwist * twistBind;
+            twistAngleDeg = Quaternion.Angle(Quaternion.identity, twistOnly);
+            return true;
         }
 
         public static float SignedTwistAngleDeg(Quaternion q, Vector3 axis)

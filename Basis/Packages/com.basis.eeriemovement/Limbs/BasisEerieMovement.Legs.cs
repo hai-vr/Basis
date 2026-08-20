@@ -8,8 +8,8 @@ namespace Basis.IK
     {
         void SolveLegPass(BasisPoseStream stream)
         {
-            SolveLegs(stream, enabledLeftLowerLeg, handleLeftUpperLeg, handleLeftLowerLeg, handleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, kneeBendPrefLeft, hintIsTrackerLeftLowerLeg, footIsTrackerLeftLeg, 0);
-            SolveLegs(stream, enabledRightLowerLeg, handleRightUpperLeg, handleRightLowerLeg, handleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, kneeBendPrefRight, hintIsTrackerRightLowerLeg, footIsTrackerRightLeg, 1);
+            SolveLeg(stream, 0);
+            SolveLeg(stream, 1);
         }
 
         void SolveToePass(BasisPoseStream stream)
@@ -85,35 +85,45 @@ namespace Basis.IK
             tip.SetRotation(stream, result.TipRotation);
             return result.MidPostRoll;
         }
-        public void SolveLegs(BasisPoseStream stream, float enabledProp, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPosProp, Quaternion targetRotProp, Vector3 hintPosProp, Quaternion hintRotProp, float hintWeightProp, Quaternion targetOffset, Vector3 bendNormalProp, bool hintIsTrackerProp, bool footIsTrackerProp, int legSlot)
+        public void SolveLeg(BasisPoseStream stream, int legSlot)
         {
-            float posWeight = enabledProp;
+            bool isLeft = legSlot == 0;
+            float posWeight = isLeft ? enabledLeftLowerLeg : enabledRightLowerLeg;
             if (posWeight <= 0f)
             {
                 return;
             }
 
+            BasisBoneHandle root = isLeft ? handleLeftUpperLeg : handleRightUpperLeg;
+            BasisBoneHandle mid = isLeft ? handleLeftLowerLeg : handleRightLowerLeg;
+            BasisBoneHandle tip = isLeft ? handleLeftFoot : handleRightFoot;
             if (!(root.IsValid(stream) && mid.IsValid(stream) && tip.IsValid(stream)))
             {
                 return;
             }
+            Vector3 hintPos = isLeft ? hintPositionLeftLowerLeg : hintPositionRightLowerLeg;
+            Quaternion hintRot = isLeft ? hintRotationLeftLowerLeg : hintRotationRightLowerLeg;
+            float hintW = isLeft ? hintWeightLeftLowerLeg : hintWeightRightLowerLeg;
+            Quaternion targetOffset = isLeft ? targetOffsetLeftFoot : targetOffsetRightFoot;
+            Vector3 bendNormal = isLeft ? kneeBendPrefLeft : kneeBendPrefRight;
+            bool hintIsTracker = isLeft ? hintIsTrackerLeftLowerLeg : hintIsTrackerRightLowerLeg;
+            bool footIsTracker = isLeft ? footIsTrackerLeftLeg : footIsTrackerRightLeg;
+
             Quaternion origRootRot = root.GetRotation(stream);
             Quaternion origMidRot = mid.GetRotation(stream);
             Quaternion origTipRot = tip.GetRotation(stream);
 
-            Quaternion tRot = targetRotProp;
+            Quaternion tRot = isLeft ? targetRotationLeftLowerLeg : targetRotationRightLowerLeg;
             float tRotSqrLen = tRot.x * tRot.x + tRot.y * tRot.y + tRot.z * tRot.z + tRot.w * tRot.w;
             bool preserveTip = !(tRotSqrLen > 0.5f);
             if (preserveTip) tRot = origTipRot;
-            float hintW = hintWeightProp;
 
-            BasisAffineTransform target = new BasisAffineTransform(targetPosProp, tRot);
-            Vector3 hint = hintPosProp;
-            Vector3 bendNormal = bendNormalProp;
+            BasisAffineTransform target = new BasisAffineTransform(isLeft ? targetPositionLeftLowerLeg : targetPositionRightLowerLeg, tRot);
+            Vector3 hint = hintPos;
 
             float hintDistrust = 0f;
             bool usedModelHint = false;
-            bool fabricatedLeg = !hintIsTrackerProp && !footIsTrackerProp;
+            bool fabricatedLeg = !hintIsTracker && !footIsTracker;
             if (!(hintW > 0f) || fabricatedLeg)
             {
                 BasisSwivelFrame frame = BuildLegFrame(stream);
@@ -122,9 +132,8 @@ namespace Basis.IK
                 float upperLen = (mid.GetPosition(stream) - hipPos).magnitude;
                 float lowerLen = (tip.GetPosition(stream) - mid.GetPosition(stream)).magnitude;
                 float legLen = upperLen + lowerLen;
-                bool isLeft = legSlot == 0;
                 if (BasisSwivelHintCore.LegHint(frame, hipPos, target.translation, legLen, isLeft,
-                                                out Vector3 modelHint, out float conf, useNeuralPole))
+                                                out Vector3 modelHint, out float conf))
                 {
                     hint = modelHint;
                     hintW = 1f;
@@ -139,7 +148,7 @@ namespace Basis.IK
                     hintDistrust = 1f - BasisSwivelHintCore.LegModelTrust(conf);
                 }
             }
-            Quaternion shinRoll = SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust, legSlot,hintIsTrackerProp ? hintRotProp : default, hintIsTrackerProp, kneeAnteriorRef);
+            Quaternion shinRoll = SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust, legSlot, hintIsTracker ? hintRot : default, hintIsTracker, kneeAnteriorRef);
             if (posWeight < 1f)
             {
                 root.SetRotation(stream, Quaternion.Slerp(origRootRot, root.GetRotation(stream), posWeight));
@@ -155,17 +164,17 @@ namespace Basis.IK
             RecordHipDiagnostics(stream, root, mid, legSlot);
             if (legSwivelSmoothing)
             {
-                if (hintIsTrackerProp || footIsTrackerProp)
+                if (hintIsTracker || footIsTracker)
                 {
-                    bool footDerivedPole = !hintIsTrackerProp && footIsTrackerProp && !usedModelHint;
-                    SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
+                    bool footDerivedPole = !hintIsTracker && footIsTracker && !usedModelHint;
+                    SmoothKneeSwivel(stream, root, mid, tip, legSlot,
                         trackedKneeSwivelMinCutoffHz, trackedKneeSwivelBeta, trackedKneeSwivelDerivCutoffHz,
-                        conditionOnPole: !hintIsTrackerProp && (!footDerivedPole || kneeFootPoleConditioning),
+                        conditionOnPole: !hintIsTracker && (!footDerivedPole || kneeFootPoleConditioning),
                         holdWhenSingular: !footDerivedPole || kneeFootPoleHold);
                 }
                 else
                 {
-                    SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
+                    SmoothKneeSwivel(stream, root, mid, tip, legSlot,
                         BasisSwivelFilterCore.MinCutoffHz, BasisSwivelFilterCore.Beta, BasisSwivelFilterCore.DerivCutoffHz,
                         conditionOnPole: true, holdWhenSingular: true);
                 }
@@ -195,7 +204,7 @@ namespace Basis.IK
             d.FemurTwistDeg = TwistDeg(hipsInv * root.GetRotation(stream), femurLocal);
             legDiagnostics[slot] = d;
         }
-        void SmoothKneeSwivel(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, int slot, float dt, float minCutoffHz, float beta, float derivCutoffHz, bool conditionOnPole, bool holdWhenSingular)
+        void SmoothKneeSwivel(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, int slot, float minCutoffHz, float beta, float derivCutoffHz, bool conditionOnPole, bool holdWhenSingular)
         {
             if (!legSwivelInit.IsCreated || !legSwivelRaw.IsCreated || !legSwivelSmooth.IsCreated
                 || (uint)slot >= (uint)legSwivelInit.Length || (uint)slot >= (uint)legSwivelRaw.Length
@@ -211,7 +220,7 @@ namespace Basis.IK
             input.ReferenceLocal = Vector3.forward;
             input.FallbackLocal = Vector3.right;
             input.TransportHomeLocal = Vector3.down;
-            input.Dt = dt;
+            input.Dt = stream.deltaTime;
             input.MinCutoffHz = minCutoffHz;
             input.Beta = beta;
             input.DerivCutoffHz = derivCutoffHz;

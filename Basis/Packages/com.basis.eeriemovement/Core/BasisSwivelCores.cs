@@ -144,21 +144,8 @@ namespace Basis.IK
                 return false;
             }
 
-            float3 bend;
-            if (useNeural)
-            {
-                float3 elbowLocal = BasisArmElbowNeuralFieldModel.Elbow(tipLocal);
-                bend = BasisElbowFieldModel.BendDirection(tipLocal, elbowLocal, out confidence);
-            }
-            else if (BasisElbowFieldModel.UseStereoField)
-            {
-                bend = BasisElbowStereoModel.BendDirection(tipLocal, out confidence);
-            }
-            else
-            {
-                float3 elbowLocal = BasisElbowFieldModel.Elbow(tipLocal);
-                bend = BasisElbowFieldModel.BendDirection(tipLocal, elbowLocal, out confidence);
-            }
+            float3 elbowLocal = useNeural ? BasisArmElbowNeuralFieldModel.Elbow(tipLocal) : BasisElbowFieldModel.Elbow(tipLocal);
+            float3 bend = BasisElbowFieldModel.BendDirection(tipLocal, elbowLocal, out confidence);
 
             if (!IsFinite(bend))
             {

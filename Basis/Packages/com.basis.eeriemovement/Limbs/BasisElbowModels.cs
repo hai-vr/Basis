@@ -7,8 +7,6 @@ namespace Basis.IK
     [BurstCompile]
     public static class BasisElbowFieldModel
     {
-        public static readonly bool UseStereoField = false;
-
         static readonly float3 k_RestPole = new float3(0.35f, -1.0f, -0.15f);
 
         public static float3 Elbow(float3 tipLocal)

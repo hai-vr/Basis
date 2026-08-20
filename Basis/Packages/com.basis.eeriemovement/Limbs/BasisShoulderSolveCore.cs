@@ -29,7 +29,6 @@ namespace Basis.IK
         public bool Apply;
         public Quaternion ShoulderRotation;
 
-        public float RawReachRatio;
         public float ReachRatio;
         public float Elevation;
         public float Protraction;
@@ -149,7 +148,6 @@ namespace Basis.IK
 
             r.Apply = true;
             r.ShoulderRotation = result;
-            r.RawReachRatio = rawReach;
             r.ReachRatio = reachFade;
             r.Elevation = elevRad * Mathf.Rad2Deg;
             r.Protraction = Mathf.Abs(girdleRv.y) * Mathf.Rad2Deg;

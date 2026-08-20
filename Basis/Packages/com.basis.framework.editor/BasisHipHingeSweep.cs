@@ -96,42 +96,36 @@ namespace Basis.IK.Debugging
                                     float lean = Mathf.Lerp(0f, cfg.MaxLeanDeg, li / (float)(ls - 1));
                                     Vector3 head = hips + (up * Mathf.Cos(lean * Mathf.Deg2Rad) + horizDir * Mathf.Sin(lean * Mathf.Deg2Rad)) * H;
 
-                                    BasisHipHingeInput input;
-                                    input.HeadPos = head;
-                                    input.HipsPos = hips;
-                                    input.HipsRot = hipsRot;
-                                    input.PlayerUp = up;
-                                    input.StartDeg = start;
-                                    input.MaxAddDeg = maxAdd;
-                                    BasisHipHingeCore.Solve(input, out BasisHipHingeResult res);
+                                    bool applied = BasisHipHingeCore.Solve(head, hips, hipsRot, up, start, maxAdd,
+                                        out Quaternion newHipsRot, out _, out float addDeg);
 
-                                    bool hadNaN = !FiniteQ(res.HipsRot) || float.IsNaN(res.AddDeg) || float.IsInfinity(res.AddDeg);
+                                    bool hadNaN = !FiniteQ(newHipsRot) || float.IsNaN(addDeg) || float.IsInfinity(addDeg);
                                     float angleMatch = 0f, over = 0f, axisDotUp = 0f;
                                     bool monoBad = false, disabledMove = false;
 
                                     if (!hadNaN)
                                     {
-                                        float ang = Quaternion.Angle(hipsRot, res.HipsRot);
-                                        angleMatch = Mathf.Abs(ang - res.AddDeg);
-                                        over = Relu(res.AddDeg - maxAdd);
+                                        float ang = Quaternion.Angle(hipsRot, newHipsRot);
+                                        angleMatch = Mathf.Abs(ang - addDeg);
+                                        over = Relu(addDeg - maxAdd);
 
-                                        if (res.Applied && ang > 1e-3f)
+                                        if (applied && ang > 1e-3f)
                                         {
-                                            Quaternion delta = res.HipsRot * Quaternion.Inverse(hipsRot);
+                                            Quaternion delta = newHipsRot * Quaternion.Inverse(hipsRot);
                                             delta.ToAngleAxis(out float dAng, out Vector3 dAxis);
                                             if (dAng > 1e-3f && dAng < 359.999f) axisDotUp = Mathf.Abs(Vector3.Dot(dAxis.normalized, up));
                                         }
 
                                         if ((maxAdd <= 0f || lean <= start) && ang > 1e-3f) disabledMove = true;
 
-                                        if (havePrev && res.AddDeg < prevAdd - 1e-3f) monoBad = true;
-                                        prevAdd = res.AddDeg;
+                                        if (havePrev && addDeg < prevAdd - 1e-3f) monoBad = true;
+                                        prevAdd = addDeg;
                                         havePrev = true;
                                     }
 
                                     cases++;
                                     if (hadNaN) nan++;
-                                    if (res.Applied) engaged++;
+                                    if (applied) engaged++;
                                     if (monoBad) monoViol++;
                                     if (disabledMove) disabledMoves++;
                                     if (angleMatch > mAngle) mAngle = angleMatch;
@@ -143,8 +137,8 @@ namespace Basis.IK.Debugging
 
                                     sb.Clear();
                                     Append(sb, start); Append(sb, maxAdd); Append(sb, phi); Append(sb, lean);
-                                    sb.Append(res.Applied ? '1' : '0').Append(',');
-                                    Append(sb, res.AddDeg); Append(sb, angleMatch); Append(sb, over); Append(sb, axisDotUp);
+                                    sb.Append(applied ? '1' : '0').Append(',');
+                                    Append(sb, addDeg); Append(sb, angleMatch); Append(sb, over); Append(sb, axisDotUp);
                                     sb.Append(monoBad ? '1' : '0').Append(',');
                                     sb.Append(fail ? '1' : '0');
                                     w.WriteLine(sb.ToString());

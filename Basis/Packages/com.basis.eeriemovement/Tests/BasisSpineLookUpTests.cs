@@ -283,14 +283,10 @@ namespace Basis.Tests.IK
 
         static float PelvisShiftCm(float pitchDeg, float damp)
         {
-            BasisTrunkCounterbalanceInput i = default;
-            i.HipsPos = Hips;
-            i.NeckCue = Cue(pitchDeg, RealLookUpCarry, damp);
-            i.PlayerUp = Vector3.up;
-            i.Gain = BasisTrunkCounterbalanceCore.DerivedGain;
-            i.MaxShift = 0.45f * (Head - Hips).magnitude;
-            BasisTrunkCounterbalanceCore.Solve(i, out BasisTrunkCounterbalanceResult r);
-            return (r.HipsPos - Hips).magnitude * 100f;
+            BasisTrunkCounterbalanceCore.Solve(Hips, Cue(pitchDeg, RealLookUpCarry, damp), Vector3.up,
+                BasisTrunkCounterbalanceCore.DerivedGain, 0.45f * (Head - Hips).magnitude,
+                out Vector3 newHips, out _, out _);
+            return (newHips - Hips).magnitude * 100f;
         }
 
         [Test]
@@ -391,14 +387,8 @@ namespace Basis.Tests.IK
             Vector3 eye = EyePos(pitchDeg, yawDeg, bodyTranslation);
             if (removal <= 0f) return eye;
 
-            BasisHeadPitchSwingInput i;
-            i.PitchDeg = pitchDeg;
-            i.YawDeg = yawDeg;
-            i.EyeFromNeck = EyeFromHead;
-            i.Strength = removal;
-            i.BackwardScale = 1f;
-            BasisHeadPitchSwingCore.Solve(i, out BasisHeadPitchSwingResult r);
-            return eye - r.Offset;
+            BasisHeadPitchSwingCore.Solve(pitchDeg, yawDeg, EyeFromHead, removal, 1f, out Vector3 offset, out _);
+            return eye - offset;
         }
 
         [Test]

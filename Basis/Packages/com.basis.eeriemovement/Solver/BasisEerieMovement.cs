@@ -144,7 +144,7 @@ namespace Basis.IK
         public float shoulderSlideStartDeg, shoulderSlideMaxDeg, shoulderSlideFraction;
         public float lowerArmTwistFraction, upperArmTwistFraction;
         public float swingSmoothRateDeg;
-        public bool protectElbow, collideTrackedElbow, elbowDragEnabled, useNeuralPole;
+        public bool protectElbow, collideTrackedElbow, elbowDragEnabled;
         public float elbowDragHz;
 
         public bool legSwivelSmoothing, kneeFootPoleHold, kneeFootPoleConditioning;

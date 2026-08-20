@@ -63,20 +63,15 @@ namespace Basis.IK.Debugging
                         float frac = Mathf.Lerp(0.1f, 1f, (float)rng.NextDouble());
 
                         // Pure twist about the bone axis → recovered angle must equal theta.
-                        var input = new BasisTwistSolveInput
-                        {
-                            ParentRotation = parentRot,
-                            ChildRotation = parentRot * Quaternion.AngleAxis(theta, localAxis),
-                            ParentToChild = parentToChild,
-                            Fraction = 1f,
-                        };
-                        BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult r);
-                        float pureErr = r.Apply ? Mathf.Abs(r.TwistAngleDeg - theta) : 999f;
+                        Quaternion pureChild = parentRot * Quaternion.AngleAxis(theta, localAxis);
+                        bool apply = BasisTwistSolveCore.Solve(parentRot, pureChild, parentToChild, 1f, default, default,
+                            out _, out _, out float twistAngleDeg);
+                        float pureErr = apply ? Mathf.Abs(twistAngleDeg - theta) : 999f;
 
                         // Partial twist: the applied world rotation sits Fraction*theta off the parent.
-                        input.Fraction = frac;
-                        BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult r2);
-                        float fracAngle = r2.Apply ? Quaternion.Angle(parentRot, r2.TwistWorldRotation) : 999f;
+                        bool apply2 = BasisTwistSolveCore.Solve(parentRot, pureChild, parentToChild, frac, default, default,
+                            out Quaternion twistWorld2, out _, out _);
+                        float fracAngle = apply2 ? Quaternion.Angle(parentRot, twistWorld2) : 999f;
                         float fracErr = Mathf.Abs(fracAngle - frac * theta);
 
                         // Swing rejection: a perpendicular swing must not tilt the extracted twist axis.
@@ -86,12 +81,12 @@ namespace Basis.IK.Debugging
                         {
                             perp.Normalize();
                             float swingAng = Mathf.Lerp(5f, 60f, (float)rng.NextDouble());
-                            input.ChildRotation = parentRot * Quaternion.AngleAxis(swingAng, perp) * Quaternion.AngleAxis(theta, localAxis);
-                            input.Fraction = 1f;
-                            BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult r3);
-                            if (r3.Apply && r3.TwistAngleDeg > 5f)
+                            Quaternion swungChild = parentRot * Quaternion.AngleAxis(swingAng, perp) * Quaternion.AngleAxis(theta, localAxis);
+                            bool apply3 = BasisTwistSolveCore.Solve(parentRot, swungChild, parentToChild, 1f, default, default,
+                                out _, out Quaternion twistOnly3, out float twistAngle3);
+                            if (apply3 && twistAngle3 > 5f)
                             {
-                                r3.TwistOnly.ToAngleAxis(out _, out Vector3 twAxis);
+                                twistOnly3.ToAngleAxis(out _, out Vector3 twAxis);
                                 if (twAxis.sqrMagnitude > 1e-6f)
                                 {
                                     float a = Vector3.Angle(twAxis.normalized, localAxis);
@@ -101,11 +96,11 @@ namespace Basis.IK.Debugging
                         }
 
                         // Singular cases must no-op.
-                        var sing = input; sing.Fraction = 0f; sing.ChildRotation = parentRot * Quaternion.AngleAxis(theta, localAxis);
-                        BasisTwistSolveCore.Solve(sing, out BasisTwistSolveResult rs);
-                        var sing2 = sing; sing2.Fraction = 1f; sing2.ParentToChild = Vector3.zero;
-                        BasisTwistSolveCore.Solve(sing2, out BasisTwistSolveResult rs2);
-                        bool singularOk = !rs.Apply && !rs2.Apply;
+                        bool singApply = BasisTwistSolveCore.Solve(parentRot, pureChild, parentToChild, 0f, default, default,
+                            out _, out _, out _);
+                        bool sing2Apply = BasisTwistSolveCore.Solve(parentRot, pureChild, Vector3.zero, 1f, default, default,
+                            out _, out _, out _);
+                        bool singularOk = !singApply && !sing2Apply;
 
                         s.MaxPureTwistErrDeg = Mathf.Max(s.MaxPureTwistErrDeg, pureErr);
                         s.MaxFractionErrDeg = Mathf.Max(s.MaxFractionErrDeg, fracErr);
@@ -140,15 +135,10 @@ namespace Basis.IK.Debugging
                     float pMeas = BasisTwistSolveCore.SegmentPositionFraction(parentPos, childPos, twistPos);
                     foreach (float roll in new[] { 30f, 75f, 120f, 160f })
                     {
-                        var di = new BasisTwistSolveInput
-                        {
-                            ParentRotation = Quaternion.identity,
-                            ChildRotation = Quaternion.AngleAxis(roll, axis),
-                            ParentToChild = childPos - parentPos,
-                            Fraction = pMeas, // strength 1 -> even share == position fraction
-                        };
-                        BasisTwistSolveCore.Solve(di, out BasisTwistSolveResult dr);
-                        float boneRoll = dr.Apply ? Quaternion.Angle(Quaternion.identity, dr.TwistWorldRotation) : 0f;
+                        // strength 1 -> even share == position fraction
+                        bool drApply = BasisTwistSolveCore.Solve(Quaternion.identity, Quaternion.AngleAxis(roll, axis),
+                            childPos - parentPos, pMeas, default, default, out Quaternion drTwistWorld, out _, out _);
+                        float boneRoll = drApply ? Quaternion.Angle(Quaternion.identity, drTwistWorld) : 0f;
                         float effMeas = roll > 1e-4f ? boneRoll / roll : 0f;
                         float rate1 = p > 1e-4f ? effMeas / p : 0f;
                         float rate2 = (1f - p) > 1e-4f ? (1f - effMeas) / (1f - p) : 0f;

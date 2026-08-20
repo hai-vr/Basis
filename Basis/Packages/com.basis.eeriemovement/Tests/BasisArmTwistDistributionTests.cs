@@ -86,22 +86,14 @@ namespace Basis.Tests.IK
             // -- a constant wrong twist on every frame, worst on the upper arm where it reads as the whole
             // limb being rolled.
             Quaternion parent = Quaternion.Euler(15f, -40f, 70f);
-            var input = new BasisTwistSolveInput
-            {
-                ParentRotation = parent,
-                ChildRotation = parent * ChildBind,       // child sitting on its bind
-                ParentToChild = parent * (Axis * BoneLen),
-                Fraction = 0.5f,
-                ChildBindLocal = ChildBind,
-                TwistBindLocal = TwistBind,
-            };
+            // child sitting on its bind
+            bool apply = BasisTwistSolveCore.Solve(parent, parent * ChildBind, parent * (Axis * BoneLen), 0.5f,
+                ChildBind, TwistBind, out Quaternion twistWorld, out _, out float twistAngleDeg);
 
-            BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult r);
-
-            Assert.That(r.Apply, Is.True, "bind pose should still resolve a twist write.");
-            Assert.That(r.TwistAngleDeg, Is.EqualTo(0f).Within(0.01f),
-                $"authored child roll read as live twist ({r.TwistAngleDeg:0.00} deg with nothing moving).");
-            Assert.That(Quaternion.Angle(r.TwistWorldRotation, parent * TwistBind), Is.LessThan(0.01f),
+            Assert.That(apply, Is.True, "bind pose should still resolve a twist write.");
+            Assert.That(twistAngleDeg, Is.EqualTo(0f).Within(0.01f),
+                $"authored child roll read as live twist ({twistAngleDeg:0.00} deg with nothing moving).");
+            Assert.That(Quaternion.Angle(twistWorld, parent * TwistBind), Is.LessThan(0.01f),
                 "twist bone left its authored rotation in a clean T-pose.");
         }
 
@@ -113,43 +105,30 @@ namespace Basis.Tests.IK
             const float Roll = 60f;
             const float Fraction = 0.5f;
             Quaternion parent = Quaternion.Euler(-25f, 12f, 5f);
-            var input = new BasisTwistSolveInput
-            {
-                ParentRotation = parent,
-                ChildRotation = parent * Quaternion.AngleAxis(Roll, Axis) * ChildBind,
-                ParentToChild = parent * (Axis * BoneLen),
-                Fraction = Fraction,
-                ChildBindLocal = ChildBind,
-                TwistBindLocal = TwistBind,
-            };
+            bool apply = BasisTwistSolveCore.Solve(parent, parent * Quaternion.AngleAxis(Roll, Axis) * ChildBind,
+                parent * (Axis * BoneLen), Fraction, ChildBind, TwistBind,
+                out Quaternion twistWorld, out _, out float twistAngleDeg);
 
-            BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult r);
-
-            Assert.That(r.Apply, Is.True);
-            Assert.That(r.TwistAngleDeg, Is.EqualTo(Roll).Within(0.01f),
+            Assert.That(apply, Is.True);
+            Assert.That(twistAngleDeg, Is.EqualTo(Roll).Within(0.01f),
                 "recovered twist should be the roll past bind, with the authored roll cancelled out.");
-            Assert.That(Quaternion.Angle(r.TwistWorldRotation, parent * TwistBind), Is.EqualTo(Roll * Fraction).Within(0.01f),
+            Assert.That(Quaternion.Angle(twistWorld, parent * TwistBind), Is.EqualTo(Roll * Fraction).Within(0.01f),
                 "helper's share should be measured from its authored rotation, not from the parent.");
         }
 
         [Test]
         public void UnbakedBinds_FallBackToIdentity()
         {
-            // default(BasisTwistSolveInput) leaves the bind fields as the zero quaternion, and every call
-            // site that predates bind cancellation (sweeps, equivariance) still builds inputs that way.
-            // Those must keep the raw behaviour rather than normalising a zero into NaN.
+            // Zero-quaternion bind fields are what every call site that predates bind cancellation (sweeps,
+            // equivariance) still passes. Those must keep the raw behaviour rather than normalising a zero
+            // into NaN.
             const float Roll = 40f;
-            BasisTwistSolveInput unbaked = default;
-            unbaked.ParentRotation = Quaternion.identity;
-            unbaked.ChildRotation = Quaternion.AngleAxis(Roll, Axis);
-            unbaked.ParentToChild = Axis * BoneLen;
-            unbaked.Fraction = 1f;
+            bool apply = BasisTwistSolveCore.Solve(Quaternion.identity, Quaternion.AngleAxis(Roll, Axis),
+                Axis * BoneLen, 1f, default, default, out Quaternion twistWorld, out _, out float twistAngleDeg);
 
-            BasisTwistSolveCore.Solve(unbaked, out BasisTwistSolveResult r);
-
-            Assert.That(r.Apply, Is.True);
-            Assert.That(r.TwistAngleDeg, Is.EqualTo(Roll).Within(0.01f), "zero bind quaternions should read as identity.");
-            Assert.That(IsFinite(r.TwistWorldRotation), Is.True, "zero bind quaternion normalised into a non-finite rotation.");
+            Assert.That(apply, Is.True);
+            Assert.That(twistAngleDeg, Is.EqualTo(Roll).Within(0.01f), "zero bind quaternions should read as identity.");
+            Assert.That(IsFinite(twistWorld), Is.True, "zero bind quaternion normalised into a non-finite rotation.");
         }
 
         static bool IsFinite(Quaternion q) =>
@@ -159,15 +138,9 @@ namespace Basis.Tests.IK
         // One twist solve: child rolled by 'roll' about the bone axis; returns the twist bone's roll magnitude.
         static float SolveBoneRoll(float fraction, float roll)
         {
-            var input = new BasisTwistSolveInput
-            {
-                ParentRotation = Quaternion.identity,
-                ChildRotation = Quaternion.AngleAxis(roll, Axis),
-                ParentToChild = Axis * BoneLen,
-                Fraction = fraction,
-            };
-            BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult r);
-            return r.Apply ? Quaternion.Angle(Quaternion.identity, r.TwistWorldRotation) : 0f;
+            bool apply = BasisTwistSolveCore.Solve(Quaternion.identity, Quaternion.AngleAxis(roll, Axis),
+                Axis * BoneLen, fraction, default, default, out Quaternion twistWorld, out _, out _);
+            return apply ? Quaternion.Angle(Quaternion.identity, twistWorld) : 0f;
         }
     }
 }

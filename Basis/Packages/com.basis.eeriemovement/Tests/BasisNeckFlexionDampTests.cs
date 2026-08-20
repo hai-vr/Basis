@@ -156,16 +156,10 @@ namespace Basis.Tests.IK
 
         // ---- the guard in BasisHeadPitchSwingCore ----
 
-        static BasisHeadPitchSwingResult Swing(Vector3 arm, float pitchDeg)
+        static (Vector3 Offset, float ForwardMeters) Swing(Vector3 arm, float pitchDeg)
         {
-            BasisHeadPitchSwingInput i;
-            i.PitchDeg = pitchDeg;
-            i.YawDeg = 0f;
-            i.EyeFromNeck = arm;
-            i.Strength = 1f;
-            i.BackwardScale = 1f;
-            BasisHeadPitchSwingCore.Solve(i, out BasisHeadPitchSwingResult r);
-            return r;
+            BasisHeadPitchSwingCore.Solve(pitchDeg, 0f, arm, 1f, 1f, out Vector3 offset, out float forwardMeters);
+            return (offset, forwardMeters);
         }
 
         [Test]

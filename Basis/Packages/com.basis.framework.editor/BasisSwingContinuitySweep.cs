@@ -170,18 +170,16 @@ namespace Basis.IK.Debugging
             Vector3 c = new Vector3(0f, 0f, k_L);
             Vector3 b = BFromSwivel(desiredDeg);
 
-            BasisSwingContinuityCore.Step(st, a, b, c, targetPos, collided, rate, dt, out BasisSwingContinuityResult r);
             nanHit = false;
-            if (!r.Valid)
+            if (!BasisSwingContinuityCore.Step(ref st, a, b, c, targetPos, collided, rate, dt, out bool applySwing, out Vector3 newDir))
             {
                 appliedDeg = desiredDeg;
                 return false;
             }
-            st = r.State;
-            if (r.ApplySwing)
+            if (applySwing)
             {
-                if (!Finite(r.NewDir)) { nanHit = true; appliedDeg = desiredDeg; return false; }
-                appliedDeg = Mathf.Atan2(r.NewDir.y, r.NewDir.x) * Mathf.Rad2Deg;
+                if (!Finite(newDir)) { nanHit = true; appliedDeg = desiredDeg; return false; }
+                appliedDeg = Mathf.Atan2(newDir.y, newDir.x) * Mathf.Rad2Deg;
                 return true;
             }
             appliedDeg = desiredDeg; // free-air / reseed / within-step: accepted as-is

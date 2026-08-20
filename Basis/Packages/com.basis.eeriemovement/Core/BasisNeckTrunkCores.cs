@@ -46,7 +46,6 @@ namespace Basis.IK
         public float UpperChestLordosisDeg;
         public float ExtremeFrac;
         public float ExtremeRollDeg;
-        public float PitchAbsDeg;
         public float SignedPitch;
         public float LookUpFrac;
         public float LookDownFrac;
@@ -115,7 +114,6 @@ namespace Basis.IK
             r.NeckDeg = neckDeg;
             r.ExtremeFrac = extremeFrac;
             r.ExtremeRollDeg = extremeRollDeg;
-            r.PitchAbsDeg = pitchAbsDeg;
             r.SignedPitch = signedPitch;
             r.LookUpFrac = lookUpFrac;
             r.LookDownFrac = lookDownFrac;
@@ -226,27 +224,6 @@ namespace Basis.IK
         }
     }
 
-    public struct BasisTrunkCounterbalanceInput
-    {
-        public Vector3 HipsPos;
-
-        public Vector3 NeckCue;
-        public Vector3 PlayerUp;
-
-        public float Gain;
-
-        public float MaxShift;
-    }
-
-    public struct BasisTrunkCounterbalanceResult
-    {
-        public Vector3 HipsPos;
-        public bool Applied;
-
-        public float FlexionFrac;
-        public float ShiftMeters;
-    }
-
     public static class BasisTrunkCounterbalanceCore
     {
         const float k_Epsilon = 1e-5f;
@@ -254,42 +231,44 @@ namespace Basis.IK
 
         public const float DerivedGain = 0.38f;
 
-        public static void Solve(in BasisTrunkCounterbalanceInput i, out BasisTrunkCounterbalanceResult r)
+        public static bool Solve(Vector3 hipsPos, Vector3 neckCue, Vector3 playerUp, float gain, float maxShift,
+            out Vector3 newHipsPos, out float flexionFrac, out float shiftMeters)
         {
-            r = default;
-            r.HipsPos = i.HipsPos;
+            newHipsPos = hipsPos;
+            flexionFrac = 0f;
+            shiftMeters = 0f;
 
-            if (i.Gain <= 0f || i.MaxShift <= 0f)
+            if (gain <= 0f || maxShift <= 0f)
             {
-                return;
+                return false;
             }
 
-            Vector3 up = i.PlayerUp.sqrMagnitude < k_SqrEpsilon ? Vector3.up : i.PlayerUp.normalized;
-            Vector3 trunk = i.NeckCue - i.HipsPos;
+            Vector3 up = playerUp.sqrMagnitude < k_SqrEpsilon ? Vector3.up : playerUp.normalized;
+            Vector3 trunk = neckCue - hipsPos;
             float len = trunk.magnitude;
             if (len < k_Epsilon)
             {
-                return;
+                return false;
             }
 
             Vector3 horizontal = trunk - up * Vector3.Dot(trunk, up);
             float horizMag = horizontal.magnitude;
 
-            r.FlexionFrac = Mathf.Clamp01(horizMag / len);
+            flexionFrac = Mathf.Clamp01(horizMag / len);
             if (horizMag < k_Epsilon)
             {
-                return;
+                return false;
             }
 
-            float shift = Saturate(i.Gain * horizMag, i.MaxShift);
+            float shift = Saturate(gain * horizMag, maxShift);
             if (shift <= 0f)
             {
-                return;
+                return false;
             }
 
-            r.Applied = true;
-            r.ShiftMeters = shift;
-            r.HipsPos = i.HipsPos - (horizontal / horizMag) * shift;
+            shiftMeters = shift;
+            newHipsPos = hipsPos - (horizontal / horizMag) * shift;
+            return true;
         }
 
         public static float Saturate(float x, float cap)

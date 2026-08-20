@@ -23,39 +23,37 @@ namespace Basis.Tests.IK
         const float k_TrunkLen = 0.5f;
         const float k_MaxShift = 0.25f;
 
-        // hips at the origin, neck folded `deg` off vertical (+Y) toward +Z.
-        static BasisTrunkCounterbalanceInput Fold(float deg, float gain = BasisTrunkCounterbalanceCore.DerivedGain,
-                                                  float maxShift = k_MaxShift, float trunkLen = k_TrunkLen)
+        // neck folded `deg` off vertical (+Y) toward +Z, for hips at the origin.
+        static Vector3 FoldCue(float deg, float trunkLen = k_TrunkLen)
         {
             float r = deg * Mathf.Deg2Rad;
-            return new BasisTrunkCounterbalanceInput
-            {
-                HipsPos = Vector3.zero,
-                NeckCue = new Vector3(0f, Mathf.Cos(r), Mathf.Sin(r)) * trunkLen,
-                PlayerUp = Vector3.up,
-                Gain = gain,
-                MaxShift = maxShift,
-            };
+            return new Vector3(0f, Mathf.Cos(r), Mathf.Sin(r)) * trunkLen;
+        }
+
+        static bool Fold(float deg, out Vector3 hipsPos, out float flexionFrac, out float shiftMeters,
+            float gain = BasisTrunkCounterbalanceCore.DerivedGain, float maxShift = k_MaxShift)
+        {
+            return BasisTrunkCounterbalanceCore.Solve(Vector3.zero, FoldCue(deg), Vector3.up, gain, maxShift,
+                out hipsPos, out flexionFrac, out shiftMeters);
         }
 
         [Test]
         public void Upright_NothingMoves()
         {
-            BasisTrunkCounterbalanceCore.Solve(Fold(0f), out BasisTrunkCounterbalanceResult r);
-            Assert.IsFalse(r.Applied, "the counterbalance fired on an upright trunk");
-            Assert.AreEqual(0f, r.ShiftMeters, 1e-5f);
-            Assert.AreEqual(0f, r.FlexionFrac, 1e-4f);
-            Assert.AreEqual(0f, Vector3.Distance(Vector3.zero, r.HipsPos), 1e-6f);
+            bool applied = Fold(0f, out Vector3 hips, out float flexionFrac, out float shift);
+            Assert.IsFalse(applied, "the counterbalance fired on an upright trunk");
+            Assert.AreEqual(0f, shift, 1e-5f);
+            Assert.AreEqual(0f, flexionFrac, 1e-4f);
+            Assert.AreEqual(0f, Vector3.Distance(Vector3.zero, hips), 1e-6f);
         }
 
         [Test]
         public void GainZero_IsExactlyTheIdentity()
         {
             // The off switch must be bit-identical, not merely small -- same contract as every other IK toggle.
-            var input = Fold(70f, gain: 0f);
-            BasisTrunkCounterbalanceCore.Solve(input, out BasisTrunkCounterbalanceResult r);
-            Assert.IsFalse(r.Applied);
-            Assert.AreEqual(0f, Vector3.Distance(input.HipsPos, r.HipsPos), 0f, "gain 0 moved the hips");
+            bool applied = Fold(70f, out Vector3 hips, out _, out _, gain: 0f);
+            Assert.IsFalse(applied);
+            Assert.AreEqual(0f, Vector3.Distance(Vector3.zero, hips), 0f, "gain 0 moved the hips");
         }
 
         [Test]
@@ -64,23 +62,23 @@ namespace Basis.Tests.IK
             // THE model claim: the pelvis answers a fixed fraction of how far the neck went forward.
             foreach (float deg in new[] { 20f, 35f, 45f })
             {
-                BasisTrunkCounterbalanceCore.Solve(Fold(deg), out BasisTrunkCounterbalanceResult r);
+                Fold(deg, out _, out _, out float shift);
                 float horizMag = k_TrunkLen * Mathf.Sin(deg * Mathf.Deg2Rad);
                 float expected = BasisTrunkCounterbalanceCore.DerivedGain * horizMag;
                 Assert.Less(expected, k_MaxShift * 0.8f, $"{deg} deg is past the soft point; pick a shallower angle");
-                Assert.AreEqual(expected, r.ShiftMeters, 1e-4f, $"wrong shift at {deg} deg");
+                Assert.AreEqual(expected, shift, 1e-4f, $"wrong shift at {deg} deg");
             }
         }
 
         [Test]
         public void TheShiftOpposesTheFoldAndIsPurelyHorizontal()
         {
-            BasisTrunkCounterbalanceCore.Solve(Fold(60f), out BasisTrunkCounterbalanceResult r);
-            Assert.IsTrue(r.Applied);
+            bool applied = Fold(60f, out Vector3 hips, out _, out _);
+            Assert.IsTrue(applied);
             // folded toward +Z, so the pelvis must travel -Z, and must not gain or lose height doing it.
-            Assert.Less(r.HipsPos.z, 0f, "the pelvis moved the same way as the fold");
-            Assert.AreEqual(0f, r.HipsPos.y, 1e-5f, "the counterbalance changed the pelvis height");
-            Assert.AreEqual(0f, r.HipsPos.x, 1e-5f, "the counterbalance introduced lateral drift");
+            Assert.Less(hips.z, 0f, "the pelvis moved the same way as the fold");
+            Assert.AreEqual(0f, hips.y, 1e-5f, "the counterbalance changed the pelvis height");
+            Assert.AreEqual(0f, hips.x, 1e-5f, "the counterbalance introduced lateral drift");
         }
 
         [Test]
@@ -88,14 +86,12 @@ namespace Basis.Tests.IK
         {
             // A forward-LEFT fold must be answered back-RIGHT. A model built on the pelvis' forward axis
             // would only handle pure sagittal bends (and would drag in the bind-frame problem).
-            var input = Fold(50f);
             Quaternion yaw = Quaternion.AngleAxis(37f, Vector3.up);
-            input.NeckCue = yaw * input.NeckCue;
-            BasisTrunkCounterbalanceCore.Solve(input, out BasisTrunkCounterbalanceResult r);
+            BasisTrunkCounterbalanceCore.Solve(Vector3.zero, yaw * FoldCue(50f), Vector3.up,
+                BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 hips, out _, out _);
 
             Vector3 leanDir = yaw * Vector3.forward;
-            Vector3 shift = r.HipsPos - input.HipsPos;
-            Assert.AreEqual(-1f, Vector3.Dot(shift.normalized, leanDir), 1e-4f,
+            Assert.AreEqual(-1f, Vector3.Dot(hips.normalized, leanDir), 1e-4f,
                 "the shift is not anti-parallel to the fold direction");
         }
 
@@ -104,13 +100,13 @@ namespace Basis.Tests.IK
         {
             foreach (float deg in new[] { 15f, 45f, 90f, 120f })
             {
-                BasisTrunkCounterbalanceCore.Solve(Fold(deg), out BasisTrunkCounterbalanceResult on);
-                Assert.AreEqual(Mathf.Sin(deg * Mathf.Deg2Rad), on.FlexionFrac, 1e-4f, $"FlexionFrac wrong at {deg} deg");
+                Fold(deg, out _, out float onFrac, out _);
+                Assert.AreEqual(Mathf.Sin(deg * Mathf.Deg2Rad), onFrac, 1e-4f, $"FlexionFrac wrong at {deg} deg");
 
                 // Off must switch off the CROUCH FADE too, not just the shift -- otherwise "gain 0" would
                 // still silently change the crouch sit-back and the no-op contract would be a lie.
-                BasisTrunkCounterbalanceCore.Solve(Fold(deg, gain: 0f), out BasisTrunkCounterbalanceResult off);
-                Assert.AreEqual(0f, off.FlexionFrac, 0f, $"FlexionFrac leaked at {deg} deg with the term disabled");
+                Fold(deg, out _, out float offFrac, out _, gain: 0f);
+                Assert.AreEqual(0f, offFrac, 0f, $"FlexionFrac leaked at {deg} deg with the term disabled");
             }
         }
 
@@ -119,8 +115,8 @@ namespace Basis.Tests.IK
         {
             for (float deg = 0f; deg <= 110f; deg += 5f)
             {
-                BasisTrunkCounterbalanceCore.Solve(Fold(deg, gain: 2f), out BasisTrunkCounterbalanceResult r);
-                Assert.Less(r.ShiftMeters, k_MaxShift, $"shift reached the cap at {deg} deg (a hard clamp pops)");
+                Fold(deg, out _, out _, out float shift, gain: 2f);
+                Assert.Less(shift, k_MaxShift, $"shift reached the cap at {deg} deg (a hard clamp pops)");
             }
         }
 
@@ -136,10 +132,10 @@ namespace Basis.Tests.IK
             float prev = 0f;
             for (float deg = 0f; deg <= 130f; deg += 1f)
             {
-                BasisTrunkCounterbalanceCore.Solve(Fold(deg, gain: gain), out BasisTrunkCounterbalanceResult r);
-                Assert.LessOrEqual(Mathf.Abs(r.ShiftMeters - prev), bound,
-                    $"shift stepped {Mathf.Abs(r.ShiftMeters - prev):F5} m at {deg} deg, past the unsaturated bound {bound:F5}");
-                prev = r.ShiftMeters;
+                Fold(deg, out _, out _, out float shift, gain: gain);
+                Assert.LessOrEqual(Mathf.Abs(shift - prev), bound,
+                    $"shift stepped {Mathf.Abs(shift - prev):F5} m at {deg} deg, past the unsaturated bound {bound:F5}");
+                prev = shift;
             }
         }
 
@@ -148,10 +144,10 @@ namespace Basis.Tests.IK
         {
             // A real toe-touch hangs the trunk nearly straight down, so its forward lever arm shrinks again.
             // sin() gives that for free; assert it rather than leaving it as an accident of the formula.
-            BasisTrunkCounterbalanceCore.Solve(Fold(90f, gain: 0.2f), out BasisTrunkCounterbalanceResult at90);
-            BasisTrunkCounterbalanceCore.Solve(Fold(125f, gain: 0.2f), out BasisTrunkCounterbalanceResult at125);
-            Assert.Less(at125.ShiftMeters, at90.ShiftMeters, "the shift did not ease off past horizontal");
-            Assert.Greater(at125.ShiftMeters, 0f, "the shift collapsed entirely past horizontal");
+            Fold(90f, out _, out _, out float at90, gain: 0.2f);
+            Fold(125f, out _, out _, out float at125, gain: 0.2f);
+            Assert.Less(at125, at90, "the shift did not ease off past horizontal");
+            Assert.Greater(at125, 0f, "the shift collapsed entirely past horizontal");
         }
 
         [Test]
@@ -159,22 +155,19 @@ namespace Basis.Tests.IK
         {
             // Positions only, no bone axes, so this should hold exactly. BasisFullBodyIK's clamps have shipped
             // frame bugs precisely where this was never asserted -- see the space-conformance suite.
-            var input = Fold(65f);
-            input.HipsPos = new Vector3(0.3f, 1.1f, -0.7f);
-            input.NeckCue += input.HipsPos;
-            BasisTrunkCounterbalanceCore.Solve(input, out BasisTrunkCounterbalanceResult flat);
+            Vector3 hips0 = new Vector3(0.3f, 1.1f, -0.7f);
+            Vector3 cue0 = FoldCue(65f) + hips0;
+            BasisTrunkCounterbalanceCore.Solve(hips0, cue0, Vector3.up,
+                BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 flatHips, out _, out float flatShift);
 
             Quaternion R = Quaternion.Euler(23f, -51f, 17f);
             Vector3 pivot = new Vector3(-2f, 0.4f, 3f);
-            var moved = input;
-            moved.HipsPos = R * (input.HipsPos - pivot) + pivot;
-            moved.NeckCue = R * (input.NeckCue - pivot) + pivot;
-            moved.PlayerUp = R * input.PlayerUp;
-            BasisTrunkCounterbalanceCore.Solve(moved, out BasisTrunkCounterbalanceResult rotated);
+            BasisTrunkCounterbalanceCore.Solve(R * (hips0 - pivot) + pivot, R * (cue0 - pivot) + pivot, R * Vector3.up,
+                BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 rotatedHips, out _, out float rotatedShift);
 
-            Vector3 expected = R * (flat.HipsPos - pivot) + pivot;
-            Assert.AreEqual(0f, Vector3.Distance(expected, rotated.HipsPos), 1e-4f, "not equivariant");
-            Assert.AreEqual(flat.ShiftMeters, rotated.ShiftMeters, 1e-5f);
+            Vector3 expected = R * (flatHips - pivot) + pivot;
+            Assert.AreEqual(0f, Vector3.Distance(expected, rotatedHips), 1e-4f, "not equivariant");
+            Assert.AreEqual(flatShift, rotatedShift, 1e-5f);
         }
 
         [Test]
@@ -197,17 +190,10 @@ namespace Basis.Tests.IK
                 Vector3 headPos = neck + q * (headRest - neck);       // the head ORBITS the neck
                 Vector3 cue = headPos + headRot * headToNeckLocal;    // == ComputeNeckCue
 
-                var input = new BasisTrunkCounterbalanceInput
-                {
-                    HipsPos = new Vector3(0f, 0.95f, 0f),
-                    NeckCue = cue,
-                    PlayerUp = Vector3.up,
-                    Gain = BasisTrunkCounterbalanceCore.DerivedGain,
-                    MaxShift = k_MaxShift,
-                };
-                BasisTrunkCounterbalanceCore.Solve(input, out BasisTrunkCounterbalanceResult r);
-                if (gaze == 0f) baseline = r.HipsPos;
-                Assert.AreEqual(0f, Vector3.Distance(baseline, r.HipsPos), 1e-5f,
+                BasisTrunkCounterbalanceCore.Solve(new Vector3(0f, 0.95f, 0f), cue, Vector3.up,
+                    BasisTrunkCounterbalanceCore.DerivedGain, k_MaxShift, out Vector3 hips, out _, out _);
+                if (gaze == 0f) baseline = hips;
+                Assert.AreEqual(0f, Vector3.Distance(baseline, hips), 1e-5f,
                     $"gazing {gaze} deg moved the pelvis -- the cue is contaminated");
             }
         }

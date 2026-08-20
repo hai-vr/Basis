@@ -36,7 +36,6 @@ namespace Basis.IK
         public bool WriteUpper; public Vector3 UpperEuler;
 
         public float BendPitchDeg;
-        public float BendRollDeg;
         public float TwistY;
         public float SquishMult;
         public float BendGate;
@@ -143,7 +142,6 @@ namespace Basis.IK
             }
 
             r.BendPitchDeg = bendPitchDeg;
-            r.BendRollDeg = bendRollDeg;
             r.TwistY = twistY;
             r.SquishMult = squishMult;
             r.BendGate = bendGate;

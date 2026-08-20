@@ -220,16 +220,10 @@ namespace Basis.IK
                     float gazePitchDeg = math.degrees(math.atan2(-gazeFwd.y, gazeHorizMag));
                     YawDegrees(in headYawFromEye, out float gazeYawDeg);
 
-                    BasisHeadPitchSwingInput swing;
-                    swing.PitchDeg = gazePitchDeg;
-                    swing.YawDeg = gazeYawDeg;
-                    swing.EyeFromNeck = P.GazeSwingLever;
-                    swing.Strength = P.GazeSwingRemoval;
+                    BasisHeadPitchSwingCore.Solve(gazePitchDeg, gazeYawDeg, P.GazeSwingLever, P.GazeSwingRemoval, 1f,
+                        out UnityEngine.Vector3 swingOffset, out _);
 
-                    swing.BackwardScale = 1f;
-                    BasisHeadPitchSwingCore.Solve(swing, out BasisHeadPitchSwingResult swingResult);
-
-                    leashEyePos -= (float3)swingResult.Offset;
+                    leashEyePos -= (float3)swingOffset;
                 }
 
                 float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, leashEyePos, dt, P.StandingHeadLocalY, stanceHeadDrop, in torsoYawTarget, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
