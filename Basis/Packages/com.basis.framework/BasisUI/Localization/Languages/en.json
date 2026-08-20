@@ -319,6 +319,10 @@
       "value": "Custom"
     },
     {
+      "key": "camera.background.transparent",
+      "value": "Transparent"
+    },
+    {
       "key": "camera.noCamerasOpen",
       "value": "No Cameras Open"
     },
@@ -14206,7 +14210,7 @@
     },
     {
       "key": "camera.backgroundMode.description",
-      "value": "Replaces what is behind the subject. Colour modes drop the world out for keying."
+      "value": "Replaces what is behind the subject. Keyable modes can drop the world out for chroma key or alpha compositing."
     },
     {
       "key": "camera.backgroundKeepWorld",
@@ -14214,7 +14218,7 @@
     },
     {
       "key": "camera.backgroundKeepWorld.description",
-      "value": "Keeps world geometry in shot on a colour background. Off leaves only players and props."
+      "value": "Keeps world geometry in shot on a replacement background. Off leaves only players and props."
     },
     {
       "key": "camera.backgroundRed",

@@ -267,6 +267,7 @@ public static class BasisCameraSettingsReadout
             case BasisCameraBackgroundMode.White: return BasisLocalization.Get("camera.background.white");
             case BasisCameraBackgroundMode.Magenta: return BasisLocalization.Get("camera.background.magenta");
             case BasisCameraBackgroundMode.Custom: return BasisLocalization.Get("camera.background.custom");
+            case BasisCameraBackgroundMode.Transparent: return BasisLocalization.Get("camera.background.transparent");
             default: return BasisLocalization.Get("camera.background.world");
         }
     }

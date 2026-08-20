@@ -93,7 +93,13 @@ public partial class BasisHandHeldCamera
     /// <summary>Sender names in use process-wide, so simultaneous cameras publish separate outputs (#854).</summary>
     private static readonly HashSet<string> ActiveVideoOutputNames = new HashSet<string>();
 #endif
+    private const string TransparentVideoOutputShaderName = "Hidden/Basis/Camera/TransparentVideoOutput";
+    private static readonly int TransparentMaskTexId = Shader.PropertyToID("_MaskTex");
+    private static readonly int TransparentScaleOffsetId = Shader.PropertyToID("_ScaleOffset");
+
     private RenderTexture videoStreamTexture;
+    private RenderTexture transparentVideoMaskTexture;
+    private Material transparentVideoOutputMaterial;
     private BasisRenderRateLimiter videoPacing;
 
     // ---- MJPEG web stream ----------------------------------------------------------
@@ -352,6 +358,7 @@ public partial class BasisHandHeldCamera
             Destroy(videoStreamTexture);
             videoStreamTexture = null;
         }
+        ReleaseTransparentVideoOutputResources();
         if (wasActive) UpdateRenderGate();
 #endif
     }
@@ -389,12 +396,125 @@ public partial class BasisHandHeldCamera
 #if BASIS_VIDEO_OUTPUT_V4L2
         // Readback of Unity RTs is bottom-up; V4L2 wants rows top-down. Flipping the crop means
         // negating its scale and moving the offset to the far edge of the same band.
-        Graphics.Blit(source, videoStreamTexture, new Vector2(scale.x, -scale.y), new Vector2(offset.x, offset.y + scale.y));
-#else
-        Graphics.Blit(source, videoStreamTexture, scale, offset);
+        scale.y = -scale.y;
+        offset.y += -scale.y;
 #endif
-        videoSink.PushFrame(videoStreamTexture);
+
+        bool transparent = backgroundMode == BasisCameraBackgroundMode.Transparent;
+        if (transparent)
+        {
+            // Render the RGB and alpha mask as a matched pair. This callback runs before Unity's
+            // normal camera render, so render explicitly here and suppress the duplicate automatic
+            // render for this frame.
+            captureCamera.Render();
+            captureCamera.enabled = false;
+        }
+
+        bool outputHasAlpha = transparent && BlitTransparentVideoOutput(source, scale, offset);
+        if (!outputHasAlpha)
+        {
+            Graphics.Blit(source, videoStreamTexture, scale, offset);
+        }
+
+        videoSink.PushFrame(videoStreamTexture, outputHasAlpha);
 #endif
+    }
+
+    private bool BlitTransparentVideoOutput(Texture source, Vector2 scale, Vector2 offset)
+    {
+        if (!EnsureTransparentVideoOutputResources(source)) return false;
+
+        if (!RenderTransparentVideoMask(source)) return false;
+
+        transparentVideoOutputMaterial.SetTexture(TransparentMaskTexId, transparentVideoMaskTexture);
+        transparentVideoOutputMaterial.SetVector(
+            TransparentScaleOffsetId,
+            new Vector4(scale.x, scale.y, offset.x, offset.y));
+        Graphics.Blit(source, videoStreamTexture, transparentVideoOutputMaterial);
+        return true;
+    }
+
+    private bool EnsureTransparentVideoOutputResources(Texture source)
+    {
+        if (source == null) return false;
+
+        if (transparentVideoOutputMaterial == null)
+        {
+            Shader shader = Shader.Find(TransparentVideoOutputShaderName);
+            if (shader == null)
+            {
+                BasisDebug.LogError($"Transparent video output shader '{TransparentVideoOutputShaderName}' is unavailable.", BasisDebug.LogTag.Camera);
+                return false;
+            }
+            transparentVideoOutputMaterial = new Material(shader) { name = "Basis Transparent Video Output" };
+        }
+
+        int samples = source is RenderTexture sourceRenderTexture ? sourceRenderTexture.antiAliasing : 1;
+        if (transparentVideoMaskTexture != null &&
+            (transparentVideoMaskTexture.width != source.width ||
+             transparentVideoMaskTexture.height != source.height ||
+             transparentVideoMaskTexture.antiAliasing != samples))
+        {
+            transparentVideoMaskTexture.Release();
+            Destroy(transparentVideoMaskTexture);
+            transparentVideoMaskTexture = null;
+        }
+
+        if (transparentVideoMaskTexture == null)
+        {
+            var descriptor = new RenderTextureDescriptor(source.width, source.height, RenderTextureFormat.ARGB32, 24)
+            {
+                msaaSamples = samples,
+                useMipMap = false,
+                autoGenerateMips = false,
+                sRGB = false
+            };
+            transparentVideoMaskTexture = new RenderTexture(descriptor) { name = "BasisTransparentVideoMask" };
+            transparentVideoMaskTexture.Create();
+        }
+
+        return true;
+    }
+
+    private bool RenderTransparentVideoMask(Texture source)
+    {
+        if (captureCamera == null || CameraData == null || !EnsureTransparentVideoOutputResources(source)) return false;
+
+        RenderTexture previousTarget = captureCamera.targetTexture;
+        bool previousPostProcessing = CameraData.renderPostProcessing;
+        CameraClearFlags previousClearFlags = captureCamera.clearFlags;
+        Color previousBackgroundColor = captureCamera.backgroundColor;
+        try
+        {
+            captureCamera.targetTexture = transparentVideoMaskTexture;
+            CameraData.renderPostProcessing = false;
+            captureCamera.clearFlags = CameraClearFlags.SolidColor;
+            captureCamera.backgroundColor = Color.clear;
+            captureCamera.Render();
+            return true;
+        }
+        finally
+        {
+            captureCamera.targetTexture = previousTarget;
+            CameraData.renderPostProcessing = previousPostProcessing;
+            captureCamera.clearFlags = previousClearFlags;
+            captureCamera.backgroundColor = previousBackgroundColor;
+        }
+    }
+
+    private void ReleaseTransparentVideoOutputResources()
+    {
+        if (transparentVideoMaskTexture != null)
+        {
+            transparentVideoMaskTexture.Release();
+            Destroy(transparentVideoMaskTexture);
+            transparentVideoMaskTexture = null;
+        }
+        if (transparentVideoOutputMaterial != null)
+        {
+            Destroy(transparentVideoOutputMaterial);
+            transparentVideoOutputMaterial = null;
+        }
     }
 
     /// <summary>
@@ -863,9 +983,10 @@ namespace Basis
             return true;
         }
 
-        public void PushFrame(RenderTexture frame)
+        public void PushFrame(RenderTexture frame, bool keepAlpha)
         {
             if (sender == null) return;
+            sender.keepAlpha = keepAlpha;
             sender.sourceTexture = frame;
             VerifyRegistration();
         }
@@ -951,10 +1072,13 @@ namespace Basis
             return true;
         }
 
-        public void PushFrame(RenderTexture frame)
+        public void PushFrame(RenderTexture frame, bool keepAlpha)
         {
-            // Property setters tear the server down, so only assign when the texture changes.
-            if (server != null && server.SourceTexture != frame)
+            if (server == null) return;
+            server.KeepAlpha = keepAlpha;
+
+            // Changing the source texture tears the server down, so only assign when it changes.
+            if (server.SourceTexture != frame)
             {
                 server.SourceTexture = frame;
             }
@@ -1068,7 +1192,7 @@ namespace Basis
             return true;
         }
 
-        public void PushFrame(RenderTexture frame)
+        public void PushFrame(RenderTexture frame, bool keepAlpha)
         {
             if (fd < 0 || FailureMessage != null) return;
             AsyncGPUReadback.Request(frame, 0, TextureFormat.BGRA32, readbackCallback);

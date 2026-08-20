@@ -427,7 +427,7 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
-        public void EveryBackgroundModeNamesAColourAndOnlyWorldIsTransparentToTheScene()
+        public void EveryBackgroundModeResolvesAndOnlyTransparentClearsWithZeroAlpha()
         {
             // The dropdown casts its index to this enum, and every entry has to resolve to
             // something the camera can clear to.
@@ -436,13 +436,19 @@ namespace Basis.Tests.Camera
                 Color custom = new Color(0.2f, 0.4f, 0.6f, 1f);
                 Color resolved = BasisHandHeldCamera.ColorForBackgroundMode(mode, custom);
 
-                Assert.That(resolved.a, Is.GreaterThan(0f), $"{mode} resolves to a transparent clear colour.");
+                if (mode == BasisCameraBackgroundMode.Transparent)
+                    Assert.That(resolved.a, Is.Zero, "Transparent must produce a zero-alpha clear for Spout compositing.");
+                else
+                    Assert.That(resolved.a, Is.GreaterThan(0f), $"{mode} unexpectedly resolves to a transparent clear colour.");
             }
 
             Assert.That(BasisHandHeldCamera.ColorForBackgroundMode(BasisCameraBackgroundMode.Custom, Color.red),
                 Is.EqualTo(Color.red), "Custom is the only mode that has to follow the colour picker.");
             Assert.That((int)BasisCameraBackgroundMode.World, Is.Zero,
                 "World has to be the zero value so an old settings file zero-fills to the world, not a green screen.");
+            Assert.That((int)BasisCameraBackgroundMode.Custom, Is.EqualTo(6),
+                "Existing persisted background values must not move when Transparent is added.");
+            Assert.That((int)BasisCameraBackgroundMode.Transparent, Is.EqualTo(7));
         }
 
         // ---------- Exposure ----------

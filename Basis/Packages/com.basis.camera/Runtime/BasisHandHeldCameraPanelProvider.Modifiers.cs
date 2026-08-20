@@ -54,7 +54,7 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             "camera.background.world", "camera.background.greenScreen", "camera.background.blueScreen",
             "camera.background.black", "camera.background.white", "camera.background.magenta",
-            "camera.background.custom",
+            "camera.background.custom", "camera.background.transparent",
         };
 
         private PanelDropdown _subjectDropdown;
