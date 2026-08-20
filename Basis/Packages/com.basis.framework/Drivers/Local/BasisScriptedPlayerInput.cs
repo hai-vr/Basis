@@ -4,16 +4,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.Drivers
 {
-    /// <summary>
-    /// How synthetic input from a sandboxed script combines with the player's real controller input.
-    /// </summary>
-    public enum BasisScriptedInputBlend
-    {
-        /// <summary>Script input is summed with the player's own input; the player keeps control.</summary>
-        Additive = 0,
-        /// <summary>Script input replaces the player's own input for the frames it is driving.</summary>
-        Override = 1,
-    }
 
     /// <summary>
     /// Frame-scoped buffer of synthetic locomotion / play-space input supplied by a sandboxed script.

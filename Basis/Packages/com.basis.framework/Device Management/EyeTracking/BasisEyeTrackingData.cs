@@ -2,11 +2,6 @@ using Unity.Mathematics;
 
 namespace Basis.Scripts.Device_Management.EyeTracking
 {
-    public enum BasisEyeSource
-    {
-        Hmd,
-        Osc,
-    }
 
     public struct BasisEyeTrackingData
     {

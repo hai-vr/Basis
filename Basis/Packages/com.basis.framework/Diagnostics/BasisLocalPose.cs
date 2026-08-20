@@ -1,15 +1,6 @@
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
-public enum BasisPoseSlot : byte
-{
-    PlayerRoot,
-    AvatarRoot,
-    Hips,
-    Head,
-    Count
-}
-
 public static class BasisLocalPose
 {
     [System.Flags]

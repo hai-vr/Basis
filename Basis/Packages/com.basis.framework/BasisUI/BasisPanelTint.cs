@@ -16,13 +16,6 @@ namespace Basis.BasisUI
     /// bottleneck, avatar cost, cache fill, connection quality — map their own numbers onto this
     /// so the whole settings menu reads with one colour vocabulary.
     /// </summary>
-    public enum BasisPanelSeverity
-    {
-        None,
-        Calm,
-        Caution,
-        Hot
-    }
 
     public static class BasisPanelTint
     {

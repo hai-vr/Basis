@@ -1,26 +1,6 @@
 using Unity.Mathematics;
 namespace Basis.Scripts.Drivers
 {
-    public enum BasisLocoState : byte
-    {
-        Walking = 0,
-        Crouching = 1,
-        Jump = 2,
-        Falling = 3,
-        Landing = 4,
-        Prone = 5,
-    }
-    public enum BasisLocoCondition : byte
-    {
-        IsJumpingTrue = 0,
-        CrouchedTrue = 1,
-        CrouchedFalse = 2,
-        IsFallingTrue = 3,
-        IsFallingFalse = 4,
-        LandingTrigger = 5,
-        ProneTrue = 6,
-        ProneFalse = 7,
-    }
     public struct BasisLocoParams
     {
         public float VelocityX, VelocityZ, CurrentSpeed;

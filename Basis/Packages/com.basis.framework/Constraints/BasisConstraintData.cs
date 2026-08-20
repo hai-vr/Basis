@@ -3,56 +3,11 @@ using Unity.Mathematics;
 
 namespace Basis.Scripts.Constraints
 {
-    public enum BasisConstraintKind : byte
-    {
-        Position = 0,
-        Rotation = 1,
-        Scale = 2,
-        Parent = 3,
-        Aim = 4,
-        LookAt = 5,
-        Blend = 6,
-        Override = 7,
-        Damped = 8,
-        TwistCorrection = 9,
-        TwoBoneIK = 10,
-        ChainIK = 11,
-        TwistChain = 12,
-        Referential = 13,
-    }
 
     /// <summary>
     /// How an override constraint interprets its override pose. Mirrors Animation Rigging's
     /// <c>OverrideTransformJob.Space</c>.
     /// </summary>
-    public enum BasisOverrideSpace : byte
-    {
-        /// <summary>The override is a world pose.</summary>
-        World = 0,
-        /// <summary>The override is a local pose, replacing the target's own.</summary>
-        Local = 1,
-        /// <summary>The override composes onto the target's current local pose.</summary>
-        Pivot = 2,
-    }
-
-    public enum BasisWorldUpKind : byte
-    {
-        SceneUp = 0,
-        ObjectUp = 1,
-        ObjectRotationUp = 2,
-        Vector = 3,
-        None = 4,
-    }
-
-    [Flags]
-    public enum BasisConstraintAxis : byte
-    {
-        None = 0,
-        X = 1,
-        Y = 2,
-        Z = 4,
-        All = X | Y | Z,
-    }
 
     public struct BasisConstraintSource
     {

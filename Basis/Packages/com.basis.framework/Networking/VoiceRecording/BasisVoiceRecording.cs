@@ -11,23 +11,7 @@ using static SerializableBasis;
 
 namespace Basis.Scripts.Networking.VoiceRecording
 {
-    /// <summary>Consent decision carried by a voice-record consent message.</summary>
-    public enum BasisVoiceConsentState : byte
-    {
-        Denied = 0,
-        Granted = 1,
-        Revoked = 2,
-    }
 
-    /// <summary>What a consent grant authorizes. Consent is scoped so a world-initiated route
-    /// request cannot silently unlock trusted disk/PCM recording.</summary>
-    public enum BasisVoiceConsentPurpose : byte
-    {
-        /// <summary>Capture the voice to PCM / clip / disk (trusted local API only).</summary>
-        Record = 0,
-        /// <summary>Re-emit the voice from a world object (issue #911; the only Cilbox-reachable purpose).</summary>
-        Route = 1,
-    }
 
     /// <summary>
     /// Consent-gated voice capture and re-routing for remote players. A local caller asks a
@@ -84,7 +68,6 @@ namespace Basis.Scripts.Networking.VoiceRecording
         public static bool HasRouteConsent(ushort playerId) => _grantedRoute.Contains(playerId);
         public static bool IsRecording(ushort playerId) => _captures.TryGetValue(playerId, out Capture c) && c.Recording != null;
 
-        // ==================== Recorder API ====================
 
         /// <summary>
         /// Asks <paramref name="target"/> for permission and, once granted, begins capturing
@@ -194,7 +177,6 @@ namespace Basis.Scripts.Networking.VoiceRecording
             RemoveCaptureIfEmpty(source.PlayerId, cap);
         }
 
-        // ==================== Recordee API ====================
 
         /// <summary>Revokes a previously-granted permission so <paramref name="recorderId"/> stops recording us.</summary>
         public static void RevokeConsentToRecorder(ushort recorderId)
@@ -258,7 +240,6 @@ namespace Basis.Scripts.Networking.VoiceRecording
             }
         }
 
-        // ==================== Lifecycle hooks ====================
 
         /// <summary>Drains active captures and resolves consent timeouts. Called once per frame.</summary>
         internal static void Tick()

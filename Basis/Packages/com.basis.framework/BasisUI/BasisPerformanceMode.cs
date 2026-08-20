@@ -7,18 +7,6 @@ using UnityEngine;
 
 namespace Basis.BasisUI
 {
-    /// <summary>
-    /// How hard Performance Mode trades fidelity for frame rate. Higher levels are
-    /// supersets of lower ones — every setting a lower level touches is touched at
-    /// least as hard by a higher one.
-    /// </summary>
-    public enum BasisPerformanceLevel
-    {
-        Off = 0,
-        Light = 1,
-        Balanced = 2,
-        Aggressive = 3,
-    }
 
     /// <summary>
     /// Reversible, multi-level Performance Mode.

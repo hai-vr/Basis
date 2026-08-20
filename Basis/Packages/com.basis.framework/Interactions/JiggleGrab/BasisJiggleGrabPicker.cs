@@ -2,12 +2,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.BasisSdk.Interactions
 {
-    public enum BasisJiggleTouchEdge : byte
-    {
-        None = 0,
-        Began = 1,
-        Ended = 2,
-    }
 
     /// <summary>
     /// Turns a per-frame "is this hand on the chain" answer into begin and end events.

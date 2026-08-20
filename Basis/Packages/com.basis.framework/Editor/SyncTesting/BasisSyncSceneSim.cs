@@ -4,8 +4,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.Networking.Sync.Testing
 {
-    public enum SceneTransport { PerPacket, Batched }
-    public enum SceneSample { Managed, RealJob }
 
     /// <summary>One object in a multi-object scene: a name and its field set (its schema).</summary>
     public sealed class BasisSyncSceneObjectSpec

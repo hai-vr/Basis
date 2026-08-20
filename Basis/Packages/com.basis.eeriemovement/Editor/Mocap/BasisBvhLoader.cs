@@ -10,15 +10,6 @@ namespace Basis.IK.Mocap
     // assembly so the NUnit tests and the sweep windows can both reach it -- Basis.Framework.IK.Tests does not
     // reference BasisEditor, and putting it there would force the tests to hand-mirror the maths, which is the
     // drift trap the whole core/sweep/gate convention exists to avoid.
-    public enum BasisMocapJoint
-    {
-        Hips, Spine, Chest, UpperChest, Neck, Head,
-        LeftShoulder, LeftUpperArm, LeftLowerArm, LeftHand,
-        RightShoulder, RightUpperArm, RightLowerArm, RightHand,
-        LeftUpperLeg, LeftLowerLeg, LeftFoot, LeftToes,
-        RightUpperLeg, RightLowerLeg, RightFoot, RightToes,
-        Count
-    }
     public struct BasisMocapPose
     {
         public Vector3 Position;

@@ -7,12 +7,6 @@ using UnityEngine.Rendering;
 
 namespace Basis.Scripts.UI
 {
-    public enum BasisMenuBackgroundTier
-    {
-        Full,
-        Low,
-        VeryLow,
-    }
 
     public static class BasisUIBackgroundCustomization
     {

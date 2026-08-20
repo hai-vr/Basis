@@ -1,17 +1,6 @@
 using Basis.Network.Core;
 using System;
 
-public enum BasisHeadlessConnectionState
-{
-    Starting,
-    Connecting,
-    Connected,
-    Disconnected,
-    RetryScheduled,
-    RetriesExhausted,
-    Stopping
-}
-
 public static class BasisHeadlessRuntimeStatus
 {
     private static readonly object sync = new object();

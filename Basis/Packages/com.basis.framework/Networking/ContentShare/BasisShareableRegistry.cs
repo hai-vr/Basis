@@ -1,27 +1,6 @@
 using System;
 using System.Collections.Generic;
 
-public enum BasisShareableKind
-{
-    Server,
-    World,
-    Prop,
-    Avatar,
-    Image,
-    Other
-}
-
-/// <summary>How the Library should present a <see cref="BasisShareableAction"/>.
-/// Semantic (not a concrete UI style) so this framework type stays decoupled from
-/// BasisUI prefabs/sprites — the Library maps these to buttons.</summary>
-public enum BasisShareableActionStyle
-{
-    /// <summary>A normal/affirmative action (e.g. "Share"), rendered as an accept button.</summary>
-    Positive,
-    /// <summary>A removal action, rendered as the trash button. When no explicit
-    /// confirm text is supplied the Library shows its standard "remove {name}?" prompt.</summary>
-    Destructive,
-}
 
 /// <summary>One button shown on a Library shareable entry. The registering package owns
 /// the semantics (label + callback); the Library just presents it.</summary>

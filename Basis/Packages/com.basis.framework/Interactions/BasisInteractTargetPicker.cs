@@ -2,17 +2,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.BasisSdk.Interactions
 {
-    /// <summary>
-    /// How a candidate qualified as reachable. The band is compared before the score, so a candidate
-    /// that is merely beside the hand can never beat one that is being pointed at, however near it is.
-    /// </summary>
-    public enum BasisInteractReach : byte
-    {
-        InHand = 0,
-        Aimed = 1,
-        Nearby = 2,
-        None = 3,
-    }
 
     /// <summary>
     /// Chooses which interactable a hand takes when the pointer ray and the proximity bubble disagree.

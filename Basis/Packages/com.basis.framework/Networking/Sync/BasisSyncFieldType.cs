@@ -21,20 +21,6 @@ namespace Basis.Scripts.Networking.Sync
         Angle = 12,
     }
 
-    public enum BasisSyncPool : byte
-    {
-        Continuous = 0,
-        Rotation = 1,
-        Discrete = 2,
-    }
-
-    /// <summary>How a single continuous (float) component is packed: Raw (32-bit), Half (16-bit), or N-bit Ranged within [Min,Max].</summary>
-    public enum BasisQuantMode : byte
-    {
-        Raw = 0,
-        Half = 1,
-        Ranged = 2,
-    }
 
     /// <summary>
     /// Per-component compression for a continuous field. Ranged maps [Min, Max] onto Bits bits

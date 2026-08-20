@@ -2,23 +2,6 @@ using Unity.Collections;
 using UnityEngine;
 namespace Basis.IK
 {
-    public enum BasisBodyFitStatus
-    {
-        Fitted,
-        Disabled,
-        PlayerEyeHeightMissing,
-        AvatarEyeHeightMissing,
-        PlayerArmSpanMissing,
-        AvatarArmSpanMissing,
-        ArmLengthDegenerate,
-        ArmRatioOutOfBand,
-        HipsTrackerMissing,
-        HipHeightImplausible,
-        AvatarHipHeightMissing,
-        AvatarLegSpanDegenerate,
-        AvatarSpineSpanDegenerate,
-        HipRatioOutOfBand,
-    }
     public static class BasisBodyFitCore
     {
         public const float DefaultMaxDeviation = 0.15f, MaxDeviationCeiling = 0.5f;
@@ -311,13 +294,6 @@ namespace Basis.IK
             float impliedEye = headY - floorY;
             return impliedEye >= minPlausible && impliedEye <= maxPlausible;
         }
-    }
-    public enum BasisScaleFitStatus
-    {
-        NoData,
-        EyeExact,
-        Adjusted,
-        Compromised,
     }
     public static class BasisScaleFitCore
     {

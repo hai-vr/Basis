@@ -1,27 +1,6 @@
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
-/// <summary>
-/// Which Transform operation a call site performed. Ordered gets-then-sets within each pair so the
-/// debug window can total reads and writes separately.
-/// </summary>
-public enum BasisTransformOp : byte
-{
-    GetPosition, SetPosition,
-    GetRotation, SetRotation,
-    GetPose, SetPose,
-    GetLocalPosition, SetLocalPosition,
-    GetLocalRotation, SetLocalRotation,
-    GetLocalPose, SetLocalPose,
-    GetLocalScale, SetLocalScale,
-    GetLossyScale,
-    GetLocalToWorld, GetWorldToLocal,
-    GetForward, GetRight, GetUp,
-    GetParent, Reparent,
-    ToWorldPoint, ToLocalPoint,
-    ToWorldDir, ToLocalDir,
-    Count
-}
 
 /// <summary>
 /// The single funnel for every main-thread <see cref="Transform"/> get/set on the local player's

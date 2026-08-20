@@ -511,19 +511,6 @@ namespace Basis.Scripts.Drivers
         }
     }
 
-    /// <summary>Body-level options recorded in the header. Lossless only — nothing here may alter a decoded bit.</summary>
-    [Flags]
-    public enum BasisDeviceStreamFlags : uint
-    {
-        None = 0,
-
-        /// <summary>
-        /// Body is Deflate-compressed. Lossless, so decoded bytes are identical either way; only the
-        /// FILE bytes differ. Nothing should ever assert on compressed bytes — the deflate encoder's
-        /// output is a .NET implementation detail and may change between runtimes.
-        /// </summary>
-        DeflateBody = 1 << 0,
-    }
 
     /// <summary>Thrown for every malformed, foreign or wrong-version device stream. Never swallowed.</summary>
     public class BasisDeviceStreamFormatException : Exception

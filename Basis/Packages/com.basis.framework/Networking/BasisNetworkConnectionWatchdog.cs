@@ -6,14 +6,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.Networking
 {
-    public enum BasisConnectionHealth
-    {
-        Idle,
-        Connecting,
-        Connected,
-        Stalled,
-        Reconnecting,
-    }
 
     /// <summary>
     /// Watches the live server link so the player is never left staring at a frozen world while

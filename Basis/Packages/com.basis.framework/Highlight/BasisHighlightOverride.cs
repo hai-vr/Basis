@@ -2,12 +2,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.BasisSdk.Highlight
 {
-    public enum BasisHighlightOverrideType
-    {
-        None,
-        Material,
-        Exclude,
-    }
 
     /// <summary>
     /// Per-renderer authoring for the BasisHighlight feature. Drop this on a

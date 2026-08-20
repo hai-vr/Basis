@@ -5,18 +5,6 @@ using UnityEngine;
 
 namespace Basis.BasisUI
 {
-    /// <summary>
-    /// Per-person policy for handling an incoming direct (P2P) connection request.
-    /// </summary>
-    public enum BasisDirectConnectionPolicy
-    {
-        /// <summary>Prompt the user each time (default for unknown people).</summary>
-        Ask,
-        /// <summary>Auto-accept without prompting.</summary>
-        AlwaysAccept,
-        /// <summary>Auto-decline without prompting.</summary>
-        AlwaysDecline,
-    }
 
     /// <summary>
     /// Persisted per-UUID policy for incoming direct-connection requests. Mirrors

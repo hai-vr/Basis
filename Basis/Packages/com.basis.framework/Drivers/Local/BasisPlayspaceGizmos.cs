@@ -9,20 +9,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.Drivers
 {
-    /// <summary>
-    /// Representations the play-space visualiser can draw. Each maps to one toggle under the
-    /// Playspace Mover settings section.
-    /// </summary>
-    [Flags]
-    public enum BasisPlayspaceGizmoLayers
-    {
-        None = 0,
-        Boundary = 1 << 0,
-        Origin = 1 << 1,
-        Offset = 1 << 2,
-        Hands = 1 << 3,
-        Readouts = 1 << 4,
-    }
 
     /// <summary>
     /// World-space picture of the local player's play space: the runtime's own play-area outline, the

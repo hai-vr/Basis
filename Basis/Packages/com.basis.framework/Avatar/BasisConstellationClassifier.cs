@@ -50,16 +50,6 @@ namespace Basis.Scripts.Avatar
         public static readonly BasisConstellationHand None = new BasisConstellationHand { Present = false };
     }
 
-    public enum BasisConstellationAssignKind : byte
-    {
-        None = 0,
-        Forced = 1,
-        HipsFirst = 2,
-        Greedy = 3,
-        Leftover = 4,
-        ToeSwap = 5,
-    }
-
     public class BasisConstellationResult
     {
         public int[] AssignedRole;                       // per sample: -1 or (int)BasisBoneTrackedRole

@@ -4,22 +4,7 @@ using UnityEngine;
 
 namespace Basis.Scripts.Networking.Sync
 {
-    public enum BasisTransformAxisMode : byte
-    {
-        Inherit = 0,
-        Raw = 1,
-        Half = 2,
-        Ranged = 3,
-    }
 
-    /// <summary>How a synced transform encodes orientation on the wire.</summary>
-    public enum BasisRotationSyncMode : byte
-    {
-        SmallestThree = 0,
-        Euler = 1,
-        QuaternionHalf = 2,
-        QuaternionRaw = 3,
-    }
 
     /// <summary>Per-axis wire compression for a synced transform component.</summary>
     [System.Serializable]

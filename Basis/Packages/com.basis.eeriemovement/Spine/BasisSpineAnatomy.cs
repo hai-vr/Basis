@@ -47,13 +47,6 @@ namespace Basis.IK
             return f;
         }
     }
-    public enum BasisSpineSegment
-    {
-        Lumbar = 0,
-        LowerThoracic = 1,
-        UpperThoracic = 2,
-        Cervical = 3,
-    }
     public static class BasisSpineAnatomyCore
     {
         const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;

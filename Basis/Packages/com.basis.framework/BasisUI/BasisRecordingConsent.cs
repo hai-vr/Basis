@@ -5,18 +5,6 @@ using UnityEngine;
 
 namespace Basis.BasisUI
 {
-    /// <summary>
-    /// Per-person policy for handling an incoming voice-record request.
-    /// </summary>
-    public enum BasisRecordingConsentPolicy
-    {
-        /// <summary>Prompt the user each time (default for unknown people).</summary>
-        Ask,
-        /// <summary>Auto-grant without prompting.</summary>
-        AlwaysAllow,
-        /// <summary>Auto-deny without prompting.</summary>
-        AlwaysDeny,
-    }
 
     /// <summary>
     /// Persisted per-UUID policy for incoming voice-record requests. Mirrors

@@ -3,25 +3,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.Drivers
 {
-    /// <summary>
-    /// What the play-space mover did on the frame it was last simulated — or, when it did nothing,
-    /// which gate stopped it. Written by <see cref="BasisLocalPlayspaceMover"/> at every one of its
-    /// bail-outs so the visualiser reports the mover's own reason instead of re-deriving one that
-    /// could drift away from it.
-    /// </summary>
-    public enum BasisPlayspaceMoverState
-    {
-        Disabled,
-        NotVR,
-        Seated,
-        AdminLocked,
-        MovementLocked,
-        PointingAtUI,
-        Idle,
-        Dragging,
-        Rotating,
-        Scaling,
-    }
 
     /// <summary>
     /// The mover's per-frame hand state, handed to the play-space gizmos so they draw the grab the
