@@ -4,31 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Chicken neck" / "gamer neck" regression tests for the cervical-lordosis IK.
-    ///
-    /// These exercise the pure, stream-free neck math directly -- <see cref="BasisCervicalSolveCore"/>
-    /// (the port of BasisFullIKConstraintJob.ApplyCervicalLordosis). It computes the forward neck/upper-
-    /// chest curl from head-gaze pitch, the head-pitch clamp, and the extreme-region whole-body
-    /// counterbalance. They guard the failure mode the neck has:
-    ///
-    ///   CHICKEN NECK -- the head poking forward/down with the neck craned, instead of sitting with a
-    ///                   gentle resting lordosis that flexes naturally with gaze.
-    ///
-    /// The headline guards are: the RESTING forward curl at level gaze stays small (a regression that
-    /// cranks the base bend is exactly the chicken-neck artifact), the curl is correctly SIGNED (looking
-    /// down flexes forward, looking up extends back -- never the reverse), grows MONOTONICALLY with gaze,
-    /// is CLAMPED so the gaze can't crane past the anatomical limit, and has NO RATE KINK at level gaze
-    /// (the most common pose, where a hard abs() would snap the neck ~4x). The bounds are intentionally
-    /// looser than the values the current solver produces (each test notes the measured headroom) so they
-    /// fail only on a real regression, not on float noise -- and they bound the curl from ABOVE, so the
-    /// neck can be *tuned down* (less chicken neck) without tripping them.
-    ///
-    /// This is the same math the offline BasisHeadSweep CSV harness scans, asserted here so the "gentle
-    /// forward lordosis, never a forward-poked chicken neck" property is checked in CI instead of by
-    /// eyeballing a CSV. Sign convention (verified against the sweep): a positive pitch command is looking
-    /// DOWN, matching Quaternion.Euler(x,0,0).
-    /// </summary>
     public class BasisCervicalDirectionTests
     {
         // Production defaults, matching BasisFullBodyIK.SetDefaults() and BasisHeadSweepConfig.Default().

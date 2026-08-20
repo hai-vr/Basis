@@ -5,20 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The look-DOWN half of the neck lever (<see cref="BasisNeckCueCore"/>), and the degeneracy guard in
-    /// <see cref="BasisHeadPitchSwingCore"/>.
-    ///
-    /// The neck estimate re-attaches the T-pose head-to-neck lever to the head target and swings it by the
-    /// HEAD's rotation, which assumes the nod pivoted at the neck bone. <see cref="BasisSpineLookUpTests"/>
-    /// covers the look-up side, where <c>FBIKNeckExtensionDamp</c> was added. The look-down side was left
-    /// undamped, and it is the worse of the two: with the pelvis hung off the neck by a fixed chain length
-    /// (<c>hipsBase = neckPos - up * lenTotal</c>), a steep look down lifted the neck estimate 5 cm and took
-    /// the pelvis up with it, feet planted.
-    ///
-    /// Both damps are spelled DAMP, not CARRY, so that a struct default of 0 is the OLD behaviour on that
-    /// side and an unset field cannot silently change anything.
-    /// </summary>
     public class BasisNeckFlexionDampTests
     {
         // A ~1.7 m avatar: neck 7 cm below and 2 cm behind the head bone.

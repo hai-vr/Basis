@@ -7,27 +7,8 @@ using UnityEngine;
 
 namespace Basis.Scripts.Avatar
 {
-    /// <summary>
-    /// Calibration "lock-in" aid. While the player holds the T-pose waiting to pull the triggers, each
-    /// full-body avatar bone draws a proximity sphere AT THE BONE plus a line connecting it to the
-    /// nearest tracker, so you can read how well each tracker latches onto the bone it will drive. The
-    /// sphere shrinks and both it and the connecting line go amber -> green as the tracker closes on the
-    /// bone; for feet the color also folds in foot-forward alignment so a positionally-close but
-    /// mis-rotated foot will not green.
-    ///
-    /// It anchors to the live avatar bones (BasisLocalBoneControl.OutgoingWorldData), NOT a synthetic
-    /// HMD-relative frame, so the guides sit on the avatar instead of floating in front of it. Unlike the
-    /// debug calibration spheres in BasisLocalBoneDriver it is NOT gated by the ShowGizmos master toggle:
-    /// it owns its own AfterSimulateOnRender subscription, live only between <see cref="Begin"/> and
-    /// <see cref="End"/>. All proximity/alignment math lives in BasisCalibrationLockInCore.
-    ///
-    /// Foot-rotation note: the alignment color uses the TRACKER's forward, which matches the foot's
-    /// forward only for conventionally-mounted pucks — it is an aim aid (feet forward and flat), not an
-    /// absolute foot-direction readout.
-    /// </summary>
     public static class BasisCalibrationLockInVisualizer
     {
-        /// <summary>Session toggle from the calibration panel. On by default.</summary>
         public static bool Enabled = true;
 
         // One slot after the bone-driver gizmos (250) so the bone transforms have settled.
@@ -50,7 +31,6 @@ namespace Basis.Scripts.Avatar
         private static readonly Dictionary<BasisBoneTrackedRole, int> _lines = new Dictionary<BasisBoneTrackedRole, int>();
         private static readonly List<BasisInput> _candidates = new List<BasisInput>(16);
 
-        /// <summary>Start drawing the lock-in guides. Called when the final T-pose begins.</summary>
         public static void Begin()
         {
             _active = true;
@@ -61,7 +41,6 @@ namespace Basis.Scripts.Avatar
             }
         }
 
-        /// <summary>Stop and tear down the guides. Called on calibrate-complete and on cancel.</summary>
         public static void End()
         {
             _active = false;

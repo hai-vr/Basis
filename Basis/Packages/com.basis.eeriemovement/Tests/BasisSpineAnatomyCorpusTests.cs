@@ -9,28 +9,6 @@ namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
 
-    /// <summary>
-    /// IS THE ENVELOPE RIGHT? — the anatomical ROM table, measured against 35,081 frames of real humans.
-    ///
-    /// The unit tests next door (BasisSpineAnatomyTests) prove the guard's MATHS: that it cannot be escaped,
-    /// that it is the identity on legal poses, that it does not pop. They cannot tell you whether the NUMBERS
-    /// in the table are the right numbers. That is what the corpus is for, and it is a different kind of
-    /// question -- not "is the code correct" but "is the anatomy correct".
-    ///
-    /// THE RULE THAT KEEPS THIS HONEST, AND IT RUNS THE OPPOSITE WAY TO EVERY OTHER FIT IN THIS PROJECT:
-    /// the limits are NOT fitted to the corpus. They are max-voluntary-ROM from the clinical literature --
-    /// what a spine CAN do -- and the corpus gets a VETO ONLY. Motion capture records what people DID, and
-    /// CMU subjects walk around a lab; they do not side-bend to end range. Fit the limit to that and you
-    /// encode "didn't" as "can't", then clip the first VR user who leans over to look at something.
-    ///
-    /// So the acceptance test is: the guard must fire on almost NONE of real human motion, and everything it
-    /// DOES touch must be past the 99th percentile -- the anatomically-impossible tail that CMU's 3-joint
-    /// spine produces as retargeting slop (a 35 deg lumbar twist; a 100 deg lumbar flexion). If the guard
-    /// were firing in the fat of the distribution, the table would be wrong and this would fail.
-    ///
-    /// It exercises the SHIPPING functions -- BasisSpineAnatomy.BuildRestFrame, .Decompose, .Clamp -- on real
-    /// poses, so it is also a live regression guard on the exact code the rig runs, not a re-implementation.
-    /// </summary>
     public sealed class BasisSpineAnatomyCorpusTests
     {
         static string MainDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~");

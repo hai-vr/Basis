@@ -4,18 +4,11 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The evidence estimator exists because a single capture measures whatever pose the player was in
-    /// at that instant, and that is almost never their body. Its guarantee is one-sided: because no
-    /// stance reads LONGER than the body, the high-water mark is the right answer — provided glitches
-    /// and jumps, the only things that can read long, are kept out of it.
-    /// </summary>
     public class BasisBodyEvidenceCoreTests
     {
         const float Eps = 1e-4f;
         const float MinPlausible = 0.8f;
         const float MaxPlausible = 2.8f;
-        /// <summary>Slow enough that the quasi-static gate admits the step; the gate has its own tests.</summary>
         const float SettledStep = 1f;
 
         static void FoldEye(ref BasisBodyEvidenceState state, float eyeHeight, float deltaSeconds = SettledStep)

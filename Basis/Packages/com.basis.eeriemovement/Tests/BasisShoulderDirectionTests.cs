@@ -4,26 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Regression tests for the scapulohumeral shoulder pre-solve (<see cref="BasisShoulderSolveCore"/>),
-    /// the stream-free math the live FBIK SolveShoulder and the offline BasisShoulderSweep both drive.
-    ///
-    /// The shoulder girdle (clavicle/scapula bone) follows a coupled fraction of the upper-arm SWING away
-    /// from the bind direction, measured in the chest frame, with the humeral axial twist removed. The
-    /// upper-arm direction comes from the elbow tracker when present (shoulder->elbow, flexion-independent),
-    /// else from the hand target. These tests pin the properties that make it look human and keep it safe
-    /// to ship default-on:
-    ///
-    ///   * BIND REST     -- at the bind arm direction the girdle does not move (the authored pose is kept).
-    ///   * ELEVATION     -- raising the arm elevates the shoulder, monotonically, in the elevation sense.
-    ///   * PROTRACTION   -- reaching forward / across the body protracts it; left mirrors right.
-    ///   * TWIST-FREE    -- the girdle never rotates about the arm axis (a twist-following clavicle was
-    ///                      tried and reverted; this guards the regression).
-    ///   * ELBOW DRIVE   -- a bent arm (elbow up, hand low) elevates the shoulder from the ELBOW tracker;
-    ///                      the hand-target fallback, seeing only the low hand, cannot -- the headline win.
-    ///   * FRAME RIGID   -- the solve lives in the chest frame: rotating chest+arm rotates the result rigidly.
-    ///   * BOUNDED       -- clamped, smooth under smooth motion, and stable under a noisy elbow tracker.
-    /// </summary>
     public class BasisShoulderDirectionTests
     {
         const float ArmLen = 0.54f;

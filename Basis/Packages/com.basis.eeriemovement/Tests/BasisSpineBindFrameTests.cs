@@ -4,29 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "On some avatars the chest snaps left/right when looking down" regression tests for the spine-bend
-    /// distribution -- <see cref="BasisSpineBendCore"/> (the port of DistributeSpineBend).
-    ///
-    /// The pre-bend measures the forward/lateral bend as atan2 angles of the chest and head directions in
-    /// the hips frame: pitch = atan2(dir.z, dir.y), roll = atan2(-dir.x, dir.y). "The hips frame" was the
-    /// live hips BONE frame, whose rest orientation is a rig CONVENTION -- an FBX exported from Blender
-    /// binds the hips rolled -90 deg about X, others bind it rolled about Z. On such a rig the frame's
-    /// y-axis is not "up the spine", so a steep look-down puts the chest/head dirs near the atan2(z,y) pole
-    /// and a head scan across center flips pitch/roll ~180 deg -- the chest snaps sideways. An identity-bind
-    /// avatar never nears the pole, which is why it was "only SOME avatars".
-    ///
-    /// The facing TWIST in the same function already cancelled the bind (headRotLocal = HipsBind * invHips *
-    /// headRot, "cancels the live hips bone bind" so its atan2 stays continuous across center). The fix is
-    /// to measure the bend directions in that SAME bind-cancelled frame. That makes the pre-bend depend only
-    /// on the pose relative to the hips' ANATOMICAL frame, not on the arbitrary bind convention -- and it is
-    /// bit-identical when the bind is already identity (HipsBind * invHips == invHips there).
-    ///
-    /// These guard: (1) no snap when a ROLLED-bind avatar looks down and scans across center; and (2) the
-    /// bend is INVARIANT to the hips bind convention for a fixed anatomical pose -- the property that, when
-    /// it failed, produced the snap. Sign convention matches the rest of the spine suite: positive pitch
-    /// command (AngleAxis(pitch, right)) is look-DOWN.
-    /// </summary>
     public class BasisSpineBindFrameTests
     {
         // Production defaults, matching BasisFullBodyIK.SetDefaults() / BasisSpineLookDownSweepTests.

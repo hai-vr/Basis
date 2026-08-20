@@ -4,20 +4,6 @@ using UnityEngine;
 
 namespace Basis.MediaPipe
 {
-    /// <summary>
-    /// Retargets the arms from PoseLandmarker WORLD landmarks (metric metres, real depth) instead of
-    /// image positions.
-    ///
-    /// Wrist and elbow are measured relative to the user's own shoulder, expressed in a body frame built
-    /// from their shoulder line and torso, then divided by the user's own arm length. What is left is a
-    /// unitless "fraction of my reach, in my body's frame" vector that does not care how far from the
-    /// camera the user sits or how long their arms are. Multiplying by the avatar's arm length and
-    /// applying the avatar's body frame — built by the exact same rule — puts the hand where it is on you.
-    ///
-    /// Reach matching alone still misses when the avatar's head sits at a different height above the
-    /// shoulders than yours, which is precisely the "hand next to my face" case, so the vertical component
-    /// is blended toward a head-relative scale as the hand rises to head height.
-    /// </summary>
     public sealed class MediaPipeArmConverter
     {
         public float Smoothing = 0.5f;
@@ -25,10 +11,8 @@ namespace Basis.MediaPipe
         public float MaxReach = 0.98f;
         public float HandReachGain = 1.1f;
 
-        /// <summary>How far to pull the elbow swivel toward the resting pole. 0 = trust the camera's elbow completely.</summary>
         public float ElbowRestBias = 0.5f;
 
-        /// <summary>How far the resting elbow sits away from the ribs, relative to straight down.</summary>
         private const float ElbowOutward = 0.3f;
 
         // One-euro tuning, applied on the CAMERA clock. It only has to take the sensor noise off; the carry pass
@@ -47,20 +31,6 @@ namespace Basis.MediaPipe
         private ArmFilter _leftWrist, _leftElbow, _rightWrist, _rightElbow;
         private float _leftUserArm, _rightUserArm;
 
-        /// <summary>
-        /// Two-stage filter over a body-space offset.
-        ///
-        /// Stage one runs ONLY when a fresh camera sample lands, on the camera's own delta — a one-euro filter
-        /// fed a held sample at render rate reads every new sample as a burst of speed, opens its cutoff and
-        /// snaps to it, which is precisely the stutter. Depth gets its own filter on a lower cutoff, because
-        /// monocular z is by far the noisiest axis.
-        ///
-        /// Stage two runs every rendered frame and carries the pose toward that sample, turning the camera's
-        /// staircase back into continuous motion.
-        ///
-        /// Both stages work in BODY space, so the avatar turning underneath is applied instantly and never
-        /// looks like hand movement to the filter.
-        /// </summary>
         private struct ArmFilter
         {
             public BasisEuroVec3State Lateral;
@@ -101,7 +71,6 @@ namespace Basis.MediaPipe
             }
         }
 
-        /// <summary>Avatar arm geometry in player-root-local space, rebuilt per frame by the manager.</summary>
         public struct AvatarArmRig
         {
             public Vector3 LeftAnchor;
@@ -116,7 +85,6 @@ namespace Basis.MediaPipe
 
         private float Cutoff => Mathf.Lerp(CutoffResponsive, CutoffSmooth, Mathf.Clamp01(Smoothing));
 
-        /// <summary>Full arm reconstruction from the metric body pose, with a kinematically valid elbow.</summary>
         public bool TryGetArm(Vector3[] pose, in AvatarArmRig rig, bool avatarLeft, in MediaPipeTiming timing,
             out Vector3 wristLocal, out Vector3 elbowLocal, out Quaternion wristRotation)
         {
@@ -173,11 +141,6 @@ namespace Basis.MediaPipe
             return true;
         }
 
-        /// <summary>
-        /// Wrist-only fallback for when the body pose is lost but a hand is still tracked. Placed relative
-        /// to the avatar's head and scaled by apparent face size, so it stays put as the user moves toward
-        /// or away from the camera. Image x runs camera-right, which is the user's left, hence the negation.
-        /// </summary>
         public bool TryGetArmFromHand(Vector3 handWrist, Vector2 headImage, float faceSize, float aspect,
             in AvatarArmRig rig, bool avatarLeft, in MediaPipeTiming timing, out Vector3 wristLocal, out Quaternion wristRotation)
         {
@@ -213,20 +176,6 @@ namespace Basis.MediaPipe
             _leftUserArm = _rightUserArm = 0f;
         }
 
-        /// <summary>
-        /// Places the elbow on the circle the avatar's own bone lengths allow, around a swivel direction taken
-        /// from the measured elbow and pulled toward the anatomical rest pole.
-        ///
-        /// What the arm solver actually consumes is only the DIRECTION of this hint in the swing plane
-        /// (BasisArmSolveCore: `hintR = FromToRotation(abProj, ahProj)`), so the swivel is the entire ballgame —
-        /// the radius only conditions how far the hint fades in. And that swivel is the least trustworthy thing
-        /// we compute: it is dominated by the elbow's DEPTH, which is the worst number a monocular pose model
-        /// produces. A depth error does not push the elbow forward or back, it ROTATES it around the arm — and
-        /// it reads as the elbow winging UP, which a real elbow essentially never does.
-        ///
-        /// So bias it toward where an elbow actually lives: hanging down, a little away from the ribs. The solver
-        /// already reaches for the same prior (`downPole = -PlayerUp`) whenever it has no hint at all.
-        /// </summary>
         private Vector3 SolveElbow(Vector3 shoulder, Vector3 wrist, Vector3 measured,
             float upperLen, float foreLen, in AvatarArmRig rig, bool avatarLeft)
         {
@@ -264,11 +213,6 @@ namespace Basis.MediaPipe
             return center + swivel.normalized * Mathf.Sqrt(radiusSq);
         }
 
-        /// <summary>
-        /// Blends the vertical scale from pure reach matching at shoulder height toward a head-relative
-        /// scale at head height, so a hand held beside the face lands beside the avatar's face even when
-        /// the avatar's neck is proportioned differently.
-        /// </summary>
         private float VerticalScale(Vector3 headBody, float avatarHeadUp, float wristUp, float reach)
         {
             if (HeadAnchor <= 0f || headBody.y < 1e-3f || avatarHeadUp < 1e-4f) return reach;
@@ -357,12 +301,6 @@ namespace Basis.MediaPipe
             return updated;
         }
 
-        /// <summary>
-        /// How much of the arm points AT the camera: 0 when it lies in the image plane (its length is fully
-        /// visible), 1 when it aims straight down the lens. Depth is MediaPipe's weakest axis, so a segment lying
-        /// along camera Z is precisely the segment whose length it cannot see — and it reads it SHORT. The worse
-        /// of the two segments governs, because either one coming back short shortens the whole chain.
-        /// </summary>
         private static float Foreshortening(Vector3 upper, Vector3 fore)
         {
             float worst = Mathf.Max(DepthAlignment(upper), DepthAlignment(fore));

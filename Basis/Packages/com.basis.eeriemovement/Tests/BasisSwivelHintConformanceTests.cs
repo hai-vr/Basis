@@ -5,34 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Pins <see cref="BasisSwivelHintCore"/> -- the LIVE RIG's feature construction for the swivel models --
-    /// against the construction the models were actually FITTED in (BasisMocapAccuracy, which IS the fit
-    /// pipeline).
-    ///
-    /// ================================================================================================
-    /// WHY THIS FILE EXISTS, AND WHY IT WAS NOT ENOUGH.
-    ///
-    /// The mocap harness CANNOT verify a live-rig change. It drives the solve CORES directly; it never runs the
-    /// animation job. So it can prove the model is good and still tell you nothing about whether the rig is
-    /// feeding it correctly -- and a swivel model fed wrong does not degrade gracefully. It produces CONFIDENT
-    /// GARBAGE, which is the only kind of wrong that survives a green suite.
-    ///
-    /// ⚠ THIS FILE WAS GREEN WHILE THE ELBOWS WERE UP BY THE EARS IN A HEADSET. Twice over:
-    ///
-    ///   1. Every test here drove the model with a hand ON the arm (|tipLocal| <= 1), because that is all the
-    ///      corpus contains. THE LIVE RIG IS HANDED THE RAW CONTROLLER TARGET, which sails past the avatar's
-    ///      reach constantly -- and the model was a 3rd-order polynomial with NO DOMAIN CLAMP, i.e. a random
-    ///      number generator out there. TheModel_RefusesToExtrapolate is the test that was missing.
-    ///
-    ///   2. The model read the hand's ROTATION, divided by a T-pose captured at job build -- but
-    ///      BasisLocalAvatarDriver exits T-pose BEFORE it builds the rig, so that "rest pose" was not reliably a
-    ///      rest pose. Those features are gone: a bone's rotation is a rig convention and it does not transfer.
-    ///
-    /// The lesson is written into the TESTS and not merely into the comments: every test here now drives the
-    /// model with inputs THE LIVE RIG CAN ACTUALLY PRODUCE, especially the ones the corpus never contains.
-    /// ================================================================================================
-    /// </summary>
     public class BasisSwivelHintConformanceTests
     {
         const float k_Tol = 1e-4f;
@@ -56,8 +28,6 @@ namespace Basis.Tests.IK
         static BasisSwivelFrame LegFrame() =>
             BasisSwivelHintCore.BuildFrame(k_LeftUpperLeg, k_RightUpperLeg, k_Hips, k_Chest);
 
-        /// <summary>The harness's own construction, transcribed from BasisMocapAccuracy.SolveArm. Deliberately
-        /// a COPY and not a call: the point is to pin the runtime against the fit's formula AS WRITTEN.</summary>
         static float3 HarnessArmLocal(Vector3 shoulder, Vector3 hand, float armLen, bool isLeft)
         {
             Vector3 bUp = (k_Neck - k_Chest).normalized;
@@ -79,11 +49,6 @@ namespace Basis.Tests.IK
             Assert.AreEqual(a.z, b.z, k_Tol, what + ".z");
         }
 
-        /// <summary>
-        /// THE CONFORMANCE TEST. The runtime's features must equal the fit's, term for term, on BOTH sides.
-        /// Checked on both arms because a left/right mirror error is invisible on the right and catastrophic
-        /// on the left.
-        /// </summary>
         [Test]
         public void ArmFeatures_MatchTheFitPipeline_OnAMocapShapedRig()
         {
@@ -103,16 +68,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// ⭐ THE TEST THAT WAS MISSING -- AND ITS ABSENCE IS WHAT PUT THE ELBOWS UP BY THE EARS.
-        ///
-        /// The corpus only ever contains a hand ON the arm, so every test in this file used to drive the model
-        /// with |tipLocal| &lt;= 1. The LIVE RIG hands it the raw CONTROLLER TARGET, and a user whose arms are
-        /// longer than their avatar's is outside that box on essentially every frame. A 3rd-order polynomial
-        /// with coefficients up to 15 does not gracefully degrade out there -- it is a random number generator.
-        ///
-        /// So: put the target WAY past the avatar's reach, and the elbow must still be a sane elbow.
-        /// </summary>
         [Test]
         public void TheModel_RefusesToExtrapolate_WhenTheControllerIsBeyondTheAvatarsReach()
         {
@@ -155,11 +110,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// ⭐ THE ELBOW HANGS DOWN. Reaching out to the side, a human's elbow sits BELOW the shoulder->hand
-        /// line, never above it. Pinned IN reach and BEYOND it, because "elbows up by the ears" is precisely
-        /// the bug that shipped.
-        /// </summary>
         [Test]
         public void TheElbow_HangsBelowTheShoulder_InReachAndBeyondIt()
         {
@@ -185,7 +135,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>The knee's equivalent: the hint stays on its circle at every extension, and past it.</summary>
         [Test]
         public void LegHint_StaysOnTheCircle_AtEveryExtension_AndBeyond()
         {
@@ -214,11 +163,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// THE MIRROR, pinned on the quantity where it is true: reflect the pose onto the other arm and the
-        /// model must see THE SAME tipLocal -- not a mirrored one, an IDENTICAL one. That is what "+x is
-        /// OUTWARD for both limbs, so one model serves both" actually means.
-        /// </summary>
         [Test]
         public void ThePositionFeatures_AreIdenticalAcrossTheMirror_SoOneModelServesBothLimbs()
         {
@@ -239,11 +183,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// ⭐ ...AND THE MIRRORED ELBOW MUST ACTUALLY MIRROR. Equal features are necessary but not sufficient:
-        /// the un-mirroring of the ANGLE has to be right too, and a sign error there is exactly "one elbow is
-        /// fine and the other one is inverted".
-        /// </summary>
         [Test]
         public void TheElbows_Mirror_LeftToRight()
         {
@@ -266,8 +205,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>A degenerate rig must DECLINE, not answer. The caller then leaves the limb on the two-bone
-        /// core's own fallback pole, which is what it did before any of this existed.</summary>
         [Test]
         public void ADegenerateRig_ProducesNoFrameAndNoHint()
         {
@@ -283,12 +220,6 @@ namespace Basis.Tests.IK
                                                        out _, out _), "a zero-length limb => no hint");
         }
 
-        /// <summary>
-        /// A NaN hand target must be REFUSED, not solved on. Not hypothetical: one NaN MediaPipe landmark used
-        /// to walk through every guard in the tracking path (every `x &lt; limit` test is FALSE for NaN), reach
-        /// the Burst IK job, and become `(int)NaN` == int.MinValue inside the old lookup's trilinear sampler --
-        /// aborting the process with no managed stack to read.
-        /// </summary>
         [Test]
         public void ANaNTarget_IsRefused_RatherThanSolvedOn()
         {

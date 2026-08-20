@@ -4,14 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Even arm-twist distribution. A single twist bone (forearm / upper-arm) must absorb a share of the bone's
-    /// roll equal to its POSITION along the bone, so the roll spreads as a linear gradient instead of piling up
-    /// at one joint -- the "candy-wrapper" the user sees as the arm "fully twisting at points". Exercises
-    /// <see cref="BasisTwistSolveCore.SegmentPositionFraction"/> + <see cref="BasisTwistSolveCore.Solve"/>, the
-    /// same path <c>BasisFullIKConstraintJob.SolveArmTwist</c> runs live (it sets Fraction = positionFraction *
-    /// distributionStrength).
-    /// </summary>
     public class BasisArmTwistDistributionTests
     {
         const float BoneLen = 0.26f;

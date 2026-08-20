@@ -58,12 +58,5 @@ namespace Basis.Scripts.Drivers
                 lp.BasisAvatar.transform.localScale = FinalScale;
             }
         }
-
-        public float GetEffectiveUniformScaleY()
-        {
-            float y = FinalScale.y;
-            if (!IsFinite(y) || y <= 0f) y = 1f;
-            return y;
-        }
     }
 }

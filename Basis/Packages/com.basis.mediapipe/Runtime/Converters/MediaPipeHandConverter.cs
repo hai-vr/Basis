@@ -5,17 +5,6 @@ using UnityEngine;
 
 namespace Basis.MediaPipe
 {
-    /// <summary>
-    /// MediaPipe 21-point hand landmarks → finger curl/splay (BasisLocalHandDriver) plus the wrist
-    /// rotation for the hand trackers. Both run off the metric WORLD landmarks, so curl no longer
-    /// collapses when the hand points at the camera and the palm frame is real 3D rather than a
-    /// projection.
-    ///
-    /// Rotation is a retarget, not a calibration: the palm frame is measured relative to the user's torso
-    /// and re-expressed relative to the avatar's, then corrected by the constant that maps a palm frame
-    /// onto the avatar's hand bone. Holding your hand however you like reproduces it on the avatar with
-    /// nothing to calibrate.
-    /// </summary>
     public sealed class MediaPipeHandConverter
     {
         public float CurlGain = 1f;
@@ -36,11 +25,6 @@ namespace Basis.MediaPipe
 
         private float RotationCutoff => Mathf.Lerp(CutoffResponsive, CutoffSmooth, Mathf.Clamp01(PoseSmoothing));
 
-        /// <summary>
-        /// Same two-clock split the arm positions use: one-euro on the camera's delta when a fresh sample lands,
-        /// then a carry slerp every rendered frame. Running the filter at render rate over a held sample makes
-        /// each new sample look like a burst of speed, which is what snaps the wrist between poses.
-        /// </summary>
         private struct RotationFilter
         {
             public BasisEuroQuatState Euro;
@@ -75,29 +59,6 @@ namespace Basis.MediaPipe
             }
         }
 
-        /// <summary>
-        /// Avatar hand geometry in player-root-local space. Correction maps a MediaPipe palm frame onto the
-        /// hand bone's rotation; it is built from the knuckle positions, which do not move relative to the
-        /// hand when the fingers curl, so it holds for any pose and needs no reference pose to capture.
-        ///
-        /// IkOffsetInverse undoes a SECOND palm->bone correction that the IK applies downstream. We hand our
-        /// rotation to a tracker, and BasisArmSolveCore does `tRotation = TargetRotation * TargetOffset` with
-        /// TargetOffset = data.m_CalibratedRotationLeft/RightHand, which BasisAnimationRiggingHelper builds as
-        /// `Inverse(landmarkBind) * boneBind` -- i.e. it is ALSO a palm-frame -> hand-bone constant. That offset
-        /// is correct for a producer that reports a PALM/LANDMARK frame (a real tracker does). But `Correction`
-        /// above already finishes the job: we hand over a BONE rotation, so the IK's offset lands on top of it
-        /// and the hand ends up wrong by exactly that offset -- and DIFFERENTLY ON EVERY AVATAR, because it is
-        /// calibrated per rig. (The feet had this identical bug.)
-        ///
-        /// Pre-multiplying by its inverse makes the IK's own `* TargetOffset` collapse back to what we meant:
-        ///     (boneRot * offset^-1) * offset == boneRot
-        ///
-        /// Note the two corrections are NOT the same quaternion, so this does not reduce to "drop Correction":
-        /// MediaPipeSpace's palm frame uses the middle-MCP knuckle with a left-hand normal flip, while
-        /// HandRotationFromLandmarks uses the index/pinky midpoint. `Correction * IkOffsetInverse` is exactly the
-        /// residual between those two conventions. Deleting Correction instead would leave that residual behind
-        /// as a silent frame error -- close enough to look plausible, which is worse than obviously wrong.
-        /// </summary>
         public struct AvatarHandRig
         {
             public Quaternion Body;

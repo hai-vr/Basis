@@ -4,17 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Tests for <see cref="BasisHipFrameSpringCore"/> -- the implicit-Euler, critically-damped angular spring
-    /// that smooths the hips rotation feeding the no-elbow-tracker bend frame, so hip jitter/sway no longer
-    /// wobbles the derived elbow pole ("more spring around the hip so its movements don't affect the connecting
-    /// bones as much"). The rotational analogue of BasisChestSpringCore, so the guarantees mirror that gate:
-    ///
-    ///   1. STABLE   -- implicit Euler never diverges (NaN/blow-up), even at high Hz / low fps.
-    ///   2. CONVERGE -- a static target is reached (no steady-state error).
-    ///   3. LAG/NO-OVERSHOOT -- a step is followed with a smooth lag and, critically damped, never overshoots.
-    ///   4. JITTER REJECTION -- high-frequency input is attenuated far more than low-frequency (the whole point).
-    /// </summary>
     public class BasisHipFrameSpringTests
     {
         [Test]

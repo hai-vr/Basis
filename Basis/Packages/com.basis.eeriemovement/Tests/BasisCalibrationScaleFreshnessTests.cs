@@ -3,21 +3,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Regression tests for the calibration scale-freshness rule: the tracker offset capture
-    /// (<see cref="BasisCalibrationMath.ComputeInverseOffset"/>, fed by BasisInput.CalculateOffset) must
-    /// read tracker coords produced at the SAME DeviceScale as the avatar-bone references it captures
-    /// against.
-    ///
-    /// FullBodyCalibration recomputes DeviceScale mid-pass (ApplyScaleAndHeight, after the T-pose
-    /// re-captures the avatar eye height), but every input's ScaledDeviceCoord was produced by the LAST
-    /// device poll — at the PRE-calibration scale. Capturing offsets from those stale coords against
-    /// new-scale references bakes a position error of |s1 - s0| x |unscaled pose| into every tracker:
-    /// the "calibrate two or three times until the avatar fits" convergence, where each pass shrinks the
-    /// scale delta until the offsets finally capture clean. The fix re-runs the scale-dependent tail of
-    /// the poll (BasisInput.RefreshScaledDeviceCoordFromLastPoll) before anything reads the coords;
-    /// these tests pin the arithmetic of both the failure and the fix using the runtime's own helpers.
-    /// </summary>
     public class BasisCalibrationScaleFreshnessTests
     {
         // The bone-sim runtime application (BasisBoneSimJob): destPos = incoming.pos + incoming.rot * invOffPos.

@@ -4,47 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "The knees have bad clicking rotationally" gate -- the two +-180 DISCONTINUITIES in the knee swivel path.
-    ///
-    /// A click is a DERIVATIVE defect: a large output jump for a small input step. Every other knee gate in this
-    /// repo scores a POSE (never posterior, foot on target, lever arm bounded, gate open/closed), and a pose-shaped
-    /// assert is structurally incapable of seeing a jump -- the broken code satisfies all of them at every sample
-    /// either side of the cut. So every test here measures a STEP, and each one is paired with an anti-tautology
-    /// twin that proves the old formulation fails it.
-    ///
-    /// DEFECT 1 -- the anterior guard folded at the posterior ray. <see cref="BasisLegSolveCore.ClampKneeSwivelDeg"/>
-    /// was monotone in |angle|, so clamp(+179.9) = +89.30 while clamp(-179.9) = -89.30. Those two inputs are the
-    /// SAME knee direction give or take a fifth of a degree, so crossing the back of the leg flipped the knee 178.6
-    /// deg. Measured by finite difference on the shipped cores: 714x gain in the solve (at EVERY reach ratio from
-    /// 0.70 to 1.00 -- so it is NOT the extension singularity) and 698x through the smoother. The jump also clears
-    /// BasisSwivelSmootherCore's 25 deg reseed threshold, so the One-Euro is thrown away rather than damping it.
-    ///
-    /// DEFECT 2 -- the smoother's reference REVERSED. refDir = ProjectOnPlane(body-forward, hip->ankle) does not
-    /// merely shrink as the leg swings toward body-forward, it passes through zero and comes out backwards. The leg
-    /// reaches that direction whenever it is straight out in front: sitting on the floor, a front kick, supine with
-    /// the legs up. Fixed by TRANSPORTING the reference from body-down instead of projecting it.
-    ///
-    /// DEFECT 3 -- the near-colinear and HintDistrust eases are Vector3.Slerp toward bendPole, and a slerp between
-    /// ANTI-PARALLEL directions has no shortest great circle, so the arc flips to the far side of the sphere as the
-    /// pole crosses -bendPole. Measured 610x knee gain, and reachable: a shin tracker on a standing leg sits at
-    /// poleSin ~0.34, inside the band where the ease runs. Not fixable by changing the interpolation -- you cannot
-    /// continuously fade a direction toward a fixed direction (the identity map on a circle has degree 1 and the
-    /// constant map 0, and no homotopy connects them). Fixed by applying the anterior guard BEFORE the eases, which
-    /// bounds the pole strictly inside the anterior half-space and makes the anti-parallel input unreachable.
-    ///
-    /// ⚠️ THE TWO FIXES ARE NOT SEPARABLE, which is why they land together and are gated together. Measured worst
-    /// knee jump for a 0.5 deg step of leg pitch through body-forward, all four combinations:
-    ///
-    ///        clamp   reference      worst knee jump
-    ///        OLD     projected            90.70 deg     &lt;- shipping before
-    ///        NEW     projected           179.00 deg     &lt;- clamp fix ALONE is a REGRESSION
-    ///        OLD     transported           0.50 deg
-    ///        NEW     transported           0.50 deg     &lt;- both
-    ///
-    /// Closing the circle sends a dead-posterior pole to dead-anterior, which is only safe once the reference it is
-    /// measured against has stopped flipping underneath it.
-    /// </summary>
     public sealed class BasisKneeSwivelWrapTests
     {
         const float k_Dt = 1f / 90f;
@@ -57,7 +16,6 @@ namespace Basis.Tests.IK
 
         static float Clamp(float deg) => BasisLegSolveCore.ClampKneeSwivelDeg(deg, Soft, Hard);
 
-        /// <summary>The guard body as it stood BEFORE the fix -- monotone in |angle|, no wrap. Anti-tautology only.</summary>
         static float LegacyClamp(float swivelDeg)
         {
             float mag = Mathf.Abs(swivelDeg);

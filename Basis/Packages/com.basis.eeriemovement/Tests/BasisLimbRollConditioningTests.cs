@@ -5,39 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// A bone's ROLL — its rotation about its own long axis — at full limb extension.
-    ///
-    /// THE BLIND SPOT THIS EXISTS TO CLOSE. Roll moves no joint. Rotating the thigh about the hip→knee line
-    /// leaves the knee exactly where it was; rotating the whole leg about the hip→foot line leaves the foot
-    /// exactly where it was. So every other gate in this suite — knee travel, foot error, reach, inversion,
-    /// mocap accuracy — is structurally incapable of seeing it, and every one of them passed while both limbs
-    /// spun. Roll is still the DOF that twists the thigh and calf mesh, and it is the only thing a user sees.
-    /// Note that the rest of this suite passes Quaternion.identity for the bone rotations; a pose built from
-    /// bone ROTATIONS, as below, is what makes roll measurable at all.
-    ///
-    /// THE BUG IT CAUGHT. Both solvers measured the swivel angle from the joint's own lever arm off the
-    /// root→tip axis (`abProj`) — a vector whose LENGTH is the bend radius. At full extension that radius is
-    /// zero, so its DIRECTION is float residue, and SignedAngleRad was reading it. The resulting swivel is
-    /// applied about the root→tip axis, which at full extension IS the bone's own long axis, so a garbage angle
-    /// lands as a full-magnitude ROLL. Measured before the fix: a 1 mm nudge of the end-effector target rolled
-    /// both bones 180°, with the effector still exactly on target and the joint barely moving.
-    ///
-    /// The fix reconstructs that direction from the plane the BEND already chose, via the identity
-    ///     Cross(ac, Cross(ab, bc)) == |ac|² · abProj
-    /// whose left side is a UNIT vector at every extension (the bend axis is perpendicular to ac by
-    /// construction) while the right side is the one that vanishes. Same vector wherever the old one existed;
-    /// still there when it does not.
-    ///
-    /// WHY THE PROBE LOOKS LIKE THIS. The defect lives in a thin shell around |target| == reach, where
-    /// TriangleAngle saturates and the bend is commanded dead straight — so the nudge must be able to STRADDLE
-    /// full reach (hence millimetres in world space, not steps of an extension ratio) and the pose must be
-    /// off-axis (a symmetric leg leaves float residue lying in the correct plane, and the garbage swivel comes
-    /// out right by accident). Both limbs pass a symmetric probe while thoroughly broken.
-    ///
-    /// THE GUARDRAILS ARE NOT OPTIONAL. "Never swivel at all" passes a roll test trivially, so the pole, reach
-    /// and inversion assertions below are load-bearing — they are what makes the roll gate mean something.
-    /// </summary>
     public class BasisLimbRollConditioningTests
     {
         const float ThighLen = 0.42f, ShinLen = 0.42f;
@@ -50,14 +17,8 @@ namespace Basis.Tests.IK
         static readonly Vector3 BendNormal = Vector3.right;    // a knee bends in the sagittal plane
         static readonly Vector3 Root = Vector3.zero;
 
-        /// <summary>
-        /// Clean solving measures ≤0.09° (leg) and ≤0.15° (arm) of roll for a 1 mm nudge, across 135k probes.
-        /// The defect produced 180° for the same millimetre. The gate sits an order of magnitude above clean and
-        /// two below the bug, so it cannot be tripped by ordinary near-extension geometry.
-        /// </summary>
         const float RollGateDeg = 2.0f;
 
-        /// <summary>One millimetre, in every world direction: the jitter an end-effector target always has.</summary>
         static readonly Vector3[] Nudges =
         {
             new Vector3(0.001f, 0f, 0f), new Vector3(-0.001f, 0f, 0f),
@@ -65,17 +26,12 @@ namespace Basis.Tests.IK
             new Vector3(0f, 0f, 0.001f), new Vector3(0f, 0f, -0.001f),
         };
 
-        /// <summary>Coarse up to 0.99, then dense through the shell around full reach — and slightly PAST it,
-        /// because the live rig targets there constantly (footHeightOffset is clamped so the legs fully extend,
-        /// and a user whose real limbs are longer than the avatar's sits beyond reach permanently).</summary>
         static IEnumerable<float> Extensions()
         {
             for (float e = 0.95f; e < 0.99f; e += 0.01f) yield return e;
             for (float e = 0.99f; e <= 1.0021f; e += 0.0005f) yield return e;
         }
 
-        /// <summary>Rotation of <paramref name="after"/> relative to <paramref name="before"/> ABOUT THE BONE'S
-        /// OWN LONG AXIS, in degrees. This is precisely the component that moves no joint.</summary>
         static float RollDeg(Quaternion before, Quaternion after, Vector3 boneLocalAxis)
         {
             Vector3 axis = (after * boneLocalAxis).normalized;
@@ -86,7 +42,6 @@ namespace Basis.Tests.IK
             return Mathf.Abs(Mathf.DeltaAngle(0f, twist));
         }
 
-        /// <summary>A real rig: the joint is NOT free, it IS the parent bone's rotation.</summary>
         static void Pose(float flexDeg, float bulgeAzimDeg, float rollDeg, Vector3 boneAxis, Vector3 straight,
                          float upper, float lower, out Vector3 mid, out Vector3 tip,
                          out Quaternion rootRot, out Quaternion midRot)
@@ -105,8 +60,6 @@ namespace Basis.Tests.IK
             tip = mid + midRot * boneAxis * lower;
         }
 
-        /// <summary>The direction BendNormal implies the knee bulges. Identical to the solver's own `bendPole`,
-        /// so a pole azimuth here means exactly what the anterior half-space guard means by it.</summary>
         static Vector3 Anterior(Vector3 target)
         {
             Vector3 axis = (target - Root).normalized;

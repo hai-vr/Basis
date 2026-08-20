@@ -5,24 +5,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Guards the MEASURING INSTRUMENTS, not the IK.
-    ///
-    /// Every other file in this folder asks "is the solver right". This one asks "is the ruler
-    /// straight", and it exists because during calibration THREE of these metrics silently lied, each
-    /// in a way that would have shipped a gate that passed broken motion and failed good motion:
-    ///
-    ///   * Differentiating a raw joint path measured the mocap's optical noise, not the human. Jerk
-    ///     amplifies frequency f by (2*pi*f)^3, so a sub-millimetre 30 Hz wobble dominated the third
-    ///     derivative completely. A real elbow read 23100; through a 6 Hz low-pass it reads 1171.
-    ///   * The zero-phase filter's startup transient ate the residual: the first 8% of a clip read
-    ///     108 mm of "jitter" where the middle 84% read 1.5 mm.
-    ///   * An unnormalised cross-correlation always peaks at zero lag, so it cheerfully reported 0 ms
-    ///     of delay for a 150 ms filter.
-    ///
-    /// So the instruments get tested against signals whose answer is known in closed form, and a
-    /// couple of them get tested against the WRONG implementation too, to prove the test can tell.
-    /// </summary>
     public sealed class BasisMotionAnalyzerTests
     {
         const float k_Fs = 120f;
@@ -399,8 +381,6 @@ namespace Basis.Tests.IK
             return o;
         }
 
-        /// <summary>A chain of minimum-jerk reaches to random targets -- a stand-in for a limb doing
-        /// ordinary voluntary motion, with a realistic amount of jerk in it. Deterministic per seed.</summary>
         static Vector3[] SyntheticReachSequence(int frames, int seed)
         {
             var rng = new System.Random(seed);

@@ -5,19 +5,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Checks & balances on the stepper that need no mocap: a synthetic straight walk driven through the REAL
-    /// job, asserting the invariants the gait law promises.
-    ///
-    ///  1. SCALE-INVARIANCE -- the whole reason every constant is a fraction of leg length: a chibi and a giant
-    ///     must produce IDENTICAL dimensionless gait once size is divided out. The stepper was shipped broken on
-    ///     small avatars once (a metre constant a chibi felt differently); this pins it.
-    ///  2. FRAMERATE-INDEPENDENCE -- the stepper had blends that converged by frame count, not time (a foot in a
-    ///     different pose mid-stride on a faster GPU). Same walk at 30/72/144 fps must match.
-    ///  3. IDLE -- a standing person must not fidget: near-zero speed => near-zero steps.
-    ///  4. FINITE -- no NaN/Inf ever reaches the rig.
-    /// See project_basis_foot_mocap_comparison_harness.
-    /// </summary>
     public sealed class BasisFootWalkInvarianceTests
     {
         static readonly float[] WalkSpeeds = { 0.20f, 0.30f, 0.42f };   // v-hat, the walking band

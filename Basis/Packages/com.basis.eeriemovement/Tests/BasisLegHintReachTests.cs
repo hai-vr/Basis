@@ -4,33 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Reach-preservation gate for the knee hint (<see cref="BasisLegSolveCore"/>).
-    ///
-    /// ⚠️ THESE GATES ARE RED. They reproduce a real, unfixed defect; they are not a regression.
-    ///
-    /// The foot is a COMMANDED target: whatever the knee hint does to the pole, the foot must stay exactly where
-    /// it was told to be. It does not. Worst measured: 145 mm on a synthetic sweep (hint 180 deg around the leg
-    /// axis), and 27 mm on real human motion (CMU 02_01) -- a visible slide on a foot tracker, and ~25x the
-    /// "0.13% of leg length" previously believed to be the worst case.
-    ///
-    /// ROOT CAUSE -- it is the BEND step, not the hint step. `deltaR` rotates the shin about the knee by an angle
-    /// that TriangleAngle picks so the hip->ankle distance comes out equal to the target distance. That derivation
-    /// is only valid if the rotation axis is PERPENDICULAR to the hip-knee-ankle plane. The leg's axis is
-    /// Cross(hint, bc), and it is then slerped toward BendNormal by the pole-colinear guard and again by the
-    /// near-full-extension guard. A blended axis is not perpendicular to that plane, so the interior angle at the
-    /// knee does not land where the maths assumed, |ac| != the target distance, and the follow-up rootDelta can
-    /// only correct the DIRECTION to the target, never the LENGTH. The arm papers over exactly this with a
-    /// 12-iteration bisection that backs the hint off until the hand is on target again; the leg has no such pass.
-    ///
-    /// THE FIX (not attempted here -- BasisLegSolveCore has a revert history and this is a real rewrite, not a
-    /// one-liner): place the knee analytically. Use the pole to fix the bend PLANE, then solve the knee's position
-    /// in that plane by trigonometry from |ab|, |bc| and the target distance. That hits the target exactly, in
-    /// every configuration, with no bisection.
-    ///
-    /// The sweep visits the hint all the way around the leg axis so the anti-parallel case is actually exercised,
-    /// rather than assuming it never comes up. It does: it is the worst case.
-    /// </summary>
     public class BasisLegHintReachTests
     {
         const float Upper = 0.42f, Lower = 0.43f;
@@ -55,10 +28,6 @@ namespace Basis.Tests.IK
             return i;
         }
 
-        /// <summary>
-        /// Sweep the hint a full 360 degrees around the leg axis, at several extensions and hint weights. The foot
-        /// must land on its target every single time. The 180 degree sample is the one that used to break.
-        /// </summary>
         [Test]
         public void KneeHint_NeverMovesTheFootOffItsTarget()
         {
@@ -92,10 +61,6 @@ namespace Basis.Tests.IK
                 $"{worstAtDeg:F0} deg around the leg axis) -- the hint swivel is not reach-preserving");
         }
 
-        /// <summary>
-        /// The degenerate case on its own, stated plainly: a hint pointing exactly OPPOSITE the current knee pole.
-        /// This is what collapsed FromToRotation's axis and threw the foot off target.
-        /// </summary>
         [Test]
         public void KneeHint_AntiParallelPole_KeepsTheFootOnTarget()
         {
@@ -111,9 +76,6 @@ namespace Basis.Tests.IK
                 $"an anti-parallel knee hint moved the foot {Vector3.Distance(r.FootSolved, target) * 1000f:F2} mm off target");
         }
 
-        /// <summary>
-        /// Reach preservation must not have been bought by ignoring the hint. The knee still has to follow it.
-        /// </summary>
         [Test]
         public void KneeHint_StillActuallySwivelsTheKnee()
         {

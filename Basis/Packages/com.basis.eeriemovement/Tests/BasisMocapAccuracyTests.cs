@@ -7,29 +7,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Accuracy of the IK against REAL HUMAN MOTION.
-    ///
-    /// Every other IK gate in this project asks "is the solve plausible" -- no pops, no inversions, smooth,
-    /// self-consistent. None of them asks "is it RIGHT", because until now there was nothing to be right about.
-    /// This one has a ground truth: CMU motion capture, where a real person's elbow and knee were actually
-    /// measured. Feed the solver only what a VR user is tracked at (hand and foot poses), and compare the joints
-    /// it had to INVENT -- elbow, knee -- against where that human's really were.
-    ///
-    /// The three hint sources answer three different questions:
-    ///   TruthJoint -- hand the solver the real elbow (i.e. an elbow tracker). The accuracy CEILING, and a
-    ///                 wiring proof: if this is not ~0 the harness is lying and no other number here counts.
-    ///   Lookup     -- WHAT ACTUALLY SHIPS for an untracked arm (ArmBendFrame -> BasisArmBendLookup ->
-    ///                 chicken-wing flare). This is the number that matters.
-    ///   None       -- the bare two-bone fallback with no pole guidance. The FLOOR: how much the lookup buys.
-    ///
-    /// The gap between Lookup and TruthJoint is the addressable error -- what an elbow tracker would win you,
-    /// and what a lookup table refit from this same data could close for free.
-    ///
-    /// Corpus: CMU Graphics Lab Motion Capture Database (mocap.cs.cmu.edu), BVH conversion by Bruce Hahne.
-    /// CMU places no restrictions on use. Files live in Tests/MocapCorpus~/ -- the trailing '~' keeps Unity from
-    /// importing them as assets (no .meta churn). Drop more .bvh in there and they are picked up automatically.
-    /// </summary>
     public class BasisMocapAccuracyTests
     {
         static string CorpusDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~");
@@ -60,12 +37,6 @@ namespace Basis.Tests.IK
             return clips;
         }
 
-        /// <summary>
-        /// Handedness is THE classic BVH bug and it is silent: BVH is right-handed, Unity is left-handed, and a
-        /// bad conversion mirrors the skeleton so left and right swap. Every chirality-sensitive number the
-        /// harness reports would be quietly wrong. So prove the loaded human is anatomically the right way round
-        /// before trusting a single measurement taken from it.
-        /// </summary>
         [Test]
         public void Corpus_LoadsAsAnAnatomicallySaneHuman()
         {
@@ -80,10 +51,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// The wiring proof. Hand the solver the real elbow and knee; it must put them essentially there. If this
-        /// fails, the harness is not driving the solve and every accuracy number below is meaningless.
-        /// </summary>
         [Test]
         public void GivenTheTrueJoint_TheSolverReproducesIt()
         {
@@ -100,11 +67,6 @@ namespace Basis.Tests.IK
             Assert.That(failures, Is.Empty, string.Join("\n", failures));
         }
 
-        /// <summary>
-        /// The headline measurement: how far is the avatar's elbow from a real human's, on real motion, using the
-        /// elbow the product actually ships (the bend lookup)? Reported, not asserted, on first run -- there is no
-        /// honest threshold until the number exists. Once it has settled, gate it here and it becomes a ratchet.
-        /// </summary>
         [Test]
         public void ShippedElbow_MeasuredAgainstRealHumans()
         {

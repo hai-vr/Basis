@@ -5,11 +5,6 @@ using Basis.Scripts.Common;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Covers the networked half of the body fit: the wire-scale conversion, and the shared bone/scale
-    /// table that keeps the local rig's fit and a remote's replay of it in step. The wire round-trip
-    /// itself is covered server-side (BodyFitMessageWireTests / ClientAvatarChangeMessageWireTests).
-    /// </summary>
     public class BasisBodyFitNetworkingTests
     {
         const float Eps = 1e-5f;
@@ -47,10 +42,6 @@ namespace Basis.Tests.IK
             Assert.IsFalse(fit.HasBodyFit);
         }
 
-        /// <summary>
-        /// A zero or NaN on the wire must not reach a skeleton — a 0 scale collapses every fitted bone
-        /// onto its parent. The sanitizer is the last line of defence, so pin it from this side too.
-        /// </summary>
         [Test]
         public void ToFitResult_DegenerateScales_FallBackToIdentity()
         {
@@ -62,11 +53,6 @@ namespace Basis.Tests.IK
             Assert.IsTrue(fit.IsIdentity);
         }
 
-        /// <summary>
-        /// The wire quantizes over [0.5, 1.5] — exactly the band BasisBodyFitCore can produce — so an
-        /// out-of-band value is not merely rejected, it is unrepresentable. This pins the in-memory
-        /// guard that backs that up.
-        /// </summary>
         [Test]
         public void ToFitResult_OutOfBandScale_IsClampedToTheValidBand()
         {
@@ -77,9 +63,6 @@ namespace Basis.Tests.IK
         }
 
 
-        /// <summary>
-        /// What a wearer solves must be what a remote reconstructs, or the two render different bodies.
-        /// </summary>
         [Test]
         public void SolvedFit_SurvivesTheWireUnchanged()
         {
@@ -175,10 +158,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// Remote rigs may not have twist bones detected. The table must leave those slots null rather
-        /// than shifting the rest along — a shifted table would scale the wrong bone by the wrong factor.
-        /// </summary>
         [Test]
         public void CollectBones_MissingTwists_LeaveHolesWithoutShiftingOtherSlots()
         {
@@ -246,11 +225,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// The remote applier writes rest*scale from a captured bind. Re-applying must land on the same
-        /// place, not compound — fits arrive repeatedly (every recalibration by the wearer), and reading
-        /// the live localPosition instead of the captured rest would multiply the scale in every time.
-        /// </summary>
         [Test]
         public void RestTimesScale_IsIdempotentAcrossRepeatedApplies()
         {
@@ -291,9 +265,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// Turning the fit off must restore the authored bind exactly, not leave the body stretched.
-        /// </summary>
         [Test]
         public void IdentityFit_RestoresTheAuthoredBind()
         {

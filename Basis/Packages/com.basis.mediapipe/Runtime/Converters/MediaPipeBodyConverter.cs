@@ -3,21 +3,10 @@ using UnityEngine;
 
 namespace Basis.MediaPipe
 {
-    /// <summary>
-    /// Torso lean/twist/roll from PoseLandmarker world landmarks. Rotation only — the world landmarks are
-    /// HIP-CENTRED, so they carry no global translation to read a sway out of even if we wanted one; a body
-    /// shift shows up as the shoulders moving over the hips, which is a lean, and is already captured here.
-    ///
-    /// Reads the same body frame the arms retarget against and reports how far it has turned from a calibrated
-    /// neutral. What comes out is an OFFSET, not a chest orientation — the caller composes it onto the avatar's
-    /// own body so the chest keeps following the body and only picks up your torso on top.
-    /// </summary>
     public sealed class MediaPipeBodyConverter
     {
-        /// <summary>Scales the whole torso offset. Below 1 keeps it as a suggestion of movement rather than a copy.</summary>
         public float Strength = 0.6f;
 
-        /// <summary>Ceiling on each axis before Strength, so a bad frame cannot throw the torso somewhere a spine will not go.</summary>
         public float MaxAngle = 35f;
 
         public float Smoothing = 0.7f;
@@ -62,7 +51,6 @@ namespace Basis.MediaPipe
         }
 
 
-        /// <summary>Torso lean/twist/roll relative to the calibrated neutral, in the avatar's body axes.</summary>
         public bool TryGetTorsoOffset(in BasisMediaPipeResult result, in MediaPipeTiming timing, out Quaternion offset)
         {
             offset = Quaternion.identity;

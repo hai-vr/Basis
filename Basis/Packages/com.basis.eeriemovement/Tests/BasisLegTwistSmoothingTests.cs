@@ -6,30 +6,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Legs twist when I stand very still and straight" gate for the leg knee-swivel smoothing
-    /// (<see cref="BasisEerieMovement"/>.SmoothKneeSwivel + <see cref="BasisSwivelFilterCore"/>),
-    /// the leg analog of the arm's SmoothElbowSwivel.
-    ///
-    /// Mechanism: with no foot trackers the foot is a position-only plant (rotation preserved) and the leg
-    /// runs near full extension. There the two-bone solver's bend axis is the knee BendNormal (= hips-right,
-    /// raw and unsmoothed) and the knee pole follows the (hips-yaw-derived) hint, so any hips-yaw jitter
-    /// while standing rolls the near-straight leg about the hip->foot axis -- a visible twist. The fix
-    /// low-passes the OUTPUT knee swivel (One-Euro): high-freq jitter is killed at the cutoff floor while a
-    /// real turn opens the cutoff and tracks with negligible lag.
-    ///
-    /// Two layers, both lock-step with the live code:
-    ///   - the FILTER gate (synthetic swivel) proves BasisSwivelFilterCore rejects jitter yet tracks a turn,
-    ///   - the SOLVER gate drives BasisLegSolveCore with a yawing bend frame at standing extension and shows
-    ///     the same filter collapses the resulting raw knee-swivel excursion.
-    ///
-    /// The TRACKED-KNEE gate covers SmoothKneeSwivel's other entry point: a player with a physical knee/lower-
-    /// leg tracker. The hint is then the tracked shin, which the leg solve reduces to a pole DIRECTION with a
-    /// short lever arm, so a few mm of tracker jitter amplify into degrees of knee swivel ("legs sway when
-    /// moving"). That leg runs the same output-swivel One-Euro but with the more-responsive Tracked* cutoffs
-    /// (low floor kills the jitter; big beta keeps a deliberate shin swing from lagging).
-    /// "p2p" = peak-to-peak knee swivel (deg) over the steady window; lower = stiller leg.
-    /// </summary>
     public class BasisLegTwistSmoothingTests
     {
         const float Upper = 0.45f, Lower = 0.45f; // equal thigh/shin

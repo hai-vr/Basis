@@ -4,33 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Hand ROLL must recruit the upper arm — with or without an elbow tracker.
-    ///
-    /// THE GAP THIS EXISTS TO CLOSE. The tip is written straight to the target rotation, so every degree of
-    /// controller roll used to land in the wrist joint; the twist bones only redistribute it along the
-    /// forearm MESH. Nothing upstream read the hand's roll at all — the elbow field model is position-only,
-    /// and a hand twisted IN PLACE cannot move a position-only elbow. Twist your hand and the upper arm sat
-    /// rigid while the wrist candy-wrapped. A real arm pronates ~80° each way and then ROTATES THE HUMERUS,
-    /// which with the hand pinned is exactly the swivel DOF: the elbow swings around its circle.
-    ///
-    /// WHAT THE RELIEF PROMISES, AND WHAT THESE TESTS HOLD IT TO:
-    ///   - the roll is measured against the ANIMATED wrist carried onto the SOLVED forearm, so a neutral
-    ///     hand is a structural no-op, and whatever swivel the hint already applied is already relieved
-    ///     before it is measured (nothing double-compensates);
-    ///   - comfortable roll is the forearm's alone: zero relief below the ramp, then a C1 quadratic ramp
-    ///     that reaches slope 1 exactly at the band edge, the excess past it 1:1, capped, and faded to zero
-    ///     approaching the ±180° principal-angle seam so the two sides of the same pose meet at zero.
-    ///     (A flat in-band share was corpus-refuted: it fed wrist jitter to the elbow as >8 Hz buzz.);
-    ///   - NOT on the tracker path: a tracker is the user's real elbow and the real humerus already
-    ///     answered — corpus-measured, relieving on top dragged the elbow 3.6-10.1 cm off a TRUE pole;
-    ///   - the relief is a swivel about shoulder→hand, so the hand CANNOT leave its target (geometry, not
-    ///     tolerance), and the anatomy guard still has the last word on where the elbow may sit.
-    ///
-    /// The relief's sign is an identity, not a convention (swivelling the arm rolls the carried neutral with
-    /// it), so pronation flares the elbow OUT on BOTH arms with no handedness flag — the mirror test below
-    /// is what makes that claim falsifiable.
-    /// </summary>
     public class BasisArmWristRollReliefTests
     {
         const float UpperLen = 0.30f, ForeLen = 0.30f;
@@ -42,7 +15,6 @@ namespace Basis.Tests.IK
         const float Ramp = BasisArmSolveCore.WristRollRampStartDeg;      // 55
         const float Cap = BasisArmSolveCore.WristRollMaxReliefDeg;       // 70
 
-        /// <summary>The relief curve, restated: zero to the ramp, quadratic to the band, linear past it.</summary>
         static float ExpectedRelief(float rollDeg)
         {
             float a = Mathf.Abs(rollDeg);
@@ -53,9 +25,6 @@ namespace Basis.Tests.IK
             return Mathf.Sign(rollDeg) * Mathf.Min(m, Cap);
         }
 
-        /// <summary>A RIGHT arm reaching `straight`, elbow bulged toward `bulge`, hand exactly on target and
-        /// the animated hand riding the forearm (carried wrist local = identity), so TargetRotation == the
-        /// carried neutral and any roll applied to it is EXACTLY the twist the relief should measure.</summary>
         static BasisArmSolveInput Pose(Vector3 straight, Vector3 bulge, float halfFlexDeg)
         {
             float f = halfFlexDeg * Mathf.Deg2Rad;
@@ -83,8 +52,6 @@ namespace Basis.Tests.IK
             i.TargetRotation = Quaternion.AngleAxis(rollDeg, foreDir) * i.MidRotation;
         }
 
-        /// <summary>Signed elbow travel around the shoulder→hand circle, animated → solved. This is the ONLY
-        /// motion the relief is allowed to produce.</summary>
         static float SwivelDeg(in BasisArmSolveInput i, in BasisArmSolveResult r)
         {
             Vector3 acN = (r.HandSolved - i.Shoulder).normalized;
@@ -95,8 +62,6 @@ namespace Basis.Tests.IK
             return Vector3.SignedAngle(before, after, acN);
         }
 
-        /// <summary>The residual roll left in the wrist after the solve: target vs the animated wrist carried
-        /// onto the SOLVED forearm — the same quantity the relief measures, recomputed from the outputs.</summary>
         static float ResidualRollDeg(in BasisArmSolveInput i, in BasisArmSolveResult r)
         {
             Quaternion neutral = r.MidRotationSolved * Quaternion.Inverse(i.MidRotation) * i.TipRotation;
@@ -185,9 +150,6 @@ namespace Basis.Tests.IK
             AssertHandOnTarget(r, "roll 120");
         }
 
-        /// <summary>A tracker is the user's REAL elbow: twist your hand and the tracker moves — the
-        /// compensation arrives through the measurement. Relieving on top of it was corpus-measured to drag
-        /// the elbow 3.6-10.1 cm off a pole it had been HANDED, so on this path the relief stands down.</summary>
         [Test]
         public void Tracker_TheMeasuredElbowIsNeverSecondGuessed()
         {
@@ -207,10 +169,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>The tracker is strapped to the forearm, so its ROTATION carries real pronation. The
-        /// forearm rolls to the blend of that measurement and the hand's demand, so the wrist keeps only a
-        /// real wrist's residual instead of pinching — and because a roll about the forearm's own long axis
-        /// moves no joint, the elbow stays exactly on the tracker's pole while it happens.</summary>
         [Test]
         public void Tracker_ForearmRollsWithTheMeasurement_AndTheWristStopsPinching()
         {
@@ -270,9 +228,6 @@ namespace Basis.Tests.IK
                 "MidPostRoll must be a valid identity for the runtime to multiply through");
         }
 
-        /// <summary>Pronation must flare the elbow toward the OUTWARD side on BOTH arms. The core has no
-        /// handedness input, so this is asserted by mirroring the entire problem through the YZ plane and
-        /// requiring the answer to mirror with it — the test that catches any hidden world-axis dependence.</summary>
         [Test]
         public void MirroredArm_MirrorsTheRelief()
         {
@@ -352,8 +307,6 @@ namespace Basis.Tests.IK
             Assert.That(Mathf.Abs(SwivelDeg(b, rb)), Is.LessThan(1f), "the -180 side of the seam must fade to zero");
         }
 
-        /// <summary>The guard still owns the outcome: start the elbow OUT (horizontal) so a big pronation
-        /// flare heads for the sky, and require the anatomy ceiling to hold anyway.</summary>
         [Test]
         public void TheAnatomyGuard_StillHasTheLastWord()
         {
@@ -372,20 +325,6 @@ namespace Basis.Tests.IK
         static Vector3 MirrorV(Vector3 v) => new Vector3(-v.x, v.y, v.z);
         static Quaternion MirrorQ(Quaternion q) => new Quaternion(q.x, -q.y, -q.z, q.w);
 
-        /// <summary>
-        /// An elbow tracker is rigid on the forearm: trackerRot(t) = foreRot(t) * K, with K the strap offset.
-        /// K's clock angle around the limb is ARBITRARY and carries no pronation information, so it must not
-        /// reach the forearm. Calibration stores Qref = Inverse(trackerWorld) * boneWorld = Inverse(K), and the
-        /// rig driver feeds trackerRot_live * Qref, which recovers the true forearm for any K.
-        ///
-        /// Measured before the mapping was added: a 90 deg strap angle produced 80.6 deg of forearm roll at zero
-        /// pronation, swinging the wrist residual from +26.4 to -54.2 deg. LowerArm has no Recalibrated* offset,
-        /// so nothing else in the pipeline was cancelling it.
-        /// </summary>
-        /// The invariant is CLOCK-INDEPENDENCE, not an absolute roll: unlike the leg (which rolls the shin
-        /// straight to the tracker), the arm deliberately blends the measured roll with the hand's demand at
-        /// TrackerRollHandBlend, so the applied roll is a blend and asserting a raw pronation figure would be
-        /// testing the blend constant rather than the calibration.
         [Test]
         public void ElbowStrapClockAngle_DoesNotReachTheForearm([Values(0f, 25f)] float pronationDeg)
         {
@@ -428,11 +367,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// A user who never calibrated has no BasisLimbRollStore entry, so the rig driver feeds the zero
-        /// quaternion and the feature must switch itself off. Before the mapping the driver fed a raw unit
-        /// quaternion unconditionally, so this path could not exist.
-        /// </summary>
         [Test]
         public void NoCalibrationReference_DisablesTheTrackerForearmRoll()
         {

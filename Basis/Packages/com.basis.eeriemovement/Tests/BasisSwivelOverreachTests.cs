@@ -8,26 +8,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// THE OVER-REACH PROBE -- the one thing the mocap corpus structurally CANNOT test.
-    ///
-    /// In mocap the hand/foot is always ON the limb, so |tipLocal| &lt;= 1 on every frame the accuracy and
-    /// motion-quality suites have ever seen. The LIVE RIG is handed the RAW controller target, which sails
-    /// past the avatar's limb length whenever the user is bigger than their avatar -- i.e. body PROPORTION
-    /// MISMATCH is exactly an over-reach of the input, and it happens constantly. Nothing driven by the BVH
-    /// corpus can see it, because the corpus never goes there.
-    ///
-    /// This suite sweeps the tip from 0.3 to 1.6 limb-lengths along fixed directions and measures the worst
-    /// single-step swivel change. A radial sweep holds the axis constant, so this is a clean bend rotation
-    /// with no reference-frame artifact. A 'flip' is tens of degrees for a ~2-3 mm hand step.
-    ///
-    /// It pins two things the pole models must satisfy past reach, and which the polynomial's history shows
-    /// are NOT free: (1) the swivel FREEZES radially past full extension -- pushing straight out further must
-    /// not move the elbow/knee (the domain clamp guarantees it); (2) the model never FLIPS -- the unclamped
-    /// polynomial is "a random number generator" outside |t|&lt;=1 (its own words), so bounded, smooth
-    /// behaviour there is a property to assert, not assume. The neural pole models are picked for accuracy
-    /// AND for this smoothness (see tools/neural_ik/train_swivel.py), and measure smoother than the polynomial.
-    /// </summary>
     public class BasisSwivelOverreachTests
     {
         static float3[] Directions()

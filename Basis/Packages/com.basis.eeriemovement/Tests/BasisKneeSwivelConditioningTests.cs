@@ -4,31 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "The leg is very snappy when I move the lower-leg hint" gate.
-    ///
-    /// A two-bone knee's bend PLANE is set by the pole, but a STRAIGHT leg has no bend plane: the knee sits on
-    /// the hip->foot axis and the swivel angle about that axis is undefined. `footHeightOffset` is deliberately
-    /// clamped so "the legs fully extend when standing", which parks a standing leg at hip->foot ~= thigh+shin --
-    /// i.e. permanently ON that singularity. There the raw swivel is noise thrashing through large angles.
-    ///
-    /// The trap: <see cref="BasisSwivelFilterCore"/> is a One-Euro, and a One-Euro is SPEED-ADAPTIVE --
-    /// `cutoff = minCutoff + beta * |velocity|`. Its premise is "a fast signal is a signal the user MEANT, so
-    /// stop filtering it". At a singularity that premise inverts: the noise has a huge velocity, the filter reads
-    /// it as intent, opens the cutoff wide, and passes the garbage through unfiltered. A speed-adaptive filter is
-    /// ACTIVELY HARMFUL at a singularity -- it amplifies exactly what it was added to damp.
-    ///
-    /// The fix conditions the filter's responsiveness on the pole's lever arm
-    /// (<see cref="BasisSwivelSmootherResult.Conditioning"/> = sin of the angle between the upper bone and the
-    /// hip->foot axis; 0 = singular, 1 = fully folded), so beta -> 0 as the leg straightens and the cutoff stops
-    /// opening on noise, while a genuinely bent knee keeps full responsiveness.
-    ///
-    /// Three gates, and the third is the one that stops this file rotting into a tautology:
-    ///   1. STRAIGHT is damped.
-    ///   2. BENT is responsive (so the fix did not simply glue the knee in place -- deliberate shin motion still tracks).
-    ///   3. LEGACY (ConditionOnPole off) is SNAPPY while straight -- proving the guard measures the real defect
-    ///      and that a revert fails loudly, rather than the first two gates passing for some unrelated reason.
-    /// </summary>
     public sealed class BasisKneeSwivelConditioningTests
     {
         const float k_Dt = 1f / 90f;
@@ -42,15 +17,6 @@ namespace Basis.Tests.IK
         const float k_TrackedBeta = 0.20f;
         const float k_TrackedDerivCutoffHz = 1.0f;
 
-        /// <summary>
-        /// Builds a leg whose hip->foot distance is `reach` of full extension, with the knee swivelled
-        /// `swivelDeg` about the hip->foot axis away from the body-forward reference.
-        ///
-        /// Frame: hip at origin, foot straight below it, so the axis is world-down and the reference direction
-        /// (body forward, identity body rotation) is world-forward and lies cleanly in the swivel plane.
-        /// For thigh == shin this gives conditioning == sqrt(1 - reach^2) analytically, which is what makes the
-        /// reach values below map onto known conditioning numbers.
-        /// </summary>
         static BasisSwivelSmootherInput MakeLeg(float reach, float swivelDeg, bool conditionOnPole)
         {
             float full = k_ThighLen + k_ShinLen;
@@ -85,11 +51,6 @@ namespace Basis.Tests.IK
             };
         }
 
-        /// <summary>
-        /// Seeds at swivel 0, then holds the hint at a step-changed swivel for `frames` and returns how much of
-        /// that step the SMOOTHED swivel actually covered, 0..1. This is exactly what "snappy" means: 1 == the
-        /// knee teleported to the new pole in no time at all.
-        /// </summary>
         static float StepResponse(float reach, bool conditionOnPole, int frames)
         {
             BasisSwivelSmootherInput seed = MakeLeg(reach, 0f, conditionOnPole);

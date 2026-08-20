@@ -7,32 +7,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Play space offset stops the calibration from locking in legs (hips as well, and other things)."
-    ///
-    /// The play-space mover's vertical drag (BasisLocalPlayspaceMover.VerticalOffset) is injected into
-    /// EVERY device pose in BasisInput.ComputeUnscaledDeviceCoord, so the whole tracked body — head and
-    /// trackers alike — shifts up or down in bone-sim local space. The virtual spine, however, measured
-    /// "standing" against FLOOR-ANCHORED T-pose heights (StandingHeadLocalY / StandingHipsLocalY /
-    /// ChestTposeY / SpineTposeY, all Y-above-floor at scale). A uniform tracking-space shift therefore
-    /// read as a POSTURE change:
-    ///
-    ///   * dragged DOWN: the head sits below "standing", so BasisPelvisPostureModel reads a phantom
-    ///     squat/bend and holds the pelvis up to HALF the drag above the player's real hips. The whole
-    ///     untracked leg chain hangs off that pelvis (Hips → UpperLeg → LowerLeg → Foot,
-    ///     BasisLocalAvatarDriver:387-397), so every leg bone inherits the error — and the calibration
-    ///     lock-in guides can never latch a leg or hip tracker onto a bone that is a constant half-metre
-    ///     away from the body wearing the trackers.
-    ///   * dragged EITHER way: chest and spine are hard-pinned to their T-pose Y
-    ///     (ApplyPosition*TorsoLock's `desired.y = tposeY`), wrong by the FULL drag.
-    ///
-    /// The fix threads SpineSolveParams.TrackingLiftY (VerticalOffset x DeviceScale) into every standing
-    /// reference, making the spine laws equivariant under a play-space shift: the SAME pose dragged up or
-    /// down must produce the SAME body, just shifted. These gates drive the REAL BasisVirtualSpineSolveJob.
-    ///
-    /// House rule: each fix gate is PAIRED with a negative that reproduces the shipped defect and asserts
-    /// it fails the same measurement, so the gate cannot rot into a tautology.
-    /// </summary>
     public sealed class BasisVirtualSpinePlayspaceLiftTests
     {
         const int Head = 0, Neck = 1, Chest = 2, Spine = 3, Hips = 4;
@@ -52,11 +26,6 @@ namespace Basis.Tests.IK
             public float3 SpinePos;
         }
 
-        /// <summary>
-        /// Ticks the REAL job once with the head at <paramref name="headPos"/> (already carrying any
-        /// play-space lift, exactly as a live device pose would) and the standing references lifted by
-        /// <paramref name="trackingLiftY"/>. Positions are direct writes in the job, so one tick settles them.
-        /// </summary>
         static TorsoPose RunSpineOnce(float3 headPos, float trackingLiftY)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
@@ -155,12 +124,6 @@ namespace Basis.Tests.IK
 
         static float3 StandingHead(float lift) => new float3(0f, StandingHeadY + lift, 0f);
 
-        /// <summary>
-        /// THE HEADLINE GATE. The same standing player, with the play space dragged 0.8 m down or up, is
-        /// still just a standing player — the torso must shift by EXACTLY the drag, on every synthesized
-        /// bone. This is what latches the leg/hip lock-in guides back onto the trackers: the bones and the
-        /// trackers ride the same shift instead of parting by up to half a metre.
-        /// </summary>
         [Test]
         public void AVerticalSpaceDrag_ShiftsTheWholeTorsoWithTheBody()
         {
@@ -182,12 +145,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// THE PAIRED NEGATIVE. Reproduce the shipped defect — devices dragged 0.8 m down but the standing
-        /// references left un-lifted (TrackingLiftY = 0) — and assert the misread is LARGE on the same
-        /// measurement: the posture model holds the pelvis a phantom-squat height above the body, and the
-        /// chest pin misses by the full drag. If this ever stops failing, the gate above measures nothing.
-        /// </summary>
         [Test]
         public void WithTheLiftUnplumbed_ADownwardDrag_ReadsAsAPhantomSquat()
         {
@@ -207,12 +164,6 @@ namespace Basis.Tests.IK
                 + "T-pose Y); if it no longer does, the chest gate above is not measuring the pin.");
         }
 
-        /// <summary>
-        /// A REAL crouch must read identically with and without a space drag: the posture model's inputs
-        /// are body-relative, so drag + crouch must equal crouch, shifted. Guards against the fix
-        /// over-correcting (e.g. lifting the normalisation denominators, which would change how deep the
-        /// same physical crouch reads once dragged).
-        /// </summary>
         [Test]
         public void ARealCrouch_ReadsTheSame_WithOrWithoutASpaceDrag()
         {

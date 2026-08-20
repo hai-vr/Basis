@@ -4,15 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// THE RULER, NOT THE THING BEING MEASURED. These pin BasisSpineAnatomyCore's maths: the swing-twist
-    /// decomposition, the elliptical cone, the saturation, the identity, the equivariance. The corpus tests
-    /// next door (BasisSpineAnatomyCorpusTests) ask the other question -- whether the ENVELOPE is right --
-    /// against 35,081 frames of real humans.
-    ///
-    /// A guard is only worth having if it CANNOT be escaped and DOES NOT fire on legal poses. Both of those
-    /// are properties, not tolerances, and both are tested here by exhaustion rather than by example.
-    /// </summary>
     public sealed class BasisSpineAnatomyTests
     {
         const float k_Tol = 0.05f;

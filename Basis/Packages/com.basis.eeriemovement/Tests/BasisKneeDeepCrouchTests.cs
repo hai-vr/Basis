@@ -5,19 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Deep-crouch knee direction, end to end through the real no-tracker path:
-    /// BasisSwivelHintCore.BuildFrame/LegHint (swivel model + domain guard) -> BasisLegSolveCore.
-    ///
-    /// The bug these pin: descending to a full crouch with the feet under the hips walks the swivel model
-    /// out of its fit domain (CMU has no frames with the foot under the hip at fractional reach), where its
-    /// polynomial confidence dips and then RECOVERS to ~0.86 while the predicted swivel is garbage (-48 deg
-    /// vs the true +90). The trust gate re-trusted it, the anterior half-space guard caught the posterior
-    /// pole, and BOTH knees pinned dead-lateral at ~88 deg -- "the legs go 180 out to the sides" -- with
-    /// 30-38 mm/frame clicks on the way in. The fix is LegDomainTrust: reach-based, multiplied into the
-    /// model's confidence so under-hip folded legs ease onto the anatomical sagittal pole through the
-    /// existing HintDistrust path.
-    /// </summary>
     public class BasisKneeDeepCrouchTests
     {
         const float S = 1.50f;                 // standing head height

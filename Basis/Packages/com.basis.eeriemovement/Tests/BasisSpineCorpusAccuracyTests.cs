@@ -12,27 +12,6 @@ namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
 
-    /// <summary>
-    /// HOW CLOSE IS THE SPINE SOLVE TO A REAL HUMAN'S SPINE, GIVEN THAT HUMAN'S OWN HEAD AND HIPS?
-    ///
-    /// The solver is fed exactly what it gets live — a hips anchor and a head target — except both come
-    /// from a CMU mocap frame, so for every solve there is a measured ground truth for the joints in
-    /// between. The error is the straight distance from each solved spine joint (Spine, Chest,
-    /// UpperChest, Neck) to where the human's actually was, in centimetres at normalized adult stature.
-    ///
-    /// Per clip the rig is rebuilt from THAT subject's own segment vectors at their most upright frame,
-    /// so proportions and natural spinal curvature are the subject's, not an invented stack. Each frame:
-    /// the hips bone is planted on the mocap pelvis (position + yaw, the headset-only convention), the
-    /// gaze frame is built geometrically from the neck→head axis and pelvis facing (no dependence on the
-    /// BVH's bind conventions), and the solve runs the shipped pipeline: DistributeSpineBend, then
-    /// SolveSequentialSpineIK — plus a CCD-only and a no-solve RIGID row so the table shows what each
-    /// stage buys.
-    ///
-    /// THE TRIAL TABLE. The same corpus is then re-run under parameter variants (relax, twist keep, neck
-    /// cone, iterations, tolerance, bend-weight scale). REPORT-ONLY on the variants — the numbers are the
-    /// spec and the argument; asserts hold only the unambiguous properties: the shipped solve beats doing
-    /// nothing, and it lands within a sane absolute bound.
-    /// </summary>
     public sealed class BasisSpineCorpusAccuracyTests
     {
         static string CorpusDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~");

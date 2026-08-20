@@ -8,29 +8,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The THIRD site of the saturate(dt*speed) bug — and the one that lands on the LEGS.
-    ///
-    /// BasisBlendSpeedTests already pins this bug class in the virtual spine and the foot swing. It was
-    /// never fixed in BasisBoneSimChainJob, which is the job every bone WITHOUT a tracker role goes
-    /// through. A physical tracker with no role assigned leaves HasTracked = HasNoTracker
-    /// (BasisInput.SetRealTrackers), so that bone takes the job's target-follow branch and LERPS toward
-    /// its target bone.
-    ///
-    /// And bone targets CHAIN: Hips -> UpperLeg -> LowerLeg -> Foot -> Toes (BasisLocalAvatarDriver:387).
-    /// So a roleless leg is three cascaded lerps deep, while a TRACKED bone is a pure passthrough
-    /// (trackersmooth = 25, and math.saturate(25) == 1). That asymmetry IS "the legs lag behind the rest
-    /// of the trackers".
-    ///
-    /// The old form's fingerprint, measured here on the real job through a 60 deg turn:
-    ///
-    ///      30 fps  alpha 1.000  -> foot slides   0 ms   (smoothing OFF -- the leg SNAPS)
-    ///      90 fps  alpha 0.444  -> foot slides  78 ms
-    ///     240 fps  alpha 0.167  -> foot slides 100 ms
-    ///
-    /// The better your headset, the laggier your legs; and below 40 fps the smoothing switched itself off
-    /// entirely, exactly where the framerate was bad enough to need it most.
-    /// </summary>
     public sealed class BasisBoneChainLagTests
     {
         // The real left-leg chain, as wired by BasisLocalAvatarDriver.SetAndCreateLock.
@@ -46,13 +23,6 @@ namespace Basis.Tests.IK
             _ => float3.zero,
         };
 
-        /// <summary>
-        /// Ticks the REAL BasisBoneSimChainJob over the REAL leg chain. The hips are driven directly (they
-        /// carry HasVirtualOverride, so the job skips them and the spine driver writes them); every bone
-        /// below is an untracked target-follower. Returns the FOOT's world position each frame — that is
-        /// what the leg IK consumes (BasisLocalRigDriver reads LeftFootControl.OutgoingWorldData into
-        /// data.LeftFootPosition).
-        /// </summary>
         static float3[] RunChain(float dt, int frames, System.Func<int, (float3 pos, quaternion rot)> hipsAt,
                                  bool footHasTracker = false)
         {
@@ -128,7 +98,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>Where a bone sits with ZERO lag — the rigid answer the chain is chasing.</summary>
         static float3 RigidPose(float3 hipsPos, quaternion hipsRot, int upTo)
         {
             float3 p = hipsPos;
@@ -162,7 +131,6 @@ namespace Basis.Tests.IK
             return (k_Hips, quaternion.AxisAngle(math.up(), math.radians(YawDeg * t)));
         };
 
-        /// <summary>Milliseconds the foot keeps moving after the body has stopped turning.</summary>
         static float SlideAfterStopMs(int fps)
         {
             float dt = 1f / fps;
@@ -179,11 +147,6 @@ namespace Basis.Tests.IK
 
         // ------------------------------------------------------------------ the gates
 
-        /// <summary>
-        /// A roleless leg must settle at the same SPEED on every headset. Not the same as a tracked leg —
-        /// it is a smoothed follower and it is allowed to lag — but the amount it lags must be a property
-        /// of the code, not of the user's GPU.
-        /// </summary>
         [Test]
         public void TheLegChain_SettlesAtTheSameSpeed_OnEveryHeadset()
         {
@@ -201,10 +164,6 @@ namespace Basis.Tests.IK
                 + "BasisBlendSpeedTests pins in the virtual spine and the foot swing.");
         }
 
-        /// <summary>
-        /// The paired negative for the gate above: the form that shipped genuinely DID vary with framerate,
-        /// so the metric is measuring something real.
-        /// </summary>
         [Test]
         public void TheLegacyForm_Fails_SoTheGateCannotRotIntoATautology()
         {
@@ -245,11 +204,6 @@ namespace Basis.Tests.IK
                 + $"framerates ({lo:F0}..{hi:F0} ms); if it no longer does, the gate above is testing nothing");
         }
 
-        /// <summary>
-        /// The nastiest half of the old bug: clamp() saturates once rate*dt >= 1, so at 40 fps and below the
-        /// position follow had alpha = 1.0 -- it did not smooth at all, it SNAPPED, every frame. Desktop
-        /// under load and standalone both live there.
-        /// </summary>
         [Test]
         public void TheLegChain_StillSmooths_AtLowFramerate_InsteadOfSnapping()
         {
@@ -267,11 +221,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// The compatibility claim, pinned. 90 Hz is the reference rate the constants were tuned at, so the
-        /// fix must reproduce the old behaviour there EXACTLY: nobody's feel changes, it just stops depending
-        /// on their hardware.
-        /// </summary>
         [Test]
         public void TheFix_IsABitForBitNoOp_AtTheReferenceFramerate()
         {
@@ -291,11 +240,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// The asymmetry the user actually feels. A TRACKED bone is a passthrough; an untracked one is three
-        /// cascaded lerps behind the hips. Both are legitimate — but the gap is what "the legs lag behind the
-        /// rest of the trackers" MEANS, so it gets a number and a ceiling rather than being left to drift.
-        /// </summary>
         [Test]
         public void ATrackedFoot_IsDramaticallyMoreResponsive_ThanARolelessOne()
         {

@@ -13,25 +13,6 @@ namespace Basis.Tests.IK
     // disambiguating (CS0576). See BasisMocapMotionQuality.cs.
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
 
-    /// <summary>
-    /// "Is it human? Is it natural?" -- measured, not judged.
-    ///
-    /// The accuracy suite next door asks whether the solved elbow is in the RIGHT PLACE. This one asks
-    /// whether it got there the way a human would. The two are genuinely independent: a solved elbow can
-    /// sit 2 cm from the truth on every single frame and still buzz at 30 Hz, sit on a plateau, or arrive
-    /// 150 ms late. Mean error cannot see any of that, because each frame, taken alone, looks fine. The
-    /// badness only exists BETWEEN frames -- and until this file there was nothing in the project that
-    /// looked between frames.
-    ///
-    /// Because the corpus gives us a real human's elbow doing the same motion, every number here is a
-    /// DIFFERENTIAL against ground truth. That removes the argument: the question is never "is 1200 units
-    /// of jerk a lot", it is "did our elbow move like THAT elbow did, given the same hand to follow".
-    ///
-    /// Thresholds are PROVISIONAL and loose -- see BasisMocapMotionQuality. They catch "that is not a
-    /// human arm" and nothing subtler. The table this prints is what tightens them, exactly as the
-    /// accuracy layer landed ("there is no honest threshold until the number exists"). Read the table,
-    /// then ratchet.
-    /// </summary>
     public sealed class BasisMocapMotionQualityTests
     {
         static string CorpusDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~");
@@ -57,12 +38,6 @@ namespace Basis.Tests.IK
             return clips;
         }
 
-        /// <summary>
-        /// The shipping elbow/knee path, scored for HOW it moves, on every clip in the corpus.
-        ///
-        /// Collects every failure and reports them together rather than aborting on the first -- a single
-        /// bad clip should not hide the shape of the whole table, and the table is the point.
-        /// </summary>
         [Test]
         public void ShippedSolver_MovesLikeAHuman_AcrossTheCorpus()
         {
@@ -111,13 +86,6 @@ namespace Basis.Tests.IK
                             string.Join("\n  ", failures) + "\n\n" + report);
         }
 
-        /// <summary>
-        /// Characterisation, asserted only where the physics is unarguable.
-        ///
-        /// Prints all three hint sources side by side so the elbow lookup's naturalness cost is visible
-        /// the way its ACCURACY cost already is. TruthJoint is the ceiling (the solver is handed the real
-        /// elbow, so it should move exactly like one); None is the floor; Lookup is what ships.
-        /// </summary>
         [Test]
         public void HintSources_Compared_ForMotionQualityNotJustAccuracy()
         {
@@ -270,11 +238,6 @@ namespace Basis.Tests.IK
                                  "clips, which is impossible:\n  " + string.Join("\n  ", suspect));
         }
 
-        /// <summary>
-        /// A held-still human is where IK jitter is most visible, and the corpus now has three long quiet
-        /// standing clips precisely for this. A solver that buzzes will buzz worst here, because there is
-        /// no real motion to hide it under.
-        /// </summary>
         [Test]
         public void SolverDoesNotBuzz_WhenTheHumanIsStandingStill()
         {

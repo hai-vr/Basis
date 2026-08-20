@@ -4,25 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The knee half-space guard's ANTERIOR reference must be BODY-frame, never limb-frame.
-    ///
-    /// THE DEFECT. <see cref="BasisLegSolveInput.BendNormal"/> did double duty: the no-hint fallback pole AND the
-    /// anterior reference for the guard. With FBIKTrackerBendNormal (default ON) the rig driver derives it from
-    /// the lower-leg tracker's live rotation, so "anterior" rode the user's SHIN. Tibial rotation alone then
-    /// swept the guard's bite point across a stationary knee hint. Measured on the shipping solver, hint parked
-    /// at a legal 70 deg and never moved: the guard engaged at 20 deg of tibial rotation and dragged the knee
-    /// from 70.00 to 29.09 deg by 60 deg -- 41 deg of knee travel from an input that did not move.
-    ///
-    /// The user's report was "the hint role for legs is slow to respond and goes across a snapping point": once
-    /// inside the guard's band the gain collapses (1.00 -> 0.47 at 90 deg, 0.04 by 105 deg, 0.00 by 150 deg) and
-    /// at 180 deg the pole is antiparallel and the sign flips, a 178.6 deg step.
-    ///
-    /// The compression itself is CORRECT and deliberate -- KneeAnteriorHardDeg is strictly under 90 so the
-    /// posterior half-space is unreachable, and a circle cannot be mapped continuously into an open arc while
-    /// preserving which side the knee is on. So the fix is not to widen or smooth the guard: it is to stop the
-    /// reference moving. The tracker-derived plane stays exactly right for the POLE.
-    /// </summary>
     public class BasisKneeAnteriorReferenceTests
     {
         const float Thigh = 0.42f, Shin = 0.42f;
@@ -47,12 +28,6 @@ namespace Basis.Tests.IK
             return i;
         }
 
-        /// <summary>
-        /// Anterior for the leg's own frame. Building this from Cross(axis, up) is DEGENERATE for a near-vertical
-        /// leg and silently places azimuth 0 behind the knee, which parks a whole sweep in the posterior
-        /// half-space and makes the guard appear to fire everywhere. That mistake produced two confident, wrong
-        /// findings while this was being diagnosed.
-        /// </summary>
         static void LegFrame(Vector3 axis, out Vector3 anterior, out Vector3 lateral)
         {
             anterior = Vector3.ProjectOnPlane(Vector3.forward, axis);
@@ -103,7 +78,6 @@ namespace Basis.Tests.IK
                 $"the knee moved {Mathf.Abs(az - baseAz):F2} deg on a hint that never moved");
         }
 
-        /// <summary>Without a body-frame reference the defect is present — this is the anti-tautology check.</summary>
         [Test]
         public void WithoutTheBodyFrameReference_TheDefectIsPresent()
         {
@@ -121,7 +95,6 @@ namespace Basis.Tests.IK
                 "if this stops reproducing, the fix above is no longer being tested by anything");
         }
 
-        /// <summary>A zero AnteriorNormal must leave every pre-existing caller bit-identical.</summary>
         [Test]
         public void ZeroAnteriorNormal_FallsBackToBendNormal()
         {
@@ -134,10 +107,6 @@ namespace Basis.Tests.IK
             Assert.That(fallback.AxisSource, Is.EqualTo(explicit_.AxisSource));
         }
 
-        /// <summary>
-        /// The guard is still a hard constraint: a genuinely posterior hint must still be pulled anterior. The
-        /// body-frame reference changes WHERE anterior is, never WHETHER the guard applies.
-        /// </summary>
         [Test]
         public void AGenuinelyPosteriorHint_IsStillGuarded()
         {

@@ -5,22 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// SolveSequentialSpineIK's world-pose cache (wPos/wRot/parentRot) replaced the per-access
-    /// stream re-walks. The cache has two code paths: a contiguous fast fold, and a
-    /// GetWorld/GetParentWorld fallback for chain links separated by NON-chain intermediate
-    /// bones (armature twist/roll bones — present on most real avatars, absent from every
-    /// hand-built rig in the other spine suites). These tests pin the fallback path:
-    ///
-    /// 1. A chain with intermediates must still land the head on the HMD target — if the
-    ///    cached parentRot bookkeeping drifts from the FK the write-back claims to reproduce,
-    ///    the head lands off-target or the locals come back garbage.
-    /// 2. Degenerate targets (target at the root, at the current tip, zero-length spans) must
-    ///    never write a non-finite local rotation — one NaN frame latches into the transforms
-    ///    the next gather reads, and every renderer above it starts throwing Invalid AABB.
-    /// 3. Blender-style scaling (0.01 bone locals under a 100x root) and rolled hips binds
-    ///    must not break either property.
-    /// </summary>
     public class BasisSpineCacheParityTests
     {
         GameObject _root;
@@ -48,12 +32,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// Builds a Hips→Spine→Chest→Neck→Head chain where every non-null entry of
-        /// <paramref name="twistBetween"/> inserts a passthrough intermediate ("twist bone")
-        /// between link i and link i+1. All bones land at the given heights so contiguous and
-        /// intermediate variants describe the same world-space geometry.
-        /// </summary>
         Transform[] BuildChainRig(float[] heights, bool[] twistBetween, float boneScale = 1f, float rootScale = 1f, Quaternion? boneRot = null)
         {
             DisposeRig();

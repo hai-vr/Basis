@@ -5,22 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Chicken-wing elbow-flare regression tests (no elbow tracker). Exercise the pure, stream-free
-    /// <see cref="BasisElbowFlareCore"/> directly -- the same Core the live rig
-    /// (BasisFullIKConstraintJob.ComputeArmBendFromLookup) and the offline BasisArmIKSweep.RunChickenWing
-    /// harness call -- and verify the user-felt properties:
-    ///
-    ///   1. PUSH OUT   -- turning the controllers inward pushes the derived elbow OUT toward the half-T-pose
-    ///                    mark (the requested "push the elbows out").
-    ///   2. HARD CLAMP -- a committed chicken-wing never crosses the halfway line to straight-out-to-the-side
-    ///                    (the requested "should never exceed the halfway 90 deg mark"), and never wings UP.
-    ///   3. NO-OP OFF  -- with no inward roll the flare is an exact no-op, so normal reaches are untouched.
-    ///
-    /// Swivel is measured in BasisElbowFlareCore's own basis: 0 deg = elbow straight down, +cap = out toward
-    /// the body's outward side. Engagement is the chicken-wing amount (the live rig derives it from the
-    /// controller roll; here it is passed explicitly so the clamp/push geometry is checked deterministically).
-    /// </summary>
     public class BasisElbowFlareTests
     {
         const float Upper = 0.28f;

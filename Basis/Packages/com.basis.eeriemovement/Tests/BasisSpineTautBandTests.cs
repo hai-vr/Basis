@@ -5,28 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "The head/neck jitters when I stand looking almost straight ahead" regression tests for the spine
-    /// CCD -- <see cref="BasisEerieMovement.SolveSequentialSpineIK"/>.
-    ///
-    /// Standing upright, the virtual spine places the hips a full chain length below the head, which parks
-    /// the CCD at the chain's full-extension singularity. A small head pitch then commands a mm-scale
-    /// COMPRESSION through the HMD's neck-pivot lever (quadratic in pitch: ~1.4 mm at 8 deg) -- and a
-    /// straight chain cannot shorten by aiming. Only a bow can, the required bow angle goes as
-    /// sqrt(compression), and nothing constrains its plane. The loop burned all 20 iterations failing to
-    /// converge, and each frame's sub-mm tracker noise re-picked the bow plane: a sustained 0.25-0.38
-    /// deg/frame neck/chest buzz, versus 0.003 outside the band with identical noise. Exactly straight
-    /// (taut) was quiet and a real lean was quiet, which is why the report reads "ALMOST center straight".
-    ///
-    /// The fix is the taut band in SolveSequentialSpineIK: commanded compression is softened through a C1
-    /// hinge (band = 1.5% of the chain's own reach), so noise-scale compressions leave the chain taut --
-    /// where the shipped solve already stalled anyway, measured tip error unchanged to 0.1 mm -- and real
-    /// compressions pass through with an error that decays as band^2/compression.
-    ///
-    /// These guard: (1) noise inside the former buzz band no longer buzzes the neck; (2) the taut regime
-    /// (target at/beyond reach -- the untouched code path) stays quiet and straight; and (3) a deep
-    /// commanded compression is still actually solved, i.e. the band does not neuter real bends.
-    /// </summary>
     public class BasisSpineTautBandTests
     {
         // hips, spine, chest, upperChest, neck, head -- heights of a ~1.7 m avatar, matching the

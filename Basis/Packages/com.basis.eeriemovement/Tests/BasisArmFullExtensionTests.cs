@@ -4,33 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// THE ARM MAY NEVER BECOME A FREE-SPINNING STICK.
-    ///
-    /// ================================================================================================
-    /// At 180 degrees the elbow's distance from the shoulder->hand axis is EXACTLY ZERO:
-    ///
-    ///     rho = sqrt(upper^2 - (d/2)^2),   d = 2*L*sin(theta/2)      =>   rho(180) = 0
-    ///
-    /// The elbow lies ON the axis. A pole can no longer POSITION it -- every point on its circle is the
-    /// same point -- so everything the hint, the swivel, the anatomy guard and the elbow protect ask for
-    /// is paid out as ROLL of the upper arm and forearm about their own long axis. Every roll and flip
-    /// singularity this codebase has chased, across three separate files, lives below rho ~ 1.3 cm.
-    ///
-    /// AND THE ARM LIVES THERE. A relaxed human arm hangs at ~170-175 deg, already 99.6% of full reach.
-    /// Any target at or past the avatar's reach is clamped by TriangleAngle to a flat 180 -- and a user
-    /// whose real arms are longer than their avatar's is past it ON EVERY FRAME.
-    ///
-    /// ⚠️ CALIBRATION CANNOT FIX THIS, AND THAT IS THE POINT OF THIS FILE. Reach is STATIONARY in the
-    /// elbow angle near straight (dr/dtheta -> 0), so a length error maps to an angle error with
-    /// exploding gain: 1 mm -> 6.6 deg, 2 mm -> 9.4 deg, and a PERFECT 0 mm calibration lands the target
-    /// exactly AT reach, which is theta = 180 and rho = 0. The singularity sits precisely where the user
-    /// is trying to reach. No calibration, however good, keeps the arm off it.
-    ///
-    /// ⭐ The same stationarity makes the fix nearly free in reverse: 180 -> 170 deg gives up 2.3 mm of
-    /// reach and buys 2.61 cm of guaranteed lever arm. A 12x trade. See BasisArmSolveCore.MaxElbowAngleDeg.
-    /// ================================================================================================
-    /// </summary>
     public class BasisArmFullExtensionTests
     {
         const float k_Arm = 0.60f, k_Upper = 0.30f, k_Fore = 0.30f;
@@ -66,13 +39,6 @@ namespace Basis.Tests.IK
             return (ae - acN * Vector3.Dot(ae, acN)).magnitude;
         }
 
-        /// <summary>
-        /// ⭐ THE ONE THAT MATTERS. The hand target routinely sails past the avatar's reach -- ANYONE whose
-        /// real arms are longer than their avatar's is out there on every single frame, and no calibration
-        /// removes that. Out there the elbow must STILL have a lever arm to be positioned by.
-        ///
-        /// Drives the target from half reach to 1.5x reach, in every direction. rho must never collapse.
-        /// </summary>
         [Test]
         public void TheElbow_AlwaysHasALeverArm_EvenFarBeyondTheAvatarsReach()
         {
@@ -106,11 +72,6 @@ namespace Basis.Tests.IK
                 "than their avatar gets on EVERY frame. MaxElbowAngleDeg is what floors it.");
         }
 
-        /// <summary>
-        /// And the cap must cost essentially nothing. Reach is stationary in the elbow angle near straight,
-        /// so 10 degrees of guaranteed bend is bought for MILLIMETRES -- and only at the very limit. Any
-        /// target the avatar can actually reach must still be reached EXACTLY.
-        /// </summary>
         [Test]
         public void TheCap_CostsNothing_ForAnyTargetTheAvatarCanActuallyReach()
         {
@@ -135,11 +96,6 @@ namespace Basis.Tests.IK
                 "if it costs centimetres the angle is far too low and the arm will look permanently bent");
         }
 
-        /// <summary>
-        /// The cap is anatomy, not a tuning knob: a human elbow does not lock out at 180 under load, and an
-        /// avatar whose arm snaps dead straight reads as robotic. Pinned so a well-meaning "let the arm
-        /// straighten fully" change has to come and delete this test on purpose.
-        /// </summary>
         [Test]
         public void TheElbow_NeverLocksDeadStraight()
         {

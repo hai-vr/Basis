@@ -4,18 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The elbow tuck: a small styling lean of the NO-TRACKER elbow pole toward the body, requested from
-    /// the headset ("elbow tuck a little bit"). The field model predicts the corpus-MEAN elbow; the tuck
-    /// biases it a few degrees inward-down on top.
-    ///
-    /// What these tests hold it to: it is SMALL (bounded by its weight, everywhere on the sphere of hand
-    /// directions), it points INWARD on both arms (one mirrored-frame pole, no handedness flag — the
-    /// mirror test is what makes that falsifiable), it preserves the bend's perpendicularity to the
-    /// shoulder→hand axis exactly (the solver relies on it), and it FADES ITSELF OUT as the arm approaches
-    /// the tuck pole's own direction instead of snapping — the blend term's magnitude is the projection,
-    /// so the degeneracy is its own fade.
-    /// </summary>
     public class BasisElbowTuckTests
     {
         const float ArmLen = 0.55f;
@@ -25,7 +13,6 @@ namespace Basis.Tests.IK
         static BasisSwivelFrame Frame() => BasisSwivelHintCore.BuildFrame(
             ShoulderL, ShoulderR, new Vector3(0f, 1.30f, 0f), new Vector3(0f, 1.50f, 0f));
 
-        /// <summary>ArmHint's own construction minus the tuck — the untucked reference.</summary>
         static Vector3 RawBend(in BasisSwivelFrame fr, Vector3 shoulder, Vector3 hand, bool isLeft)
         {
             BasisSwivelHintCore.Features(fr, shoulder, hand, ArmLen, isLeft, out var tip);

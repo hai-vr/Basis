@@ -5,36 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// A MEASURED POLE COLLAPSES. A COMMANDED ONE DOES NOT.
-    ///
-    /// ================================================================================================
-    /// BasisArmSolveCore reads the elbow swivel as the signed angle from the reconstructed bend
-    /// direction to ahProj -- the hint pole projected perpendicular to the shoulder->hand axis. Its
-    /// header argues that the pole is COMMANDED and therefore never needs conditioning, and for
-    /// BasisArmSwivelModel that is exactly right: that pole is built perpendicular by construction and
-    /// measures a flat 180 mm at every extension from 0.90 to 1.05.
-    ///
-    /// It is FALSE of a real elbow tracker. That pole is the user's own elbow, and a straight arm puts
-    /// the elbow ON the shoulder->hand axis, so |ahProj| genuinely goes to zero. The gain is exact --
-    /// d(swivel) = d(pole) / |ahProj| -- so it is not a gate crossing that a tighter epsilon could
-    /// catch: measured on the live core at 99.9% extension with 1 mm of puck noise, |ahProj| is
-    /// 13.4 mm and the swivel flips 179 degrees on 72 of 400 frames. The identical pole with
-    /// HintIsTracker false is 0.13 degrees and zero flips.
-    ///
-    /// ⚠️ THE ONSET IS SET BY THE USER'S ARM, NOT THE AVATAR'S. At a user/avatar arm ratio of 0.98 --
-    /// an ordinary proportion mismatch -- the flip starts at 98% of avatar extension, not 99.9%.
-    ///
-    /// MaxElbowAngleDeg floors the OTHER lever arm and cannot help: |abProj| never drops below 26.15 mm
-    /// in the very frames where |ahProj| reaches 1.25 mm.
-    ///
-    /// ⭐⭐ WHY BOTH DIRECTIONS ARE GATED HERE. The obvious fixes all measure CLEAN by killing the
-    /// feature -- enabling the world-down stabilizer for trackers scores zero flips precisely because
-    /// the elbow stops following the tracker at all (swivel drops to 0.00 deg). So a roll gate alone is
-    /// not enough and would have passed the worst candidate. The elbow must roll LESS *and* still
-    /// FOLLOW, and a change that does only one of them IS the bug.
-    /// ================================================================================================
-    /// </summary>
     public class BasisArmPoleAnchorTests
     {
         const float k_Upper = 0.30f, k_Fore = 0.30f;
@@ -48,8 +18,6 @@ namespace Basis.Tests.IK
             return k_Root + dir.normalized * (ext * k_Arm) + nudge;
         }
 
-        /// The user's own elbow on its circle. userArm != k_Arm is the proportion mismatch that governs
-        /// when the measured pole collapses.
         static Vector3 UserElbow(Vector3 target, float swivelDeg, float userArm)
         {
             Vector3 sa = target - k_Root;
@@ -63,13 +31,6 @@ namespace Basis.Tests.IK
             return k_Root + axis * a + (Quaternion.AngleAxis(swivelDeg, axis) * down) * radius;
         }
 
-        /// ⚠️ NOT FromToRotation(boneAxis, forearmDir). That is the MINIMAL-twist rotation and carries no
-        /// roll about its own result axis, so at lockout -- where the forearm is nearly the arm axis at
-        /// every swivel -- it is very nearly CONSTANT in the swivel. Modelling a puck that way discards
-        /// exactly the signal that survives the position collapse, and the test then "proves" the elbow
-        /// is frozen when it is the MODEL that is blind. A real puck is bolted to the limb: swivelling
-        /// the arm by phi about the shoulder->hand axis rotates every bone in it by phi about that axis,
-        /// and BasisLimbRollStore maps the tracker's true world rotation onto the bone at calibration.
         static Quaternion ForearmRot(Vector3 target, float swivelDeg, float userArm)
         {
             Vector3 axis = (target - k_Root).normalized;
@@ -128,8 +89,6 @@ namespace Basis.Tests.IK
             public float TrackRmsDeg;
         }
 
-        /// A time series through the live core. anchored=false withholds the state, which is the
-        /// pre-anchor solver EXACTLY (the struct default), so it doubles as the control.
         static Trace Series(float ext, float userArmRatio, bool anchored, int frames,
                             float swivelStart, float swivelEnd, int seed, float warmExt = -1f, int warmFrames = 0)
         {
@@ -204,12 +163,6 @@ namespace Basis.Tests.IK
             return t;
         }
 
-        /// THE HEADLINE. Straightened arm, real puck noise, elbow held still: the pre-anchor solver spins
-        /// the humerus a full 180 deg on scores of frames. Anchored, it must not.
-        ///
-        /// The Assert on the CONTROL is the anti-tautology guard -- if the scenario ever stops flipping
-        /// on the unanchored path (a retune elsewhere, a changed default), this test would otherwise pass
-        /// vacuously and stop protecting anything.
         [Test]
         public void AStraightenedArmWithAnElbowTracker_DoesNotSpinTheHumerus()
         {
@@ -229,7 +182,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// A SHORTER USER ARM MOVES THE SINGULARITY DOWN INTO ORDINARY REACHES. 0.98 is unremarkable.
         [Test]
         public void AProportionMismatch_DoesNotDragTheSingularityIntoOrdinaryReaches()
         {
@@ -242,9 +194,6 @@ namespace Basis.Tests.IK
                 $"anchored solve flipped {fixedUp.Flips} times at a 0.98 arm ratio.");
         }
 
-        /// ⭐ THE COUNTERWEIGHT, AND THE ONE THAT KILLS THE PLAUSIBLE-BUT-WRONG FIXES. The user sweeps
-        /// their elbow 120 deg around its circle at full extension. Freezing the elbow, or dragging it to
-        /// world-down, scores a perfect roll number here and a catastrophic tracking number.
         [Test]
         public void AtFullExtension_TheElbowStillFollowsTheTracker()
         {
@@ -259,10 +208,6 @@ namespace Basis.Tests.IK
                 $"({control.TrackRmsDeg:0.0} deg), not merely be quiet.");
         }
 
-        /// Past the avatar's reach the user's own elbow radius is identically zero, so the POSITION
-        /// carries no azimuth at all and only the puck's ROTATION can. Reached through ordinary poses --
-        /// which is how an arm actually gets there -- the anchor is seeded on a real measurement and the
-        /// rotation carries it the rest of the way.
         [Test]
         public void PastFullReach_TheTrackersRotationCarriesTheElbow()
         {
@@ -274,10 +219,6 @@ namespace Basis.Tests.IK
                 "rotation is the only azimuth signal left and it is not being used.");
         }
 
-        /// THE LEGACY DOMAIN IS PROVABLY UNTOUCHED. A deliberately WRONG anchor (90 deg off) is injected
-        /// while the pole's lever arm is healthy; the solver must ignore it bit-for-bit. This is what
-        /// makes the change safe for every existing caller, test and offline sweep, all of which pass the
-        /// default struct.
         [Test]
         public void WhileThePoleIsWellConditioned_TheAnchorIsIgnoredExactly()
         {

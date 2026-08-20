@@ -4,42 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Guards <see cref="BasisElbowProtectCore"/> against spinning the arm about its own long axis.
-    ///
-    /// ================================================================================================
-    /// THE BUG, IN THE USER'S OWN WORDS: "if i fully extend my arm and then cross over my body all the
-    /// way to the left as much as humanly possible the elbow does a nasty rotation."
-    ///
-    /// Both halves of that sentence are load-bearing, and neither alone reproduces it:
-    ///
-    ///   CROSS THE BODY -> the upper arm presses into the chest, so the protect ENGAGES. It only ever
-    ///                     runs on a torso penetration, which is why nothing else in the workspace shows
-    ///                     this.
-    ///   FULLY EXTEND   -> the elbow's circle radius rho collapses to nothing.
-    ///
-    /// The protect clears the torso by SWIVELLING the elbow about the shoulder->hand axis. That rotation
-    /// buys elbow displacement of rho * theta -- and it costs upper-arm ROLL of theta, which does NOT
-    /// scale with rho. So as the arm straightens the benefit goes to zero and the cost stays whole: the
-    /// swivel axis IS the arm's own long axis by then, and the entire correction lands as spin.
-    ///
-    /// MEASURED on the shipped code, along exactly that motion: a steady ~47 degree commanded swing, and
-    /// at extension >= 0.999 it becomes 47-51 DEGREES OF UPPER-ARM ROLL PER MILLIMETRE OF HAND TRAVEL.
-    /// Disable the protect and the same sweep measures 0.0. It is unambiguously this file.
-    ///
-    /// ⭐ WHY NOTHING CAUGHT IT: ROLL MOVES NO JOINT. Rotating the arm about shoulder->hand leaves the
-    /// hand exactly on target and the elbow (at full extension, on the axis) exactly put. Every gate in
-    /// this repo scores POSITIONS -- hand error, elbow travel, reach, clearance, mocap accuracy. All of
-    /// them are structurally incapable of seeing a limb spin. This is the same blind spot that hid the
-    /// solve cores' 180-degree roll (BasisLimbRollConditioningTests), and this is a third instance of it.
-    ///
-    /// ⭐ AND WHY THE OBVIOUS FIX IS WRONG: fading on rho does NOT work. rho = sqrt(upper^2 - (d/2)^2) is
-    /// SQUARE-ROOT SINGULAR in the hand position, so its own gradient blows up exactly where the fade has
-    /// to be gentle -- it converts the cliff into a steep ramp and measures 9-10 deg/mm. The fade must key
-    /// on the REACH RATIO, whose derivative is bounded by 1/armLen. That is the difference between a fix
-    /// and a relocation, and this codebase has relocated a discontinuity and called it a fix before.
-    /// ================================================================================================
-    /// </summary>
     public class BasisElbowProtectRollTests
     {
         const float k_Arm = 0.60f, k_Upper = 0.30f, k_Fore = 0.30f;
@@ -50,7 +14,6 @@ namespace Basis.Tests.IK
         static readonly Vector3 k_Spine = new Vector3(0f, 1.10f, 0f);
         static readonly Vector3 k_Hips = new Vector3(0f, 0.95f, 0f);
 
-        /// <summary>The elbow the arm solve produces: on its circle, at the shipped model's pole.</summary>
         static Vector3 SolvedElbow(Vector3 hand)
         {
             BasisSwivelFrame frame = BasisSwivelHintCore.BuildFrame(
@@ -91,12 +54,6 @@ namespace Basis.Tests.IK
             return i;
         }
 
-        /// <summary>
-        /// The angle BasisFullBodyIK.SwingElbowAroundAC will rotate the UPPER ARM by, about the
-        /// shoulder->hand axis, to honour this protect result. At full extension that axis IS the arm's
-        /// own long axis, so this number is the arm's ROLL. Reproduced here rather than called because
-        /// SwingElbowAroundAC takes an AnimationStream, which an EditMode test has no way to build.
-        /// </summary>
         static float AppliedRollDeg(in BasisElbowProtectInput i, in BasisElbowProtectResult r)
         {
             if (!r.Engaged) return 0f;
@@ -114,7 +71,6 @@ namespace Basis.Tests.IK
             return ang * Mathf.Sign(Vector3.Dot(Vector3.Cross(v1, v2), n));
         }
 
-        /// <summary>Degrees of upper-arm roll per millimetre of hand travel — the quantity that was 47-51.</summary>
         static float RollPerMillimetre(Vector3 hand)
         {
             BasisElbowProtectInput i0 = Input(hand);
@@ -140,14 +96,6 @@ namespace Basis.Tests.IK
             return worst;
         }
 
-        /// <summary>
-        /// ⭐ THE USER'S MOTION. Arm fully extended, hand swept across the body to the far left. The protect
-        /// engages the whole way (that is the point of crossing), and the arm must not spin.
-        ///
-        /// The gate is 5 deg/mm. Below 95% extension the protect runs at FULL authority and measures
-        /// 0.0-0.2; through the fade band it peaks at 2.6; past 99.5% it is off and measures exactly 0.0.
-        /// The shipped code measured 47-51 across the last three rows of this same sweep.
-        /// </summary>
         [Test]
         public void TheArm_DoesNotSpin_WhenFullyExtendedAndCrossedOverTheBody()
         {
@@ -174,11 +122,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// The other half of the contract: the fade must not quietly disable the protect where it still
-        /// works. Below the fade window the swing must be EXACTLY what it always was -- if this drifts, the
-        /// fix has been paid for with the feature.
-        /// </summary>
         [Test]
         public void TheProtect_IsUntouched_WhereItStillHasAuthority()
         {
@@ -200,11 +143,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// Past the fade the protect must be the EXACT identity, not merely small. If DesiredElbow comes back
-        /// bit-for-bit as the elbow we handed in, then SwingElbowAroundAC sees v1 == v2 and applies
-        /// Quaternion.identity -- there is no residual roll to leak, structurally rather than by tolerance.
-        /// </summary>
         [Test]
         public void PastFullExtension_TheProtect_IsTheExactIdentity()
         {

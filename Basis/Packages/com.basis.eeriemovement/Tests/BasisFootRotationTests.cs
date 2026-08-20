@@ -6,19 +6,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Fast rotation around the hips must not make the feet step on each other."
-    ///
-    /// Drives the REAL BasisFootSimulateJob through a battery of in-place spins (both a PHYSICAL spin -- the
-    /// playspace fixed while the body yaws, the hard case -- and a character-controller/stick turn) at chibi,
-    /// adult and giant scale, and asserts the feet never overlap and never scissor badly. This is pure
-    /// synthetic (no BVH), so it runs headless in the batch suite -- unlike BasisFootIKSweep, which is editor
-    /// only and merely TOLERATED fast-rotation crossover. See project_basis_foot_mocap_comparison_harness.
-    ///
-    /// Also guards two bug CLASSES this system has shipped before: scale-dependence (a metre constant that a
-    /// chibi feels differently) and framerate-dependence (a self-referential smoothing that converges by frame
-    /// count, not time). The gait law is dimensionless, so both must be invariant.
-    /// </summary>
     public sealed class BasisFootRotationTests
     {
         static readonly float[] Scales = { 0.6f, 1.0f, 1.8f };
@@ -34,9 +21,6 @@ namespace Basis.Tests.IK
             $"crossMax {r.CrossMaxCm,6:F1}cm  crossed {r.CrossedPct,5:F1}%  minGap {r.MinGapCm,5:F1}cm  " +
             $"collide {r.CollidePct,5:F1}%  bothStep {r.BothSteppingTicks}";
 
-        /// <summary>
-        /// The headline: across every scale/rate/mode, the feet must not overlap and must keep single support.
-        /// </summary>
         [Test]
         public void Feet_DoNotStepOnEachOther_DuringFastRotation()
         {
@@ -75,12 +59,6 @@ namespace Basis.Tests.IK
             if (failures.Count > 0) Assert.Fail("Fast-rotation crossover:\n  " + string.Join("\n  ", failures) + "\n\n" + report);
         }
 
-        /// <summary>
-        /// A planted foot must HOLD its rotation in the world as the body turns -- it must NOT pivot with the
-        /// turn (the old "preserveTip" behaviour, and the thing that reads as unconvincing). This drives the
-        /// real job's foot ROTATION (currentRot -- which the driver now consumes) through a moderate turn, where
-        /// planted phases are long enough to measure the hold cleanly. yaw-follow 0 = holds, 1 = spins with body.
-        /// </summary>
         [Test]
         public void PlantedFoot_HoldsItsRotation_WhileTheBodyTurns()
         {
@@ -100,10 +78,6 @@ namespace Basis.Tests.IK
             if (failures.Count > 0) Assert.Fail(string.Join("\n", failures));
         }
 
-        /// <summary>
-        /// The whole scale law is that a chibi and a giant behave IDENTICALLY once you divide out size. Run the
-        /// same spin at 0.6x and 1.8x; the crossover %-metrics (already dimensionless) must match closely.
-        /// </summary>
         [Test]
         public void Rotation_IsScaleInvariant()
         {
@@ -130,11 +104,6 @@ namespace Basis.Tests.IK
             if (failures.Count > 0) Assert.Fail(string.Join("\n", failures));
         }
 
-        /// <summary>
-        /// The stepper had framerate-dependent bugs before (a self-referential swing slerp that converged by
-        /// frame count). Run the same spin at 30 / 72 / 144 fps; collision must stay ~0 and the crossover must
-        /// not swing wildly with the framerate.
-        /// </summary>
         [Test]
         public void Rotation_IsFramerateIndependent()
         {

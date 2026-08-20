@@ -4,15 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The desktop head carry (<see cref="BasisHeadPitchSwingCore"/>).
-    ///
-    /// A head pitches about the BASE OF THE NECK, not about itself, so the eye rides a lever arm and is carried
-    /// FORWARD as the gaze tips down. VR gets this for free — the HMD is a physical object on that same lever arm,
-    /// which is exactly why the spine bend has to suppress the resulting hunch when a chest tracker is present
-    /// (see BasisSpineLookDownHunchTests). Desktop pinned the eye over the hips and so had none of it: the gaze
-    /// tipped, the cervical solve hunched the chest, and the head never went anywhere.
-    /// </summary>
     public class BasisHeadPitchSwingTests
     {
         // A ~1.7 m avatar: eye 17 cm above the neck joint and 8 cm in front of it.
@@ -48,11 +39,6 @@ namespace Basis.Tests.IK
                 "tipping the gaze up must carry the eye BACK; the lever arm does not care which way it swings");
         }
 
-        /// <summary>
-        /// The asymmetry is deliberate, not a fudge. Cervical extension has far less range than flexion, and much
-        /// of a look-up is taken by the thoracic spine arching rather than by the skull sliding back over the
-        /// shoulders — the raw geometry would haul the camera ~19 cm straight backwards at 60 deg.
-        /// </summary>
         [Test]
         public void TheBackwardCarry_IsSmallerThanTheForwardOne()
         {
@@ -64,10 +50,6 @@ namespace Basis.Tests.IK
                 "same angle down — a look-up must not yank the camera backwards as hard as a look-down pushes it out");
         }
 
-        /// <summary>
-        /// The carry follows the direction you are FACING. Getting this wrong sends the head sideways whenever the
-        /// player is not looking down world +Z — the exact class of frame bug that put the webcam arms behind the body.
-        /// </summary>
         [Test]
         public void TheCarry_FollowsTheGazeHeading_NotWorldForward()
         {
@@ -83,8 +65,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>Eye HEIGHT is deliberately untouched: it feeds CapturePlayerHeight, and a pitch-varying eye
-        /// height drives the avatar-rescale loop that ends in 12 m players.</summary>
         [Test]
         public void TheCarry_NeverTouchesEyeHeight()
         {
@@ -129,10 +109,6 @@ namespace Basis.Tests.IK
                 "strength 0 must be a true no-op, so turning the feature off restores the old behaviour exactly");
         }
 
-        /// <summary>
-        /// A NaN'd bone transform PERSISTS in Unity — the head would never come back, not even once good data
-        /// returned. Every guard in the core is phrased "reject unless good" for this reason.
-        /// </summary>
         [Test]
         public void GarbageIn_ProducesNoMovement_RatherThanANaNHead()
         {

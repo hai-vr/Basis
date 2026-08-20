@@ -5,34 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Body-proportion regression tests for the two-bone limb solvers.
-    ///
-    /// Every other IK test in this suite runs one "adult-ish" skeleton. These run HUMAN INPUT POSES
-    /// (the targets a person actually produces in VR: hands at sides, touching the chin, reaching
-    /// across to the other shoulder, squatting, sitting, stepping onto a box...) across a catalog of
-    /// body proportions from a 0.6 m chibi to a 2.4 m giant, including skewed segment ratios
-    /// (long-forearm, long-thigh) and width extremes (lanky vs stocky). Poses are built from BODY
-    /// LANDMARKS (chin, opposite shoulder, knee, a step of absolute height), so the same human intent
-    /// lands at a different reach ratio and direction on every body -- exactly what avatar variety
-    /// does to the solver in production.
-    ///
-    /// Three failure classes are unique to proportion changes, and each gets a dedicated guard here:
-    ///
-    ///   1. ABSOLUTE-LENGTH ASSUMPTIONS -- a constant tuned in metres (a fade window, an epsilon, a
-    ///      clearance) that is correct at 1.75 m and wrong at 0.6 m / 2.4 m. Guarded by
-    ///      Solve_IsScaleInvariant_FromChibiToGiant: a geometrically-similar body must produce
-    ///      identical angles at any scale.
-    ///   2. MIRROR ASYMMETRY -- left/right limbs solved through mirrored inputs must give mirrored
-    ///      outputs on EVERY body, or one arm looks natural and the other doesn't.
-    ///   3. RATIO-TRIGGERED POLE FLIPS -- a pole/axis choice that is stable at 50:50 upper:lower but
-    ///      flips somewhere along the ratio range rigs actually ship. Guarded by
-    ///      Solve_StaysContinuous_AsLimbProportionsMorph.
-    ///
-    /// Thresholds were calibrated offline against a float64 port of the cores running this exact
-    /// matrix (ik_bodyprop_calibrate.py); each assert notes the measured value so a failure means a
-    /// real regression, not float noise.
-    /// </summary>
     public class BasisBodyProportionTests
     {
         // Human inputs are capped short of the genuine full-extension singularity: a person holding a

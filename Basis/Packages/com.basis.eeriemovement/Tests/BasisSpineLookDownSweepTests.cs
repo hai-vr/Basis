@@ -4,28 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Chest snaps out of the way when looking down" regression tests for the spine-bend
-    /// distribution -- <see cref="BasisSpineBendCore"/> (the port of DistributeSpineBend).
-    ///
-    /// The spine/upper-chest YAW follows the head's facing azimuth: twistY = atan2(headFwd.x, headFwd.z).
-    /// That azimuth is undefined when the gaze is vertical (head looking straight down/up): the head-
-    /// forward's horizontal projection collapses to zero and the angle flips ~180 deg across the pole.
-    /// With the production yaw weights that flip clamps to the ~25 deg lateral limit, so the chest/upper-
-    /// chest TWISTS SIDEWAYS the instant the gaze crosses vertical -- the "snap out of the way" a user
-    /// sees when they look down (most visible with a chest+hips tracker, where the chest is otherwise
-    /// pinned to the tracker so the spurious twist stands out).
-    ///
-    /// The fix fades the facing twist out as the gaze nears vertical (horizMag -> 0), so it can't snap.
-    /// These guard that: the applied yaw stays CONTINUOUS through vertical gaze (the headline), is still
-    /// PRESERVED through ordinary look-down (the fade must not kill normal twist), collapses toward ZERO
-    /// past vertical (no sideways flick at the floor), and stays FINITE across the whole sweep.
-    ///
-    /// The pure-pitch cases hold the head straight above the hips to isolate the twist exactly like the
-    /// offline BasisSpineBendSweep Pass B isolates it for yaw; the realistic case also slides the head
-    /// down+forward as the gaze drops, so the bend pitch engages too. Sign convention matches the cervical
-    /// suite and the live job: a positive pitch command (Quaternion.AngleAxis(pitch, right)) is look-DOWN.
-    /// </summary>
     public class BasisSpineLookDownSweepTests
     {
         // Production defaults, matching BasisFullBodyIK.SetDefaults().

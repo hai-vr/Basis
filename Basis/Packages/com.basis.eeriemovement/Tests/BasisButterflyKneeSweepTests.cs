@@ -6,24 +6,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Butterfly knees when laying down" sweep for <see cref="BasisButterflyKneeCore"/> and its hand-off to the
-    /// two-bone leg solver (<see cref="BasisLegSolveCore"/>).
-    ///
-    /// Scenario: lie on your back with FOOT trackers but no KNEE trackers, press the soles together (tilt the feet
-    /// outward so the instep faces out) and pull them in toward the pelvis -- the knees should fall open laterally
-    /// (the "butterfly"/cobbler pose). Foot tilt drives how far the knees open; pulling the feet in amplifies it;
-    /// and the open angle is HARD-CLAMPED to the hip's natural max abduction (MaxOpenDeg) so the splay can't exceed
-    /// what the hips physically allow.
-    ///
-    /// These are characterization + guard sweeps. A few just print tables; the asserted ones pin the contract:
-    ///   - gated fully OFF when standing or when the feet are flat (no false splay during normal use),
-    ///   - the open angle is monotonic in foot tilt and amplified by pull-in,
-    ///   - it never exceeds MaxOpenDeg for ANY input (the clamp the user asked for),
-    ///   - the knee actually swings OUTWARD through the real two-bone solver, finitely and bounded.
-    /// The hint is fed to the leg solver exactly as BasisLocalRigDriver wires it (HintPosition + HintWeight,
-    /// BendNormal = the hips' right axis = KneeBendPref), so the knee excursion is measured end-to-end.
-    /// </summary>
     public class BasisButterflyKneeSweepTests
     {
         const float Thigh = 0.45f, Shin = 0.45f;

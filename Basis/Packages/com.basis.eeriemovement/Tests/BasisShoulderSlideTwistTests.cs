@@ -4,17 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Guards the axial-twist measure the shoulder slide uses to read the chest's yaw relative to the hips
-    /// (<see cref="BasisTwistSolveCore.SignedTwistAngleDeg"/>). It replaced `chestLocal.eulerAngles.y`, which
-    /// gimbal-locks the instant the chest pitches ~90 deg off the hips -- a deep forward bend on ANY rig, or a
-    /// chest bone bound pitched near vertical -- and there flips ~180 deg, throwing a phantom counter-yaw into
-    /// the shoulders.
-    ///
-    /// Two properties: (1) it is a bit-for-bit no-op in the normal regime -- a chest that only YAWS reads
-    /// exactly like eulerAngles.y, so ordinary torso twist is unchanged; and (2) it stays CONTINUOUS while the
-    /// chest pitches through 90 deg, where eulerAngles.y does not.
-    /// </summary>
     public class BasisShoulderSlideTwistTests
     {
         static float EulerY(Quaternion q)

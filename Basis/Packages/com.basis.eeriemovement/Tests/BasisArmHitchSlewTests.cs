@@ -4,23 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "At low framerates the arms start flying around" -- 3-point VR, elbows spinning about the arm
-    /// axis, worst after a hitch.
-    ///
-    /// BasisElbowSwingCapCore bounds the elbow RELATIVE to the hand (5x the hand's own angular step),
-    /// which is what makes the pose framerate-independent: the same hand path gives the same elbow at
-    /// any sampling rate, and BasisElbowSwingCapTests.TheCap_IsFramerateIndependent pins that at 1x/2x
-    /// density. But a relative bound has no absolute one. A stalled frame hands it a proportionally
-    /// huge budget: at a modest 90 deg/s gesture a 333 ms stall is a 30-degree hand step, 5x of which
-    /// is 150 degrees of elbow allowed in ONE displayed frame. Measured on the live chain (ArmHint ->
-    /// SwingCap -> ElbowDrag) the elbow pole jumped 18.7 / 42.7 / 94.5 / 122.2 degrees for 50 / 100 /
-    /// 200 / 333 ms stalls -- a single-frame flick, not motion. BasisElbowDragCore, which would
-    /// normally smooth it, is wide open at that dt (alpha 0.93 at 333 ms).
-    ///
-    /// The ceiling (MaxSlewDegPerSec, with dt clamped by MaxSlewBudgetDt so a longer stall cannot buy
-    /// a bigger budget) sits ON TOP of the gain cap and is inert wherever the gain cap already binds.
-    /// </summary>
     public class BasisArmHitchSlewTests
     {
         const float k_ArmLen = 0.54f;
@@ -41,11 +24,6 @@ namespace Basis.Tests.IK
             return new Vector3(Mathf.Sin(az) * Mathf.Cos(el), Mathf.Sin(el), Mathf.Cos(az) * Mathf.Cos(el));
         }
 
-        /// <summary>
-        /// The live chain as BasisEerieMovement.SolveHand composes it. `ceiling` false reproduces the
-        /// pre-fix path exactly (the 7-arg overload, unclamped drag dt) so the gates below can be
-        /// paired with a negative that fails the same way the shipping code used to.
-        /// </summary>
         static void RunHand(float[] dts, bool ceiling, out float worstHitchJumpDeg, out float worstSteadyStepDeg)
         {
             BasisSwivelFrame frame = Frame();
@@ -119,11 +97,6 @@ namespace Basis.Tests.IK
             return dts;
         }
 
-        /// <summary>
-        /// THE GATE. However long the stall, the elbow pole may not move more in one displayed frame
-        /// than a human elbow can travel in the budget window. Anything above this is a flick: the user
-        /// sees the elbow teleport, not swing.
-        /// </summary>
         [Test]
         public void AStalledFrame_CannotFlickTheElbow([Values(50f, 100f, 200f, 333f)] float hitchMs)
         {
@@ -136,11 +109,6 @@ namespace Basis.Tests.IK
                 "proportionally huge elbow budget -- that is the arms-flying-around flick.");
         }
 
-        /// <summary>
-        /// THE PAIRED NEGATIVE. Without the ceiling -- the shipping path before this fix -- the same
-        /// stalls do exactly what the user reported. If this ever stops failing, the reproduction has
-        /// drifted and the gate above is guarding nothing.
-        /// </summary>
         [Test]
         public void WithoutTheCeiling_AStallFlicksTheElbow()
         {
@@ -151,11 +119,6 @@ namespace Basis.Tests.IK
                 "or the trajectory no longer crosses the field core.");
         }
 
-        /// <summary>
-        /// INERT WHERE IT MATTERS. At any ordinary frame rate the gain cap is the binding constraint and
-        /// the ceiling must not touch the pose at all -- otherwise a fix for stutter has quietly become a
-        /// lag everyone pays for.
-        /// </summary>
         [Test]
         public void TheCeiling_IsInert_AtOrdinaryFramerates([Values(90f, 72f, 45f, 30f)] float fps)
         {
@@ -168,10 +131,6 @@ namespace Basis.Tests.IK
                 "cap already binds.");
         }
 
-        /// <summary>
-        /// The ceiling must never be the thing that makes the elbow leave its circle: still unit, still
-        /// perpendicular to the arm, at every stall length.
-        /// </summary>
         [Test]
         public void TheCeiling_KeepsTheBendUnitAndPerpendicular()
         {

@@ -7,40 +7,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Is it blending at the CORRECT SPEED" -- gates every temporal blend in the IK stack against the
-    /// one property that makes the question answerable: a blend's speed must not depend on the user's
-    /// framerate.
-    ///
-    /// Basis ships to 72 Hz (Quest, Steam Frame), 80, 90 (Index, Pico), 120 and 144 Hz headsets, and to
-    /// desktop at whatever the monitor does. A smoother written as
-    ///
-    ///     t = saturate(dt * speed);   x = lerp(x, target, t);          // WRONG
-    ///
-    /// has a time constant that is a function of the GPU. Written as `1 - exp(-rate*dt)` it does not.
-    /// The two look nearly identical at any ONE framerate -- which is exactly why the wrong form passes
-    /// review, and why this has to be a standing gate instead of something someone notices once.
-    ///
-    /// TWO REAL BUGS ARE PINNED HERE. Both were live in this repo, and both are fixed in the same commit
-    /// as this file:
-    ///
-    ///   1. BasisVirtualSpineCore.SmoothSlerpBurst  -- neck, chest, spine and hips all used
-    ///      saturate(dt*speed). Perverse fingerprint: because a smaller dt gives a smaller alpha gives a
-    ///      SLOWER filter, a 144 Hz headset got ~60% MORE neck lag than a 72 Hz one from the same
-    ///      setting. And `saturate` clamps at dt*speed >= 1, so with the default NeckRotationSpeed of 40
-    ///      the smoothing VANISHED below 40 fps: the neck snapped every frame, precisely when the
-    ///      framerate was bad enough to need smoothing most.
-    ///
-    ///   2. BasisFootSimulateJob's swing branch -- `slerp(currentRot, liveRot, ease)` fed its own output
-    ///      back in, so the foot's rotation converged by FRAME COUNT rather than elapsed time. Mid-swing
-    ///      through an identical 0.35 s step the foot was 74% rotated at 30 fps and 99.7% at 144 Hz --
-    ///      literally a different pose on a faster GPU. It hid because the ENDPOINT always converges
-    ///      (ease reaches 1), so the error only existed while the foot was moving.
-    ///
-    /// House rule followed here: every gate that asserts the fixed form is correct is PAIRED with one
-    /// that drives the OLD form and asserts it FAILS. Without the pair, a bug that made the invariance
-    /// metric always return zero would leave every test green and the gate silently dead.
-    /// </summary>
     public sealed class BasisBlendSpeedTests
     {
         // The shipping virtual-spine speeds (BasisSettingsDefaults.VSpine*RotationSpeed).
@@ -185,26 +151,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// The fingerprint that made the original bug so hard to believe: with saturate(dt*speed), the BETTER
-        /// your headset, the LAGGIER your neck.
-        ///
-        /// ⚠ YOU CANNOT ASSERT THAT LAG IS IDENTICAL ACROSS FRAMERATES. It is not, it cannot be, and demanding
-        /// it is how the first version of this test failed the CORRECT code.
-        ///
-        /// A discrete one-pole's phase lag is tau - dt/2. That half-frame is the SAMPLER, not the filter: the
-        /// filter reacts to the current sample immediately, so a coarser clock actually shows LESS phase lag in
-        /// milliseconds, converging up to tau as dt shrinks. No implementation removes it. Between 72 and 144 Hz
-        /// the irreducible floor is (1/72 - 1/144)/2 = 3.47 ms.
-        ///
-        /// So the honest claims are:
-        ///   * the FIX's lag difference is explained ENTIRELY by that sampling floor (measured 2.84 ms), and
-        ///   * the LEGACY form's is far bigger (measured 6.88 ms, 2.4x), because its underlying TIME CONSTANT
-        ///     genuinely changes with framerate -- 17.1 ms at 72 Hz, 21.3 ms at 144 Hz.
-        ///
-        /// The framerate-independent quantity is the TIME CONSTANT, not the phase lag. That is what
-        /// VirtualSpine_EveryRotationBlend_RunsAtTheSameSpeedOnEveryHeadset asserts, and it is the real gate.
-        /// </summary>
         [Test]
         public void VirtualSpine_LagDoesNotGrowWithFramerate_BeyondTheSamplingFloor()
         {
@@ -270,13 +216,6 @@ namespace Basis.Tests.IK
         const int k_Probe72 = 10;
         const int k_Probe144 = 20;
 
-        /// <summary>
-        /// The foot's rotation part-way through a swing must depend on how far through the STEP it is, not on
-        /// how many frames have elapsed getting there.
-        ///
-        /// Every smoother in the sim is seeded at its fixed point and the input is held constant, so the swing
-        /// blend is the only thing that can move between the two runs.
-        /// </summary>
         [Test]
         public void FootSwing_RotationAtTheSameStepProgress_IsIdenticalAtAnyFramerate()
         {
@@ -305,8 +244,6 @@ namespace Basis.Tests.IK
                 "if it no longer does, this gate is testing nothing");
         }
 
-        /// <summary>Ticks the REAL BasisFootSimulateJob through a swing and returns the foot's rotation
-        /// after `ticks` frames at `fps`.</summary>
         static quaternion RunSwingTo(int fps, int ticks)
         {
             var feet = new NativeArray<BasisFootNativeState>(2, Allocator.Temp);
@@ -468,8 +405,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>The OLD swing form, reproduced ONLY so the paired negative above can prove the gate
-        /// still bites. Never call this from shipping code -- it is the bug.</summary>
         static float LegacySelfReferentialConvergence(int fps, int ticks)
         {
             const float stepDur = 0.5f;

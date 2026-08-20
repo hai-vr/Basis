@@ -4,25 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// SHRUG DATA, MINED FROM THE HANDS (or better, the elbows). Arms down at the side, push the shoulders
-    /// up: the controller RISES while the arm's DIRECTION barely changes — zero humeral swing, which is the
-    /// one quantity the scapulohumeral solve is driven by, so the girdle never moved. What survives is the
-    /// REACH DEFICIT: the driver ends up measurably closer to the chest-anchored clavicle than a straight
-    /// hanging arm can reach.
-    ///
-    /// What these tests hold it to:
-    ///   - the expected reach is the RAY-SPHERE intersection for the observed direction (the T-pose scalar
-    ///     over-expects ~18% on a hanging arm; the law of cosines on the composite direction ~5% — both
-    ///     would shrug permanently at idle). At an exact rest hang the deficit must be ZERO;
-    ///   - a ~4 cm push-up reads as a strong girdle elevation that LIFTS the arm root, on both arms, with
-    ///     no twist leak, and eases in continuously and monotonically;
-    ///   - a hand on the hip (big deficit = elbow BEND) must read as NOTHING — the hand path fades back
-    ///     out past the shrug band. The ELBOW path must NOT fade: an upper arm cannot bend itself, so a
-    ///     tracker's deficit can only be girdle motion;
-    ///   - ordinary reaches never engage it (hang gate, on the SEGMENT direction — the composite tilts
-    ///     with the rise and would half-close the gate on the short elbow segment).
-    /// </summary>
     public class BasisShoulderShrugTests
     {
         const float L = 0.70f;    // T-pose clavicle→hand

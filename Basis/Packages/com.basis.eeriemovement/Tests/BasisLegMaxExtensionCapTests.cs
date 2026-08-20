@@ -5,29 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// THE LEG MAY NEVER BECOME A FREE-SPINNING STICK -- the knee's twin of BasisArmFullExtensionTests.
-    ///
-    /// ================================================================================================
-    /// At an interior angle of 180 degrees the knee's distance from the hip->ankle axis is EXACTLY ZERO:
-    ///
-    ///     rho = upper*lower*sin(interior) / d        =>   rho(180) = 0
-    ///
-    /// The knee lies ON the axis; its circle has collapsed to a point, and the SWIVEL that places it can no
-    /// longer position it. Measured on the real BasisLegSolveCore with 0.2 mm foot nudges, |d(knee)/d(foot)|
-    /// sits at ~2-3 across the whole envelope and then SPIKES to ~36x at reach 1.000 -- a 1 mm foot-tracker
-    /// jitter swings the knee 36 mm -- before dropping back to 0.5x the instant the foot passes full reach.
-    ///
-    /// AND THE LEG LIVES THERE. BasisLegSolveCore's own swivel comment: "standing lives there: footHeightOffset
-    /// is clamped so the legs fully extend, which parks hip->ankle at ~= thigh + shin permanently." Standing is
-    /// the most common pose in VR and it sits right on the singularity.
-    ///
-    /// ⭐ The arm proved the fix is nearly free in reverse. BasisLegSolveCore.MaxKneeInteriorDeg = 175 gives up
-    /// ~0.5 mm of leg reach and buys a ~1.9 cm guaranteed knee lever arm. 175 (a 5 deg standing bend) is the
-    /// measured relaxed / single-limb-stance knee angle (Perry gait; young-adult quiet stance ~2-5 deg), so it
-    /// reads as natural, not as a crouch, while moving the interior=180 singularity out of the reachable set.
-    /// ================================================================================================
-    /// </summary>
     public class BasisLegMaxExtensionCapTests
     {
         const float k_Thigh = 0.45f, k_Shin = 0.42f, k_Leg = k_Thigh + k_Shin;
@@ -74,11 +51,6 @@ namespace Basis.Tests.IK
             return Mathf.Sqrt(k_Thigh * k_Thigh + k_Shin * k_Shin - 2f * k_Thigh * k_Shin * c);
         }
 
-        /// <summary>
-        /// ⭐ THE ONE THAT MATTERS. Standing parks the leg at full reach, and a user whose real legs are longer
-        /// than their avatar's is beyond reach on every frame. Out there the knee must STILL have a lever arm
-        /// to be positioned by, or the swivel becomes pure roll of the thigh and shin.
-        /// </summary>
         [Test]
         public void TheKnee_AlwaysHasALeverArm_EvenFarBeyondTheLegsReach()
         {
@@ -107,11 +79,6 @@ namespace Basis.Tests.IK
                 "MaxKneeInteriorDeg is what floors it.");
         }
 
-        /// <summary>
-        /// ⭐ THE BUG GATE (a ratchet). Sweep the foot straight through full extension in world millimetres and
-        /// measure the knee travel per unit of foot travel. On the UNCAPPED solver this spikes to ~36x exactly
-        /// at reach 1.000; the cap holds it bounded. Proven to FAIL if MaxKneeInteriorDeg is set back to >=180.
-        /// </summary>
         [Test]
         public void KneeConditioning_StaysBounded_ThroughFullExtension()
         {
@@ -146,8 +113,6 @@ namespace Basis.Tests.IK
                 "stick at full extension. With MaxKneeInteriorDeg < 180 the knee keeps a lever arm and this stays bounded.");
         }
 
-        /// <summary>The cap must cost essentially nothing inside the workspace: every reachable target still hit
-        /// exactly, and at full stretch the foot falls only ~half a millimetre short.</summary>
         [Test]
         public void TheCap_CostsAlmostNothing_ForReachableTargets()
         {
@@ -165,8 +130,6 @@ namespace Basis.Tests.IK
                 $"the foot fell {shortBy * 1000f:F1} mm short at full stretch; the cap should cost well under a millimetre");
         }
 
-        /// <summary>Anatomy, not a tuning knob: pinned so a "let the leg lock straight" change has to delete this
-        /// on purpose. 175 sits inside the measured relaxed-standing / single-limb-stance range (~2-10 deg flex).</summary>
         [Test]
         public void TheKnee_NeverLocksDeadStraight()
         {

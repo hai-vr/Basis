@@ -4,21 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The nod-pivot estimator (<see cref="BasisNodPivotEstimatorCore"/>, <see cref="BasisNodPivotSampler"/>).
-    ///
-    /// With only a head tracker the pelvis is synthesised, and the whole synthesis is hung off a head bone
-    /// reconstructed as <c>eye + eyeRot * (tposeHead - tposeEye)</c>. That treats the AVATAR's authored
-    /// eye-to-head offset as the point the user's head pivots about on a nod. It is not: it is a rendering
-    /// offset, and the real atlanto-occipital joint sits further below and further behind the HMD than any
-    /// avatar authors it. The leftover arc translates the whole reconstructed body -- pelvis included --
-    /// every time the gaze pitches, which is the "my hips are not under me when I look up" report.
-    ///
-    /// The pivot is observable from the HMD alone, so these gates cover both halves: that a clean window
-    /// recovers the real arm, and -- far more important -- that a dirty one is refused. An estimator that
-    /// accepts a bad window is worse than no estimator, because the avatar's authored arm at least does
-    /// not move.
-    /// </summary>
     public class BasisNodPivotEstimatorTests
     {
         const float k_Dt = 1f / 90f;
@@ -36,7 +21,6 @@ namespace Basis.Tests.IK
             pos = pivot + math.mul(rot, arm);
         }
 
-        /// <summary>Drives a sampler through <paramref name="seconds"/> of motion and returns the arm it settled on.</summary>
         static float3 Drive(BasisNodPivotSampler sampler, float seconds,
             System.Func<float, (float3 pivot, float yaw, float pitch)> motion)
         {
@@ -53,7 +37,6 @@ namespace Basis.Tests.IK
             return arm;
         }
 
-        /// <summary>Looking around on the spot: the motion the estimator exists to read.</summary>
         static (float3, float, float) LookingAround(float t)
             => (float3.zero, 25f * math.sin(2f * math.PI * 0.23f * t), 35f * math.sin(2f * math.PI * 0.5f * t));
 

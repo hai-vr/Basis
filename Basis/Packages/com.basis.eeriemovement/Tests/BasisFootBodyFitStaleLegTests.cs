@@ -4,21 +4,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// BasisLocalFootDriver.InitializeVariables measures the leg segments off the authored T-pose, and
-    /// BasisLocalRigDriver.RefreshBodyFit rescales those same segments AFTERWARDS (BasisBodyFitApply bones
-    /// 8-11 are the lower legs and feet, whose LOCAL POSITIONS are the thigh and shin). Until the driver's
-    /// only rescale hook learned about AppliedBodyFit.LegScale it applied ScaledToMatchValue alone, so the
-    /// recorded leg length described a body the avatar no longer had.
-    ///
-    /// BasisFootSimulateJob derives bendRatio = 1 - saturate(hipFootUpDist / avgLeg) and multiplies
-    /// kneeSplay by it, so understating avgLeg narrows the knees. MEASURED against the real job at the
-    /// reference avatar (0.87 m leg, 0.18 m stance): the loss is 12-31% of the splay, NOT a collapse --
-    /// kneeMinSide floors the separation at half stance (9.00 cm) and bendRatio does not fully saturate
-    /// at plausible reach/scale pairs. reach 0.78 + legScale 1.30 => 13.29 -> 9.18 cm (30.9% lost);
-    /// reach 0.82 + legScale 1.20 => 12.57 -> 9.69 cm (23.0%); reach 0.95 + legScale 1.20 => 12.0%.
-    /// LegScale is derived per avatar, so the error is re-rolled on every swap.
-    /// </summary>
     public sealed class BasisFootBodyFitStaleLegTests
     {
         const float k_LegScale = 1.30f;

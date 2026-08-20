@@ -9,14 +9,6 @@ namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
 
-    /// <summary>
-    /// The hip hinge -- the pelvis' share of a bend-over (lumbopelvic rhythm). Past StartDeg of head-over-hips
-    /// forward lean the pelvis follows the lean (PelvisFollowSlope ~1.0), eased toward MaxAddDeg. The curve is
-    /// FITTED to real humans; the corpus test at the bottom checks it actually reproduces them.
-    ///
-    /// ⚠️ GATING lives in the JOB, not this core: BasisFullBodyIK.SolveSpine calls ApplyHipHinge ONLY when
-    /// there is no hip tracker -- a tracked pelvis is the user's own and must feed straight through.
-    /// </summary>
     public sealed class BasisHipHingeCoreTests
     {
         // hips at origin, head leaned `deg` forward (+Z) off vertical (+Y). => the core reads lean == deg.

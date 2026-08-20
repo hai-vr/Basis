@@ -9,24 +9,12 @@ namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
 
-    /// <summary>
-    /// The pelvis posture model, against the humans it claims to imitate -- and against the law it replaces.
-    ///
-    /// The safety properties come first, because this model moves EVERY local player's pelvis on EVERY frame.
-    /// A wrong elbow is ugly; a wrong pelvis is the whole avatar. So the things that must never happen are
-    /// pinned as identities before anything about accuracy is discussed.
-    /// </summary>
     public sealed class BasisPelvisPostureModelTests
     {
         // ==========================================================================================
         // SAFETY. These are the ones that would ruin someone's session, so they are checked hardest.
         // ==========================================================================================
 
-        /// <summary>
-        /// ⭐ THE ONE THAT MATTERS MOST. A user who is STANDING STILL has a pelvis that has not moved.
-        /// Exactly zero -- not "small", not "within tolerance". The model is factored as k * drop precisely
-        /// so this is an algebraic identity and not something a 3rd-order polynomial has to be trusted with.
-        /// </summary>
         [Test]
         public void StandingStill_MovesThePelvisExactlyZero()
         {
@@ -37,9 +25,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>The pelvis never RISES because the head fell, and never falls FURTHER than the head did.
-        /// Either would be a spine doing something no spine does, and both are reachable by a polynomial that
-        /// is allowed to run free -- raw k spans -3.09..+1.23 across the domain. The clamp is load-bearing.</summary>
         [Test]
         public void ThePelvis_NeverRises_AndNeverOutrunsTheHead()
         {
@@ -57,8 +42,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>A NaN head position must move the pelvis by nothing. A NaN transform in Unity PERSISTS --
-        /// the avatar does not recover when good data returns -- so this is not a tidiness check.</summary>
         [Test]
         public void ANaNInput_MovesThePelvisNotAtAll()
         {
@@ -68,8 +51,6 @@ namespace Basis.Tests.IK
             Assert.AreEqual(0f, BasisPelvisPostureModel.PelvisDrop(-1f, 0.2f), "a head ABOVE standing is not this model's business");
         }
 
-        /// <summary>Extrapolation is refused, not attempted: a 3rd-order polynomial outside its fit box is a
-        /// random number generator. Anything past the domain saturates at the domain edge.</summary>
         [Test]
         public void OutsideTheFitDomain_TheModelSaturatesInsteadOfExtrapolating()
         {
@@ -85,11 +66,6 @@ namespace Basis.Tests.IK
         // BEHAVIOUR. Does it actually tell the two postures apart?
         // ==========================================================================================
 
-        /// <summary>
-        /// THE WHOLE POINT, in one assertion. Same head drop, different lean -- and the pelvis must do two
-        /// completely different things. A squat drops it; a waist-bend does not. The old law could not
-        /// express this at all, because it never saw the lean.
-        /// </summary>
         [Test]
         public void TheSameHeadDrop_MovesThePelvisDifferently_DependingOnTheLean()
         {
@@ -113,10 +89,6 @@ namespace Basis.Tests.IK
         // ACCURACY. Against real humans, out of sample, versus the law that ships today.
         // ==========================================================================================
 
-        /// <summary>
-        /// ⭐ THE A/B. The model and the shipped saturation law, run over every posture clip, scored against
-        /// the pelvis a real human actually had. This is the number that justifies the change.
-        /// </summary>
         [Test]
         public void ThePostureModel_BeatsTheShippedSaturationLaw_OnRealHumans()
         {

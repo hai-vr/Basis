@@ -8,31 +8,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "The body IK head position and rotation look to be a frame late — I can move and see my body
-    /// in front of me / the head disconnects from the real tracker when walking."
-    ///
-    /// Two independent mechanisms in the target pipeline detached the solved body from the tracked
-    /// head while the PLAYER was in motion; the solver itself always pinned the head to whatever
-    /// target it was handed:
-    ///
-    ///   1. ORDERING. BasisLocalVirtualSpineDriver ran off OnVirtualData, which the local player tick
-    ///      invokes BEFORE OnLatePollData refreshes the device poses and before the bone sim publishes
-    ///      them. The virtual spine therefore derived head/neck/chest/spine/hips from LAST frame's eye
-    ///      pose, every frame — and those bones are exactly the targets the FBIK hangs the body from.
-    ///      The fix runs the spine after BasisLocalBoneDriver.Simulate; these gates encode that
-    ///      contract by driving the REAL sim + spine jobs in both orders.
-    ///
-    ///   2. SPACE. The per-slot smoothing filters ran on WORLD-space targets, and stick locomotion or
-    ///      turning is world-space motion of every target at once — so any enabled filter made the
-    ///      whole body trail the playspace by v·tau (centimetres at walk speed), reattaching on stop.
-    ///      The filters now smooth playspace-LOCAL data (where tracking noise actually lives) and the
-    ///      jobs transform to world on output, so intentional playspace motion passes through with
-    ///      zero lag. Teleports and snap turns stop smearing the body for the same reason.
-    ///
-    /// House rule: each fix gate is PAIRED with a negative that reproduces the shipped defect on the
-    /// same measurement, so the gate cannot rot into a tautology.
-    /// </summary>
     public sealed class BasisWalkingTrackerAttachmentTests
     {
         const float Dt = 1f / 90f;
@@ -111,12 +86,6 @@ namespace Basis.Tests.IK
             return steadyLag;
         }
 
-        /// <summary>
-        /// THE WALKING GATE. A player walking and turning on the stick is pure playspace-matrix motion:
-        /// the head target leaving the filter stage must sit exactly on the tracker, in every filter
-        /// mode, on every frame. This is the property whose absence read as "the head disconnects from
-        /// the real tracker when walking".
-        /// </summary>
         [Test]
         public void AWalk_PassesThroughTheFilters_WithZeroLag()
         {
@@ -130,12 +99,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// THE PAIRED NEGATIVE. Feed the same walk through the filter the way the shipped code did —
-        /// world-space inputs, so the smoothing state has to chase the locomotion — and the head target
-        /// must trail the tracker by centimetre scale (v·tau). If this stops failing the gate above is
-        /// not measuring the defect.
-        /// </summary>
         [Test]
         public void WorldSpaceFiltering_TrailsTheTrackerWhileWalking()
         {
@@ -149,10 +112,6 @@ namespace Basis.Tests.IK
                 $"world-space fallback smoothing only trailed by {fallbackLag * 1000f:F1} mm at walk speed.");
         }
 
-        /// <summary>
-        /// The fix must not have defanged the filter: tracking-space jitter (the thing the filters
-        /// exist for) still has to come out smaller than it went in while the playspace walks.
-        /// </summary>
         [Test]
         public void TrackingNoise_IsStillSmoothed_WhileWalking()
         {
@@ -284,14 +243,6 @@ namespace Basis.Tests.IK
             };
         }
 
-        /// <summary>
-        /// Runs the REAL virtual-spine job then the REAL bone-sim chain job per frame over a moving
-        /// eye — the production order (the spine must run before the sim so the sim's follower
-        /// chains read this frame's hips). The variable is what the spine's params are built FROM:
-        /// the freshly polled incoming eye (the shipped fix) or the eye control's pre-sim outgoing,
-        /// which only ever holds last frame's publish (the shipped defect). Returns the worst
-        /// distance between the spine's head output and the eye pose of the SAME frame.
-        /// </summary>
         static float RunEyePipeline(bool freshEyeParams)
         {
             var chain = new NativeArray<int>(ControlCount, Allocator.TempJob);
@@ -371,11 +322,6 @@ namespace Basis.Tests.IK
             return maxHeadError;
         }
 
-        /// <summary>
-        /// THE ORDERING GATE. The virtual spine runs before the bone sim (so follower chains read
-        /// this frame's hips) but builds its params from the freshly POLLED eye — the spine's head
-        /// must sit on the current frame's eye pose exactly.
-        /// </summary>
         [Test]
         public void TheVirtualSpine_ConsumesTheCurrentFramesEye()
         {
@@ -385,12 +331,6 @@ namespace Basis.Tests.IK
                 + "pipeline is feeding the spine stale eye data again.");
         }
 
-        /// <summary>
-        /// THE PAIRED NEGATIVE. Build the spine's params from the eye control's pre-sim outgoing —
-        /// what the OnVirtualData subscription consumed — and the head must lag the eye by EXACTLY
-        /// one frame of motion (v·dt): the "body IK head is a frame late / I can move and see my
-        /// body in front of me" defect.
-        /// </summary>
         [Test]
         public void SpineFedThePreSimOutgoing_LagsTheEyeByExactlyOneFrame()
         {
@@ -405,16 +345,6 @@ namespace Basis.Tests.IK
                 + "the ordering is stale.");
         }
 
-        /// <summary>
-        /// THE FOLLOWER GATE — the "one of the toe bone rotations is wrong" regression. The bone
-        /// sim's untracked chains follow the hips (UpperLeg targets Hips → … → Foot → Toes), so the
-        /// virtual spine must have written THIS frame's hips before the sim runs; a spine that runs
-        /// after the sim leaves every follower — toes included — chasing last frame's hips while the
-        /// hips themselves are fresh, an intra-frame inconsistency of exactly one frame of hips
-        /// motion. Both orders run the REAL jobs; the measured gap between them must be one frame
-        /// of hips travel, and the production order must be the tight one. Self-calibrating: the
-        /// hips' actual per-frame travel is measured from the run itself.
-        /// </summary>
         [Test]
         public void FollowerChain_SeesTheSameFramesVirtualHips()
         {
@@ -435,12 +365,6 @@ namespace Basis.Tests.IK
                 + "same-frame hips.");
         }
 
-        /// <summary>
-        /// Drives the REAL spine + sim jobs with an extra follower bone targeting the hips (the way
-        /// untracked leg chains do), in the given order, and returns the follower's steady-state
-        /// error against the frame's FINAL hips-derived target, plus the hips' average per-frame
-        /// travel over the measured window.
-        /// </summary>
         static float RunFollowerPipeline(bool spineBeforeSim, out float avgHipsTravel)
         {
             const int Follower = 6;
@@ -534,11 +458,6 @@ namespace Basis.Tests.IK
             return errSum / math.max(1, measured);
         }
 
-        /// <summary>
-        /// The spine now runs AFTER the sim, so a bone owned by a real tracker (hips/chest FBT) must
-        /// keep the sim's pose: the skip flags exist precisely because the sim no longer runs last.
-        /// Default flags (0) must keep the historical always-write behavior for every other caller.
-        /// </summary>
         [Test]
         public void TrackedTorsoBones_KeepTheSimPose()
         {
@@ -599,15 +518,6 @@ namespace Basis.Tests.IK
 
         static readonly float[] Heights = { 0.95f, 1.06f, 1.21f, 1.33f, 1.45f, 1.57f };
 
-        /// <summary>
-        /// With fresh targets (gate 1) and lag-free filters (gate 2), the last link is the solver:
-        /// walking must add NOTHING over standing. The isolated spine pass has a documented
-        /// compression character of its own (the live pipeline pre-curves the chain and hard-sets
-        /// the head at the end of the pass), so the walking property is EQUIVARIANCE — the same
-        /// local pose solved while the playspace translates must land the head with the same
-        /// residual it has standing still, every frame. A walking-only divergence here is exactly
-        /// "the head disconnects from the tracker when walking".
-        /// </summary>
         [Test]
         public void AWalkingHead_StaysPinned_ThroughTheSpineSolve()
         {

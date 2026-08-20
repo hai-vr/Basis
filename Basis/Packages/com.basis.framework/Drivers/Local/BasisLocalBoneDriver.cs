@@ -487,39 +487,6 @@ namespace Basis.Scripts.Drivers
         }
 
         /// <summary>
-        /// Requests the latest simulated pose for a bone by role without dereferencing the
-        /// managed <see cref="BasisLocalBoneControl"/>. Reads the native sim store once it has
-        /// been populated; before the first simulate it falls back to the managed control.
-        /// </summary>
-        public bool TryGetSimState(BasisBoneTrackedRole role, out BasisBoneSimState state)
-        {
-            int index = GetBoneIndex(role);
-            if (index < 0 || index >= ControlsLength)
-            {
-                state = default;
-                return false;
-            }
-
-            if (_nativeAllocated && index < _simStates.Length)
-            {
-                state = _simStates[index];
-                return true;
-            }
-
-            BasisLocalBoneControl c = Controls[index];
-            state = new BasisBoneSimState
-            {
-                OutgoingPosition = c.OutGoingData.position,
-                OutgoingRotation = c.OutGoingData.rotation,
-                LastRunPosition = c.LastRunData.position,
-                LastRunRotation = c.LastRunData.rotation,
-                OutgoingWorldPosition = c.OutgoingWorldData.position,
-                OutgoingWorldRotation = c.OutgoingWorldData.rotation,
-            };
-            return true;
-        }
-
-        /// <summary>
         /// Exposes the native per-bone state buffer for systems that schedule their own Burst
         /// job against bone poses. Returns false until the native store is allocated. The buffer
         /// is refreshed each <see cref="Simulate"/>; index entries via <see cref="GetBoneIndex"/>.

@@ -4,26 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The ELBOW's half of the pole singularity, and the proof that the KNEE's guard must NOT be copied onto it.
-    ///
-    /// The arm shares <see cref="BasisSwivelSmootherCore"/> with the leg and inherits the same trap: a One-Euro is
-    /// SPEED-ADAPTIVE (`cutoff = minCutoff + beta * |velocity|`), so when the arm straightens and the elbow's lever
-    /// arm off the shoulder->hand axis collapses, the measured swivel degenerates into the direction of a vanishing
-    /// vector -- noise with a huge velocity -- and the filter reads that as INTENT and opens the cutoff on it.
-    ///
-    /// The elbow's beta (0.05) is a quarter of the tracked knee's (0.20), so the effect is milder, but it is the
-    /// same defect and it is large: at 90 Hz a 60 deg step drives velHat to ~353 deg/s, which lands the cutoff at
-    /// 18.6 Hz and passes 57% of the noise through in ONE frame. Conditioning the filter on the lever arm takes
-    /// that to ~11%, while a genuinely bent elbow keeps ~48% -- damped where the pole is meaningless, responsive
-    /// where it is real.
-    ///
-    /// Two gate groups:
-    ///   1-3. The conditioning gates (damped straight / responsive bent / legacy genuinely snaps).
-    ///   4.   HalfSpaceGuard_CannotTransferToTheArm -- the one that stops someone "finishing the job" by pasting the
-    ///        knee's anterior half-space onto the elbow. It cannot work, and this proves it without appealing to any
-    ///        particular choice of reference direction.
-    /// </summary>
     public sealed class BasisElbowSwivelConditioningTests
     {
         const float k_Dt = 1f / 90f;
@@ -41,15 +21,6 @@ namespace Basis.Tests.IK
         const float k_ElbowBeta = BasisSwivelFilterCore.Beta;                 // 0.05
         const float k_ElbowDerivCutoffHz = BasisSwivelFilterCore.DerivCutoffHz;
 
-        /// <summary>
-        /// An arm reaching FORWARD, `reach` of full extension, elbow swivelled `swivelDeg` about the shoulder->hand
-        /// axis away from the body-DOWN reference (which is what SmoothElbowSwivel actually uses).
-        ///
-        /// Reaching forward, not down, on purpose: the elbow's ReferenceLocal is Vector3.down and its FallbackLocal
-        /// is ZERO, so an arm hanging straight down puts the reference COLINEAR with the axis and the core correctly
-        /// refuses to smooth at all. A forward reach keeps body-down cleanly inside the swivel plane, which is the
-        /// configuration where the filter actually runs -- and therefore the one worth gating.
-        /// </summary>
         static BasisSwivelSmootherInput MakeArm(float reach, float swivelDeg, bool conditionOnPole)
         {
             float full = k_UpperLen + k_LowerLen;
@@ -85,10 +56,6 @@ namespace Basis.Tests.IK
             };
         }
 
-        /// <summary>
-        /// Seeds at swivel 0, then steps the pole by k_StepDeg for one frame and returns the fraction of that step
-        /// the SMOOTHED swivel actually covered, 0..1. That fraction IS "snappy": 1.0 means the elbow teleported.
-        /// </summary>
         static float StepResponse(float reach, bool conditionOnPole)
         {
             BasisSwivelSmootherInput seed = MakeArm(reach, 0f, conditionOnPole);
@@ -150,10 +117,6 @@ namespace Basis.Tests.IK
                 $"responsiveness must scale with how much the pole is worth (straight {straight:P0} vs bent {bent:P0})");
         }
 
-        /// <summary>
-        /// ANTI-TAUTOLOGY. Proves the LEGACY elbow filter genuinely snaps at full extension, so the gates above
-        /// cannot be passing for some unrelated reason, and a revert of k_ConditionElbowSwivelOnPole fails loudly.
-        /// </summary>
         [Test]
         public void Legacy_UnconditionedElbow_SnapsAtFullExtension()
         {
@@ -171,22 +134,6 @@ namespace Basis.Tests.IK
         // The knee guard does NOT transfer. This test exists to stop someone completing the symmetry by reflex.
         // ---------------------------------------------------------------------------------------------------------
 
-        /// <summary>
-        /// A KNEE can be guarded into a half-space because a knee is a hinge: it always bulges anterior to the
-        /// hip->ankle axis, whatever the femur is doing, because hip rotation only spans about -35..+45 deg. So a
-        /// +-85 deg anterior cone never fights a real pose, and posterior can be made unreachable.
-        ///
-        /// A SHOULDER is not a hip. Humeral rotation spans roughly +-90 deg and flexion/abduction reach 180, so the
-        /// elbow's direction about the shoulder->hand axis genuinely sweeps most of the circle across ordinary poses:
-        /// put your hand behind your head and the elbow points FORWARD; reach across your chest and it points OUT;
-        /// let the arm hang and it points BACK. Those are all legal, and a half-space guard would clamp them.
-        ///
-        /// The proof below needs no choice of reference direction, which is what makes it airtight. A half-space
-        /// guard -- from ANY reference R -- admits exactly the 180 deg arc within +-90 deg of R. So such an R exists
-        /// if and only if every legitimate pose fits inside SOME 180 deg arc. Measure the angular SPAN of the real
-        /// poses (360 minus the largest gap between neighbours on the circle): if that span exceeds 180 deg, no arc
-        /// of 180 deg can contain them, and therefore NO reference direction whatsoever makes the guard safe.
-        /// </summary>
         [Test]
         public void HalfSpaceGuard_CannotTransferToTheArm()
         {

@@ -4,25 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Forearm demand-follow: the wrist keeps only its carpal share of hand roll, the forearm carries the
-    /// rest. The radiocarpal joint has no active axial DOF (~17 deg passive, SD 8-10, collapsing under
-    /// grip; carpus carries 10-20% of an imposed hand rotation), so every degree of controller roll the
-    /// forearm does not absorb lands in a joint that anatomically cannot take it — measured at 75.7 deg
-    /// (no tracker) / 179.8 deg (tracker) against a ~15 deg envelope before this stage existed.
-    ///
-    /// What the follow promises, and what these tests hold it to:
-    ///   - a pure roll about the forearm's own long axis: the elbow stays exactly on its pole and the
-    ///     hand stays exactly on its rotation target (the standing constraint from 2026-07-23: NEVER
-    ///     move the hand off its rotation target — the wrist axial bound that did was rejected in-headset);
-    ///   - the wrist's residual is min(WristKeepFrac * demand, WristKeepMaxDeg) below the seam window;
-    ///   - on the tracker path it composes with the measured-roll blend: the tracker's measurement is
-    ///     still the base, the follow only tops up what the wrist cannot hold;
-    ///   - ForearmFollowWeight = 0 (the struct default) is bit-identical to the legacy solve, so every
-    ///     caller and gate that predates the field is untouched;
-    ///   - faded to nothing toward the ±180 seam, where any continuous bound must release (the same
-    ///     topology as the humeral twist guard and the relief's own wrap fade).
-    /// </summary>
     public class BasisArmForearmFollowTests
     {
         const float UpperLen = 0.30f, ForeLen = 0.30f;
@@ -61,8 +42,6 @@ namespace Basis.Tests.IK
             i.TargetRotation = Quaternion.AngleAxis(rollDeg, foreDir) * i.MidRotation;
         }
 
-        /// <summary>Hand-vs-forearm axial roll recomputed from the OUTPUTS — never from the solver's own
-        /// bookkeeping, so this gate cannot be satisfied by a wrong self-report.</summary>
         static float ResidualRollDeg(in BasisArmSolveInput i, in BasisArmSolveResult r)
         {
             Quaternion neutral = r.MidRotationSolved * Quaternion.Inverse(i.MidRotation) * i.TipRotation;

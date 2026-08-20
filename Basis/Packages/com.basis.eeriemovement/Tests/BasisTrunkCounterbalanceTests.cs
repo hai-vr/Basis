@@ -9,15 +9,6 @@ namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
 
-    /// <summary>
-    /// Postural counterbalance -- the pelvis travels back as the trunk folds forward so the whole-body COM
-    /// stays over the feet. The model is one multiply (shift = Gain * the trunk's horizontal projection);
-    /// these tests pin that it is the RIGHT multiply, that it cannot be moved by a gaze, and that the corpus
-    /// agrees with the gain the segment masses predict.
-    ///
-    /// ⚠️ GATING lives in the JOB, not this core: BasisFullBodyIK.SolveSpine applies it ONLY when there is no
-    /// hip tracker -- a tracked pelvis is measured and must feed straight through.
-    /// </summary>
     public sealed class BasisTrunkCounterbalanceTests
     {
         const float k_TrunkLen = 0.5f;

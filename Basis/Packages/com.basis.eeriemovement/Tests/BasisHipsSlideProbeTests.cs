@@ -7,56 +7,15 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "When the user stops, does the BODY stop?"
-    ///
-    /// Reported: "the legs are super duper smooth and lagging behind the rest of the trackers... when a
-    /// real tracker is present but no role, they slide around way after the motion is complete."
-    ///
-    /// The legs hang off the pelvis — LeftUpperLeg's bone target IS the Hips control
-    /// (BasisLocalAvatarDriver:387), and the FBIK leg root is the hips socket that SolveSpine writes
-    /// before SolveLegs reads it. A pelvis that is still sliding IS a pair of legs that are still sliding.
-    ///
-    /// And the pelvis's horizontal position came 75% from HeadBaselineXZ, which was a 1 Hz LOW-PASS of the
-    /// head (tau = 159 ms). A low-pass's output keeps travelling toward a STOPPED input for ~4 tau. So
-    /// when the user stopped moving, the pelvis did not: measured on this very job, it drifted a further
-    /// 7.9 cm over 589 ms.
-    ///
-    /// It fired precisely when the feet had no ROLE, because the branch above it — both feet tracked —
-    /// puts the pelvis on the feet midpoint instead, which is exact and instant (measured: 0.00 cm).
-    /// A real tracker with no role assigned leaves HasTracked = HasNoTracker (BasisInput.SetRealTrackers),
-    /// so it takes the estimator path. That is the whole bug.
-    ///
-    /// ⚠️ THE LAW THIS SUITE WAS BUILT AROUND HAS BEEN REPLACED TWICE, so read the gates and not this
-    /// history. The temporal low-pass became a SPATIAL one (base frozen inside a stance radius, following
-    /// only past it) — which cured the post-motion slide by never following at all, and stranded the pelvis
-    /// wherever it was last seeded: *"in vr the hips stay where they want in the middle of the play space"*.
-    /// A step latch fixed the stranding but was still a switch, and a switch is felt as *"it's stop start,
-    /// it needs to be continuous"*. Both reports are the same root cause — a mode boundary — so there is no
-    /// mode any more: the base tracks the head at a rate that rises smoothly with how far behind it is.
-    ///
-    /// What that costs, and it is deliberate: **the leash no longer holds a counterbalance offset**, so the
-    /// gates that measured one (a held lean staying displaced, and the forward-vs-lateral anisotropy) are
-    /// gone. Postural counterbalance is BasisTrunkCounterbalanceCore's job — derived from segment masses and
-    /// driven by the gaze-invariant neck cue, rather than by "the head moved horizontally". This estimator
-    /// now answers exactly one question: WHERE IS THE USER STANDING.
-    ///
-    /// House rule: every gate asserting the fix is correct is PAIRED with one that drives the OLD form and
-    /// asserts it FAILS. Without the pair, a bug that made the metric always return zero would leave every
-    /// test green and the gate silently dead.
-    /// </summary>
     public sealed class BasisHipsSlideProbeTests
     {
         const int Head = 0, Neck = 1, Chest = 2, Spine = 3, Hips = 4;
         const int BoneCount = 5;
 
         const float StandingHeadY = 1.60f;
-        /// <summary>StanceRadiusFrac (0.12) x StandingHeadY. Beyond this the solver calls it a step.</summary>
         const float StanceRadius = 0.12f * StandingHeadY;   // 19.2 cm
-        /// <summary>CounterbalanceFollowFrac — how much of the lean the pelvis is supposed to carry.</summary>
         const float FollowFrac = 0.25f;
 
-        /// <summary>Ticks the REAL BasisVirtualSpineSolveJob. Returns the solved hips position per frame.</summary>
         static float3[] RunSpine(float dt, int frames, System.Func<int, float3> headAt, bool bothFeetTracked)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
@@ -169,14 +128,12 @@ namespace Basis.Tests.IK
             };
         }
 
-        /// <summary>Head ramps forward `dist` over `moveSecs`, then holds still.</summary>
         static System.Func<int, float3> Ramp(float dt, float moveSecs, float dist) => i =>
         {
             float t = Mathf.Clamp01(i * dt / moveSecs);
             return new float3(0f, StandingHeadY, dist * t);
         };
 
-        /// <summary>Metres the pelvis travels AFTER the head has already come to rest, and how long for.</summary>
         static (float driftM, float restMs) DriftAfterStop(float3[] hips, float dt, int stopFrame)
         {
             float3 settled = hips[hips.Length - 1];
@@ -192,23 +149,6 @@ namespace Basis.Tests.IK
 
         // ------------------------------------------------------------------ the gates
 
-        /// <summary>
-        /// THE HEADLINE GATE — the pelvis response must be a CONTINUOUS function of how far the player moved.
-        ///
-        /// ⚠️ THIS GATE REPLACES A COUNTERBALANCE GATE, DELIBERATELY. Every earlier form of the follow law was
-        /// a SWITCH keyed on the stance radius: the deadband pull did nothing until the head crossed it, and
-        /// the latch that replaced it did nothing until the same crossing and then dragged the base over in two
-        /// frames. Both are bang-bang controllers, and the user's report was exactly what a bang-bang
-        /// controller feels like — *"it's stop start, it needs to be continuous"*. There is no set of
-        /// thresholds that fixes that, because the discontinuity IS the design.
-        ///
-        /// So: sweep the move size straight across the old threshold and assert the response has no step in it
-        /// anywhere. This cannot be satisfied by a switch at ANY radius, which is the point — it is a gate on
-        /// the SHAPE of the law rather than on one tuned number.
-        ///
-        /// The second assert is what stops it rotting: a law that carried 0% of every move would have a
-        /// perfectly smooth response too.
-        /// </summary>
         [Test]
         public void TheFollowLawIsContinuous_WithNoThresholdAnywhere()
         {
@@ -269,12 +209,6 @@ namespace Basis.Tests.IK
                 + $"{worstLatchJump * 100f:F0} points) -- if it no longer does, this gate is testing nothing");
         }
 
-        /// <summary>
-        /// The other side of continuous: the base must not be a SNAP either. A law that welded the base to the
-        /// head every frame would sail through the continuity gate and then hand every millimetre of tracker
-        /// noise straight to the pelvis. HeadBaselineFollowRateRest is what keeps the response soft when the
-        /// base is already sitting on the head.
-        /// </summary>
         [Test]
         public void TheBaseIsSoftWhenItIsAlreadyUnderTheHead_NotASnap()
         {
@@ -296,16 +230,6 @@ namespace Basis.Tests.IK
                 + "become stuck, which is the dead zone this law exists to remove.");
         }
 
-        /// <summary>
-        /// THE WALKING GATE — the headline complaint, measured directly. Walk at a steady 1.2 m/s and the
-        /// pelvis must stay under the walker, not trail them.
-        ///
-        /// This is the steady-state form of "the hips don't follow the player enough". The deadband law parked
-        /// the base a full stance radius behind and stayed there for as long as you kept walking, so the pelvis
-        /// (and the legs hanging off it) trailed ~16 cm forever. A continuous law's lag solves
-        /// L·(rest + gain·L/radius) = v, so it is bounded and small, and raising HeadBaselineFollowRateGain
-        /// tightens it without introducing a threshold.
-        /// </summary>
         [Test]
         public void AWalk_KeepsThePelvisUnderTheWalker_NotTrailingBehindIt()
         {
@@ -336,11 +260,6 @@ namespace Basis.Tests.IK
                 + "no longer does, this gate is testing nothing");
         }
 
-        /// <summary>
-        /// A STEP — head goes 30 cm, past the stance radius, so the user cannot have got there without
-        /// moving their feet. The support base is now allowed to follow. It must still be DONE promptly:
-        /// a base that eases in for half a second is the original bug wearing a different hat.
-        /// </summary>
         [Test]
         public void AStep_MovesTheSupportBase_ButStillSettlesPromptly()
         {
@@ -364,14 +283,6 @@ namespace Basis.Tests.IK
             Assert.Less(restMs, 300f, $"the pelvis took {restMs:F0} ms to settle after the head stopped");
         }
 
-        /// <summary>
-        /// THE RATCHET CHECK — the failure mode a naive leash would have, and the reason the pull scales
-        /// with the SQUARED exceedance.
-        ///
-        /// Hold a lean right AT the stance radius, with tracker jitter. Any pull that is linear in the
-        /// exceedance (or a hard clamp) drags the base outward on every jitter sample that lands outside
-        /// and never drags it back — so the support base walks away from a user who is standing still.
-        /// </summary>
         [Test]
         public void TrackerJitter_DoesNotRatchetTheSupportBaseOutward()
         {
@@ -397,11 +308,6 @@ namespace Basis.Tests.IK
                 + "precisely to make this impossible.");
         }
 
-        /// <summary>
-        /// THE NO-REGRESSION GATE. When both feet own roles the support base is KNOWN (the feet midpoint),
-        /// the estimator is never consulted, and there was never any drift. Nothing about this change may
-        /// touch that path.
-        /// </summary>
         [Test]
         public void WithBothFeetTracked_ThePelvisStillHasNoDriftAtAll()
         {
@@ -419,26 +325,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// THE LATERAL GATE — headset-only, no foot roles. Shift the head 15 cm SIDEWAYS (X), INSIDE the
-        /// stance radius so the feet have not moved, and hold. A sideways shift is a WEIGHT SHIFT, not a bend:
-        /// a real pelvis stays stacked over the feet, so the hips must carry MOST of it — not the 25% sagittal
-        /// counterbalance, which left the pelvis behind the head and skewed the torso into a phantom rotation
-        /// (the "hips are a bit behind / look rotated" report).
-        ///
-        /// ⚠️ THE ANISOTROPY ASSERT IS GONE, and it is worth knowing why rather than re-adding it. It required
-        /// the SAME move forward to still counterbalance at ~25%, which was only observable because the support
-        /// base was FROZEN inside the stance radius — the anisotropic fracs were shaping a deviation that
-        /// persisted. The base now follows continuously, so the deviation collapses within ~100 ms and the
-        /// fracs only shape that transient. There is nothing left to measure at any sampling point that is not
-        /// knife-edge sensitive to the follow rate. The lateral lag this test was written for cannot come back
-        /// while the base tracks both axes; what would bring it back is a dead zone, and
-        /// TheFollowLawIsContinuous_WithNoThresholdAnywhere is the gate that forbids one.
-        ///
-        ///   (a) the hips carry most of the sideways shift (and do not overshoot the head);
-        ///   (b) PAIRED NEGATIVE — the old isotropic 0.25 law, reproduced inline, lags this shift; the real
-        ///       job must beat it by a real margin, or the gate is measuring nothing.
-        /// </summary>
         [Test]
         public void ALateralShift_TheHipsCarryMostOfIt_NotTheSagittalCounterbalance()
         {
@@ -474,16 +360,6 @@ namespace Basis.Tests.IK
                 + $"({oldIsotropic * 100f:F2} cm) -- the anisotropic lateral follow is not in effect.");
         }
 
-        /// <summary>
-        /// THE WALKING GATE. Take a 30 cm step and the support base must end up UNDER the walker, not at the
-        /// threshold that detected them.
-        ///
-        /// The pull used to be driven by (dist - radius), so the radius was deciding both WHETHER a step had
-        /// happened and WHERE the base stopped. Its own factor went to zero as the base closed in, stalling it
-        /// a full stance radius short — so every step left the pelvis ~19 cm behind the walker with nothing
-        /// able to close it, which is the "hips stay in the middle of the play space" report. The radius now
-        /// only latches; once latched the base runs to the head and releases when the walker stops.
-        /// </summary>
         [Test]
         public void AStep_LandsTheSupportBaseUnderTheWalker_NotAStanceRadiusShort()
         {
@@ -516,21 +392,6 @@ namespace Basis.Tests.IK
                 + $"{step * 100f:F0} cm) -- if it no longer does, this gate is testing nothing");
         }
 
-        /// <summary>
-        /// THE SEATED / MIS-CALIBRATED GATE. A CONSTANT gap between the tracked head and the avatar's T-pose
-        /// head is not a crouch, and must not resize the stance radius.
-        ///
-        /// stanceHeadDrop used to be measured straight against the T-pose head, so eye-height calibration drift
-        /// — or a developer testing while sat in a real chair — read as a permanent 45 cm squat and inflated the
-        /// radius by CrouchLeanAllowanceFrac x that: 19 cm becomes ~51 cm. The support base then never concludes
-        /// the user has stepped at all, and the pelvis is free to sit anywhere inside half a metre. The
-        /// reference is now the user's OWN resting head height (rise-only, capped at the T-pose head).
-        ///
-        /// ⚠️ The radius no longer gates a switch, it SCALES the follow rate, so an inflated one now softens
-        /// the follow rather than disabling it — this fix matters much less than it did against the deadband
-        /// law, but it is still the correct reference. The paired negative is therefore the whole thing the
-        /// seated user actually used to get: deadband pull PLUS T-pose reference.
-        /// </summary>
         [Test]
         public void APersistentHeightOffset_DoesNotInflateTheStanceRadius()
         {

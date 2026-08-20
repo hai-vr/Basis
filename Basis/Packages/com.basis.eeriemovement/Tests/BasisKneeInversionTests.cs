@@ -4,35 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "I have a foot tracker and a knee hint, I push the foot forward, and the knee flips around" gate.
-    ///
-    /// A knee is a HINGE. It flexes one way -- heel toward the backside -- so the knee always bulges ANTERIOR to
-    /// the hip->ankle axis. A knee behind that axis is not merely unnatural, it is anatomically unrepresentable.
-    /// That makes it a hard constraint, not a tuning knob, and the guard is written to make the posterior
-    /// half-space UNREACHABLE rather than merely unlikely.
-    ///
-    /// The knee ends up wherever the POLE points, because the solve's SWIVEL step rotates the knee ONTO the pole.
-    /// So guarding the pole guards the knee, structurally. The two places a pole can be chosen both get the same
-    /// bound, from the same shared clamp:
-    ///   - BasisLegSolveCore places the knee on the pole.
-    ///   - BasisSwivelSmootherCore can MOVE it afterwards, so it needs the bound too or a lagging filter drags the
-    ///     knee back through the joint.
-    ///
-    /// Why the defect exists at all: the pole is `hint - hip` projected perpendicular to the hip->ankle axis. As
-    /// the leg extends that lever arm collapses, so a few millimetres of tracker offset is enough to tip the
-    /// projection across the axis and land the knee posterior -- the same pole singularity as the swivel snap
-    /// (BasisKneeSwivelConditioningTests), seen from the other side. The BEND step cannot save it either: fed an
-    /// over-reaching target it SATURATES at a straight leg rather than refusing, so the only place inversion can be
-    /// stopped is at the pole.
-    ///
-    /// The gates, and the third is what stops this file rotting into a tautology:
-    ///   1. The knee is NEVER posterior -- hint swept a full 360deg, at every reach including the singular ones.
-    ///   2. Legitimate poses are UNTOUCHED (butterfly splay at its 60deg limit passes through bit-for-bit).
-    ///   3. The sweep actually REACHES the inverting region, and the guard is what stops it -- proven by showing
-    ///      the raw pole demands a posterior knee on those samples, and that the legacy (unguarded) smoother
-    ///      really does invert. Without this, gates 1-2 could pass for entirely unrelated reasons.
-    /// </summary>
     public sealed class BasisKneeInversionTests
     {
         const float k_ThighLen = 0.45f;
@@ -45,19 +16,12 @@ namespace Basis.Tests.IK
         // hanging down that is Cross(down, right) = forward. Exactly as the core's own comment claims.
         static readonly Vector3 k_BendNormal = Vector3.right;
 
-        /// <summary>Anterior, as the solver derives it: perpendicular to the leg axis, in front of the leg.</summary>
         static Vector3 Anterior(Vector3 hip, Vector3 ankle)
         {
             Vector3 axis = (ankle - hip).normalized;
             return Vector3.ProjectOnPlane(Vector3.Cross(axis, k_BendNormal), axis).normalized;
         }
 
-        /// <summary>
-        /// How far the knee sits from anterior, in degrees, about the leg axis. This is THE quantity under test:
-        /// |deg| &lt; 90 == the knee is in front of the leg == dot(kneeDir, anterior) &gt; 0. 180 == inverted.
-        /// Returns NaN when the leg is so straight the knee has no measurable lever arm, i.e. when there is no
-        /// direction to be wrong about -- the caller skips those rather than asserting on noise.
-        /// </summary>
         static float KneeDegFromAnterior(Vector3 hip, Vector3 knee, Vector3 ankle)
         {
             Vector3 axis = (ankle - hip).normalized;
@@ -69,16 +33,6 @@ namespace Basis.Tests.IK
             return Vector3.SignedAngle(Anterior(hip, ankle), lever, axis);
         }
 
-        /// <summary>
-        /// A leg at `reach` of full extension with the ankle straight below the hip, plus a knee hint parked on the
-        /// knee's own circle at `hintDeg` around the leg axis (0 = anterior).
-        ///
-        /// The hint sits at the knee's OWN lever radius on purpose -- that is where a real knee tracker is, and it
-        /// is what makes the sweep bite: the solve only distrusts a hint once it closes on the leg axis
-        /// (k_PoleColinearSin = sin 30deg), and a hint at the knee radius clears that threshold at bent reaches, so
-        /// the pole is taken at face value. Park the hint further out and the existing colinearity blend would mask
-        /// the defect; park it further in and the blend rescues it for unrelated reasons. Neither would test this.
-        /// </summary>
         static BasisLegSolveInput MakeLeg(float reach, float hintDeg)
         {
             float d = reach * k_FullReach;
@@ -403,7 +357,6 @@ namespace Basis.Tests.IK
                 "seed frame must pass the raw swivel through untouched when the guard is off");
         }
 
-        /// <summary>Smoother input for a leg at `reach`, knee parked `swivelDeg` around the axis from anterior.</summary>
         static BasisSwivelSmootherInput MakeSmoother(float reach, float swivelDeg, bool guard)
         {
             float d = reach * k_FullReach;

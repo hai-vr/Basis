@@ -2,20 +2,6 @@ using NUnit.Framework;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Regression tests for the Auto height-mode decision
-    /// (<see cref="BasisCalibrationMath.AutoHeightModePicksArmSpan"/>): trust the LONGER of the
-    /// player's two body measurements. Both metrics under-measure easily (calibrating while seated
-    /// or slouched reads the eye height 25-35% short; bent arms read the span short) but neither
-    /// can over-measure past the real body — so the larger implied body height is the trustworthy
-    /// measurement. Eye height is preferred inside a tolerance band (stabler, carries the
-    /// standing-eye corrections); the span wins only when the eye reading is implausibly short
-    /// against the measured reach.
-    ///
-    /// The field report that fixed the first (avatar-ratio-based) version of this rule: calibrated
-    /// sitting in a chair with arms out — eye read ~1.2 m while the span read ~1.7 m, and Auto took
-    /// the broken eye height. That scenario is the headline case below.
-    /// </summary>
     public class BasisAutoHeightModeTests
     {
         [Test]

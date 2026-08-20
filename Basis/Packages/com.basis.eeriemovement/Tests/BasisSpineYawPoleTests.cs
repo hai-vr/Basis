@@ -5,27 +5,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Look down at my chest, turn my head left and right across the middle, and the body SNAPS"
-    /// regression tests for the torso heading -- <see cref="BasisVirtualSpineCore.ExtractYawBurst"/>.
-    ///
-    /// That function is the single source of the torso's facing direction: its output becomes
-    /// torsoYawTarget, which aims the hips, the hips' forward bias, and the chest/spine yaw targets.
-    /// It used to flatten the head's FORWARD axis into the horizontal plane and take its azimuth --
-    /// but forward carries NO azimuth once the gaze is vertical, so the azimuth's gain is 1/cos(gazePitch):
-    /// 5.8x at 80 degrees of look-down and unbounded at 90, where it flips a full 180 degrees as the gaze
-    /// crosses the pole. Chin tucked to the chest, a 10-degree head turn threw the torso 183 degrees.
-    /// The 1e-12 guard was orders of magnitude too small to fire; the damage lands long before the
-    /// projection is literally zero.
-    ///
-    /// Taking the yaw as the TWIST of a swing-twist decomposition about world up has no projection to
-    /// collapse. Its gain is 1/cos(gazePitch / 2) -- bounded by sqrt(2) over every gaze a head can reach --
-    /// so the singularity moves from 90 degrees (which you hit looking at your own chest) out to 180
-    /// (upside down and facing backwards, which you cannot).
-    ///
-    /// Sign convention matches Unity and the live job: a positive rotation about X is look-DOWN,
-    /// a positive rotation about Y is turn-RIGHT.
-    /// </summary>
     public class BasisSpineYawPoleTests
     {
         // 1 / cos(90 deg / 2) == sqrt(2): the exact worst-case gain of the twist over the reachable
@@ -33,12 +12,6 @@ namespace Basis.Tests.IK
         // forward-azimuth form produced at the same poses.
         const float MaxYawGain = 1.6f;
 
-        /// <summary>
-        /// The head as an HMD reports it while the chin is tucked: the neck flexes forward, and the
-        /// left/right turn is an axial rotation about that ALREADY-FLEXED neck axis (which is what the
-        /// cervical spine actually does). The flexed turn axis is what tips head-forward through the
-        /// vertical pole -- turn a head about a perfectly upright axis and no extractor is in trouble.
-        /// </summary>
         static quaternion Head(float neckFlexDeg, float turnDeg, float headPitchDeg)
         {
             return math.mul(math.mul(

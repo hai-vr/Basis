@@ -3,13 +3,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Regression tests for the calibration lock-in aid math (<see cref="BasisCalibrationLockInCore"/>):
-    /// the proximity weight/diameter that shrinks a sphere as a tracker closes on its prime spot, and
-    /// the foot yaw/tilt alignment that colors the foot-forward guide. Pins the properties the offline
-    /// BasisCalibrationLockInSweep gates: clamped monotonic proximity, a worse-axis-wins alignment score,
-    /// and the foot guide only greening when the foot is both forward AND flat.
-    /// </summary>
     public class BasisCalibrationLockInTests
     {
         const float Capture = 0.05f, Falloff = 0.30f;

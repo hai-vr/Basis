@@ -5,29 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "When we reach behind with our arms there is snapping."
-    ///
-    /// ================================================================================================
-    /// WHAT THE SNAP WAS, AND WHY THESE TESTS SWEEP AZIMUTH.
-    ///
-    /// The no-tracker elbow bend is a UNIT TANGENT field on the sphere of hand directions, so by
-    /// Poincare-Hopf it must carry zeros of total index 2. BasisElbowFieldModel (a global polynomial)
-    /// split that into two index-1 zeros, and one of them sat in REACHABLE workspace: down-and-back,
-    /// azimuth ~130 deg, ~20 deg below level -- hand out behind the hip, arm bent. Reaching behind.
-    ///
-    /// BasisArmBigSwingFlipTests already sweeps MERIDIANS (up-down swings) and permits a hard rotation
-    /// only inside a collapsed-lever core. But the reach-behind core is crossed on a HORIZONTAL path --
-    /// swinging the hand around from the front to behind you -- which no meridian sweep touches. That is
-    /// the coverage gap these tests close: constant-elevation AZIMUTH sweeps, front to behind.
-    ///
-    /// The fix (BasisElbowStereoModel, default via BasisElbowFieldModel.UseStereoField) carries a SINGLE
-    /// index-2 zero and places it straight across the body, inside the torso, where no hand can point.
-    /// The entire reachable workspace is then zero-free. These tests pin both halves: the snap is gone in
-    /// reach, AND the one unavoidable zero is unreachable. Measured on 199,528 real frames the reach-behind
-    /// worst step fell 33 deg/frame -> 0.3, and the worst reachable elbow gain ~106x -> 7x.
-    /// ================================================================================================
-    /// </summary>
     public class BasisArmReachBehindTests
     {
         const float k_ArmLen = 0.54f;
@@ -41,15 +18,6 @@ namespace Basis.Tests.IK
 
         static float3 Bend(float3 dir) => BasisElbowStereoModel.BendDirection(dir, out _);
 
-        /// <summary>
-        /// ⭐⭐ THE COMPLAINT, GATED. Swing the hand from straight ahead around to behind you at a fixed
-        /// height, in fine steps, and measure how far the bend rotates per step. This is the exact path
-        /// the user traverses reaching behind, and it is the one BasisArmBigSwingFlipTests' meridians miss.
-        ///
-        /// On BasisElbowFieldModel this sweep rotated the hint 33 degrees in a single 0.25-degree hand step
-        /// at reach 0.65, elevation -20 (hand behind the hip). Here it must stay smooth at every height,
-        /// because the stereo field has no zero anywhere the hand can reach. Gate 8 deg; measured worst ~0.7.
-        /// </summary>
         [Test]
         public void ReachingBehind_DoesNotSnapTheElbow_OnAnyHorizontalSwing(
             [Values(-30f, -20f, -10f, 0f, 10f, 20f)] float elevDeg)
@@ -75,16 +43,6 @@ namespace Basis.Tests.IK
                 "to cross.");
         }
 
-        /// <summary>
-        /// ⭐⭐ THE TOPOLOGY, PINNED. A tangent field must have a zero (index total 2); the whole point of
-        /// the stereo model is that its ONE zero lives in the torso. So sweep the entire sphere and demand
-        /// the bend's conditioning (its lever) never collapses ANYWHERE the hand can actually go. The only
-        /// place it is allowed to fall is deep across the body -- x well negative -- where a hand would have
-        /// to pass through the chest to point, which is unreachable at every reach.
-        ///
-        /// If a future re-fit (or a different zero placement) let a collapse back into reachable space, this
-        /// fails -- which is precisely the regression that reintroduces the snap.
-        /// </summary>
         [Test]
         public void TheReachableWorkspace_HasNoBendCollapse_TheOneZeroIsInTheTorso()
         {
@@ -125,11 +83,6 @@ namespace Basis.Tests.IK
                 "unreachable.");
         }
 
-        /// <summary>
-        /// The bend must be a UNIT vector PERPENDICULAR to the shoulder->hand axis for EVERY input, including
-        /// targets far beyond the avatar's reach and degenerate ones -- that is what puts the hint on the
-        /// elbow's circle by construction, so the solver needs no fade to drag it back.
-        /// </summary>
         [Test]
         public void TheBend_IsAlwaysUnit_AndPerpendicular_EvenBeyondReachAndAtDegeneracies()
         {
@@ -162,11 +115,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// A big up-down swing (a meridian) must stay as smooth as it was -- the reach-behind fix must not
-        /// re-introduce a snap on the vertical swings BasisArmBigSwingFlipTests already guards. Measured worst
-        /// step here is under 1 degree at every azimuth.
-        /// </summary>
         [Test]
         public void BigUpDownSwings_StaySmooth([Values(-45f, 0f, 45f, 90f, 135f)] float azDeg)
         {
@@ -185,12 +133,6 @@ namespace Basis.Tests.IK
             Assert.Less(worst, 8f, $"an up-down swing at azimuth {azDeg:F0} snapped {worst:F1} deg/step");
         }
 
-        /// <summary>
-        /// The live entry the solver uses (BasisSwivelHintCore.ArmHint -- frame, mirror, field, tuck) must
-        /// keep the two arms EXACT mirrors: a sign slip here is "one elbow fine, the other inverted", which
-        /// this model's ancestors got wrong twice (once by 145 degrees). Holds for whichever field is the
-        /// active default (BasisElbowFieldModel.UseStereoField); it exercises the whole live path.
-        /// </summary>
         [Test]
         public void LiveArmHint_MirrorsLeftToRight()
         {

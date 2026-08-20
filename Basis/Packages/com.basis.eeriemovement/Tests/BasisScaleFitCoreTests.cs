@@ -4,13 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The scale fit picks one uniform scale from every body measurement held, leaving the positional
-    /// stretcher to absorb what one scale could not cover. The tests that matter here are the two
-    /// halves of that contract: while the stretcher can take up the difference the scale must not move
-    /// at all (eye height stays exact, which costs no floor offset), and when it must move it must move
-    /// the minimum — landing exactly on the stretcher's budget edge, never past it.
-    /// </summary>
     public class BasisScaleFitCoreTests
     {
         const float Eps = 1e-4f;
@@ -233,11 +226,6 @@ namespace Basis.Tests.IK
         }
     }
 
-    /// <summary>
-    /// The body fit has to measure its residual against the scale that was actually applied. Deriving
-    /// it from eye height instead silently assumed the scale had matched eye height, so in any other
-    /// mode the fit computed a residual that did not exist and pulled against the scale.
-    /// </summary>
     public class BasisBodyFitUniformScaleTests
     {
         const float Eps = 1e-4f;

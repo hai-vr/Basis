@@ -7,13 +7,6 @@ using Basis.IK;
 
 public static class BasisAnimationRiggingHelper
 {
-    static Quaternion TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole role, Quaternion trackerRotation)
-    {
-        return Basis.Scripts.Avatar.BasisAvatarIKStageCalibration.BasisLimbRollStore.TryGet(role, out Quaternion trackerToBone)
-            ? trackerRotation * trackerToBone
-            : default;
-    }
-
     public static Quaternion CalibratedRotationOffset(BasisLocalBoneControl control, Transform animatorRoot, Transform avatarBone)
     {
         return CalibratedRotationOffset(control.OutgoingWorldData.rotation, avatarBone.rotation);
@@ -72,55 +65,6 @@ public static class BasisAnimationRiggingHelper
 
         job.offsetRotationHips = Mapping.HasHips ? avatarRootInv * Mapping.Hips.rotation : Quaternion.identity;
 
-        var head = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
-        job.targetPositionHead = head.position;
-        job.targetRotationHead = head.rotation;
-
-        var leftFoot = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
-        job.targetPositionLeftLowerLeg = leftFoot.position;
-        job.targetRotationLeftLowerLeg = leftFoot.rotation;
-
-        var rightFoot = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
-        job.targetPositionRightLowerLeg = rightFoot.position;
-        job.targetRotationRightLowerLeg = rightFoot.rotation;
-
-        var hips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
-        job.targetPositionHips = hips.position;
-        job.targetRotationHips = hips.rotation;
-
-        var leftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
-        job.targetPositionLeftHand = leftHand.position;
-        job.targetRotationLeftHand = leftHand.rotation;
-
-        var rightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData;
-        job.targetPositionRightHand = rightHand.position;
-        job.targetRotationRightHand = rightHand.rotation;
-
-        var leftLowerArm = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData;
-        var rightLowerArm = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData;
-        var chest = BasisLocalBoneDriver.ChestControl.OutgoingWorldData;
-        var leftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
-        var rightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
-        var leftShoulder = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData;
-        var rightShoulder = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData;
-
-        job.hintPositionLeftHand = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerArm, leftLowerArm.position, leftLowerArm.rotation);
-        job.hintRotationLeftHand = TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerArm, leftLowerArm.rotation);
-        job.hintPositionRightHand = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerArm, rightLowerArm.position, rightLowerArm.rotation);
-        job.hintRotationRightHand = TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerArm, rightLowerArm.rotation);
-
-        job.targetRotationLeftShoulder = leftShoulder.rotation;
-        job.targetRotationRightShoulder = rightShoulder.rotation;
-
-        job.hintPositionLeftLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerLeg, leftLowerLeg.position, leftLowerLeg.rotation);
-        job.hintPositionRightLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerLeg, rightLowerLeg.position, rightLowerLeg.rotation);
-        job.hintRotationLeftLowerLeg = TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerLeg, leftLowerLeg.rotation);
-        job.hintRotationRightLowerLeg = TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerLeg, rightLowerLeg.rotation);
-
-        job.targetPositionChestRaw = chest.position;
-        job.targetPositionChest = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.Chest, chest.position, chest.rotation);
-        job.targetRotationChest = chest.rotation;
-
         if (BasisCalibrationDebugRecorder.Enabled)
         {
             Transform animRoot = player?.BasisAvatar?.Animator != null ? player.BasisAvatar.Animator.transform : null;
@@ -139,13 +83,6 @@ public static class BasisAnimationRiggingHelper
             BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationRightHand", "offset", job.offsetRotationRightHand);
             BasisCalibrationDebugRecorder.Rotation("Offsets", "OffsetRotationHips", "offset", job.offsetRotationHips);
 
-            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetHead", "target", job.targetPositionHead, job.targetRotationHead, Vector3.one);
-            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetHips", "target", job.targetPositionHips, job.targetRotationHips, Vector3.one);
-            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetLeftHand", "target", job.targetPositionLeftHand, job.targetRotationLeftHand, Vector3.one);
-            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetRightHand", "target", job.targetPositionRightHand, job.targetRotationRightHand, Vector3.one);
-            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetLeftFoot", "target", job.targetPositionLeftLowerLeg, job.targetRotationLeftLowerLeg, Vector3.one);
-            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetRightFoot", "target", job.targetPositionRightLowerLeg, job.targetRotationRightLowerLeg, Vector3.one);
-
             RecordControlRest("head.ctrl", BasisLocalBoneDriver.HeadControl);
             RecordControlRest("hips.ctrl", BasisLocalBoneDriver.HipsControl);
             RecordControlRest("chest.ctrl", BasisLocalBoneDriver.ChestControl);
@@ -154,19 +91,7 @@ public static class BasisAnimationRiggingHelper
             RecordControlRest("rightFoot.ctrl", BasisLocalBoneDriver.RightFootControl);
         }
 
-        job.collisionsEnabled = true;
-        job.protectElbow = true;
-        job.collideTrackedElbow = false;
-
-        job.elbowDragEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDrag.RawValue;
-        job.elbowDragHz = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDragHz.RawValue;
-        job.enabledSpineIK = true;
         job.ikLockMode = SMModuleCalibration.CurrentIKLockMode;
-
-        job.shoulderSolveEnabled = true;
-        job.shoulderShrugEnabled = true;
-        job.shoulderElevationFactor = 0.4f;
-        job.shoulderProtractionFactor = 0.3f;
     }
 
     private static void RecordControlRest(string label, Basis.Scripts.TransformBinders.BoneControl.BasisLocalBoneControl c)

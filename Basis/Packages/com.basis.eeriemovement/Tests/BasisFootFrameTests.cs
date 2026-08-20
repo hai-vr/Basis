@@ -5,38 +5,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Frame gates for the foot-placement sim (<see cref="BasisFootSimulateJob"/>).
-    ///
-    /// Every bug this file exists to catch was the same shape: a rotation read in the wrong frame, or read off an
-    /// axis that had gone degenerate. They are grouped here because they share a root cause, not a subsystem.
-    ///
-    /// 1. BODY FORWARD AT THE POLES. Every bone's facing was obtained by flattening its forward onto the ground
-    ///    plane: flat = fwd - up*dot(fwd,up). That is only meaningful while the forward HAS horizontal length.
-    ///    Look straight down (or up) and the head's forward is parallel to playerUp, the projection collapses to
-    ///    ~zero, and normalize() turns float noise into a wildly swinging yaw. The old guards let this through --
-    ///    hips and chest required only lengthsq > 0.001, i.e. a mere 1.8 degrees off vertical -- while the head's
-    ///    stricter lengthsq > 0.1 guard simply DROPPED the head past ~72 degrees of pitch, so the body forward
-    ///    lurched as the head crossed the threshold. Neither is a facing; both are artifacts.
-    ///
-    ///    The yaw is not lost at the pole, it has only changed axes: when a bone's FORWARD goes vertical, its UP
-    ///    axis becomes HORIZONTAL and carries the yaw exactly. BoneYaw() reads whichever axis is currently
-    ///    horizontal and cross-fades by |flat(fwd)|. These gates sweep pitch through the poles INCLUDING exactly
-    ///    +/-90 degrees, because the specific way today's cervical bug hid was a threshold branch that the test
-    ///    never crossed. Enumerate the branches; cross every threshold.
-    ///
-    /// 2. FOOT ROTATION AT REST. FootRotation() builds a frame from the BODY's axes. A humanoid foot bone's local
-    ///    axes are NOT the body's -- its +Z commonly runs down the shin or out along the toes, entirely
-    ///    rig-dependent -- so returning that frame as the bone's rotation is what came out "toes-up" and got foot
-    ///    rotation switched off in the first place. Re-seating through footAlign (the bone measured IN that frame
-    ///    at the T-pose) makes a standing foot reproduce its rest rotation EXACTLY. That is an identity, not a
-    ///    tuning: assert it as one, and toes-up can never come back.
-    ///
-    /// 3. NaN MUST NOT ESCAPE. A NaN'd transform in Unity PERSISTS -- the rig dies and never recovers -- so a
-    ///    single degenerate frame is unrecoverable rather than a blip. Worse, the obvious guard shape is wrong:
-    ///    `if (bad &lt; threshold) reject` FAILS OPEN on NaN, because NaN &lt; x is false for every x. Validity checks
-    ///    must be written as `!(good &gt; threshold)` so NaN falls into the reject branch.
-    /// </summary>
     public class BasisFootFrameTests
     {
         const float TolDeg = 0.25f;      // generous vs the 90-180 deg defects these gates catch
@@ -58,7 +26,6 @@ namespace Basis.Tests.IK
 
         // ---- builders -------------------------------------------------------------------------------------
 
-        /// <summary>Head-only weighting, so these gates measure the HEAD's contribution and nothing else.</summary>
         static BasisFootSimParams HeadOnlyParams()
         {
             return new BasisFootSimParams
@@ -71,7 +38,6 @@ namespace Basis.Tests.IK
             };
         }
 
-        /// <summary>Yaw about playerUp, then pitch about the resulting local right axis -- an ordinary head.</summary>
         static quaternion HeadRot(float yawDeg, float pitchDeg)
         {
             quaternion yaw = quaternion.AxisAngle(Up, math.radians(yawDeg));
@@ -105,7 +71,6 @@ namespace Basis.Tests.IK
             return math.degrees(math.acos(d));
         }
 
-        /// <summary>The formula BoneYaw replaced: flatten the forward, and hard-cut when it gets short.</summary>
         static bool LegacyHeadYaw(quaternion rot, float3 up, out float3 yawDir)
         {
             float3 fwd = math.mul(rot, new float3(0f, 0f, 1f));
@@ -121,10 +86,6 @@ namespace Basis.Tests.IK
 
         // ---- T8: the poles --------------------------------------------------------------------------------
 
-        /// <summary>
-        /// The body forward must equal the head's YAW at every pitch, including exactly straight up and straight
-        /// down. A pure pitch changes where you are looking; it does not change which way you are FACING.
-        /// </summary>
         [Test]
         public void BodyForward_TracksYaw_AtEveryPitch_IncludingThePoles()
         {
@@ -155,10 +116,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// No pops. Sweeping pitch finely, the body forward must never jump -- a discontinuity means a guard is
-        /// hard-cutting a bone in or out of the average, which is exactly what the old thresholds did.
-        /// </summary>
         [Test]
         public void BodyForward_IsContinuous_AcrossThePitchSweep()
         {
@@ -191,11 +148,6 @@ namespace Basis.Tests.IK
                 "a bone is being hard-cut in or out of the average");
         }
 
-        /// <summary>
-        /// The paired legacy gate. Runs the OLD flatten-and-hard-cut formula and asserts it FAILS at the poles,
-        /// so the numbers above are measured rather than asserted into existence -- and so a revert to the old
-        /// formula fails loudly instead of silently.
-        /// </summary>
         [Test]
         public void Legacy_FlattenedForward_LosesTheYaw_LookingStraightDown()
         {
@@ -222,14 +174,6 @@ namespace Basis.Tests.IK
 
         // ---- T4: rest-pose reproduction (kills toes-up forever) --------------------------------------------
 
-        /// <summary>
-        /// At rest, FootRotation must reproduce the foot bone's T-pose world rotation EXACTLY.
-        ///
-        /// footAlign is the bone measured in the rest frame: inverse(restFrame) * boneRestRot. So at rest, where
-        /// the target frame IS the rest frame, frame * footAlign collapses to boneRestRot by construction. This
-        /// holds for ANY rig -- the foot bone's axes never enter into it, which is the entire point. A rig whose
-        /// foot bone is rotated 90 degrees from the body axes (most of them) must still stand flat.
-        /// </summary>
         [Test]
         public void FootRotation_AtRest_ReproducesTheBonesTposeRotation_OnAnyRig()
         {
@@ -263,11 +207,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// The same identity must survive the body being somewhere else in the world. Yaw the body and the foot
-        /// must yaw WITH it -- no more, no less. (A foot that rotates by anything other than the body's own yaw
-        /// is a foot picking up an offset from somewhere it should not.)
-        /// </summary>
         [Test]
         public void FootRotation_YawsExactlyWithTheBody()
         {
@@ -287,7 +226,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>Toe-off is plantarflexed (toes DOWN, positive), heel-strike is dorsiflexed (toes UP, negative).</summary>
         [Test]
         public void SwingAnklePitch_PlantarflexesAtToeOff_DorsiflexesAtHeelStrike()
         {
@@ -303,11 +241,6 @@ namespace Basis.Tests.IK
 
         // ---- T3: NaN must not escape ----------------------------------------------------------------------
 
-        /// <summary>
-        /// Degenerate inputs must never produce a NaN facing. A NaN'd transform PERSISTS in Unity -- the rig dies
-        /// and never recovers -- so this is not a cosmetic concern, it is the difference between a bad frame and
-        /// a bricked avatar.
-        /// </summary>
         [Test]
         public void BodyForward_NeverEmitsNaN_OnDegenerateInput()
         {
@@ -339,13 +272,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// The guard-shape gate, stated as an executable fact rather than a comment.
-        ///
-        /// `NaN &lt; 0.5f` is FALSE. So a validity check written as "reject if bad" waves NaN straight through --
-        /// which is exactly how a guard that was written to stop a zero quaternion still let a NaN into the bones.
-        /// The correct shape is "reject unless good": !(x &gt; threshold), which IS true for NaN.
-        /// </summary>
         [Test]
         public void NaN_DefeatsTheRejectIfBadGuardShape_ButNotRejectUnlessGood()
         {
@@ -392,17 +318,6 @@ namespace Basis.Tests.IK
 
         private static bool IsSentinel(Quaternion q) => q.x == 0f && q.y == 0f && q.z == 0f && q.w == 0f;
 
-        /// <summary>
-        /// THE CONTRACT. SolveTwoBone will multiply whatever we give it by the per-avatar offset. So the value we
-        /// hand over, once that multiply has happened, must be the bone rotation we actually meant:
-        ///
-        ///     (footRot * offset^-1) * offset  ==  footRot
-        ///
-        /// Tolerance is 0.5 degrees: an inverse plus two quaternion multiplies in float32 leaves ~0.1 deg of
-        /// round-trip noise. A real double-offset is tens of degrees (see the legacy gate below), so this is ~2
-        /// orders of magnitude clear of the defect it guards -- loose enough not to be flaky, nowhere near loose
-        /// enough to let the bug back through.
-        /// </summary>
         [Test]
         public void FootTargetRotation_SurvivesTheSolvesOwnOffsetMultiply()
         {
@@ -422,14 +337,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// LEGACY GATE -- proves the test above has teeth.
-        ///
-        /// If someone "simplifies" the pre-cancellation away and hands the bone rotation straight over, the result
-        /// is wrong by exactly the calibration offset. This asserts that the naive version really is badly wrong,
-        /// so the round-trip gate cannot pass vacuously (e.g. if every sample offset were identity). A revert then
-        /// fails loudly, with a reason, instead of silently reintroducing a bug that took a full day to find.
-        /// </summary>
         [Test]
         public void FootTargetRotation_NaiveVersionIsWrongByExactlyTheOffset()
         {
@@ -445,14 +352,6 @@ namespace Basis.Tests.IK
                 "and the error introduced is precisely the calibration offset -- that is the double-offset signature");
         }
 
-        /// <summary>
-        /// A degenerate OFFSET must degrade to the sentinel, never to NaN.
-        ///
-        /// A serialized Quaternion defaults to (0,0,0,0) -- NOT identity -- and Quaternion.Inverse divides by the
-        /// squared norm, so inverting it yields NaN. The window is real: the offset is only assigned when the avatar
-        /// has that foot mapped, and recalibration/avatar-swap rewrite it live. And a NaN here is not a glitch, it
-        /// is terminal: a NaN'd bone transform in Unity PERSISTS, so the rig dies and never recovers.
-        /// </summary>
         [Test]
         public void FootTargetRotation_DegenerateOffset_DegradesToSentinelNotNaN()
         {
@@ -467,11 +366,6 @@ namespace Basis.Tests.IK
                 "a NaN offset must fall back to the sentinel -- this is the guard whose `<` form failed open");
         }
 
-        /// <summary>
-        /// A degenerate FOOT ROTATION must also degrade to the sentinel. The offset can be perfectly valid and the
-        /// producer still hand us garbage (e.g. a LookRotation built on a collapsed frame), so guarding the input
-        /// alone is not enough -- the RESULT has to be checked too.
-        /// </summary>
         [Test]
         public void FootTargetRotation_DegenerateFootRotation_DegradesToSentinelNotNaN()
         {

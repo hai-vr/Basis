@@ -5,25 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// PROBE — "the lower leg floats around when I move the feet."
-    ///
-    /// Config: FOOT trackers, NO knee/lower-leg trackers — the ordinary 6-point FBT setup.
-    ///
-    /// Reproduces the SHIPPING knee path faithfully, which matters because the obvious guess is wrong:
-    /// FBIKButterflyKnees defaults TRUE, but the butterfly core gates on FOOT TILT (insteps rolled
-    /// outward). With flat feet engage = 0, HintWeight = 0, and TryComputeButterflyKnee returns false —
-    /// so butterfly is correctly OFF while you walk around, and the knee hint instead comes from
-    /// SolveLegs' fallback: BasisSwivelHintCore.LegHint (the fitted BasisLegSwivelModel), at hintW = 1.
-    ///
-    /// The pipeline actually under test, per frame:
-    ///     butterfly (weight 0 when flat) -> LegHint model fallback -> BasisLegSolveCore -> SmoothKneeSwivel
-    ///
-    /// The suspect is SmoothKneeSwivel's ConditionOnPole: it scales the One-Euro's beta by the knee's
-    /// lever arm off the hip->ankle axis, and a standing leg has almost none — so beta collapses toward 0
-    /// and the filter loses the speed-adaptivity that is the entire point of a One-Euro. It then cannot
-    /// tell real foot motion from jitter, and lags both.
-    /// </summary>
     public sealed class BasisLowerLegFloatTests
     {
         const float Dt = 1f / 90f;
@@ -49,7 +30,6 @@ namespace Basis.Tests.IK
             public bool Seeded;
         }
 
-        /// <summary>Result of one shipping frame.</summary>
         struct Frame
         {
             public Vector3 KneeRigid;    // the solve's knee, BEFORE the output One-Euro
@@ -61,7 +41,6 @@ namespace Basis.Tests.IK
             public float ModelConfidence;
         }
 
-        /// <summary>One frame of the REAL pipeline. `swivelSmoothing` toggles SmoothKneeSwivel.</summary>
         static Frame Step(Vector3 footPos, Quaternion footRot, ref Legs s, bool butterflyOn, bool swivelSmoothing,
                           bool trustModelBlindly = false)
         {
@@ -202,14 +181,10 @@ namespace Basis.Tests.IK
             LeftHip + (Quaternion.AngleAxis(outDeg, Vector3.forward) * Quaternion.AngleAxis(fwdDeg, Vector3.right)
                        * Vector3.down) * LegDist;
 
-        /// <summary>Foot swings 22° laterally out on its arc (~30 cm of travel). Near-extended leg — the
-        /// low-conditioning case — and it swings the leg PLANE, which is exactly what the swivel measures.</summary>
         static (Vector3, Quaternion) SwingOut(int i) => (FootAt(22f * T(i), 0f), Quaternion.identity);
 
-        /// <summary>Foot steps forward and out — a realistic shifting-about motion.</summary>
         static (Vector3, Quaternion) StepAbout(int i) => (FootAt(12f * T(i), 22f * T(i)), Quaternion.identity);
 
-        /// <summary>Knee lifted: the leg genuinely bends (conditioning recovers). The contrast case.</summary>
         static (Vector3, Quaternion) LiftKnee(int i)
         {
             float t = T(i);
@@ -219,15 +194,6 @@ namespace Basis.Tests.IK
 
         // --------------------------------------------------------------- the probe
 
-        /// <summary>
-        /// THE HEADLINE GATE. Swing the foot out to the side — an ordinary wide stance — and the knee must
-        /// keep pointing FORWARD and keep tracking the foot. It must not be flung.
-        ///
-        /// As shipped it was: the model's confidence collapsed 0.98 -> 0.28 across the swing, its predicted
-        /// swivel ran 4 -> 70 deg, the knee reversed direction laterally and its forward offset collapsed
-        /// from 13.4 cm to 5.5 cm. That is the reported "lower leg floats around when I move the feet", and
-        /// it is not a smoothing problem at all — it is the model being read outside the domain it was fit in.
-        /// </summary>
         [Test]
         public void Abduction_DoesNotFlingTheKnee()
         {
@@ -264,11 +230,6 @@ namespace Basis.Tests.IK
                 + "A knee that backs up while the foot goes out is the 'floating' the user sees.");
         }
 
-        /// <summary>
-        /// The paired negative: drive the same swing with the confidence gate switched OFF and assert the
-        /// knee IS flung. Without this, a change that made the model always confident would leave the gate
-        /// above green and silently dead.
-        /// </summary>
         [Test]
         public void TrustingTheModelBlindly_Fails_SoTheGateCannotRotIntoATautology()
         {
@@ -288,12 +249,6 @@ namespace Basis.Tests.IK
                 + "of forward offset); if it no longer does, the gate above is testing nothing");
         }
 
-        /// <summary>
-        /// THE NO-REGRESSION GATE, and the reason this fix is safe. Inside the fitted domain — confidence at
-        /// or above LegTrustHi, which is where every corpus frame lives — the trust is exactly 1, the pole is
-        /// untouched, and the solve is bit-for-bit what it was. The change can only act where the model has
-        /// already admitted it does not know.
-        /// </summary>
         [Test]
         public void InsideTheFittedDomain_TheGateIsExactlyANoOp()
         {
@@ -317,7 +272,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>Same solve with the hint suppressed entirely — the knee falls back to the BendNormal pole.</summary>
         static Frame StepNoHint(Vector3 footPos, ref Legs s)
         {
             BasisLegSolveInput li = default;
@@ -358,11 +312,6 @@ namespace Basis.Tests.IK
             };
         }
 
-        /// <summary>
-        /// THE BUTTERFLY MUST STILL WORK. Lie back, roll the insteps outward — the knees must splay.
-        /// This is the feature the whole butterfly path exists for; it is pinned before anything is changed
-        /// so that "still works" is a measurement and not a hope.
-        /// </summary>
         [Test]
         public void Probe_ButterflyStillSplaysTheKnee()
         {

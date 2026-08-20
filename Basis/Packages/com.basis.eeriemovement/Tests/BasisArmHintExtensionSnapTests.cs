@@ -4,25 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The elbow-hint snap at full extension (<see cref="BasisArmSolveCore"/>) — the arm's copy of the leg bug
-    /// pinned by <see cref="BasisLegHintExtensionSnapTests"/>.
-    ///
-    /// The arm LOOKS like it already handles this: it computes a `hintFade` ramp. But that ramp is keyed on
-    /// <c>ahProj</c>, the HINT's stand-off from the shoulder→hand axis, which a real strapped-on elbow tracker
-    /// keeps well clear of zero. The condition that actually admits the hint also demands
-    /// <c>abProj.sqrMagnitude > totalLen^2 * 0.001</c> — and <c>abProj</c> is the ELBOW's own lever arm, which
-    /// sweeps continuously to zero as the arm straightens. So the ramp fades a quantity that never collapses,
-    /// while a boolean cliff sits on the one that does.
-    ///
-    /// The HintIsTracker floor makes it worse rather than better: it pins projNorm to 0.30, so `hintFade` is a
-    /// flat 1.0 right up to the instant the abProj cliff trips. The elbow therefore falls from FULL hint to NONE
-    /// in a single step — a bigger discontinuity than the leg's.
-    ///
-    /// Measured the same way: sweep the hand through the singularity and watch elbow travel per unit of hand
-    /// travel. A pole switched off in one step teleports the elbow around the bend circle while the hand has
-    /// barely moved. See BasisLegHintExtensionSnapTests for the full rationale.
-    /// </summary>
     public class BasisArmHintExtensionSnapTests
     {
         // Right arm, T-pose-ish: shoulder at the origin, arm out along +X, elbow bent slightly back.
@@ -34,11 +15,6 @@ namespace Basis.Tests.IK
 
         const float SnapGate = 30f;
 
-        /// <summary>
-        /// An elbow tracker whose pole sits well off the plane the arm would otherwise bend in — the ordinary
-        /// case of a strap that has rotated on the limb. If the hint happened to agree with the rest bend the
-        /// snap would be invisible and the test would pass while the bug survived.
-        /// </summary>
         static Vector3 LateralHint => new Vector3(0.27f, 0.16f, -0.06f);
 
         static BasisArmSolveInput ArmAt(float extensionRatio, Vector3 hint, bool hintIsTracker)
@@ -108,7 +84,6 @@ namespace Basis.Tests.IK
                 $"the elbow jumped {worst:F1}x the hand's travel coming back at extension {at:F4}");
         }
 
-        /// <summary>Without a tracker the pole is lookup-derived, but the abProj cliff is in the shared path.</summary>
         [Test]
         public void ElbowDoesNotSnapAsTheArmStraightens_WithoutATracker()
         {
@@ -118,10 +93,6 @@ namespace Basis.Tests.IK
                 $"the elbow jumped {worst:F1}x the hand's travel in a single step at extension {at:F4}");
         }
 
-        /// <summary>
-        /// The fade must not become a way to quietly ignore elbow trackers. A bent arm is exactly where the pole
-        /// is well-conditioned, and there the hint has to be followed.
-        /// </summary>
         [Test]
         public void ABentArmStillFollowsItsElbowHint()
         {
@@ -137,7 +108,6 @@ namespace Basis.Tests.IK
                 "the raised elbow tracker must actually pull the elbow up toward it");
         }
 
-        /// <summary>At the singularity the pole carries no direction, so the tracker must stop mattering.</summary>
         [Test]
         public void AtFullExtensionTheElbowKeepsABoundedLeverArm()
         {

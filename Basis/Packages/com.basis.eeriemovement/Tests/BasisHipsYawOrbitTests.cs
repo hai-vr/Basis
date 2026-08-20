@@ -8,52 +8,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "IN HALF BODY THE HIPS JUT OUT LEFT AND RIGHT INSTEAD OF ACTING MORE LIKE A SPINE."
-    ///
-    /// ================================================================================================
-    /// THE SUSPECT, in one line. The pelvis's horizontal position is built from TWO yaw references that
-    /// are allowed to disagree:
-    ///
-    ///     supportBase  tracks  P.EyePos                      -- the HMD, which ORBITS the neck on a turn
-    ///     pelvis       =  supportBase + R(torsoYaw) * (hips - eye)_tpose
-    ///
-    /// The eye is not on the neck's yaw axis: it sits ~9 cm in front of it. So turning your head sweeps
-    /// the HMD sideways through an arc, the stance leash follows that arc within a frame or two
-    /// (HeadBaselineFollowRateGain = 250), and the pelvis is carried along with it -- while the arm that
-    /// is supposed to put the pelvis BACK under the body is rotated by the TORSO yaw, which deliberately
-    /// lags the head (VSpineTorsoYawBlendSpeed = 8, and a 45 deg deadzone on desktop).
-    ///
-    /// The two only cancel when torsoYaw == headYaw. Every time they differ the pelvis is displaced by
-    ///
-    ///     |R(headYaw) - R(torsoYaw)| * |eye - neck|_xz  =  2 * 0.09 m * sin(lag / 2)
-    ///
-    /// which is centimetres of pure fiction, pointing sideways, for a user who has not moved.
-    /// ================================================================================================
-    ///
-    /// This is the same class of bug -- and takes the same shape of fix -- as the phantom forward lean in
-    /// BasisSpineGazeContaminationTests: a cue read off a point that ORBITS the joint it is meant to
-    /// describe. There the answer was to reconstruct the NECK rigidly off the head so the lever arms
-    /// cancel algebraically. Here it is the same reconstruction, applied to the stance leash: leash the
-    /// yaw pivot, and measure the pelvis anchor arm from that same pivot. Both halves must move together
-    /// or the cancellation is lost, which is why one strength (VSpineGazeSwingRemoval) drives both.
-    ///
-    /// ⚠️ PREMISE, stated up front: these gates model a head turn as an EXACT rigid orbit of the neck
-    /// bone, the same premise BasisSpineGazeContaminationTests.GazeDown makes for a nod. A real turn is
-    /// distributed through the cervical spine, so the true pivot sits somewhere between the neck and the
-    /// skull and the real orbit is a little smaller than modelled. That makes these numbers an UPPER
-    /// bound on the artefact -- it does not make the artefact conditional, because no pivot choice puts
-    /// the HMD on the axis.
-    ///
-    /// ⚠️ VR ONLY, and the reason is worth knowing before changing the driver: BasisDesktopEye already
-    /// pins its simulated eye onto the yaw axis on purpose ("this is what stops the eye's static forward
-    /// offset ORBITING the neck every time you turn"), so a desktop eye has no arc to remove and
-    /// de-orbiting one would INVENT the very slide these gates forbid. The driver therefore passes
-    /// YawPivotFromEyeLocal only in VR; every gate here sets it, i.e. every gate here is the VR rig.
-    ///
-    /// House rule (inherited from BasisHipsSlideProbeTests): every gate asserting the fix is correct is
-    /// PAIRED with one that drives the OLD form and asserts it FAILS.
-    /// </summary>
     public sealed class BasisHipsYawOrbitTests
     {
         const int Head = 0, Neck = 1, Chest = 2, Spine = 3, Hips = 4;
@@ -68,20 +22,14 @@ namespace Basis.Tests.IK
         static readonly float3 k_Head = new float3(0f, 1.52f, 0f);
         static readonly float3 k_Eye = new float3(0f, 1.60f, 0.09f);
 
-        /// <summary>The lever, in the XZ plane: how far in front of the yaw axis the HMD sits.</summary>
         static readonly float k_EyeLeverXZ = math.length(new float2(k_Eye.x - k_Neck.x, k_Eye.z - k_Neck.z));
 
-        /// <summary>
-        /// A head that has ONLY turned. The body has not moved by one float -- the eye rides a rigid arc
-        /// about the neck, which is what an HMD physically does when you look over your shoulder.
-        /// </summary>
         static void HeadTurn(float yawDeg, out float3 eyePos, out quaternion eyeRot)
         {
             eyeRot = quaternion.AxisAngle(new float3(0f, 1f, 0f), math.radians(yawDeg));
             eyePos = k_Neck + math.mul(eyeRot, k_Eye - k_Neck);
         }
 
-        /// <summary>Ticks the REAL BasisVirtualSpineSolveJob. Returns the solved hips position per frame.</summary>
         static float3[] RunSpine(float dt, int frames, System.Func<int, float> yawAt, float deOrbit, float deadzoneDeg)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
@@ -120,7 +68,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>The same run, with the whole player also travelling forward -- for the invariance gate.</summary>
         static float3[] RunSpineWalking(float dt, int frames, float yawDeg, float speed, float deOrbit)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
@@ -234,7 +181,6 @@ namespace Basis.Tests.IK
             };
         }
 
-        /// <summary>Worst horizontal distance the pelvis ever travels from where it started.</summary>
         static float WorstSlide(float3[] hips)
         {
             float worst = 0f;
@@ -246,22 +192,11 @@ namespace Basis.Tests.IK
             return worst;
         }
 
-        /// <summary>Turn to `deg` over `turnSecs`, then hold.</summary>
         static System.Func<int, float> Turn(float dt, float turnSecs, float deg) =>
             i => deg * Mathf.Clamp01(i * dt / turnSecs);
 
         // ------------------------------------------------------------------ the gates
 
-        /// <summary>
-        /// ⭐ THE HEADLINE GATE, and it is the report verbatim: turn your head, and the pelvis must stay
-        /// where your feet are.
-        ///
-        /// VR default -- VSpineTorsoYawPlayInVR is OFF, so the deadzone is forced to 0 and the torso
-        /// follows the head continuously at blend speed 8 (tau = 125 ms). That is not a bug; a torso
-        /// SHOULD lag a head. The bug is that the pelvis POSITION is built from the lagging yaw while its
-        /// support base is built from the instantaneous one, so the lag is paid out as sideways travel:
-        /// out on the turn, back when the torso catches up. Out and back, every glance. "Jutting."
-        /// </summary>
         [Test]
         public void APureHeadTurn_DoesNotSlideThePelvisSideways()
         {
@@ -303,15 +238,6 @@ namespace Basis.Tests.IK
                 + $"{bestLegacy * 100f:F2} cm) -- if it no longer does, this gate is testing nothing");
         }
 
-        /// <summary>
-        /// THE HELD-TURN GATE -- the same artefact with the transient taken out of it, so it cannot be
-        /// dismissed as a settling wobble.
-        ///
-        /// With a yaw deadzone (45 deg: the desktop default, and VR when VSpineTorsoYawPlayInVR is on) the
-        /// torso does not follow AT ALL inside the cone. So a head held at 40 deg holds the disagreement
-        /// open forever, and the pre-fix pelvis simply sits ~6 cm to one side for as long as you look that
-        /// way. Nothing settles it.
-        /// </summary>
         [Test]
         public void AHeadHeldInsideTheYawDeadzone_LeavesThePelvisStandingWhereItWas()
         {
@@ -339,18 +265,6 @@ namespace Basis.Tests.IK
                 + $"{settledLegacy * 100f:F2} cm) -- if it no longer does, this gate is testing nothing");
         }
 
-        /// <summary>
-        /// ⭐ THE INVARIANCE GATE, and the reason this change is safe to make at all.
-        ///
-        /// The de-orbit moves the leash reference by R(headYaw) * (neck - eye) and subtracts the SAME
-        /// vector from the pelvis anchor arm, which is rotated by R(torsoYaw). When those two yaws agree
-        /// the pair cancels EXACTLY -- so on any motion where the head yaw is not changing (walking,
-        /// leaning, stepping, standing), this is a bit-for-bit no-op and every gate in
-        /// BasisHipsSlideProbeTests is untouched by construction.
-        ///
-        /// Driven here with the head held at a constant 30 deg -- off-axis on purpose, so a broken
-        /// implementation that only cancels at yaw 0 cannot pass.
-        /// </summary>
         [Test]
         public void WithAConstantHeadYaw_TheDeOrbitIsExactlyANoOp()
         {
@@ -376,14 +290,6 @@ namespace Basis.Tests.IK
                 + "existing stance-leash gates are no longer covering the shipping law.");
         }
 
-        /// <summary>
-        /// THE NO-REGRESSION GATE: real travel must still be followed. The de-orbit removes an ARC, not a
-        /// walk, so a user who physically walks 40 cm must still take their pelvis with them.
-        ///
-        /// This is the gate that stops the fix from being implemented as "leash more slowly" -- which
-        /// would silence the jutting and hand back both of the reports that produced the current follow
-        /// law ("the hips stay in the middle of the play space", "it's stop start").
-        /// </summary>
         [Test]
         public void RealTravelIsStillFollowed_TheDeOrbitRemovesAnArcNotAWalk()
         {

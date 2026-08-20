@@ -5,26 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Elbow-direction regression tests for the arm IK sweep system.
-    ///
-    /// These exercise the pure, stream-free elbow math directly -- <see cref="BasisArmBendLookup"/>
-    /// (the chest-relative bend-direction lookup) and <see cref="BasisArmSolveCore"/> (the two-bone
-    /// solve, a fork of Unity's SolveTwoBoneIK with the Basis pole-flip / rate-limit handling). They
-    /// guard the failure modes the elbow used to have:
-    ///
-    ///   1. ELBOW FLIP   -- the pole snapping to the opposite side on smooth motion / tracker noise.
-    ///   2. ELBOW IN FRONT -- the elbow winging up and forward instead of tucking naturally behind
-    ///                        and below the hand.
-    ///   3. FULL-EXTENSION FLIP -- as the arm extends out fully the elbow pole collapses onto the
-    ///                        shoulder->hand axis; the elbow must ride along, not snap to the wrong side.
-    ///
-    /// Thresholds are intentionally looser than the values the current solver produces (each test
-    /// notes the measured headroom) so they fail only on a real regression, not on float noise.
-    ///
-    /// This is the same geometry the offline BasisArmIKSweep CSV harness scans, asserted here so the
-    /// "elbow behind the hand, never flipped" property is checked in CI instead of by eyeballing a CSV.
-    /// </summary>
     public class BasisElbowDirectionTests
     {
         // Adult-ish arm, matching BasisArmIKSweepConfig.Default().

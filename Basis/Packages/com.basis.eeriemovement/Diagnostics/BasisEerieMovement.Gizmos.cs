@@ -324,7 +324,7 @@ namespace Basis.IK
             }
 
             // Both of these are directions rooted at the SHOULDER, not the elbow: the solver builds
-            // the hint as shoulderPos + 0.5 * armLen * swingHintBend, and the pole anchor is the
+            // the hint as shoulderPos + 0.5 * armLen * armState[slot].HintBend, and the pole anchor is the
             // pole direction off the same limb root. Drawn from the elbow they pointed nowhere real.
             float armLength = (handPos - shoulderPos).magnitude;
             float hintLength = armLength > k_MinMag ? armLength * 0.5f : gizmos.AxisLength * 2f;

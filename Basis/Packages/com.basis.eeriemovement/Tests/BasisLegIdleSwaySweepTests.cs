@@ -6,40 +6,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Leg IK moves unnaturally while standing still" sweep for the two-bone leg solver
-    /// (<see cref="BasisLegSolveCore"/>, the stream-free port of BasisFullIKConstraintJob.SolveTwoBone).
-    ///
-    /// Scenario: stand idle with no leg trackers (3pt / foot-IK). The foot is planted (foot-IK target is a
-    /// world-anchored plant, rotation = zero-quat sentinel = position-only) and the whole pre-IK leg
-    /// translates rigidly with the body as it micro-sways. The solver pulls the foot back to the plant
-    /// every frame. The complaint is that this small idle sway moves the knee/leg a visibly larger,
-    /// unnatural amount.
-    ///
-    /// Mechanism this sweep isolates: near full extension a two-bone limb has very high gain. With equal
-    /// segments L the knee's forward bulge is d = sqrt(L^2 - (chord/2)^2); its slope d(d)/d(chord) -> -inf
-    /// as the chord (hip->foot distance) approaches 2L. So a tiny change in hip-to-plant DISTANCE -- which
-    /// is exactly what a vertical HMD micro-bob or a fwd/back lean produces while the feet stay planted --
-    /// swings the knee forward/back by a large multiple of the body's motion. A real standing leg keeps a
-    /// soft bend and barely moves.
-    ///
-    /// The sweeps drive the solver the way BasisLocalRigDriver does for the no-tracker standing case:
-    ///   Root/Mid/Tip = the rest-pose leg translated by the body offset (rigid pre-IK pose),
-    ///   TargetPosition = the fixed plant, HintWeight = the foot-IK blend (~1), HintPosition forward of
-    ///   the knee, BendNormal = the hip's right axis (kneeBendPrefLeft = hipsRot * right), so the knee
-    ///   bends in the sagittal plane -- the same plane the body sways in.
-    ///
-    /// Knee/foot OUTPUT POSITIONS depend only on the input POSITIONS + the bend axis, never on the input
-    /// bone rotations, so those are left identity here. "Gain" = world-space knee excursion / body
-    /// excursion over the idle cycle; >1 means the knee moved more than the body (the unnatural pop).
-    ///
-    /// This is ISOLATED-SOLVER CHARACTERIZATION only -- every test passes and just prints the gain tables.
-    /// The live IK pipeline conditions this sensitivity away (forward knee hint + foot/knee smoothing): the
-    /// in-editor IK Sweeps window's Run All leg gates pass, incl. "stance flicker" (0 oscillations at reach
-    /// 0.99) and "temporal+footnoise" (knee jitter 7mm well-conditioned vs 68mm raw). So these numbers show
-    /// where the raw two-bone solve is touchy near full extension, NOT a live bug -- the foot DRIVER, not
-    /// this solver, owns standing-idle foot behaviour (see BasisFootIKSweep).
-    /// </summary>
     public class BasisLegIdleSwaySweepTests
     {
         const float Upper = 0.45f, Lower = 0.45f; // typical adult thigh/shin; equal segments

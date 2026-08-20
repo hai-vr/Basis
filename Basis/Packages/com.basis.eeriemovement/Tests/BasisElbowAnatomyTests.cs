@@ -4,23 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// AN ELBOW CANNOT POINT AT THE SKY.
-    ///
-    /// The report: "the arms are able to get in rotations that are not possible, I'm still seeing the
-    /// occasional arm bending up (so the elbows point to the sky)."
-    ///
-    /// The KNEE has been hard-guarded into its anatomical half-space for a long time (BasisLegSolveCore:
-    /// "a knee behind that axis is not unnatural, it is anatomically unrepresentable"). THE ARM HAD NO SUCH
-    /// GUARD AT ALL -- nothing stopped the solver placing the elbow anywhere on its circle, including straight
-    /// up. BasisElbowAnatomyCore closes that, and this file is the proof, in both directions:
-    ///
-    ///   * it makes the impossible pose UNREACHABLE, and
-    ///   * it leaves every possible pose BYTE FOR BYTE untouched.
-    ///
-    /// The second half matters as much as the first. A guard that perturbs legal poses to fix illegal ones is
-    /// the wrong trade, and it is how guards end up being deleted by the next person.
-    /// </summary>
     public sealed class BasisElbowAnatomyTests
     {
         const float k_Upper = 0.30f;
@@ -29,7 +12,6 @@ namespace Basis.Tests.IK
         static readonly Vector3 k_Shoulder = new Vector3(0.17f, 1.40f, 0f);
         static readonly Vector3 k_Up = Vector3.up;
 
-        /// <summary>A geometrically real elbow: on the true circle, at the true bone distances.</summary>
         static Vector3 ElbowAt(Vector3 hand, float swivelDeg)
         {
             Vector3 ac = hand - k_Shoulder;
@@ -46,7 +28,6 @@ namespace Basis.Tests.IK
             return centre + radius * (u * Mathf.Cos(rad) + v * Mathf.Sin(rad));
         }
 
-        /// <summary>Applies the guard and returns where the elbow ends up.</summary>
         static Vector3 Guarded(Vector3 hand, Vector3 elbow)
         {
             float sw = BasisElbowAnatomyCore.GuardSwivelRad(k_Shoulder, elbow, hand, k_Up, k_Arm);
@@ -55,12 +36,6 @@ namespace Basis.Tests.IK
             return k_Shoulder + Quaternion.AngleAxis(sw * Mathf.Rad2Deg, axis) * (elbow - k_Shoulder);
         }
 
-        /// <summary>
-        /// The hand must be genuinely IN REACH, or the elbow's circle has collapsed to a point on the arm axis
-        /// and there is no swivel that could put it anywhere -- so a guard test would "pass" without ever
-        /// exercising the guard. That is exactly how the first version of this file reported safety while the
-        /// bug it was written for was still live.
-        /// </summary>
         static void RequireInReach(Vector3 hand)
         {
             float d = Vector3.Distance(k_Shoulder, hand);
@@ -83,10 +58,6 @@ namespace Basis.Tests.IK
         // 1. THE IMPOSSIBLE MUST BECOME UNREACHABLE.
         // ============================================================================================
 
-        /// <summary>
-        /// ⭐ THE REPORTED BUG. Hand at chest height, elbow commanded STRAIGHT UP -- the pose the user is
-        /// seeing. The guard must pull it back under the ceiling, and must not move the hand doing it.
-        /// </summary>
         [Test]
         public void AnElbowPointedAtTheSky_IsPulledBackUnderTheCeiling()
         {
@@ -133,9 +104,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>THE HAND DOES NOT MOVE. The correction is a swivel about the shoulder->hand axis, and the
-        /// hand lies on that axis -- so this is geometry, not a tolerance. Pinned so nobody ever "fixes" the
-        /// elbow by trading the hand away.</summary>
         [Test]
         public void TheGuard_NeverMovesTheHand_AtAnyExtension()
         {
@@ -161,9 +129,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>Sweep the elbow all the way round its circle: NO angle may end up above the hard limit.
-        /// This is the "unreachable, not merely discouraged" property -- the same status the knee's guard has.
-        /// </summary>
         [Test]
         public void NoPointOnTheCircle_CanEndUpAboveTheHardLimit()
         {
@@ -187,15 +152,6 @@ namespace Basis.Tests.IK
         // 2. THE POSSIBLE MUST BE UNTOUCHED -- exactly, not approximately.
         // ============================================================================================
 
-        /// <summary>
-        /// ⭐ THE OTHER HALF OF THE PROOF. Every pose a real human actually held must pass through the guard
-        /// BIT FOR BIT. The margins were chosen from the corpus (worst real violation: 0.015 arm lengths; the
-        /// soft margin is 0.05) precisely so this holds, and it is asserted rather than assumed.
-        ///
-        /// The poses below are the corpus's own measured extremes, taken from the envelope table in
-        /// BasisElbowAnatomyCore: arms down, hands at waist, chest, face, and overhead -- each at the tightest
-        /// headroom that bin produced.
-        /// </summary>
         [Test]
         public void EveryPoseARealHumanHolds_PassesThroughUntouched()
         {
@@ -226,8 +182,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>The guard is SCALE-FREE: the margins are fractions of the arm, so a child avatar and a
-        /// giant get the same posture, not the same centimetres.</summary>
         [Test]
         public void TheGuard_IsScaleFree()
         {
@@ -285,12 +239,6 @@ namespace Basis.Tests.IK
         // 4. END TO END, THROUGH THE REAL SOLVER.
         // ============================================================================================
 
-        /// <summary>
-        /// The guard lives at the END of BasisArmSolveCore, so nothing -- not a hint, not a tracker, not the
-        /// pole-collapse stabilizer, not the animated pose the solve began from -- can leave the arm outside
-        /// the envelope. Drive the solver with a hint that DEMANDS a sky-pointing elbow and check it cannot
-        /// deliver one.
-        /// </summary>
         [Test]
         public void TheSolver_RefusesASkyPointingHint_AndKeepsTheHandOnTarget()
         {

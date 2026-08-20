@@ -5,26 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// A straight arm must not carry a large permanent HUMERAL ROLL.
-    ///
-    /// THE DEFECT (user: "i do a tpose while in vr with my arms and it rotates", and the same in a starfish).
-    /// BasisElbowFieldModel predicts the CORPUS-MEAN elbow, and CMU contains essentially no straight-arm lateral
-    /// holds -- a T-pose is a calibration pose, not a motion -- so the mean there is dragged backward by the
-    /// reaching motions that DO trail the elbow. Measured on the shipping model: at a lateral straight arm it
-    /// wanted the elbow 52 deg BACK of straight down, where a real one hangs down.
-    ///
-    /// WHY THAT IS EXPENSIVE. At full extension the elbow's lever arm is ~2 cm, so 52 deg of azimuth buys almost
-    /// no elbow DISPLACEMENT -- it is paid almost entirely as humeral ROLL. Roll moves no joint, so every
-    /// position gate in this repo is structurally blind to it (the documented blind spot), while it is very
-    /// visible as a twisted, pinched deltoid. Measured 53 deg of permanent twist on an elbow-down bind.
-    ///
-    /// TWO EXPLANATIONS WERE RULED OUT BY MEASUREMENT BEFORE THE FIX, and the tests below keep them ruled out:
-    ///   - NOT a conditioning collapse: d(roll)/d(hand) was 0.15 deg/mm at every reach INCLUDING 1.000, i.e.
-    ///     stable, not noise. A singularity fix would have been the wrong tool.
-    ///   - EXACTLY a fixed offset: roll tracked the avatar's BIND azimuth at slope -1.00, so it is the constant
-    ///     disagreement between the bind and the model's preferred azimuth.
-    /// </summary>
     public class BasisElbowDownAtExtensionTests
     {
         const float Upper = 0.28f, Fore = 0.26f;
@@ -36,7 +16,6 @@ namespace Basis.Tests.IK
             Right = Vector3.right, Up = Vector3.up, Forward = Vector3.forward, Valid = true,
         };
 
-        /// <summary>Bind with the elbow at `bindAzDeg` about the arm axis: 0 = straight DOWN, +90 = FORWARD.</summary>
         static void Bind(float bindAzDeg, float bendDeg, out Vector3 elbow, out Vector3 hand, out Quaternion rootRot)
         {
             Vector3 bulge = (Mathf.Cos(bindAzDeg * Mathf.Deg2Rad) * Vector3.down
@@ -76,7 +55,6 @@ namespace Basis.Tests.IK
             return 2f * Mathf.Atan2(s, c) * Mathf.Rad2Deg;
         }
 
-        /// <summary>The elbow the model asks for on a straight lateral arm must hang roughly DOWN.</summary>
         [Test]
         public void OnAStraightLateralArm_TheModelWantsTheElbowRoughlyDown()
         {
@@ -106,7 +84,6 @@ namespace Basis.Tests.IK
                 $"an elbow-down bind carries {Mathf.Abs(roll):F1} deg of humeral twist at reach {reach:F2} (was 53 deg)");
         }
 
-        /// <summary>Below the gate the fitted field must be untouched: that is where it was actually trained.</summary>
         [Test]
         public void BelowTheReachGate_TheFieldIsUntouched()
         {
@@ -116,10 +93,6 @@ namespace Basis.Tests.IK
                 "at the gate's start the solve must be bit-identical to the un-biased field");
         }
 
-        /// <summary>
-        /// It must remain a FIXED OFFSET, not become noise: the whole point of the diagnosis was that this is
-        /// not a conditioning collapse, and a fix that made it one would be a regression.
-        /// </summary>
         [Test]
         public void TheRollStaysWellConditioned([Values(0.95f, 0.98f, 1.00f)] float reach)
         {
@@ -131,7 +104,6 @@ namespace Basis.Tests.IK
                 "a millimetre of hand travel must not swing the humerus: that would be a singularity, not an offset");
         }
 
-        /// <summary>No new fold: the elbow azimuth must stay continuous through the gate's ramp.</summary>
         [Test]
         public void NoDiscontinuityAcrossTheGate()
         {

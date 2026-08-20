@@ -4,40 +4,12 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The cross-space conformance gate for the IK solve cores.
-    ///
-    /// One property covers the whole class of coordinate-space bugs:
-    ///
-    ///     EQUIVARIANCE:  Solve(T . inputs)  ==  T . Solve(inputs)      for any rigid T = (rotation, translation)
-    ///
-    /// Rotate and translate every world-space quantity a core is given -- joints, targets, hints, bind axes,
-    /// PlayerUp, bend normals -- and the solved pose must come back rotated and translated by exactly the same
-    /// T. Scalars the core reports (reach ratio, joint angle, penetration depth) must not move at all: they are
-    /// properties of the body, not of where the body happens to be standing.
-    ///
-    /// A core that reaches for a WORLD constant -- Vector3.up, Vector3.forward, Vector3.down -- instead of the
-    /// body/player frame it was handed cannot satisfy this, because the constant does not rotate with T. That is
-    /// exactly how both shipped defects looked:
-    ///   - SmoothKneeSwivel measured the knee against world forward, so a turn leaked into the knee DOF;
-    ///   - the T-pose capture stored a world-axes offset that the bone sim then rotated a second time.
-    /// Neither was reachable by the existing per-core gates, which all test one orientation. This one is
-    /// orientation-blind by construction, so a leak has nowhere to hide.
-    ///
-    /// Being equivariant is also what "the avatar behaves the same wherever you stand and whichever way you
-    /// face" means, formally: it is the property the whole rig is silently assumed to have.
-    ///
-    /// NOT transformed, on purpose: TargetOffset and the T-pose binds are LOCAL quantities (a bind rotation
-    /// relative to the avatar root), so a global re-orientation of the world must leave them alone. Transforming
-    /// them would test a different -- and wrong -- contract.
-    /// </summary>
     public class BasisIKEquivarianceTests
     {
         const float PosTolM = 1e-3f;     // 1 mm
         const float RotTolDeg = 0.05f;
         const float ScalarTol = 1e-3f;
 
-        /// <summary>A rigid transform T. Points rotate and translate; directions only rotate.</summary>
         readonly struct Rigid
         {
             public readonly Quaternion R;
@@ -269,14 +241,6 @@ namespace Basis.Tests.IK
 
         // --------------------------------------------------------------------------------- cervical
 
-        /// <summary>
-        /// Head pitches MUST span both sides of MaxHeadPitchDeg (80). The head-pitch clamp is a branch that only
-        /// runs past that threshold, and it used to measure pitch against WORLD up (world XZ as the horizon,
-        /// Cross(Vector3.up, ...) as the yaw axis) while the rest of the core used ReferenceUp -- so the core
-        /// disagreed with itself the moment the torso tilted. The first draft of this gate fed a 55 deg
-        /// look-down, never reached the branch, and passed while the bug was live. A gate that green-lights code
-        /// it never executes is worse than no gate: exercise the clamp.
-        /// </summary>
         static readonly Quaternion[] CervicalGazes =
         {
             Quaternion.Euler(0f, 0f, 0f),      // level
@@ -337,11 +301,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// Reproduces the old world-framed pitch clamp and asserts it violates equivariance under a torso tilt,
-        /// so the defect is measured rather than remembered. Yaw alone does NOT expose it (world up lies on the
-        /// yaw axis), which is why it survived: you have to bend over.
-        /// </summary>
         [Test]
         public void Legacy_CervicalPitchClamp_BreaksUnderTorsoTilt_WorldUpReference()
         {
@@ -360,7 +319,6 @@ namespace Basis.Tests.IK
                 "if it no longer does, the defect model is wrong");
         }
 
-        /// <summary>The pitch measurement exactly as BasisCervicalSolveCore computed it before the fix.</summary>
         static float LegacyWorldFramedPitchDeg(Quaternion headRot)
         {
             Vector3 hf = headRot * Vector3.forward;
@@ -484,18 +442,6 @@ namespace Basis.Tests.IK
 
         // --------------------------------------------------------------------------------- precision vs distance
 
-        /// <summary>
-        /// The OTHER half of "does the avatar behave the same wherever you stand": float32 precision.
-        ///
-        /// Equivariance above is a statement about the reference FRAME and is gated tightly. This gates
-        /// DISTANCE, which is a genuinely different failure: a solve far from the world origin differences two
-        /// large coordinates to recover a 30 cm bone, and the mantissa runs out. Nothing is wrong with the
-        /// maths -- there is simply less of it left. Worth measuring rather than tolerating, because it is the
-        /// number that says how large a world can get before the IK visibly degrades.
-        ///
-        /// Pure translation, so the solved pose must translate with it and every scalar must hold still.
-        /// The measured curve is written to the test log.
-        /// </summary>
         [Test]
         public void ArmSolve_DegradesGracefully_FarFromWorldOrigin()
         {

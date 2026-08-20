@@ -4,23 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The crouch sit-back (<see cref="BasisCrouchOffsetCore"/>) against real human crouch kinematics.
-    ///
-    /// The corpus table below is measured from the Basis mocap corpus (CMU BVH, Tests/MocapCorpus~): 69
-    /// clips / ~20k frames of standing crouches (feet planted and slow, knees flexed &gt; 25 deg, hips off
-    /// the floor, head 4-60% below standing). Per frame: head drop and hips-behind-head horizontal offset
-    /// (along the pelvis' backward), both normalized by that subject's standing head height S. Aggregated
-    /// per-clip-first (bucket medians per clip, then the median across clips) so no subject dominates and
-    /// between-subject baseline offsets cancel -- the Simpson's-paradox guard the counterbalance fit needed.
-    ///
-    /// What the data says, and what these tests pin:
-    ///   * the sit-back is FRONT-LOADED: at 10% drop the pelvis is already ~11.5%S back (a straight-down
-    ///     fold with the knees eating the drop is exactly what real humans do not do);
-    ///   * it saturates ~0.25*S by mid squat and stays there to full depth;
-    ///   * the 3D head-hips distance barely changes while this happens (0.89-1.00 of standing), so the
-    ///     hips ride the rest-length sphere and the trunk lean is emergent geometry.
-    /// </summary>
     public class BasisCrouchSitBackTests
     {
         const float StandH = 1.60f;

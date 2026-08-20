@@ -5,26 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "On SOME avatars the head jitters around forward and does not follow the HMD" regression tests.
-    ///
-    /// Two rig-dependent failure modes, both invisible on a full canonical rig:
-    ///
-    /// 1. OPTIONAL BONES. Neck, upperChest and chest are optional humanoid bones. The chain used to be
-    ///    built at a fixed length with unbound handles standing in for absent bones, and
-    ///    SolveSequentialSpineIK returns when ANY chain handle is invalid -- so on a neckless or chestless
-    ///    avatar the entire spine solve, including the head pin welded to the HMD, silently switched off.
-    ///    The head then kept the animator's pose: it wobbled with the idle/locomotion animation near
-    ///    body-forward and ignored the HMD. The chain now carries only the bones the avatar has, and the
-    ///    chest is identified by chainChestIdx instead of index-from-length arithmetic.
-    ///
-    /// 2. ROLLED HIPS BINDS. The CCD's twist axis was the raw hips BONE's up, which is a rig convention --
-    ///    a Blender-bound rig (hips rolled -90 about X) put that axis along body-forward, so the
-    ///    anti-corkscrew twist relax stripped bend as twist and kept twist as bend on exactly those rigs.
-    ///    The axis is now bind-cancelled (hipsRot * inv(offsetRotationHips)), the same cancellation
-    ///    DistributeSpineBend, the crouch offset and the arm-swing follow already ship. A zero (unset)
-    ///    bind falls back to the raw bone frame, which keeps every hand-built job bit-identical.
-    /// </summary>
     public class BasisSpineChainDegradedTests
     {
         GameObject _root;

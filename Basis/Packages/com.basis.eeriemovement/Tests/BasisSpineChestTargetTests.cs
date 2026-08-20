@@ -4,23 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// THE CHEST AS A SECONDARY IK TARGET -- does it improve the chest WITHOUT costing the head?
-    ///
-    /// The job's SolveChestTarget reads live transform handles, which cannot be driven from NUnit. So this is
-    /// a DESIGN MODEL: a self-contained forward-kinematics chain running the EXACT two-phase algorithm the job
-    /// runs (place the chest with the lower spine; restore the head with the upper joints), using the SAME
-    /// shared BasisTwistSolveCore.ShapeReachStep so the shaping cannot drift from the job. It validates the
-    /// principle -- the job wiring is covered by the full suite (no regressions) and, finally, in a headset.
-    ///
-    /// A humanoid spine is directly parented (spine -> chest -> upperChest -> neck -> head), so this chain's
-    /// FK-from-offsets matches what the job reads from live transforms. The properties proven here are the
-    /// ones that make the feature safe to ship on by default:
-    ///   1. weight 0 is bit-identical to the head-only solve   (the "same usability" guarantee)
-    ///   2. the head is never traded away for the chest         (usability preserved at every weight)
-    ///   3. the chest lands closer to its target                (the improvement)
-    ///   4. no pop as the weight changes                        (continuity)
-    /// </summary>
     public sealed class BasisSpineChestTargetTests
     {
         const float Relax = 0.8f;

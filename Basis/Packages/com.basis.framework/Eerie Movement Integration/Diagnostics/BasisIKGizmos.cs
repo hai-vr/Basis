@@ -48,6 +48,13 @@ namespace Basis.Scripts.Debugging
         private static bool _visible;
         private static bool _registered;
 
+        public static void Hide()
+        {
+            EnsureMasterToggleHook();
+            SetVisible(false);
+            DestroyLabels();
+        }
+
         public static void Tick(bool shouldShow, BasisTransformMapping bones, in BasisEerieMovement job, bool showLabels, Vector3 cameraPos)
         {
             EnsureMasterToggleHook();

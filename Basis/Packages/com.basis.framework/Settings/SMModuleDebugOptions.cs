@@ -619,7 +619,14 @@ public class SMModuleDebugOptions : BasisSettingsBase
         {
             BasisLocalPlayer player = BasisLocalPlayer.Instance;
             bool ikReady = player != null && player.LocalRigDriver != null && player.LocalRigDriver.IKDataReady;
-            BasisIKColliderGizmo.Tick(ikReady, ikReady ? player.LocalRigDriver.basisTransformMapping : null, ikReady ? player.LocalRigDriver.IKJob : default, UseGizmoLabels, _camPos);
+            if (ikReady)
+            {
+                BasisIKColliderGizmo.Tick(true, player.LocalRigDriver.basisTransformMapping, in player.LocalRigDriver.IKJob, UseGizmoLabels, _camPos);
+            }
+            else
+            {
+                BasisIKColliderGizmo.Hide();
+            }
         }
 
         BasisHintOffsetGizmos.Tick(UseHintOffsets, UseGizmoLabels, _camPos);

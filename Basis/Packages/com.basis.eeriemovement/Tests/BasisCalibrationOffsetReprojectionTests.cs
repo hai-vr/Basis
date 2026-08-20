@@ -3,21 +3,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Regression tests for FBT position-offset reprojection
-    /// (<see cref="BasisCalibrationMath.ReprojectInverseOffsetPosition"/>): the mechanism that lets a
-    /// T-pose calibration keep fitting after an avatar swap, a scale-slider change, or a device
-    /// reconnect — WITHOUT redoing the T-pose. Rotation calibration has had this since 2026-06 (the
-    /// s_ref mechanism); positions were left stale, so every swap/scale change degraded FBT fit until
-    /// a manual recalibration.
-    ///
-    /// The reprojection rebuilds the calibration geometry from scale-free snapshots (tracker + head in
-    /// unscaled device space) at the current DeviceScale/OffsetCoords, anchors the avatar with
-    /// DriveTpose's own math, and re-captures the offset against the current avatar's T-pose bind.
-    /// These tests pin the exactness properties that make that valid: same-state reprojection is a
-    /// no-op, and after any scale / proportion / frame change the bone lands exactly on the rebuilt
-    /// reference. All assertions are exact math (small float tolerances only).
-    /// </summary>
     public class BasisCalibrationOffsetReprojectionTests
     {
         // A believable calibration scene: player head ~1.65 m, hip tracker on the body, mild yaw.

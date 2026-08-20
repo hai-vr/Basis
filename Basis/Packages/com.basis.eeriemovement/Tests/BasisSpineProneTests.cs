@@ -5,14 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// While prone the locomotion animation owns the pelvis. Every hips placement stage in SolveSpine
-    /// (lock-mode restore, hips-under-head clamp, counterbalance, hip hinge, crouch sit-back) models an
-    /// upright body under the head, so with the desktop camera at floor height they would fold a lying
-    /// pose back under the camera. proneBodyPose stands the hips stage down to a single yaw follow:
-    /// the lying pose swings rigidly about the head to trail the torso yaw in targetRotationHips, and
-    /// the chain solve must still pin the head to the gaze so the player can look around while crawling.
-    /// </summary>
     public class BasisSpineProneTests
     {
         GameObject _root;

@@ -4,23 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Chest hunches forward when I look down" regression tests for the spine-bend distribution
-    /// (<see cref="BasisSpineBendCore"/>, driven by DistributeSpineBend).
-    ///
-    /// The forward pre-bend is inferred from the HEAD-TARGET position relative to the chest. In VR the
-    /// head target is the HMD, which sits forward of the joint the head pivots on -- so tilting the gaze
-    /// down swings the HMD forward and the bend misreads that pure look-down as a forward torso LEAN,
-    /// hunching the spine/upper-chest forward (and the squish multiplier compounds it). With a chest
-    /// tracker the real lean is already measured, so DistributeSpineBend drops the head-position-derived
-    /// pitch/roll pre-bend (zeroes those weights) and keeps only the head-facing twist.
-    ///
-    /// These pin both halves: that a forward-swinging head DOES hunch the torso at the normal (no-tracker)
-    /// weights -- so the suppression isn't a no-op someone can delete -- and that zeroing the lean weights
-    /// (the chest-tracker path) removes the hunch while preserving the facing twist. Position drives the
-    /// pre-bend, so the head is held level here to isolate it; the look-down is modelled as the HMD arcing
-    /// forward, exactly what the live rig feeds in.
-    /// </summary>
     public class BasisSpineLookDownHunchTests
     {
         // Production defaults, matching BasisFullBodyIK.SetDefaults().

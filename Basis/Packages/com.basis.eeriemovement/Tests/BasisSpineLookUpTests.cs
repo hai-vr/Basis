@@ -4,35 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Looking up is not natural -- the chest comes super forwards and is almost linear before it goes up
-    /// to the head", headset only, no hips tracker.
-    ///
-    /// THE MECHANISM. The whole torso is estimated from one line, in two places -- the FBIK neck cue
-    /// (ComputeNeckCue) and the virtual spine's Head->Neck rotational lock:
-    ///
-    ///     neck = headTargetPos + headWorldRot * tposeHeadToNeckLocal
-    ///
-    /// which swings the head->neck lever by the WHOLE gaze, i.e. assumes a nod pivots at the neck bone.
-    /// <see cref="BasisSpineGazeContaminationTests"/> pins that estimate at exactly zero contamination --
-    /// and it is exact, but only under its own premise: its GazeDown() builds the head as
-    /// `neck + q*(head-neck)`, an exact rigid orbit. A real look-UP is not that. Cervical extension is
-    /// short and a look-up is taken largely by the thoracic spine arching, so the skull barely slides back
-    /// over the shoulders -- which is precisely why <see cref="BasisHeadPitchSwingCore"/> scales the
-    /// geometric prediction of that travel down to 0.35 on this side of the sweep and nowhere else.
-    ///
-    /// So the un-orbit over-rotates, and the residual (1 - carry) * (R - I) * lever points FORWARD and UP.
-    /// Measured on a 10 cm lever at a 60 deg look-up: 5.6 cm of neck that walked out in front of the body
-    /// and 3.3 cm that floated above it, with the player standing still. Everything that asks "where is the
-    /// torso" then answers with a lean that never happened -- the pre-bend folds the chest, the trunk
-    /// counterbalance slides the pelvis back to answer the phantom fold, and the virtual spine strings the
-    /// chest and spine bones along the neck->hips chord so the chest target itself is dragged forward with
-    /// it (and, with FBIKChestIKTarget on, the real chest bone after it).
-    ///
-    /// These tests drive the stream-free cores directly, the same way the look-down suites do. They are
-    /// written against the ARTIFACT, not against the constant: every bound is on how much phantom motion
-    /// survives, so the physiology number can be retuned without rewriting them.
-    /// </summary>
     public class BasisSpineLookUpTests
     {
         // A 1.7 m humanoid, standing, sagittal. Straight so that every centimetre measured below is the
@@ -45,18 +16,12 @@ namespace Basis.Tests.IK
 
         const float Damp = BasisNeckCueCore.DefaultExtensionDamp;   // 0.65 shipped
 
-        /// <summary>
-        /// How much of a rigid neck orbit the head actually performs. 1 = the idealised orbit the existing
-        /// gaze-contamination suite assumes; 0.35 = what BasisHeadPitchSwingCore says a look-up really does.
-        /// </summary>
         const float RealLookUpCarry = 0.35f;
 
         // Unity convention, shared with BasisCervicalDirectionTests and BasisHeadSweep: POSITIVE pitch is
         // looking DOWN.
         static Quaternion Gaze(float pitchDeg) => Quaternion.AngleAxis(pitchDeg, Vector3.right);
 
-        /// <summary>The head target a gaze of `pitchDeg` produces, for a head that performs `carry` of a
-        /// rigid orbit about the neck bone.</summary>
         static Vector3 HeadTarget(float pitchDeg, float carry)
         {
             return Vector3.Lerp(Head, Neck + Gaze(pitchDeg) * (Head - Neck), carry);
@@ -67,14 +32,12 @@ namespace Basis.Tests.IK
             return BasisNeckCueCore.Solve(HeadTarget(pitchDeg, carry), Gaze(pitchDeg), HeadToNeckLocal, Vector3.up, damp);
         }
 
-        /// <summary>Horizontal distance from where the neck actually is. This IS the phantom lean.</summary>
         static float PhantomForwardCm(float pitchDeg, float carry, float damp)
         {
             Vector3 d = Cue(pitchDeg, carry, damp) - Neck;
             return new Vector3(d.x, 0f, d.z).magnitude * 100f;
         }
 
-        /// <summary>The same quantity SIGNED along the gaze azimuth: + is out in front of the body.</summary>
         static float PhantomSignedForwardCm(float pitchDeg, float carry, float damp)
         {
             Vector3 d = Cue(pitchDeg, carry, damp) - Neck;
@@ -374,14 +337,12 @@ namespace Basis.Tests.IK
         static readonly Vector3 EyeRest = new Vector3(0f, 1.600f, 0.090f);
         static readonly Vector3 EyeFromHead = EyeRest - Head;
 
-        /// <summary>The eye, where the Eye->Head lock puts it for a given gaze and body position.</summary>
         static Vector3 EyePos(float pitchDeg, float yawDeg, Vector3 bodyTranslation)
         {
             Quaternion rot = Quaternion.AngleAxis(yawDeg, Vector3.up) * Gaze(pitchDeg);
             return Head + bodyTranslation + rot * EyeFromHead;
         }
 
-        /// <summary>What the leash is shown after the gaze swing is removed.</summary>
         static Vector3 StanceReference(float pitchDeg, float yawDeg, Vector3 bodyTranslation, float removal)
         {
             Vector3 eye = EyePos(pitchDeg, yawDeg, bodyTranslation);

@@ -11,22 +11,6 @@ namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
 
-    /// <summary>
-    /// WHERE DOES THE KNEE POP?
-    ///
-    /// The corpus table says the knee logs 36 excess pops -- and it logs the SAME 36 whether it is handed no
-    /// hint at all, the old lookup, or the fitted swivel model, while a real knee TRACKER drops it to 11. A
-    /// number that does not move when its supposed cause moves is not being caused by that thing. So the pops
-    /// are not the hint's, and guessing which line of BasisLegSolveCore owns them has a 0-for-5 track record on
-    /// this project.
-    ///
-    /// This file does not guess. It reproduces the pop detector frame by frame and prints, for every pop:
-    /// where it fired, how big it was in metres, what the REACH RATIO was there (the pole singularity lives at
-    /// 1.0), which axis the solver used, and -- the control that matters -- whether the HUMAN'S OWN KNEE popped
-    /// on that same frame.
-    ///
-    /// It is REPORT-ONLY on purpose. A localiser that fails the build is a localiser people delete.
-    /// </summary>
     public sealed class BasisKneePopLocaliserTests
     {
         static string CorpusDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~");
@@ -45,8 +29,6 @@ namespace Basis.Tests.IK
             return clips;
         }
 
-        /// <summary>Frame-to-frame steps, and the median that the pop ratio is measured against. This is
-        /// BasisMotionQuality.PopStats, reproduced so the individual frames can be seen rather than counted.</summary>
         static void Steps(Vector3[] p, out float[] d, out float med)
         {
             int n = p.Length - 1;

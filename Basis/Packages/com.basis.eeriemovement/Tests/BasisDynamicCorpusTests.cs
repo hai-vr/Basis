@@ -7,25 +7,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// The IK against DYNAMIC, ARMS-UP real human motion — dance, throws, kicks, calisthenics, ROM sweeps.
-    ///
-    /// <see cref="BasisMocapAccuracyTests"/> drives the CURATED corpus (idle / walk / pick-up — "the poses a VR
-    /// user actually holds"), which is deliberately light on arms overhead, full extension, and fast motion.
-    /// This file drives a SECOND corpus, <c>Tests/MocapCorpus~/dynamic/</c>, of exactly those poses — the ones
-    /// that actually exercise the arm's full-extension cap, the elbow-anatomy ceiling, and the pole-flip
-    /// handling. Sampled from the CMU database by description (see the corpus NOTICE.md), e.g.:
-    ///   • 49_09 modern dance, arms held overhead — the elbow is ABOVE the shoulder on 82% of frames
-    ///   • 05_02 / 118_01 / 93_08 — the arm at full extension (reach &gt; 0.97) on 40–60% of frames
-    ///   • 33_02 football throw, 06_14 basketball shot — overhead reaches and fast swings
-    ///   • 42_01 a whole-body ROM stretch (rotate head, shoulders, arms, legs through their limits)
-    ///   • salsa (60), Charleston (93), Indian dance (94), karate kata (135), jumping jacks (14), boxing (13/14)
-    ///
-    /// Kept in a SUBFOLDER on purpose — exactly like posture/ — so the accuracy corpus's numbers, quoted all
-    /// over this project, stay byte-identical: the accuracy tests use a NON-recursive Directory.GetFiles, so
-    /// these clips are invisible to them. Same CMU source, conversion and licence (mocap.cs.cmu.edu; the data
-    /// is free for research and commercial use, NSF EIA-0196217).
-    /// </summary>
     public class BasisDynamicCorpusTests
     {
         static string CorpusDir => Path.GetFullPath("Packages/com.basis.framework/Tests/MocapCorpus~/dynamic");
@@ -47,12 +28,6 @@ namespace Basis.Tests.IK
             return clips;
         }
 
-        /// <summary>
-        /// Handedness is the classic silent BVH bug (left/right swap), so every clip is proved anatomically sane
-        /// — left hand on the left, knees bending forward — before any measurement is taken from it. A dynamic
-        /// clip that inverts (a cartwheel) would fail here rather than quietly skewing the numbers, which is why
-        /// the corpus was curated to upright motion.
-        /// </summary>
         [Test]
         public void DynamicCorpus_EveryClipIsAnatomicallySane()
         {
@@ -65,16 +40,6 @@ namespace Basis.Tests.IK
             Assert.That(n, Is.GreaterThan(20), $"expected a substantial dynamic corpus, loaded {n}");
         }
 
-        /// <summary>
-        /// ⭐ THE HEADLINE. Drive the shipped solve (bend lookup, the untracked-arm path) over every dynamic clip
-        /// and hold the invariants that must survive ANY motion, no matter how fast or how far overhead:
-        ///   • the hand is COMMANDED and the arm solve is reach-preserving, so it must land on target;
-        ///   • the solved rotations and positions must agree (rigidity);
-        ///   • nothing goes non-finite (Ok covers a NaN blowing up the run).
-        /// Everything else — elbow/knee accuracy vs the real human, foot slip, and POLE FLIPS on real dance —
-        /// is reported, not gated, because these clips were not the calibration set for those thresholds. The
-        /// logged table is the record; a regression shows up there.
-        /// </summary>
         [Test]
         public void TheSolver_StaysReachPreservingRigidAndFinite_AcrossDynamicMotion()
         {
@@ -119,14 +84,6 @@ namespace Basis.Tests.IK
                 "the solver broke a hard invariant on dynamic real-human motion:\n" + string.Join("\n", failures));
         }
 
-        /// <summary>
-        /// ⭐ THE ELBOW-ANATOMY GUARD MUST NOT FIGHT A LEGITIMATE OVERHEAD REACH. On the arms-held-high dance and
-        /// throwing clips the real human's elbow is genuinely ABOVE the shoulder — which is legal, because the
-        /// hand is above it too (BasisElbowAnatomyCore's ceiling is the HIGHER of shoulder and hand). Handed the
-        /// TRUE elbow, the solver has to reproduce it, not drag it back down toward the shoulder. If the guard
-        /// were clamping these poses the error would spike, so this is the guard's "don't clip the arms-up user"
-        /// property, measured on the worst real motion there is for it.
-        /// </summary>
         [Test]
         public void ElbowAnatomyGuard_ReproducesLegitimateOverheadElbows_DoesNotClampThemDown()
         {

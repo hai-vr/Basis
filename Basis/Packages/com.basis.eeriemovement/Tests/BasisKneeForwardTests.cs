@@ -6,21 +6,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Knee-forward (azimuth) sweep for <see cref="BasisKneeForwardCore"/> and its hand-off to the two-bone leg
-    /// solver (<see cref="BasisLegSolveCore"/>).
-    ///
-    /// Scenario: FOOT trackers, no KNEE tracker. The knee pole should aim along the FOOT's toe direction instead of
-    /// straight body-forward, so turning a foot turns the knee -- damped by posture:
-    ///   - STANDING (leg vertical, toe across the leg): the knee follows the toe by ~Coupling. Real humans hold the
-    ///     tibial fore-aft axis ~perpendicular to the pelvis in stance (1.65 +/- 5.58 deg; PMC5930825) against a
-    ///     ~5-7 deg foot progression angle, so the follow is GENTLE and the knee sits inboard of the foot.
-    ///   - RECLINING (leg flattening, toe lining up with the leg): the toe stops being a usable azimuth, Upright01
-    ///     fades to 0, and the follow with it -- handing the knee's opening off to the butterfly (instep) splay.
-    ///
-    /// The pole is fed through the real leg solver exactly as BasisLocalRigDriver wires it (HintPosition +
-    /// HintWeight, BendNormal = hips-right), so the knee azimuth is measured end-to-end.
-    /// </summary>
     public class BasisKneeForwardTests
     {
         const float Thigh = 0.45f, Shin = 0.45f;

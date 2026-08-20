@@ -10,20 +10,6 @@ using Basis.Scripts.Drivers;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Everyone's trackers move differently" gate for the per-group smoothing tuning
-    /// (<see cref="BasisBatchPositionFilterJob"/> / <see cref="BasisBatchRotationFilterJob"/> `tuning` array
-    /// + <see cref="BasisSmoothingProfiles"/>).
-    ///
-    /// Before this, the batch filter took ONE set of one-euro parameters for all 15 slots, so a buzzing IMU
-    /// hip tracker and a quiet lighthouse controller were filtered identically -- you could only tune the
-    /// compromise. The parameters are now per-slot, fed from a per-group profile.
-    ///
-    /// These gates prove the mechanism rather than the tuning: that two slots in the SAME batch with
-    /// different tuning genuinely diverge, that uniform tuning still behaves as one global setting did
-    /// (so the shipped defaults are a no-op), and that Passthrough ignores tuning entirely.
-    /// "p2p" = peak-to-peak output excursion over the steady window; lower = stiller bone.
-    /// </summary>
     public class BasisPerSlotSmoothingTests
     {
         const float Dt = 1f / 90f;      // VR frame time
@@ -272,10 +258,6 @@ namespace Basis.Tests.IK
             Assert.Greater(optical.Beta, heavy.Beta, "Optical needs more speed adaptation than Heavy");
         }
 
-        /// <summary>
-        /// Auto exists so a SlimeVR hip is not filtered like a lighthouse puck just because both arrive
-        /// through OpenVR. These gates cover the mapping, not the feel.
-        /// </summary>
         [Test]
         public void AutoResolvesEachHardwareToASelectablePreset()
         {
@@ -300,11 +282,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// The per-group resolve takes the numerically highest hardware feeding a group, so a group fed by
-        /// mixed hardware is filtered for its noisiest contributor. Renumbering the enum silently inverts
-        /// that, which is why the order is asserted rather than assumed.
-        /// </summary>
         [Test]
         public void TrackingHardwareIsOrderedByFilteringNeed()
         {

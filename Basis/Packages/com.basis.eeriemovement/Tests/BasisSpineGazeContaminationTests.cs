@@ -9,35 +9,6 @@ namespace Basis.Tests.IK
 {
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
 
-    /// <summary>
-    /// "LOOKING DOWN FORCES CHEST TO ROTATE" -- is the rig reading GAZE as a LEAN?
-    ///
-    /// ================================================================================================
-    /// THE SUSPECT, in one line. BasisSpineBendCore.Solve:
-    ///
-    ///     bendPitchDeg = atan2(headDir.z, headDir.y) - atan2(chestDir.z, chestDir.y)     // headDir = hips->HEAD
-    ///
-    /// The spine's forward bend is the angle between "hips to chest" and "hips to HEAD". But the head is not
-    /// on the spine -- it sits on the END of the neck, and it ORBITS that neck when you nod. So a user who
-    /// gazes down without moving their torso an inch still swings the head TARGET forward and down, the
-    /// hips->head vector tips over, and the solver reads a forward lean that never happened. It pitches the
-    /// chest to match.
-    ///
-    /// That is the report, verbatim: "looking down forces chest to rotate not position issue we need a more
-    /// stable looking down".
-    /// ================================================================================================
-    ///
-    /// This file does not argue about that. It measures it TWICE, from two independent directions, because a
-    /// mechanism I can only demonstrate one way is a mechanism I have probably talked myself into:
-    ///
-    ///   1. GEOMETRY -- feed the shipping core a head that has ONLY rotated about the neck, with the torso
-    ///      byte-identical, and read out how much chest bend it invents. No corpus, no fitting, no opinion.
-    ///
-    ///   2. REAL HUMANS -- and this is the part that says what the answer SHOULD be. A human looking down
-    ///      does flex their upper spine a little; the question was never "zero", it is "how much", and only
-    ///      the corpus can say. If the rig's invented bend is within a couple of degrees of what a human
-    ///      actually does, there is no bug here and I should go and look somewhere else.
-    /// </summary>
     public sealed class BasisSpineGazeContaminationTests
     {
         // A T-posed adult, in the hips' own frame: +Y up, +Z forward. These are the only numbers that matter
@@ -68,15 +39,6 @@ namespace Basis.Tests.IK
             return i;
         }
 
-        /// <summary>The head, having ONLY nodded about the neck. The torso has not moved by one float.
-        ///
-        /// ⚠️ THIS IS A PREMISE, NOT A MEASUREMENT, AND IT ONLY HOLDS ON A LOOK-DOWN. It models the nod as an
-        /// EXACT rigid orbit of the neck bone, which is the same assumption the cue itself makes -- so the
-        /// "reconstructs the neck exactly" assertions below are sound but circular, and they say nothing
-        /// about a gaze the neck does not carry. Cervical extension is short and a look-UP is mostly thoracic
-        /// arching (see BasisHeadPitchSwingCore, which scales that side to 0.35 and no other), so the real
-        /// head barely travels and the reconstruction walks the neck forward instead. That case lives in
-        /// BasisSpineLookUpTests, which parameterises how much of the orbit the head actually performs.</summary>
         static void GazeDown(float deg, out Vector3 headPos, out Quaternion headRot)
         {
             Quaternion q = Quaternion.AngleAxis(deg, Vector3.right);   // +X = pitch the face down toward +Z
@@ -84,9 +46,6 @@ namespace Basis.Tests.IK
             headRot = q;
         }
 
-        /// <summary>
-        /// ⭐ THE PHANTOM LEAN, MEASURED. Nothing but the head has moved, and the spine bends anyway.
-        /// </summary>
         [Test]
         public void PureGaze_MakesTheShippedCore_InventAForwardLean()
         {
@@ -123,10 +82,6 @@ namespace Basis.Tests.IK
                 "is solving a problem that does not exist");
         }
 
-        /// <summary>
-        /// THE SQUISH COUPLING: compression is turned into MORE ROTATION. This is "the torso rotates when it
-        /// should translate", as a single multiplier, and it multiplies the phantom lean above.
-        /// </summary>
         [Test]
         public void TheSquishMultiplier_AmplifiesTheBend_ExactlyWhenTheTorsoIsCompressed()
         {
@@ -151,13 +106,6 @@ namespace Basis.Tests.IK
         // AND NOW WHAT A REAL HUMAN ACTUALLY DOES, because "some" is not the same as "this much".
         // =========================================================================================
 
-        /// <summary>
-        /// GROUND TRUTH. For every frame in both corpora: how much of the rig's bend cue is explained by GAZE
-        /// rather than by the torso? Measured as a partial slope, controlling for the real torso lean.
-        ///
-        /// A real human looking down DOES flex their upper spine somewhat, so the honest question is never
-        /// "is the rig's number zero" -- it is "is the rig's number the HUMAN's number". This is that number.
-        /// </summary>
         [Test]
         public void HowMuchAHumansChestActuallyPitches_PerDegreeOfGaze()
         {
@@ -270,17 +218,6 @@ namespace Basis.Tests.IK
                 $"gaze-contaminated than cueing off the HEAD (neck {bNeck:F3} vs head {bRig:F3} deg/deg)");
         }
 
-        /// <summary>
-        /// ⭐ THE FIX, PINNED AT EXACTLY ZERO.
-        ///
-        /// The same pure-gaze sweep that makes the shipped core invent 10.4 degrees of chest pitch, run
-        /// against the cue the rig now actually uses: the NECK, reconstructed rigidly off the head.
-        ///
-        /// The two lever arms cancel algebraically -- the head's orbit about the neck, and the neck's offset
-        /// carried back along the rotated head -- so this is not damped or faded or clamped to something
-        /// small. It is ZERO, for any gaze, at any angle, on any rig. There is nothing here left to tune,
-        /// which is the entire point: a fade would just relocate the problem, as it did for the elbow.
-        /// </summary>
         [Test]
         public void TheNeckCue_InventsNoLeanAtAll_ForAnyGaze()
         {

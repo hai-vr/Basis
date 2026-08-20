@@ -3,18 +3,6 @@ using UnityEngine;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Regression tests for the calibration "feel" math (<see cref="BasisCalibrationMath.ComputeDeviceScale"/>),
-    /// the formula <see cref="BasisHeightDriver.ChooseHeightToUse"/> runs to turn a measured eye height into the
-    /// DeviceScale the camera is scaled by. The avatar feels right iff the DeviceScale denominator equals the
-    /// player's TRUE standing eye height; these pin what happens when it doesn't -- the cause of the report that
-    /// people must nudge once or twice to stop feeling too tall.
-    ///
-    /// Backends measure the denominator differently: OpenXR binds the head to centerEyePosition so the tracked
-    /// point IS the eye (eyeReference 0), while OpenVR tracks the HMD pose origin sitting a gap g below the eyes
-    /// and bridges it with CenterEyeVerticalOffset. If that bridge under-reports the gap (or is 0 because the
-    /// SteamVR eye transform wasn't ready at capture), the denominator is short and the avatar renders too tall.
-    /// </summary>
     public class BasisCalibrationHeightTests
     {
         // Real-world standing eye heights, avatar authored eye heights, and custom avatar scales to sweep.
@@ -22,8 +10,6 @@ namespace Basis.Tests.IK
         static readonly float[] AvatarEye = { 1.30f, 1.50f, 1.61f, 1.72f };
         static readonly float[] UpScale = { 0.80f, 1.00f, 1.50f };
 
-        /// <summary>The viewpoint the camera renders at: real standing eye height scaled by DeviceScale
-        /// (BasisLocalCameraDriver sets camera.localScale = DeviceScale).</summary>
         static float RenderedViewpoint(float trueStandingEye, float deviceScale) => trueStandingEye * deviceScale;
 
         [Test]

@@ -4,30 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Reference-frame gate for <see cref="BasisSwivelSmootherCore"/> (the shared body of
-    /// <see cref="BasisEerieMovement"/>.SmoothElbowSwivel and SmoothKneeSwivel).
-    ///
-    /// A swivel angle is only meaningful relative to a reference direction. Both smoothers used a WORLD
-    /// constant for that reference -- the elbow world-down, the knee world-forward -- while the pole they
-    /// measure is a body vector that co-rotates with the player. So a rigid body rotation showed up as a
-    /// change in the measured swivel, the One-Euro (1.0-1.5 Hz floor) lagged that phantom change, and the
-    /// smoother then actively swung the limb toward a stale, world-locked pole. The knee's comment claims
-    /// "damps swivel jitter without lagging a real turn"; with a world reference that claim is false.
-    ///
-    /// The pre-existing BasisLegTwistSmoothingTests could not see this: it feeds the FILTER a synthetic
-    /// swivel signal and proves the filter tracks it. The defect is upstream of the filter -- a turn should
-    /// not produce a swivel signal at all. These gates therefore assert on the MEASUREMENT, not the filter.
-    ///
-    /// The invariant, stated once: for a limb held rigid in the body frame, the measured swivel must be
-    /// unchanged under ANY rigid motion of the body (translation, yaw, and -- since the root can tilt via a
-    /// play-space flip or a seat/vehicle -- pitch and roll too). Anything else means bulk body motion leaks
-    /// into a joint DOF.
-    ///
-    /// Each invariance gate is paired with a Legacy_* gate that runs the old world-referenced formula and
-    /// asserts it VIOLATES the invariant, so the numbers below are measured, not asserted into existence,
-    /// and a revert to a world reference fails loudly instead of silently.
-    /// </summary>
     public class BasisSwivelFrameInvarianceTests
     {
         const float Dt = 1f / 90f;          // VR frame time
@@ -89,11 +65,6 @@ namespace Basis.Tests.IK
             return r.RawSwivelDeg;
         }
 
-        /// <summary>
-        /// The formula as it stood before the fix: the reference direction is a WORLD constant, so it does
-        /// not co-rotate with the body. Kept here (and only here) so the gates below can measure the defect
-        /// rather than assert it from memory.
-        /// </summary>
         static float LegacyWorldRefSwivel(Vector3 root, Vector3 mid, Vector3 tip, Vector3 worldRef, Vector3 worldFallback)
         {
             Vector3 ac = tip - root;
@@ -109,10 +80,6 @@ namespace Basis.Tests.IK
 
         // ----------------------------------------------------------------- yaw (the shipped defect)
 
-        /// <summary>
-        /// Turning in place must not change the measured knee swivel. This is the bug that shipped: with the
-        /// world-forward reference the knee's measured swivel tracked the turn angle almost 1:1.
-        /// </summary>
         [Test]
         public void KneeSwivel_InvariantUnderBodyYaw()
         {
@@ -158,12 +125,6 @@ namespace Basis.Tests.IK
 
         // ----------------------------------------------------------------- tilt (the latent defect)
 
-        /// <summary>
-        /// The elbow's world-down reference happens to survive a YAW (world-down lies on the yaw axis, so it
-        /// co-rotates with the projection plane by accident). It does not survive a TILT. The root can tilt:
-        /// BasisLocalPlayspaceMover applies a play-space flip and seats/vehicles rotate the root, which is
-        /// exactly why the job carries a PlayerUp property at all. Body-relative is correct in both cases.
-        /// </summary>
         [Test]
         public void Swivel_InvariantUnderArbitraryBodyRotation()
         {
@@ -188,14 +149,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// Not every tilt exposes the elbow's world-down reference, which is why it survived review. With the
-        /// arm out along body-X, a ROLL about world-Z changes the magnitude of the projected world-down but
-        /// not its direction -- and refDir is normalized, so the roll cancels and the measurement looks fine.
-        /// A PITCH about world-X rotates the arm about its own axis: the pole turns with the body while
-        /// world-down stays put, and the full tilt leaks into the swivel. So this gate SEARCHES the tilt
-        /// sphere for the worst case rather than trusting one hand-picked rotation.
-        /// </summary>
         [Test]
         public void Legacy_ElbowSwivel_BreaksUnderBodyTilt_WorldDownReference()
         {
@@ -238,12 +191,6 @@ namespace Basis.Tests.IK
 
         // ----------------------------------------------------------------- temporal: the visible artifact
 
-        /// <summary>
-        /// The end-to-end symptom. Turn on the spot at 180 deg/s (a brisk snap-turn) with the leg held rigid
-        /// in the body frame. The smoother must leave the knee exactly where the body put it. With a world
-        /// reference the phantom swivel change is lagged by the One-Euro and the smoother SWINGS the knee
-        /// toward a stale pole -- the knee visibly drags behind the turn.
-        /// </summary>
         [Test]
         public void KneeSwivel_PureTurn_DoesNotDragTheKnee()
         {
@@ -275,11 +222,6 @@ namespace Basis.Tests.IK
                 "the smoother is dragging it toward a stale pole");
         }
 
-        /// <summary>
-        /// The fix must not simply freeze the joint. A genuine shin swivel (the user rotating their own leg
-        /// about the hip->foot axis, body still) must still come through -- attenuated by the One-Euro at
-        /// first, then tracking. Guards the obvious over-correction.
-        /// </summary>
         [Test]
         public void KneeSwivel_RealSwivelMotion_StillTracks()
         {
@@ -315,10 +257,6 @@ namespace Basis.Tests.IK
                 "the smoother is over-damping deliberate motion");
         }
 
-        /// <summary>
-        /// Steady state is a no-op: a limb held perfectly still must not be moved by the smoother at all.
-        /// Guards against the filter injecting motion of its own.
-        /// </summary>
         [Test]
         public void Swivel_HeldStill_DoesNotMoveTheJoint()
         {

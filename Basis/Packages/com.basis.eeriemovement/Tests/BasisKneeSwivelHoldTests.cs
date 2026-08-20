@@ -4,29 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "The knee hint role can sometimes just start rotating back and forth slowly while all the trackers are
-    /// still" gate -- the SINGULARITY HOLD (<see cref="BasisSwivelSmootherInput.HoldWhenSingular"/>).
-    ///
-    /// Standing is pinned at the 176 deg max-extension cap, ON the pole singularity: the knee's lever arm off the
-    /// hip->foot axis collapses (conditioning ~= 0.035), so the swivel angle is undetermined and any residual
-    /// body-frame micro-motion -- postural sway pivoting the leg over a planted foot, which is NON-rigid so the
-    /// body-relative measurement does not cancel it -- rolls the whole leg. The output is a slow (~0.3 Hz)
-    /// oscillation.
-    ///
-    /// The tracked-knee path runs the One-Euro with ConditionOnPole OFF (the 2026-07-17 "6x faster" fix), so it
-    /// is deliberately responsive -- and a responsive low-pass CANNOT remove a slow oscillation: a 1-1.5 Hz floor
-    /// is nearly transparent to 0.3 Hz. Only a HOLD (zero passband at every frequency) can. The hold freezes the
-    /// swivel where conditioning is below HoldCondHi and is the exact identity above it, so a genuinely bent,
-    /// tracker-driven knee is untouched.
-    ///
-    /// Four gates:
-    ///   1. A slow oscillation at a STRAIGHT leg is FROZEN by the hold.
-    ///   2. ANTI-TAUTOLOGY: with the hold OFF that same oscillation LEAKS through -- proving the gate measures the
-    ///      real defect and a revert fails loudly.
-    ///   3. A BENT knee is byte-identical with the hold on or off (the 07-17 responsiveness is not re-lagged).
-    ///   4. Releasing the hold from straight to bent EASES in -- it does not add a snap the legacy path lacked.
-    /// </summary>
     public sealed class BasisKneeSwivelHoldTests
     {
         const float k_Dt = 1f / 90f;
@@ -77,11 +54,6 @@ namespace Basis.Tests.IK
             };
         }
 
-        /// <summary>
-        /// Drives the smoother for `seconds` with the raw swivel oscillating slowly (amp deg at hz), at a fixed
-        /// `reach`, and returns the peak-to-peak of the SMOOTHED swivel over the steady second half -- i.e. how
-        /// much of the slow oscillation reached the bone.
-        /// </summary>
         static float SteadyOutputP2P(float reach, bool hold, float amp, float hz, float seconds)
         {
             int n = (int)(seconds / k_Dt);

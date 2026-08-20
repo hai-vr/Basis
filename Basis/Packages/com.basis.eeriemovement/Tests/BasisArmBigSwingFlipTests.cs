@@ -4,32 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// "Doing big arm swing motions (like up down for example) it flips drastically."
-    ///
-    /// The whole suite gated flips by WORKSPACE AREA (fraction of random poses over an elbow-gain
-    /// threshold) and the flip passed every one of those gates, because a flip is not an area -- it is
-    /// a SURFACE a moving hand crosses. A big up-down swing is a meridian path, so these tests sweep
-    /// MERIDIANS: every azimuth around the shoulder, elevation +80 to -80, through the LIVE hint entry
-    /// (BasisSwivelHintCore.ArmHint -- frame, mirror, field model, tuck), the same call SolveHand makes.
-    ///
-    /// WHAT THE FLIP WAS. BasisElbowFieldModel used to fade its projected bend toward a fixed rest pole
-    /// below a 0.10 lever: normalizesafe(primary*w + rest*(1-w), rest). A lerp of two unit directions
-    /// passes through ZERO where they are antipodal and w crosses 0.5 -- normalize(~0) -- and that
-    /// cancellation surface cut through HEALTHY workspace (lever 0.05-0.07): hand-across-the-body at
-    /// 0.45 reach teleported the elbow 28.7 cm in one 0.5-degree hand step; the down-back follow-through
-    /// of a swing at 0.65 reach did the same at 108 degrees of hint rotation. Deterministic, no noise
-    /// involved: it is math, and these sweeps reproduce it on the old code and pin it dead on the new.
-    ///
-    /// WHAT CANNOT BE PINNED. The bend is a tangent field on the sphere of hand directions, so by
-    /// Poincare-Hopf it has total index 2: TWO zero cores per reach shell (across-body-up at ~0.75
-    /// reach, down-back at ~0.65). Near a core the direction spins fast -- that is topology, not a bug,
-    /// and no stateless formula removes it (the deleted fade just traded it for the teleport surface
-    /// above). So the contract is: WHEREVER THE MODEL HAS A REAL LEVER (conditioning >= 0.02, which is
-    /// everywhere outside ~2-degree cones around the two cores), a 0.5-degree hand step may not rotate
-    /// the hint more than 30 degrees. The old fade fails this at 73 degrees; the projection passes with
-    /// a worst of ~25.
-    /// </summary>
     public class BasisArmBigSwingFlipTests
     {
         const float k_ArmLen = 0.54f;
@@ -43,12 +17,6 @@ namespace Basis.Tests.IK
         static BasisSwivelFrame Frame() => BasisSwivelHintCore.BuildFrame(
             k_LeftShoulder, k_RightShoulder, new Vector3(0f, 1.25f, 0f), new Vector3(0f, 1.50f, 0f));
 
-        /// <summary>
-        /// ⭐⭐ THE SWING. Every meridian, three reaches, both arms. Wherever the model's lever is real,
-        /// no single hand step may rotate the hint by more than 30 degrees. This is the test that was
-        /// missing: on the faded model it fails at az -90 (hand across the body), reach 0.45, elevation
-        /// ~37 -- hint rotating 73 degrees in one 0.5-degree step with a HEALTHY 0.057 lever.
-        /// </summary>
         [Test]
         public void BigSwings_NeverTeleportTheElbow_WhereTheModelHasALever([Values(false, true)] bool isLeft)
         {
@@ -96,13 +64,6 @@ namespace Basis.Tests.IK
                 "faded model measured 73 degrees on exactly this sweep.");
         }
 
-        /// <summary>
-        /// The two zero cores are REQUIRED to exist (total index 2), but they must stay CONFINED: any step
-        /// that does rotate the hint hard must sit at a collapsed lever, i.e. inside a core -- never out in
-        /// workspace the model is confident about. On the faded model 4-7 hard steps per reach shell sat at
-        /// levers of 0.05-0.07; here every one must be under 0.02, and there must be FEW of them in total
-        /// (the cores subtend ~2 degrees; a fat count means a new singular structure has crept in).
-        /// </summary>
         [Test]
         public void HardHintRotations_OnlyHappenInsideTheZeroCores()
         {

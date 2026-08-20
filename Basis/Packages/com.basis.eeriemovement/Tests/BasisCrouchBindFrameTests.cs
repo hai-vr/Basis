@@ -4,18 +4,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Bind-frame regression for the crouch sit-back (<see cref="BasisCrouchOffsetCore"/>). As the head
-    /// drops the hips slide BACKWARD along the body's forward so a squat reads as sitting back. "Backward"
-    /// was `HipsRot * Vector3.forward` -- the hips BONE's local +Z, which is a rig convention. On a Blender-
-    /// exported rig the hips bind is rolled −90 about X, so that +Z is world-UP: the slide went vertical and,
-    /// once the vertical component was stripped, collapsed to zero and the crouch silently never fired.
-    ///
-    /// The fix cancels the hips bind (offsetRotationHips) to get the anatomical forward. These guard that the
-    /// slide is the same anatomical backward move for every bind convention, and that a degenerate/absent bind
-    /// falls back to the old HipsRot-forward behaviour bit for bit (so the sweep and equivariance test, which
-    /// pass identity / default, are unchanged).
-    /// </summary>
     public class BasisCrouchBindFrameTests
     {
         // Same spread of hips BIND conventions as the spine bind-frame suite.

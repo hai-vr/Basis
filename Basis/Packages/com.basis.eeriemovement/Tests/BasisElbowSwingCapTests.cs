@@ -5,16 +5,6 @@ using Basis.IK;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Guards <see cref="BasisElbowSwingCapCore"/> -- the stateful half of the reach-behind fix. It keeps
-    /// the accurate elbow field (correct out-and-back pose) and bounds how fast the bend may rotate
-    /// relative to the HAND, so a topological core flips the elbow no faster than a human elbow tracks
-    /// (gain ~1x, p99 4.6x measured) instead of teleporting.
-    ///
-    /// These drive the core through the SAME sequence the job feeds it: a hand sweeping through
-    /// BasisElbowFieldModel's down-and-back core (azimuth ~130, ~20 below level), which is where the raw
-    /// field flips ~70 deg in half a degree of hand motion.
-    /// </summary>
     public class BasisElbowSwingCapTests
     {
         const float k_MaxGain = BasisElbowSwingCapCore.MaxGain;
@@ -27,7 +17,6 @@ namespace Basis.Tests.IK
         static float3 FieldBend(float3 dir)   // the OLD field's raw bend (what ships as default), perp to dir
             => BasisElbowFieldModel.BendDirection(dir, BasisElbowFieldModel.Elbow(dir), out _);
 
-        /// <summary>Run a hand trajectory through the cap, returning the capped bend per frame.</summary>
         static float3[] Run(float3[] hand, float maxGain)
         {
             var outb = new float3[hand.Length];
@@ -51,12 +40,6 @@ namespace Basis.Tests.IK
             return l;
         }
 
-        /// <summary>
-        /// ⭐⭐ THE BOUND. Sweeping the hand through the core, the capped bend may never rotate (about the
-        /// current shoulder->hand axis) by more than MaxGain times the hand's own rotation that frame. That
-        /// is the whole guarantee: the reach-behind flip is bounded to the human tracking ceiling. On the
-        /// raw field this same sweep flips ~70 deg in one 0.5-degree step (gain ~140x); capped it is <= 5x.
-        /// </summary>
         [Test]
         public void TheCap_BoundsBendRotation_ToTheHumanGain_ThroughTheCore()
         {
@@ -85,11 +68,6 @@ namespace Basis.Tests.IK
                 "did not bind. That is the reach-behind snap leaking through.");
         }
 
-        /// <summary>
-        /// ⭐ THE NO-OP. Everywhere the field turns slower than the cap -- ordinary reaching, the whole
-        /// workspace outside the ~2-degree cores -- the cap must return the field BIT-FOR-BIT, so it adds
-        /// no lag and cannot drift. A front reach never approaches a core.
-        /// </summary>
         [Test]
         public void TheCap_IsExactlyTheField_OnOrdinaryReaching()
         {
@@ -106,11 +84,6 @@ namespace Basis.Tests.IK
             }
         }
 
-        /// <summary>
-        /// ⭐ FRAMERATE INDEPENDENCE. It is a GAIN cap (per hand-step), not a velocity cap, precisely so the
-        /// same hand path gives the same pose at any frame rate. Sample the same sweep at 1x and 2x density;
-        /// the poses at the shared times must agree. (The velocity blends this project tried did not.)
-        /// </summary>
         [Test]
         public void TheCap_IsFramerateIndependent()
         {
@@ -130,12 +103,6 @@ namespace Basis.Tests.IK
                 "gain cap must be framerate-independent");
         }
 
-        /// <summary>
-        /// ⭐ SELF-CORRECTING. Unlike the reverted hold-the-pole coast, this always chases the field, so a
-        /// stale or wrong carried pole (a tracker just dropped, a hitch) re-acquires the field within a few
-        /// frames rather than freezing. Seed a deliberately wrong pole and sweep a normal reach; it must
-        /// converge to the field.
-        /// </summary>
         [Test]
         public void TheCap_ReacquiresTheField_FromAStalePole()
         {
@@ -157,8 +124,6 @@ namespace Basis.Tests.IK
                 "off the field -- it must re-acquire, not hold a stale pole");
         }
 
-        /// <summary>The output must always be a UNIT vector PERPENDICULAR to the shoulder->hand axis -- it is
-        /// the elbow's circle, and the two-bone solver relies on it.</summary>
         [Test]
         public void TheCappedBend_StaysUnitAndPerpendicular()
         {

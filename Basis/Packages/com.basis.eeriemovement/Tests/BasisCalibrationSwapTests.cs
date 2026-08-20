@@ -2,13 +2,6 @@ using NUnit.Framework;
 
 namespace Basis.Tests.IK
 {
-    /// <summary>
-    /// Tests for what an avatar SWAP remaps. Roles + rotation frames are preserved across a swap; only the
-    /// height scale is recomputed (BasisHeightDriver re-runs DeviceScale). These pin that the recompute is a
-    /// pure remap by the new avatar's authored eye height -- right -- and that it no longer drifts with the head
-    /// pose at swap time -- the bug. Fix: BasisHeightDriver.CapturePlayerHeight reuses the last genuine standing
-    /// eye height (BasisCalibrationMath.ShouldRecaptureEyeHeight) instead of re-polling the live HMD per load.
-    /// </summary>
     public class BasisCalibrationSwapTests
     {
         static readonly float[] StandingEye = { 1.40f, 1.61f, 1.90f };

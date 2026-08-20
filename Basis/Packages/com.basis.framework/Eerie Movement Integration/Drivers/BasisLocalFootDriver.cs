@@ -184,8 +184,11 @@ public partial class BasisLocalFootDriver
 
     private Transform avatarTransform;
     private Transform hips;
-    private BasisFootState left;
-    private BasisFootState right;
+    private Transform leftFootBone;
+    private Transform rightFootBone;
+    private static readonly string[] k_FootNames = { "Left", "Right" };
+
+    private unsafe ref BasisFootNativeState Foot(int slot) => ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), slot);
     private float rayCastRange;
     private Quaternion footAlignLeft = Quaternion.identity;
     private Quaternion footAlignRight = Quaternion.identity;
@@ -239,26 +242,32 @@ public partial class BasisLocalFootDriver
     {
         DiscardPendingProbes();
         _footGroundValid[0] = _footGroundValid[1] = false;
-        var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
-        left.currentPos = left.plantedPos = lf.position;
-        left.phase = BasisFootPhase.Planted;
-        var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
-        right.currentPos = right.plantedPos = rf.position;
-        right.phase = BasisFootPhase.Planted;
-
-        left.plantedTime = right.plantedTime = SettledPlantedTime;
-
-        if (left.bone != null) left.currentRot = left.plantedRot = left.stepStartRot = left.bone.rotation;
-        if (right.bone != null) right.currentRot = right.plantedRot = right.stepStartRot = right.bone.rotation;
-
-        left.plantedBodyFwd = Vector3.zero;
-        right.plantedBodyFwd = Vector3.zero;
-
-        if (_nativeFeet.IsCreated)
+        if (!_nativeFeet.IsCreated)
         {
-            _nativeFeet[0] = FootStateToNative(left, _nativeFeet[0]);
-            _nativeFeet[1] = FootStateToNative(right, _nativeFeet[1]);
+            return;
         }
+        ReEngageFoot(ref Foot(0), leftFootBone, BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.position);
+        ReEngageFoot(ref Foot(1), rightFootBone, BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.position);
+    }
+
+    private static void ReEngageFoot(ref BasisFootNativeState f, Transform bone, Vector3 position)
+    {
+        f.currentPos = f.plantedPos = position;
+        f.phase = 0;
+        f.plantedTime = SettledPlantedTime;
+        if (bone != null)
+        {
+            f.currentRot = f.plantedRot = f.stepStartRot = bone.rotation;
+        }
+        f.plantedBodyFwd = float3.zero;
+        ClearTransient(ref f);
+    }
+
+    private static void ClearTransient(ref BasisFootNativeState f)
+    {
+        f.wantsStep = false;
+        f.stepUrgency = 0f;
+        f.predictedTargetXZ = float3.zero;
     }
 
     public void Teleport(Vector3 delta)
@@ -275,13 +284,10 @@ public partial class BasisLocalFootDriver
         DiscardPendingProbes();
         _footGroundValid[0] = _footGroundValid[1] = false;
 
-        ShiftFoot(left, delta);
-        ShiftFoot(right, delta);
-
         if (_nativeFeet.IsCreated)
         {
-            _nativeFeet[0] = FootStateToNative(left, _nativeFeet[0]);
-            _nativeFeet[1] = FootStateToNative(right, _nativeFeet[1]);
+            ShiftFoot(ref Foot(0), delta);
+            ShiftFoot(ref Foot(1), delta);
         }
         if (_nativeSimState.IsCreated)
         {
@@ -291,31 +297,32 @@ public partial class BasisLocalFootDriver
         }
     }
 
-    private static void ShiftFoot(BasisFootState f, Vector3 delta)
+    private static void ShiftFoot(ref BasisFootNativeState f, Vector3 delta)
     {
-        f.plantedPos += delta;
-        f.currentPos += delta;
-        f.idealPos += delta;
-        f.stepStartPos += delta;
-        f.stepTargetPos += delta;
-        f.kneeHint += delta;
+        float3 d = delta;
+        f.plantedPos += d;
+        f.currentPos += d;
+        f.idealPos += d;
+        f.stepStartPos += d;
+        f.stepTargetPos += d;
+        f.kneeHint += d;
+        ClearTransient(ref f);
     }
 
-    public Vector3 LeftFootPosition => left.currentPos;
-    public Quaternion LeftFootRotation => left.currentRot;
-    public Vector3 RightFootPosition => right.currentPos;
-    public Quaternion RightFootRotation => right.currentRot;
-    public Vector3 LeftKneeHint => left.kneeHint;
-    public Vector3 RightKneeHint => right.kneeHint;
-    public Vector3 LeftPlantedPos => left.plantedPos;
-    public Vector3 RightPlantedPos => right.plantedPos;
-    public float LeftStepTimer => left.stepTimer;
-    public float RightStepTimer => right.stepTimer;
+    public unsafe Vector3 LeftFootPosition => _nativeFeet.IsCreated ? (Vector3)Foot(0).currentPos : Vector3.zero;
+    public unsafe Quaternion LeftFootRotation => _nativeFeet.IsCreated ? (Quaternion)Foot(0).currentRot : Quaternion.identity;
+    public unsafe Vector3 RightFootPosition => _nativeFeet.IsCreated ? (Vector3)Foot(1).currentPos : Vector3.zero;
+    public unsafe Quaternion RightFootRotation => _nativeFeet.IsCreated ? (Quaternion)Foot(1).currentRot : Quaternion.identity;
+    public unsafe Vector3 LeftKneeHint => _nativeFeet.IsCreated ? (Vector3)Foot(0).kneeHint : Vector3.zero;
+    public unsafe Vector3 RightKneeHint => _nativeFeet.IsCreated ? (Vector3)Foot(1).kneeHint : Vector3.zero;
+    public unsafe Vector3 LeftPlantedPos => _nativeFeet.IsCreated ? (Vector3)Foot(0).plantedPos : Vector3.zero;
+    public unsafe Vector3 RightPlantedPos => _nativeFeet.IsCreated ? (Vector3)Foot(1).plantedPos : Vector3.zero;
+    public unsafe float LeftStepTimer => _nativeFeet.IsCreated ? Foot(0).stepTimer : 0f;
+    public unsafe float RightStepTimer => _nativeFeet.IsCreated ? Foot(1).stepTimer : 0f;
     public bool LastGroundHit { get; private set; }
     public float LastGroundUp { get; private set; }
     public float HipsUp { get; private set; }
 
-    private enum BasisFootPhase { Planted, Stepping }
     public void InitializeVariables()
     {
         BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnHeightChanged;
@@ -326,15 +333,10 @@ public partial class BasisLocalFootDriver
 
         var lf = mapping.leftFoot;
         var rf = mapping.rightFoot;
-        left = new BasisFootState("Left", lf, -1);
-        right = new BasisFootState("Right", rf, +1);
+        leftFootBone = lf;
+        rightFootBone = rf;
 
         CaptureFootAlignment(lf, rf);
-
-        left.thigh = mapping.HasLeftUpperLeg ? mapping.LeftUpperLeg : (lf != null ? lf.parent != null ? lf.parent.parent : null : null);
-        left.shin = mapping.HasLeftLowerLeg ? mapping.LeftLowerLeg : (lf != null ? lf.parent : null);
-        right.thigh = mapping.HasRightUpperLeg ? mapping.RightUpperLeg : (rf != null ? rf.parent != null ? rf.parent.parent : null : null);
-        right.shin = mapping.HasRightLowerLeg ? mapping.RightLowerLeg : (rf != null ? rf.parent : null);
 
         var cc = BasisLocalPlayer.Instance.LocalCharacterDriver.characterController;
         int ccLayer = cc.gameObject.layer;
@@ -358,27 +360,12 @@ public partial class BasisLocalFootDriver
 
         DeriveStepParameters();
 
-        left.thighLen = leftThighLen;
-        left.shinLen = leftShinLen;
-        left.legLength = leftLegLen;
-        right.thighLen = rightThighLen;
-        right.shinLen = rightShinLen;
-        right.legLength = rightLegLen;
-
         rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLegLen, rightLegLen)) * 2.15f;
 
         Matrix4x4 ltw = BasisLocalPlayer.localToWorldMatrix;
         cachedPlayerUp = ltw.MultiplyVector(Vector3.up).normalized;
         cachedPlayerFwd = ltw.MultiplyVector(Vector3.forward).normalized;
         cachedPlayerRight = ltw.MultiplyVector(Vector3.right).normalized;
-
-        InitPose(left);
-        InitPose(right);
-
-        var hc = BasisLocalBoneDriver.HeadControl;
-        Vector3 headPos = hc.OutgoingWorldData.position;
-        Vector3 bodyFwd = BasisLocalPose.GetRotation(BasisPoseSlot.AvatarRoot, avatarTransform) * Vector3.forward;
-        Vector3 bodyRight = Vector3.Cross(cachedPlayerUp, bodyFwd).normalized;
 
         DisposeNativeArrays();
         _nativeFeet = new NativeArray<BasisFootNativeState>(2, Allocator.Persistent);
@@ -391,6 +378,28 @@ public partial class BasisLocalFootDriver
         _probeNextFoot = 0;
         _probeElapsedLeft = _probeElapsedRight = 0f;
 
+        ref BasisFootNativeState leftN = ref Foot(0);
+        ref BasisFootNativeState rightN = ref Foot(1);
+        leftN.sideSign = -1;
+        rightN.sideSign = +1;
+        leftN.thighLen = leftThighLen;
+        leftN.shinLen = leftShinLen;
+        leftN.legLength = leftLegLen;
+        rightN.thighLen = rightThighLen;
+        rightN.shinLen = rightShinLen;
+        rightN.legLength = rightLegLen;
+        leftN.plantedTime = rightN.plantedTime = SettledPlantedTime;
+        leftN.filteredNormal = rightN.filteredNormal = new float3(0f, 1f, 0f);
+        InitPose(ref leftN, leftFootBone);
+        InitPose(ref rightN, rightFootBone);
+        leftN.landRot = leftN.currentRot;
+        rightN.landRot = rightN.currentRot;
+
+        var hc = BasisLocalBoneDriver.HeadControl;
+        Vector3 headPos = hc.OutgoingWorldData.position;
+        Vector3 bodyFwd = BasisLocalPose.GetRotation(BasisPoseSlot.AvatarRoot, avatarTransform) * Vector3.forward;
+        Vector3 bodyRight = Vector3.Cross(cachedPlayerUp, bodyFwd).normalized;
+
         prevHeadYaw = HeadYaw();
         _nativeSimState[0] = new BasisFootSimState
         {
@@ -400,9 +409,6 @@ public partial class BasisLocalFootDriver
             smoothedBodyFwd = bodyFwd,
             smoothedBodyRight = bodyRight,
         };
-
-        _nativeFeet[0] = FootStateToNative(left, _nativeFeet[0]);
-        _nativeFeet[1] = FootStateToNative(right, _nativeFeet[1]);
 
         BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnHeightChanged;
         IsInitialized = true;
@@ -439,57 +445,6 @@ public partial class BasisLocalFootDriver
         if (_nativeOutput.IsCreated) _nativeOutput.Dispose();
         if (_probeCommands.IsCreated) _probeCommands.Dispose();
         if (_probeResults.IsCreated) _probeResults.Dispose();
-    }
-
-    private static BasisFootNativeState FootStateToNative(BasisFootState f, in BasisFootNativeState prev)
-    {
-        return new BasisFootNativeState
-        {
-            sideSign = f.sideSign,
-            thighLen = f.thighLen,
-            shinLen = f.shinLen,
-            legLength = f.legLength,
-            phase = f.phase == BasisFootPhase.Planted ? 0 : 1,
-            plantedPos = f.plantedPos,
-            plantedRot = f.plantedRot,
-            plantedBodyFwd = f.plantedBodyFwd,
-            stepStartPos = f.stepStartPos,
-            stepTargetPos = f.stepTargetPos,
-            stepStartRot = f.stepStartRot,
-            stepTimer = f.stepTimer,
-            stepDur = f.stepDur,
-            plantedTime = f.plantedTime,
-            idealPos = f.idealPos,
-            filteredNormal = f.filteredNormal,
-            currentPos = f.currentPos,
-            currentRot = f.currentRot,
-            kneeHint = f.kneeHint,
-            // Native-only state (no managed mirror): preserve across rebuilds. Zeroing landRot fed
-            // slerp((0,0,0,0), plantedRot) in the planted flat-blend after a Teleport/height change.
-            toeBendDeg = prev.toeBendDeg,
-            toeBendAxis = prev.toeBendAxis,
-            stepArcScale = prev.stepArcScale,
-            landRot = math.lengthsq(prev.landRot.value) > 0.5f ? prev.landRot : (quaternion)f.currentRot,
-        };
-    }
-
-    private void NativeToFootState(in BasisFootNativeState n, BasisFootState f)
-    {
-        f.plantedPos = n.plantedPos;
-        f.plantedRot = n.plantedRot;
-        f.plantedBodyFwd = n.plantedBodyFwd;
-        f.stepStartPos = n.stepStartPos;
-        f.stepTargetPos = n.stepTargetPos;
-        f.stepStartRot = n.stepStartRot;
-        f.stepTimer = n.stepTimer;
-        f.stepDur = n.stepDur;
-        f.plantedTime = n.plantedTime;
-        f.idealPos = n.idealPos;
-        f.filteredNormal = n.filteredNormal;
-        f.currentPos = n.currentPos;
-        f.currentRot = n.currentRot;
-        f.kneeHint = n.kneeHint;
-        f.phase = n.phase == 0 ? BasisFootPhase.Planted : BasisFootPhase.Stepping;
     }
 
     private BasisFootSimParams BuildParams()
@@ -760,12 +715,6 @@ public partial class BasisLocalFootDriver
         upperLegToFootVertical = baseUpperLegToFootVertical * legScale;
 
         DeriveStepParameters();
-        left.thighLen = leftThighLen;
-        left.shinLen = leftShinLen;
-        left.legLength = leftLegLen;
-        right.thighLen = rightThighLen;
-        right.shinLen = rightShinLen;
-        right.legLength = rightLegLen;
 
         rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLegLen, rightLegLen)) * 2.15f;
         _paramsDirty = true;
@@ -786,21 +735,20 @@ public partial class BasisLocalFootDriver
         DiscardPendingProbes();
         ApplyScaleToMeasurements(BasisHeightDriver.ScaledToMatchValue);
 
-        ReSnapFoot(left);
-        ReSnapFoot(right);
-
         if (_nativeFeet.IsCreated)
         {
-            _nativeFeet[0] = FootStateToNative(left, _nativeFeet[0]);
-            _nativeFeet[1] = FootStateToNative(right, _nativeFeet[1]);
+            ReSnapFoot(ref Foot(0), leftFootBone);
+            ReSnapFoot(ref Foot(1), rightFootBone);
+            ClearTransient(ref Foot(0));
+            ClearTransient(ref Foot(1));
         }
     }
 
-    private void ReSnapFoot(BasisFootState f)
+    private void ReSnapFoot(ref BasisFootNativeState f, Transform bone)
     {
-        if (f.bone == null) return;
+        if (bone == null) return;
 
-        Vector3 origin = f.bone.position + cachedPlayerUp * (hipToFoot * 0.33f);
+        Vector3 origin = bone.position + cachedPlayerUp * (hipToFoot * 0.33f);
         if (GroundCast(origin, -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), cachedPlayerUp), out RaycastHit hit))
         {
             Vector3 snapped = hit.point + hit.normal * footHeightOffset;
@@ -905,9 +853,6 @@ public partial class BasisLocalFootDriver
             FinalizeStep(ref rightN);
             rightN.wantsStep = false;
         }
-
-        NativeToFootState(in leftN, left);
-        NativeToFootState(in rightN, right);
 
         ref readonly BasisFootSimState simOut = ref UnsafeUtility.AsRef<BasisFootSimState>(_nativeSimState.GetUnsafeReadOnlyPtr());
         smoothedVelocity = simOut.smoothedVelocity;
@@ -1330,21 +1275,21 @@ public partial class BasisLocalFootDriver
 
     private void FallbackStanceWidth()
     {
-        if (left.bone == null || right.bone == null)
+        if (leftFootBone == null || rightFootBone == null)
         {
             stanceWidth = 0.2f;
         }
         else
         {
-            stanceWidth = Mathf.Max(0.04f, ProjectHorizontal(right.bone.position - left.bone.position).magnitude);
+            stanceWidth = Mathf.Max(0.04f, ProjectHorizontal(rightFootBone.position - leftFootBone.position).magnitude);
         }
     }
     private void FallbackHipToFoot()
     {
-        if (hips != null && left.bone != null && right.bone != null)
+        if (hips != null && leftFootBone != null && rightFootBone != null)
         {
             float hipsAlongUp = Vector3.Dot(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), cachedPlayerUp);
-            float feetAlongUp = (Vector3.Dot(left.bone.position, cachedPlayerUp) + Vector3.Dot(right.bone.position, cachedPlayerUp)) * 0.5f;
+            float feetAlongUp = (Vector3.Dot(leftFootBone.position, cachedPlayerUp) + Vector3.Dot(rightFootBone.position, cachedPlayerUp)) * 0.5f;
             hipToFoot = Mathf.Max(0.15f, Mathf.Abs(hipsAlongUp - feetAlongUp));
         }
         else
@@ -1368,14 +1313,14 @@ public partial class BasisLocalFootDriver
         }
     }
 
-    private void InitPose(BasisFootState f)
+    private void InitPose(ref BasisFootNativeState f, Transform bone)
     {
-        if (f.bone == null)
+        if (bone == null)
         {
             return;
         }
 
-        Vector3 bp = f.bone.position;
+        Vector3 bp = bone.position;
         int side = f.sideSign < 0 ? 0 : 1;
         if (GroundCast(bp + cachedPlayerUp * (hipToFoot * 0.33f), -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), cachedPlayerUp), out RaycastHit hit))
         {
@@ -1392,8 +1337,8 @@ public partial class BasisLocalFootDriver
         }
         Vector3 fwd = avatarTransform != null ? BasisLocalPose.GetRotation(BasisPoseSlot.AvatarRoot, avatarTransform) * Vector3.forward : Vector3.forward;
         f.currentRot = f.plantedRot = f.stepStartRot = FootRotation(fwd, f.filteredNormal, f.sideSign < 0 ? footAlignLeft : footAlignRight);
-        f.phase = BasisFootPhase.Planted;
-        f.kneeHint = (BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips) + f.currentPos) * 0.5f + fwd * (f.thighLen > 0 ? f.thighLen * 0.4f : 0.12f);
+        f.phase = 0;
+        f.kneeHint = (BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips) + (Vector3)f.currentPos) * 0.5f + fwd * (f.thighLen > 0 ? f.thighLen * 0.4f : 0.12f);
     }
 
     public float ComputeHipBob()
@@ -1424,14 +1369,14 @@ public partial class BasisLocalFootDriver
     public unsafe Vector3 RightToeBendAxis => IsInitialized && _nativeFeet.IsCreated
         ? (Vector3)UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 1).toeBendAxis : Vector3.zero;
 
-    public bool LeftIsPlanted => left.phase == BasisFootPhase.Planted;
-    public bool RightIsPlanted =>  right.phase == BasisFootPhase.Planted;
-    public float LeftStepProgress => left.phase == BasisFootPhase.Stepping ? Mathf.Clamp01(left.stepTimer / left.stepDur) : 0f;
-    public float RightStepProgress => right.phase == BasisFootPhase.Stepping ? Mathf.Clamp01(right.stepTimer / right.stepDur) : 0f;
-    public Vector3 LeftIdealPos => left.idealPos;
-    public Vector3 RightIdealPos => right.idealPos;
-    public Vector3 LeftStepTarget => left.stepTargetPos;
-    public Vector3 RightStepTarget => right.stepTargetPos;
+    public unsafe bool LeftIsPlanted => _nativeFeet.IsCreated && Foot(0).phase == 0;
+    public unsafe bool RightIsPlanted => _nativeFeet.IsCreated && Foot(1).phase == 0;
+    public unsafe float LeftStepProgress => _nativeFeet.IsCreated && Foot(0).phase != 0 ? Mathf.Clamp01(Foot(0).stepTimer / Foot(0).stepDur) : 0f;
+    public unsafe float RightStepProgress => _nativeFeet.IsCreated && Foot(1).phase != 0 ? Mathf.Clamp01(Foot(1).stepTimer / Foot(1).stepDur) : 0f;
+    public unsafe Vector3 LeftIdealPos => _nativeFeet.IsCreated ? (Vector3)Foot(0).idealPos : Vector3.zero;
+    public unsafe Vector3 RightIdealPos => _nativeFeet.IsCreated ? (Vector3)Foot(1).idealPos : Vector3.zero;
+    public unsafe Vector3 LeftStepTarget => _nativeFeet.IsCreated ? (Vector3)Foot(0).stepTargetPos : Vector3.zero;
+    public unsafe Vector3 RightStepTarget => _nativeFeet.IsCreated ? (Vector3)Foot(1).stepTargetPos : Vector3.zero;
     public Vector3 SmoothedVelocity => smoothedVelocity;
     public float Speed => smoothedVelocity.magnitude;
     public Vector3 HipsPosition => BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips);
@@ -1465,7 +1410,7 @@ public partial class BasisLocalFootDriver
     {
         EnsureGizmoHook();
 
-        if (!show || !IsInitialized || left == null || right == null)
+        if (!show || !IsInitialized || !_nativeFeet.IsCreated)
         {
             SetGizmosVisible(false);
             return;
@@ -1473,8 +1418,8 @@ public partial class BasisLocalFootDriver
 
         EnsureGizmosCreated();
 
-        UpdateFootGizmos(0, left, new Color(0.2f, 0.9f, 0.4f), new Color(1f, 0.85f, 0.1f), showLabels, cameraPos);
-        UpdateFootGizmos(1, right, new Color(0.2f, 0.5f, 1f), new Color(1f, 0.5f, 0.1f), showLabels, cameraPos);
+        UpdateFootGizmos(0, in Foot(0), new Color(0.2f, 0.9f, 0.4f), new Color(1f, 0.85f, 0.1f), showLabels, cameraPos);
+        UpdateFootGizmos(1, in Foot(1), new Color(0.2f, 0.5f, 1f), new Color(1f, 0.5f, 0.1f), showLabels, cameraPos);
 
         if (hips != null)
         {
@@ -1502,34 +1447,42 @@ public partial class BasisLocalFootDriver
         _gizmosVisible = true;
     }
 
-    private void UpdateFootGizmos(int slot, BasisFootState f, Color plantCol, Color stepCol, bool showLabels, Vector3 cameraPos)
+    private void UpdateFootGizmos(int slot, in BasisFootNativeState f, Color plantCol, Color stepCol, bool showLabels, Vector3 cameraPos)
     {
-        bool stepping = f.phase == BasisFootPhase.Stepping;
+        bool stepping = f.phase != 0;
+        Vector3 currentPos = f.currentPos;
+        Quaternion currentRot = f.currentRot;
+        Vector3 idealPos = f.idealPos;
+        Vector3 plantedPos = f.plantedPos;
+        Vector3 stepStartPos = f.stepStartPos;
+        Vector3 stepTargetPos = f.stepTargetPos;
+        Vector3 kneeHint = f.kneeHint;
+        string name = k_FootNames[slot];
         Color c = stepping ? stepCol : plantCol;
 
-        BasisGizmoManager.UpdateSphereGizmo(_gCurrent[slot], f.currentPos, Vector3.one * 0.04f);
+        BasisGizmoManager.UpdateSphereGizmo(_gCurrent[slot], currentPos, Vector3.one * 0.04f);
         BasisGizmoManager.UpdateGizmoColor(_gCurrent[slot], c);
         BasisGizmoManager.SetGizmoActive(_gCurrent[slot], true);
 
-        BasisGizmoManager.UpdateLineGizmo(_gForward[slot], f.currentPos, f.currentPos + f.currentRot * Vector3.forward * 0.07f);
+        BasisGizmoManager.UpdateLineGizmo(_gForward[slot], currentPos, currentPos + currentRot * Vector3.forward * 0.07f);
         BasisGizmoManager.SetGizmoActive(_gForward[slot], true);
 
-        BasisGizmoManager.UpdateSphereGizmo(_gIdeal[slot], f.idealPos, Vector3.one * 0.03f);
+        BasisGizmoManager.UpdateSphereGizmo(_gIdeal[slot], idealPos, Vector3.one * 0.03f);
         BasisGizmoManager.UpdateGizmoColor(_gIdeal[slot], c * 0.4f);
         BasisGizmoManager.SetGizmoActive(_gIdeal[slot], true);
 
-        BasisGizmoManager.UpdateLineGizmo(_gPlantIdeal[slot], f.plantedPos, f.idealPos);
+        BasisGizmoManager.UpdateLineGizmo(_gPlantIdeal[slot], plantedPos, idealPos);
         BasisGizmoManager.SetGizmoActive(_gPlantIdeal[slot], true);
 
         if (stepping)
         {
             const int seg = 16;
-            _stepArcBuf[0] = f.stepStartPos;
+            _stepArcBuf[0] = stepStartPos;
             for (int i = 1; i <= seg; i++)
             {
                 float t = i / (float)seg;
                 float e = 1f - (1f - t) * (1f - t) * (1f - t);
-                Vector3 p = Vector3.Lerp(f.stepStartPos, f.stepTargetPos, e);
+                Vector3 p = Vector3.Lerp(stepStartPos, stepTargetPos, e);
                 float lift = Mathf.Pow(t, 0.6f) * Mathf.Pow(1f - t, 1.4f) / 0.234f;
                 p += cachedPlayerUp * (Mathf.Clamp01(lift) * stepHeightCalc);
                 _stepArcBuf[i] = p;
@@ -1538,7 +1491,7 @@ public partial class BasisLocalFootDriver
             BasisGizmoManager.UpdateGizmoColor(_gStepArc[slot], stepCol * 0.6f);
             BasisGizmoManager.SetGizmoActive(_gStepArc[slot], true);
 
-            BasisGizmoManager.UpdateSphereGizmo(_gStepTarget[slot], f.stepTargetPos, Vector3.one * 0.03f);
+            BasisGizmoManager.UpdateSphereGizmo(_gStepTarget[slot], stepTargetPos, Vector3.one * 0.03f);
             BasisGizmoManager.SetGizmoActive(_gStepTarget[slot], true);
         }
         else
@@ -1547,12 +1500,12 @@ public partial class BasisLocalFootDriver
             BasisGizmoManager.SetGizmoActive(_gStepTarget[slot], false);
         }
 
-        BasisGizmoManager.UpdateLineGizmo(_gKnee[slot], f.currentPos, f.kneeHint);
+        BasisGizmoManager.UpdateLineGizmo(_gKnee[slot], currentPos, kneeHint);
         BasisGizmoManager.SetGizmoActive(_gKnee[slot], true);
 
         if (hips != null)
         {
-            BasisGizmoManager.UpdateLineGizmo(_gHipFoot[slot], BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), f.currentPos);
+            BasisGizmoManager.UpdateLineGizmo(_gHipFoot[slot], BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips), currentPos);
             BasisGizmoManager.UpdateGizmoColor(_gHipFoot[slot], c * 0.3f);
             BasisGizmoManager.SetGizmoActive(_gHipFoot[slot], true);
         }
@@ -1563,14 +1516,14 @@ public partial class BasisLocalFootDriver
 
         if (showLabels)
         {
-            float dist = HDist(f.plantedPos, f.idealPos);
+            float dist = HDist(plantedPos, idealPos);
             string lbl = stepping
-                ? $"{f.name} STEP {Mathf.Clamp01(f.stepTimer / f.stepDur):P0}"
-                : $"{f.name} planted  drift:{dist * 100f:F1}cm";
-            Vector3 labelPos = f.currentPos + cachedPlayerUp * 0.06f;
+                ? $"{name} STEP {Mathf.Clamp01(f.stepTimer / f.stepDur):P0}"
+                : $"{name} planted  drift:{dist * 100f:F1}cm";
+            Vector3 labelPos = currentPos + cachedPlayerUp * 0.06f;
             if (_gLabel[slot] <= 0)
             {
-                BasisGizmoManager.CreateTextGizmo($"FootLabel_{f.name}", out _gLabel[slot], labelPos, lbl, c);
+                BasisGizmoManager.CreateTextGizmo($"FootLabel_{name}", out _gLabel[slot], labelPos, lbl, c);
             }
             Quaternion rot = BasisGizmoManager.BillboardRotation(labelPos, cameraPos);
             BasisGizmoManager.UpdateTextGizmo(_gLabel[slot], labelPos, rot, 0.02f * Mathf.Max(0.01f, BasisHeightDriver.ScaledToMatchValue), lbl, c);
@@ -1672,43 +1625,5 @@ public partial class BasisLocalFootDriver
         _gVelocity = -1;
         _gizmosCreated = false;
         _gizmosVisible = false;
-    }
-}
-
-public partial class BasisLocalFootDriver
-{
-    [Serializable]
-    private class BasisFootState
-    {
-        public string name;
-        public Transform bone, thigh, shin;
-        public int sideSign;
-        public float thighLen, shinLen, legLength;
-
-        public BasisFootPhase phase;
-        public Vector3 plantedPos;
-        public Quaternion plantedRot;
-        public Vector3 plantedBodyFwd;
-        public Vector3 stepStartPos, stepTargetPos;
-
-        public Quaternion stepStartRot;
-        public float stepTimer, stepDur;
-
-        public float plantedTime;
-
-        public Vector3 idealPos, filteredNormal;
-        public Vector3 currentPos;
-        public Quaternion currentRot;
-        public Vector3 kneeHint;
-
-        public BasisFootState(string n, Transform b, int s)
-        {
-            name = n;
-            bone = b;
-            sideSign = s;
-            filteredNormal = Vector3.up;
-            phase = BasisFootPhase.Planted;
-            plantedTime = SettledPlantedTime;
-        }
     }
 }
