@@ -94,6 +94,7 @@ public partial class BasisHandHeldCameraUI
             motionBlurQuality = 1;   // Medium
             motionBlurMode = 0;      // Camera only — no motion vector pass
 
+            overrideVolumetricFog = false;
             VolumetricFogVolumedensity = 0.01f;
             VolumetricFogenableAPVContribution = true;
             VolumetricFogenableMainLightContribution = true;
@@ -204,6 +205,8 @@ public partial class BasisHandHeldCameraUI
         public int autoBrightnessMetering;
         public float autoBrightnessRange;
 
+        /// <summary>Uses this camera's volumetric-fog profile instead of the world's fog.</summary>
+        public bool overrideVolumetricFog;
         public float VolumetricFogVolumedensity;
         public bool VolumetricFogenableAPVContribution;
         public bool VolumetricFogenableMainLightContribution;

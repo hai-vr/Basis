@@ -166,6 +166,7 @@ namespace Basis.Tests.Camera
                 autoBrightnessSpeed = 3.4f,
                 autoBrightnessMetering = (int)BasisCameraMeteringMode.Spot,
                 autoBrightnessRange = 4.5f,
+                overrideVolumetricFog = true,
                 VolumetricFogVolumedensity = 0.42f,
                 VolumetricFogenableAPVContribution = false,
                 VolumetricFogenableMainLightContribution = false,

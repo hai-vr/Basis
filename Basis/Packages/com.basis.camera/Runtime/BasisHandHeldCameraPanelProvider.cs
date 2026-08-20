@@ -171,6 +171,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelDropdown _motionBlurModeDropdown;
         private PanelDropdown _msaaDropdown;
 #if Basis_VOLUMETRIC_SUPPORTED
+        private PanelToggle _fogOverrideToggle;
         private PanelSlider _fogSlider;
 #endif
 
@@ -811,6 +812,7 @@ namespace Basis.BasisUI.HandHeldCamera
             ClearAnchorReferences();
             _msaaDropdown = null;
 #if Basis_VOLUMETRIC_SUPPORTED
+            _fogOverrideToggle = null;
             _fogSlider = null;
 #endif
             _followGroup = null;
@@ -1359,9 +1361,19 @@ namespace Basis.BasisUI.HandHeldCamera
             };
 
 #if Basis_VOLUMETRIC_SUPPORTED
+            _fogOverrideToggle = PanelToggle.CreateNewEntry(content);
+            _fogOverrideToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.fog.override"));
+            _fogOverrideToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.fog.override.description"));
+            _fogOverrideToggle.OnValueChanged = v =>
+            {
+                _activeCamera?.SetOverrideVolumetricFog(v);
+                RefreshVolumetricFogVisibility();
+            };
+
             _fogSlider = PanelSlider.CreateNew(content);
             _fogSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                BasisLocalization.Get("camera.volumetricFog"), 0f, 1f, false, 2, ValueDisplayMode.Raw));
+                BasisLocalization.Get("settings.graphics.fog.density"), 0f, 1f, false, 2, ValueDisplayMode.Raw));
+            _fogSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.fog.density.tooltip"));
             _fogSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeVolumetricDensity(v);
 #endif
         }
@@ -2336,8 +2348,10 @@ namespace Basis.BasisUI.HandHeldCamera
 #if Basis_VOLUMETRIC_SUPPORTED
             if (metaData.VolumetricFogVolume != null)
             {
+                _fogOverrideToggle?.SetValueWithoutNotify(_activeCamera.OverrideVolumetricFog);
                 _fogSlider?.SetValueWithoutNotify(metaData.VolumetricFogVolume.density.value);
             }
+            RefreshVolumetricFogVisibility();
 #endif
 
             if (_resolutionDropdown != null)
@@ -2867,6 +2881,16 @@ namespace Basis.BasisUI.HandHeldCamera
             RefreshSearch();
             ForceLayoutRebuild(_effectsGroup);
         }
+
+#if Basis_VOLUMETRIC_SUPPORTED
+        private void RefreshVolumetricFogVisibility()
+        {
+            bool overriding = _activeCamera != null && _activeCamera.OverrideVolumetricFog;
+            _fogSlider?.gameObject.SetActive(overriding);
+            RefreshSearch();
+            ForceLayoutRebuild(_effectsGroup);
+        }
+#endif
 
         private void RefreshPaniniVisibility()
         {

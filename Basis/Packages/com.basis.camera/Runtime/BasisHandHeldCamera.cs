@@ -105,6 +105,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Static metadata/presets and PP component references.</summary>
     public BasisHandHeldCameraMetaData MetaData = new BasisHandHeldCameraMetaData();
 
+#if Basis_VOLUMETRIC_SUPPORTED
+    private VolumetricFogCameraSource volumetricFogCameraSource;
+#endif
+
     /// <summary>World-space debug representations of this camera, toggled from the settings panel.</summary>
     public BasisHandHeldCameraGizmos DebugGizmos { get; } = new BasisHandHeldCameraGizmos();
 
@@ -308,10 +312,60 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public void InitializeVolumetrics()
     {
 #if Basis_VOLUMETRIC_SUPPORTED
-        if (MetaData.Profile.TryGet(out MetaData.VolumetricFogVolume))
+        if (MetaData.VolumetricFogVolume == null)
         {
-
+            MetaData.Profile.TryGet(out MetaData.VolumetricFogVolume);
         }
+
+        if (captureCamera != null)
+        {
+            volumetricFogCameraSource = captureCamera.GetComponent<VolumetricFogCameraSource>();
+            if (volumetricFogCameraSource == null)
+            {
+                volumetricFogCameraSource = captureCamera.gameObject.AddComponent<VolumetricFogCameraSource>();
+            }
+
+            int defaultLayer = LayerMask.NameToLayer("Default");
+            volumetricFogCameraSource.WorldVolumeLayerMask = defaultLayer >= 0 ? 1 << defaultLayer : 1;
+            UpdateVolumetricFogSource();
+        }
+#endif
+    }
+
+    /// <summary>True when this camera's own fog override replaces the world's volumetric fog.</summary>
+    public bool OverrideVolumetricFog
+    {
+        get
+        {
+#if Basis_VOLUMETRIC_SUPPORTED
+            return MetaData.VolumetricFogVolume != null && MetaData.VolumetricFogVolume.active;
+#else
+            return false;
+#endif
+        }
+    }
+
+    public void SetOverrideVolumetricFog(bool enabled)
+    {
+#if Basis_VOLUMETRIC_SUPPORTED
+        if (MetaData.VolumetricFogVolume != null)
+        {
+            MetaData.VolumetricFogVolume.active = enabled;
+        }
+        UpdateVolumetricFogSource();
+#endif
+    }
+
+    private void UpdateVolumetricFogSource()
+    {
+#if Basis_VOLUMETRIC_SUPPORTED
+        if (volumetricFogCameraSource == null) return;
+
+        bool useCameraOverride = OverrideVolumetricFog;
+        bool worldIsInShot = backgroundMode == BasisCameraBackgroundMode.World || backgroundKeepsWorld;
+
+        volumetricFogCameraSource.SuppressFog = !useCameraOverride && !worldIsInShot;
+        volumetricFogCameraSource.UseWorldFog = !useCameraOverride && worldIsInShot;
 #endif
     }
     /// <summary>

@@ -134,6 +134,8 @@ public partial class BasisHandHeldCamera
             return;
         }
 
+        UpdateVolumetricFogSource();
+
         if (backgroundMode == BasisCameraBackgroundMode.World)
         {
             RestoreWorldBackground();
