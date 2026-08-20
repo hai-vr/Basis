@@ -1200,10 +1200,11 @@
     { "key": "camera.dollySpeed", "value": "Скорость по рельсам" },
     { "key": "camera.dollySpeed.description", "value": "Сколько метров в секунду камера проходит по рельсам. 0 — удерживать позицию." },
     { "key": "camera.background", "value": "Фон" },
+    { "key": "camera.background.transparent", "value": "Прозрачный" },
     { "key": "camera.backgroundMode", "value": "Фон" },
-    { "key": "camera.backgroundMode.description", "value": "Заменяет то, что находится за объектом. Цветовые режимы убирают мир для кеинга." },
+    { "key": "camera.backgroundMode.description", "value": "Заменяет то, что находится за объектом. Режимы кеинга могут убрать мир для хромакея или альфа-композитинга." },
     { "key": "camera.backgroundKeepWorld", "value": "Оставить мир видимым" },
-    { "key": "camera.backgroundKeepWorld.description", "value": "Оставляет геометрию мира в кадре на цветном фоне. Выкл. — остаются только игроки и пропы." },
+    { "key": "camera.backgroundKeepWorld.description", "value": "Оставляет геометрию мира в кадре на заменяющем фоне. Выкл. — остаются только игроки и пропы." },
     { "key": "camera.backgroundRed", "value": "Свой красный" },
     { "key": "camera.backgroundGreen", "value": "Свой зелёный" },
     { "key": "camera.backgroundBlue", "value": "Свой синий" },
@@ -3142,6 +3143,12 @@
     { "key": "mirror.cutout.unavailable", "value": "Вырез недоступен: шейдер выреза отсутствует или не поддерживается здесь." },
     { "key": "mirror.size", "value": "Размер" },
     { "key": "mirror.size.description", "value": "Физический размер поверхности зеркала в мире." },
-    { "key": "mirror.status.surfaceSize", "value": "Поверхность {0} x {1} м" }
+    { "key": "mirror.status.surfaceSize", "value": "Поверхность {0} x {1} м" },
+    { "key": "mirror.placement", "value": "Размещение" },
+    { "key": "mirror.placement.description", "value": "Как можно перемещать личное зеркало и вместе с чем оно движется." },
+    { "key": "mirror.grabbable", "value": "Можно брать" },
+    { "key": "mirror.grabbable.description", "value": "Разрешить брать и перемещать личное зеркало." },
+    { "key": "mirror.moveWithPlayspace", "value": "Двигать с игровой зоной" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "Перемещает и поворачивает личное зеркало вместе с вашей игровой зоной, а не оставляет его в мире." }
   ]
 }

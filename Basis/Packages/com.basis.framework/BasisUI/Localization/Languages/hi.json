@@ -1200,10 +1200,11 @@
     { "key": "camera.dollySpeed", "value": "ट्रैक गति" },
     { "key": "camera.dollySpeed.description", "value": "कैमरा ट्रैक पर प्रति सेकंड कितने मीटर चलता है। 0 स्थिति बनाए रखता है।" },
     { "key": "camera.background", "value": "पृष्ठभूमि" },
+    { "key": "camera.background.transparent", "value": "पारदर्शी" },
     { "key": "camera.backgroundMode", "value": "पृष्ठभूमि" },
-    { "key": "camera.backgroundMode.description", "value": "विषय के पीछे जो है उसे बदल देता है। रंग मोड कीइंग के लिए दुनिया को हटा देते हैं।" },
+    { "key": "camera.backgroundMode.description", "value": "विषय के पीछे जो है उसे बदल देता है। कीइंग मोड क्रोमा की या अल्फ़ा कंपोज़िटिंग के लिए दुनिया को हटा सकते हैं।" },
     { "key": "camera.backgroundKeepWorld", "value": "दुनिया दृश्य रखें" },
-    { "key": "camera.backgroundKeepWorld.description", "value": "रंगीन पृष्ठभूमि पर विश्व ज्यामिति को शॉट में बनाए रखता है। बंद होने पर केवल खिलाड़ी और प्रॉप्स रहते हैं।" },
+    { "key": "camera.backgroundKeepWorld.description", "value": "प्रतिस्थापन पृष्ठभूमि पर विश्व ज्यामिति को शॉट में बनाए रखता है। बंद होने पर केवल खिलाड़ी और प्रॉप्स रहते हैं।" },
     { "key": "camera.backgroundRed", "value": "कस्टम लाल" },
     { "key": "camera.backgroundGreen", "value": "कस्टम हरा" },
     { "key": "camera.backgroundBlue", "value": "कस्टम नीला" },
@@ -3142,6 +3143,12 @@
     { "key": "mirror.cutout.unavailable", "value": "कटआउट उपलब्ध नहीं: कटआउट शेडर मौजूद नहीं है या यहाँ समर्थित नहीं है।" },
     { "key": "mirror.size", "value": "आकार" },
     { "key": "mirror.size.description", "value": "दुनिया में दर्पण की सतह का भौतिक आकार।" },
-    { "key": "mirror.status.surfaceSize", "value": "सतह {0} x {1} मी" }
+    { "key": "mirror.status.surfaceSize", "value": "सतह {0} x {1} मी" },
+    { "key": "mirror.placement", "value": "स्थान" },
+    { "key": "mirror.placement.description", "value": "पर्सनल मिरर को कैसे हिलाया जा सकता है और वह किसके साथ हिलता है।" },
+    { "key": "mirror.grabbable", "value": "पकड़ने योग्य" },
+    { "key": "mirror.grabbable.description", "value": "पर्सनल मिरर को पकड़कर हिलाने की अनुमति दें।" },
+    { "key": "mirror.moveWithPlayspace", "value": "प्लेस्पेस के साथ चलाएँ" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "पर्सनल मिरर को दुनिया में छोड़ने के बजाय अपने प्लेस्पेस के साथ चलाएँ और घुमाएँ।" }
   ]
 }

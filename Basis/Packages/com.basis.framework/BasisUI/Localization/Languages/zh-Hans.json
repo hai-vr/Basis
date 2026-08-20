@@ -1204,10 +1204,11 @@
     { "key": "camera.dollySpeed", "value": "轨道移动速度" },
     { "key": "camera.dollySpeed.description", "value": "相机沿轨道移动的速度（米/秒）。0 表示保持在原位。" },
     { "key": "camera.background", "value": "背景" },
+    { "key": "camera.background.transparent", "value": "透明" },
     { "key": "camera.backgroundMode", "value": "背景" },
-    { "key": "camera.backgroundMode.description", "value": "替换拍摄对象背后的内容。纯色模式会去掉世界，便于抠像。" },
+    { "key": "camera.backgroundMode.description", "value": "替换拍摄对象背后的内容。可抠像模式可以移除世界，用于色键或 Alpha 合成。" },
     { "key": "camera.backgroundKeepWorld", "value": "保留世界可见" },
-    { "key": "camera.backgroundKeepWorld.description", "value": "在纯色背景上保留世界几何体。关闭后只保留玩家和道具。" },
+    { "key": "camera.backgroundKeepWorld.description", "value": "在替换背景上保留世界几何体。关闭后只保留玩家和道具。" },
     { "key": "camera.backgroundRed", "value": "自定义红" },
     { "key": "camera.backgroundGreen", "value": "自定义绿" },
     { "key": "camera.backgroundBlue", "value": "自定义蓝" },
@@ -3146,6 +3147,12 @@
     { "key": "mirror.cutout.unavailable", "value": "无法使用抠像：抠像着色器缺失或在此环境中不受支持。" },
     { "key": "mirror.size", "value": "尺寸" },
     { "key": "mirror.size.description", "value": "镜面在世界中的物理尺寸。" },
-    { "key": "mirror.status.surfaceSize", "value": "镜面 {0} x {1} 米" }
+    { "key": "mirror.status.surfaceSize", "value": "镜面 {0} x {1} 米" },
+    { "key": "mirror.placement", "value": "放置方式" },
+    { "key": "mirror.placement.description", "value": "设置个人镜子如何移动，以及它跟随什么一起移动。" },
+    { "key": "mirror.grabbable", "value": "可抓取" },
+    { "key": "mirror.grabbable.description", "value": "允许抓取并移动个人镜子。" },
+    { "key": "mirror.moveWithPlayspace", "value": "随游玩空间移动" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "让个人镜子随你的游玩空间一起移动和旋转，而不是留在世界中。" }
   ]
 }

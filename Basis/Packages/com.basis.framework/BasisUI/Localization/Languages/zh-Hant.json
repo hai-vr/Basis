@@ -1204,10 +1204,11 @@
     { "key": "camera.dollySpeed", "value": "軌道移動速度" },
     { "key": "camera.dollySpeed.description", "value": "相機沿軌道移動的速度（公尺/秒）。0 表示保持在原位。" },
     { "key": "camera.background", "value": "背景" },
+    { "key": "camera.background.transparent", "value": "透明" },
     { "key": "camera.backgroundMode", "value": "背景" },
-    { "key": "camera.backgroundMode.description", "value": "取代拍攝對象背後的內容。純色模式會去掉世界，便於去背。" },
+    { "key": "camera.backgroundMode.description", "value": "取代拍攝對象背後的內容。可去背模式可以移除世界，用於色鍵或 Alpha 合成。" },
     { "key": "camera.backgroundKeepWorld", "value": "保留世界可見" },
-    { "key": "camera.backgroundKeepWorld.description", "value": "在純色背景上保留世界幾何體。關閉後只保留玩家和道具。" },
+    { "key": "camera.backgroundKeepWorld.description", "value": "在替換背景上保留世界幾何體。關閉後只保留玩家和道具。" },
     { "key": "camera.backgroundRed", "value": "自訂紅" },
     { "key": "camera.backgroundGreen", "value": "自訂綠" },
     { "key": "camera.backgroundBlue", "value": "自訂藍" },
@@ -3146,6 +3147,12 @@
     { "key": "mirror.cutout.unavailable", "value": "無法使用去背：去背著色器缺失或在此環境中不受支援。" },
     { "key": "mirror.size", "value": "尺寸" },
     { "key": "mirror.size.description", "value": "鏡面在世界中的物理尺寸。" },
-    { "key": "mirror.status.surfaceSize", "value": "鏡面 {0} x {1} 公尺" }
+    { "key": "mirror.status.surfaceSize", "value": "鏡面 {0} x {1} 公尺" },
+    { "key": "mirror.placement", "value": "放置方式" },
+    { "key": "mirror.placement.description", "value": "設定個人鏡子如何移動，以及它跟隨什麼一起移動。" },
+    { "key": "mirror.grabbable", "value": "可抓取" },
+    { "key": "mirror.grabbable.description", "value": "允許抓取並移動個人鏡子。" },
+    { "key": "mirror.moveWithPlayspace", "value": "隨遊玩空間移動" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "讓個人鏡子隨你的遊玩空間一起移動和旋轉，而不是留在世界中。" }
   ]
 }

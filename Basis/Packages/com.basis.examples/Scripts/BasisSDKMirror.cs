@@ -1,6 +1,7 @@
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using System;
 using System.Collections;
@@ -69,6 +70,8 @@ public class BasisSDKMirror : MonoBehaviour
     // Per-instance on purpose: a static flag leaked by one mirror's bad frame used to
     // permanently freeze every mirror in the world.
     [NonSerialized] public bool InsideRendering;
+    [NonSerialized] private bool desktopPlayspaceYawInitialized;
+    [NonSerialized] private float lastDesktopPlayspaceYaw;
 
     [Header("Cameras")]
     public Camera LeftCamera;
@@ -530,6 +533,38 @@ public class BasisSDKMirror : MonoBehaviour
     /// <summary>Frames a secondary viewer may go uncaptured before its texture is released.</summary>
     private const int ViewerStaleFrames = 300;
 
+    private void Start()
+    {
+        BasisMirrorSettingsStore.ApplyPersonalMirrorBehavior(this);
+    }
+
+    private void UpdatePersonalMirrorPlayspace()
+    {
+        if (!BasisMirrorSettingsStore.PersonalMirrorMovesWithPlayspace(this) ||
+            !BasisDeviceManagement.IsUserInDesktop() ||
+            BasisDesktopEye.Instance == null)
+        {
+            desktopPlayspaceYawInitialized = false;
+            return;
+        }
+
+        float currentYaw = BasisDesktopEye.Instance.rotationYaw;
+        if (!desktopPlayspaceYawInitialized)
+        {
+            lastDesktopPlayspaceYaw = currentYaw;
+            desktopPlayspaceYawInitialized = true;
+            return;
+        }
+
+        float deltaYaw = Mathf.DeltaAngle(lastDesktopPlayspaceYaw, currentYaw);
+        lastDesktopPlayspaceYaw = currentYaw;
+        if (Mathf.Approximately(deltaYaw, 0f)) return;
+
+        Quaternion deltaRotation = Quaternion.AngleAxis(deltaYaw, Vector3.up);
+        transform.localPosition = deltaRotation * transform.localPosition;
+        transform.localRotation = deltaRotation * transform.localRotation;
+    }
+
     private void OnEnable()
     {
         IsActive = false;
@@ -611,6 +646,7 @@ public class BasisSDKMirror : MonoBehaviour
     private void CleanUp()
     {
         BasisLocalCameraDriver.InstanceExists -= Initialize;
+        desktopPlayspaceYawInitialized = false;
 
         if (basisMeshRendererCheck != null)
             basisMeshRendererCheck.Check -= VisibilityFlag;
@@ -764,6 +800,8 @@ public class BasisSDKMirror : MonoBehaviour
     }
     private void OnBeforeRender()
     {
+        UpdatePersonalMirrorPlayspace();
+
         // Self-heal after a Play-Mode domain reload (e.g. Test In Editor + reselect triggers
         // an AssetDatabase.Refresh()): the camera driver's serialized HasEvents flag persists
         // across the reload, so its InstanceExists event never re-fires for our subscription.

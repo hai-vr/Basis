@@ -1200,10 +1200,11 @@
     { "key": "camera.dollySpeed", "value": "سرعة الحركة على المسار" },
     { "key": "camera.dollySpeed.description", "value": "عدد الأمتار في الثانية التي تقطعها الكاميرا على المسار. القيمة 0 تُبقيها في مكانها." },
     { "key": "camera.background", "value": "الخلفية" },
+    { "key": "camera.background.transparent", "value": "شفاف" },
     { "key": "camera.backgroundMode", "value": "الخلفية" },
-    { "key": "camera.backgroundMode.description", "value": "يستبدل ما خلف الهدف. تُسقط أوضاع اللون العالمَ من الصورة لأغراض الفصل اللوني." },
+    { "key": "camera.backgroundMode.description", "value": "يستبدل ما خلف الهدف. يمكن لأوضاع الفصل إزالة العالم لاستخدام الكروما كي أو تركيب ألفا." },
     { "key": "camera.backgroundKeepWorld", "value": "إبقاء العالم مرئيًا" },
-    { "key": "camera.backgroundKeepWorld.description", "value": "يُبقي هندسة العالم في اللقطة فوق خلفية لونية. عند الإيقاف يبقى اللاعبون والمجسمات فقط." },
+    { "key": "camera.backgroundKeepWorld.description", "value": "يُبقي هندسة العالم في اللقطة فوق خلفية بديلة. عند الإيقاف يبقى اللاعبون والمجسمات فقط." },
     { "key": "camera.backgroundRed", "value": "أحمر مخصص" },
     { "key": "camera.backgroundGreen", "value": "أخضر مخصص" },
     { "key": "camera.backgroundBlue", "value": "أزرق مخصص" },
@@ -3142,6 +3143,12 @@
     { "key": "mirror.cutout.unavailable", "value": "الاقتصاص غير متاح: مظلل الاقتصاص مفقود أو غير مدعوم هنا." },
     { "key": "mirror.size", "value": "الحجم" },
     { "key": "mirror.size.description", "value": "الحجم الفعلي لسطح المرآة في العالم." },
-    { "key": "mirror.status.surfaceSize", "value": "السطح {0} x {1} م" }
+    { "key": "mirror.status.surfaceSize", "value": "السطح {0} x {1} م" },
+    { "key": "mirror.placement", "value": "الموضع" },
+    { "key": "mirror.placement.description", "value": "كيفية تحريك المرآة الشخصية وما الذي تتحرك معه." },
+    { "key": "mirror.grabbable", "value": "قابلة للإمساك" },
+    { "key": "mirror.grabbable.description", "value": "السماح بإمساك المرآة الشخصية وتحريكها." },
+    { "key": "mirror.moveWithPlayspace", "value": "التحرك مع مساحة اللعب" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "حرّك وأدر المرآة الشخصية مع مساحة اللعب الخاصة بك بدلاً من تركها في العالم." }
   ]
 }

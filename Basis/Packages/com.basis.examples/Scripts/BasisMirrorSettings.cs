@@ -1,5 +1,8 @@
 using System;
 using System.IO;
+using Basis.Scripts.BasisSdk.Interactions;
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using UnityEngine;
 
 [Serializable]
@@ -11,6 +14,8 @@ public class BasisMirrorSettings
 
     public float surfaceWidth = 1f;
     public float surfaceHeight = 1f;
+    public bool grabbable = true;
+    public bool moveWithPlayspace;
 
     public int renderWidth = 2048;
     public int renderHeight = 2048;
@@ -100,6 +105,52 @@ public static class BasisMirrorSettingsStore
                mirror.GetComponentInParent<BasisCalibrationMirrorRelay>(true) == null;
     }
 
+    public static bool PersonalMirrorGrabbable(BasisSDKMirror mirror)
+    {
+        return IsPersonalMirror(mirror) &&
+               mirror.TryGetComponent(out BasisPickupInteractable pickup) &&
+               pickup.InteractableEnabled;
+    }
+
+    public static void SetPersonalMirrorGrabbable(BasisSDKMirror mirror, bool grabbable)
+    {
+        if (!IsPersonalMirror(mirror)) return;
+        if (mirror.TryGetComponent(out BasisPickupInteractable pickup))
+        {
+            pickup.InteractableEnabled = grabbable;
+        }
+    }
+
+    public static bool PersonalMirrorMovesWithPlayspace(BasisSDKMirror mirror)
+    {
+        return IsPersonalMirror(mirror) &&
+               BasisLocalPlayer.Instance != null &&
+               mirror.transform.parent == BasisLocalPlayer.Instance.transform;
+    }
+
+    public static void SetPersonalMirrorMovesWithPlayspace(BasisSDKMirror mirror, bool moveWithPlayspace)
+    {
+        if (!IsPersonalMirror(mirror)) return;
+
+        Transform parent = moveWithPlayspace && BasisLocalPlayer.Instance != null
+            ? BasisLocalPlayer.Instance.transform
+            : BasisDeviceManagement.Instance != null ? BasisDeviceManagement.Instance.transform : null;
+
+        if (mirror.transform.parent != parent)
+        {
+            mirror.transform.SetParent(parent, true);
+        }
+    }
+
+    public static void ApplyPersonalMirrorBehavior(BasisSDKMirror mirror)
+    {
+        if (!IsPersisted(mirror)) return;
+
+        BasisMirrorSettings settings = Current;
+        SetPersonalMirrorGrabbable(mirror, settings.grabbable);
+        SetPersonalMirrorMovesWithPlayspace(mirror, settings.moveWithPlayspace);
+    }
+
     public static void CaptureFrom(BasisSDKMirror mirror)
     {
         if (!IsPersisted(mirror)) return;
@@ -111,6 +162,8 @@ public static class BasisMirrorSettingsStore
             settings.surfaceWidth = surface.x;
             settings.surfaceHeight = surface.y;
         }
+        settings.grabbable = PersonalMirrorGrabbable(mirror);
+        settings.moveWithPlayspace = PersonalMirrorMovesWithPlayspace(mirror);
         settings.renderWidth = mirror.ReflectionWidth;
         settings.renderHeight = mirror.ReflectionHeight;
         settings.msaaSamples = mirror.MsaaSamples;
@@ -167,6 +220,7 @@ public static class BasisMirrorSettingsStore
         current = new BasisMirrorSettings();
         loaded = true;
         ApplyTo(mirror);
+        ApplyPersonalMirrorBehavior(mirror);
         Save();
     }
 }

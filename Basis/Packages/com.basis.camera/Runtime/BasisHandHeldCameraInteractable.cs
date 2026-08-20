@@ -1,5 +1,6 @@
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -1075,7 +1076,16 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         switch (PinSpace)
         {
             case CameraPinSpace.PlaySpace:
-                return TryResolveLocalAnchor(anchorFollowsBody, out position, out rotation);
+                if (!TryResolveLocalAnchor(anchorFollowsBody, out position, out rotation)) return false;
+
+                // Desktop look yaw lives on the simulated eye rather than the player root. Treat it
+                // as playspace yaw so a pinned camera turns with the player's desktop facing too.
+                if (BasisDeviceManagement.IsUserInDesktop() && BasisDesktopEye.Instance != null)
+                {
+                    rotation *= Quaternion.AngleAxis(BasisDesktopEye.Instance.rotationYaw, Vector3.up);
+                }
+
+                return true;
 
             case CameraPinSpace.Attached:
                 switch (AnchorKind)

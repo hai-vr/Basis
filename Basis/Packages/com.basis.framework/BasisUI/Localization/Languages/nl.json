@@ -1200,10 +1200,11 @@
     { "key": "camera.dollySpeed", "value": "Railsnelheid" },
     { "key": "camera.dollySpeed.description", "value": "Meters per seconde die de camera langs de rail aflegt. 0 houdt de positie vast." },
     { "key": "camera.background", "value": "Achtergrond" },
+    { "key": "camera.background.transparent", "value": "Transparant" },
     { "key": "camera.backgroundMode", "value": "Achtergrond" },
-    { "key": "camera.backgroundMode.description", "value": "Vervangt wat er achter het onderwerp zit. Kleurmodi laten de wereld weg voor keying." },
+    { "key": "camera.backgroundMode.description", "value": "Vervangt wat er achter het onderwerp zit. Keying-modi kunnen de wereld weglaten voor chroma key of alfa-compositing." },
     { "key": "camera.backgroundKeepWorld", "value": "Wereld zichtbaar houden" },
-    { "key": "camera.backgroundKeepWorld.description", "value": "Houdt de wereldgeometrie in beeld op een gekleurde achtergrond. Uit laat alleen spelers en props over." },
+    { "key": "camera.backgroundKeepWorld.description", "value": "Houdt de wereldgeometrie in beeld op een vervangende achtergrond. Uit laat alleen spelers en props over." },
     { "key": "camera.backgroundRed", "value": "Aangepast rood" },
     { "key": "camera.backgroundGreen", "value": "Aangepast groen" },
     { "key": "camera.backgroundBlue", "value": "Aangepast blauw" },
@@ -3142,6 +3143,12 @@
     { "key": "mirror.cutout.unavailable", "value": "Uitsnede niet beschikbaar: de uitsnede-shader ontbreekt of wordt hier niet ondersteund." },
     { "key": "mirror.size", "value": "Grootte" },
     { "key": "mirror.size.description", "value": "Fysieke grootte van het spiegeloppervlak in de wereld." },
-    { "key": "mirror.status.surfaceSize", "value": "Oppervlak {0} x {1} m" }
+    { "key": "mirror.status.surfaceSize", "value": "Oppervlak {0} x {1} m" },
+    { "key": "mirror.placement", "value": "Plaatsing" },
+    { "key": "mirror.placement.description", "value": "Hoe de persoonlijke spiegel kan worden verplaatst en waarmee hij meebeweegt." },
+    { "key": "mirror.grabbable", "value": "Vast te pakken" },
+    { "key": "mirror.grabbable.description", "value": "Sta toe dat de persoonlijke spiegel wordt vastgepakt en verplaatst." },
+    { "key": "mirror.moveWithPlayspace", "value": "Meebewegen met speelruimte" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "Verplaats en draai de persoonlijke spiegel met je speelruimte mee in plaats van hem in de wereld achter te laten." }
   ]
 }

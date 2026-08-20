@@ -1200,10 +1200,11 @@
     { "key": "camera.dollySpeed", "value": "ট্র্যাকে গতি" },
     { "key": "camera.dollySpeed.description", "value": "ক্যামেরা ট্র্যাক বরাবর প্রতি সেকেন্ডে কত মিটার চলে। 0 হলে অবস্থান ধরে রাখে।" },
     { "key": "camera.background", "value": "পটভূমি" },
+    { "key": "camera.background.transparent", "value": "স্বচ্ছ" },
     { "key": "camera.backgroundMode", "value": "পটভূমি" },
-    { "key": "camera.backgroundMode.description", "value": "বিষয়ের পেছনে যা আছে তা প্রতিস্থাপন করে। রঙ মোডগুলো কী-ইং-এর জন্য ওয়ার্ল্ড সরিয়ে দেয়।" },
+    { "key": "camera.backgroundMode.description", "value": "বিষয়ের পেছনে যা আছে তা প্রতিস্থাপন করে। কী-যোগ্য মোডগুলো ক্রোমা কী বা আলফা কম্পোজিটিংয়ের জন্য ওয়ার্ল্ড সরিয়ে দিতে পারে।" },
     { "key": "camera.backgroundKeepWorld", "value": "ওয়ার্ল্ড দৃশ্যমান রাখুন" },
-    { "key": "camera.backgroundKeepWorld.description", "value": "রঙিন পটভূমির উপর ওয়ার্ল্ড জ্যামিতি শটে রাখে। বন্ধ থাকলে কেবল খেলোয়াড় ও প্রপ থাকে।" },
+    { "key": "camera.backgroundKeepWorld.description", "value": "প্রতিস্থাপন পটভূমিতে ওয়ার্ল্ড জ্যামিতি শটে রাখে। বন্ধ থাকলে কেবল খেলোয়াড় ও প্রপ থাকে।" },
     { "key": "camera.backgroundRed", "value": "কাস্টম লাল" },
     { "key": "camera.backgroundGreen", "value": "কাস্টম সবুজ" },
     { "key": "camera.backgroundBlue", "value": "কাস্টম নীল" },
@@ -3142,6 +3143,12 @@
     { "key": "mirror.cutout.unavailable", "value": "কাটআউট উপলব্ধ নয়: কাটআউট শেডার অনুপস্থিত বা এখানে সমর্থিত নয়।" },
     { "key": "mirror.size", "value": "আকার" },
     { "key": "mirror.size.description", "value": "জগতে আয়নার পৃষ্ঠের প্রকৃত আকার।" },
-    { "key": "mirror.status.surfaceSize", "value": "পৃষ্ঠ {0} x {1} মি" }
+    { "key": "mirror.status.surfaceSize", "value": "পৃষ্ঠ {0} x {1} মি" },
+    { "key": "mirror.placement", "value": "স্থাপন" },
+    { "key": "mirror.placement.description", "value": "ব্যক্তিগত আয়নাটি কীভাবে সরানো যাবে এবং এটি কিসের সাথে সরবে।" },
+    { "key": "mirror.grabbable", "value": "ধরা যাবে" },
+    { "key": "mirror.grabbable.description", "value": "ব্যক্তিগত আয়নাটি ধরে সরানোর অনুমতি দিন।" },
+    { "key": "mirror.moveWithPlayspace", "value": "প্লে-স্পেসের সাথে সরান" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "ব্যক্তিগত আয়নাটিকে জগতে ফেলে না রেখে আপনার প্লে-স্পেসের সাথে সরান ও ঘোরান।" }
   ]
 }

@@ -1200,10 +1200,11 @@
     { "key": "camera.dollySpeed", "value": "レール移動速度" },
     { "key": "camera.dollySpeed.description", "value": "カメラがレールに沿って進む速度（メートル毎秒）です。0 でその位置に留まります。" },
     { "key": "camera.background", "value": "背景" },
+    { "key": "camera.background.transparent", "value": "透明" },
     { "key": "camera.backgroundMode", "value": "背景" },
-    { "key": "camera.backgroundMode.description", "value": "被写体の背後にあるものを置き換えます。カラーモードでは、キーイング用にワールドを抜き取ります。" },
+    { "key": "camera.backgroundMode.description", "value": "被写体の背後にあるものを置き換えます。キーイング対応モードでは、クロマキーまたはアルファ合成用にワールドを除外できます。" },
     { "key": "camera.backgroundKeepWorld", "value": "ワールドを表示したままにする" },
-    { "key": "camera.backgroundKeepWorld.description", "value": "単色背景の上にワールドのジオメトリを残します。オフでは、プレイヤーとプロップだけが残ります。" },
+    { "key": "camera.backgroundKeepWorld.description", "value": "置換背景でもワールドのジオメトリを画面に残します。オフでは、プレイヤーとプロップだけが残ります。" },
     { "key": "camera.backgroundRed", "value": "カスタム赤" },
     { "key": "camera.backgroundGreen", "value": "カスタム緑" },
     { "key": "camera.backgroundBlue", "value": "カスタム青" },
@@ -3142,6 +3143,12 @@
     { "key": "mirror.cutout.unavailable", "value": "切り抜きを使用できません: 切り抜きシェーダーが見つからないか、この環境では未対応です。" },
     { "key": "mirror.size", "value": "サイズ" },
     { "key": "mirror.size.description", "value": "ワールド内でのミラー面の物理的な大きさです。" },
-    { "key": "mirror.status.surfaceSize", "value": "面 {0} x {1} m" }
+    { "key": "mirror.status.surfaceSize", "value": "面 {0} x {1} m" },
+    { "key": "mirror.placement", "value": "配置" },
+    { "key": "mirror.placement.description", "value": "パーソナルミラーをどう動かせるか、何に追従して動くかを設定します。" },
+    { "key": "mirror.grabbable", "value": "つかめる" },
+    { "key": "mirror.grabbable.description", "value": "パーソナルミラーをつかんで移動できるようにします。" },
+    { "key": "mirror.moveWithPlayspace", "value": "プレイスペースと一緒に移動" },
+    { "key": "mirror.moveWithPlayspace.description", "value": "パーソナルミラーをワールドに置いたままにせず、プレイスペースと一緒に移動・回転させます。" }
   ]
 }
