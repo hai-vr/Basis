@@ -370,8 +370,9 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     private static void ExecuteUnsafeBlurPass(PassData passData, UnsafeGraphContext context)
     {
         CommandBuffer unsafeCmd = CommandBufferHelpers.GetNativeCommandBuffer(context.cmd);
+        int blurIterations = passData.blurIterations;
 
-        for (int i = 0; i < passData.blurIterations; ++i)
+        for (int i = 0; i < blurIterations; ++i)
         {
             Blitter.BlitCameraTexture(unsafeCmd, passData.source, passData.target, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, passData.material, passData.materialPassIndex);
             Blitter.BlitCameraTexture(unsafeCmd, passData.target, passData.source, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, passData.material, passData.materialAdditionalPassIndex);
