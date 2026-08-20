@@ -647,6 +647,16 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void TransparentBackground_ClearsWithZeroAlpha()
+        {
+            _rig.Camera.SetBackgroundMode(BasisCameraBackgroundMode.Transparent);
+
+            Assert.That(_rig.CaptureCamera.clearFlags, Is.EqualTo(CameraClearFlags.SolidColor));
+            Assert.That(_rig.CaptureCamera.backgroundColor, Is.EqualTo(Color.clear));
+            Assert.That(_rig.Camera.IsBackgroundKeyable, Is.True);
+        }
+
+        [Test]
         public void BackgroundMode_ReturningToWorldRestoresWhatTheCameraHadBefore()
         {
             _rig.CaptureCamera.clearFlags = CameraClearFlags.Skybox;

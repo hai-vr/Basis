@@ -48,6 +48,8 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         public TextureHandle downsampledCameraDepthTarget;
         public UniversalLightData lightData;
         public Texture2D blueNoiseTexture;
+        public VolumetricFogVolumeComponent fogVolume;
+        public int blurIterations;
     }
 
     #endregion
@@ -97,7 +99,8 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     private Material downsampleDepthMaterial;
     private Material volumetricFogMaterial;
 
-    // Optional blue-noise texture for raymarch jitter, assigned by the renderer feature.
+    // Per-camera volume and optional blue-noise texture, assigned by the renderer feature.
+    public VolumetricFogVolumeComponent fogVolume;
     public Texture2D blueNoiseTexture;
 
     private ProfilingSampler downsampleDepthProfilingSampler;
@@ -152,9 +155,12 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         UniversalLightData lightData = frameData.Get<UniversalLightData>();
         UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
 
-        int blurIterations = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>().blurIterations.value;
+        VolumetricFogVolumeComponent activeFog = fogVolume;
+        if (activeFog == null) return;
 
-        CreateRenderGraphTextures(renderGraph, cameraData, blurIterations > 0, out TextureHandle downsampledCameraDepthTarget, out TextureHandle volumetricFogRenderTarget, out TextureHandle volumetricFogBlurRenderTarget);
+        int blurIterations = activeFog.blurIterations.value;
+
+        CreateRenderGraphTextures(renderGraph, cameraData, activeFog, blurIterations > 0, out TextureHandle downsampledCameraDepthTarget, out TextureHandle volumetricFogRenderTarget, out TextureHandle volumetricFogBlurRenderTarget);
 
         using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass("Downsample Depth Pass", out PassData passData, downsampleDepthProfilingSampler))
         {
@@ -179,6 +185,7 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
             passData.downsampledCameraDepthTarget = downsampledCameraDepthTarget;
             passData.lightData = lightData;
             passData.blueNoiseTexture = blueNoiseTexture;
+            passData.fogVolume = activeFog;
 
             builder.SetRenderAttachment(volumetricFogRenderTarget, 0, AccessFlags.WriteAll);
             builder.UseTexture(downsampledCameraDepthTarget);
@@ -199,6 +206,7 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
                 passData.material = volumetricFogMaterial;
                 passData.materialPassIndex = volumetricFogHorizontalBlurPassIndex;
                 passData.materialAdditionalPassIndex = volumetricFogVerticalBlurPassIndex;
+                passData.blurIterations = blurIterations;
 
                 builder.UseTexture(volumetricFogRenderTarget, AccessFlags.ReadWrite);
                 builder.UseTexture(volumetricFogBlurRenderTarget, AccessFlags.ReadWrite);
@@ -232,10 +240,8 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     /// </summary>
     /// <param name="volumetricFogMaterial"></param>
     /// <param name="mainLightIndex"></param>
-    private static void UpdateVolumetricFogMaterialParameters(Material volumetricFogMaterial, int mainLightIndex, Texture2D blueNoiseTexture)
+    private static void UpdateVolumetricFogMaterialParameters(Material volumetricFogMaterial, int mainLightIndex, Texture2D blueNoiseTexture, VolumetricFogVolumeComponent fogVolume)
     {
-        VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
-
         bool enableMainLightContribution = fogVolume.enableMainLightContribution.value && fogVolume.scattering.value > 0.0f && mainLightIndex > -1;
 
         // APV can be sampled live (Unity's APV, once per step) or from a pre-baked world-space volume
@@ -308,9 +314,8 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     /// <param name="downsampledCameraDepthTarget"></param>
     /// <param name="volumetricFogRenderTarget"></param>
     /// <param name="volumetricFogBlurRenderTarget"></param>
-    private void CreateRenderGraphTextures(RenderGraph renderGraph, UniversalCameraData cameraData, bool createBlurTarget, out TextureHandle downsampledCameraDepthTarget, out TextureHandle volumetricFogRenderTarget, out TextureHandle volumetricFogBlurRenderTarget)
+    private void CreateRenderGraphTextures(RenderGraph renderGraph, UniversalCameraData cameraData, VolumetricFogVolumeComponent fogVolume, bool createBlurTarget, out TextureHandle downsampledCameraDepthTarget, out TextureHandle volumetricFogRenderTarget, out TextureHandle volumetricFogBlurRenderTarget)
     {
-        VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
         int fogDownsampleFactor = (int)fogVolume.resolution.value;
 
         RenderTextureDescriptor cameraTargetDescriptor = cameraData.cameraTargetDescriptor;
@@ -351,7 +356,7 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         if (stage == PassStage.VolumetricFogRender)
         {
             passData.material.SetTexture(DownsampledCameraDepthTextureId, passData.downsampledCameraDepthTarget);
-            UpdateVolumetricFogMaterialParameters(passData.material, passData.lightData.mainLightIndex, passData.blueNoiseTexture);
+            UpdateVolumetricFogMaterialParameters(passData.material, passData.lightData.mainLightIndex, passData.blueNoiseTexture, passData.fogVolume);
         }
 
         Blitter.BlitTexture(context.cmd, passData.source, Vector2.one, passData.material, passData.materialPassIndex);
@@ -365,8 +370,7 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     private static void ExecuteUnsafeBlurPass(PassData passData, UnsafeGraphContext context)
     {
         CommandBuffer unsafeCmd = CommandBufferHelpers.GetNativeCommandBuffer(context.cmd);
-
-        int blurIterations = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>().blurIterations.value;
+        int blurIterations = passData.blurIterations;
 
         for (int i = 0; i < blurIterations; ++i)
         {

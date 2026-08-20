@@ -183,9 +183,13 @@ public class BasisCameraUserMode
         if (left.autoBrightnessMetering != right.autoBrightnessMetering) return false;
         if (!Near(left.autoBrightnessRange, right.autoBrightnessRange, Epsilon)) return false;
 
-        if (!Near(left.VolumetricFogVolumedensity, right.VolumetricFogVolumedensity, Epsilon)) return false;
-        if (left.VolumetricFogenableAPVContribution != right.VolumetricFogenableAPVContribution) return false;
-        if (left.VolumetricFogenableMainLightContribution != right.VolumetricFogenableMainLightContribution) return false;
+        if (left.overrideVolumetricFog != right.overrideVolumetricFog) return false;
+        if (left.overrideVolumetricFog)
+        {
+            if (!Near(left.VolumetricFogVolumedensity, right.VolumetricFogVolumedensity, Epsilon)) return false;
+            if (left.VolumetricFogenableAPVContribution != right.VolumetricFogenableAPVContribution) return false;
+            if (left.VolumetricFogenableMainLightContribution != right.VolumetricFogenableMainLightContribution) return false;
+        }
 
         if (!Near(left.vignette, right.vignette, Epsilon)) return false;
         if (!Near(left.chromaticAberration, right.chromaticAberration, Epsilon)) return false;

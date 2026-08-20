@@ -92,6 +92,12 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void CameraSettings_UsesWorldFogByDefault()
+        {
+            Assert.That(new BasisHandHeldCameraUI.CameraSettings().overrideVolumetricFog, Is.False);
+        }
+
+        [Test]
         public void CameraSettings_SurviveAJsonRoundTrip()
         {
             // Settings are persisted with JsonUtility, which zero-fills anything it cannot map —
@@ -111,6 +117,7 @@ namespace Basis.Tests.Camera
                 exposureIndex = 9,
                 depthIsActive = true,
                 useManualFocus = false,
+                overrideVolumetricFog = true,
                 VolumetricFogVolumedensity = 0.4f,
                 hueShift = 45f,
                 vignette = 0.3f,
@@ -144,6 +151,7 @@ namespace Basis.Tests.Camera
             Assert.That(restored.exposureIndex, Is.EqualTo(original.exposureIndex));
             Assert.That(restored.depthIsActive, Is.True);
             Assert.That(restored.useManualFocus, Is.False);
+            Assert.That(restored.overrideVolumetricFog, Is.True);
             Assert.That(restored.VolumetricFogVolumedensity, Is.EqualTo(original.VolumetricFogVolumedensity).Within(1e-4f));
             Assert.That(restored.hueShift, Is.EqualTo(original.hueShift).Within(1e-4f));
             Assert.That(restored.vignette, Is.EqualTo(original.vignette).Within(1e-4f));
@@ -287,6 +295,7 @@ namespace Basis.Tests.Camera
             Assert.That(settings.whiteBalanceTint, Is.Zero);
             Assert.That(settings.lensDistortion, Is.Zero);
             Assert.That(settings.hueShift, Is.Zero);
+            Assert.That(settings.overrideVolumetricFog, Is.False);
             Assert.That(settings.autoFocusFollowSubject, Is.False);
         }
 

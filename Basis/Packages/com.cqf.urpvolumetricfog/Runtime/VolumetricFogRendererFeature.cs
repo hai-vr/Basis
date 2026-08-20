@@ -72,15 +72,17 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	/// <param name="renderingData"></param>
 	public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
 	{
-		TryEnqueueBakePass(renderer, renderingData.cameraData.cameraType);
-
+		VolumetricFogVolumeComponent fogVolume = ResolveFogVolume(renderingData.cameraData.camera);
+		TryEnqueueBakePass(renderer, renderingData.cameraData.cameraType, fogVolume);
 		bool isPostProcessEnabled = renderingData.postProcessingEnabled && renderingData.cameraData.postProcessEnabled;
-		bool shouldAddVolumetricFogRenderPass = isPostProcessEnabled && ShouldAddVolumetricFogRenderPass(renderingData.cameraData.cameraType);
+		bool shouldAddVolumetricFogRenderPass = isPostProcessEnabled
+			&& ShouldAddVolumetricFogRenderPass(renderingData.cameraData.cameraType, fogVolume);
 		
 		if (shouldAddVolumetricFogRenderPass)
 		{
+			volumetricFogRenderPass.fogVolume = fogVolume;
 			volumetricFogRenderPass.blueNoiseTexture = blueNoiseTexture;
-			volumetricFogRenderPass.renderPassEvent = GetRenderPassEvent();
+			volumetricFogRenderPass.renderPassEvent = (RenderPassEvent)fogVolume.renderPassEvent.value;
 			volumetricFogRenderPass.ConfigureInput(ScriptableRenderPassInput.Depth);
 			renderer.EnqueuePass(volumetricFogRenderPass);
 		}
@@ -145,10 +147,8 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	/// </summary>
 	/// <param name="cameraType"></param>
 	/// <returns></returns>
-	private bool ShouldAddVolumetricFogRenderPass(CameraType cameraType)
+	private bool ShouldAddVolumetricFogRenderPass(CameraType cameraType, VolumetricFogVolumeComponent fogVolume)
 	{
-		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
-
 		bool isVolumeOk = fogVolume != null && fogVolume.IsActive();
 		bool isCameraOk = cameraType != CameraType.Preview && cameraType != CameraType.Reflection;
 		bool areResourcesOk = ValidateResourcesForVolumetricFogRenderPass(false);
@@ -156,15 +156,14 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		return isActive && isVolumeOk && isCameraOk && areResourcesOk;
 	}
 
-	/// <summary>
-	/// Returns the render pass event for the volumetric fog.
-	/// </summary>
-	/// <returns></returns>
-	private RenderPassEvent GetRenderPassEvent()
+	private static VolumetricFogVolumeComponent ResolveFogVolume(Camera camera)
 	{
-		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
-		
-		return (RenderPassEvent)fogVolume.renderPassEvent.value;
+		if (VolumetricFogCameraSource.TryGet(camera, out VolumetricFogCameraSource source))
+		{
+			return source.ResolveFogVolume();
+		}
+
+		return VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
 	}
 
 	/// <summary>
@@ -192,7 +191,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	/// </summary>
 	/// <param name="renderer"></param>
 	/// <param name="cameraType"></param>
-	private void TryEnqueueBakePass(ScriptableRenderer renderer, CameraType cameraType)
+	private void TryEnqueueBakePass(ScriptableRenderer renderer, CameraType cameraType, VolumetricFogVolumeComponent fogVolume)
 	{
 		if (!isActive)
 		{
@@ -227,7 +226,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		// state and release the bake target, and nothing outside world-load code re-requests a bake. When a
 		// fog volume actively wants baked APV and no usable volume exists, arm a rebake ourselves.
 		if (!VolumetricFogAPVBaker.BakeRequested && !VolumetricFogAPVBaker.IsReady
-			&& ComputeBakeResolution() != failedBakeResolution && WantsBakedAPVContribution())
+			&& ComputeBakeResolution() != failedBakeResolution && WantsBakedAPVContribution(fogVolume))
 		{
 			VolumetricFogAPVBaker.RequestRebake();
 		}
@@ -269,10 +268,8 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	/// Whether the currently blended fog volume wants the baked APV contribution.
 	/// </summary>
 	/// <returns></returns>
-	private static bool WantsBakedAPVContribution()
+	private static bool WantsBakedAPVContribution(VolumetricFogVolumeComponent fogVolume)
 	{
-		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
-
 		return fogVolume != null && fogVolume.IsActive() && fogVolume.enableAPVContribution.value
 			&& fogVolume.APVContributionWeight.value > 0.0f && fogVolume.apvMode.value == VolumetricFogAPVMode.Baked;
 	}

@@ -83,7 +83,9 @@ public static class BasisCameraSettingsReadout
         Row("camera.motionBlurClamp", Number(settings.motionBlurClamp));
         Row("camera.motionBlurQuality", MotionBlurQualityLabel(settings.motionBlurQuality));
         Row("camera.motionBlurMode", MotionBlurModeLabel(settings.motionBlurMode));
-        Row("camera.volumetricFog", Number(settings.VolumetricFogVolumedensity));
+        Row("settings.graphics.fog.override", OnOff(settings.overrideVolumetricFog));
+        if (settings.overrideVolumetricFog)
+            Row("settings.graphics.fog.density", Number(settings.VolumetricFogVolumedensity));
 
         Section("camera.output");
         Row("camera.photoResolution", ResolutionLabel(metaData, settings.resolutionIndex));
@@ -267,6 +269,7 @@ public static class BasisCameraSettingsReadout
             case BasisCameraBackgroundMode.White: return BasisLocalization.Get("camera.background.white");
             case BasisCameraBackgroundMode.Magenta: return BasisLocalization.Get("camera.background.magenta");
             case BasisCameraBackgroundMode.Custom: return BasisLocalization.Get("camera.background.custom");
+            case BasisCameraBackgroundMode.Transparent: return BasisLocalization.Get("camera.background.transparent");
             default: return BasisLocalization.Get("camera.background.world");
         }
     }
