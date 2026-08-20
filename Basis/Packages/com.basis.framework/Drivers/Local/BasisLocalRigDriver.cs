@@ -241,65 +241,15 @@ namespace Basis.Scripts.Drivers
         private static Vector3 smoothedLeftKneeFwdHint, smoothedRightKneeFwdHint;
         private static float smoothedLeftKneeFwdWeight, smoothedRightKneeFwdWeight;
         private const float KneeForwardSmoothRate = 10f;
-
-        // Per-foot blend weights for transitioning IK in/out (0 = animation, 1 = foot driver)
         private static float footIKBlendWeightLeft = 0f;
         private static float footIKBlendWeightRight = 0f;
         private static float footIKBlendWeight = 0f; // min of left/right, used for hip bob
         private const float FootIKBlendInSpeed = 20f;  // ~50ms to fully engage
         private const float FootIKBlendOutSpeed = 15f; // ~67ms to fully disengage
-
-        // Hysteresis: require stationary for this long before engaging foot IK.
-        // Prevents single-frame flicker at jump apex or during speed oscillations.
         private static float stationaryTimer = 0f;
         private const float StationaryDelaySeconds = 0.15f;
-
-        // ── LOCOMOTION FOOT IK (experimental, default OFF -- see the measured caveats below) ──
-        // false = shipping behaviour. footIKReady additionally requires isStationaryEnough, so ANY stick
-        // deflection off dead-centre (MovementVector.sqrMagnitude > 0.001) drops the blend to 0 and holds it
-        // there until 150 ms after the stick returns to rest. SolveLegs then early-returns on enabled*LowerLeg
-        // == 0 and the legs are pure FK from the locomotion clip -- no ground contact, no surface adaptation,
-        // no heel-strike, and (because they are gated on the same blend weight) no hip bob, no lateral sway
-        // and no pelvic axial rotation either. The whole gait model is therefore only ever VISIBLE while
-        // standing, turning in place, or walking room-scale.
-        //
-        // true = the stepper also drives the feet during stick locomotion, which is what FinalIK's VRIK calls
-        // Locomotion.Procedural and what it was built for (Lang, "Character Animation in Dead and Buried").
-        //
-        // ⚠ NOT headset-verified. What IS measured, on the 41-scenario sweep at 0.5x/1x/2x (this is exactly the
-        // regime the flag exposes, and the sweep has never modelled the gate, so it has always reported it):
-        //   - STEADY-state locomotion is inside the gate at every speed: walk-normal 1.05, walk-fast 1.05,
-        //     sprint 1.15 against a 1.18 limit, with a clean alternating cycle and duty factor 0.53.
-        //   - TRANSIENTS still exceed it. A hard start from rest peaks ~1.3-1.6x standing reach for ~0.3 s
-        //     before settling, worst on small avatars; jumping while running and hard direction reversals are
-        //     the other two. Those are the honest reason this defaults off, not the sustained gait.
-        // Flip it, walk and sprint around, and watch specifically for the leg visibly stretching in the first
-        // moment of a hard start and when jumping mid-run.
         private static readonly bool LocomotionFootIK = false;
-
-        // ── FOOT ROTATION KILL SWITCH ──
-        // false => hand SolveLegs the zero-quaternion sentinel, which makes it keep the ANIMATION's foot rotation.
-        // That is the long-standing, known-good behaviour: no heel-strike / toe-off / slope adaptation, and a
-        // planted foot pivots with the body -- but locomotion is guaranteed intact.
-        // true  => drive the foot's rotation from the foot placement driver (SafeFootTargetRotation).
-        //
-        // ENABLED 2026-07-18. The prerequisites the OFF default was waiting on are now met:
-        //  - the project BUILDS (dotnet build "Basis Framework.csproj" clean);
-        //  - the math is TESTED (BasisFootFrameTests, 10/10 green: rest reproduces the T-pose rotation so it
-        //    cannot come out toes-up, the offset pre-cancel survives the solve's own multiply, swing pitch
-        //    plantarflexes at toe-off / dorsiflexes at heel-strike, NaN degrades to the sentinel);
-        //  - the footAlign CAPTURE ORDERING is verified correct -- BasisLocalFootDriver.InitializeVariables()
-        //    (-> CaptureFootAlignment) runs at BasisLocalAvatarDriver:229, BEFORE ResetAvatarAnimator() at :236,
-        //    so it captures the flat T-pose foot (unlike the arm bake, which was the opposite order and wrong).
-        // SafeFootTargetRotation still degrades to the sentinel (= this old behaviour) on any NaN/degeneracy, so
-        // the floor is exactly what OFF gave. ⚠ VERIFY IN-HEADSET: stand still, arms down -- the feet must sit
-        // flat and naturally toed-out, NOT toes-up/tilted; a planted foot must HOLD as you turn, not pivot.
-        // Flip back to false if the un-discard misbehaves.
-        // static readonly, NOT const: a const would make the ternaries below compile-time-constant and raise
-        // CS0429 (unreachable expression code) under warnings-as-errors. The JIT folds this away just the same.
         private static readonly bool FootRotationFromDriver = true;
-
-        // Batched filter job state — one slot per S_* index (shoulder slot in position arrays is unused).
         private NativeArray<float3> _posInputs;
         private NativeArray<float3> _posOutputs;
         private NativeArray<quaternion> _rotInputs;
