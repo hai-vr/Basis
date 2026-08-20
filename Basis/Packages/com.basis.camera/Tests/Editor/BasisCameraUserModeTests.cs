@@ -99,7 +99,7 @@ namespace Basis.Tests.Camera
         }
 
         /// <summary>
-        /// The three fields the comparison deliberately ignores. Kept as a test so removing a reason
+        /// The four fields the comparison deliberately ignores. Kept as a test so removing a reason
         /// from the design means removing it from here too.
         /// </summary>
         private static readonly Dictionary<string, string> ComparisonExclusions = new Dictionary<string, string>
@@ -107,6 +107,7 @@ namespace Basis.Tests.Camera
             { "settingsVersion", "describes the file format, not the camera" },
             { "cameraMode", "a label derived from the values around it" },
             { "userMode", "the answer this comparison is being asked for" },
+            { "exposuresRemaining", "spent by taking a photograph, which is not a change of settings" },
         };
 
         [Test]

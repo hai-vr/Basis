@@ -35,6 +35,9 @@ namespace Basis.BasisUI
         private static BasisFrameBottleneckKind _pendingKind = UnsetKind;
         private static int _pendingHolds;
 
+        public static BasisFrameBottleneckKind Verdict =>
+            _shownKind == UnsetKind ? BasisFrameBottleneckKind.Measuring : _shownKind;
+
         public static void BuildFrameBottleneckGroup(RectTransform container)
         {
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
@@ -163,8 +166,9 @@ namespace Basis.BasisUI
             {
                 _shownKind = reading.Kind;
                 _group.SetTitle(TitleFor(reading.Kind));
-                _group.SetDescription(BasisLocalization.Get(AdviceKeyFor(reading.Kind)));
+                _group.SetDescription(AdviceFor(reading.Kind));
                 ApplyTint(reading.Kind);
+                SettingsProviderBottleneckHints.Show(reading.Kind);
             }
 
             if (_shownKind == BasisFrameBottleneckKind.Measuring)
@@ -256,14 +260,14 @@ namespace Basis.BasisUI
 
         private static string TallestOf(TextMeshProUGUI label, bool titles)
         {
-            string tallest = titles ? TitleFor(AllKinds[0]) : BasisLocalization.Get(AdviceKeyFor(AllKinds[0]));
+            string tallest = titles ? TitleFor(AllKinds[0]) : AdviceFor(AllKinds[0]);
             float width = label != null ? label.rectTransform.rect.width : 0f;
             float best = width > 0f ? label.GetPreferredValues(tallest, width, 0f).y : tallest.Length;
 
             for (int index = 1; index < AllKinds.Length; index++)
             {
                 BasisFrameBottleneckKind kind = AllKinds[index];
-                string candidate = titles ? TitleFor(kind) : BasisLocalization.Get(AdviceKeyFor(kind));
+                string candidate = titles ? TitleFor(kind) : AdviceFor(kind);
                 float height = width > 0f ? label.GetPreferredValues(candidate, width, 0f).y : candidate.Length;
                 if (height > best)
                 {
@@ -303,6 +307,17 @@ namespace Basis.BasisUI
                 case BasisFrameBottleneckKind.NoGpuTimer: return "settings.graphics.bottleneck.verdict.noGpuTimer";
                 default: return "settings.graphics.bottleneck.verdict.measuring";
             }
+        }
+
+        private static string AdviceFor(BasisFrameBottleneckKind kind)
+        {
+            string advice = BasisLocalization.Get(AdviceKeyFor(kind));
+            if (SettingsProviderBottleneckHints.SideFor(kind) == BasisFrameCostSide.None)
+            {
+                return advice;
+            }
+
+            return advice + " " + BasisLocalization.Get("settings.graphics.bottleneck.advice.highlight");
         }
 
         private static string AdviceKeyFor(BasisFrameBottleneckKind kind)

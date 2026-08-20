@@ -693,7 +693,7 @@ public partial class BasisTransmissionResults
                 // "avatars randomly fall back under load" symptom.
                 {
                     bool inRange = pAvatarRange[i];
-                    if (remote.AlwaysShowAvatar)
+                    if (remote.AvatarAlwaysLoaded)
                     {
                         inRange = true;
                     }

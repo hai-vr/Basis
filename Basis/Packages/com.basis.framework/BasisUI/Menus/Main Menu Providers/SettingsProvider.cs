@@ -1798,6 +1798,7 @@ namespace Basis.BasisUI
 
             dropdownResolution.AssignEntries(resolutionOptions);
             dropdownResolution.DropdownComponent.onValueChanged.AddListener(ResolutionChanged);
+            SettingsProviderBottleneckHints.Mark(dropdownResolution, BasisFrameCostSide.Gpu);
 
             int currentIndex = Mathf.Max(0, uniqueResolutions.FindIndex(r => r.x == Screen.width && r.y == Screen.height));
             dropdownResolution.DropdownComponent.SetValueWithoutNotify(currentIndex);
@@ -2267,6 +2268,11 @@ namespace Basis.BasisUI
             // Performance limits live in the same tab — formerly its own page,
             // merged here so users see all rendering / quality / cost controls together.
             SettingsProviderPerformanceLimits.BuildPerformanceLimitsContent(container, true);
+
+            // Every control this page carries now exists, so the bottleneck readout can find the
+            // ones that move CPU or GPU cost and light them up while it is blaming that side.
+            SettingsProviderBottleneckHints.Bind(descriptor);
+            descriptor.OnInstanceReleased += () => SettingsProviderBottleneckHints.Release(descriptor);
 
             // One reset button for this whole page
             RegisterPageReset("settings.tab.graphics", ResetGraphicsDefaults);

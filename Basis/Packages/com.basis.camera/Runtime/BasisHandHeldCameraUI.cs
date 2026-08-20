@@ -170,6 +170,8 @@ public partial class BasisHandHeldCameraUI
         HHC.MetaData.lensDistortion = GetOrAddOverride<UnityEngine.Rendering.Universal.LensDistortion>();
         HHC.MetaData.motionBlur = GetOrAddOverride<UnityEngine.Rendering.Universal.MotionBlur>();
         HHC.MetaData.paniniProjection = GetOrAddOverride<UnityEngine.Rendering.Universal.PaniniProjection>();
+        HHC.MetaData.splitToning = GetOrAddOverride<UnityEngine.Rendering.Universal.SplitToning>();
+        HHC.MetaData.liftGammaGain = GetOrAddOverride<UnityEngine.Rendering.Universal.LiftGammaGain>();
     }
 
     private T GetOrAddOverride<T>() where T : UnityEngine.Rendering.VolumeComponent
@@ -306,6 +308,21 @@ public partial class BasisHandHeldCameraUI
     }
 
     // ---------- Ranges / Initial ----------
+
+    /// <summary>
+    /// Puts the capture back on the resolution this panel is showing.
+    ///
+    /// <para>For the moment a camera stops being a film body: a body's frame size is its own and
+    /// bypasses the resolution list entirely, so something has to hand the list back when the body
+    /// goes away. The index lives here with the control that owns it, which is why the camera asks
+    /// rather than reads.</para>
+    /// </summary>
+    internal void RestoreCaptureResolution()
+    {
+        if (HHC == null) return;
+
+        HHC.ChangeResolution(currentResolutionIndex);
+    }
 
     private void SetupSliderRanges()
     {
@@ -654,6 +671,18 @@ public partial class BasisHandHeldCameraUI
         var settings = new CameraSettings
         {
             cameraMode = HHC != null ? (int)HHC.CameraMode : baseline.cameraMode,
+            cameraBody = HHC != null ? (int)HHC.Body : baseline.cameraBody,
+
+            // No live source on a body that has neither, so they carry forward for the same reason
+            // the aperture index does: a digital camera reports no frames and no flash because it
+            // has none, and harvesting that would wipe the disposable's count off the file the
+            // moment somebody looked at the shot through a Photo camera.
+            exposuresRemaining = HHC != null && HHC.BodyTraits.HasFilm
+                ? HHC.ExposuresRemaining
+                : baseline.exposuresRemaining,
+            flashEnabled = HHC != null && HHC.BodyTraits.HasFlash
+                ? HHC.FlashEnabled
+                : baseline.flashEnabled,
             // Settled at the bottom of this method, once there is a whole file to judge it
             // against. Seeded from the baseline so a camera with no live half still saves the
             // name it loaded rather than dropping it.
@@ -714,6 +743,17 @@ public partial class BasisHandHeldCameraUI
             vignette = HHC != null && HHC.MetaData.vignette != null ? HHC.MetaData.vignette.intensity.value : 0f,
             chromaticAberration = HHC != null && HHC.MetaData.chromaticAberration != null ? HHC.MetaData.chromaticAberration.intensity.value : 0f,
             filmGrain = HHC != null && HHC.MetaData.filmGrain != null ? HHC.MetaData.filmGrain.intensity.value : 0f,
+            filmGrainType = HHC != null && HHC.MetaData.filmGrain != null ? (int)HHC.MetaData.filmGrain.type.value : baseline.filmGrainType,
+            filmGrainResponse = HHC != null && HHC.MetaData.filmGrain != null ? HHC.MetaData.filmGrain.response.value : baseline.filmGrainResponse,
+            bloomTint = HHC != null && HHC.MetaData.bloom != null ? HHC.MetaData.bloom.tint.value : baseline.bloomTint,
+            vignetteColour = HHC != null && HHC.MetaData.vignette != null ? HHC.MetaData.vignette.color.value : baseline.vignetteColour,
+            vignetteRounded = HHC != null && HHC.MetaData.vignette != null ? HHC.MetaData.vignette.rounded.value : baseline.vignetteRounded,
+            splitToningShadows = HHC != null && HHC.MetaData.splitToning != null ? HHC.MetaData.splitToning.shadows.value : baseline.splitToningShadows,
+            splitToningHighlights = HHC != null && HHC.MetaData.splitToning != null ? HHC.MetaData.splitToning.highlights.value : baseline.splitToningHighlights,
+            splitToningBalance = HHC != null && HHC.MetaData.splitToning != null ? HHC.MetaData.splitToning.balance.value : baseline.splitToningBalance,
+            // Only the offset is ever written, so only the offset is read back — the three colour
+            // channels are a fixed neutral and reading them would be storing a constant.
+            filmLift = HHC != null && HHC.MetaData.liftGammaGain != null ? HHC.MetaData.liftGammaGain.lift.value.w : baseline.filmLift,
             whiteBalanceTemperature = HHC != null && HHC.MetaData.whiteBalance != null ? HHC.MetaData.whiteBalance.temperature.value : 0f,
             whiteBalanceTint = HHC != null && HHC.MetaData.whiteBalance != null ? HHC.MetaData.whiteBalance.tint.value : 0f,
             lensDistortion = HHC != null && HHC.MetaData.lensDistortion != null ? HHC.MetaData.lensDistortion.intensity.value : 0f,
@@ -1072,6 +1112,11 @@ public partial class BasisHandHeldCameraUI
             HHC.SetViewfinderGridOpacity(settings.viewfinderGridOpacity);
             HHC.SetViewfinderGridEnabled(settings.viewfinderGrid);
 
+            // Before the mode, and after the resolution: the body owns the frame it shoots, so it
+            // has the last word over the resolution list — and the mode compares the body, so a
+            // camera whose body had not landed yet would be judged as the wrong kind of camera.
+            HHC.RestoreBody(settings.cameraBody, settings.exposuresRemaining, settings.flashEnabled);
+
             // Last: the mode is a statement about everything above it, so it can only be restored
             // once all of it has landed. Restoring earlier would have the re-derive compare the
             // saved mode against values the apply had not reached yet and call it Custom.
@@ -1146,9 +1191,19 @@ public partial class BasisHandHeldCameraUI
         // whether the effect runs at all, so the shot is never drawn for a frame at the new strength
         // with the last session's shape.
         ChangeVignetteSmoothness(settings.vignetteSmoothness);
+        ChangeVignetteColour(settings.vignetteColour);
+        ChangeVignetteRounded(settings.vignetteRounded);
         ChangeVignette(settings.vignette);
         ChangeChromaticAberration(settings.chromaticAberration);
+        // Grain size and falloff before strength: the strength owns whether the pass runs, and
+        // ChangeFilmGrain only defaults the type when it finds Custom, so a type set here stands.
+        ChangeFilmGrainType(settings.filmGrainType);
+        ChangeFilmGrainResponse(settings.filmGrainResponse);
         ChangeFilmGrain(settings.filmGrain);
+        ChangeBloomTint(settings.bloomTint);
+        ChangeSplitToning(settings.splitToningShadows, settings.splitToningHighlights);
+        ChangeSplitToningBalance(settings.splitToningBalance);
+        ChangeFilmLift(settings.filmLift);
         ChangeWhiteBalanceTemperature(settings.whiteBalanceTemperature);
         ChangeWhiteBalanceTint(settings.whiteBalanceTint);
         ChangeLensDistortionScale(settings.lensDistortionScale);
@@ -1279,6 +1334,17 @@ public partial class BasisHandHeldCameraUI
     public const float MaxVignetteSmoothness = 1f;
 
     /// <summary>Range URP clamps <c>LensDistortion.scale</c> to.</summary>
+    /// <summary>URP's own clamp on <c>SplitToning.balance</c>.</summary>
+    public const float MinSplitToningBalance = -100f;
+    public const float MaxSplitToningBalance = 100f;
+
+    /// <summary>
+    /// The lift is an unclamped Vector4 in URP, so the range is ours to choose. Zero is a true
+    /// black; a quarter is as far as the effect stays a faded photograph rather than fog.
+    /// </summary>
+    public const float MinFilmLift = 0f;
+    public const float MaxFilmLift = 0.25f;
+
     public const float MinLensDistortionScale = 0.01f;
     public const float MaxLensDistortionScale = 5f;
 
@@ -1454,6 +1520,123 @@ public partial class BasisHandHeldCameraUI
             HHC.MetaData.filmGrain.response.overrideState = true;
             HHC.MetaData.filmGrain.active = value > 0f;
         }
+    }
+
+    /// <summary>
+    /// Which grain texture is used, as <c>FilmGrainLookup</c>. Size rather than strength: an ISO 800
+    /// negative enlarged from a plastic lens has grain you can count, and rendering that at Thin1 —
+    /// the value the intensity setter falls back to — reads as digital noise instead of film.
+    ///
+    /// <para>Custom is refused rather than clamped away silently: it means "use my own texture",
+    /// there is no texture to use, and URP would then run no grain at all at any intensity.</para>
+    /// </summary>
+    public void ChangeFilmGrainType(int type)
+    {
+        if (HHC.MetaData.filmGrain == null) return;
+
+        int highest = (int)UnityEngine.Rendering.Universal.FilmGrainLookup.Large02;
+        HHC.MetaData.filmGrain.type.overrideState = true;
+        HHC.MetaData.filmGrain.type.value =
+            (UnityEngine.Rendering.Universal.FilmGrainLookup)Mathf.Clamp(type, 0, highest);
+    }
+
+    /// <summary>
+    /// How much the grain backs off in the highlights. Zero lays it evenly over the whole frame,
+    /// which is what digital noise does; film grain is a property of the emulsion being developed,
+    /// so it is strongest in the midtones and shadows and nearly gone in a blown sky.
+    /// </summary>
+    public void ChangeFilmGrainResponse(float value)
+    {
+        if (HHC.MetaData.filmGrain == null) return;
+
+        HHC.MetaData.filmGrain.response.overrideState = true;
+        HHC.MetaData.filmGrain.response.value = Mathf.Clamp01(value);
+    }
+
+    /// <summary>
+    /// The colour the glow around a highlight takes. On film this is halation — light passes through
+    /// the emulsion, bounces off the base behind it and exposes the grains a second time, and the
+    /// anti-halation layer stops that least at the red end. So a bulb on film has an orange ring,
+    /// which no amount of white bloom will imitate.
+    /// </summary>
+    public void ChangeBloomTint(Color value)
+    {
+        if (HHC.MetaData.bloom == null) return;
+
+        HHC.MetaData.bloom.tint.overrideState = true;
+        HHC.MetaData.bloom.tint.value = value;
+    }
+
+    /// <summary>
+    /// What the corners darken toward. Black is the digital answer; a lens that is simply passing
+    /// less light at the edge of its circle darkens toward the colour of the light it is still
+    /// passing, which on warm film stock is a brown rather than a grey.
+    /// </summary>
+    public void ChangeVignetteColour(Color value)
+    {
+        if (HHC.MetaData.vignette == null) return;
+
+        HHC.MetaData.vignette.color.overrideState = true;
+        HHC.MetaData.vignette.color.value = value;
+    }
+
+    /// <summary>
+    /// Whether the darkening is a circle or follows the frame. A single moulded lens element has a
+    /// round image circle and vignettes in a circle regardless of how the frame is cropped out of
+    /// it; a sensor with a corrected lens in front of it falls off with the rectangle.
+    /// </summary>
+    public void ChangeVignetteRounded(bool value)
+    {
+        if (HHC.MetaData.vignette == null) return;
+
+        HHC.MetaData.vignette.rounded.overrideState = true;
+        HHC.MetaData.vignette.rounded.value = value;
+    }
+
+    /// <summary>
+    /// The two ends of the colour split. Neutral is <see cref="Color.grey"/> at both ends — not
+    /// black — because the effect tints <em>toward</em> these, so a black shadow colour is a very
+    /// strong shift rather than none at all.
+    /// </summary>
+    public void ChangeSplitToning(Color shadows, Color highlights)
+    {
+        var splitToning = HHC.MetaData.splitToning;
+        if (splitToning == null) return;
+
+        splitToning.shadows.overrideState = true;
+        splitToning.shadows.value = shadows;
+        splitToning.highlights.overrideState = true;
+        splitToning.highlights.value = highlights;
+
+        // URP's own test for whether the pass is worth running, applied to the values just written.
+        splitToning.active = splitToning.IsActive();
+    }
+
+    /// <summary>Where the split falls: negative hands more of the frame to the shadow colour.</summary>
+    public void ChangeSplitToningBalance(float value)
+    {
+        if (HHC.MetaData.splitToning == null) return;
+
+        HHC.MetaData.splitToning.balance.overrideState = true;
+        HHC.MetaData.splitToning.balance.value = Mathf.Clamp(value, MinSplitToningBalance, MaxSplitToningBalance);
+    }
+
+    /// <summary>
+    /// Raises the black point, so the darkest thing in the picture is a dark grey rather than black.
+    ///
+    /// <para>Written into <c>liftGammaGain.lift</c> as <c>(1,1,1,amount)</c>. URP converts the three
+    /// colour channels and subtracts their own luminance before adding w, so three equal channels
+    /// cancel exactly and what reaches the shader is a flat offset of <c>amount</c> — a neutral
+    /// lift, with no cast of its own for the split toning above it to fight.</para>
+    /// </summary>
+    public void ChangeFilmLift(float value)
+    {
+        if (HHC.MetaData.liftGammaGain == null) return;
+
+        float lift = Mathf.Clamp(value, MinFilmLift, MaxFilmLift);
+        HHC.MetaData.liftGammaGain.lift.overrideState = true;
+        HHC.MetaData.liftGammaGain.lift.value = new Vector4(1f, 1f, 1f, lift);
+        HHC.MetaData.liftGammaGain.active = lift > 0f;
     }
 
     public void ChangeWhiteBalanceTemperature(float value)

@@ -71,6 +71,230 @@
       "value": "The shot rig drives the camera along your dolly, orbit and framing moves. A longer lens, shallower focus and a little motion blur for the filmic look. Follow does nothing here — the rig owns where the camera goes."
     },
     {
+      "key": "camera.modePreset.disposable",
+      "value": "Disposable"
+    },
+    {
+      "key": "camera.modePreset.disposable.description",
+      "value": "A single-use 35mm camera. Twenty-seven frames, a fixed wide lens that never focuses, and a flash you have to wait six seconds for. Warm, grainy and vignetted, with the date burned into the corner. When the roll runs out, reload it from the Camera section."
+    },
+    {
+      "key": "camera.modePreset.instant",
+      "value": "Instant"
+    },
+    {
+      "key": "camera.modePreset.instant.description",
+      "value": "Instant film: eight square prints a pack, and eleven seconds of watching each one come up before you can take the next. Soft, milky and low contrast, the way chemistry that never quite reaches black looks."
+    },
+    {
+      "key": "camera.modePreset.camcorder",
+      "value": "Camcorder"
+    },
+    {
+      "key": "camera.modePreset.camcorder.description",
+      "value": "A tape camcorder. Nothing runs out and nothing waits — the constraints are all in the picture: soft 4:3, colour smearing sideways off every edge, motion blur, and a clock burned in. The only camera kind whose zoom still works."
+    },
+    {
+      "key": "camera.modePreset.security",
+      "value": "Security Cam"
+    },
+    {
+      "key": "camera.modePreset.security.description",
+      "value": "A camera bolted to a ceiling. Very wide and barrel-distorted, crushed nearly to grey, grainy, levelled and stabilised because nobody is holding it — and stamped with the time."
+    },
+    {
+      "key": "camera.body",
+      "value": "Camera"
+    },
+    {
+      "key": "camera.body.digital",
+      "value": "Digital"
+    },
+    {
+      "key": "camera.body.kind",
+      "value": "Body"
+    },
+    {
+      "key": "camera.body.exposures",
+      "value": "Frames left"
+    },
+    {
+      "key": "camera.body.help",
+      "value": "Which camera you are holding, and what is left in it. Picking a camera kind above hands you a fresh one."
+    },
+    {
+      "key": "camera.body.flash",
+      "value": "Flash"
+    },
+    {
+      "key": "camera.body.flash.tooltip",
+      "value": "Fires a real light on the frame you take, so faces near the camera come out hot and the far side of the room falls away. It has to charge between shots. Other players see the photo, not the pop."
+    },
+    {
+      "key": "camera.body.reload",
+      "value": "Reload"
+    },
+    {
+      "key": "camera.body.reload.tooltip",
+      "value": "Puts a full load of film in. The only way back from an empty camera."
+    },
+    {
+      "key": "camera.body.status.frames",
+      "value": "{0} of {1} frames left"
+    },
+    {
+      "key": "camera.body.status.unlimited",
+      "value": "Nothing to run out of"
+    },
+    {
+      "key": "camera.body.status.ready",
+      "value": "Ready"
+    },
+    {
+      "key": "camera.body.status.empty",
+      "value": "Out of film — reload to keep shooting"
+    },
+    {
+      "key": "camera.body.status.winding",
+      "value": "Winding on…"
+    },
+    {
+      "key": "camera.body.status.developing",
+      "value": "Developing…"
+    },
+    {
+      "key": "camera.body.status.flashReady",
+      "value": "Flash charged"
+    },
+    {
+      "key": "camera.body.status.flashCharging",
+      "value": "Flash charging…"
+    },
+    {
+      "key": "camera.body.status.flashOff",
+      "value": "Flash off"
+    },
+    {
+      "key": "camera.filmGrain.type",
+      "value": "Grain Size"
+    },
+    {
+      "key": "camera.filmGrain.type.description",
+      "value": "How big the grain is. This is what separates film from digital noise: a fast negative enlarged from a small frame has grain you can pick out, while a sensor turned up produces a much finer speckle."
+    },
+    {
+      "key": "camera.filmGrain.type.fine",
+      "value": "Fine"
+    },
+    {
+      "key": "camera.filmGrain.type.fine.description",
+      "value": "A fine speckle, the way a video sensor at high gain looks."
+    },
+    {
+      "key": "camera.filmGrain.type.medium",
+      "value": "Medium"
+    },
+    {
+      "key": "camera.filmGrain.type.medium.description",
+      "value": "The middle of the range — a slow film, or an instant print's dye texture."
+    },
+    {
+      "key": "camera.filmGrain.type.large",
+      "value": "Large"
+    },
+    {
+      "key": "camera.filmGrain.type.large.description",
+      "value": "Grain you can count, the way a fast consumer negative comes back from a machine scan."
+    },
+    {
+      "key": "camera.filmGrain.type.coarse",
+      "value": "Coarse"
+    },
+    {
+      "key": "camera.filmGrain.type.coarse.description",
+      "value": "The heaviest texture there is, for a small sensor pushed well past what its light allows."
+    },
+    {
+      "key": "camera.filmGrain.response",
+      "value": "Grain in Shadows"
+    },
+    {
+      "key": "camera.filmGrain.response.description",
+      "value": "How much the grain backs off in the bright parts. At zero it lies evenly over everything, which is what digital noise does; turned up it hides in the midtones and shadows and leaves a blown sky clean, which is what film grain does."
+    },
+    {
+      "key": "camera.bloomTint",
+      "value": "Glow Colour"
+    },
+    {
+      "key": "camera.bloomTint.description",
+      "value": "What colour the glow around a highlight takes. On film this is halation rather than bloom — light passes through the emulsion, bounces off the base behind it and exposes the film a second time, and the layer that stops that works least on red. It is why every bulb on a negative wears an orange ring."
+    },
+    {
+      "key": "camera.bloomTint.strength",
+      "value": "Glow Colour Strength"
+    },
+    {
+      "key": "camera.vignetteColour",
+      "value": "Vignette Colour"
+    },
+    {
+      "key": "camera.vignetteColour.description",
+      "value": "What the corners darken toward. Black is the digital answer; a lens simply passing less light at the edge of its circle darkens toward the colour of the light still getting through, which on warm film stock is a brown."
+    },
+    {
+      "key": "camera.vignetteColour.strength",
+      "value": "Vignette Colour Strength"
+    },
+    {
+      "key": "camera.vignetteRounded",
+      "value": "Round Vignette"
+    },
+    {
+      "key": "camera.vignetteRounded.description",
+      "value": "Darkens in a circle instead of following the frame. A single moulded lens element has a round image circle and falls off in a circle regardless of how the picture is cropped out of it; a corrected lens over a rectangular sensor falls off with the rectangle."
+    },
+    {
+      "key": "camera.splitToning.shadows",
+      "value": "Shadow Tone"
+    },
+    {
+      "key": "camera.splitToning.shadows.description",
+      "value": "The colour the dark half of the picture leans toward. Warming one end of the range and cooling the other is what makes a film stock as opposed to a colour filter — a negative puts teal in the shade, an instant print puts green there."
+    },
+    {
+      "key": "camera.splitToning.shadowStrength",
+      "value": "Shadow Tone Strength"
+    },
+    {
+      "key": "camera.splitToning.highlights",
+      "value": "Highlight Tone"
+    },
+    {
+      "key": "camera.splitToning.highlights.description",
+      "value": "The colour the bright half leans toward. Gold on a consumer negative, pink on an instant print."
+    },
+    {
+      "key": "camera.splitToning.highlightStrength",
+      "value": "Highlight Tone Strength"
+    },
+    {
+      "key": "camera.splitToning.balance",
+      "value": "Tone Balance"
+    },
+    {
+      "key": "camera.splitToning.balance.description",
+      "value": "Where the picture is divided between the two tones. Negative hands more of the frame to the shadow colour, positive to the highlight colour."
+    },
+    {
+      "key": "camera.filmLift",
+      "value": "Lifted Blacks"
+    },
+    {
+      "key": "camera.filmLift.description",
+      "value": "Raises the black point, so the darkest thing in the picture is a dark grey rather than black. This is the single strongest thing a film look has: a machine print has no true black in it at all, and an instant print has less than any of them."
+    },
+    {
       "key": "camera.userMode.title",
       "value": "Your Modes"
     },
@@ -6557,6 +6781,10 @@
     {
       "key": "settings.graphics.bottleneck.advice.gpu",
       "value": "Your GPU takes longer to finish a frame than your CPU does, so the CPU spends part of every frame waiting. Try lowering resolution, render scale, shadow quality, antialiasing, or mirror quality."
+    },
+    {
+      "key": "settings.graphics.bottleneck.advice.highlight",
+      "value": "The settings on this page that change that side's cost are highlighted in blue."
     },
     {
       "key": "settings.graphics.bottleneck.advice.balanced",

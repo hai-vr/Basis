@@ -23,6 +23,109 @@ public partial class BasisHandHeldCamera
     /// </summary>
     public BasisCameraMode CameraMode { get; private set; } = BasisCameraMode.Photo;
 
+    /// <summary>
+    /// The picture a camera kind makes: grain, cast, contrast and the rest of the post-processing
+    /// that turns a clean render into a photograph off a particular machine.
+    ///
+    /// <para>Optional, and absent from the four placement modes on purpose. Photo, Flying Puck,
+    /// Follow Me and Cinematic have opinions about where the camera goes and what lens it wears,
+    /// and none at all about grain — so they neither write these nor compare them, and adding
+    /// film grain to a Photo camera leaves it a Photo camera. A kind writes all of them, which is
+    /// also what makes a kind a kind: it owns the picture end to end.</para>
+    /// </summary>
+    private readonly struct BasisCameraLook
+    {
+        /// <summary>False on a mode that has no opinion about the picture. Gates the write and the compare together.</summary>
+        public readonly bool Active;
+
+        public readonly float FilmGrain;
+        public readonly float Vignette;
+        public readonly float VignetteSmoothness;
+        public readonly float ChromaticAberration;
+        public readonly float WhiteBalanceTemperature;
+        public readonly float WhiteBalanceTint;
+        public readonly float Contrast;
+        public readonly float Saturation;
+        public readonly float BloomIntensity;
+        public readonly float BloomThreshold;
+        public readonly float LensDistortion;
+        public readonly float LensDistortionScale;
+
+        /// <summary>How the still is graded, as <c>TonemappingMode</c>. The viewfinder is always Neutral.</summary>
+        public readonly int Tonemapping;
+
+        // ---- The grading that separates a stock from a filter ----------------------------------
+
+        /// <summary>Which grain texture, as <c>FilmGrainLookup</c>. Size, not strength.</summary>
+        public readonly int GrainType;
+
+        /// <summary>How far the grain backs off in the highlights.</summary>
+        public readonly float GrainResponse;
+
+        /// <summary>The colour of the glow around a highlight — halation on film, plain bloom otherwise.</summary>
+        public readonly Color BloomTint;
+
+        public readonly Color VignetteColour;
+        public readonly bool VignetteRounded;
+
+        /// <summary>Neutral is grey at both ends, not black.</summary>
+        public readonly Color SplitShadows;
+        public readonly Color SplitHighlights;
+        public readonly float SplitBalance;
+
+        /// <summary>The raised black point. The single strongest lever a film look has.</summary>
+        public readonly float Lift;
+
+        public BasisCameraLook(
+            float filmGrain,
+            int grainType,
+            float grainResponse,
+            float vignette,
+            float vignetteSmoothness,
+            Color vignetteColour,
+            bool vignetteRounded,
+            float chromaticAberration,
+            float whiteBalanceTemperature,
+            float whiteBalanceTint,
+            float contrast,
+            float saturation,
+            float lift,
+            Color splitShadows,
+            Color splitHighlights,
+            float splitBalance,
+            float bloomIntensity,
+            float bloomThreshold,
+            Color bloomTint,
+            float lensDistortion,
+            float lensDistortionScale,
+            int tonemapping)
+        {
+            Active = true;
+            FilmGrain = filmGrain;
+            GrainType = grainType;
+            GrainResponse = grainResponse;
+            Vignette = vignette;
+            VignetteSmoothness = vignetteSmoothness;
+            VignetteColour = vignetteColour;
+            VignetteRounded = vignetteRounded;
+            ChromaticAberration = chromaticAberration;
+            WhiteBalanceTemperature = whiteBalanceTemperature;
+            WhiteBalanceTint = whiteBalanceTint;
+            Contrast = contrast;
+            Saturation = saturation;
+            Lift = lift;
+            SplitShadows = splitShadows;
+            SplitHighlights = splitHighlights;
+            SplitBalance = splitBalance;
+            BloomIntensity = bloomIntensity;
+            BloomThreshold = bloomThreshold;
+            BloomTint = bloomTint;
+            LensDistortion = lensDistortion;
+            LensDistortionScale = lensDistortionScale;
+            Tonemapping = tonemapping;
+        }
+    }
+
     /// <summary>The values one mode writes. Read by both the apply and the match, never duplicated.</summary>
     private readonly struct BasisCameraModePreset
     {
@@ -57,6 +160,16 @@ public partial class BasisHandHeldCamera
         public readonly float FocalLength;
         public readonly float MotionBlur;
 
+        /// <summary>
+        /// The physical camera this mode hands you. Compared as well as written, and the only value
+        /// here that survives a camera with no volume profile — which is what tells two film bodies
+        /// apart in a test fixture where every optical compare is skipped.
+        /// </summary>
+        public readonly BasisCameraBodyKind Body;
+
+        /// <summary>The picture this mode makes, or an inactive look on a mode with no opinion.</summary>
+        public readonly BasisCameraLook Look;
+
         public BasisCameraModePreset(
             CameraPinSpace pin,
             BasisCameraPositionModifier position,
@@ -73,7 +186,9 @@ public partial class BasisHandHeldCamera
             int dofStyle,
             float aperture,
             float focalLength,
-            float motionBlur)
+            float motionBlur,
+            BasisCameraBodyKind body = BasisCameraBodyKind.Digital,
+            BasisCameraLook look = default)
         {
             Pin = pin;
             Position = position;
@@ -91,6 +206,8 @@ public partial class BasisHandHeldCamera
             Aperture = aperture;
             FocalLength = focalLength;
             MotionBlur = motionBlur;
+            Body = body;
+            Look = look;
         }
 
         /// <summary>Whether the fitted slots need somebody to film, and so own the subject settings.</summary>
@@ -146,6 +263,28 @@ public partial class BasisHandHeldCamera
 
     private static readonly BasisCameraEffectModifier[] NoEffects = new BasisCameraEffectModifier[0];
 
+    /// <summary>
+    /// The framing every mode that does not film anybody carries. Only written where follow is
+    /// armed, so for most of the table it is the value the section keeps rather than one it sets —
+    /// but it has to be the same value in each, or two modes would differ by a number neither uses.
+    /// </summary>
+    private static readonly Vector3 DefaultFollowOffset = new Vector3(0.5f, 0f, 1.4f);
+
+    // The four grain textures this table picks between, named for what they are rather than for
+    // URP's numbering — the difference between a fast negative and a sensor at high gain is the
+    // size of the texture, and a bare 8 in a preset says nothing about which is which.
+    private const int FineGrain = (int)UnityEngine.Rendering.Universal.FilmGrainLookup.Medium3;
+    private const int MediumGrain = (int)UnityEngine.Rendering.Universal.FilmGrainLookup.Medium1;
+    private const int LargeGrain = (int)UnityEngine.Rendering.Universal.FilmGrainLookup.Large01;
+    private const int CoarseGrain = (int)UnityEngine.Rendering.Universal.FilmGrainLookup.Large02;
+
+    /// <summary>
+    /// <c>TonemappingMode.Neutral</c>, as the int the preset table stores. Every camera kind grades
+    /// its still with it rather than with ACES: the contrast belongs to the film or the tape, and a
+    /// filmic curve on top of one only flattens what the look just spent its budget saying.
+    /// </summary>
+    private const int NeutralTonemapping = (int)UnityEngine.Rendering.Universal.TonemappingMode.Neutral;
+
     private static readonly BasisCameraEffectModifier[] CinematicEffects =
     {
         BasisCameraEffectModifier.LookAhead,
@@ -168,7 +307,7 @@ public partial class BasisHandHeldCamera
         capture360: false,
         autoFocusSubject: false,
         anchorToBody: true,
-        followOffset: new Vector3(0.5f, 0f, 1.4f),
+        followOffset: DefaultFollowOffset,
         fov: 40f,
         dofEnabled: false,
         dofStyle: 2,
@@ -191,7 +330,7 @@ public partial class BasisHandHeldCamera
         capture360: false,
         autoFocusSubject: false,
         anchorToBody: true,
-        followOffset: new Vector3(0.5f, 0f, 1.4f),
+        followOffset: DefaultFollowOffset,
         fov: 55f,
         dofEnabled: false,
         dofStyle: 2,
@@ -214,7 +353,7 @@ public partial class BasisHandHeldCamera
         capture360: false,
         autoFocusSubject: true,
         anchorToBody: true,
-        followOffset: new Vector3(0.5f, 0f, 1.4f),
+        followOffset: DefaultFollowOffset,
         fov: 45f,
         dofEnabled: true,
         dofStyle: 2,
@@ -245,6 +384,259 @@ public partial class BasisHandHeldCamera
         focalLength: 85f,
         motionBlur: 0.35f);
 
+    /// <summary>
+    /// A single-use 35mm. Warm, contrasty and grainy because that is what a one-speed film pushed
+    /// through a plastic lens and a drugstore scanner comes back as — and deep-focus at f/8 because
+    /// the lens does not focus at all. Neutral tonemapping rather than ACES: the contrast in a film
+    /// print is the print's, and grading it filmically on top of that only greys it back down.
+    /// </summary>
+    private static readonly BasisCameraModePreset DisposablePreset = new BasisCameraModePreset(
+        pin: CameraPinSpace.HandHeld,
+        position: BasisCameraPositionModifier.FreeFly,
+        rotation: BasisCameraRotationModifier.FreeLook,
+        effects: NoEffects,
+        autoLevel: false,
+        vrStabilisation: false,
+        capture360: false,
+        autoFocusSubject: false,
+        anchorToBody: true,
+        followOffset: DefaultFollowOffset,
+        fov: 45f,
+        dofEnabled: false,
+        dofStyle: 2,
+        aperture: 8f,
+        focalLength: 32f,
+        motionBlur: 0f,
+        body: BasisCameraBodyKind.Disposable,
+        look: new BasisCameraLook(
+            // ISO 400/800 consumer negative, enlarged from a 35mm frame by a machine scanner: the
+            // grain is big enough to count, and it lives in the midtones and shadows rather than in
+            // the sky, which is what Large01 at a high response gives and Thin1 cannot.
+            filmGrain: 0.55f,
+            grainType: LargeGrain,
+            grainResponse: 0.85f,
+
+            // A single moulded plastic element has a round image circle and simply stops delivering
+            // light at the edge of it, so the falloff is a circle rather than the frame's shape —
+            // and it darkens toward the warm brown of the light still getting through, not to black.
+            vignette: 0.45f,
+            vignetteSmoothness: 0.32f,
+            vignetteColour: new Color(0.09f, 0.05f, 0.03f),
+            vignetteRounded: true,
+
+            chromaticAberration: 0.32f,
+
+            // Daylight film under whatever light was actually there. Gold 400 and Superia are both
+            // built to flatter skin, which reads as warm with a shade of magenta.
+            whiteBalanceTemperature: 20f,
+            whiteBalanceTint: -5f,
+            contrast: 14f,
+            saturation: 16f,
+
+            // Lifted blacks. A machine print off a negative has no true black in it, and this is
+            // most of what separates the look from a contrasty digital photo with grain on top.
+            lift: 0.055f,
+
+            // The colour signature of the stock: gold in the highlights, teal in the shade. Held
+            // near grey because the effect tints toward these — the distance from grey IS the
+            // strength — and weighted to the highlight end, which is where the cast is seen.
+            splitShadows: new Color(0.40f, 0.53f, 0.58f),
+            splitHighlights: new Color(0.60f, 0.53f, 0.40f),
+            splitBalance: 12f,
+
+            // Halation, not bloom: light that got through the emulsion, bounced off the base behind
+            // it and exposed the grains a second time. The anti-halation layer stops that least at
+            // the red end, so every bulb on a negative wears an orange ring.
+            bloomIntensity: 0.75f,
+            bloomThreshold: 0.85f,
+            bloomTint: new Color(1.00f, 0.42f, 0.26f),
+
+            lensDistortion: 0.06f,
+            lensDistortionScale: 1f,
+            tonemapping: NeutralTonemapping));
+
+    /// <summary>
+    /// Instant film: the opposite of the disposable in every direction. Low contrast and milky
+    /// rather than punchy, a wide soft bloom instead of grain, and a magenta-warm cast — the look of
+    /// a chemistry that never quite reaches black.
+    /// </summary>
+    private static readonly BasisCameraModePreset InstantPreset = new BasisCameraModePreset(
+        pin: CameraPinSpace.HandHeld,
+        position: BasisCameraPositionModifier.FreeFly,
+        rotation: BasisCameraRotationModifier.FreeLook,
+        effects: NoEffects,
+        autoLevel: false,
+        vrStabilisation: false,
+        capture360: false,
+        autoFocusSubject: false,
+        anchorToBody: true,
+        followOffset: DefaultFollowOffset,
+        fov: 42f,
+        dofEnabled: false,
+        dofStyle: 2,
+        aperture: 11f,
+        focalLength: 40f,
+        motionBlur: 0f,
+        body: BasisCameraBodyKind.Instant,
+        look: new BasisCameraLook(
+            // Instant film is a dye layer developed against a sheet, not silver grains in gelatin,
+            // so its texture is a fine mottle rather than the coarse pepper of a fast negative.
+            filmGrain: 0.22f,
+            grainType: MediumGrain,
+            grainResponse: 0.7f,
+
+            vignette: 0.5f,
+            vignetteSmoothness: 0.55f,
+            vignetteColour: new Color(0.10f, 0.09f, 0.11f),
+            vignetteRounded: true,
+
+            chromaticAberration: 0.12f,
+            whiteBalanceTemperature: 12f,
+            whiteBalanceTint: 9f,
+
+            // Pastel and soft. The contrast comes down further than any other body here because an
+            // instant print has a genuinely short tonal range — it is a one-shot chemistry with no
+            // negative behind it to hold the ends.
+            contrast: -24f,
+            saturation: -14f,
+
+            // The single most important number in this table. A 600 print has no true black in it
+            // at all — the shadows sit at a milky grey — and every other value here is decoration
+            // on top of that one fact.
+            lift: 0.115f,
+
+            // Pink in the highlights, green in the shade: the shift every 600 pack has and the one
+            // thing that tells an instant print from a warm faded photograph.
+            splitShadows: new Color(0.42f, 0.55f, 0.48f),
+            splitHighlights: new Color(0.62f, 0.50f, 0.52f),
+            splitBalance: -10f,
+
+            // Wide and creamy rather than a ring: an instant print glows because the dyes scatter
+            // through the layers, which spreads light instead of reflecting it back as a hot edge.
+            bloomIntensity: 1.25f,
+            bloomThreshold: 0.62f,
+            bloomTint: new Color(1.00f, 0.88f, 0.80f),
+
+            lensDistortion: 0.02f,
+            lensDistortionScale: 1f,
+            tonemapping: NeutralTonemapping));
+
+    /// <summary>
+    /// Tape. The chromatic aberration is doing most of the work here — colour smearing sideways off
+    /// an edge is the single thing that says "recorded" rather than "photographed" — and the motion
+    /// blur is the rest of it, because a tape frame was a field-interlaced smear of the one before.
+    /// </summary>
+    private static readonly BasisCameraModePreset CamcorderPreset = new BasisCameraModePreset(
+        pin: CameraPinSpace.HandHeld,
+        position: BasisCameraPositionModifier.FreeFly,
+        rotation: BasisCameraRotationModifier.FreeLook,
+        effects: NoEffects,
+        autoLevel: false,
+        vrStabilisation: false,
+        capture360: false,
+        autoFocusSubject: false,
+        anchorToBody: true,
+        followOffset: DefaultFollowOffset,
+        fov: 52f,
+        dofEnabled: false,
+        dofStyle: 2,
+        aperture: 8f,
+        focalLength: 28f,
+        motionBlur: 0.5f,
+        body: BasisCameraBodyKind.Camcorder,
+        look: new BasisCameraLook(
+            // Sensor noise rather than grain — finer than a negative, and spread evenly rather than
+            // hiding in the shadows, because it comes from the amplifier and not from the picture.
+            filmGrain: 0.34f,
+            grainType: FineGrain,
+            grainResponse: 0.35f,
+
+            // A rectangular sensor behind a corrected zoom falls off with the frame, not in a
+            // circle — the one body here that does.
+            vignette: 0.26f,
+            vignetteSmoothness: 0.45f,
+            vignetteColour: new Color(0.05f, 0.06f, 0.08f),
+            vignetteRounded: false,
+
+            chromaticAberration: 0.6f,
+            whiteBalanceTemperature: -8f,
+            whiteBalanceTint: 4f,
+            contrast: -6f,
+            saturation: -22f,
+
+            // Tape blacks are notoriously grey: the signal never reaches the bottom of its range
+            // and every generation of copying lifts it further.
+            lift: 0.07f,
+
+            splitShadows: new Color(0.45f, 0.50f, 0.58f),
+            splitHighlights: new Color(0.56f, 0.54f, 0.47f),
+            splitBalance: 0f,
+
+            bloomIntensity: 0.9f,
+            bloomThreshold: 0.55f,
+            bloomTint: new Color(0.86f, 0.92f, 1.00f),
+
+            lensDistortion: 0.04f,
+            lensDistortionScale: 1f,
+            tonemapping: NeutralTonemapping));
+
+    /// <summary>
+    /// A ceiling camera. Very wide and barrel-distorted so the room bends at the edges, crushed
+    /// almost to grey rather than all the way — a security picture is not black and white, it is a
+    /// colour picture of a room lit by one bad lamp — and levelled, because nobody is holding it.
+    /// </summary>
+    private static readonly BasisCameraModePreset SecurityPreset = new BasisCameraModePreset(
+        pin: CameraPinSpace.HandHeld,
+        position: BasisCameraPositionModifier.FreeFly,
+        rotation: BasisCameraRotationModifier.FreeLook,
+        effects: NoEffects,
+        autoLevel: true,
+        vrStabilisation: true,
+        capture360: false,
+        autoFocusSubject: false,
+        anchorToBody: true,
+        followOffset: DefaultFollowOffset,
+        fov: 82f,
+        dofEnabled: false,
+        dofStyle: 2,
+        aperture: 11f,
+        focalLength: 18f,
+        motionBlur: 0.15f,
+        body: BasisCameraBodyKind.Security,
+        look: new BasisCameraLook(
+            // A small sensor run at whatever gain the room needs. The coarsest texture in the table,
+            // and evenly spread, because it is amplification rather than emulsion.
+            filmGrain: 0.48f,
+            grainType: CoarseGrain,
+            grainResponse: 0.25f,
+
+            vignette: 0.55f,
+            vignetteSmoothness: 0.3f,
+            vignetteColour: new Color(0.04f, 0.05f, 0.05f),
+            vignetteRounded: true,
+
+            chromaticAberration: 0.04f,
+            whiteBalanceTemperature: -4f,
+            whiteBalanceTint: 0f,
+            contrast: 22f,
+
+            // Crushed nearly to grey, not all the way. A security picture is a colour picture of a
+            // room lit by one bad lamp, which is a different thing from a black and white one.
+            saturation: -82f,
+            lift: 0.04f,
+
+            splitShadows: new Color(0.47f, 0.50f, 0.54f),
+            splitHighlights: new Color(0.53f, 0.52f, 0.48f),
+            splitBalance: 0f,
+
+            bloomIntensity: 0.35f,
+            bloomThreshold: 0.95f,
+            bloomTint: new Color(0.90f, 0.95f, 1.00f),
+
+            lensDistortion: 0.3f,
+            lensDistortionScale: 1f,
+            tonemapping: NeutralTonemapping));
+
     // Tolerances. Every one of these values reaches the camera through a slider whose display is
     // rounded, so an exact compare would report Custom for a value the user never touched.
     private const float FovTolerance = 0.5f;
@@ -252,6 +644,13 @@ public partial class BasisHandHeldCamera
     private const float FocalLengthTolerance = 0.5f;
     private const float MotionBlurTolerance = 0.005f;
     private const float OffsetTolerance = 0.01f;
+
+    // The look values come off percentage and -100..100 sliders, so a tenth is finer than anything
+    // the panel can express and coarse enough to survive the round trip through one.
+    private const float LookTolerance = 0.1f;
+
+    /// <summary>One 8-bit channel. A colour that survived a trip through a hex field cannot be closer.</summary>
+    private const float ColourTolerance = 1f / 255f;
 
     private static bool TryGetPreset(BasisCameraMode mode, out BasisCameraModePreset preset)
     {
@@ -261,6 +660,10 @@ public partial class BasisHandHeldCamera
             case BasisCameraMode.FlyingPuck: preset = FlyingPuckPreset; return true;
             case BasisCameraMode.FollowMe: preset = FollowMePreset; return true;
             case BasisCameraMode.Cinematic: preset = CinematicPreset; return true;
+            case BasisCameraMode.Disposable: preset = DisposablePreset; return true;
+            case BasisCameraMode.Instant: preset = InstantPreset; return true;
+            case BasisCameraMode.Camcorder: preset = CamcorderPreset; return true;
+            case BasisCameraMode.Security: preset = SecurityPreset; return true;
             default: preset = default; return false;
         }
     }
@@ -296,8 +699,14 @@ public partial class BasisHandHeldCamera
             subjectSettings.anchorToBody = preset.AnchorToBody;
         }
 
+        // Before the optics, because a body owns the frame the camera shoots and the optics are
+        // framed against it — and with a fresh load, because choosing a kind from the picker is
+        // being handed that camera rather than picking the one you had back up.
+        SetBody(preset.Body, freshLoad: true);
+
         SetFieldOfView(preset.Fov);
         ApplyPresetOptics(preset);
+        ApplyPresetLook(preset.Look);
         SyncPropUiAfterModeChange();
 
         CameraMode = mode;
@@ -383,6 +792,157 @@ public partial class BasisHandHeldCamera
     }
 
     /// <summary>
+    /// Writes the picture half of a preset: grain, cast, contrast and the rest of the
+    /// post-processing a camera kind is made of.
+    ///
+    /// <para>Routed through the UI's own setters rather than written at the overrides directly,
+    /// because every one of those values needs more than a number — a <c>VolumeParameter</c> is
+    /// ignored until its override state is set, film grain needs a lookup chosen or nothing renders
+    /// at any intensity, and half of them own an <c>active</c> flag that decides whether the pass
+    /// runs at all. Duplicating that here would be a second set of rules for the same effects, free
+    /// to disagree with the sliders that share them.</para>
+    ///
+    /// <para>Skipped on a camera whose UI has no camera yet, which is every edit-mode test.
+    /// <see cref="MatchesLook"/> skips the same values on the same camera — there are no overrides
+    /// to read there — so a fixture without a volume profile is not reported as Custom for want of
+    /// one.</para>
+    /// </summary>
+    private void ApplyPresetLook(BasisCameraLook look)
+    {
+        if (!look.Active) return;
+
+        // The still's grade is a field on the camera rather than a volume override, so it is
+        // written whether or not there is a UI to route the rest through — and it has to be, or a
+        // camera with no volume profile would apply a kind and immediately not match it.
+        SetCaptureTonemapping(look.Tonemapping);
+
+        if (HandHeld == null || HandHeld.HHC == null) return;
+
+        // Shape before strength throughout, the order ApplySettings uses: the strength owns whether
+        // the effect runs, so the shot is never drawn for a frame at the new strength with the last
+        // mode's shape.
+        HandHeld.ChangeVignetteSmoothness(look.VignetteSmoothness);
+        HandHeld.ChangeVignetteColour(look.VignetteColour);
+        HandHeld.ChangeVignetteRounded(look.VignetteRounded);
+        HandHeld.ChangeVignette(look.Vignette);
+        HandHeld.ChangeFilmGrainType(look.GrainType);
+        HandHeld.ChangeFilmGrainResponse(look.GrainResponse);
+        HandHeld.ChangeFilmGrain(look.FilmGrain);
+        HandHeld.ChangeChromaticAberration(look.ChromaticAberration);
+        HandHeld.ChangeWhiteBalanceTemperature(look.WhiteBalanceTemperature);
+        HandHeld.ChangeWhiteBalanceTint(look.WhiteBalanceTint);
+        HandHeld.ChangeContrast(look.Contrast);
+        HandHeld.ChangeSaturation(look.Saturation);
+        HandHeld.ChangeSplitToning(look.SplitShadows, look.SplitHighlights);
+        HandHeld.ChangeSplitToningBalance(look.SplitBalance);
+        HandHeld.ChangeFilmLift(look.Lift);
+        HandHeld.ChangeLensDistortionScale(look.LensDistortionScale);
+        HandHeld.ChangeLensDistortion(look.LensDistortion);
+
+        HandHeld.ChangeBloomIntensity(look.BloomIntensity);
+        HandHeld.ChangeBloomThreshold(look.BloomThreshold);
+        HandHeld.ChangeBloomTint(look.BloomTint);
+    }
+
+    /// <summary>True while every value the look wrote still holds on the live camera.</summary>
+    private bool MatchesLook(BasisCameraLook look)
+    {
+        if (!look.Active) return true;
+
+        // Read the way each effect is written: the ones that own an active flag are off at zero, so
+        // a switched-off effect has to read as zero rather than as whatever value it kept.
+        var grain = MetaData?.filmGrain;
+        if (grain != null)
+        {
+            if (!NearLook(Strength(grain.active, grain.intensity.value), look.FilmGrain)) return false;
+
+            // Shape only where the grain is actually running, the same rule the vignette follows:
+            // with the effect off the panel hides its texture and falloff entirely.
+            if (look.FilmGrain > 0f)
+            {
+                if ((int)grain.type.value != look.GrainType) return false;
+                if (!NearLook(grain.response.value, look.GrainResponse)) return false;
+            }
+        }
+
+        var vignette = MetaData?.vignette;
+        if (vignette != null)
+        {
+            if (!NearLook(Strength(vignette.active, vignette.intensity.value), look.Vignette)) return false;
+
+            // Shape is only compared where the effect it shapes is running. With the vignette off
+            // the panel has nothing on screen that would explain a smoothness mismatch.
+            if (look.Vignette > 0f)
+            {
+                if (!NearLook(vignette.smoothness.value, look.VignetteSmoothness)) return false;
+                if (!NearColour(vignette.color.value, look.VignetteColour)) return false;
+                if (vignette.rounded.value != look.VignetteRounded) return false;
+            }
+        }
+
+        var chromatic = MetaData?.chromaticAberration;
+        if (chromatic != null &&
+            !NearLook(Strength(chromatic.active, chromatic.intensity.value), look.ChromaticAberration)) return false;
+
+        var whiteBalance = MetaData?.whiteBalance;
+        if (whiteBalance != null)
+        {
+            if (!NearLook(Strength(whiteBalance.active, whiteBalance.temperature.value), look.WhiteBalanceTemperature)) return false;
+            if (!NearLook(Strength(whiteBalance.active, whiteBalance.tint.value), look.WhiteBalanceTint)) return false;
+        }
+
+        var colour = MetaData?.colorAdjustments;
+        if (colour != null)
+        {
+            if (!NearLook(colour.contrast.value, look.Contrast)) return false;
+            if (!NearLook(colour.saturation.value, look.Saturation)) return false;
+        }
+
+        var bloom = MetaData?.bloom;
+        if (bloom != null)
+        {
+            if (!NearLook(bloom.intensity.value, look.BloomIntensity)) return false;
+            if (!NearLook(bloom.threshold.value, look.BloomThreshold)) return false;
+            if (look.BloomIntensity > 0f && !NearColour(bloom.tint.value, look.BloomTint)) return false;
+        }
+
+        var splitToning = MetaData?.splitToning;
+        if (splitToning != null)
+        {
+            if (!NearColour(splitToning.shadows.value, look.SplitShadows)) return false;
+            if (!NearColour(splitToning.highlights.value, look.SplitHighlights)) return false;
+            if (!NearLook(splitToning.balance.value, look.SplitBalance)) return false;
+        }
+
+        var lift = MetaData?.liftGammaGain;
+        if (lift != null && !NearLook(lift.lift.value.w, look.Lift)) return false;
+
+        var distortion = MetaData?.lensDistortion;
+        if (distortion != null)
+        {
+            if (!NearLook(Strength(distortion.active, distortion.intensity.value), look.LensDistortion)) return false;
+            if (look.LensDistortion != 0f && !NearLook(distortion.scale.value, look.LensDistortionScale)) return false;
+        }
+
+        return (int)CaptureTonemapping == look.Tonemapping;
+    }
+
+    /// <summary>An effect's strength as the panel means it: zero whenever the pass is not running.</summary>
+    private static float Strength(bool active, float value) => active ? value : 0f;
+
+    private static bool NearLook(float live, float wanted) => Mathf.Abs(live - wanted) <= LookTolerance;
+
+    /// <summary>
+    /// Colours get a tighter tolerance than the numbers around them: they arrive through three
+    /// 0..1 channels rather than through a percentage slider, so a tenth would be a fifth of the
+    /// whole range and two visibly different tints would compare as the same one.
+    /// </summary>
+    private static bool NearColour(Color live, Color wanted) =>
+        Mathf.Abs(live.r - wanted.r) <= ColourTolerance
+        && Mathf.Abs(live.g - wanted.g) <= ColourTolerance
+        && Mathf.Abs(live.b - wanted.b) <= ColourTolerance;
+
+    /// <summary>
     /// Pushes what a preset just wrote back into the prop's own HUD.
     ///
     /// <para>⚠️ Not cosmetic. Saving harvests the field of view and the depth aperture <em>from the
@@ -408,6 +968,11 @@ public partial class BasisHandHeldCamera
     public bool MatchesCameraMode(BasisCameraMode mode)
     {
         if (!TryGetPreset(mode, out BasisCameraModePreset preset)) return false;
+
+        // The body is compared first and without a tolerance, because it is the one thing here that
+        // is not a number: you either are holding a disposable or you are not, and no amount of
+        // matching its grain on a digital camera makes it one.
+        if (Body != preset.Body) return false;
 
         // PinSpace is deliberately not compared. It is where the camera happens to be, not how it
         // is configured — grabbing a flying puck back out of the air, or letting go of a photo
@@ -455,7 +1020,7 @@ public partial class BasisHandHeldCamera
             if (Mathf.Abs(liveMotionBlur - preset.MotionBlur) > MotionBlurTolerance) return false;
         }
 
-        return true;
+        return MatchesLook(preset.Look);
     }
 
     /// <summary>

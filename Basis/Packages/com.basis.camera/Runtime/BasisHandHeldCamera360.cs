@@ -32,6 +32,11 @@ public partial class BasisHandHeldCamera
     {
         bool exr = captureFormat == "EXR";
 
+        // The same gate the flat capture applies, and before the shutter sound for the same reason:
+        // a panorama is still a frame off the roll, and a film body that could shoot unlimited ones
+        // through this entry would have a counter that meant nothing.
+        if (!TryTakeFrame()) return;
+
         if (BasisDeviceManagement.Instance.CameraShutterSound != null)
         {
             BasisUISounds.PlayAt(BasisUISoundEvent.CameraShutter, BasisDeviceManagement.Instance.CameraShutterSound, captureCamera.transform.position, SMModuleAudio.ActivePropVolume);

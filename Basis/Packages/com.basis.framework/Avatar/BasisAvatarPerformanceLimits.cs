@@ -333,6 +333,11 @@ namespace Basis.Scripts.Avatar
             return Result.Pass;
         }
 
+        public static Result EvaluateForPlayer(BasisBundleConnector connector, bool avatarAlwaysLoaded)
+        {
+            return avatarAlwaysLoaded ? Result.Pass : Evaluate(connector);
+        }
+
         private static int GetComponentCount(BasisBundleConnector.BasisComponentName[] names, string typeName)
         {
             if (names == null) return 0;
@@ -390,7 +395,9 @@ namespace Basis.Scripts.Avatar
         /// <param name="connector">The bundle metadata for the loaded avatar.</param>
         /// <param name="lastInfo">The player's cached <see cref="PerformanceInfo"/>
         /// from the last load — what was actually trimmed on disk.</param>
-        public static ReconcileAction DetermineAction(BasisBundleConnector connector, in PerformanceInfo lastInfo)
+        /// <param name="avatarAlwaysLoaded">When set, nothing <see cref="Evaluate"/> checks can
+        /// block this player; trim categories are still reconciled.</param>
+        public static ReconcileAction DetermineAction(BasisBundleConnector connector, in PerformanceInfo lastInfo, bool avatarAlwaysLoaded = false)
         {
             if (connector == null)
             {
@@ -411,7 +418,7 @@ namespace Basis.Scripts.Avatar
             // fallback and real. If it stays blocked, trim comparisons are moot — the
             // avatar is on the fallback mesh either way.
             bool wasBlocked = lastInfo.Blocked;
-            bool wouldBeBlocked = Evaluate(connector).Blocked;
+            bool wouldBeBlocked = EvaluateForPlayer(connector, avatarAlwaysLoaded).Blocked;
             if (wasBlocked != wouldBeBlocked)
             {
                 return ReconcileAction.Reload;

@@ -54,7 +54,11 @@ namespace Basis.BasisUI
         // level; past 1.25 it is heavy enough to warrant the hotter accent.
         private const float VolumeBoostTintThreshold = 1f;
         private const float VolumeBoostTintHotThreshold = 1.25f;
-        private const float UnmuteFallbackVolume = 1.0f;
+
+        // No override in force means the player is heard at their own level. Matches the volume a
+        // fresh BasisPlayerSettingsData is created with, and is where a reset gesture returns to.
+        private const float DefaultVolume = 1.0f;
+        private const float UnmuteFallbackVolume = DefaultVolume;
 
         // ===== Shared player action helpers (used by this panel and UserListProvider rows) =====
 
@@ -583,13 +587,14 @@ namespace Basis.BasisUI
             audioGroup.SetTitle(BasisLocalization.Get("settings.tab.audio"));
             audioGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.audio.description"));
 
-            string indivdualusersettingsvolume = "indivdualusersettingsvolume";
-            BasisSettingsBinding<float> Binding = new BasisSettingsBinding<float>(indivdualusersettingsvolume);
-
-            PanelSlider volumeSlider = PanelSlider.CreateEntryAndBind(
-                audioGroup.ContentParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("menu.individualPlayer.volumeOverride"), 0f, 1.5f, false, 2, ValueDisplayMode.percentageFromZero),
-                Binding);
+            // Deliberately unbound: this level belongs to one player, in their
+            // BasisPlayerSettingsData record, and the OnValueChanged below is what persists it. A
+            // settings binding would write every player's choice into one shared global key, and
+            // would hand the reset gesture that key's default - zero, i.e. silence - instead of
+            // DefaultVolume, so the explicit reset default is set here.
+            PanelSlider volumeSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, audioGroup.ContentParent);
+            volumeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("menu.individualPlayer.volumeOverride"), 0f, 1.5f, false, 2, ValueDisplayMode.percentageFromZero));
+            volumeSlider.SetResetDefault(DefaultVolume);
 
             // Slider runs 0..1.5; place green at the "100%" mark (t = 1/1.5) and red at 150%.
             volumeSlider.FillColorGradient = new Gradient()
@@ -1251,7 +1256,10 @@ namespace Basis.BasisUI
                 if (remotePlayer != null)
                 {
                     remotePlayer.AlwaysShowAvatar = on;
-                    remotePlayer.ReloadAvatar();
+                    if (remotePlayer.IsConsideredFallBackAvatar == on)
+                    {
+                        remotePlayer.ReloadAvatar();
+                    }
                 }
             };
 

@@ -153,6 +153,59 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void SimpleFollowBinding_HoldsItsBearingRatherThanCirclingTheSubject()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FollowSubject);
+            StackFixture.Offset(stack, new Vector3(0.5f, 0f, 1.4f));
+            StackFixture.Binding(stack, BasisCameraBindingMode.SimpleFollow);
+            stack.follow.lateralTracking = 0f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(new Vector3(0f, 0f, 1.4f), Quaternion.identity, 40f);
+
+            BasisCameraPose pose = StackFixture.Settle(stack, state, StackFixture.Context());
+
+            Assert.That(Vector3.Angle(Vector3.forward, pose.Position), Is.LessThan(1f),
+                "A side offset read in a frame taken off the camera is a standing sideways push, and walks the shot round the subject.");
+        }
+
+        [Test]
+        public void SimpleFollowBinding_KeepsWhicheverSideTheCameraWasAlreadyOn()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FollowSubject);
+            StackFixture.Offset(stack, new Vector3(0.5f, 0f, 1.4f));
+            StackFixture.Binding(stack, BasisCameraBindingMode.SimpleFollow);
+            stack.follow.lateralTracking = 0f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(new Vector3(-2f, 0f, 0f), Quaternion.identity, 40f);
+
+            BasisCameraPose pose = StackFixture.Settle(stack, state, StackFixture.Context());
+
+            float distance = new Vector2(0.5f, 1.4f).magnitude;
+            Assert.That(pose.Position, Is.EqualTo(new Vector3(-distance, 0f, 0f)).Using(Vec(1e-3f)),
+                "It should have eased along its own line to the authored distance, not round to the subject's front.");
+        }
+
+        [Test]
+        public void SimpleFollowBinding_DoesNotSwingRoundAsTheSubjectTurns()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FollowSubject);
+            StackFixture.Offset(stack, new Vector3(0f, 0f, 2f));
+            StackFixture.Binding(stack, BasisCameraBindingMode.SimpleFollow);
+            stack.follow.lateralTracking = 0f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(new Vector3(0f, 0f, 2f), Quaternion.identity, 40f);
+
+            BasisCameraPose pose = StackFixture.Settle(stack, state,
+                StackFixture.Context(StackFixture.Subject(yawDegrees: 180f)));
+
+            Assert.That(pose.Position, Is.EqualTo(new Vector3(0f, 0f, 2f)).Using(Vec(1e-3f)),
+                "Turning on the spot is what this binding exists to ignore.");
+        }
+
+        [Test]
         public void TheOffsetScalesWithTheAvatar()
         {
             BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FollowSubject);
@@ -358,6 +411,25 @@ namespace Basis.Tests.Camera
                 "Zoom framing must not dolly.");
             Assert.That(pose.Fov, Is.Not.EqualTo(context.Fov).Within(1e-3f), "The lens should have been driven.");
             Assert.That(stack.DrivesLens, Is.True);
+        }
+
+        [Test]
+        public void SimpleFollowBinding_FramesFromTheBearingTheCameraIsAlreadyOn()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FrameSubject);
+            StackFixture.Offset(stack, new Vector3(1.2f, 0f, 3f));
+            StackFixture.Binding(stack, BasisCameraBindingMode.SimpleFollow);
+            stack.framing.minDistance = 0.1f;
+            stack.framing.maxDistance = 50f;
+
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(new Vector3(-3f, 0f, 0f), Quaternion.identity, 40f);
+
+            BasisCameraPose pose = StackFixture.Settle(stack, state, StackFixture.Context());
+
+            Assert.That(pose.Position.z, Is.EqualTo(0f).Within(1e-3f));
+            Assert.That(pose.Position.x, Is.LessThan(0f),
+                "The direction offset's own bearing must not drag the framing round the subject.");
         }
 
         [Test]

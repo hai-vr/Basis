@@ -21,12 +21,21 @@ namespace Basis.Tests.Camera
         private GameObject _go;
         private BasisHandHeldCamera _camera;
 
+        // Every mode that can be applied, which is the whole table bar Custom. The four camera
+        // kinds are in here for the same reason the four placement modes are: they go through the
+        // same apply and the same match, and on this fixture — no capture camera, no volume profile
+        // — the only thing that tells one kind from another is the body each hands out. That is
+        // what makes them worth having here rather than only in the body's own tests.
         private static readonly BasisCameraMode[] Presets =
         {
             BasisCameraMode.Photo,
             BasisCameraMode.FlyingPuck,
             BasisCameraMode.FollowMe,
             BasisCameraMode.Cinematic,
+            BasisCameraMode.Disposable,
+            BasisCameraMode.Instant,
+            BasisCameraMode.Camcorder,
+            BasisCameraMode.Security,
         };
 
         [SetUp]

@@ -222,7 +222,7 @@ public static class BasisAvatarFarLOD
             ChargedReload(remote);
         }
         else if (!wantsFar && !wearingFar && !remote.IsConsideredFallBackAvatar && !remote.IsLoadingAnAvatar &&
-                 ((!remote.InAvatarRange && !remote.AlwaysShowAvatar) || remote.HasFailedAvatarLoadGlobally))
+                 ((!remote.InAvatarRange && !remote.AvatarAlwaysLoaded) || remote.HasFailedAvatarLoadGlobally))
         {
             // A real avatar was kept up for a pending far install whose payload then died
             // (refused parse / cleared) — without this it would stay loaded past the range
@@ -238,7 +238,7 @@ public static class BasisAvatarFarLOD
             // one of the gates is refusing; name it instead of sitting silent. The master
             // switch being off is a setting, not a refusal — no warning for it.
             remote.FarLodNextFetchRetryTime = sTickUnscaledTime + 10f;
-            BasisDebug.LogWarning($"Far avatar for {remote.DisplayName} has a payload but is gated: enabled={Enabled} blocked={remote.IsEffectivelyBlocked} alwaysShow={remote.AlwaysShowAvatar}", BasisDebug.LogTag.Avatar);
+            BasisDebug.LogWarning($"Far avatar for {remote.DisplayName} has a payload but is gated: enabled={Enabled} blocked={remote.IsEffectivelyBlocked} alwaysShow={remote.AvatarAlwaysLoaded}", BasisDebug.LogTag.Avatar);
         }
     }
 
@@ -246,7 +246,7 @@ public static class BasisAvatarFarLOD
     /// Should this player be wearing the far avatar right now? No avatar-range check beyond
     /// the InAvatarRange flag: the far avatar IS the beyond-range representation, so a range
     /// of zero simply means everyone wears their far avatar; UseAvatarFarLod off is the
-    /// switch that drops players to the loading dummy instead. For AlwaysShowAvatar players
+    /// switch that drops players to the loading dummy instead. For always-loaded players
     /// the far avatar only bridges downloads and dead loads.
     /// </summary>
     public static bool WantsFarAvatar(BasisRemotePlayer remote)
@@ -254,7 +254,7 @@ public static class BasisAvatarFarLOD
         bool wantsFar = Enabled &&
             !remote.IsEffectivelyBlocked && remote.HasFarLodPayload &&
             (!remote.InAvatarRange || remote.HasFailedAvatarLoadGlobally || remote.IsLoadingAnAvatar);
-        if (remote.AlwaysShowAvatar && !remote.IsLoadingAnAvatar && !remote.HasFailedAvatarLoadGlobally)
+        if (remote.AvatarAlwaysLoaded && !remote.IsLoadingAnAvatar && !remote.HasFailedAvatarLoadGlobally)
         {
             wantsFar = false;
         }
@@ -272,7 +272,7 @@ public static class BasisAvatarFarLOD
         return Enabled &&
             !remote.IsEffectivelyBlocked && remote.HasFarLodPayload &&
             (!remote.InAvatarRange || remote.HasFailedAvatarLoadGlobally) &&
-            !(remote.AlwaysShowAvatar && !remote.HasFailedAvatarLoadGlobally);
+            !(remote.AvatarAlwaysLoaded && !remote.HasFailedAvatarLoadGlobally);
     }
 
     /// <summary>

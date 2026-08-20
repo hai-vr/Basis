@@ -23,6 +23,21 @@ public enum BasisCameraMode
 
     /// <summary>Driven by the shot rig — dolly, orbit and framing move the camera, not you.</summary>
     Cinematic = 4,
+
+    // The four below are camera <em>kinds</em> rather than jobs: each hands you a different body,
+    // and the body is the half of them a slider cannot undo. See <see cref="BasisCameraBodyKind"/>.
+
+    /// <summary>A single-use 35mm: twenty-seven warm, grainy frames and a flash you wait for.</summary>
+    Disposable = 5,
+
+    /// <summary>Instant film: eight square prints a pack, each one a minute in coming up.</summary>
+    Instant = 6,
+
+    /// <summary>A tape camcorder. Soft, smeared, desaturated 4:3 with the clock burned in.</summary>
+    Camcorder = 7,
+
+    /// <summary>A ceiling camera: very wide, nearly grey, and stamped with the time.</summary>
+    Security = 8,
 }
 
 /// <summary>
@@ -126,6 +141,14 @@ public static class BasisCameraModes
         BasisCameraMode.FlyingPuck,
         BasisCameraMode.FollowMe,
         BasisCameraMode.Cinematic,
+
+        // The kinds come after the jobs, and in the order they were made: a roll of film, then a
+        // pack of instant, then tape, then whatever a security camera runs on.
+        BasisCameraMode.Disposable,
+        BasisCameraMode.Instant,
+        BasisCameraMode.Camcorder,
+        BasisCameraMode.Security,
+
         BasisCameraMode.Custom,
     };
 
@@ -151,6 +174,24 @@ public static class BasisCameraModes
     /// </summary>
     private static readonly BasisCameraPanelSection[] RigSections =
     {
+        BasisCameraPanelSection.Subject,
+        BasisCameraPanelSection.PositionModifier,
+        BasisCameraPanelSection.RotationModifier,
+        BasisCameraPanelSection.ModifierEffects,
+        BasisCameraPanelSection.Dolly,
+    };
+
+    /// <summary>
+    /// What a camera kind switches off: the rig, plus the resolution list its own frame size takes
+    /// over.
+    ///
+    /// ⚠️ Above <see cref="Descriptors"/> for the same reason <see cref="RigSections"/> is — a table
+    /// declared below the initializer that reads it is null when the builder runs, and every kind
+    /// would silently come out with nothing switched off.
+    /// </summary>
+    private static readonly BasisCameraPanelSection[] KindInactiveSections =
+    {
+        BasisCameraPanelSection.Output,
         BasisCameraPanelSection.Subject,
         BasisCameraPanelSection.PositionModifier,
         BasisCameraPanelSection.RotationModifier,
@@ -299,8 +340,63 @@ public static class BasisCameraModes
                         BasisCameraPanelSection.Effects,
                     },
                     inactive: new[] { BasisCameraPanelSection.Subject })),
+
+            // The camera kinds. All four share a role table because they are all the same shape of
+            // opinion: the body owns the picture end to end — lens, focus, colour, effects — and
+            // the frame it shoots is the body's own, so the resolution list has nothing left to
+            // say. What separates them is which body you are handed, not which sections they claim.
+            new BasisCameraModeDescriptor(
+                BasisCameraMode.Disposable,
+                "camera.modePreset.disposable",
+                "camera.modePreset.disposable.description",
+                new Color(1.00f, 0.44f, 0.30f),
+                KindRoles()),
+
+            new BasisCameraModeDescriptor(
+                BasisCameraMode.Instant,
+                "camera.modePreset.instant",
+                "camera.modePreset.instant.description",
+                new Color(1.00f, 0.66f, 0.90f),
+                KindRoles()),
+
+            new BasisCameraModeDescriptor(
+                BasisCameraMode.Camcorder,
+                "camera.modePreset.camcorder",
+                "camera.modePreset.camcorder.description",
+                new Color(0.36f, 0.86f, 0.80f),
+                KindRoles()),
+
+            new BasisCameraModeDescriptor(
+                BasisCameraMode.Security,
+                "camera.modePreset.security",
+                "camera.modePreset.security.description",
+                new Color(0.42f, 0.52f, 0.86f),
+                KindRoles()),
         };
     }
+
+    /// <summary>
+    /// The sections a camera kind claims. Written once and handed out four times: the day a fifth
+    /// body is added it should have to disagree with the others on purpose, not by being typed out
+    /// separately and drifting.
+    /// </summary>
+    private static BasisCameraSectionRole[] KindRoles()
+    {
+        return Roles(
+            driven: new[]
+            {
+                BasisCameraPanelSection.Actions,
+                BasisCameraPanelSection.Anchor,
+                BasisCameraPanelSection.Lens,
+                BasisCameraPanelSection.DepthOfField,
+                BasisCameraPanelSection.Colour,
+                BasisCameraPanelSection.Effects,
+            },
+            // Output is switched off rather than driven: a body shoots the frame it shoots, so the
+            // resolution list is not a setting this mode chose — it is one the camera does not have.
+            inactive: KindInactiveSections);
+    }
+
 
     /// <summary>
     /// Presents a saved mode the way the panel presents a built-in one.

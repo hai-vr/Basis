@@ -82,6 +82,21 @@ public class BasisHandHeldCameraMetaData
 
     /// <summary>Additional post-processing overrides, added to the profile at runtime if absent.</summary>
     public Vignette vignette;
+
+    /// <summary>
+    /// Warm one end of the picture and cool the other. The one grading control that separates a
+    /// film stock from a colour filter: a negative does not shift the whole frame, it puts gold in
+    /// the highlights and teal in the shade, and an instant print puts pink in one and green in the
+    /// other. Neutral is grey at both ends, not black.
+    /// </summary>
+    public SplitToning splitToning;
+
+    /// <summary>
+    /// Only <c>lift</c> is used, and only its w channel — which URP resolves to a flat offset on
+    /// all three channels once the neutral colour cancels out. That offset is the black point, and
+    /// raising it is what makes a print look faded rather than dark.
+    /// </summary>
+    public LiftGammaGain liftGammaGain;
     public ChromaticAberration chromaticAberration;
     public FilmGrain filmGrain;
     public WhiteBalance whiteBalance;

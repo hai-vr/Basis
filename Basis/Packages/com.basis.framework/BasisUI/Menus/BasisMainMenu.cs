@@ -434,6 +434,10 @@ namespace Basis.BasisUI
         public static void OpenWithProvider(string ProviderTitle)
         {
             Open();
+            // Landing on a named provider is deliberate navigation, not a prompt displacing a
+            // page, so there is nothing to put back. Dropping the snapshot Open just took stops
+            // the next in-menu confirmation from being restored onto the page we came from.
+            BasisMenuPromptRestore.Clear();
             int count = BasisMainMenu.Providers.Count;
             for (int Index = 0; Index < count; Index++)
             {

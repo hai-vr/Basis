@@ -411,6 +411,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         ReleaseViewfinderGrid();
         ReleaseAutoBrightness();
         if (pooledScreenshot != null) { Destroy(pooledScreenshot); pooledScreenshot = null; }
+        ReleasePrintSheet();
         ReleaseSrgbResolveTarget();
         if (actualMaterial != null) { Destroy(actualMaterial); actualMaterial = null; }
 
@@ -1159,8 +1160,17 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             pooledScreenshot.LoadRawTextureData(data);
             pooledScreenshot.Apply(false);
 
+            // After the readback and before the save, so what the body does to a picture — the
+            // fog on the ends of a roll, the date a databack burned in, the sheet a print is
+            // mounted on — is in the file rather than only on screen, and every path that writes
+            // the picture out carries it, including the print-to-world one.
+            //
+            // The result is saved rather than the buffer, because a print is a bigger sheet with
+            // the photograph placed on it and is not the texture that was handed in.
+            Texture2D finished = FinishPicture(pooledScreenshot);
+
             SetNormalAfterCapture();
-            SaveScreenshotAsync(pooledScreenshot, photoMetadata);
+            SaveScreenshotAsync(finished, photoMetadata);
         });
     }
 
@@ -1278,6 +1288,15 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             return;
         }
 
+        // Only the refusal that five seconds cannot lift. A camera mid wind-on will have wound on
+        // long before the countdown ends, and refusing there would make the timer harder to use
+        // than the button it is standing in for — but an empty camera is empty either way.
+        if (BodyOutOfFilm)
+        {
+            BasisDebug.Log("Timer refused: no film left.", BasisDebug.LogTag.Camera);
+            return;
+        }
+
         // Notify remote clients so they replay the same tick/shutter timing
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
@@ -1330,6 +1349,14 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             yield break;
         }
 
+        // Re-checked here too, and for the same reason: five seconds is long enough for the last
+        // frame of a pack to have been spent by the shutter button while this was counting.
+        if (!TryTakeFrame())
+        {
+            countdownText.text = string.Empty;
+            yield break;
+        }
+
         // Choose formats based on captureFormat
         GetCaptureFormats(out TextureFormat format, out RenderTextureFormat renderFormat);
 
@@ -1370,6 +1397,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             BasisDebug.LogWarning("CapturePhoto blocked: camera capture is locked by an admin.", BasisDebug.LogTag.Camera);
             return;
         }
+
+        // The film, the wind-on and the flash, in one call — and before the shutter sound for the
+        // same reason the moderation check is: a camera with nothing left in it must not sound like
+        // it took a picture. A digital body always says yes.
+        if (!TryTakeFrame()) return;
 
         GetCaptureFormats(out TextureFormat format, out RenderTextureFormat renderFormat);
 
@@ -1421,6 +1453,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         UpdateRenderGate();
 
+        // Wind-on, develop and the flash all count down here rather than in an Update, so the lamp
+        // is put out on a frame boundary instead of somewhere inside a capture.
+        TickBody();
+
         // Ahead of the render, so the exposure the meter settles on is the one this frame is shot at.
         TickAutoBrightness();
 
@@ -1458,7 +1494,12 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     public void OverrideDesktopOutput()
     {
-        IsOverridingDesktopView = enableRecordingView && !BasisDeviceManagement.IsUserInDesktop();
+        // The body has the last word. There is no socket on the back of a disposable, so a film
+        // body cannot present its feed anywhere but its own viewfinder however the toggle is left —
+        // and the toggle is left alone rather than cleared, so the setting comes back with the body.
+        IsOverridingDesktopView = enableRecordingView
+            && !BasisDeviceManagement.IsUserInDesktop()
+            && BodyAllowsLiveFeed;
 
         // ONE render path. The camera always renders into its own RT, so post-processing, MSAA and
         // colour are identical whether or not Direct To Screen is on; the mode only changes where
@@ -1491,7 +1532,12 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string extension = captureFormat == "EXR" ? "exr" : "png";
-        string filename = $"Screenshot_{timestamp}_{captureWidth}x{captureHeight}.{extension}";
+        // The texture's own size rather than the capture size: a body that mounts its picture in
+        // a border writes a bigger file than the frame it rendered, and a name that reported the
+        // frame would disagree with the image it is on.
+        int savedWidth = screenshot != null ? screenshot.width : captureWidth;
+        int savedHeight = screenshot != null ? screenshot.height : captureHeight;
+        string filename = $"Screenshot_{timestamp}_{savedWidth}x{savedHeight}.{extension}";
         string path = GetSavePath(filename);
 
         // async void: anything thrown out of here surfaces as an unhandled exception rather than

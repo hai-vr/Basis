@@ -153,7 +153,7 @@ namespace Basis.BasisUI
                     BasisPanelSeverity.Caution);
             }
 
-            if (!player.InAvatarRange && !player.AlwaysShowAvatar)
+            if (!player.InAvatarRange && !player.AvatarAlwaysLoaded)
             {
                 MeasureAvatarRange(player, out float distance, out float rangeMeters);
 

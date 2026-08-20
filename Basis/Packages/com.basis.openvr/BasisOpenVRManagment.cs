@@ -60,7 +60,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             /// <summary>OpenVR user-interaction events on a headset that reports a proximity sensor.</summary>
             ProximitySensorEvents,
             /// <summary>No proximity-backed source exists on this headset.</summary>
-            NoProximitySignal
+            NoProximitySignal,
+            /// <summary>No HMD is connected to the runtime at all.</summary>
+            HeadsetDisconnected
         }
         private HMDPresenceSource PresenceSource = HMDPresenceSource.Unresolved;
         /// <summary>
@@ -870,6 +872,16 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         {
             if (Valve.VR.OpenVR.System == null) return;
 
+            if (!Valve.VR.OpenVR.System.IsTrackedDeviceConnected(Valve.VR.OpenVR.k_unTrackedDeviceIndex_Hmd))
+            {
+                ProximityWorn = false;
+                ProximitySensorResolved = false;
+                ProximitySensorPresent = false;
+                SetPresenceSource(HMDPresenceSource.HeadsetDisconnected);
+                BasisHMDPresence.ReportPresence(false);
+                return;
+            }
+
             if (HasProximitySensor())
             {
                 SetPresenceSource(HMDPresenceSource.ProximitySensorEvents);
@@ -954,6 +966,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                     break;
                 case HMDPresenceSource.NoProximitySignal:
                     BasisDebug.Log("OpenVR: headset reports no proximity sensor and userPresence is unavailable — presence pinned worn, auto swap will not trigger", BasisDebug.LogTag.Device);
+                    break;
+                case HMDPresenceSource.HeadsetDisconnected:
+                    BasisDebug.Log("OpenVR: no HMD is connected to the runtime — reporting the headset as not worn", BasisDebug.LogTag.Device);
                     break;
             }
         }

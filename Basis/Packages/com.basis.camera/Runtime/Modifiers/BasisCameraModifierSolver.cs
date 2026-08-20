@@ -354,7 +354,7 @@ namespace Basis.Cinematics
                     Vector3 offset = stack.follow.positionOffset;
                     offset.x *= 1f - MeasureLateralCloseIn(stack, state, subject, anchor, deltaTime);
 
-                    Quaternion frame = ResolveBindingFrame(stack.follow.bindingMode, subject, state.Position, anchor);
+                    Quaternion frame = ResolveBindingFrame(stack.follow.bindingMode, subject, state.Position, anchor, offset);
                     Vector3 target = anchor + frame * (offset * scale);
 
                     ApproachOrSnap(state, target, frame, stack.follow.damping, stack.follow.teleportDistance * scale, deltaTime);
@@ -363,7 +363,8 @@ namespace Basis.Cinematics
 
                 case BasisCameraPositionModifier.FrameSubject:
                 {
-                    Quaternion frame = ResolveBindingFrame(stack.framing.bindingMode, subject, state.Position, anchor);
+                    Quaternion frame = ResolveBindingFrame(stack.framing.bindingMode, subject, state.Position, anchor,
+                        stack.framing.directionOffset);
                     Vector3 direction = frame * (stack.framing.directionOffset * scale);
                     Vector3 target;
 
@@ -521,7 +522,7 @@ namespace Basis.Cinematics
         }
 
         public static Quaternion ResolveBindingFrame(BasisCameraBindingMode mode, in BasisCameraSubject subject,
-            Vector3 cameraPosition, Vector3 anchor)
+            Vector3 cameraPosition, Vector3 anchor, Vector3 offset)
         {
             switch (mode)
             {
@@ -529,11 +530,25 @@ namespace Basis.Cinematics
                     return Quaternion.identity;
 
                 case BasisCameraBindingMode.SimpleFollow:
+                {
                     Vector3 flat = cameraPosition - anchor;
                     flat.y = 0f;
-                    return flat.sqrMagnitude > 1e-6f
-                        ? Quaternion.LookRotation(flat.normalized, Vector3.up)
-                        : subject.Yaw;
+                    if (flat.sqrMagnitude <= 1e-6f)
+                    {
+                        return subject.Yaw;
+                    }
+
+                    Quaternion heading = Quaternion.LookRotation(flat.normalized, Vector3.up);
+
+                    Vector3 bearing = offset;
+                    bearing.y = 0f;
+                    if (bearing.sqrMagnitude <= 1e-6f)
+                    {
+                        return heading;
+                    }
+
+                    return heading * BasisCameraDamping.Yaw(-Mathf.Atan2(bearing.x, bearing.z) * Mathf.Rad2Deg);
+                }
 
                 case BasisCameraBindingMode.SubjectYaw:
                 default:

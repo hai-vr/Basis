@@ -792,6 +792,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _vignetteSlider = null;
             _chromaticSlider = null;
             _filmGrainSlider = null;
+            ClearFilmReferences();
             _whiteBalanceTempSlider = null;
             _whiteBalanceTintSlider = null;
             _lensDistortionSlider = null;
@@ -1246,6 +1247,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _whiteBalanceTintSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 BasisLocalization.Get("camera.whiteBalanceTint"), -100f, 100f, false, 0, ValueDisplayMode.Raw));
             _whiteBalanceTintSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeWhiteBalanceTint(v);
+
+            // Last in the section, and in this order on purpose: white balance moves the whole frame
+            // one way, and the film grading below it is what moves the two ends of the frame apart.
+            BuildFilmColourControls(content);
         }
 
         private void BuildEffectsGroup(RectTransform parent)
@@ -1359,6 +1364,11 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (_activeCamera == null || _motionBlurModeDropdown == null) return;
                 _activeCamera.HandHeld.SetMotionBlurMode(_motionBlurModeDropdown.Index);
             };
+
+            // After the effects that are switched on and off, because these describe the ones above
+            // them rather than adding another: how big the grain is, what colour the glow and the
+            // corners are. Fog stays last — it is the world's, not the picture's.
+            BuildFilmEffectsControls(content);
 
 #if Basis_VOLUMETRIC_SUPPORTED
             _fogOverrideToggle = PanelToggle.CreateNewEntry(content);
@@ -2318,6 +2328,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 _chromaticSlider?.SetValueWithoutNotify(metaData.chromaticAberration.intensity.value * 100f);
             if (metaData.filmGrain != null)
                 _filmGrainSlider?.SetValueWithoutNotify(metaData.filmGrain.intensity.value * 100f);
+            SeedFilmControls(metaData);
             if (metaData.whiteBalance != null)
             {
                 _whiteBalanceTempSlider?.SetValueWithoutNotify(metaData.whiteBalance.temperature.value);
@@ -2952,6 +2963,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 all.AddRange(BasisHandHeldCamera.FocusPeakingColourKeys);
                 all.AddRange(BasisHandHeldCamera.GridPatternKeys);
                 all.AddRange(MeteringKeys);
+                all.AddRange(GrainTypeKeys);
                 for (int Index = 0; Index < BasisCameraModifiers.Effects.Length; Index++)
                 {
                     all.Add(BasisCameraModifiers.Effects[Index].NameKey);

@@ -26,6 +26,13 @@ namespace Basis.BasisUI
         public static readonly Color Caution = new Color(1f, 0.78f, 0.35f, 1f);
         public static readonly Color Hot = new Color(1f, 0.48f, 0.35f, 1f);
 
+        /// <summary>
+        /// Points at a control worth changing rather than grading a value, so it sits outside the
+        /// Calm / Caution / Hot scale — nothing is wrong with a hinted control, it is just the one
+        /// that moves whatever the page is currently complaining about.
+        /// </summary>
+        public static readonly Color Hint = new Color(0.42f, 0.72f, 1f, 1f);
+
         public static Color AccentFor(BasisPanelSeverity severity)
         {
             switch (severity)
@@ -120,6 +127,15 @@ namespace Basis.BasisUI
         /// </summary>
         public static void Apply(Handle handle, Color accent, bool animate = true)
         {
+            Apply(handle, accent, Strength, animate);
+        }
+
+        /// <summary>
+        /// As above, with the background blend dialled back. Pass 0 to leave the card alone and
+        /// colour only the title — enough to mark a row without painting a page of them.
+        /// </summary>
+        public static void Apply(Handle handle, Color accent, float strength, bool animate)
+        {
             if (handle?.Element == null)
             {
                 return;
@@ -133,7 +149,7 @@ namespace Basis.BasisUI
             handle.Tinted = true;
             handle.Accent = accent;
 
-            Color background = Color.Lerp(handle.PlainBackground, accent, Strength);
+            Color background = Color.Lerp(handle.PlainBackground, accent, strength);
             background.a = handle.PlainBackground.a;
 
             Color title = accent;

@@ -8,6 +8,7 @@ namespace Basis
 {
     public interface IBasisSettingsBinding
     {
+        string BindingKey { get; }
         void ReloadAndNotify();
     }
 

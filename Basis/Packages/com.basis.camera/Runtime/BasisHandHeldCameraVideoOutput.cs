@@ -308,6 +308,10 @@ public partial class BasisHandHeldCamera
 #if BASIS_VIDEO_OUTPUT_SUPPORTED
         StopVideoOutput();
         if (captureCamera == null) return false;
+
+        // A film body has no output to stream. Refused rather than started silently and dropped,
+        // so the panel's own failure line is what says so.
+        if (!BodyAllowsLiveFeed) return false;
         BasisVideoOutputSettings settings = VideoOutputSettings;
         settings.Width = Mathf.Clamp(settings.Width, 16, 8192);
         settings.Height = Mathf.Clamp(settings.Height, 16, 8192);

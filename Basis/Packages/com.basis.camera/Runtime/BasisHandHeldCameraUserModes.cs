@@ -109,9 +109,9 @@ public partial class BasisHandHeldCamera
     /// <summary>
     /// Everything the camera is set to right now, as a mode waiting for a name.
     ///
-    /// <para>The two labels are cleared on the way out. A mode that recorded which mode was
-    /// current would restore that name alongside its own values, so picking it would announce the
-    /// mode it was saved from rather than itself.</para>
+    /// <para>The two labels are cleared on the way out, and so is the frame counter. A mode that
+    /// recorded which mode was current would restore that name alongside its own values, so picking
+    /// it would announce the mode it was saved from rather than itself.</para>
     /// </summary>
     public BasisCameraUserMode CaptureUserMode(string name, Color tint)
     {
@@ -125,6 +125,11 @@ public partial class BasisHandHeldCamera
 
         mode.settings.cameraMode = (int)BasisCameraMode.Custom;
         mode.settings.userMode = string.Empty;
+
+        // The body is kept — a mode saved off a disposable is a disposable — but not what was left
+        // on the load. A mode is a configuration, and one that handed back the twelve frames its
+        // owner happened to have left would be a snapshot of an afternoon instead.
+        mode.settings.exposuresRemaining = FullRoll;
         return mode;
     }
 

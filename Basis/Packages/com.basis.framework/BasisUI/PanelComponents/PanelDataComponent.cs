@@ -59,6 +59,8 @@ namespace Basis.BasisUI
         public override bool HasResetDefault =>
             SupportsResetGesture && (SettingsBinding != null || _hasExplicitResetDefault);
 
+        public override string BoundSettingKey => SettingsBinding?.BindingKey;
+
         protected T ResetDefaultValue => SettingsBinding != null
             ? SettingsBinding.DefaultValue.GetDefault()
             : (_hasExplicitResetDefault ? _resetDefault : Value);

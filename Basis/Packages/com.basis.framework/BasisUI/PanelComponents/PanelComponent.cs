@@ -51,6 +51,8 @@ namespace Basis.BasisUI
         /// </summary>
         public virtual bool HasResetDefault => false;
 
+        public virtual string BoundSettingKey => null;
+
         /// <summary>Asks to reset this control to its default. No-op unless the control supports it.</summary>
         public virtual void RequestReset()
         {
