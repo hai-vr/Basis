@@ -105,6 +105,14 @@ public partial class BasisHandHeldCamera
     {
         backgroundMode = mode;
         ApplyBackgroundMode();
+        if (mode == BasisCameraBackgroundMode.Transparent && CanPreserveVideoOutputAlpha())
+        {
+            PrepareTransparentVideoOutputResources(renderTexture);
+        }
+        else if (mode != BasisCameraBackgroundMode.Transparent)
+        {
+            ReleaseTransparentVideoOutputResources();
+        }
     }
 
     public void SetBackgroundCustomColor(Color color)

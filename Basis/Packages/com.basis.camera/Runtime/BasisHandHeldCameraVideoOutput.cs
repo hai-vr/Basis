@@ -93,7 +93,7 @@ public partial class BasisHandHeldCamera
     /// <summary>Sender names in use process-wide, so simultaneous cameras publish separate outputs (#854).</summary>
     private static readonly HashSet<string> ActiveVideoOutputNames = new HashSet<string>();
 #endif
-    private const string TransparentVideoOutputShaderName = "Hidden/Basis/Camera/TransparentVideoOutput";
+    public Shader TransparentVideoOutputShader;
     private static readonly int TransparentMaskTexId = Shader.PropertyToID("_MaskTex");
     private static readonly int TransparentScaleOffsetId = Shader.PropertyToID("_ScaleOffset");
 
@@ -101,6 +101,15 @@ public partial class BasisHandHeldCamera
     private RenderTexture transparentVideoMaskTexture;
     private Material transparentVideoOutputMaterial;
     private BasisRenderRateLimiter videoPacing;
+
+    private bool CanPreserveVideoOutputAlpha()
+    {
+#if BASIS_VIDEO_OUTPUT_SUPPORTED
+        return IsVideoOutputActive && videoSink != null && videoSink.SupportsAlpha;
+#else
+        return false;
+#endif
+    }
 
     // ---- MJPEG web stream ----------------------------------------------------------
     // Kept independent of the platform sink above rather than folded in beside it: the two
@@ -332,6 +341,10 @@ public partial class BasisHandHeldCamera
         }
         videoPacing = default;
         IsVideoOutputActive = true;
+        if (backgroundMode == BasisCameraBackgroundMode.Transparent && videoSink.SupportsAlpha)
+        {
+            PrepareTransparentVideoOutputResources(renderTexture);
+        }
         UpdateRenderGate();
         BasisDebug.Log($"{VideoOutputBackendName} output started as '{settings.SenderName}': {settings.Width}x{settings.Height} @ {settings.FrameRate}fps", BasisDebug.LogTag.Camera);
         return true;
@@ -400,17 +413,25 @@ public partial class BasisHandHeldCamera
         offset.y += -scale.y;
 #endif
 
-        bool transparent = backgroundMode == BasisCameraBackgroundMode.Transparent;
+        bool transparent = backgroundMode == BasisCameraBackgroundMode.Transparent && videoSink.SupportsAlpha;
+        bool outputHasAlpha = false;
         if (transparent)
         {
-            // Render the RGB and alpha mask as a matched pair. This callback runs before Unity's
-            // normal camera render, so render explicitly here and suppress the duplicate automatic
-            // render for this frame.
-            captureCamera.Render();
-            captureCamera.enabled = false;
+            try
+            {
+                // Render the RGB and alpha mask as a matched pair. This callback runs before Unity's
+                // normal camera render, so render explicitly here and suppress the duplicate automatic
+                // render for this frame.
+                captureCamera.Render();
+                captureCamera.enabled = false;
+                outputHasAlpha = BlitTransparentVideoOutput(source, scale, offset);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogErrorOnce($"Transparent video output failed: {ex}", BasisDebug.LogTag.Camera);
+            }
         }
 
-        bool outputHasAlpha = transparent && BlitTransparentVideoOutput(source, scale, offset);
         if (!outputHasAlpha)
         {
             Graphics.Blit(source, videoStreamTexture, scale, offset);
@@ -422,8 +443,7 @@ public partial class BasisHandHeldCamera
 
     private bool BlitTransparentVideoOutput(Texture source, Vector2 scale, Vector2 offset)
     {
-        if (!EnsureTransparentVideoOutputResources(source)) return false;
-
+        if (!TransparentVideoOutputResourcesReady(source)) return false;
         if (!RenderTransparentVideoMask(source)) return false;
 
         transparentVideoOutputMaterial.SetTexture(TransparentMaskTexId, transparentVideoMaskTexture);
@@ -434,19 +454,18 @@ public partial class BasisHandHeldCamera
         return true;
     }
 
-    private bool EnsureTransparentVideoOutputResources(Texture source)
+    private bool PrepareTransparentVideoOutputResources(Texture source)
     {
         if (source == null) return false;
 
         if (transparentVideoOutputMaterial == null)
         {
-            Shader shader = Shader.Find(TransparentVideoOutputShaderName);
-            if (shader == null)
+            if (TransparentVideoOutputShader == null)
             {
-                BasisDebug.LogError($"Transparent video output shader '{TransparentVideoOutputShaderName}' is unavailable.", BasisDebug.LogTag.Camera);
+                BasisDebug.LogErrorOnce("Transparent video output shader is unavailable.", BasisDebug.LogTag.Camera);
                 return false;
             }
-            transparentVideoOutputMaterial = new Material(shader) { name = "Basis Transparent Video Output" };
+            transparentVideoOutputMaterial = new Material(TransparentVideoOutputShader) { name = "Basis Transparent Video Output" };
         }
 
         int samples = source is RenderTexture sourceRenderTexture ? sourceRenderTexture.antiAliasing : 1;
@@ -476,9 +495,19 @@ public partial class BasisHandHeldCamera
         return true;
     }
 
+    private bool TransparentVideoOutputResourcesReady(Texture source)
+    {
+        if (source == null || transparentVideoOutputMaterial == null || transparentVideoMaskTexture == null) return false;
+
+        int samples = source is RenderTexture sourceRenderTexture ? sourceRenderTexture.antiAliasing : 1;
+        return transparentVideoMaskTexture.width == source.width
+            && transparentVideoMaskTexture.height == source.height
+            && transparentVideoMaskTexture.antiAliasing == samples;
+    }
+
     private bool RenderTransparentVideoMask(Texture source)
     {
-        if (captureCamera == null || CameraData == null || !EnsureTransparentVideoOutputResources(source)) return false;
+        if (captureCamera == null || CameraData == null || !TransparentVideoOutputResourcesReady(source)) return false;
 
         RenderTexture previousTarget = captureCamera.targetTexture;
         bool previousPostProcessing = CameraData.renderPostProcessing;
@@ -951,6 +980,7 @@ namespace Basis
         private bool registrationChecked;
 
         public string FailureMessage => null;
+        public bool SupportsAlpha = true;
 
         public bool Start(BasisVideoOutputSettings settings, GameObject host)
         {
@@ -1053,6 +1083,7 @@ namespace Basis
         private SyphonResources resources;
 
         public string FailureMessage => null;
+        public bool SupportsAlpha = true;
 
         public bool Start(BasisVideoOutputSettings settings, GameObject host)
         {
@@ -1122,6 +1153,7 @@ namespace Basis
         private static readonly HashSet<string> ClaimedDevices = new HashSet<string>();
 
         public string FailureMessage { get; private set; }
+        public bool SupportsAlpha = false;
 
         [DllImport("libc", EntryPoint = "open", SetLastError = true)]
         private static extern int Open(string path, int flags);

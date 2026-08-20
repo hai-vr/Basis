@@ -158,7 +158,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 
 	private static VolumetricFogVolumeComponent ResolveFogVolume(Camera camera)
 	{
-		if (camera != null && camera.TryGetComponent(out VolumetricFogCameraSource source))
+		if (VolumetricFogCameraSource.TryGet(camera, out VolumetricFogCameraSource source))
 		{
 			return source.ResolveFogVolume();
 		}

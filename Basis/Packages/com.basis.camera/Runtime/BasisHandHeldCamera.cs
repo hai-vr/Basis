@@ -106,7 +106,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public BasisHandHeldCameraMetaData MetaData = new BasisHandHeldCameraMetaData();
 
 #if Basis_VOLUMETRIC_SUPPORTED
-    private VolumetricFogCameraSource volumetricFogCameraSource;
+    public VolumetricFogCameraSource VolumetricFogSource;
 #endif
 
     /// <summary>World-space debug representations of this camera, toggled from the settings panel.</summary>
@@ -317,16 +317,12 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             MetaData.Profile.TryGet(out MetaData.VolumetricFogVolume);
         }
 
-        if (captureCamera != null)
+        if (captureCamera != null && VolumetricFogSource != null)
         {
-            volumetricFogCameraSource = captureCamera.GetComponent<VolumetricFogCameraSource>();
-            if (volumetricFogCameraSource == null)
-            {
-                volumetricFogCameraSource = captureCamera.gameObject.AddComponent<VolumetricFogCameraSource>();
-            }
+            VolumetricFogSource.Initialize(captureCamera);
 
             int defaultLayer = LayerMask.NameToLayer("Default");
-            volumetricFogCameraSource.WorldVolumeLayerMask = defaultLayer >= 0 ? 1 << defaultLayer : 1;
+            VolumetricFogSource.WorldVolumeLayerMask = defaultLayer >= 0 ? 1 << defaultLayer : 1;
             UpdateVolumetricFogSource();
         }
 #endif
@@ -359,13 +355,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     private void UpdateVolumetricFogSource()
     {
 #if Basis_VOLUMETRIC_SUPPORTED
-        if (volumetricFogCameraSource == null) return;
+        if (VolumetricFogSource == null) return;
 
         bool useCameraOverride = OverrideVolumetricFog;
         bool worldIsInShot = backgroundMode == BasisCameraBackgroundMode.World || backgroundKeepsWorld;
 
-        volumetricFogCameraSource.SuppressFog = !useCameraOverride && !worldIsInShot;
-        volumetricFogCameraSource.UseWorldFog = !useCameraOverride && worldIsInShot;
+        VolumetricFogSource.SuppressFog = !useCameraOverride && !worldIsInShot;
+        VolumetricFogSource.UseWorldFog = !useCameraOverride && worldIsInShot;
 #endif
     }
     /// <summary>
@@ -1030,6 +1026,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             CameraData.antialiasingQuality = AQ;
 
         BindViewfinderFeed(textureChanged);
+        if (textureChanged && backgroundMode == BasisCameraBackgroundMode.Transparent && CanPreserveVideoOutputAlpha())
+        {
+            PrepareTransparentVideoOutputResources(renderTexture);
+        }
     }
 
     /// <summary>
