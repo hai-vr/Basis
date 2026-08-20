@@ -6,52 +6,27 @@ using UnityEngine;
 
 namespace Basis.IK.Debugging
 {
-    /// <summary>
-    /// One sweep's controls, hosted as a page inside <see cref="BasisIKSweepWindow"/>.
-    ///
-    /// Every sweep used to be its own EditorWindow with its own menu entry — three dozen entries under
-    /// Basis ▸ Debug ▸ IK that were the same window with different knobs. They are pages now: the host
-    /// owns the chrome (title, description, scrolling, output path) and each page only draws its own
-    /// configuration and results. Pages are discovered by <see cref="TypeCache"/>, so adding one is
-    /// still just adding a file.
-    /// </summary>
     public abstract class BasisIKSweepPage
     {
-        /// <summary>Sidebar section this page is filed under.</summary>
         public abstract string Group { get; }
 
-        /// <summary>Sidebar entry and page heading.</summary>
         public abstract string Title { get; }
 
-        /// <summary>One paragraph on what the sweep proves. Shown under the heading.</summary>
         public virtual string Description => null;
 
-        /// <summary>Where this page sits inside its group; ties break alphabetically.</summary>
         public virtual int Order => 100;
 
-        /// <summary>The window hosting this page — use it to request a repaint.</summary>
         public EditorWindow Host { get; internal set; }
 
-        /// <summary>Called once, the first time the page is shown.</summary>
         public virtual void OnEnable() { }
 
-        /// <summary>Called when the host window closes, for pages that hooked editor events.</summary>
         public virtual void OnDisable() { }
 
-        /// <summary>Called on the editor's slow tick while this page is the visible one.</summary>
         public virtual void OnInspectorUpdate() { }
 
-        /// <summary>Draws the page body. The host has already drawn the heading and opened a scroll view.</summary>
         public abstract void Draw();
     }
 
-    /// <summary>
-    /// The single home for every IK sweep, gate and recorder.
-    ///
-    /// Left is a searchable index grouped by body area; right is the selected sweep. Replaces the
-    /// ~40 individual Basis ▸ Debug ▸ IK menu entries with one, and gives every sweep the same
-    /// Basis chrome instead of each rolling its own.
-    /// </summary>
     public class BasisIKSweepWindow : EditorWindow
     {
         private const string SelectionKey = "Basis.IKSweeps.Selected";

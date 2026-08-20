@@ -43,10 +43,6 @@ namespace Basis.IK.Debugging
         public Vector3 MaxFrac;
         public Vector3Int Steps;
 
-        /// <summary>Search the WHOLE swivel circle instead of only the natural->outDir arc. A grid sweep has
-        /// no previous frame, so the anchor is the natural pole (PrevSwivelDeg = 0), which measures the pure
-        /// DOMAIN effect with no temporal component -- exactly the comparison the gate wants. Off by default
-        /// so the historical sweep numbers stay reproducible.</summary>
         public bool FullCircleSearch;
 
         public static BasisElbowProtectSweepConfig Default()

@@ -81,24 +81,10 @@ namespace Basis.IK.Mocap
         const float k_FlareFullRollDeg = 70f;
         const float k_HipSpringHz = 8f;
         const float k_HipSpringDamping = 1f;
-        const float k_HintRateDegPerSec = 540f;
 
         // A pole flip: the joint jumps hard while the end effector is essentially still. Real human motion is
         // smooth, so any such jump is the solver's doing, not the human's.
         // Swivel-model diagnostics. Static because SolveArm is static and this is a temporary probe.
-        /// <summary>
-        /// Training-data dump: the EXACT features this harness feeds BasisArmSwivelModel, plus the true
-        /// swivel it should have predicted, plus the circle radius (the weight).
-        ///
-        /// This exists because fitting in a Python pipeline and evaluating in this one is a bug factory: the
-        /// two must agree on the handedness conversion, the body frame, the joint mapping and the left/right
-        /// mirror, and a mismatch in ANY of them silently poisons the model. The first attempt did exactly
-        /// that -- it scored 31% here and 3.77% in Python, and the probe showed the predicted swivel was
-        /// 145 degrees off, i.e. the model was being asked about a different frame than it was fitted in.
-        ///
-        /// Dumping from HERE and fitting on THAT makes the question unaskable: the model is fitted to the
-        /// literal inputs the runtime produces. Whatever the conventions are, both sides now share them.
-        /// </summary>
         public static System.Text.StringBuilder s_swivelDump;
         public static System.Text.StringBuilder s_legDump;
 
@@ -110,7 +96,6 @@ namespace Basis.IK.Mocap
         // trustworthy. Drawn from the measured distribution: the knee sits under 0.2 on ~0.4% of frames and
         // those frames were producing every extra pop.
         const float k_SwivelConfLo = 0.20f;
-        const float k_SwivelConfHi = 0.50f;
 
         const float k_PopJointM = 0.05f;   // 5 cm of elbow/knee travel in one frame
         const float k_PopEffectorM = 0.01f; // while the hand/foot moved under 1 cm
@@ -174,18 +159,6 @@ namespace Basis.IK.Mocap
         // Rebuild a joint from a pair of solved rotations over the fixed bone lengths.
         static Vector3 RebuildMid(in Limb l, Vector3 root, Quaternion rootRot) => root + (rootRot * l.UpperDirLocal) * l.UpperLen;
 
-        /// <summary>
-        /// Per-frame joint tracks from a mocap run: what the human's joint did, and what the solver's did,
-        /// frame by frame, in the same units.
-        ///
-        /// The accuracy layer above reduces those two tracks to a distance. That answers "is the pose
-        /// right" and is deliberately blind to "is the MOTION right" -- a solved elbow can sit 2 cm from
-        /// the truth on every single frame while buzzing at 30 Hz, plateauing, or arriving 150 ms late,
-        /// and the mean error will not budge. Handing the raw tracks out lets BasisMocapMotionQuality
-        /// score the thing the distance throws away.
-        ///
-        /// Left side only, matching the side the ElbowPops/KneePops detectors already sample.
-        /// </summary>
         public sealed class BasisMocapTracks
         {
             public float Dt, ArmLen, LegLen;
@@ -193,23 +166,10 @@ namespace Basis.IK.Mocap
             public Vector3[] TruthKnee, SolvedKnee;
             public Vector3[] TruthHand, TruthFoot;
 
-            /// <summary>The elbow HINT the lookup path hands the solver, captured at two stages so the noise
-            /// can be localised instead of guessed at. HintRaw is the lookup table's own output; HintFlared is
-            /// that same bend after BasisElbowFlareCore.ApplyChickenWingFlare, which is what actually reaches
-            /// the solver. Comparing their jitter says immediately WHICH stage invents the buzz -- the table,
-            /// the flare, or (if both are clean) the two-bone solve amplifying a clean hint.
-            /// Populated only when hint == Lookup. Left side.</summary>
             public Vector3[] HintRaw, HintFlared;
 
-            /// <summary>Flare internals, for localising its noise: the engagement scalar it drives the bend with,
-            /// and the down-pole projection the whole swivel angle is measured from (collapses when the forearm
-            /// goes vertical -- i.e. an arm hanging at your side).</summary>
             public float[] FlareEngage, FlareDownProj;
 
-            /// <summary>Per-frame LEG solve internals, so a knee pop can be LOCALISED instead of theorised
-            /// about. KneeReach is hip->foot distance over max reach (the pole singularity lives at 1.0);
-            /// KneeAxis is BasisLegSolveResult.AxisSource (0 plane-normal, 1 hint, 2 target, 3 bend-normal,
-            /// 4 pole blended toward bend-normal, 5 pole clamped into the anterior half-space). Left side.</summary>
             public float[] KneeReach;
             public byte[] KneeAxis;
         }

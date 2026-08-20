@@ -82,17 +82,6 @@ namespace Basis.IK
         }
     }
 
-    /// <summary>
-    /// Burst-safe draw queue for the FBIK solve. The solve is a scheduled job, so nothing inside it
-    /// can touch BasisGizmoManager; call sites append plain line/sphere/label records here instead
-    /// and the main thread replays them into pooled gizmos once the solve is joined
-    /// (BasisIKSolveGizmos.Drain, from BasisLocalRigDriver.CompleteIKSolve).
-    /// <para>
-    /// Adding a visualization is one call anywhere inside the job — no main-thread counterpart, no
-    /// gizmo ids to hold, no lifetime to manage. Every entry point early-outs on the stage mask, so
-    /// a draw left in the solve costs one branch while its stage is switched off.
-    /// </para>
-    /// </summary>
     public struct BasisIKGizmoRecorder
     {
         public const int StageCount = 13;
@@ -309,22 +298,22 @@ namespace Basis.IK
             }
         }
 
-        public void Chain(BasisIKGizmoStage stage, BasisPoseStream stream, BasisBoneHandle from, BasisBoneHandle to, uint color)
+        public void Chain(BasisIKGizmoStage stage, ref BasisPoseStream stream, BasisBoneHandle from, BasisBoneHandle to, uint color)
         {
-            if (!Wants(stage) || !from.IsValid(stream) || !to.IsValid(stream))
+            if (!Wants(stage) || !stream.IsValid(from) || !stream.IsValid(to))
             {
                 return;
             }
-            Bone(stage, from.GetPosition(stream), to.GetPosition(stream), color);
+            Bone(stage, stream.GetPosition(from), stream.GetPosition(to), color);
         }
 
-        public void BoneAxes(BasisIKGizmoStage stage, BasisPoseStream stream, BasisBoneHandle handle, float length)
+        public void BoneAxes(BasisIKGizmoStage stage, ref BasisPoseStream stream, BasisBoneHandle handle, float length)
         {
-            if (!Wants(stage) || !handle.IsValid(stream))
+            if (!Wants(stage) || !stream.IsValid(handle))
             {
                 return;
             }
-            handle.GetPositionAndRotation(stream, out Vector3 position, out Quaternion rotation);
+            stream.GetPositionAndRotation(handle, out Vector3 position, out Quaternion rotation);
             Axes(stage, position, rotation, length);
         }
 
@@ -359,10 +348,6 @@ namespace Basis.IK
 
         // ── Shapes ─────────────────────────────────────────────────────────
 
-        /// <summary>
-        /// Arc swept from one direction to the other around their common centre. The short way
-        /// round, so it reads as the angle between them rather than the reflex angle.
-        /// </summary>
         public void Arc(BasisIKGizmoStage stage, Vector3 centre, Vector3 fromDirection, Vector3 toDirection, float radius, uint color)
         {
             if (!Wants(stage) || radius <= k_MinMag) return;
@@ -393,7 +378,6 @@ namespace Basis.IK
             }
         }
 
-        /// <summary>Arc plus the angle in degrees, for the joint angles a shape alone cannot report.</summary>
         public void Angle(BasisIKGizmoStage stage, Vector3 centre, Vector3 fromDirection, Vector3 toDirection, float radius, uint color)
         {
             if (!Wants(stage)) return;
@@ -410,12 +394,6 @@ namespace Basis.IK
             Label(stage, centre + mid.normalized * radius, text, color);
         }
 
-        /// <summary>
-        /// Elliptical swing cone: the exact boundary the anatomical spine clamp enforces, where the
-        /// allowed tilt is asymmetric forward/backward and different again sideways.
-        /// <paramref name="u"/> and <paramref name="w"/> must be unit, perpendicular to
-        /// <paramref name="axis"/> and to each other; limits are half-angles in degrees.
-        /// </summary>
         public void SwingCone(BasisIKGizmoStage stage, Vector3 apex, Vector3 axis, Vector3 u, Vector3 w,
             float limitU, float limitWPositive, float limitWNegative, float length, uint color)
         {
@@ -462,7 +440,6 @@ namespace Basis.IK
             Push(stage, BasisIKGizmoKind.Line, previous, first, LineWidth, color);
         }
 
-        /// <summary>Symmetric swing cone: the same shape with one half-angle in every direction.</summary>
         public void Cone(BasisIKGizmoStage stage, Vector3 apex, Vector3 axis, float halfAngleDeg, float length, uint color)
         {
             if (!Wants(stage)) return;
@@ -472,7 +449,6 @@ namespace Basis.IK
             SwingCone(stage, apex, n, u, w, halfAngleDeg, halfAngleDeg, halfAngleDeg, length, color);
         }
 
-        /// <summary>Wireframe sphere as three great circles: a reach limit, a search radius.</summary>
         public void Sphere(BasisIKGizmoStage stage, Vector3 centre, float radius, uint color)
         {
             if (!Wants(stage)) return;
@@ -481,7 +457,6 @@ namespace Basis.IK
             Circle(stage, centre, Vector3.forward, radius, color);
         }
 
-        /// <summary>Wireframe capsule: four rails and a ring at each end, matching the collision shape.</summary>
         public void Capsule(BasisIKGizmoStage stage, Vector3 a, Vector3 b, float radius, uint color)
         {
             if (!Wants(stage) || radius <= k_MinMag) return;
@@ -499,7 +474,6 @@ namespace Basis.IK
             Circle(stage, b, dir, radius, color);
         }
 
-        /// <summary>A patch of plane with its normal, for bend planes and swivel planes.</summary>
         public void Plane(BasisIKGizmoStage stage, Vector3 centre, Vector3 normal, float halfSize, uint color)
         {
             if (!Wants(stage) || halfSize <= k_MinMag) return;
@@ -518,12 +492,6 @@ namespace Basis.IK
             Ray(stage, centre, n * halfSize, color);
         }
 
-        /// <summary>
-        /// A plane normal drawn AS a normal: a disc lying in the plane plus a short double-ended
-        /// stub through it. Deliberately unlike <see cref="Ray"/>, because a bend normal points out
-        /// the side of the joint and an arrow there reads as "the joint points sideways", which is
-        /// the wrong conclusion. Use <see cref="Ray"/> only for things that genuinely point.
-        /// </summary>
         public void Normal(BasisIKGizmoStage stage, Vector3 centre, Vector3 normal, float radius, uint color)
         {
             if (!Wants(stage) || radius <= k_MinMag) return;
@@ -533,7 +501,6 @@ namespace Basis.IK
             Push(stage, BasisIKGizmoKind.Line, centre - n * (radius * 0.5f), centre + n * (radius * 0.5f), LineWidth, color);
         }
 
-        /// <summary>Wire box: twelve edges around an oriented centre.</summary>
         public void Box(BasisIKGizmoStage stage, Vector3 centre, Quaternion rotation, Vector3 halfExtents, uint color)
         {
             if (!Wants(stage)) return;
@@ -564,7 +531,6 @@ namespace Basis.IK
             Push(stage, BasisIKGizmoKind.Line, p010, p011, LineWidth, color);
         }
 
-        /// <summary>Any two perpendicular unit vectors spanning the plane normal to <paramref name="dir"/>.</summary>
         public static void Basis(Vector3 dir, out Vector3 u, out Vector3 w)
         {
             u = Vector3.Cross(dir, Vector3.up);
@@ -651,7 +617,6 @@ namespace Basis.IK
             Label(BasisIKGizmoStage.Scratch, position, text, BasisIKGizmoPalette.From(color));
         }
 
-        /// <summary>Label carrying a live number, for the dot products and angles that a shape cannot show.</summary>
         public void Note(Vector3 position, in FixedString64Bytes text, float value)
         {
             if (!WantLabels || !Wants(BasisIKGizmoStage.Scratch))
@@ -664,10 +629,6 @@ namespace Basis.IK
             Label(BasisIKGizmoStage.Scratch, position, line, StageColor(BasisIKGizmoStage.Scratch));
         }
 
-        /// <summary>
-        /// Two vectors from a shared origin, plus the angle between them when labels are on — the
-        /// "is this hint pointing where I think it is" check, without borrowing a bone to test on.
-        /// </summary>
         public void Compare(Vector3 origin, Vector3 a, Vector3 b)
         {
             Compare(origin, a, b, BasisIKGizmoPalette.Green, BasisIKGizmoPalette.Magenta);

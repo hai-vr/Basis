@@ -101,7 +101,7 @@ namespace Basis.Tests.IK
                 chestIkHeadRestoreSweeps = 2,
                 chestPosPullMaxDeg = 20f,
                 chestPullMaxDist = 0.5f,
-                targetOffsetHead = Quaternion.identity,
+                offsetRotationHead = Quaternion.identity,
                 playerUp = Vector3.up,
                 chestIkTarget = false,
                 spineAnatomicalRom = false,
@@ -146,7 +146,8 @@ namespace Basis.Tests.IK
             // A fresh gather per frame = the animator re-writing the pose stream each frame, which is why
             // the live solver has no frame-to-frame hysteresis to stabilize the bow plane.
             _skeleton.GatherNow();
-            _job.SolveSequentialSpineIK(_skeleton.Stream, targetPos, Quaternion.identity);
+            _job.poseStream = _skeleton.Stream;
+            _job.SolveSequentialSpineIK(targetPos, Quaternion.identity);
 
             Quaternion neck = _skeleton.Stream.GetWorldRotation(_neckStreamIndex);
             Quaternion chest = _skeleton.Stream.GetWorldRotation(_chestStreamIndex);
@@ -159,7 +160,7 @@ namespace Basis.Tests.IK
             prevChest = chest;
             have = true;
 
-            return (_chain[0].GetPosition(_skeleton.Stream) - targetPos).magnitude;
+            return (_skeleton.Stream.GetPosition(_chain[0]) - targetPos).magnitude;
         }
 
         // ------------------------------------------------------------------ the headline: no buzz
@@ -238,14 +239,13 @@ namespace Basis.Tests.IK
 
             BasisBoneHandle spineHandle = _skeleton.Bind(_bones[1]);
             BasisBoneHandle chestHandle = _skeleton.Bind(_bones[2]);
-            spineHandle.SetRotation(_skeleton.Stream,
-                Quaternion.AngleAxis(10f, Vector3.right) * spineHandle.GetRotation(_skeleton.Stream));
-            chestHandle.SetRotation(_skeleton.Stream,
-                Quaternion.AngleAxis(15f, Vector3.right) * chestHandle.GetRotation(_skeleton.Stream));
+            _skeleton.Stream.SetRotation(spineHandle, Quaternion.AngleAxis(10f, Vector3.right) * _skeleton.Stream.GetRotation(spineHandle));
+            _skeleton.Stream.SetRotation(chestHandle, Quaternion.AngleAxis(15f, Vector3.right) * _skeleton.Stream.GetRotation(chestHandle));
 
-            _job.SolveSequentialSpineIK(_skeleton.Stream, target, Quaternion.identity);
+            _job.poseStream = _skeleton.Stream;
+            _job.SolveSequentialSpineIK(target, Quaternion.identity);
 
-            float tipErr = (_chain[0].GetPosition(_skeleton.Stream) - target).magnitude;
+            float tipErr = (_skeleton.Stream.GetPosition(_chain[0]) - target).magnitude;
             float neckBow = Quaternion.Angle(restNeck, _skeleton.Stream.GetWorldRotation(_neckStreamIndex));
             TestContext.WriteLine($"tipErr {tipErr * 1000f:F2} mm (initial {initialErr * 1000f:F2}), neck bow {neckBow:F2} deg");
 
@@ -273,7 +273,8 @@ namespace Basis.Tests.IK
             {
                 Vector3 target = RestHead + new Vector3(0.0005f, -delta, 0f);
                 _skeleton.GatherNow();
-                _job.SolveSequentialSpineIK(_skeleton.Stream, target, Quaternion.identity);
+                _job.poseStream = _skeleton.Stream;
+                _job.SolveSequentialSpineIK(target, Quaternion.identity);
 
                 Quaternion neck = _skeleton.Stream.GetWorldRotation(_neckStreamIndex);
                 if (have)
@@ -329,9 +330,10 @@ namespace Basis.Tests.IK
             Vector3 target = rootPos + dir * (reach + 0.02f);
 
             _skeleton.GatherNow();
-            _job.SolveSequentialSpineIK(_skeleton.Stream, target, Quaternion.identity);
+            _job.poseStream = _skeleton.Stream;
+            _job.SolveSequentialSpineIK(target, Quaternion.identity);
 
-            Vector3 solvedDir = (_chain[0].GetPosition(_skeleton.Stream) - rootPos).normalized;
+            Vector3 solvedDir = (_skeleton.Stream.GetPosition(_chain[0]) - rootPos).normalized;
             float aimErr = Vector3.Angle(solvedDir, dir);
             TestContext.WriteLine($"aim error toward an off-axis beyond-reach target: {aimErr:F3} deg");
             Assert.Less(aimErr, 3f, "the reach clamp must preserve the aim direction of an unreachable target");
@@ -369,10 +371,12 @@ namespace Basis.Tests.IK
                 _job.targetRotationHead = gaze;
 
                 _skeleton.GatherNow();
-                _job.SolveSequentialSpineIK(_skeleton.Stream, target, gaze);
-                _job.ApplyCervicalLordosis(_skeleton.Stream);
+                _job.poseStream = _skeleton.Stream;
+                _job.SolveSequentialSpineIK(target, gaze);
+                _job.poseStream = _skeleton.Stream;
+                _job.ApplyCervicalLordosis();
 
-                float headErr = (_chain[0].GetPosition(_skeleton.Stream) - target).magnitude;
+                float headErr = (_skeleton.Stream.GetPosition(_chain[0]) - target).magnitude;
                 TestContext.WriteLine($"pitch {pitchDeg} deg: head-to-target {headErr * 1000f:F3} mm");
                 Assert.Less(headErr, 0.0002f,
                     $"the head pin must land on both sides of the lordosis early-out (pitch {pitchDeg})");

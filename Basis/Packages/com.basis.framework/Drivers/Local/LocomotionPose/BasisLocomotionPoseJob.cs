@@ -5,11 +5,6 @@ using Unity.Mathematics;
 
 namespace Basis.Scripts.Drivers
 {
-    /// <summary>
-    /// Blends the baked locomotion samples into the pose skeleton stream — the exact arrays GatherNow
-    /// would have filled from transforms after an Animator evaluate. Pure NativeArray math: while this
-    /// runs on a worker the main thread may do anything except touch the stream.
-    /// </summary>
     [BurstCompile]
     public struct BasisLocomotionPoseJob : IJob
     {

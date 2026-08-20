@@ -5,14 +5,6 @@ using UnityEngine;
 
 namespace Basis.IK.Debugging
 {
-    /// <summary>
-    /// The play-mode IK recorders, in one place.
-    ///
-    /// Knee swivel, leg crouch and foot rotation each used to own a pair of "Start (record)" /
-    /// "Stop + Dump CSV" menu entries — six entries for three recorders that behave identically.
-    /// They are one list here: enter Play, start the one you need, reproduce the misbehaviour, stop.
-    /// Each dumps a CSV next to the other sweep output and logs a PASS/FAIL summary.
-    /// </summary>
     public class BasisIKLiveRecordersPage : BasisIKSweepPage
     {
         public override string Group => "Recorders";

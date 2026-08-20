@@ -15,14 +15,8 @@ public class SMModuleCalibration : BasisSettingsBase
     public static float SelectedScale = 1.6f;
     public static float SelectedEyeHeight = 1.61f;
 
-    /// <summary>
-    /// Per-sphere calibration scale multipliers. Default is 1.0 for each role.
-    /// </summary>
     public static readonly Dictionary<BasisBoneTrackedRole, float> SphereScaleMultipliers = new Dictionary<BasisBoneTrackedRole, float>();
 
-    /// <summary>
-    /// Returns the user-configured sphere scale multiplier for a given role (defaults to 1.0).
-    /// </summary>
     public static float GetSphereScale(BasisBoneTrackedRole role)
     {
         if (SphereScaleMultipliers.TryGetValue(role, out float scale))

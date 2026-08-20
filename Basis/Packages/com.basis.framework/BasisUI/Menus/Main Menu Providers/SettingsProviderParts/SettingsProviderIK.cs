@@ -1642,18 +1642,9 @@ public static class SettingsProviderIK
     private static float SafeSpaceRatio() =>
         BasisHeightDriver.PlayerEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight / BasisHeightDriver.PlayerEyeHeight : 1f;
 
-    /// <summary>
-    /// The player's arm length in avatar space, derived exactly as BasisBodyFitCore.SolveArms does it,
-    /// so this can be read straight against "Avatar Arm Length" — the two numbers are the ratio.
-    /// </summary>
     private static float PlayerArmLength() =>
         Mathf.Max(0f, (BasisHeightDriver.PlayerArmSpan * SafeSpaceRatio() - BasisHeightDriver.AvatarShoulderWidth) * 0.5f);
 
-    /// <summary>
-    /// The arm ratio before the max-deviation clamp. When this sits well above 1 while "Body Fit Arm
-    /// Scale" rests on the band edge, the fit wants more than the clamp allows and the measurements
-    /// feeding it are worth doubting before the band is widened.
-    /// </summary>
     private static string RawArmRatio()
     {
         float avatarArm = AvatarArmLength();
@@ -1668,13 +1659,6 @@ public static class SettingsProviderIK
         return $"{raw:F4} ({(raw - 1f):+0.0%;-0.0%;0.0%}){(clamped ? " - clamped" : string.Empty)}";
     }
 
-    /// <summary>
-    /// Distance between the point the arm-span calibration samples for this hand and the wrist bone the
-    /// arm fit resizes toward. OpenVR bakes the wrist into the device coord before the height calculator
-    /// reads it, so it lands near zero there; OpenXR leaves the device coord on the grip pose, so a
-    /// reading of a few cm is the player arm span over-reading by that much per hand, doubled across the
-    /// span, before it ever reaches the solver.
-    /// </summary>
     private static string HandDeviceToWristGap(BasisBoneTrackedRole role)
     {
         BasisDeviceManagement manager = BasisDeviceManagement.Instance;
@@ -2095,12 +2079,6 @@ public static class SettingsProviderIK
         }
     }
 
-    /// <summary>
-    /// Rebuilds outward from a container whose contents just changed height, hitting every ancestor that
-    /// actually carries a layout controller, innermost first, so each outer pass sees the corrected inner
-    /// height. Rows revealed inside a nested group otherwise leave every group above them at its stale
-    /// height and overflow. Stops at the tab page so one reveal does not rebuild the whole menu.
-    /// </summary>
     private static PanelToggle PlayspaceGizmoLayerToggle(RectTransform parent, string localizationKey, BasisSettingsBinding<bool> binding)
     {
         var toggle = PanelToggle.CreateNewEntry(parent);

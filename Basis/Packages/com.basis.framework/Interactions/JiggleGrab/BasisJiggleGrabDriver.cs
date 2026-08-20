@@ -11,13 +11,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.BasisSdk.Interactions
 {
-    /// <summary>
-    /// Grab-and-pull for jiggle chains. Holds every grab announced in the session (a small
-    /// event-driven dictionary), applies only those whose target tree is simulated locally,
-    /// and pushes hand-space pin targets into the jiggle sim once per frame. Ticked by
-    /// BasisEventDriver from the frame-sync window, right before JigglePhysics.DispatchSimulate,
-    /// so remote skeletons and local IK are posed and targets land the same frame.
-    /// </summary>
     public static class BasisJiggleGrabDriver
     {
         public const int MaxAnnouncedGrabs = 2048;
@@ -116,13 +109,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             initialized = false;
         }
 
-        /// <summary>
-        /// Our own network id. Must go through <see cref="BasisNetworkConnection.TryGetLocalPlayerID"/>:
-        /// that reads the peer's RemoteId, which is the id the SERVER assigned us. NetPeer.Id is the
-        /// local peer-list index of our connection to the server — effectively always 0 on a client,
-        /// so using it made us collide with whichever player the server numbered 0, and every
-        /// "is this me?" test in here silently answered yes for that player.
-        /// </summary>
         public static bool TryGetLocalPlayerId(out ushort id)
         {
             return BasisNetworkConnection.TryGetLocalPlayerID(out id);
@@ -142,10 +128,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
         }
 
-        /// <summary>
-        /// Called by BasisPlayerInteract when nothing else consumed a fresh grab press.
-        /// VR searches around the hand; desktop searches along the eye ray.
-        /// </summary>
         public static bool TryBeginGrab(BasisInput input, bool freshPress)
         {
             if (!freshPress || input == null)
@@ -303,10 +285,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return true;
         }
 
-        /// <summary>
-        /// Why the last grab press did or did not take. Only written on a fresh press, so it costs
-        /// nothing per frame, and it is the only way to see what happened while wearing a headset.
-        /// </summary>
         public static string LastAttemptResult { get; private set; } = "no grab attempted yet";
         public static float LastAttemptTime { get; private set; }
 
@@ -316,10 +294,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             LastAttemptTime = Time.unscaledTime;
         }
 
-        /// <summary>
-        /// One grab press's search volume: either the closing hand or the aim ray. Scoring lives in
-        /// <see cref="BasisJiggleGrabPicker"/> so the selection rules can be tested without a scene.
-        /// </summary>
         private struct GrabQuery
         {
             public bool IsPointing;
@@ -353,10 +327,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
         }
 
-        /// <summary>
-        /// Reports how far the nearest chain was, which turns "grabbing does not work" into a number.
-        /// Fresh presses only.
-        /// </summary>
         private static void RecordMissedReach(GrabQuery grasp, bool desktop)
         {
             if (desktop)
@@ -382,12 +352,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             RecordAttempt($"nearest chain was {probeScore:0.00}m from your grip, needs {grasp.Radius * ReachIntentRadiusMultiplier:0.00}m");
         }
 
-        /// <summary>
-        /// Other people's chains are searched FIRST and win outright when any is in reach, because
-        /// your own hair and sleeves hang around your own hands and would otherwise out-score the
-        /// person you are deliberately reaching for. Your own rigs are still searched when nobody
-        /// else's chain is in reach, so grabbing your own hair keeps working.
-        /// </summary>
         private static void SearchRigs(ushort localId, GrabQuery query,
             ref JiggleRig bestRig, ref BasisRemotePlayer bestTarget, ref byte bestRigIndex, ref int bestPointIndex,
             ref Vector3 bestPointPosition, ref float bestScore)
@@ -422,16 +386,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
         }
 
-        /// <summary>
-        /// Avatar size as a multiplier, so the pick tolerance can follow whichever avatar is bigger:
-        /// a giant's chains are spaced far apart and a doll's are packed together.
-        ///
-        /// Reads <see cref="BasisAvatar.HumanScale"/> (Unity's Animator.humanScale, mirrored on both
-        /// the local and remote drivers at calibration) and NOT the animator root's lossyScale — an
-        /// FBX unit conversion or an authored armature scale leaves lossyScale arbitrary, so two
-        /// avatars that look identical can report 0.01 and 100, and scaling a pick radius by that
-        /// reaches metres and grabs a chain across the room.
-        /// </summary>
         public static float GetAvatarScaleFactor(IBasisPlayer player)
         {
             float scale = player?.BasisAvatar != null ? player.BasisAvatar.HumanScale : 1f;
@@ -500,12 +454,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
         }
 
-        /// <summary>
-        /// The span a closing hand sweeps: palm to fingertip. People grab with their fingers, so a
-        /// strand lying across them should be takeable while one floating behind the knuckles is
-        /// not — a sphere on the palm gets both of those wrong. Falls back to a short span along the
-        /// hand when the avatar has no finger bones.
-        /// </summary>
         private static void GetHandGrasp(BasisInput input, byte hand, out Vector3 palm, out Vector3 fingerTip)
         {
             if (TryGetGraspFromMapping(BasisLocalPlayer.Instance?.LocalRigDriver?.basisTransformMapping, hand, out palm, out fingerTip))
@@ -516,10 +464,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             fingerTip = palm;
         }
 
-        /// <summary>
-        /// The same grip span for any player, local or remote — touch reporting needs to ask about
-        /// other people's hands, and both drivers keep an equivalent cached bone mapping.
-        /// </summary>
         public static bool TryGetPlayerGrasp(IBasisPlayer player, byte hand, out Vector3 palm, out Vector3 fingerTip)
         {
             palm = default;
@@ -563,17 +507,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return true;
         }
 
-        /// <summary>
-        /// Where a hand grab searches from. The humanoid hand bone sits at the WRIST, so searching
-        /// there means reaching with the back of the hand — visibly behind the palm. The middle
-        /// finger's proximal knuckle marks the far side of the palm, and the midpoint of the two
-        /// reads as "in my hand".
-        ///
-        /// Both bones come straight off the rig driver's cached <see cref="BasisTransformMapping"/>,
-        /// which the avatar driver already rebuilds on every avatar change — no bone lookups and no
-        /// cache of our own to invalidate. The debug gizmo calls this same method, so the drawn pick
-        /// sphere can never sit somewhere the search does not.
-        /// </summary>
         public static bool TryGetHandSearchPosition(byte hand, out Vector3 position)
         {
             position = default;
@@ -597,10 +530,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return true;
         }
 
-        /// <summary>
-        /// Palm first; the bone control's post-IK pose and then its pre-IK target stand in when the
-        /// avatar has no hand bones to read (a fallback avatar, or before the first solve).
-        /// </summary>
         private static Vector3 GetSearchHandPosition(BasisInput input, byte hand)
         {
             if (TryGetHandSearchPosition(hand, out Vector3 palm))
@@ -620,12 +549,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return input.RaycastCoord.position;
         }
 
-        /// <summary>
-        /// Whether this input is currently holding a jiggle chain. Grip drives the play space mover
-        /// too, so the mover asks this to stop a grab from dragging the world as well as the chain —
-        /// it cannot infer it from the interaction system, because a jiggle grab deliberately never
-        /// becomes a BasisInteractableObject target.
-        /// </summary>
         public static bool IsInputGrabbing(BasisInput input)
         {
             if (input == null)
@@ -658,7 +581,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return false;
         }
 
-        /// <summary>Main-thread receive path for GrabStart/GrabStop/GrabDeny, sender already server-authenticated.</summary>
         public static void OnRemoteGrabEvent(byte op, ushort senderId, ushort targetId, byte rigIndex, ushort pointIndex, byte hand, uint boneNameHash, Vector3 grabOffset)
         {
             TryGetLocalPlayerId(out ushort localId);
@@ -718,7 +640,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
         }
 
-        /// <summary>Existing-entry conflict rule: lower grabber id wins, deterministically on every client.</summary>
         private static bool TryInsert(GrabState state)
         {
             ulong key = Key(state.targetId, state.rigIndex, state.pointIndex);
@@ -800,11 +721,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             RemoveMatching(state => state.grabberId == id || state.targetId == id);
         }
 
-        /// <summary>
-        /// A grab cannot outlive the avatar it was resolved against: the rigs, the jiggle tree and
-        /// the grabber's hand bone all belong to the avatar being replaced. Called synchronously
-        /// from the swap, before the old avatar is deleted.
-        /// </summary>
         public static void DropGrabsForPlayer(IBasisPlayer player)
         {
             if (player == null || !BasisNetworkPlayers.PlayerToNetworkedPlayer(player, out BasisNetworkPlayer networkPlayer) || networkPlayer == null)
@@ -826,7 +742,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             });
         }
 
-        /// <summary>Settings master toggle turned off: stop our grabs and drop everything held.</summary>
         public static void ReleaseLocalGrabs()
         {
             RemoveMatching(state =>
@@ -843,7 +758,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             });
         }
 
-        /// <summary>Per-player toggle turned off: stop our grabs on them and deny theirs on us.</summary>
         public static void RevokePlayer(ushort playerId)
         {
             TryGetLocalPlayerId(out ushort localId);
@@ -1028,10 +942,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return tree.bones[index].position;
         }
 
-        /// <summary>
-        /// Called by BasisEventDriver in the frame-sync window, immediately before
-        /// JigglePhysics.DispatchSimulate. Zero work while nothing is grabbed.
-        /// </summary>
         public static void FrameTick()
         {
             if (allGrabs.Count == 0)
@@ -1217,14 +1127,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
         }
 
-        /// <summary>One live grab, flattened for the debug gizmos.</summary>
         public struct GrabGizmoSample
         {
             public ushort GrabberId;
             public ushort TargetId;
             public Vector3 BonePosition;
             public Vector3 TargetPosition;
-            /// <summary>Reach allowance for this point, in metres. Zero means unbounded.</summary>
             public float MaxStretch;
             public bool IsLocalGrab;
             public string BoneName;
@@ -1232,12 +1140,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         private static readonly List<GrabGizmoSample> gizmoSamples = new List<GrabGizmoSample>();
 
-        /// <summary>
-        /// The simulation measures the reach limit from the point's live animated pose, which only
-        /// exists in the native buffer — but the two per-point lengths it scales by are set at build
-        /// time and do live on the managed tree, so the RADIUS drawn is exact even though the gizmo
-        /// has to centre it on the bone.
-        /// </summary>
         private static void AddGizmoSample(GrabState state, Vector3 bonePosition, Vector3 target, float stretchFactor)
         {
             JiggleTree tree = state.tree;
@@ -1260,10 +1162,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             });
         }
 
-        /// <summary>
-        /// Snapshot of what the driver pushed to the simulation last frame. Filled only while the
-        /// jiggle-grab gizmo is on, so it costs nothing otherwise.
-        /// </summary>
         public static IReadOnlyList<GrabGizmoSample> GizmoSamples => gizmoSamples;
 
         public static bool CollectGizmoSamples;
@@ -1363,10 +1261,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             editorGrab = null;
         }
 
-        /// <summary>
-        /// Marches the ray and takes the first rig point within radius, checking avatar rigs first
-        /// and then any JiggleRig alive in the scene so a bare test prefab is grabbable too.
-        /// </summary>
         private static bool TryPickAlongRay(Ray ray, float rayLength, float radius, out JiggleRig rig, out Vector3 point, out int pointIndex)
         {
             rig = null;
@@ -1424,11 +1318,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 #endif
 
-        /// <summary>
-        /// Held while EITHER button is down, matching the press: a hand can start a grab with grip
-        /// or trigger, and releasing only the one it did not start with must not drop the chain.
-        /// Desktop has no grip, so there it is the trigger alone.
-        /// </summary>
         private static bool IsLocalHoldHeld(GrabState state)
         {
             BasisInput input = state.localInput;

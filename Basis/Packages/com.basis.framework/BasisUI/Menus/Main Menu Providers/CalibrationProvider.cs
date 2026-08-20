@@ -162,8 +162,6 @@ namespace Basis.BasisUI
                 });
         }
 
-        /// <summary>Builds the advanced rows into <paramref name="container"/> and returns the
-        /// Arm To Height Ratio slider, whose visibility the section has to re-apply on expand.</summary>
         private PanelSlider BuildAdvancedSection(RectTransform container, PanelElementDescriptor layout, PanelDropdown seatedModeDropdown)
         {
             // Calibration quality report — filled in after a calibration completes.
@@ -293,11 +291,6 @@ namespace Basis.BasisUI
             Calibrate();
         }
 
-        /// <summary>
-        /// Re-measures the player from scratch without the T-pose ritual. Everything observed so far is
-        /// dropped — that is the point: the high-water estimate can only rise, so if it is wrong (a bad
-        /// tracking episode, or someone else in the headset) discarding it is the only way out.
-        /// </summary>
         private void OnMeasureMeClicked()
         {
             BasisBodyEvidenceSampler.ResetEvidence();
@@ -337,11 +330,6 @@ namespace Basis.BasisUI
             ReapplyAfterSizeChange();
         }
 
-        /// <summary>
-        /// A stated height only ever FILLS IN for a missing measurement, so it cannot take effect while
-        /// a stale one is still marked genuine. Dropping that flag lets the normal capture path decide
-        /// afresh which source wins.
-        /// </summary>
         private void ReapplyAfterSizeChange()
         {
             BasisHeightDriver.HasGenuinePlayerEyeHeight = false;
@@ -572,11 +560,6 @@ namespace Basis.BasisUI
             BoundButton.gameObject.SetActive(show);
         }
 
-        /// <summary>
-        /// True when at least one real or simulated full-body tracker is present that isn't
-        /// camera/optical (MediaPipe) tracking. Webcam trackers flag themselves via
-        /// <see cref="BasisInput.IsCameraTracked"/> and are excluded here.
-        /// </summary>
         private static bool HasNonCameraBodyTrackers()
         {
             BasisDeviceManagement manager = BasisDeviceManagement.Instance;

@@ -6,56 +6,56 @@ namespace Basis.IK
 {
     public partial struct BasisEerieMovement
     {
-        void SolveShoulderPass(BasisPoseStream stream)
+        void SolveShoulderPass()
         {
             if (shoulderSolveEnabled)
             {
-                SolveShoulder(stream, true);
-                SolveShoulder(stream, false);
+                SolveShoulder(true);
+                SolveShoulder(false);
             }
             else
             {
-                ApplyRotation(stream, enabledLeftShoulder, handleLeftShoulder, targetRotationLeftShoulder, targetOffsetLeftShoulder);
-                ApplyRotation(stream, enabledRightShoulder, handleRightShoulder, targetRotationRightShoulder, targetOffsetRightShoulder);
+                ApplyRotation(enabledLeftShoulder, handleLeftShoulder, targetRotationLeftShoulder, offsetRotationLeftShoulder);
+                ApplyRotation(enabledRightShoulder, handleRightShoulder, targetRotationRightShoulder, offsetRotationRightShoulder);
             }
             if (anatShoulderSlide)
             {
-                ApplyShoulderSlide(stream);
+                ApplyShoulderSlide();
             }
         }
 
-        void SolveArmPass(BasisPoseStream stream)
+        void SolveArmPass()
         {
-            SolveHand(stream, true);
-            SolveHand(stream, false);
+            SolveHand(true);
+            SolveHand(false);
 
             if (enabledLeftHand > 0f)
             {
-                ApplySwingContinuity(stream, k_SwingLeftElbow, handleLeftUpperArm, handleLeftLowerArm, handleLeftHand, targetPositionLeftHand);
+                ApplySwingContinuity(k_SwingLeftElbow, handleLeftUpperArm, handleLeftLowerArm, handleLeftHand, targetPositionLeftHand);
             }
 
             if (enabledRightHand > 0f)
             {
-                ApplySwingContinuity(stream, k_SwingRightElbow, handleRightUpperArm, handleRightLowerArm, handleRightHand, targetPositionRightHand);
+                ApplySwingContinuity(k_SwingRightElbow, handleRightUpperArm, handleRightLowerArm, handleRightHand, targetPositionRightHand);
             }
 
-            SolveArmTwist(stream, handleLeftLowerArm, handleLeftHand, handleLeftLowerArmTwist, lowerArmTwistFraction, tposeLeftLowerArmChildBind, tposeLeftLowerArmTwistBind);
-            SolveArmTwist(stream, handleRightLowerArm, handleRightHand, handleRightLowerArmTwist, lowerArmTwistFraction, tposeRightLowerArmChildBind, tposeRightLowerArmTwistBind);
-            SolveArmTwist(stream, handleLeftUpperArm, handleLeftLowerArm, handleLeftUpperArmTwist, upperArmTwistFraction, tposeLeftUpperArmChildBind, tposeLeftUpperArmTwistBind);
-            SolveArmTwist(stream, handleRightUpperArm, handleRightLowerArm, handleRightUpperArmTwist, upperArmTwistFraction, tposeRightUpperArmChildBind, tposeRightUpperArmTwistBind);
+            SolveArmTwist(handleLeftLowerArm, handleLeftHand, handleLeftLowerArmTwist, lowerArmTwistFraction, tposeLeftLowerArmChildBind, tposeLeftLowerArmTwistBind);
+            SolveArmTwist(handleRightLowerArm, handleRightHand, handleRightLowerArmTwist, lowerArmTwistFraction, tposeRightLowerArmChildBind, tposeRightLowerArmTwistBind);
+            SolveArmTwist(handleLeftUpperArm, handleLeftLowerArm, handleLeftUpperArmTwist, upperArmTwistFraction, tposeLeftUpperArmChildBind, tposeLeftUpperArmTwistBind);
+            SolveArmTwist(handleRightUpperArm, handleRightLowerArm, handleRightUpperArmTwist, upperArmTwistFraction, tposeRightUpperArmChildBind, tposeRightUpperArmTwistBind);
         }
 
-        void ApplyShoulderSlide(BasisPoseStream stream)
+        void ApplyShoulderSlide()
         {
-            if (!handleHips.IsValid(stream) || !handleChest.IsValid(stream))
+            if (!poseStream.IsValid(handleHips) || !poseStream.IsValid(handleChest))
             {
                 return;
             }
 
             // Bind-cancelled like its siblings: on a rolled hips bind (Blender -90X) the raw bone frame
             // reads a lateral lean as twist and applies the counter-yaw as shoulder ROLL.
-            Quaternion hipsRot = handleHips.GetRotation(stream) * Quaternion.Inverse(offsetRotationHips);
-            Quaternion chestRot = handleChest.GetRotation(stream);
+            Quaternion hipsRot = poseStream.GetRotation(handleHips) * Quaternion.Inverse(offsetRotationHips);
+            Quaternion chestRot = poseStream.GetRotation(handleChest);
             Quaternion chestLocal = Quaternion.Inverse(hipsRot) * chestRot;
             float chestYaw = BasisTwistSolveCore.SignedTwistAngleDeg(chestLocal, Vector3.up);
 
@@ -64,17 +64,17 @@ namespace Basis.IK
                 return;
 
             float counterYaw = -Mathf.Sign(chestYaw) * Mathf.Min(excess * shoulderSlideFraction, shoulderSlideMaxDeg);
-            ApplyShoulderYaw(stream, handleLeftShoulder, hipsRot, counterYaw);
-            ApplyShoulderYaw(stream, handleRightShoulder, hipsRot, counterYaw);
+            ApplyShoulderYaw(handleLeftShoulder, hipsRot, counterYaw);
+            ApplyShoulderYaw(handleRightShoulder, hipsRot, counterYaw);
         }
-        void ApplyShoulderYaw(BasisPoseStream stream, BasisBoneHandle shoulder, Quaternion hipsRot, float yawDeg)
+        void ApplyShoulderYaw(BasisBoneHandle shoulder, Quaternion hipsRot, float yawDeg)
         {
-            if (!shoulder.IsValid(stream))
+            if (!poseStream.IsValid(shoulder))
                 return;
             Quaternion delta = hipsRot * Quaternion.AngleAxis(yawDeg, Vector3.up) * Quaternion.Inverse(hipsRot);
-            shoulder.SetRotation(stream, delta * shoulder.GetRotation(stream));
+            poseStream.SetRotation(shoulder, delta * poseStream.GetRotation(shoulder));
         }
-        void ApplyArmSwingChestFollow(BasisPoseStream stream)
+        void ApplyArmSwingChestFollow()
         {
             float factor = chestArmSwingFactor;
             if (factor <= 0f)
@@ -82,7 +82,7 @@ namespace Basis.IK
                 return;
             }
 
-            if (!handleHips.IsValid(stream) || !handleChest.IsValid(stream))
+            if (!poseStream.IsValid(handleHips) || !poseStream.IsValid(handleChest))
             {
                 return;
             }
@@ -97,15 +97,15 @@ namespace Basis.IK
             Vector3 leftPos = leftEnabled ? targetPositionLeftHand : Vector3.zero;
             Vector3 rightPos = rightEnabled ? targetPositionRightHand : Vector3.zero;
             Vector3 handMid = leftEnabled && rightEnabled ? (leftPos + rightPos) * 0.5f : leftEnabled ? leftPos : rightPos;
-            Vector3 hipsPos = handleHips.GetPosition(stream);
-            Quaternion hipsAnat = handleHips.GetRotation(stream) * Quaternion.Inverse(offsetRotationHips);
+            Vector3 hipsPos = poseStream.GetPosition(handleHips);
+            Quaternion hipsAnat = poseStream.GetRotation(handleHips) * Quaternion.Inverse(offsetRotationHips);
             Quaternion invHipsAnat = Quaternion.Inverse(hipsAnat);
             Vector3 localMid = invHipsAnat * (handMid - hipsPos);
 
             float forwardDist = Mathf.Max(0.1f, Mathf.Abs(localMid.z));
             float yawDeg = Mathf.Atan2(localMid.x, forwardDist) * Mathf.Rad2Deg * factor;
 
-            Vector3 localMidChest = invHipsAnat * (handMid - handleChest.GetPosition(stream));
+            Vector3 localMidChest = invHipsAnat * (handMid - poseStream.GetPosition(handleChest));
             float pitchDeg = Mathf.Atan2(-localMidChest.y, forwardDist) * Mathf.Rad2Deg * factor;
 
             float maxDeg = chestArmSwingMaxDeg;
@@ -118,49 +118,49 @@ namespace Basis.IK
             Quaternion local = Quaternion.AngleAxis(yawDeg, Vector3.up) * Quaternion.AngleAxis(pitchDeg, Vector3.right);
             Quaternion deltaWorld = hipsAnat * local * invHipsAnat;
 
-            if (handleUpperChest.IsValid(stream))
+            if (poseStream.IsValid(handleUpperChest))
             {
                 Quaternion chestPart = Quaternion.Slerp(Quaternion.identity, deltaWorld, chestFollowChestShare);
                 Quaternion upperPart = Quaternion.Slerp(Quaternion.identity, deltaWorld, 1f - chestFollowChestShare);
-                handleChest.SetRotation(stream, chestPart * handleChest.GetRotation(stream));
-                handleUpperChest.SetRotation(stream, upperPart * handleUpperChest.GetRotation(stream));
+                poseStream.SetRotation(handleChest, chestPart * poseStream.GetRotation(handleChest));
+                poseStream.SetRotation(handleUpperChest, upperPart * poseStream.GetRotation(handleUpperChest));
             }
             else
             {
-                handleChest.SetRotation(stream, deltaWorld * handleChest.GetRotation(stream));
+                poseStream.SetRotation(handleChest, deltaWorld * poseStream.GetRotation(handleChest));
             }
         }
         // Bind-cancelled like its siblings: childBind / twistBind are the T-pose rotations of the driving
         // child and of the helper itself, both in this parent's frame. Without them a rig that authors
         // either one off-axis from the arm bone -- palm-down hands, exported roll on the helper -- carries
         // a constant twist that is already there in a clean T-pose.
-        void SolveArmTwist(BasisPoseStream stream, BasisBoneHandle parent, BasisBoneHandle child, BasisBoneHandle twist, float fraction, Quaternion childBind, Quaternion twistBind)
+        void SolveArmTwist(BasisBoneHandle parent, BasisBoneHandle child, BasisBoneHandle twist, float fraction, Quaternion childBind, Quaternion twistBind)
         {
-            if (!twist.IsValid(stream) || fraction <= 0f)
+            if (!poseStream.IsValid(twist) || fraction <= 0f)
                 return;
-            if (!parent.IsValid(stream) || !child.IsValid(stream))
+            if (!poseStream.IsValid(parent) || !poseStream.IsValid(child))
                 return;
 
-            Vector3 parentPos = parent.GetPosition(stream);
-            Vector3 childPos = child.GetPosition(stream);
-            float positionFraction = BasisTwistSolveCore.SegmentPositionFraction(parentPos, childPos, twist.GetPosition(stream));
+            Vector3 parentPos = poseStream.GetPosition(parent);
+            Vector3 childPos = poseStream.GetPosition(child);
+            float positionFraction = BasisTwistSolveCore.SegmentPositionFraction(parentPos, childPos, poseStream.GetPosition(twist));
 
-            if (BasisTwistSolveCore.Solve(parent.GetRotation(stream), child.GetRotation(stream), childPos - parentPos,
+            if (BasisTwistSolveCore.Solve(poseStream.GetRotation(parent), poseStream.GetRotation(child), childPos - parentPos,
                     positionFraction * fraction, childBind, twistBind, out Quaternion twistWorld, out _, out _))
             {
-                twist.SetRotation(stream, twistWorld);
+                poseStream.SetRotation(twist, twistWorld);
             }
         }
-        public void SolveShoulder(BasisPoseStream stream, bool isLeft)
+        public void SolveShoulder(bool isLeft)
         {
             BasisBoneHandle shoulderHandle = isLeft ? handleLeftShoulder : handleRightShoulder;
-            if (!shoulderHandle.IsValid(stream))
+            if (!poseStream.IsValid(shoulderHandle))
             {
                 return;
             }
 
             BasisShoulderSolveInput input;
-            input.ShoulderPos = shoulderHandle.GetPosition(stream);
+            input.ShoulderPos = poseStream.GetPosition(shoulderHandle);
             input.HandTargetPos = isLeft ? targetPositionLeftHand : targetPositionRightHand;
             input.ElbowPos = isLeft ? hintPositionLeftHand : hintPositionRightHand;
             input.HasElbow = isLeft ? hintWeightLeftHand : hintWeightRightHand;
@@ -168,8 +168,8 @@ namespace Basis.IK
             // The clavicle's parent is the UpperChest when one exists, and the spine pass writes the
             // UpperChest separately (routed twist + arm-swing follow) -- reading the Chest solves the
             // shoulder in a frame up to ~30 deg away from the bone it actually parents.
-            input.ChestRot = handleUpperChest.IsValid(stream) ? handleUpperChest.GetRotation(stream)
-                : handleChest.IsValid(stream) ? handleChest.GetRotation(stream) : Quaternion.identity;
+            input.ChestRot = poseStream.IsValid(handleUpperChest) ? poseStream.GetRotation(handleUpperChest)
+                : poseStream.IsValid(handleChest) ? poseStream.GetRotation(handleChest) : Quaternion.identity;
             input.TposeChestRot = tposeChestRot;
             input.TposeShoulderRot = isLeft ? tposeLeftShoulderRot : tposeRightShoulderRot;
             input.TposeArmDirWorld = isLeft ? tposeLeftShoulderLocalDir : tposeRightShoulderLocalDir;
@@ -182,120 +182,40 @@ namespace Basis.IK
             input.CoupleRatio = shoulderCoupleRatio;
             input.MaxShoulderDeg = shoulderMaxDeg;
             input.TrackerFinal = isLeft
-                ? targetRotationLeftShoulder * targetOffsetLeftShoulder
-                : targetRotationRightShoulder * targetOffsetRightShoulder;
+                ? targetRotationLeftShoulder * offsetRotationLeftShoulder
+                : targetRotationRightShoulder * offsetRotationRightShoulder;
             input.IsLeft = isLeft;
 
             BasisShoulderSolveCore.Solve(input, out BasisShoulderSolveResult result);
             if (result.Apply)
             {
-                shoulderHandle.SetRotation(stream, result.ShoulderRotation);
+                poseStream.SetRotation(shoulderHandle, result.ShoulderRotation);
             }
         }
-        public void SolveTwoBoneIKArms(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, bool hintWeight, bool hintIsTracker, Quaternion targetOffset, int swingSlot)
+        BasisSwivelFrame BuildArmFrame()
         {
-            BasisArmSolveInput input = default;
-            root.GetPositionAndRotation(stream, out Vector3 shoulderPos, out Quaternion shoulderRot);
-            mid.GetPositionAndRotation(stream, out Vector3 elbowPos, out Quaternion elbowRot);
-            tip.GetPositionAndRotation(stream, out Vector3 handPos, out Quaternion handRot);
-            input.Shoulder = shoulderPos;
-            input.Elbow = elbowPos;
-            input.Hand = handPos;
-            input.RootRotation = shoulderRot;
-            input.MidRotation = elbowRot;
-            input.TargetPosition = target.translation;
-            input.TargetRotation = target.rotation;
-            input.HintPosition = hint.translation;
-            input.HintWeight = hintWeight;
-            input.TargetOffset = targetOffset;
-            input.PlayerUp = playerUp;
-            input.HintIsTracker = hintIsTracker;
-            input.HintMaxStepDeg = float.MaxValue;
-            input.TipRotation = handRot;
-            input.HintRotation = hintIsTracker ? hint.rotation : default;
-            input.ForearmFollowWeight = 1f;
-
-            Vector3 bodyRight = (handleLeftUpperArm.IsValid(stream) && handleRightUpperArm.IsValid(stream))
-                ? handleRightUpperArm.GetPosition(stream) - handleLeftUpperArm.GetPosition(stream)
-                : Vector3.zero;
-            input.ElbowLateralOut = swingSlot == k_SwingLeftElbow ? -bodyRight : bodyRight;
-
-            BasisBoneHandle torsoFrom = handleChest.IsValid(stream) ? handleChest
-                : handleSpine.IsValid(stream) ? handleSpine : handleHips;
-            BasisBoneHandle torsoTo = handleNeck.IsValid(stream) ? handleNeck : handleHead;
-            input.TorsoUp = torsoFrom.IsValid(stream) && torsoTo.IsValid(stream)
-                ? torsoTo.GetPosition(stream) - torsoFrom.GetPosition(stream)
-                : Vector3.zero;
-
-            bool slotOk = (uint)swingSlot < (uint)k_SwingCount;
-            if (slotOk && swingGuardSide.IsCreated && (uint)swingSlot < (uint)swingGuardSide.Length)
-            {
-                input.PrevGuardSide = swingGuardSide[swingSlot];
-            }
-
-            bool anchorSlot = hintIsTracker && slotOk
-                && swingPoleAnchor.IsCreated && swingPoleAnchorRot.IsCreated && swingPoleAnchorInit.IsCreated
-                && (uint)swingSlot < (uint)swingPoleAnchor.Length
-                && (uint)swingSlot < (uint)swingPoleAnchorRot.Length
-                && (uint)swingSlot < (uint)swingPoleAnchorInit.Length;
-            if (anchorSlot && swingPoleAnchorInit[swingSlot] != 0)
-            {
-                input.PrevPoleDir = swingPoleAnchor[swingSlot];
-                input.PrevHintRotation = swingPoleAnchorRot[swingSlot];
-                input.HasPrevPole = true;
-            }
-
-            BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
-
-            if (slotOk && swingGuardSide.IsCreated && (uint)swingSlot < (uint)swingGuardSide.Length)
-            {
-                swingGuardSide[swingSlot] = result.GuardSideUsed;
-            }
-            if (anchorSlot)
-            {
-                if (result.PoleAnchorValid)
-                {
-                    swingPoleAnchor[swingSlot] = result.PoleDirUsed;
-                    swingPoleAnchorRot[swingSlot] = result.PoleRotUsed;
-                    swingPoleAnchorInit[swingSlot] = 1;
-                }
-            }
-            else if (slotOk && swingPoleAnchorInit.IsCreated && (uint)swingSlot < (uint)swingPoleAnchorInit.Length)
-            {
-                swingPoleAnchorInit[swingSlot] = 0;
-            }
-
-            mid.SetRotation(stream, result.MidDelta * mid.GetRotation(stream));
-            root.SetRotation(stream, result.RootDelta * root.GetRotation(stream));
-            root.SetRotation(stream, result.HintDelta * root.GetRotation(stream));
-            mid.SetRotation(stream, result.MidPostRoll * mid.GetRotation(stream));
-            tip.SetRotation(stream, result.TipRotation);
-        }
-
-        BasisSwivelFrame BuildArmFrame(BasisPoseStream stream)
-        {
-            if (!handleLeftUpperArm.IsValid(stream) || !handleRightUpperArm.IsValid(stream))
+            if (!poseStream.IsValid(handleLeftUpperArm) || !poseStream.IsValid(handleRightUpperArm))
             {
                 return default;
             }
 
-            BasisBoneHandle upFrom = handleChest.IsValid(stream) ? handleChest
-                : handleSpine.IsValid(stream) ? handleSpine : handleHips;
-            BasisBoneHandle upTo = handleNeck.IsValid(stream) ? handleNeck : handleHead;
-            if (!upFrom.IsValid(stream) || !upTo.IsValid(stream))
+            BasisBoneHandle upFrom = poseStream.IsValid(handleChest) ? handleChest
+                : poseStream.IsValid(handleSpine) ? handleSpine : handleHips;
+            BasisBoneHandle upTo = poseStream.IsValid(handleNeck) ? handleNeck : handleHead;
+            if (!poseStream.IsValid(upFrom) || !poseStream.IsValid(upTo))
             {
                 return default;
             }
 
             return BasisSwivelHintCore.BuildFrame(
-                handleLeftUpperArm.GetPosition(stream), handleRightUpperArm.GetPosition(stream),
-                upFrom.GetPosition(stream), upTo.GetPosition(stream));
+                poseStream.GetPosition(handleLeftUpperArm), poseStream.GetPosition(handleRightUpperArm),
+                poseStream.GetPosition(upFrom), poseStream.GetPosition(upTo));
         }
-        public static void SwingElbowAroundAC(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 desiredB)
+        public void SwingElbowAroundAC(BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 desiredB)
         {
-            Vector3 A = root.GetPosition(stream);
-            Vector3 C = tip.GetPosition(stream);
-            Vector3 B = mid.GetPosition(stream);
+            Vector3 A = poseStream.GetPosition(root);
+            Vector3 C = poseStream.GetPosition(tip);
+            Vector3 B = poseStream.GetPosition(mid);
 
             Vector3 AC = C - A;
             float acSqr = Vector3.Dot(AC, AC);
@@ -318,46 +238,24 @@ namespace Basis.IK
             float dir = Mathf.Sign(Vector3.Dot(cross, n));
             Quaternion swing = Quaternion.AngleAxis(ang * dir * Mathf.Rad2Deg, n);
 
-            root.SetRotation(stream, swing * root.GetRotation(stream));
+            poseStream.SetRotation(root, swing * poseStream.GetRotation(root));
         }
-        bool SwingHintStateReady(int slot)
+        void ApplySwingContinuity(int slot, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPos)
         {
-            return swingHintInit.IsCreated && swingHintBend.IsCreated && swingHintAxis.IsCreated
-                && swingHintDrag.IsCreated && swingHintBodyRot.IsCreated && swingHintReach.IsCreated
-                && (uint)slot < (uint)swingHintInit.Length && (uint)slot < (uint)swingHintBend.Length
-                && (uint)slot < (uint)swingHintAxis.Length && (uint)slot < (uint)swingHintDrag.Length
-                && (uint)slot < (uint)swingHintBodyRot.Length && (uint)slot < (uint)swingHintReach.Length;
-        }
-
-        bool SwingContinuityStateReady(int slot)
-        {
-            return swingContinuityInit.IsCreated && swingLastDir.IsCreated && swingLastAxis.IsCreated
-                && swingLastTarget.IsCreated && swingSmoothState.IsCreated
-                && (uint)slot < (uint)swingContinuityInit.Length && (uint)slot < (uint)swingLastDir.Length
-                && (uint)slot < (uint)swingLastAxis.Length && (uint)slot < (uint)swingLastTarget.Length
-                && (uint)slot < (uint)swingSmoothState.Length;
-        }
-
-        void ApplySwingContinuity(BasisPoseStream stream, int slot, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPos)
-        {
-            if (!SwingContinuityStateReady(slot) || !root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
+            if (!swingContinuity.IsCreated || (uint)slot >= (uint)swingContinuity.Length
+                || !poseStream.IsValid(root) || !poseStream.IsValid(mid) || !poseStream.IsValid(tip))
             {
                 return;
             }
 
-            Vector3 a = root.GetPosition(stream);
-            Vector3 c = tip.GetPosition(stream);
-            Vector3 b = mid.GetPosition(stream);
+            Vector3 a = poseStream.GetPosition(root);
+            Vector3 c = poseStream.GetPosition(tip);
+            Vector3 b = poseStream.GetPosition(mid);
 
-            BasisSwingContinuityState state;
-            state.LastDir = swingLastDir[slot];
-            state.LastAxis = swingLastAxis[slot];
-            state.LastTarget = swingLastTarget[slot];
-            state.SmoothState = swingSmoothState[slot];
-            state.Seeded = swingContinuityInit[slot] != 0;
-            int collided = swingCollided.IsCreated && (uint)slot < (uint)swingCollided.Length ? swingCollided[slot] : 0;
+            ref BasisSwingContinuityState state = ref Ref(swingContinuity, slot);
+            int collided = armState.IsCreated && (uint)slot < (uint)armState.Length ? armState[slot].Collided : 0;
 
-            if (!BasisSwingContinuityCore.Step(ref state, a, b, c, targetPos, collided, swingSmoothRateDeg, stream.deltaTime,
+            if (!BasisSwingContinuityCore.Step(ref state, a, b, c, targetPos, collided, swingSmoothRateDeg, poseStream.deltaTime,
                     out bool applySwing, out Vector3 newDir))
             {
                 return;
@@ -365,19 +263,14 @@ namespace Basis.IK
 
             if (applySwing)
             {
-                Quaternion preservedHandRot = tip.GetRotation(stream);
-                SwingElbowAroundAC(stream, root, mid, tip, a + newDir);
-                tip.SetPosition(stream, c);
-                tip.SetRotation(stream, preservedHandRot);
+                Quaternion preservedHandRot = poseStream.GetRotation(tip);
+                SwingElbowAroundAC(root, mid, tip, a + newDir);
+                poseStream.SetPosition(tip, c);
+                poseStream.SetRotation(tip, preservedHandRot);
             }
-
-            swingLastDir[slot] = state.LastDir;
-            swingLastAxis[slot] = state.LastAxis;
-            swingLastTarget[slot] = state.LastTarget;
-            swingSmoothState[slot] = state.SmoothState;
-            swingContinuityInit[slot] = 1;
+            state.Seeded = true;
         }
-        public void SolveHand(BasisPoseStream stream, bool isLeft)
+        public void SolveHand(bool isLeft)
         {
             float weight = isLeft ? enabledLeftHand : enabledRightHand;
             if (!(weight > 0f))
@@ -387,7 +280,7 @@ namespace Basis.IK
             BasisBoneHandle root = isLeft ? handleLeftUpperArm : handleRightUpperArm;
             BasisBoneHandle mid = isLeft ? handleLeftLowerArm : handleRightLowerArm;
             BasisBoneHandle tip = isLeft ? handleLeftHand : handleRightHand;
-            if (!(root.IsValid(stream) && mid.IsValid(stream) && tip.IsValid(stream)))
+            if (!(poseStream.IsValid(root) && poseStream.IsValid(mid) && poseStream.IsValid(tip)))
             {
                 return;
             }
@@ -396,24 +289,26 @@ namespace Basis.IK
             Vector3 hintPos = isLeft ? hintPositionLeftHand : hintPositionRightHand;
             Quaternion hintRot = isLeft ? hintRotationLeftHand : hintRotationRightHand;
             bool hasHint = isLeft ? hintWeightLeftHand : hintWeightRightHand;
-            Quaternion targetOffset = isLeft ? targetOffsetLeftHand : targetOffsetRightHand;
+            Quaternion targetOffset = isLeft ? offsetRotationLeftHand : offsetRotationRightHand;
             int swingSlot = isLeft ? k_SwingLeftElbow : k_SwingRightElbow;
+            bool slotOk = armState.IsCreated && (uint)swingSlot < (uint)armState.Length;
 
-            Quaternion origRootRot = root.GetRotation(stream);
-            Quaternion origMidRot = mid.GetRotation(stream);
-            Quaternion origTipRot = tip.GetRotation(stream);
+            Quaternion origRootRot = poseStream.GetRotation(root);
+            Quaternion origMidRot = poseStream.GetRotation(mid);
+            Quaternion origTipRot = poseStream.GetRotation(tip);
 
-            var target = new BasisAffineTransform(tgtPos, tgtRot);
-            var hint = new BasisAffineTransform(hintPos, hintRot);
+            Vector3 bodyRight = (poseStream.IsValid(handleLeftUpperArm) && poseStream.IsValid(handleRightUpperArm))
+                ? poseStream.GetPosition(handleRightUpperArm) - poseStream.GetPosition(handleLeftUpperArm)
+                : Vector3.zero;
             bool usedModel = false;
 
             if (!hasHint)
             {
-                BasisSwivelFrame frame = BuildArmFrame(stream);
+                BasisSwivelFrame frame = BuildArmFrame();
 
-                Vector3 shoulderPos = root.GetPosition(stream);
-                float upperLen = (mid.GetPosition(stream) - shoulderPos).magnitude;
-                float lowerLen = (tip.GetPosition(stream) - mid.GetPosition(stream)).magnitude;
+                Vector3 shoulderPos = poseStream.GetPosition(root);
+                float upperLen = (poseStream.GetPosition(mid) - shoulderPos).magnitude;
+                float lowerLen = (poseStream.GetPosition(tip) - poseStream.GetPosition(mid)).magnitude;
                 float armLen = upperLen + lowerLen;
                 if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft,
                                                 out Vector3 modelHint, out float poleConditioning))
@@ -422,70 +317,136 @@ namespace Basis.IK
                     Vector3 rawBendV = modelHint - shoulderPos;
                     float axLen = curAxisV.magnitude;
                     float rbLen = rawBendV.magnitude;
-                    if (axLen > 1e-5f && rbLen > 1e-5f && SwingHintStateReady(swingSlot))
+                    if (axLen > 1e-5f && rbLen > 1e-5f && slotOk)
                     {
+                        ref BasisArmSlotState arm = ref Ref(armState, swingSlot);
                         Vector3 curAxis = curAxisV / axLen;
                         Vector3 rawBend = rawBendV / rbLen;
-                        bool seeded = swingHintInit[swingSlot] != 0;
+                        bool seeded = arm.HintSeeded;
                         float curReach = axLen / armLen;
-                        float armDt = Mathf.Min(stream.deltaTime, BasisElbowSwingCapCore.MaxSlewBudgetDt);
+                        float armDt = Mathf.Min(poseStream.deltaTime, BasisElbowSwingCapCore.MaxSlewBudgetDt);
                         Vector3 cappedBend = seeded
-                            ? (Vector3)BasisElbowSwingCapCore.Apply(swingHintBend[swingSlot], swingHintAxis[swingSlot],
+                            ? (Vector3)BasisElbowSwingCapCore.Apply(arm.HintBend, arm.HintAxis,
                                                                     curAxis, rawBend, BasisElbowSwingCapCore.MaxGain,
-                                                                    curReach - swingHintReach[swingSlot], poleConditioning,
-                                                                    BasisElbowSwingCapCore.SlewCapRad(stream.deltaTime))
+                                                                    curReach - arm.HintReach, poleConditioning,
+                                                                    BasisElbowSwingCapCore.SlewCapRad(poseStream.deltaTime))
                             : rawBend;
-                        swingHintBend[swingSlot] = cappedBend;
-                        swingHintAxis[swingSlot] = curAxis;
-                        swingHintReach[swingSlot] = curReach;
+                        arm.HintBend = cappedBend;
+                        arm.HintAxis = curAxis;
+                        arm.HintReach = curReach;
                         // The elbow field lives in the chest/shoulder-line frame; cancelling only the HIPS
                         // frame left chest-relative twist uncancelled (1.8-3.6 cm elbow lag on torso twist).
                         Quaternion bodyRot = frame.Valid
                             ? Quaternion.LookRotation(frame.Forward, frame.Up)
-                            : handleHips.IsValid(stream) ? handleHips.GetRotation(stream) : Quaternion.identity;
+                            : poseStream.IsValid(handleHips) ? poseStream.GetRotation(handleHips) : Quaternion.identity;
 
                         Vector3 outBend = cappedBend;
                         if (elbowDragEnabled && seeded)
                         {
-                            Quaternion bodyDelta = bodyRot * Quaternion.Inverse(swingHintBodyRot[swingSlot]);
-                            outBend = (Vector3)BasisElbowDragCore.Apply(swingHintDrag[swingSlot], bodyDelta, curAxis, cappedBend,
+                            Quaternion bodyDelta = bodyRot * Quaternion.Inverse(arm.HintBodyRot);
+                            outBend = (Vector3)BasisElbowDragCore.Apply(arm.HintDrag, bodyDelta, curAxis, cappedBend,
                                                                        BasisElbowDragCore.Alpha(elbowDragHz, armDt));
                         }
-                        swingHintDrag[swingSlot] = outBend;
-                        swingHintBodyRot[swingSlot] = bodyRot;
-                        swingHintInit[swingSlot] = 1;
+                        arm.HintDrag = outBend;
+                        arm.HintBodyRot = bodyRot;
+                        arm.HintSeeded = true;
                         modelHint = shoulderPos + 0.5f * armLen * outBend;
                     }
 
-                    hint = new BasisAffineTransform(modelHint, hintRot);
+                    hintPos = modelHint;
                     hasHint = true;
                     usedModel = true;
                 }
             }
-            if (!usedModel && SwingHintStateReady(swingSlot))
+            if (!usedModel && slotOk)
             {
-                swingHintInit[swingSlot] = 0;
+                Ref(armState, swingSlot).HintSeeded = false;
             }
-            SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, hasHint && !usedModel, targetOffset, swingSlot);
-            int collisionState = 0;
-            bool doCollisions = collisionsEnabled && handleChest.IsValid(stream) && handleNeck.IsValid(stream);
-            bool elbowTrackerForced = hasHint && !usedModel;
-            if (doCollisions && protectElbow && (!elbowTrackerForced || collideTrackedElbow))
-            {
-                Vector3 bodyRight = (handleLeftUpperArm.IsValid(stream) && handleRightUpperArm.IsValid(stream))
-                    ? handleRightUpperArm.GetPosition(stream) - handleLeftUpperArm.GetPosition(stream)
-                    : Vector3.zero;
 
+            bool hintIsTracker = hasHint && !usedModel;
+            BasisArmSolveInput input = default;
+            poseStream.GetPositionAndRotation(root, out Vector3 rootPos, out Quaternion rootRot);
+            poseStream.GetPositionAndRotation(mid, out Vector3 elbowPos, out Quaternion elbowRot);
+            poseStream.GetPositionAndRotation(tip, out Vector3 handPos, out Quaternion handRot);
+            input.Shoulder = rootPos;
+            input.Elbow = elbowPos;
+            input.Hand = handPos;
+            input.RootRotation = rootRot;
+            input.MidRotation = elbowRot;
+            input.TargetPosition = tgtPos;
+            input.TargetRotation = tgtRot;
+            input.HintPosition = hintPos;
+            input.HintWeight = hasHint;
+            input.TargetOffset = targetOffset;
+            input.PlayerUp = playerUp;
+            input.HintIsTracker = hintIsTracker;
+            input.HintMaxStepDeg = float.MaxValue;
+            input.TipRotation = handRot;
+            input.HintRotation = hintIsTracker ? hintRot : default;
+            input.ForearmFollowWeight = 1f;
+            input.ElbowLateralOut = isLeft ? -bodyRight : bodyRight;
+
+            BasisBoneHandle torsoFrom = poseStream.IsValid(handleChest) ? handleChest
+                : poseStream.IsValid(handleSpine) ? handleSpine : handleHips;
+            BasisBoneHandle torsoTo = poseStream.IsValid(handleNeck) ? handleNeck : handleHead;
+            input.TorsoUp = poseStream.IsValid(torsoFrom) && poseStream.IsValid(torsoTo)
+                ? poseStream.GetPosition(torsoTo) - poseStream.GetPosition(torsoFrom)
+                : Vector3.zero;
+
+            bool anchorSlot = hintIsTracker && slotOk;
+            if (slotOk)
+            {
+                BasisArmSlotState arm = armState[swingSlot];
+                input.PrevGuardSide = arm.GuardSide;
+                if (anchorSlot && arm.PoleValid)
+                {
+                    input.PrevPoleDir = arm.PoleDir;
+                    input.PrevHintRotation = arm.PoleRot;
+                    input.HasPrevPole = true;
+                }
+            }
+
+            BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
+
+            if (slotOk)
+            {
+                ref BasisArmSlotState arm = ref Ref(armState, swingSlot);
+                arm.GuardSide = result.GuardSideUsed;
+                if (anchorSlot)
+                {
+                    if (result.PoleAnchorValid)
+                    {
+                        arm.PoleDir = result.PoleDirUsed;
+                        arm.PoleRot = result.PoleRotUsed;
+                        arm.PoleValid = true;
+                    }
+                }
+                else
+                {
+                    arm.PoleValid = false;
+                }
+            }
+
+            poseStream.SetRotation(mid, result.MidDelta * poseStream.GetRotation(mid));
+            poseStream.SetRotation(root, result.RootDelta * poseStream.GetRotation(root));
+            poseStream.SetRotation(root, result.HintDelta * poseStream.GetRotation(root));
+            poseStream.SetRotation(mid, result.MidPostRoll * poseStream.GetRotation(mid));
+            poseStream.SetRotation(tip, result.TipRotation);
+
+            int collisionState = 0;
+            bool doCollisions = collisionsEnabled && poseStream.IsValid(handleChest) && poseStream.IsValid(handleNeck);
+            if (doCollisions && protectElbow && (!hintIsTracker || collideTrackedElbow))
+            {
                 BasisElbowProtectInput epi = default;
-                epi.Shoulder = root.GetPosition(stream);
-                epi.Elbow = mid.GetPosition(stream);
-                epi.Hand = tip.GetPosition(stream);
-                epi.HasHips = handleHips.IsValid(stream);
-                epi.HasSpine = handleSpine.IsValid(stream);
-                epi.HipsPos = epi.HasHips ? handleHips.GetPosition(stream) : Vector3.zero;
-                epi.SpinePos = epi.HasSpine ? handleSpine.GetPosition(stream) : Vector3.zero;
-                epi.ChestPos = handleChest.GetPosition(stream);
-                epi.NeckPos = handleNeck.GetPosition(stream);
+                epi.Shoulder = poseStream.GetPosition(root);
+                epi.Elbow = poseStream.GetPosition(mid);
+                epi.Hand = poseStream.GetPosition(tip);
+                epi.HasHips = poseStream.IsValid(handleHips);
+                epi.HasSpine = poseStream.IsValid(handleSpine);
+                epi.HipsPos = epi.HasHips ? poseStream.GetPosition(handleHips) : Vector3.zero;
+                epi.SpinePos = epi.HasSpine ? poseStream.GetPosition(handleSpine) : Vector3.zero;
+                epi.ChestPos = poseStream.GetPosition(handleChest);
+                epi.NeckPos = poseStream.GetPosition(handleNeck);
                 epi.ChestRadiusBase = chestRadius;
                 epi.CollisionSkin = collisionSkin;
                 epi.HandRadius = handRadius;
@@ -496,24 +457,24 @@ namespace Basis.IK
                 BasisElbowProtectCore.Solve(epi, out BasisElbowProtectResult epr);
                 if (epr.Engaged)
                 {
-                    tip.GetPositionAndRotation(stream, out Vector3 preservedHandPos, out Quaternion preservedHandRot);
-                    SwingElbowAroundAC(stream, root, mid, tip, epr.DesiredElbow);
-                    tip.SetPosition(stream, preservedHandPos);
-                    tip.SetRotation(stream, preservedHandRot);
+                    poseStream.GetPositionAndRotation(tip, out Vector3 preservedHandPos, out Quaternion preservedHandRot);
+                    SwingElbowAroundAC(root, mid, tip, epr.DesiredElbow);
+                    poseStream.SetPosition(tip, preservedHandPos);
+                    poseStream.SetRotation(tip, preservedHandRot);
                 }
                 collisionState = epr.CollisionState;
             }
 
-            if (swingCollided.IsCreated && (uint)swingSlot < (uint)swingCollided.Length)
+            if (slotOk)
             {
-                swingCollided[swingSlot] = collisionState;
+                Ref(armState, swingSlot).Collided = collisionState;
             }
 
             if (weight < 1f)
             {
-                root.SetRotation(stream, Quaternion.Slerp(origRootRot, root.GetRotation(stream), weight));
-                mid.SetRotation(stream, Quaternion.Slerp(origMidRot, mid.GetRotation(stream), weight));
-                tip.SetRotation(stream, Quaternion.Slerp(origTipRot, tip.GetRotation(stream), weight));
+                poseStream.SetRotation(root, Quaternion.Slerp(origRootRot, poseStream.GetRotation(root), weight));
+                poseStream.SetRotation(mid, Quaternion.Slerp(origMidRot, poseStream.GetRotation(mid), weight));
+                poseStream.SetRotation(tip, Quaternion.Slerp(origTipRot, poseStream.GetRotation(tip), weight));
             }
         }
     }

@@ -7,10 +7,6 @@ using GatorDragonGames.JigglePhysics;
 using UnityEngine;
 namespace Basis.Scripts.Drivers
 {
-    /// <summary>
-    /// Driver class which takes control of the <see cref="BasisLocalPlayer"/>'s
-    /// hips and legs in order to fit them onto a <see cref="BasisSeat"/>.
-    /// </summary>
     [System.Serializable]
     public class BasisLocalSeatDriver
     {
@@ -433,10 +429,6 @@ namespace Basis.Scripts.Drivers
             return Quaternion.LookRotation(forward, up);
         }
 
-        /// <summary>
-        /// Keeps requested directions in the avatar hips basis "forward hemisphere"
-        /// to reduce backwards leg flips.
-        /// </summary>
         private Vector3 EnsureForwardHemisphereInAvatarBasis(Vector3 dirAvatarLocal)
         {
             Vector3 dirInBasis = Quaternion.Inverse(avatarHipsBasisTpose) * dirAvatarLocal;
@@ -445,11 +437,6 @@ namespace Basis.Scripts.Drivers
             return (avatarHipsBasisTpose * dirInBasis).normalized;
         }
 
-        /// <summary>
-        /// Aim + Pole: swing to desired direction, then twist around that direction
-        /// so a pole axis aligns with desired pole (prevents sideways knees).
-        /// All vectors are in avatar-local space.
-        /// </summary>
         private static Quaternion AlignAimWithPole(
             Quaternion tposeLocalRot,
             Vector3 tposeOffsetUpperToLower,

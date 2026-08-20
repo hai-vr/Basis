@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Basis.Scripts.Common;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Profiling;
 using UnityEngine;
 namespace Basis.IK
@@ -14,7 +15,6 @@ namespace Basis.IK
 
         public const int Count = 22;
         public const int UpperChestSlot = Count - 1;
-        public FixedList128Bytes<BasisBoneHandle> slotHandles;
         public FixedList512Bytes<Vector3> slotPositions;
         public FixedList512Bytes<Quaternion> slotRotations;
         public FixedList512Bytes<Quaternion> slotOffsets;
@@ -30,7 +30,6 @@ namespace Basis.IK
 
         public NativeArray<BasisBoneHandle> chainHeadToSpine;
         public NativeArray<BasisSpineRestFrame> chainSpineRestFrames;
-        public NativeArray<BasisSpineRom> chainSpineRoms;
 
         public int chainChestIdx;
 
@@ -60,11 +59,6 @@ namespace Basis.IK
         public Quaternion offsetRotationLeftToe, offsetRotationRightToe;
         public Quaternion offsetRotationLeftShoulder, offsetRotationRightShoulder;
         public Quaternion offsetRotationLeftHand, offsetRotationRightHand;
-        public Quaternion targetOffsetHead, targetOffsetChest;
-        public Quaternion targetOffsetLeftFoot, targetOffsetRightFoot;
-        public Quaternion targetOffsetLeftToe, targetOffsetRightToe;
-        public Quaternion targetOffsetLeftShoulder, targetOffsetRightShoulder;
-        public Quaternion targetOffsetLeftHand, targetOffsetRightHand;
 
         public float enabledLeftHand, enabledRightHand;
         public float enabledLeftLowerLeg, enabledRightLowerLeg;
@@ -78,7 +72,7 @@ namespace Basis.IK
         public bool footIsTrackerLeftLeg, footIsTrackerRightLeg;
 
         public float tposeBakeScale;
-        public Vector3 tposeLengthHeadToHips, tposeLengthNeckToHips, tposeHeadToNeckLocal;
+        public Vector3 tposeLengthNeckToHips, tposeHeadToNeckLocal;
         public Vector3 tposeLeftShoulderLocalDir, tposeRightShoulderLocalDir;
         public Quaternion tposeLeftShoulderRot, tposeRightShoulderRot, tposeChestRot;
         public float tposeShoulderToHandLeft, tposeShoulderToHandRight;
@@ -154,20 +148,11 @@ namespace Basis.IK
         public bool collisionsEnabled;
         public float chestRadius, collisionSkin, handRadius, handSkin;
 
-        public NativeArray<Vector3> chestSpringState;
-        public NativeArray<int> chestSpringInit;
+        public NativeArray<BasisChestSpringState> chestSpring;
         public const int k_SwingLeftElbow = 0, k_SwingRightElbow = 1, k_SwingCount = 2;
-        public NativeArray<Vector3> swingLastDir, swingLastAxis, swingLastTarget;
-        public NativeArray<Vector3> swingHintBend, swingHintAxis, swingHintDrag;
-        public NativeArray<Quaternion> swingHintBodyRot;
-        public NativeArray<int> swingContinuityInit, swingCollided, swingSmoothState, swingHintInit;
-        public NativeArray<float> swingHintReach;
-        public NativeArray<int> swingGuardSide;
-        public NativeArray<Vector3> swingPoleAnchor;
-        public NativeArray<Quaternion> swingPoleAnchorRot;
-        public NativeArray<int> swingPoleAnchorInit;
-        public NativeArray<Vector3> legSwivelRaw, legSwivelSmooth;
-        public NativeArray<int> legSwivelInit;
+        public NativeArray<BasisSwingContinuityState> swingContinuity;
+        public NativeArray<BasisArmSlotState> armState;
+        public NativeArray<BasisLegSlotState> legState;
         public NativeArray<BasisLegDiagnostics> legDiagnostics;
 
         public BasisPoseStream poseStream;
@@ -177,7 +162,42 @@ namespace Basis.IK
         // a Burst job payload.
         public BasisIKGizmoRecorder gizmos;
 
-        public void Execute() => ProcessAnimation(poseStream);
+        static unsafe ref T Ref<T>(NativeArray<T> array, int index) where T : unmanaged
+        {
+            return ref UnsafeUtility.ArrayElementAsRef<T>(array.GetUnsafePtr(), index);
+        }
+
+        BasisBoneHandle SlotHandle(int slot)
+        {
+            switch (slot)
+            {
+                case 0: return handleHips;
+                case 1: return handleLeftUpperLeg;
+                case 2: return handleRightUpperLeg;
+                case 3: return handleLeftLowerLeg;
+                case 4: return handleRightLowerLeg;
+                case 5: return handleLeftFoot;
+                case 6: return handleRightFoot;
+                case 7: return handleSpine;
+                case 8: return handleChest;
+                case 9: return handleNeck;
+                case 10: return handleHead;
+                case 11: return handleLeftShoulder;
+                case 12: return handleRightShoulder;
+                case 13: return handleLeftUpperArm;
+                case 14: return handleRightUpperArm;
+                case 15: return handleLeftLowerArm;
+                case 16: return handleRightLowerArm;
+                case 17: return handleLeftHand;
+                case 18: return handleRightHand;
+                case 19: return handleLeftToe;
+                case 20: return handleRightToe;
+                case UpperChestSlot: return handleUpperChest;
+                default: return BasisBoneHandle.Unbound;
+            }
+        }
+
+        public void Execute() => ProcessAnimation();
 
         static readonly ProfilerMarker sMarkerSpinePass = new ProfilerMarker("BasisEerie.Spine");
         static readonly ProfilerMarker sMarkerShoulderPass = new ProfilerMarker("BasisEerie.Shoulders");
@@ -186,54 +206,39 @@ namespace Basis.IK
         static readonly ProfilerMarker sMarkerToePass = new ProfilerMarker("BasisEerie.Toes");
         static readonly ProfilerMarker sMarkerOverrides = new ProfilerMarker("BasisEerie.TrackerOverrides");
 
-        public void ProcessAnimation(BasisPoseStream stream)
+        public void ProcessAnimation()
         {
-            stream.InvalidateWorldCache();
-            CaptureCalibrationOffsets();
-            RecordTargetGizmos(stream);
+            poseStream.InvalidateWorldCache();
+            RecordTargetGizmos();
             sMarkerSpinePass.Begin();
-            SolveSpinePass(stream);
+            SolveSpinePass();
             sMarkerSpinePass.End();
-            RecordSpineGizmos(stream);
+            RecordSpineGizmos();
             sMarkerShoulderPass.Begin();
-            SolveShoulderPass(stream);
+            SolveShoulderPass();
             sMarkerShoulderPass.End();
-            RecordShoulderGizmos(stream);
+            RecordShoulderGizmos();
             sMarkerLegPass.Begin();
-            SolveLegPass(stream);
+            SolveLegPass();
             sMarkerLegPass.End();
-            RecordLegGizmos(stream);
+            RecordLegGizmos();
             sMarkerArmPass.Begin();
-            SolveArmPass(stream);
+            SolveArmPass();
             sMarkerArmPass.End();
-            RecordArmGizmos(stream);
+            RecordArmGizmos();
             sMarkerToePass.Begin();
-            SolveToePass(stream);
+            SolveToePass();
             sMarkerToePass.End();
-            RecordToeGizmos(stream);
+            RecordToeGizmos();
             sMarkerOverrides.Begin();
-            ApplyTrackerOverrides(stream);
+            ApplyTrackerOverrides();
             sMarkerOverrides.End();
-            RecordOverrideGizmos(stream);
-            RecordFrameGizmos(stream);
-            RecordLimitGizmos(stream);
-            RecordReachGizmos(stream);
-            RecordNumberGizmos(stream);
-            RecordSkeletonGizmos(stream);
-        }
-
-        void CaptureCalibrationOffsets()
-        {
-            targetOffsetHead = offsetRotationHead;
-            targetOffsetChest = offsetRotationChest;
-            targetOffsetLeftFoot = offsetRotationLeftFoot;
-            targetOffsetRightFoot = offsetRotationRightFoot;
-            targetOffsetLeftToe = offsetRotationLeftToe;
-            targetOffsetRightToe = offsetRotationRightToe;
-            targetOffsetLeftShoulder = offsetRotationLeftShoulder;
-            targetOffsetRightShoulder = offsetRotationRightShoulder;
-            targetOffsetLeftHand = offsetRotationLeftHand;
-            targetOffsetRightHand = offsetRotationRightHand;
+            RecordOverrideGizmos();
+            RecordFrameGizmos();
+            RecordLimitGizmos();
+            RecordReachGizmos();
+            RecordNumberGizmos();
+            RecordSkeletonGizmos();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -304,7 +309,6 @@ namespace Basis.IK
             tposeClavicleLenRight *= k;
             tposeShoulderToElbowLeft *= k;
             tposeShoulderToElbowRight *= k;
-            tposeLengthHeadToHips *= k;
             tposeHeadToNeckLocal *= k;
             tposeLengthNeckToHips *= k;
 
@@ -314,33 +318,39 @@ namespace Basis.IK
         {
             if (chainHeadToSpine.IsCreated) chainHeadToSpine.Dispose();
             if (chainSpineRestFrames.IsCreated) chainSpineRestFrames.Dispose();
-            if (chainSpineRoms.IsCreated) chainSpineRoms.Dispose();
-
-            if (chestSpringState.IsCreated) chestSpringState.Dispose();
-            if (chestSpringInit.IsCreated) chestSpringInit.Dispose();
-
-            if (swingLastDir.IsCreated) swingLastDir.Dispose();
-            if (swingLastAxis.IsCreated) swingLastAxis.Dispose();
-            if (swingLastTarget.IsCreated) swingLastTarget.Dispose();
-            if (swingContinuityInit.IsCreated) swingContinuityInit.Dispose();
-            if (swingCollided.IsCreated) swingCollided.Dispose();
-            if (swingSmoothState.IsCreated) swingSmoothState.Dispose();
-            if (swingHintBend.IsCreated) swingHintBend.Dispose();
-            if (swingHintAxis.IsCreated) swingHintAxis.Dispose();
-            if (swingHintDrag.IsCreated) swingHintDrag.Dispose();
-            if (swingHintBodyRot.IsCreated) swingHintBodyRot.Dispose();
-            if (swingHintInit.IsCreated) swingHintInit.Dispose();
-            if (swingHintReach.IsCreated) swingHintReach.Dispose();
-            if (swingGuardSide.IsCreated) swingGuardSide.Dispose();
-            if (swingPoleAnchor.IsCreated) swingPoleAnchor.Dispose();
-            if (swingPoleAnchorRot.IsCreated) swingPoleAnchorRot.Dispose();
-            if (swingPoleAnchorInit.IsCreated) swingPoleAnchorInit.Dispose();
+            if (chestSpring.IsCreated) chestSpring.Dispose();
+            if (swingContinuity.IsCreated) swingContinuity.Dispose();
+            if (armState.IsCreated) armState.Dispose();
+            if (legState.IsCreated) legState.Dispose();
             if (legDiagnostics.IsCreated) legDiagnostics.Dispose();
-            if (legSwivelRaw.IsCreated) legSwivelRaw.Dispose();
-            if (legSwivelSmooth.IsCreated) legSwivelSmooth.Dispose();
-            if (legSwivelInit.IsCreated) legSwivelInit.Dispose();
 
             gizmos.Dispose();
         }
+    }
+
+    public struct BasisChestSpringState
+    {
+        public Vector3 Pos;
+        public Vector3 Vel;
+        public bool Seeded;
+    }
+
+    public struct BasisArmSlotState
+    {
+        public Vector3 HintBend, HintAxis, HintDrag;
+        public Quaternion HintBodyRot;
+        public float HintReach;
+        public bool HintSeeded;
+        public Vector3 PoleDir;
+        public Quaternion PoleRot;
+        public bool PoleValid;
+        public int Collided;
+        public int GuardSide;
+    }
+
+    public struct BasisLegSlotState
+    {
+        public BasisSwivelFilterState Swivel;
+        public bool SwivelSeeded;
     }
 }

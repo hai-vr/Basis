@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Basis.IK.Debugging
 {
-    // Temporal sweep of the general-purpose One-Euro filter (BasisOneEuroFilterVector3 / BasisOneEuroFilterQuaternion) --
+    // Temporal sweep of the One-Euro filter the live rig runs (BasisFilterMath.EuroVec3 / EuroQuat over the batch filter state) --
     // the smoothing the live rig runs on tracker/target inputs before they reach every IK solver. The dedicated
     // swivel sweep only covers the scalar swivel filter; this covers the Vector3/Quaternion filter the rest of
     // the stack depends on. Drives the same scenarios a low-pass must survive: a step (first-order = no
@@ -26,9 +26,8 @@ namespace Basis.IK.Debugging
 
         public static BasisOneEuroSweepConfig Default()
         {
-            // Filter tuning mirrors the BasisOneEuroFilter class defaults (minCutoff=1, beta=0, dCutoff=1): a 1 Hz
-            // first-order low-pass with no speed adaptation. Representative of the live filter; the window can
-            // sweep the three tuning knobs to explore the latency/jitter tradeoff.
+            // minCutoff=1, beta=0, dCutoff=1: a 1 Hz first-order low-pass with no speed adaptation. The window
+            // can sweep the three tuning knobs to explore the latency/jitter tradeoff.
             return new BasisOneEuroSweepConfig
             {
                 Fps = 90f,
@@ -94,13 +93,13 @@ namespace Basis.IK.Debugging
 
                     // Vec3 step: 0 -> 1 m along X at the midpoint. First-order low-pass: no overshoot, converges.
                     {
-                        var f = new BasisOneEuroFilterVector3(cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
+                        var f = default(BasisEuroVec3State);
                         const float hi = 1f;
                         Vector3 outV = Vector3.zero;
                         for (int i = 0; i < n; i++)
                         {
                             Vector3 input = new Vector3(i < half ? 0f : hi, 0f, 0f);
-                            outV = f.Filter(input, i * (double)dt);
+                            outV = BasisFilterMath.EuroVec3(ref f, input, dt, cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
                             if (!Finite(outV)) { nan++; break; }
                             if (i >= half)
                             {
@@ -114,12 +113,12 @@ namespace Basis.IK.Debugging
 
                     // Vec3 ramp: constant rate along X. Steady-state lag is bounded.
                     {
-                        var f = new BasisOneEuroFilterVector3(cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
+                        var f = default(BasisEuroVec3State);
                         for (int i = 0; i < n; i++)
                         {
                             float x = cfg.RampMetersPerSec * (i * dt);
                             Vector3 input = new Vector3(x, 0f, 0f);
-                            Vector3 outV = f.Filter(input, i * (double)dt);
+                            Vector3 outV = BasisFilterMath.EuroVec3(ref f, input, dt, cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
                             if (!Finite(outV)) { nan++; break; }
                             if (i >= half)
                             {
@@ -133,13 +132,13 @@ namespace Basis.IK.Debugging
                     // Vec3 noise hold: held value + jitter. Output must be smoother than the input.
                     {
                         var rng = new System.Random(12345);
-                        var f = new BasisOneEuroFilterVector3(cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
+                        var f = default(BasisEuroVec3State);
                         float prevIn = 0f, prevPrevIn = 0f, prevOut = 0f, prevPrevOut = 0f;
                         double inAcc = 0.0, outAcc = 0.0; int rough = 0;
                         for (int i = 0; i < n; i++)
                         {
                             float x = (float)(rng.NextDouble() * 2.0 - 1.0) * cfg.NoiseMeters;
-                            Vector3 outV = f.Filter(new Vector3(x, 0f, 0f), i * (double)dt);
+                            Vector3 outV = BasisFilterMath.EuroVec3(ref f, new Vector3(x, 0f, 0f), dt, cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
                             if (!Finite(outV)) { nan++; break; }
                             if (i >= 2)
                             {
@@ -157,13 +156,13 @@ namespace Basis.IK.Debugging
 
                     // Vec3 smooth sinusoid: the filter must not add stepping (2nd-diff) as the input glides.
                     {
-                        var f = new BasisOneEuroFilterVector3(cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
+                        var f = default(BasisEuroVec3State);
                         float prevOut = 0f, prevPrevOut = 0f;
                         const float amp = 0.5f, freq = 0.5f;
                         for (int i = 0; i < n; i++)
                         {
                             float x = amp * Mathf.Sin(2f * Mathf.PI * freq * (i * dt));
-                            Vector3 outV = f.Filter(new Vector3(x, 0f, 0f), i * (double)dt);
+                            Vector3 outV = BasisFilterMath.EuroVec3(ref f, new Vector3(x, 0f, 0f), dt, cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
                             if (!Finite(outV)) { nan++; break; }
                             if (i >= 2)
                             {
@@ -178,14 +177,14 @@ namespace Basis.IK.Debugging
                     // Quat noise hold: yaw jitter about Y around identity. Filtered rotation must be smoother and unit.
                     {
                         var rng = new System.Random(54321);
-                        var f = new BasisOneEuroFilterQuaternion(cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
+                        var f = default(BasisEuroQuatState);
                         float prevIn = 0f, prevPrevIn = 0f, prevOut = 0f, prevPrevOut = 0f;
                         double inAcc = 0.0, outAcc = 0.0; int rough = 0;
                         for (int i = 0; i < n; i++)
                         {
                             float yaw = (float)(rng.NextDouble() * 2.0 - 1.0) * cfg.NoiseDeg;
                             Quaternion q = Quaternion.AngleAxis(yaw, Vector3.up);
-                            Quaternion outQ = f.Filter(q, i * dt);
+                            Quaternion outQ = BasisFilterMath.EuroQuat(ref f, q, dt, cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
                             if (!Finite(outQ)) { nan++; break; }
                             float oy = SignedYaw(outQ);
                             float nonUnit = Mathf.Abs(QuatLength(outQ) - 1f);
@@ -206,14 +205,14 @@ namespace Basis.IK.Debugging
 
                     // Quat smooth sinusoid: yaw glide about Y. Must not add per-step stepping.
                     {
-                        var f = new BasisOneEuroFilterQuaternion(cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
+                        var f = default(BasisEuroQuatState);
                         float prevOut = 0f, prevPrevOut = 0f;
                         const float amp = 25f, freq = 0.5f;
                         for (int i = 0; i < n; i++)
                         {
                             float yaw = amp * Mathf.Sin(2f * Mathf.PI * freq * (i * dt));
                             Quaternion q = Quaternion.AngleAxis(yaw, Vector3.up);
-                            Quaternion outQ = f.Filter(q, i * dt);
+                            Quaternion outQ = BasisFilterMath.EuroQuat(ref f, q, dt, cfg.MinCutoff, cfg.Beta, cfg.DCutoff);
                             if (!Finite(outQ)) { nan++; break; }
                             float oy = SignedYaw(outQ);
                             float nonUnit = Mathf.Abs(QuatLength(outQ) - 1f);

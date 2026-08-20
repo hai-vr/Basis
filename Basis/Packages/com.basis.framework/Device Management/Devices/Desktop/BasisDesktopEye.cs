@@ -8,80 +8,35 @@ using UnityEngine;
 using Basis.IK;
 namespace Basis.Scripts.Device_Management.Devices.Desktop
 {
-    /// <summary>
-    /// Provides simulated eye-tracking input for desktop mode.
-    /// Handles look rotation via mouse input, device initialization, and integration with avatar drivers.
-    /// </summary>
     public class BasisDesktopEye : BasisInput
     {
-        /// <summary>
-        /// Reference to the active Unity <see cref="Camera"/> used for eye input simulation.
-        /// </summary>
         public Camera Camera;
 
-        /// <summary>
-        /// Singleton instance for global access to the desktop eye input.
-        /// </summary>
         public static BasisDesktopEye Instance;
 
         [Header("Rotation")]
 
-        /// <summary>
-        /// Current pitch rotation (X axis).
-        /// </summary>
         public float rotationPitch;
 
-        /// <summary>
-        /// Current yaw rotation (Y axis).
-        /// </summary>
         public float rotationYaw;
 
-        /// <summary>
-        /// Minimum clamped pitch angle.
-        /// </summary>
         public float minimumPitch = -89f;
 
-        /// <summary>
-        /// Maximum clamped pitch angle.
-        /// </summary>
         public float maximumPitch = 80;
 
         [Header("Mouse/Look")]
-        /// <summary>
-        /// Stores look input delta from the mouse or input system.
-        /// </summary>
         public Vector2 LookRotationVector = Vector2.zero;
         private readonly BasisLocks.LockContext LookRotationLock = BasisLocks.GetContext(BasisLocks.LookRotation);
 
-        /// <summary>
-        /// Tracks whether eye-related event subscriptions are active.
-        /// </summary>
         public bool HasEyeEvents = false;
 
-        /// <summary>
-        /// Local X position offset for the simulated eye.
-        /// </summary>
         public float X;
 
-        /// <summary>
-        /// Local Z position offset for the simulated eye.
-        /// </summary>
         public float Z;
 
-        /// <summary>
-        /// Screen-center aim reticle. The quad lives under the local camera so it
-        /// tracks aim for free; lifecycle is driven by <see cref="Initialize"/> and
-        /// <see cref="OnDestroy"/>. Toggle via <c>Reticle.SetEnabled(bool)</c>.
-        /// </summary>
         [Header("Reticle")]
         public BasisDesktopReticle Reticle = new BasisDesktopReticle();
 
-        /// <summary>
-        /// Initializes the eye input system for desktop usage.
-        /// Sets device coordinates, hooks into player events, and prepares tracking roles.
-        /// </summary>
-        /// <param name="ID">Identifier for this input device (default "Desktop Eye").</param>
-        /// <param name="subSystems">Name of the subsystem responsible for initialization (default "BasisDesktopManagement").</param>
         public void Initialize(string ID = "Desktop Eye", string subSystems = "BasisDesktopManagement")
         {
             BasisDebug.Log("Initializing Avatar Eye", BasisDebug.LogTag.Input);
@@ -136,10 +91,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             }
         }
 
-        /// <summary>
-        /// Handles updates when the cursor state changes (locked or free).
-        /// Adjusts <see cref="LookRotationLock"/> accordingly.
-        /// </summary>
         private void OnCursorStateChange(CursorLockMode cursor, bool newCursorVisible)
         {
             BasisDebug.Log("cursor changed to : " + cursor + " | Cursor Visible : " + newCursorVisible, BasisDebug.LogTag.Input);
@@ -162,9 +113,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             Reticle?.SetFocused(cursor == CursorLockMode.Locked);
         }
 
-        /// <summary>
-        /// Cleans up event subscriptions when destroyed.
-        /// </summary>
         public new void OnDestroy()
         {
             if (HasEyeEvents)
@@ -181,10 +129,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             base.OnDestroy();
         }
 
-        /// <summary>
-        /// Re-initializes player-specific references (camera, avatar driver, and input bindings).
-        /// Called on local avatar change.
-        /// </summary>
         public void PlayerInitialized()
         {
             BasisLocalInputActions.DesktopEyeInput = this;
@@ -198,30 +142,16 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             }
         }
 
-        /// <summary>
-        /// Removes avatar change subscriptions when disabled.
-        /// </summary>
         public void OnDisable()
         {
             BasisLocalPlayer.OnLocalAvatarChanged -= PlayerInitialized;
         }
 
-        /// <summary>
-        /// Updates the look rotation input vector.
-        /// Called externally by input actions.
-        /// </summary>
-        /// <param name="delta">Mouse or input delta vector.</param>
         public void SetLookRotationVector(Vector2 delta)
         {
             LookRotationVector = delta;
         }
 
-        /// <summary>
-        /// Applies yaw/pitch rotation based on the given input vector.
-        /// Handles mouse-look simulation for the eye.
-        /// Note: This is relative to the player's non-head rotation. The final camera rotation is that, combined with this eye rotation.
-        /// </summary>
-        /// <param name="lookVector">Delta vsector from input system.</param>
         public void HandleLookRotation(Vector2 lookVector)
         {
             if (!isActiveAndEnabled || LookRotationLock)
@@ -233,10 +163,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             rotationPitch -= lookVector.y * SMModuleControllerSettings.MouseSensitivty; // pitch (invert Y)
         }
 
-        /// <summary>
-        /// Main polling loop for updating eye input state.
-        /// Calculates eye position/rotation based on avatar head, crouching, and inputs deltas.
-        /// </summary>
         public override void LateDoPollData()
         {
             if (!hasRoleAssigned)
@@ -349,10 +275,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             UpdateInputEvents(HasPlayerControlSupport: false, hasPlayerRaycastSupport: true); // ui raycast
         }
         public bool IsComputingRaycast = true;
-        /// <summary>
-        /// Displays a visual tracker for the device if supported by the matched device definition.
-        /// Falls back to a generic model if needed.
-        /// </summary>
         public override void ShowTrackedVisual()
         {
             if (BasisVisualTracker == null)
@@ -372,20 +294,10 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             }
         }
 
-        /// <summary>
-        /// Plays a haptic effect.
-        /// Not implemented for desktop eye input.
-        /// </summary>
         public override void PlayHaptic(float duration = 0.25F, float amplitude = 0.5F, float frequency = 0.5F)
         {
         }
 
-        /// <summary>
-        /// Plays a sound effect for the input device.
-        /// Uses the default implementation.
-        /// </summary>
-        /// <param name="SoundEffectName">The sound effect key or name.</param>
-        /// <param name="Volume">Volume level for playback.</param>
         public override void PlaySoundEffect(string SoundEffectName, float Volume)
         {
             PlaySoundEffectDefaultImplementation(SoundEffectName, Volume);

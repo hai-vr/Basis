@@ -63,14 +63,6 @@ namespace Basis.Scripts.Drivers
         public float ExitTime;
     }
 
-    /// <summary>
-    /// Faithful data model + stepper for BasisLocomotion.controller (com.basis.sdk). The tables mirror
-    /// the asset exactly — state set, transition order, blend-tree child positions/time scales, exit
-    /// times — and BasisLocomotionGraphParityTests re-derives them from the asset in the editor, so a
-    /// controller edit fails the test instead of silently diverging from this stepper.
-    /// Scope is deliberately the stock controller only: avatars that ship their own controller keep the
-    /// engine Animator path (see BasisLocomotionPoseSystem).
-    /// </summary>
     public static class BasisLocomotionGraph
     {
         public const int ClipCount = 38;
@@ -259,10 +251,6 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Gradient-band interpolation in cartesian space — the algorithm behind Unity's
-        /// 2D Freeform Cartesian blend type. weights must have one slot per position.
-        /// </summary>
         public static void FreeformCartesianWeights(float2 point, float2[] positions, float[] weights)
         {
             int count = positions.Length;
@@ -388,11 +376,6 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Advances the state machine by dt and emits the weighted clip samples that reproduce what the
-        /// Animator would have blended this frame. Consumes p.LandingTrigger when a transition fires on it.
-        /// Returns the contribution count.
-        /// </summary>
         public static int Step(ref BasisLocoSimState s, ref BasisLocoParams p, float dt, float[] clipLengths, bool[] clipLooping, BasisLocoContribution[] contributions)
         {
             float previousNorm = s.CurrentNorm;

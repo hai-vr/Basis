@@ -3,12 +3,6 @@ using UnityEngine;
 
 namespace Basis.IK
 {
-    /// <summary>
-    /// Per-stage visualization of the FBIK solve, recorded top to bottom as the passes run.
-    /// Each Record method is a no-op while its stage bit is off, so this file can grow freely:
-    /// add a draw here, or a one-line <c>gizmos.*</c> call anywhere inside the solve itself, and
-    /// BasisIKSolveGizmos replays it on the main thread with no further wiring.
-    /// </summary>
     public partial struct BasisEerieMovement
     {
         const uint k_GizmoTarget = 0xFF00D7FFu;
@@ -21,7 +15,7 @@ namespace Basis.IK
 
         static uint SideColor(bool isLeft) => isLeft ? k_GizmoLeft : k_GizmoRight;
 
-        void RecordTargetGizmos(BasisPoseStream stream)
+        void RecordTargetGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Targets;
             if (!gizmos.Wants(stage))
@@ -30,7 +24,7 @@ namespace Basis.IK
             }
 
             gizmos.Point(stage, targetPositionHead, k_GizmoTarget);
-            gizmos.Axes(stage, targetPositionHead, targetRotationHead * targetOffsetHead);
+            gizmos.Axes(stage, targetPositionHead, targetRotationHead * offsetRotationHead);
             gizmos.Label(stage, targetPositionHead, "Head target");
 
             gizmos.Point(stage, targetPositionHips, k_GizmoTarget);
@@ -51,15 +45,15 @@ namespace Basis.IK
                 gizmos.Point(stage, targetPositionChest, k_GizmoTarget);
                 gizmos.Point(stage, targetPositionChestRaw, k_GizmoRaw);
                 gizmos.Line(stage, targetPositionChestRaw, targetPositionChest, k_GizmoRaw);
-                gizmos.Axes(stage, targetPositionChest, targetRotationChest * targetOffsetChest);
+                gizmos.Axes(stage, targetPositionChest, targetRotationChest * offsetRotationChest);
                 gizmos.Label(stage, targetPositionChest, "Chest target");
             }
 
-            RecordHandTarget(stage, enabledLeftHand, targetPositionLeftHand, targetRotationLeftHand * targetOffsetLeftHand, hintPositionLeftHand, hintWeightLeftHand, true);
-            RecordHandTarget(stage, enabledRightHand, targetPositionRightHand, targetRotationRightHand * targetOffsetRightHand, hintPositionRightHand, hintWeightRightHand, false);
+            RecordHandTarget(stage, enabledLeftHand, targetPositionLeftHand, targetRotationLeftHand * offsetRotationLeftHand, hintPositionLeftHand, hintWeightLeftHand, true);
+            RecordHandTarget(stage, enabledRightHand, targetPositionRightHand, targetRotationRightHand * offsetRotationRightHand, hintPositionRightHand, hintWeightRightHand, false);
 
-            RecordFootTarget(stage, enabledLeftLowerLeg, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg * targetOffsetLeftFoot, hintPositionLeftLowerLeg, hintWeightLeftLowerLeg, kneeBendPrefLeft, true);
-            RecordFootTarget(stage, enabledRightLowerLeg, targetPositionRightLowerLeg, targetRotationRightLowerLeg * targetOffsetRightFoot, hintPositionRightLowerLeg, hintWeightRightLowerLeg, kneeBendPrefRight, false);
+            RecordFootTarget(stage, enabledLeftLowerLeg, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg * offsetRotationLeftFoot, hintPositionLeftLowerLeg, hintWeightLeftLowerLeg, kneeBendPrefLeft, true);
+            RecordFootTarget(stage, enabledRightLowerLeg, targetPositionRightLowerLeg, targetRotationRightLowerLeg * offsetRotationRightFoot, hintPositionRightLowerLeg, hintWeightRightLowerLeg, kneeBendPrefRight, false);
         }
 
         void RecordHandTarget(BasisIKGizmoStage stage, float enabled, Vector3 target, Quaternion rotation, Vector3 hint, bool hasHint, bool isLeft)
@@ -134,7 +128,7 @@ namespace Basis.IK
             }
         }
 
-        void RecordSpineGizmos(BasisPoseStream stream)
+        void RecordSpineGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Spine;
             if (!gizmos.Wants(stage) || !chainHeadToSpine.IsCreated)
@@ -146,28 +140,28 @@ namespace Basis.IK
             int length = chainHeadToSpine.Length;
             for (int i = length - 1; i > 0; i--)
             {
-                gizmos.Chain(stage, stream, chainHeadToSpine[i], chainHeadToSpine[i - 1], color);
+                gizmos.Chain(stage, ref poseStream, chainHeadToSpine[i], chainHeadToSpine[i - 1], color);
             }
 
-            if (length > 0 && chainHeadToSpine[0].IsValid(stream))
+            if (length > 0 && poseStream.IsValid(chainHeadToSpine[0]))
             {
-                Vector3 solvedHead = chainHeadToSpine[0].GetPosition(stream);
+                Vector3 solvedHead = poseStream.GetPosition(chainHeadToSpine[0]);
                 gizmos.Point(stage, solvedHead, color);
                 gizmos.Line(stage, solvedHead, targetPositionHead, k_GizmoResidual);
                 gizmos.Label(stage, solvedHead, "Head pin residual", k_GizmoResidual);
             }
 
-            gizmos.BoneAxes(stage, stream, handleHips, gizmos.AxisLength);
-            gizmos.BoneAxes(stage, stream, handleChest, gizmos.AxisLength);
-            gizmos.BoneAxes(stage, stream, handleNeck, gizmos.AxisLength);
+            gizmos.BoneAxes(stage, ref poseStream, handleHips, gizmos.AxisLength);
+            gizmos.BoneAxes(stage, ref poseStream, handleChest, gizmos.AxisLength);
+            gizmos.BoneAxes(stage, ref poseStream, handleNeck, gizmos.AxisLength);
 
-            if (chainChestIdx >= 0 && chainChestIdx < length && chainHeadToSpine[chainChestIdx].IsValid(stream))
+            if (chainChestIdx >= 0 && chainChestIdx < length && poseStream.IsValid(chainHeadToSpine[chainChestIdx]))
             {
-                gizmos.Label(stage, chainHeadToSpine[chainChestIdx].GetPosition(stream), "Chest joint");
+                gizmos.Label(stage, poseStream.GetPosition(chainHeadToSpine[chainChestIdx]), "Chest joint");
             }
-            if (handleHips.IsValid(stream))
+            if (poseStream.IsValid(handleHips))
             {
-                Vector3 hipsPos = handleHips.GetPosition(stream);
+                Vector3 hipsPos = poseStream.GetPosition(handleHips);
                 if (proneBodyPose)
                 {
                     gizmos.Label(stage, hipsPos, "Hips (prone)");
@@ -179,7 +173,7 @@ namespace Basis.IK
             }
         }
 
-        void RecordShoulderGizmos(BasisPoseStream stream)
+        void RecordShoulderGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Shoulders;
             if (!gizmos.Wants(stage))
@@ -187,21 +181,21 @@ namespace Basis.IK
                 return;
             }
 
-            RecordClavicle(stage, stream, handleLeftShoulder, handleLeftUpperArm, true);
-            RecordClavicle(stage, stream, handleRightShoulder, handleRightUpperArm, false);
+            RecordClavicle(stage, handleLeftShoulder, handleLeftUpperArm, true);
+            RecordClavicle(stage, handleRightShoulder, handleRightUpperArm, false);
         }
 
-        void RecordClavicle(BasisIKGizmoStage stage, BasisPoseStream stream, BasisBoneHandle shoulder, BasisBoneHandle upperArm, bool isLeft)
+        void RecordClavicle(BasisIKGizmoStage stage, BasisBoneHandle shoulder, BasisBoneHandle upperArm, bool isLeft)
         {
-            if (!shoulder.IsValid(stream))
+            if (!poseStream.IsValid(shoulder))
             {
                 return;
             }
             uint color = SideColor(isLeft);
-            gizmos.Chain(stage, stream, handleChest, shoulder, k_GizmoRaw);
-            gizmos.Chain(stage, stream, shoulder, upperArm, color);
-            gizmos.BoneAxes(stage, stream, shoulder, gizmos.AxisLength);
-            Vector3 position = shoulder.GetPosition(stream);
+            gizmos.Chain(stage, ref poseStream, handleChest, shoulder, k_GizmoRaw);
+            gizmos.Chain(stage, ref poseStream, shoulder, upperArm, color);
+            gizmos.BoneAxes(stage, ref poseStream, shoulder, gizmos.AxisLength);
+            Vector3 position = poseStream.GetPosition(shoulder);
             if (isLeft)
             {
                 gizmos.Label(stage, position, "L clavicle", color);
@@ -212,7 +206,7 @@ namespace Basis.IK
             }
         }
 
-        void RecordLegGizmos(BasisPoseStream stream)
+        void RecordLegGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Legs;
             if (!gizmos.Wants(stage))
@@ -220,34 +214,34 @@ namespace Basis.IK
                 return;
             }
 
-            RecordLeg(stage, stream, handleLeftUpperLeg, handleLeftLowerLeg, handleLeftFoot,
+            RecordLeg(stage, handleLeftUpperLeg, handleLeftLowerLeg, handleLeftFoot,
                 enabledLeftLowerLeg, targetPositionLeftLowerLeg, hintPositionLeftLowerLeg, hintWeightLeftLowerLeg, true);
-            RecordLeg(stage, stream, handleRightUpperLeg, handleRightLowerLeg, handleRightFoot,
+            RecordLeg(stage, handleRightUpperLeg, handleRightLowerLeg, handleRightFoot,
                 enabledRightLowerLeg, targetPositionRightLowerLeg, hintPositionRightLowerLeg, hintWeightRightLowerLeg, false);
 
-            if (kneeAnteriorRef.sqrMagnitude > k_SqrEpsilon && handleHips.IsValid(stream))
+            if (kneeAnteriorRef.sqrMagnitude > k_SqrEpsilon && poseStream.IsValid(handleHips))
             {
-                gizmos.Normal(stage, handleHips.GetPosition(stream), kneeAnteriorRef.normalized, gizmos.AxisLength, BasisIKGizmoPalette.Magenta);
+                gizmos.Normal(stage, poseStream.GetPosition(handleHips), kneeAnteriorRef.normalized, gizmos.AxisLength, BasisIKGizmoPalette.Magenta);
             }
         }
 
-        void RecordLeg(BasisIKGizmoStage stage, BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip,
+        void RecordLeg(BasisIKGizmoStage stage, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip,
             float enabled, Vector3 target, Vector3 hint, float hintWeight, bool isLeft)
         {
-            if (!(enabled > 0f) || !root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
+            if (!(enabled > 0f) || !poseStream.IsValid(root) || !poseStream.IsValid(mid) || !poseStream.IsValid(tip))
             {
                 return;
             }
 
             uint color = SideColor(isLeft);
-            Vector3 hipPos = root.GetPosition(stream);
-            Vector3 kneePos = mid.GetPosition(stream);
-            Vector3 footPos = tip.GetPosition(stream);
+            Vector3 hipPos = poseStream.GetPosition(root);
+            Vector3 kneePos = poseStream.GetPosition(mid);
+            Vector3 footPos = poseStream.GetPosition(tip);
 
             gizmos.Bone(stage, hipPos, kneePos, color);
             gizmos.Bone(stage, kneePos, footPos, color);
             gizmos.Point(stage, footPos, color);
-            gizmos.BoneAxes(stage, stream, tip, gizmos.AxisLength);
+            gizmos.BoneAxes(stage, ref poseStream, tip, gizmos.AxisLength);
             gizmos.Line(stage, footPos, target, k_GizmoResidual);
 
             // The solver takes a bend NORMAL (kneeBendPref, hips-right by default) and derives the
@@ -284,7 +278,7 @@ namespace Basis.IK
             }
         }
 
-        void RecordArmGizmos(BasisPoseStream stream)
+        void RecordArmGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Arms;
             if (!gizmos.Wants(stage))
@@ -292,31 +286,31 @@ namespace Basis.IK
                 return;
             }
 
-            RecordArm(stage, stream, handleLeftUpperArm, handleLeftLowerArm, handleLeftHand,
+            RecordArm(stage, handleLeftUpperArm, handleLeftLowerArm, handleLeftHand,
                 enabledLeftHand, targetPositionLeftHand, hintPositionLeftHand, hintWeightLeftHand,
                 tposeShoulderToHandLeft, k_SwingLeftElbow, true);
-            RecordArm(stage, stream, handleRightUpperArm, handleRightLowerArm, handleRightHand,
+            RecordArm(stage, handleRightUpperArm, handleRightLowerArm, handleRightHand,
                 enabledRightHand, targetPositionRightHand, hintPositionRightHand, hintWeightRightHand,
                 tposeShoulderToHandRight, k_SwingRightElbow, false);
         }
 
-        void RecordArm(BasisIKGizmoStage stage, BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip,
+        void RecordArm(BasisIKGizmoStage stage, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip,
             float enabled, Vector3 target, Vector3 hint, bool hasHint, float reach, int swingSlot, bool isLeft)
         {
-            if (!(enabled > 0f) || !root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
+            if (!(enabled > 0f) || !poseStream.IsValid(root) || !poseStream.IsValid(mid) || !poseStream.IsValid(tip))
             {
                 return;
             }
 
             uint color = SideColor(isLeft);
-            Vector3 shoulderPos = root.GetPosition(stream);
-            Vector3 elbowPos = mid.GetPosition(stream);
-            Vector3 handPos = tip.GetPosition(stream);
+            Vector3 shoulderPos = poseStream.GetPosition(root);
+            Vector3 elbowPos = poseStream.GetPosition(mid);
+            Vector3 handPos = poseStream.GetPosition(tip);
 
             gizmos.Bone(stage, shoulderPos, elbowPos, color);
             gizmos.Bone(stage, elbowPos, handPos, color);
             gizmos.Point(stage, handPos, color);
-            gizmos.BoneAxes(stage, stream, tip, gizmos.AxisLength);
+            gizmos.BoneAxes(stage, ref poseStream, tip, gizmos.AxisLength);
             gizmos.Line(stage, handPos, target, k_GizmoResidual);
 
             if (reach > 0f)
@@ -335,27 +329,23 @@ namespace Basis.IK
             float armLength = (handPos - shoulderPos).magnitude;
             float hintLength = armLength > k_MinMag ? armLength * 0.5f : gizmos.AxisLength * 2f;
 
-            if (swingPoleAnchor.IsCreated && swingSlot < swingPoleAnchor.Length)
+            if (armState.IsCreated && swingSlot < armState.Length)
             {
-                Vector3 pole = swingPoleAnchor[swingSlot];
-                if (pole.sqrMagnitude > k_SqrEpsilon)
+                BasisArmSlotState arm = armState[swingSlot];
+                if (arm.PoleDir.sqrMagnitude > k_SqrEpsilon)
                 {
-                    gizmos.Direction(stage, shoulderPos, pole.normalized, hintLength, BasisIKGizmoPalette.Yellow);
+                    gizmos.Direction(stage, shoulderPos, arm.PoleDir.normalized, hintLength, BasisIKGizmoPalette.Yellow);
                 }
-            }
-            if (swingHintBend.IsCreated && swingSlot < swingHintBend.Length)
-            {
-                Vector3 bend = swingHintBend[swingSlot];
-                if (bend.sqrMagnitude > k_SqrEpsilon)
+                if (arm.HintBend.sqrMagnitude > k_SqrEpsilon)
                 {
-                    Vector3 hintPoint = shoulderPos + bend.normalized * hintLength;
-                    gizmos.Direction(stage, shoulderPos, bend.normalized, hintLength, BasisIKGizmoPalette.Magenta);
+                    Vector3 hintPoint = shoulderPos + arm.HintBend.normalized * hintLength;
+                    gizmos.Direction(stage, shoulderPos, arm.HintBend.normalized, hintLength, BasisIKGizmoPalette.Magenta);
                     gizmos.Point(stage, hintPoint, BasisIKGizmoPalette.Magenta);
                 }
-            }
-            if (swingCollided.IsCreated && swingSlot < swingCollided.Length && swingCollided[swingSlot] != 0)
-            {
-                gizmos.Circle(stage, elbowPos, handPos - shoulderPos, gizmos.PointSize * 3f, BasisIKGizmoPalette.Red);
+                if (arm.Collided != 0)
+                {
+                    gizmos.Circle(stage, elbowPos, handPos - shoulderPos, gizmos.PointSize * 3f, BasisIKGizmoPalette.Red);
+                }
             }
 
             if (isLeft)
@@ -368,7 +358,7 @@ namespace Basis.IK
             }
         }
 
-        void RecordToeGizmos(BasisPoseStream stream)
+        void RecordToeGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Toes;
             if (!gizmos.Wants(stage))
@@ -376,21 +366,21 @@ namespace Basis.IK
                 return;
             }
 
-            RecordToe(stage, stream, handleLeftFoot, handleLeftToe, leftToeEnabled, leftToeBendAxis, leftToeBendDeg, true);
-            RecordToe(stage, stream, handleRightFoot, handleRightToe, rightToeEnabled, rightToeBendAxis, rightToeBendDeg, false);
+            RecordToe(stage, handleLeftFoot, handleLeftToe, leftToeEnabled, leftToeBendAxis, leftToeBendDeg, true);
+            RecordToe(stage, handleRightFoot, handleRightToe, rightToeEnabled, rightToeBendAxis, rightToeBendDeg, false);
         }
 
-        void RecordToe(BasisIKGizmoStage stage, BasisPoseStream stream, BasisBoneHandle foot, BasisBoneHandle toe, bool driven, Vector3 bendAxis, float bendDeg, bool isLeft)
+        void RecordToe(BasisIKGizmoStage stage, BasisBoneHandle foot, BasisBoneHandle toe, bool driven, Vector3 bendAxis, float bendDeg, bool isLeft)
         {
-            if (!toe.IsValid(stream))
+            if (!poseStream.IsValid(toe))
             {
                 return;
             }
             uint color = SideColor(isLeft);
-            gizmos.Chain(stage, stream, foot, toe, color);
-            gizmos.BoneAxes(stage, stream, toe, gizmos.AxisLength * 0.5f);
+            gizmos.Chain(stage, ref poseStream, foot, toe, color);
+            gizmos.BoneAxes(stage, ref poseStream, toe, gizmos.AxisLength * 0.5f);
 
-            Vector3 toePos = toe.GetPosition(stream);
+            Vector3 toePos = poseStream.GetPosition(toe);
             if (!driven && bendAxis.sqrMagnitude > k_SqrEpsilon && bendDeg != 0f)
             {
                 gizmos.Direction(stage, toePos, bendAxis.normalized, gizmos.AxisLength, BasisIKGizmoPalette.Orange);
@@ -420,7 +410,7 @@ namespace Basis.IK
             }
         }
 
-        void RecordOverrideGizmos(BasisPoseStream stream)
+        void RecordOverrideGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Overrides;
             if (!gizmos.Wants(stage))
@@ -429,9 +419,9 @@ namespace Basis.IK
             }
 
             uint color = gizmos.StageColor(stage);
-            for (int i = 0; i < slotHandles.Length; i++)
+            for (int i = 0; i < slotPositions.Length; i++)
             {
-                if (!slotWeights[i] || !slotHandles[i].IsValid(stream))
+                if (!slotWeights[i] || !poseStream.IsValid(SlotHandle(i)))
                 {
                     continue;
                 }
@@ -443,7 +433,7 @@ namespace Basis.IK
 
 
 
-        void RecordFrameGizmos(BasisPoseStream stream)
+        void RecordFrameGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Frames;
             if (!gizmos.Wants(stage))
@@ -453,9 +443,9 @@ namespace Basis.IK
 
             float len = gizmos.AxisLength * 1.5f;
 
-            if (handleHips.IsValid(stream))
+            if (poseStream.IsValid(handleHips))
             {
-                handleHips.GetPositionAndRotation(stream, out Vector3 hipsPos, out Quaternion hipsRot);
+                poseStream.GetPositionAndRotation(handleHips, out Vector3 hipsPos, out Quaternion hipsRot);
                 gizmos.Direction(stage, hipsPos, playerUp.normalized, len * 2f, BasisIKGizmoPalette.Green);
                 gizmos.Label(stage, hipsPos + playerUp.normalized * len * 2f, "playerUp");
 
@@ -466,15 +456,15 @@ namespace Basis.IK
                 gizmos.Label(stage, hipsPos, "hips anat");
             }
 
-            if (handleChest.IsValid(stream))
+            if (poseStream.IsValid(handleChest))
             {
-                handleChest.GetPositionAndRotation(stream, out Vector3 chestPos, out Quaternion chestRot);
+                poseStream.GetPositionAndRotation(handleChest, out Vector3 chestPos, out Quaternion chestRot);
                 gizmos.Axes(stage, chestPos, chestRot, len);
                 gizmos.Label(stage, chestPos, "chest");
 
-                if (handleLeftUpperArm.IsValid(stream) && handleRightUpperArm.IsValid(stream))
+                if (poseStream.IsValid(handleLeftUpperArm) && poseStream.IsValid(handleRightUpperArm))
                 {
-                    Vector3 bodyRight = handleRightUpperArm.GetPosition(stream) - handleLeftUpperArm.GetPosition(stream);
+                    Vector3 bodyRight = poseStream.GetPosition(handleRightUpperArm) - poseStream.GetPosition(handleLeftUpperArm);
                     if (bodyRight.sqrMagnitude > k_SqrEpsilon)
                     {
                         gizmos.Direction(stage, chestPos, bodyRight.normalized, len, BasisIKGizmoPalette.Red);
@@ -483,10 +473,10 @@ namespace Basis.IK
                 }
             }
 
-            RecordSpineRestFrames(stream, stage, len * 0.6f);
+            RecordSpineRestFrames(stage, len * 0.6f);
         }
 
-        void RecordSpineRestFrames(BasisPoseStream stream, BasisIKGizmoStage stage, float len)
+        void RecordSpineRestFrames(BasisIKGizmoStage stage, float len)
         {
             if (!chainSpineRestFrames.IsCreated || !chainHeadToSpine.IsCreated)
             {
@@ -497,22 +487,22 @@ namespace Basis.IK
             for (int i = 1; i <= length - 2 && i < chainSpineRestFrames.Length; i++)
             {
                 BasisSpineRestFrame frame = chainSpineRestFrames[i];
-                if (!frame.Valid || !chainHeadToSpine[i].IsValid(stream) || !chainHeadToSpine[i + 1].IsValid(stream))
+                if (!frame.Valid || !poseStream.IsValid(chainHeadToSpine[i]) || !poseStream.IsValid(chainHeadToSpine[i + 1]))
                 {
                     continue;
                 }
 
                 // Rest frames are stored in the PARENT bone's local space, so they only mean
                 // anything once carried back out through the parent's live world rotation.
-                Quaternion parentRot = chainHeadToSpine[i + 1].GetRotation(stream);
-                Vector3 pos = chainHeadToSpine[i].GetPosition(stream);
+                Quaternion parentRot = poseStream.GetRotation(chainHeadToSpine[i + 1]);
+                Vector3 pos = poseStream.GetPosition(chainHeadToSpine[i]);
                 gizmos.Line(stage, pos, pos + parentRot * frame.Right * len, BasisIKGizmoPalette.Red);
                 gizmos.Line(stage, pos, pos + parentRot * frame.Up * len, BasisIKGizmoPalette.Green);
                 gizmos.Line(stage, pos, pos + parentRot * frame.Forward * len, BasisIKGizmoPalette.Blue);
             }
         }
 
-        void RecordLimitGizmos(BasisPoseStream stream)
+        void RecordLimitGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Limits;
             if (!gizmos.Wants(stage))
@@ -520,24 +510,24 @@ namespace Basis.IK
                 return;
             }
 
-            RecordSpineRomCones(stream, stage);
+            RecordSpineRomCones(stage);
 
             float radius = gizmos.AxisLength;
-            RecordJointAngle(stream, stage, handleLeftUpperArm, handleLeftLowerArm, handleLeftHand, radius, "L elbow");
-            RecordJointAngle(stream, stage, handleRightUpperArm, handleRightLowerArm, handleRightHand, radius, "R elbow");
-            RecordJointAngle(stream, stage, handleLeftUpperLeg, handleLeftLowerLeg, handleLeftFoot, radius, "L knee");
-            RecordJointAngle(stream, stage, handleRightUpperLeg, handleRightLowerLeg, handleRightFoot, radius, "R knee");
+            RecordJointAngle(stage, handleLeftUpperArm, handleLeftLowerArm, handleLeftHand, radius, "L elbow");
+            RecordJointAngle(stage, handleRightUpperArm, handleRightLowerArm, handleRightHand, radius, "R elbow");
+            RecordJointAngle(stage, handleLeftUpperLeg, handleLeftLowerLeg, handleLeftFoot, radius, "L knee");
+            RecordJointAngle(stage, handleRightUpperLeg, handleRightLowerLeg, handleRightFoot, radius, "R knee");
         }
 
-        void RecordJointAngle(BasisPoseStream stream, BasisIKGizmoStage stage, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, float radius, in FixedString64Bytes label)
+        void RecordJointAngle(BasisIKGizmoStage stage, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, float radius, in FixedString64Bytes label)
         {
-            if (!root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
+            if (!poseStream.IsValid(root) || !poseStream.IsValid(mid) || !poseStream.IsValid(tip))
             {
                 return;
             }
-            Vector3 midPos = mid.GetPosition(stream);
-            Vector3 toRoot = root.GetPosition(stream) - midPos;
-            Vector3 toTip = tip.GetPosition(stream) - midPos;
+            Vector3 midPos = poseStream.GetPosition(mid);
+            Vector3 toRoot = poseStream.GetPosition(root) - midPos;
+            Vector3 toTip = poseStream.GetPosition(tip) - midPos;
             if (toRoot.sqrMagnitude <= k_SqrEpsilon || toTip.sqrMagnitude <= k_SqrEpsilon)
             {
                 return;
@@ -546,38 +536,38 @@ namespace Basis.IK
             gizmos.Label(stage, midPos, label, BasisIKGizmoPalette.Yellow);
         }
 
-        void RecordSpineRomCones(BasisPoseStream stream, BasisIKGizmoStage stage)
+        void RecordSpineRomCones(BasisIKGizmoStage stage)
         {
-            if (!spineAnatomicalRom || !chainSpineRestFrames.IsCreated || !chainSpineRoms.IsCreated || !chainHeadToSpine.IsCreated)
+            if (!spineAnatomicalRom || !chainSpineRestFrames.IsCreated || !chainHeadToSpine.IsCreated)
             {
                 return;
             }
 
             int length = chainHeadToSpine.Length;
-            for (int i = 1; i <= length - 2 && i < chainSpineRestFrames.Length && i < chainSpineRoms.Length; i++)
+            for (int i = 1; i <= length - 2 && i < chainSpineRestFrames.Length; i++)
             {
                 BasisSpineRestFrame frame = chainSpineRestFrames[i];
-                if (!frame.Valid || !chainHeadToSpine[i].IsValid(stream) || !chainHeadToSpine[i + 1].IsValid(stream))
+                if (!frame.Valid || !poseStream.IsValid(chainHeadToSpine[i]) || !poseStream.IsValid(chainHeadToSpine[i + 1]))
                 {
                     continue;
                 }
 
-                Quaternion parentRot = chainHeadToSpine[i + 1].GetRotation(stream);
-                Quaternion boneRot = chainHeadToSpine[i].GetRotation(stream);
+                Quaternion parentRot = poseStream.GetRotation(chainHeadToSpine[i + 1]);
+                Quaternion boneRot = poseStream.GetRotation(chainHeadToSpine[i]);
                 Quaternion local = BasisSpineAnatomyCore.Conj(parentRot) * boneRot;
 
                 // Clamp is pure -- calling it here reports whether the live pose is against the
                 // limit without changing anything the solve already decided.
-                BasisSpineAnatomyCore.Clamp(local, frame, chainSpineRoms[i], out BasisSpineClampInfo info);
+                BasisSpineRom rom = BasisSpineAnatomy.Rom(frame.Segment);
+                BasisSpineAnatomyCore.Clamp(local, frame, rom, out BasisSpineClampInfo info);
 
-                BasisSpineRom rom = chainSpineRoms[i];
-                Vector3 pos = chainHeadToSpine[i].GetPosition(stream);
+                Vector3 pos = poseStream.GetPosition(chainHeadToSpine[i]);
                 Vector3 up = parentRot * frame.Up;
                 Vector3 right = parentRot * frame.Right;
                 Vector3 forward = parentRot * frame.Forward;
 
-                float coneLength = (chainHeadToSpine[i - 1].IsValid(stream)
-                    ? (chainHeadToSpine[i - 1].GetPosition(stream) - pos).magnitude
+                float coneLength = (poseStream.IsValid(chainHeadToSpine[i - 1])
+                    ? (poseStream.GetPosition(chainHeadToSpine[i - 1]) - pos).magnitude
                     : gizmos.AxisLength * 2f);
                 if (coneLength <= k_MinMag)
                 {
@@ -594,7 +584,7 @@ namespace Basis.IK
             }
         }
 
-        void RecordReachGizmos(BasisPoseStream stream)
+        void RecordReachGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Reach;
             if (!gizmos.Wants(stage))
@@ -602,32 +592,32 @@ namespace Basis.IK
                 return;
             }
 
-            RecordArmReach(stream, stage, handleLeftUpperArm, handleLeftHand, tposeShoulderToHandLeft, "L arm");
-            RecordArmReach(stream, stage, handleRightUpperArm, handleRightHand, tposeShoulderToHandRight, "R arm");
-            RecordLegReach(stream, stage, handleLeftUpperLeg, handleLeftLowerLeg, handleLeftFoot, "L leg");
-            RecordLegReach(stream, stage, handleRightUpperLeg, handleRightLowerLeg, handleRightFoot, "R leg");
+            RecordArmReach(stage, handleLeftUpperArm, handleLeftHand, tposeShoulderToHandLeft, "L arm");
+            RecordArmReach(stage, handleRightUpperArm, handleRightHand, tposeShoulderToHandRight, "R arm");
+            RecordLegReach(stage, handleLeftUpperLeg, handleLeftLowerLeg, handleLeftFoot, "L leg");
+            RecordLegReach(stage, handleRightUpperLeg, handleRightLowerLeg, handleRightFoot, "R leg");
         }
 
-        void RecordArmReach(BasisPoseStream stream, BasisIKGizmoStage stage, BasisBoneHandle root, BasisBoneHandle tip, float maxReach, in FixedString64Bytes label)
+        void RecordArmReach(BasisIKGizmoStage stage, BasisBoneHandle root, BasisBoneHandle tip, float maxReach, in FixedString64Bytes label)
         {
-            if (!(maxReach > k_MinMag) || !root.IsValid(stream) || !tip.IsValid(stream))
+            if (!(maxReach > k_MinMag) || !poseStream.IsValid(root) || !poseStream.IsValid(tip))
             {
                 return;
             }
-            Vector3 rootPos = root.GetPosition(stream);
-            float current = (tip.GetPosition(stream) - rootPos).magnitude;
+            Vector3 rootPos = poseStream.GetPosition(root);
+            float current = (poseStream.GetPosition(tip) - rootPos).magnitude;
             RecordReachRatio(stage, rootPos, maxReach, current / maxReach, label);
         }
 
-        void RecordLegReach(BasisPoseStream stream, BasisIKGizmoStage stage, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, in FixedString64Bytes label)
+        void RecordLegReach(BasisIKGizmoStage stage, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, in FixedString64Bytes label)
         {
-            if (!root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
+            if (!poseStream.IsValid(root) || !poseStream.IsValid(mid) || !poseStream.IsValid(tip))
             {
                 return;
             }
-            Vector3 rootPos = root.GetPosition(stream);
-            Vector3 midPos = mid.GetPosition(stream);
-            Vector3 tipPos = tip.GetPosition(stream);
+            Vector3 rootPos = poseStream.GetPosition(root);
+            Vector3 midPos = poseStream.GetPosition(mid);
+            Vector3 tipPos = poseStream.GetPosition(tip);
             float maxReach = (midPos - rootPos).magnitude + (tipPos - midPos).magnitude;
             if (!(maxReach > k_MinMag))
             {
@@ -656,7 +646,7 @@ namespace Basis.IK
             gizmos.Label(stage, rootPos, text, color);
         }
 
-        void RecordNumberGizmos(BasisPoseStream stream)
+        void RecordNumberGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Numbers;
             if (!gizmos.Wants(stage) || !gizmos.WantLabels)
@@ -664,45 +654,45 @@ namespace Basis.IK
                 return;
             }
 
-            RecordLegNumbers(stream, stage, 0, handleLeftLowerLeg);
-            RecordLegNumbers(stream, stage, 1, handleRightLowerLeg);
+            RecordLegNumbers(stage, 0, handleLeftLowerLeg);
+            RecordLegNumbers(stage, 1, handleRightLowerLeg);
 
-            RecordResidual(stream, stage, handleLeftHand, targetPositionLeftHand, enabledLeftHand, "L hand off");
-            RecordResidual(stream, stage, handleRightHand, targetPositionRightHand, enabledRightHand, "R hand off");
-            RecordResidual(stream, stage, handleLeftFoot, targetPositionLeftLowerLeg, enabledLeftLowerLeg, "L foot off");
-            RecordResidual(stream, stage, handleRightFoot, targetPositionRightLowerLeg, enabledRightLowerLeg, "R foot off");
+            RecordResidual(stage, handleLeftHand, targetPositionLeftHand, enabledLeftHand, "L hand off");
+            RecordResidual(stage, handleRightHand, targetPositionRightHand, enabledRightHand, "R hand off");
+            RecordResidual(stage, handleLeftFoot, targetPositionLeftLowerLeg, enabledLeftLowerLeg, "L foot off");
+            RecordResidual(stage, handleRightFoot, targetPositionRightLowerLeg, enabledRightLowerLeg, "R foot off");
 
-            if (chainHeadToSpine.IsCreated && chainHeadToSpine.Length > 0 && chainHeadToSpine[0].IsValid(stream))
+            if (chainHeadToSpine.IsCreated && chainHeadToSpine.Length > 0 && poseStream.IsValid(chainHeadToSpine[0]))
             {
-                Vector3 solvedHead = chainHeadToSpine[0].GetPosition(stream);
+                Vector3 solvedHead = poseStream.GetPosition(chainHeadToSpine[0]);
                 FixedString64Bytes text = "head off ";
                 text.Append((solvedHead - targetPositionHead).magnitude);
                 gizmos.Label(stage, solvedHead, text, k_GizmoResidual);
             }
         }
 
-        void RecordResidual(BasisPoseStream stream, BasisIKGizmoStage stage, BasisBoneHandle tip, Vector3 target, float enabled, in FixedString64Bytes label)
+        void RecordResidual(BasisIKGizmoStage stage, BasisBoneHandle tip, Vector3 target, float enabled, in FixedString64Bytes label)
         {
-            if (!(enabled > 0f) || !tip.IsValid(stream))
+            if (!(enabled > 0f) || !poseStream.IsValid(tip))
             {
                 return;
             }
-            Vector3 pos = tip.GetPosition(stream);
+            Vector3 pos = poseStream.GetPosition(tip);
             FixedString64Bytes text = label;
             text.Append(' ');
             text.Append((pos - target).magnitude);
             gizmos.Label(stage, pos, text, k_GizmoResidual);
         }
 
-        void RecordLegNumbers(BasisPoseStream stream, BasisIKGizmoStage stage, int slot, BasisBoneHandle knee)
+        void RecordLegNumbers(BasisIKGizmoStage stage, int slot, BasisBoneHandle knee)
         {
-            if (!legDiagnostics.IsCreated || slot >= legDiagnostics.Length || !knee.IsValid(stream))
+            if (!legDiagnostics.IsCreated || slot >= legDiagnostics.Length || !poseStream.IsValid(knee))
             {
                 return;
             }
 
             BasisLegDiagnostics d = legDiagnostics[slot];
-            Vector3 pos = knee.GetPosition(stream);
+            Vector3 pos = poseStream.GetPosition(knee);
             uint color = SideColor(slot == 0);
             float step = gizmos.AxisLength * 0.6f;
 
@@ -731,23 +721,23 @@ namespace Basis.IK
             gizmos.Label(stage, pos + Vector3.up * (step * 3f), trust, color);
         }
 
-        void RecordSkeletonGizmos(BasisPoseStream stream)
+        void RecordSkeletonGizmos()
         {
             const BasisIKGizmoStage stage = BasisIKGizmoStage.Skeleton;
-            if (!gizmos.Wants(stage) || !stream.Parent.IsCreated)
+            if (!gizmos.Wants(stage) || !poseStream.Parent.IsCreated)
             {
                 return;
             }
 
             uint color = gizmos.StageColor(stage);
-            for (int i = 0; i < stream.Count; i++)
+            for (int i = 0; i < poseStream.Count; i++)
             {
-                int parent = stream.Parent[i];
+                int parent = poseStream.Parent[i];
                 if (parent < 0)
                 {
                     continue;
                 }
-                gizmos.Line(stage, stream.GetWorldPosition(parent), stream.GetWorldPosition(i), color);
+                gizmos.Line(stage, poseStream.GetWorldPosition(parent), poseStream.GetWorldPosition(i), color);
             }
         }
     }

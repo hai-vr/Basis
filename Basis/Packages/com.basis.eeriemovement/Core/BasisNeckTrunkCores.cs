@@ -150,22 +150,12 @@ namespace Basis.IK
 
         public const float DefaultExtensionDamp = 0.65f;
 
-        public const float DefaultFlexionDamp = 0.65f;
-
         public static Vector3 Solve(Vector3 headTargetPos, Quaternion headWorldRot, Vector3 tposeHeadToNeckLocal,
             Vector3 playerUp, float extensionDamp)
         {
             return Solve(headTargetPos, headWorldRot, tposeHeadToNeckLocal, playerUp, extensionDamp, 0f);
         }
 
-        /// <summary>
-        /// Re-attaches the T-pose head-to-neck lever to the head target. Swinging the lever by the
-        /// HEAD's rotation assumes the nod pivoted at the neck bone; a real nod pivots at the base of
-        /// the skull and the neck bone barely moves, so the raw estimate walks the neck -- and, through
-        /// <c>hipsBase = neckPos - up * lenTotal</c>, the whole pelvis -- several centimetres on a steep
-        /// look. Both damps rotate the swung lever back about the gaze's horizontal axis; 0 is the old
-        /// undamped behaviour on that side, so an unset field cannot silently change anything.
-        /// </summary>
         public static Vector3 Solve(Vector3 headTargetPos, Quaternion headWorldRot, Vector3 tposeHeadToNeckLocal,
             Vector3 playerUp, float extensionDamp, float flexionDamp)
         {

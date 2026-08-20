@@ -6,18 +6,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.Debugging
 {
-    /// <summary>
-    /// Main-thread half of the IK solve gizmos. <see cref="Prepare"/> arms the recorder on the job
-    /// just before it is scheduled; <see cref="Drain"/> replays whatever the solve queued into
-    /// pooled BasisGizmoManager slots once the solve has been joined
-    /// (BasisLocalRigDriver.CompleteIKSolve, alongside the leg diagnostics read).
-    /// <para>
-    /// Nothing here knows what any individual draw means: the queue carries lines, spheres and
-    /// labels only, so a new visualization added inside the Burst solve needs no counterpart on
-    /// this side. Slots are pooled by index and reused frame to frame; the tail left over from a
-    /// busier frame is hidden rather than destroyed.
-    /// </para>
-    /// </summary>
     public static class BasisIKSolveGizmos
     {
         const float LineWidthBase = 0.003f;
@@ -44,16 +32,6 @@ namespace Basis.Scripts.Debugging
         public static int SphereCount => _spheresShown;
         public static int LabelCount => _labelsShown;
 
-        /// <summary>
-        /// Pushes this frame's stage mask, colours and sizes onto the job and clears last frame's
-        /// queue. Must run immediately before the solve is scheduled.
-        /// <para>
-        /// The queue is sized to the mask: full capacity while any stage is on, and a one-element
-        /// stub once they are all off. It is never left unallocated — the job safety system rejects
-        /// a scheduled job holding an unconstructed container, whatever the job does with it — so
-        /// "off" costs a stub allocation rather than nothing at all.
-        /// </para>
-        /// </summary>
         public static void Prepare(ref BasisEerieMovement job)
         {
             EnsureMasterToggleHook();
@@ -96,10 +74,6 @@ namespace Basis.Scripts.Debugging
             job.gizmos.WantLabels = BasisIKSolveGizmoStages.Labels.RawValue;
         }
 
-        /// <summary>
-        /// Replays the joined solve's queue. Safe to call when the solve never ran or recorded
-        /// nothing — it simply hides whatever the last active frame left on screen.
-        /// </summary>
         public static void Drain(ref BasisEerieMovement job, Vector3 cameraPosition)
         {
             EnsureMasterToggleHook();
@@ -273,7 +247,6 @@ namespace Basis.Scripts.Debugging
             shown = Mathf.Min(used, ids.Count);
         }
 
-        /// <summary>Clears whatever the last active frame drew, without tearing the pool down.</summary>
         public static void Hide()
         {
             HideTail(_lineIds, 0, ref _linesShown);

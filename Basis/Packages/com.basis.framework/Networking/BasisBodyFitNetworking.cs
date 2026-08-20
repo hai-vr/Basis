@@ -8,17 +8,6 @@ using static SerializableBasis;
 
 namespace Basis.IK
 {
-    /// <summary>
-    /// Networks the local player's body fit (per-segment arm/leg/torso scales; see BasisBodyFitCore) so
-    /// remotes render the wearer at their calibrated proportions instead of the avatar's authored ones.
-    ///
-    /// It rides AvatarChangeMessageChannel under a kind discriminator rather than a channel of its own —
-    /// all 64 LiteNetLib channels are assigned, and that channel already has the two properties this
-    /// needs: the server stores the record per player and replays it to late joiners. So this class only
-    /// has to do change detection on the way out and application on the way in; it deliberately does NOT
-    /// re-broadcast to newly seen players the way the older spine-proportion networking had to, because
-    /// the server is now the one answering joiners.
-    /// </summary>
     public static class BasisBodyFitNetworking
     {
         // A recalibration that moves a segment by less than this is not worth a packet. 0.1% of a ~0.3 m
@@ -44,10 +33,6 @@ namespace Basis.IK
             BasisNetworkPlayer.OnRemotePlayerLeft += HandleRemotePlayerLeft;
         }
 
-        /// <summary>
-        /// Rebuilds a fit result from three wire scales. Anything that is not a real deformation reports
-        /// as unfitted, so a remote with an identity fit takes the same path as one that never sent.
-        /// </summary>
         public static BasisBodyFitResult ToFitResult(float arm, float leg, float torso)
         {
             arm = ClientAvatarChangeMessage.SanitizeFitScale(arm);
@@ -66,11 +51,6 @@ namespace Basis.IK
             };
         }
 
-        /// <summary>
-        /// Called from BasisLocalRigDriver.RefreshBodyFit with the fit that was just applied locally.
-        /// Sends only when a scale actually moved — recalibration is rare, but RefreshBodyFit also runs
-        /// on every rig build and settings change, and those are usually no-ops.
-        /// </summary>
         public static void UpdateLocalFit(in BasisBodyFitResult fit)
         {
             float arm = fit.HasArmFit ? fit.ArmScale : 1f;
@@ -105,11 +85,6 @@ namespace Basis.IK
             _hasSent = true;
         }
 
-        /// <summary>
-        /// Handles an inbound body-fit-only update. Applying touches Transform.localPosition, which is
-        /// main-thread only; server-relayed messages dispatch on the polled main thread but this marshals
-        /// defensively for any off-thread path.
-        /// </summary>
         public static void Receive(ushort senderId, ClientBodyFitMessage message)
         {
             BasisBodyFitResult fit = ToFitResult(message.ArmScale, message.LegScale, message.TorsoScale);

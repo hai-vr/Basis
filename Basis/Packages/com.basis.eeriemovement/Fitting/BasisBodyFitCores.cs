@@ -457,7 +457,6 @@ namespace Basis.IK
         public BasisScaleFitSample Eye;
         public BasisScaleFitSample ArmSpan;
         public BasisScaleFitSample HipHeight;
-        public BasisScaleFitSample LegSpan;
 
         public float MaxEyeDeviation;
     }
@@ -483,7 +482,6 @@ namespace Basis.IK
         public float EyeResidual;
         public float ArmResidual;
         public float HipResidual;
-        public float LegResidual;
 
         public bool IsValid => Status != BasisScaleFitStatus.NoData && Scale > 0f;
 
@@ -495,7 +493,6 @@ namespace Basis.IK
             EyeResidual = 1f,
             ArmResidual = 1f,
             HipResidual = 1f,
-            LegResidual = 1f,
         };
     }
 
@@ -513,7 +510,6 @@ namespace Basis.IK
         public const float ArmSpanWeight = 0.7f;
 
         public const float HipWeight = 0.4f;
-        public const float LegWeight = 0.4f;
 
         public static BasisScaleFitResult Solve(in BasisScaleFitInput input)
         {
@@ -522,9 +518,8 @@ namespace Basis.IK
             bool hasEye = TryRatio(input.Eye, out float eyeRatio);
             bool hasArm = TryRatio(input.ArmSpan, out float armRatio);
             bool hasHip = TryRatio(input.HipHeight, out float hipRatio);
-            bool hasLeg = TryRatio(input.LegSpan, out float legRatio);
 
-            int used = (hasEye ? 1 : 0) + (hasArm ? 1 : 0) + (hasHip ? 1 : 0) + (hasLeg ? 1 : 0);
+            int used = (hasEye ? 1 : 0) + (hasArm ? 1 : 0) + (hasHip ? 1 : 0);
             if (used == 0)
             {
                 return result;
@@ -535,7 +530,6 @@ namespace Basis.IK
             float hi = float.PositiveInfinity;
             AccumulateBand(hasArm, input.ArmSpan, ref lo, ref hi);
             AccumulateBand(hasHip, input.HipHeight, ref lo, ref hi);
-            AccumulateBand(hasLeg, input.LegSpan, ref lo, ref hi);
             bool feasible = lo <= hi;
 
             float logScale;
@@ -550,7 +544,7 @@ namespace Basis.IK
                 }
                 else
                 {
-                    logScale = WeightedLogMean(in input, hasEye, eyeRatio, hasArm, armRatio, hasHip, hipRatio, hasLeg, legRatio);
+                    logScale = WeightedLogMean(in input, hasEye, eyeRatio, hasArm, armRatio, hasHip, hipRatio);
                     result.Status = BasisScaleFitStatus.Compromised;
                 }
 
@@ -570,7 +564,7 @@ namespace Basis.IK
             }
             else
             {
-                logScale = WeightedLogMean(in input, hasEye, eyeRatio, hasArm, armRatio, hasHip, hipRatio, hasLeg, legRatio);
+                logScale = WeightedLogMean(in input, hasEye, eyeRatio, hasArm, armRatio, hasHip, hipRatio);
                 result.Status = feasible ? BasisScaleFitStatus.Adjusted : BasisScaleFitStatus.Compromised;
             }
 
@@ -584,7 +578,6 @@ namespace Basis.IK
             result.EyeResidual = hasEye ? eyeRatio / scale : 1f;
             result.ArmResidual = hasArm ? armRatio / scale : 1f;
             result.HipResidual = hasHip ? hipRatio / scale : 1f;
-            result.LegResidual = hasLeg ? legRatio / scale : 1f;
             return result;
         }
 
@@ -610,15 +603,13 @@ namespace Basis.IK
             in BasisScaleFitInput input,
             bool hasEye, float eyeRatio,
             bool hasArm, float armRatio,
-            bool hasHip, float hipRatio,
-            bool hasLeg, float legRatio)
+            bool hasHip, float hipRatio)
         {
             float sum = 0f;
             float weights = 0f;
             Accumulate(hasEye, eyeRatio, input.Eye.Weight, ref sum, ref weights);
             Accumulate(hasArm, armRatio, input.ArmSpan.Weight, ref sum, ref weights);
             Accumulate(hasHip, hipRatio, input.HipHeight.Weight, ref sum, ref weights);
-            Accumulate(hasLeg, legRatio, input.LegSpan.Weight, ref sum, ref weights);
             return weights > 0f ? sum / weights : 0f;
         }
 

@@ -3,96 +3,43 @@ using Unity.Mathematics;
 
 namespace Basis.IK
 {
-    /// <summary>
-    /// Tuning for <see cref="BasisNodPivotEstimatorCore"/>. Every field is a gate: with the defaults
-    /// the estimator stays silent until the head has actually swept enough of an arc to see the pivot.
-    /// </summary>
     public struct BasisNodPivotSettings
     {
-        /// <summary>
-        /// Tikhonov weight, as a fraction of the window's own excitation (trace(M)/3). A nod excites the
-        /// arm's Y and Z but never its X, so the normal matrix is rank deficient by construction; pulling
-        /// the unobserved directions back toward the prior is what keeps the solve well posed instead of
-        /// needing rank detection.
-        /// </summary>
         public float PriorWeight;
 
-        /// <summary>Minimum spread of gaze pitch across the window, degrees. Below this the arc is too short to fit.</summary>
         public float MinPitchRangeDeg;
 
-        /// <summary>Minimum fraction of the window's positional variance the fitted arc has to explain (an R-squared).</summary>
         public float MinFitQuality;
 
-        /// <summary>
-        /// Largest RMS wander of the recovered pivot across the window, metres, before <see cref="Scale"/>.
-        /// A ratio test cannot catch a squat taken mid-window: the squat inflates the total variance as
-        /// much as the residual, so R-squared stays near 1 while the arm absorbs the drop. Measuring the
-        /// pivot's own wander is the same test in the space where the nod has already been divided out,
-        /// and it needs an absolute bound rather than a ratio.
-        /// </summary>
         public float MaxPivotSpreadMeters;
 
-        /// <summary>
-        /// Largest vertical excursion the window may contain, metres, before <see cref="Scale"/>. A squat
-        /// taken in step with a look-down is genuinely ambiguous -- dropping the body and lengthening the
-        /// arm predict the same HMD path -- so the pivot-spread test cannot separate them and the fit
-        /// quietly grows the arm instead. Nodding alone cannot move the HMD vertically by more than about
-        /// twice the arm, so bounding the excursion is what tells the two apart.
-        /// </summary>
         public float MaxVerticalRangeMeters;
 
-        /// <summary>
-        /// Half-extent of the plausible arm box, metres, before <see cref="Scale"/>. X is the lateral slack.
-        /// Anatomy, not slack: this is the last line of defence when a correlated body movement biases the
-        /// fit, so it is sized to the population and not to what the solver might return.
-        /// </summary>
         public float3 MaxArm;
 
-        /// <summary>Avatar scale. The arm is a body dimension, so the box scales with the body.</summary>
         public float Scale;
     }
 
     public struct BasisNodPivotResult
     {
-        /// <summary>Eye-from-pivot, head-local. The prior, unchanged, when <see cref="Accepted"/> is false.</summary>
         public float3 Arm;
 
         public bool Accepted;
 
-        /// <summary>Fraction of the window's positional variance explained by the fitted arc.</summary>
         public float FitQuality;
 
         public float PitchRangeDeg;
 
-        /// <summary>RMS wander of the recovered pivot across the window, metres.</summary>
         public float PivotSpreadMeters;
 
-        /// <summary>Peak-to-peak vertical excursion of the HMD across the window, metres.</summary>
         public float VerticalRangeMeters;
     }
 
-    /// <summary>
-    /// Recovers the point the user's head actually pivots about when they nod.
-    /// <para>
-    /// The virtual spine reconstructs the head bone as <c>eye + eyeRot * (tposeHead - tposeEye)</c>, so it
-    /// treats the AVATAR's authored eye-to-head offset as the nod pivot. A real nod pivots at the base of
-    /// the skull, which for most people sits further below and further behind the HMD than any avatar
-    /// authors it. The leftover arc, <c>(R - I) * (avatarArm - realArm)</c>, translates the whole
-    /// reconstructed body -- pelvis included -- every time the gaze pitches, which is what reads as "the
-    /// hips are not under me when I look up".
-    /// </para>
-    /// <para>
-    /// The pivot is observable from the HMD alone: over a window where the user is not walking,
-    /// <c>p_i = c + R_i * a</c> for a fixed pivot <c>c</c> and arm <c>a</c>. Differencing against the
-    /// window mean removes <c>c</c> and leaves a linear least squares in <c>a</c>.
-    /// </para>
-    /// </summary>
     [BurstCompile]
     public static class BasisNodPivotEstimatorCore
     {
         private const float k_DetEpsilon = 1e-12f;
 
-        /// <summary>Below this the window carries no positional variance to explain and R-squared is meaningless.</summary>
         private const float k_MinVariance = 1e-8f;
 
         public static BasisNodPivotSettings Defaults()
@@ -110,11 +57,6 @@ namespace Basis.IK
             return s;
         }
 
-        /// <summary>
-        /// Fits the eye-from-pivot arm over <paramref name="count"/> samples. Returns the prior untouched
-        /// unless the window is both well excited and well explained, so a caller can use the result
-        /// unconditionally.
-        /// </summary>
         public static void Solve(
             float3[] positions,
             quaternion[] rotations,
@@ -235,7 +177,6 @@ namespace Basis.IK
             return new float3x3(m.c0 * s, m.c1 * s, m.c2 * s);
         }
 
-        /// <summary>Cofactor inverse of a symmetric 3x3. Returns false when it is too near singular to trust.</summary>
         private static bool TrySolveSymmetric3(in float3x3 M, in float3 b, out float3 x)
         {
             x = default;

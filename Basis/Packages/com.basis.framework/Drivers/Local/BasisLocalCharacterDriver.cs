@@ -39,29 +39,15 @@ namespace Basis.Scripts.BasisCharacterController
         public bool HasJumpAction = false;
         public float jumpHeight = 1.0f; // Jump height set to 1 meter
         public float currentVerticalSpeed = 0f; // Vertical speed of the character
-        /// <summary>
-        /// Temporary hips offset applied on landing to simulate impact absorption.
-        /// Eases toward <see cref="landingCrouchTarget"/> then recovers to zero.
-        /// </summary>
         [System.NonSerialized] public float landingCrouchEffect;
         [System.NonSerialized] public float landingCrouchTarget;
         [SerializeField] public float landingDescentSpeed = 15f;
         [SerializeField] public float landingRecoverySpeed = 6f;
         [SerializeField] public float landingImpactScale = 0.06f;
         [SerializeField] public float maxLandingCrouchEffect = 0.35f;
-        /// <summary>
-        /// Duration in seconds after leaving the ground during which the player can still jump.
-        /// Helps with unreliable grounded detection on slopes and near ledges.
-        /// </summary>
         [SerializeField] public float coyoteTimeDuration = 0.15f;
         [System.NonSerialized] public float coyoteTimeCounter;
-        /// <summary>
-        /// Whether the player is allowed to jump — true when grounded or within the coyote time window.
-        /// </summary>
         public bool CanJump => groundedPlayer || coyoteTimeCounter > 0f;
-        /// <summary>
-        /// Grace period before the falling state triggers, preventing animation flicker on slopes.
-        /// </summary>
         [SerializeField] public float fallingGracePeriod = 0.1f;
         [System.NonSerialized] public float airborneTimer;
 
@@ -135,46 +121,15 @@ namespace Basis.Scripts.BasisCharacterController
         private Vector3 _appliedCenter = new Vector3(float.NaN, float.NaN, float.NaN);
         private float _appliedStepOffset = float.NaN;
         public Vector2 MovementVector { get; private set; }
-        /// <summary>
-        /// A value between 0 and 1 representing the relative speed of player movement.
-        /// </summary>
         [field: SerializeField] public float MovementSpeedScale { get; private set; }
         [field: SerializeField] public float MovementSpeedBoost { get; private set; }
-        /// <summary>
-        /// A value between 0 and 1 representing the character's crouch state, where 0 is fully crouched and 1 is fully standing.
-        /// </summary>
         public float CrouchBlend = 1f;
-        /// <summary>
-        /// Value updated by <see cref="SetCrouchBlendDelta"/> which triggers <see cref="UpdateCrouchBlend"/> implicitly each simulation frame.
-        /// This is generally used by event based input systems where a start and stop event are called, but per-frame updates are not.
-        /// </summary>
         public float CrouchBlendDelta = 0f;
-        /// <summary>
-        /// <see cref="CrouchBlend"/> as the horizontal speed model reads it. Republished from the live blend
-        /// every grounded frame by <see cref="SyncStanceSpeedSource"/> and then frozen for the whole airborne
-        /// window, so a stance change made in mid-air cannot alter horizontal speed.
-        /// </summary>
         [System.NonSerialized] public float StanceSpeedBlend = 1f;
-        /// <summary>
-        /// <see cref="IsProne"/> as the horizontal speed model reads it. Latched alongside <see cref="StanceSpeedBlend"/>.
-        /// </summary>
         [System.NonSerialized] public bool StanceSpeedProne;
-        /// <summary>
-        /// Viewpoint drop, in metres of player-root space, that the stance was applying at the moment the feet
-        /// last left the ground. <see cref="ConsumeStanceLift"/> measures against this.
-        /// </summary>
         [System.NonSerialized] public float TakeoffStanceDrop;
-        /// <summary>
-        /// Root lift, in metres, currently applied to hold the viewpoint on its ballistic arc while the legs tuck.
-        /// </summary>
         [System.NonSerialized] public float AirborneStanceLift;
-        /// <summary>
-        /// Indicates whether the character is considered crouching based on the CrouchBlend value being less than the defined threshold.
-        /// </summary>
         public bool IsCrouching => CrouchBlend <= LocalAnimatorDriver.CrouchThreshold;
-        /// <summary>
-        /// When true the locomotion animator plays the prone set and movement drops to crawl speed. Toggled by <see cref="ProneToggle"/>; crouching input clears it.
-        /// </summary>
         public bool IsProne = false;
         public bool IsRunning => CurrentSpeed > DefaultMovementSpeed;
         public bool UseMaxSpeed => BasisLocalInputActions.IsRunHeld;
@@ -232,11 +187,6 @@ namespace Basis.Scripts.BasisCharacterController
             ApplyLocomotionOverrides(true);
         }
 
-        /// <summary>
-        /// Snapshots the authored values the override stack layers over. Refuses to run while an
-        /// override is live, because the live fields are that override's output — capturing them would
-        /// bake it into the baseline and it would never release.
-        /// </summary>
         public void CaptureLocomotionBaselines()
         {
             if (BasisLocomotionOverrides.Count != 0)
@@ -253,11 +203,6 @@ namespace Basis.Scripts.BasisCharacterController
             _appliedOverrideVersion = -1;
         }
 
-        /// <summary>
-        /// Folds the resolved <see cref="BasisLocomotionOverrides"/> stack onto the live driver values,
-        /// falling back to the authored baseline for every field no override claims. Skipped entirely
-        /// when the stack has not changed since the last apply.
-        /// </summary>
         public void ApplyLocomotionOverrides(bool force = false)
         {
             int version = BasisLocomotionOverrides.Version;
@@ -493,16 +438,6 @@ namespace Basis.Scripts.BasisCharacterController
             SyncStanceSpeedSource();
         }
 
-        /// <summary>
-        /// Republishes the live stance into the horizontal speed model while the feet are on the ground, and
-        /// holds the last grounded value for as long as they are not.
-        ///
-        /// Horizontal motion is rebuilt from input every frame with no velocity state behind it, so a stance
-        /// change lands on the very next frame's displacement. On the ground that is the intended crouch
-        /// slowdown. In the air it is not — nothing the legs do mid-jump changes horizontal velocity — yet
-        /// crouching there dropped a running player from <see cref="MaximumMovementSpeed"/> to just above the
-        /// walk floor in a single frame. Fly and noclip have no ground to leave, so they always track live.
-        /// </summary>
         public void SyncStanceSpeedSource()
         {
             if (CurrentModeKind == Mode.Walk && !groundedPlayer)
@@ -518,13 +453,6 @@ namespace Basis.Scripts.BasisCharacterController
             UpdateMovementSpeed(UseMaxSpeed);
         }
 
-        /// <summary>
-        /// Metres the crouch blend currently lowers the viewpoint by, in player-root space — the same term the
-        /// desktop and headless eye providers subtract from the head before placing the eye. Zero in VR, where
-        /// the headset reports a real head and no synthetic drop is applied, and zero before the head bone
-        /// exists. Deliberately reads <see cref="CrouchBlend"/> only: prone is a whole-body pose change, not a
-        /// leg tuck, so it is left out of the airborne compensation.
-        /// </summary>
         public float GetCrouchHeightDrop()
         {
             if (BasisDeviceManagement.IsCurrentModeVR())
@@ -539,10 +467,6 @@ namespace Basis.Scripts.BasisCharacterController
             return CrouchHeightDrop(head.TposeLocalScaled.position.y, MinimumCrouchPercent, CrouchBlend);
         }
 
-        /// <summary>
-        /// Pure form of <see cref="GetCrouchHeightDrop"/>: metres a crouch blend lowers a viewpoint sitting
-        /// <paramref name="headHeight"/> above the root. Zero for a head height that is not a usable number.
-        /// </summary>
         public static float CrouchHeightDrop(float headHeight, float minimumCrouchPercent, float crouchBlend)
         {
             if (float.IsNaN(headHeight) || float.IsInfinity(headHeight) || headHeight <= 0f)
@@ -552,28 +476,11 @@ namespace Basis.Scripts.BasisCharacterController
             return headHeight * (1f - math.clamp(minimumCrouchPercent, 0f, 1f)) * (1f - math.clamp(crouchBlend, 0f, 1f));
         }
 
-        /// <summary>
-        /// Root lift owed this frame so that a stance change made in mid-air moves the FEET rather than the head,
-        /// returned as a delta to fold into the frame's vertical movement.
-        ///
-        /// The viewpoint is placed relative to the player root and the root is what the jump arc acts on, so
-        /// lowering the stance in the air dragged the camera down off that arc. Lifting the root by exactly the
-        /// amount the viewpoint drops holds the head still and raises the capsule's bottom instead. The capsule
-        /// shrinks by the same amount, so its top does not move and the swept volume never exceeds the standing
-        /// one. Measured against the stance held at takeoff, so extending the legs again pushes the feet back
-        /// down rather than dropping the head.
-        /// </summary>
         public float ConsumeStanceLift()
         {
             return ResolveStanceLift(groundedPlayer, GetCrouchHeightDrop(), ref TakeoffStanceDrop, ref AirborneStanceLift);
         }
 
-        /// <summary>
-        /// Pure form of <see cref="ConsumeStanceLift"/>. While grounded the feet are pinned and the head is
-        /// free to move, which is the ordinary crouch, so the lift is discarded and the takeoff reference
-        /// re-armed against the stance the next jump will leave in. While airborne the lift tracks the change
-        /// in viewpoint drop since takeoff, and only the frame-to-frame difference is returned to be moved.
-        /// </summary>
         public static float ResolveStanceLift(bool grounded, float currentDrop, ref float takeoffDrop, ref float appliedLift)
         {
             if (grounded)
@@ -604,10 +511,6 @@ namespace Basis.Scripts.BasisCharacterController
             UpdateMovementSpeed(UseMaxSpeed);
         }
 
-        /// <summary>
-        /// 0..1 multiplier applied to the head/eye height for the current stance:
-        /// 1 standing, down to <see cref="MinimumCrouchPercent"/> via CrouchBlend, or <see cref="MinimumPronePercent"/> while prone.
-        /// </summary>
         public float GetStanceHeightPercent()
         {
             if (IsProne) return MinimumPronePercent;
@@ -649,13 +552,6 @@ namespace Basis.Scripts.BasisCharacterController
         {
             MovementVector = movement;
         }
-        /// <summary>
-        /// Horizontal facing that movement input is expressed in: the viewpoint (CenterEye) — the HMD in VR,
-        /// the mouse-look camera on desktop. Deliberately NOT the head bone. The head bone is an avatar-side
-        /// output that normally just copies the eye rotation, so the two agree until something overrides it —
-        /// camera tracking writing a Head-role tracker, or a real head tracker — and then the player walks off
-        /// at the angle their physical head is turned instead of where the camera points.
-        /// </summary>
         public static Quaternion GetMovementFacing()
         {
             // Project view forward onto horizontal plane (avoids gimbal lock near ±90° pitch)
@@ -727,26 +623,16 @@ namespace Basis.Scripts.BasisCharacterController
         private float _authoredSkinWidth = -1f;
         private float _authoredStepOffset = -1f;
 
-        /// <summary>Guarded avatar size ratio; 1 when the height driver has nothing sane to report.</summary>
         public static float AvatarSizeRatio()
         {
             float s = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
             return (float.IsNaN(s) || float.IsInfinity(s) || s <= 0f) ? 1f : s;
         }
 
-        /// <summary>Fall-speed cap at default avatar size, in m/s. Was implicitly abs(gravityValue).</summary>
         private const float TerminalVelocityAtDefaultSize = 9.81f;
 
-        /// <summary>Fall-speed cap for this avatar. Speeds scale as sqrt(g*L).</summary>
         public static float TerminalVelocity() => TerminalVelocityAtDefaultSize * Mathf.Sqrt(AvatarSizeRatio());
 
-        /// <summary>
-        /// Locomotion speed multiplier. Gait is modelled on the Froude number v/sqrt(g*L) and every step
-        /// parameter is derived from the avatar's own leg, but movement speed was a fixed m/s — so a small
-        /// avatar's v-hat inflated by 1/sqrt(scale), pinning speedScale and urgencyT at maximum and roughly
-        /// doubling step cadence at half size. Scaling speed by sqrt(ratio) holds v-hat constant, so cadence,
-        /// bob, sway and double-support all match at every size (0.5x size keeps 71% of speed, not 50%).
-        /// </summary>
         public static float LocomotionSpeedScale() => Mathf.Sqrt(AvatarSizeRatio());
 
         public void Validate()

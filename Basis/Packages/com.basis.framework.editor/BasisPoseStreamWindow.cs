@@ -114,7 +114,7 @@ public class BasisPoseStreamWindow : EditorWindow
         }
         _calibInfo = calib.ToString();
 
-        Transform[] nodes = skeleton.DebugNodes;
+        Transform[] nodes = skeleton.Nodes;
         var stream = skeleton.Stream;
         for (int i = 0; i < nodes.Length; i++)
         {
@@ -127,10 +127,10 @@ public class BasisPoseStreamWindow : EditorWindow
                 Index = i,
                 Parent = stream.Parent[i],
                 Name = t.name,
-                Writable = skeleton.IsWritable(i),
-                BindLength = skeleton.BindLengthOf(i),
+                Writable = Array.IndexOf(skeleton.WriteIndices, i) >= 0,
+                BindLength = stream.BindLength[i],
                 CurrentLength = ((Vector3)stream.LocalPosition[i]).magnitude,
-                TranslationFree = skeleton.TranslationFreeOf(i),
+                TranslationFree = stream.TranslationFree[i] != 0,
                 LocalPosition = stream.LocalPosition[i],
                 LocalRotation = stream.LocalRotation[i],
                 StreamWorldPosition = worldPosition,

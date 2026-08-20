@@ -3,22 +3,8 @@ using UnityEngine;
 
 namespace Basis.IK.Motion
 {
-    /// <summary>
-    /// Frequency-domain metrics for the IK motion-quality harness.
-    ///
-    /// There IS an FFT in the repo already (com.basis.openlipsync FFTProcessor) but it is `internal`
-    /// to an assembly the IK tests do not reference, so reaching it would mean an InternalsVisibleTo
-    /// plus a new asmdef edge to a lipsync package. Not worth the coupling for 60 lines of radix-2.
-    ///
-    /// Why the spectrum earns its place, when jerk and SPARC already exist: they are SCALARS, and a
-    /// scalar cannot tell you WHERE the badness is. The spectrum can. A peak parked at Nyquist means
-    /// a two-frame limit cycle (a feedback loop oscillating against itself); a peak at the step
-    /// frequency means the stepper; broadband hash means the input. Same "the elbow is jittery"
-    /// complaint, three completely different bugs, and the dominant frequency tells them apart.
-    /// </summary>
     public static class BasisMotionSpectrum
     {
-        /// <summary>In-place iterative radix-2 Cooley-Tukey. Length MUST be a power of two.</summary>
         public static void Fft(float[] re, float[] im)
         {
             int n = re.Length;
@@ -66,12 +52,6 @@ namespace Basis.IK.Motion
             return p;
         }
 
-        /// <summary>One-sided power spectrum of a real signal, Hann-windowed and mean-removed.
-        ///
-        /// The window is not optional. Without it a non-periodic signal (every joint path -- it does
-        /// not start and end in the same place) produces a step discontinuity at the DFT wrap-around,
-        /// and the leakage from that step lands in EVERY bin, including the high ones we are about to
-        /// call "jitter". First attempt at this measured the leakage and called it a defect.</summary>
         public static float[] Power(float[] x, float dt, out float[] freqHz)
         {
             int n = x.Length;
@@ -103,9 +83,6 @@ namespace Basis.IK.Motion
             return p;
         }
 
-        /// <summary>Fraction of the signal's power sitting above cutoffHz. Run it on VELOCITY, not
-        /// position: a position path's power is overwhelmingly DC and low-frequency, which drowns the
-        /// ratio and makes a badly-buzzing joint look clean.</summary>
         public static float HighBandRatio(float[] x, float dt, float cutoffHz)
         {
             if (x == null || x.Length < 16) return float.NaN;
@@ -119,8 +96,6 @@ namespace Basis.IK.Motion
             return tot <= 0 ? float.NaN : (float)(hi / tot);
         }
 
-        /// <summary>Frequency of the biggest peak above cutoffHz. Diagnostic, never a gate -- it tells
-        /// you WHICH bug you have, not whether you have one.</summary>
         public static float DominantAbove(float[] x, float dt, float cutoffHz)
         {
             if (x == null || x.Length < 16) return float.NaN;
@@ -131,34 +106,8 @@ namespace Basis.IK.Motion
             return at;
         }
 
-        /// <summary>
-        /// Octave-ish bands spanning the voluntary-motion band. Everything above ~6 Hz is stripped by
-        /// BasisMotionSignal.LowPass before this ever runs (that content is the JITTER metric's job), so
-        /// there is nothing to compare up there.
-        /// </summary>
         static readonly float[] k_BandEdgesHz = { 0.2f, 0.5f, 1f, 2f, 4f, 6f };
 
-        /// <summary>
-        /// Total-variation distance between two signals' spectra, compared BAND BY BAND and each
-        /// normalised to unit total energy first -- so this measures SHAPE (where the energy lives),
-        /// not amplitude. 0 = identical distribution across frequency; 1 = no overlap at all.
-        ///
-        /// This is the metric that catches the failures every SMOOTHNESS metric rewards. Over-smoothed,
-        /// plateaued and linearised ("robotic") motion all score BETTER than a real human on jerk and
-        /// SPARC, because they genuinely are smoother -- that is the whole problem with them. But they
-        /// put their energy in the wrong bands, and this sees that immediately.
-        ///
-        /// ⚠ IT COMPARES BANDS, NOT FFT BINS, AND THAT IS LOAD-BEARING. The first version summed the
-        /// TV distance over raw bins and it was unusable as a cross-trajectory gate: a short clip has
-        /// only ~60 bins in the band of interest, real motion concentrates its power into a handful of
-        /// them, and TV distance between two spiky spectra is then dominated by bin-level noise rather
-        /// than by any real difference in where the energy sits. It scored a solved elbow sitting 2 cm
-        /// from the truth at 0.69 -- worse than a crude lookup guess, which is impossible. The
-        /// HintSources_Compared test exists precisely to catch that, and it did.
-        ///
-        /// Bands are what the metric was always FOR: the failure it names is "the energy is in the
-        /// wrong frequency bands".
-        /// </summary>
         public static float ShapeDistance(float[] a, float[] b, float dt)
         {
             if (a == null || b == null || a.Length < 16 || b.Length < 16) return float.NaN;
@@ -199,15 +148,6 @@ namespace Basis.IK.Motion
             return -1;
         }
 
-        /// <summary>
-        /// Spectral arc length (Balasubramanian et al. 2015, J NeuroEng Rehabil 12:112) of a speed
-        /// profile. Dimensionless, and invariant to BOTH movement amplitude and duration -- which is
-        /// what lets it be compared across avatar scales and across clips of different length, and is
-        /// why it beats a raw jerk integral as a portable smoothness number.
-        ///
-        /// Calibration standard: a minimum-jerk reach scores -1.40 (we measure -1.397). More negative
-        /// = less smooth. Guarded by BasisMotionAnalyzerTests -- if that number moves, this is broken.
-        /// </summary>
         public static float Sparc(float[] speed, float dt, float fcHz = 10f, float ampThreshold = 0.05f)
         {
             if (speed == null || speed.Length < 8) return float.NaN;

@@ -11,18 +11,18 @@ namespace Basis.IK
         static readonly Unity.Profiling.ProfilerMarker sMarkerSpineSequential = new Unity.Profiling.ProfilerMarker("BasisEerie.Spine.SequentialIK");
         static readonly Unity.Profiling.ProfilerMarker sMarkerSpineLordosis = new Unity.Profiling.ProfilerMarker("BasisEerie.Spine.Lordosis");
 
-        void SolveSpinePass(BasisPoseStream stream)
+        void SolveSpinePass()
         {
-            SolveSpine(stream);
+            SolveSpine();
             if (anatCervicalLordosis)
             {
                 sMarkerSpineLordosis.Begin();
-                ApplyCervicalLordosis(stream);
+                ApplyCervicalLordosis();
                 sMarkerSpineLordosis.End();
             }
         }
 
-        public void SolveSpine(BasisPoseStream stream)
+        public void SolveSpine()
         {
             if (!enabledSpineIK)
             {
@@ -30,7 +30,7 @@ namespace Basis.IK
             }
             sMarkerSpineHips.Begin();
 
-            Quaternion chestDesired = targetRotationChest * targetOffsetChest;
+            Quaternion chestDesired = targetRotationChest * offsetRotationChest;
 
             // Prone: the locomotion animation owns the pelvis. Every placement stage below models an
             // upright body under the head (lock-mode restore, hips-under-head clamp, counterbalance,
@@ -39,7 +39,7 @@ namespace Basis.IK
             // head to the gaze.
             if (proneBodyPose)
             {
-                ApplyProneBodyYaw(stream);
+                ApplyProneBodyYaw();
             }
             else
             {
@@ -94,7 +94,7 @@ namespace Basis.IK
                         trunkCounterbalanceMaxSpineFrac * minHeadSpineHeight, out hipsTargetPos, out float flexionFrac, out _);
                     crouchFade = 1f - flexionFrac;
                 }
-                hipsTargetPos = ApplyCrouchBodyOffset(stream, headTargetPos, hipsTargetPos, hipDesired, up, crouchFade);
+                hipsTargetPos = ApplyCrouchBodyOffset(headTargetPos, hipsTargetPos, hipDesired, up, crouchFade);
                 targetPositionHips = hipsTargetPos;
                 if (!hasHipsTracker)
                 {
@@ -102,67 +102,67 @@ namespace Basis.IK
                         out hipDesired, out _, out _);
                 }
 
-                if (handleHips.IsValid(stream))
+                if (poseStream.IsValid(handleHips))
                 {
-                    handleHips.SetPosition(stream, hipsTargetPos);
-                    handleHips.SetRotation(stream, hipDesired);
+                    poseStream.SetPosition(handleHips, hipsTargetPos);
+                    poseStream.SetRotation(handleHips, hipDesired);
                 }
             }
             sMarkerSpineHips.End();
-            if (hasChestTracker && handleChest.IsValid(stream))
+            if (hasChestTracker && poseStream.IsValid(handleChest))
             {
                 sMarkerSpineChainPrep.Begin();
 
                 float Value = maxChestDeltaDeg;
 
                 Quaternion clampedChestRot = chestDesired;
-                if (handleNeck.IsValid(stream))
+                if (poseStream.IsValid(handleNeck))
                 {
-                    clampedChestRot = ClampRotation(clampedChestRot, handleNeck.GetRotation(stream), Value);
+                    clampedChestRot = ClampRotation(clampedChestRot, poseStream.GetRotation(handleNeck), Value);
                 }
-                if (handleSpine.IsValid(stream))
+                if (poseStream.IsValid(handleSpine))
                 {
-                    clampedChestRot = ClampRotation(clampedChestRot, handleSpine.GetRotation(stream), Value);
+                    clampedChestRot = ClampRotation(clampedChestRot, poseStream.GetRotation(handleSpine), Value);
                 }
 
-                handleChest.SetRotation(stream, clampedChestRot);
+                poseStream.SetRotation(handleChest, clampedChestRot);
 
                 Vector3 headPos = targetPositionHead;
                 Quaternion headRot = targetRotationHead;
 
-                DistributeSpineBend(stream, headPos);
-                BiasSpineTowardChest(stream);
-                GuardSpineChain(stream);
+                DistributeSpineBend(headPos);
+                BiasSpineTowardChest();
+                GuardSpineChain();
                 sMarkerSpineChainPrep.End();
                 sMarkerSpineSequential.Begin();
-                SolveSequentialSpineIK(stream, headPos, headRot);
+                SolveSequentialSpineIK(headPos, headRot);
                 sMarkerSpineSequential.End();
             }
-            else if (handleHead.IsValid(stream))
+            else if (poseStream.IsValid(handleHead))
             {
                 Vector3 headPos = targetPositionHead;
                 Quaternion headRot = targetRotationHead;
 
                 sMarkerSpineChainPrep.Begin();
-                DistributeSpineBend(stream, headPos);
-                ApplyArmSwingChestFollow(stream);
-                GuardSpineChain(stream);
+                DistributeSpineBend(headPos);
+                ApplyArmSwingChestFollow();
+                GuardSpineChain();
                 sMarkerSpineChainPrep.End();
                 sMarkerSpineSequential.Begin();
-                SolveSequentialSpineIK(stream, headPos, headRot);
+                SolveSequentialSpineIK(headPos, headRot);
                 sMarkerSpineSequential.End();
             }
         }
-        void ApplyProneBodyYaw(BasisPoseStream stream)
+        void ApplyProneBodyYaw()
         {
-            if (!handleHips.IsValid(stream) || !handleHead.IsValid(stream))
+            if (!poseStream.IsValid(handleHips) || !poseStream.IsValid(handleHead))
             {
                 return;
             }
 
             Vector3 up = playerUp;
-            Vector3 hipsPos = handleHips.GetPosition(stream);
-            Vector3 headPos = handleHead.GetPosition(stream);
+            Vector3 hipsPos = poseStream.GetPosition(handleHips);
+            Vector3 headPos = poseStream.GetPosition(handleHead);
 
             Vector3 bodyFwd = headPos - hipsPos;
             bodyFwd -= up * Vector3.Dot(bodyFwd, up);
@@ -177,11 +177,11 @@ namespace Basis.IK
             Quaternion swing = Quaternion.AngleAxis(deltaYaw, up);
             Vector3 toTarget = targetPositionHead - headPos;
             toTarget -= up * Vector3.Dot(toTarget, up);
-            handleHips.SetPosition(stream, headPos + swing * (hipsPos - headPos) + toTarget);
-            handleHips.SetRotation(stream, swing * handleHips.GetRotation(stream));
+            poseStream.SetPosition(handleHips, headPos + swing * (hipsPos - headPos) + toTarget);
+            poseStream.SetRotation(handleHips, swing * poseStream.GetRotation(handleHips));
         }
 
-        public void SolveSequentialSpineIK(BasisPoseStream stream, Vector3 headTargetPos, Quaternion headTargetRot)
+        public void SolveSequentialSpineIK(Vector3 headTargetPos, Quaternion headTargetRot)
         {
             if (!chainHeadToSpine.IsCreated || chainHeadToSpine.Length < 3)
                 return;
@@ -193,7 +193,7 @@ namespace Basis.IK
 
             for (int i = 0; i < chainLen; i++)
             {
-                if (!chainHeadToSpine[i].IsValid(stream))
+                if (!poseStream.IsValid(chainHeadToSpine[i]))
                     return;
             }
 
@@ -201,11 +201,11 @@ namespace Basis.IK
             float tolerance = Mathf.Max(0f, spineTolerance);
             float tolSqr = tolerance * tolerance;
             {
-                Vector3 rootPos = chainHeadToSpine[chainLen - 1].GetPosition(stream);
+                Vector3 rootPos = poseStream.GetPosition(chainHeadToSpine[chainLen - 1]);
                 float chainReach = 0f;
                 for (int i = 0; i < chainLen - 1; i++)
                 {
-                    chainReach += (chainHeadToSpine[i].GetPosition(stream) - chainHeadToSpine[i + 1].GetPosition(stream)).magnitude;
+                    chainReach += (poseStream.GetPosition(chainHeadToSpine[i]) - poseStream.GetPosition(chainHeadToSpine[i + 1])).magnitude;
                 }
                 Vector3 rootToTarget = headTargetPos - rootPos;
                 float targetDist = rootToTarget.magnitude;
@@ -229,7 +229,7 @@ namespace Basis.IK
                 }
             }
 
-            Quaternion hipsTwistRot = handleHips.IsValid(stream) ? handleHips.GetRotation(stream) : Quaternion.identity;
+            Quaternion hipsTwistRot = poseStream.IsValid(handleHips) ? poseStream.GetRotation(handleHips) : Quaternion.identity;
             float hipsBindMagSq = offsetRotationHips.x * offsetRotationHips.x + offsetRotationHips.y * offsetRotationHips.y
                 + offsetRotationHips.z * offsetRotationHips.z + offsetRotationHips.w * offsetRotationHips.w;
             if (hipsBindMagSq > k_SqrEpsilon)
@@ -240,31 +240,31 @@ namespace Basis.IK
             if (ccdUp.sqrMagnitude < k_SqrEpsilon) ccdUp = playerUp;
             float jointSpan = Mathf.Max(1, lastJoint - firstJoint);
             int chestIdx = chainChestIdx != 0 ? chainChestIdx : (chainLen >= 5 ? chainLen - 3 : -1);
-            Quaternion finalHeadRot = headTargetRot * targetOffsetHead;
+            Quaternion finalHeadRot = headTargetRot * offsetRotationHead;
 
             for (int iter = 0; iter < maxIters; iter++)
             {
-                Vector3 tipPos = chainHeadToSpine[tipIdx].GetPosition(stream);
+                Vector3 tipPos = poseStream.GetPosition(chainHeadToSpine[tipIdx]);
                 if ((headTargetPos - tipPos).sqrMagnitude < tolSqr)
                     break;
 
                 for (int i = lastJoint; i >= firstJoint; i--)
                 {
-                    ReachHeadJoint(stream, i, headTargetPos, firstJoint, chestIdx, jointSpan, ccdUp);
+                    ReachHeadJoint(i, headTargetPos, firstJoint, chestIdx, jointSpan, ccdUp);
                 }
             }
 
-            SolveChestTarget(stream, headTargetPos, firstJoint, lastJoint, chestIdx, jointSpan, ccdUp, tolSqr);
+            SolveChestTarget(headTargetPos, firstJoint, lastJoint, chestIdx, jointSpan, ccdUp, tolSqr);
 
-            chainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
+            poseStream.SetRotation(chainHeadToSpine[tipIdx], finalHeadRot);
         }
 
-        void ReachHeadJoint(BasisPoseStream stream, int i, Vector3 headTargetPos, int firstJoint, int chestIdx,
+        void ReachHeadJoint(int i, Vector3 headTargetPos, int firstJoint, int chestIdx,
             float jointSpan, Vector3 ccdUp)
         {
             const int tipIdx = 0;
-            Vector3 jointPos = chainHeadToSpine[i].GetPosition(stream);
-            Vector3 curTipPos = chainHeadToSpine[tipIdx].GetPosition(stream);
+            Vector3 jointPos = poseStream.GetPosition(chainHeadToSpine[i]);
+            Vector3 curTipPos = poseStream.GetPosition(chainHeadToSpine[tipIdx]);
 
             Vector3 cur = curTipPos - jointPos;
             Vector3 tgt = headTargetPos - jointPos;
@@ -277,20 +277,20 @@ namespace Basis.IK
             float jointSwingScale = 1f - thoracicBendStiffen * (1f - Mathf.Abs(2f * t - 1f));
             delta = BasisTwistSolveCore.ShapeReachStep(delta, ccdUp, jointTwistKeep, jointSwingScale);
             delta = Quaternion.Slerp(Quaternion.identity, delta, spineCCDRelax);
-            chainHeadToSpine[i].SetRotation(stream, delta * chainHeadToSpine[i].GetRotation(stream));
+            poseStream.SetRotation(chainHeadToSpine[i], delta * poseStream.GetRotation(chainHeadToSpine[i]));
 
             if (i == firstJoint)
             {
-                ClampNeckCone(stream, i, neckMaxConeDeg);
+                ClampNeckCone(i, neckMaxConeDeg);
             }
             else if (i == chestIdx)
             {
-                ClampChestCone(stream, i, maxChestDeltaDeg);
+                ClampChestCone(i, maxChestDeltaDeg);
             }
 
-            GuardSpineJoint(stream, i);
+            GuardSpineJoint(i);
         }
-        void SolveChestTarget(BasisPoseStream stream, Vector3 headTargetPos, int firstJoint, int lastJoint,
+        void SolveChestTarget(Vector3 headTargetPos, int firstJoint, int lastJoint,
             int chestBoneIdx, float jointSpan, Vector3 ccdUp, float tolSqr)
         {
             if (!chestIkTarget)
@@ -300,7 +300,7 @@ namespace Basis.IK
                 return;
 
             Vector3 chestTargetPos = targetPositionChestRaw;
-            Vector3 chestBonePos = chainHeadToSpine[chestBoneIdx].GetPosition(stream);
+            Vector3 chestBonePos = poseStream.GetPosition(chainHeadToSpine[chestBoneIdx]);
 
             if ((chestTargetPos - chestBonePos).sqrMagnitude > (chestPullMaxDist * chestPullMaxDist))
                 return;
@@ -311,11 +311,11 @@ namespace Basis.IK
 
             for (int citer = 0; citer < chestIkIterations; citer++)
             {
-                Vector3 spinePos = chainHeadToSpine[lastJoint].GetPosition(stream);
-                Vector3 chestNow = chainHeadToSpine[chestBoneIdx].GetPosition(stream);
+                Vector3 spinePos = poseStream.GetPosition(chainHeadToSpine[lastJoint]);
+                Vector3 chestNow = poseStream.GetPosition(chainHeadToSpine[chestBoneIdx]);
 
                 if ((chestTargetPos - chestNow).sqrMagnitude < tolSqr
-                    && (headTargetPos - chainHeadToSpine[0].GetPosition(stream)).sqrMagnitude < tolSqr)
+                    && (headTargetPos - poseStream.GetPosition(chainHeadToSpine[0])).sqrMagnitude < tolSqr)
                 {
                     break;
                 }
@@ -328,31 +328,27 @@ namespace Basis.IK
                     cDelta = BasisTwistSolveCore.ShapeReachStep(cDelta, ccdUp, chestTwistKeep, spineSwingScale);
 
                     cDelta = Quaternion.Slerp(Quaternion.identity, cDelta, spineCCDRelax * chestIkWeight);
-                    chainHeadToSpine[lastJoint].SetRotation(stream, cDelta * chainHeadToSpine[lastJoint].GetRotation(stream));
-                    GuardSpineJoint(stream, lastJoint);
+                    poseStream.SetRotation(chainHeadToSpine[lastJoint], cDelta * poseStream.GetRotation(chainHeadToSpine[lastJoint]));
+                    GuardSpineJoint(lastJoint);
                 }
 
                 for (int sweep = 0; sweep < chestIkHeadRestoreSweeps; sweep++)
                 {
                     for (int i = lastJoint - 1; i >= firstJoint; i--)
                     {
-                        ReachHeadJoint(stream, i, headTargetPos, firstJoint, chestBoneIdx, jointSpan, ccdUp);
+                        ReachHeadJoint(i, headTargetPos, firstJoint, chestBoneIdx, jointSpan, ccdUp);
                     }
                 }
             }
         }
 
-        void GuardSpineJoint(BasisPoseStream stream, int i)
+        void GuardSpineJoint(int i)
         {
             if (!spineAnatomicalRom)
             {
                 return;
             }
             if (!chainSpineRestFrames.IsCreated || i < 0 || i >= chainSpineRestFrames.Length)
-            {
-                return;
-            }
-            if (!chainSpineRoms.IsCreated || i >= chainSpineRoms.Length)
             {
                 return;
             }
@@ -364,25 +360,25 @@ namespace Basis.IK
             }
 
             int parent = i + 1;
-            if (parent >= chainHeadToSpine.Length || !chainHeadToSpine[parent].IsValid(stream) || !chainHeadToSpine[i].IsValid(stream))
+            if (parent >= chainHeadToSpine.Length || !poseStream.IsValid(chainHeadToSpine[parent]) || !poseStream.IsValid(chainHeadToSpine[i]))
             {
                 return;
             }
 
-            Quaternion parentRot = chainHeadToSpine[parent].GetRotation(stream);
-            Quaternion boneRot = chainHeadToSpine[i].GetRotation(stream);
+            Quaternion parentRot = poseStream.GetRotation(chainHeadToSpine[parent]);
+            Quaternion boneRot = poseStream.GetRotation(chainHeadToSpine[i]);
             Quaternion local = BasisSpineAnatomyCore.Conj(parentRot) * boneRot;
 
-            Quaternion clamped = BasisSpineAnatomyCore.Clamp(local, frame, chainSpineRoms[i], out BasisSpineClampInfo info);
+            Quaternion clamped = BasisSpineAnatomyCore.Clamp(local, frame, BasisSpineAnatomy.Rom(frame.Segment), out BasisSpineClampInfo info);
             if (!info.Touched)
             {
                 return;
             }
 
-            chainHeadToSpine[i].SetRotation(stream, parentRot * clamped);
+            poseStream.SetRotation(chainHeadToSpine[i], parentRot * clamped);
         }
 
-        void GuardSpineChain(BasisPoseStream stream)
+        void GuardSpineChain()
         {
             if (!chainHeadToSpine.IsCreated || chainHeadToSpine.Length < 3)
             {
@@ -390,15 +386,15 @@ namespace Basis.IK
             }
             for (int i = 1; i <= chainHeadToSpine.Length - 2; i++)
             {
-                GuardSpineJoint(stream, i);
+                GuardSpineJoint(i);
             }
         }
 
-        void ClampNeckCone(BasisPoseStream stream, int neckIdx, float maxConeDeg)
+        void ClampNeckCone(int neckIdx, float maxConeDeg)
         {
-            Vector3 chestPos = chainHeadToSpine[neckIdx + 1].GetPosition(stream);
-            Vector3 neckPos = chainHeadToSpine[neckIdx].GetPosition(stream);
-            Vector3 headPos = chainHeadToSpine[0].GetPosition(stream);
+            Vector3 chestPos = poseStream.GetPosition(chainHeadToSpine[neckIdx + 1]);
+            Vector3 neckPos = poseStream.GetPosition(chainHeadToSpine[neckIdx]);
+            Vector3 headPos = poseStream.GetPosition(chainHeadToSpine[0]);
 
             Vector3 parentDir = neckPos - chestPos;
             Vector3 boneDir = headPos - neckPos;
@@ -421,13 +417,13 @@ namespace Basis.IK
 
             axis.Normalize();
             Quaternion correction = Quaternion.AngleAxis(ang - maxConeDeg, axis);
-            chainHeadToSpine[neckIdx].SetRotation(stream, correction * chainHeadToSpine[neckIdx].GetRotation(stream));
+            poseStream.SetRotation(chainHeadToSpine[neckIdx], correction * poseStream.GetRotation(chainHeadToSpine[neckIdx]));
         }
-        void ClampChestCone(BasisPoseStream stream, int chestIdx, float maxConeDeg)
+        void ClampChestCone(int chestIdx, float maxConeDeg)
         {
-            Vector3 spinePos = chainHeadToSpine[chestIdx + 1].GetPosition(stream);
-            Vector3 chestPos = chainHeadToSpine[chestIdx].GetPosition(stream);
-            Vector3 childPos = chainHeadToSpine[chestIdx - 1].GetPosition(stream);
+            Vector3 spinePos = poseStream.GetPosition(chainHeadToSpine[chestIdx + 1]);
+            Vector3 chestPos = poseStream.GetPosition(chainHeadToSpine[chestIdx]);
+            Vector3 childPos = poseStream.GetPosition(chainHeadToSpine[chestIdx - 1]);
 
             Vector3 parentDir = chestPos - spinePos;
             Vector3 boneDir = childPos - chestPos;
@@ -444,16 +440,16 @@ namespace Basis.IK
 
             axis.Normalize();
             Quaternion correction = Quaternion.AngleAxis(ang - maxConeDeg, axis);
-            chainHeadToSpine[chestIdx].SetRotation(stream, correction * chainHeadToSpine[chestIdx].GetRotation(stream));
+            poseStream.SetRotation(chainHeadToSpine[chestIdx], correction * poseStream.GetRotation(chainHeadToSpine[chestIdx]));
         }
-        void BiasSpineTowardChest(BasisPoseStream stream)
+        void BiasSpineTowardChest()
         {
-            if (!handleSpine.IsValid(stream) || !handleChest.IsValid(stream))
+            if (!poseStream.IsValid(handleSpine) || !poseStream.IsValid(handleChest))
                 return;
 
             Vector3 chestTargetPos = targetPositionChest;
-            Vector3 spinePos = handleSpine.GetPosition(stream);
-            Vector3 chestPos = handleChest.GetPosition(stream);
+            Vector3 spinePos = poseStream.GetPosition(handleSpine);
+            Vector3 chestPos = poseStream.GetPosition(handleChest);
 
             if ((chestTargetPos - chestPos).sqrMagnitude > (chestPullMaxDist * chestPullMaxDist))
                 return;
@@ -464,30 +460,30 @@ namespace Basis.IK
                 return;
 
             Quaternion pull = ClampRotation(BasisQuaternionExt.FromToRotation(cur, tgt), Quaternion.identity, chestPosPullMaxDeg);
-            handleSpine.SetRotation(stream, pull * handleSpine.GetRotation(stream));
+            poseStream.SetRotation(handleSpine, pull * poseStream.GetRotation(handleSpine));
         }
 
         Vector3 ComputeNeckCue(Vector3 headTargetPos)
         {
-            return BasisNeckCueCore.Solve(headTargetPos, targetRotationHead * targetOffsetHead,
+            return BasisNeckCueCore.Solve(headTargetPos, targetRotationHead * offsetRotationHead,
                 tposeHeadToNeckLocal, playerUp, neckExtensionDamp, neckFlexionDamp);
         }
 
-        public void DistributeSpineBend(BasisPoseStream stream, Vector3 headTargetPos)
+        public void DistributeSpineBend(Vector3 headTargetPos)
         {
-            if (!handleHips.IsValid(stream) || !handleChest.IsValid(stream))
+            if (!poseStream.IsValid(handleHips) || !poseStream.IsValid(handleChest))
             {
                 return;
             }
 
-            bool hasSpine = handleSpine.IsValid(stream);
-            bool hasUpper = handleUpperChest.IsValid(stream);
+            bool hasSpine = poseStream.IsValid(handleSpine);
+            bool hasUpper = poseStream.IsValid(handleUpperChest);
             if (!hasSpine && !hasUpper)
             {
                 return;
             }
 
-            Quaternion hipsRot = handleHips.GetRotation(stream);
+            Quaternion hipsRot = poseStream.GetRotation(handleHips);
 
             Vector3 neckCue = ComputeNeckCue(headTargetPos);
 
@@ -497,9 +493,9 @@ namespace Basis.IK
 
             BasisSpineBendInput input;
             input.HipsRot = hipsRot;
-            input.HipsPos = handleHips.GetPosition(stream);
-            input.ChestPos = handleChest.GetPosition(stream);
-            input.SmoothedHead = ApplyChestSpring(stream, spineCue);
+            input.HipsPos = poseStream.GetPosition(handleHips);
+            input.ChestPos = poseStream.GetPosition(handleChest);
+            input.SmoothedHead = ApplyChestSpring(spineCue);
             input.HipsBind = hipsBind;
             input.HeadTargetRot = targetRotationHead;
             input.SpineMaxForwardDeg = spineMaxForwardDeg;
@@ -538,59 +534,53 @@ namespace Basis.IK
             if (r.WriteSpine)
             {
                 Quaternion deltaWorld = hipsAnat * BasisSpineBendCore.Compose(r.SpineEuler) * invHipsAnat;
-                handleSpine.SetRotation(stream, deltaWorld * handleSpine.GetRotation(stream));
+                poseStream.SetRotation(handleSpine, deltaWorld * poseStream.GetRotation(handleSpine));
             }
             if (r.WriteUpper)
             {
                 Quaternion deltaWorld = hipsAnat * BasisSpineBendCore.Compose(r.UpperEuler) * invHipsAnat;
-                handleUpperChest.SetRotation(stream, deltaWorld * handleUpperChest.GetRotation(stream));
+                poseStream.SetRotation(handleUpperChest, deltaWorld * poseStream.GetRotation(handleUpperChest));
             }
         }
 
-        Vector3 ApplyChestSpring(BasisPoseStream stream, Vector3 headTargetPos)
+        Vector3 ApplyChestSpring(Vector3 headTargetPos)
         {
-            if (!chestSpringState.IsCreated || !chestSpringInit.IsCreated)
+            if (!chestSpring.IsCreated || chestSpring.Length < 1)
             {
                 return headTargetPos;
             }
 
+            ref BasisChestSpringState spring = ref Ref(chestSpring, 0);
             float hz = chestSpringHz;
-            if (hz <= 0f)
+            if (hz <= 0f || !spring.Seeded)
             {
-                chestSpringState[0] = headTargetPos;
-                chestSpringState[1] = Vector3.zero;
-                chestSpringInit[0] = 1;
-                return headTargetPos;
-            }
-            if (chestSpringInit[0] == 0)
-            {
-                chestSpringState[0] = headTargetPos;
-                chestSpringState[1] = Vector3.zero;
-                chestSpringInit[0] = 1;
+                spring.Pos = headTargetPos;
+                spring.Vel = Vector3.zero;
+                spring.Seeded = true;
                 return headTargetPos;
             }
 
-            float dt = stream.deltaTime;
+            float dt = poseStream.deltaTime;
             if (dt <= 0f)
-                return chestSpringState[0];
+                return spring.Pos;
 
-            BasisChestSpringCore.Step(chestSpringState[0], chestSpringState[1], headTargetPos, dt, hz,
+            BasisChestSpringCore.Step(spring.Pos, spring.Vel, headTargetPos, dt, hz,
                 chestSpringDamping, out Vector3 newPos, out Vector3 newVel);
 
             if (!IsFinite(newPos) || !IsFinite(newVel))
             {
-                chestSpringState[0] = headTargetPos;
-                chestSpringState[1] = Vector3.zero;
+                spring.Pos = headTargetPos;
+                spring.Vel = Vector3.zero;
                 return headTargetPos;
             }
 
-            chestSpringState[0] = newPos;
-            chestSpringState[1] = newVel;
+            spring.Pos = newPos;
+            spring.Vel = newVel;
             return newPos;
         }
         static bool IsFinite(Vector3 v) => !float.IsNaN(v.x) && !float.IsInfinity(v.x) && !float.IsNaN(v.y) && !float.IsInfinity(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.z);
 
-        Vector3 ApplyCrouchBodyOffset(BasisPoseStream stream, Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir, float fade)
+        Vector3 ApplyCrouchBodyOffset(Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir, float fade)
         {
             if (hasChestTracker || hasHipsTracker)
             {
@@ -611,20 +601,20 @@ namespace Basis.IK
             BasisCrouchOffsetCore.Solve(input, out BasisCrouchOffsetResult result);
             return result.HipsPos;
         }
-        public void ApplyCervicalLordosis(BasisPoseStream stream)
+        public void ApplyCervicalLordosis()
         {
-            if (!handleNeck.IsValid(stream))
+            if (!poseStream.IsValid(handleNeck))
             {
                 return;
             }
 
             Vector3 referenceUp;
-            if (handleChest.IsValid(stream))
+            if (poseStream.IsValid(handleChest))
             {
-                Vector3 chestToNeck = handleNeck.GetPosition(stream) - handleChest.GetPosition(stream);
+                Vector3 chestToNeck = poseStream.GetPosition(handleNeck) - poseStream.GetPosition(handleChest);
                 referenceUp = chestToNeck.sqrMagnitude > k_SqrEpsilon
                     ? chestToNeck.normalized
-                    : handleChest.GetRotation(stream) * Vector3.up;
+                    : poseStream.GetRotation(handleChest) * Vector3.up;
             }
             else
             {
@@ -651,21 +641,21 @@ namespace Basis.IK
             input.PitchGainDeg = Mathf.Max(0f, lordosisPitchGainDeg);
             input.ReferenceUp = referenceUp;
             input.HeadTargetRot = targetRotationHead;
-            input.HasUpperChest = handleUpperChest.IsValid(stream);
+            input.HasUpperChest = poseStream.IsValid(handleUpperChest);
 
             BasisCervicalSolveCore.Solve(input, out BasisCervicalResult result);
             if (result.EarlyOut)
             {
-                if (handleHead.IsValid(stream))
+                if (poseStream.IsValid(handleHead))
                 {
-                    handleHead.SetPosition(stream, targetPositionHead);
-                    handleHead.SetRotation(stream, result.HeadRotClamped * targetOffsetHead);
+                    poseStream.SetPosition(handleHead, targetPositionHead);
+                    poseStream.SetRotation(handleHead, result.HeadRotClamped * offsetRotationHead);
                 }
                 return;
             }
 
-            Vector3 shoulderRight = (handleLeftUpperArm.IsValid(stream) && handleRightUpperArm.IsValid(stream))
-                ? handleRightUpperArm.GetPosition(stream) - handleLeftUpperArm.GetPosition(stream)
+            Vector3 shoulderRight = (poseStream.IsValid(handleLeftUpperArm) && poseStream.IsValid(handleRightUpperArm))
+                ? poseStream.GetPosition(handleRightUpperArm) - poseStream.GetPosition(handleLeftUpperArm)
                 : Vector3.zero;
             bool hasShoulderRight = shoulderRight.sqrMagnitude > k_SqrEpsilon;
             if (hasShoulderRight)
@@ -674,46 +664,46 @@ namespace Basis.IK
             }
 
             BasisBoneHandle bendHandle = input.HasUpperChest ? handleUpperChest : handleChest;
-            if (bendHandle.IsValid(stream) && result.BhDeg != 0f)
+            if (poseStream.IsValid(bendHandle) && result.BhDeg != 0f)
             {
-                Quaternion bhRot = bendHandle.GetRotation(stream);
+                Quaternion bhRot = poseStream.GetRotation(bendHandle);
                 Vector3 bhAxis = hasShoulderRight ? shoulderRight : bhRot * Vector3.right;
-                bendHandle.SetRotation(stream, Quaternion.AngleAxis(result.BhDeg, bhAxis) * bhRot);
+                poseStream.SetRotation(bendHandle, Quaternion.AngleAxis(result.BhDeg, bhAxis) * bhRot);
             }
 
             if (result.HasExtreme)
             {
-                Quaternion refRot = handleHips.IsValid(stream)
-                    ? handleHips.GetRotation(stream) * Quaternion.Inverse(offsetRotationHips)
-                    : (handleChest.IsValid(stream) ? handleChest.GetRotation(stream) : Quaternion.identity);
+                Quaternion refRot = poseStream.IsValid(handleHips)
+                    ? poseStream.GetRotation(handleHips) * Quaternion.Inverse(offsetRotationHips)
+                    : (poseStream.IsValid(handleChest) ? poseStream.GetRotation(handleChest) : Quaternion.identity);
                 Vector3 refForward = refRot * Vector3.forward;
                 Vector3 refDown = -(refRot * Vector3.up);
 
-                if (handleHips.IsValid(stream))
+                if (poseStream.IsValid(handleHips))
                 {
                     Vector3 hipsOffset = refForward * result.HipsForwardAmount + refDown * result.HipsDownAmount;
-                    handleHips.SetPosition(stream, handleHips.GetPosition(stream) + hipsOffset);
+                    poseStream.SetPosition(handleHips, poseStream.GetPosition(handleHips) + hipsOffset);
                 }
 
-                if (handleChest.IsValid(stream))
+                if (poseStream.IsValid(handleChest))
                 {
                     Vector3 chestOffset = refForward * result.ChestForwardAmount + refDown * result.ChestDownAmount;
-                    handleChest.SetPosition(stream, handleChest.GetPosition(stream) + chestOffset);
+                    poseStream.SetPosition(handleChest, poseStream.GetPosition(handleChest) + chestOffset);
                 }
             }
             float extraNeckDeg = Mathf.Clamp01(neckGazeFollow) * neckGazeFollowMaxDeg * result.LookDownFrac;
             float totalNeckDeg = result.NeckDeg + extraNeckDeg;
             if (totalNeckDeg != 0f)
             {
-                Quaternion neckRotCurrent = handleNeck.GetRotation(stream);
+                Quaternion neckRotCurrent = poseStream.GetRotation(handleNeck);
                 Vector3 neckAxis = hasShoulderRight ? shoulderRight : neckRotCurrent * Vector3.right;
-                handleNeck.SetRotation(stream, Quaternion.AngleAxis(totalNeckDeg, neckAxis) * neckRotCurrent);
+                poseStream.SetRotation(handleNeck, Quaternion.AngleAxis(totalNeckDeg, neckAxis) * neckRotCurrent);
             }
 
-            if (handleHead.IsValid(stream))
+            if (poseStream.IsValid(handleHead))
             {
-                handleHead.SetPosition(stream, targetPositionHead);
-                handleHead.SetRotation(stream, result.HeadRotClamped * targetOffsetHead);
+                poseStream.SetPosition(handleHead, targetPositionHead);
+                poseStream.SetRotation(handleHead, result.HeadRotClamped * offsetRotationHead);
             }
         }
         public static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor, Vector3 playerUp)

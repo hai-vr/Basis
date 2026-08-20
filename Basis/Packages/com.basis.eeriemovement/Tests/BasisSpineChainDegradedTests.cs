@@ -102,7 +102,7 @@ namespace Basis.Tests.IK
                 chestIkIterations = 8,
                 chestIkHeadRestoreSweeps = 2,
                 chestPullMaxDist = 0.5f,
-                targetOffsetHead = Quaternion.identity,
+                offsetRotationHead = Quaternion.identity,
                 offsetRotationHips = Quaternion.identity,
                 playerUp = Vector3.up,
                 chestIkTarget = false,
@@ -132,7 +132,7 @@ namespace Basis.Tests.IK
             job.hasHipsTracker = true;
             job.minHeadSpineHeight = 0.62f;
             job.tposeLengthNeckToHips = new Vector3(0f, 0.5f, 0f);
-            job.targetOffsetChest = Quaternion.identity;
+            job.offsetRotationChest = Quaternion.identity;
             job.targetRotationHips = Quaternion.identity;
             job.targetRotationChest = Quaternion.identity;
             job.targetPositionHips = bones[0].position;
@@ -142,10 +142,11 @@ namespace Basis.Tests.IK
             job.targetPositionHead = headTarget;
             job.targetRotationHead = gaze;
 
-            job.SolveSpine(_skeleton.Stream);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSpine();
 
-            float rotErr = Quaternion.Angle(_chain[0].GetRotation(_skeleton.Stream), gaze);
-            float posErr = (_chain[0].GetPosition(_skeleton.Stream) - headTarget).magnitude;
+            float rotErr = Quaternion.Angle(_skeleton.Stream.GetRotation(_chain[0]), gaze);
+            float posErr = (_skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
             TestContext.WriteLine($"head rot err {rotErr:F4} deg, pos err {posErr * 1000f:F2} mm");
             Assert.Less(rotErr, 0.1f, "a neckless avatar's head must still be pinned to the HMD gaze");
             Assert.Less(posErr, 0.01f, "a neckless avatar's head must still reach its target");
@@ -170,7 +171,7 @@ namespace Basis.Tests.IK
             job.hasHipsTracker = true;
             job.minHeadSpineHeight = 0.62f;
             job.tposeLengthNeckToHips = new Vector3(0f, 0.5f, 0f);
-            job.targetOffsetChest = Quaternion.identity;
+            job.offsetRotationChest = Quaternion.identity;
             job.targetRotationHips = Quaternion.identity;
             job.targetRotationChest = Quaternion.identity;
             job.targetPositionHips = bones[0].position;
@@ -180,10 +181,11 @@ namespace Basis.Tests.IK
             job.targetPositionHead = headTarget;
             job.targetRotationHead = gaze;
 
-            job.SolveSpine(_skeleton.Stream);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSpine();
 
-            float rotErr = Quaternion.Angle(_chain[0].GetRotation(_skeleton.Stream), gaze);
-            float posErr = (_chain[0].GetPosition(_skeleton.Stream) - headTarget).magnitude;
+            float rotErr = Quaternion.Angle(_skeleton.Stream.GetRotation(_chain[0]), gaze);
+            float posErr = (_skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
             TestContext.WriteLine($"head rot err {rotErr:F4} deg, pos err {posErr * 1000f:F2} mm");
             Assert.Less(rotErr, 0.1f, "a hips/spine/head-only avatar's head must still be pinned to the HMD gaze");
             Assert.Less(posErr, 0.01f, "a hips/spine/head-only avatar's head must still reach its target");
@@ -210,13 +212,15 @@ namespace Basis.Tests.IK
 
             job.chestIkTarget = false;
             _skeleton.GatherNow();
-            job.SolveSequentialSpineIK(_skeleton.Stream, headTarget, Quaternion.identity);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSequentialSpineIK(headTarget, Quaternion.identity);
             Quaternion neckWithoutChestIk = _skeleton.Stream.GetWorldRotation(neckIdx);
 
             job.chestIkTarget = true;
             job.targetPositionChestRaw = bones[2].position + new Vector3(0f, -0.1f, 0.3f);
             _skeleton.GatherNow();
-            job.SolveSequentialSpineIK(_skeleton.Stream, headTarget, Quaternion.identity);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSequentialSpineIK(headTarget, Quaternion.identity);
             Quaternion neckWithChestIk = _skeleton.Stream.GetWorldRotation(neckIdx);
 
             Assert.Less(Quaternion.Angle(neckWithoutChestIk, neckWithChestIk), 1e-4f,
@@ -235,7 +239,8 @@ namespace Basis.Tests.IK
             job.chainHeadToSpine = _chain;
 
             Quaternion gaze = Quaternion.Euler(0f, 25f, 0f);
-            job.SolveSequentialSpineIK(_skeleton.Stream, bones[5].position, gaze);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSequentialSpineIK(bones[5].position, gaze);
 
             Assert.Less(Quaternion.Angle(_skeleton.Stream.GetWorldRotation(_skeleton.Bind(bones[5]).Index), Quaternion.identity), 1e-4f,
                 "a chain with a genuinely unbound handle must stay a no-op");
@@ -262,13 +267,14 @@ namespace Basis.Tests.IK
             job.offsetRotationHips = hipsBind;
 
             Vector3 target = bones[5].position + new Vector3(0.10f, -0.06f, 0.04f);
-            job.SolveSequentialSpineIK(_skeleton.Stream, target, Quaternion.identity);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSequentialSpineIK(target, Quaternion.identity);
 
             return (
                 _skeleton.Stream.GetWorldRotation(_skeleton.Bind(bones[4]).Index),
                 _skeleton.Stream.GetWorldRotation(_skeleton.Bind(bones[2]).Index),
-                _chain[0].GetPosition(_skeleton.Stream),
-                _chain[0].GetRotation(_skeleton.Stream));
+                _skeleton.Stream.GetPosition(_chain[0]),
+                _skeleton.Stream.GetRotation(_chain[0]));
         }
 
         [Test]

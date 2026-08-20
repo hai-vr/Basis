@@ -5,9 +5,6 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 
-/// <summary>
-/// Centralized height/scale orchestration for the local player avatar.
-/// </summary>
 public static class BasisHeightDriver
 {
     public const float FallbackHeightInMeters = 1.61f;
@@ -19,9 +16,6 @@ public static class BasisHeightDriver
 
     public static float AppliedUpScale = 1f;
 
-    /// <summary>
-    /// The most recently applied scale factor used to match the avatar to the selected target measurement.
-    /// </summary>
     public static float ScaledToMatchValue = 1f;
 
     public static float PlayerEyeHeight = FallbackHeightInMeters;
@@ -30,26 +24,12 @@ public static class BasisHeightDriver
     public static float AvatarEyeHeight = FallbackHeightInMeters;
 
     public static float PlayerArmSpan = FallbackHeightInMeters;
-    /// <summary>
-    /// True once the span held is a real measurement of this player rather than the fallback — a
-    /// hand-to-hand reading, a restored save, or SlimeVR's skeleton. The span needs this for exactly
-    /// the reason the eye height does: an avatar load must not re-measure it from whatever pose the
-    /// player happens to be in, and the span is far the more pose-sensitive of the two (arms at your
-    /// sides read barely a third of your reach).
-    /// </summary>
     public static bool HasGenuinePlayerArmSpan = false;
     public static float AvatarArmSpan = FallbackHeightInMeters;
 
-    /// <summary>How settled the continuously-observed measurements are, 0..1. Weights their say in the
-    /// scale fit, so a span seen once counts for less than one confirmed over a hundred samples.</summary>
     public static float ObservedEyeConfidence = 0f;
     public static float ObservedArmSpanConfidence = 0f;
 
-    /// <summary>
-    /// Where a body measurement came from. Tracked purely so the calibration panel can tell the player
-    /// WHY they are the size they are — "measured" and "the generic default" deserve very different
-    /// amounts of trust, and until now both looked identical from the outside.
-    /// </summary>
     public enum BasisBodyMeasurementSource
     {
         Fallback,
@@ -62,17 +42,7 @@ public static class BasisHeightDriver
     public static BasisBodyMeasurementSource EyeHeightSource = BasisBodyMeasurementSource.Fallback;
     public static BasisBodyMeasurementSource ArmSpanSource = BasisBodyMeasurementSource.Fallback;
 
-    /// <summary>
-    /// The uniform player-to-avatar scale actually applied, excluding the user's scale slider. This is
-    /// what the positional stretcher measures its residual against, so the two compose instead of
-    /// pulling against each other.
-    ///
-    /// Starts at 0, meaning "no fit solved yet, use the eye-height ratio" — the same fallback the
-    /// legacy height modes leave in place. Defaulting it to 1 would claim a solved 1:1 fit to anything
-    /// that read it before the first solve.
-    /// </summary>
     public static float AppliedUniformScale = 0f;
-    /// <summary>The most recent scale fit, for the calibration debug readout.</summary>
     public static BasisScaleFitResult LastScaleFit = BasisScaleFitResult.Invalid;
 
     public static float PlayerHipHeight = 0f;
@@ -171,11 +141,6 @@ public static class BasisHeightDriver
     public const float MinPlausibleBodyMeasure = 0.8f;
     public const float MaxPlausibleBodyMeasure = 2.8f;
 
-    /// <summary>
-    /// Saves the explicitly calibrated body size so the NEXT session boots at the right scale instead
-    /// of the fallback (seeded back in <see cref="CapturePlayerHeight"/>). Seated calibrations measure
-    /// the virtual standing eye, not the player's body, so they are never saved.
-    /// </summary>
     private static void PersistCalibratedBodySize()
     {
         if (SMModuleSitStand.IsSteatedMode || HasGenuinePlayerEyeHeight == false)
@@ -213,13 +178,6 @@ public static class BasisHeightDriver
         }
     }
 
-    /// <summary>
-    /// Seeds the last session's calibrated body size when no genuine measurement exists yet, so the
-    /// default scale is right from the very first avatar load (and the standing height is restored on
-    /// leaving seated mode) instead of the fallback / a stance-dependent first poll. Never seeds while
-    /// seated — there the virtual standing eye (FallbackHeightInMeters) must stay the denominator.
-    /// Self-limiting: seeding marks the height genuine, and explicit calibrates re-poll regardless.
-    /// </summary>
     private static void SeedPersistedBodySize()
     {
         if (HasGenuinePlayerEyeHeight || SMModuleSitStand.IsSteatedMode)
@@ -259,12 +217,6 @@ public static class BasisHeightDriver
         }
         BasisDebug.Log($"Seeded last session's calibrated body size: eye {PlayerEyeHeight:F3}m span {PlayerArmSpan:F3}m", BasisDebug.LogTag.Avatar);
     }
-    /// <summary>
-    /// Falls back to what the player told us about themselves when nothing has been measured yet.
-    /// Ranks BELOW a saved measurement (that was a real reading of this player) and below anything the
-    /// sampler observes, but far above the 1.61 m generic fallback — which is what an otherwise
-    /// unmeasured player would be wearing.
-    /// </summary>
     private static void SeedStatedBodyHeight()
     {
         if (HasGenuinePlayerEyeHeight || SMModuleSitStand.IsSteatedMode || !BasisStatedHeight.IsSet)
@@ -291,9 +243,6 @@ public static class BasisHeightDriver
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame?.Invoke(Mode);
         });
     }
-    /// <summary>
-    /// Applies a custom avatar scale based on a target measurement.
-    /// </summary>
     public static void ApplyScale(bool ScaleAvatar, float SelectedScale)
     {
         SelectedScale = SanitizePositive(SelectedScale, FallbackHeightInMeters);
@@ -314,10 +263,6 @@ public static class BasisHeightDriver
         ApplyAvatarScale(ScaledToMatchValue);
     }
 
-    /// <summary>
-    /// Clamp a target avatar eye height (metres) to the server-pushed admin scale limits. Admins
-    /// (basis.moderation.globallock) bypass it; the default 0.1..100 m range is effectively a no-op.
-    /// </summary>
     public static float ClampToAdminEyeHeight(float eyeHeightMeters)
     {
         if (BasisNetworkModeration.LocalPlayerHasGlobalLockBypass())
@@ -404,9 +349,6 @@ public static class BasisHeightDriver
         return !float.IsNaN(eyeHeightMeters) && !float.IsInfinity(eyeHeightMeters) && eyeHeightMeters > 0f;
     }
 
-    /// <summary>
-    /// Applies a scale factor to the local avatar and updates cached bone offsets.
-    /// </summary>
     public static void ApplyAvatarScale(float ScaleFactor)
     {
         // sanitize ScaleFactor to avoid NaN/Inf poisoning bones.
@@ -444,15 +386,6 @@ public static class BasisHeightDriver
         }
     }
 
-    /// <summary>
-    /// Entering VR: whatever eye height the previous mode left applied is not the player's VR
-    /// standing height (desktop's is a virtual value, and it gets marked genuine), so the applied
-    /// calibration must be dropped and REAPPLIED from stored data — the persisted body size seeds
-    /// back in, the scale re-resolves, FBT position offsets reproject, and the FBT rotation
-    /// references re-derive. Without this, a desktop stint poisoned the VR scale until the user
-    /// manually recalibrated. Fresh installs with nothing persisted fall through to the normal
-    /// live-poll flow.
-    /// </summary>
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void HookBootModeChanged()
     {
@@ -518,17 +451,6 @@ public static class BasisHeightDriver
         PlayerArmSpan = SanitizePositive(PlayerArmSpan, FallbackHeightInMeters);
     }
 
-    /// <summary>
-    /// Takes the best measurement seen while the player has actually been using the world, in place of
-    /// whatever a single capture happened to catch.
-    ///
-    /// Adoption is a simple "keep the larger", which is not a heuristic but the same argument the rest
-    /// of this file rests on: a slouch, a crouch or arms at your sides all read SHORT, and nothing
-    /// short of a tracking glitch reads longer than the body actually is. So between two measurements
-    /// of one unchanging body, the longer is the better one — and the sampler has thousands of chances
-    /// to catch the player upright and reaching where a single capture had one.
-    /// </summary>
-    /// <summary>What the observations would have us believe, without committing to it yet.</summary>
     public struct ObservedBodySize
     {
         public float EyeHeight;
@@ -537,11 +459,6 @@ public static class BasisHeightDriver
         public bool SpanIsGenuine;
     }
 
-    /// <summary>
-    /// Reads the best observed body size, leaving the current values in place where nothing better was
-    /// seen. Split from adoption so the live refit can stage a change and ease into it rather than
-    /// teleporting the player's viewpoint the instant a measurement lands.
-    /// </summary>
     private static bool TryGetObservedBodySize(out ObservedBodySize result)
     {
         result = new ObservedBodySize
@@ -598,17 +515,6 @@ public static class BasisHeightDriver
         return changed;
     }
 
-    /// <summary>
-    /// Takes the best measurement seen while the player has actually been using the world, in place of
-    /// whatever a single capture happened to catch. Immediate — used on paths that are already
-    /// re-fitting the avatar anyway; the live path eases in through <see cref="TickObservedEvidence"/>.
-    ///
-    /// Adoption is a simple "keep the larger", which is not a heuristic but the same argument the rest
-    /// of this file rests on: a slouch, a crouch or arms at your sides all read SHORT, and nothing
-    /// short of a tracking glitch reads longer than the body actually is. So between two measurements
-    /// of one unchanging body, the longer is the better one — and the sampler has thousands of chances
-    /// to catch the player upright and reaching where a single capture had one.
-    /// </summary>
     private static void AdoptObservedBodyEvidence()
     {
         if (!TryGetObservedBodySize(out ObservedBodySize observed))
@@ -629,9 +535,7 @@ public static class BasisHeightDriver
     private static bool Plausible(float measure) =>
         measure >= MinPlausibleBodyMeasure && measure <= MaxPlausibleBodyMeasure;
 
-    /// <summary>Metres a measurement must improve by before the avatar is refitted around it.</summary>
     public const float EvidenceReapplyThresholdMeters = 0.02f;
-    /// <summary>Seconds between checks. The evidence moves on a human timescale, not a frame one.</summary>
     private const float EvidenceReapplyIntervalSeconds = 1f;
     private static float s_evidenceReapplyTimer;
 
@@ -641,26 +545,6 @@ public static class BasisHeightDriver
     private static float s_refitFromEye, s_refitFromSpan;
     private static bool s_refitHeldLogged;
 
-    /// <summary>
-    /// Folds newly-observed evidence into the LIVE fit while the player is in the world.
-    ///
-    /// This is what makes the arm span usable at all. It cannot be measured until the player extends
-    /// their arms, which they will not have done at the instant an avatar loads — so without this the
-    /// best measurement of the session would sit unused until the next avatar swap. With it, the
-    /// avatar's arms settle onto the player's real reach within seconds of them gesturing once.
-    ///
-    /// ⚠️ The change is applied in ONE STEP, on purpose. Easing it in over a few tenths of a second is
-    /// the instinct from flat-screen UI and it is wrong here: a gradual uncommanded change means
-    /// several hundred milliseconds of visual motion with nothing matching it in the inner ear, which
-    /// is exactly the mismatch that makes people ill — the same reason VR turns snap rather than
-    /// sweeping. A single discontinuity is dismissed as a cut; a slow drift is felt. Do not "smooth"
-    /// this.
-    ///
-    /// The change is still STAGED rather than applied the instant it is measured, because the snap has
-    /// to land at a moment when a resize is harmless — see <see cref="BasisCalibrationRefitGate"/>.
-    /// Adoption only ever raises a measurement, so this converges and goes quiet rather than
-    /// oscillating.
-    /// </summary>
     public static void TickObservedEvidence(float deltaTime)
     {
         if (BasisLocalPlayer.Instance == null
@@ -705,11 +589,6 @@ public static class BasisHeightDriver
         AnnounceRefit(s_refitFromEye, s_refitFromSpan);
     }
 
-    /// <summary>
-    /// Looks for a better measurement and stages it, without touching the applied size. Staging exists
-    /// so the snap can wait for a safe moment; a second, better measurement arriving before the first
-    /// has landed simply replaces the target, so the player only ever feels one change.
-    /// </summary>
     private static void StageObservedBodySize()
     {
         if (!TryGetObservedBodySize(out ObservedBodySize observed))
@@ -739,10 +618,6 @@ public static class BasisHeightDriver
             BasisDebug.LogTag.Avatar);
     }
 
-    /// <summary>
-    /// Tells the player what just happened. Without this the system's best feature — quietly getting
-    /// their size right — is indistinguishable from the avatar randomly changing size.
-    /// </summary>
     private static void AnnounceRefit(float fromEye, float fromSpan)
     {
         float eyeDelta = PlayerEyeHeight - fromEye;
@@ -799,14 +674,6 @@ public static class BasisHeightDriver
 
     private static BasisSelectedHeightMode s_lastAutoResolvedMode = BasisSelectedHeightMode.EyeHeight;
 
-    /// <summary>
-    /// Resolves <see cref="BasisSelectedHeightMode.Auto"/>. In VR it becomes
-    /// <see cref="BasisSelectedHeightMode.BestFit"/>: rather than picking whichever single measurement
-    /// looks most trustworthy and letting the other one be wrong, the fit uses every measurement at
-    /// once and hands the leftover to the positional stretcher. Desktop always resolves to EyeHeight —
-    /// its hands are not the player's hands and its eye height is a synthesized number, so there is
-    /// nothing to fit against. Concrete modes pass through untouched.
-    /// </summary>
     public static BasisSelectedHeightMode ResolveHeightMode(BasisSelectedHeightMode mode)
     {
         if (mode != BasisSelectedHeightMode.Auto)
@@ -825,22 +692,6 @@ public static class BasisHeightDriver
         return BasisSelectedHeightMode.BestFit;
     }
 
-    /// <summary>
-    /// Chooses the single uniform scale that fits the player into the avatar best, from every body
-    /// measurement held, and records what each segment has left over for the positional stretcher.
-    ///
-    /// Reads the AUTHORED avatar measurements only — never the post-fit ones — so it can run before the
-    /// stretcher and hand it a fixed target. Each limb tells the solver how many avatar-metres of
-    /// mismatch the stretcher could absorb for it (<see cref="BasisBodyFitCore.ArmSpanSlack"/> and
-    /// friends, so the two agree by construction); while every limb stays inside its budget the scale
-    /// matches eye height exactly and the stretcher does all the work.
-    ///
-    /// Leaves <see cref="AppliedUniformScale"/> at 0 for every mode but BestFit, which makes the body
-    /// fit fall back to the eye-height ratio it has always used. The concrete modes are manual
-    /// overrides and arm-span mode in particular is degenerate here (its scale is derived from the
-    /// post-fit span, so scale and fit define each other); BestFit is the mode where the question is
-    /// well posed, and it is what Auto now resolves to.
-    /// </summary>
     public static void SolveUniformScale()
     {
         AppliedUniformScale = 0f;
@@ -902,7 +753,6 @@ public static class BasisHeightDriver
                 Slack = BasisBodyFitCore.HipHeightSlack(in measurements, deviation),
                 Weight = BasisScaleFitCore.HipWeight,
             },
-            LegSpan = BasisScaleFitSample.None,
         };
 
         BasisScaleFitResult fit = BasisScaleFitCore.Solve(in input);
@@ -927,11 +777,6 @@ public static class BasisHeightDriver
 
     private static BasisScaleFitStatus s_lastScaleFitStatus = BasisScaleFitStatus.NoData;
 
-    /// <summary>
-    /// Arm-to-height ratio (0 = eye height, 1 = arm distance, negative extrapolates past eye height):
-    /// when enabled it replaces the selected height mode with a metric pair interpolated between the
-    /// two modes. Desktop keeps eye height.
-    /// </summary>
     public static bool TryGetArmToHeightBlend(out float blend)
     {
         blend = Mathf.Clamp(Basis.BasisUI.BasisSettingsDefaults.ArmToHeightBlend.RawValue,
@@ -969,12 +814,6 @@ public static class BasisHeightDriver
         }
     }
 
-    /// <summary>
-    /// Expresses the best-fit scale as an avatar/player metric pair measured against the eye-height
-    /// denominator, so the shared DeviceScale formula below lands on exactly the fitted scale
-    /// (<c>avatar/player = scale</c> by construction) without needing a branch of its own. Falls back
-    /// to the plain eye pair when no fit was solved, which is the mode's own degenerate case.
-    /// </summary>
     private static void BestFitMetrics(out float avatarMetric, out float playerMetric)
     {
         playerMetric = SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters);

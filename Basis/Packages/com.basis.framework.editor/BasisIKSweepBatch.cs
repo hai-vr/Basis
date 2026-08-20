@@ -3,18 +3,6 @@ using UnityEngine;
 
 namespace Basis.IK.Debugging
 {
-    /// <summary>
-    /// Headless entry points for the IK sweeps, so a gate can be checked without opening an editor
-    /// window. The sweeps themselves are unchanged -- this only drives them.
-    ///
-    /// Why: BasisIKTestGates carries pass/fail thresholds that are only reachable through
-    /// the IK Sweeps window (Elbow Protect / Run All), i.e. by hand. That means the numbers
-    /// they encode drift out of date silently. ElbowMinClearedFraction is the worked example -- its
-    /// comment claims a ~0.64 ceiling that was measured before several collider and arm-solve changes.
-    ///
-    ///   Unity.exe -runTests is for the NUnit suite; this is for the sweeps:
-    ///   Unity.exe -batchmode -quit -projectPath &lt;p&gt; -executeMethod Basis.IK.Debugging.BasisIKSweepBatch.ElbowProtect
-    /// </summary>
     public static class BasisIKSweepBatch
     {
         public static void ElbowProtect() => RunElbow(false);

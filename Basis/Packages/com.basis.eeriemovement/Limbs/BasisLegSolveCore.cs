@@ -129,7 +129,7 @@ namespace Basis.IK
             float acLen = ac.magnitude;
 
             float maxReach = abLen + bcLen;
-            float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
+            float oldAbcAngle = BasisIKMath.TriangleAngle(acLen, abLen, bcLen);
             Vector3 atCorrected = tPosition - aPosition;
             float atCorrectedLen = atCorrected.magnitude;
 
@@ -139,7 +139,7 @@ namespace Basis.IK
             float maxExtReach = MaxExtensionReach(abLen, bcLen);
             if (atCorrectedLen > maxExtReach) atCorrectedLen = maxExtReach;
 
-            float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
+            float newAbcAngle = BasisIKMath.TriangleAngle(atCorrectedLen, abLen, bcLen);
 
             byte axisSource = 0;
             Vector3 bendAxis = Vector3.Cross(ab, bc);
@@ -256,8 +256,8 @@ namespace Basis.IK
 
                 if (weight > 0f && kneeDir.sqrMagnitude > k_SqrEpsilon && pole.sqrMagnitude > k_SqrEpsilon)
                 {
-                    float swivel = ScaleSwivel(SignedAngleRad(kneeDir, pole, acNorm), weight);
-                    hintR = AngleAxisRad(swivel, acNorm);
+                    float swivel = ScaleSwivel(BasisIKMath.SignedAngleRad(kneeDir, pole, acNorm), weight);
+                    hintR = BasisIKMath.AngleAxisRad(swivel, acNorm);
 
                     rootRot = hintR * rootRot;
                     bPosition = aPosition + hintR * (bPosition - aPosition);
@@ -275,7 +275,7 @@ namespace Basis.IK
                 if (shinRoll.sqrMagnitude > k_SqrEpsilon)
                 {
                     Vector3 shinRollN = shinRoll.normalized;
-                    float roll = TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), shinRollN);
+                    float roll = BasisIKMath.TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), shinRollN);
 
                     float rollAbs = Mathf.Abs(roll);
                     float rollCap = TrackerShinRollMaxDeg * Mathf.Deg2Rad;
@@ -283,7 +283,7 @@ namespace Basis.IK
                     if (rollAbs > 1e-6f)
                     {
                         float rollSigned = roll < 0f ? -rollAbs : rollAbs;
-                        r.MidPostRoll = AngleAxisRad(rollSigned, shinRollN);
+                        r.MidPostRoll = BasisIKMath.AngleAxisRad(rollSigned, shinRollN);
                         midRot = r.MidPostRoll * midRot;
                         r.ShinRollDeg = rollSigned * Mathf.Rad2Deg;
                     }
@@ -305,7 +305,7 @@ namespace Basis.IK
             r.LowerLength = bcLen;
             r.TargetDistance = atCorrectedLen;
             r.ReachRatio = (maxReach > k_Epsilon) ? atCorrectedLen / maxReach : 0f;
-            r.KneeAngleDeg = AngleDeg(aPosition - bPosition, cPosition - bPosition);
+            r.KneeAngleDeg = BasisIKMath.AngleDeg(aPosition - bPosition, cPosition - bPosition);
             r.AxisSource = axisSource;
             r.FootError = (cPosition - tPosition).magnitude;
         }
@@ -318,50 +318,16 @@ namespace Basis.IK
             }
 
             Vector3 anterior = anteriorPole.normalized;
-            float poleDeg = SignedAngleRad(anterior, pole, acNorm) * Mathf.Rad2Deg;
+            float poleDeg = BasisIKMath.SignedAngleRad(anterior, pole, acNorm) * Mathf.Rad2Deg;
             float guardedDeg = ClampKneeSwivelDeg(poleDeg, KneeAnteriorSoftDeg, KneeAnteriorHardDeg);
 
             if (guardedDeg != poleDeg)
             {
-                pole = AngleAxisRad(guardedDeg * Mathf.Deg2Rad, acNorm) * anterior;
+                pole = BasisIKMath.AngleAxisRad(guardedDeg * Mathf.Deg2Rad, acNorm) * anterior;
                 axisSource = 5;
             }
 
             return pole;
-        }
-
-        static float SignedAngleRad(Vector3 from, Vector3 to, Vector3 axis)
-        {
-            float denom = Mathf.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
-            if (!(denom > k_Epsilon))
-            {
-                return 0f;
-            }
-
-            float c = Vector3.Dot(from, to) / denom;
-            c = c > 1f ? 1f : (c > -1f ? c : -1f);
-            float angle = Mathf.Acos(c);
-            return Vector3.Dot(axis, Vector3.Cross(from, to)) < 0f ? -angle : angle;
-        }
-
-        static Quaternion AngleAxisRad(float radians, Vector3 axis)
-        {
-            float h = 0.5f * radians;
-            float s = Mathf.Sin(h);
-            return new Quaternion(axis.x * s, axis.y * s, axis.z * s, Mathf.Cos(h));
-        }
-
-        static float TwistAngleRad(Quaternion q, Vector3 axis)
-        {
-            float s = q.x * axis.x + q.y * axis.y + q.z * axis.z;
-            float c = q.w;
-            if (c < 0f) { s = -s; c = -c; }
-            if (!(s * s + c * c > k_SqrEpsilon))
-            {
-                return 0f;
-            }
-
-            return 2f * Mathf.Atan2(s, c);
         }
 
         static float ScaleSwivel(float radians, float weight)
@@ -379,18 +345,6 @@ namespace Basis.IK
             return 2f * Mathf.Atan(weight * Mathf.Tan(0.5f * radians));
         }
 
-        static float AngleDeg(Vector3 from, Vector3 to)
-        {
-            float denom = Mathf.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
-            if (denom < k_Epsilon)
-            {
-                return 0f;
-            }
-
-            float c = Mathf.Clamp(Vector3.Dot(from, to) / denom, -1f, 1f);
-            return Mathf.Acos(c) * Mathf.Rad2Deg;
-        }
-
         static float MinFlexionReach(float upper, float lower)
         {
             float c = Mathf.Cos(MinKneeInteriorDeg * Mathf.Deg2Rad);
@@ -405,16 +359,6 @@ namespace Basis.IK
             return d2 > 0f ? Mathf.Sqrt(d2) : 0f;
         }
 
-        static float TriangleAngle(float aLen, float aLen1, float aLen2)
-        {
-            if (aLen1 <= k_Epsilon || aLen2 <= k_Epsilon)
-            {
-                return 0f;
-            }
-
-            float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (2.0f * aLen1 * aLen2), -1.0f, 1.0f);
-            return Mathf.Acos(c);
-        }
     }
 
     public struct BasisKneeForwardInput
@@ -499,7 +443,7 @@ namespace Basis.IK
             float legVertical01 = Smoothstep(LegUprightFadeStartDot, LegUprightFadeFullDot, Mathf.Abs(Vector3.Dot(axis, up)));
             r.Upright01 = legVertical01;
 
-            float strength = Saturate(i.Strength);
+            float strength = BasisIKMath.Saturate(i.Strength);
 
             Vector3 footPerp = Vector3.ProjectOnPlane(i.FootForwardDir, axis);
             Vector3 bendDir;
@@ -516,7 +460,7 @@ namespace Basis.IK
                 float signedDeg = Vector3.SignedAngle(bodyPerpN, footPerpN, axis);
                 float rawAngle = signedDeg < 0f ? -signedDeg : signedDeg;
 
-                followDeg = Mathf.Min(Saturate(i.Coupling) * legVertical01 * refConditioning * rawAngle, MaxFollowDeg);
+                followDeg = Mathf.Min(BasisIKMath.Saturate(i.Coupling) * legVertical01 * refConditioning * rawAngle, MaxFollowDeg);
 
                 if (rawAngle > FollowFadeStartDeg)
                 {
@@ -536,11 +480,9 @@ namespace Basis.IK
             r.HintWeight = strength * refConditioning;
         }
 
-        static float Saturate(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
-
         static float Smoothstep(float a, float b, float v)
         {
-            float t = Mathf.Approximately(a, b) ? (v >= b ? 1f : 0f) : Saturate((v - a) / (b - a));
+            float t = Mathf.Approximately(a, b) ? (v >= b ? 1f : 0f) : BasisIKMath.Saturate((v - a) / (b - a));
             return t * t * (3f - 2f * t);
         }
     }

@@ -16,11 +16,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.Drivers
 {
-    /// <summary>
-    /// Drives setup and runtime behavior for a remote player's avatar:
-    /// calibration, TPose swap-in/out, nameplate/mouth job registration,
-    /// jiggle physics setup, and renderer configuration.
-    /// </summary>
     [System.Serializable]
     public class BasisRemoteAvatarDriver : BasisAvatarDriver
     {
@@ -43,93 +38,33 @@ namespace Basis.Scripts.Drivers
         static readonly ProfilerMarker sMarkerRegisterAdd = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BoneJobRegister.Add");
         static readonly ProfilerMarker sMarkerJiggle = new ProfilerMarker("BasisDriver.Avatar.Calibrate.Jiggle");
 
-        /// <summary>
-        /// Invoked after calibration completes successfully.
-        /// </summary>
         public Action CalibrationComplete;
 
-        /// <summary>
-        /// Cached transform references (head, hips, etc.) auto-detected at calibration.
-        /// </summary>
         [SerializeField]
         public BasisTransformMapping References = new BasisTransformMapping();
 
-        /// <summary>
-        /// This avatar's curl/splay → finger rotation map. Rebuilt on every avatar change;
-        /// <see cref="HandGridGeneration"/> ticks with it so buffers decoded against the previous
-        /// avatar re-expand instead of holding stale finger rotations across the swap.
-        /// </summary>
         public readonly BasisHandPoseGrid HandGrid = new BasisHandPoseGrid();
         public int HandGridGeneration = 1;
 
-        /// <summary>
-        /// All skinned renderers under the avatar's animator (filled during calibration).
-        /// </summary>
         public SkinnedMeshRenderer[] SkinnedMeshRenderer;
 
-        /// <summary>
-        /// The associated high-level player wrapper for this avatar.
-        /// </summary>
         public IBasisPlayer Player;
 
-        /// <summary>
-        /// Whether event hookups (like visibility checks) were made.
-        /// </summary>
         public bool HasEvents = false;
 
-        /// <summary>
-        /// Cached length of <see cref="SkinnedMeshRenderer"/> to avoid repeated property lookups.
-        /// </summary>
         public int SkinnedMeshRendererLength;
 
-        /// <summary>
-        /// Initial avatar local scale captured during calibration. Its one consumer was the bone
-        /// job's nameplate height, which divided the live root scale by it to get a resize ratio and
-        /// multiplied a fixed 1.2 m by that; the measured placement stores model units instead, so
-        /// nothing reads this now. Kept because it is a captured fact about the avatar that a
-        /// serialized driver field exposes to inspectors and external tooling.
-        /// </summary>
         public Vector3 AvatarInitialScale = Vector3.one;
 
-        /// <summary>
-        /// Hips → nameplate-bottom distance for this avatar in model units, measured at calibration
-        /// while the rig is guaranteed to be in T-pose. 0 until measured. Cached rather than
-        /// recomputed per registration because the renderer-bounds half of the measurement is only
-        /// meaningful in T-pose: re-registering a live avatar mid-wave would read its raised arms as
-        /// the top of its head. See <see cref="CaptureNamePlateAnchor"/>.
-        /// </summary>
         public float NamePlateHeightAboveHipsModel;
 
-        /// <summary>
-        /// Turns the animator root's world rotation into the direction this avatar is FACING —
-        /// <c>AvatarAnimatorTransform.rotation * DerivedRootToCharacterBasis</c>. The root pose the
-        /// bone jobs write is backed out of the hips' parent and carries whatever the exporter
-        /// baked above the skeleton, so on its own it is not a facing on every rig; see
-        /// <see cref="BasisGenericBoneRotationUtils.GetDerivedRootToCharacterBasis"/>. Identity for
-        /// a rig with hips straight off a +Z-facing root, and identity until calibration has
-        /// measured the avatar.
-        /// </summary>
         public Quaternion DerivedRootToCharacterBasis = Quaternion.identity;
 
-        /// <summary>
-        /// Tracks whether this avatar has been registered with the remote bone job system.
-        /// </summary>
         public bool InBoneDriver = false;
 
-        /// <summary>
-        /// Jiggle rigs on the current avatar (filled during calibration).
-        /// </summary>
-        /// <summary>Filtered out of the content-harvest snapshot by BasisAvatarFactory at load;
-        /// include-inactive, entries can be destroyed later — null-and-activity gate on use.</summary>
         public JiggleRig[] JiggleRigs = Array.Empty<JiggleRig>();
         private static Vector3[] sJiggleRootsBeforeSnap = Array.Empty<Vector3>();
 
-        /// <summary>
-        /// The wearer's networked body fit (see Basis.IK.BasisBodyFitCore). They stretch/collapse their
-        /// own avatar's arm, leg and spine segments to match their real proportions; without replaying
-        /// that here every remote would render them at the avatar's authored proportions instead.
-        /// Identity (all 1) is a no-op end to end.
-        /// </summary>
         public Basis.IK.BasisBodyFitResult AppliedBodyFit = Basis.IK.BasisBodyFitResult.Identity;
 
         readonly Transform[] _fitBones = new Transform[Basis.IK.BasisBodyFitApply.BoneCount];
@@ -137,11 +72,6 @@ namespace Basis.Scripts.Drivers
         readonly float[] _fitScales = new float[Basis.IK.BasisBodyFitApply.BoneCount];
         bool _fitRestCaptured;
 
-        /// <summary>
-        /// Performs remote-avatar calibration and registers it with the job system.
-        /// Initializes TPose, references, face visibility, eye/blink drivers, and physics colliders.
-        /// </summary>
-        /// <param name="RemotePlayer">The remote player whose avatar is being configured.</param>
         public void RemoteCalibration(BasisRemotePlayer RemotePlayer)
         {
             if (!IsAble(RemotePlayer))
@@ -425,14 +355,6 @@ namespace Basis.Scripts.Drivers
             BasisFiniteWatchdog.CheckpointRemote("RemoteCalibration/Complete", RemotePlayer);
         }
 
-        /// <summary>
-        /// (Re)registers the real avatar's transforms with the bone job system. Split out of
-        /// <see cref="RemoteCalibration"/> so the far LOD swap can restore the registration
-        /// without a full recalibration. With <paramref name="snapToNetworkPose"/> the avatar is
-        /// also snapped onto the latest network pose (scale, derived root, hips world) and the
-        /// jiggle rigs are teleported by the travel delta — used when the avatar wakes back up
-        /// after the far LOD hid it.
-        /// </summary>
         public void RegisterAvatarWithBoneJobSystem(BasisRemotePlayer RemotePlayer, bool snapToNetworkPose)
         {
             var receiver = RemotePlayer.NetworkReceiver;
@@ -581,20 +503,6 @@ namespace Basis.Scripts.Drivers
             BasisFiniteWatchdog.CheckpointRemote("RemoteRegister/PostNetworkPoseSnap (far-LOD wake)", RemotePlayer);
         }
 
-        /// <summary>
-        /// Places the nameplate and mouth markers on the pose the bone jobs will give them next
-        /// frame. Both are standalone scene roots created at world origin by
-        /// <see cref="BasisRemotePlayer.RemoteInitialize"/> and only ever moved by
-        /// <see cref="MappedNameplateApplyJob"/> / <see cref="ApplyMouthJob"/> at the tail of
-        /// LateUpdate, so a joining player's plate renders at (0,0,0) for the frame their avatar
-        /// installs on — the avatar itself no longer does, which leaves the plate alone out there.
-        ///
-        /// The plate goes through the same <see cref="BasisNamePlateAnchorMath.AnchorWorldY"/> and
-        /// the same yaw-only billboard the apply job uses, so the two cannot drift apart. The mouth
-        /// takes the head bone's world pose: its real anchor is that pose plus the authored
-        /// centimetre-scale offset, it carries no renderer, and reproducing the head-chain FK here
-        /// would duplicate the job for a marker nobody sees.
-        /// </summary>
         private void SnapNamePlateAndMouth(BasisRemotePlayer RemotePlayer, float3 hipsWorldPos, float rootScaleY)
         {
             Transform namePlate = RemotePlayer.NamePlateTransformProvider?.Invoke();
@@ -622,21 +530,6 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Measures how far above the hips this avatar's nameplate belongs, once, at T-pose.
-        ///
-        /// Everything is gathered in ONE frame — root-relative RENDERED metres, i.e. heights above
-        /// the animator root, which is at the avatar's feet. <c>References.TposeWorld</c> is stored
-        /// in exactly that frame ("no division by localScale") and
-        /// <c>BasisAvatar.AvatarEyePosition.x</c> is authored in it, so the bones and the eye need no
-        /// conversion. Renderer bounds are world-space and are brought in by subtracting the root's
-        /// world height; that is a pure Y subtraction rather than a full inverse transform because a
-        /// remote is registered standing upright, and the crown clamp inside
-        /// <see cref="BasisNamePlateAnchorMath"/> bounds the error if one somehow is not.
-        ///
-        /// Falls back to the old fixed height only when the rig has neither a hips nor a head bone
-        /// recorded, which would mean the avatar has no humanoid mapping at all.
-        /// </summary>
         private void CaptureNamePlateAnchor(BasisRemotePlayer RemotePlayer)
         {
             float rootScaleY = References.RootScale.y;
@@ -665,13 +558,6 @@ namespace Basis.Scripts.Drivers
                 rootScaleY: rootScaleY);
         }
 
-        /// <summary>
-        /// Highest renderer bounds top on the avatar, expressed as a height above the animator root.
-        /// This is what puts the plate above hair, ears, horns and hats instead of above the bare
-        /// skull the bone-and-eye estimate describes. In T-pose the arms are horizontal, so the only
-        /// things that reach over the head are head geometry and deliberately-tall props — and the
-        /// caller's clamp is what keeps the latter from dragging the plate into the sky.
-        /// </summary>
         private bool TryGetTposeRenderedTop(BasisRemotePlayer RemotePlayer, out float topAboveRoot)
         {
             topAboveRoot = 0f;
@@ -728,19 +614,6 @@ namespace Basis.Scripts.Drivers
             return true;
         }
 
-        /// <summary>
-        /// Captures this avatar's rest pose and bone Transform references for all 54 humanoid bones.
-        /// Populates the receiver's BoneDecodePre/BoneDecodePost operator tables and BoneTransforms
-        /// so that Apply() can write bone transforms directly without SetHumanPose.
-        ///
-        /// The operators are what convert the rig-neutral network rotations into THIS rig's local
-        /// rotations (BasisGenericBoneRotation). They need two rest quantities per bone — the
-        /// parent-relative rest rotation (TposeLocal) and the root-relative one (TposeFromRoot) —
-        /// and both come out of the same BasisTransformMapping.RecordPoses capture, so they always
-        /// describe one consistent T-pose.
-        ///
-        /// Must be called while the avatar is in T-pose (before ResetAvatarAnimator).
-        /// </summary>
         private unsafe void CaptureReceiverBoneData(BasisRemotePlayer remotePlayer)
         {
             var receiver = remotePlayer.NetworkReceiver;
@@ -937,10 +810,6 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Allocates (or keeps) a persistent per-slot operator buffer of exactly
-        /// <paramref name="boneCount"/> entries.
-        /// </summary>
         private static void EnsureDecodeBuffer(ref NativeArray<quaternion> buffer, int boneCount)
         {
             if (buffer.IsCreated && buffer.Length == boneCount)
@@ -954,10 +823,6 @@ namespace Basis.Scripts.Drivers
             buffer = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
         }
 
-        /// <summary>
-        /// Flattens one of the calibration pose dictionaries into the by-bone arrays the model
-        /// cache stores. Absent bones become (identity, zero), matching StorePosesToCache.
-        /// </summary>
         private static quaternion[] SnapshotRotations(
             System.Collections.Generic.Dictionary<HumanBodyBones, Basis.Scripts.Common.BasisCalibratedCoords> source,
             int totalBones, out Unity.Mathematics.float3[] positions)
@@ -980,11 +845,6 @@ namespace Basis.Scripts.Drivers
             return rotations;
         }
 
-        /// <summary>
-        /// Applies the wearer's networked body fit to this remote avatar. Safe to call before the avatar
-        /// has loaded — the fit is stored and replayed by RemoteCalibration once the bind is captured.
-        /// Main thread only (touches Transform.localPosition).
-        /// </summary>
         public void SetBodyFit(in Basis.IK.BasisBodyFitResult fit)
         {
             AppliedBodyFit = fit;
@@ -1001,11 +861,6 @@ namespace Basis.Scripts.Drivers
                 RemotePlayer.CACM.ArmScale, RemotePlayer.CACM.LegScale, RemotePlayer.CACM.TorsoScale);
         }
 
-        /// <summary>
-        /// Snapshots the authored local positions of every fitted bone. Keying off this copy rather than
-        /// the live value is what makes re-applying idempotent — writing rest*scale over an already
-        /// scaled transform would compound the fit every time a new one arrived.
-        /// </summary>
         private void CaptureBodyFitRestLocal()
         {
             Basis.IK.BasisBodyFitApply.CollectBones(References, _fitBones);
@@ -1057,26 +912,12 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// True while the avatar is temporarily swapped to a TPose animator.
-        /// </summary>
         public bool CurrentlyTposing;
 
-        /// <summary>
-        /// Set by <see cref="RemoteCalibration"/> when it swapped the animator into TPose, so the
-        /// restore at the end of calibration is skipped for avatars that never needed the swap.
-        /// </summary>
         private bool NeedsTposeReset;
 
-        /// <summary>
-        /// Stores the original animator controller while TPose is active.
-        /// </summary>
         public RuntimeAnimatorController SavedruntimeAnimatorController;
 
-        /// <summary>
-        /// Loads and applies a TPose controller to the avatar's animator,
-        /// forcing an update so bone poses are consistent for reference capture.
-        /// </summary>
         public void PutAvatarIntoTPose()
         {
             // BasisDebug.Log("PutAvatarIntoTPose", BasisDebug.LogTag.Avatar);
@@ -1090,10 +931,6 @@ namespace Basis.Scripts.Drivers
             ForceUpdateAnimator(Player.BasisAvatar.Animator);
         }
 
-        /// <summary>
-        /// Forces the animator to advance by <see cref="Time.deltaTime"/> to apply state changes immediately.
-        /// </summary>
-        /// <param name="Anim">Animator to update.</param>
         public void ForceUpdateAnimator(Animator Anim)
         {
             // Specify the time you want the Animator to update to (in seconds)
@@ -1103,9 +940,6 @@ namespace Basis.Scripts.Drivers
             Anim.Update(desiredTime);
         }
 
-        /// <summary>
-        /// Restores the original animator controller after TPose operations and clears flags.
-        /// </summary>
         public void ResetAvatarAnimator()
         {
             // BasisDebug.Log("ResetAvatarAnimator", BasisDebug.LogTag.Avatar);
@@ -1114,10 +948,6 @@ namespace Basis.Scripts.Drivers
             CurrentlyTposing = false;
         }
 
-        /// <summary>
-        /// Rebuilds jiggle rig colliders based on player settings (async).
-        /// Removes existing colliders, fetches settings, then conditionally adds new ones.
-        /// </summary>
         private int JiggleColliderSetupGeneration;
 
         public async void SetupAvatarJiggleColliders()
@@ -1146,11 +976,6 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Validates that the provided remote player and its avatar/animator are present.
-        /// </summary>
-        /// <param name="remotePlayer">Remote player to test.</param>
-        /// <returns>True if calibration may proceed; otherwise false.</returns>
         public bool IsAble(BasisRemotePlayer remotePlayer)
         {
             if (IsNull(remotePlayer.BasisAvatar))
@@ -1169,11 +994,6 @@ namespace Basis.Scripts.Drivers
             return true;
         }
 
-        /// <summary>
-        /// Logs and returns whether the provided Unity object reference is null.
-        /// </summary>
-        /// <param name="obj">Unity object to test.</param>
-        /// <returns>True if null; otherwise false.</returns>
         public bool IsNull(UnityEngine.Object obj)
         {
             if (obj == null)

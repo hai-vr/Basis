@@ -87,7 +87,7 @@ namespace Basis.Tests.IK
                 chestIkIterations = 8,
                 chestIkHeadRestoreSweeps = 2,
                 chestPullMaxDist = 0.5f,
-                targetOffsetHead = Quaternion.identity,
+                offsetRotationHead = Quaternion.identity,
                 offsetRotationHips = Quaternion.identity,
                 playerUp = Vector3.up,
                 chestIkTarget = false,
@@ -126,7 +126,7 @@ namespace Basis.Tests.IK
             job.proneBodyPose = true;
             job.minHeadSpineHeight = 0.62f;
             job.tposeLengthNeckToHips = new Vector3(0f, 0.5f, 0f);
-            job.targetOffsetChest = Quaternion.identity;
+            job.offsetRotationChest = Quaternion.identity;
             job.targetRotationHips = Quaternion.identity;
             job.targetRotationChest = Quaternion.identity;
             // The stale standing-model target the virtual spine would emit: hips stacked under a
@@ -143,17 +143,18 @@ namespace Basis.Tests.IK
             var job = ProneJob(bones);
             // targetRotationHips is identity = facing +Z, the same direction the lying body points.
 
-            Vector3 hipsBefore = job.handleHips.GetPosition(_skeleton.Stream);
-            Quaternion hipsRotBefore = job.handleHips.GetRotation(_skeleton.Stream);
+            Vector3 hipsBefore = _skeleton.Stream.GetPosition(job.handleHips);
+            Quaternion hipsRotBefore = _skeleton.Stream.GetRotation(job.handleHips);
 
             // Target exactly on the head: aligned yaw and zero carry must leave the pose untouched.
             job.targetPositionHead = bones[4].position;
             job.targetRotationHead = Quaternion.Euler(0f, 20f, 0f);
 
-            job.SolveSpine(_skeleton.Stream);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSpine();
 
-            float posDelta = (job.handleHips.GetPosition(_skeleton.Stream) - hipsBefore).magnitude;
-            float rotDelta = Quaternion.Angle(job.handleHips.GetRotation(_skeleton.Stream), hipsRotBefore);
+            float posDelta = (_skeleton.Stream.GetPosition(job.handleHips) - hipsBefore).magnitude;
+            float rotDelta = Quaternion.Angle(_skeleton.Stream.GetRotation(job.handleHips), hipsRotBefore);
             TestContext.WriteLine($"hips pos delta {posDelta * 1000f:F3} mm, rot delta {rotDelta:F4} deg");
             Assert.Less(posDelta, 1e-4f, "prone must leave the animation's pelvis untouched");
             Assert.Less(rotDelta, 1e-2f, "prone must leave the animation's pelvis rotation untouched");
@@ -171,10 +172,11 @@ namespace Basis.Tests.IK
             job.targetPositionHead = headTarget;
             job.targetRotationHead = gaze;
 
-            job.SolveSpine(_skeleton.Stream);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSpine();
 
-            float rotErr = Quaternion.Angle(_chain[0].GetRotation(_skeleton.Stream), gaze);
-            float posErr = (_chain[0].GetPosition(_skeleton.Stream) - headTarget).magnitude;
+            float rotErr = Quaternion.Angle(_skeleton.Stream.GetRotation(_chain[0]), gaze);
+            float posErr = (_skeleton.Stream.GetPosition(_chain[0]) - headTarget).magnitude;
             TestContext.WriteLine($"head rot err {rotErr:F4} deg, pos err {posErr * 1000f:F2} mm");
             Assert.Less(rotErr, 0.1f, "a prone player's head must still be pinned to the gaze");
             Assert.Less(posErr, 0.01f, "a prone player's head must still reach its target");
@@ -188,8 +190,8 @@ namespace Basis.Tests.IK
             var job = ProneJob(bones);
             job.targetRotationHips = Quaternion.Euler(0f, 90f, 0f);
 
-            Vector3 headBefore = job.handleHead.GetPosition(_skeleton.Stream);
-            Vector3 hipsBefore = job.handleHips.GetPosition(_skeleton.Stream);
+            Vector3 headBefore = _skeleton.Stream.GetPosition(job.handleHead);
+            Vector3 hipsBefore = _skeleton.Stream.GetPosition(job.handleHips);
             Vector3 flatBefore = headBefore - hipsBefore;
             flatBefore.y = 0f;
             float radiusBefore = flatBefore.magnitude;
@@ -198,10 +200,11 @@ namespace Basis.Tests.IK
             job.targetPositionHead = headBefore;
             job.targetRotationHead = gaze;
 
-            job.SolveSpine(_skeleton.Stream);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSpine();
 
-            Vector3 hipsAfter = job.handleHips.GetPosition(_skeleton.Stream);
-            Vector3 headAfter = _chain[0].GetPosition(_skeleton.Stream);
+            Vector3 hipsAfter = _skeleton.Stream.GetPosition(job.handleHips);
+            Vector3 headAfter = _skeleton.Stream.GetPosition(_chain[0]);
             Vector3 bodyFwd = headAfter - hipsAfter;
             bodyFwd.y = 0f;
             float yawErr = Vector3.Angle(bodyFwd, Vector3.right);
@@ -221,8 +224,8 @@ namespace Basis.Tests.IK
             _chain = BindChainTipFirst(bones);
             var job = ProneJob(bones);
 
-            Vector3 headBefore = job.handleHead.GetPosition(_skeleton.Stream);
-            Vector3 hipsBefore = job.handleHips.GetPosition(_skeleton.Stream);
+            Vector3 headBefore = _skeleton.Stream.GetPosition(job.handleHead);
+            Vector3 hipsBefore = _skeleton.Stream.GetPosition(job.handleHips);
             Vector3 flatBefore = headBefore - hipsBefore;
             flatBefore.y = 0f;
             float radiusBefore = flatBefore.magnitude;
@@ -231,10 +234,11 @@ namespace Basis.Tests.IK
             job.targetPositionHead = headBefore + carry;
             job.targetRotationHead = Quaternion.identity;
 
-            job.SolveSpine(_skeleton.Stream);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSpine();
 
-            Vector3 headAfter = _chain[0].GetPosition(_skeleton.Stream);
-            Vector3 hipsAfter = job.handleHips.GetPosition(_skeleton.Stream);
+            Vector3 headAfter = _skeleton.Stream.GetPosition(_chain[0]);
+            Vector3 hipsAfter = _skeleton.Stream.GetPosition(job.handleHips);
             Vector3 flatAfter = headAfter - hipsAfter;
             flatAfter.y = 0f;
             TestContext.WriteLine($"radius {radiusBefore:F3} -> {flatAfter.magnitude:F3} m, hips moved {(hipsAfter - hipsBefore).magnitude:F3} m");
@@ -266,9 +270,10 @@ namespace Basis.Tests.IK
             job.targetPositionHead = bones[4].position - new Vector3(0f, 0.002f, 0f);
             job.targetRotationHead = Quaternion.Euler(10f, 25f, 0f);
 
-            job.SolveSpine(_skeleton.Stream);
+            job.poseStream = _skeleton.Stream;
+            job.SolveSpine();
 
-            float posDelta = (job.handleHips.GetPosition(_skeleton.Stream) - hipsTarget).magnitude;
+            float posDelta = (_skeleton.Stream.GetPosition(job.handleHips) - hipsTarget).magnitude;
             TestContext.WriteLine($"hips-to-target delta {posDelta * 1000f:F3} mm");
             Assert.Less(posDelta, 1e-4f, "with proneBodyPose off the hips placement must behave exactly as before");
         }

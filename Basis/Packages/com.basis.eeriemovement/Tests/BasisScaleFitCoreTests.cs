@@ -47,7 +47,6 @@ namespace Basis.Tests.IK
                     Weight = BasisScaleFitCore.ArmSpanWeight,
                 },
                 HipHeight = BasisScaleFitSample.None,
-                LegSpan = BasisScaleFitSample.None,
             };
         }
 

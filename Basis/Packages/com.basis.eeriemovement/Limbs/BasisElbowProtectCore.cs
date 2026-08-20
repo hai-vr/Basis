@@ -57,6 +57,12 @@ namespace Basis.IK
         const float k_AuthorityFadeStart = 0.95f;
         const float k_AuthorityFadeEnd = 0.995f;
 
+        struct Frame
+        {
+            public Vector3 ShoulderPos, AcDir, CurrentDir, ElbowCenter, BodyLat, BodyFwd;
+            public float ElbowRadius, UpperArmR, ChestR, SpineR, HipsR, ThetaOut, SwingPreference;
+        }
+
         public static void Solve(in BasisElbowProtectInput i, out BasisElbowProtectResult r)
         {
             r = default;
@@ -74,24 +80,26 @@ namespace Basis.IK
                 return;
             }
 
-            Vector3 acDir = acAxis / Mathf.Sqrt(acSqr);
+            Frame f = default;
+            f.ShoulderPos = shoulderPos;
+            f.AcDir = acAxis / Mathf.Sqrt(acSqr);
             Vector3 toElbow = elbowPos - shoulderPos;
-            Vector3 elbowCenter = shoulderPos + acDir * Vector3.Dot(toElbow, acDir);
-            float elbowRadius = (elbowPos - elbowCenter).magnitude;
-            r.ElbowCenter = elbowCenter;
-            r.ElbowRadius = elbowRadius;
-            if (elbowRadius <= k_Epsilon)
+            f.ElbowCenter = shoulderPos + f.AcDir * Vector3.Dot(toElbow, f.AcDir);
+            f.ElbowRadius = (elbowPos - f.ElbowCenter).magnitude;
+            r.ElbowCenter = f.ElbowCenter;
+            r.ElbowRadius = f.ElbowRadius;
+            if (f.ElbowRadius <= k_Epsilon)
             {
                 return;
             }
 
-            float upperArmR = Mathf.Max(0f, (i.HandRadius + i.HandSkin) * 1.2f);
+            f.UpperArmR = Mathf.Max(0f, (i.HandRadius + i.HandSkin) * 1.2f);
             float chestRBase = i.ChestRadiusBase;
             float skin = i.CollisionSkin;
 
-            float chestR = Mathf.Max(0f, chestRBase + skin);
-            float spineR = Mathf.Max(0f, chestRBase * 0.8f + skin);
-            float hipsR = Mathf.Max(0f, chestRBase * 1.4f + skin);
+            f.ChestR = Mathf.Max(0f, chestRBase + skin);
+            f.SpineR = Mathf.Max(0f, chestRBase * 0.8f + skin);
+            f.HipsR = Mathf.Max(0f, chestRBase * 1.4f + skin);
 
             Vector3 upN = i.PlayerUp.sqrMagnitude > k_Epsilon * k_Epsilon ? i.PlayerUp.normalized : Vector3.up;
             Vector3 bodyLat = i.BodyRight - upN * Vector3.Dot(i.BodyRight, upN);
@@ -114,11 +122,13 @@ namespace Basis.IK
             {
                 bodyLat = Vector3.zero;
             }
+            f.BodyLat = bodyLat;
+            f.BodyFwd = bodyFwd;
 
-            float contactMargin = chestR * k_ContactMarginRatio;
-            float swingPreference = chestR * k_SwingPreferenceRatio;
+            float contactMargin = f.ChestR * k_ContactMarginRatio;
+            f.SwingPreference = f.ChestR * k_SwingPreferenceRatio;
 
-            float natClear = MinTorsoClearance(i, shoulderPos, elbowPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
+            float natClear = MinTorsoClearance(i, f, elbowPos);
             float worstPen = natClear < 0f ? -natClear : 0f;
             r.WorstPenetration = worstPen;
             if (natClear >= contactMargin)
@@ -128,7 +138,7 @@ namespace Basis.IK
 
             Vector3 shoulderClosest = BasisEerieMovement.ClosestPointOnSegment(shoulderPos, i.ChestPos, i.NeckPos);
             Vector3 shoulderOut = shoulderPos - shoulderClosest;
-            Vector3 shoulderPerp = shoulderOut - acDir * Vector3.Dot(shoulderOut, acDir);
+            Vector3 shoulderPerp = shoulderOut - f.AcDir * Vector3.Dot(shoulderOut, f.AcDir);
             float shoulderPerpSqr = shoulderPerp.sqrMagnitude;
             if (shoulderPerpSqr <= k_Epsilon * k_Epsilon)
             {
@@ -136,11 +146,11 @@ namespace Basis.IK
             }
             Vector3 outDir = shoulderPerp / Mathf.Sqrt(shoulderPerpSqr);
 
-            Vector3 currentDir = (elbowPos - elbowCenter) / elbowRadius;
-            r.SideDot = Vector3.Dot(currentDir, outDir);
+            f.CurrentDir = (elbowPos - f.ElbowCenter) / f.ElbowRadius;
+            r.SideDot = Vector3.Dot(f.CurrentDir, outDir);
 
-            float thetaOut = Mathf.Atan2(Vector3.Dot(Vector3.Cross(currentDir, outDir), acDir),
-                Vector3.Dot(currentDir, outDir)) * Mathf.Rad2Deg;
+            f.ThetaOut = Mathf.Atan2(Vector3.Dot(Vector3.Cross(f.CurrentDir, outDir), f.AcDir),
+                Vector3.Dot(f.CurrentDir, outDir)) * Mathf.Rad2Deg;
             float firstClearT = -1f;
             float lastBlockedT = 0f;
             float bestClear = float.NegativeInfinity;
@@ -148,8 +158,7 @@ namespace Basis.IK
             for (int k = 0; k <= k_SwivelSteps; k++)
             {
                 float t = (float)k / k_SwivelSteps;
-                float c = SwivelClearance(i, t, thetaOut, acDir, currentDir, elbowCenter, elbowRadius,
-                    shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
+                float c = SwivelClearance(i, f, t);
                 if (firstClearT < 0f)
                 {
                     if (c >= k_ClearMargin)
@@ -161,7 +170,7 @@ namespace Basis.IK
                         lastBlockedT = t;
                     }
                 }
-                float s = c - swingPreference * t;
+                float s = c - f.SwingPreference * t;
                 if (s > bestClear)
                 {
                     bestClear = s;
@@ -179,8 +188,7 @@ namespace Basis.IK
                     for (int b = 0; b < k_ClearRefineSteps; b++)
                     {
                         float mid = 0.5f * (lo + hi);
-                        float c = SwivelClearance(i, mid, thetaOut, acDir, currentDir, elbowCenter, elbowRadius,
-                            shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
+                        float c = SwivelClearance(i, f, mid);
                         if (c >= k_ClearMargin)
                         {
                             hi = mid;
@@ -197,14 +205,12 @@ namespace Basis.IK
             {
                 float lo = (float)Mathf.Max(0, bestClearK - 1) / k_SwivelSteps;
                 float hi = (float)Mathf.Min(k_SwivelSteps, bestClearK + 1) / k_SwivelSteps;
-                bestClearT = RefineClearanceMax(i, lo, hi, thetaOut, acDir, currentDir, elbowCenter,
-                    elbowRadius, shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd,
-                    swingPreference);
+                bestClearT = RefineClearanceMax(i, f, lo, hi);
             }
 
             float chosenT = cleared ? firstClearT : bestClearT;
 
-            float flipCommit = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Mathf.Abs(thetaOut) - 100f) / 80f));
+            float flipCommit = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Mathf.Abs(f.ThetaOut) - 100f) / 80f));
             chosenT += (1f - chosenT) * flipCommit;
 
             float totalLen = (elbowPos - shoulderPos).magnitude + (handPos - elbowPos).magnitude;
@@ -216,76 +222,61 @@ namespace Basis.IK
             float approach = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(natClear / contactMargin));
             chosenT *= approach;
 
-            Vector3 dir = Quaternion.AngleAxis(thetaOut * chosenT, acDir) * currentDir;
+            Vector3 dir = Quaternion.AngleAxis(f.ThetaOut * chosenT, f.AcDir) * f.CurrentDir;
 
-            r.DesiredElbow = elbowCenter + dir * elbowRadius;
-            r.SwingAngleDeg = Mathf.Abs(thetaOut * chosenT);
+            r.DesiredElbow = f.ElbowCenter + dir * f.ElbowRadius;
+            r.SwingAngleDeg = Mathf.Abs(f.ThetaOut * chosenT);
             r.BlendUsed = chosenT;
 
             r.CollisionState = worstPen <= k_Epsilon ? 0 : (cleared ? 1 : 2);
-            r.ResidualClearance = MinTorsoClearance(i, shoulderPos, r.DesiredElbow, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
+            r.ResidualClearance = MinTorsoClearance(i, f, r.DesiredElbow);
             r.Engaged = true;
         }
 
-        static float RefineClearanceMax(in BasisElbowProtectInput i, float lo, float hi, float thetaOut,
-            Vector3 acDir, Vector3 currentDir, Vector3 elbowCenter, float elbowRadius, Vector3 shoulderPos,
-            float upperArmR, float chestR, float spineR, float hipsR, Vector3 bodyLat, Vector3 bodyFwd,
-            float swingPreference)
+        static float RefineClearanceMax(in BasisElbowProtectInput i, in Frame f, float lo, float hi)
         {
             const float invPhi = 0.6180339887f;
             float a = lo, b = hi;
             float t1 = b - invPhi * (b - a);
             float t2 = a + invPhi * (b - a);
-            float f1 = SwivelScore(i, t1, thetaOut, acDir, currentDir, elbowCenter, elbowRadius, shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd, swingPreference);
-            float f2 = SwivelScore(i, t2, thetaOut, acDir, currentDir, elbowCenter, elbowRadius, shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd, swingPreference);
+            float f1 = SwivelClearance(i, f, t1) - f.SwingPreference * t1;
+            float f2 = SwivelClearance(i, f, t2) - f.SwingPreference * t2;
             for (int n = 0; n < k_MaxRefineSteps; n++)
             {
                 if (f1 < f2)
                 {
                     a = t1; t1 = t2; f1 = f2;
                     t2 = a + invPhi * (b - a);
-                    f2 = SwivelScore(i, t2, thetaOut, acDir, currentDir, elbowCenter, elbowRadius, shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd, swingPreference);
+                    f2 = SwivelClearance(i, f, t2) - f.SwingPreference * t2;
                 }
                 else
                 {
                     b = t2; t2 = t1; f2 = f1;
                     t1 = b - invPhi * (b - a);
-                    f1 = SwivelScore(i, t1, thetaOut, acDir, currentDir, elbowCenter, elbowRadius, shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd, swingPreference);
+                    f1 = SwivelClearance(i, f, t1) - f.SwingPreference * t1;
                 }
             }
             return 0.5f * (a + b);
         }
 
-        static float SwivelScore(in BasisElbowProtectInput i, float t, float thetaOut, Vector3 acDir,
-            Vector3 currentDir, Vector3 elbowCenter, float elbowRadius, Vector3 shoulderPos,
-            float upperArmR, float chestR, float spineR, float hipsR, Vector3 bodyLat, Vector3 bodyFwd,
-            float swingPreference)
+        static float SwivelClearance(in BasisElbowProtectInput i, in Frame f, float t)
         {
-            return SwivelClearance(i, t, thetaOut, acDir, currentDir, elbowCenter, elbowRadius,
-                shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd) - swingPreference * t;
+            Vector3 d = Quaternion.AngleAxis(f.ThetaOut * t, f.AcDir) * f.CurrentDir;
+            return MinTorsoClearance(i, f, f.ElbowCenter + d * f.ElbowRadius);
         }
 
-        static float SwivelClearance(in BasisElbowProtectInput i, float t, float thetaOut, Vector3 acDir,
-            Vector3 currentDir, Vector3 elbowCenter, float elbowRadius, Vector3 shoulderPos,
-            float upperArmR, float chestR, float spineR, float hipsR, Vector3 bodyLat, Vector3 bodyFwd)
-        {
-            Vector3 d = Quaternion.AngleAxis(thetaOut * t, acDir) * currentDir;
-            return MinTorsoClearance(i, shoulderPos, elbowCenter + d * elbowRadius, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
-        }
-
-        static float MinTorsoClearance(in BasisElbowProtectInput i, Vector3 shoulderPos, Vector3 elbowPos,
-            float upperArmR, float chestLatR, float spineLatR, float hipsLatR, Vector3 bodyLat, Vector3 bodyFwd)
+        static float MinTorsoClearance(in BasisElbowProtectInput i, in Frame f, Vector3 elbowPos)
         {
             float worst = float.PositiveInfinity;
             if (i.HasHips && i.HasSpine)
             {
-                worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.HipsPos, i.SpinePos, hipsLatR, spineLatR, bodyLat, bodyFwd));
+                worst = Mathf.Min(worst, SegmentClearance(f.ShoulderPos, elbowPos, f.UpperArmR, i.HipsPos, i.SpinePos, f.HipsR, f.SpineR, f.BodyLat, f.BodyFwd));
             }
             if (i.HasSpine)
             {
-                worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.SpinePos, i.ChestPos, spineLatR, chestLatR, bodyLat, bodyFwd));
+                worst = Mathf.Min(worst, SegmentClearance(f.ShoulderPos, elbowPos, f.UpperArmR, i.SpinePos, i.ChestPos, f.SpineR, f.ChestR, f.BodyLat, f.BodyFwd));
             }
-            worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.ChestPos, i.NeckPos, chestLatR, chestLatR, bodyLat, bodyFwd));
+            worst = Mathf.Min(worst, SegmentClearance(f.ShoulderPos, elbowPos, f.UpperArmR, i.ChestPos, i.NeckPos, f.ChestR, f.ChestR, f.BodyLat, f.BodyFwd));
             return worst;
         }
 

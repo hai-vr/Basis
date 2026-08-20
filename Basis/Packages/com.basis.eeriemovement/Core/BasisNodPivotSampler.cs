@@ -2,16 +2,6 @@ using Unity.Mathematics;
 
 namespace Basis.IK
 {
-    /// <summary>
-    /// Feeds HMD poses to <see cref="BasisNodPivotEstimatorCore"/> on a cadence and slews the accepted
-    /// result. The arm it produces is a body dimension, not a per-frame signal: a bad window must never
-    /// be able to jerk the pelvis, so an accepted fit is blended in over roughly a second and an
-    /// unaccepted one simply holds.
-    /// <para>
-    /// Samples are held in a ring, and the solve is order independent (it only forms means and sums), so
-    /// the buffer is passed through as-is rather than being unrolled into chronological order.
-    /// </para>
-    /// </summary>
     public sealed class BasisNodPivotSampler
     {
         private readonly float3[] _positions;
@@ -25,17 +15,10 @@ namespace Basis.IK
         private float3 _arm;
         private bool _hasArm;
 
-        /// <summary>Sample cadence. The window length is this times the buffer capacity.</summary>
         public float SampleIntervalSeconds = 1f / 30f;
 
-        /// <summary>How often the least squares runs. Cheap, but there is no point solving per frame.</summary>
         public float SolveIntervalSeconds = 0.25f;
 
-        /// <summary>
-        /// How far toward an accepted fit the arm moves, per ACCEPTED SOLVE rather than per second. Tied
-        /// to the solve and not to the clock, a single window that slips past the gates can only ever move
-        /// the arm by this much, while a run of agreeing windows still converges quickly.
-        /// </summary>
         public float BlendPerAcceptance = 0.15f;
 
         public BasisNodPivotResult LastResult;
@@ -60,10 +43,6 @@ namespace Basis.IK
             LastResult = default;
         }
 
-        /// <summary>
-        /// Returns the eye-from-pivot arm to drive the gaze-swing removal with: <paramref name="priorArm"/>
-        /// until a window is both well excited and well explained, then a slewed blend toward the fit.
-        /// </summary>
         public float3 Update(float3 eyePos, quaternion eyeRot, float dt, float3 priorArm, in BasisNodPivotSettings settings)
         {
             if (!(dt > 0f) || !math.all(math.isfinite(eyePos)))

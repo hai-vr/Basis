@@ -643,11 +643,6 @@ public class SMModuleDebugOptions : BasisSettingsBase
         BasisNetworkOverviewGizmos.Tick(scale);
     }
 
-    /// <summary>
-    /// Lazily creates / updates a billboarded text label keyed by <paramref name="key"/>.
-    /// Shared by tracker and link labels; the gizmo diffs text/colour internally so a
-    /// steady label costs only the billboard transform write.
-    /// </summary>
     private static void UpdateLabel<T>(Dictionary<T, int> map, T key, string gizmoName, string text, Vector3 position, Color color, float scale)
     {
         Quaternion rot = BasisGizmoManager.BillboardRotation(position, _camPos);

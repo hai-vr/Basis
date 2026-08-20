@@ -59,25 +59,25 @@ namespace Basis.IK
 
             Vector3 up = i.PlayerUp.sqrMagnitude > k_Epsilon ? i.PlayerUp.normalized : Vector3.up;
             Vector3 belly = i.TorsoFacingDir.sqrMagnitude > k_Epsilon ? i.TorsoFacingDir.normalized : Vector3.forward;
-            float supine01 = Saturate(InvLerp(ReclineStartDot, ReclineFullDot, Vector3.Dot(belly, up)));
+            float supine01 = BasisIKMath.Saturate(InvLerp(ReclineStartDot, ReclineFullDot, Vector3.Dot(belly, up)));
 
             Vector3 outward = i.OutwardDir.sqrMagnitude > k_Epsilon ? i.OutwardDir.normalized : Vector3.zero;
             Vector3 instep = i.FootInstepDir.sqrMagnitude > k_Epsilon ? i.FootInstepDir.normalized : Vector3.zero;
             float tiltSin = Mathf.Clamp(Vector3.Dot(instep, outward), -1f, 1f);
             float tiltDeg = Mathf.Asin(Mathf.Max(0f, tiltSin)) * Mathf.Rad2Deg;
-            float footTilt01 = Saturate(tiltDeg / Mathf.Max(1f, FootTiltRefDeg));
+            float footTilt01 = BasisIKMath.Saturate(tiltDeg / Mathf.Max(1f, FootTiltRefDeg));
 
             float reachRatio = maxReach > k_Epsilon ? dist / maxReach : 1f;
-            float pullIn01 = Saturate(InvLerp(PullInStartRatio, PullInFullRatio, reachRatio));
+            float pullIn01 = BasisIKMath.Saturate(InvLerp(PullInStartRatio, PullInFullRatio, reachRatio));
             float amplify = Mathf.Lerp(PullInFloor, 1f, pullIn01);
 
             r.Supine01 = supine01;
             r.FootTilt01 = footTilt01;
             r.PullIn01 = pullIn01;
 
-            float strength = Saturate(i.Strength);
+            float strength = BasisIKMath.Saturate(i.Strength);
 
-            float supineGate = Mathf.Max(supine01, Saturate(i.SupineFloor));
+            float supineGate = Mathf.Max(supine01, BasisIKMath.Saturate(i.SupineFloor));
             float engage = supineGate * footTilt01;
             if (engage <= k_Epsilon || strength <= k_Epsilon || axis == Vector3.zero)
             {
@@ -87,12 +87,12 @@ namespace Basis.IK
                 return;
             }
 
-            float openFrac = Saturate(engage * amplify);
+            float openFrac = BasisIKMath.Saturate(engage * amplify);
             float openDeg = openFrac * maxOpenDeg;
 
             r.OpenAngleDeg = openDeg;
 
-            r.HintWeight = strength * Saturate(engage / EngageFullThreshold);
+            r.HintWeight = strength * BasisIKMath.Saturate(engage / EngageFullThreshold);
             r.KneeHint = BuildHint(i.HipPosition, i.FootPosition, i.DefaultBendDir, axis, i.UpperLength, openDeg, outward);
         }
 
@@ -129,7 +129,70 @@ namespace Basis.IK
         }
 
         static float InvLerp(float a, float b, float v) => Mathf.Approximately(a, b) ? (v >= b ? 1f : 0f) : (v - a) / (b - a);
-        static float Saturate(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
+    }
+
+    internal static class BasisIKMath
+    {
+        const float k_Epsilon = 1e-5f;
+        const float k_SqrEpsilon = 1e-8f;
+
+        public static float Saturate(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
+
+        public static float SignedAngleRad(Vector3 from, Vector3 to, Vector3 axis)
+        {
+            float denom = Mathf.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
+            if (!(denom > k_Epsilon))
+            {
+                return 0f;
+            }
+
+            float c = Vector3.Dot(from, to) / denom;
+            c = c > 1f ? 1f : (c > -1f ? c : -1f);
+            float angle = Mathf.Acos(c);
+            return Vector3.Dot(axis, Vector3.Cross(from, to)) < 0f ? -angle : angle;
+        }
+
+        public static Quaternion AngleAxisRad(float radians, Vector3 axis)
+        {
+            float h = 0.5f * radians;
+            float s = Mathf.Sin(h);
+            return new Quaternion(axis.x * s, axis.y * s, axis.z * s, Mathf.Cos(h));
+        }
+
+        public static float TwistAngleRad(Quaternion q, Vector3 axis)
+        {
+            float s = q.x * axis.x + q.y * axis.y + q.z * axis.z;
+            float c = q.w;
+            if (c < 0f) { s = -s; c = -c; }
+            if (!(s * s + c * c > k_SqrEpsilon))
+            {
+                return 0f;
+            }
+            return 2f * Mathf.Atan2(s, c);
+        }
+
+        public static float AngleDeg(Vector3 from, Vector3 to)
+        {
+            float denom = Mathf.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
+            if (denom < k_Epsilon)
+            {
+                return 0f;
+            }
+
+            float c = Mathf.Clamp(Vector3.Dot(from, to) / denom, -1f, 1f);
+            return Mathf.Acos(c) * Mathf.Rad2Deg;
+        }
+
+        public static float TriangleAngle(float aLen, float aLen1, float aLen2)
+        {
+            if (aLen1 <= k_Epsilon || aLen2 <= k_Epsilon)
+            {
+                return 0f;
+            }
+
+            float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (2.0f * aLen1 * aLen2), -1.0f, 1.0f);
+            return Mathf.Acos(c);
+        }
     }
 
     public struct BasisSwingContinuityState
@@ -342,8 +405,6 @@ namespace Basis.IK
             if (segLen2 < k_SqrEpsilon) return 0f;
             return Mathf.Clamp01(Vector3.Dot(twistPos - parentPos, seg) / segLen2);
         }
-
-        public static Quaternion RelaxAroundAxis(Quaternion delta, Vector3 axis, float keep) => ShapeReachStep(delta, axis, keep, 1f);
 
         public static Quaternion ShapeReachStep(Quaternion delta, Vector3 axis, float twistKeep, float swingScale)
         {

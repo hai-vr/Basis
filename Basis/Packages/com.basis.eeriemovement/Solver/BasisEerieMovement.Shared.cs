@@ -6,11 +6,20 @@ namespace Basis.IK
 {
     public partial struct BasisEerieMovement
     {
-        void ApplyTrackerOverrides(BasisPoseStream stream)
+        void ApplyTrackerOverrides()
         {
-            for (int i = 0; i < slotHandles.Length; i++)
+            for (int i = 0; i < slotPositions.Length; i++)
             {
-                Apply(stream, slotHandles[i], slotPositions[i], slotRotations[i], slotOffsets[i], slotWeights[i]);
+                if (!slotWeights[i])
+                {
+                    continue;
+                }
+                BasisBoneHandle handle = SlotHandle(i);
+                if (poseStream.IsValid(handle))
+                {
+                    poseStream.SetPosition(handle, slotPositions[i]);
+                    poseStream.SetRotation(handle, slotRotations[i] * slotOffsets[i]);
+                }
             }
         }
 
@@ -130,33 +139,11 @@ namespace Basis.IK
 
             return 2f * Mathf.Atan2(s, c) * Mathf.Rad2Deg;
         }
-        public void ApplyRotation(BasisPoseStream stream, bool enabledProp, BasisBoneHandle handle, Quaternion targetRotProp, Quaternion RotationOffset)
+        public void ApplyRotation(bool enabled, BasisBoneHandle handle, Quaternion targetRot, Quaternion offset)
         {
-            if (!handle.IsValid(stream))
+            if (enabled && poseStream.IsValid(handle))
             {
-                return;
-            }
-
-            if (enabledProp)
-            {
-                handle.SetRotation(stream, targetRotProp * RotationOffset);
-            }
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Apply(BasisPoseStream stream, BasisBoneHandle h, Vector3 p, Quaternion r, Quaternion o, bool sw)
-        {
-            if (h.IsValid(stream))
-            {
-                if (sw)
-                {
-                    Vector3 targetPos = p;
-                    Quaternion targetRot = r;
-                    Quaternion offsetRot = o;
-                    Quaternion finalRot = targetRot * offsetRot;
-
-                    h.SetPosition(stream, targetPos);
-                    h.SetRotation(stream, finalRot);
-                }
+                poseStream.SetRotation(handle, targetRot * offset);
             }
         }
     }

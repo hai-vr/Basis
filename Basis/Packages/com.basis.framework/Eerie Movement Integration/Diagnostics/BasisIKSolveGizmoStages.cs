@@ -22,13 +22,6 @@ namespace Basis.Scripts.Debugging
         }
     }
 
-    /// <summary>
-    /// The stage table the IK solve gizmos are built from. It is the single source of truth for
-    /// three things at once: which bits the Burst solve is allowed to record into
-    /// <see cref="BasisIKGizmoRecorder"/>, the colour each stage draws in, and the rows the body
-    /// tracking settings section generates. Adding a stage is this table plus its two localization
-    /// keys — the settings UI, persistence and solve-side mask all pick it up with no further edits.
-    /// </summary>
     public static class BasisIKSolveGizmoStages
     {
         public const int DrawCapacity = 12288;
@@ -103,12 +96,6 @@ namespace Basis.Scripts.Debugging
                 new Color(0.85f, 0.85f, 0.85f, 1f), false),
         };
 
-        /// <summary>
-        /// Re-reads the persisted values once the settings file has been parsed. ReloadAndNotify
-        /// rather than LoadBindingValue: these keys are not declared in BasisSettingsDefaults, so
-        /// nothing else re-derives the gizmo render gate from them — the change notification is
-        /// what tells SMModuleDebugOptions a saved-on stage came back.
-        /// </summary>
         public static void LoadAll()
         {
             Enabled.ReloadAndNotify();
@@ -131,10 +118,6 @@ namespace Basis.Scripts.Debugging
             }
         }
 
-        /// <summary>
-        /// Stage bits the solve should record this frame. Zero while the master toggle is off or
-        /// every stage is unchecked, which is what keeps the recorder unallocated.
-        /// </summary>
         public static int Mask()
         {
             if (!Enabled.RawValue)

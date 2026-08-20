@@ -8,10 +8,6 @@ using UnityEngine.Playables;
 
 namespace Basis.Scripts.Drivers
 {
-    /// <summary>
-    /// Per-avatar baked pose samples for the stock locomotion clips: local rotations for every pose
-    /// skeleton node plus the hips local position, sampled at <see cref="BasisLocomotionPoseBaker.SampleRate"/>.
-    /// </summary>
     public sealed class BasisLocomotionPoseBake : IDisposable
     {
         public bool Ready;
@@ -40,12 +36,6 @@ namespace Basis.Scripts.Drivers
         }
     }
 
-    /// <summary>
-    /// Incrementally samples the stock locomotion clips through a hidden, component-free copy of the
-    /// avatar's skeleton (same Avatar asset, so the humanoid retarget is Unity's own — no muscle math
-    /// re-derived here). Runs a fixed number of graph evaluates per tick so an avatar load never pays
-    /// the whole bake in one frame; the engine Animator path keeps running until the bake is Ready.
-    /// </summary>
     public sealed class BasisLocomotionPoseBaker : IDisposable
     {
         public const float SampleRate = 30f;
@@ -203,9 +193,6 @@ namespace Basis.Scripts.Drivers
             return clone;
         }
 
-        /// <summary>
-        /// Runs up to <see cref="EvaluatesPerTick"/> clip evaluations. Returns true while more work remains.
-        /// </summary>
         public bool Tick()
         {
             if (Failed || _bake == null || _bake.Ready)

@@ -5,25 +5,6 @@ using UnityEngine;
 
 namespace Basis.Scripts.Drivers
 {
-    /// <summary>
-    /// Runtime diagnostic for the knee SWIVEL, per leg per frame. Built to answer one question: when one knee
-    /// misbehaves and the other is fine, WHICH input differs? The solve path is mirror-symmetric (same
-    /// kneeAnteriorRef, same captured bend normal, mirrored driver blocks, and an ODD anterior clamp), so a
-    /// left/right asymmetry has to come from the DATA, and this is what reads the data.
-    ///
-    /// Rows are <see cref="Basis.IK.BasisLegDiagnostics"/> verbatim -- its own Header/ToRow, not a second copy
-    /// of the field list, so the two cannot drift.
-    ///
-    /// The column that is NOT in the diagnostics struct is bendVsAnt: the angle between that leg's BendNormal
-    /// (which rides the lower-leg TRACKER when FBIKTrackerBendNormal is on) and kneeAnteriorRef (which is always
-    /// body-frame hips-right). Those two frames are what the anterior guard and the pole eases are measured
-    /// against respectively, and the guard-first ordering in BasisLegSolveCore only keeps the near-colinear
-    /// slerp well-conditioned while they agree to within ~90 deg -- measured 1.3x knee gain up to 90, then 316x
-    /// at 120 and 471x at 180. A strap rotated on one shin, or a stale bend-normal capture, shows up here as a
-    /// large bendVsAnt on that leg alone.
-    ///
-    /// Read the SUMMARY first; the CSV is for the frame the number goes bad.
-    /// </summary>
     public static class BasisLegSwivelDebug
     {
         public static bool Enabled;
@@ -147,10 +128,6 @@ namespace Basis.Scripts.Drivers
               .Append(" | ").Append(r.ToString("F2").PadLeft(11)).Append(" | ").Append(note).Append('\n');
         }
 
-        /// <summary>
-        /// Names the asymmetry rather than leaving it to be eyeballed. Deliberately reports only what the
-        /// numbers support -- an inconclusive run should say so, not pick the nearest story.
-        /// </summary>
         static string Verdict()
         {
             if (_l.Frames == 0 || _r.Frames == 0)

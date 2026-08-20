@@ -26,11 +26,6 @@ namespace Basis.IK
 
         private const float TorsoYawRelockSpeedDeg = 6f;
 
-        /// <summary>
-        /// How much of the spine's reach the synthesised pelvis may demand. Kept under 1 so the pelvis stays
-        /// clear of the taut band rather than sitting on its edge, where the solve starts trading head
-        /// accuracy for span.
-        /// </summary>
         private const float ReachUseCeiling = 0.97f;
 
         public struct SpineSolveParams
@@ -75,15 +70,8 @@ namespace Basis.IK
             public float SpineRotationSpeed;
             public float HipsRotationSpeed;
 
-            /// <summary>
-            /// Eye-from-nod-pivot, head local: the arm the HMD actually swings on when the user nods.
-            /// Seeded from the avatar's authored eye-to-head offset and refined from HMD motion by
-            /// <see cref="BasisNodPivotSampler"/>, because the avatar's authoring is a rendering offset
-            /// and has no reason to match the user's own cervical geometry.
-            /// </summary>
             public float3 GazeSwingLever;
 
-            /// <summary>T-pose neck height above the eye. Anchors the pelvis to the nod pivot instead of to the swinging neck estimate.</summary>
             public float TposeNeckMinusEyeY;
 
             public float GazeSwingRemoval;

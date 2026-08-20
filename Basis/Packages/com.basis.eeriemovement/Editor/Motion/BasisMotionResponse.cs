@@ -3,8 +3,6 @@ using UnityEngine;
 
 namespace Basis.IK.Motion
 {
-    /// <summary>How a blend responds to a known input: its time constant, its overshoot, its lag, and
-    /// -- the one that actually matters in VR -- whether any of those change with framerate.</summary>
     public struct BasisStepResponse
     {
         public bool Ok;
@@ -16,7 +14,6 @@ namespace Basis.IK.Motion
         public override string ToString() => $"t63={T63Ms:F1}ms t90={T90Ms:F1}ms overshoot={OvershootPct:F1}% settle={SettleMs:F0}ms";
     }
 
-    /// <summary>Gain and lag at one driving frequency -- one point on a Bode plot.</summary>
     public struct BasisFreqResponse
     {
         public float Hz;
@@ -26,7 +23,6 @@ namespace Basis.IK.Motion
         public override string ToString() => $"{Hz:F2}Hz: gain={Gain:F3} lag={LagMs:F1}ms";
     }
 
-    /// <summary>Result of driving the same blend at every framerate a headset might run at.</summary>
     public struct BasisInvarianceResult
     {
         public bool Ok;
@@ -50,55 +46,12 @@ namespace Basis.IK.Motion
         }
     }
 
-    /// <summary>Runs one blend for `frames` steps at timestep `dt`, returning its value after each step.
-    /// Sample i is the state AFTER the (i+1)-th update, i.e. at t = (i+1)*dt.</summary>
     public delegate float[] BasisBlendSampler(float dt, int frames);
 
-    /// <summary>
-    /// The "is it blending at the correct speed" engine.
-    ///
-    /// A blend's speed is only meaningful if it is the SAME speed on every machine. Basis ships to
-    /// headsets running 72, 80, 90, 120 and 144 Hz, and to desktop at whatever the monitor does. A
-    /// smoother written as
-    ///
-    ///     t = saturate(dt * speed);  x = lerp(x, target, t);          // WRONG
-    ///
-    /// has a time constant that is a function of the user's GPU. Written as
-    ///
-    ///     t = 1 - exp(-rate * dt);   x = lerp(x, target, t);          // RIGHT
-    ///
-    /// it does not. The two look nearly identical at any single framerate, which is exactly why the
-    /// wrong one survives code review, and why this needs to be a permanent gate rather than a thing
-    /// someone notices once.
-    ///
-    /// The wrong form also has a second, nastier property: `saturate` clamps at dt*speed >= 1, so a
-    /// blend with speed 40 stops blending AT ALL below 40 fps -- it snaps, every frame, and the
-    /// smoothing silently ceases to exist exactly when the framerate is bad enough to need it most.
-    ///
-    /// ---------------------------------------------------------------------------------------------
-    /// HOW Invariance() COMPARES, AND WHY IT IS FUSSY ABOUT IT:
-    ///
-    /// The obvious implementation -- resample every curve onto a fine common grid and diff them --
-    /// FAILS THE CORRECT BLENDS. Interpolating a curve across a corner (MoveTowards saturating at 1.0,
-    /// say) manufactures an error that has nothing to do with framerate, and the test then reports the
-    /// good code as broken. That happened on the first attempt, and a test that cries wolf on correct
-    /// code is worse than no test: it gets muted.
-    ///
-    /// So Invariance() compares two rates ONLY at sample times they genuinely share. For rates fa and
-    /// fb, both have a sample at every multiple of 1/gcd(fa,fb) seconds. 72 and 90 coincide at 18 Hz;
-    /// 120 and 144 at 24 Hz. Exact indices, zero interpolation, zero manufactured error.
-    /// ---------------------------------------------------------------------------------------------
-    /// </summary>
     public static class BasisMotionResponse
     {
-        /// <summary>The rates Basis actually ships at. Deliberately NOT including 30: a 33 ms frame
-        /// cannot resolve a 25 ms time constant, so a "disagreement" there is the observer, not the
-        /// code, and folding it in would flag every correct blend.</summary>
         public static readonly int[] VrFrameRates = { 72, 80, 90, 120, 144 };
 
-        /// <summary>A correct blend holds its step response to well under this across all VR rates.
-        /// Measured: the exp/MoveTowards forms in this codebase land at 0.0003-0.006; the four
-        /// saturate(dt*speed) sites in the virtual spine land at 0.031-0.077. A 5x margin either side.</summary>
         public const float MaxFramerateDeviation = 0.015f;
 
         // ------------------------------------------------------------------ step response
@@ -131,9 +84,6 @@ namespace Basis.IK.Motion
             return r;
         }
 
-        /// <summary>Time the signal first reaches `level`, interpolated between samples. Interpolated
-        /// because at 72 Hz a frame is 14 ms, and reading a 20 ms time constant off the sample grid
-        /// alone quantises it into uselessness.</summary>
         static float CrossTime(float[] y, float dt, float level)
         {
             for (int i = 0; i < y.Length; i++)
@@ -149,13 +99,6 @@ namespace Basis.IK.Motion
 
         // ------------------------------------------------------------------ frequency response
 
-        /// <summary>Gain and lag at one frequency, by projecting both signals onto sin/cos at that
-        /// frequency. The first half of the record is discarded as filter transient.
-        ///
-        /// This is how lag gets measured, and it is deliberately NOT inferred from arbitrary motion:
-        /// cross-correlating a smoothed signal against its source cannot recover a filter's group
-        /// delay, because a smoothed signal is a different SHAPE, not a shifted copy. Attempting it
-        /// reported 0 ms for a 150 ms filter. Drive it with a sinusoid and the answer is exact.</summary>
         public static BasisFreqResponse Sine(float[] input, float[] output, float dt, float hz)
         {
             var r = new BasisFreqResponse { Hz = hz, Gain = float.NaN, LagMs = float.NaN, PhaseDeg = float.NaN };
@@ -260,12 +203,8 @@ namespace Basis.IK.Motion
 
         // ------------------------------------------------------------------ the two blend forms
 
-        /// <summary>The framerate-CORRECT exponential blend. `rate` is a true rate (1/s); the time
-        /// constant is exactly 1/rate at every framerate.</summary>
         public static float ExpAlpha(float rate, float dt) => 1f - Mathf.Exp(-Mathf.Max(0f, rate) * dt);
 
-        /// <summary>The framerate-DEPENDENT form, kept here ONLY so tests can drive it and prove the
-        /// gate fails it. Never call this from shipping code.</summary>
         public static float LegacySaturateAlpha(float speed, float dt) => Mathf.Clamp01(dt * Mathf.Max(0f, speed));
     }
 }

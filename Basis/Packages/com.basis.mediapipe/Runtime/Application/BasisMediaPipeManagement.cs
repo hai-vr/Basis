@@ -10,13 +10,6 @@ using UnityEngine;
 
 namespace Basis.MediaPipe
 {
-    /// <summary>
-    /// Device source that turns webcam MediaPipe landmarks into fake Basis trackers,
-    /// finger data, eye gaze and face blendshapes. Add this to the BasisDeviceManagement
-    /// GameObject and include it in its BaseTypes list; its per-frame work is driven by
-    /// BasisDeviceManagement.Simulate() (the central tick). Inert until the homuler
-    /// MediaPipe Unity Plugin is installed (see README).
-    /// </summary>
     public class BasisMediaPipeManagement : BasisBaseTypeManagement
     {
         public const string SubSystem = "BasisMediaPipe";
@@ -53,7 +46,6 @@ namespace Basis.MediaPipe
         private bool _armDiagLogged;
         public override bool IsDeviceBootable(string BootRequest) => BootRequest == SubSystem;
 
-        /// <summary>Pulls persisted settings into Config and restarts the backend if it is already running.</summary>
         public void ApplySettings()
         {
             LoadSettingsIntoConfig();
@@ -84,7 +76,6 @@ namespace Basis.MediaPipe
             ApplyTuning();
         }
 
-        /// <summary>Applies converter sign/gain tuning without restarting the backend.</summary>
         public void ApplyTuning()
         {
             _faceConverter.EyeLidIsOpenness = !BasisMediaPipeSettings.InvertBlink.RawValue;
@@ -134,7 +125,6 @@ namespace Basis.MediaPipe
             }
         }
 
-        /// <summary>Applies persisted resolution/FPS and restarts only the webcam (no model reload).</summary>
         public void ReloadCamera()
         {
             Config.CameraWidth = BasisMediaPipeSettings.ResolutionWidth.RawValue;
@@ -197,11 +187,6 @@ namespace Basis.MediaPipe
             CalibrateHead();
         }
 
-        /// <summary>
-        /// Rebuilds the cached arm rig when the avatar changes. Keyed on the avatar instance so a
-        /// mid-session enable (hand tracking is off by default, so it is always switched on after the
-        /// avatar has already loaded and OnLocalAvatarChanged has been and gone) still gets a rig.
-        /// </summary>
         private bool EnsureArmRig()
         {
             BasisAvatar avatar = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.BasisAvatar : null;
@@ -258,11 +243,6 @@ namespace Basis.MediaPipe
                 && _rightIndexProximal != null && _rightMiddleProximal != null && _rightLittleProximal != null;
         }
 
-        /// <summary>
-        /// The constant that maps a MediaPipe palm frame onto the avatar's hand bone rotation. Built from the
-        /// knuckles, which stay put relative to the hand when the fingers curl, so it is invariant to the
-        /// avatar's current pose and does not need a reference pose to capture.
-        /// </summary>
         private bool TryBuildHandRig(in MediaPipeArmConverter.AvatarArmRig arm, out MediaPipeHandConverter.AvatarHandRig rig)
         {
             rig = default;
@@ -289,17 +269,6 @@ namespace Basis.MediaPipe
             return true;
         }
 
-        /// <summary>
-        /// The inverses of the IK's own palm->bone hand offsets, so the hand converter can cancel them (see
-        /// MediaPipeHandConverter.AvatarHandRig for why they must be cancelled at all).
-        ///
-        /// Re-read every frame rather than cached: the offsets are (re)written on calibration, recalibration and
-        /// avatar swap, and TryBuildHandRig already runs per frame, so this self-heals instead of pinning a stale
-        /// offset from whatever avatar happened to be loaded first.
-        ///
-        /// Falls back to identity whenever the rig is not up yet -- an uncancelled rotation is the pre-existing
-        /// behaviour, and the IK is not solving anything at that point anyway.
-        /// </summary>
         private static void GetHandIkOffsetInverses(out Quaternion leftInverse, out Quaternion rightInverse)
         {
             leftInverse = Quaternion.identity;
@@ -319,16 +288,6 @@ namespace Basis.MediaPipe
             rightInverse = InverseOffsetSafe(player.LocalRigDriver.RightHandIKOffset);
         }
 
-        /// <summary>
-        /// Inverse of a calibration offset that can never produce NaN.
-        ///
-        /// A default-initialised Quaternion is (0,0,0,0), NOT identity, and Quaternion.Inverse divides by the
-        /// squared norm -- inverting a zero quaternion yields NaN. That NaN would ride into the tracker rotation,
-        /// through the IK, and into the bone transforms, where in Unity it PERSISTS: a NaN'd transform does not
-        /// recover on the next good frame, so the rig simply dies. The offsets are identity-initialised and then
-        /// calibrated, but they are written from several places and there is a window where a reader can catch one
-        /// before it is valid. Treating an invalid offset as identity (i.e. "no cancellation") costs nothing.
-        /// </summary>
         private static Quaternion InverseOffsetSafe(Quaternion offset)
         {
             float sqrNorm = offset.x * offset.x + offset.y * offset.y + offset.z * offset.z + offset.w * offset.w;
@@ -366,7 +325,6 @@ namespace Basis.MediaPipe
             return Config.CameraHeight > 0 ? (float)Config.CameraWidth / Config.CameraHeight : 1f;
         }
 
-        /// <summary>Avatar body axes from the chest (or hips) bone control — a filtered target the arm solver never writes to.</summary>
         private static bool TryTorsoAxes(out Vector3 right, out Vector3 up, out Vector3 forward)
         {
             right = Vector3.right;
@@ -599,7 +557,6 @@ namespace Basis.MediaPipe
         }
 
 
-        /// <summary>Torso orientation in player space, as a delta from the avatar's rest pose.</summary>
         private static bool TryBodyDelta(out Quaternion body)
         {
             body = Quaternion.identity;
@@ -616,11 +573,6 @@ namespace Basis.MediaPipe
             return true;
         }
 
-        /// <summary>
-        /// Places the chest by carrying it on the hips and adding the webcam's lean/twist on top. The converter
-        /// hands back an OFFSET from neutral; writing that straight onto the tracker (as this used to) pinned the
-        /// chest to a fixed rotation in player space, so it stopped turning with the body altogether.
-        /// </summary>
         private static bool TryComposeChest(Quaternion torsoOffset, out Vector3 position, out Quaternion rotation)
         {
             position = Vector3.zero;
@@ -642,15 +594,6 @@ namespace Basis.MediaPipe
             return true;
         }
 
-        /// <summary>
-        /// The only door camera data gets through to a tracker, and it is barred to anything non-finite.
-        ///
-        /// This is not belt-and-braces. Every threshold guard in this package reads `x &lt; epsilon`, and that
-        /// comparison is FALSE for NaN — so one NaN landmark walks through all of them untouched, latches into the
-        /// one-euro filters (which lerp it forward forever), and finally reaches the Burst IK job, where
-        /// `BasisArmBendLookup.SampleTrilinear` turns it into `(int)NaN` == int.MinValue and aborts the process
-        /// with no managed stack to read. Dropping the tracker instead costs one frame of arm and is recoverable.
-        /// </summary>
         private void WriteTracker(BasisBoneTrackedRole role, Vector3 position, Quaternion rotation)
         {
             if (!IsFinite(position) || !IsFinite(rotation))
@@ -694,14 +637,6 @@ namespace Basis.MediaPipe
         private const float HandFadeInHz = 5f;
         private const float HandFadeOutHz = 3f;
 
-        /// <summary>
-        /// Eases the hand's IK weight toward tracked/untracked instead of switching it. Returns false once the
-        /// hand has faded fully out and is free, meaning the caller should release it altogether.
-        ///
-        /// A hand that is CARRYING something never fades: the held object is constrained to the hand BONE, so
-        /// letting the IK go would fling it to the avatar's rest pose. It stays pinned at full weight, holding its
-        /// last good pose, until you let go — at which point it fades out normally.
-        /// </summary>
         private bool FadeHandIK(bool left, bool trackable, BasisBoneTrackedRole role, float deltaTime)
         {
             BasisLocalBoneControl control = left
@@ -725,7 +660,6 @@ namespace Basis.MediaPipe
             return weight > 0f;
         }
 
-        /// <summary>Whether this hand is currently gripping an interactable, in which case its IK must stay put.</summary>
         private static bool HandIsHolding(BasisBoneTrackedRole role)
         {
             BasisPlayerInteract interact = BasisPlayerInteract.Instance;

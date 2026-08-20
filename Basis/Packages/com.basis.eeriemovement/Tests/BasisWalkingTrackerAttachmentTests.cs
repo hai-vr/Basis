@@ -657,7 +657,7 @@ namespace Basis.Tests.IK
                     chestIkHeadRestoreSweeps = 2,
                     chestPosPullMaxDeg = 20f,
                     chestPullMaxDist = 0.5f,
-                    targetOffsetHead = Quaternion.identity,
+                    offsetRotationHead = Quaternion.identity,
                     playerUp = Vector3.up,
                     chestIkTarget = false,
                     spineAnatomicalRom = false,
@@ -673,8 +673,9 @@ namespace Basis.Tests.IK
 
                 root.transform.position = Vector3.zero;
                 skeleton.GatherNow();
-                job.SolveSequentialSpineIK(skeleton.Stream, restHead + localOffset, Quaternion.identity);
-                float standingErr = (chain[0].GetPosition(skeleton.Stream) - (restHead + localOffset)).magnitude;
+                job.poseStream = skeleton.Stream;
+                job.SolveSequentialSpineIK(restHead + localOffset, Quaternion.identity);
+                float standingErr = (skeleton.Stream.GetPosition(chain[0]) - (restHead + localOffset)).magnitude;
 
                 float maxDivergence = 0f;
                 for (int frame = 0; frame < 100; frame++)
@@ -685,9 +686,10 @@ namespace Basis.Tests.IK
                     Vector3 target = restHead + walk + localOffset;
 
                     skeleton.GatherNow();
-                    job.SolveSequentialSpineIK(skeleton.Stream, target, Quaternion.identity);
+                    job.poseStream = skeleton.Stream;
+                    job.SolveSequentialSpineIK(target, Quaternion.identity);
 
-                    float err = (chain[0].GetPosition(skeleton.Stream) - target).magnitude;
+                    float err = (skeleton.Stream.GetPosition(chain[0]) - target).magnitude;
                     float divergence = Mathf.Abs(err - standingErr);
                     if (divergence > maxDivergence) maxDivergence = divergence;
                 }

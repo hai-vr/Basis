@@ -3,45 +3,14 @@ using UnityEngine;
 
 namespace Basis.IK.Motion
 {
-    /// <summary>
-    /// Signal maths for the IK motion-quality harness: derivatives, zero-phase filtering, and the
-    /// split of a joint path into "what the body meant to do" and "what buzzes on top of it".
-    ///
-    /// Lives in Basis.Eerie.Movement.Editor, like BasisBvhLoader, so both the NUnit suite
-    /// (Basis.Framework.IK.Tests) and the editor sweeps can reach it without either hand-mirroring
-    /// the maths -- a mirrored metric drifts.
-    ///
-    /// TWO TRAPS ARE BAKED INTO THIS FILE. Both were hit while calibrating the gates, and both
-    /// silently produce a metric that lies:
-    ///
-    /// 1. NEVER DIFFERENTIATE A RAW SIGNAL. Jerk is a third derivative, so it amplifies frequency f
-    ///    by (2*pi*f)^3. A 1 mm wobble at 30 Hz -- below the mocap's own optical noise floor and
-    ///    invisible to the eye -- contributes 0.001 * (2*pi*30)^3 = 6700 m/s^3 of "jerk". Measured
-    ///    raw, a real human elbow scores 23100; measured through a 6 Hz low-pass, it scores 1171.
-    ///    The first number is the instrument. The second is the arm. Always LowPass() first.
-    ///
-    /// 2. A ZERO-PHASE FILTER HAS A STARTUP TRANSIENT THAT WILL EAT YOUR RMS. Filtering the CMU
-    ///    corpus and taking the residual over the whole window reported 30 mm of "human jitter";
-    ///    the first 8% of the clip alone read 108 mm while the middle 84% read 1.5 mm. The 1.5 mm is
-    ///    the truth. LowPass() therefore odd-extends the signal before filtering (which preserves
-    ///    the trend across the boundary -- a limb in motion has a big one) so the transient lives in
-    ///    the padding and is discarded. Do not replace it with a plain zero-pad.
-    /// </summary>
     public static class BasisMotionSignal
     {
-        /// <summary>Voluntary human motion lives below this. 96% of a real elbow's velocity power is
-        /// under 6 Hz (measured, CMU corpus). Differentiate above it and you are measuring noise.</summary>
         public const float MotionBandHz = 6f;
 
-        /// <summary>Anything an IK solver puts above this, it invented. Physiological tremor is
-        /// 8-12 Hz at well under a millimetre; a solver buzzing here is a defect, not a human.</summary>
         public const float JitterBandHz = 8f;
 
         // ------------------------------------------------------------------ derivatives
 
-        /// <summary>Central-difference derivative. Central, not forward: a forward difference
-        /// phase-shifts the signal by half a frame, which biases every spectral metric downstream.
-        /// Endpoints fall back to one-sided differences.</summary>
         public static Vector3[] Derivative(Vector3[] p, float dt)
         {
             if (p == null || p.Length < 2) return Array.Empty<Vector3>();
@@ -64,9 +33,6 @@ namespace Basis.IK.Motion
             return d;
         }
 
-        /// <summary>Angular velocity in deg/s from a quaternion track. Short-arcs the delta first --
-        /// q and -q are the same rotation, and taking the long way round invents a spike that is
-        /// pure double-cover artefact.</summary>
         public static float[] AngularSpeedDeg(Quaternion[] q, float dt)
         {
             if (q == null || q.Length < 2) return Array.Empty<float>();
@@ -85,9 +51,6 @@ namespace Basis.IK.Motion
 
         // ------------------------------------------------------------------ filtering
 
-        /// <summary>Zero-phase 2nd-order Butterworth low-pass, applied forward then backward (so 4th
-        /// order in magnitude, and EXACTLY zero phase -- no lag introduced by the analysis itself,
-        /// which matters because lag is one of the things we are measuring).</summary>
         public static float[] LowPass(float[] x, float dt, float cutoffHz)
         {
             if (x == null || x.Length < 8) return (float[])(x?.Clone() ?? Array.Empty<float>());
@@ -151,9 +114,6 @@ namespace Basis.IK.Motion
             return o;
         }
 
-        /// <summary>Split a joint path into (intended, residual): the 6 Hz-and-below motion the body
-        /// commanded, and everything above it. Smoothness metrics run on the first; jitter metrics
-        /// run on the second. Keeping them apart is the whole reason either number means anything.</summary>
         public static void Split(Vector3[] p, float dt, out Vector3[] intended, out Vector3[] residual,
                                  float cutoffHz = MotionBandHz)
         {
@@ -187,8 +147,6 @@ namespace Basis.IK.Motion
             return n == 0 ? 0f : (float)Math.Sqrt(s / n);
         }
 
-        /// <summary>Quantile of a copy (never sorts the caller's array in place -- these arrays are
-        /// live traces and a silent reorder would corrupt every metric taken after it).</summary>
         public static float Quantile(float[] x, float q)
         {
             if (x == null || x.Length == 0) return float.NaN;
@@ -200,8 +158,6 @@ namespace Basis.IK.Motion
             return Mathf.Lerp(c[lo], c[hi], pos - lo);
         }
 
-        /// <summary>Interior angle at b, in degrees, per frame. Elbow = (shoulder, elbow, hand):
-        /// 180 is dead straight, small is fully flexed.</summary>
         public static float[] JointAngleDeg(Vector3[] a, Vector3[] b, Vector3[] c)
         {
             int n = Mathf.Min(a.Length, Mathf.Min(b.Length, c.Length));
@@ -217,9 +173,6 @@ namespace Basis.IK.Motion
             return ang;
         }
 
-        /// <summary>The maximally-smooth point-to-point reach. Every smoothness metric must rank this
-        /// at or near its ceiling, which is exactly how BasisMotionAnalyzerTests calibrates them: if
-        /// SPARC on a min-jerk reach is not about -1.4, the metric is broken, not the motion.</summary>
         public static Vector3[] MinJerk(Vector3 from, Vector3 to, int frames)
         {
             var p = new Vector3[frames];

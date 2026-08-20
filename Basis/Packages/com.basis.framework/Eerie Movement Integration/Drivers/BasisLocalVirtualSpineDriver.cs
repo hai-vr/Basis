@@ -40,11 +40,6 @@ namespace Basis.IK
 
         private float _tposeNeckMinusEyeY;
 
-        /// <summary>
-        /// Learns the arm the HMD really swings on when the user nods. The avatar's authored eye-to-head
-        /// offset is only a rendering offset, so using it as the nod pivot leaves an unremoved arc that
-        /// translates the whole reconstructed body -- pelvis included -- on every look up or down.
-        /// </summary>
         private readonly BasisNodPivotSampler _nodPivot = new BasisNodPivotSampler(30);
 
         private float3 _gazeSwingLever;
@@ -108,14 +103,6 @@ namespace Basis.IK
             }
         }
 
-        /// <summary>
-        /// Runs after the device poll and BEFORE <see cref="BasisLocalBoneDriver.Simulate"/> in the
-        /// local player tick: the bone sim's follower chains (untracked legs/arms hang off the hips
-        /// via TargetIndex) must read the hips this solve writes for the SAME frame, or the whole
-        /// virtual leg chain — toes included — trails the torso by a frame. The eye pose is read
-        /// from the control's freshly polled IncomingData (the sim has not published it yet), so
-        /// the head target is still this frame's pose.
-        /// </summary>
         public void Simulate()
         {
             if (!_initialized) return;

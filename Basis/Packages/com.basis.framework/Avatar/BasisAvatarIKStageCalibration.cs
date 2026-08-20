@@ -9,9 +9,6 @@ using UnityEngine;
 using Basis.IK;
 namespace Basis.Scripts.Avatar
 {
-    /// <summary>
-    /// this class handles tracker calibration onto the IK system.
-    /// </summary>
     public static class BasisAvatarIKStageCalibration
     {
         public static class BasisHintBiasStore
@@ -35,13 +32,6 @@ namespace Basis.Scripts.Avatar
             public static void Clear() => LocalAxis.Clear();
         }
 
-        /// <summary>
-        /// Per-role tracker-to-bone rotation reference, captured at calibration: <c>Inverse(trackerWorld) *
-        /// boneWorld</c>, so <c>trackerWorldLive * reference</c> is the tracker-implied BONE world rotation.
-        /// A limb strap's clock angle around the limb is arbitrary and gets no <c>Recalibrated*</c> offset
-        /// (those cover only head/hips/chest/feet/toes/shoulders), so a raw tracker rotation cannot be
-        /// compared against a bone directly.
-        /// </summary>
         public static class BasisLimbRollStore
         {
             public static readonly Dictionary<BasisBoneTrackedRole, Quaternion> TrackerToBone = new();
@@ -51,11 +41,6 @@ namespace Basis.Scripts.Avatar
             public static void Clear() => TrackerToBone.Clear();
         }
 
-        /// <summary>
-        /// Read-only snapshot of the most recent constellation calibration pass. Populated
-        /// each time FullBodyCalibration runs and consumed by the editor visualizer. Live
-        /// runtime never reads this — flipping any field cannot affect avatar behavior.
-        /// </summary>
         public static class ConstellationDebug
         {
             public class DebugSample
@@ -118,9 +103,6 @@ namespace Basis.Scripts.Avatar
             public bool NearOrigin;     // tracker's UnscaledDeviceCoord came back ≈ Vector3.zero — almost always a stale/missing poll
         }
 
-        /// <summary>
-        /// data for ik calibration
-        /// </summary>
         public class BasisCalibrationData
         {
             [SerializeField]
@@ -128,26 +110,8 @@ namespace Basis.Scripts.Avatar
             public float Distance;
             public int SideSign; // -1 left, +1 right, 0 center/unknown
         }
-        /// <summary>
-        /// If Any trackers are actively connected to the IK system
-        /// </summary>
         public static bool HasFBIKTrackers = false;
 
-        /// <summary>
-        /// Do trackers actually pose the LEGS?
-        ///
-        /// HasFBIKTrackers is a WHOLE-BODY flag -- it is true for a chest, shoulder, elbow or hips tracker just as
-        /// readily as for a foot. Asking it a LEG question gives the wrong answer, and the failure is silent and
-        /// severe: the animator suppresses the walk cycle "because we're in FBT", while leg IK simultaneously
-        /// disables itself during locomotion (so the animation can take over) -- and the legs end up with NO driver
-        /// at all. They freeze mid-stride.
-        ///
-        /// That went unnoticed for as long as the only things producing chest/shoulder/elbow trackers were real FBT
-        /// rigs, which carry leg trackers too -- so the suppression happened to be right, for the wrong reason.
-        /// MediaPipe spawns chest/shoulder/elbow trackers with no leg trackers anywhere, which is what exposed it.
-        ///
-        /// A leg question gets a leg answer. Read live so it self-heals on tracker dropout/reconnect.
-        /// </summary>
         public static bool HasLegFBIKTrackers =>
                IsRoleTracked(BasisLocalBoneDriver.LeftFootControl)
             || IsRoleTracked(BasisLocalBoneDriver.RightFootControl)
@@ -156,31 +120,12 @@ namespace Basis.Scripts.Avatar
             || IsRoleTracked(BasisLocalBoneDriver.LeftUpperLegControl)
             || IsRoleTracked(BasisLocalBoneDriver.RightUpperLegControl);
 
-        /// <summary>
-        /// Is the PELVIS specifically tracker-driven?
-        ///
-        /// Distinct from HasLegFBIKTrackers on purpose: a hip tracker moves the leg ROOT but does not pose the legs,
-        /// so it should not silence the walk cycle. It DOES make the pelvis authoritative, so anything that
-        /// synthesises pelvis motion (the landing hip-dip, gait bob/sway/pelvis-rotation) must stand down or it
-        /// fights the user's real body.
-        /// </summary>
         public static bool HasHipsFBIKTracker => IsRoleTracked(BasisLocalBoneDriver.HipsControl);
 
         private static bool IsRoleTracked(BasisLocalBoneControl control)
         {
             return control != null && control.HasTracked == BasisHasTracked.HasTracker;
         }
-        /// <summary>
-        /// Builds a tracker→role assignment from the player's T-pose constellation alone.
-        /// The avatar is no longer the source of truth for "where should this tracker be";
-        /// instead the HMD defines a body frame and each tracker is classified by its
-        /// height-above-floor and lateral offset, normalized to the calibrated player eye
-        /// height. ComputeHints below still consults the avatar (chest/hips reference
-        /// rotations), but the role-matching pass itself is avatar-independent — so the
-        /// same trackers map the same way whether the user wears a child avatar or a
-        /// three-meter giant.
-        /// </summary>
-        /// <summary>Raised at the end of <see cref="FullBodyCalibration"/>, after tracker roles have been (re)assigned.</summary>
         public static System.Action OnFullBodyCalibrated;
 
         public static void FullBodyCalibration()
@@ -354,12 +299,6 @@ namespace Basis.Scripts.Avatar
         private static Vector3 s_calibHeadUnscaledPos;
         private static Quaternion s_calibHeadUnscaledRot = Quaternion.identity;
 
-        /// <summary>
-        /// The scale-free head anchor of the last ritual calibration — the reference for "standing in
-        /// roughly the calibration pose". Per-tracker snapshot edits must be expressed in that tracker's
-        /// OWN capture frame (BasisInput.CalibratedUnscaledHead*), which equals this frame for trackers
-        /// captured during the ritual.
-        /// </summary>
         public static bool TryGetCalibrationHeadSnapshot(out Vector3 unscaledPosition, out Quaternion unscaledRotation)
         {
             unscaledPosition = s_calibHeadUnscaledPos;
@@ -367,19 +306,6 @@ namespace Basis.Scripts.Avatar
             return HasCalibrationHeadSnapshot;
         }
 
-        /// <summary>
-        /// Re-derives every calibrated FBT tracker's POSITION inverse offset for the CURRENT avatar and
-        /// DeviceScale from the scale-free calibration snapshots — the position analog of
-        /// <see cref="ApplyCalibrationToCurrentAvatar"/> (which re-derives the per-effector ROTATION
-        /// offsets). BasisHeightDriver calls this whenever the height/scale pipeline re-resolves
-        /// (avatar swap, scale slider, OSC override), so FBT keeps fitting without redoing the T-pose.
-        /// The player's live pose is irrelevant: only the stored calibration geometry and the current
-        /// avatar's T-pose bind (TposeLocalScaled) are used. Each tracker rebuilds against the head
-        /// anchor it was captured with (BasisInput.CalibratedUnscaledHead*), so a mid-session recapture
-        /// keeps its own frame instead of inheriting the ritual one. The offset ROTATION is untouched —
-        /// it maps tracker rotation to the bone-sim body frame, which is avatar- and scale-independent.
-        /// No-op for trackers without a snapshot.
-        /// </summary>
         public static void ReprojectTrackerOffsetsForCurrentAvatar()
         {
             BasisLocalPlayer player = BasisLocalPlayer.Instance;
@@ -475,11 +401,6 @@ namespace Basis.Scripts.Avatar
             ApplyCalibrationToCurrentAvatar();
         }
 
-        /// <summary>
-        /// Re-derives the per-effector FBT rotation offsets for the CURRENT avatar from the stored
-        /// calibration reference, so the calibration survives an avatar swap (no T-pose redo). Called at
-        /// calibration and again from the rig (re)build. No-op until a calibration has been captured.
-        /// </summary>
         public static void ApplyCalibrationToCurrentAvatar()
         {
             if (!HasCalibrationReference) return;
@@ -574,10 +495,6 @@ namespace Basis.Scripts.Avatar
             BasisCalibrationDebugRecorder.Meta("ConstellationStatus", ConstellationDebug.Status);
         }
 
-        /// <summary>
-        /// Classifies every free FB-trackable device by its position in the player's T-pose
-        /// and assigns roles. Pure geometry — no avatar lookup, no tracker metadata.
-        /// </summary>
         private static void ClassifyAndAssignTrackersFromTPose()
         {
             ConstellationDebug.Reset("calibration in progress");
@@ -717,11 +634,6 @@ namespace Basis.Scripts.Avatar
             ConstellationDebug.HasSnapshot = true;
         }
 
-        /// <summary>
-        /// Resolves a user-set override for the given input. Plain inputs use
-        /// their own id. Virtual midpoints check both physical halves so an
-        /// override saved against either tracker before pairing still applies.
-        /// </summary>
         private static bool TryResolveOverride(BasisInput input, out BasisBoneTrackedRole role)
         {
             if (BasisTrackerRoleOverride.TryGetOverride(input.UniqueDeviceIdentifier, out role))
@@ -922,13 +834,6 @@ namespace Basis.Scripts.Avatar
             return samples;
         }
 
-        /// <summary>
-        /// User-facing FBIK calibration tolerance: a multiplier applied to every prior's
-        /// sigma in <see cref="BasisConstellationClassifier.BuildPriors"/>. 1 = stock behavior (identical acceptance
-        /// regions); higher widens every band for players whose proportions, tracker mounts,
-        /// or calibration pose fall outside the typical envelope. Clamped so a maxed slider
-        /// can't collapse role discrimination entirely.
-        /// </summary>
         private static float GetCalibrationTolerance()
         {
             float t = Basis.BasisUI.BasisSettingsDefaults.CalibrationTolerance.RawValue;
@@ -937,12 +842,6 @@ namespace Basis.Scripts.Avatar
             return t;
         }
 
-        /// <summary>
-        /// Finds the device currently bound to <paramref name="handRole"/> and returns its
-        /// body-local height/lateral ratios in the same playspace frame the classifier uses
-        /// (UnscaledDeviceCoord, normalized to eye height). Returns false when no such device
-        /// exists or it polled at the world origin (a pose it never actually wrote).
-        /// </summary>
         private static bool TryGetHandBodyLocalRatios(BasisBoneTrackedRole handRole, Vector3 bodyOrigin, Quaternion bodyRotInv, float eyeHeight, out float heightRatio, out float lateralRatio)
         {
             heightRatio = 0f;
@@ -972,11 +871,6 @@ namespace Basis.Scripts.Avatar
             return false;
         }
 
-        /// <summary>
-        /// Reads the live hand controller pose for the constellation classifier (the elbow
-        /// prior re-center), or returns <see cref="BasisConstellationHand.None"/> when the hand
-        /// isn't present / polled at the origin.
-        /// </summary>
         private static BasisConstellationHand ReadHandForClassifier(BasisBoneTrackedRole handRole, Vector3 bodyOrigin, Quaternion bodyRotInv, float eyeHeight)
         {
             if (TryGetHandBodyLocalRatios(handRole, bodyOrigin, bodyRotInv, eyeHeight, out float h, out float lat))
@@ -993,10 +887,6 @@ namespace Basis.Scripts.Avatar
         // Bounds for the user-facing calibration tolerance (a sigma multiplier).
         private const float ConstellationMinCalibrationTolerance = 1.0f;
         private const float ConstellationMaxCalibrationTolerance = 3.0f;
-        /// <summary>
-        /// gets a roles dictionary with the roles and transforms
-        /// </summary>
-        /// <returns></returns>
         public static Dictionary<BasisBoneTrackedRole, Transform> GetAllRolesAsTransform()
         {
             Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
@@ -1037,11 +927,6 @@ namespace Basis.Scripts.Avatar
 
             return transforms;
         }
-        /// <summary>
-        /// Per-role radius used for tracker debug gizmos (BasisLocalBoneDriver). The
-        /// constellation classifier in FullBodyCalibration no longer consults these
-        /// values — they survive only as visualization hints.
-        /// </summary>
         public static float MaxDistanceBeforeTrackerIsIrrelivant(BasisBoneTrackedRole role)
         {
 
@@ -1115,18 +1000,6 @@ namespace Basis.Scripts.Avatar
         private static readonly List<ConstellationDebug.DebugPrior> _defaultPriorsCache = new List<ConstellationDebug.DebugPrior>(16);
         private static float _defaultPriorsArmReach = -1f;
 
-        /// <summary>
-        /// Returns the body-frame anchor and per-role priors used to render
-        /// calibration acceptance-region gizmos. Always prefers a live HMD pose
-        /// so the regions track wherever the player is now (rather than freezing
-        /// at the last calibration snapshot). Falls back to the snapshot frame if
-        /// no HMD device is available, or returns false if there's no usable
-        /// frame source at all.
-        /// </summary>
-        /// <param name="bodyOrigin">World-space anchor: HMD position projected to the floor.</param>
-        /// <param name="bodyRotation">Body forward rotation: HMD facing flattened to horizontal.</param>
-        /// <param name="eyeHeight">Eye height (meters), used to convert ratio-space priors to world distances.</param>
-        /// <param name="priors">Per-role priors. Snapshot priors when a calibration has run, default-armReach priors otherwise.</param>
         public static bool TryGetCalibrationVisualizationFrame(
             out Vector3 bodyOrigin,
             out Quaternion bodyRotation,
@@ -1203,11 +1076,6 @@ namespace Basis.Scripts.Avatar
             return false;
         }
 
-        /// <summary>
-        /// Passive HMD pose read — same lookup as <see cref="TryGetHmdPose"/>
-        /// but without the <c>LatePollData()</c> call. Safe to invoke from
-        /// per-frame render paths since it never re-runs the device poll.
-        /// </summary>
         private static bool TryReadHmdPosePassive(out Vector3 unscaledPos, out Quaternion unscaledRot)
         {
             BasisDeviceManagement manager = BasisDeviceManagement.Instance;
@@ -1266,11 +1134,6 @@ namespace Basis.Scripts.Avatar
             return _defaultPriorsCache;
         }
 
-        /// <summary>
-        /// Legacy ordered role list from the radius-based matcher. The constellation
-        /// classifier no longer reads this — kept public for external consumers that
-        /// still rely on it as a "trackable FB roles" enumeration.
-        /// </summary>
         public static BasisBoneTrackedRole[] desiredOrder = new BasisBoneTrackedRole[]
         {
         BasisBoneTrackedRole.LeftHand,
@@ -1437,12 +1300,6 @@ namespace Basis.Scripts.Avatar
             }
         }
 
-        /// <summary>
-        /// Store <c>Inverse(trackerWorld) * boneWorld</c> for a limb role, so the live path can recover the
-        /// tracker-implied BONE rotation as <c>trackerWorldLive * reference</c>. A strap is rigid on the limb,
-        /// so the reference is exactly the inverse of the strap offset and cancels it for any mounting angle.
-        /// Roles with no entry leave the consumer's zero-quaternion "feature off" sentinel in place.
-        /// </summary>
         static void CaptureLimbRoll(Dictionary<BasisBoneTrackedRole, Transform> storedRoleTransforms,
                                     BasisBoneTrackedRole role, Quaternion trackerWorldRot)
         {

@@ -183,7 +183,7 @@ namespace Basis.Tests.IK
                 handleUpperChest = rig.Skeleton.Bind(rig.Bones[3]),
                 handleNeck = rig.Skeleton.Bind(rig.Bones[4]),
                 handleHead = rig.Skeleton.Bind(rig.Bones[5]),
-                targetOffsetHead = Quaternion.identity,
+                offsetRotationHead = Quaternion.identity,
                 offsetRotationHips = Quaternion.identity,
                 playerUp = Vector3.up,
                 chestIkTarget = false,
@@ -245,8 +245,8 @@ namespace Basis.Tests.IK
 
                 rig.Skeleton.GatherNow();
                 var hips = rig.Skeleton.Bind(rig.Bones[0]);
-                hips.SetPosition(rig.Skeleton.Stream, hipsPos);
-                hips.SetRotation(rig.Skeleton.Stream, deltaYaw);
+                rig.Skeleton.Stream.SetPosition(hips, hipsPos);
+                rig.Skeleton.Stream.SetRotation(hips, deltaYaw);
 
                 if (solve)
                 {
@@ -255,9 +255,11 @@ namespace Basis.Tests.IK
                     rig.Job.targetPositionHead = headPos;
                     if (cfg.PreBend)
                     {
-                        rig.Job.DistributeSpineBend(rig.Skeleton.Stream, headPos);
+                        rig.Job.poseStream = rig.Skeleton.Stream;
+                        rig.Job.DistributeSpineBend(headPos);
                     }
-                    rig.Job.SolveSequentialSpineIK(rig.Skeleton.Stream, headPos, gaze);
+                    rig.Job.poseStream = rig.Skeleton.Stream;
+                    rig.Job.SolveSequentialSpineIK(headPos, gaze);
                 }
 
                 for (int j = 0; j < k_Measured.Length; j++)

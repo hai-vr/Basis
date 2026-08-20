@@ -3,9 +3,6 @@ using UnityEngine;
 
 namespace Basis.IK.Motion
 {
-    /// <summary>Per-joint motion-quality metrics. Every field is either dimensionless or normalised by
-    /// limb length, so the same numbers apply to a 0.6 m chibi and a 2.4 m giant -- the same doctrine
-    /// as the Froude gait law. A metric in raw metres would gate one avatar size and lie about the rest.</summary>
     public struct BasisMotionQualitySummary
     {
         public bool Ok;
@@ -29,11 +26,6 @@ namespace Basis.IK.Motion
         public float WorstPopRatio;    // worst frame-step / median frame-step
         public int WorstPopFrame;
 
-        /// <summary>Which frames popped. Needed because comparing pop COUNTS against a reference does not
-        /// answer the question anyone is actually asking: a solver that pops on exactly the frames the HUMAN
-        /// popped on has invented nothing, and one that pops the same NUMBER of times somewhere else has
-        /// invented all of them. Only a frame-by-frame comparison can tell those apart. Index i = the step
-        /// from frame i to i+1.</summary>
         public bool[] PopFrames;
 
         // --- fidelity against a reference track (the human, or a golden run). NaN if none given.
@@ -46,62 +38,10 @@ namespace Basis.IK.Motion
             (float.IsNaN(ShapeDistance) ? "" : $" shape={ShapeDistance:F3} err={MeanErrFracLimb * 100f:F2}%L");
     }
 
-    /// <summary>
-    /// Scores how a joint MOVED, as opposed to where it ended up.
-    ///
-    /// Every other IK gate in this project asks "is this pose right". None of them ask "is this motion
-    /// right", and the two are genuinely independent: a solved elbow can be 2 cm accurate on every
-    /// single frame and still buzz at 30 Hz, sit on a plateau, or arrive 150 ms late. Position accuracy
-    /// cannot see any of that, because each frame, taken alone, looks fine. The badness only exists
-    /// BETWEEN frames.
-    ///
-    /// ============================================================================================
-    /// THE ONE THING TO UNDERSTAND BEFORE ADDING A METRIC HERE:
-    ///
-    ///     SMOOTHNESS METRICS ARE ONE-SIDED. THEY PUNISH ROUGH AND *REWARD* MUSH.
-    ///
-    /// Measured against the CMU corpus, degrading a real human elbow by over-smoothing it with a
-    /// 150 ms filter makes it score BETTER than the human on every smoothness metric there is:
-    ///
-    ///         metric        real human      +150ms over-smooth     +plateau     +linearised
-    ///         jerk/L          1171                 95                 244            237
-    ///         SPARC          -3.41               -2.62              -2.34          -2.89
-    ///
-    /// A gate of the form `smoothness <= threshold` therefore hands a passing grade to exactly the
-    /// laggy, robotic, dead-feeling motion we are trying to eliminate, and FAILS the real human. It is
-    /// worse than no gate, because it actively pushes the solver the wrong way.
-    ///
-    /// So: JerkPerLimb is gated as a FLOOR as well as a ceiling. A living arm has a characteristic
-    /// amount of jerk in it. Too little means something upstream ate the motion.
-    ///
-    /// And smoothness alone is never enough -- it must be paired with ShapeDistance (which catches
-    /// energy in the wrong bands) and with a lag measurement from BasisMotionResponse, or the cheapest
-    /// way to pass every gate is to smooth harder, forever.
-    /// ============================================================================================
-    /// </summary>
     public static class BasisMotionQuality
     {
-        /// <summary>A "pop" is a single-frame step this many times the motion's own MEDIAN step. Median,
-        /// not mean -- with a mean, one pop inflates the very baseline it is being measured against, and
-        /// a big enough pop hides itself.</summary>
         public const float PopRatio = 8f;
 
-        /// <summary>
-        /// ...AND it must actually be big enough to SEE. A pop must clear this fraction of the limb length in
-        /// a single frame, as well as clearing PopRatio.
-        ///
-        /// ⚠ THE RATIO ALONE IS A LIAR, AND IT WAS LYING. It is scale-RELATIVE, so a joint that barely moves has
-        /// a near-zero median and ordinary motion sails past 8x. Measured on the corpus (BasisKneePopLocaliser):
-        /// of the knee's 170 flagged frames, 27 sat on tracks whose median step was under a thousandth of a leg,
-        /// where the denominator has collapsed and the metric is measuring nothing but its own noise floor. That
-        /// is how the knee scored an identical "36 excess pops" whether it was handed no hint at all, the old
-        /// lookup, or the fitted model -- a number that does not move when its supposed cause moves was never
-        /// measuring that cause.
-        ///
-        /// 1% of a limb in ONE frame is ~1.2 limb-lengths/second of instantaneous speed at 120 Hz: that is a
-        /// discontinuity. Below it there is nothing a user could see, so there is nothing to count. The teleport
-        /// BasisMotionAnalyzerTests plants is 13% of its limb and still trips this comfortably.
-        /// </summary>
         public const float PopMinFracLimb = 0.01f;
 
         public static BasisMotionQualitySummary Analyze(

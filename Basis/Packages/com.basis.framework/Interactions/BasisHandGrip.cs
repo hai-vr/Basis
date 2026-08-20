@@ -6,65 +6,26 @@ using UnityEngine;
 
 namespace Basis.Scripts.BasisSdk.Interactions
 {
-    /// <summary>
-    /// The hand frame a held object is welded to, and the units a grip offset is carried in.
-    /// </summary>
     public struct BasisHandFrame
     {
-        /// <summary>World position of the palm — the point an object sits on when it is in the hand.</summary>
         public Vector3 Position;
 
-        /// <summary>
-        /// The hand bone pose this frame was carried onto — the wrist, where a naive weld would put the
-        /// object. Exposed so a debug view draws the offset the frame actually applied rather than
-        /// re-deriving one that could disagree with it.
-        /// </summary>
         public Vector3 WristPosition;
 
-        /// <summary>World orientation of the canonical hand basis: forward down the hand, up out the back of it.</summary>
         public Quaternion Rotation;
 
-        /// <summary>
-        /// Wrist to middle knuckle, in metres. Grip offsets travel as multiples of this, so an observer
-        /// showing a differently sized hand holds the object proportionally rather than at the holder's
-        /// absolute reach.
-        /// </summary>
         public float HandLength;
 
-        /// <summary>
-        /// False when the avatar lacked the finger bones to build the basis and the frame fell back to the
-        /// wrist bone's own transform, which is rig-specific and only reconstructs against the same avatar.
-        /// </summary>
         public bool Canonical;
     }
 
-    /// <summary>
-    /// Builds a hand frame from bone POSITIONS rather than from the hand bone's transform.
-    ///
-    /// The humanoid hand bone sits at the wrist and carries whatever bind orientation the avatar happened
-    /// to be rigged with, so a grip expressed in it belongs to that one avatar: it seats objects behind the
-    /// hand, and it does not survive being reconstructed against anybody else's rig. Joint positions carry
-    /// no such convention — the palm, the direction down the hand and the axis across the knuckles mean the
-    /// same thing on every humanoid. So a grip authored against this frame works on any avatar, and an
-    /// observer showing a substitute avatar (fallback, still loading, performance level) reconstructs a held
-    /// object into the hand it is actually drawing rather than into the geometry of the holder's.
-    /// </summary>
     public static class BasisHandGrip
     {
-        /// <summary>
-        /// Stand-in wrist-to-knuckle length for an avatar with no fingers to measure, so a normalised offset
-        /// still decodes to something hand-sized instead of collapsing onto the palm.
-        /// </summary>
         public const float FallbackHandLength = 0.09f;
 
         private const float k_MinHandLength = 1e-5f;
         private const float k_MinBasisArea = 1e-8f;
 
-        /// <summary>
-        /// The local player's hand frame, anchored on the post-IK wrist (<see cref="BasisLocalBoneControl.IKWorldData"/>)
-        /// so it tracks the hand the player is actually looking at rather than the target the solver aims for.
-        /// False before the first solve or for an avatar with no hand bone.
-        /// </summary>
         public static bool TryGetLocalFrame(BasisLocalBoneControl bone, bool left, out BasisHandFrame frame)
         {
             frame = default;
@@ -76,16 +37,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return TryGetFrame(BasisLocalAvatarDriver.Mapping, left, ik.position, ik.rotation, out frame);
         }
 
-        /// <summary>
-        /// Any player's hand frame off that player's own cached bone mapping — the local player's rig driver
-        /// or a remote's avatar driver, both of which the avatar drivers rebuild on every avatar change.
-        /// Used by both ends of a networked hold so they agree without either sending rig data.
-        ///
-        /// Fails for a player that is neither, rather than answering with whatever rig happens to be lying
-        /// around: the previous "not remote, therefore local" reading handed back the VIEWER'S OWN hand for
-        /// any holder that had not resolved to a typed remote player yet (mid-join, mid-avatar-swap, a stale
-        /// owner entry), which welds the held object into the hand of whoever is watching it.
-        /// </summary>
         public static bool TryGetPlayerFrame(IBasisPlayer player, bool left, out BasisHandFrame frame)
         {
             frame = default;
@@ -126,12 +77,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return TryGetFrame(mapping, left, wristPos, wristRot, out frame);
         }
 
-        /// <summary>
-        /// Builds the frame against a supplied wrist pose. Every axis is measured in the LIVE wrist bone's
-        /// local space and then carried onto that pose, so a caller passing a solved pose read a frame apart
-        /// from the transforms still gets a rigid frame instead of position sheared against rotation. The
-        /// bones it measures are rig-fixed: curling a finger rotates a proximal bone, it does not move its origin.
-        /// </summary>
         public static bool TryGetFrame(BasisTransformMapping mapping, bool left, Vector3 wristPos, Quaternion wristRot, out BasisHandFrame frame)
         {
             frame = new BasisHandFrame

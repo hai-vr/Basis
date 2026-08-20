@@ -14,41 +14,6 @@ namespace Basis.IK
 
         public static BasisBoneHandle FromIndex(int index) => new BasisBoneHandle { IndexPlusOne = index + 1 };
 
-        public bool IsValid(BasisPoseStream stream) => IndexPlusOne > 0 && IndexPlusOne <= stream.Count;
-
-        public Vector3 GetPosition(BasisPoseStream stream) =>
-            IsValid(stream) ? stream.GetWorldPosition(Index) : Vector3.zero;
-
-        public Quaternion GetRotation(BasisPoseStream stream) =>
-            IsValid(stream) ? stream.GetWorldRotation(Index) : Quaternion.identity;
-
-        public void GetPositionAndRotation(BasisPoseStream stream, out Vector3 position, out Quaternion rotation)
-        {
-            if (IsValid(stream))
-            {
-                stream.GetWorldPositionAndRotation(Index, out position, out rotation);
-                return;
-            }
-
-            position = Vector3.zero;
-            rotation = Quaternion.identity;
-        }
-
-        public void SetPosition(BasisPoseStream stream, Vector3 position)
-        {
-            if (IsValid(stream))
-            {
-                stream.SetWorldPosition(Index, position);
-            }
-        }
-
-        public void SetRotation(BasisPoseStream stream, Quaternion rotation)
-        {
-            if (IsValid(stream))
-            {
-                stream.SetWorldRotation(Index, rotation);
-            }
-        }
     }
 
     public static class BasisQuaternionExt
@@ -107,18 +72,6 @@ namespace Basis.IK
         }
     }
 
-    public struct BasisAffineTransform
-    {
-        public Vector3 translation;
-        public Quaternion rotation;
-
-        public BasisAffineTransform(Vector3 translation, Quaternion rotation)
-        {
-            this.translation = translation;
-            this.rotation = rotation;
-        }
-    }
-
     public struct BasisPoseStream
     {
         public const int MaxDepth = 64;
@@ -142,6 +95,42 @@ namespace Basis.IK
 
         public float deltaTime;
         public int Count;
+
+        public bool IsValid(BasisBoneHandle handle) => handle.IndexPlusOne > 0 && handle.IndexPlusOne <= Count;
+
+        public Vector3 GetPosition(BasisBoneHandle handle) =>
+            IsValid(handle) ? GetWorldPosition(handle.Index) : Vector3.zero;
+
+        public Quaternion GetRotation(BasisBoneHandle handle) =>
+            IsValid(handle) ? GetWorldRotation(handle.Index) : Quaternion.identity;
+
+        public void GetPositionAndRotation(BasisBoneHandle handle, out Vector3 position, out Quaternion rotation)
+        {
+            if (IsValid(handle))
+            {
+                GetWorldPositionAndRotation(handle.Index, out position, out rotation);
+                return;
+            }
+
+            position = Vector3.zero;
+            rotation = Quaternion.identity;
+        }
+
+        public void SetPosition(BasisBoneHandle handle, Vector3 position)
+        {
+            if (IsValid(handle))
+            {
+                SetWorldPosition(handle.Index, position);
+            }
+        }
+
+        public void SetRotation(BasisBoneHandle handle, Quaternion rotation)
+        {
+            if (IsValid(handle))
+            {
+                SetWorldRotation(handle.Index, rotation);
+            }
+        }
 
         public void InvalidateWorldCache()
         {

@@ -159,22 +159,9 @@ namespace Basis.IK
             float sG = side * Mathf.Sqrt(Mathf.Max(1f - cG * cG, 0f));
 
             Vector3 poleGuarded = upN * cG + w * sG;
-            return SignedAngleRad(poleDir, poleGuarded, acN) * ConditioningFade(radius, totalLen);
+            return BasisIKMath.SignedAngleRad(poleDir, poleGuarded, acN) * ConditioningFade(radius, totalLen);
         }
 
-        static float SignedAngleRad(Vector3 from, Vector3 to, Vector3 axis)
-        {
-            float denom = Mathf.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
-            if (!(denom > k_Epsilon))
-            {
-                return 0f;
-            }
-
-            float c = Vector3.Dot(from, to) / denom;
-            c = c > 1f ? 1f : (c > -1f ? c : -1f);
-            float angle = Mathf.Acos(c);
-            return Vector3.Dot(axis, Vector3.Cross(from, to)) < 0f ? -angle : angle;
-        }
     }
 
     [BurstCompile]

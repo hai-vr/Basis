@@ -1,5 +1,6 @@
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 
@@ -71,12 +72,12 @@ public struct BasisFootSimulateJob : IJob
     public NativeArray<BasisFootSimInput> input;
     public NativeArray<BasisFootSimOutput> output;
 
-    public void Execute()
+    public unsafe void Execute()
     {
-        var inp = input[0];
-        var sim = simState[0];
-        var left = feet[0];
-        var right = feet[1];
+        ref BasisFootSimInput inp = ref UnsafeUtility.ArrayElementAsRef<BasisFootSimInput>(input.GetUnsafePtr(), 0);
+        ref BasisFootSimState sim = ref UnsafeUtility.ArrayElementAsRef<BasisFootSimState>(simState.GetUnsafePtr(), 0);
+        ref BasisFootNativeState left = ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(feet.GetUnsafePtr(), 0);
+        ref BasisFootNativeState right = ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(feet.GetUnsafePtr(), 1);
         float dt = inp.dt;
 
         if (dt <= 0f) return;
@@ -337,10 +338,6 @@ public struct BasisFootSimulateJob : IJob
         outp.pelvisDelta = ComputePelvisDelta(ref left, ref right, speed, up, bodyFwd);
         outp.airborne = airborne;
         output[0] = outp;
-
-        feet[0] = left;
-        feet[1] = right;
-        simState[0] = sim;
     }
 
     private void UpdateFoot(ref BasisFootNativeState f, ref BasisFootNativeState other,
@@ -699,7 +696,7 @@ public struct BasisFootSimulateJob : IJob
         return true;
     }
 
-    public static float3 ComputeBodyForward(BasisFootSimInput inp, BasisFootSimState sim, BasisFootSimParams p, float3 up)
+    public static float3 ComputeBodyForward(in BasisFootSimInput inp, in BasisFootSimState sim, in BasisFootSimParams p, float3 up)
     {
         float3 accumulated = float3.zero;
         float totalWeight = 0f;

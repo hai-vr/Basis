@@ -96,6 +96,8 @@ namespace Basis.IK
 
         public Vector3 Forward;
 
+        public BasisSpineSegment Segment;
+
         public bool Valid;
     }
 
@@ -172,11 +174,7 @@ namespace Basis.IK
                 return localRot;
             }
 
-            info.FlexGuardedDeg = flexDeg * swingScale;
-            info.LatGuardedDeg = latDeg * swingScale;
-            info.AxialGuardedDeg = axialGuard;
-
-            return Recompose(info.FlexGuardedDeg, info.LatGuardedDeg, axialGuard, frame);
+            return Recompose(flexDeg * swingScale, latDeg * swingScale, axialGuard, frame);
         }
 
         public static void Decompose(Quaternion delta, in BasisSpineRestFrame frame, out float flexDeg, out float latDeg, out float axialDeg)
@@ -253,7 +251,6 @@ namespace Basis.IK
         public bool SwingClamped;
         public bool TwistClamped;
         public float FlexDeg, LatDeg, AxialDeg;
-        public float FlexGuardedDeg, LatGuardedDeg, AxialGuardedDeg;
         public bool Touched => SwingClamped || TwistClamped;
     }
 }

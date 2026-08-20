@@ -14,41 +14,23 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 namespace Basis.Scripts.Drivers
 {
-    /// <summary>
-    /// Local avatar driver responsible for calibration, T-pose sequencing, animator swapping,
-    /// transform initialization, and mesh update settings for a locally controlled avatar.
-    /// </summary>
     [Serializable]
     public class BasisLocalAvatarDriver : BasisAvatarDriver
     {
 
-        /// <summary>Addressables key for the default locomotion animator controller.</summary>
         public const string Locomotion = "Locomotion";
 
-        /// <summary>
-        /// One-time T-pose snapshot of the RAW avatar joints, captured per avatar load while the avatar
-        /// is physically T-posed: role → unscaled, animator-root-local bone pose. This is the "capture
-        /// once at load, derive everything after" source calibration consumes (arm span, offset
-        /// references, offset reprojection) instead of re-reading live bones inside a T-pose window.
-        /// NOTE: deliberately raw joints — the bone-control TposeLocal is a MODIFIED T-pose (spine
-        /// snapped to the centerline, fallback-DB percentage positions) and cannot substitute for it.
-        /// </summary>
         public static readonly Dictionary<BasisBoneTrackedRole, BasisCalibratedCoords> TposeBoneSnapshot = new Dictionary<BasisBoneTrackedRole, BasisCalibratedCoords>();
         public static bool HasTposeBoneSnapshot;
 
-        /// <summary>Cached original head scale recorded during initialization.</summary>
         public static Vector3 HeadScale = Vector3.one;
 
-        /// <summary>Scale used to hide the head (scaled to zero).</summary>
         public static Vector3 HeadScaledDown = Vector3.zero;
 
-        /// <summary>Cached head-chop entries hidden alongside the head in first-person.</summary>
         public static HeadChopEntry[] HeadChopEntries = Array.Empty<HeadChopEntry>();
 
-        /// <summary>Cached length of <see cref="HeadChopEntries"/> for fast loops.</summary>
         public static int HeadChopEntriesLength;
 
-        /// <summary>Resolved head-chop target with its captured original and hidden scales.</summary>
         public struct HeadChopEntry
         {
             public Transform Target;
@@ -56,58 +38,35 @@ namespace Basis.Scripts.Drivers
             public Vector3 HiddenScale;
         }
 
-        /// <summary>Tracks whether the T-pose state-change event was wired.</summary>
         public static bool HasTPoseEvent = false;
 
-        /// <summary>Singleton-like reference to the local avatar driver instance.</summary>
         public static BasisLocalAvatarDriver Instance;
 
-        /// <summary>True when the head currently uses the normal/original scale.</summary>
         public static bool IsNormalHead;
 
-        /// <summary>True while the avatar is being held in T-pose mode.</summary>
         public static bool CurrentlyTposing = false;
 
-        /// <summary>Event raised when calibration has completed.</summary>
         public static Action CalibrationComplete;
 
-        /// <summary>Event raised whenever the T-pose state changes.</summary>
         public static Action TposeStateChange;
 
-        /// <summary>Discovered avatar transform references (head, hands, etc.).</summary>
         public static BasisTransformMapping Mapping = new BasisTransformMapping();
 
-        /// <summary>Saved animator controller used to restore after T-pose.</summary>
         public static RuntimeAnimatorController SavedruntimeAnimatorController;
 
-        /// <summary>All skinned mesh renderers under the avatar animator.</summary>
         public static SkinnedMeshRenderer[] SkinnedMeshRenderer;
 
-        /// <summary>Whether runtime events have been subscribed.</summary>
         public static bool HasEvents = false;
 
-        /// <summary>Cached length of <see cref="SkinnedMeshRenderer"/>.</summary>
         public static int SkinnedMeshRendererLength;
 
-        /// <summary>All jiggle rigs under the avatar, discovered during calibration.</summary>
-        /// <summary>Filtered out of the content-harvest snapshot by BasisAvatarFactory at load;
-        /// include-inactive, entries can be destroyed later — null-and-activity gate on use.</summary>
         public static JiggleRig[] JiggleRigs = Array.Empty<JiggleRig>();
 
-        /// <summary>Stores the transforms for each tracked role at calibration time.</summary>
         [System.NonSerialized] public Dictionary<BasisBoneTrackedRole, Transform> StoredRolesTransforms = new Dictionary<BasisBoneTrackedRole, Transform>();
 
-        /// <summary>Runtime scale modification settings for the avatar.</summary>
         [SerializeField]
         public BasisAvatarScaleModifier ScaleAvatarModification = new BasisAvatarScaleModifier();
 
-        /// <summary>
-        /// Performs initial local calibration: sets up rig driver, puts avatar into T-pose,
-        /// builds rigs, computes offsets, initializes drivers, and restores the animator.
-        /// </summary>
-        /// <param name="player">The local player instance.</param>
-        /// <param name="harvestedHeadChop">Head-chop targets harvested by ContentPolice during the
-        /// avatar load. Consumed here and discarded; not stored on the avatar.</param>
         public void InitialLocalCalibration(BasisLocalPlayer player, List<BasisHeadChop.HeadChopTarget> harvestedHeadChop)
         {
             Instance = this;
@@ -276,9 +235,6 @@ namespace Basis.Scripts.Drivers
             BasisCalibrationDebugRecorder.RuntimeBegin(SafeAvatarLabel(player));
             RecordCalibrationMeta(player);
         }
-        /// <summary>
-        /// Restores the head scale to its cached normal value if currently hidden/zeroed.
-        /// </summary>
         public static void ScaleHeadToNormal()
         {
             if (IsNormalHead || Instance == null || Mapping.Hashead == false) return;
@@ -295,9 +251,6 @@ namespace Basis.Scripts.Drivers
             IsNormalHead = true;
         }
 
-        /// <summary>
-        /// Scales the head to zero, effectively hiding it (e.g., for first-person rigs).
-        /// </summary>
         public static void ScaleHeadToZero()
         {
             if (IsNormalHead == false)
@@ -324,12 +277,6 @@ namespace Basis.Scripts.Drivers
             IsNormalHead = false;
         }
 
-        /// <summary>
-        /// Resolves head-chop entries from the targets harvested by ContentPolice during the
-        /// avatar load, caching each target's original and hidden local scales. Skips the head
-        /// bone (already managed) and duplicate targets. Pass null/empty when none were harvested.
-        /// </summary>
-        /// <param name="harvestedHeadChop">Targets collected during the load walk, or null.</param>
         public static void CollectHeadChopEntries(List<BasisHeadChop.HeadChopTarget> harvestedHeadChop)
         {
             if (harvestedHeadChop == null || harvestedHeadChop.Count == 0)
@@ -361,10 +308,6 @@ namespace Basis.Scripts.Drivers
             HeadChopEntriesLength = HeadChopEntries.Length;
         }
 
-        /// <summary>
-        /// Establishes hierarchical locks/constraints between tracked roles to compute offsets.
-        /// </summary>
-        /// <param name="BaseBoneDriver">The bone driver providing role lookups and lock creation.</param>
         public void ComputeOffsets(BasisLocalBoneDriver BaseBoneDriver)
         {
             SetAndCreateLock(BaseBoneDriver, BasisBoneTrackedRole.CenterEye, BasisBoneTrackedRole.Head);
@@ -402,10 +345,6 @@ namespace Basis.Scripts.Drivers
             SetAndCreateLock(BaseBoneDriver, BasisBoneTrackedRole.RightFoot, BasisBoneTrackedRole.RightToes);
         }
 
-        /// <summary>
-        /// Checks whether basic dependencies for calibration are present (local player, avatar, animator).
-        /// </summary>
-        /// <returns>True if calibration can proceed; otherwise false.</returns>
         public bool IsAble()
         {
             if (IsNull(BasisLocalPlayer.Instance))
@@ -423,10 +362,6 @@ namespace Basis.Scripts.Drivers
             return true;
         }
 
-        /// <summary>
-        /// Returns the active avatar eye height; falls back to a constant when no avatar is available.
-        /// </summary>
-        /// <returns>Eye height value.</returns>
         public float ActiveAvatarEyeHeight()
         {
             var localPlayer = BasisLocalPlayer.Instance;
@@ -440,11 +375,6 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Performs reference detection, layer setup, pose recording, face visibility wiring,
-        /// and facial blink driver initialization during calibration.
-        /// </summary>
-        /// <param name="LocalPlayer">The local player whose avatar is being calibrated.</param>
         public void Calibration(BasisLocalPlayer LocalPlayer)
         {
             var Avatar = LocalPlayer.BasisAvatar;
@@ -486,9 +416,6 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Swaps the animator to the T-pose controller, forces an update, and raises the state change event.
-        /// </summary>
         public void PutAvatarIntoTPose()
         {
             BasisDebug.Log("PutAvatarIntoTPose", BasisDebug.LogTag.Avatar);
@@ -506,13 +433,6 @@ namespace Basis.Scripts.Drivers
             BasisHeightDriver.CaptureAvatarHeightDuringTpose();
         }
 
-        /// <summary>
-        /// Fills <see cref="TposeBoneSnapshot"/> from the live (physically T-posed) raw avatar joints:
-        /// animator-root-local, with the current avatar scale divided out so entries are the pure bind.
-        /// Consumers re-anchor and re-scale as needed (root ⊗ bind × scale). Must run while the avatar
-        /// is T-posed and Mapping is populated — InitialLocalCalibration calls it right after
-        /// CalculateTransformPositions.
-        /// </summary>
         public void CaptureTposeBoneSnapshot()
         {
             TposeBoneSnapshot.Clear();
@@ -547,9 +467,6 @@ namespace Basis.Scripts.Drivers
             HasTposeBoneSnapshot = TposeBoneSnapshot.Count > 0;
         }
 
-        /// <summary>
-        /// Restores the original animator controller and leaves T-pose mode, raising the state change event.
-        /// </summary>
         public void ResetAvatarAnimator()
         {
             BasisDebug.Log("ResetAvatarAnimator", BasisDebug.LogTag.Avatar);
@@ -559,11 +476,6 @@ namespace Basis.Scripts.Drivers
             TposeStateChange?.Invoke();
         }
 
-        /// <summary>
-        /// Initializes outgoing positions for each bone control based on avatar data, humanoid mapping, or fallback DB.
-        /// </summary>
-        /// <param name="basisPlayer">The player whose avatar is used for bone mapping.</param>
-        /// <param name="driver">The bone driver storing controls and roles.</param>
         public void CalculateTransformPositions(BasisPlayer basisPlayer, BasisLocalBoneDriver driver)
         {
             // Cache hot references
@@ -622,29 +534,11 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Converts a local avatar-space position to world space based on animator position and rotation.
-        /// </summary>
-        /// <param name="localAvatarSpace">Point in avatar-local coordinates.</param>
-        /// <param name="AnimatorPosition">Animator world position used as origin.</param>
-        /// <param name="AnimatorRotation">Animator world rotation used as the basis.</param>
-        /// <param name="position">Out: computed world position.</param>
         public void GetWorldSpacePos(Vector3 localAvatarSpace, Vector3 AnimatorPosition, Quaternion AnimatorRotation, out float3 position)
         {
             position = BasisHelpers.ConvertFromLocalSpace(localAvatarSpace, AnimatorPosition, AnimatorRotation);
         }
 
-        /// <summary>
-        /// Retrieves rotation and position for a humanoid bone if possible; otherwise computes a fallback
-        /// based on eye height and configured height percentage.
-        /// </summary>
-        /// <param name="driver">Driver transform used for fallback orientation.</param>
-        /// <param name="anim">Animator providing humanoid mapping.</param>
-        /// <param name="bone">Humanoid bone to query.</param>
-        /// <param name="heightPercentage">Relative height used in fallback positioning.</param>
-        /// <param name="Rotation">Out: resulting rotation.</param>
-        /// <param name="Position">Out: resulting position.</param>
-        /// <param name="UsedFallback">Out: true if fallback path was used.</param>
         public void GetBoneRotAndPos(quaternion RootRotation, Animator anim, HumanBodyBones bone, Vector3 heightPercentage, out quaternion Rotation, out float3 Position, out bool UsedFallback)
         {
             if (anim.avatar != null && anim.avatar.isHuman)
@@ -678,23 +572,12 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Calculates a simple vertical offset for fallback positioning based on bone type and avatar height.
-        /// </summary>
-        /// <param name="bone">Humanoid bone being positioned.</param>
-        /// <param name="fallbackHeight">Height scalar (often eye height or similar).</param>
-        /// <param name="heightPercentage">Multiplier for the height.</param>
-        /// <returns>Offset vector applied to the base position.</returns>
         public float3 CalculateFallbackOffset(HumanBodyBones bone, float fallbackHeight, float3 heightPercentage)
         {
             Vector3 height = fallbackHeight * heightPercentage;
             return bone == HumanBodyBones.Hips ? math.mul(height, -Vector3.up) : math.mul(height, Vector3.up);
         }
 
-        /// <summary>
-        /// Forces an immediate animator update by advancing it by <see cref="Time.deltaTime"/>.
-        /// </summary>
-        /// <param name="Anim">Animator to update.</param>
         public void ForceUpdateAnimator(Animator Anim)
         {
             // Specify the time you want the Animator to update to (in seconds)
@@ -704,11 +587,6 @@ namespace Basis.Scripts.Drivers
             Anim.Update(desiredTime);
         }
 
-        /// <summary>
-        /// Null-check helper that logs an error when the object is missing during calibration.
-        /// </summary>
-        /// <param name="obj">Object to test.</param>
-        /// <returns>True if null; otherwise false.</returns>
         public bool IsNull(UnityEngine.Object obj)
         {
             if (obj == null)
@@ -722,14 +600,6 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Seeds a bone control’s T-pose and outgoing data based on a world-space T-pose position
-        /// and applies special rules for vertical spine alignment and hips rotation.
-        /// </summary>
-        /// <param name="Transform">Avatar root transform.</param>
-        /// <param name="bone">The bone control to initialize.</param>
-        /// <param name="Role">The tracked role of the bone.</param>
-        /// <param name="WorldTpose">World-space T-pose position to convert to avatar space.</param>
         public void SetInitialData(Transform Transform, BasisLocalBoneControl bone, BasisBoneTrackedRole Role, Vector3 WorldTpose, Quaternion WorldTposeRotation)
         {
             Vector3 outgoingPosition = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(Transform, WorldTpose);
@@ -745,12 +615,6 @@ namespace Basis.Scripts.Drivers
             bone.SetTposeScaled(outgoingPosition, outgoingRotation);
         }
 
-        /// <summary>
-        /// Creates a lock/constraint between two roles (AssignedTo follows LockToBoneRole) using the base driver.
-        /// </summary>
-        /// <param name="BaseBoneDriver">The driver containing role lookups.</param>
-        /// <param name="LockToBoneRole">The role to lock toward.</param>
-        /// <param name="AssignedTo">The role being assigned/linked to the lock target.</param>
         public void SetAndCreateLock(BasisLocalBoneDriver BaseBoneDriver, BasisBoneTrackedRole LockToBoneRole, BasisBoneTrackedRole AssignedTo)
         {
             if (BaseBoneDriver.FindBone(out BasisLocalBoneControl AssignedToAddToBone, AssignedTo) == false)
@@ -764,10 +628,6 @@ namespace Basis.Scripts.Drivers
             BaseBoneDriver.CreateRotationalLock(AssignedToAddToBone, LockToBone);
         }
 
-        /// <summary>
-        /// Null-safe label for the calibration debug session: prefers the avatar GameObject name,
-        /// falls back to the player display name, then a constant. Never throws.
-        /// </summary>
         private static string SafeAvatarLabel(BasisLocalPlayer player)
         {
             if (player == null)
@@ -787,9 +647,6 @@ namespace Basis.Scripts.Drivers
             return string.IsNullOrWhiteSpace(name) ? "avatar" : name;
         }
 
-        /// <summary>
-        /// Records the avatar name and identity as metadata rows. Null-safe; no-op unless recording.
-        /// </summary>
         private static void RecordCalibrationMeta(BasisLocalPlayer player)
         {
             if (BasisCalibrationDebugRecorder.Enabled == false)
@@ -802,12 +659,6 @@ namespace Basis.Scripts.Drivers
             BasisCalibrationDebugRecorder.Meta("isFallbackAvatar", player != null ? player.IsConsideredFallBackAvatar.ToString() : "?");
         }
 
-        /// <summary>
-        /// Records the avatar root and every mapped humanoid bone (world + local pose) for the
-        /// given calibration stage. No-op unless the "Dump Calibration CSV" developer toggle is on.
-        /// </summary>
-        /// <param name="stage">Pipeline stage label (e.g. "Spawn", "TPose", "PostZero").</param>
-        /// <param name="player">Local player whose avatar root is recorded alongside the mapping.</param>
         private static void RecordCalibrationStage(string stage, BasisLocalPlayer player)
         {
             if (BasisCalibrationDebugRecorder.Enabled == false)
@@ -845,10 +696,6 @@ namespace Basis.Scripts.Drivers
             BasisCalibrationDebugRecorder.Bone(stage, "rightToe", Mapping.rightToe);
         }
 
-        /// <summary>
-        /// Populates <see cref="SkinnedMeshRenderer"/> and caches its length for fast loops.
-        /// </summary>
-        /// <param name="LocalPlayer">The local player whose avatar meshes are scanned.</param>
         public void FindSkinnedMeshRenders(BasisLocalPlayer LocalPlayer)
         {
             SkinnedMeshRenderer = LocalPlayer.BasisAvatar.SkinnedMeshRenderers

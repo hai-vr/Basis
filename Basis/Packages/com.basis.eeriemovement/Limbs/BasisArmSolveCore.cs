@@ -139,9 +139,9 @@ namespace Basis.IK
             Vector3 atCorrected = tPosition - aPosition;
             float acLen = ac.magnitude;
 
-            float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
+            float oldAbcAngle = BasisIKMath.TriangleAngle(acLen, abLen, bcLen);
             float atCorrectedLen = atCorrected.magnitude;
-            float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
+            float newAbcAngle = BasisIKMath.TriangleAngle(atCorrectedLen, abLen, bcLen);
 
             newAbcAngle = Mathf.Clamp(newAbcAngle, MinElbowAngleDeg * Mathf.Deg2Rad, MaxElbowAngleDeg * Mathf.Deg2Rad);
 
@@ -265,8 +265,8 @@ namespace Basis.IK
                             r.PoleAnchorValid = true;
                             if (poleMeasurable && poleCondW > 0f && hasAnchorCarried)
                             {
-                                float ease = SignedAngleRad(anchorCarried, ahProj, acNorm) * poleCondW;
-                                r.PoleDirUsed = (AngleAxisRad(ease, acNorm) * anchorCarriedRaw).normalized;
+                                float ease = BasisIKMath.SignedAngleRad(anchorCarried, ahProj, acNorm) * poleCondW;
+                                r.PoleDirUsed = (BasisIKMath.AngleAxisRad(ease, acNorm) * anchorCarriedRaw).normalized;
                                 r.PoleRotUsed = i.HintRotation;
                             }
                         }
@@ -274,10 +274,10 @@ namespace Basis.IK
 
                     if (poleMeasurable && elbowDir.sqrMagnitude > k_SqrEpsilon)
                     {
-                        float poleSwivel = SignedAngleRad(elbowDir, ahProj, acNorm);
+                        float poleSwivel = BasisIKMath.SignedAngleRad(elbowDir, ahProj, acNorm);
                         if (i.HintIsTracker && i.HasPrevPole && poleCondW < 1f && hasAnchorCarried)
                         {
-                            float anchorSwivel = SignedAngleRad(elbowDir, anchorCarried, acNorm);
+                            float anchorSwivel = BasisIKMath.SignedAngleRad(elbowDir, anchorCarried, acNorm);
                             float dSwivel = Mathf.DeltaAngle(anchorSwivel * Mathf.Rad2Deg, poleSwivel * Mathf.Rad2Deg) * Mathf.Deg2Rad;
                             poleSwivel = anchorSwivel + poleCondW * dSwivel;
                         }
@@ -290,7 +290,7 @@ namespace Basis.IK
                         else if (swivel < -maxStep) swivel = -maxStep;
                         swivelUsedRad = swivel;
 
-                        hintR = AngleAxisRad(swivel, acNorm);
+                        hintR = BasisIKMath.AngleAxisRad(swivel, acNorm);
 
                         rootRot = hintR * rootRot;
                         bPosition = aPosition + hintR * (bPosition - aPosition);
@@ -314,14 +314,14 @@ namespace Basis.IK
                     Vector3 elbowPole = (bPosition - aPosition) - acStabN * Vector3.Dot(bPosition - aPosition, acStabN);
                     if (downPole.sqrMagnitude > k_SqrEpsilon && elbowPole.sqrMagnitude > k_SqrEpsilon)
                     {
-                        float stabSwivel = SignedAngleRad(elbowPole, downPole, acStabN) * collapse;
+                        float stabSwivel = BasisIKMath.SignedAngleRad(elbowPole, downPole, acStabN) * collapse;
 
                         float budget = i.HintMaxStepDeg * Mathf.Deg2Rad - Mathf.Abs(swivelUsedRad);
                         if (!(budget > 0f)) budget = 0f;
                         if (stabSwivel > budget) stabSwivel = budget;
                         else if (stabSwivel < -budget) stabSwivel = -budget;
 
-                        Quaternion stab = AngleAxisRad(stabSwivel, acStabN);
+                        Quaternion stab = BasisIKMath.AngleAxisRad(stabSwivel, acStabN);
                         rootRot = stab * rootRot;
                         bPosition = aPosition + stab * (bPosition - aPosition);
                         cPosition = aPosition + stab * (cPosition - aPosition);
@@ -340,7 +340,7 @@ namespace Basis.IK
                 if (fore.sqrMagnitude > k_SqrEpsilon && acRelief.sqrMagnitude > k_SqrEpsilon)
                 {
                     Quaternion neutral = midRot * Quaternion.Inverse(i.MidRotation) * i.TipRotation;
-                    float twistRad = TwistAngleRad(tRotation * Quaternion.Inverse(neutral), fore.normalized);
+                    float twistRad = BasisIKMath.TwistAngleRad(tRotation * Quaternion.Inverse(neutral), fore.normalized);
                     r.WristTwistDeg = twistRad * Mathf.Rad2Deg;
 
                     float rollAbs = Mathf.Abs(twistRad);
@@ -370,7 +370,7 @@ namespace Basis.IK
                     if (relief > 0f)
                     {
                         float reliefSigned = twistRad < 0f ? -relief : relief;
-                        Quaternion reliefR = AngleAxisRad(reliefSigned, acRelief.normalized);
+                        Quaternion reliefR = BasisIKMath.AngleAxisRad(reliefSigned, acRelief.normalized);
 
                         rootRot = reliefR * rootRot;
                         bPosition = aPosition + reliefR * (bPosition - aPosition);
@@ -392,7 +392,7 @@ namespace Basis.IK
                 if (acGuard.sqrMagnitude > k_SqrEpsilon)
                 {
                     Vector3 acGuardN = acGuard.normalized;
-                    Quaternion guard = AngleAxisRad(guardSwivel, acGuardN);
+                    Quaternion guard = BasisIKMath.AngleAxisRad(guardSwivel, acGuardN);
 
                     rootRot = guard * rootRot;
                     bPosition = aPosition + guard * (bPosition - aPosition);
@@ -415,14 +415,14 @@ namespace Basis.IK
                     if (handDemandValid)
                     {
                         Quaternion neutral = midRot * Quaternion.Inverse(i.MidRotation) * i.TipRotation;
-                        handDemand = TwistAngleRad(tRotation * Quaternion.Inverse(neutral), foreRollN);
+                        handDemand = BasisIKMath.TwistAngleRad(tRotation * Quaternion.Inverse(neutral), foreRollN);
                     }
 
                     float roll = 0f;
                     bool rollLive = false;
                     if (i.HintIsTracker && hintRotSqr > 0.5f)
                     {
-                        float trackerRoll = TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), foreRollN);
+                        float trackerRoll = BasisIKMath.TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), foreRollN);
 
                         roll = trackerRoll;
                         rollLive = true;
@@ -470,7 +470,7 @@ namespace Basis.IK
                         if (rollAbs > 1e-6f)
                         {
                             float rollSigned = roll < 0f ? -rollAbs : rollAbs;
-                            r.MidPostRoll = AngleAxisRad(rollSigned, foreRollN);
+                            r.MidPostRoll = BasisIKMath.AngleAxisRad(rollSigned, foreRollN);
                             midRot = r.MidPostRoll * midRot;
                             r.ForearmRollDeg = rollSigned * Mathf.Rad2Deg;
                         }
@@ -501,7 +501,7 @@ namespace Basis.IK
             r.LowerLength = bcLen;
             r.TargetDistance = atCorrectedLen;
             r.ReachRatio = (totalLen > k_Epsilon) ? atCorrectedLen / totalLen : 0f;
-            r.ElbowAngleDeg = AngleDeg(aPosition - bPosition, cPosition - bPosition);
+            r.ElbowAngleDeg = BasisIKMath.AngleDeg(aPosition - bPosition, cPosition - bPosition);
             r.HintFade = hintFade;
             r.HintProjMag = hintProjMag;
             r.ArmProjMag = armProjMag;
@@ -512,64 +512,9 @@ namespace Basis.IK
         static bool IsValidRotation(Quaternion q) =>
             (q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w) > 0.5f;
 
-        static float SignedAngleRad(Vector3 from, Vector3 to, Vector3 axis)
-        {
-            float denom = Mathf.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
-            if (!(denom > k_Epsilon))
-            {
-                return 0f;
-            }
-
-            float c = Vector3.Dot(from, to) / denom;
-            c = c > 1f ? 1f : (c > -1f ? c : -1f);
-            float angle = Mathf.Acos(c);
-            return Vector3.Dot(axis, Vector3.Cross(from, to)) < 0f ? -angle : angle;
-        }
-
-        static Quaternion AngleAxisRad(float radians, Vector3 axis)
-        {
-            float h = 0.5f * radians;
-            float s = Mathf.Sin(h);
-            return new Quaternion(axis.x * s, axis.y * s, axis.z * s, Mathf.Cos(h));
-        }
-
-        static float TwistAngleRad(Quaternion q, Vector3 axis)
-        {
-            float s = q.x * axis.x + q.y * axis.y + q.z * axis.z;
-            float c = q.w;
-            if (c < 0f) { s = -s; c = -c; }
-            if (!(s * s + c * c > k_SqrEpsilon))
-            {
-                return 0f;
-            }
-            return 2f * Mathf.Atan2(s, c);
-        }
-
-        static float AngleDeg(Vector3 from, Vector3 to)
-        {
-            float denom = Mathf.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
-            if (denom < k_Epsilon)
-            {
-                return 0f;
-            }
-
-            float c = Mathf.Clamp(Vector3.Dot(from, to) / denom, -1f, 1f);
-            return Mathf.Acos(c) * Mathf.Rad2Deg;
-        }
-
-        static float TriangleAngle(float aLen, float aLen1, float aLen2)
-        {
-            if (aLen1 <= k_Epsilon || aLen2 <= k_Epsilon)
-            {
-                return 0f;
-            }
-
-            float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (2.0f * aLen1 * aLen2), -1.0f, 1.0f);
-            return Mathf.Acos(c);
-        }
     }
 
-    public struct BasisArmBendLookup
+    public static class BasisArmBendLookup
     {
         public const int GridSize = 11;
         public const int GridSizeSq = GridSize * GridSize;
