@@ -198,6 +198,7 @@ namespace Basis.Scripts.BasisCharacterController
         }
 
         [System.NonSerialized] public BasisLocks.LockContext MovementLock = BasisLocks.GetContext(BasisLocks.Movement);
+        [System.NonSerialized] public BasisLocks.LockContext LookRotationLock = BasisLocks.GetContext(BasisLocks.LookRotation);
         [System.NonSerialized] public BasisLocks.LockContext CrouchingLock = BasisLocks.GetContext(BasisLocks.Crouching);
         public Transform BasisLocalPlayerTransform;
         private bool isEnabled = true;
@@ -360,6 +361,7 @@ namespace Basis.Scripts.BasisCharacterController
 
             sMarkerMoveTurn.Begin();
             // Calculate the rotation amount for this frame
+            bool lookLocked = LookRotationLock;
             float rotationAmount;
             if (SMModuleControllerSettings.UsingSnapTurnAngle && BasisDeviceManagement.IsCurrentModeVR())
             {
@@ -386,6 +388,10 @@ namespace Basis.Scripts.BasisCharacterController
                 rotationAmount = Rotation.x * SMModuleControllerSettings.SmoothTurnSpeed * DeltaTime;
             }
 
+            if (lookLocked)
+            {
+                rotationAmount = 0f;
+            }
 
             Vector3 newPos;
             Quaternion newRot;

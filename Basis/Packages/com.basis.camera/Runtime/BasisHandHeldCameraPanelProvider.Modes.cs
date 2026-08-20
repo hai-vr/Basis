@@ -587,11 +587,16 @@ namespace Basis.BasisUI.HandHeldCamera
             AddSectionTint(BasisCameraPanelSection.Colour, _colorSection, _colorGroup);
             AddSectionTint(BasisCameraPanelSection.Effects, _effectsSection, _effectsGroup);
             AddSectionTint(BasisCameraPanelSection.Output, _outputSection, _outputGroup);
+            AddSectionTint(BasisCameraPanelSection.Anchor, _anchorSection, _anchorGroup);
             AddSectionTint(BasisCameraPanelSection.Subject, _followSection, _followGroup);
             AddSectionTint(BasisCameraPanelSection.PositionModifier, _positionSection, _positionGroup);
             AddSectionTint(BasisCameraPanelSection.RotationModifier, _rotationSection, _rotationGroup);
             AddSectionTint(BasisCameraPanelSection.ModifierEffects, _modifierEffectsSection, _modifierEffectsGroup);
             AddSectionTint(BasisCameraPanelSection.Dolly, _dollySection, _dollyGroup);
+
+            // Presets share the Dolly kind rather than earning one of their own: they are the same
+            // subject, no mode has an opinion about them, and the tint list is keyed by nothing.
+            AddSectionTint(BasisCameraPanelSection.Dolly, _dollyPresetSection, _dollyPresetGroup);
             AddSectionTint(BasisCameraPanelSection.Background, _backgroundSection, _backgroundGroup);
             AddSectionTint(BasisCameraPanelSection.Layers, _layersSection, _layersGroup);
             AddSectionTint(BasisCameraPanelSection.Performance, _performanceSection, _performanceGroup);

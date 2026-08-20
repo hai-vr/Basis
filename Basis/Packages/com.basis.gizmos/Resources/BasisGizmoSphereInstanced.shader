@@ -1,11 +1,14 @@
 // Instanced unlit sphere for BasisGizmoManager. Replicates the old GizmoMaterial
 // look (additive, ZTest Always, queue 4000, double-sided) with per-instance color
 // so thousands of sphere gizmos render as a handful of DrawMeshInstanced calls.
+// _ZTest is driven from BasisGizmoManager.DrawOnTop — LessEqual (the default) to let the
+// world occlude the gizmo, Always to punch through it.
 Shader "Basis/GizmoSphereInstanced"
 {
     Properties
     {
         _Color ("Color", Color) = (1, 1, 1, 1)
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Float) = 4
     }
     SubShader
     {
@@ -15,7 +18,7 @@ Shader "Basis/GizmoSphereInstanced"
             Name "GizmoSphere"
             Blend One One
             ZWrite Off
-            ZTest Always
+            ZTest [_ZTest]
             Cull Off
 
             HLSLPROGRAM

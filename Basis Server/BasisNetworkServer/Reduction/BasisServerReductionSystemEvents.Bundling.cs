@@ -218,6 +218,81 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private const int ChannelHistogramSize = 64;
 
+        /// <summary>
+        /// The order channel groups are written to the peer in, most expendable first.
+        ///
+        /// <para>⚠️ This ordering is a delivery guarantee, not a cosmetic detail. The receiver's
+        /// unreliable queue discards from the FRONT when it is over budget, so whatever is written
+        /// LAST is what survives an overloaded tick. Ascending channel order — which is what a plain
+        /// counting sort produces — is exactly backwards twice over: it wrote VeryLow first, so the
+        /// distant senders whose frame is their only update for most of a second were dropped in
+        /// favour of near ones that get another frame 50 ms later; and it wrote every small-id
+        /// channel (6-13) before every large-id one (41-48), so under pressure the first 256 players
+        /// to join froze for the entire server while later joiners kept moving. Neither is something
+        /// <c>_senderRotation</c> can fix: the sort is stable, so rotation only permutes WITHIN a
+        /// group.</para>
+        ///
+        /// <para>Groups therefore go High → delta → Medium → Low → VeryLow, so the trim eats the
+        /// frames that are about to be superseded anyway, and the two id widths of a tier swap places
+        /// each tick so neither is permanently the one cut into.</para>
+        ///
+        /// <para>⚠️ The delta channel is the one placement that is a judgement rather than a
+        /// consequence: it is quality-agnostic, so a delta frame's cadence is not visible here the
+        /// way a keyframe channel's is. It sits just behind High because a delta is only sent to a
+        /// receiver that already holds the sender's CURRENT keyframe generation, and a pair on a
+        /// second-long interval has usually missed one and is being sent a keyframe instead — so
+        /// deltas skew towards the frequently-served pairs that lose least by waiting a tick.</para>
+        /// </summary>
+        private static readonly byte[][] ChannelFlushOrder =
+        {
+            BuildChannelFlushOrder(largeIdFirst: false),
+            BuildChannelFlushOrder(largeIdFirst: true),
+        };
+
+        private static byte[] BuildChannelFlushOrder(bool largeIdFirst)
+        {
+            byte[] avatar = new byte[17];
+            int written = 0;
+            for (int quality = 3; quality >= 0; quality--)
+            {
+                byte small = (byte)(BasisNetworkCommons.PlayerAvatarVeryLowChannel + (quality * 2));
+                byte large = (byte)(BasisNetworkCommons.PlayerAvatarVeryLowLargeChannel + (quality * 2));
+                byte first = largeIdFirst ? large : small;
+                byte second = largeIdFirst ? small : large;
+                avatar[written++] = first;
+                avatar[written++] = (byte)(first + 1);
+                avatar[written++] = second;
+                avatar[written++] = (byte)(second + 1);
+                if (quality == 3) avatar[written++] = BasisNetworkCommons.DeltaAvatarChannel;
+            }
+
+            bool[] isAvatar = new bool[ChannelHistogramSize];
+            foreach (byte channel in avatar) isAvatar[channel] = true;
+
+            byte[] order = new byte[ChannelHistogramSize];
+            int position = 0;
+            for (int channel = 0; channel < ChannelHistogramSize; channel++)
+            {
+                if (!isAvatar[channel]) order[position++] = (byte)channel;
+            }
+            foreach (byte channel in avatar) order[position++] = channel;
+            return order;
+        }
+
+        /// <summary>
+        /// Groups a receiver's pending sends by channel so each bundle carries a few long runs
+        /// instead of an interleaved stream. Sorts in place from the caller's point of view.
+        ///
+        /// <para>⚠️ The scatter-then-copy-back looks like an obvious thing to optimise into a
+        /// buffer swap, and a profile will actively encourage you: <c>Array.Copy</c> here shows as
+        /// ~15% of server CPU at 1000 players. <b>That attribution is false and the swap was tried
+        /// and reverted.</b> The sampler charges GC-poll time to whichever method happens to hold
+        /// the poll point, and this copy was merely where threads parked; removing it moved exactly
+        /// the same time onto <see cref="EmitGreedyBundles"/> and changed nothing else. Measured in
+        /// isolation the whole sort is 286 ns per flush (7.3 ns/entry) and the copy is ~8 ns of it,
+        /// so a swap buys 3% of an operation that is 0.02 cores in total. Not worth handing the
+        /// caller back a different array than it passed in.</para>
+        /// </summary>
         private static void SortPendingByChannel(PlayerState stateI, PendingAvatarSend[] pending, int count)
         {
             if (count < 2) return;
@@ -231,9 +306,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 offsets[c]++;
             }
 
+            byte[] flushOrder = ChannelFlushOrder[_senderRotation & 1];
             int running = 0;
-            for (int c = 0; c < ChannelHistogramSize; c++)
+            for (int k = 0; k < ChannelHistogramSize; k++)
             {
+                int c = flushOrder[k];
                 int n = offsets[c];
                 offsets[c] = running;
                 running += n;

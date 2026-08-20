@@ -61,6 +61,9 @@ public sealed class BasisHandHeldCameraGizmos
 
     private static readonly Color HandHeldColor = new Color(0.6f, 0.9f, 0.6f, 1f);
     private static readonly Color PlaySpaceColor = new Color(1f, 0.85f, 0.4f, 1f);
+
+    /// <summary>An anchored camera, on a hue none of the other three uses.</summary>
+    private static readonly Color AttachedColor = new Color(0.45f, 1f, 0.72f, 1f);
     private static readonly Color WorldSpaceColor = new Color(0.9f, 0.5f, 1f, 1f);
 
     private static readonly Rect FullViewport = new Rect(0f, 0f, 1f, 1f);
@@ -571,7 +574,12 @@ public sealed class BasisHandHeldCameraGizmos
     private string BuildPinText(BasisHandHeldCamera camera, float height, Vector3 pinned)
     {
         _builder.Clear();
-        _builder.Append("Pin ").Append(camera.PinSpace).Append('\n');
+        _builder.Append("Anchor ").Append(camera.PinSpace);
+        if (camera.PinSpace == BasisHandHeldCameraInteractable.CameraPinSpace.Attached)
+        {
+            _builder.Append(" -> ").Append(camera.AnchorTargetLost ? "lost" : camera.AnchorLabel);
+        }
+        _builder.Append('\n');
         _builder.Append("height ").Append(height.ToString("0.00")).Append("m over floor\n");
         if (camera.PinSpace != BasisHandHeldCameraInteractable.CameraPinSpace.HandHeld)
         {
@@ -613,24 +621,13 @@ public sealed class BasisHandHeldCameraGizmos
 
     private static bool TryGetPinSource(BasisHandHeldCamera camera, out Vector3 position, out Quaternion rotation)
     {
-        switch (camera.PinSpace)
+        if (camera.PinSpace == BasisHandHeldCameraInteractable.CameraPinSpace.HandHeld)
         {
-            case BasisHandHeldCameraInteractable.CameraPinSpace.HandHeld:
-                camera.transform.GetPositionAndRotation(out position, out rotation);
-                return true;
-
-            case BasisHandHeldCameraInteractable.CameraPinSpace.PlaySpace:
-                if (BasisLocalPlayer.Instance == null)
-                {
-                    break;
-                }
-                BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out position, out rotation);
-                return true;
+            camera.transform.GetPositionAndRotation(out position, out rotation);
+            return true;
         }
 
-        position = Vector3.zero;
-        rotation = Quaternion.identity;
-        return false;
+        return camera.TryResolveAnchorPose(out position, out rotation);
     }
 
     private static Color PinColor(BasisHandHeldCameraInteractable.CameraPinSpace space)
@@ -639,6 +636,7 @@ public sealed class BasisHandHeldCameraGizmos
         {
             case BasisHandHeldCameraInteractable.CameraPinSpace.PlaySpace: return PlaySpaceColor;
             case BasisHandHeldCameraInteractable.CameraPinSpace.WorldSpace: return WorldSpaceColor;
+            case BasisHandHeldCameraInteractable.CameraPinSpace.Attached: return AttachedColor;
             default: return HandHeldColor;
         }
     }

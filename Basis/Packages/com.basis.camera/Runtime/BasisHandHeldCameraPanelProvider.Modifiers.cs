@@ -22,6 +22,18 @@ namespace Basis.BasisUI.HandHeldCamera
             "camera.dollyMode.manual", "camera.dollyMode.followSubject", "camera.dollyMode.play",
         };
 
+        /// <summary>
+        /// One entry per <see cref="BasisCameraEase"/>, in enum order — both ease dropdowns read
+        /// their selection back as an index into this.
+        /// </summary>
+        private static readonly string[] DollyEaseKeys =
+        {
+            "camera.dollyEase.linear", "camera.dollyEase.sine", "camera.dollyEase.quad",
+            "camera.dollyEase.cubic", "camera.dollyEase.quart", "camera.dollyEase.quint",
+            "camera.dollyEase.expo", "camera.dollyEase.circ", "camera.dollyEase.back",
+            "camera.dollyEase.elastic", "camera.dollyEase.bounce",
+        };
+
         private static readonly string[] DollySyncKeys =
         {
             "camera.dollySync.local", "camera.dollySync.networked", "camera.dollySync.locked",
@@ -42,7 +54,7 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             "camera.background.world", "camera.background.greenScreen", "camera.background.blueScreen",
             "camera.background.black", "camera.background.white", "camera.background.magenta",
-            "camera.background.custom",
+            "camera.background.custom", "camera.background.transparent",
         };
 
         private PanelDropdown _subjectDropdown;
@@ -82,6 +94,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private bool? _lastDollyPlaying;
         private PanelSlider _dollyPositionSlider;
         private PanelSlider _dollySpeedSlider;
+        private PanelDropdown _dollyEaseInDropdown;
+        private PanelSlider _dollyEaseInPortionSlider;
+        private PanelDropdown _dollyEaseOutDropdown;
+        private PanelSlider _dollyEaseOutPortionSlider;
         private PanelSlider _dollyDampSlider;
         private PanelSlider _dollyOffsetXSlider;
         private PanelSlider _dollyOffsetYSlider;
@@ -147,7 +163,21 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelDropdown _dollySyncDropdown;
         private PanelToggle _dollyGridSnapToggle;
         private PanelSlider _dollyGridSizeSlider;
+        private PanelToggle _dollySpeedColorToggle;
         private PanelElementDescriptor _dollyEmptyState;
+
+        private PanelSectionToggle _dollyPresetSection;
+        private PanelElementDescriptor _dollyPresetGroup;
+        private PanelElementDescriptor _dollyPresetStatus;
+        private PanelDropdown _dollyPresetDropdown;
+        private PanelTextField _dollyPresetNameField;
+        private PanelButton _dollyPresetSaveButton;
+        private PanelButton _dollyPresetLoadButton;
+        private PanelButton _dollyPresetLoadInPlaceButton;
+        private PanelButton _dollyPresetRemoveButton;
+        private PanelButton _dollyPresetExportButton;
+        private readonly List<string> _dollyPresetKeys = new List<string>();
+        private int _lastDollyPresetRevision = -1;
         private readonly List<string> _waypointKeys = new List<string>();
         private int _selectedWaypointIndex;
         private int _lastWaypointCount = -1;
@@ -220,6 +250,9 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private void BuildModifierSections(RectTransform parent)
         {
+            BuildAnchorGroup(parent);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_anchorSection, _anchorGroup, true, OnSectionExpanded);
+
             BuildSubjectGroup(parent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_followSection, _followGroup, true, OnSectionExpanded);
 
@@ -231,6 +264,9 @@ namespace Basis.BasisUI.HandHeldCamera
 
             BuildDollyGroup(parent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_dollySection, _dollyGroup, false, OnSectionExpanded);
+
+            BuildDollyPresetGroup(parent);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_dollyPresetSection, _dollyPresetGroup, false, OnSectionExpanded);
         }
 
         /// <summary>The effects page: everything layered on top of whatever the slots are doing.</summary>
@@ -518,6 +554,54 @@ namespace Basis.BasisUI.HandHeldCamera
             _dollySpeedSlider.OnValueChanged = v =>
             {
                 if (Stack != null) Stack.dolly.speed = v;
+            };
+
+            _dollyEaseInDropdown = PanelDropdown.CreateNewEntry(content);
+            _dollyEaseInDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyEaseIn"));
+            _dollyEaseInDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyEaseIn.description"));
+            _dollyEaseInDropdown.AssignLocalizedEntries(
+                new List<string>(DollyEaseKeys), new List<string>(DollyEaseKeys), DescriptionKeys(DollyEaseKeys));
+            _dollyEaseInDropdown.OnValueChanged = _ =>
+            {
+                int index = _dollyEaseInDropdown != null ? _dollyEaseInDropdown.Index : -1;
+                if (Stack == null || index < 0 || index >= DollyEaseKeys.Length) return;
+
+                Stack.dolly.easeIn = (BasisCameraEase)index;
+            };
+
+            _dollyEaseInPortionSlider = PanelSlider.CreateNew(content);
+            _dollyEaseInPortionSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.dollyEaseInPortion"), 0f, BasisCameraDollySpeed.MaximumEasePortion,
+                false, 2, ValueDisplayMode.percentageFromZero));
+            _dollyEaseInPortionSlider.Descriptor.SetDescription(
+                BasisLocalization.Get("camera.dollyEaseInPortion.description"));
+            _dollyEaseInPortionSlider.OnValueChanged = v =>
+            {
+                if (Stack != null) Stack.dolly.easeInPortion = v;
+            };
+
+            _dollyEaseOutDropdown = PanelDropdown.CreateNewEntry(content);
+            _dollyEaseOutDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyEaseOut"));
+            _dollyEaseOutDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyEaseOut.description"));
+            _dollyEaseOutDropdown.AssignLocalizedEntries(
+                new List<string>(DollyEaseKeys), new List<string>(DollyEaseKeys), DescriptionKeys(DollyEaseKeys));
+            _dollyEaseOutDropdown.OnValueChanged = _ =>
+            {
+                int index = _dollyEaseOutDropdown != null ? _dollyEaseOutDropdown.Index : -1;
+                if (Stack == null || index < 0 || index >= DollyEaseKeys.Length) return;
+
+                Stack.dolly.easeOut = (BasisCameraEase)index;
+            };
+
+            _dollyEaseOutPortionSlider = PanelSlider.CreateNew(content);
+            _dollyEaseOutPortionSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.dollyEaseOutPortion"), 0f, BasisCameraDollySpeed.MaximumEasePortion,
+                false, 2, ValueDisplayMode.percentageFromZero));
+            _dollyEaseOutPortionSlider.Descriptor.SetDescription(
+                BasisLocalization.Get("camera.dollyEaseOutPortion.description"));
+            _dollyEaseOutPortionSlider.OnValueChanged = v =>
+            {
+                if (Stack != null) Stack.dolly.easeOutPortion = v;
             };
 
             _dollyDampSlider = PanelSlider.CreateNew(content);
@@ -1206,6 +1290,289 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (_activeCamera?.DollyTrack == null) return;
                 _activeCamera.DollyTrack.SetGridSnap(_activeCamera.DollyTrack.GridSnap, v);
             };
+
+            _dollySpeedColorToggle = PanelToggle.CreateNewEntry(content);
+            _dollySpeedColorToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.dollySpeedColor"));
+            _dollySpeedColorToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.dollySpeedColor.description"));
+            _dollySpeedColorToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera?.DollyTrack != null) _activeCamera.DollyTrack.ColorBySpeed = v;
+            };
+        }
+
+        // ---- Dolly presets ---------------------------------------------------------------------
+
+        /// <summary>
+        /// The saved-track editor: pick one, name one, and the buttons that move a track between
+        /// the world and the list. Laid out in the order the job is done — choose or type a name,
+        /// then say what to do with it.
+        /// </summary>
+        private void BuildDollyPresetGroup(RectTransform parent)
+        {
+            _dollyPresetSection = PanelSectionToggle.CreateNewEntry(parent);
+            _dollyPresetGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                _dollyPresetSection, parent, BasisLocalization.Get("camera.dollyPreset"), false);
+            RectTransform content = _dollyPresetGroup.ContentParent;
+
+            _dollyPresetSection.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyPreset.description"));
+
+            _dollyPresetStatus = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, content);
+            _dollyPresetStatus.SetDescription(BasisLocalization.Get("camera.dollyPreset.help"));
+
+            _dollyPresetDropdown = PanelDropdown.CreateNewEntry(content);
+            _dollyPresetDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyPreset.list"));
+            _dollyPresetDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyPreset.list.description"));
+            _dollyPresetDropdown.OnValueChanged = _ =>
+            {
+                if (_dollyPresetDropdown == null) return;
+
+                int index = _dollyPresetDropdown.Index;
+                if (index < 0 || index >= _dollyPresetKeys.Count) return;
+
+                _dollyPresetNameField?.SetValueWithoutNotify(_dollyPresetKeys[index]);
+                RefreshDollyPresetButtons();
+            };
+
+            _dollyPresetNameField = PanelTextField.CreateNewEntry(content);
+            _dollyPresetNameField.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyPreset.name"));
+            _dollyPresetNameField.Descriptor.SetTooltip(BasisLocalization.Get("camera.dollyPreset.name.tooltip"));
+            if (_dollyPresetNameField._inputField != null)
+            {
+                _dollyPresetNameField._inputField.characterLimit = BasisCameraDollyPreset.MaxNameLength;
+            }
+            _dollyPresetNameField.OnValueChanged += _ => RefreshDollyPresetButtons();
+
+            RectTransform storeRow = PanelElementDescriptor.BuildActionRow(content, "CameraDollyPresetStoreRow");
+
+            _dollyPresetSaveButton = PanelButton.CreateNew(storeRow);
+            _dollyPresetSaveButton.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyPreset.save"));
+            _dollyPresetSaveButton.Descriptor.SetTooltip(BasisLocalization.Get("camera.dollyPreset.save.tooltip"));
+            _dollyPresetSaveButton.OnClicked += SaveDollyPreset;
+
+            _dollyPresetRemoveButton = PanelButton.CreateNew(storeRow);
+            _dollyPresetRemoveButton.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyPreset.remove"));
+            _dollyPresetRemoveButton.Descriptor.SetTooltip(BasisLocalization.Get("camera.dollyPreset.remove.tooltip"));
+            _dollyPresetRemoveButton.OnClicked += PromptRemoveDollyPreset;
+
+            RectTransform loadRow = PanelElementDescriptor.BuildActionRow(content, "CameraDollyPresetLoadRow");
+
+            _dollyPresetLoadButton = PanelButton.CreateNew(loadRow);
+            _dollyPresetLoadButton.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyPreset.load"));
+            _dollyPresetLoadButton.Descriptor.SetTooltip(BasisLocalization.Get("camera.dollyPreset.load.tooltip"));
+            _dollyPresetLoadButton.OnClicked += () => LoadDollyPreset(inPlace: false);
+
+            _dollyPresetLoadInPlaceButton = PanelButton.CreateNew(loadRow);
+            _dollyPresetLoadInPlaceButton.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyPreset.loadInPlace"));
+            _dollyPresetLoadInPlaceButton.Descriptor.SetTooltip(
+                BasisLocalization.Get("camera.dollyPreset.loadInPlace.tooltip"));
+            _dollyPresetLoadInPlaceButton.OnClicked += () => LoadDollyPreset(inPlace: true);
+
+            RectTransform fileRow = PanelElementDescriptor.BuildActionRow(content, "CameraDollyPresetFileRow");
+
+            _dollyPresetExportButton = PanelButton.CreateNew(fileRow);
+            _dollyPresetExportButton.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyPreset.export"));
+            _dollyPresetExportButton.Descriptor.SetTooltip(BasisLocalization.Get("camera.dollyPreset.export.tooltip"));
+            _dollyPresetExportButton.OnClicked += ExportDollyPreset;
+
+            PanelButton import = PanelButton.CreateNew(fileRow);
+            import.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyPreset.import"));
+            import.Descriptor.SetTooltip(BasisLocalization.Get("camera.dollyPreset.import.tooltip"));
+            import.OnClicked += ImportDollyPresets;
+
+            PanelButton folder = PanelButton.CreateNew(fileRow);
+            folder.Descriptor.SetTitle(BasisLocalization.Get("camera.dollyPreset.folder"));
+            folder.Descriptor.SetTooltip(BasisLocalization.Get("camera.dollyPreset.folder.tooltip"));
+            folder.OnClicked += () => BasisCameraDollyPresets.RevealExportFolder();
+
+            RebuildDollyPresetList();
+        }
+
+        /// <summary>The preset the buttons act on: whatever is typed, which picking one fills in.</summary>
+        private string EditedDollyPresetName() =>
+            BasisCameraDollyPreset.SanitizeName(_dollyPresetNameField?.Value);
+
+        /// <summary>
+        /// Rebuilds the saved list. Gated on the store's revision rather than run every tick: a
+        /// rebuild throws away the entries an open dropdown is showing.
+        /// </summary>
+        private void RebuildDollyPresetList()
+        {
+            if (_dollyPresetDropdown == null) return;
+
+            _lastDollyPresetRevision = BasisCameraDollyPresets.Revision;
+
+            IReadOnlyList<BasisCameraDollyPreset> saved = BasisCameraDollyPresets.Presets;
+            _dollyPresetKeys.Clear();
+            var labels = new List<string>(saved.Count);
+            for (int Index = 0; Index < saved.Count; Index++)
+            {
+                _dollyPresetKeys.Add(saved[Index].name);
+                labels.Add($"{saved[Index].name} ({saved[Index].Count})");
+            }
+
+            bool any = _dollyPresetKeys.Count > 0;
+            _dollyPresetDropdown.gameObject.SetActive(any);
+            if (any)
+            {
+                _dollyPresetDropdown.AssignEntries(_dollyPresetKeys, labels);
+
+                string selected = EditedDollyPresetName();
+                int match = -1;
+                for (int Index = 0; Index < _dollyPresetKeys.Count; Index++)
+                {
+                    if (!BasisCameraDollyPreset.NamesMatch(_dollyPresetKeys[Index], selected)) continue;
+
+                    match = Index;
+                    break;
+                }
+                _dollyPresetDropdown.SetValueWithoutNotify(_dollyPresetKeys[match < 0 ? 0 : match]);
+            }
+
+            RefreshDollyPresetButtons();
+            ForceLayoutRebuild(_dollyPresetGroup);
+        }
+
+        /// <summary>
+        /// Only the buttons that would do something are live. A load with nothing saved under that
+        /// name, or a save with no track laid out, would answer a click with nothing happening.
+        /// </summary>
+        private void RefreshDollyPresetButtons()
+        {
+            string name = EditedDollyPresetName();
+            bool named = name != null;
+            bool exists = named && BasisCameraDollyPresets.Exists(name);
+            bool hasTrack = _activeCamera != null && _activeCamera.DollyWaypointCount > 0;
+
+            SetButtonInteractable(_dollyPresetSaveButton, named && hasTrack);
+            SetButtonInteractable(_dollyPresetExportButton, exists);
+            SetButtonInteractable(_dollyPresetRemoveButton, exists);
+            SetButtonInteractable(_dollyPresetLoadButton, exists);
+            SetButtonInteractable(_dollyPresetLoadInPlaceButton, exists);
+        }
+
+        private static void SetButtonInteractable(PanelButton button, bool interactable)
+        {
+            if (button?.ButtonComponent != null) button.ButtonComponent.interactable = interactable;
+        }
+
+        private void SaveDollyPreset()
+        {
+            if (_activeCamera == null) return;
+
+            string name = EditedDollyPresetName();
+            if (name == null)
+            {
+                ShowDollyPresetMessage("camera.dollyPreset.error.empty");
+                return;
+            }
+
+            BasisCameraDollyPreset preset = _activeCamera.CaptureDollyPreset(name);
+            if (!BasisCameraDollyPresets.Store(preset, out string error))
+            {
+                ShowDollyPresetMessage(error);
+                return;
+            }
+
+            RebuildDollyPresetList();
+            _dollyPresetNameField?.SetValueWithoutNotify(preset.name);
+            RefreshDollyPresetButtons();
+            ShowDollyPresetMessage("camera.dollyPreset.saved");
+        }
+
+        private void LoadDollyPreset(bool inPlace)
+        {
+            if (_activeCamera == null) return;
+
+            BasisCameraDollyPreset preset = BasisCameraDollyPresets.Find(EditedDollyPresetName());
+            if (preset == null)
+            {
+                ShowDollyPresetMessage("camera.dollyPreset.error.missing");
+                return;
+            }
+
+            if (!_activeCamera.ApplyDollyPreset(preset, inPlace))
+            {
+                ShowDollyPresetMessage("camera.dollyPreset.error.noPoints");
+                return;
+            }
+
+            // The track it replaced is gone, so everything keyed off the old one has to be told.
+            _selectedWaypointIndex = 0;
+            _lastWaypointCount = -1;
+            RefreshWaypointList();
+            SeedModifierControls();
+            SeedModifierCameraControls();
+            ShowDollyPresetMessage(inPlace ? "camera.dollyPreset.loadedInPlace" : "camera.dollyPreset.loaded");
+        }
+
+        private void PromptRemoveDollyPreset()
+        {
+            string name = EditedDollyPresetName();
+            if (name == null || !BasisCameraDollyPresets.Exists(name)) return;
+
+            BasisMainMenu.Instance.OpenDialogue(
+                BasisLocalization.Get("camera.dollyPreset.remove"),
+                BasisLocalization.Get("camera.dollyPreset.remove.confirm", name),
+                BasisLocalization.Get("camera.dollyPreset.remove"),
+                BasisLocalization.Get("ui.cancel"),
+                confirmed =>
+                {
+                    if (!confirmed) return;
+                    if (!BasisCameraDollyPresets.Remove(name)) return;
+
+                    RebuildDollyPresetList();
+                    ShowDollyPresetMessage("camera.dollyPreset.removed");
+                });
+        }
+
+        private void ExportDollyPreset()
+        {
+            BasisCameraDollyPreset preset = BasisCameraDollyPresets.Find(EditedDollyPresetName());
+            if (preset == null)
+            {
+                ShowDollyPresetMessage("camera.dollyPreset.error.missing");
+                return;
+            }
+
+            if (!BasisCameraDollyPresets.Export(preset, out string path, out string error))
+            {
+                ShowDollyPresetMessage(error);
+                return;
+            }
+
+            ShowDollyPresetMessage(BasisLocalization.Get("camera.dollyPreset.exported",
+                System.IO.Path.GetFileName(path)));
+        }
+
+        private void ImportDollyPresets()
+        {
+            if (!BasisCameraDollyPresets.Import(out int imported, out string error))
+            {
+                ShowDollyPresetMessage(error);
+                return;
+            }
+
+            RebuildDollyPresetList();
+            ShowDollyPresetMessage(imported == 0
+                ? BasisLocalization.Get("camera.dollyPreset.importedNone")
+                : BasisLocalization.Get("camera.dollyPreset.imported", imported.ToString()));
+        }
+
+        /// <summary>
+        /// Says what just happened, on the card above the controls. Takes a localization key or a
+        /// line that has already been built, since two of these carry a file name or a count.
+        /// </summary>
+        private void ShowDollyPresetMessage(string keyOrText)
+        {
+            if (_dollyPresetStatus == null) return;
+
+            string text = string.IsNullOrEmpty(keyOrText)
+                ? BasisLocalization.Get("camera.dollyPreset.help")
+                : (BasisLocalization.TryGet(keyOrText, out string localized) ? localized : keyOrText);
+
+            _dollyPresetStatus.SetDescription(text);
+            ForceLayoutRebuild(_dollyPresetGroup);
         }
 
         // ---- Background ------------------------------------------------------------------------
@@ -1315,6 +1682,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _dollyModeDropdown?.SetValueWithoutNotify(DollyModeKeys[(int)stack.dolly.mode]);
             _dollyPositionSlider?.SetValueWithoutNotify(stack.dolly.position);
             _dollySpeedSlider?.SetValueWithoutNotify(stack.dolly.speed);
+            _dollyEaseInDropdown?.SetValueWithoutNotify(DollyEaseKeys[(int)stack.dolly.easeIn]);
+            _dollyEaseInPortionSlider?.SetValueWithoutNotify(stack.dolly.easeInPortion);
+            _dollyEaseOutDropdown?.SetValueWithoutNotify(DollyEaseKeys[(int)stack.dolly.easeOut]);
+            _dollyEaseOutPortionSlider?.SetValueWithoutNotify(stack.dolly.easeOutPortion);
             _dollyDampSlider?.SetValueWithoutNotify(stack.dolly.damping);
             _dollyOffsetXSlider?.SetValueWithoutNotify(stack.dolly.offset.x);
             _dollyOffsetYSlider?.SetValueWithoutNotify(stack.dolly.offset.y);
@@ -1392,6 +1763,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 _dollyVisibleToggle?.SetValueWithoutNotify(_activeCamera.DollyTrack.Visible);
                 _dollyGridSnapToggle?.SetValueWithoutNotify(_activeCamera.DollyTrack.GridSnap);
                 _dollyGridSizeSlider?.SetValueWithoutNotify(_activeCamera.DollyTrack.GridSize);
+                _dollySpeedColorToggle?.SetValueWithoutNotify(_activeCamera.DollyTrack.ColorBySpeed);
                 _dollySyncDropdown?.SetValueWithoutNotify(DollySyncKeys[(int)_activeCamera.Modifiers.dolly.syncMode]);
             }
 
@@ -1467,7 +1839,12 @@ namespace Basis.BasisUI.HandHeldCamera
                 _dollyTransportRow.gameObject.SetActive(dolly && stack.dolly.mode == BasisCameraDollyMode.Play);
             }
             _dollyPositionSlider?.gameObject.SetActive(dolly && stack.dolly.mode == BasisCameraDollyMode.Manual);
-            _dollySpeedSlider?.gameObject.SetActive(dolly && stack.dolly.mode == BasisCameraDollyMode.Play);
+            bool moving = dolly && stack.dolly.mode == BasisCameraDollyMode.Play;
+            _dollySpeedSlider?.gameObject.SetActive(moving);
+            _dollyEaseInDropdown?.gameObject.SetActive(moving);
+            _dollyEaseInPortionSlider?.gameObject.SetActive(moving);
+            _dollyEaseOutDropdown?.gameObject.SetActive(moving);
+            _dollyEaseOutPortionSlider?.gameObject.SetActive(moving);
             _dollyDampSlider?.gameObject.SetActive(dolly);
             _dollyOffsetXSlider?.gameObject.SetActive(dolly);
             _dollyOffsetYSlider?.gameObject.SetActive(dolly);
@@ -1625,11 +2002,18 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             if (_activeCamera == null) return;
 
+            TickAnchorSection();
             SyncModifierSlots();
             RefreshDollyTransport();
             RefreshEffectList();
             RefreshWaypointList();
             RefreshCompositionGuides();
+
+            if (_lastDollyPresetRevision != BasisCameraDollyPresets.Revision &&
+                (_dollyPresetDropdown?.DropdownComponent == null || !_dollyPresetDropdown.DropdownComponent.IsExpanded))
+            {
+                RebuildDollyPresetList();
+            }
         }
 
         /// <summary>
@@ -1677,6 +2061,7 @@ namespace Basis.BasisUI.HandHeldCamera
             }
 
             bool hasAny = count > 0;
+            RefreshDollyPresetButtons();
             _dollyEmptyState?.gameObject.SetActive(!hasAny);
             _waypointDropdown.gameObject.SetActive(hasAny);
             _waypointOrderSlider?.gameObject.SetActive(hasAny);
@@ -1738,6 +2123,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastDollyPlaying = null;
             _dollyPositionSlider = null;
             _dollySpeedSlider = null;
+            _dollyEaseInDropdown = null;
+            _dollyEaseInPortionSlider = null;
+            _dollyEaseOutDropdown = null;
+            _dollyEaseOutPortionSlider = null;
             _dollyDampSlider = null;
             _dollyOffsetXSlider = null;
             _dollyOffsetYSlider = null;
@@ -1803,6 +2192,19 @@ namespace Basis.BasisUI.HandHeldCamera
             _dollySyncDropdown = null;
             _dollyGridSnapToggle = null;
             _dollyGridSizeSlider = null;
+            _dollySpeedColorToggle = null;
+            _dollyPresetSection = null;
+            _dollyPresetGroup = null;
+            _dollyPresetStatus = null;
+            _dollyPresetDropdown = null;
+            _dollyPresetNameField = null;
+            _dollyPresetSaveButton = null;
+            _dollyPresetLoadButton = null;
+            _dollyPresetLoadInPlaceButton = null;
+            _dollyPresetRemoveButton = null;
+            _dollyPresetExportButton = null;
+            _dollyPresetKeys.Clear();
+            _lastDollyPresetRevision = -1;
             _dollyEmptyState = null;
             _waypointKeys.Clear();
             _selectedWaypointIndex = 0;

@@ -25,7 +25,11 @@ namespace BasisNetworkConsole
     /// </summary>
     public static class BasisFirstBootTuning
     {
-        /// <summary>Subfolder of the server's directory the benchmark is published into.</summary>
+        /// <summary>
+        /// Older layout: the tooling used to be published into a benchmark/ subfolder with the load
+        /// client under benchmark/loadclient/. It now sits flat beside the server, but an install
+        /// unpacked before that keeps working.
+        /// </summary>
         private const string BenchmarkFolder = "benchmark";
 
         private const string BenchmarkName = "BasisServerBenchmark";
@@ -51,18 +55,23 @@ namespace BasisNetworkConsole
                 return true;
             }
 
+            // Both binaries ship flat beside this one, sharing a single copy of every dependency
+            // they have in common. The benchmark/ subfolder is the older layout and is still
+            // accepted so an install unpacked before the change keeps tuning.
             string benchmarkDirectory = Path.Combine(baseDirectory, BenchmarkFolder);
-            string benchmark = FindExecutable(benchmarkDirectory, BenchmarkName);
+            string benchmark = FindExecutable(baseDirectory, BenchmarkName)
+                            ?? FindExecutable(benchmarkDirectory, BenchmarkName);
             if (benchmark == null)
             {
-                BNL.Log($"[Tuning] No benchmark under '{benchmarkDirectory}', so first-boot tuning is unavailable. " +
-                        "The server is starting on its shipped defaults, which is a supported way to run it.");
+                BNL.Log("[Tuning] No benchmark beside the server, so first-boot tuning is unavailable. The " +
+                        "server is starting on its shipped defaults, which is a supported way to run it.");
                 return false;
             }
 
             // The benchmark needs a crowd to measure, and the crowd is a separate binary. Without it
             // it could still do the offline half, but that is not what was offered here.
-            string loadClient = FindExecutable(Path.Combine(benchmarkDirectory, "loadclient"), LoadClientName)
+            string loadClient = FindExecutable(baseDirectory, LoadClientName)
+                             ?? FindExecutable(Path.Combine(benchmarkDirectory, "loadclient"), LoadClientName)
                              ?? FindExecutable(benchmarkDirectory, LoadClientName);
             if (loadClient == null)
             {
@@ -122,7 +131,7 @@ namespace BasisNetworkConsole
             Console.WriteLine();
             Console.WriteLine("  ----------------------------------------------------------------------------");
             Console.WriteLine("   Tuning finished. Applying what it measured, then starting the server.");
-            Console.WriteLine($"   The full report is under '{BenchmarkFolder}/benchmark-results'.");
+            Console.WriteLine("   The full report is under 'benchmark-results', beside the server.");
             Console.WriteLine("  ----------------------------------------------------------------------------");
             Console.WriteLine();
             return true;
@@ -156,8 +165,8 @@ namespace BasisNetworkConsole
             if (Console.IsInputRedirected)
             {
                 BNL.Log($"[Tuning] This machine has never been tuned, and there is no terminal to ask. Set " +
-                        $"{EnvironmentSwitch} to quick, medium or long to tune on first boot, or run the benchmark " +
-                        $"under '{BenchmarkFolder}' yourself later. Starting on the shipped defaults.");
+                        $"{EnvironmentSwitch} to quick, medium or long to tune on first boot, or run {BenchmarkName} " +
+                        "beside the server yourself later. Starting on the shipped defaults.");
                 return null;
             }
 
@@ -172,7 +181,7 @@ namespace BasisNetworkConsole
             Console.WriteLine("    3  long     ~2 hours      adds the A/B setting sweep");
             Console.WriteLine("    s  skip                   start now on the shipped defaults");
             Console.WriteLine();
-            Console.WriteLine($"  Skipping is fine, and you can run the benchmark under '{BenchmarkFolder}' whenever it");
+            Console.WriteLine($"  Skipping is fine, and you can run {BenchmarkName} beside the server whenever it");
             Console.WriteLine("  suits - it is the same tool, and it will offer the same choices.");
             Console.WriteLine();
             Console.Write("  Which? [2] ");

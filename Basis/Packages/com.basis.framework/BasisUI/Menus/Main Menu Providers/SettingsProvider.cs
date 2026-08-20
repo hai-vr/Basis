@@ -1288,6 +1288,11 @@ namespace Basis.BasisUI
                     },
                     new List<string> { "settings.microphone.mute.shutdown", "settings.microphone.mute.keepOpen" });
                 dropdownMicMuteBehavior.AssignBinding(BasisSettingsDefaults.MicMuteBehavior);
+
+                PanelToggle toggleTalkToNoOne = PanelToggle.CreateNewEntry(advancedContent);
+                toggleTalkToNoOne.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.talkToNoOne"));
+                toggleTalkToNoOne.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.talkToNoOne.tooltip"));
+                toggleTalkToNoOne.AssignBinding(BasisSettingsDefaults.TalkToNoOne);
             }, false, _ => RebuildFrom(advancedContent));
 
             void LimitThresholdChanged(float v)
@@ -1552,6 +1557,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.UseAutomaticGain.ResetToDefault();
             BasisSettingsDefaults.MicrophoneMode.ResetToDefault();
             BasisSettingsDefaults.MicMuteBehavior.ResetToDefault();
+            BasisSettingsDefaults.TalkToNoOne.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIcon.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIconOffsetX.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIconOffsetY.ResetToDefault();
@@ -1910,6 +1916,66 @@ namespace Basis.BasisUI
             toggleFogBakedAPV.AssignBinding(BasisSettingsDefaults.VolumetricFogBakedAPV);
             toggleFogBakedAPV.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.fog.bakedapv"));
             toggleFogBakedAPV.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.fog.bakedapv.tooltip"));
+
+            // --- Accessibility: Motion Blur Override ---
+            PanelElementDescriptor motionBlurGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, overridesContent);
+            motionBlurGroup.SetTitle(BasisLocalization.Get("settings.graphics.motionBlur.title"));
+
+            PanelToggle toggleMotionBlurOverride = PanelToggle.CreateNewEntry(motionBlurGroup.ContentParent);
+            toggleMotionBlurOverride.AssignBinding(BasisSettingsDefaults.UseMotionBlurOverride);
+            toggleMotionBlurOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.motionBlur.override"));
+            toggleMotionBlurOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.motionBlur.override.tooltip"));
+
+            PanelSlider sliderMotionBlurIntensity = PanelSlider.CreateEntryAndBind(
+                motionBlurGroup.ContentParent,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.motionBlur.intensity"),
+                    "",
+                    BasisSettingsDefaults.MOTION_BLUR_INTENSITY_MIN,
+                    BasisSettingsDefaults.MOTION_BLUR_INTENSITY_MAX,
+                    false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MotionBlurIntensity);
+            sliderMotionBlurIntensity.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.motionBlur.intensity.tooltip"));
+
+            PanelSlider sliderMotionBlurClamp = PanelSlider.CreateEntryAndBind(
+                motionBlurGroup.ContentParent,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.motionBlur.clamp"),
+                    "",
+                    BasisSettingsDefaults.MOTION_BLUR_CLAMP_MIN,
+                    BasisSettingsDefaults.MOTION_BLUR_CLAMP_MAX,
+                    false, 3, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MotionBlurClamp);
+            sliderMotionBlurClamp.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.motionBlur.clamp.tooltip"));
+
+            PanelDropdown dropdownMotionBlurQuality = PanelDropdown.CreateNewEntry(motionBlurGroup.ContentParent);
+            dropdownMotionBlurQuality.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.motionBlur.quality"));
+            dropdownMotionBlurQuality.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.motionBlur.quality.tooltip"));
+            dropdownMotionBlurQuality.AssignLocalizedEntries(
+                new List<string> { "Low", "Medium", "High" },
+                new List<string> { "settings.graphics.quality.low", "settings.graphics.quality.medium", "settings.graphics.quality.high" });
+            dropdownMotionBlurQuality.AssignBinding(BasisSettingsDefaults.MotionBlurQuality);
+
+            PanelDropdown dropdownMotionBlurMode = PanelDropdown.CreateNewEntry(motionBlurGroup.ContentParent);
+            dropdownMotionBlurMode.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.motionBlur.mode"));
+            dropdownMotionBlurMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.motionBlur.mode.tooltip"));
+            dropdownMotionBlurMode.AssignLocalizedEntries(
+                new List<string> { "Camera Only", "Camera And Objects" },
+                new List<string> { "settings.graphics.motionBlur.mode.cameraOnly", "settings.graphics.motionBlur.mode.cameraAndObjects" });
+            dropdownMotionBlurMode.AssignBinding(BasisSettingsDefaults.MotionBlurMode);
+
+            sliderMotionBlurIntensity.Descriptor.SetActive(toggleMotionBlurOverride.Value);
+            sliderMotionBlurClamp.Descriptor.SetActive(toggleMotionBlurOverride.Value);
+            dropdownMotionBlurQuality.Descriptor.SetActive(toggleMotionBlurOverride.Value);
+            dropdownMotionBlurMode.Descriptor.SetActive(toggleMotionBlurOverride.Value);
+            toggleMotionBlurOverride.OnValueChanged += (val) =>
+            {
+                sliderMotionBlurIntensity.Descriptor.SetActive(val);
+                sliderMotionBlurClamp.Descriptor.SetActive(val);
+                dropdownMotionBlurQuality.Descriptor.SetActive(val);
+                dropdownMotionBlurMode.Descriptor.SetActive(val);
+                motionBlurGroup.ForceRebuild();
+                descriptor.ForceRebuild();
+            };
 
             // --- Camera Near/Far Override ---
             PanelElementDescriptor cameraClipGroup =
@@ -2364,6 +2430,11 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.UseVolumetricFogOverride.ResetToDefault();
             BasisSettingsDefaults.VolumetricFogDensity.ResetToDefault();
             BasisSettingsDefaults.VolumetricFogBakedAPV.ResetToDefault();
+            BasisSettingsDefaults.UseMotionBlurOverride.ResetToDefault();
+            BasisSettingsDefaults.MotionBlurIntensity.ResetToDefault();
+            BasisSettingsDefaults.MotionBlurClamp.ResetToDefault();
+            BasisSettingsDefaults.MotionBlurQuality.ResetToDefault();
+            BasisSettingsDefaults.MotionBlurMode.ResetToDefault();
 
             // Note: Resolution & ScreenMode are not shown as BasisSettingsDefaults bindings in your snippet.
             // If you later add bindings for them, add them here.
@@ -2865,6 +2936,11 @@ namespace Basis.BasisUI
             toggleGizmoLabels.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoLabels"));
             toggleGizmoLabels.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoLabels.tooltip"));
             toggleGizmoLabels.AssignBinding(BasisSettingsDefaults.GizmoLabels);
+
+            PanelToggle toggleGizmoDrawOnTop = PanelToggle.CreateNewEntry(container);
+            toggleGizmoDrawOnTop.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoDrawOnTop"));
+            toggleGizmoDrawOnTop.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoDrawOnTop.tooltip"));
+            toggleGizmoDrawOnTop.AssignBinding(BasisSettingsDefaults.GizmoDrawOnTop);
 
             PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(gizmosToggle, container, gizmosStart, false,
                 _ => descriptor.ForceRebuild());
@@ -3406,6 +3482,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GizmoNetworkPlayersBandwidth.ResetToDefault();
             BasisSettingsDefaults.GizmoNetworkAdditionalInfo.ResetToDefault();
             BasisSettingsDefaults.GizmoLabels.ResetToDefault();
+            BasisSettingsDefaults.GizmoDrawOnTop.ResetToDefault();
             BasisSettingsDefaults.AvatarRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.HearingRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.MicrophoneRangeIndicator.ResetToDefault();

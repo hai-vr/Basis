@@ -1,0 +1,20 @@
+{
+  "name": "com.basis.integration.metabodytracking",
+  "displayName": "Basis Meta Body Tracking",
+  "version": "0.0.1",
+  "description": "Full-body tracking straight from Meta's OpenXR body tracking extensions (XR_FB_body_tracking plus the META full-body, fidelity and calibration extensions). The headset's own estimate of hips, chest, elbows, knees and feet is surfaced as ordinary Basis trackers, so a Quest drives full body with no physical trackers at all. Works on standalone and over Link, and stays inert on runtimes that do not expose the extensions.",
+  "author": {
+    "name": "BasisVR",
+    "url": "https://github.com/BasisVR"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "com.unity.xr.openxr": "1.17.1"
+  },
+  "vpmDependencies": {
+    "com.basis.common": "0.0.1",
+    "com.basis.framework": "0.0.1",
+    "com.basis.settings": "1.0.0",
+    "com.basis.sdk": "0.0.1"
+  }
+}

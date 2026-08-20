@@ -173,7 +173,8 @@ public class ServerConfigurationDefaultsTests
         // 10: added image-pickup replication range.
         // 11: added the population-drop memory reclaim settings.
         // 12: added BSRSendPhaseBudgetPercent, the send pass's share of the reduction tick.
-        Assert.Equal(12, Configuration.CurrentConfigVersion);
+        // 13: added LogConnectionHandshake; the per-connection auth chatter is now off by default.
+        Assert.Equal(13, Configuration.CurrentConfigVersion);
         Assert.Equal(0, new Configuration().ConfigVersion);
         Assert.Equal("config", Configuration.ConfigFolderName);
         Assert.Equal("logs", Configuration.LogsFolderName);

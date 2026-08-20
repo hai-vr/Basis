@@ -120,8 +120,11 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
-        public void EnableAutoFollow_FromEveryStartingPinSpace_EndsInWorldSpace()
+        public void EnableAutoFollow_FromEveryStartingPinSpace_DetachesWithoutMovingAnAnchor()
         {
+            // Fitting a modifier has to take the camera out of the hand, because something else is
+            // now steering it. It must not pick the anchor: a camera the user bolted to a vehicle
+            // stays bolted to it, and only a camera that was in their hand needs somewhere to go.
             foreach (CameraPinSpace start in System.Enum.GetValues(typeof(CameraPinSpace)))
             {
                 _camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
@@ -129,8 +132,10 @@ namespace Basis.Tests.Camera
 
                 _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
-                Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace),
-                    $"Enabling follow from {start} must end in WorldSpace.");
+                CameraPinSpace expected = start == CameraPinSpace.HandHeld ? CameraPinSpace.WorldSpace : start;
+                Assert.That(_camera.PinSpace, Is.EqualTo(expected),
+                    $"Enabling follow from {start} must leave the camera detached on {expected}.");
+                Assert.That(_camera.PinSpace, Is.Not.EqualTo(CameraPinSpace.HandHeld));
                 Assert.That(_camera.Modifiers.DrivesPosition, Is.True);
             }
         }

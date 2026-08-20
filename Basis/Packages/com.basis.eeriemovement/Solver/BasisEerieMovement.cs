@@ -95,6 +95,7 @@ namespace Basis.IK
         public float spineSquishBoost, spineGazeFollow, neckGazeFollow;
 
         public float neckExtensionDamp;
+        public float neckFlexionDamp;
         public float spineCCDRelax, neckMaxConeDeg, spineTwistKeep, spineNeckTwistKeep;
         public float chestSpringHz, chestSpringDamping;
         public float hipHingeStartDeg, hipHingeMaxAddDeg;
@@ -163,6 +164,11 @@ namespace Basis.IK
 
         public BasisPoseStream poseStream;
 
+        // Declared here rather than beside its draw methods in the Gizmos partial: instance fields
+        // spread across partial declarations have no defined ordering (CS0282), and this struct is
+        // a Burst job payload.
+        public BasisIKGizmoRecorder gizmos;
+
         public void Execute() => ProcessAnimation(poseStream);
 
         static readonly ProfilerMarker sMarkerSpinePass = new ProfilerMarker("BasisEerie.Spine");
@@ -176,24 +182,36 @@ namespace Basis.IK
         {
             stream.InvalidateWorldCache();
             CaptureCalibrationOffsets();
+            RecordTargetGizmos(stream);
             sMarkerSpinePass.Begin();
             SolveSpinePass(stream);
             sMarkerSpinePass.End();
+            RecordSpineGizmos(stream);
             sMarkerShoulderPass.Begin();
             SolveShoulderPass(stream);
             sMarkerShoulderPass.End();
+            RecordShoulderGizmos(stream);
             sMarkerLegPass.Begin();
             SolveLegPass(stream);
             sMarkerLegPass.End();
+            RecordLegGizmos(stream);
             sMarkerArmPass.Begin();
             SolveArmPass(stream);
             sMarkerArmPass.End();
+            RecordArmGizmos(stream);
             sMarkerToePass.Begin();
             SolveToePass(stream);
             sMarkerToePass.End();
+            RecordToeGizmos(stream);
             sMarkerOverrides.Begin();
             ApplyTrackerOverrides(stream);
             sMarkerOverrides.End();
+            RecordOverrideGizmos(stream);
+            RecordFrameGizmos(stream);
+            RecordLimitGizmos(stream);
+            RecordReachGizmos(stream);
+            RecordNumberGizmos(stream);
+            RecordSkeletonGizmos(stream);
         }
 
         void CaptureCalibrationOffsets()
@@ -313,6 +331,8 @@ namespace Basis.IK
             if (legSwivelRaw.IsCreated) legSwivelRaw.Dispose();
             if (legSwivelSmooth.IsCreated) legSwivelSmooth.Dispose();
             if (legSwivelInit.IsCreated) legSwivelInit.Dispose();
+
+            gizmos.Dispose();
         }
     }
 }

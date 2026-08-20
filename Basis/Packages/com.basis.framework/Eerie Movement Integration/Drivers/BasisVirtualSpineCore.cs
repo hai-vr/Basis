@@ -26,6 +26,13 @@ namespace Basis.IK
 
         private const float TorsoYawRelockSpeedDeg = 6f;
 
+        /// <summary>
+        /// How much of the spine's reach the synthesised pelvis may demand. Kept under 1 so the pelvis stays
+        /// clear of the taut band rather than sitting on its edge, where the solve starts trading head
+        /// accuracy for span.
+        /// </summary>
+        private const float ReachUseCeiling = 0.97f;
+
         public struct SpineSolveParams
         {
             public float Dt;
@@ -68,12 +75,22 @@ namespace Basis.IK
             public float SpineRotationSpeed;
             public float HipsRotationSpeed;
 
-            public float3 EyeFromHeadTpose;
+            /// <summary>
+            /// Eye-from-nod-pivot, head local: the arm the HMD actually swings on when the user nods.
+            /// Seeded from the avatar's authored eye-to-head offset and refined from HMD motion by
+            /// <see cref="BasisNodPivotSampler"/>, because the avatar's authoring is a rendering offset
+            /// and has no reason to match the user's own cervical geometry.
+            /// </summary>
+            public float3 GazeSwingLever;
+
+            /// <summary>T-pose neck height above the eye. Anchors the pelvis to the nod pivot instead of to the swinging neck estimate.</summary>
+            public float TposeNeckMinusEyeY;
 
             public float GazeSwingRemoval;
             public float HipsForwardBias;
 
             public float NeckExtensionDamp;
+            public float NeckFlexionDamp;
             public float TorsoYawDeadzoneDeg;
             public float TorsoYawBlendSpeed;
 
@@ -163,7 +180,7 @@ namespace Basis.IK
                 NormalizeSafeWithFallback(in rawUp, new float3(0f, 1f, 0f), out float3 worldUp);
 
                 float3 neckPos0 = BasisNeckCueCore.Solve(P.NeckTargetPos, P.NeckTargetRot, P.NeckScaledOffset,
-                    worldUp, P.NeckExtensionDamp);
+                    worldUp, P.NeckExtensionDamp, P.NeckFlexionDamp);
                 neck.OutgoingPosition = neckPos0;
                 ApplyWorldAndLastBurst(ref neck, in P.ParentMatrix, in P.ParentRotation);
 
@@ -206,7 +223,7 @@ namespace Basis.IK
                     BasisHeadPitchSwingInput swing;
                     swing.PitchDeg = gazePitchDeg;
                     swing.YawDeg = gazeYawDeg;
-                    swing.EyeFromNeck = P.EyeFromHeadTpose;
+                    swing.EyeFromNeck = P.GazeSwingLever;
                     swing.Strength = P.GazeSwingRemoval;
 
                     swing.BackwardScale = 1f;
@@ -225,8 +242,42 @@ namespace Basis.IK
                     supportXZ += new float3(headRestArm.x, 0f, headRestArm.z);
                 }
 
+                // hipsBase hangs the pelvis a fixed chain length below the neck, so whatever the neck
+                // estimate does vertically the pelvis does too -- and the neck estimate is built off the
+                // head bone, which is welded to the HMD and therefore rides the nod arc. Measured: 3.5 cm
+                // of pelvis lift on a 75 degree look with the feet planted, in both directions. Hang it
+                // off the nod pivot instead, the one point on the head a nod does not move. Genuine
+                // vertical travel -- crouch, jump, playspace lift -- still passes straight through,
+                // because it carries the pivot along with the HMD.
+                float3 neckForHips = neckPosWorld;
+                if (P.GazeSwingRemoval > 0f)
+                {
+                    float3 nodPivot = eyePosDevice - math.mul(eyeRot, P.GazeSwingLever);
+                    float stableNeckY = nodPivot.y + P.TposeNeckMinusEyeY + P.GazeSwingLever.y;
+                    neckForHips.y = math.lerp(neckPosWorld.y, stableNeckY, math.saturate(P.GazeSwingRemoval));
+
+                    // Holding the pelvis still is right, but it lengthens the span the spine has to cover,
+                    // and SolveSequentialSpineIK resolves a taut chain by projecting the HEAD onto the reach
+                    // sphere -- which takes the avatar's head off the HMD. The head is measured and the
+                    // pelvis is invented, so the pelvis is the one that gives.
+                    //
+                    // The ceiling is the UNANCHORED neck: this may pull back toward the height the pelvis
+                    // used to sit at, and no further. That makes it a bit-exact no-op at rest (where the two
+                    // agree) and bounds the anchor to "never demands more reach than the old law did",
+                    // rather than introducing a taut-band trigger of its own on a rig with little slack.
+                    float reach = (P.LenTotal + math.distance(neckPosWorld, headPosWorld)) * ReachUseCeiling;
+                    float2 spanXZ = new float2(headPosWorld.x - desiredHipsXZ.x, headPosWorld.z - desiredHipsXZ.z);
+                    float horizSq = math.lengthsq(spanXZ);
+                    if (reach * reach > horizSq)
+                    {
+                        float maxVertical = math.sqrt(reach * reach - horizSq);
+                        float reachLimitNeckY = headPosWorld.y - maxVertical + P.LenTotal;
+                        neckForHips.y = math.max(neckForHips.y, math.min(reachLimitNeckY, neckPosWorld.y));
+                    }
+                }
+
                 ComputeHipsPosition(
-                    in neckPosWorld,
+                    in neckForHips,
                     in headPosWorld,
                     in supportXZ,
                     in worldUp,

@@ -261,6 +261,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         public static void SetMaxDegreeOfParallelism(int configured)
         {
+            // The vector width every SIMD path in the server runs at is chosen by the JIT from the
+            // host, so nothing in the build or the config says what it ended up being. It is the
+            // first thing worth knowing when two machines disagree on throughput.
+            BNL.Log($"[CPU] {BasisSimdCapabilities.Describe()}");
+
             _configuredDegree = configured;
             if (configured > 0)
             {

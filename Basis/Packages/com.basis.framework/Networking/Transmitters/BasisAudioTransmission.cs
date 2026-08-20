@@ -316,23 +316,26 @@ namespace Basis.Scripts.Networking.Transmitters
                 {
                     return;
                 }
-                byte channel = IsInShoutMode ? BasisNetworkCommons.ShoutVoiceChannel : BasisNetworkCommons.VoiceChannel;
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, Segment.LengthUsed);
-                peer.Send(writer, channel, DeliveryMethod.Unreliable);
-                if (!IsInShoutMode)
+                if (!BasisTalkModeManager.TransmitBlockedLocally)
                 {
-                    NetDataWriter directWriter = writer;
-                    if (BasisP2PManager.HasAnyConnectedSession())
+                    byte channel = IsInShoutMode ? BasisNetworkCommons.ShoutVoiceChannel : BasisNetworkCommons.VoiceChannel;
+                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, Segment.LengthUsed);
+                    peer.Send(writer, channel, DeliveryMethod.Unreliable);
+                    if (!IsInShoutMode)
                     {
-                        int directBitrate = LocalOpusSettings.DirectConnectBitrate;
-                        if (directBitrate != LocalOpusSettings.ServerBitrate)
+                        NetDataWriter directWriter = writer;
+                        if (BasisP2PManager.HasAnyConnectedSession())
                         {
-                            directWriter = EncodeForDirectConnect(pcm, sampleCount, directBitrate, sequence, silence);
+                            int directBitrate = LocalOpusSettings.DirectConnectBitrate;
+                            if (directBitrate != LocalOpusSettings.ServerBitrate)
+                            {
+                                directWriter = EncodeForDirectConnect(pcm, sampleCount, directBitrate, sequence, silence);
+                            }
                         }
-                    }
-                    if (directWriter != null)
-                    {
-                        BasisP2PManager.BroadcastVoiceViaP2P(directWriter);
+                        if (directWriter != null)
+                        {
+                            BasisP2PManager.BroadcastVoiceViaP2P(directWriter);
+                        }
                     }
                 }
                 if (BasisLocalPlayer.Instance != null)

@@ -173,15 +173,23 @@ public class BasisCameraUserMode
         if (left.focusPeakingColour != right.focusPeakingColour) return false;
         if (left.focusPeakingGreyPicture != right.focusPeakingGreyPicture) return false;
 
+        if (left.viewfinderGrid != right.viewfinderGrid) return false;
+        if (left.viewfinderGridPattern != right.viewfinderGridPattern) return false;
+        if (!Near(left.viewfinderGridOpacity, right.viewfinderGridOpacity, Epsilon)) return false;
+
         if (left.autoBrightness != right.autoBrightness) return false;
         if (!Near(left.autoBrightnessTarget, right.autoBrightnessTarget, Epsilon)) return false;
         if (!Near(left.autoBrightnessSpeed, right.autoBrightnessSpeed, Epsilon)) return false;
         if (left.autoBrightnessMetering != right.autoBrightnessMetering) return false;
         if (!Near(left.autoBrightnessRange, right.autoBrightnessRange, Epsilon)) return false;
 
-        if (!Near(left.VolumetricFogVolumedensity, right.VolumetricFogVolumedensity, Epsilon)) return false;
-        if (left.VolumetricFogenableAPVContribution != right.VolumetricFogenableAPVContribution) return false;
-        if (left.VolumetricFogenableMainLightContribution != right.VolumetricFogenableMainLightContribution) return false;
+        if (left.overrideVolumetricFog != right.overrideVolumetricFog) return false;
+        if (left.overrideVolumetricFog)
+        {
+            if (!Near(left.VolumetricFogVolumedensity, right.VolumetricFogVolumedensity, Epsilon)) return false;
+            if (left.VolumetricFogenableAPVContribution != right.VolumetricFogenableAPVContribution) return false;
+            if (left.VolumetricFogenableMainLightContribution != right.VolumetricFogenableMainLightContribution) return false;
+        }
 
         if (!Near(left.vignette, right.vignette, Epsilon)) return false;
         if (!Near(left.chromaticAberration, right.chromaticAberration, Epsilon)) return false;
@@ -207,6 +215,7 @@ public class BasisCameraUserMode
         if (!Near(left.modifiers.subject.aimHeightOffset, right.modifiers.subject.aimHeightOffset, OffsetTolerance)) return false;
         if (!Near(left.modifiers.subject.framingRadius, right.modifiers.subject.framingRadius, Epsilon)) return false;
         if (left.detachedMarker != right.detachedMarker) return false;
+        if (left.anchorFollowsBody != right.anchorFollowsBody) return false;
 
         if (left.capture360 != right.capture360) return false;
         if (left.useAutoLeveling != right.useAutoLeveling) return false;

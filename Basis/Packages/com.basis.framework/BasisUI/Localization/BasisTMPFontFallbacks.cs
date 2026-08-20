@@ -30,6 +30,12 @@ namespace Basis.BasisUI
         private static bool _installed;
         private static TMP_FontAsset _shippedJapaneseFallback;
 
+#if UNITY_SERVER
+        private static readonly bool IsServerBuild = true;
+#else
+        private static readonly bool IsServerBuild = false;
+#endif
+
         /// <summary>
         /// Ordered candidates for each fallback slot. Names are OS font
         /// family names and are fed one-by-one to
@@ -264,6 +270,11 @@ namespace Basis.BasisUI
             }
             _installed = true;
 
+            if (IsServerBuild)
+            {
+                return;
+            }
+
             List<TMP_FontAsset> fallbacks = TMP_Settings.fallbackFontAssets;
             if (fallbacks == null)
             {
@@ -312,6 +323,11 @@ namespace Basis.BasisUI
                 return _shippedJapaneseFallback;
             }
 
+            if (IsServerBuild)
+            {
+                return null;
+            }
+
             Font font;
             try
             {
@@ -329,7 +345,17 @@ namespace Basis.BasisUI
                 return null;
             }
 
-            TMP_FontAsset tmpFont = TMP_FontAsset.CreateFontAsset(font);
+            TMP_FontAsset tmpFont;
+            try
+            {
+                tmpFont = TMP_FontAsset.CreateFontAsset(font);
+            }
+            catch (Exception e)
+            {
+                BasisDebug.LogError($"[BasisTMPFontFallbacks] CreateFontAsset threw for the embedded Japanese font: {e.Message}");
+                return null;
+            }
+
             if (tmpFont == null)
             {
                 BasisDebug.LogError("[BasisTMPFontFallbacks] CreateFontAsset returned null for the embedded Japanese font.");

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Basis.BTween;
 using Basis.Scripts.UI;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,11 +20,15 @@ namespace Basis.BasisUI
         {
             Title = "Dialogue",
             PanelSize = new Vector2(700, 500),
-            PanelPosition = new Vector3(0, -100, -5),
+            PanelPosition = new Vector3(0, -100, 0),
         };
 
         public static string AcceptDefault = "Accept";
         public static string DeclineDefault = "Decline";
+
+        private const float DescriptionHeightPadding = 24f;
+        private const float TitleWidthPadding = 16f;
+        private const float PanelWidthStep = 100f;
 
         public string Title;
         public string Description;
@@ -390,6 +395,7 @@ namespace Basis.BasisUI
             panel.SetLayer(PanelLayer.Overlay);
             panel.FillDialogue(title, description, accept, deny);
             BasisPanelMoveHandle.Attach(panel, nameof(BasisMenuDialoguePanel));
+            panel.FitHeaderToContent();
 
             // Pop-in animation for dialogues
             UIAnimations.PopIn(panel);
@@ -426,6 +432,172 @@ namespace Basis.BasisUI
             return null;
         }
 
+        /// <summary>
+        /// Fits the dialogue to its description using the standard main-provider panel as its
+        /// maximum envelope. Long dialogues grow upward from the same bottom edge as a standard
+        /// provider, then widen in steps if the text still overflows.
+        /// </summary>
+        public void FitDescriptionToContent()
+        {
+            if (Descriptor == null || !Descriptor.HasDescription)
+            {
+                return;
+            }
+
+            TextMeshProUGUI descriptionLabel = Descriptor.DescriptionLabel;
+            if (descriptionLabel == null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+                return;
+            }
+
+            FitHeaderToContent();
+            descriptionLabel.enableAutoSizing = false;
+            RebuildDialogueLayout(descriptionLabel);
+            float baseDescriptionHeight = GetUsableDescriptionHeight(descriptionLabel);
+            if (descriptionLabel.preferredHeight <= baseDescriptionHeight + 0.5f)
+            {
+                return;
+            }
+
+            Vector2 basePanelSize = Data.PanelSize;
+            Vector3 basePanelPosition = Data.PanelPosition;
+            PanelData standardPanel = PanelData.Standard(string.Empty);
+            float maximumHeight = standardPanel.PanelSize.y;
+            float maximumWidth = standardPanel.PanelSize.x;
+            float bottomEdge = standardPanel.PanelPosition.y - standardPanel.PanelSize.y * 0.5f;
+
+            Vector2 panelSize = CalculateHeightFirstPanelSize(
+                basePanelSize,
+                baseDescriptionHeight,
+                descriptionLabel.preferredHeight,
+                maximumHeight);
+            ApplyPanelSize(panelSize, basePanelPosition, bottomEdge);
+            RebuildDialogueLayout(descriptionLabel);
+
+            while (DescriptionOverflows(descriptionLabel) && panelSize.x + 0.5f < maximumWidth)
+            {
+                panelSize.x = Mathf.Min(maximumWidth, panelSize.x + PanelWidthStep);
+                ApplyPanelSize(panelSize, basePanelPosition, bottomEdge);
+                RebuildDialogueLayout(descriptionLabel);
+            }
+
+            Vector2 fittedSize = CalculateHeightFirstPanelSize(
+                basePanelSize,
+                baseDescriptionHeight,
+                descriptionLabel.preferredHeight,
+                maximumHeight);
+            fittedSize.x = panelSize.x;
+            if (!Mathf.Approximately(fittedSize.y, panelSize.y))
+            {
+                panelSize = fittedSize;
+                ApplyPanelSize(panelSize, basePanelPosition, bottomEdge);
+                RebuildDialogueLayout(descriptionLabel);
+            }
+
+        }
+
+        public void FitHeaderToContent()
+        {
+            if (Descriptor == null || Descriptor.TitleLabel == null)
+            {
+                return;
+            }
+
+            TextMeshProUGUI titleLabel = Descriptor.TitleLabel;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+            Canvas.ForceUpdateCanvases();
+            titleLabel.ForceMeshUpdate();
+
+            float overflowWidth = titleLabel.preferredWidth - titleLabel.rectTransform.rect.width;
+            if (overflowWidth <= 0.5f)
+            {
+                return;
+            }
+
+            float maximumWidth = PanelData.Standard(string.Empty).PanelSize.x;
+            float requiredWidth = Data.PanelSize.x + overflowWidth + TitleWidthPadding;
+            float targetWidth = Mathf.Min(
+                maximumWidth,
+                Mathf.Ceil(requiredWidth / PanelWidthStep) * PanelWidthStep);
+            if (targetWidth <= Data.PanelSize.x + 0.5f)
+            {
+                return;
+            }
+
+            PanelData data = Data;
+            data.PanelSize.x = targetWidth;
+            Data = data;
+            rectTransform.sizeDelta = data.PanelSize;
+            BasisGraphicUIRayCaster.SetBoxColliderToRectTransform(gameObject);
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+            Canvas.ForceUpdateCanvases();
+            titleLabel.ForceMeshUpdate();
+        }
+
+        public static Vector2 CalculateHeightFirstPanelSize(
+            Vector2 basePanelSize,
+            float currentDescriptionHeight,
+            float preferredDescriptionHeight,
+            float maximumPanelHeight)
+        {
+            if (preferredDescriptionHeight <= currentDescriptionHeight + 0.5f)
+            {
+                return basePanelSize;
+            }
+
+            float additionalHeight =
+                preferredDescriptionHeight
+                - currentDescriptionHeight
+                + DescriptionHeightPadding;
+            float clampedMaximumHeight = Mathf.Max(basePanelSize.y, maximumPanelHeight);
+            return new Vector2(
+                basePanelSize.x,
+                Mathf.Min(clampedMaximumHeight, basePanelSize.y + additionalHeight));
+        }
+
+        private void ApplyPanelSize(Vector2 panelSize, Vector3 basePanelPosition, float bottomEdge)
+        {
+            PanelData data = Data;
+            data.PanelSize = panelSize;
+            data.PanelPosition = new Vector3(
+                basePanelPosition.x,
+                bottomEdge + panelSize.y * 0.5f,
+                basePanelPosition.z);
+            Data = data;
+            rectTransform.sizeDelta = panelSize;
+            transform.localPosition = data.PanelPosition;
+            BasisGraphicUIRayCaster.SetBoxColliderToRectTransform(gameObject);
+        }
+
+        private void RebuildDialogueLayout(TextMeshProUGUI descriptionLabel)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+            Canvas.ForceUpdateCanvases();
+            descriptionLabel.ForceMeshUpdate();
+        }
+
+        private bool DescriptionOverflows(TextMeshProUGUI descriptionLabel)
+        {
+            return descriptionLabel.preferredHeight > GetUsableDescriptionHeight(descriptionLabel) + 0.5f;
+        }
+
+        private float GetUsableDescriptionHeight(TextMeshProUGUI descriptionLabel)
+        {
+            float height = descriptionLabel.rectTransform.rect.height;
+            RectTransform footer = AcceptButton != null
+                ? AcceptButton.rectTransform.parent as RectTransform
+                : null;
+            if (footer == null)
+            {
+                return height;
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(footer);
+            return Mathf.Max(0f, height - footer.rect.height);
+        }
+
         public void FillDialogue(string title, string description, string accept, string decline = null)
         {
             Title = title;
@@ -450,6 +622,8 @@ namespace Basis.BasisUI
             {
                 DeclineButton.gameObject.SetActive(false);
             }
+
+            FitDescriptionToContent();
         }
     }
 }

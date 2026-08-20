@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -152,6 +153,22 @@ public sealed class BasisHeadlessHealthCheck : IDisposable
         AppendNullableDate(builder, "lastConnectedUtc", snapshot.LastConnectedUtc);
         AppendNullableDate(builder, "lastDisconnectedUtc", snapshot.LastDisconnectedUtc);
         AppendString(builder, "lastHealthStateChangeUtc", snapshot.LastHealthStateChangeUtc.ToString("O"));
+        AppendInt(builder, "remotePlayerCount", snapshot.RemotePlayerCount);
+        AppendMegabytes(builder, "workingSetMb", snapshot.WorkingSetBytes);
+        AppendMegabytes(builder, "gcHeapMb", snapshot.GcHeapBytes);
+        AppendMegabytes(builder, "monoHeapMb", snapshot.MonoHeapBytes);
+        AppendMegabytes(builder, "monoUsedMb", snapshot.MonoUsedBytes);
+        AppendMegabytes(builder, "totalAllocatedMb", snapshot.TotalAllocatedBytes);
+        AppendMegabytes(builder, "totalReservedMb", snapshot.TotalReservedBytes);
+        AppendMegabytes(builder, "totalUnusedReservedMb", snapshot.TotalUnusedReservedBytes);
+        AppendNullableDate(builder, "lastMemorySampleUtc", snapshot.LastMemorySampleUtc);
+        AppendMegabytes(builder, "textureMb", snapshot.TextureBytes);
+        AppendInt(builder, "textureCount", snapshot.TextureCount);
+        AppendMegabytes(builder, "meshMb", snapshot.MeshBytes);
+        AppendInt(builder, "meshCount", snapshot.MeshCount);
+        AppendMegabytes(builder, "audioClipMb", snapshot.AudioClipBytes);
+        AppendInt(builder, "audioClipCount", snapshot.AudioClipCount);
+        AppendNullableDate(builder, "lastAssetSweepUtc", snapshot.LastAssetSweepUtc);
         if (builder[builder.Length - 1] == ',')
         {
             builder.Length--;
@@ -169,6 +186,17 @@ public sealed class BasisHeadlessHealthCheck : IDisposable
     private static void AppendInt(StringBuilder builder, string name, int value)
     {
         builder.Append('"').Append(name).Append("\":").Append(value).Append(',');
+    }
+
+    /// <summary>
+    /// Emits a byte count as megabytes with one decimal. Invariant formatting is required —
+    /// a comma decimal separator would produce malformed JSON on a European locale.
+    /// </summary>
+    private static void AppendMegabytes(StringBuilder builder, string name, long bytes)
+    {
+        double megabytes = bytes / (1024d * 1024d);
+        builder.Append('"').Append(name).Append("\":")
+            .Append(megabytes.ToString("F1", CultureInfo.InvariantCulture)).Append(',');
     }
 
     private static void AppendString(StringBuilder builder, string name, string value)

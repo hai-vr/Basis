@@ -71,6 +71,25 @@ namespace Basis.Network.Core.Compression
         /// <summary>Widest channel in the layout; the Gray sweep needs this many frames for a full pass.</summary>
         public readonly int MaxChannelWidth;
 
+        /// <summary>
+        /// Which 8-byte words of the payload each field has bits in, one bit per word.
+        ///
+        /// <para>This is what lets the delta encoder rule a field out without unpacking it: AND this
+        /// against <see cref="BasisPayloadDiff.WordDiffMask"/> and a zero result proves every bit the
+        /// field owns is unchanged, because all of them lie inside words that compared equal. A
+        /// non-zero result proves nothing — fields share words — so the caller still runs the exact
+        /// per-channel comparison on whatever survives, and the emitted delta is unchanged.</para>
+        /// </summary>
+        public readonly ulong[] FieldWordMask;
+
+        /// <summary>
+        /// False when the payload has more 8-byte words than a <see cref="ulong"/> mask can address,
+        /// in which case <see cref="FieldWordMask"/> is all-ones and the prefilter degrades to a
+        /// no-op rather than to a wrong answer. Avatar payloads are ~90-175 bytes against a 512-byte
+        /// ceiling, so this is a guard against future layout growth, not a live case.
+        /// </summary>
+        public readonly bool WordMaskUsable;
+
         public int FieldCount => FieldFirstChannel.Length - 1;
 
         internal BasisAvatarChannelLayout(BasisAvatarChannel[] channels, int[] fieldFirstChannel, int payloadBytes)
@@ -87,6 +106,27 @@ namespace Basis.Network.Core.Compression
             }
             TotalChannelBits = total;
             MaxChannelWidth = widest;
+
+            WordMaskUsable = payloadBytes <= BasisPayloadDiff.MaxPayloadBytes;
+            int fields = fieldFirstChannel.Length - 1;
+            FieldWordMask = new ulong[fields];
+            for (int f = 0; f < fields; f++)
+            {
+                if (!WordMaskUsable)
+                {
+                    FieldWordMask[f] = ulong.MaxValue;
+                    continue;
+                }
+                ulong words = 0;
+                for (int c = fieldFirstChannel[f]; c < fieldFirstChannel[f + 1]; c++)
+                {
+                    // A channel may straddle a word boundary, so mark the whole span it covers.
+                    int firstWord = channels[c].BitOffset >> 6;
+                    int lastWord = (channels[c].BitOffset + channels[c].Width - 1) >> 6;
+                    for (int w = firstWord; w <= lastWord; w++) words |= 1UL << w;
+                }
+                FieldWordMask[f] = words;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

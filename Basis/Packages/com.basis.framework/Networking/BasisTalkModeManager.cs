@@ -16,6 +16,7 @@ namespace Basis.Scripts.Networking
         Direct = 2,
         ThisPerson = 3,
         Shout = 4,
+        NoOne = 5,
     }
 
     public static class BasisTalkModeManager
@@ -45,6 +46,8 @@ namespace Basis.Scripts.Networking
             BasisNetworkManagement.OnlocalPermissionsChanged += HandlePermissionsChanged;
             BasisSettingsDefaults.ShoutShowOnMenuBar.OnChanged -= HandleShoutMenuBarPrefChanged;
             BasisSettingsDefaults.ShoutShowOnMenuBar.OnChanged += HandleShoutMenuBarPrefChanged;
+            BasisSettingsDefaults.TalkToNoOne.OnChanged -= HandleTalkToNoOnePrefChanged;
+            BasisSettingsDefaults.TalkToNoOne.OnChanged += HandleTalkToNoOnePrefChanged;
 #if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.OnPausedAction -= HandleLocalMuteChanged;
             BasisLocalMicrophoneDriver.OnPausedAction += HandleLocalMuteChanged;
@@ -62,6 +65,13 @@ namespace Basis.Scripts.Networking
             return LocalCanShout() && BasisSettingsDefaults.ShoutShowOnMenuBar.RawValue;
         }
 
+        public static bool TalkToNoOneAvailable()
+        {
+            return BasisSettingsDefaults.TalkToNoOne.RawValue;
+        }
+
+        public static bool TransmitBlockedLocally => CurrentMode == BasisTalkMode.NoOne;
+
         private static readonly BasisTalkMode[] CycleOrder =
         {
             BasisTalkMode.Normal,
@@ -69,17 +79,19 @@ namespace Basis.Scripts.Networking
             BasisTalkMode.ThisPerson,
             BasisTalkMode.Direct,
             BasisTalkMode.Shout,
+            BasisTalkMode.NoOne,
         };
 
         /// <summary>
         /// True only when there is a reason to expose the mic-mode button: we're already
-        /// in a non-normal mode, shout is enabled on the menu bar, have a private set, a
-        /// marked person, or at least one P2P-connected peer.
+        /// in a non-normal mode, shout is enabled on the menu bar, talk-to-no-one is opted
+        /// into, have a private set, a marked person, or at least one P2P-connected peer.
         /// </summary>
         public static bool ShouldShowModeButton()
         {
             if (CurrentMode != BasisTalkMode.Normal) return true;
             if (ShoutAvailableOnMenuBar()) return true;
+            if (TalkToNoOneAvailable()) return true;
             if (privateMembers.Count > 0) return true;
             if (hasThisPersonTarget) return true;
             return BasisP2PManager.GetConnectedSessionCount() > 0;
@@ -94,6 +106,7 @@ namespace Basis.Scripts.Networking
                 case BasisTalkMode.ThisPerson: return hasThisPersonTarget;
                 case BasisTalkMode.Direct: return BasisP2PManager.GetConnectedSessionCount() > 0;
                 case BasisTalkMode.Shout: return ShoutAvailableOnMenuBar();
+                case BasisTalkMode.NoOne: return TalkToNoOneAvailable();
                 default: return false;
             }
         }
@@ -330,6 +343,16 @@ namespace Basis.Scripts.Networking
 
         private static void HandleShoutMenuBarPrefChanged(bool _)
         {
+            OnLocalTalkModeChanged?.Invoke();
+        }
+
+        private static void HandleTalkToNoOnePrefChanged(bool enabled)
+        {
+            if (!enabled && CurrentMode == BasisTalkMode.NoOne)
+            {
+                SetMode(BasisTalkMode.Normal);
+                return;
+            }
             OnLocalTalkModeChanged?.Invoke();
         }
     }

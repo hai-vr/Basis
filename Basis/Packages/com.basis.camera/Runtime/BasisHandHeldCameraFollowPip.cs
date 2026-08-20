@@ -38,6 +38,23 @@ public partial class BasisHandHeldCamera
     /// </summary>
     public static int MarkerLayer => LayerMask.NameToLayer("OverlayUI");
 
+    /// <summary>
+    /// How far out along the lens axis the puck is parked from the capture camera, in metres at
+    /// default avatar scale.
+    ///
+    /// <para>It used to sit exactly on the camera, which is where the prop's own HUD is too, so on
+    /// the frame the camera detaches the two are coincident: the puck landed in the middle of the
+    /// panel and its grab box took the pointer the buttons under it wanted. The operator is always
+    /// behind the lens — the same fact <see cref="TryGetFocusDepth"/> leans on — so parking the
+    /// puck out along that axis puts it behind the panel from where they stand, where the panel
+    /// hides it and is what a pointer reaches first.</para>
+    /// </summary>
+    private const float FollowPuckLensOffset = 0.25f;
+
+    /// <summary>Where the puck sits relative to a capture camera at <paramref name="rotation"/>, in world space.</summary>
+    private static Vector3 FollowPuckOffset(Quaternion rotation) =>
+        rotation * new Vector3(0f, 0f, FollowPuckLensOffset * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
+
     private GameObject followPipInstance;
     private AsyncOperationHandle<GameObject> followPipHandle;
     private bool followPipLoading;
@@ -47,12 +64,14 @@ public partial class BasisHandHeldCamera
     /// <summary>True while the player is holding the follow puck — a "selfie stick" grip on the camera.</summary>
     public bool FollowPipGrabbed => followPipGrabbed && followPipInstance != null;
 
-    /// <summary>While grabbed, the puck's transform is where the camera should be.</summary>
+    /// <summary>While grabbed, the puck's transform is where the camera should be, less the parking offset.</summary>
     public bool TryGetFollowPipPose(out Vector3 pos, out Quaternion rot)
     {
         if (FollowPipGrabbed)
         {
             followPipInstance.transform.GetPositionAndRotation(out pos, out rot);
+            // Undo the parking offset, or taking hold of the puck would jump the camera by it.
+            pos -= FollowPuckOffset(rot);
             return true;
         }
         pos = default;
@@ -110,7 +129,7 @@ public partial class BasisHandHeldCamera
         if (followPipGrabbed) return;
 
         captureCamera.transform.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
-        followPipInstance.transform.SetPositionAndRotation(pos, rot);
+        followPipInstance.transform.SetPositionAndRotation(pos + FollowPuckOffset(rot), rot);
     }
 
     private void SpawnFollowPip()
@@ -139,11 +158,11 @@ public partial class BasisHandHeldCamera
             }
 
             captureCamera.transform.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
-            followPipInstance = Instantiate(handle.Result, pos, rot);
+            followPipInstance = Instantiate(handle.Result, pos + FollowPuckOffset(rot), rot);
             followPipInstance.name = "FollowCameraPip";
 
-            // Keep the marker out of the shot. The puck sits at the camera position, so the
-            // capture camera would otherwise film it.
+            // Keep the marker out of the shot. The puck is parked out along the lens axis, square
+            // in front of it, so the layer is the only thing keeping the capture from filming it.
             int overlayUi = MarkerLayer;
             if (overlayUi >= 0) SetLayerRecursively(followPipInstance, overlayUi);
 

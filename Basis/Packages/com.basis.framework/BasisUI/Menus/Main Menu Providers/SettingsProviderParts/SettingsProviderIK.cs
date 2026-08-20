@@ -212,6 +212,27 @@ public static class SettingsProviderIK
             resetButton.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.reset"));
             resetButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.reset.tooltip"));
             resetButton.OnClicked += BasisLocalPlayspaceMover.ResetOffset;
+
+            var gizmoToggle = PanelToggle.CreateNewEntry(moverParent);
+            gizmoToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.gizmos"));
+            gizmoToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.gizmos.tooltip"));
+            gizmoToggle.AssignBinding(BasisSettingsDefaults.PlayspaceGizmos);
+
+            var gizmoLayers = new List<PanelToggle>
+            {
+                PlayspaceGizmoLayerToggle(moverParent, "settings.bodyTracking.playspaceMover.gizmos.boundary", BasisSettingsDefaults.PlayspaceGizmoBoundary),
+                PlayspaceGizmoLayerToggle(moverParent, "settings.bodyTracking.playspaceMover.gizmos.origin", BasisSettingsDefaults.PlayspaceGizmoOrigin),
+                PlayspaceGizmoLayerToggle(moverParent, "settings.bodyTracking.playspaceMover.gizmos.offset", BasisSettingsDefaults.PlayspaceGizmoOffset),
+                PlayspaceGizmoLayerToggle(moverParent, "settings.bodyTracking.playspaceMover.gizmos.hands", BasisSettingsDefaults.PlayspaceGizmoHands),
+                PlayspaceGizmoLayerToggle(moverParent, "settings.bodyTracking.playspaceMover.gizmos.readouts", BasisSettingsDefaults.PlayspaceGizmoReadouts),
+            };
+
+            SetPlayspaceGizmoLayersVisible(gizmoLayers, gizmoToggle.Value);
+            gizmoToggle.OnValueChanged += value =>
+            {
+                SetPlayspaceGizmoLayersVisible(gizmoLayers, value);
+                RebuildLayoutChain(moverParent, tabDesc);
+            };
         });
 
         // ------------------
@@ -732,6 +753,15 @@ public static class SettingsProviderIK
                 neckExtensionDamp.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.neckExtensionDamp.title.tooltip"));
             }
 
+            var neckFlexionDamp = PanelSlider.CreateAndBind(
+                bendParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.neckFlexionDamp.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKNeckFlexionDamp);
+            if (neckFlexionDamp != null)
+            {
+                neckFlexionDamp.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.neckFlexionDamp.title.tooltip"));
+            }
+
             var spineMaxFwd = PanelSlider.CreateAndBind(
                 bendParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineMaxForward.title"), 0f, 90f, false, 0, ValueDisplayMode.Raw),
@@ -1225,6 +1255,11 @@ public static class SettingsProviderIK
             vspineTorsoYawPlayInVR.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawPlayInVR.title.tooltip"));
             vspineTorsoYawPlayInVR.AssignBinding(BasisSettingsDefaults.VSpineTorsoYawPlayInVR);
 
+            var vspineNodPivotEstimate = PanelToggle.CreateNewEntry(vspineParent);
+            vspineNodPivotEstimate.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.vspineNodPivotEstimate.title"));
+            vspineNodPivotEstimate.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.vspineNodPivotEstimate.title.tooltip"));
+            vspineNodPivotEstimate.AssignBinding(BasisSettingsDefaults.VSpineNodPivotEstimate);
+
             var vspinePostureModel = PanelToggle.CreateNewEntry(vspineParent);
             vspinePostureModel.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.vspinePostureModel.title"));
             vspinePostureModel.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.vspinePostureModel.title.tooltip"));
@@ -1320,6 +1355,65 @@ public static class SettingsProviderIK
             {
                 derivativeCutoff.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.derivativeCutoff.title.tooltip"));
             }
+        });
+
+        // ============== IK Solve Gizmos ==============
+        CreateCollapsibleSection(tabDesc, colliderGroup,
+            BasisLocalization.Get("settings.bodyTracking.section.solveGizmos.title"),
+            BasisLocalization.Get("settings.bodyTracking.section.solveGizmos.description"), false, gizmoParent =>
+        {
+            var gated = new List<PanelElementDescriptor>();
+
+            var solveGizmoToggle = PanelToggle.CreateNewEntry(gizmoParent);
+            solveGizmoToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.ikGizmos.enabled"));
+            solveGizmoToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.ikGizmos.enabled.tooltip"));
+            solveGizmoToggle.AssignBinding(Basis.Scripts.Debugging.BasisIKSolveGizmoStages.Enabled);
+
+            // One row per registered solve stage. BasisIKSolveGizmoStages.All is the only place a
+            // stage is declared, so a new pass added to the solver appears here, persists, and
+            // reaches the Burst recorder's mask without another edit in this file.
+            var stages = Basis.Scripts.Debugging.BasisIKSolveGizmoStages.All;
+            for (int i = 0; i < stages.Length; i++)
+            {
+                var stageToggle = PanelToggle.CreateNewEntry(gizmoParent);
+                stageToggle.Descriptor.SetTitle(BasisLocalization.Get(stages[i].TitleKey));
+                stageToggle.Descriptor.SetTooltip(BasisLocalization.Get(stages[i].TooltipKey));
+                stageToggle.AssignBinding(stages[i].Binding);
+                gated.Add(stageToggle.Descriptor);
+            }
+
+            var solveGizmoLabels = PanelToggle.CreateNewEntry(gizmoParent);
+            solveGizmoLabels.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.ikGizmos.labels"));
+            solveGizmoLabels.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.ikGizmos.labels.tooltip"));
+            solveGizmoLabels.AssignBinding(Basis.Scripts.Debugging.BasisIKSolveGizmoStages.Labels);
+            gated.Add(solveGizmoLabels.Descriptor);
+
+            var solveGizmoScale = PanelSlider.CreateAndBind(
+                gizmoParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.ikGizmos.scale"),
+                    Basis.Scripts.Debugging.BasisIKSolveGizmoStages.ScaleMin,
+                    Basis.Scripts.Debugging.BasisIKSolveGizmoStages.ScaleMax, false, 2, ValueDisplayMode.Raw),
+                Basis.Scripts.Debugging.BasisIKSolveGizmoStages.Scale);
+            if (solveGizmoScale != null)
+            {
+                solveGizmoScale.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.ikGizmos.scale.tooltip"));
+                gated.Add(solveGizmoScale.Descriptor);
+            }
+
+            void ApplySolveGizmoVisibility(bool visible)
+            {
+                for (int i = 0; i < gated.Count; i++)
+                {
+                    gated[i].SetActive(visible);
+                }
+            }
+
+            ApplySolveGizmoVisibility(solveGizmoToggle.Value);
+            solveGizmoToggle.OnValueChanged += value =>
+            {
+                ApplySolveGizmoVisibility(value);
+                RebuildLayoutChain(gizmoParent, tabDesc);
+            };
         });
 
         colliderGroup.gameObject.SetActive(BasisSettingsDefaults.FBIKAdvancedVisible.RawValue);
@@ -1668,6 +1762,12 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.PlayspaceMoverFlip.ResetToDefault();
         BasisSettingsDefaults.PlayspaceMoverFlipAngle.ResetToDefault();
         BasisSettingsDefaults.PlayspaceMoverFlipAxis.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceGizmos.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceGizmoBoundary.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceGizmoOrigin.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceGizmoOffset.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceGizmoHands.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceGizmoReadouts.ResetToDefault();
 
         // Global One Euro / smoothing parameters
         BasisSettingsDefaults.FBIKSmoothingStrength.ResetToDefault();
@@ -1698,6 +1798,7 @@ public static class SettingsProviderIK
 
         // IK Collider & Tuning
         BasisSettingsDefaults.FBIKAdvancedVisible.ResetToDefault();
+        Basis.Scripts.Debugging.BasisIKSolveGizmoStages.ResetToDefaults();
         BasisSettingsDefaults.FBIKCollisionsEnabled.ResetToDefault();
         BasisSettingsDefaults.FootIKEnabled.ResetToDefault();
         BasisSettingsDefaults.DisableAnimationsInFBT.ResetToDefault();
@@ -1798,6 +1899,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKSpineGazeFollow.ResetToDefault();
         BasisSettingsDefaults.FBIKNeckGazeFollow.ResetToDefault();
         BasisSettingsDefaults.FBIKNeckExtensionDamp.ResetToDefault();
+        BasisSettingsDefaults.FBIKNeckFlexionDamp.ResetToDefault();
+        BasisSettingsDefaults.VSpineNodPivotEstimate.ResetToDefault();
         BasisSettingsDefaults.VSpineGazeSwingRemoval.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineCCDRelax.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineTwistKeep.ResetToDefault();
@@ -1998,6 +2101,23 @@ public static class SettingsProviderIK
     /// height. Rows revealed inside a nested group otherwise leave every group above them at its stale
     /// height and overflow. Stops at the tab page so one reveal does not rebuild the whole menu.
     /// </summary>
+    private static PanelToggle PlayspaceGizmoLayerToggle(RectTransform parent, string localizationKey, BasisSettingsBinding<bool> binding)
+    {
+        var toggle = PanelToggle.CreateNewEntry(parent);
+        toggle.Descriptor.SetTitle(BasisLocalization.Get(localizationKey));
+        toggle.Descriptor.SetTooltip(BasisLocalization.Get(localizationKey + ".tooltip"));
+        toggle.AssignBinding(binding);
+        return toggle;
+    }
+
+    private static void SetPlayspaceGizmoLayersVisible(List<PanelToggle> toggles, bool visible)
+    {
+        for (int Index = 0; Index < toggles.Count; Index++)
+        {
+            toggles[Index].Descriptor.SetActive(visible);
+        }
+    }
+
     private static void RebuildLayoutChain(RectTransform from, PanelElementDescriptor tabDesc)
     {
         PanelElementDescriptor.RebuildLayoutChain(from, tabDesc != null ? tabDesc.ContentParent : null);

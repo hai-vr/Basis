@@ -50,6 +50,10 @@
 	-->
 	<ItemGroup>
 		<Compile Include="..\BasisBenchAgent\BenchAgentProtocol.cs" Link="Harness\BenchAgentProtocol.cs" />
+		<!-- Same reason as the protocol above: the agent and the benchmark both have to start a
+		     load client, and on Linux both hit the missing-execute-bit trap. One copy so a fix
+		     reaches both ends at once. -->
+		<Compile Include="..\BasisBenchAgent\LaunchTarget.cs" Link="Harness\LaunchTarget.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

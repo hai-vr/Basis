@@ -671,52 +671,19 @@ namespace Basis.Network.Core.Compression
         //  Bitstream read/write (pure C#)
         // ────────────────────────────────────────────────────────────
 
+        /// <summary>Writes into a region assumed already zero; see <see cref="BasisBitCodec.Or"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteBits(byte[] dst, int bitPos, ulong value, int bitCount)
         {
-            int bytePos = bitPos >> 3;
-            int bitInByte = bitPos & 7;
-            ulong v = value;
-            int bitsLeft = bitCount;
-
-            while (bitsLeft > 0)
-            {
-                int room = 8 - bitInByte;
-                int take = bitsLeft < room ? bitsLeft : room;
-                ulong maskVal = (1UL << take) - 1UL;
-                byte chunk = (byte)(v & maskVal);
-                dst[bytePos] = (byte)(dst[bytePos] | (chunk << bitInByte));
-                v >>= take;
-                bitsLeft -= take;
-                bytePos++;
-                bitInByte = 0;
-            }
+            BasisBitCodec.Or(dst, bitPos, value, bitCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ulong ReadBits(byte[] src, ref int bitPos, int bitCount)
         {
-            int bytePos = bitPos >> 3;
-            int bitInByte = bitPos & 7;
-            ulong outV = 0;
-            int outShift = 0;
-            int bitsLeft = bitCount;
-
-            while (bitsLeft > 0)
-            {
-                int room = 8 - bitInByte;
-                int take = bitsLeft < room ? bitsLeft : room;
-                ulong maskVal = (1UL << take) - 1UL;
-                ulong chunk = ((ulong)src[bytePos] >> bitInByte) & maskVal;
-                outV |= chunk << outShift;
-                outShift += take;
-                bitsLeft -= take;
-                bytePos++;
-                bitInByte = 0;
-            }
-
+            ulong value = BasisBitCodec.Read(src, bitPos, bitCount);
             bitPos += bitCount;
-            return outV;
+            return value;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

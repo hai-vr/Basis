@@ -153,6 +153,9 @@ public partial class BasisHandHeldCameraUI
         HHC.MetaData.Profile.TryGet(out HHC.MetaData.depthOfField);
         HHC.MetaData.Profile.TryGet(out HHC.MetaData.bloom);
         HHC.MetaData.Profile.TryGet(out HHC.MetaData.colorAdjustments);
+#if Basis_VOLUMETRIC_SUPPORTED
+        HHC.MetaData.Profile.TryGet(out HHC.MetaData.VolumetricFogVolume);
+#endif
 
         if (HHC.MetaData.colorAdjustments != null)
             HHC.MetaData.colorAdjustments.active = true;
@@ -688,6 +691,9 @@ public partial class BasisHandHeldCameraUI
             focusPeakingSensitivity = HHC != null ? HHC.focusPeakingSensitivity : baseline.focusPeakingSensitivity,
             focusPeakingColour = HHC != null ? HHC.focusPeakingColour : baseline.focusPeakingColour,
             focusPeakingGreyPicture = HHC != null && HHC.focusPeakingGreyPicture,
+            viewfinderGrid = HHC != null && HHC.viewfinderGridEnabled,
+            viewfinderGridPattern = HHC != null ? HHC.viewfinderGridPattern : baseline.viewfinderGridPattern,
+            viewfinderGridOpacity = HHC != null ? HHC.viewfinderGridOpacity : baseline.viewfinderGridOpacity,
             autoBrightness = HHC != null && HHC.autoBrightnessEnabled,
             autoBrightnessTarget = HHC != null ? HHC.autoBrightnessTarget : baseline.autoBrightnessTarget,
             autoBrightnessSpeed = HHC != null ? HHC.autoBrightnessSpeed : baseline.autoBrightnessSpeed,
@@ -700,6 +706,7 @@ public partial class BasisHandHeldCameraUI
             showExposureOnCamera = ShowExposureOnCamera,
             // Volumetric fog is platform-gated. Where it is compiled out there is no component to
             // read, so the last applied values carry forward rather than resetting to the defaults.
+            overrideVolumetricFog = baseline.overrideVolumetricFog,
             VolumetricFogVolumedensity = baseline.VolumetricFogVolumedensity,
             VolumetricFogenableAPVContribution = baseline.VolumetricFogenableAPVContribution,
             VolumetricFogenableMainLightContribution = baseline.VolumetricFogenableMainLightContribution,
@@ -722,6 +729,7 @@ public partial class BasisHandHeldCameraUI
             motionBlurMode = HHC != null && HHC.MetaData.motionBlur != null ? (int)HHC.MetaData.motionBlur.mode.value : baseline.motionBlurMode,
             autoFocusFollowSubject = HHC != null && HHC.autoFocusFollowSubject,
             modifiers = HHC != null ? HHC.Modifiers.Clone() : new BasisCameraModifierStack(),
+            anchorFollowsBody = HHC != null && HHC.anchorFollowsBody,
             detachedMarker = HHC != null ? (int)HHC.detachedMarker : (int)BasisCameraDetachedMarker.Puck,
             capture360 = HHC != null && HHC.capture360Enabled,
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
@@ -750,6 +758,7 @@ public partial class BasisHandHeldCameraUI
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC != null && HHC.MetaData.VolumetricFogVolume != null)
         {
+            settings.overrideVolumetricFog = HHC.OverrideVolumetricFog;
             settings.VolumetricFogVolumedensity = HHC.MetaData.VolumetricFogVolume.density.value;
             settings.VolumetricFogenableAPVContribution = HHC.MetaData.VolumetricFogVolume.enableAPVContribution.value;
             settings.VolumetricFogenableMainLightContribution = HHC.MetaData.VolumetricFogVolume.enableMainLightContribution.value;
@@ -1059,6 +1068,10 @@ public partial class BasisHandHeldCameraUI
             HHC.SetFocusPeakingGreyPicture(settings.focusPeakingGreyPicture);
             HHC.SetFocusPeakingEnabled(settings.focusPeaking);
 
+            HHC.SetViewfinderGridPattern(settings.viewfinderGridPattern);
+            HHC.SetViewfinderGridOpacity(settings.viewfinderGridOpacity);
+            HHC.SetViewfinderGridEnabled(settings.viewfinderGrid);
+
             // Last: the mode is a statement about everything above it, so it can only be restored
             // once all of it has landed. Restoring earlier would have the re-derive compare the
             // saved mode against values the apply had not reached yet and call it Custom.
@@ -1153,6 +1166,7 @@ public partial class BasisHandHeldCameraUI
         HHC.autoFocusFollowSubject = settings.autoFocusFollowSubject;
 
         HHC.ApplyModifierStack(settings.modifiers);
+        HHC.anchorFollowsBody = settings.anchorFollowsBody;
         HHC.SetDetachedMarker((BasisCameraDetachedMarker)Mathf.Clamp(
             settings.detachedMarker, 0, (int)BasisCameraDetachedMarker.Gizmo));
         HHC.capture360Enabled = settings.capture360;
@@ -1184,6 +1198,7 @@ public partial class BasisHandHeldCameraUI
             HHC.MetaData.VolumetricFogVolume.density.value = settings.VolumetricFogVolumedensity;
             HHC.MetaData.VolumetricFogVolume.enableAPVContribution.value = settings.VolumetricFogenableAPVContribution;
             HHC.MetaData.VolumetricFogVolume.enableMainLightContribution.value = settings.VolumetricFogenableMainLightContribution;
+            HHC.SetOverrideVolumetricFog(settings.overrideVolumetricFog);
         }
 #endif
     }

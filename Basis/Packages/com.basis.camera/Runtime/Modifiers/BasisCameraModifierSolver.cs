@@ -444,7 +444,9 @@ namespace Basis.Cinematics
 
                             float length = BasisCameraSpline.ApproximateLength(points, context.DollyLooped);
                             float perMetre = length > 1e-4f ? maxPosition / length : 0f;
-                            target = state.DollyPosition + stack.dolly.speed * perMetre * deltaTime;
+                            float normalized = maxPosition > 1e-4f ? state.DollyPosition / maxPosition : 0f;
+                            float envelope = BasisCameraDollySpeed.Weight(stack.dolly, normalized, context.DollyLooped);
+                            target = state.DollyPosition + stack.dolly.speed * envelope * perMetre * deltaTime;
 
                             // An open track has two ends and the move is over when it reaches one.
                             // A looped one never is, so it is left to wrap.

@@ -141,8 +141,20 @@ namespace Basis.Cinematics
         [Tooltip("Seconds for the camera to catch up to its target point on the track.")]
         public float damping;
 
-        [Tooltip("Metres per second the move travels along the track.")]
+        [Tooltip("Metres per second the move travels along the track once it is up to speed.")]
         public float speed;
+
+        [Tooltip("Curve the move gets up to speed on, off the waypoint it starts from.")]
+        public BasisCameraEase easeIn;
+
+        [Tooltip("How much of the track is spent getting up to speed.")]
+        public float easeInPortion;
+
+        [Tooltip("Curve the move comes off speed on, into the waypoint it ends at.")]
+        public BasisCameraEase easeOut;
+
+        [Tooltip("How much of the track is spent coming back down to a stop.")]
+        public float easeOutPortion;
 
         [Tooltip("Offset from the track, in the track's own frame.")]
         public Vector3 offset;
@@ -155,6 +167,10 @@ namespace Basis.Cinematics
             playing = false,
             damping = 0.5f,
             speed = 1.5f,
+            easeIn = BasisCameraEase.Sine,
+            easeInPortion = 0.15f,
+            easeOut = BasisCameraEase.Sine,
+            easeOutPortion = 0.15f,
             offset = Vector3.zero,
         };
     }

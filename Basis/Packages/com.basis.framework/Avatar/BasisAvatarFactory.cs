@@ -526,6 +526,23 @@ namespace Basis.Scripts.Avatar
                 avatar.GetComponentsInChildren(true, sJiggleRigScratch);
             }
 
+#if UNITY_SERVER
+            // Headless runs many clients per box and never renders, so jiggle is pure cost:
+            // every rig registers a tree segment that grows the shared JiggleMemoryBus transform
+            // capacity (ten persistent NativeArrays wide) and simulates every fixed step.
+            // DestroyImmediate fires OnDisable -> OnRemove, which un-registers the segment cleanly
+            // — the same teardown BasisAvatarPerformanceLimits.TrimComponents relies on.
+            for (int Index = 0; Index < sJiggleRigScratch.Count; Index++)
+            {
+                JiggleRig headlessRig = sJiggleRigScratch[Index];
+                if (headlessRig != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(headlessRig);
+                }
+            }
+            sJiggleRigScratch.Clear();
+#endif
+
             int rigCount = sJiggleRigScratch.Count;
             switch (Player)
             {
@@ -608,6 +625,13 @@ namespace Basis.Scripts.Avatar
                     ? loadHarvest.AuthoredMotions.ToArray()
                     : avatar.GetComponentsInChildren<BasisAuthoredMotion>(true);
                 StoreJiggleRigs(Player, loadHarvest, avatar);
+#if UNITY_SERVER
+                // Every avatar in the room, not just the local one — a load test's resident set is
+                // dominated by remote avatar textures, and nothing rasterizes them here. Dropping
+                // the material references makes them collectable by the strict cleanup pass below.
+                BasisHeadlessManagement.StripTextureReferencesFromRenderers(Player.BasisAvatar.Renders);
+                BasisHeadlessManagement.RequestStrictMemoryCleanup("avatar install");
+#endif
                 avatar.Harvest = null;
                 loadHarvest.ReturnToPool();
             }

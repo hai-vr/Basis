@@ -84,19 +84,27 @@ namespace Basis.IK
     public static class BasisHeadPitchSwingCore
     {
         const float k_Epsilon = 1e-5f;
+        const float k_SqrEpsilon = 1e-10f;
 
         public static void Solve(in BasisHeadPitchSwingInput i, out BasisHeadPitchSwingResult r)
         {
             r = default;
 
             float lever = i.EyeFromNeck.y;
-            if (!(lever > k_Epsilon)) return;
+            float forwardRest = i.EyeFromNeck.z;
+
+            // The swing is lever*sin(p) + forwardRest*cos(p) - forwardRest, which is a real arc for
+            // ANY non-degenerate arm -- the forwardRest*(cos p - 1) half alone is several centimetres
+            // at a steep look. Gating on lever > 0 silently returned a zero offset for every rig whose
+            // viewpoint is authored level with or below its head bone, which switched the whole
+            // gaze-swing removal off and let the pelvis ride the gaze again. Only an unpopulated arm
+            // (a T-pose that has not been captured yet) has nothing to remove.
+            if (!(lever * lever + forwardRest * forwardRest > k_SqrEpsilon)) return;
             if (!(i.PitchDeg > -180f && i.PitchDeg < 180f)) return;
             if (!(i.YawDeg > -720f && i.YawDeg < 720f)) return;
             if (!(i.Strength > 0f)) return;
 
             float p = i.PitchDeg * Mathf.Deg2Rad;
-            float forwardRest = i.EyeFromNeck.z;
 
             float swung = lever * Mathf.Sin(p) + forwardRest * Mathf.Cos(p);
             float forward = (swung - forwardRest) * i.Strength;

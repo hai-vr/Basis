@@ -135,13 +135,7 @@ public sealed class LocalLoadClientDriver : ILoadClientDriver
     public void Dispose() => Stop();
 
     private static string Executable(string directory)
-    {
-        string windows = Path.Combine(directory, "BasisNetworkClientConsole.exe");
-        if (File.Exists(windows)) return windows;
-        string unix = Path.Combine(directory, "BasisNetworkClientConsole");
-        if (File.Exists(unix)) return unix;
-        throw new FileNotFoundException($"Could not find BasisNetworkClientConsole in {directory}.");
-    }
+        => LaunchTarget.Resolve(directory, "BasisNetworkClientConsole");
 
     /// <summary>
     /// Points the load client at this run.
@@ -153,7 +147,7 @@ public sealed class LocalLoadClientDriver : ILoadClientDriver
     /// </summary>
     private static void WriteConfig(RunOptions options)
     {
-        string path = Path.Combine(options.LoadClientDirectory, "Config.xml");
+        string path = Path.Combine(options.LoadClientDirectory, "ClientSimConfig.xml");
         if (!File.Exists(path))
             throw new FileNotFoundException(
                 $"Load client config not found at {path}. Run BasisNetworkClientConsole once so it writes its defaults.", path);

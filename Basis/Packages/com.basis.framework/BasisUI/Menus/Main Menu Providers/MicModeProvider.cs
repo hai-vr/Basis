@@ -1,6 +1,7 @@
 #if !BASIS_DISABLE_MICROPHONE
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
+using Basis.Scripts.Settings;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -16,6 +17,8 @@ namespace Basis.BasisUI
             _instance = new MicModeProvider();
             BasisTalkModeManager.OnLocalTalkModeChanged -= Refresh;
             BasisTalkModeManager.OnLocalTalkModeChanged += Refresh;
+            BasisSettingsSystem.OnSettingsFinishedChanges -= Refresh;
+            BasisSettingsSystem.OnSettingsFinishedChanges += Refresh;
             Refresh();
         }
 
@@ -66,6 +69,7 @@ namespace Basis.BasisUI
         private static readonly Color DirectColor = new Color(0.12156863f, 0.7490196f, 0.3529412f, 1f);
         private static readonly Color ThisPersonColor = new Color(1f, 0.3098039f, 0.627451f, 1f);
         private static readonly Color ShoutColor = new Color(1f, 0.5490196f, 0f, 1f);
+        private static readonly Color NoOneColor = new Color(0.3921569f, 0.5882353f, 0.7843137f, 1f);
 
         private void UpdateButtonVisuals(PanelButton button)
         {
@@ -85,6 +89,7 @@ namespace Basis.BasisUI
                 case BasisTalkMode.Direct: return DirectColor;
                 case BasisTalkMode.ThisPerson: return ThisPersonColor;
                 case BasisTalkMode.Shout: return ShoutColor;
+                case BasisTalkMode.NoOne: return NoOneColor;
                 default: return NormalColor;
             }
         }
@@ -97,6 +102,7 @@ namespace Basis.BasisUI
                 case BasisTalkMode.Direct: return "menu.provider.micmode.direct";
                 case BasisTalkMode.ThisPerson: return "menu.provider.micmode.thisperson";
                 case BasisTalkMode.Shout: return "menu.provider.micmode.shout";
+                case BasisTalkMode.NoOne: return "menu.provider.micmode.noone";
                 default: return "menu.provider.micmode.normal";
             }
         }

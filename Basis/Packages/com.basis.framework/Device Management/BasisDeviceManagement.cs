@@ -233,18 +233,27 @@ namespace Basis.Scripts.Device_Management
 
             StaticCurrentMode = BasisConstants.None;
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-            BasisSettingsSystem.Initialize();
-            // Localization must initialize before BasisSettingsDefaults so that
-            // auto-detection can see an empty settings dict on first run — any
-            // earlier binding constructor would write "en" as a default and
-            // defeat the HasSaveData("language") check.
-            Basis.BasisUI.BasisLocalization.Initialize();
-            Basis.BasisUI.BasisTMPFontFallbacks.RefreshJapanesePriority();
-            BasisSettingsDefaults.LoadAll();
-            Basis.BasisUI.SettingsProvider.ApplyJiggleStartupSettings();
-            // Applied here and nowhere else: the GPU Resident Drawer rebuild this triggers is only
-            // cheap while the loading scene is the whole scene.
-            Basis.Scripts.Rendering.BasisGpuOcclusionCulling.ApplyStartupSetting();
+            try
+            {
+                BasisSettingsSystem.Initialize();
+                // Localization must initialize before BasisSettingsDefaults so that
+                // auto-detection can see an empty settings dict on first run — any
+                // earlier binding constructor would write "en" as a default and
+                // defeat the HasSaveData("language") check.
+                Basis.BasisUI.BasisLocalization.Initialize();
+                Basis.BasisUI.BasisTMPFontFallbacks.RefreshJapanesePriority();
+                BasisSettingsDefaults.LoadAll();
+                BasisPersistentDataMigrationPrompt.ShowIfPending();
+                Basis.BasisUI.SettingsProvider.ApplyJiggleStartupSettings();
+                // Applied here and nowhere else: the GPU Resident Drawer rebuild this triggers is only
+                // cheap while the loading scene is the whole scene.
+                Basis.Scripts.Rendering.BasisGpuOcclusionCulling.ApplyStartupSetting();
+            }
+            catch (Exception e)
+            {
+                BasisDebug.LogError($"Startup configuration threw, continuing to Initialize: {e}");
+            }
+
             try
             {
                 await Initialize();

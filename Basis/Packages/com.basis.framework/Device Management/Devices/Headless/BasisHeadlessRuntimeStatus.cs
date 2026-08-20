@@ -42,6 +42,26 @@ public static class BasisHeadlessRuntimeStatus
     public static DateTimeOffset LastHealthStateChangeUtc { get; private set; } = DateTimeOffset.UtcNow;
     public static BasisHeadlessConnectionState State { get; private set; } = BasisHeadlessConnectionState.Starting;
 
+    // Memory counters, sampled on the main thread by BasisHeadlessMemoryProbe and read
+    // from cache by the health listener thread.
+    public static long MonoHeapBytes { get; private set; }
+    public static long MonoUsedBytes { get; private set; }
+    public static long TotalAllocatedBytes { get; private set; }
+    public static long TotalReservedBytes { get; private set; }
+    public static long TotalUnusedReservedBytes { get; private set; }
+    public static long GcHeapBytes { get; private set; }
+    public static long WorkingSetBytes { get; private set; }
+    public static int RemotePlayerCount { get; private set; }
+    public static DateTimeOffset? LastMemorySampleUtc { get; private set; }
+
+    public static long TextureBytes { get; private set; }
+    public static int TextureCount { get; private set; }
+    public static long MeshBytes { get; private set; }
+    public static int MeshCount { get; private set; }
+    public static long AudioClipBytes { get; private set; }
+    public static int AudioClipCount { get; private set; }
+    public static DateTimeOffset? LastAssetSweepUtc { get; private set; }
+
     public static void Reset()
     {
         lock (sync)
@@ -71,6 +91,73 @@ public static class BasisHeadlessRuntimeStatus
             LastDisconnectedUtc = null;
             LastHealthStateChangeUtc = StartTimeUtc;
             State = BasisHeadlessConnectionState.Starting;
+            MonoHeapBytes = 0;
+            MonoUsedBytes = 0;
+            TotalAllocatedBytes = 0;
+            TotalReservedBytes = 0;
+            TotalUnusedReservedBytes = 0;
+            GcHeapBytes = 0;
+            WorkingSetBytes = 0;
+            RemotePlayerCount = 0;
+            LastMemorySampleUtc = null;
+            TextureBytes = 0;
+            TextureCount = 0;
+            MeshBytes = 0;
+            MeshCount = 0;
+            AudioClipBytes = 0;
+            AudioClipCount = 0;
+            LastAssetSweepUtc = null;
+        }
+    }
+
+    /// <summary>
+    /// Publishes a cheap counter sample. Called from the main thread only.
+    /// </summary>
+    public static void PublishMemoryCounters(
+        long monoHeapBytes,
+        long monoUsedBytes,
+        long totalAllocatedBytes,
+        long totalReservedBytes,
+        long totalUnusedReservedBytes,
+        long gcHeapBytes,
+        long workingSetBytes,
+        int remotePlayerCount)
+    {
+        lock (sync)
+        {
+            MonoHeapBytes = monoHeapBytes;
+            MonoUsedBytes = monoUsedBytes;
+            TotalAllocatedBytes = totalAllocatedBytes;
+            TotalReservedBytes = totalReservedBytes;
+            TotalUnusedReservedBytes = totalUnusedReservedBytes;
+            GcHeapBytes = gcHeapBytes;
+            WorkingSetBytes = workingSetBytes;
+            RemotePlayerCount = remotePlayerCount;
+            LastMemorySampleUtc = DateTimeOffset.UtcNow;
+        }
+    }
+
+    /// <summary>
+    /// Publishes an asset-attribution sweep. Called from the main thread only, on a slow
+    /// cadence because the sweep walks every loaded asset of each type.
+    /// </summary>
+    public static void PublishAssetMemory(
+        long textureBytes,
+        int textureCount,
+        long meshBytes,
+        int meshCount,
+        long audioClipBytes,
+        int audioClipCount)
+    {
+        lock (sync)
+        {
+            TextureBytes = textureBytes;
+            TextureCount = textureCount;
+            MeshBytes = meshBytes;
+            MeshCount = meshCount;
+            AudioClipBytes = audioClipBytes;
+            AudioClipCount = audioClipCount;
+            LastAssetSweepUtc = DateTimeOffset.UtcNow;
         }
     }
 
@@ -217,7 +304,23 @@ public static class BasisHeadlessRuntimeStatus
                 LastConnectedUtc = LastConnectedUtc,
                 LastDisconnectedUtc = LastDisconnectedUtc,
                 LastHealthStateChangeUtc = LastHealthStateChangeUtc,
-                State = State
+                State = State,
+                MonoHeapBytes = MonoHeapBytes,
+                MonoUsedBytes = MonoUsedBytes,
+                TotalAllocatedBytes = TotalAllocatedBytes,
+                TotalReservedBytes = TotalReservedBytes,
+                TotalUnusedReservedBytes = TotalUnusedReservedBytes,
+                GcHeapBytes = GcHeapBytes,
+                WorkingSetBytes = WorkingSetBytes,
+                RemotePlayerCount = RemotePlayerCount,
+                LastMemorySampleUtc = LastMemorySampleUtc,
+                TextureBytes = TextureBytes,
+                TextureCount = TextureCount,
+                MeshBytes = MeshBytes,
+                MeshCount = MeshCount,
+                AudioClipBytes = AudioClipBytes,
+                AudioClipCount = AudioClipCount,
+                LastAssetSweepUtc = LastAssetSweepUtc
             };
         }
     }
@@ -255,5 +358,21 @@ public static class BasisHeadlessRuntimeStatus
         public DateTimeOffset? LastDisconnectedUtc;
         public DateTimeOffset LastHealthStateChangeUtc;
         public BasisHeadlessConnectionState State;
+        public long MonoHeapBytes;
+        public long MonoUsedBytes;
+        public long TotalAllocatedBytes;
+        public long TotalReservedBytes;
+        public long TotalUnusedReservedBytes;
+        public long GcHeapBytes;
+        public long WorkingSetBytes;
+        public int RemotePlayerCount;
+        public DateTimeOffset? LastMemorySampleUtc;
+        public long TextureBytes;
+        public int TextureCount;
+        public long MeshBytes;
+        public int MeshCount;
+        public long AudioClipBytes;
+        public int AudioClipCount;
+        public DateTimeOffset? LastAssetSweepUtc;
     }
 }

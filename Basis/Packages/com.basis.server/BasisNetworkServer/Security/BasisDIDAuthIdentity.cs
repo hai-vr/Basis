@@ -111,7 +111,7 @@ namespace BasisDidLink
         {
             try
             {
-                BNL.Log($"Processing connection from peer {newPeer.Id}.");
+                if (Configuration.LogConnectionHandshake) BNL.Log($"Processing connection from peer {newPeer.Id}.");
                 ReadyMessage readyMessage = new ReadyMessage();
                 readyMessage.Deserialize(ConnectionRequest.Data);
 
@@ -165,7 +165,7 @@ namespace BasisDidLink
                         NetDataWriter Writer = NetworkServer.RentWriter();
                         BytesMessage NetworkMessage = new BytesMessage();
                         NetworkMessage.Serialize(Writer, OnAuth.Challenge.Nonce.V);
-                        BNL.Log("Sending out Writer with size : " + Writer.Length);
+                        if (Configuration.LogConnectionHandshake) BNL.Log("Sending out Writer with size : " + Writer.Length);
                         NetworkServer.TrySend(newPeer, Writer, BasisNetworkCommons.AuthIdentityChannel, DeliveryMethod.ReliableOrdered);
                         NetworkServer.ReturnWriter(Writer);
 

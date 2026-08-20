@@ -143,20 +143,108 @@
       "value": "Placement"
     },
     {
-      "key": "camera.pinSpace",
-      "value": "Position"
+      "key": "camera.anchor",
+      "value": "Anchor"
     },
     {
-      "key": "camera.pinSpace.handHeld",
+      "key": "camera.anchor.description",
+      "value": "What carries the camera. Everything else — where it sits, who it films — is worked out inside whichever frame you pick here."
+    },
+    {
+      "key": "camera.anchor.hand",
       "value": "In Your Hand"
     },
     {
-      "key": "camera.pinSpace.playSpace",
-      "value": "Pinned To You"
+      "key": "camera.anchor.hand.tooltip",
+      "value": "The camera rides the prop you are holding."
     },
     {
-      "key": "camera.pinSpace.worldSpace",
+      "key": "camera.anchor.playspace",
+      "value": "With You"
+    },
+    {
+      "key": "camera.anchor.playspace.tooltip",
+      "value": "Keeps station with you. Walk, teleport or fly and the camera comes along, holding the same shot."
+    },
+    {
+      "key": "camera.anchor.world",
       "value": "Left In The World"
+    },
+    {
+      "key": "camera.anchor.world.tooltip",
+      "value": "Stays exactly where you put it. A tripod: the world moves past it, it does not move."
+    },
+    {
+      "key": "camera.anchor.attached",
+      "value": "Attached To Something"
+    },
+    {
+      "key": "camera.anchor.attached.tooltip",
+      "value": "Rides something that moves — a vehicle, a lift, a player. The shot travels with it instead of being left behind."
+    },
+    {
+      "key": "camera.anchorFollowsBody",
+      "value": "Follow My Body"
+    },
+    {
+      "key": "camera.anchorFollowsBody.description",
+      "value": "Carries the camera when you physically walk around your room, not just when you move in game. Off is steadier and is what a tripod wants; on keeps the camera with you when you step away from where you started."
+    },
+    {
+      "key": "camera.anchorTarget",
+      "value": "Attached To"
+    },
+    {
+      "key": "camera.anchorTarget.description",
+      "value": "What the camera is riding. Pick a player here, or use the buttons below to attach it to something in the world."
+    },
+    {
+      "key": "camera.anchorTarget.none",
+      "value": "Nothing"
+    },
+    {
+      "key": "camera.anchorTarget.none.tooltip",
+      "value": "Nothing carries the camera, so it holds where it is — the same as leaving it in the world."
+    },
+    {
+      "key": "camera.anchorTarget.local",
+      "value": "Me"
+    },
+    {
+      "key": "camera.anchorTarget.local.tooltip",
+      "value": "Rides you, wherever you go."
+    },
+    {
+      "key": "camera.anchorToSurface",
+      "value": "Attach To Ground"
+    },
+    {
+      "key": "camera.anchorToSurface.description",
+      "value": "Attaches the camera to whatever it is standing over — a deck, a platform, a lift. The one to use when you have set the camera down on something that moves."
+    },
+    {
+      "key": "camera.anchorToView",
+      "value": "Attach To View"
+    },
+    {
+      "key": "camera.anchorToView.description",
+      "value": "Attaches the camera to whatever it is pointed at, for something you cannot stand it on."
+    },
+    {
+      "key": "camera.anchor.status",
+      "value": "Riding"
+    },
+    {
+      "key": "camera.anchor.status.none",
+      "value": "Nothing picked, so the camera holds where it is."
+    },
+    {
+      "key": "camera.anchor.status.riding",
+      "value": "Riding"
+    },
+    {
+      "key": "camera.anchor.status.lost",
+      "value": "What this was attached to has gone. The camera is holding where it was."
     },
     {
       "key": "camera.sensorSize",
@@ -229,6 +317,10 @@
     {
       "key": "camera.background.custom",
       "value": "Custom"
+    },
+    {
+      "key": "camera.background.transparent",
+      "value": "Transparent"
     },
     {
       "key": "camera.noCamerasOpen",
@@ -589,6 +681,70 @@
     {
       "key": "camera.focusPeaking.grey.description",
       "value": "Drains the colour out of everything but the peaks while peaking is on, which is what makes them unmistakable. The shot itself is unaffected."
+    },
+    {
+      "key": "camera.grid",
+      "value": "Alignment Grid"
+    },
+    {
+      "key": "camera.grid.description",
+      "value": "Draws framing lines over the viewfinder, so a level horizon and an off-centre subject can be judged rather than guessed. Viewfinder only — the lines are drawn into a texture of their own and never reach a photo, a recording or a stream."
+    },
+    {
+      "key": "camera.grid.pattern",
+      "value": "Grid"
+    },
+    {
+      "key": "camera.grid.pattern.description",
+      "value": "Which lines are drawn."
+    },
+    {
+      "key": "camera.grid.thirds",
+      "value": "Rule Of Thirds"
+    },
+    {
+      "key": "camera.grid.thirds.tooltip",
+      "value": "The default. Two lines each way; a subject placed on an intersection reads better than one sat in the middle."
+    },
+    {
+      "key": "camera.grid.quarters",
+      "value": "Quarters"
+    },
+    {
+      "key": "camera.grid.quarters.tooltip",
+      "value": "Three lines each way, so the frame has a centre line as well as the off-centre pair."
+    },
+    {
+      "key": "camera.grid.golden",
+      "value": "Golden Ratio"
+    },
+    {
+      "key": "camera.grid.golden.tooltip",
+      "value": "The placement the rule of thirds rounds off — the same idea, with the lines slightly nearer the middle."
+    },
+    {
+      "key": "camera.grid.diagonal",
+      "value": "Diagonals"
+    },
+    {
+      "key": "camera.grid.diagonal.tooltip",
+      "value": "Corner to corner both ways, for lining a shot up along a road, a rail or a leading edge."
+    },
+    {
+      "key": "camera.grid.centre",
+      "value": "Centre Cross"
+    },
+    {
+      "key": "camera.grid.centre.tooltip",
+      "value": "One line each way through the middle, for centring a subject and nothing else."
+    },
+    {
+      "key": "camera.grid.opacity",
+      "value": "Grid Opacity"
+    },
+    {
+      "key": "camera.grid.opacity.description",
+      "value": "How strongly the lines are drawn over the picture. Each carries a dark edge, so they stay readable against a bright sky as well as a dark subject."
     },
     {
       "key": "camera.exposureColour",
@@ -1533,6 +1689,10 @@
     {
       "key": "settings.developer.gizmoLabels.tooltip",
       "value": "Show text labels on the visible gizmos (tracker roles, linked pairs, IK colliders, audio)."
+    },
+    {
+      "key": "settings.developer.gizmoDrawOnTop.tooltip",
+      "value": "Draw every gizmo through the world so markers inside an avatar or behind a wall stay visible. Off by default, so gizmos depth-test like anything else and the world hides whatever is actually behind them."
     },
     {
       "key": "settings.general.networking.jitterBufferOverride.tooltip",
@@ -3201,6 +3361,10 @@
     {
       "key": "menu.provider.micmode.shout",
       "value": "Shout"
+    },
+    {
+      "key": "menu.provider.micmode.noone",
+      "value": "No One"
     },
     {
       "key": "menu.provider.individualPlayer",
@@ -6195,6 +6359,14 @@
       "value": "Mic Mute Behavior"
     },
     {
+      "key": "settings.microphone.talkToNoOne",
+      "value": "Talk To No One"
+    },
+    {
+      "key": "settings.microphone.talkToNoOne.tooltip",
+      "value": "Adds a \"No One\" step to the mic mode button next to mute. Your microphone stays on so your avatar’s mouth keeps moving, but nobody hears you."
+    },
+    {
       "key": "settings.microphone.muteBehavior.title",
       "value": "Mute Behavior"
     },
@@ -6509,6 +6681,58 @@
     {
       "key": "settings.graphics.fog.bakedapv.tooltip",
       "value": "Light the fog from a fast static bake of the scene's adaptive probe volumes instead of sampling them live every frame. Baked on demand and used immediately."
+    },
+    {
+      "key": "settings.graphics.motionBlur.title",
+      "value": "Motion Blur"
+    },
+    {
+      "key": "settings.graphics.motionBlur.override",
+      "value": "Override Motion Blur"
+    },
+    {
+      "key": "settings.graphics.motionBlur.override.tooltip",
+      "value": "Manually control the blur that trails fast movement, or turn a world's motion blur off."
+    },
+    {
+      "key": "settings.graphics.motionBlur.intensity",
+      "value": "Blur Strength"
+    },
+    {
+      "key": "settings.graphics.motionBlur.intensity.tooltip",
+      "value": "How much fast movement smears. Zero turns motion blur off, including the world's own."
+    },
+    {
+      "key": "settings.graphics.motionBlur.clamp",
+      "value": "Streak Limit"
+    },
+    {
+      "key": "settings.graphics.motionBlur.clamp.tooltip",
+      "value": "The longest a blur streak may get, as a fraction of the screen. Lower values keep fast turns from smearing the whole view."
+    },
+    {
+      "key": "settings.graphics.motionBlur.quality",
+      "value": "Blur Quality"
+    },
+    {
+      "key": "settings.graphics.motionBlur.quality.tooltip",
+      "value": "Samples taken per streak. Higher looks smoother and costs more."
+    },
+    {
+      "key": "settings.graphics.motionBlur.mode",
+      "value": "Blur Mode"
+    },
+    {
+      "key": "settings.graphics.motionBlur.mode.tooltip",
+      "value": "Camera Only blurs when the view moves. Camera And Objects also blurs moving objects, at the cost of an extra motion vector pass."
+    },
+    {
+      "key": "settings.graphics.motionBlur.mode.cameraOnly",
+      "value": "Camera Only"
+    },
+    {
+      "key": "settings.graphics.motionBlur.mode.cameraAndObjects",
+      "value": "Camera And Objects"
     },
     {
       "key": "settings.graphics.cameraClip.title",
@@ -7337,6 +7561,142 @@
     {
       "key": "settings.bodyTracking.section.collision.description",
       "value": "Virtual capsules used to keep arms and hands from clipping through the body."
+    },
+    {
+      "key": "settings.bodyTracking.section.solveGizmos.title",
+      "value": "IK Solve Gizmos"
+    },
+    {
+      "key": "settings.bodyTracking.section.solveGizmos.description",
+      "value": "Draw what each stage of the full body IK solve is doing, in the order the solver runs them."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.enabled",
+      "value": "Show Solve Gizmos"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.enabled.tooltip",
+      "value": "Master switch for the solve visualization. While this is off the solver records nothing and the feature costs no performance."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.labels",
+      "value": "Show Labels"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.labels.tooltip",
+      "value": "Name each drawn point in the world. Readable, but heavier than the shapes alone; only the nearest few labels render at once."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.scale",
+      "value": "Gizmo Scale"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.scale.tooltip",
+      "value": "Thickness of the lines and size of the points, on top of your avatar scale. Raise it if the drawing is too fine to read at your size."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.targets",
+      "value": "Targets and Hints"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.targets.tooltip",
+      "value": "What the solve is aiming at before it runs: head, hips and chest targets, hand and foot targets, and the elbow and knee hints steering each limb."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.spine",
+      "value": "Spine"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.spine.tooltip",
+      "value": "The solved hips-to-head chain, the joint frames along it, and the leftover gap between the solved head and the headset - the clearest sign the spine could not reach."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.shoulders",
+      "value": "Shoulders"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.shoulders.tooltip",
+      "value": "Collarbone placement after the shoulder pass: chest to shoulder, shoulder to upper arm, and each shoulder's own frame."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.legs",
+      "value": "Legs"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.legs.tooltip",
+      "value": "Solved hip, knee and foot chain per leg, the plane the knee bends in, the pole steering it, and how far the foot landed from its target."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.arms",
+      "value": "Arms"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.arms.tooltip",
+      "value": "Solved shoulder, elbow and hand chain per arm, the elbow pole and bend directions, your reach circle, and how far the hand landed from its target."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.toes",
+      "value": "Toes"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.toes.tooltip",
+      "value": "Foot to toe bone and the axis the toe bends around, showing whether each toe is tracker driven or bent to fit the ground."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.overrides",
+      "value": "Tracker Overrides"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.overrides.tooltip",
+      "value": "Bones written directly by a tracker in the final pass, drawn at the pose they were forced to - everything the solve above them was overruled by."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.skeleton",
+      "value": "Full Skeleton"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.skeleton.tooltip",
+      "value": "Every bone in the finished pose, fingers included. The heaviest option here; useful for spotting a bone nothing is driving."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.scratch",
+      "value": "Scratch Probes"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.scratch.tooltip",
+      "value": "One-off drawings written into the solver by hand - an arbitrary vector, point or frame someone needed to see. Separate from the body-part stages so a temporary probe stays visible on its own."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.frames",
+      "value": "Reference Frames"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.frames.tooltip",
+      "value": "The spaces the solver does its maths in: your up direction, the bind-cancelled hips frame, the chest frame, the shoulder line, and each spine joint's anatomical axes. Start here when a hint points somewhere unexpected - usually the vector is fine and the frame is not the one you assumed."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.limits",
+      "value": "Joint Limits"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.limits.tooltip",
+      "value": "How far each spine joint is allowed to bend, drawn as the cone it must stay inside, turning red on the frame it is held back. Also the live elbow and knee angles."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.reach",
+      "value": "Reach"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.reach.tooltip",
+      "value": "How much of each limb's length is being used, as a sphere at the shoulder or hip that the hand or foot rides inside. Fades from green to red near full extension, which is where elbows and knees start to snap."
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.numbers",
+      "value": "Readouts"
+    },
+    {
+      "key": "settings.bodyTracking.ikGizmos.numbers.tooltip",
+      "value": "Live numbers in the world: leg reach and knee angle, raw against smoothed knee swivel, hip flexion, abduction and twist, and how far each hand, foot and the head ended up from what it was aiming at. Needs Show Labels."
     },
     {
       "key": "settings.bodyTracking.section.shoulders.title",
@@ -9011,6 +9371,10 @@
       "value": "Gizmo Labels"
     },
     {
+      "key": "settings.developer.gizmoDrawOnTop",
+      "value": "Draw Gizmos On Top"
+    },
+    {
       "key": "settings.developer.eyeTracking.title",
       "value": "Eye Tracking"
     },
@@ -10535,6 +10899,22 @@
       "value": "OK"
     },
     {
+      "key": "migration.persistent.title",
+      "value": "Move {0} user data?"
+    },
+    {
+      "key": "migration.persistent.description",
+      "value": "{0} found user data in its previous storage directory. Would you like to move your core user data to the new location? This includes settings, avatar/item stores, saved servers, trust data, player/input settings, recordings, backups, and other user-owned files. Cache, temporary, and diagnostic data will stay in the old directory.\n\n<b>From:</b>\n{1}\n\n<b>To:</b>\n{2}\n\n{0} had to create fresh defaults in the new location during this startup. Those defaults will be replaced by your previous data.\n\nThe old directory itself will not be deleted. After migration, you can review that path and delete it if you no longer need the older {0} data.{3}"
+    },
+    {
+      "key": "migration.persistent.restartAutomatic",
+      "value": " {0} will restart after the move so the migrated settings are loaded."
+    },
+    {
+      "key": "migration.persistent.restartManual",
+      "value": " Restart {0} after the move so the migrated settings are loaded."
+    },
+    {
       "key": "ui.unknown",
       "value": "Unknown"
     },
@@ -11677,6 +12057,30 @@
     {
       "key": "settings.bodyTracking.neckExtensionDamp.description",
       "value": "How much of a look-up the neck is assumed NOT to carry. Higher keeps the chest and hips from drifting forward when you look at the ceiling. 0 restores the old behaviour. Default: 0.65"
+    },
+    {
+      "key": "settings.bodyTracking.neckFlexionDamp.title",
+      "value": "Look-Down Neck Damping"
+    },
+    {
+      "key": "settings.bodyTracking.neckFlexionDamp.title.tooltip",
+      "value": "How much of a look-down the neck is assumed NOT to carry. Higher stops the hips rising up under you when you look at your feet. 0 restores the old behaviour. Default: 0.5"
+    },
+    {
+      "key": "settings.bodyTracking.neckFlexionDamp.description",
+      "value": "How much of a look-down the neck is assumed NOT to carry. Higher stops the hips rising up under you when you look at your feet. 0 restores the old behaviour. Default: 0.5"
+    },
+    {
+      "key": "settings.bodyTracking.vspineNodPivotEstimate.title",
+      "value": "Learn Head Pivot"
+    },
+    {
+      "key": "settings.bodyTracking.vspineNodPivotEstimate.title.tooltip",
+      "value": "Works out where your head really pivots when you nod, by watching the headset, instead of assuming your avatar's neck matches yours. Stops the whole body sliding out from under you when you look up or down. Default: on"
+    },
+    {
+      "key": "settings.bodyTracking.vspineNodPivotEstimate.description",
+      "value": "Works out where your head really pivots when you nod, by watching the headset, instead of assuming your avatar's neck matches yours. Stops the whole body sliding out from under you when you look up or down. Default: on"
     },
     {
       "key": "settings.bodyTracking.neckGazeFollowMax.title",
@@ -13806,7 +14210,7 @@
     },
     {
       "key": "camera.backgroundMode.description",
-      "value": "Replaces what is behind the subject. Colour modes drop the world out for keying."
+      "value": "Replaces what is behind the subject. Keyable modes can drop the world out for chroma key or alpha compositing."
     },
     {
       "key": "camera.backgroundKeepWorld",
@@ -13814,7 +14218,7 @@
     },
     {
       "key": "camera.backgroundKeepWorld.description",
-      "value": "Keeps world geometry in shot on a colour background. Off leaves only players and props."
+      "value": "Keeps world geometry in shot on a replacement background. Off leaves only players and props."
     },
     {
       "key": "camera.backgroundRed",
@@ -14395,6 +14799,86 @@
     {
       "key": "settings.slimevr.yawReset.description",
       "value": "Straighten the trackers. Fires after the pose countdown."
+    },
+    {
+      "key": "settings.metabody.title",
+      "value": "Headset Body Tracking"
+    },
+    {
+      "key": "settings.metabody.title.description",
+      "value": "Full body straight from the headset's own body tracking, with no physical trackers. Needs a headset whose OpenXR runtime offers body tracking."
+    },
+    {
+      "key": "settings.metabody.trackerSource",
+      "value": "Use Headset Body Tracking"
+    },
+    {
+      "key": "settings.metabody.trackerSource.description",
+      "value": "Whether the headset's body tracking may drive your trackers."
+    },
+    {
+      "key": "settings.metabody.trackerSource.off",
+      "value": "Off"
+    },
+    {
+      "key": "settings.metabody.trackerSource.auto",
+      "value": "Fill Gaps Only"
+    },
+    {
+      "key": "settings.metabody.trackerSource.force",
+      "value": "Always Take Over"
+    },
+    {
+      "key": "settings.metabody.upperBody",
+      "value": "Hips, Chest and Elbows"
+    },
+    {
+      "key": "settings.metabody.upperBody.description",
+      "value": "Track your waist, chest and both elbows from the headset."
+    },
+    {
+      "key": "settings.metabody.legs",
+      "value": "Knees and Feet"
+    },
+    {
+      "key": "settings.metabody.legs.description",
+      "value": "Track both knees and both feet. Only available on headsets that solve legs."
+    },
+    {
+      "key": "settings.metabody.autoBind",
+      "value": "Bind Trackers Automatically"
+    },
+    {
+      "key": "settings.metabody.autoBind.description",
+      "value": "Send each body part straight to its bone instead of running these trackers through manual calibration."
+    },
+    {
+      "key": "settings.metabody.highFidelity",
+      "value": "High Fidelity Solve"
+    },
+    {
+      "key": "settings.metabody.highFidelity.description",
+      "value": "Track your arms and legs with the headset cameras instead of guessing them from your head and controllers. Costs headset performance."
+    },
+    {
+      "key": "settings.metabody.applyHeight",
+      "value": "Send Your Height"
+    },
+    {
+      "key": "settings.metabody.applyHeight.description",
+      "value": "Give the headset the height Basis measured for you, so its body tracking is scaled to you instead of to an estimate."
+    },
+    {
+      "key": "settings.metabody.status",
+      "value": "Status"
+    },
+    {
+      "key": "settings.metabody.refresh",
+      "value": "Refresh"
+    },
+    {
+      "key": "settings.metabody.refresh.description",
+      "value": "Re-read the tracking state and send your height again."
     },
     {
       "key": "menu.individualPlayer.uuid",
@@ -15355,6 +15839,322 @@
     {
       "key": "menu.servers.disconnected.title",
       "value": "Server Disconnected"
+    },
+    {
+      "key": "camera.dollyEaseIn",
+      "value": "Ease In"
+    },
+    {
+      "key": "camera.dollyEaseIn.description",
+      "value": "Curve the camera gets up to track speed on, leaving the waypoint the move starts from."
+    },
+    {
+      "key": "camera.dollyEaseInPortion",
+      "value": "Ease In Length"
+    },
+    {
+      "key": "camera.dollyEaseInPortion.description",
+      "value": "How much of the track is spent getting up to speed. 0 leaves at full speed."
+    },
+    {
+      "key": "camera.dollyEaseOut",
+      "value": "Ease Out"
+    },
+    {
+      "key": "camera.dollyEaseOut.description",
+      "value": "Curve the camera comes back down to a stop on, arriving at the last waypoint."
+    },
+    {
+      "key": "camera.dollyEaseOutPortion",
+      "value": "Ease Out Length"
+    },
+    {
+      "key": "camera.dollyEaseOutPortion.description",
+      "value": "How much of the track is spent slowing to a stop. 0 stops dead."
+    },
+    {
+      "key": "camera.dollyEase.linear",
+      "value": "Linear"
+    },
+    {
+      "key": "camera.dollyEase.linear.description",
+      "value": "No ease at all. The move is at full speed from the first frame to the last."
+    },
+    {
+      "key": "camera.dollyEase.sine",
+      "value": "Sine"
+    },
+    {
+      "key": "camera.dollyEase.sine.description",
+      "value": "The gentlest ease. Barely noticeable as an effect, which is what makes it the safe one."
+    },
+    {
+      "key": "camera.dollyEase.quad",
+      "value": "Quadratic"
+    },
+    {
+      "key": "camera.dollyEase.quad.description",
+      "value": "A soft, even ramp. A little more deliberate than Sine."
+    },
+    {
+      "key": "camera.dollyEase.cubic",
+      "value": "Cubic"
+    },
+    {
+      "key": "camera.dollyEase.cubic.description",
+      "value": "The classic camera ease: slow to leave, then away quickly."
+    },
+    {
+      "key": "camera.dollyEase.quart",
+      "value": "Quartic"
+    },
+    {
+      "key": "camera.dollyEase.quart.description",
+      "value": "Steeper than Cubic. Holds still noticeably longer before it goes."
+    },
+    {
+      "key": "camera.dollyEase.quint",
+      "value": "Quintic"
+    },
+    {
+      "key": "camera.dollyEase.quint.description",
+      "value": "Steeper again. A long hold, then a fast build."
+    },
+    {
+      "key": "camera.dollyEase.expo",
+      "value": "Exponential"
+    },
+    {
+      "key": "camera.dollyEase.expo.description",
+      "value": "The most extreme of the smooth curves. Almost stationary, then a sudden run."
+    },
+    {
+      "key": "camera.dollyEase.circ",
+      "value": "Circular"
+    },
+    {
+      "key": "camera.dollyEase.circ.description",
+      "value": "Slow to start and then very sharp, like the shoulder of a circle."
+    },
+    {
+      "key": "camera.dollyEase.back",
+      "value": "Back"
+    },
+    {
+      "key": "camera.dollyEase.back.description",
+      "value": "Winds up against the move before it goes, for a shot with some weight behind it."
+    },
+    {
+      "key": "camera.dollyEase.elastic",
+      "value": "Elastic"
+    },
+    {
+      "key": "camera.dollyEase.elastic.description",
+      "value": "Overshoots the speed and settles back onto it. A loose, sprung rig."
+    },
+    {
+      "key": "camera.dollyEase.bounce",
+      "value": "Bounce"
+    },
+    {
+      "key": "camera.dollyEase.bounce.description",
+      "value": "Arrives in a run of decreasing hops. Broad, and rarely subtle."
+    },
+    {
+      "key": "camera.dollySpeedColor",
+      "value": "Colour Track by Speed"
+    },
+    {
+      "key": "camera.dollySpeedColor.description",
+      "value": "Paint the path by how fast the camera passes through each part of it: blue slow through red fast. Shows the ease, and where widely spaced waypoints make the move race."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos",
+      "value": "Playspace Gizmos"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.tooltip",
+      "value": "Draw your play space in the world: the runtime's play-area outline, the tracking origin every device pose is measured from, and the offsets the mover has stacked on top."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.boundary",
+      "value": "Play Area Outline"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.boundary.tooltip",
+      "value": "Outline your headset's own play area (SteamVR chaperone, Quest guardian) on the floor, with a rail at your eye height. Nothing is drawn when the runtime reports no boundary."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.origin",
+      "value": "Origin & Capsule"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.origin.tooltip",
+      "value": "Mark the tracking origin your play space is measured from, its forward and side axes, and the character capsule that locomotion actually moves."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.offset",
+      "value": "Offsets"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.offset.tooltip",
+      "value": "Show how far the mover has shifted you: the vertical space drag against the floor you started on, the horizontal drag Reset would undo, and the pivot an active flip turns about."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.hands",
+      "value": "Grab Hands"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.hands.tooltip",
+      "value": "Mark the hands the mover is reading and which input each one is holding, plus the span line the two-hand rotate and scale gestures measure."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.readouts",
+      "value": "Readouts"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.gizmos.readouts.tooltip",
+      "value": "Float a label over the play space with the mover's state, the drag offsets in metres, your device scale, and the size of the play area."
+    },
+    {
+      "key": "camera.dollyPreset",
+      "value": "Track Presets"
+    },
+    {
+      "key": "camera.dollyPreset.description",
+      "value": "Save a laid-out track and lay it out again, here or anywhere else."
+    },
+    {
+      "key": "camera.dollyPreset.help",
+      "value": "Save the track you have built, then load it back around wherever you are standing. Export writes it to a file you can hand to somebody else."
+    },
+    {
+      "key": "camera.dollyPreset.list",
+      "value": "Saved Track"
+    },
+    {
+      "key": "camera.dollyPreset.list.description",
+      "value": "Your saved tracks, with how many waypoints each one has."
+    },
+    {
+      "key": "camera.dollyPreset.name",
+      "value": "Preset Name"
+    },
+    {
+      "key": "camera.dollyPreset.name.tooltip",
+      "value": "What to save the track as. Saving onto a name you already have replaces it."
+    },
+    {
+      "key": "camera.dollyPreset.save",
+      "value": "Save Track"
+    },
+    {
+      "key": "camera.dollyPreset.save.tooltip",
+      "value": "Store the waypoints you have placed, along with the speed, ease and offset settings."
+    },
+    {
+      "key": "camera.dollyPreset.load",
+      "value": "Load At Me"
+    },
+    {
+      "key": "camera.dollyPreset.load.tooltip",
+      "value": "Rebuild the track around where you are standing, at the size of the avatar you are wearing. This replaces the track you have out."
+    },
+    {
+      "key": "camera.dollyPreset.loadInPlace",
+      "value": "Load In Place"
+    },
+    {
+      "key": "camera.dollyPreset.loadInPlace.tooltip",
+      "value": "Put the track back at the exact spot it was saved from. Only useful in the world it was built in. This replaces the track you have out."
+    },
+    {
+      "key": "camera.dollyPreset.remove",
+      "value": "Delete Preset"
+    },
+    {
+      "key": "camera.dollyPreset.remove.tooltip",
+      "value": "Forget this saved track. The track you have out is left alone."
+    },
+    {
+      "key": "camera.dollyPreset.remove.confirm",
+      "value": "Delete the saved track \"{0}\"? The track currently laid out is not affected."
+    },
+    {
+      "key": "camera.dollyPreset.export",
+      "value": "Export"
+    },
+    {
+      "key": "camera.dollyPreset.export.tooltip",
+      "value": "Write this preset to its own file in the presets folder, so it can be sent to somebody else."
+    },
+    {
+      "key": "camera.dollyPreset.import",
+      "value": "Import"
+    },
+    {
+      "key": "camera.dollyPreset.import.tooltip",
+      "value": "Read every preset file in the presets folder into your saved list."
+    },
+    {
+      "key": "camera.dollyPreset.folder",
+      "value": "Open Folder"
+    },
+    {
+      "key": "camera.dollyPreset.folder.tooltip",
+      "value": "Open the presets folder, to put a file somebody sent you in or take one out."
+    },
+    {
+      "key": "camera.dollyPreset.saved",
+      "value": "Track saved."
+    },
+    {
+      "key": "camera.dollyPreset.loaded",
+      "value": "Track laid out around you."
+    },
+    {
+      "key": "camera.dollyPreset.loadedInPlace",
+      "value": "Track put back where it was saved."
+    },
+    {
+      "key": "camera.dollyPreset.removed",
+      "value": "Preset deleted."
+    },
+    {
+      "key": "camera.dollyPreset.exported",
+      "value": "Exported as {0}."
+    },
+    {
+      "key": "camera.dollyPreset.imported",
+      "value": "Imported {0} preset(s)."
+    },
+    {
+      "key": "camera.dollyPreset.importedNone",
+      "value": "Nothing to import. Put preset files in the folder first."
+    },
+    {
+      "key": "camera.dollyPreset.error.empty",
+      "value": "Give the preset a name first."
+    },
+    {
+      "key": "camera.dollyPreset.error.noPoints",
+      "value": "Place some waypoints first. There is no track to save."
+    },
+    {
+      "key": "camera.dollyPreset.error.missing",
+      "value": "No preset saved under that name."
+    },
+    {
+      "key": "camera.dollyPreset.error.full",
+      "value": "You have as many saved presets as this will hold. Delete one first."
+    },
+    {
+      "key": "camera.dollyPreset.error.exportFailed",
+      "value": "The preset could not be written. See the log."
+    },
+    {
+      "key": "camera.dollyPreset.error.importFailed",
+      "value": "The presets folder could not be read. See the log."
     }
   ]
 }

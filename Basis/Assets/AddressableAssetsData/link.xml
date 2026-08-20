@@ -67,6 +67,7 @@
     <type fullname="SMModuleFOVSettings" preserve="all" />
     <type fullname="SMModuleHDRURP" preserve="all" />
     <type fullname="SMModuleIcons" preserve="all" />
+    <type fullname="SMModuleMotionBlurOverrideURP" preserve="all" />
     <type fullname="SMModuleMotionVectorsURP" preserve="all" />
     <type fullname="SMModuleRenderResolutionURP" preserve="all" />
     <type fullname="SMModuleShadowQualityURP" preserve="all" />

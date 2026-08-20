@@ -54,6 +54,7 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
     private bool reconnectScheduled;
     private bool configuredAvatarApplied;
     private bool strictMemoryCleanupInProgress;
+    private bool strictMemoryCleanupRearmRequested;
     private bool headlessAudioPolicyKnown;
     private bool headlessAudioOff;
     private bool headlessAudioControlReady;
@@ -537,6 +538,11 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
         BasisDebug.Log(nameof(StartSDK), BasisDebug.LogTag.Device);
     }
 
+    private void Update()
+    {
+        BasisHeadlessMemoryProbe.Tick();
+    }
+
     private void OnDestroy()
     {
         isShuttingDown = true;
@@ -615,6 +621,18 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(AvatarFileLocation))
+        {
+            try
+            {
+                await Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys.LoadKeys();
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogWarning($"Headless avatar selection could not read the item key store: {ex.Message}", BasisDebug.LogTag.Avatar);
+            }
+        }
+
         if (!TryResolveHeadlessAvatarSelection(out string avatarLocation, out byte avatarLoadMode, out string avatarPassword, out string avatarSource))
         {
             configuredAvatarApplied = true;
@@ -656,6 +674,11 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             return true;
         }
 
+        if (TryResolveStoredKeyHeadlessAvatar(out avatarLocation, out avatarLoadMode, out avatarPassword, out avatarSource))
+        {
+            return true;
+        }
+
         if (TryResolveEmbeddedDefaultHeadlessAvatar(out avatarLocation, out avatarLoadMode, out avatarPassword, out avatarSource))
         {
             return true;
@@ -682,6 +705,43 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             avatarPassword = AvatarPassword ?? string.Empty;
             avatarSource = "headless override";
             return true;
+        }
+
+        avatarLocation = string.Empty;
+        avatarLoadMode = BasisPlayer.LoadModeLocal;
+        avatarPassword = string.Empty;
+        avatarSource = string.Empty;
+        return false;
+    }
+
+    private static bool TryResolveStoredKeyHeadlessAvatar(out string avatarLocation, out byte avatarLoadMode, out string avatarPassword, out string avatarSource)
+    {
+        var storedKeys = Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys.DisplayKeys();
+        if (storedKeys != null)
+        {
+            List<Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys.ItemKey> eligibleAvatars = new List<Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys.ItemKey>();
+
+            foreach (var item in storedKeys)
+            {
+                if (item == null ||
+                    item.Mode != BundledContentHolder.Mode.Avatar ||
+                    string.IsNullOrWhiteSpace(item.Url))
+                {
+                    continue;
+                }
+
+                eligibleAvatars.Add(item);
+            }
+
+            if (eligibleAvatars.Count > 0)
+            {
+                var selectedAvatar = eligibleAvatars[new System.Random().Next(eligibleAvatars.Count)];
+                avatarLocation = selectedAvatar.Url;
+                avatarLoadMode = ResolveAvatarLoadMode(avatarLocation, BasisPlayer.LoadModeLocal);
+                avatarPassword = selectedAvatar.Pass ?? string.Empty;
+                avatarSource = $"random stored avatar key ({eligibleAvatars.Count} available)";
+                return true;
+            }
         }
 
         avatarLocation = string.Empty;
@@ -824,8 +884,17 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
 
     private void TriggerStrictMemoryCleanup(string reason)
     {
-        if (!StrictMemoryCleanupEnabled || strictMemoryCleanupInProgress || isShuttingDown)
+        if (!StrictMemoryCleanupEnabled || isShuttingDown)
         {
+            return;
+        }
+
+        if (strictMemoryCleanupInProgress)
+        {
+            // A join storm installs avatars faster than one unload pass completes. Dropping these
+            // requests outright would leave whatever loaded during the pass unswept until the next
+            // unrelated trigger, so re-arm instead and run one more pass when this one finishes.
+            strictMemoryCleanupRearmRequested = true;
             return;
         }
 
@@ -855,6 +924,9 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             }
 
             BasisDebug.Log($"Headless strict memory cleanup starting unload pass for {reason}.", BasisDebug.LogTag.Device);
+            long reservedBefore = UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong();
+            long heapBefore = GC.GetTotalMemory(false);
+
             AsyncOperation unloadOperation = Resources.UnloadUnusedAssets();
             while (!unloadOperation.isDone)
             {
@@ -865,7 +937,13 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             GC.WaitForPendingFinalizers();
             GC.Collect();
 
-            BasisDebug.Log($"Headless strict memory cleanup completed after {reason}.", BasisDebug.LogTag.Device);
+            const double ToMb = 1024d * 1024d;
+            BasisDebug.Log(
+                $"Headless strict memory cleanup completed after {reason}: reserved {reservedBefore / ToMb:F1} -> " +
+                $"{UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong() / ToMb:F1} MB, " +
+                $"managed heap {heapBefore / ToMb:F1} -> {GC.GetTotalMemory(false) / ToMb:F1} MB.",
+                BasisDebug.LogTag.Device);
+            BasisHeadlessMemoryProbe.RequestImmediateSample();
         }
         catch (Exception ex)
         {
@@ -874,6 +952,12 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
         finally
         {
             strictMemoryCleanupInProgress = false;
+        }
+
+        if (strictMemoryCleanupRearmRequested && !isShuttingDown)
+        {
+            strictMemoryCleanupRearmRequested = false;
+            TriggerStrictMemoryCleanup($"{reason} (re-armed)");
         }
     }
 
@@ -885,6 +969,41 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
     public static void StripTextureReferencesFromRoot(GameObject root)
     {
         RemoveMaterialTexturesFromRoot(root);
+    }
+
+    /// <summary>
+    /// Clears texture slots using an already-gathered renderer set. Avatar install has just
+    /// walked the tree for its harvest, so re-walking it here would double the cost of every
+    /// join in a load test.
+    /// </summary>
+    public static void StripTextureReferencesFromRenderers(Renderer[] renderers)
+    {
+        if (renderers == null)
+        {
+            return;
+        }
+
+        HashSet<Material> processedMats = new HashSet<Material>();
+        for (int rendererIndex = 0; rendererIndex < renderers.Length; rendererIndex++)
+        {
+            Renderer renderer = renderers[rendererIndex];
+            if (renderer == null)
+            {
+                continue;
+            }
+
+            Material[] materials = renderer.sharedMaterials;
+            for (int materialIndex = 0; materialIndex < materials.Length; materialIndex++)
+            {
+                Material mat = materials[materialIndex];
+                if (mat == null || !processedMats.Add(mat))
+                {
+                    continue;
+                }
+
+                ShaderUtilSafe.ClearAllKnownTextures(mat);
+            }
+        }
     }
 
     private void OnDisconnectedAfterReboot(DisconnectInfo disconnectInfo)

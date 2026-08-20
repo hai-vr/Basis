@@ -1235,6 +1235,7 @@ MonoBehaviour:
   - {fileID: 4438077085720265041}
   - {fileID: 4138757849292144290}
   - {fileID: 1981983295813178899}
+  - {fileID: 1368011072859452178}
   customLoaderName: 
   m_renderMode: 1
   m_latencyOptimization: 0
@@ -1939,6 +1940,7 @@ MonoBehaviour:
   - {fileID: 2231758598234634398}
   - {fileID: -2546553118739243343}
   - {fileID: 638815009775519648}
+  - {fileID: 4021891731233699907}
   customLoaderName: 
   m_renderMode: 1
   m_latencyOptimization: 0
@@ -2601,3 +2603,47 @@ MonoBehaviour:
   m_hasMigratedMultiviewRenderRegionSetting: 1
   m_foveatedRenderingApi: 0
   m_useOpenXRPredictedTime: 0
+--- !u!114 &4021891731233699907
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1dd64057c785437297711b76aff2a2e1, type: 3}
+  m_Name: BasisMetaBodyTrackingFeature Standalone
+  m_EditorClassIdentifier: Basis.Integration.MetaBodyTracking::Basis.Integration.MetaBodyTracking.BasisMetaBodyTrackingFeature
+  m_enabled: 1
+  nameUi: Basis Meta Body Tracking
+  version: 1.0.0
+  featureIdInternal: com.basis.openxr.feature.metabodytracking
+  openxrExtensionStrings: XR_FB_body_tracking XR_META_body_tracking_full_body XR_META_body_tracking_fidelity XR_META_body_tracking_calibration
+  company: Basis
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
+--- !u!114 &1368011072859452178
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1dd64057c785437297711b76aff2a2e1, type: 3}
+  m_Name: BasisMetaBodyTrackingFeature Android
+  m_EditorClassIdentifier: Basis.Integration.MetaBodyTracking::Basis.Integration.MetaBodyTracking.BasisMetaBodyTrackingFeature
+  m_enabled: 1
+  nameUi: Basis Meta Body Tracking
+  version: 1.0.0
+  featureIdInternal: com.basis.openxr.feature.metabodytracking
+  openxrExtensionStrings: XR_FB_body_tracking XR_META_body_tracking_full_body XR_META_body_tracking_fidelity XR_META_body_tracking_calibration
+  company: Basis
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 

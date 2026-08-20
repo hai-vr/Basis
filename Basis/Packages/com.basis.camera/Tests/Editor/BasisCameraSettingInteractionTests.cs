@@ -116,11 +116,11 @@ namespace Basis.Tests.Camera
         [Test]
         public void TheDetachedMarkerLives_OnALayerNoBackgroundOrToggleCanPutBackInTheShot()
         {
-            // Both detached markers — the puck and the wireframe gizmo — sit at the camera's own
-            // position, so the only thing keeping them out of a photo is that the capture culls
-            // their layer. The wireframe used to rely on being parked behind the near plane
-            // instead, which the batched gizmo draw (a frame behind its producer) and any 360
-            // capture both defeat.
+            // Both detached markers — the puck and the wireframe gizmo — sit on the camera's own
+            // axis, the puck out in front of the lens, so the only thing keeping them out of a
+            // photo is that the capture culls their layer. The wireframe used to rely on being
+            // parked behind the near plane instead, which the batched gizmo draw (a frame behind
+            // its producer) and any 360 capture both defeat.
             int marker = BasisHandHeldCamera.MarkerLayer;
             Assert.That(marker, Is.GreaterThanOrEqualTo(0), "This project no longer defines the OverlayUI layer.");
 

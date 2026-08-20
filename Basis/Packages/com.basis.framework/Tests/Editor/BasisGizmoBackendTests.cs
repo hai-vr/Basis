@@ -314,6 +314,49 @@ namespace Basis.Tests.IK
             Assert.IsTrue(BasisGizmoManager.Exists(second));
         }
 
+        // ── Draw-on-top / depth-test mode ───────────────────────────────────
+
+        [Test]
+        public void GizmoShaders_ExposeTheDepthTestProperty()
+        {
+            // ZTest is driven per-material off _ZTest — a shader that lost the property
+            // would silently pin every gizmo to whatever state it hardcoded instead.
+            foreach (string shaderName in new[] { "BasisGizmoSphereInstanced", "BasisGizmoLine" })
+            {
+                Shader shader = Resources.Load<Shader>(shaderName);
+                Assert.IsNotNull(shader, $"{shaderName} missing from Resources");
+                Material material = new Material(shader);
+                Assert.IsTrue(material.HasProperty("_ZTest"), $"{shaderName} has no _ZTest property");
+                Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
+        public void DrawOnTop_DrivesMaterialDepthStateBothWays()
+        {
+            Shader shader = Resources.Load<Shader>("BasisGizmoSphereInstanced");
+            Assert.IsNotNull(shader);
+            Material material = new Material(shader);
+            bool original = BasisGizmoManager.DrawOnTop;
+            try
+            {
+                BasisGizmoManager.DrawOnTop = false;
+                BasisGizmoManager.ApplyMaterialDepthMode(material);
+                Assert.AreEqual((int)CompareFunction.LessEqual, (int)material.GetFloat("_ZTest"));
+                Assert.AreEqual((int)RenderQueue.Transparent, material.renderQueue);
+
+                BasisGizmoManager.DrawOnTop = true;
+                BasisGizmoManager.ApplyMaterialDepthMode(material);
+                Assert.AreEqual((int)CompareFunction.Always, (int)material.GetFloat("_ZTest"));
+                Assert.AreEqual((int)RenderQueue.Overlay, material.renderQueue);
+            }
+            finally
+            {
+                BasisGizmoManager.DrawOnTop = original;
+                Object.DestroyImmediate(material);
+            }
+        }
+
         // ── Label color diffing ─────────────────────────────────────────────
 
         [Test]

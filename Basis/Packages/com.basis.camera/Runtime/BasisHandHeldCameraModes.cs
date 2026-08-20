@@ -1,5 +1,6 @@
 using Basis.Cinematics;
 using UnityEngine;
+using CameraAnchorKind = BasisHandHeldCameraInteractable.CameraAnchorKind;
 using CameraPinSpace = BasisHandHeldCameraInteractable.CameraPinSpace;
 
 /// <summary>
@@ -326,7 +327,23 @@ public partial class BasisHandHeldCamera
         {
             ApplyModifierStack(stack);
         }
-        PinSpace = pin;
+
+        // A saved mode is an int off disk, so it can name an anchor this build does not have.
+        if (pin < CameraPinSpace.HandHeld || pin > CameraPinSpace.Attached)
+        {
+            pin = CameraPinSpace.HandHeld;
+        }
+
+        // It carries the anchor but never what that anchor was riding: the target is a live
+        // reference to something in the world the mode was saved in, and there is nothing to
+        // resolve it against here. Restoring Attached with nothing attached would offer an anchor
+        // the camera has no way to be on, so it lands on the world instead.
+        if (pin == CameraPinSpace.Attached && AnchorKind == CameraAnchorKind.None)
+        {
+            pin = CameraPinSpace.WorldSpace;
+        }
+
+        SetAnchorSpace(pin);
     }
 
     /// <summary>
@@ -507,5 +524,11 @@ public partial class BasisHandHeldCamera
 #if UNITY_INCLUDE_TESTS
     /// <summary>Test-only access to the restore, which is otherwise only reached through a load.</summary>
     public void RestoreCameraModeForTest(BasisCameraMode mode) => RestoreCameraMode(mode);
+
+    /// <summary>
+    /// Test-only access to the placement write a saved mode goes through, taking the raw int a
+    /// settings file actually stores rather than the enum it is read back as.
+    /// </summary>
+    public void ApplyUserModePlacementForTest(int pinSpace) => ApplyPlacement((CameraPinSpace)pinSpace, null);
 #endif
 }

@@ -12,12 +12,13 @@ public enum BasisCameraBackgroundMode
     White = 4,
     Magenta = 5,
     Custom = 6,
+    Transparent = 7,
 }
 
 /// <summary>
-/// Solid-colour backgrounds for the capture camera. On its own a colour mode only changes what the
+/// Replacement backgrounds for the capture camera. On its own a replacement only changes what the
 /// camera clears to, which still leaves the world in front of it — so the keyable modes also drop
-/// the world out of the culling mask and leave just the players and their props on flat colour.
+/// the world out of the culling mask and leave just the players and their props on the selected background.
 /// </summary>
 public partial class BasisHandHeldCamera
 {
@@ -95,6 +96,7 @@ public partial class BasisHandHeldCamera
             case BasisCameraBackgroundMode.White: return Color.white;
             case BasisCameraBackgroundMode.Magenta: return Color.magenta;
             case BasisCameraBackgroundMode.Custom: return custom;
+            case BasisCameraBackgroundMode.Transparent: return Color.clear;
             default: return custom;
         }
     }
@@ -103,6 +105,14 @@ public partial class BasisHandHeldCamera
     {
         backgroundMode = mode;
         ApplyBackgroundMode();
+        if (mode == BasisCameraBackgroundMode.Transparent && CanPreserveVideoOutputAlpha())
+        {
+            PrepareTransparentVideoOutputResources(renderTexture);
+        }
+        else if (mode != BasisCameraBackgroundMode.Transparent)
+        {
+            ReleaseTransparentVideoOutputResources();
+        }
     }
 
     public void SetBackgroundCustomColor(Color color)
@@ -131,6 +141,8 @@ public partial class BasisHandHeldCamera
         {
             return;
         }
+
+        UpdateVolumetricFogSource();
 
         if (backgroundMode == BasisCameraBackgroundMode.World)
         {

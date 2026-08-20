@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Basis.Bench.Agent;
 using Basis.Benchmark.Machine;
 using Basis.Benchmark.Measure;
 
@@ -343,7 +344,7 @@ public sealed class LoadRunner
     /// </summary>
     private static void WriteLoadClientConfig(RunOptions options)
     {
-        string path = Path.Combine(options.LoadClientDirectory, "Config.xml");
+        string path = Path.Combine(options.LoadClientDirectory, "ClientSimConfig.xml");
         if (!File.Exists(path))
             throw new FileNotFoundException(
                 $"Load client config not found at {path}. Run BasisNetworkClientConsole once so it writes its defaults.", path);
@@ -505,13 +506,7 @@ public sealed class LoadRunner
     }
 
     private static string ExecutablePath(string directory, string baseName)
-    {
-        string windows = Path.Combine(directory, baseName + ".exe");
-        if (File.Exists(windows)) return windows;
-        string unix = Path.Combine(directory, baseName);
-        if (File.Exists(unix)) return unix;
-        throw new FileNotFoundException($"Could not find {baseName} in {directory}. Build the solution in Release first.");
-    }
+        => LaunchTarget.Resolve(directory, baseName);
 
     private static void Kill(Process? p)
     {
