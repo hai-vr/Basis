@@ -20,7 +20,10 @@ namespace Basis.BasisUI
         {
             Title = "Dialogue",
             PanelSize = new Vector2(700, 500),
-            PanelPosition = new Vector3(0, -100, 0),
+            // Sits in front of the page it covers like every other overlay popup. Coplanar with
+            // the page (z 0) its collider ties with the page's on ray distance, which used to be
+            // the only thing deciding which of the two took a press.
+            PanelPosition = new Vector3(0, -100, -5),
         };
 
         public static string AcceptDefault = "Accept";

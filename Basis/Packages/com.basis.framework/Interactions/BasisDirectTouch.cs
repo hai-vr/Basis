@@ -38,6 +38,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public static float ReleaseDistance = 0.025f;
         [Tooltip("Touch is disabled while the touch finger's curl is below this (extended ≈ 0.75, fist ≈ -1)")]
         public static float FistCurlThreshold = 0f;
+        // Two panels this close to the fingertip are coplanar as far as a finger is concerned, so
+        // which one it reaches first stops being a meaningful question and draw order answers it.
+        private const float CoplanarPanelTolerance = 0.001f;
 
         // ── Scroll ─────────────────────────────────────────────────────
         public static float ScrollSensitivity = 800f;
@@ -365,6 +368,29 @@ namespace Basis.Scripts.BasisSdk.Interactions
         // Core touch logic
         // ================================================================
 
+        /// <summary>
+        /// Picks between two touchable canvases. Normally the nearer one to the fingertip wins,
+        /// but a popup opened over a page sits at the same depth as it, and OverlapSphereNonAlloc
+        /// returns that tie in no particular order — so panels stacked on one layer fall back to
+        /// the order they are drawn in, and the popup is the one that gets poked.
+        /// </summary>
+        public static bool IsBetterTouchTarget(Canvas candidate, float candidateDistance, Canvas best, float bestDistance)
+        {
+            if (best == null)
+            {
+                return true;
+            }
+
+            if (candidate.gameObject.layer == best.gameObject.layer &&
+                Mathf.Abs(candidateDistance - bestDistance) <= CoplanarPanelTolerance &&
+                candidate.sortingOrder != best.sortingOrder)
+            {
+                return candidate.sortingOrder > best.sortingOrder;
+            }
+
+            return candidateDistance < bestDistance;
+        }
+
         private void ProcessTouch(FingerTouchState st, BasisInput input)
         {
             Vector3 tip = GetFingertip(input);
@@ -398,7 +424,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 Canvas c = col.GetComponent<Canvas>();
                 if (c == null) c = col.GetComponentInParent<Canvas>();
                 if (c == null) continue;
-                if (d < bestD) { bestD = d; best = c; }
+                if (IsBetterTouchTarget(c, d, best, bestD)) { bestD = d; best = c; }
             }
 
             if (bestPanel != null && (best == null || bestPanelD <= bestD))

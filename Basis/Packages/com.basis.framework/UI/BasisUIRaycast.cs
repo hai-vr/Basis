@@ -73,6 +73,7 @@ namespace Basis.Scripts.UI
         // re-resolving getters, and the hit sort would otherwise re-read them O(n^2).
         private int[] _hitLayers = System.Array.Empty<int>();
         private Transform[] _hitTransforms = System.Array.Empty<Transform>();
+        private int[] _hitSortingOrders = System.Array.Empty<int>();
         // Canvas hierarchy under a hit collider is near-static; cache the walk and re-walk rarely.
         private struct CanvasCacheEntry { public Canvas[] Canvases; public int Frame; }
         private readonly Dictionary<Transform, CanvasCacheEntry> _canvasCache = new Dictionary<Transform, CanvasCacheEntry>();
@@ -222,6 +223,7 @@ namespace Basis.Scripts.UI
             {
                 _hitLayers = new int[hitCount];
                 _hitTransforms = new Transform[hitCount];
+                _hitSortingOrders = new int[hitCount];
             }
             _uiHitOrder.Clear();
             for (int i = 0; i < hitCount; i++)
@@ -232,6 +234,7 @@ namespace Basis.Scripts.UI
                 {
                     _hitLayers[i] = c.gameObject.layer;
                     _hitTransforms[i] = hits[i].transform;
+                    _hitSortingOrders[i] = GetHitSortingOrder(_hitTransforms[i], _hitLayers[i]);
                     _uiHitOrder.Add(i);
                 }
             }
@@ -242,7 +245,7 @@ namespace Basis.Scripts.UI
                 int currentIndex = _uiHitOrder[i];
                 int insertIndex = i - 1;
 
-                while (insertIndex >= 0 && CompareUiHitOrder(_hitLayers, hits, currentIndex, _uiHitOrder[insertIndex]) < 0)
+                while (insertIndex >= 0 && CompareUiHitOrder(_hitLayers, _hitSortingOrders, hits, currentIndex, _uiHitOrder[insertIndex]) < 0)
                 {
                     _uiHitOrder[insertIndex + 1] = _uiHitOrder[insertIndex];
                     insertIndex--;
@@ -365,7 +368,7 @@ namespace Basis.Scripts.UI
             return layer == OverlayUI || layer == HandHeldCameraUI;
         }
 
-        private static int CompareUiHitOrder(int[] layers, RaycastHit[] hits, int leftIndex, int rightIndex)
+        private static int CompareUiHitOrder(int[] layers, int[] sortingOrders, RaycastHit[] hits, int leftIndex, int rightIndex)
         {
             bool leftIsOverlay = IsOverlayLayer(layers[leftIndex]);
             bool rightIsOverlay = IsOverlayLayer(layers[rightIndex]);
@@ -375,7 +378,56 @@ namespace Basis.Scripts.UI
                 return leftIsOverlay ? -1 : 1;
             }
 
+            // Panels sharing a layer are stacked by canvas sorting order, and the one drawn on top
+            // has to be the one that takes the press. Distance cannot answer that: an overlay panel
+            // is regularly coplanar with the page it covers, and Physics.RaycastNonAlloc hands back
+            // tied hits in an arbitrary order, so the page underneath won a coin flip every time a
+            // dialogue opened over it. Only hits on the same layer are ranked this way, which
+            // leaves unrelated surfaces (world UI, the handheld camera) sorting by distance.
+            int stackCompare = CompareStackedPanels(layers[leftIndex], sortingOrders[leftIndex], layers[rightIndex], sortingOrders[rightIndex]);
+            if (stackCompare != 0)
+            {
+                return stackCompare;
+            }
+
             return hits[leftIndex].distance.CompareTo(hits[rightIndex].distance);
+        }
+
+        /// <summary>
+        /// Which of two UI surfaces on the same layer is stacked on top: the one whose canvas draws
+        /// later. Returns 0 when the two are on different layers or share a sorting order, leaving
+        /// the caller to fall back to ray distance.
+        /// </summary>
+        public static int CompareStackedPanels(int leftLayer, int leftSortingOrder, int rightLayer, int rightSortingOrder)
+        {
+            if (leftLayer != rightLayer)
+            {
+                return 0;
+            }
+
+            return rightSortingOrder.CompareTo(leftSortingOrder);
+        }
+
+        /// <summary>
+        /// Draw order of the canvas a hit collider belongs to. Every menu panel is its own root
+        /// canvas and takes its sorting order from the stack it sits in — page, overlay, hotbar —
+        /// so this is what separates a popup from the page it came up over.
+        /// </summary>
+        private static int GetHitSortingOrder(Transform hitTransform, int layer)
+        {
+            if (hitTransform == null || ((1 << layer) & UILayers) == 0)
+            {
+                return 0;
+            }
+
+            // A panel keeps its collider on the same object as its canvas, so the walk almost never
+            // runs; it is here for world UI that hangs its collider off a child.
+            if (!hitTransform.TryGetComponent(out Canvas canvas))
+            {
+                canvas = hitTransform.GetComponentInParent<Canvas>(true);
+            }
+
+            return canvas != null ? canvas.sortingOrder : 0;
         }
 
         private void HandleNoHit()
