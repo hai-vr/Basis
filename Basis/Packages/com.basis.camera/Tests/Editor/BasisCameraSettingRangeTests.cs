@@ -206,6 +206,15 @@ namespace Basis.Tests.Camera
             Assert.That(defaults.resolutionIndex, Is.InRange(0, new BasisHandHeldCameraMetaData().resolutions.Length - 1));
             Assert.That(defaults.formatIndex, Is.InRange(0, new BasisHandHeldCameraMetaData().formats.Length - 1));
             Assert.That(defaults.backgroundMode, Is.InRange(0, Enum.GetValues(typeof(BasisCameraBackgroundMode)).Length - 1));
+
+            // The film grading. Each of these has a neutral its control has to be able to return
+            // to, and a default outside the slider would be a look nobody could undo.
+            Assert.That(defaults.filmLift, Is.InRange(BasisHandHeldCameraUI.MinFilmLift, BasisHandHeldCameraUI.MaxFilmLift));
+            Assert.That(defaults.splitToningBalance,
+                Is.InRange(BasisHandHeldCameraUI.MinSplitToningBalance, BasisHandHeldCameraUI.MaxSplitToningBalance));
+            Assert.That(defaults.filmGrainResponse, Is.InRange(0f, 1f));
+            Assert.That(defaults.filmGrainType,
+                Is.InRange(0, (int)UnityEngine.Rendering.Universal.FilmGrainLookup.Large02));
         }
 
         [Test]

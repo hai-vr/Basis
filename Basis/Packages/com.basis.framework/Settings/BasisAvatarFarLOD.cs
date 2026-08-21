@@ -59,6 +59,10 @@ public static class BasisAvatarFarLOD
     /// </summary>
     public static void BeginTickBudget()
     {
+        // Retires far avatar versions whose last wearer went away. Deliberately here and not in
+        // the release itself: that runs inside Unity's destruction pass, where the prototype and
+        // its holder cannot be reliably destroyed. See DrainPendingTeardowns.
+        BasisFarAvatarBuilder.DrainPendingTeardowns();
         sTransitionClock.Reset();
         sTransitionBudgetTicks = (long)(MaxTransitionMillisecondsPerTick * (System.Diagnostics.Stopwatch.Frequency / 1000.0));
         sTickUnscaledTime = Time.unscaledTime;

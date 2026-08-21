@@ -382,6 +382,299 @@ namespace Basis.Tests.Camera
             }
         }
 
+        // ---- The print, the fog and the sensor ----------------------------------------------
+
+        [Test]
+        public void OnlyAnInstantBodyMountsItsPictureInAPrint()
+        {
+            Assert.That(BasisCameraPrintFinish.TryGetMount(
+                BasisCameraPrintBorder.None, 1024, 1024, out _, out _, out _), Is.False);
+
+            Assert.That(BasisCameraPrintFinish.TryGetMount(
+                BasisCameraPrintBorder.Instant, 1024, 1024,
+                out RectInt window, out int printWidth, out int printHeight), Is.True);
+
+            Assert.That(window.width, Is.EqualTo(1024), "The photograph is mounted, not resized.");
+            Assert.That(window.height, Is.EqualTo(1024));
+            Assert.That(printWidth, Is.GreaterThan(1024));
+            Assert.That(printHeight, Is.GreaterThan(printWidth), "An instant print is taller than it is wide.");
+        }
+
+        [Test]
+        public void ThePrintsFatBorderIsTheOneAlongTheBottom()
+        {
+            BasisCameraPrintFinish.TryGetMount(
+                BasisCameraPrintBorder.Instant, 1024, 1024,
+                out RectInt window, out int printWidth, out int printHeight);
+
+            int left = window.xMin;
+            int right = printWidth - window.xMax;
+            int bottom = window.yMin;
+            int top = printHeight - window.yMax;
+
+            // Bottom-left origin, matching raw texture rows: the strip everybody writes a name on is
+            // the one at y = 0, and it is the whole reason the shape is recognisable.
+            Assert.That(left, Is.EqualTo(right), "The sides are an even width of stock.");
+            Assert.That(top, Is.EqualTo(left), "The top border is the same as the sides on a 600 print.");
+            Assert.That(bottom, Is.GreaterThan(top * 3), "The bottom strip is the wide one.");
+        }
+
+        [Test]
+        public void ThePrintComesOutTheShapeOfARealOne()
+        {
+            BasisCameraPrintFinish.TryGetMount(
+                BasisCameraPrintBorder.Instant, 1024, 1024, out _, out int printWidth, out int printHeight);
+
+            // A Polaroid 600 print is 3.5 x 4.2 inches around a 3.1 inch square image.
+            Assert.That(printWidth / (float)printHeight, Is.EqualTo(3.5f / 4.2f).Within(0.01f));
+        }
+
+        [Test]
+        public void ABorderScalesWithTheImageItIsAround()
+        {
+            BasisCameraPrintFinish.TryGetMount(BasisCameraPrintBorder.Instant, 512, 512, out RectInt small, out _, out _);
+            BasisCameraPrintFinish.TryGetMount(BasisCameraPrintBorder.Instant, 2048, 2048, out RectInt large, out _, out _);
+
+            Assert.That(large.xMin, Is.EqualTo(small.xMin * 4).Within(2),
+                "The border is a share of the picture, so four times the picture is four times the border.");
+        }
+
+        [Test]
+        public void OnlyTheEndsOfARollComeBackFogged()
+        {
+            const int roll = 27;
+
+            // The counter is read AFTER the frame has been spent, so 26 left is the first frame taken.
+            Assert.That(BasisCameraPrintFinish.ShouldLeak(26, roll), Is.True, "The leader is fogged while loading.");
+            Assert.That(BasisCameraPrintFinish.ShouldLeak(1, roll), Is.True);
+            Assert.That(BasisCameraPrintFinish.ShouldLeak(0, roll), Is.True, "The last frame sits against the end of the spool.");
+
+            for (int remaining = 2; remaining <= roll - 2; remaining++)
+            {
+                Assert.That(BasisCameraPrintFinish.ShouldLeak(remaining, roll), Is.False,
+                    $"A frame in the middle of the roll ({remaining} left) should not fog.");
+            }
+        }
+
+        [Test]
+        public void AFrameFogsTheSameWayEveryTimeItIsTaken()
+        {
+            BasisCameraPrintFinish.TryGetLeak(26, 1296, 864, out int firstEdge, out int firstDepth, out float firstStrength);
+            BasisCameraPrintFinish.TryGetLeak(26, 1296, 864, out int againEdge, out int againDepth, out float againStrength);
+
+            // Not random: a leak that could land anywhere reads as an effect fired at the picture,
+            // and one that is a property of the frame reads as a camera.
+            Assert.That(againEdge, Is.EqualTo(firstEdge));
+            Assert.That(againDepth, Is.EqualTo(firstDepth));
+            Assert.That(againStrength, Is.EqualTo(firstStrength));
+            Assert.That(firstDepth, Is.GreaterThan(0));
+            Assert.That(firstEdge, Is.InRange(0, 3));
+        }
+
+        [Test]
+        public void TheFogFadesToNothingBeforeItsBandRuns()
+        {
+            const int depth = 100;
+
+            Assert.That(BasisCameraPrintFinish.LeakFalloff(0, depth), Is.EqualTo(1f).Within(0.001f));
+            Assert.That(BasisCameraPrintFinish.LeakFalloff(depth, depth), Is.Zero,
+                "A band with an edge where it stops is a rectangle of orange, not a leak.");
+            Assert.That(BasisCameraPrintFinish.LeakFalloff(depth + 50, depth), Is.Zero);
+
+            float previous = 1.1f;
+            for (int distance = 0; distance <= depth; distance += 5)
+            {
+                float here = BasisCameraPrintFinish.LeakFalloff(distance, depth);
+                Assert.That(here, Is.LessThan(previous), "The fog has to fall off the whole way in.");
+                previous = here;
+            }
+        }
+
+        [Test]
+        public void ATinyPictureIsNotFogged()
+        {
+            Assert.That(BasisCameraPrintFinish.TryGetLeak(0, 4, 4, out _, out _, out _), Is.False);
+            Assert.That(BasisCameraPrintFinish.TryGetLeak(0, 0, 0, out _, out _, out _), Is.False);
+        }
+
+        [Test]
+        public void EachBodyBringsItsOwnSensor()
+        {
+            using (var rig = new BasisCameraSettingsRig())
+            {
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Disposable);
+                Assert.That(rig.CaptureCamera.sensorSize.x, Is.EqualTo(36f).Within(0.01f),
+                    "A disposable shoots a full 35mm frame.");
+
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Instant);
+                Assert.That(rig.CaptureCamera.sensorSize.x, Is.EqualTo(rig.CaptureCamera.sensorSize.y).Within(0.01f),
+                    "An instant frame is square.");
+
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Security);
+                Assert.That(rig.CaptureCamera.sensorSize.x, Is.LessThan(10f),
+                    "A ceiling camera is a small sensor behind a very short lens.");
+            }
+        }
+
+        [Test]
+        public void FittingASensor_DoesNotMoveTheFieldOfView()
+        {
+            using (var rig = new BasisCameraSettingsRig())
+            {
+                // On a physical camera the sensor, the focal length and the field of view are one
+                // value seen three ways, so writing a sensor size without re-asserting the field of
+                // view silently rewrites the framing of every kind.
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Disposable);
+                float disposable = rig.CaptureCamera.fieldOfView;
+
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Security);
+
+                Assert.That(rig.CaptureCamera.fieldOfView, Is.GreaterThan(disposable),
+                    "A security camera is the widest body here, whatever its sensor measures.");
+                Assert.That(rig.CaptureCamera.fieldOfView, Is.EqualTo(82f).Within(0.5f));
+            }
+        }
+
+        // ---- The grading each kind is built out of --------------------------------------------
+
+        [Test]
+        public void TheGrainLadderIsPairedUpAndInOrder()
+        {
+            int[] values = Basis.BasisUI.HandHeldCamera.BasisHandHeldCameraPanelProvider.GrainTypeValuesForTest;
+            string[] keys = Basis.BasisUI.HandHeldCamera.BasisHandHeldCameraPanelProvider.GrainTypeKeysForTest;
+
+            Assert.That(values.Length, Is.EqualTo(keys.Length),
+                "The dropdown reads both tables at one index; a short one throws on the last row.");
+
+            for (int Index = 1; Index < values.Length; Index++)
+            {
+                Assert.That(values[Index], Is.GreaterThan(values[Index - 1]),
+                    "The ladder runs fine to coarse, and the labels say so.");
+            }
+        }
+
+        [Test]
+        public void PickingAPlacementModeAfterAKind_HandsThePictureBack()
+        {
+            // Without this a camera kind is a one-way door. The four placement modes write no
+            // grading of their own, so picking Photo would leave the grain, the halation, the split
+            // toning and the lifted blacks exactly where the disposable put them — and the panel
+            // would call the result Photo, because Photo has no opinion about any of them.
+            using (var rig = new BasisCameraSettingsRig())
+            {
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Disposable);
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Photo);
+
+                var shipped = new BasisHandHeldCameraUI.CameraSettings();
+
+                Assert.That(rig.FilmGrain.intensity.value, Is.EqualTo(shipped.filmGrain).Within(0.001f));
+                Assert.That(rig.FilmGrain.active, Is.False);
+                Assert.That(rig.Vignette.intensity.value, Is.EqualTo(shipped.vignette).Within(0.001f));
+                Assert.That(rig.LiftGammaGain.lift.value.w, Is.EqualTo(shipped.filmLift).Within(0.001f));
+                Assert.That(rig.SplitToning.active, Is.False);
+                Assert.That(rig.Bloom.tint.value, Is.EqualTo(shipped.bloomTint));
+                Assert.That(rig.ChromaticAberration.intensity.value, Is.EqualTo(shipped.chromaticAberration).Within(0.001f));
+                Assert.That(rig.WhiteBalance.temperature.value, Is.EqualTo(shipped.whiteBalanceTemperature).Within(0.001f));
+                Assert.That(rig.Camera.CameraMode, Is.EqualTo(BasisCameraMode.Photo));
+            }
+        }
+
+        [Test]
+        public void EveryFilmBodyLiftsItsBlacks()
+        {
+            using (var rig = new BasisCameraSettingsRig())
+            {
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Photo);
+                Assert.That(rig.LiftGammaGain.lift.value.w, Is.Zero,
+                    "An ordinary camera has a true black in it.");
+
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Disposable);
+                float disposable = rig.LiftGammaGain.lift.value.w;
+
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Instant);
+                float instant = rig.LiftGammaGain.lift.value.w;
+
+                Assert.That(disposable, Is.GreaterThan(0f));
+                Assert.That(instant, Is.GreaterThan(disposable),
+                    "An instant print has the least black of anything here — it is the whole aesthetic.");
+            }
+        }
+
+        [Test]
+        public void TheLiftIsNeutral_SoItCannotFightTheSplitToningAboveIt()
+        {
+            using (var rig = new BasisCameraSettingsRig())
+            {
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Instant);
+
+                Vector4 lift = rig.LiftGammaGain.lift.value;
+
+                // URP subtracts the colour half's own luminance before adding w, so three equal
+                // channels cancel exactly and what reaches the shader is a flat offset. Unequal
+                // channels here would put a cast in the shadows that nothing on the panel explains.
+                Assert.That(lift.x, Is.EqualTo(lift.y).Within(0.0001f));
+                Assert.That(lift.y, Is.EqualTo(lift.z).Within(0.0001f));
+            }
+        }
+
+        [Test]
+        public void AFilmBodySplitsItsColourAndAPlainOneDoesNot()
+        {
+            using (var rig = new BasisCameraSettingsRig())
+            {
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Photo);
+                Assert.That(rig.SplitToning.active, Is.False,
+                    "Neutral is grey at both ends, and a camera with no opinion has to reach it.");
+
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Instant);
+
+                Assert.That(rig.SplitToning.active, Is.True);
+
+                // Green in the shade and pink in the highlights is the shift every 600 pack has, and
+                // the one thing that tells an instant print from a warm faded photograph.
+                Color shadows = rig.SplitToning.shadows.value;
+                Color highlights = rig.SplitToning.highlights.value;
+                Assert.That(shadows.g, Is.GreaterThan(shadows.r), "Instant film puts green in the shade.");
+                Assert.That(highlights.r, Is.GreaterThan(highlights.g), "and pink in the highlights.");
+            }
+        }
+
+        [Test]
+        public void HalationIsRedAndOnlyOnTheFilmBodies()
+        {
+            using (var rig = new BasisCameraSettingsRig())
+            {
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Disposable);
+                Color halation = rig.Bloom.tint.value;
+
+                Assert.That(halation.r, Is.GreaterThan(halation.b),
+                    "Halation is the red end getting through the anti-halation layer, so it is warm.");
+
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Camcorder);
+                Color video = rig.Bloom.tint.value;
+                Assert.That(video.b, Is.GreaterThan(video.r),
+                    "A sensor's bloom has no halation in it at all.");
+            }
+        }
+
+        [Test]
+        public void EachKindPicksItsOwnGrain()
+        {
+            using (var rig = new BasisCameraSettingsRig())
+            {
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Disposable);
+                var disposable = rig.FilmGrain.type.value;
+                float disposableResponse = rig.FilmGrain.response.value;
+
+                rig.Camera.ApplyCameraMode(BasisCameraMode.Camcorder);
+
+                Assert.That(rig.FilmGrain.type.value, Is.Not.EqualTo(disposable),
+                    "Sensor noise and film grain are not the same size.");
+                Assert.That(rig.FilmGrain.response.value, Is.LessThan(disposableResponse),
+                    "Noise from an amplifier lies evenly; grain from an emulsion hides in the shadows.");
+            }
+        }
+
         // ---- The stamp ----------------------------------------------------------------------
 
         [Test]

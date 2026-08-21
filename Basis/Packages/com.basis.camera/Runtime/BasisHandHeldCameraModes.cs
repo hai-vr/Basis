@@ -809,7 +809,11 @@ public partial class BasisHandHeldCamera
     /// </summary>
     private void ApplyPresetLook(BasisCameraLook look)
     {
-        if (!look.Active) return;
+        if (!look.Active)
+        {
+            ResetFilmGrading();
+            return;
+        }
 
         // The still's grade is a field on the camera rather than a volume override, so it is
         // written whether or not there is a UI to route the rest through — and it has to be, or a
@@ -842,6 +846,52 @@ public partial class BasisHandHeldCamera
         HandHeld.ChangeBloomIntensity(look.BloomIntensity);
         HandHeld.ChangeBloomThreshold(look.BloomThreshold);
         HandHeld.ChangeBloomTint(look.BloomTint);
+    }
+
+    /// <summary>
+    /// Hands the picture back to the shipped defaults, for a mode that has no look of its own.
+    ///
+    /// <para>Without this a camera kind would be a one-way door: the four placement modes write no
+    /// grading, so picking Photo after a disposable would leave the grain, the halation, the split
+    /// toning and the lifted blacks exactly where the disposable put them, and the panel would
+    /// cheerfully call the result Photo. "Photo is the camera as it ships" has to be true of the
+    /// picture as well as of where the camera sits.</para>
+    ///
+    /// <para>The values come from the settings constructor rather than being typed out again. That
+    /// constructor <em>is</em> the definition of what ships, so a second copy of its numbers here
+    /// would be a second thing to keep in step with it — and the one that got forgotten.</para>
+    ///
+    /// <para>Written but never compared, which is the same bargain <see cref="ApplyPresetOptics"/>
+    /// already makes with the depth of field values it writes while the effect is off: a mode with
+    /// no opinion about grain must not be knocked out of itself by somebody adding grain.</para>
+    /// </summary>
+    private void ResetFilmGrading()
+    {
+        if (HandHeld == null || HandHeld.HHC == null) return;
+
+        BasisHandHeldCameraUI.CameraSettings shipped = new BasisHandHeldCameraUI.CameraSettings();
+
+        HandHeld.ChangeVignetteSmoothness(shipped.vignetteSmoothness);
+        HandHeld.ChangeVignetteColour(shipped.vignetteColour);
+        HandHeld.ChangeVignetteRounded(shipped.vignetteRounded);
+        HandHeld.ChangeVignette(shipped.vignette);
+        HandHeld.ChangeFilmGrainType(shipped.filmGrainType);
+        HandHeld.ChangeFilmGrainResponse(shipped.filmGrainResponse);
+        HandHeld.ChangeFilmGrain(shipped.filmGrain);
+        HandHeld.ChangeChromaticAberration(shipped.chromaticAberration);
+        HandHeld.ChangeWhiteBalanceTemperature(shipped.whiteBalanceTemperature);
+        HandHeld.ChangeWhiteBalanceTint(shipped.whiteBalanceTint);
+        HandHeld.ChangeContrast(shipped.contrast);
+        HandHeld.ChangeSaturation(shipped.saturation);
+        HandHeld.ChangeSplitToning(shipped.splitToningShadows, shipped.splitToningHighlights);
+        HandHeld.ChangeSplitToningBalance(shipped.splitToningBalance);
+        HandHeld.ChangeFilmLift(shipped.filmLift);
+        HandHeld.ChangeLensDistortionScale(shipped.lensDistortionScale);
+        HandHeld.ChangeLensDistortion(shipped.lensDistortion);
+        HandHeld.ChangeBloomIntensity(shipped.bloomIntensity);
+        HandHeld.ChangeBloomThreshold(shipped.bloomThreshold);
+        HandHeld.ChangeBloomTint(shipped.bloomTint);
+        SetCaptureTonemapping(shipped.captureTonemapping);
     }
 
     /// <summary>True while every value the look wrote still holds on the live camera.</summary>

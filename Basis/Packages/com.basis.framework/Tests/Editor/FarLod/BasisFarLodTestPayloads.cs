@@ -80,6 +80,74 @@ internal static class BasisFarLodTestPayloads
         return Convert.ToBase64String(Create(vertexCount, boneCount, seed).Serialize());
     }
 
+    /// <summary>
+    /// Bone index -> parent index for the 19-bone collapsed humanoid the SDK bakes (0xFF = root).
+    /// Order is HumanBodyBones 0..18, which is parents-first, so the runtime builds in one pass.
+    /// </summary>
+    private static readonly byte[] HumanoidParents = { 0xFF, 0, 0, 1, 2, 3, 4, 0, 7, 8, 9, 8, 8, 11, 12, 13, 14, 15, 16 };
+
+    /// <summary>Rest local positions forming a plausible T-pose, so AvatarBuilder accepts the rig.</summary>
+    private static readonly Vector3[] HumanoidRestLocal =
+    {
+        new Vector3(0f, 0.92f, 0f),      // Hips
+        new Vector3(0.09f, -0.05f, 0f),  // LeftUpperLeg
+        new Vector3(-0.09f, -0.05f, 0f), // RightUpperLeg
+        new Vector3(0f, -0.42f, 0f),     // LeftLowerLeg
+        new Vector3(0f, -0.42f, 0f),     // RightLowerLeg
+        new Vector3(0f, -0.40f, 0f),     // LeftFoot
+        new Vector3(0f, -0.40f, 0f),     // RightFoot
+        new Vector3(0f, 0.10f, 0f),      // Spine
+        new Vector3(0f, 0.15f, 0f),      // Chest
+        new Vector3(0f, 0.22f, 0f),      // Neck
+        new Vector3(0f, 0.10f, 0f),      // Head
+        new Vector3(0.05f, 0.14f, 0f),   // LeftShoulder
+        new Vector3(-0.05f, 0.14f, 0f),  // RightShoulder
+        new Vector3(0.12f, 0f, 0f),      // LeftUpperArm
+        new Vector3(-0.12f, 0f, 0f),     // RightUpperArm
+        new Vector3(0.26f, 0f, 0f),      // LeftLowerArm
+        new Vector3(-0.26f, 0f, 0f),     // RightLowerArm
+        new Vector3(0.24f, 0f, 0f),      // LeftHand
+        new Vector3(-0.24f, 0f, 0f),     // RightHand
+    };
+
+    /// <summary>
+    /// A payload the runtime builder can take all the way through AcquireShared and BuildAvatar:
+    /// the full required humanoid bone set at a T-pose AvatarBuilder accepts, plus an uncompressed
+    /// RGBA32 atlas so CreateTexture succeeds on every device. Create()'s 4-bone skeleton and empty
+    /// texture list are fine for parse/decode tests but refuse at both of those stages.
+    /// </summary>
+    public static BasisFarLodPayload CreateInstallable(int vertexCount = 24, int seed = 4321)
+    {
+        const int boneCount = 19;
+        BasisFarLodPayload payload = Create(vertexCount, boneCount, seed);
+        for (int i = 0; i < boneCount; i++)
+        {
+            payload.BoneHumanBodyBone[i] = (byte)i;
+            payload.BoneParentIndex[i] = HumanoidParents[i];
+            payload.BoneRestLocalPosition[i] = HumanoidRestLocal[i];
+            payload.BoneRestLocalRotation[i] = Quaternion.identity;
+        }
+
+        const int textureSize = 4;
+        byte[] pixels = new byte[textureSize * textureSize * 4];
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = (byte)(i % 256);
+        }
+        payload.Textures = new[]
+        {
+            new BasisFarLodPayload.FarLodTexture
+            {
+                Format = BasisFarLodPayload.FarLodTextureFormat.RGBA32,
+                Width = textureSize,
+                Height = textureSize,
+                MipCount = 1,
+                Data = pixels,
+            },
+        };
+        return payload;
+    }
+
     /// <summary>Structurally invalid blob (wrong magic) — TryParse refuses it WITHOUT logging.</summary>
     public static string CreateRefusedBase64()
     {

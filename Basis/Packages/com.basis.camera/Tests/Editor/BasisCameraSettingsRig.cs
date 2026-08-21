@@ -41,6 +41,8 @@ namespace Basis.Tests.Camera
         public readonly LensDistortion LensDistortion;
         public readonly MotionBlur MotionBlur;
         public readonly PaniniProjection PaniniProjection;
+        public readonly SplitToning SplitToning;
+        public readonly LiftGammaGain LiftGammaGain;
 
         public readonly Slider FovSlider;
         public readonly Slider ExposureSlider;
@@ -74,6 +76,8 @@ namespace Basis.Tests.Camera
             LensDistortion = NewOverride<LensDistortion>();
             MotionBlur = NewOverride<MotionBlur>();
             PaniniProjection = NewOverride<PaniniProjection>();
+            SplitToning = NewOverride<SplitToning>();
+            LiftGammaGain = NewOverride<LiftGammaGain>();
 
             BasisHandHeldCameraMetaData metaData = Camera.MetaData;
             metaData.depthOfField = DepthOfField;
@@ -86,6 +90,8 @@ namespace Basis.Tests.Camera
             metaData.lensDistortion = LensDistortion;
             metaData.motionBlur = MotionBlur;
             metaData.paniniProjection = PaniniProjection;
+            metaData.splitToning = SplitToning;
+            metaData.liftGammaGain = LiftGammaGain;
 
             // Mirrors CachePostProcessingReferences: colour grading is always live, the added
             // effects start switched off so an unconfigured one never alters the shot.

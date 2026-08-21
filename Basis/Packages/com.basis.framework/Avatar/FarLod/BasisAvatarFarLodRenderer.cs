@@ -42,12 +42,45 @@ public static class BasisFarAvatarBuilder
     }
 
     /// <summary>
-    /// Traces every shared-asset acquire/release with the resulting reference count, and dumps a
-    /// stack trace on the release that reaches zero — that call is what destroys the shared mesh,
-    /// so it names whoever tore the assets down under a live wearer. Diagnostic only; turn off
-    /// once the null-mesh report is closed.
+    /// Logs every shared-asset acquire and release with the resulting wearer count. Off by default;
+    /// switch it on to see which versions are being built, shared and retired when a far avatar
+    /// renders wrong — a mesh that dies under a live wearer shows up here as the release that
+    /// reaches zero too early.
     /// </summary>
-    public static bool TraceSharedLifetime = true;
+    public static bool TraceSharedLifetime;
+
+    /// <summary>
+    /// Destroy that also works outside play mode. The builder runs in edit mode too (the SDK far
+    /// LOD tester, and the edit-mode tests that cover this lifetime), where Object.Destroy is
+    /// refused and would silently leak every partial build.
+    /// </summary>
+    private static void DestroyObject(Object target)
+    {
+        if (target == null)
+        {
+            return;
+        }
+        if (Application.isPlaying)
+        {
+            Object.Destroy(target);
+        }
+        else
+        {
+            Object.DestroyImmediate(target);
+        }
+    }
+
+    /// <summary>
+    /// Keeps the prototype holder across additive world switches. DontDestroyOnLoad throws
+    /// outside play mode, and nothing needs to survive a scene load there anyway.
+    /// </summary>
+    private static void KeepAlive(GameObject target)
+    {
+        if (Application.isPlaying)
+        {
+            Object.DontDestroyOnLoad(target);
+        }
+    }
 
     private static readonly Dictionary<string, SharedAssets> SharedByVersion = new Dictionary<string, SharedAssets>(8);
     private static readonly int BaseMapProperty = Shader.PropertyToID("_BaseMap");
@@ -298,7 +331,7 @@ public static class BasisFarAvatarBuilder
         if (!clone.TryGetComponent(out BasisAvatar avatar))
         {
             BasisDebug.LogError($"Far avatar clone for {displayName} lost its BasisAvatar component.", BasisDebug.LogTag.Avatar);
-            Object.Destroy(clone);
+            DestroyObject(clone);
             return null;
         }
 
@@ -307,13 +340,19 @@ public static class BasisFarAvatarBuilder
         avatar.IsFarLodAvatar = true;
         // The prototype deliberately carries no version: its OnDestroy must not release the
         // shared assets it belongs to. Only real wearers hold a reference.
-        if (clone.TryGetComponent(out BasisFarAvatarInstance instance))
+        //
+        // Added when the clone did not bring one across. This used to be an `if (TryGetComponent)`
+        // whose else-branch shipped an avatar that could never release its shared assets — the
+        // wearer count then never falls, and the mirror below stays null, which makes the tick's
+        // IsWearingResolvedVersion permanently false and reinstalls the avatar every pass.
+        if (!clone.TryGetComponent(out BasisFarAvatarInstance instance))
         {
-            instance.SharedVersion = shared.UniqueVersion;
-            // Mirrored onto the avatar in the same breath so WornFarVersion never has to look
-            // the component up — it runs for every far-LOD wearer on every transmit tick.
-            avatar.FarLodSharedVersion = shared.UniqueVersion;
+            instance = clone.AddComponent<BasisFarAvatarInstance>();
         }
+        instance.SharedVersion = shared.UniqueVersion;
+        // Mirrored onto the avatar in the same breath so WornFarVersion never has to look
+        // the component up — it runs for every far-LOD wearer on every transmit tick.
+        avatar.FarLodSharedVersion = shared.UniqueVersion;
         // Cloned by value from a hierarchy whose references were remapped, but an avatar built
         // before the rig resolved would carry a null table — fall back rather than ship one.
         if (avatar.TransformStorage?.HumanoidBones == null)
@@ -323,7 +362,7 @@ public static class BasisFarAvatarBuilder
         if (avatar.FaceVisemeMesh == null || avatar.FaceVisemeMesh.sharedMesh == null)
         {
             BasisDebug.LogError($"Far avatar clone for {displayName} lost its mesh (version {shared.UniqueVersion}, prototype mesh {(shared.Mesh == null ? "destroyed" : "alive")}).", BasisDebug.LogTag.Avatar);
-            Object.Destroy(clone);
+            DestroyObject(clone);
             return null;
         }
         return avatar;
@@ -344,7 +383,7 @@ public static class BasisFarAvatarBuilder
         // orphaned; the fields are overwritten below, so drop it before it is unreachable.
         if (shared.PrototypeHolder != null)
         {
-            Object.Destroy(shared.PrototypeHolder);
+            DestroyObject(shared.PrototypeHolder);
             shared.PrototypeHolder = null;
             shared.Prototype = null;
         }
@@ -388,8 +427,8 @@ public static class BasisFarAvatarBuilder
             if (renderer.sharedMesh == null)
             {
                 BasisDebug.LogError($"Far avatar prototype for version {shared.UniqueVersion} has no mesh after assignment (shared mesh {(shared.Mesh == null ? "was already destroyed" : "was rejected by the renderer")}) — refusing to build. Every wearer cloned from this prototype would render nothing.", BasisDebug.LogTag.Avatar);
-                Object.Destroy(root);
-                Object.Destroy(buildHolder);
+                DestroyObject(root);
+                DestroyObject(buildHolder);
                 return false;
             }
             renderer.localBounds = new Bounds(payload.LocalBoundsCenter, payload.LocalBoundsExtents * 2f);
@@ -407,8 +446,8 @@ public static class BasisFarAvatarBuilder
                 shared.HumanoidRig = BuildHumanoidRig(root, bones, payload);
                 if (shared.HumanoidRig == null)
                 {
-                    Object.Destroy(root);
-                    Object.Destroy(buildHolder);
+                    DestroyObject(root);
+                    DestroyObject(buildHolder);
                     return false;
                 }
             }
@@ -436,7 +475,7 @@ public static class BasisFarAvatarBuilder
             // It outlives scene changes for the same reason the shared mesh/material do: an
             // additive world switch would otherwise force a rebuild on the next swap.
             root.SetActive(false);
-            Object.DontDestroyOnLoad(buildHolder);
+            KeepAlive(buildHolder);
             shared.Prototype = root;
             shared.PrototypeHolder = buildHolder;
             return true;
@@ -444,8 +483,8 @@ public static class BasisFarAvatarBuilder
         catch (System.Exception e)
         {
             BasisDebug.LogError($"Far avatar build failed for {displayName}: {e}", BasisDebug.LogTag.Avatar);
-            Object.Destroy(root);
-            Object.Destroy(buildHolder);
+            DestroyObject(root);
+            DestroyObject(buildHolder);
             return false;
         }
     }
@@ -507,7 +546,7 @@ public static class BasisFarAvatarBuilder
                 BasisDebug.LogError("Far avatar humanoid rig rebuild produced an invalid rig.", BasisDebug.LogTag.Avatar);
                 if (built != null)
                 {
-                    Object.Destroy(built);
+                    DestroyObject(built);
                 }
                 return null;
             }
@@ -531,6 +570,7 @@ public static class BasisFarAvatarBuilder
         if (IsSharedUsable(uniqueVersion) && SharedByVersion.TryGetValue(uniqueVersion, out SharedAssets existing))
         {
             existing.RefCount++;
+            sPendingTeardown.Remove(uniqueVersion);
             if (TraceSharedLifetime)
             {
                 BasisDebug.Log($"Far avatar acquire {uniqueVersion} (cached) -> refcount {existing.RefCount}", BasisDebug.LogTag.Avatar);
@@ -563,7 +603,7 @@ public static class BasisFarAvatarBuilder
         if (shared.Mesh == null)
         {
             BasisDebug.LogError($"Far avatar mesh build failed for version {uniqueVersion}.", BasisDebug.LogTag.Avatar);
-            Object.Destroy(texture);
+            DestroyObject(texture);
             return null;
         }
 
@@ -574,8 +614,8 @@ public static class BasisFarAvatarBuilder
         if (sFarAvatarShader == null)
         {
             BasisDebug.LogError("Basis/AvatarFarLod shader missing from build — far avatars disabled.", BasisDebug.LogTag.Avatar);
-            Object.Destroy(texture);
-            Object.Destroy(shared.Mesh);
+            DestroyObject(texture);
+            DestroyObject(shared.Mesh);
             return null;
         }
         shared.Material = new Material(sFarAvatarShader) { enableInstancing = true };
@@ -619,18 +659,70 @@ public static class BasisFarAvatarBuilder
         return false;
     }
 
+    /// <summary>
+    /// Versions whose wearer count has reached zero, waiting for the transmit tick to retire them.
+    /// Main-thread access only.
+    /// </summary>
+    private static readonly List<string> sPendingTeardown = new List<string>(4);
+
+    /// <summary>
+    /// Retires the versions whose last wearer went away. Called from the top of the transmit tick,
+    /// which is a plain main-thread point — the release itself is NOT: it arrives through
+    /// <see cref="BasisFarAvatarInstance.OnDestroy"/>, i.e. from inside Unity's destruction pass,
+    /// where destroying further GameObjects (the prototype and its DontDestroyOnLoad holder) is not
+    /// reliably honoured. Tearing down there stranded a prototype whose mesh had already been freed,
+    /// and since every wearer is a clone of that prototype the strand is what a null far LOD mesh
+    /// looks like. Same rule the install path already follows for the same reason.
+    ///
+    /// A version re-acquired before the drain is skipped: the wearer came back (a range-boundary
+    /// flip, a swap out and straight back in) and the assets it wants are still the ones it had, so
+    /// nothing is rebuilt.
+    /// </summary>
+    private static readonly List<string> sTeardownScratch = new List<string>(4);
+
+    public static void DrainPendingTeardowns()
+    {
+        if (sPendingTeardown.Count == 0)
+        {
+            return;
+        }
+        // Drained through a scratch copy: DropShared removes the version from the pending list,
+        // which would shift the indices out from under a direct walk.
+        sTeardownScratch.Clear();
+        sTeardownScratch.AddRange(sPendingTeardown);
+        sPendingTeardown.Clear();
+        for (int Index = 0; Index < sTeardownScratch.Count; Index++)
+        {
+            if (SharedByVersion.TryGetValue(sTeardownScratch[Index], out SharedAssets shared) && shared.RefCount <= 0)
+            {
+                DropShared(shared);
+            }
+        }
+        sTeardownScratch.Clear();
+    }
+
     private static void ReleaseShared(SharedAssets shared)
     {
         shared.RefCount--;
+        if (shared.RefCount < 0)
+        {
+            // Floored so an unbalanced release can never leave the count negative: the next
+            // acquire would then come back to zero, read as "still retiring", and let the drain
+            // free the assets out from under that wearer.
+            shared.RefCount = 0;
+        }
         if (TraceSharedLifetime)
         {
-            BasisDebug.Log($"Far avatar release {shared.UniqueVersion} -> refcount {shared.RefCount}{(shared.RefCount <= 0 ? "\n" + System.Environment.StackTrace : string.Empty)}", BasisDebug.LogTag.Avatar);
+            BasisDebug.Log($"Far avatar release {shared.UniqueVersion} -> refcount {shared.RefCount}", BasisDebug.LogTag.Avatar);
         }
         if (shared.RefCount > 0)
         {
             return;
         }
-        DropShared(shared);
+        if (!sPendingTeardown.Contains(shared.UniqueVersion))
+        {
+            sPendingTeardown.Add(shared.UniqueVersion);
+        }
     }
 
     /// <summary>
@@ -642,29 +734,30 @@ public static class BasisFarAvatarBuilder
     private static void DropShared(SharedAssets shared)
     {
         SharedByVersion.Remove(shared.UniqueVersion);
+        sPendingTeardown.Remove(shared.UniqueVersion);
         // The prototype goes first: it holds the mesh/material/rig below and its own
         // BasisFarAvatarInstance is version-less, so destroying it releases nothing further.
         if (shared.PrototypeHolder != null)
         {
-            Object.Destroy(shared.PrototypeHolder);
+            DestroyObject(shared.PrototypeHolder);
         }
         shared.PrototypeHolder = null;
         shared.Prototype = null;
         if (shared.Material != null)
         {
-            Object.Destroy(shared.Material);
+            DestroyObject(shared.Material);
         }
         if (shared.Texture != null)
         {
-            Object.Destroy(shared.Texture);
+            DestroyObject(shared.Texture);
         }
         if (shared.Mesh != null)
         {
-            Object.Destroy(shared.Mesh);
+            DestroyObject(shared.Mesh);
         }
         if (shared.HumanoidRig != null)
         {
-            Object.Destroy(shared.HumanoidRig);
+            DestroyObject(shared.HumanoidRig);
         }
         shared.Material = null;
         shared.Texture = null;
