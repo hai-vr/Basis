@@ -202,4 +202,39 @@ public class BasisFarAvatarSharedLifetimeTests
         RetireWearer(replacement);
         DrainPendingTeardowns();
     }
+
+    /// <summary>
+    /// The reference count is bookkeeping and can be wrong; the live wearer list is not. Even with
+    /// the count driven to zero under two live wearers — an unbalanced release, a wearer built on a
+    /// path that never counted — the drain must keep the assets, because destroying the shared mesh
+    /// out from under a renderer is exactly the null far LOD mesh and is unrecoverable for it.
+    /// </summary>
+    [Test]
+    public void UndercountedRefs_CannotFreeTheMeshUnderALiveWearer()
+    {
+        string version = NewVersion();
+        object shared = AcquireShared(version, BasisFarLodTestPayloads.CreateInstallable());
+        BasisAvatar first = BuildAvatar(shared, "live-one");
+        BasisAvatar second = BuildAvatar(shared, "live-two");
+        Assert.IsNotNull(first);
+        Assert.IsNotNull(second);
+        Mesh mesh = Field<Mesh>(shared, "Mesh");
+
+        SharedType.GetField("RefCount").SetValue(shared, 0);
+        BasisFarAvatarBuilder.ReleaseSharedByVersion(version);
+        // The guard reports the unbalanced pair every time it saves a live wearer; that report is
+        // the behaviour under test, not an incidental log.
+        LogAssert.Expect(LogType.Error, new Regex("queued for teardown while 2 wearer"));
+        DrainPendingTeardowns();
+
+        Assert.AreSame(mesh, Field<Mesh>(shared, "Mesh"), "a wrong count must never free a mesh in use");
+        Assert.IsNotNull(RendererOf(first).sharedMesh, "first live wearer keeps its mesh");
+        Assert.IsNotNull(RendererOf(second).sharedMesh, "second live wearer keeps its mesh");
+        Assert.AreEqual(2, SharedType.GetField("RefCount").GetValue(shared), "the count is re-synced from the live wearers");
+
+        RetireWearer(first);
+        RetireWearer(second);
+        DrainPendingTeardowns();
+        Assert.IsFalse(IsSharedUsable(version), "with every wearer gone the version finally retires");
+    }
 }

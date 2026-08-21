@@ -32,6 +32,15 @@ public static class BasisFarAvatarBuilder
         public int RefCount;
 
         /// <summary>
+        /// The live wearers of this version. The reference count above is bookkeeping and can be
+        /// wrong — an unbalanced acquire, a wearer built on a path that never released, a release
+        /// arriving for an avatar that was already gone — and being wrong by one means the shared
+        /// mesh is destroyed while somebody is still rendering it, which is not recoverable for
+        /// that wearer. This list is the ground truth: the teardown asks it, not the count.
+        /// </summary>
+        public readonly List<BasisFarAvatarInstance> Wearers = new List<BasisFarAvatarInstance>(4);
+
+        /// <summary>
         /// The fully wired far avatar for this version, built once and kept inactive under
         /// <see cref="PrototypeHolder"/>. Every wearer after the first is a single
         /// <see cref="Object.Instantiate"/> of it instead of ~23 GameObject creations, four
@@ -350,6 +359,7 @@ public static class BasisFarAvatarBuilder
             instance = clone.AddComponent<BasisFarAvatarInstance>();
         }
         instance.SharedVersion = shared.UniqueVersion;
+        shared.Wearers.Add(instance);
         // Mirrored onto the avatar in the same breath so WornFarVersion never has to look
         // the component up — it runs for every far-LOD wearer on every transmit tick.
         avatar.FarLodSharedVersion = shared.UniqueVersion;
@@ -680,6 +690,24 @@ public static class BasisFarAvatarBuilder
     /// </summary>
     private static readonly List<string> sTeardownScratch = new List<string>(4);
 
+    /// <summary>
+    /// Drops wearers whose avatar has been destroyed and returns how many are still live. A
+    /// destroyed MonoBehaviour compares equal to null, and one that was reassigned to a different
+    /// version no longer belongs to this one, so both are pruned.
+    /// </summary>
+    private static int PruneWearers(SharedAssets shared)
+    {
+        for (int Index = shared.Wearers.Count - 1; Index >= 0; Index--)
+        {
+            BasisFarAvatarInstance wearer = shared.Wearers[Index];
+            if (wearer == null || wearer.SharedVersion != shared.UniqueVersion)
+            {
+                shared.Wearers.RemoveAt(Index);
+            }
+        }
+        return shared.Wearers.Count;
+    }
+
     public static void DrainPendingTeardowns()
     {
         if (sPendingTeardown.Count == 0)
@@ -693,10 +721,23 @@ public static class BasisFarAvatarBuilder
         sPendingTeardown.Clear();
         for (int Index = 0; Index < sTeardownScratch.Count; Index++)
         {
-            if (SharedByVersion.TryGetValue(sTeardownScratch[Index], out SharedAssets shared) && shared.RefCount <= 0)
+            if (!SharedByVersion.TryGetValue(sTeardownScratch[Index], out SharedAssets shared))
             {
-                DropShared(shared);
+                continue;
             }
+            int live = PruneWearers(shared);
+            if (live > 0)
+            {
+                // Somebody is still wearing this version, so the count that queued it was wrong.
+                // Re-sync from the wearers and keep the assets — destroying a mesh out from under
+                // a live renderer is what the null far LOD mesh was. Always logged, not gated on
+                // TraceSharedLifetime: reaching here means an acquire/release pair is unbalanced,
+                // which is a defect worth a stack every time rather than only while tracing.
+                BasisDebug.LogError($"Far avatar version {shared.UniqueVersion} was queued for teardown while {live} wearer(s) are still live (count said {shared.RefCount}) — an acquire/release pair is unbalanced. Assets kept and the count re-synced.\n{System.Environment.StackTrace}", BasisDebug.LogTag.Avatar);
+                shared.RefCount = live;
+                continue;
+            }
+            DropShared(shared);
         }
         sTeardownScratch.Clear();
     }
@@ -735,6 +776,7 @@ public static class BasisFarAvatarBuilder
     {
         SharedByVersion.Remove(shared.UniqueVersion);
         sPendingTeardown.Remove(shared.UniqueVersion);
+        shared.Wearers.Clear();
         // The prototype goes first: it holds the mesh/material/rig below and its own
         // BasisFarAvatarInstance is version-less, so destroying it releases nothing further.
         if (shared.PrototypeHolder != null)
