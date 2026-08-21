@@ -3153,6 +3153,24 @@
     { "key": "mirror.grabbable", "value": "可抓取" },
     { "key": "mirror.grabbable.description", "value": "允許抓取並移動個人鏡子。" },
     { "key": "mirror.moveWithPlayspace", "value": "隨遊玩空間移動" },
-    { "key": "mirror.moveWithPlayspace.description", "value": "讓個人鏡子隨你的遊玩空間一起移動和旋轉，而不是留在世界中。" }
+    { "key": "mirror.moveWithPlayspace.description", "value": "讓個人鏡子隨你的遊玩空間一起移動和旋轉，而不是留在世界中。" },
+    { "key": "settings.microphone.test.title", "value": "測試麥克風" },
+    { "key": "settings.microphone.test.monitor", "value": "測試錄音" },
+    { "key": "settings.microphone.test.monitor.tooltip", "value": "用麥克風錄製一小段並回放，聽聽其他玩家聽到的效果。錄音僅保存在本機，絕不會傳送到伺服器。" },
+    { "key": "settings.microphone.test.record", "value": "錄製" },
+    { "key": "settings.microphone.test.record.tooltip", "value": "開始一次麥克風測試錄音。停止後會自動回放。" },
+    { "key": "settings.microphone.test.stop", "value": "停止並回放" },
+    { "key": "settings.microphone.test.play", "value": "回放" },
+    { "key": "settings.microphone.test.play.tooltip", "value": "透過喇叭或頭戴裝置耳機回放最近一次測試錄音。" },
+    { "key": "settings.microphone.test.playStop", "value": "停止回放" },
+    { "key": "settings.microphone.test.play.disabled", "value": "請先錄製一段測試錄音。" },
+    { "key": "settings.microphone.test.status.recording", "value": "錄製中 {0:F1} 秒 / {1} 秒" },
+    { "key": "settings.microphone.test.status.playing", "value": "回放中 {0:F1} 秒 / {1:F1} 秒" },
+    { "key": "settings.microphone.test.status.ready", "value": "已錄製 {0:F1} 秒。按「回放」即可聆聽。" },
+    { "key": "settings.microphone.test.status.waiting", "value": "正在等待麥克風輸入…" },
+    { "key": "settings.microphone.test.status.muted", "value": "麥克風已靜音。僅在展開此區段時開啟，不會向其他玩家傳送任何內容。" },
+    { "key": "settings.microphone.test.status.idle", "value": "說話以檢查音量，然後按「錄製」回聽自己的聲音。" },
+    { "key": "settings.microphone.test.status.noDevice", "value": "沒有可用的麥克風。" },
+    { "key": "settings.microphone.test.status.recordingMuted", "value": "錄製中 {0:F1} 秒 / {1} 秒 — 已靜音，不會傳送給其他玩家。" }
   ]
 }

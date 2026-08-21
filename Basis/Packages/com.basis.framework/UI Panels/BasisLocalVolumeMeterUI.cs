@@ -51,7 +51,7 @@ public class BasisLocalVolumeMeterUI : MonoBehaviour
     {
         // Read the rolling RMS computed by your driver.
         float rms = BasisLocalMicrophoneDriver.averageRms;
-        if (BasisLocalMicrophoneDriver.isPaused) rms = 0f;
+        if (BasisLocalMicrophoneDriver.isPaused && !BasisLocalMicrophoneDriver.MuteBypassed) rms = 0f;
 
         // Map to 0..1
         float target = useDecibels ? RmsToUnit(rms) : Mathf.Clamp01(rms);

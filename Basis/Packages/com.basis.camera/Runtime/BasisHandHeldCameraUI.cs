@@ -1348,6 +1348,15 @@ public partial class BasisHandHeldCameraUI
     public const float MinLensDistortionScale = 0.01f;
     public const float MaxLensDistortionScale = 5f;
 
+    public void SyncFocusReadout()
+    {
+        if (HHC == null || HHC.MetaData == null || HHC.MetaData.depthOfField == null) return;
+
+        float focus = HHC.MetaData.depthOfField.focusDistance.value;
+        if (DepthFocusDistanceSlider != null) DepthFocusDistanceSlider.SetValueWithoutNotify(focus);
+        if (DOFFocusOutput != null) DOFFocusOutput.SetText(focus.ToString("F2"));
+    }
+
     public void DepthChangeFocusDistance(float value)
     {
         if (HHC == null || HHC.MetaData.depthOfField == null) return;
@@ -1393,7 +1402,7 @@ public partial class BasisHandHeldCameraUI
         int clamped = Mathf.Clamp(mode, 0, 2);
         HHC.MetaData.depthOfField.mode.overrideState = true;
         HHC.MetaData.depthOfField.mode.value = (UnityEngine.Rendering.Universal.DepthOfFieldMode)clamped;
-        HHC.ApplyFocusDistance(HHC.MetaData.depthOfField.focusDistance.value);
+        HHC.RefreshFocusDistance();
         return clamped;
     }
 
@@ -1403,7 +1412,7 @@ public partial class BasisHandHeldCameraUI
         {
             HHC.MetaData.depthOfField.focalLength.overrideState = true;
             HHC.MetaData.depthOfField.focalLength.value = value;
-            HHC.ApplyFocusDistance(HHC.MetaData.depthOfField.focusDistance.value);
+            HHC.RefreshFocusDistance();
         }
     }
 

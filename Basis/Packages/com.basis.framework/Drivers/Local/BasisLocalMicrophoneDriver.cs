@@ -38,6 +38,15 @@ public static class BasisLocalMicrophoneDriver
     private static bool IsSuppressMuteMode =>
         Basis.BasisUI.BasisSettingsDefaults.MicMuteBehavior?.RawValue == SettingMuteSuppress;
 
+    private static int captureHolds;
+    private static int muteBypasses;
+
+    public static bool HasCaptureHold => Volatile.Read(ref captureHolds) > 0;
+
+    public static bool MuteBypassed => Volatile.Read(ref muteBypasses) > 0;
+
+    private static bool KeepCaptureWhilePaused => IsSuppressMuteMode || HasCaptureHold;
+
     public static Action OnHasAudio;
     public static Action OnHasSilence;
 
@@ -162,7 +171,7 @@ public static class BasisLocalMicrophoneDriver
             isPaused = value;
             PlayerPrefs.SetInt(MicrophoneState, isPaused ? 1 : 0);
 
-            bool suppress = IsSuppressMuteMode;
+            bool suppress = KeepCaptureWhilePaused;
 
             if (isPaused)
             {
@@ -322,6 +331,43 @@ public static class BasisLocalMicrophoneDriver
     public static void ToggleIsPaused()
     {
         IsPaused = !IsPaused;
+    }
+
+    public static void AddCaptureHold()
+    {
+        Interlocked.Increment(ref captureHolds);
+        if (!IsInitialize || !isPaused || MicrophoneIsStarted) return;
+
+        string desired = SMDMicrophone.Current.Microphone;
+        if (string.IsNullOrEmpty(desired)) desired = _pendingDeviceWhenPaused;
+        if (string.IsNullOrEmpty(desired)) desired = MicrophoneDevice;
+
+        if (!string.IsNullOrEmpty(desired)) ResetMicrophones(desired);
+    }
+
+    public static void ReleaseCaptureHold()
+    {
+        int remaining = Interlocked.Decrement(ref captureHolds);
+        if (remaining < 0)
+        {
+            Interlocked.Exchange(ref captureHolds, 0);
+            return;
+        }
+
+        if (remaining > 0) return;
+        if (isPaused && !IsSuppressMuteMode) StopSelectedMicrophone();
+    }
+
+    public static void AddMuteBypass()
+    {
+        AddCaptureHold();
+        Interlocked.Increment(ref muteBypasses);
+    }
+
+    public static void ReleaseMuteBypass()
+    {
+        if (Interlocked.Decrement(ref muteBypasses) < 0) Interlocked.Exchange(ref muteBypasses, 0);
+        ReleaseCaptureHold();
     }
 
     public static bool ResetMicrophones(string newMicrophone)
@@ -499,6 +545,8 @@ public static class BasisLocalMicrophoneDriver
             if (microphoneBufferArray != null) Array.Clear(microphoneBufferArray, 0, microphoneBufferArray.Length);
         }
 
+        BasisMicrophoneWaveform.Clear();
+
         // Drop any raw chunks captured for the old device/config.
         lock (stagingLock)
         {
@@ -562,7 +610,7 @@ public static class BasisLocalMicrophoneDriver
             _recoveryBackoffSeconds = 0f;
         }
 
-        bool micShouldRun = !IsPaused || IsSuppressMuteMode;
+        bool micShouldRun = !IsPaused || KeepCaptureWhilePaused;
         if (!micShouldRun) return;
 
         string preferred = SMDMicrophone.Current.Microphone;
@@ -893,6 +941,8 @@ public static class BasisLocalMicrophoneDriver
                 DownmixDeltaIntoRingMono(written, ProcessFrameSize, bufferLength, ch, _stagingScratch, microphoneBufferArray);
                 written = (written + ProcessFrameSize) % bufferLength;
             }
+
+            BasisMicrophoneWaveform.Push(_stagingScratch, ProcessFrameSize, ch, isPaused && !MuteBypassed);
         }
     }
 

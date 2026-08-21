@@ -3149,6 +3149,24 @@
     { "key": "mirror.grabbable", "value": "Agarrable" },
     { "key": "mirror.grabbable.description", "value": "Permite agarrar y mover el espejo personal." },
     { "key": "mirror.moveWithPlayspace", "value": "Mover con el espacio de juego" },
-    { "key": "mirror.moveWithPlayspace.description", "value": "Mueve y gira el espejo personal con tu espacio de juego en lugar de dejarlo en el mundo." }
+    { "key": "mirror.moveWithPlayspace.description", "value": "Mueve y gira el espejo personal con tu espacio de juego en lugar de dejarlo en el mundo." },
+    { "key": "settings.microphone.test.title", "value": "Probar micrófono" },
+    { "key": "settings.microphone.test.monitor", "value": "Grabación de prueba" },
+    { "key": "settings.microphone.test.monitor.tooltip", "value": "Graba un clip corto con tu micrófono y reprodúcelo para oír lo que escuchan los demás jugadores. El clip se queda en este equipo y nunca se envía al servidor." },
+    { "key": "settings.microphone.test.record", "value": "Grabar" },
+    { "key": "settings.microphone.test.record.tooltip", "value": "Inicia una grabación de prueba de tu micrófono. Se reproduce automáticamente al detenerla." },
+    { "key": "settings.microphone.test.stop", "value": "Detener y reproducir" },
+    { "key": "settings.microphone.test.play", "value": "Reproducir" },
+    { "key": "settings.microphone.test.play.tooltip", "value": "Reproduce la última grabación de prueba por tus altavoces o auriculares." },
+    { "key": "settings.microphone.test.playStop", "value": "Detener reproducción" },
+    { "key": "settings.microphone.test.play.disabled", "value": "Graba primero un clip de prueba." },
+    { "key": "settings.microphone.test.status.recording", "value": "Grabando {0:F1} s de {1} s" },
+    { "key": "settings.microphone.test.status.playing", "value": "Reproduciendo {0:F1} s de {1:F1} s" },
+    { "key": "settings.microphone.test.status.ready", "value": "{0:F1} s grabados. Pulsa «Reproducir» para escucharlo." },
+    { "key": "settings.microphone.test.status.waiting", "value": "Esperando la entrada del micrófono…" },
+    { "key": "settings.microphone.test.status.muted", "value": "Tu micrófono está silenciado. Solo se abre mientras esta sección está abierta y no se envía nada a los demás jugadores." },
+    { "key": "settings.microphone.test.status.idle", "value": "Habla para comprobar tu nivel y pulsa «Grabar» para escucharte." },
+    { "key": "settings.microphone.test.status.noDevice", "value": "No hay ningún micrófono disponible." },
+    { "key": "settings.microphone.test.status.recordingMuted", "value": "Grabando {0:F1} s de {1} s — silenciado, no se envía nada a los demás jugadores." }
   ]
 }

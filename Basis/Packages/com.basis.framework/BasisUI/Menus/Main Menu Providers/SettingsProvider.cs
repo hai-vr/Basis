@@ -647,11 +647,6 @@ namespace Basis.BasisUI
                     toggleAvatarPreviewMirror.Descriptor.SetActive(val);
                     descriptor.ForceRebuild();
                 };
-
-                PanelToggle toggleCameraHud = PanelToggle.CreateNewEntry(container);
-                toggleCameraHud.AssignBinding(BasisSettingsDefaults.CameraHud);
-                toggleCameraHud.Descriptor.SetTitle(BasisLocalization.Get("settings.general.cameraHud"));
-                toggleCameraHud.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.cameraHud.tooltip"));
             }, false, visible =>
             {
                 if (visible && toggleAvatarPreviewMirror != null)
@@ -910,7 +905,6 @@ namespace Basis.BasisUI
         {
             BasisSettingsDefaults.AvatarPreview.ResetToDefault();
             BasisSettingsDefaults.AvatarPreviewMirror.ResetToDefault();
-            BasisSettingsDefaults.CameraHud.ResetToDefault();
             BasisSettingsDefaults.DisableSeats.ResetToDefault();
             BasisSettingsDefaults.DisablePropPickup.ResetToDefault();
             BasisSettingsDefaults.DisableVRAutoHold.ResetToDefault();
@@ -1195,10 +1189,9 @@ namespace Basis.BasisUI
             }
             sliderMicrophoneVolume.SliderComponent.onValueChanged.AddListener(MicrophoneVolumeChanged);
 
-            BasisLocalVolumeMeterUIDescriptor volumeMeter =
-                BasisLocalVolumeMeterUIDescriptor.CreateNew(
-                    BasisLocalVolumeMeterUIDescriptor.ElementStyles.Horizontal,
-                    microphoneGroup.ContentParent);
+            SettingsProviderMicrophoneTest.BuildMicrophoneTestSection(
+                microphoneGroup.ContentParent,
+                _ => RebuildFrom(microphoneGroup.ContentParent));
 
             // Microphone Selection (device list)
             dropdownMicrophoneSelection = PanelDropdown.CreateNewEntry(microphoneGroup);
@@ -1702,11 +1695,6 @@ namespace Basis.BasisUI
                 sliderMaxVisibleAvatars.Descriptor.SetActive(val);
                 qualityGroup.ForceRebuild();
             };
-
-            PanelToggle togglePerfSuggestions = PanelToggle.CreateNewEntry(qualityGroup);
-            togglePerfSuggestions.AssignBinding(BasisSettingsDefaults.HighPlayerCapSuggestions);
-            togglePerfSuggestions.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.highPlayerCapSuggestions"));
-            togglePerfSuggestions.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.highPlayerCapSuggestions.tooltip"));
 
             PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownQualityLevel.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.qualityLevel"));
@@ -2283,7 +2271,7 @@ namespace Basis.BasisUI
 
         /// <summary>
         /// Performance Mode block at the head of the Graphics page: the level itself, whether it
-        /// follows the instance population on its own, and a line naming the population tiers.
+        /// follows the instance population on its own, and whether a busy instance may offer it.
         /// The section is tinted by the active level so the page shows at a glance how hard the
         /// mode is cutting. Changing the level rewrites the settings the rest of this page shows,
         /// so the page is reopened afterwards the same way the reset button does it.
@@ -2330,6 +2318,11 @@ namespace Basis.BasisUI
             toggleAuto.AssignBinding(BasisSettingsDefaults.PerformanceModeAuto);
             toggleAuto.Descriptor.SetTitle(BasisLocalization.Get("settings.performanceMode.auto"));
             toggleAuto.Descriptor.SetTooltip(BasisLocalization.Get("settings.performanceMode.auto.tooltip"));
+
+            PanelToggle togglePerfSuggestions = PanelToggle.CreateNewEntry(group.ContentParent);
+            togglePerfSuggestions.AssignBinding(BasisSettingsDefaults.HighPlayerCapSuggestions);
+            togglePerfSuggestions.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.highPlayerCapSuggestions"));
+            togglePerfSuggestions.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.highPlayerCapSuggestions.tooltip"));
 
             string autoLocked = BasisLocalization.Get("settings.performanceMode.level.autoLocked");
             dropdownLevel.SetInteractable(!toggleAuto.Value, autoLocked);
@@ -2386,6 +2379,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.PerformanceModeAuto.ResetToDefault();
             BasisSettingsDefaults.PerformanceModeLevel.ResetToDefault();
             BasisSettingsDefaults.PerformanceModeBaseline.ResetToDefault();
+            BasisSettingsDefaults.HighPlayerCapSuggestions.ResetToDefault();
 
             SettingsProviderPerformanceLimits.ResetPerformanceLimitDefaults();
             SettingsProviderNamePlate.ResetNamePlateDefaults();
@@ -2393,7 +2387,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AvatarRange.ResetToDefault();
             BasisSettingsDefaults.UseMaxVisibleAvatars.ResetToDefault();
             BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
-            BasisSettingsDefaults.HighPlayerCapSuggestions.ResetToDefault();
 
             BasisSettingsDefaults.QualityLevel.ResetToDefault();
             BasisSettingsDefaults.ShadowQuality.ResetToDefault();

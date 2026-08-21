@@ -710,6 +710,7 @@ namespace Basis.BasisUI.HandHeldCamera
                     if (!confirmed || camera == null) return;
 
                     camera.HandHeld.ResetSettings();
+                    BasisSettingsDefaults.CameraHud.ResetToDefault();
                     BasisSettingsDefaults.LimitHandHeldCameraRate.ResetToDefault();
                     BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
                     BasisMainMenu.Close();
@@ -1432,10 +1433,24 @@ namespace Basis.BasisUI.HandHeldCamera
                 _lastCloseHides = v;
             };
 
+            // One row drives both halves of the preview screen: the selected camera's own
+            // override, so the flip is immediate whatever the camera is doing, and the
+            // account-wide Camera HUD setting, so it is remembered and every other camera
+            // spawns one by itself once it goes direct-to-screen or flies in VR. They were two
+            // controls until the second read as a duplicate of the first - and worse, setting
+            // the override was one-way, so touching this row once left the account setting with
+            // no effect on this camera for the rest of its life. Written together they cannot
+            // disagree. The tooltip is the moved setting's own string, kept with its
+            // settings.general.cameraHud key because it is translated into sixteen languages.
             _previewScreenToggle = PanelToggle.CreateNewEntry(content);
             _previewScreenToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.previewScreen"));
             _previewScreenToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.previewScreen.description"));
-            _previewScreenToggle.OnValueChanged = v => _activeCamera?.SetPreviewScreenVisible(v);
+            _previewScreenToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.cameraHud.tooltip"));
+            _previewScreenToggle.OnValueChanged = v =>
+            {
+                _activeCamera?.SetPreviewScreenVisible(v);
+                BasisSettingsDefaults.CameraHud.SetValue(v);
+            };
 
             _audioListenerToggle = PanelToggle.CreateNewEntry(content);
             _audioListenerToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.hearFromCamera"));

@@ -3149,6 +3149,24 @@
     { "key": "mirror.grabbable", "value": "Saisissable" },
     { "key": "mirror.grabbable.description", "value": "Autorise la saisie et le déplacement du miroir personnel." },
     { "key": "mirror.moveWithPlayspace", "value": "Déplacer avec l’espace de jeu" },
-    { "key": "mirror.moveWithPlayspace.description", "value": "Déplace et fait pivoter le miroir personnel avec votre espace de jeu au lieu de le laisser dans le monde." }
+    { "key": "mirror.moveWithPlayspace.description", "value": "Déplace et fait pivoter le miroir personnel avec votre espace de jeu au lieu de le laisser dans le monde." },
+    { "key": "settings.microphone.test.title", "value": "Tester le microphone" },
+    { "key": "settings.microphone.test.monitor", "value": "Enregistrement de test" },
+    { "key": "settings.microphone.test.monitor.tooltip", "value": "Enregistrez un court extrait avec votre microphone et écoutez-le pour savoir ce que les autres joueurs entendent. L'extrait reste sur cet ordinateur et n'est jamais envoyé au serveur." },
+    { "key": "settings.microphone.test.record", "value": "Enregistrer" },
+    { "key": "settings.microphone.test.record.tooltip", "value": "Lance un enregistrement de test de votre microphone. Il est lu automatiquement lorsque vous l'arrêtez." },
+    { "key": "settings.microphone.test.stop", "value": "Arrêter et écouter" },
+    { "key": "settings.microphone.test.play", "value": "Écouter" },
+    { "key": "settings.microphone.test.play.tooltip", "value": "Lit le dernier enregistrement de test sur vos haut-parleurs ou votre casque." },
+    { "key": "settings.microphone.test.playStop", "value": "Arrêter la lecture" },
+    { "key": "settings.microphone.test.play.disabled", "value": "Enregistrez d'abord un extrait de test." },
+    { "key": "settings.microphone.test.status.recording", "value": "Enregistrement {0:F1} s sur {1} s" },
+    { "key": "settings.microphone.test.status.playing", "value": "Lecture {0:F1} s sur {1:F1} s" },
+    { "key": "settings.microphone.test.status.ready", "value": "{0:F1} s enregistrées. Appuyez sur « Écouter » pour les entendre." },
+    { "key": "settings.microphone.test.status.waiting", "value": "En attente du signal du microphone…" },
+    { "key": "settings.microphone.test.status.muted", "value": "Votre microphone est coupé. Il n'est ouvert que tant que cette section est ouverte, et rien n'est envoyé aux autres joueurs." },
+    { "key": "settings.microphone.test.status.idle", "value": "Parlez pour vérifier votre niveau, puis appuyez sur « Enregistrer » pour vous réécouter." },
+    { "key": "settings.microphone.test.status.noDevice", "value": "Aucun microphone disponible." },
+    { "key": "settings.microphone.test.status.recordingMuted", "value": "Enregistrement {0:F1} s sur {1} s — micro coupé, rien n'est envoyé aux autres joueurs." }
   ]
 }

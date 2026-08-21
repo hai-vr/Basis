@@ -3149,6 +3149,24 @@
     { "key": "mirror.grabbable", "value": "Greifbar" },
     { "key": "mirror.grabbable.description", "value": "Erlaubt, den persönlichen Spiegel zu greifen und zu bewegen." },
     { "key": "mirror.moveWithPlayspace", "value": "Mit Spielbereich bewegen" },
-    { "key": "mirror.moveWithPlayspace.description", "value": "Bewegt und dreht den persönlichen Spiegel mit deinem Spielbereich, statt ihn in der Welt zurückzulassen." }
+    { "key": "mirror.moveWithPlayspace.description", "value": "Bewegt und dreht den persönlichen Spiegel mit deinem Spielbereich, statt ihn in der Welt zurückzulassen." },
+    { "key": "settings.microphone.test.title", "value": "Mikrofon testen" },
+    { "key": "settings.microphone.test.monitor", "value": "Testaufnahme" },
+    { "key": "settings.microphone.test.monitor.tooltip", "value": "Nimm einen kurzen Clip mit deinem Mikrofon auf und spiele ihn ab, um zu hören, was andere Spieler hören. Die Aufnahme bleibt auf diesem Computer und wird nie an den Server gesendet." },
+    { "key": "settings.microphone.test.record", "value": "Aufnehmen" },
+    { "key": "settings.microphone.test.record.tooltip", "value": "Startet eine Testaufnahme deines Mikrofons. Sie wird automatisch abgespielt, wenn du sie stoppst." },
+    { "key": "settings.microphone.test.stop", "value": "Stoppen & abspielen" },
+    { "key": "settings.microphone.test.play", "value": "Abspielen" },
+    { "key": "settings.microphone.test.play.tooltip", "value": "Spielt die letzte Testaufnahme über deine Lautsprecher oder dein Headset ab." },
+    { "key": "settings.microphone.test.playStop", "value": "Wiedergabe stoppen" },
+    { "key": "settings.microphone.test.play.disabled", "value": "Nimm zuerst einen Testclip auf." },
+    { "key": "settings.microphone.test.status.recording", "value": "Aufnahme {0:F1} s von {1} s" },
+    { "key": "settings.microphone.test.status.playing", "value": "Wiedergabe {0:F1} s von {1:F1} s" },
+    { "key": "settings.microphone.test.status.ready", "value": "{0:F1} s aufgenommen. Drücke „Abspielen“, um sie zu hören." },
+    { "key": "settings.microphone.test.status.waiting", "value": "Warte auf Mikrofoneingang…" },
+    { "key": "settings.microphone.test.status.muted", "value": "Dein Mikrofon ist stummgeschaltet. Es wird nur geöffnet, solange dieser Abschnitt offen ist, und nichts wird an andere Spieler gesendet." },
+    { "key": "settings.microphone.test.status.idle", "value": "Sprich, um deinen Pegel zu prüfen, und drücke dann „Aufnehmen“, um dich selbst zu hören." },
+    { "key": "settings.microphone.test.status.noDevice", "value": "Kein Mikrofon verfügbar." },
+    { "key": "settings.microphone.test.status.recordingMuted", "value": "Aufnahme {0:F1} s von {1} s — stummgeschaltet, es wird nichts an andere Spieler gesendet." }
   ]
 }

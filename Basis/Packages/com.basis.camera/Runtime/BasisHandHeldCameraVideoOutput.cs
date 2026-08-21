@@ -124,7 +124,22 @@ public partial class BasisHandHeldCamera
 
     private BasisWebVideoOutputSink webSink;
     private RenderTexture webStreamTexture;
-    private BasisRenderRateLimiter webPacing;
+
+    /// <summary>
+    /// Paces what the stream publishes. Not a <see cref="BasisRenderRateLimiter"/>: that one is
+    /// asked "may this frame run" and answers off its own clock, which is exactly what a stream
+    /// hanging off another rate-limited camera must not do.
+    /// </summary>
+    private BasisStreamFramePacer webStreamPacer;
+
+    /// <summary>
+    /// Set when the capture camera finishes a render, cleared when that render has been handed
+    /// to the stream. The one signal that a newer picture exists.
+    /// </summary>
+    private bool streamFrameIsFresh;
+
+    /// <summary>Called from the render pipeline when the capture camera has finished drawing.</summary>
+    private void MarkStreamFrameFresh() => streamFrameIsFresh = true;
 
     /// <summary>Address to open, or empty when not serving.</summary>
     public string WebStreamUrl => webSink != null ? webSink.Url : string.Empty;
@@ -219,7 +234,10 @@ public partial class BasisHandHeldCamera
         };
         webStreamTexture.Create();
 
-        webPacing = default;
+        webStreamPacer.Reset();
+        // The render texture already holds a frame, so the first viewer gets a picture without
+        // waiting for the capture camera to come round again.
+        streamFrameIsFresh = true;
         IsWebStreamActive = true;
         UpdateRenderGate();
         BasisDebug.Log($"Web stream started at {webSink.Url} — open it in a browser, or add it to OBS as a Browser source.", BasisDebug.LogTag.Camera);
@@ -291,11 +309,21 @@ public partial class BasisHandHeldCamera
             return;
         }
         // Nobody watching: skip the blit as well as the encode, so an idle stream is free.
-        if (!webSink.HasClients) return;
+        if (!webSink.HasClients)
+        {
+            webStreamPacer.Reset();
+            return;
+        }
 
         Texture source = renderTexture;
-        if (source == null) return;
-        if (!webPacing.AllowThisFrame(Time.unscaledDeltaTime, VideoOutputSettings.FrameRate, true)) return;
+
+        // Publish renders, not clock ticks — see BasisStreamFramePacer. The sink is asked whether
+        // it would take a frame before the slot is spent, so a tick that arrives mid-readback
+        // costs nothing and the next one sends the newest picture rather than waiting out another
+        // whole interval.
+        bool ready = source != null && webSink.CanAcceptFrame;
+        if (!webStreamPacer.AllowThisFrame(Time.unscaledDeltaTime, VideoOutputSettings.FrameRate, streamFrameIsFresh, ready)) return;
+        streamFrameIsFresh = false;
 
         GetStreamBlitCrop(source, webStreamTexture, out Vector2 scale, out Vector2 offset);
         Graphics.Blit(source, webStreamTexture, scale, offset);
@@ -593,6 +621,61 @@ namespace Basis
         Web,
     }
 
+    /// <summary>
+    /// Decides when a live output publishes a frame.
+    /// <para>
+    /// A stream hanging off a rate-limited camera has two clocks available and only one of them
+    /// is real. Pacing on its own accumulator — which is what this replaced — puts a second clock
+    /// next to the camera's, and two accumulators at the same nominal rate sampled once a frame
+    /// beat against each other: some slots land on a frame the camera has not redrawn, and the
+    /// same picture is encoded and sent twice; some fresh renders fall between slots and are
+    /// thrown away. The average frame rate comes out right, which is why this reads as working
+    /// code, and the picture arrives unevenly, which is the part a viewer sees.
+    /// </para>
+    /// <para>
+    /// So the fresh render is what drives it, and the frame rate is only a ceiling. The slack is
+    /// the other half of that: a source running at the stream rate delivers frames a hair early
+    /// as often as a hair late, and holding those back for a full interval is what would halve a
+    /// 30fps source to 15.
+    /// </para>
+    /// </summary>
+    public struct BasisStreamFramePacer
+    {
+        /// <summary>How early a fresh frame may be published, as a fraction of the frame interval.</summary>
+        public const float IntervalSlack = 0.9f;
+
+        /// <summary>Credit is capped at this many intervals, so a stall is not paid back as a burst.</summary>
+        public const float MaxBankedIntervals = 2f;
+
+        private float elapsed;
+
+        /// <summary>Drops banked time. For a stream that has just started or has no viewers.</summary>
+        public void Reset() => elapsed = 0f;
+
+        /// <summary>
+        /// Advances the clock and answers whether this tick should publish a frame.
+        /// </summary>
+        /// <param name="deltaTime">Time since the last tick.</param>
+        /// <param name="frameRate">Ceiling in frames per second. 0 or below publishes every fresh frame.</param>
+        /// <param name="frameIsFresh">Whether the source has drawn a picture that has not been published.</param>
+        /// <param name="sinkIsReady">Whether the sink would take a frame right now. A sink that would
+        /// not is never charged for the slot, so the next tick publishes instead of the next interval.</param>
+        public bool AllowThisFrame(float deltaTime, float frameRate, bool frameIsFresh, bool sinkIsReady)
+        {
+            float interval = frameRate > 0f ? 1f / frameRate : 0f;
+            elapsed += deltaTime;
+            if (interval > 0f && elapsed > interval * MaxBankedIntervals) elapsed = interval * MaxBankedIntervals;
+
+            if (!frameIsFresh || !sinkIsReady) return false;
+            if (interval > 0f && elapsed < interval * IntervalSlack) return false;
+
+            // Carry the remainder rather than zeroing, so a source running well above the stream
+            // rate is held to the stream rate exactly instead of drifting above it.
+            elapsed = interval > 0f ? Mathf.Max(0f, elapsed - interval) : 0f;
+            return true;
+        }
+    }
+
     public class BasisVideoOutputSettings
     {
         public int Width = 1920;
@@ -630,23 +713,71 @@ namespace Basis
         /// <summary>Consecutive ports tried before giving up.</summary>
         private const int PortAttempts = 16;
 
+        /// <summary>Longest the worker waits with nothing to do before it looks for new viewers.</summary>
+        private const int IdleWaitMs = 15;
+
+        /// <summary>Shorter wait while a connection is still mid-handshake, so it lands promptly.</summary>
+        private const int HandshakeWaitMs = 5;
+
+        /// <summary>How long a connection may sit without sending a request before it is closed.</summary>
+        private const int HandshakeTimeoutMs = 2000;
+
+        /// <summary>How long one frame may stay on the wire before the viewer is written off.</summary>
+        private const int WriteStallTimeoutMs = 4000;
+
         private static readonly byte[] FrameTrailer = Encoding.ASCII.GetBytes("\r\n");
+
+        /// <summary>A connected viewer. One frame is on the wire at a time; the rest are dropped.</summary>
+        private sealed class Viewer
+        {
+            public TcpClient Client;
+            public NetworkStream Stream;
+
+            /// <summary>Header, frame and trailer as one write, so a frame cannot be interleaved.</summary>
+            public byte[] Scratch = Array.Empty<byte>();
+
+            /// <summary>Set while a frame is on the wire. Written by the worker, cleared by the write callback.</summary>
+            public volatile bool Writing;
+
+            /// <summary>Set by the write callback. The worker owns the actual removal.</summary>
+            public volatile bool Dead;
+            public string Failure;
+            public int WriteStartedTick;
+        }
+
+        /// <summary>A connection that has been accepted but has not sent its request line yet.</summary>
+        private sealed class Handshake
+        {
+            public TcpClient Client;
+            public int DeadlineTick;
+        }
 
         private TcpListener listener;
         private Thread worker;
         private volatile bool running;
         private volatile int clientCount;
 
-        /// <summary>Touched only by the worker thread while running.</summary>
-        private readonly List<TcpClient> clients = new List<TcpClient>();
+        /// <summary>
+        /// Wakes the worker the moment a frame lands instead of leaving it to poll. Never disposed:
+        /// nothing here touches its <see cref="ManualResetEventSlim.WaitHandle"/>, so it holds no
+        /// kernel object, and disposing it would race the worker's own wait on the way out.
+        /// </summary>
+        private readonly ManualResetEventSlim frameSignal = new ManualResetEventSlim(false);
+
+        /// <summary>Both touched only by the worker thread while running.</summary>
+        private readonly List<Viewer> clients = new List<Viewer>();
+        private readonly List<Handshake> handshakes = new List<Handshake>();
 
         /// <summary>
-        /// Raw readback bytes handed from the main thread to the worker for encoding.
-        /// Ownership flips on <see cref="rawReady"/>: false means the main thread may fill it,
-        /// true means the worker is encoding it. Neither side touches it out of turn, so one
-        /// buffer is enough and nothing is allocated per frame.
+        /// Raw readback bytes on their way from the main thread to the worker, plus the one spare
+        /// buffer they pass back and forth. The worker takes <see cref="rawFrame"/> out under the
+        /// lock and returns it as <see cref="rawSpare"/> once it has encoded it, so the main thread
+        /// always has somewhere to write and an encode in progress never blocks the next readback.
+        /// Nothing is allocated per frame once both buffers exist.
         /// </summary>
         private byte[] rawFrame;
+        private byte[] rawSpare;
+        private readonly object rawLock = new object();
         private volatile bool rawReady;
         private int rawWidth;
         private int rawHeight;
@@ -671,6 +802,13 @@ namespace Basis
         public int Port { get; private set; }
         public string Url => $"http://127.0.0.1:{Port}/";
         public bool HasClients => clientCount > 0;
+
+        /// <summary>
+        /// True when a frame pushed now would actually be taken. Asked before the blit so a tick
+        /// that cannot publish costs nothing and, more importantly, does not spend the caller's
+        /// pacing slot on a frame that is about to be thrown away.
+        /// </summary>
+        public bool CanAcceptFrame => running && clientCount > 0 && !readbackInFlight && !rawReady;
 
         public bool Start(int port)
         {
@@ -704,12 +842,12 @@ namespace Basis
             return true;
         }
 
-        /// <summary>Main thread. Requests a readback of the frame; the encode happens in the callback.</summary>
+        /// <summary>Main thread. Requests a readback of the frame; the encode happens on the worker.</summary>
         public void PushFrame(RenderTexture frame, int quality)
         {
             // One readback in flight at a time: queueing them would just build latency, and
             // the newest frame is the only one a live stream cares about.
-            if (!running || readbackInFlight || clientCount == 0) return;
+            if (!CanAcceptFrame) return;
 
             frameWidth = frame.width;
             frameHeight = frame.height;
@@ -721,22 +859,33 @@ namespace Basis
         public void Stop()
         {
             running = false;
+            frameSignal.Set();
             try { listener?.Stop(); } catch (Exception) { }
             listener = null;
 
             if (worker != null)
             {
-                worker.Join(250);
+                worker.Join(500);
                 worker = null;
             }
 
             for (int Index = 0; Index < clients.Count; Index++)
             {
-                try { clients[Index].Close(); } catch (Exception) { }
+                try { clients[Index].Client.Close(); } catch (Exception) { }
             }
             clients.Clear();
+            for (int Index = 0; Index < handshakes.Count; Index++)
+            {
+                try { handshakes[Index].Client.Close(); } catch (Exception) { }
+            }
+            handshakes.Clear();
             clientCount = 0;
-            rawReady = false;
+            lock (rawLock)
+            {
+                rawReady = false;
+                rawFrame = null;
+                rawSpare = null;
+            }
             lock (frameLock) pendingFrame = null;
         }
 
@@ -753,21 +902,75 @@ namespace Basis
             if (encodeOnMainThread)
             {
                 byte[] jpeg = EncodeJpeg(request.GetData<byte>().ToArray(), frameWidth, frameHeight, frameQuality);
-                if (jpeg != null) lock (frameLock) pendingFrame = jpeg;
+                if (jpeg != null)
+                {
+                    lock (frameLock) pendingFrame = jpeg;
+                    frameSignal.Set();
+                }
                 return;
             }
 
-            // Worker still busy with the previous frame: drop this one. Handing over anyway
-            // would mean encoding frames nobody can keep up with.
-            if (rawReady) return;
-
             NativeArray<byte> data = request.GetData<byte>();
-            if (rawFrame == null || rawFrame.Length != data.Length) rawFrame = new byte[data.Length];
-            data.CopyTo(rawFrame);
-            rawWidth = frameWidth;
-            rawHeight = frameHeight;
-            rawQuality = frameQuality;
-            rawReady = true;
+
+            byte[] target;
+            lock (rawLock)
+            {
+                target = rawSpare;
+                rawSpare = null;
+            }
+            if (target == null || target.Length != data.Length) target = new byte[data.Length];
+            data.CopyTo(target);
+
+            lock (rawLock)
+            {
+                // A frame still sitting here means the worker has not started on it. This one is
+                // newer, so it takes its place instead of queueing behind it.
+                if (rawFrame != null && rawSpare == null) rawSpare = rawFrame;
+                rawFrame = target;
+                rawWidth = frameWidth;
+                rawHeight = frameHeight;
+                rawQuality = frameQuality;
+                rawReady = true;
+            }
+            frameSignal.Set();
+        }
+
+        /// <summary>
+        /// Worker thread. Takes the waiting frame out from under the lock <em>before</em> encoding
+        /// it and hands the buffer straight back afterwards, so the readback that lands during the
+        /// encode has somewhere to go. Encoding in place is what used to make every second frame
+        /// arrive to find the slot still busy and be dropped.
+        /// </summary>
+        private byte[] TakeRawAndEncode()
+        {
+            if (encodeOnMainThread) return null;
+
+            byte[] raw;
+            int width;
+            int height;
+            int quality;
+            lock (rawLock)
+            {
+                if (!rawReady) return null;
+                raw = rawFrame;
+                rawFrame = null;
+                rawReady = false;
+                width = rawWidth;
+                height = rawHeight;
+                quality = rawQuality;
+            }
+
+            try
+            {
+                return EncodeJpeg(raw, width, height, quality);
+            }
+            finally
+            {
+                lock (rawLock)
+                {
+                    if (rawSpare == null) rawSpare = raw;
+                }
+            }
         }
 
         /// <summary>
@@ -807,19 +1010,18 @@ namespace Basis
                 {
                     while (listener != null && listener.Pending())
                     {
-                        AcceptClient();
+                        QueueHandshake(listener.AcceptTcpClient());
                         didWork = true;
                     }
 
-                    if (rawReady && !encodeOnMainThread)
+                    if (ReapViewers()) didWork = true;
+                    if (handshakes.Count > 0 && ServiceHandshakes()) didWork = true;
+
+                    byte[] jpeg = TakeRawAndEncode();
+                    if (jpeg != null)
                     {
-                        byte[] jpeg = EncodeJpeg(rawFrame, rawWidth, rawHeight, rawQuality);
-                        rawReady = false;
-                        if (jpeg != null)
-                        {
-                            Broadcast(jpeg);
-                            didWork = true;
-                        }
+                        Broadcast(jpeg);
+                        didWork = true;
                     }
 
                     byte[] pending = TakeFrame();
@@ -836,25 +1038,80 @@ namespace Basis
                     BasisDebug.LogError($"Web stream worker error: {e.GetType().Name}: {e.Message}", BasisDebug.LogTag.Camera);
                 }
 
-                if (!didWork) Thread.Sleep(1);
+                if (didWork) continue;
+
+                // Woken by the main thread the instant a frame lands, so the encode starts with the
+                // readback rather than up to a scheduler tick after it. Polling on Thread.Sleep(1)
+                // was worth as much as 15ms of jitter a frame on Windows, where the sleep rounds up
+                // to whatever timer resolution the process happens to be running at.
+                frameSignal.Wait(handshakes.Count > 0 ? HandshakeWaitMs : IdleWaitMs);
+                frameSignal.Reset();
             }
         }
 
-        private void AcceptClient()
+        /// <summary>Parks a fresh connection until it says what it wants. See <see cref="ServiceHandshakes"/>.</summary>
+        private void QueueHandshake(TcpClient client)
         {
-            TcpClient client = listener.AcceptTcpClient();
-            if (clients.Count >= MaxClients)
+            // Budgeted separately from the viewers. A connection that has not asked for anything
+            // yet is usually a browser's speculative preconnect, and counting those against the
+            // viewer cap lets them keep the real request out.
+            if (handshakes.Count >= MaxClients)
             {
-                client.Close();
+                try { client.Close(); } catch (Exception) { }
                 return;
             }
 
             client.NoDelay = true;
-            // A viewer that stops reading must not wedge the worker forever, but the timeout
-            // has to outlast an ordinary hitch or we would drop healthy clients.
+            // Only the handshake writes synchronously, and it is a few hundred bytes; frames go
+            // out asynchronously, where this timeout does not apply.
             client.SendTimeout = 2000;
             client.ReceiveTimeout = 250;
+            handshakes.Add(new Handshake { Client = client, DeadlineTick = Environment.TickCount + HandshakeTimeoutMs });
+        }
 
+        /// <summary>
+        /// Reads the request line off every connection that has actually sent one. Deferred rather
+        /// than read inline off the accept because browsers open speculative connections and then
+        /// send nothing on them: a blocking read on one of those parked this thread — and with it
+        /// the encode, and every other viewer's frames — for the whole receive timeout.
+        /// </summary>
+        private bool ServiceHandshakes()
+        {
+            bool progressed = false;
+            for (int Index = handshakes.Count - 1; Index >= 0; Index--)
+            {
+                Handshake handshake = handshakes[Index];
+                bool ready;
+                try
+                {
+                    ready = handshake.Client.Available > 0;
+                }
+                catch (Exception)
+                {
+                    ready = false;
+                    handshake.DeadlineTick = Environment.TickCount - 1;
+                }
+
+                if (!ready && Environment.TickCount - handshake.DeadlineTick < 0) continue;
+
+                handshakes.RemoveAt(Index);
+                progressed = true;
+                try
+                {
+                    if (ready) AdmitViewer(handshake.Client);
+                    else handshake.Client.Close();
+                }
+                catch (Exception e)
+                {
+                    BasisDebug.Log($"Web stream handshake dropped: {e.GetType().Name}: {e.Message}", BasisDebug.LogTag.Camera);
+                    try { handshake.Client.Close(); } catch (Exception) { }
+                }
+            }
+            return progressed;
+        }
+
+        private void AdmitViewer(TcpClient client)
+        {
             NetworkStream stream = client.GetStream();
             string path = ReadRequestPath(stream);
 
@@ -869,6 +1126,14 @@ namespace Basis
                 return;
             }
 
+            // The cap is on viewers of the stream itself, since that is what costs a write per
+            // frame each. Serving the page above is a few hundred bytes and is always allowed.
+            if (clients.Count >= MaxClients)
+            {
+                client.Close();
+                return;
+            }
+
             byte[] header = Encoding.ASCII.GetBytes(
                 "HTTP/1.0 200 OK\r\n" +
                 "Connection: close\r\n" +
@@ -877,7 +1142,7 @@ namespace Basis
                 $"Content-Type: multipart/x-mixed-replace; boundary={Boundary}\r\n\r\n");
             stream.Write(header, 0, header.Length);
 
-            clients.Add(client);
+            clients.Add(new Viewer { Client = client, Stream = stream });
             clientCount = clients.Count;
             BasisDebug.Log($"Web stream viewer connected ({clients.Count} total).", BasisDebug.LogTag.Camera);
         }
@@ -926,35 +1191,111 @@ namespace Basis
             stream.Write(body, 0, body.Length);
         }
 
+        /// <summary>
+        /// Worker thread. Hands each viewer the frame as a single asynchronous write and moves on.
+        /// <para>
+        /// This used to poll each socket for writability and then write the frame synchronously,
+        /// which reads as safe and is not: the poll only says the send buffer has room for
+        /// <em>something</em>, so a frame several times that size still blocked until the viewer
+        /// drained it. One browser tab slow to decode therefore stalled the encode, the other
+        /// viewers, and the next readback along with it — for up to the send timeout — and the
+        /// stream came back as a burst. Now a viewer that is still draining simply misses this
+        /// frame.
+        /// </para>
+        /// </summary>
         private void Broadcast(byte[] frame)
         {
+            if (clients.Count == 0) return;
+
             byte[] part = Encoding.ASCII.GetBytes(
                 $"--{Boundary}\r\nContent-Type: image/jpeg\r\nContent-Length: {frame.Length}\r\n\r\n");
+            int total = part.Length + frame.Length + FrameTrailer.Length;
 
             for (int Index = clients.Count - 1; Index >= 0; Index--)
             {
-                TcpClient client = clients[Index];
+                Viewer viewer = clients[Index];
+
+                // Still draining the last frame: skip this one for this viewer. Queueing instead
+                // is what turns a live stream into an ever-growing delay.
+                if (viewer.Writing) continue;
+
+                if (viewer.Scratch.Length < total) viewer.Scratch = new byte[total + (total >> 2)];
+                Buffer.BlockCopy(part, 0, viewer.Scratch, 0, part.Length);
+                Buffer.BlockCopy(frame, 0, viewer.Scratch, part.Length, frame.Length);
+                Buffer.BlockCopy(FrameTrailer, 0, viewer.Scratch, part.Length + frame.Length, FrameTrailer.Length);
+
+                viewer.WriteStartedTick = Environment.TickCount;
+                viewer.Writing = true;
                 try
                 {
-                    // Still draining the last frame: skip this one for this viewer. Queueing
-                    // instead is what turns a live stream into an ever-growing delay.
-                    if (!client.Client.Poll(0, SelectMode.SelectWrite)) continue;
-
-                    NetworkStream stream = client.GetStream();
-                    stream.Write(part, 0, part.Length);
-                    stream.Write(frame, 0, frame.Length);
-                    stream.Write(FrameTrailer, 0, FrameTrailer.Length);
+                    viewer.Stream.BeginWrite(viewer.Scratch, 0, total, WriteCompleted, viewer);
                 }
                 catch (Exception e)
                 {
-                    // Closing the tab is normal, but a write that fails for any other reason
-                    // used to end the stream with no trace of why.
-                    BasisDebug.Log($"Web stream client dropped: {e.GetType().Name}: {e.Message}", BasisDebug.LogTag.Camera);
-                    try { client.Close(); } catch (Exception) { }
-                    clients.RemoveAt(Index);
+                    viewer.Writing = false;
+                    DropViewer(Index, $"{e.GetType().Name}: {e.Message}");
                 }
             }
             clientCount = clients.Count;
+        }
+
+        /// <summary>Thread pool. Only ever touches its own viewer, never the list the worker owns.</summary>
+        private void WriteCompleted(IAsyncResult result)
+        {
+            Viewer viewer = (Viewer)result.AsyncState;
+            try
+            {
+                viewer.Stream.EndWrite(result);
+            }
+            catch (Exception e)
+            {
+                viewer.Failure = $"{e.GetType().Name}: {e.Message}";
+                viewer.Dead = true;
+            }
+            finally
+            {
+                viewer.Writing = false;
+            }
+        }
+
+        /// <summary>
+        /// Worker thread. Clears out viewers the write callback marked dead, and any whose frame
+        /// has been on the wire long enough that the connection is plainly not coming back: an
+        /// asynchronous write has no send timeout behind it, so nothing else would free that slot.
+        /// </summary>
+        private bool ReapViewers()
+        {
+            bool removed = false;
+            for (int Index = clients.Count - 1; Index >= 0; Index--)
+            {
+                Viewer viewer = clients[Index];
+                if (viewer.Dead)
+                {
+                    DropViewer(Index, viewer.Failure);
+                    removed = true;
+                    continue;
+                }
+
+                if (viewer.Writing && Environment.TickCount - viewer.WriteStartedTick > WriteStallTimeoutMs)
+                {
+                    DropViewer(Index, $"no progress for {WriteStallTimeoutMs}ms");
+                    removed = true;
+                }
+            }
+            return removed;
+        }
+
+        /// <summary>Worker thread. Closes a viewer and takes it off the list.</summary>
+        private void DropViewer(int index, string reason)
+        {
+            Viewer viewer = clients[index];
+            clients.RemoveAt(index);
+            clientCount = clients.Count;
+            try { viewer.Client.Close(); } catch (Exception) { }
+
+            // Closing the tab is normal, but a write that fails for any other reason used to end
+            // the stream with no trace of why.
+            BasisDebug.Log($"Web stream client dropped: {reason ?? "closed"}.", BasisDebug.LogTag.Camera);
         }
 
         private byte[] TakeFrame()

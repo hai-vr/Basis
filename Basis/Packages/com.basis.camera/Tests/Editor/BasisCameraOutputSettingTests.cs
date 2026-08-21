@@ -131,6 +131,129 @@ namespace Basis.Tests.Camera
                 "Picking a transport is not the same as switching the stream on.");
         }
 
+        // ---------- Stream pacing ----------
+        //
+        // What decides when a live frame goes out. Everything here fails the same quiet way: the
+        // stream still runs, the average frame rate still reads correctly, and the picture arrives
+        // unevenly — which no assertion about settings or sockets would ever catch.
+
+        /// <summary>Runs the pacer for a number of ticks and counts what it published.</summary>
+        private static int CountPublished(ref BasisStreamFramePacer pacer, int ticks, float deltaTime, float frameRate)
+        {
+            int published = 0;
+            for (int Index = 0; Index < ticks; Index++)
+            {
+                if (pacer.AllowThisFrame(deltaTime, frameRate, true, true)) published++;
+            }
+            return published;
+        }
+
+        [Test]
+        public void StreamPacing_PublishesEveryFrameASourceAtTheStreamRateDraws()
+        {
+            // The bug this replaced: the capture camera was floored at the stream rate and the
+            // stream paced itself at the same rate off a second accumulator. Two clocks running at
+            // one rate, sampled once a frame, drift in and out of phase — so roughly every other
+            // fresh render was dropped and a 30fps stream ran at 15 with no setting to explain it.
+            BasisStreamFramePacer pacer = default;
+
+            int published = CountPublished(ref pacer, 60, 1f / 30f, 30f);
+
+            Assert.That(published, Is.EqualTo(60),
+                "A source drawing at exactly the stream rate has no frames to spare; every one of them should go out.");
+        }
+
+        [Test]
+        public void StreamPacing_SurvivesAJitteryFrameTime()
+        {
+            // Real frame times are never the nominal interval, and a source a hair early must not
+            // be held back for a whole one — that is the same halving by another route.
+            BasisStreamFramePacer pacer = default;
+            float[] deltas = { 0.0306f, 0.0361f, 0.0328f, 0.0341f, 0.0315f };
+            int published = 0;
+
+            for (int Index = 0; Index < 60; Index++)
+            {
+                if (pacer.AllowThisFrame(deltas[Index % deltas.Length], 30f, true, true)) published++;
+            }
+
+            Assert.That(published, Is.GreaterThanOrEqualTo(57),
+                "Jitter around the interval should cost the odd frame at most, not one in two.");
+        }
+
+        [Test]
+        public void StreamPacing_HoldsAFasterSourceToTheStreamRate()
+        {
+            // The floor under the capture camera is a floor, not a cap: an uncapped render limit or
+            // the desktop override both leave it drawing far faster than the stream rate.
+            BasisStreamFramePacer pacer = default;
+
+            int published = CountPublished(ref pacer, 120, 1f / 120f, 30f);
+
+            Assert.That(published, Is.EqualTo(30),
+                "A 120fps source on a 30fps stream should publish exactly one frame in four.");
+        }
+
+        [Test]
+        public void StreamPacing_DoesNotChargeForASlotTheSinkCouldNotTake()
+        {
+            // The sink takes one frame at a time through readback and encode. A tick that arrives
+            // while it is busy used to spend the slot anyway, so the stream then waited out a whole
+            // further interval — at 30fps that is a dropped frame for every collision.
+            BasisStreamFramePacer pacer = default;
+            const float Delta = 1f / 90f;
+
+            // Three ticks of a 90fps source fill one 30fps interval.
+            Assert.That(pacer.AllowThisFrame(Delta, 30f, true, true), Is.False);
+            Assert.That(pacer.AllowThisFrame(Delta, 30f, true, true), Is.False);
+            Assert.That(pacer.AllowThisFrame(Delta, 30f, true, false), Is.False,
+                "The sink is busy, so nothing is published.");
+
+            Assert.That(pacer.AllowThisFrame(Delta, 30f, true, true), Is.True,
+                "The moment the sink is free the banked interval is still there, so the newest frame goes out now rather than a whole interval later.");
+        }
+
+        [Test]
+        public void StreamPacing_NeverPublishesARenderTwice()
+        {
+            // Encoding and sending a picture the camera has not redrawn costs a readback, a JPEG
+            // and a frame's bandwidth to tell the viewer nothing.
+            BasisStreamFramePacer pacer = default;
+
+            for (int Index = 0; Index < 60; Index++)
+            {
+                Assert.That(pacer.AllowThisFrame(1f / 60f, 30f, false, true), Is.False);
+            }
+        }
+
+        [Test]
+        public void StreamPacing_DoesNotPayAStallBackAsABurst()
+        {
+            // A hitch, a viewer reconnecting, a camera nobody was watching: without a cap on the
+            // banked time, whatever paused the stream is repaid as a run of back-to-back frames the
+            // moment it resumes, which is the opposite of what a live viewer wants.
+            BasisStreamFramePacer pacer = default;
+            const float Delta = 1f / 120f;
+
+            for (int Index = 0; Index < 120; Index++) pacer.AllowThisFrame(Delta, 30f, false, true);
+
+            int published = CountPublished(ref pacer, 8, Delta, 30f);
+
+            Assert.That(published, Is.LessThanOrEqualTo(3),
+                "A second of stalled stream should be worth a frame or two of catch-up, not thirty.");
+        }
+
+        [Test]
+        public void StreamPacing_WithNoRateSetPublishesEveryFreshFrame()
+        {
+            // 0 means "as fast as the source draws", the same as everywhere else these rates are read.
+            BasisStreamFramePacer pacer = default;
+
+            int published = CountPublished(ref pacer, 20, 1f / 144f, 0f);
+
+            Assert.That(published, Is.EqualTo(20));
+        }
+
         // ---------- The single audio listener ----------
 
         [Test]

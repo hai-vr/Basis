@@ -294,6 +294,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisLocalPlayer.AfterSimulateOnRender.AddAction(SimulateLatePriority, SimulateLate);
 
         RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
+        RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
         BasisLocalCameraDriver.RenderSettingsApplied += SyncBackgroundFromMainCamera;
 
@@ -425,6 +426,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(SimulateLatePriority, SimulateLate);
 
         RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
+        RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
         BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
         BasisLocalCameraDriver.RenderSettingsApplied -= SyncBackgroundFromMainCamera;
         OnPickupUse.RemoveListener( OnPickupUseCapture );
@@ -947,6 +949,18 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     public void ApplyFocusDistance(float metres)
     {
+        focusRacking = false;
+        SetFocusDistance(metres);
+    }
+
+    public void RefreshFocusDistance()
+    {
+        if (MetaData == null || MetaData.depthOfField == null) return;
+        SetFocusDistance(MetaData.depthOfField.focusDistance.value);
+    }
+
+    private void SetFocusDistance(float metres)
+    {
         if (MetaData == null || MetaData.depthOfField == null) return;
 
         float focus = Mathf.Max(MinimumFocusDistance, metres);
@@ -961,6 +975,66 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             MetaData.depthOfField.gaussianEnd.overrideState = true;
             MetaData.depthOfField.gaussianEnd.value = focus * GaussianFalloffRatio;
         }
+    }
+
+    [SerializeField] public float focusRackSeconds = 0.5f;
+
+    private float focusRackFrom, focusRackTo, focusRackElapsed;
+    private bool focusRacking;
+
+    public bool IsRackingFocus => focusRacking;
+
+    public float FocusRackTarget => focusRacking
+        ? focusRackTo
+        : (MetaData != null && MetaData.depthOfField != null ? MetaData.depthOfField.focusDistance.value : 0f);
+
+    public void RackFocusTo(float metres)
+    {
+        if (MetaData == null || MetaData.depthOfField == null) return;
+
+        float target = Mathf.Max(MinimumFocusDistance, metres);
+        float current = Mathf.Max(MinimumFocusDistance, MetaData.depthOfField.focusDistance.value);
+
+        if (focusRackSeconds <= 0f || Mathf.Abs(target - current) <= FocusRackEpsilon)
+        {
+            focusRacking = false;
+            SetFocusDistance(target);
+            HandHeld?.SyncFocusReadout();
+            return;
+        }
+
+        focusRackFrom = current;
+        focusRackTo = target;
+        focusRackElapsed = 0f;
+        focusRacking = true;
+    }
+
+    private void TickFocusRack()
+    {
+        if (!focusRacking) return;
+        if (MetaData == null || MetaData.depthOfField == null)
+        {
+            focusRacking = false;
+            return;
+        }
+
+        focusRackElapsed += Time.deltaTime;
+        float t = focusRackSeconds > 0f ? Mathf.Clamp01(focusRackElapsed / focusRackSeconds) : 1f;
+
+        SetFocusDistance(SampleFocusRack(focusRackFrom, focusRackTo, t));
+        HandHeld?.SyncFocusReadout();
+
+        if (t >= 1f) focusRacking = false;
+    }
+
+    private const float FocusRackEpsilon = 0.001f;
+
+    public static float SampleFocusRack(float from, float to, float t)
+    {
+        float eased = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t));
+        float near = 1f / Mathf.Max(from, 1e-4f);
+        float far = 1f / Mathf.Max(to, 1e-4f);
+        return 1f / Mathf.Lerp(near, far, eased);
     }
 
     /// <summary>Clamps an arbitrary sample count to a value the GPU accepts (1/2/4/8).</summary>
@@ -1477,6 +1551,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         TickGifRecorder();
         TickVideoRecorder();
         UpdateOnPropUIVisibility();
+        TickFocusRack();
         UpdateAutoFocus();
         UpdateFollowPip();
         DebugGizmos.Tick(this);
@@ -1774,6 +1849,21 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (ReferenceEquals(renderingCamera, captureCamera))
         {
             BasisLocalAvatarDriver.ScaleHeadToNormal();
+        }
+    }
+
+    /// <summary>
+    /// URP callback after each camera render: the render texture now holds a picture nothing has
+    /// published yet. Taken from the pipeline rather than inferred from the render gate, because
+    /// the gate only says whether the automatic render was allowed — the transparent output and
+    /// the photo path both drive <see cref="Camera.Render"/> themselves, and those frames are just
+    /// as fresh.
+    /// </summary>
+    private void OnEndCameraRendering(ScriptableRenderContext context, Camera renderingCamera)
+    {
+        if (ReferenceEquals(renderingCamera, captureCamera))
+        {
+            MarkStreamFrameFresh();
         }
     }
 

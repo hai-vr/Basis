@@ -16383,6 +16383,110 @@
     {
       "key": "camera.dollyPreset.error.importFailed",
       "value": "The presets folder could not be read. See the log."
+    },
+    {
+      "key": "settings.microphone.test.title",
+      "value": "Test Microphone"
+    },
+    {
+      "key": "settings.microphone.test.monitor",
+      "value": "Microphone Monitor"
+    },
+    {
+      "key": "settings.microphone.test.monitor.tooltip",
+      "value": "Record a short clip from your microphone and play it back to hear what other players hear. The clip stays on this computer and is never sent to the server."
+    },
+    {
+      "key": "settings.microphone.test.record",
+      "value": "Record"
+    },
+    {
+      "key": "settings.microphone.test.record.tooltip",
+      "value": "Start a test recording from your microphone. It plays back automatically when you stop."
+    },
+    {
+      "key": "settings.microphone.test.stop",
+      "value": "Stop & Play"
+    },
+    {
+      "key": "settings.microphone.test.play",
+      "value": "Play Back"
+    },
+    {
+      "key": "settings.microphone.test.play.tooltip",
+      "value": "Play the last test recording back through your speakers or headset."
+    },
+    {
+      "key": "settings.microphone.test.playStop",
+      "value": "Stop Playback"
+    },
+    {
+      "key": "settings.microphone.test.play.disabled",
+      "value": "Record a test clip first."
+    },
+    {
+      "key": "settings.microphone.test.status.recording",
+      "value": "Recording {0:F1}s of {1}s"
+    },
+    {
+      "key": "settings.microphone.test.status.playing",
+      "value": "Playing back {0:F1}s of {1:F1}s"
+    },
+    {
+      "key": "settings.microphone.test.status.ready",
+      "value": "Recorded {0:F1}s. Press Play Back to hear it."
+    },
+    {
+      "key": "settings.microphone.test.status.waiting",
+      "value": "Waiting for microphone input..."
+    },
+    {
+      "key": "settings.microphone.test.status.muted",
+      "value": "Your microphone is muted. It is opened only while this section is open, and nothing is sent to other players."
+    },
+    {
+      "key": "settings.microphone.test.status.idle",
+      "value": "Your level shows here as you speak. Press Record to hear yourself back."
+    },
+    {
+      "key": "settings.microphone.test.status.noDevice",
+      "value": "No microphone is available."
+    },
+    {
+      "key": "settings.microphone.test.status.recordingMuted",
+      "value": "Recording {0:F1}s of {1}s — muted, so nothing is sent to other players."
+    },
+    {
+      "key": "settings.microphone.test.save",
+      "value": "Save Recording"
+    },
+    {
+      "key": "settings.microphone.test.save.tooltip",
+      "value": "Write the test recording to a WAV file on disk."
+    },
+    {
+      "key": "settings.microphone.test.save.disabled",
+      "value": "Record something first."
+    },
+    {
+      "key": "settings.microphone.test.save.done",
+      "value": "Saved to {0}"
+    },
+    {
+      "key": "settings.microphone.test.save.failed",
+      "value": "Could not save the recording."
+    },
+    {
+      "key": "settings.microphone.test.live",
+      "value": "Back to Live Preview"
+    },
+    {
+      "key": "settings.microphone.test.live.tooltip",
+      "value": "Stop showing the recorded clip and go back to watching your live microphone level. The recording is kept."
+    },
+    {
+      "key": "settings.microphone.test.live.disabled",
+      "value": "The live level is already showing."
     }
   ]
 }

@@ -101,48 +101,47 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
     }
 
     /// <summary>
-    /// Casts a ray into the scene and, on hit, sets the DoF focus distance.
-    /// Ignores self-hits (objects parented under the camera controller).
+    /// Picks what was clicked and pulls focus onto it. Players are hit-tested against their avatar
+    /// bounds — they carry no colliders, so a plain raycast focuses on whatever is behind them — and
+    /// only count when nothing solid stands between them and the lens. Anything else falls back to
+    /// the world raycast, which skips the camera prop itself and every player's own colliders.
     /// </summary>
     /// <param name="ray">Ray from the preview/camera pixel into the world.</param>
     public void ApplyFocusFromRay(Ray ray)
     {
         if (cameraController == null) return;
 
-        if (!Physics.Raycast(ray, out RaycastHit hit, maxRaycastDistance, focusLayers, QueryTriggerInteraction.Ignore))
+        bool hasWorld = BasisCameraSubjectPicker.TryRaycastWorld(ray, maxRaycastDistance, focusLayers, cameraController.transform, out RaycastHit worldHit, out float worldDistance);
+
+        if (BasisCameraSubjectPicker.TryPickSubject(ray, maxRaycastDistance, hasWorld ? worldDistance : float.PositiveInfinity, out BasisCameraSubjectHit subject))
+        {
+            string who = subject.Player != null && !string.IsNullOrEmpty(subject.Player.DisplayName) ? subject.Player.DisplayName : "player";
+            RackFocusToPoint(subject.Point, who);
+            return;
+        }
+
+        if (!hasWorld)
         {
             BasisDebug.Log("[DOF] Raycast missed");
             return;
         }
 
-        if (hit.collider != null && hit.collider.transform.IsChildOf(cameraController.transform))
-        {
-            BasisDebug.Log("[DOF] Hit self — skipping");
-            return;
-        }
+        RackFocusToPoint(worldHit.point, worldHit.collider != null ? worldHit.collider.name : "world");
+    }
 
-        if (!cameraController.TryGetFocusDepth(hit.point, out float depth))
+    private void RackFocusToPoint(Vector3 worldPoint, string label)
+    {
+        if (!cameraController.TryGetFocusDepth(worldPoint, out float depth))
         {
             BasisDebug.Log("[DOF] Hit is behind or inside the minimum focus distance — skipping");
             return;
         }
 
-        cameraController.ApplyFocusDistance(depth);
-
-        float applied = cameraController.MetaData.depthOfField != null
-            ? cameraController.MetaData.depthOfField.focusDistance.value
-            : depth;
-
-        // Reflect value into handheld UI (without feedback loops)
-        if (cameraController.HandHeld != null)
-        {
-            cameraController.HandHeld.DepthFocusDistanceSlider?.SetValueWithoutNotify(applied);
-            cameraController.HandHeld.DOFFocusOutput?.SetText(applied.ToString("F2"));
-        }
+        cameraController.RackFocusTo(depth);
 
         if (focusCursor != null && !focusCursor.gameObject.activeSelf)
             focusCursor.gameObject.SetActive(true);
 
-        BasisDebug.Log($"[DOF] Focus distance set to {applied:F2} units (hit {hit.collider.name})");
+        BasisDebug.Log($"[DOF] Pulling focus to {depth:F2} units over {cameraController.focusRackSeconds:F2}s (hit {label})");
     }
 }
