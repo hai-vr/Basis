@@ -1243,6 +1243,11 @@ namespace Basis.BasisUI
                 new List<string> { "settings.microphone.icon.alwaysVisible", "settings.microphone.icon.activityDetection", "settings.microphone.icon.hidden" });
             dropdownMicrophoneIcon.AssignBinding(BasisSettingsDefaults.MicrophoneIcon);
 
+            PanelToggle toggleMicrophoneIconLevelRing = PanelToggle.CreateNewEntry(microphoneGroup);
+            toggleMicrophoneIconLevelRing.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.icon.levelRing"));
+            toggleMicrophoneIconLevelRing.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.icon.levelRing.tooltip"));
+            toggleMicrophoneIconLevelRing.AssignBinding(BasisSettingsDefaults.MicrophoneIconLevelRing);
+
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(microphoneToggle, microphoneGroup, true,
                 _ => RebuildFrom(microphoneGroup.rectTransform));
 
@@ -1552,6 +1557,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MicMuteBehavior.ResetToDefault();
             BasisSettingsDefaults.TalkToNoOne.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIcon.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneIconLevelRing.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIconOffsetX.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIconOffsetY.ResetToDefault();
             BasisSettingsDefaults.LimitThreshold.ResetToDefault();

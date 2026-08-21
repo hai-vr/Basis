@@ -7,18 +7,34 @@ using UnityEngine;
 public struct BasisCameraSubjectHit
 {
     public IBasisPlayer Player;
-    public Bounds Bounds;
-    public float Entry, Exit, FocusDepth;
+    public float Entry, FocusDepth;
     public Vector3 Point;
+    public bool FromSkeleton;
 }
 
 public static class BasisCameraSubjectPicker
 {
     public const float MinimumEntryDistance = 0.05f;
     public const float OccluderBias = 0.02f;
+    public const float LimbRadiusRatio = 0.2f;
+    public const float TorsoRadiusRatio = 0.35f;
+    public const float HeadSpanRatio = 1.3f;
+    public const float HeadRadiusRatio = 0.8f;
+
+    /// <summary>
+    /// Broad-phase sphere around the hips, as a multiple of the hips-to-neck length. Everything a
+    /// body can reach lives inside it — feet ~1.9x, an outstretched arm ~1.8x, the crown ~1.5x —
+    /// so a player rejected here cannot possibly be under the cursor.
+    /// </summary>
+    public const float SubjectReachRatio = 3f;
+
     private const int MaxOccluderSteps = 8;
     private const float OccluderStepBias = 0.01f;
-    private static readonly List<IBasisPlayer> candidates = new List<IBasisPlayer>(32);
+
+    private static readonly List<IBasisPlayer> candidates = new List<IBasisPlayer>(64);
+    private static readonly HashSet<Transform> playerRoots = new HashSet<Transform>();
+    private static int candidateFrame = -1;
+    private static bool playerRootsBuilt;
 
     public static bool IntersectRayBounds(Ray ray, Bounds bounds, out float entry, out float exit)
     {
@@ -27,9 +43,14 @@ public static class BasisCameraSubjectPicker
         Vector3 direction = ray.direction;
         float length = direction.magnitude;
         if (length < 1e-6f) return false;
-        direction /= length;
+        return IntersectRayBounds(ray.origin, direction / length, bounds, out entry, out exit);
+    }
 
-        Vector3 origin = ray.origin, min = bounds.min, max = bounds.max;
+    private static bool IntersectRayBounds(Vector3 origin, Vector3 direction, Bounds bounds, out float entry, out float exit)
+    {
+        entry = 0f;
+        exit = 0f;
+        Vector3 min = bounds.min, max = bounds.max;
         float near = float.NegativeInfinity, far = float.PositiveInfinity;
         for (int axis = 0; axis < 3; axis++)
         {
@@ -60,9 +81,70 @@ public static class BasisCameraSubjectPicker
 
     public static float ResolveFocusDepth(Ray ray, Bounds bounds, float entry, float exit)
     {
-        Vector3 direction = ray.direction.normalized;
-        float toCentre = Vector3.Dot(bounds.center - ray.origin, direction);
+        float toCentre = Vector3.Dot(bounds.center - ray.origin, ray.direction.normalized);
         return Mathf.Clamp(toCentre, Mathf.Max(entry, 0f), Mathf.Max(exit, 0f));
+    }
+
+    /// <summary>
+    /// Whether a sphere is close enough to the ray to be worth testing properly. This is the whole
+    /// broad phase, and at a thousand players it is what everything else costs nothing next to:
+    /// two transform reads and a dozen floats per player, versus walking every renderer they own.
+    /// </summary>
+    public static bool RaySphereOverlaps(Vector3 origin, Vector3 direction, Vector3 centre, float radius, float maxDistance)
+    {
+        Vector3 toCentre = centre - origin;
+        float depth = Vector3.Dot(toCentre, direction);
+        if (depth < -radius || depth > maxDistance + radius) return false;
+
+        float clamped = Mathf.Clamp(depth, 0f, maxDistance);
+        Vector3 separation = toCentre - direction * clamped;
+        return Vector3.Dot(separation, separation) <= radius * radius;
+    }
+
+    /// <summary>
+    /// Closest approach between a ray and a bone segment. A capsule is exactly the set of points
+    /// within its radius of that segment, so the returned distance decides the hit outright;
+    /// <paramref name="axisDepth"/> is where the ray passes through the middle of the limb, which
+    /// is the depth worth focusing on rather than the surface facing the lens.
+    /// </summary>
+    public static void ClosestRayToSegment(Ray ray, Vector3 a, Vector3 b, out float axisDepth, out float distanceSquared)
+    {
+        ClosestRayToSegment(ray.origin, ray.direction.normalized, a, b, out axisDepth, out distanceSquared);
+    }
+
+    private static void ClosestRayToSegment(Vector3 origin, Vector3 direction, Vector3 a, Vector3 b, out float axisDepth, out float distanceSquared)
+    {
+        Vector3 segment = b - a, toOrigin = origin - a;
+        float segmentLengthSquared = Vector3.Dot(segment, segment);
+        float alongBoth = Vector3.Dot(segment, direction);
+        float alongSegment = Vector3.Dot(segment, toOrigin);
+        float alongRay = Vector3.Dot(direction, toOrigin);
+
+        float denominator = segmentLengthSquared - alongBoth * alongBoth;
+        float s = denominator > 1e-8f ? Mathf.Clamp01((alongSegment - alongRay * alongBoth) / denominator) : 0f;
+
+        axisDepth = s * alongBoth - alongRay;
+        Vector3 separation = toOrigin + direction * axisDepth - segment * s;
+        distanceSquared = Vector3.Dot(separation, separation);
+    }
+
+    public static bool IntersectRayCapsule(Ray ray, Vector3 a, Vector3 b, float radius, out float entry, out float axisDepth)
+    {
+        return IntersectRayCapsule(ray.origin, ray.direction.normalized, a, b, radius, out entry, out axisDepth);
+    }
+
+    private static bool IntersectRayCapsule(Vector3 origin, Vector3 direction, Vector3 a, Vector3 b, float radius, out float entry, out float axisDepth)
+    {
+        ClosestRayToSegment(origin, direction, a, b, out axisDepth, out float distanceSquared);
+        float radiusSquared = radius * radius;
+        if (distanceSquared > radiusSquared)
+        {
+            entry = 0f;
+            return false;
+        }
+
+        entry = axisDepth - Mathf.Sqrt(Mathf.Max(0f, radiusSquared - distanceSquared));
+        return true;
     }
 
     public static bool TryGetPlayerBounds(IBasisPlayer player, out Bounds bounds)
@@ -91,6 +173,15 @@ public static class BasisCameraSubjectPicker
         }
     }
 
+    private static void EnsureCandidates()
+    {
+        int frame = Time.frameCount;
+        if (candidateFrame == frame) return;
+        candidateFrame = frame;
+        playerRootsBuilt = false;
+        CollectPlayers(candidates);
+    }
+
     public static bool TryRaycastWorld(Ray ray, float maxDistance, LayerMask layers, Transform ignoreRoot, out RaycastHit nearest, out float distance)
     {
         nearest = default;
@@ -100,7 +191,7 @@ public static class BasisCameraSubjectPicker
         if (length < 1e-6f) return false;
         direction /= length;
 
-        CollectPlayers(candidates);
+        EnsureCandidates();
         float travelled = 0f;
         for (int step = 0; step < MaxOccluderSteps; step++)
         {
@@ -126,60 +217,188 @@ public static class BasisCameraSubjectPicker
         return false;
     }
 
-    public static bool TryPickSubject(Ray ray, float maxDistance, float occluderDistance, out BasisCameraSubjectHit hit)
+    public static bool TryPickSubject(Ray ray, float maxDistance, float occluderDistance, float padding, out BasisCameraSubjectHit hit)
     {
         hit = default;
         Vector3 direction = ray.direction;
         float length = direction.magnitude;
         if (length < 1e-6f) return false;
         direction /= length;
+        Vector3 origin = ray.origin;
 
-        CollectPlayers(candidates);
+        EnsureCandidates();
         float best = float.PositiveInfinity;
+        float ceiling = Mathf.Min(maxDistance, occluderDistance);
         bool found = false;
         int count = candidates.Count;
         for (int index = 0; index < count; index++)
         {
             IBasisPlayer player = candidates[index];
-            if (!TryGetPlayerBounds(player, out Bounds union)) continue;
-            if (!IntersectRayBounds(ray, union, out float unionEntry, out float unionExit)) continue;
-            if (unionExit <= MinimumEntryDistance || unionEntry > maxDistance) continue;
-            if (!TryResolveHitBounds(player, ray, union, out Bounds bounds, out float entry, out float exit)) continue;
+            if (player == null || player.IsDestroyed) continue;
+            BasisAvatar avatar = player.BasisAvatar;
+            if (avatar == null) continue;
+
+            float entry, depth;
+            bool fromSkeleton = TryReadTorso(avatar, out Vector3 hips, out Vector3 neck, out float torsoLength);
+            if (fromSkeleton)
+            {
+                if (!RaySphereOverlaps(origin, direction, hips, torsoLength * SubjectReachRatio + padding, ceiling)) continue;
+                if (!SolveSkeleton(avatar, origin, direction, padding, hips, neck, torsoLength, out entry, out depth)) continue;
+            }
+            else if (!TryResolveHitBounds(avatar, origin, direction, out entry, out depth)) continue;
+
             if (entry < MinimumEntryDistance || entry > maxDistance) continue;
             if (entry >= occluderDistance - OccluderBias) continue;
             if (entry >= best) continue;
 
-            float depth = ResolveFocusDepth(ray, bounds, entry, exit);
+            depth = Mathf.Max(depth, entry);
             best = entry;
             found = true;
             hit = new BasisCameraSubjectHit
             {
                 Player = player,
-                Bounds = bounds,
                 Entry = entry,
-                Exit = exit,
                 FocusDepth = depth,
-                Point = ray.origin + direction * depth,
+                Point = origin + direction * depth,
+                FromSkeleton = fromSkeleton,
             };
         }
         return found;
     }
 
-    private static bool TryResolveHitBounds(IBasisPlayer player, Ray ray, Bounds union, out Bounds bounds, out float entry, out float exit)
+    public static bool HasSkeleton(BasisAvatar avatar)
     {
-        bounds = union;
+        return TryReadTorso(avatar, out _, out _, out _);
+    }
+
+    /// <summary>
+    /// Hit-tests the avatar's live skeleton as a set of bone capsules. Renderer bounds are the
+    /// bind pose baked at import — arms out, a box near two metres wide on a standing avatar — so
+    /// they answer "somewhere near this person", not "this person". The capsules follow the pose,
+    /// and their radii come off the bone lengths themselves so a chibi and a dragon both size
+    /// correctly without a per-avatar tuning value.
+    /// </summary>
+    public static bool TryPickSkeleton(BasisAvatar avatar, Ray ray, float padding, out float entry, out float axisDepth)
+    {
         entry = 0f;
-        exit = 0f;
-        BasisAvatar avatar = player.BasisAvatar;
-        bool found = false;
-        if (!TryNearestRendererBounds(avatar.Renders, ray, ref bounds, ref entry, ref exit, ref found))
+        axisDepth = 0f;
+        if (!TryReadTorso(avatar, out Vector3 hips, out Vector3 neck, out float torsoLength)) return false;
+
+        Vector3 direction = ray.direction;
+        float length = direction.magnitude;
+        if (length < 1e-6f) return false;
+
+        return SolveSkeleton(avatar, ray.origin, direction / length, padding, hips, neck, torsoLength, out entry, out axisDepth);
+    }
+
+    private static bool TryReadTorso(BasisAvatar avatar, out Vector3 hips, out Vector3 neck, out float torsoLength)
+    {
+        hips = default;
+        neck = default;
+        torsoLength = 0f;
+        if (avatar == null || avatar.TransformStorage == null || !avatar.TransformStorage.HasData) return false;
+
+        Transform hipsBone = Bone(avatar, HumanBodyBones.Hips);
+        Transform spineTopBone = Bone(avatar, HumanBodyBones.Neck)
+            ?? Bone(avatar, HumanBodyBones.Head)
+            ?? Bone(avatar, HumanBodyBones.UpperChest)
+            ?? Bone(avatar, HumanBodyBones.Chest)
+            ?? Bone(avatar, HumanBodyBones.Spine);
+        if (hipsBone == null || spineTopBone == null) return false;
+
+        hips = hipsBone.position;
+        neck = spineTopBone.position;
+        torsoLength = Vector3.Distance(hips, neck);
+        return torsoLength > 1e-4f;
+    }
+
+    private static bool SolveSkeleton(BasisAvatar avatar, Vector3 origin, Vector3 direction, float padding, Vector3 hips, Vector3 neck, float torsoLength, out float entry, out float axisDepth)
+    {
+        entry = 0f;
+        axisDepth = 0f;
+
+        float torsoRadius = torsoLength * TorsoRadiusRatio;
+        Transform leftUpperArm = Bone(avatar, HumanBodyBones.LeftUpperArm), rightUpperArm = Bone(avatar, HumanBodyBones.RightUpperArm);
+        if (leftUpperArm != null && rightUpperArm != null)
         {
-            TryNearestRendererBounds(avatar.SkinnedMeshRenderers, ray, ref bounds, ref entry, ref exit, ref found);
+            float shoulderSpan = Vector3.Distance(leftUpperArm.position, rightUpperArm.position);
+            if (shoulderSpan > 1e-4f) torsoRadius = shoulderSpan * 0.5f;
         }
+
+        bool found = false;
+        Consider(origin, direction, hips, neck, torsoRadius + padding, ref found, ref entry, ref axisDepth);
+
+        Transform head = Bone(avatar, HumanBodyBones.Head);
+        if (head != null)
+        {
+            Vector3 headPosition = head.position;
+            float headSpan = Mathf.Max(Vector3.Distance(headPosition, neck), torsoLength * 0.18f) * HeadSpanRatio;
+            Consider(origin, direction, headPosition, headPosition + head.up * headSpan, headSpan * HeadRadiusRatio + padding, ref found, ref entry, ref axisDepth);
+        }
+
+        ConsiderChain(avatar, origin, direction, padding, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand, ref found, ref entry, ref axisDepth);
+        ConsiderChain(avatar, origin, direction, padding, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, ref found, ref entry, ref axisDepth);
+        ConsiderChain(avatar, origin, direction, padding, HumanBodyBones.LeftUpperLeg, HumanBodyBones.LeftLowerLeg, HumanBodyBones.LeftFoot, ref found, ref entry, ref axisDepth);
+        ConsiderChain(avatar, origin, direction, padding, HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, HumanBodyBones.RightFoot, ref found, ref entry, ref axisDepth);
+
         return found;
     }
 
-    private static bool TryNearestRendererBounds<T>(T[] renderers, Ray ray, ref Bounds bounds, ref float entry, ref float exit, ref bool found) where T : Renderer
+    private static void ConsiderChain(BasisAvatar avatar, Vector3 origin, Vector3 direction, float padding, HumanBodyBones root, HumanBodyBones middle, HumanBodyBones tip, ref bool found, ref float entry, ref float axisDepth)
+    {
+        Transform a = Bone(avatar, root), b = Bone(avatar, middle);
+        if (a == null || b == null) return;
+
+        Vector3 upper = a.position, joint = b.position;
+        float upperRadius = Vector3.Distance(upper, joint) * LimbRadiusRatio;
+        Consider(origin, direction, upper, joint, upperRadius + padding, ref found, ref entry, ref axisDepth);
+
+        Transform c = Bone(avatar, tip);
+        if (c == null) return;
+
+        Vector3 end = c.position;
+        float lowerRadius = Mathf.Max(Vector3.Distance(joint, end) * LimbRadiusRatio, upperRadius * 0.6f);
+        Consider(origin, direction, joint, end, lowerRadius + padding, ref found, ref entry, ref axisDepth);
+        Consider(origin, direction, end, end, lowerRadius + padding, ref found, ref entry, ref axisDepth);
+    }
+
+    private static void Consider(Vector3 origin, Vector3 direction, Vector3 a, Vector3 b, float radius, ref bool found, ref float entry, ref float axisDepth)
+    {
+        if (radius <= 0f) return;
+        if (!IntersectRayCapsule(origin, direction, a, b, radius, out float candidateEntry, out float candidateDepth)) return;
+        if (candidateEntry < MinimumEntryDistance) return;
+        if (found && candidateEntry >= entry) return;
+
+        entry = candidateEntry;
+        axisDepth = candidateDepth;
+        found = true;
+    }
+
+    private static Transform Bone(BasisAvatar avatar, HumanBodyBones bone)
+    {
+        Transform found = avatar.TransformStorage.Get(bone);
+        return found != null ? found : null;
+    }
+
+    private static bool TryResolveHitBounds(BasisAvatar avatar, Vector3 origin, Vector3 direction, out float entry, out float depth)
+    {
+        entry = 0f;
+        depth = 0f;
+        Bounds bounds = default;
+        float exit = 0f;
+        bool found = false;
+        if (!TryNearestRendererBounds(avatar.Renders, origin, direction, ref bounds, ref entry, ref exit, ref found))
+        {
+            TryNearestRendererBounds(avatar.SkinnedMeshRenderers, origin, direction, ref bounds, ref entry, ref exit, ref found);
+        }
+        if (!found) return false;
+
+        float toCentre = Vector3.Dot(bounds.center - origin, direction);
+        depth = Mathf.Clamp(toCentre, Mathf.Max(entry, 0f), Mathf.Max(exit, 0f));
+        return true;
+    }
+
+    private static bool TryNearestRendererBounds<T>(T[] renderers, Vector3 origin, Vector3 direction, ref Bounds bounds, ref float entry, ref float exit, ref bool found) where T : Renderer
     {
         int count = renderers != null ? renderers.Length : 0;
         for (int index = 0; index < count; index++)
@@ -187,7 +406,7 @@ public static class BasisCameraSubjectPicker
             T renderer = renderers[index];
             if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
             Bounds candidate = renderer.bounds;
-            if (!IntersectRayBounds(ray, candidate, out float candidateEntry, out float candidateExit)) continue;
+            if (!IntersectRayBounds(origin, direction, candidate, out float candidateEntry, out float candidateExit)) continue;
             if (candidateEntry < MinimumEntryDistance) continue;
             if (found && candidateEntry >= entry) continue;
             bounds = candidate;
@@ -198,19 +417,29 @@ public static class BasisCameraSubjectPicker
         return found;
     }
 
+    /// <summary>
+    /// Whether a collider belongs to any player, so it cannot occlude one. Compares hierarchy roots
+    /// against a set built at most once per pick — walking every player per hit was the other place
+    /// a full room turned a click into a linear scan.
+    /// </summary>
     private static bool IsPlayerOwned(Transform hitTransform)
     {
-        int count = candidates.Count;
-        for (int index = 0; index < count; index++)
+        if (!playerRootsBuilt)
         {
-            IBasisPlayer player = candidates[index];
-            if (player == null || player.IsDestroyed) continue;
-            Transform root = player.Transform;
-            if (root != null && hitTransform.IsChildOf(root)) return true;
-            Transform avatar = player.AvatarTransform;
-            if (avatar != null && hitTransform.IsChildOf(avatar)) return true;
+            playerRootsBuilt = true;
+            playerRoots.Clear();
+            int count = candidates.Count;
+            for (int index = 0; index < count; index++)
+            {
+                IBasisPlayer player = candidates[index];
+                if (player == null || player.IsDestroyed) continue;
+                Transform root = player.Transform;
+                if (root != null) playerRoots.Add(root.root);
+                Transform avatar = player.AvatarTransform;
+                if (avatar != null) playerRoots.Add(avatar.root);
+            }
         }
-        return false;
+        return playerRoots.Contains(hitTransform.root);
     }
 
     private static void Encapsulate<T>(T[] renderers, ref Bounds bounds, ref bool found) where T : Renderer

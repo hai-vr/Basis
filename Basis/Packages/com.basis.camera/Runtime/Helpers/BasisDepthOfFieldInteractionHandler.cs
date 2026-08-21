@@ -39,6 +39,12 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
     public LayerMask focusLayers = ~(1 << 2);
 
     /// <summary>
+    /// Metres of slop added to every bone capsule when hit-testing a player, so a click that lands
+    /// just off a thin limb still counts. Zero tests the body exactly.
+    /// </summary>
+    public float subjectPadding = 0.05f;
+
+    /// <summary>
     /// Validates references and wires up the DoF toggle listener.
     /// </summary>
     private void Awake()
@@ -101,10 +107,11 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
     }
 
     /// <summary>
-    /// Picks what was clicked and pulls focus onto it. Players are hit-tested against their avatar
-    /// bounds — they carry no colliders, so a plain raycast focuses on whatever is behind them — and
-    /// only count when nothing solid stands between them and the lens. Anything else falls back to
-    /// the world raycast, which skips the camera prop itself and every player's own colliders.
+    /// Picks what was clicked and pulls focus onto it. Players carry no colliders, so a plain
+    /// raycast focuses on whatever is behind them; they are hit-tested against capsules fitted to
+    /// their live skeleton instead, and only count when nothing solid stands between them and the
+    /// lens. Anything else falls back to the world raycast, which skips the camera prop itself and
+    /// every player's own colliders.
     /// </summary>
     /// <param name="ray">Ray from the preview/camera pixel into the world.</param>
     public void ApplyFocusFromRay(Ray ray)
@@ -113,9 +120,10 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
 
         bool hasWorld = BasisCameraSubjectPicker.TryRaycastWorld(ray, maxRaycastDistance, focusLayers, cameraController.transform, out RaycastHit worldHit, out float worldDistance);
 
-        if (BasisCameraSubjectPicker.TryPickSubject(ray, maxRaycastDistance, hasWorld ? worldDistance : float.PositiveInfinity, out BasisCameraSubjectHit subject))
+        if (BasisCameraSubjectPicker.TryPickSubject(ray, maxRaycastDistance, hasWorld ? worldDistance : float.PositiveInfinity, subjectPadding, out BasisCameraSubjectHit subject))
         {
             string who = subject.Player != null && !string.IsNullOrEmpty(subject.Player.DisplayName) ? subject.Player.DisplayName : "player";
+            if (!subject.FromSkeleton) who += " (bounds)";
             RackFocusToPoint(subject.Point, who);
             return;
         }

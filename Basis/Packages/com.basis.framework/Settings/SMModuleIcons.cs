@@ -18,6 +18,7 @@ public class SMModuleIcons : BasisSettingsBase
     private static string K_MICROPHONE_ICON          => BasisSettingsDefaults.MicrophoneIcon.BindingKey;
     private static string K_MICROPHONE_ICON_OFFSET_X => BasisSettingsDefaults.MicrophoneIconOffsetX.BindingKey;
     private static string K_MICROPHONE_ICON_OFFSET_Y => BasisSettingsDefaults.MicrophoneIconOffsetY.BindingKey;
+    private static string K_MICROPHONE_ICON_LEVEL_RING => BasisSettingsDefaults.MicrophoneIconLevelRing.BindingKey;
 #endif
 
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
@@ -82,6 +83,10 @@ public class SMModuleIcons : BasisSettingsBase
                 offset.x = x;
                 BasisLocalCameraDriver.Instance.microphoneIconDriver.IconPositionOffset = offset;
             }
+        }
+        else if (matchedSettingName == K_MICROPHONE_ICON_LEVEL_RING)
+        {
+            BasisLocalCameraDriver.Instance.microphoneIconDriver.OnLevelRingChanged(optionValue == "true");
         }
         else if (matchedSettingName == K_MICROPHONE_ICON_OFFSET_Y)
         {

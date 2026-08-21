@@ -5,6 +5,7 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using BasisPermissions;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 
 namespace Basis.Scripts.Networking
@@ -61,7 +62,34 @@ namespace Basis.Scripts.Networking
             return BasisSettingsDefaults.TalkToNoOne.RawValue;
         }
 
-        public static bool TransmitBlockedLocally => CurrentMode == BasisTalkMode.NoOne;
+        private static int localOnlyHolds;
+
+        /// <summary>
+        /// Scoped "nothing leaves this client" hold for local features that must not be heard by
+        /// anyone, such as the microphone test recorder. Deliberately independent of CurrentMode and
+        /// of the TalkToNoOne setting, so it neither changes nor persists the user's own choice, and
+        /// releasing it restores whatever mode is active rather than a value captured earlier.
+        /// </summary>
+        public static void AddLocalOnlyHold()
+        {
+            if (Interlocked.Increment(ref localOnlyHolds) == 1) OnLocalTalkModeChanged?.Invoke();
+        }
+
+        public static void ReleaseLocalOnlyHold()
+        {
+            int remaining = Interlocked.Decrement(ref localOnlyHolds);
+            if (remaining < 0)
+            {
+                Interlocked.Exchange(ref localOnlyHolds, 0);
+                return;
+            }
+
+            if (remaining == 0) OnLocalTalkModeChanged?.Invoke();
+        }
+
+        public static bool LocalOnlyHeld => Volatile.Read(ref localOnlyHolds) > 0;
+
+        public static bool TransmitBlockedLocally => CurrentMode == BasisTalkMode.NoOne || LocalOnlyHeld;
 
         private static readonly BasisTalkMode[] CycleOrder =
         {

@@ -2535,9 +2535,13 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             if (_videoOutputToggle == null || _activeCamera == null) return;
 
-            string description = _activeCamera.IsWebStreamActive
-                ? $"Serving at {_activeCamera.WebStreamUrl} — add that as a Browser source in OBS, or open it in a browser."
-                : $"Publish this camera as a live video source. {BasisHandHeldCamera.GetVideoTransportRequirement(_activeCamera.VideoTransport)}";
+            // A refusal springs the toggle back on its own, so without this the only thing the
+            // operator is told is that the control does not work.
+            string description = !string.IsNullOrEmpty(_activeCamera.LiveOutputFailure)
+                ? _activeCamera.LiveOutputFailure
+                : _activeCamera.IsWebStreamActive
+                    ? $"Serving at {_activeCamera.WebStreamUrl} — add that as a Browser source in OBS, or open it in a browser."
+                    : $"Publish this camera as a live video source. {BasisHandHeldCamera.GetVideoTransportRequirement(_activeCamera.VideoTransport)}";
             if (_lastWebStreamDescription == description) return;
 
             _lastWebStreamDescription = description;
@@ -2626,7 +2630,11 @@ namespace Basis.BasisUI.HandHeldCamera
 
             RefreshPreviewTexture();
 
-            if (_activeCamera.IsVideoOutputActive != _lastVideoOutputActive ||
+            // Against IsAnyVideoOutputActive, which is what the cache is filled from. Read as
+            // IsVideoOutputActive the two could never agree while the web transport was the one
+            // running, so this fired a full refresh — and the layout rebuild inside it — every
+            // frame for as long as the stream was up.
+            if (_activeCamera.IsAnyVideoOutputActive != _lastVideoOutputActive ||
                 _activeCamera.IsWebStreamActive != _lastWebStreamActive)
             {
                 RefreshVideoOutputState();

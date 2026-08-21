@@ -590,6 +590,7 @@ MonoBehaviour:
   ChatNotificationUI: {fileID: 8300000, guid: ccdb6b8ce45691e4394eeef9fe8af29c, type: 3}
   CameraShutterSound: {fileID: 8300000, guid: 848ca0e3ce7b3d94ebe36ca3f3a19a6a, type: 3}
   CameraCountdownTickSound: {fileID: 8300000, guid: 848ca0e3ce7b3d94ebe36ca3f3a19a6a, type: 3}
+  MicrophoneLevelRingMaterial: {fileID: 2100000, guid: 3c1f7a9d5b62e4a4f8d0c1e6b7a34d92, type: 2}
   AllInputDevices:
     _list: []
   BasisXRManagement:

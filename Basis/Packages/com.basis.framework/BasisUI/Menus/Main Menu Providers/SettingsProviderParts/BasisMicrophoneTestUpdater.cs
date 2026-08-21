@@ -1,6 +1,7 @@
 #if !BASIS_DISABLE_MICROPHONE
 using System;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.Networking;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -33,6 +34,8 @@ namespace Basis.BasisUI
         private bool wasPlaying;
         private bool envelopeReady;
         private bool showingLivePreview;
+        private bool holdingLocalOnly;
+        private bool unmutedForTest;
         private bool richTextDisabled;
         private bool layoutFrozen;
         private int statusUpdates;
@@ -89,6 +92,8 @@ namespace Basis.BasisUI
                 holdingCapture = false;
                 BasisLocalMicrophoneDriver.ReleaseCaptureHold();
             }
+
+            ReleaseLocalOnly();
         }
 
         private void OnDestroy()
@@ -96,6 +101,7 @@ namespace Basis.BasisUI
             tap.ClearRecording();
             DestroyPlaybackClip();
             if (playbackSource != null) Destroy(playbackSource.gameObject);
+            ReleaseLocalOnly();
         }
 
         private void OnFrameTick()
@@ -106,6 +112,7 @@ namespace Basis.BasisUI
                 EndRecording();
                 BuildEnvelope();
                 BeginPlayback();
+                if (!IsPlaying) ReleaseLocalOnly();
                 RefreshButtons();
             }
 
@@ -114,6 +121,7 @@ namespace Basis.BasisUI
             {
                 wasPlaying = false;
                 if (Waveform != null) Waveform.SetPlayhead(-1f);
+                ReleaseLocalOnly();
                 RefreshButtons();
             }
 
@@ -130,6 +138,7 @@ namespace Basis.BasisUI
                 EndRecording();
                 BuildEnvelope();
                 BeginPlayback();
+                if (!IsPlaying) ReleaseLocalOnly();
                 RefreshButtons();
                 return;
             }
@@ -146,6 +155,8 @@ namespace Basis.BasisUI
                 BasisLocalMicrophoneDriver.AddMuteBypass();
             }
 
+            HoldLocalOnly();
+            ForceUnmute();
             tap.StartRecording(LocalOpusSettings.MicrophoneSampleRate);
             wasRecording = true;
             RefreshButtons();
@@ -166,6 +177,7 @@ namespace Basis.BasisUI
             if (IsPlaying)
             {
                 StopPlayback();
+                ReleaseLocalOnly();
                 RefreshButtons();
                 return;
             }
@@ -301,7 +313,7 @@ namespace Basis.BasisUI
             {
                 text = BasisLocalization.Get(BasisLocalMicrophoneDriver.isPaused
                     ? "settings.microphone.test.status.recordingMuted"
-                    : "settings.microphone.test.status.recording", tap.RecordedSeconds, BasisMicrophoneTestTap.MaxRecordSeconds);
+                    : "settings.microphone.test.status.recordingLocal", tap.RecordedSeconds, BasisMicrophoneTestTap.MaxRecordSeconds);
             }
             else if (playing)
             {
@@ -311,6 +323,10 @@ namespace Basis.BasisUI
             else if (!HasMicrophone())
             {
                 text = BasisLocalization.Get("settings.microphone.test.status.noDevice");
+            }
+            else if (holdingLocalOnly)
+            {
+                text = BasisLocalization.Get("settings.microphone.test.status.localOnly", tap.RecordedSeconds);
             }
             else if (tap.HasRecording)
             {
@@ -378,11 +394,45 @@ namespace Basis.BasisUI
             }
         }
 
-        // Keeps the take loaded so Play Back and Save still work; only the graph goes back to
-        // showing the live monitor, which otherwise never returns once a recording exists.
+        // Display only. The microphone is handed back when playback ends, not here; this just
+        // returns the graph to the live monitor, which otherwise never reappears once a take exists.
+        // The release below is a safety net for the case where playback never started.
+        private void HoldLocalOnly()
+        {
+            if (holdingLocalOnly) return;
+            holdingLocalOnly = true;
+            BasisTalkModeManager.AddLocalOnlyHold();
+        }
+
+        private void ReleaseLocalOnly()
+        {
+            RestoreMute();
+            if (!holdingLocalOnly) return;
+            holdingLocalOnly = false;
+            BasisTalkModeManager.ReleaseLocalOnlyHold();
+        }
+
+        // Recording while muted would capture nothing useful, so take the mute off for the test and
+        // hand it back on the way out. The talk mode itself is never touched, so "whatever mic mode
+        // you were in" survives on its own.
+        private void ForceUnmute()
+        {
+            if (unmutedForTest || !BasisLocalMicrophoneDriver.isPaused) return;
+            unmutedForTest = true;
+            BasisLocalMicrophoneDriver.ToggleIsPaused();
+        }
+
+        private void RestoreMute()
+        {
+            if (!unmutedForTest) return;
+            unmutedForTest = false;
+            if (!BasisLocalMicrophoneDriver.isPaused) BasisLocalMicrophoneDriver.ToggleIsPaused();
+        }
+
         private void ShowLivePreview()
         {
             StopPlayback();
+            ReleaseLocalOnly();
             showingLivePreview = true;
             tap.ClearLevels();
             RefreshButtons();

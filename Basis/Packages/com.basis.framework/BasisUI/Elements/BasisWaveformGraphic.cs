@@ -15,6 +15,9 @@ namespace Basis.BasisUI
         private const float ColumnGap = 1f;
         private const float VerticalPadding = 6f;
         private const float MinimumBarHeight = 1f;
+        private const float ClippingLevel = 0.96f;
+        private const float HotLevel = 0.88f;
+        private const float QuietLevel = 0.30f;
 
         private float[] peaks = Array.Empty<float>();
         private float[] bodies = Array.Empty<float>();
@@ -129,7 +132,6 @@ namespace Basis.BasisUI
 
             UiStylePalette palette = UiStyleSettings.GetActivePalette();
             Color background = palette != null ? palette.InputFieldColor : new Color(0.13f, 0.13f, 0.15f);
-            Color accent = palette != null ? palette.AccentColor : new Color(0.14f, 0.46f, 0.93f);
             Color guide = palette != null ? palette.FontColor3 : new Color(0.65f, 0.67f, 0.69f);
             Color marker = palette != null ? palette.CautionColor : new Color(1f, 0.82f, 0.34f);
 
@@ -141,9 +143,6 @@ namespace Basis.BasisUI
             Color centreLine = guide;
             centreLine.a *= 0.35f;
             AddQuad(helper, rect.xMin, centre - 0.5f, rect.xMax, centre + 0.5f, centreLine);
-
-            Color envelope = accent;
-            envelope.a *= 0.35f;
 
             if (columns > 0)
             {
@@ -158,8 +157,12 @@ namespace Basis.BasisUI
                     float peak = peaks[i] * half;
                     float body = bodies[i] * half;
 
+                    Color level = ResolveLevelColour(peaks[i], palette, guide);
+                    Color envelope = level;
+                    envelope.a *= 0.35f;
+
                     if (peak >= MinimumBarHeight) AddQuad(helper, left, centre - peak, right, centre + peak, envelope);
-                    if (body >= MinimumBarHeight) AddQuad(helper, left, centre - body, right, centre + body, accent);
+                    if (body >= MinimumBarHeight) AddQuad(helper, left, centre - body, right, centre + body, level);
                 }
             }
 
@@ -168,6 +171,23 @@ namespace Basis.BasisUI
                 float x = Mathf.Lerp(rect.xMin, rect.xMax, playhead);
                 AddQuad(helper, x - 1f, rect.yMin, x + 1f, rect.yMax, marker);
             }
+        }
+
+        // Colour carries the verdict on each column so a bad take is visible without reading numbers:
+        // red = peaking, amber = close to it, green = healthy, dim grey = too quiet to hear well.
+        private static Color ResolveLevelColour(float peak, UiStylePalette palette, Color guide)
+        {
+            if (peak >= ClippingLevel) return palette != null ? palette.DangerColor : new Color(0.97f, 0.34f, 0.34f);
+            if (peak >= HotLevel) return palette != null ? palette.CautionColor : new Color(1f, 0.82f, 0.34f);
+
+            if (peak <= QuietLevel)
+            {
+                Color dim = guide;
+                dim.a *= 0.7f;
+                return dim;
+            }
+
+            return palette != null ? palette.SuccessColor : new Color(0.09f, 0.8f, 0.47f);
         }
 
         private static void AddQuad(VertexHelper helper, float left, float bottom, float right, float top, Color32 tint)

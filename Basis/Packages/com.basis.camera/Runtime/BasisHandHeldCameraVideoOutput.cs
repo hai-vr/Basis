@@ -92,6 +92,9 @@ public partial class BasisHandHeldCamera
 #if BASIS_VIDEO_OUTPUT_SUPPORTED
     /// <summary>Sender names in use process-wide, so simultaneous cameras publish separate outputs (#854).</summary>
     private static readonly HashSet<string> ActiveVideoOutputNames = new HashSet<string>();
+
+    /// <summary>The name actually published, which carries the duplicate suffix the setting must not.</summary>
+    private string activeSenderName = string.Empty;
 #endif
     public Shader TransparentVideoOutputShader;
     private static readonly int TransparentMaskTexId = Shader.PropertyToID("_MaskTex");
@@ -150,6 +153,15 @@ public partial class BasisHandHeldCamera
     /// <summary>True when any live output is consuming the render texture.</summary>
     public bool IsAnyVideoOutputActive => IsVideoOutputActive || IsWebStreamActive;
 
+    /// <summary>
+    /// Why the last attempt to start a live output refused, or empty when none did. Every refusal
+    /// below returned a bare false, so the toggle sprang back with nothing said anywhere the
+    /// operator was looking — and the two that do log are silenced by the Disable Logging setting
+    /// and by a tag filter. The panel reads this so a refusal always says which one it was.
+    /// </summary>
+    [NonSerialized]
+    public string LiveOutputFailure = string.Empty;
+
     // ---- transport selection -------------------------------------------------------
 
     /// <summary>Which transport the live output uses. One at a time — they cost the same frame twice.</summary>
@@ -181,12 +193,39 @@ public partial class BasisHandHeldCamera
     public bool StartLiveOutput()
     {
         StopLiveOutput();
-        return VideoTransport == BasisVideoTransport.Web ? StartWebStream() : StartVideoOutput();
+        LiveOutputFailure = string.Empty;
+
+        bool started;
+        try
+        {
+            started = VideoTransport == BasisVideoTransport.Web ? StartWebStream() : StartVideoOutput();
+        }
+        catch (Exception e)
+        {
+            // An exception on the way up left the toggle the only thing that had moved: the sink
+            // was half-built, the render texture and the claimed sender name were still held, and
+            // the panel never reached the line that puts the switch back. Unwound and reported as
+            // a refusal like any other.
+            started = false;
+            LiveOutputFailure = $"{GetVideoTransportName(VideoTransport)} threw on start ({e.GetType().Name}: {e.Message}).";
+            BasisDebug.LogError($"{LiveOutputFailure} {e}", BasisDebug.LogTag.Camera);
+            StopWebStream();
+            StopVideoOutput();
+        }
+        if (started) return true;
+
+        if (string.IsNullOrEmpty(LiveOutputFailure))
+        {
+            LiveOutputFailure = $"{GetVideoTransportName(VideoTransport)} refused to start and gave no reason.";
+        }
+        BasisDebug.LogError($"Live output refused: {LiveOutputFailure}", BasisDebug.LogTag.Camera);
+        return false;
     }
 
     /// <summary>Stops every transport, whichever one happens to be up.</summary>
     public void StopLiveOutput()
     {
+        LiveOutputFailure = string.Empty;
         StopWebStream();
         StopVideoOutput();
     }
@@ -210,7 +249,11 @@ public partial class BasisHandHeldCamera
     public bool StartWebStream()
     {
         StopWebStream();
-        if (captureCamera == null) return false;
+        if (captureCamera == null)
+        {
+            LiveOutputFailure = "This camera has no capture camera to publish.";
+            return false;
+        }
 
         BasisVideoOutputSettings settings = VideoOutputSettings;
         settings.Width = Mathf.Clamp(settings.Width, 16, 8192);
@@ -222,6 +265,7 @@ public partial class BasisHandHeldCamera
         webSink = new BasisWebVideoOutputSink();
         if (!webSink.Start(port))
         {
+            LiveOutputFailure = webSink.FailureMessage ?? $"No free port from {port} upwards to serve the stream on.";
             webSink = null;
             return false;
         }
@@ -335,23 +379,33 @@ public partial class BasisHandHeldCamera
     {
 #if BASIS_VIDEO_OUTPUT_SUPPORTED
         StopVideoOutput();
-        if (captureCamera == null) return false;
+        if (captureCamera == null)
+        {
+            LiveOutputFailure = "This camera has no capture camera to publish.";
+            return false;
+        }
 
         // A film body has no output to stream. Refused rather than started silently and dropped,
         // so the panel's own failure line is what says so.
-        if (!BodyAllowsLiveFeed) return false;
+        if (!BodyAllowsLiveFeed)
+        {
+            LiveOutputFailure = $"A {BodyTraits.Kind} body has no output socket — it only shows its own viewfinder. Switch the body on the Presets tab.";
+            return false;
+        }
         BasisVideoOutputSettings settings = VideoOutputSettings;
         settings.Width = Mathf.Clamp(settings.Width, 16, 8192);
         settings.Height = Mathf.Clamp(settings.Height, 16, 8192);
 
+        // The suffix is kept off settings.SenderName. Written back, a second camera turned the
+        // operator's own name into "Basis Camera 2" permanently, and the start after that read
+        // that as the base and published "Basis Camera 2 2".
         string baseName = string.IsNullOrEmpty(settings.SenderName) ? "Basis Camera" : settings.SenderName;
-        string senderName = baseName;
-        for (int Suffix = 2; ActiveVideoOutputNames.Contains(senderName); Suffix++)
+        activeSenderName = baseName;
+        for (int Suffix = 2; ActiveVideoOutputNames.Contains(activeSenderName); Suffix++)
         {
-            senderName = $"{baseName} {Suffix}";
+            activeSenderName = $"{baseName} {Suffix}";
         }
-        settings.SenderName = senderName;
-        ActiveVideoOutputNames.Add(senderName);
+        ActiveVideoOutputNames.Add(activeSenderName);
 
 #if BASIS_VIDEO_OUTPUT_V4L2
         RenderTextureFormat format = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.BGRA32) ? RenderTextureFormat.BGRA32 : RenderTextureFormat.ARGB32;
@@ -366,8 +420,15 @@ public partial class BasisHandHeldCamera
         videoStreamTexture = new RenderTexture(new RenderTextureDescriptor(settings.Width, settings.Height, format, 0) { sRGB = true }) { name = "BasisVideoOutput" };
         videoStreamTexture.Create();
 
-        if (!videoSink.Start(settings, captureCamera.gameObject))
+        string requestedName = settings.SenderName;
+        settings.SenderName = activeSenderName;
+        bool sinkStarted = videoSink.Start(settings, captureCamera.gameObject);
+        settings.SenderName = requestedName;
+        if (!sinkStarted)
         {
+            // Read before the stop: that clears the sink, and its own account of why it would not
+            // start is the only thing that separates a missing shader from the wrong graphics API.
+            LiveOutputFailure = videoSink.FailureMessage ?? $"{VideoOutputBackendName} would not start.";
             StopVideoOutput();
             return false;
         }
@@ -378,9 +439,10 @@ public partial class BasisHandHeldCamera
             PrepareTransparentVideoOutputResources(renderTexture);
         }
         UpdateRenderGate();
-        BasisDebug.Log($"{VideoOutputBackendName} output started as '{settings.SenderName}': {settings.Width}x{settings.Height} @ {settings.FrameRate}fps", BasisDebug.LogTag.Camera);
+        BasisDebug.Log($"{VideoOutputBackendName} output started as '{activeSenderName}': {settings.Width}x{settings.Height} @ {settings.FrameRate}fps", BasisDebug.LogTag.Camera);
         return true;
 #else
+        LiveOutputFailure = "This build carries no shared-texture video backend — use the web stream instead.";
         return false;
 #endif
     }
@@ -391,7 +453,11 @@ public partial class BasisHandHeldCamera
 #if BASIS_VIDEO_OUTPUT_SUPPORTED
         bool wasActive = IsVideoOutputActive;
         IsVideoOutputActive = false;
-        ActiveVideoOutputNames.Remove(VideoOutputSettings.SenderName);
+        if (!string.IsNullOrEmpty(activeSenderName))
+        {
+            ActiveVideoOutputNames.Remove(activeSenderName);
+            activeSenderName = string.Empty;
+        }
         if (videoSink != null)
         {
             videoSink.Stop();
@@ -1324,24 +1390,28 @@ namespace Basis
         private float registrationDeadline;
         private bool registrationChecked;
 
-        public string FailureMessage => null;
+        public string FailureMessage { get; private set; }
         public bool SupportsAlpha = true;
 
         public bool Start(BasisVideoOutputSettings settings, GameObject host)
         {
+            FailureMessage = null;
+
             // Spout shares a D3D texture handle; there is no path through any other API,
             // and the plugin fails silently rather than telling us. Say so up front.
             GraphicsDeviceType device = SystemInfo.graphicsDeviceType;
             if (device != GraphicsDeviceType.Direct3D11 && device != GraphicsDeviceType.Direct3D12)
             {
-                BasisDebug.LogError($"Spout output needs Direct3D11 or Direct3D12, but this player is running on {device}.", BasisDebug.LogTag.Camera);
+                FailureMessage = $"Spout needs Direct3D11 or Direct3D12; this player is running on {device}.";
+                BasisDebug.LogError(FailureMessage, BasisDebug.LogTag.Camera);
                 return false;
             }
 
             Shader blitShader = Shader.Find(BlitShaderPath);
             if (blitShader == null)
             {
-                BasisDebug.LogError($"Spout blit shader '{BlitShaderPath}' was stripped from the build — keep it in Always Included Shaders.", BasisDebug.LogTag.Camera);
+                FailureMessage = $"Spout blit shader '{BlitShaderPath}' was stripped from the build — keep it in Always Included Shaders.";
+                BasisDebug.LogError(FailureMessage, BasisDebug.LogTag.Camera);
                 return false;
             }
             resources = ScriptableObject.CreateInstance<SpoutResources>();

@@ -473,6 +473,7 @@ namespace Basis.Scripts.Drivers
             BasisLocalMicrophoneDriver.OnInitializedAction -= OnMicrophoneDriverInitialized;
             BasisNetworkModeration.OnShoutModeChanged -= OnShoutModeChangedForIcon;
             Basis.Scripts.Networking.BasisTalkModeManager.OnLocalTalkModeChanged -= microphoneIconDriver.OnTalkModeChanged;
+            microphoneIconDriver.Dispose();
 #endif
             HasEvents = false;
             HasInstance = false;

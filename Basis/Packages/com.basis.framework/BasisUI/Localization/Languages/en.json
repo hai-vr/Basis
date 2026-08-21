@@ -28,7 +28,7 @@
     },
     {
       "key": "camera.modePreset",
-      "value": "Mode"
+      "value": "Preset"
     },
     {
       "key": "camera.modePreset.custom",
@@ -36,7 +36,7 @@
     },
     {
       "key": "camera.modePreset.custom.description",
-      "value": "Your own setup. Shown whenever the settings no longer match a mode, so it is not something you switch to — it is where you end up once you start tuning. Pick a mode to go back to a known starting point."
+      "value": "Your own setup. Shown whenever the settings no longer match a preset, so it is not something you switch to — it is where you end up once you start tuning. Pick a preset to go back to a known starting point."
     },
     {
       "key": "camera.modePreset.photo",
@@ -44,7 +44,7 @@
     },
     {
       "key": "camera.modePreset.photo.description",
-      "value": "The ordinary handheld camera, set up exactly as it ships. Stays in your hand, normal lens, no effects added. The follow and cinematic sections do nothing in this mode."
+      "value": "The ordinary handheld camera, set up exactly as it ships. Stays in your hand, normal lens, no effects added. The follow and cinematic sections do nothing in this preset."
     },
     {
       "key": "camera.modePreset.flyingPuck",
@@ -296,31 +296,31 @@
     },
     {
       "key": "camera.userMode.title",
-      "value": "Your Modes"
+      "value": "Your Presets"
     },
     {
       "key": "camera.userMode.help",
-      "value": "Point the camera the way you like it, give that arrangement a name and a colour, and it joins the list above. Saving over a name you already have updates that mode."
+      "value": "Point the camera the way you like it, give that arrangement a name and a colour, and it joins the list above. Saving over a name you already have updates that preset."
     },
     {
       "key": "camera.userMode.description",
-      "value": "One of your own saved modes. Everything below was restored from it, and the panel is coloured in the colour you gave it."
+      "value": "One of your own saved presets. Everything below was restored from it, and the panel is coloured in the colour you gave it."
     },
     {
       "key": "camera.userMode.name",
-      "value": "Mode Name"
+      "value": "Preset Name"
     },
     {
       "key": "camera.userMode.name.tooltip",
-      "value": "What this mode is called in the list above. Saving with a name you already have replaces that mode."
+      "value": "What this preset is called in the list above. Saving with a name you already have replaces that preset."
     },
     {
       "key": "camera.userMode.tint",
-      "value": "Mode Colour"
+      "value": "Preset Colour"
     },
     {
       "key": "camera.userMode.tint.tooltip",
-      "value": "The colour the panel is painted while this mode is in control. Slide through the spectrum to pick one."
+      "value": "The colour the panel is painted while this preset is in control. Slide through the spectrum to pick one."
     },
     {
       "key": "camera.userMode.save",
@@ -332,15 +332,15 @@
     },
     {
       "key": "camera.userMode.remove",
-      "value": "Remove Mode"
+      "value": "Remove Preset"
     },
     {
       "key": "camera.userMode.remove.tooltip",
-      "value": "Forgets the saved mode named above. Your camera keeps its current settings."
+      "value": "Forgets the saved preset named above. Your camera keeps its current settings."
     },
     {
       "key": "camera.userMode.remove.confirm",
-      "value": "Remove the saved mode “{0}”? The camera keeps the settings it has now — only the saved mode is forgotten."
+      "value": "Remove the saved preset “{0}”? The camera keeps the settings it has now — only the saved preset is forgotten."
     },
     {
       "key": "camera.userMode.saved",
@@ -356,11 +356,11 @@
     },
     {
       "key": "camera.userMode.error.empty",
-      "value": "Give the mode a name before saving it."
+      "value": "Give the preset a name before saving it."
     },
     {
       "key": "camera.userMode.error.full",
-      "value": "There is no room for another saved mode. Remove one first."
+      "value": "There is no room for another saved preset. Remove one first."
     },
     {
       "key": "camera.placement",
@@ -1585,6 +1585,10 @@
     {
       "key": "settings.microphone.icon.tooltip",
       "value": "Choose when the microphone status icon appears on screen."
+    },
+    {
+      "key": "settings.microphone.icon.levelRing.tooltip",
+      "value": "Draws the microphone status as an outline-only circle that grows and shrinks with how loud you are, instead of the microphone symbol. The circle is hollow, so it covers less of your view."
     },
     {
       "key": "settings.microphone.startBehavior.tooltip",
@@ -6573,6 +6577,10 @@
     {
       "key": "settings.microphone.icon",
       "value": "Microphone Icon"
+    },
+    {
+      "key": "settings.microphone.icon.levelRing",
+      "value": "Show As Voice Level Circle"
     },
     {
       "key": "settings.microphone.startBehavior",
@@ -16487,6 +16495,14 @@
     {
       "key": "settings.microphone.test.live.disabled",
       "value": "The live level is already showing."
+    },
+    {
+      "key": "settings.microphone.test.status.localOnly",
+      "value": "Recorded {0:F1}s. Only you can hear your microphone until this test finishes."
+    },
+    {
+      "key": "settings.microphone.test.status.recordingLocal",
+      "value": "Recording {0:F1}s of {1}s — outbound voice is off, only you can hear this."
     }
   ]
 }

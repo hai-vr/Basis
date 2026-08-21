@@ -149,6 +149,13 @@ namespace Basis.Scripts.Device_Management
         [SerializeField] public AudioClip CameraCountdownTickSound;
 
         /// <summary>
+        /// Source material for the microphone HUD's voice-level ring style. Held here rather than
+        /// resolved with Shader.Find, which returns null the moment a build drops the shader for
+        /// having no asset reference. The icon driver instantiates from it; this stays untouched.
+        /// </summary>
+        [SerializeField] public Material MicrophoneLevelRingMaterial;
+
+        /// <summary>
         /// Live collection of all input devices currently managed by this system.
         /// </summary>
         [SerializeField] public BasisObservableList<BasisInput> AllInputDevices = new();
