@@ -107,6 +107,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSectionToggle _performanceSection;
         private PanelToggle _limitRenderRateToggle;
         private PanelSlider _renderRateSlider;
+        private PanelElementDescriptor _renderRateLockNotice;
+        private bool? _renderRatePinned;
+        private bool? _lastRenderRateLimit;
+        private float _lastRenderRateHz = float.NaN;
         private PanelButton _resetPageButton;
         private PanelButton _resetTopButton;
         private PanelButton _timerButton;
@@ -351,6 +355,9 @@ namespace Basis.BasisUI.HandHeldCamera
 
                 BuildVideoGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_videoSection, _videoGroup, false, OnSectionExpanded);
+
+                BuildPerformanceGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_performanceSection, _performanceGroup, false, OnSectionExpanded);
             });
 
             AddTab("camera.modifiers", BuildModifierSections);
@@ -367,9 +374,6 @@ namespace Basis.BasisUI.HandHeldCamera
 
                 BuildPhotoMetadataGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_photoMetadataSection, _photoMetadataGroup, false, OnSectionExpanded);
-
-                BuildPerformanceGroup(content);
-                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_performanceSection, _performanceGroup, false, OnSectionExpanded);
 
                 BuildGizmoGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_gizmoSection, _gizmoGroup, false, OnSectionExpanded);
@@ -842,6 +846,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _performanceSection = null;
             _limitRenderRateToggle = null;
             _renderRateSlider = null;
+            _renderRateLockNotice = null;
+            _renderRatePinned = null;
+            _lastRenderRateLimit = null;
+            _lastRenderRateHz = float.NaN;
             _followMarkerDropdown = null;
             _followPlayspaceToggle = null;
             _followLookAtHeightSlider = null;
@@ -1919,6 +1927,9 @@ namespace Basis.BasisUI.HandHeldCamera
                 _performanceSection, parent, BasisLocalization.Get("camera.performance"), false);
             RectTransform content = _performanceGroup.ContentParent;
 
+            _renderRateLockNotice = BuildRecordingStatusCard(content, "camera.rateLocked", "camera.rateLocked.description");
+            _renderRateLockNotice.gameObject.SetActive(false);
+
             _limitRenderRateToggle = PanelToggle.CreateNewEntry(content);
             _limitRenderRateToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.handheldCameraRate.limit"));
             _limitRenderRateToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.handheldCameraRate.limit.description"));
@@ -1930,7 +1941,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 new PanelSlider.SliderSettings(
                     BasisLocalization.Get("settings.developer.handheldCameraRate"),
                     BasisLocalization.Get("settings.developer.handheldCameraRate.description"),
-                    1, 120, true, 0, ValueDisplayMode.Hz),
+                    BasisHandHeldCamera.MinHandHeldRenderHz, BasisHandHeldCamera.MaxHandHeldRenderHz, true, 0, ValueDisplayMode.Hz),
                 BasisSettingsDefaults.HandHeldCameraRenderHz);
             _renderRateSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.handheldCameraRate.tooltip"));
         }
@@ -2218,8 +2229,8 @@ namespace Basis.BasisUI.HandHeldCamera
             SetSectionActive(_positionSection, _positionGroup, active);
             SetSectionActive(_rotationSection, _rotationGroup, active);
             SetSectionActive(_modifierEffectsSection, _modifierEffectsGroup, active);
-            SetSectionActive(_dollySection, _dollyGroup, active);
-            SetSectionActive(_dollyPresetSection, _dollyPresetGroup, active);
+            // The dolly track block is not listed: it is a card inside the position group and goes
+            // with it, and RefreshModifierVisibility owns whether the fitted slot wants it at all.
             SetSectionActive(_backgroundSection, _backgroundGroup, active);
             SetSectionActive(_actionSection, _actionGroup, active);
             SetSectionActive(_layersSection, _layersGroup, active);
@@ -2231,11 +2242,13 @@ namespace Basis.BasisUI.HandHeldCamera
             ForceLayoutRebuild(null);
         }
 
+        /// <summary>
+        /// Takes a whole section off the page and puts it back, leaving its open flag alone so it
+        /// returns to whatever the user last left it at. The dividers go with it, or the rule above
+        /// a hidden header stays behind separating nothing.
+        /// </summary>
         private static void SetSectionActive(PanelSectionToggle section, PanelElementDescriptor group, bool active)
-        {
-            if (section != null) section.gameObject.SetActive(active);
-            if (group != null) group.gameObject.SetActive(active && (section == null || section.Expanded));
-        }
+            => PanelSectionToggleHelpers.SetSectionVisible(section, group, active);
 
         private void ApplyActiveCameraToControls()
         {
@@ -2649,6 +2662,7 @@ namespace Basis.BasisUI.HandHeldCamera
             TickModifierSections();
             TickGifSection();
             TickVideoSection();
+            TickRenderRateLock();
             TickPhotoStatus();
             RefreshTimerLabel();
             RefreshHiddenState();
@@ -2936,6 +2950,27 @@ namespace Basis.BasisUI.HandHeldCamera
             _paniniCropSlider?.gameObject.SetActive(projecting);
             RefreshSearch();
             ForceLayoutRebuild(_effectsGroup);
+        }
+
+        private void TickRenderRateLock()
+        {
+            if (_limitRenderRateToggle == null) return;
+
+            SyncToggle(_limitRenderRateToggle, BasisSettingsDefaults.LimitHandHeldCameraRate.RawValue, ref _lastRenderRateLimit);
+            SyncSlider(_renderRateSlider, BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue, ref _lastRenderRateHz);
+
+            bool pinned = BasisHandHeldCamera.IsRenderRatePinnedByRecording;
+            if (_renderRatePinned == pinned) return;
+            _renderRatePinned = pinned;
+
+            if (_limitRenderRateToggle.ToggleComponent != null)
+            {
+                _limitRenderRateToggle.ToggleComponent.interactable = !pinned;
+            }
+            if (_renderRateLockNotice != null) _renderRateLockNotice.gameObject.SetActive(pinned);
+
+            RefreshSearch();
+            ForceLayoutRebuild(_performanceGroup);
         }
 
         // PanelSlider.ApplyValue restarts a 0.15s fill-colour tween on every call, and the tween

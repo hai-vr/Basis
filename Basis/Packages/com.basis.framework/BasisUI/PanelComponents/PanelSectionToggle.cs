@@ -170,6 +170,18 @@ namespace Basis.BasisUI
             SetValueWithoutNotify(expanded);
         }
 
+        /// <summary>
+        /// Takes the header itself off the page, along with the dividers it draws, for a page that
+        /// only offers this section in some of its modes. The expanded flag is left alone, so a
+        /// section that comes back comes back at whatever the user last left it at. Use
+        /// <see cref="PanelSectionToggleHelpers.SetSectionVisible"/> to move the content with it.
+        /// </summary>
+        public void SetSectionVisible(bool visible)
+        {
+            gameObject.SetActive(visible);
+            DividerManager.SetHidden(!visible);
+        }
+
         public void RegisterContentContainer(Component contentContainer)
         {
             if (contentContainer == null)

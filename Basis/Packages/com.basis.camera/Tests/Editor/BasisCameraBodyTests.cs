@@ -108,7 +108,6 @@ namespace Basis.Tests.Camera
             _camera.ApplyCameraMode(BasisCameraMode.Disposable);
 
             Assert.That(_camera.ExposuresRemaining, Is.EqualTo(_camera.BodyTraits.Exposures));
-            Assert.That(_camera.BodyOutOfFilm, Is.False);
         }
 
         [Test]
@@ -151,8 +150,10 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
-        public void ARollRunsOut_AndOnlyAReloadBringsItBack()
+        public void ASpentRoll_WindsItselfOnRatherThanStopping()
         {
+            // There is no film to go and buy, so an empty counter was only ever a button the
+            // operator had to find before the camera would work again.
             _camera.ApplyCameraMode(BasisCameraMode.Disposable);
             int roll = _camera.BodyTraits.Exposures;
 
@@ -162,17 +163,23 @@ namespace Basis.Tests.Camera
                 _camera.AdvanceBodyForTest(10f);
             }
 
-            Assert.That(_camera.BodyOutOfFilm, Is.True);
-            Assert.That(_camera.EvaluateShutter(), Is.EqualTo(BasisCameraShutterState.OutOfFilm));
-            Assert.That(_camera.TryTakeFrameForTest(), Is.False);
+            Assert.That(_camera.ExposuresRemaining, Is.Zero, "The roll still runs down; that is what the counter is for.");
+            Assert.That(_camera.EvaluateShutter(), Is.EqualTo(BasisCameraShutterState.Ready),
+                "Nothing is standing in the way once the wind-on is done.");
 
-            // Out of film is the one refusal waiting does not lift.
-            _camera.AdvanceBodyForTest(600f);
-            Assert.That(_camera.TryTakeFrameForTest(), Is.False);
+            Assert.That(_camera.TryTakeFrameForTest(), Is.True, "The next frame loads a fresh roll by itself.");
+            Assert.That(_camera.ExposuresRemaining, Is.EqualTo(roll - 1));
+        }
+
+        [Test]
+        public void ReloadFilm_StillFillsARollForAnythingThatAsks()
+        {
+            _camera.ApplyCameraMode(BasisCameraMode.Disposable);
+            _camera.TryTakeFrameForTest();
 
             _camera.ReloadFilm();
-            Assert.That(_camera.ExposuresRemaining, Is.EqualTo(roll));
-            Assert.That(_camera.TryTakeFrameForTest(), Is.True);
+
+            Assert.That(_camera.ExposuresRemaining, Is.EqualTo(_camera.BodyTraits.Exposures));
         }
 
         [Test]
@@ -206,8 +213,8 @@ namespace Basis.Tests.Camera
                     Assert.That(_camera.TryTakeFrameForTest(), Is.True, $"{mode} refused frame {Frame + 1}.");
                 }
 
-                Assert.That(_camera.BodyOutOfFilm, Is.False, $"{mode} has nothing to run out of.");
-                Assert.That(_camera.EvaluateShutter(), Is.EqualTo(BasisCameraShutterState.Ready));
+                Assert.That(_camera.EvaluateShutter(), Is.EqualTo(BasisCameraShutterState.Ready),
+                    $"{mode} has nothing to run out of and nothing to wait for.");
             }
         }
 

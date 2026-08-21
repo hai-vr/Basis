@@ -120,7 +120,7 @@
     },
     {
       "key": "camera.body.help",
-      "value": "Which camera you are holding, and what is left in it. Picking a camera kind above hands you a fresh one."
+      "value": "Which camera you are holding and what its shutter is doing. Picking a body above hands you a fresh one."
     },
     {
       "key": "camera.body.flash",
@@ -1513,6 +1513,14 @@
     {
       "key": "camera.performance",
       "value": "Performance"
+    },
+    {
+      "key": "camera.rateLocked",
+      "value": "Rate Pinned While Recording"
+    },
+    {
+      "key": "camera.rateLocked.description",
+      "value": "A recording holds the capture rate limit on and sets it to your display's refresh rate, so every frame it takes is one the camera actually drew. The rate below is still yours to change; the limit goes back to your own setting when the recording ends."
     },
     {
       "key": "settings.general.thirdPerson.tooltip",
@@ -3789,6 +3797,14 @@
     {
       "key": "trackerLinking.trustSteamVRRoles.tooltip",
       "value": "Use the body role SteamVR reports for a tracker instead of working it out during calibration."
+    },
+    {
+      "key": "trackerLinking.ignoreHandTracking",
+      "value": "Ignore Hand Tracking Devices"
+    },
+    {
+      "key": "trackerLinking.ignoreHandTracking.tooltip",
+      "value": "Leave the trackers published by hand-tracking software (HANDL, HANDR, VRLINKQ) out of full-body calibration, so they can't be given a body role. Turn this off if a real body tracker of yours reports one of those names."
     },
     {
       "key": "trackerLinking.unlink",

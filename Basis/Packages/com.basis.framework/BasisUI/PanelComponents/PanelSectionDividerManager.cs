@@ -22,6 +22,7 @@ namespace Basis.BasisUI
         private GameObject _dividerBelow;
         private Image _dividerBelowImage;
         private bool _ownsDividerBelow;
+        private bool _hidden;
 
         public PanelSectionDividerManager(PanelSectionToggle owner, List<PanelSectionContentMarker> contentMarkers)
         {
@@ -96,16 +97,27 @@ namespace Basis.BasisUI
             _ownsDividerBelow = false;
         }
 
+        /// <summary>
+        /// Takes this section's own rules off the page with its header, for a page that only offers
+        /// the section in some of its modes. A shared divider below is the next section's rule above,
+        /// so that one is left drawn — it separates whatever is still on screen.
+        /// </summary>
+        public void SetHidden(bool hidden)
+        {
+            _hidden = hidden;
+            UpdateVisibility();
+        }
+
         public void UpdateVisibility()
         {
             if (_dividerAbove != null && _dividerAboveController == null)
             {
-                _dividerAbove.SetActive(true);
+                _dividerAbove.SetActive(!_hidden);
             }
 
             if (_dividerBelow != null)
             {
-                _dividerBelow.SetActive(!_owner.Expanded);
+                _dividerBelow.SetActive(_hidden ? !_ownsDividerBelow : !_owner.Expanded);
             }
         }
 

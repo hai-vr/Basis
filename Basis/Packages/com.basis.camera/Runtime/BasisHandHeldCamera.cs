@@ -1362,15 +1362,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             return;
         }
 
-        // Only the refusal that five seconds cannot lift. A camera mid wind-on will have wound on
-        // long before the countdown ends, and refusing there would make the timer harder to use
-        // than the button it is standing in for — but an empty camera is empty either way.
-        if (BodyOutOfFilm)
-        {
-            BasisDebug.Log("Timer refused: no film left.", BasisDebug.LogTag.Camera);
-            return;
-        }
-
         // Notify remote clients so they replay the same tick/shutter timing
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
@@ -1508,6 +1499,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     public bool IsDirectToScreen => IsOverridingDesktopView;
     private BasisRenderRateLimiter renderRateLimiter;
+
+    public const float MinHandHeldRenderHz = 1f;
+    public const float MaxHandHeldRenderHz = 120f;
 
     /// <summary>Render-phase priority: after the camera has been moved (202).</summary>
     private const int SimulateLatePriority = 204;

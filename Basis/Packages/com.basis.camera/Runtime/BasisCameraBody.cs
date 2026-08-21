@@ -51,19 +51,19 @@ public enum BasisCameraPrintBorder
     Instant = 1,
 }
 
-/// <summary>Why the shutter will not fire. Ordered by what the operator can do about it.</summary>
+/// <summary>
+/// Why the shutter will not fire. Every one of these lifts on its own — a virtual camera is never
+/// out of anything, so waiting is always the way on and there is nothing for the operator to do.
+/// </summary>
 public enum BasisCameraShutterState
 {
     Ready = 0,
 
-    /// <summary>The film is used up. Reloading is the only way on.</summary>
-    OutOfFilm = 1,
-
     /// <summary>Mid wind-on. Waiting is the only way on.</summary>
-    WindingOn = 2,
+    WindingOn = 1,
 
     /// <summary>The last frame is still coming up. Waiting is the only way on.</summary>
-    Developing = 3,
+    Developing = 2,
 }
 
 /// <summary>

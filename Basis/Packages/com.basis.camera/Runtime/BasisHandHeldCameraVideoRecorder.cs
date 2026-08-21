@@ -4,9 +4,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using Basis;
+using Basis.BasisUI;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
+using UnityEngine.XR;
 
 /// <summary>
 /// Video-file recording for the handheld camera: the same paced capture as the GIF recorder,
@@ -58,6 +60,15 @@ public partial class BasisHandHeldCamera
 
     private readonly BasisCameraFrameRecorder videoRecorder = new BasisCameraFrameRecorder("Video");
     private BasisVideoAudioTap videoAudioTap;
+
+    private static readonly List<XRDisplaySubsystem> ratePinDisplays = new List<XRDisplaySubsystem>();
+    private static int ratePinHolders;
+    private static bool ratePinSavedLimit;
+    private static float ratePinSavedHz;
+    private static float ratePinAppliedHz;
+    private bool ratePinHeld;
+
+    public static bool IsRenderRatePinnedByRecording => ratePinHolders > 0;
 
     // The geometry and naming every clip of one run shares. Held for the roll, which has to
     // open its file without the feed's dimensions being free to change underneath it.
@@ -137,6 +148,7 @@ public partial class BasisHandHeldCamera
             : float.PositiveInfinity;
         videoRecorder.Start(session, width, height, videoFrameRate, duration, flip: false,
             continuous ? BeginVideoSegment : (Func<IBasisFrameRecorderSession>)null);
+        SyncRenderRatePin(true);
         UpdateRenderGate();
         AnnounceClipRecording();
 
@@ -180,13 +192,58 @@ public partial class BasisHandHeldCamera
     public void StopVideoRecording()
     {
         videoRecorder.Stop();
+        SyncRenderRatePin(false);
         UpdateRenderGate();
+    }
+
+    private void SyncRenderRatePin(bool recording)
+    {
+        if (recording == ratePinHeld) return;
+        ratePinHeld = recording;
+
+        if (recording)
+        {
+            if (ratePinHolders++ != 0) return;
+
+            ratePinSavedLimit = BasisSettingsDefaults.LimitHandHeldCameraRate.RawValue;
+            ratePinSavedHz = BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue;
+            ratePinAppliedHz = Mathf.Clamp(DisplayRefreshHz(), MinHandHeldRenderHz, MaxHandHeldRenderHz);
+            BasisSettingsDefaults.HandHeldCameraRenderHz.SetValueWithoutNotify(ratePinAppliedHz);
+            BasisSettingsDefaults.LimitHandHeldCameraRate.SetValueWithoutNotify(true);
+            return;
+        }
+
+        if (--ratePinHolders > 0) return;
+
+        BasisSettingsDefaults.LimitHandHeldCameraRate.SetValueWithoutNotify(ratePinSavedLimit);
+        if (Mathf.Approximately(BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue, ratePinAppliedHz))
+        {
+            BasisSettingsDefaults.HandHeldCameraRenderHz.SetValueWithoutNotify(ratePinSavedHz);
+        }
+    }
+
+    private static float DisplayRefreshHz()
+    {
+        if (XRSettings.isDeviceActive)
+        {
+            SubsystemManager.GetSubsystems(ratePinDisplays);
+            for (int Index = 0; Index < ratePinDisplays.Count; Index++)
+            {
+                XRDisplaySubsystem display = ratePinDisplays[Index];
+                if (display == null || !display.running) continue;
+                if (display.TryGetDisplayRefreshRate(out float headsetHz) && headsetHz > 0f) return headsetHz;
+            }
+        }
+
+        double screenHz = Screen.currentResolution.refreshRateRatio.value;
+        return screenHz > 0.0 ? (float)screenHz : 60f;
     }
 
     /// <summary>Per-frame recorder upkeep, run from <see cref="SimulateLate"/>.</summary>
     private void TickVideoRecorder()
     {
         videoRecorder.Tick(renderTexture, BasisNetworkModeration.CameraCaptureBlockedLocally);
+        SyncRenderRatePin(videoRecorder.IsRecording);
 
         // The tap outlives the capture phase on purpose — the worker is still draining its
         // buffer while Saving — and comes off the listener the moment the file is done.
@@ -198,6 +255,7 @@ public partial class BasisHandHeldCamera
 
     private void ShutdownVideoRecorder()
     {
+        SyncRenderRatePin(false);
         BasisVideoAudioTap.Detach(ref videoAudioTap);
         videoRecorder.Shutdown();
     }

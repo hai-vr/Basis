@@ -62,13 +62,6 @@ public static class BasisCameraSettingsReadout
             BasisCameraBodies.TitleKey(BasisCameraBodies.Sanitize(settings.cameraBody))));
 
         BasisCameraBodyTraits body = BasisCameraBodies.Get(BasisCameraBodies.Sanitize(settings.cameraBody));
-        if (body.HasFilm)
-        {
-            Row("camera.body.exposures", (settings.exposuresRemaining == BasisHandHeldCamera.FullRoll
-                ? body.Exposures
-                : settings.exposuresRemaining) + " / " + body.Exposures);
-        }
-
         if (body.HasFlash) Row("camera.body.flash", OnOff(settings.flashEnabled));
 
         Section("camera.exposureColour");

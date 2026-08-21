@@ -597,11 +597,8 @@ namespace Basis.BasisUI.HandHeldCamera
             AddSectionTint(BasisCameraPanelSection.PositionModifier, _positionSection, _positionGroup);
             AddSectionTint(BasisCameraPanelSection.RotationModifier, _rotationSection, _rotationGroup);
             AddSectionTint(BasisCameraPanelSection.ModifierEffects, _modifierEffectsSection, _modifierEffectsGroup);
-            AddSectionTint(BasisCameraPanelSection.Dolly, _dollySection, _dollyGroup);
-
-            // Presets share the Dolly kind rather than earning one of their own: they are the same
-            // subject, no mode has an opinion about them, and the tint list is keyed by nothing.
-            AddSectionTint(BasisCameraPanelSection.Dolly, _dollyPresetSection, _dollyPresetGroup);
+            // No header of its own to tint — the track block is a plain card inside the position slot.
+            AddSectionTint(BasisCameraPanelSection.Dolly, null, _dollyGroup);
             AddSectionTint(BasisCameraPanelSection.Background, _backgroundSection, _backgroundGroup);
             AddSectionTint(BasisCameraPanelSection.Layers, _layersSection, _layersGroup);
             AddSectionTint(BasisCameraPanelSection.Performance, _performanceSection, _performanceGroup);

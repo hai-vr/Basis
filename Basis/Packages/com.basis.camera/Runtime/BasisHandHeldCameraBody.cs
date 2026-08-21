@@ -45,9 +45,6 @@ public partial class BasisHandHeldCamera
     /// <summary>Seconds until the flash has charged again.</summary>
     public float FlashRecycleRemaining { get; private set; }
 
-    /// <summary>True while the film is used up and the shutter is locked out until it is reloaded.</summary>
-    public bool BodyOutOfFilm => BodyTraits.HasFilm && ExposuresRemaining <= 0;
-
     /// <summary>True while the flash would actually fire: fitted, switched on, and charged.</summary>
     public bool FlashReady =>
         BodyTraits.HasFlash && FlashEnabled && FlashRecycleRemaining <= 0f;
@@ -149,7 +146,7 @@ public partial class BasisHandHeldCamera
         FlashEnabled = traits.HasFlash && flashEnabled;
     }
 
-    /// <summary>Puts a full load in. The only way back from an empty film body.</summary>
+    /// <summary>Winds a fresh roll in. Happens by itself when one runs out; nothing has to ask.</summary>
     public void ReloadFilm()
     {
         BasisCameraBodyTraits traits = BodyTraits;
@@ -175,7 +172,6 @@ public partial class BasisHandHeldCamera
     /// <summary>Why the shutter will not fire, or <see cref="BasisCameraShutterState.Ready"/>.</summary>
     public BasisCameraShutterState EvaluateShutter()
     {
-        if (BodyOutOfFilm) return BasisCameraShutterState.OutOfFilm;
         if (DevelopRemaining > 0f) return BasisCameraShutterState.Developing;
         if (WindOnRemaining > 0f) return BasisCameraShutterState.WindingOn;
         return BasisCameraShutterState.Ready;
@@ -191,6 +187,11 @@ public partial class BasisHandHeldCamera
     /// </summary>
     private bool TryTakeFrame()
     {
+        // A spent roll winds itself on. There is no film to go and buy, so an empty counter was
+        // only ever a button the operator had to find before the camera would work again.
+        BasisCameraBodyTraits loaded = BodyTraits;
+        if (loaded.HasFilm && ExposuresRemaining <= 0) ExposuresRemaining = loaded.Exposures;
+
         BasisCameraShutterState state = EvaluateShutter();
         if (state != BasisCameraShutterState.Ready)
         {
@@ -231,7 +232,7 @@ public partial class BasisHandHeldCamera
         // The count stays up for as long as the camera is still doing something about the last
         // frame, and then goes — except on an empty camera, where a zero that will not go away is
         // exactly the point.
-        if (frameCountShowing && !BodyOutOfFilm && WindOnRemaining <= 0f && DevelopRemaining <= 0f)
+        if (frameCountShowing && WindOnRemaining <= 0f && DevelopRemaining <= 0f)
         {
             ClearFrameCount();
         }

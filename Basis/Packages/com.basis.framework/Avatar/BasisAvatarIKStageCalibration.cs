@@ -784,6 +784,9 @@ namespace Basis.Scripts.Avatar
                 // Screen-touch finger inputs aren't spatial trackers — they never populate
                 // UnscaledDeviceCoord, so they'd only trip the near-origin diagnostic below.
                 if (input is BasisTouchInputDevice) continue;
+                // Hand-tracking software publishes its solved hands as roleless SteamVR trackers;
+                // they sit at hand height and would be scored into LowerArm/Shoulder.
+                if (BasisIgnoredCalibrationTrackers.ShouldIgnore(input)) continue;
                 // Never reassign the HMD itself — even if it has no role assigned, its
                 // position would otherwise score against Chest and we'd happily glue the
                 // headset to the player's torso.

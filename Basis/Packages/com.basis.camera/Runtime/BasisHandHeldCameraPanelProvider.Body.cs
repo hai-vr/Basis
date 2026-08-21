@@ -3,14 +3,12 @@ using UnityEngine;
 namespace Basis.BasisUI.HandHeldCamera
 {
     /// <summary>
-    /// The camera you are holding, on the Mode page: what is left in it, whether the flash is armed,
-    /// and the one button that puts more film in.
+    /// The camera you are holding, on the preset page: which body it is, what the shutter is doing,
+    /// and whether the flash is armed.
     ///
-    /// <para>Everything else on this page is a setting. This section is not — the frame counter goes
-    /// down when you take a photograph and comes back only by reloading, and nothing on the panel
-    /// can talk it out of that. It sits with the mode picker because the picker is what hands you a
-    /// body in the first place, and because a camera that has stopped taking pictures is a question
-    /// about the mode, not about the lens.</para>
+    /// <para>Everything else on this page is a setting. This section is not — the shutter waits on
+    /// a wind-on or a print coming up, and nothing on the panel can talk it out of that. It sits
+    /// with the preset picker because the picker is what hands you a body in the first place.</para>
     ///
     /// <para>Polled on the panel tick rather than driven by an event from the camera, like every
     /// other control on this page. The state moves on a timer nobody presses — a wind-on finishing,
@@ -22,7 +20,6 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSectionToggle _bodySection;
         private PanelElementDescriptor _bodyGroup;
         private PanelElementDescriptor _bodyStatus;
-        private PanelButton _bodyReloadButton;
         private PanelToggle _bodyFlashToggle;
 
         private bool? _lastBodyFlash;
@@ -65,25 +62,16 @@ namespace Basis.BasisUI.HandHeldCamera
                 RefreshBodyControls(force: true);
             };
 
-            _bodyReloadButton = PanelButton.CreateNew(content);
-            _bodyReloadButton.Descriptor.SetTitle(BasisLocalization.Get("camera.body.reload"));
-            _bodyReloadButton.Descriptor.SetTooltip(BasisLocalization.Get("camera.body.reload.tooltip"));
-            _bodyReloadButton.OnClicked += () =>
-            {
-                _activeCamera?.ReloadFilm();
-                RefreshBodyControls(force: true);
-            };
-
             RefreshBodyControls(force: true);
         }
 
         /// <summary>
         /// Brings the card, the toggle and the button in line with the camera in hand.
         ///
-        /// <para>Both controls stay present on a body that has neither a flash nor film in it, and
-        /// go dead instead of disappearing. A row that vanished would take the page's height with
-        /// it every time somebody tried a different mode, and "this camera does not have one" is
-        /// something the card is already saying in words.</para>
+        /// <para>The toggle stays present on a body with no flash on the front and goes dead instead
+        /// of disappearing. A row that vanished would take the page's height with it every time
+        /// somebody tried a different preset, and "this camera does not have one" is something the
+        /// card is already saying in words.</para>
         /// </summary>
         private void RefreshBodyControls(bool force = false)
         {
@@ -102,14 +90,6 @@ namespace Basis.BasisUI.HandHeldCamera
                 }
             }
 
-            if (_bodyReloadButton?.ButtonComponent != null)
-            {
-                // Live only where there is something to reload and something to reload it with: a
-                // full camera has nothing to gain from the button, and a digital one has no film.
-                _bodyReloadButton.ButtonComponent.interactable =
-                    _activeCamera != null && body.HasFilm && _activeCamera.ExposuresRemaining < body.Exposures;
-            }
-
             string status = BuildBodyStatus(body);
             if (!force && string.Equals(status, _lastBodyStatus)) return;
 
@@ -119,9 +99,8 @@ namespace Basis.BasisUI.HandHeldCamera
         }
 
         /// <summary>
-        /// The card's text: which camera, what is left in it, and what the shutter is doing — in
-        /// that order, because that is the order the questions arrive in when a photograph does not
-        /// happen.
+        /// The card's text: which camera it is and what the shutter is doing, in that order,
+        /// because that is the order the questions arrive in when a photograph does not happen.
         /// </summary>
         private string BuildBodyStatus(BasisCameraBodyTraits body)
         {
@@ -129,23 +108,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
             string text = BasisLocalization.Get(BasisCameraBodies.TitleKey(body.Kind));
 
-            if (body.HasFilm)
-            {
-                text += "\n" + BasisLocalization.Get(
-                    "camera.body.status.frames",
-                    _activeCamera.ExposuresRemaining.ToString(),
-                    body.Exposures.ToString());
-            }
-            else
-            {
-                text += "\n" + BasisLocalization.Get("camera.body.status.unlimited");
-            }
-
             switch (_activeCamera.EvaluateShutter())
             {
-                case BasisCameraShutterState.OutOfFilm:
-                    text += "\n" + BasisLocalization.Get("camera.body.status.empty");
-                    break;
                 case BasisCameraShutterState.Developing:
                     text += "\n" + BasisLocalization.Get("camera.body.status.developing");
                     break;
@@ -175,7 +139,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _bodySection = null;
             _bodyGroup = null;
             _bodyStatus = null;
-            _bodyReloadButton = null;
             _bodyFlashToggle = null;
 
             // Forces the card to be written on the next open. It is rebuilt holding the help line,

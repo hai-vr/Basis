@@ -66,6 +66,20 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
+        /// Shows or hides a whole section — header, dividers and content — for a page that only
+        /// offers it in some of its modes. Hiding leaves the open flag untouched, so the section
+        /// comes back at whatever the user last left it at rather than being forced open.
+        /// </summary>
+        public static void SetSectionVisible(
+            PanelSectionToggle sectionToggle,
+            PanelElementDescriptor group,
+            bool visible)
+        {
+            sectionToggle?.SetSectionVisible(visible);
+            group?.SetActive(visible && (sectionToggle == null || sectionToggle.Expanded));
+        }
+
+        /// <summary>
         /// Builds a section whose rows are written straight to <paramref name="container"/> as usual,
         /// then lifted into a single card so every section carries exactly one panel background.
         /// Prefer this over <see cref="CreateCollapsibleFlatSection"/> unless the content already

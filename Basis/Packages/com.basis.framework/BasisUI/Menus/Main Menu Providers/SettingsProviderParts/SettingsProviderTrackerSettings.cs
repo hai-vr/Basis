@@ -136,6 +136,15 @@ namespace Basis.BasisUI
             trustSteamVRToggle.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.trustSteamVRRoles.tooltip"));
             trustSteamVRToggle.AssignBinding(BasisSettingsDefaults.TrustSteamVRRoles);
 
+            // Hand-tracking exclusion, consumed by BasisIgnoredCalibrationTrackers on every
+            // calibration pass and announced-role scan. Opt-in because the match is on device
+            // name only: it can't tell a hand-tracking bridge's tracker from a real one that
+            // happens to report the same name.
+            PanelToggle ignoreHandTrackingToggle = PanelToggle.CreateNewEntry(tabRoot);
+            ignoreHandTrackingToggle.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.ignoreHandTracking"));
+            ignoreHandTrackingToggle.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.ignoreHandTracking.tooltip"));
+            ignoreHandTrackingToggle.AssignBinding(BasisSettingsDefaults.IgnoreHandTrackingDevices);
+
             // Connector trackers toggle — hides the per-tracker list (linking +
             // role override dropdowns) so a configured player doesn't have to
             // scroll past every device on every visit. Same opt-in pattern as
@@ -935,6 +944,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.TrackerLinkingAdvancedVisible.ResetToDefault();
             BasisSettingsDefaults.TrackerLinkingConnectorVisible.ResetToDefault();
             BasisSettingsDefaults.TrustSteamVRRoles.ResetToDefault();
+            BasisSettingsDefaults.IgnoreHandTrackingDevices.ResetToDefault();
             BasisSettingsDefaults.PairingSurprisePenalty.ResetToDefault();
             BasisSettingsDefaults.PairingSurpriseClamp.ResetToDefault();
             BasisSettingsDefaults.PairingEmaFloor.ResetToDefault();

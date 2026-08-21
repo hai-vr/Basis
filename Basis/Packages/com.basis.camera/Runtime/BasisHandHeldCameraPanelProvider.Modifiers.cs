@@ -154,7 +154,6 @@ namespace Basis.BasisUI.HandHeldCamera
         private BasisCameraPositionModifier? _lastPositionModifier;
         private BasisCameraRotationModifier? _lastRotationModifier;
 
-        private PanelSectionToggle _dollySection;
         private PanelElementDescriptor _dollyGroup;
         private PanelDropdown _waypointDropdown;
         private PanelSlider _waypointOrderSlider;
@@ -166,8 +165,6 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelToggle _dollySpeedColorToggle;
         private PanelElementDescriptor _dollyEmptyState;
 
-        private PanelSectionToggle _dollyPresetSection;
-        private PanelElementDescriptor _dollyPresetGroup;
         private PanelElementDescriptor _dollyPresetStatus;
         private PanelDropdown _dollyPresetDropdown;
         private PanelTextField _dollyPresetNameField;
@@ -257,16 +254,17 @@ namespace Basis.BasisUI.HandHeldCamera
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_followSection, _followGroup, true, OnSectionExpanded);
 
             BuildPositionGroup(parent);
+
+            // The track is what Dolly Track rides, so it is built into the position slot's own
+            // content as one more block of that slot's rows — shown and hidden with them rather
+            // than behind a header of its own. Built before the position group is finalized so its
+            // rows are added while that group is still active.
+            BuildDollyGroup(_positionGroup.ContentParent);
+
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_positionSection, _positionGroup, true, OnSectionExpanded);
 
             BuildRotationGroup(parent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_rotationSection, _rotationGroup, true, OnSectionExpanded);
-
-            BuildDollyGroup(parent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_dollySection, _dollyGroup, false, OnSectionExpanded);
-
-            BuildDollyPresetGroup(parent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_dollyPresetSection, _dollyPresetGroup, false, OnSectionExpanded);
         }
 
         /// <summary>The effects page: everything layered on top of whatever the slots are doing.</summary>
@@ -1155,9 +1153,13 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private void BuildDollyGroup(RectTransform parent)
         {
-            _dollySection = PanelSectionToggle.CreateNewEntry(parent);
-            _dollyGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
-                _dollySection, parent, BasisLocalization.Get("camera.dolly"), false);
+            // A plain titled card, not a section: it is already inside the position slot's own
+            // section, and a second header there would collapse away the only reason Dolly Track
+            // is fitted at all.
+            _dollyGroup = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, parent);
+            _dollyGroup.SetTitle(BasisLocalization.Get("camera.dolly"));
+            _dollyGroup.SetDescription(BasisLocalization.Get("camera.dolly.description"));
             RectTransform content = _dollyGroup.ContentParent;
 
             _dollyEmptyState = PanelElementDescriptor.CreateNew(
@@ -1298,6 +1300,8 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 if (_activeCamera?.DollyTrack != null) _activeCamera.DollyTrack.ColorBySpeed = v;
             };
+
+            BuildDollyPresetControls(content);
         }
 
         // ---- Dolly presets ---------------------------------------------------------------------
@@ -1307,17 +1311,11 @@ namespace Basis.BasisUI.HandHeldCamera
         /// the world and the list. Laid out in the order the job is done — choose or type a name,
         /// then say what to do with it.
         /// </summary>
-        private void BuildDollyPresetGroup(RectTransform parent)
+        private void BuildDollyPresetControls(RectTransform content)
         {
-            _dollyPresetSection = PanelSectionToggle.CreateNewEntry(parent);
-            _dollyPresetGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
-                _dollyPresetSection, parent, BasisLocalization.Get("camera.dollyPreset"), false);
-            RectTransform content = _dollyPresetGroup.ContentParent;
-
-            _dollyPresetSection.Descriptor.SetDescription(BasisLocalization.Get("camera.dollyPreset.description"));
-
             _dollyPresetStatus = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, content);
+            _dollyPresetStatus.SetTitle(BasisLocalization.Get("camera.dollyPreset"));
             _dollyPresetStatus.SetDescription(BasisLocalization.Get("camera.dollyPreset.help"));
 
             _dollyPresetDropdown = PanelDropdown.CreateNewEntry(content);
@@ -1430,7 +1428,7 @@ namespace Basis.BasisUI.HandHeldCamera
             }
 
             RefreshDollyPresetButtons();
-            ForceLayoutRebuild(_dollyPresetGroup);
+            ForceLayoutRebuild(_dollyGroup);
         }
 
         /// <summary>
@@ -1572,7 +1570,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 : (BasisLocalization.TryGet(keyOrText, out string localized) ? localized : keyOrText);
 
             _dollyPresetStatus.SetDescription(text);
-            ForceLayoutRebuild(_dollyPresetGroup);
+            ForceLayoutRebuild(_dollyGroup);
         }
 
         // ---- Background ------------------------------------------------------------------------
@@ -1850,6 +1848,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _dollyOffsetYSlider?.gameObject.SetActive(dolly);
             _dollyOffsetZSlider?.gameObject.SetActive(dolly);
 
+            // The track editor rides with the slot that reads it: fitting Dolly Track brings the
+            // whole block onto the page, and anything else takes it off.
+            _dollyGroup?.SetActive(dolly);
+
             _positionSection?.Descriptor.SetDescription(BasisLocalization.Get(
                 BasisCameraModifiers.DescriptionKey(stack.positionModifier)));
 
@@ -1926,12 +1928,6 @@ namespace Basis.BasisUI.HandHeldCamera
             RefreshEffectSubjectNotices(stack);
 
             _modifierEffectsEmptyState?.gameObject.SetActive(stack.EffectCount == 0);
-
-            // The dolly section stays put whatever is fitted. A track is normally laid out with
-            // nothing riding it, and FinalizeCollapsibleGroup owns a section's active state and
-            // persists its open flag, so hiding it here would fight that and lose the user's choice.
-            _dollySection?.Descriptor.SetDescription(BasisLocalization.Get(
-                dolly ? "camera.dolly.description" : "camera.dolly.inactive"));
 
             ForceLayoutRebuild(_followGroup);
             ForceLayoutRebuild(_positionGroup);
@@ -2183,7 +2179,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastPositionModifier = null;
             _lastRotationModifier = null;
 
-            _dollySection = null;
             _dollyGroup = null;
             _waypointDropdown = null;
             _waypointOrderSlider = null;
@@ -2193,8 +2188,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _dollyGridSnapToggle = null;
             _dollyGridSizeSlider = null;
             _dollySpeedColorToggle = null;
-            _dollyPresetSection = null;
-            _dollyPresetGroup = null;
             _dollyPresetStatus = null;
             _dollyPresetDropdown = null;
             _dollyPresetNameField = null;
