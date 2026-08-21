@@ -2982,6 +2982,13 @@ namespace Basis.ImagePickup
             );
             float scale = reader.ReadSingle();
 
+            // An offer we have not asked for yet is judged against the position it carried, and the
+            // server can only have sent us the one it had. Transforms are broadcast to the whole
+            // room whether or not you hold the picture, so following them here keeps a card that was
+            // carried over to us from staying out of range forever.
+            if (_pendingOffers.ContainsKey(id))
+                _pendingOffers[id] = position;
+
             if (_images.TryGetValue(id, out BasisImagePickupObject pickup) && pickup != null && !pickup.IsController)
             {
                 pickup.SetRemoteTarget(position, rotation, scale);

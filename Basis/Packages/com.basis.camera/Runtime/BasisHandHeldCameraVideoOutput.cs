@@ -1494,18 +1494,38 @@ namespace Basis
         // In Always Included Shaders so the runtime-created SyphonResources survives build stripping.
         private const string BlitShaderPath = "Hidden/Klak/Syphon/Blit";
 
+        /// <summary>Grace period before the server is expected to appear in Syphon's server directory.</summary>
+        private const float RegistrationGraceSeconds = 2f;
+
         private SyphonServer server;
         private SyphonResources resources;
+        private string serverName;
+        private float registrationDeadline;
+        private bool registrationChecked;
 
-        public string FailureMessage => null;
+        public string FailureMessage { get; private set; }
         public bool SupportsAlpha = true;
 
         public bool Start(BasisVideoOutputSettings settings, GameObject host)
         {
+            FailureMessage = null;
+
+            // KlakSyphon publishes an IOSurface backed by a Metal texture; there is no path
+            // through any other graphics API, and the plugin hands back a null server rather
+            // than telling us. Say so up front.
+            GraphicsDeviceType device = SystemInfo.graphicsDeviceType;
+            if (device != GraphicsDeviceType.Metal)
+            {
+                FailureMessage = $"Syphon needs Metal; this player is running on {device}.";
+                BasisDebug.LogError(FailureMessage, BasisDebug.LogTag.Camera);
+                return false;
+            }
+
             Shader blitShader = Shader.Find(BlitShaderPath);
             if (blitShader == null)
             {
-                BasisDebug.LogError($"Syphon blit shader '{BlitShaderPath}' was stripped from the build — keep it in Always Included Shaders.", BasisDebug.LogTag.Camera);
+                FailureMessage = $"Syphon blit shader '{BlitShaderPath}' was stripped from the build — keep it in Always Included Shaders.";
+                BasisDebug.LogError(FailureMessage, BasisDebug.LogTag.Camera);
                 return false;
             }
             resources = ScriptableObject.CreateInstance<SyphonResources>();
@@ -1515,6 +1535,10 @@ namespace Basis
             server.KeepAlpha = false;
             server.CaptureMethod = CaptureMethod.Texture;
             server.ServerName = settings.SenderName;
+
+            serverName = settings.SenderName;
+            registrationDeadline = Time.unscaledTime + RegistrationGraceSeconds;
+            registrationChecked = false;
             return true;
         }
 
@@ -1528,14 +1552,64 @@ namespace Basis
             {
                 server.SourceTexture = frame;
             }
+            VerifyRegistration();
+        }
+
+        /// <summary>
+        /// The server is only created on the first frame after a source texture exists, and
+        /// Plugin_CreateServer returns a null instance on failure without raising anything, so a
+        /// dead stream is otherwise indistinguishable from a live one. Once the grace period is
+        /// up, ask Syphon whether the server is actually published. This only logs — a false
+        /// negative here must not tear down a stream that works.
+        /// </summary>
+        private void VerifyRegistration()
+        {
+            if (registrationChecked || Time.unscaledTime < registrationDeadline) return;
+            registrationChecked = true;
+
+            List<string> names = new List<string>();
+            try
+            {
+                names.AddRange(SyphonServerDirectory.EnumerateServerNames());
+            }
+            catch (Exception e)
+            {
+                BasisDebug.LogError($"Syphon plugin unreachable ({e.GetType().Name}: {e.Message}). KlakSyphon.bundle may be missing from the build.", BasisDebug.LogTag.Camera);
+                return;
+            }
+
+            for (int Index = 0; Index < names.Count; Index++)
+            {
+                // The directory reports servers as "<app>/<server>", so compare the server half.
+                string entry = names[Index];
+                if (string.IsNullOrEmpty(entry)) continue;
+                int slash = entry.LastIndexOf('/');
+                string published = slash >= 0 ? entry.Substring(slash + 1) : entry;
+                if (!string.Equals(published, serverName, StringComparison.Ordinal)) continue;
+                BasisDebug.Log($"Syphon server '{serverName}' is published — select it as a Syphon source.", BasisDebug.LogTag.Camera);
+                return;
+            }
+
+            BasisDebug.LogError(
+                $"Syphon server '{serverName}' never registered (Syphon reports: {(names.Count == 0 ? "no servers" : string.Join(", ", names))}). " +
+                "Syphon needs the player on Metal, with KlakSyphon.bundle present in the build.",
+                BasisDebug.LogTag.Camera);
         }
 
         public void Stop()
         {
-            if (server != null) UnityEngine.Object.Destroy(server);
+            if (server != null)
+            {
+                // Drop the texture first: assigning null tears the plugin down and stops the
+                // end-of-frame capture coroutine, which would otherwise still blit from the
+                // stream RT after this returns — the caller releases it immediately.
+                server.SourceTexture = null;
+                UnityEngine.Object.Destroy(server);
+            }
             if (resources != null) UnityEngine.Object.Destroy(resources);
             server = null;
             resources = null;
+            serverName = null;
         }
     }
 #endif
