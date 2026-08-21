@@ -124,6 +124,7 @@ public partial class BasisHandHeldCamera
 
         previewScreenGO = GameObject.CreatePrimitive(PrimitiveType.Quad);
         previewScreenGO.name = "CameraPreviewScreen";
+        RegisterSpawnedObject(previewScreenGO);
         previewScreenGO.layer = LayerMask.NameToLayer("OverlayUI");
 
         if (previewScreenGO.TryGetComponent(out MeshCollider meshCollider))
@@ -218,6 +219,7 @@ public partial class BasisHandHeldCamera
         previewScreenUserPlaced = false;
         if (previewScreenGO != null)
         {
+            ForgetSpawnedObject(previewScreenGO);
             Destroy(previewScreenGO);
             previewScreenGO = null;
         }

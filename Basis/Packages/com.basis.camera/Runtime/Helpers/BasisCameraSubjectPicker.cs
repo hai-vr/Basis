@@ -14,7 +14,14 @@ public struct BasisCameraSubjectHit
 
 public static class BasisCameraSubjectPicker
 {
-    public const float MinimumEntryDistance = 0.05f;
+    /// <summary>
+    /// Nearest a body may be and still be what the click meant. At five centimetres the operator's
+    /// own hand and forearm — which are wrapped around this camera, a few centimetres from the
+    /// lens — were the closest capsules to almost every ray, so every click focused on them and the
+    /// focus plane collapsed to the minimum. Nothing this close is a subject; the lens will not
+    /// even focus there on a long one.
+    /// </summary>
+    public const float MinimumEntryDistance = 0.25f;
     public const float OccluderBias = 0.02f;
     public const float LimbRadiusRatio = 0.2f;
     public const float TorsoRadiusRatio = 0.35f;
@@ -182,7 +189,9 @@ public static class BasisCameraSubjectPicker
         CollectPlayers(candidates);
     }
 
-    public static bool TryRaycastWorld(Ray ray, float maxDistance, LayerMask layers, Transform ignoreRoot, out RaycastHit nearest, out float distance)
+    /// <param name="owner">The camera doing the picking. Everything it owns — its own hierarchy and
+    /// anything it spawned into the world — is stepped over rather than focused on.</param>
+    public static bool TryRaycastWorld(Ray ray, float maxDistance, LayerMask layers, BasisHandHeldCamera owner, out RaycastHit nearest, out float distance)
     {
         nearest = default;
         distance = float.PositiveInfinity;
@@ -203,7 +212,7 @@ public static class BasisCameraSubjectPicker
 
             Transform hitTransform = hit.collider != null ? hit.collider.transform : null;
             bool skip = hitTransform == null
-                || (ignoreRoot != null && hitTransform.IsChildOf(ignoreRoot))
+                || (owner != null && owner.OwnsTransform(hitTransform))
                 || IsPlayerOwned(hitTransform);
             if (!skip)
             {
@@ -217,7 +226,10 @@ public static class BasisCameraSubjectPicker
         return false;
     }
 
-    public static bool TryPickSubject(Ray ray, float maxDistance, float occluderDistance, float padding, out BasisCameraSubjectHit hit)
+    /// <param name="armsHoldTheCamera">True while the local player is holding this camera, which
+    /// makes their arms part of the rig rather than a subject: a hand wrapped around the body sits
+    /// closer to the lens than anything the shot is about, and would win every click.</param>
+    public static bool TryPickSubject(Ray ray, float maxDistance, float occluderDistance, float padding, bool armsHoldTheCamera, out BasisCameraSubjectHit hit)
     {
         hit = default;
         Vector3 direction = ray.direction;
@@ -243,7 +255,8 @@ public static class BasisCameraSubjectPicker
             if (fromSkeleton)
             {
                 if (!RaySphereOverlaps(origin, direction, hips, torsoLength * SubjectReachRatio + padding, ceiling)) continue;
-                if (!SolveSkeleton(avatar, origin, direction, padding, hips, neck, torsoLength, out entry, out depth)) continue;
+                bool skipArms = armsHoldTheCamera && player.IsLocal;
+                if (!SolveSkeleton(avatar, origin, direction, padding, hips, neck, torsoLength, skipArms, out entry, out depth)) continue;
             }
             else if (!TryResolveHitBounds(avatar, origin, direction, out entry, out depth)) continue;
 
@@ -278,7 +291,7 @@ public static class BasisCameraSubjectPicker
     /// and their radii come off the bone lengths themselves so a chibi and a dragon both size
     /// correctly without a per-avatar tuning value.
     /// </summary>
-    public static bool TryPickSkeleton(BasisAvatar avatar, Ray ray, float padding, out float entry, out float axisDepth)
+    public static bool TryPickSkeleton(BasisAvatar avatar, Ray ray, float padding, bool skipArms, out float entry, out float axisDepth)
     {
         entry = 0f;
         axisDepth = 0f;
@@ -288,7 +301,7 @@ public static class BasisCameraSubjectPicker
         float length = direction.magnitude;
         if (length < 1e-6f) return false;
 
-        return SolveSkeleton(avatar, ray.origin, direction / length, padding, hips, neck, torsoLength, out entry, out axisDepth);
+        return SolveSkeleton(avatar, ray.origin, direction / length, padding, hips, neck, torsoLength, skipArms, out entry, out axisDepth);
     }
 
     private static bool TryReadTorso(BasisAvatar avatar, out Vector3 hips, out Vector3 neck, out float torsoLength)
@@ -312,7 +325,7 @@ public static class BasisCameraSubjectPicker
         return torsoLength > 1e-4f;
     }
 
-    private static bool SolveSkeleton(BasisAvatar avatar, Vector3 origin, Vector3 direction, float padding, Vector3 hips, Vector3 neck, float torsoLength, out float entry, out float axisDepth)
+    private static bool SolveSkeleton(BasisAvatar avatar, Vector3 origin, Vector3 direction, float padding, Vector3 hips, Vector3 neck, float torsoLength, bool skipArms, out float entry, out float axisDepth)
     {
         entry = 0f;
         axisDepth = 0f;
@@ -333,15 +346,28 @@ public static class BasisCameraSubjectPicker
         {
             Vector3 headPosition = head.position;
             float headSpan = Mathf.Max(Vector3.Distance(headPosition, neck), torsoLength * 0.18f) * HeadSpanRatio;
-            Consider(origin, direction, headPosition, headPosition + head.up * headSpan, headSpan * HeadRadiusRatio + padding, ref found, ref entry, ref axisDepth);
+            // Up the neck, not the head bone's own up axis. Unity's humanoid rig puts no constraint
+            // on how a bone is oriented — the muscle system handles that — so on a rig authored with
+            // the head bone rolled, head.up points out of an ear and the capsule was laid across the
+            // face instead of up through it.
+            Consider(origin, direction, headPosition, headPosition + HeadAxis(headPosition, neck) * headSpan, headSpan * HeadRadiusRatio + padding, ref found, ref entry, ref axisDepth);
         }
 
-        ConsiderChain(avatar, origin, direction, padding, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand, ref found, ref entry, ref axisDepth);
-        ConsiderChain(avatar, origin, direction, padding, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, ref found, ref entry, ref axisDepth);
+        if (!skipArms)
+        {
+            ConsiderChain(avatar, origin, direction, padding, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand, ref found, ref entry, ref axisDepth);
+            ConsiderChain(avatar, origin, direction, padding, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, ref found, ref entry, ref axisDepth);
+        }
         ConsiderChain(avatar, origin, direction, padding, HumanBodyBones.LeftUpperLeg, HumanBodyBones.LeftLowerLeg, HumanBodyBones.LeftFoot, ref found, ref entry, ref axisDepth);
         ConsiderChain(avatar, origin, direction, padding, HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, HumanBodyBones.RightFoot, ref found, ref entry, ref axisDepth);
 
         return found;
+    }
+
+    private static Vector3 HeadAxis(Vector3 head, Vector3 neck)
+    {
+        Vector3 axis = head - neck;
+        return axis.sqrMagnitude > 1e-8f ? axis.normalized : Vector3.up;
     }
 
     private static void ConsiderChain(BasisAvatar avatar, Vector3 origin, Vector3 direction, float padding, HumanBodyBones root, HumanBodyBones middle, HumanBodyBones tip, ref bool found, ref float entry, ref float axisDepth)

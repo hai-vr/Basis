@@ -118,9 +118,9 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
     {
         if (cameraController == null) return;
 
-        bool hasWorld = BasisCameraSubjectPicker.TryRaycastWorld(ray, maxRaycastDistance, focusLayers, cameraController.transform, out RaycastHit worldHit, out float worldDistance);
+        bool hasWorld = BasisCameraSubjectPicker.TryRaycastWorld(ray, maxRaycastDistance, focusLayers, cameraController, out RaycastHit worldHit, out float worldDistance);
 
-        if (BasisCameraSubjectPicker.TryPickSubject(ray, maxRaycastDistance, hasWorld ? worldDistance : float.PositiveInfinity, subjectPadding, out BasisCameraSubjectHit subject))
+        if (BasisCameraSubjectPicker.TryPickSubject(ray, maxRaycastDistance, hasWorld ? worldDistance : float.PositiveInfinity, subjectPadding, !cameraController.IsDetachedFromHand, out BasisCameraSubjectHit subject))
         {
             string who = subject.Player != null && !string.IsNullOrEmpty(subject.Player.DisplayName) ? subject.Player.DisplayName : "player";
             if (!subject.FromSkeleton) who += " (bounds)";

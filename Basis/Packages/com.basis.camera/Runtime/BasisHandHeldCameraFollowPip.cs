@@ -160,6 +160,7 @@ public partial class BasisHandHeldCamera
             captureCamera.transform.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
             followPipInstance = Instantiate(handle.Result, pos + FollowPuckOffset(rot), rot);
             followPipInstance.name = "FollowCameraPip";
+            RegisterSpawnedObject(followPipInstance);
 
             // Keep the marker out of the shot. The puck is parked out along the lens axis, square
             // in front of it, so the layer is the only thing keeping the capture from filming it.
@@ -236,6 +237,7 @@ public partial class BasisHandHeldCamera
         followPipPickup = null;
         if (followPipInstance != null)
         {
+            ForgetSpawnedObject(followPipInstance);
             Destroy(followPipInstance);
             followPipInstance = null;
         }

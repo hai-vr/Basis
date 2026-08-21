@@ -192,6 +192,32 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void MinimumEntryDistance_ClearsTheHandThatIsHoldingTheCamera()
+        {
+            // The operator's own wrist sits about ten centimetres off the lens. At the old
+            // five-centimetre floor it was the nearest capsule to nearly every ray, so every click
+            // focused on it and the focus plane collapsed to the lens minimum.
+            Ray ray = new Ray(Vector3.zero, Vector3.forward);
+            Vector3 wrist = new Vector3(0f, -0.05f, 0.12f);
+
+            Assert.That(BasisCameraSubjectPicker.IntersectRayCapsule(ray, wrist, wrist, 0.1f, out float entry, out _), Is.True,
+                "The hand really is under the middle of the frame — the floor is what rejects it, not a miss.");
+            Assert.That(entry, Is.LessThan(BasisCameraSubjectPicker.MinimumEntryDistance));
+        }
+
+        [Test]
+        public void MinimumEntryDistance_StillAllowsAFaceAtArmsLength()
+        {
+            // The other side of the same floor: a selfie is a subject at roughly half a metre, and
+            // raising the floor must not put that out of reach.
+            Ray ray = new Ray(Vector3.zero, Vector3.forward);
+            Vector3 face = new Vector3(0f, 0f, 0.45f);
+
+            Assert.That(BasisCameraSubjectPicker.IntersectRayCapsule(ray, face, face, 0.11f, out float entry, out _), Is.True);
+            Assert.That(entry, Is.GreaterThan(BasisCameraSubjectPicker.MinimumEntryDistance));
+        }
+
+        [Test]
         public void ClosestRayToSegment_HandlesARayParallelToTheSegment()
         {
             // Looking straight down an outstretched arm: the closest-approach solve divides by
