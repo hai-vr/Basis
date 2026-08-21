@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + さらに {0} 件の {1} 警告" },
     { "key": "sdk.validator.suggestions.header", "value": "提案" },
     { "key": "sdk.validator.fix.default", "value": "修正" },
+    { "key": "sdk.validator.validate.button", "value": "検証" },
+    { "key": "sdk.validator.validate.tooltip", "value": "再生モード中は検証を停止しています。押すとすべてのチェックを一度実行します。" },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "アバターがありません。" },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "アバターが割り当てられています。" },

@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + 還有 {0} 個 {1} 警告" },
     { "key": "sdk.validator.suggestions.header", "value": "建議" },
     { "key": "sdk.validator.fix.default", "value": "修復" },
+    { "key": "sdk.validator.validate.button", "value": "驗證" },
+    { "key": "sdk.validator.validate.tooltip", "value": "播放模式下已暫停驗證。點擊可執行一次全部檢查。" },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Avatar 缺失。" },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "Avatar 已指派。" },

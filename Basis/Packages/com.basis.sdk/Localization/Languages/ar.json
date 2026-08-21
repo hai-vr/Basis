@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + {0} تحذيرات {1} أخرى" },
     { "key": "sdk.validator.suggestions.header", "value": "اقتراحات" },
     { "key": "sdk.validator.fix.default", "value": "إصلاح" },
+    { "key": "sdk.validator.validate.button", "value": "تحقق" },
+    { "key": "sdk.validator.validate.tooltip", "value": "التحقق متوقّف مؤقتًا في وضع التشغيل. اضغط لتشغيل جميع الفحوصات مرة واحدة." },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Avatar مفقود." },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "تم تعيين Avatar." },

@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + {0} weitere {1} Warnungen" },
     { "key": "sdk.validator.suggestions.header", "value": "Vorschläge" },
     { "key": "sdk.validator.fix.default", "value": "Beheben" },
+    { "key": "sdk.validator.validate.button", "value": "Validieren" },
+    { "key": "sdk.validator.validate.tooltip", "value": "Die Validierung ist im Play Mode pausiert. Drücken, um alle Prüfungen einmal auszuführen." },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Avatar fehlt." },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "Avatar zugewiesen." },

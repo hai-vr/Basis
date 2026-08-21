@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + مزید {0} {1} انتباہات" },
     { "key": "sdk.validator.suggestions.header", "value": "تجاویز" },
     { "key": "sdk.validator.fix.default", "value": "ٹھیک کریں" },
+    { "key": "sdk.validator.validate.button", "value": "توثیق کریں" },
+    { "key": "sdk.validator.validate.tooltip", "value": "پلے موڈ میں توثیق روکی گئی ہے۔ تمام جانچیں ایک بار چلانے کے لیے دبائیں۔" },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Avatar غائب ہے۔" },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "Avatar تفویض کر دیا گیا۔" },

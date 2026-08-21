@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + আরও {0} {1} সতর্কতা" },
     { "key": "sdk.validator.suggestions.header", "value": "পরামর্শ" },
     { "key": "sdk.validator.fix.default", "value": "ঠিক করুন" },
+    { "key": "sdk.validator.validate.button", "value": "যাচাই করুন" },
+    { "key": "sdk.validator.validate.tooltip", "value": "প্লে মোডে যাচাইকরণ স্থগিত রয়েছে। সব পরীক্ষা একবার চালাতে চাপুন।" },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Avatar অনুপস্থিত।" },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "Avatar বরাদ্দ করা হয়েছে।" },

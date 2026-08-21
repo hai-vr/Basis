@@ -102,6 +102,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + {0} more {1} warnings" },
     { "key": "sdk.validator.suggestions.header", "value": "Suggestions" },
     { "key": "sdk.validator.fix.default", "value": "Fix" },
+    { "key": "sdk.validator.validate.button", "value": "Validate" },
+    { "key": "sdk.validator.validate.tooltip", "value": "Validation is paused in Play Mode. Press to run every check once." },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Avatar is missing." },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "Avatar is assigned." },

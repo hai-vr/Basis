@@ -1,12 +1,17 @@
 using Basis.Editor.Localization;
-using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
-using static BasisAvatarValidator;
 
-public class BasisPropValidator
+/// <summary>
+/// Everything the SDK checks about a prop before it can be uploaded. Scheduling — when a pass runs
+/// and why it no longer runs every editor frame — lives in <see cref="BasisValidationRunner"/>.
+///
+/// <para>Props report their layer problems as suggestions rather than errors, so the bucket's
+/// warnings feed the suggestion panel.</para>
+/// </summary>
+public class BasisPropValidator : BasisValidationRunner
 {
     private readonly BasisProp Prop;
     private VisualElement errorPanel;
@@ -17,157 +22,177 @@ public class BasisPropValidator
     private VisualElement suggestionButtonContainer;
     private VisualElement passedPanel;
     private Label passedMessageLabel;
-    private string _lastErrorSignature = "";
-    private string _lastSuggestionSignature = "";
-    public VisualElement Root;
+
+    private readonly BasisValidationHierarchyScan _scan = new BasisValidationHierarchyScan();
+    private readonly List<Collider> _colliderScratch = new List<Collider>(4);
+    private readonly List<string> _wrongLayerNames = new List<string>();
 
     public BasisPropValidator(BasisProp prop, VisualElement root)
     {
         Prop = prop;
-        Root = root;
         CreateErrorPanel(root);
         CreateSuggestionPanel(root);
         CreatePassedPanel(root);
-        EditorApplication.update += UpdateValidation;
+
+        BeginValidation(root,
+            ValidateConfiguration,
+            ValidateHierarchy,
+            ValidateColliders);
     }
 
-    public void OnDestroy()
+    protected override void RefreshScan()
     {
-        EditorApplication.update -= UpdateValidation;
+        _scan.Rebuild(Prop != null ? Prop.transform : null);
     }
 
-    private void UpdateValidation()
+    protected override void Refresh(BasisValidationBucket results)
     {
-        if (ValidateProp(out List<BasisValidationIssue> errors, out List<BasisValidationIssue> suggestions, out List<string> passes))
+        if (results.Errors.Count == 0)
         {
             HideErrorPanel();
-            ShowPassedPanel(passes);
+            ShowPassedPanel(results.Passes);
         }
         else
         {
-            ShowErrorPanel(errors);
-            if (passes.Count > 0)
-                ShowPassedPanel(passes);
+            ShowErrorPanel(results.Errors);
+            if (results.Passes.Count > 0)
+                ShowPassedPanel(results.Passes);
             else
                 HidePassedPanel();
         }
 
-        if (suggestions.Count > 0)
-            ShowSuggestionPanel(suggestions);
+        if (results.Warnings.Count > 0)
+            ShowSuggestionPanel(results.Warnings);
         else
             HideSuggestionPanel();
     }
 
+    /// <summary>
+    /// Runs the complete suite — every group — and returns fresh lists. This is the upload path: a
+    /// build gets a full pass taken on the spot, never whatever the panels happen to be showing.
+    /// </summary>
     public bool ValidateProp(out List<BasisValidationIssue> errors, out List<BasisValidationIssue> suggestions, out List<string> passes)
     {
-        errors = new List<BasisValidationIssue>();
-        suggestions = new List<BasisValidationIssue>();
-        passes = new List<string>();
+        BasisValidationBucket results = RunAllGroups();
+        errors = new List<BasisValidationIssue>(results.Errors);
+        suggestions = new List<BasisValidationIssue>(results.Warnings);
+        passes = new List<string>(results.Passes);
+        return errors.Count == 0;
+    }
 
+    private void ValidateConfiguration(BasisValidationBucket bucket)
+    {
         if (Prop == null)
         {
-            errors.Add(new BasisValidationIssue(BasisEditorLocalization.Get("sdk.propValidator.propMissing"), ValidationCategory.Configuration, null));
-            return false;
+            bucket.Error(BasisEditorLocalization.Get("sdk.propValidator.propMissing"), ValidationCategory.Configuration);
+            return;
         }
-        passes.Add(BasisEditorLocalization.Get("sdk.propValidator.propAssigned"));
+        bucket.Pass(BasisEditorLocalization.Get("sdk.propValidator.propAssigned"));
 
-        // Check bundle name
         if (string.IsNullOrEmpty(Prop.BasisBundleDescription.AssetBundleName))
         {
-            errors.Add(new BasisValidationIssue(
+            bucket.Error(
                 BasisEditorLocalization.Get("sdk.propValidator.bundleName.empty"), ValidationCategory.Configuration,
                 FixSetDefaultBundleName,
-                BasisEditorLocalization.Get("sdk.propValidator.bundleName.fix")
-            ));
+                BasisEditorLocalization.Get("sdk.propValidator.bundleName.fix"));
         }
         else
         {
-            passes.Add(BasisEditorLocalization.Get("sdk.propValidator.bundleName.set"));
+            bucket.Pass(BasisEditorLocalization.Get("sdk.propValidator.bundleName.set"));
         }
 
-        // Check bundle description
         if (string.IsNullOrEmpty(Prop.BasisBundleDescription.AssetBundleDescription))
         {
-            errors.Add(new BasisValidationIssue(
+            bucket.Error(
                 BasisEditorLocalization.Get("sdk.propValidator.bundleDescription.empty"), ValidationCategory.Configuration,
                 FixSetDefaultDescription,
-                BasisEditorLocalization.Get("sdk.propValidator.bundleDescription.fix")
-            ));
+                BasisEditorLocalization.Get("sdk.propValidator.bundleDescription.fix"));
         }
         else
         {
-            passes.Add(BasisEditorLocalization.Get("sdk.propValidator.bundleDescription.set"));
+            bucket.Pass(BasisEditorLocalization.Get("sdk.propValidator.bundleDescription.set"));
         }
 
-        // Check for missing scripts
-        Transform[] children = Prop.gameObject.GetComponentsInChildren<Transform>(true);
-        bool hasMissingScripts = false;
-        foreach (Transform child in children)
+        BasisAssetBundleObject assetBundleObject = BasisValidationAssetCache.AssetBundleObject;
+        if (assetBundleObject != null && assetBundleObject.UseCustomPassword && string.IsNullOrEmpty(assetBundleObject.UserSelectedPassword))
         {
-            int count = GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(child.gameObject);
-            if (count > 0)
-            {
-                hasMissingScripts = true;
-                errors.Add(new BasisValidationIssue(
-                    BasisEditorLocalization.Get("sdk.propValidator.missingScripts", child.gameObject.name),
-                    ValidationCategory.MissingReference,
-                    () => BasisValidatorUI.RemoveMissingScripts(Prop.gameObject),
-                    BasisEditorLocalization.Get("sdk.propValidator.missingScripts.fix")
-                ));
-            }
+            bucket.Error(BasisEditorLocalization.Get("sdk.propValidator.password.empty"), ValidationCategory.Security);
         }
+    }
+
+    private void ValidateHierarchy(BasisValidationBucket bucket)
+    {
+        if (Prop == null) return;
+
+        bool hasMissingScripts = false;
+        List<Transform> all = _scan.All;
+        int transformCount = all.Count;
+        for (int Index = 0; Index < transformCount; Index++)
+        {
+            Transform child = all[Index];
+            if (child == null) continue;
+            if (GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(child.gameObject) <= 0) continue;
+
+            hasMissingScripts = true;
+            bucket.Error(
+                BasisEditorLocalization.Get("sdk.propValidator.missingScripts", child.gameObject.name),
+                ValidationCategory.MissingReference,
+                () => BasisValidatorUI.RemoveMissingScripts(Prop.gameObject),
+                BasisEditorLocalization.Get("sdk.propValidator.missingScripts.fix"));
+        }
+
         if (!hasMissingScripts)
         {
-            passes.Add(BasisEditorLocalization.Get("sdk.propValidator.missingScripts.passed"));
+            bucket.Pass(BasisEditorLocalization.Get("sdk.propValidator.missingScripts.passed"));
+        }
+    }
+
+    private void ValidateColliders(BasisValidationBucket bucket)
+    {
+        if (Prop == null) return;
+
+        int interactableLayer = LayerMask.NameToLayer("Interactable");
+        _wrongLayerNames.Clear();
+        bool anyColliders = false;
+
+        List<Transform> all = _scan.All;
+        int transformCount = all.Count;
+        for (int Index = 0; Index < transformCount; Index++)
+        {
+            Transform transform = all[Index];
+            if (transform == null) continue;
+
+            transform.GetComponents(_colliderScratch);
+            int colliderCount = _colliderScratch.Count;
+            for (int ColliderIndex = 0; ColliderIndex < colliderCount; ColliderIndex++)
+            {
+                anyColliders = true;
+                GameObject owner = _colliderScratch[ColliderIndex].gameObject;
+                if (owner.layer != interactableLayer)
+                {
+                    _wrongLayerNames.Add(owner.name);
+                }
+            }
         }
 
-        // Check colliders are on the Interactable layer
-        int interactableLayer = LayerMask.NameToLayer("Interactable");
-        Collider[] colliders = Prop.GetComponentsInChildren<Collider>(true);
-        if (colliders.Length == 0)
+        if (!anyColliders)
         {
-            passes.Add(BasisEditorLocalization.Get("sdk.propValidator.colliders.none"));
+            bucket.Pass(BasisEditorLocalization.Get("sdk.propValidator.colliders.none"));
+            return;
+        }
+
+        if (_wrongLayerNames.Count > 0)
+        {
+            bucket.Warn(
+                BasisEditorLocalization.Get("sdk.propValidator.colliders.wrongLayer", string.Join(", ", _wrongLayerNames)),
+                ValidationCategory.Configuration,
+                () => FixCollidersToInteractableLayer(Prop, interactableLayer),
+                BasisEditorLocalization.Get("sdk.propValidator.colliders.wrongLayer.fix"));
         }
         else
         {
-            List<Collider> wrongLayerColliders = new List<Collider>();
-            foreach (Collider col in colliders)
-            {
-                if (col.gameObject.layer != interactableLayer)
-                {
-                    wrongLayerColliders.Add(col);
-                }
-            }
-            if (wrongLayerColliders.Count > 0)
-            {
-                string names = string.Join(", ", wrongLayerColliders.ConvertAll(c => c.gameObject.name));
-                suggestions.Add(new BasisValidationIssue(
-                    BasisEditorLocalization.Get("sdk.propValidator.colliders.wrongLayer", names),
-                    ValidationCategory.Configuration,
-                    () => FixCollidersToInteractableLayer(Prop, interactableLayer),
-                    BasisEditorLocalization.Get("sdk.propValidator.colliders.wrongLayer.fix")
-                ));
-            }
-            else
-            {
-                passes.Add(BasisEditorLocalization.Get("sdk.propValidator.colliders.passed"));
-            }
+            bucket.Pass(BasisEditorLocalization.Get("sdk.propValidator.colliders.passed"));
         }
-
-        // Check custom password
-        BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
-        if (assetBundleObject != null)
-        {
-            if (assetBundleObject.UseCustomPassword && string.IsNullOrEmpty(assetBundleObject.UserSelectedPassword))
-            {
-                errors.Add(new BasisValidationIssue(
-                    BasisEditorLocalization.Get("sdk.propValidator.password.empty"),
-                    ValidationCategory.Security, null
-                ));
-            }
-        }
-
-        return errors.Count == 0;
     }
 
     private void FixSetDefaultBundleName()
@@ -225,14 +250,6 @@ public class BasisPropValidator
 
     private void ShowSuggestionPanel(List<BasisValidationIssue> suggestions)
     {
-        string currentSignature = string.Join("|", suggestions.ConvertAll(s => $"{s.Category}:{s.Message}"));
-        if (currentSignature == _lastSuggestionSignature)
-        {
-            suggestionPanel.style.display = DisplayStyle.Flex;
-            return;
-        }
-        _lastSuggestionSignature = currentSignature;
-
         List<string> issueList = new List<string>();
         suggestionButtonContainer.Clear();
 
@@ -244,8 +261,9 @@ public class BasisPropValidator
                 string actionTitle = string.IsNullOrWhiteSpace(issue.FixLabel) ? issue.Message : issue.FixLabel;
                 BasisValidatorUI.AutoFixButton(suggestionButtonContainer, issue.Fix, actionTitle, false);
             }
-            if (!issueList.Contains(issue.Message))
-                issueList.Add($"- {issue.Message}");
+            string line = $"- {issue.Message}";
+            if (!issueList.Contains(line))
+                issueList.Add(line);
         }
 
         suggestionMessageLabel.text = string.Join("\n", issueList.ToArray());
@@ -255,19 +273,10 @@ public class BasisPropValidator
     private void HideSuggestionPanel()
     {
         suggestionPanel.style.display = DisplayStyle.None;
-        _lastSuggestionSignature = "";
     }
 
     private void ShowErrorPanel(List<BasisValidationIssue> errors)
     {
-        string currentSignature = string.Join("|", errors.ConvertAll(e => $"{e.Category}:{e.Message}"));
-        if (currentSignature == _lastErrorSignature)
-        {
-            errorPanel.style.display = DisplayStyle.Flex;
-            return;
-        }
-        _lastErrorSignature = currentSignature;
-
         List<string> issueList = new List<string>();
         errorButtonContainer.Clear();
 
@@ -290,7 +299,6 @@ public class BasisPropValidator
     private void HideErrorPanel()
     {
         errorPanel.style.display = DisplayStyle.None;
-        _lastErrorSignature = "";
     }
 
     private void ShowPassedPanel(List<string> passes)
@@ -303,5 +311,4 @@ public class BasisPropValidator
     {
         passedPanel.style.display = DisplayStyle.None;
     }
-
 }

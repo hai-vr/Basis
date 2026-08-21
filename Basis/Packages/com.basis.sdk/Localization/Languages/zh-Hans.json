@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + 还有 {0} 条 {1} 警告" },
     { "key": "sdk.validator.suggestions.header", "value": "建议" },
     { "key": "sdk.validator.fix.default", "value": "修复" },
+    { "key": "sdk.validator.validate.button", "value": "验证" },
+    { "key": "sdk.validator.validate.tooltip", "value": "播放模式下已暂停验证。点击可运行一次全部检查。" },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Avatar 缺失。" },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "Avatar 已分配。" },

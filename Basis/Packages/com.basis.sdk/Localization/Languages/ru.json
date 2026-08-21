@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + ещё {0} предупреждений {1}" },
     { "key": "sdk.validator.suggestions.header", "value": "Предложения" },
     { "key": "sdk.validator.fix.default", "value": "Исправить" },
+    { "key": "sdk.validator.validate.button", "value": "Проверить" },
+    { "key": "sdk.validator.validate.tooltip", "value": "Проверка приостановлена в режиме Play. Нажмите, чтобы выполнить все проверки один раз." },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Аватар отсутствует." },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "Аватар назначен." },

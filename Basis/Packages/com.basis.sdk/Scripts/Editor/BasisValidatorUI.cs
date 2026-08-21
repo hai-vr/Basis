@@ -102,6 +102,57 @@ public static class BasisValidatorUI
         return suggestionPanel;
     }
 
+    /// <summary>
+    /// The "run the checks now" button shown in place of automatic validation.
+    ///
+    /// <para>Starts hidden. Play mode is the case it exists for: nothing is authored there, so the
+    /// validators stop watching for changes entirely and this is the only way to ask.</para>
+    /// </summary>
+    public static Button CreateValidateButton(VisualElement rootElement, Action onClickAction)
+    {
+        Color background = new Color(0.30f, 0.42f, 0.62f);
+        Color hover = new Color(0.36f, 0.50f, 0.72f);
+
+        Button validateButton = new Button { name = "ValidateButton", text = BasisEditorLocalization.Get("sdk.validator.validate.button") };
+        validateButton.tooltip = BasisEditorLocalization.Get("sdk.validator.validate.tooltip");
+        validateButton.clicked += delegate { onClickAction?.Invoke(); };
+
+        validateButton.style.backgroundColor = new StyleColor(background);
+        validateButton.style.color = new StyleColor(Color.white);
+        validateButton.style.fontSize = 14;
+        validateButton.style.unityFontStyleAndWeight = FontStyle.Bold;
+        validateButton.style.unityTextAlign = TextAnchor.MiddleCenter;
+        validateButton.style.whiteSpace = WhiteSpace.Normal;
+        validateButton.style.flexShrink = 0;
+        validateButton.style.paddingTop = 6;
+        validateButton.style.paddingBottom = 6;
+        validateButton.style.paddingLeft = 12;
+        validateButton.style.paddingRight = 12;
+        validateButton.style.marginTop = 2;
+        validateButton.style.marginBottom = 10;
+        validateButton.style.borderTopLeftRadius = 8;
+        validateButton.style.borderTopRightRadius = 8;
+        validateButton.style.borderBottomLeftRadius = 8;
+        validateButton.style.borderBottomRightRadius = 8;
+        validateButton.style.borderLeftWidth = 0;
+        validateButton.style.borderRightWidth = 0;
+        validateButton.style.borderTopWidth = 0;
+        validateButton.style.borderBottomWidth = 3;
+
+        validateButton.RegisterCallback<MouseEnterEvent>(evt =>
+        {
+            validateButton.style.backgroundColor = new StyleColor(hover);
+        });
+        validateButton.RegisterCallback<MouseLeaveEvent>(evt =>
+        {
+            validateButton.style.backgroundColor = new StyleColor(background);
+        });
+
+        validateButton.style.display = DisplayStyle.None;
+        rootElement.Add(validateButton);
+        return validateButton;
+    }
+
     public static void AutoFixButton(VisualElement rootElement, Action onClickAction, string fixMe, bool isError = true)
     {
         foreach (var child in rootElement.Children())

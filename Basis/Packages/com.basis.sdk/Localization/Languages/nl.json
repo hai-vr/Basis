@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + {0} meer {1} waarschuwingen" },
     { "key": "sdk.validator.suggestions.header", "value": "Suggesties" },
     { "key": "sdk.validator.fix.default", "value": "Oplossen" },
+    { "key": "sdk.validator.validate.button", "value": "Valideren" },
+    { "key": "sdk.validator.validate.tooltip", "value": "Validatie is gepauzeerd in Play Mode. Druk om alle controles één keer uit te voeren." },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Avatar ontbreekt." },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "Avatar toegewezen." },

@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + {0} {1} advertencias más" },
     { "key": "sdk.validator.suggestions.header", "value": "Sugerencias" },
     { "key": "sdk.validator.fix.default", "value": "Corregir" },
+    { "key": "sdk.validator.validate.button", "value": "Validar" },
+    { "key": "sdk.validator.validate.tooltip", "value": "La validación está pausada en modo de reproducción. Pulsa para ejecutar todas las comprobaciones una vez." },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Falta el avatar." },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "Avatar asignado." },

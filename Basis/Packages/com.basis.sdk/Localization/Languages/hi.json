@@ -93,6 +93,8 @@
     { "key": "sdk.validator.warnings.more", "value": "\n... + {0} और {1} चेतावनियाँ" },
     { "key": "sdk.validator.suggestions.header", "value": "सुझाव" },
     { "key": "sdk.validator.fix.default", "value": "ठीक करें" },
+    { "key": "sdk.validator.validate.button", "value": "मान्य करें" },
+    { "key": "sdk.validator.validate.tooltip", "value": "प्ले मोड में सत्यापन रुका हुआ है। सभी जाँचें एक बार चलाने के लिए दबाएँ।" },
 
     { "key": "sdk.avatarValidator.avatarMissing", "value": "Avatar गायब है।" },
     { "key": "sdk.avatarValidator.avatarAssigned", "value": "Avatar असाइन किया गया।" },
