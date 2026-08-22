@@ -101,6 +101,7 @@ namespace Basis.Scripts.Drivers
         public static Quaternion FlipRotation = Quaternion.identity;
         /// <summary>True while <see cref="FlipRotation"/> is a non-identity rotation worth applying.</summary>
         public static bool HasFlip;
+        public static float FlipUpSign = 1f;
         // Local-space pivot height (eye height) the flip rotates about, so your view stays put as the world tips.
         private static float _flipPivotY;
 
@@ -140,8 +141,7 @@ namespace Basis.Scripts.Drivers
                 // Feature off / not VR / seated / not ready: drop any vertical offset + flip so re-enabling
                 // starts clean and you aren't left floating or tipped.
                 VerticalOffset = 0f;
-                HasFlip = false;
-                FlipRotation = Quaternion.identity;
+                ClearFlip();
                 Stop();
                 ReportInactive(player);
                 return;
@@ -154,8 +154,7 @@ namespace Basis.Scripts.Drivers
                 && BasisNetworkModeration.LocalPlayerHasGlobalLockBypass() == false)
             {
                 VerticalOffset = 0f;
-                HasFlip = false;
-                FlipRotation = Quaternion.identity;
+                ClearFlip();
                 Stop();
                 SetGizmoState(BasisPlayspaceMoverState.AdminLocked);
                 return;
@@ -362,8 +361,14 @@ namespace Basis.Scripts.Drivers
             VerticalOffset = 0f;
             // Also clear any active flip and turn its toggle off so Reset fully returns you to normal.
             BasisSettingsDefaults.PlayspaceMoverFlip.SetValue(false);
+            ClearFlip();
+        }
+
+        private static void ClearFlip()
+        {
             HasFlip = false;
             FlipRotation = Quaternion.identity;
+            FlipUpSign = 1f;
         }
 
         /// <summary>
@@ -376,22 +381,39 @@ namespace Basis.Scripts.Drivers
         {
             if (BasisSettingsDefaults.PlayspaceMoverFlip.RawValue == false)
             {
-                HasFlip = false;
-                FlipRotation = Quaternion.identity;
+                ClearFlip();
                 return;
             }
 
             float angle = BasisSettingsDefaults.PlayspaceMoverFlipAngle.RawValue;
             // ~0 or ~360 is no rotation; skip the work and the per-device/matrix transforms.
-            HasFlip = Mathf.Abs(Mathf.DeltaAngle(angle, 0f)) > 0.05f;
-            if (HasFlip == false)
+            if (Mathf.Abs(Mathf.DeltaAngle(angle, 0f)) <= 0.05f)
             {
-                FlipRotation = Quaternion.identity;
+                ClearFlip();
                 return;
             }
 
+            HasFlip = true;
             FlipRotation = Quaternion.AngleAxis(angle, FlipAxisVector(BasisSettingsDefaults.PlayspaceMoverFlipAxis.RawValue));
-            _flipPivotY = BasisHeightDriver.SelectedScaledPlayerHeight;
+            FlipUpSign = (FlipRotation * Vector3.up).y < 0f ? -1f : 1f;
+            _flipPivotY = ResolveFlipPivotY();
+        }
+
+        private static float ResolveFlipPivotY()
+        {
+            BasisLocalBoneControl eye = BasisLocalBoneDriver.EyeControl;
+            if (eye != null && eye.TposeLocalScaled.position.y > 0.01f)
+            {
+                return eye.TposeLocalScaled.position.y;
+            }
+
+            BasisLocalBoneControl head = BasisLocalBoneDriver.HeadControl;
+            if (head != null && head.TposeLocalScaled.position.y > 0.01f)
+            {
+                return head.TposeLocalScaled.position.y;
+            }
+
+            return BasisHeightDriver.SelectedScaledPlayerHeight;
         }
 
         private static Vector3 FlipAxisVector(string axis)
@@ -427,6 +449,18 @@ namespace Basis.Scripts.Drivers
             Vector3 pivot = new Vector3(0f, _flipPivotY, 0f);
             localPosition = pivot + (FlipRotation * (localPosition - pivot));
             localRotation = FlipRotation * localRotation;
+        }
+
+        public static Vector3 ApplyFlipToLocalPoint(Vector3 localPosition)
+        {
+            if (HasFlip == false) return localPosition;
+            Vector3 pivot = new Vector3(0f, _flipPivotY, 0f);
+            return pivot + (FlipRotation * (localPosition - pivot));
+        }
+
+        public static Quaternion ApplyFlipToWorldRotation(Quaternion playspaceRotation)
+        {
+            return HasFlip ? playspaceRotation * FlipRotation : playspaceRotation;
         }
 
         /// <summary>
@@ -664,6 +698,8 @@ namespace Basis.Scripts.Drivers
                     rotateHeld = scriptRotate;
                 }
             }
+
+            local = ApplyFlipToLocalPoint(local);
         }
 
         private static bool IsHandHoldingObject(BasisInput device)

@@ -1,3 +1,5 @@
+using Basis.Scripts.BasisSdk;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using System;
 using System.Collections.Concurrent;
@@ -111,6 +113,7 @@ namespace Basis
         {
             if (go == null) throw new ArgumentNullException(nameof(go));
             AddInternal(url, loadedNetId, creatorUUID, admin, persistent, method, SpawnMode.GameObject, basisBundleConnector, out instance);
+            if (go.TryGetComponent(out BasisContentBase content)) StampUnassignedContent(content, instance);
 
             // keep runtime ref
             SpawnedGameobjects[loadedNetId] = go;
@@ -129,9 +132,50 @@ namespace Basis
         {
             if (!scene.IsValid()) throw new ArgumentException("Scene is not valid.", nameof(scene));
             AddInternal(url, loadedNetId, creatorUUID, admin, persistent, method, SpawnMode.Scene, basisBundleConnector, out instance);
+            if (scene.isLoaded)
+            {
+                foreach (GameObject root in scene.GetRootGameObjects())
+                {
+                    BasisScene basisScene = root.GetComponentInChildren<BasisScene>(true);
+                    if (basisScene != null)
+                    {
+                        StampUnassignedContent(basisScene, instance);
+                        break;
+                    }
+                }
+            }
 
             // keep runtime ref
             SpawnedScenes[loadedNetId] = scene;
+        }
+
+        static void StampUnassignedContent(BasisContentBase content, SpawnInstance instance)
+        {
+            if (content == null || content.TryGetIdentifier(out _)) return;
+            content.transform.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
+            Vector3 scale = content.transform.localScale;
+            content.AssignContentIdentifier(new BasisNetworkContentBase.BasisContentInformation
+            {
+                Mode = (byte)(instance.SpawnMode == SpawnMode.Scene ? 1 : 0),
+                LoadedNetID = instance.LoadedNetID,
+                UUIDOfCreator = instance.UUIDOfCreator,
+                SpawnedByLocalPlayer = instance.SpawnMethod != SpawnMethod.Network || (BasisLocalPlayer.Instance != null && instance.UUIDOfCreator == BasisLocalPlayer.Instance.UUID),
+                IsAdminLocked = instance.isProtected,
+                Persist = instance.Persistent,
+                Static = instance.Static,
+                StaticAdminLocked = instance.StaticAdminLocked,
+                PositionX = position.x,
+                PositionY = position.y,
+                PositionZ = position.z,
+                QuaternionX = rotation.x,
+                QuaternionY = rotation.y,
+                QuaternionZ = rotation.z,
+                QuaternionW = rotation.w,
+                ScaleX = scale.x,
+                ScaleY = scale.y,
+                ScaleZ = scale.z,
+                ModifyScale = false,
+            });
         }
 
         // Backwards/compat entry point (no runtime object set)

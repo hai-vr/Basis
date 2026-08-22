@@ -471,7 +471,7 @@ namespace Basis.BasisUI
                         break;
                     }
                     BasisLocalCameraDriver.GetPositionAndRotation(out Vector3 CameraPosition, out Quaternion CameraRotation);
-                    Quaternion floatingRotation = Quaternion.LookRotation(CameraRotation * Vector3.forward, Vector3.up);
+                    Quaternion floatingRotation = Quaternion.LookRotation(CameraRotation * Vector3.forward, Vector3.up * BasisLocalPlayspaceMover.FlipUpSign);
                     transform.SetPositionAndRotation(CameraPosition + VRRootOffset, floatingRotation);
                     break;
 
@@ -496,7 +496,7 @@ namespace Basis.BasisUI
 
             // Apply playspace transform to captured playspace-local anchor
             Vector3 targetPos = playPosWS + (playRotWS * _stableLocalPos);
-            Quaternion targetRot = playRotWS * _stableLocalRot;
+            Quaternion targetRot = BasisLocalPlayspaceMover.ApplyFlipToWorldRotation(playRotWS) * _stableLocalRot;
 
             if (_hasLastStableWrite && _lastStablePos == targetPos && _lastStableRot == targetRot)
             {
@@ -587,8 +587,9 @@ namespace Basis.BasisUI
             // Camera pose (head/eye)
             BasisLocalCameraDriver.GetPositionAndRotation(out Vector3 camPosWS2, out Quaternion camRotWS);
 
-            // Head rotation in playspace-local space
-            Quaternion headLocal = Quaternion.Inverse(playRotWS) * camRotWS;
+            // Head rotation in rig-local space
+            Quaternion rigRotWS = BasisLocalPlayspaceMover.ApplyFlipToWorldRotation(playRotWS);
+            Quaternion headLocal = Quaternion.Inverse(rigRotWS) * camRotWS;
 
             float pitch = -ExtractPitchDegreesNoRoll(headLocal);
             pitch = Mathf.Min(pitch, STABLE_MAX_DOWNWARD_PITCH_DEG);
@@ -598,7 +599,7 @@ namespace Basis.BasisUI
                 Quaternion.Euler(0f, headLocal.eulerAngles.y, 0f) *
                 Quaternion.Euler(pitch, 0f, 0f);
 
-            Quaternion spawnRotWS = playRotWS * spawnLocalRotNoRoll;
+            Quaternion spawnRotWS = rigRotWS * spawnLocalRotNoRoll;
 
             // Place the root at the spawn pose once (then we follow playspace)
             transform.SetPositionAndRotation(camPosWS2, spawnRotWS);

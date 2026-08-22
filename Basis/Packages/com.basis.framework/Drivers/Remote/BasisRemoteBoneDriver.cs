@@ -2231,6 +2231,7 @@ public static class RemoteBoneJobSystem
     public static void SetNamePlateActive(int key, bool active)
     {
         if ((uint)key >= (uint)KeySpace) return;
+        CompletePending();
         NativeArray<byte> map = NamePlateActiveMap();
         map[key] = active ? (byte)1 : (byte)0;
     }

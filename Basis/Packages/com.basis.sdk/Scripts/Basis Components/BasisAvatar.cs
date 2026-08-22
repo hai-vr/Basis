@@ -92,6 +92,7 @@ namespace Basis.Scripts.BasisSdk
         /// True if this avatar is owned by the local player.
         /// </summary>
         public bool IsOwnedLocally { get; set; }
+        public override bool SpawnedByLocalPlayer => IsOwnedLocally;
 
         /// <summary>
         /// True once avatar setup has completed and readiness callbacks have fired for this instance.

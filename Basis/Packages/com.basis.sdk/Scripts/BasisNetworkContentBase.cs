@@ -49,6 +49,8 @@ public abstract class BasisNetworkContentBase : MonoBehaviour
         return true;
     }
 
+    public string CreatorUUID => ContentInformation.UUIDOfCreator;
+    public virtual bool SpawnedByLocalPlayer => ContentInformation.SpawnedByLocalPlayer;
     /// <summary>
     /// Sets the string-based identifier used to resolve to a server-assigned ushort network ID.
     /// </summary>
@@ -70,6 +72,7 @@ public abstract class BasisNetworkContentBase : MonoBehaviour
         public string LoadedNetID;
 
         public string UUIDOfCreator;
+        public bool SpawnedByLocalPlayer;
         /// <summary>
         /// normal users can't remove these items
         /// never net written just handled by server

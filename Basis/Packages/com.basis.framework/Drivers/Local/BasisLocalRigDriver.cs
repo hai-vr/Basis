@@ -1073,7 +1073,7 @@ namespace Basis.Scripts.Drivers
             BasisLocalFootDriver footDriver = localPlayer.BasisLocalFootDriver;
             frameFootDriverReady = footDriver.IsInitialized;
             bool isStationaryEnough = stationaryTimer >= StationaryDelaySeconds, footIKSetting = Basis.BasisUI.BasisSettingsDefaults.FootIKEnabled.RawValue;
-            bool footIKReady = frameFootDriverReady && (LocomotionFootIK || isStationaryEnough) && footIKSetting && !localPlayer.LocalCharacterDriver.IsProne;
+            bool footIKReady = frameFootDriverReady && (LocomotionFootIK || isStationaryEnough) && footIKSetting && !localPlayer.LocalCharacterDriver.IsProne && BasisLocalPlayspaceMover.FlipUpSign > 0f;
             frameLeftWantFootIK = footIKReady && !frameLeftFootHasTracker;
             frameRightWantFootIK = footIKReady && !frameRightFootHasTracker;
             bool leftOrRightDrive = !frameLeftFootHasTracker || !frameRightFootHasTracker;

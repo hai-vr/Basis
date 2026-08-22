@@ -38,6 +38,7 @@ namespace Basis.BasisUI
         public const string CopyKey = "keyboard.key.copy";
         public const string PasteKey = "keyboard.key.paste";
         public const string DisplayPlaceholderKey = "keyboard.display.placeholder";
+        public const string RestrictedKeyKey = "keyboard.key.restricted";
 
         public static string Title => BasisLocalization.Get(TitleKey);
 
@@ -692,6 +693,39 @@ namespace Basis.BasisUI
                 if (string.IsNullOrWhiteSpace(entry.BaseLabel)) continue;
                 entry.Button.Descriptor.SetTitle(GetDisplayChar(entry.BaseLabel, IsCapital));
             }
+            RefreshKeyAvailability();
+        }
+
+        /// <summary>
+        /// Greys out character keys the target field would reject outright — a numbers-only field
+        /// shows its letter keys disabled, for example — instead of letting the user press a key
+        /// that silently does nothing. Only keys that insert a literal character are evaluated;
+        /// delete/copy/paste/enter/close/caps/language stay usable regardless of the field's rules.
+        /// </summary>
+        private void RefreshKeyAvailability()
+        {
+            string restrictedReason = BasisLocalization.Get(RestrictedKeyKey);
+            for (int i = 0; i < _keys.Count; i++)
+            {
+                KeyEntry entry = _keys[i];
+                if (entry.Special != BasisVirtualKeyboardSpecialKey.NotSpecial) continue;
+
+                string produced = string.IsNullOrWhiteSpace(entry.BaseLabel)
+                    ? entry.BaseLabel
+                    : GetDisplayChar(entry.BaseLabel, IsCapital);
+
+                // Multi-code-unit keys (some CJK/Indic layouts) can't be checked against the
+                // single-character rules below — leave them enabled rather than guess.
+                if (string.IsNullOrEmpty(produced) || produced.Length != 1)
+                {
+                    entry.Button.SetInteractable(true);
+                    continue;
+                }
+
+                bool canInsert = BasisVirtualKeyboardKeyAvailability.CanInsertCharacter(
+                    TMPInputField, InputField, produced[0]);
+                entry.Button.SetInteractable(canInsert, canInsert ? null : restrictedReason);
+            }
         }
 
         private static string GetDisplayChar(string baseLabel, bool capital)
@@ -765,6 +799,7 @@ namespace Basis.BasisUI
         {
             if (DisplayField == null || DisplayField._inputField == null) return;
             DisplayField._inputField.SetTextWithoutNotify(ReadCurrentText());
+            RefreshKeyAvailability();
         }
 
         private string ReadCurrentText()

@@ -339,7 +339,7 @@ namespace Basis.Scripts.BasisCharacterController
             {
                 // Get the current rotation and position of the player
                 Vector3 pivot = BasisLocalBoneDriver.EyeControl.OutgoingWorldData.position;
-                Vector3 upAxis = Vector3.up;
+                Vector3 upAxis = Vector3.up * BasisLocalPlayspaceMover.FlipUpSign;
 
                 // Calculate direction from the pivot to the current position
                 Vector3 directionToPivot = CurrentPosition - pivot;
@@ -551,14 +551,20 @@ namespace Basis.Scripts.BasisCharacterController
         {
             // Project view forward onto horizontal plane (avoids gimbal lock near ±90° pitch)
             Quaternion viewRotation = BasisLocalBoneDriver.EyeControl.OutgoingWorldData.rotation;
+            Vector3 upReference = Vector3.up * BasisLocalPlayspaceMover.FlipUpSign;
             Vector3 flatForward = viewRotation * Vector3.forward;
             flatForward.y = 0f;
             if (flatForward.sqrMagnitude < 0.0001f)
             {
-                flatForward = -(viewRotation * Vector3.up);
-                flatForward.y = 0f;
+                Vector3 flatRight = viewRotation * Vector3.right;
+                flatRight.y = 0f;
+                flatForward = Vector3.Cross(flatRight, upReference);
             }
-            return Quaternion.LookRotation(flatForward.normalized, Vector3.up);
+            if (flatForward.sqrMagnitude < 0.0001f)
+            {
+                flatForward = Vector3.forward;
+            }
+            return Quaternion.LookRotation(flatForward.normalized, upReference);
         }
         public void HandleMovement(float DeltaTime)
         {

@@ -3543,6 +3543,10 @@
       "value": "Start typing..."
     },
     {
+      "key": "keyboard.key.restricted",
+      "value": "Not allowed in this field"
+    },
+    {
       "key": "menu.provider.calibration",
       "value": "Calibration"
     },

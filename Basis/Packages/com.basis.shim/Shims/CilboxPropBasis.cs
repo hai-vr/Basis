@@ -201,6 +201,16 @@ namespace Cilbox
 				new HashSet<string>
 				{
 					"TryGetIdentifier",
+					"get_CreatorUUID",
+				}
+			},
+			// The prop box can already correlate a UUID to a player through TryGetPlayerByUUID,
+			// so handing it the creator string directly grants nothing new.
+			{
+				typeof(BasisContent),
+				new HashSet<string>
+				{
+					"CreatorUUID",
 				}
 			},
             {

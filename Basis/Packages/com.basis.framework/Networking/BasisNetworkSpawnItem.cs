@@ -266,6 +266,7 @@ public static class BasisNetworkSpawnItem
             Static = LoadResource.Static,
             StaticAdminLocked = LoadResource.StaticAdminLocked,
             UUIDOfCreator = LoadResource.UUIDOfCreator,
+            SpawnedByLocalPlayer = BasisLocalPlayer.Instance != null && !string.IsNullOrEmpty(LoadResource.UUIDOfCreator) && LoadResource.UUIDOfCreator == BasisLocalPlayer.Instance.UUID,
         };
         return Information;
     }
@@ -322,6 +323,10 @@ public static class BasisNetworkSpawnItem
             else
             {
                 BasisDebug.LogWarning($"Gameobject Did not have a class deriving from {nameof(BasisNetworkContentBase)} on it!");
+            }
+            if (reference.TryGetComponent(out global::BasisContentBase ContentRoot) && ReferenceEquals(ContentRoot, BasisContentBase) == false)
+            {
+                ContentRoot.AssignContentIdentifier(Generator(localLoadResource));
             }
             //BasisDebug.Log( $"SpawnGameObject -> was spawned does it have metadata? asset bundle name = {loadBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}" );
             BasisRuntimeSpawnRegistry.EndPendingLoad(pending.PendingId);

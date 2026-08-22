@@ -88,10 +88,9 @@ namespace Basis.IK
                 head.OutgoingPosition = headPos;
                 ApplyWorldAndLastBurst(ref head, in P.ParentMatrix, in P.ParentRotation);
 
-                float3 rawUp = math.mul(P.ParentMatrix, new float4(0f, 1f, 0f, 0f)).xyz;
-                NormalizeSafeWithFallback(in rawUp, new float3(0f, 1f, 0f), out float3 worldUp);
+                float3 solveUp = new float3(0f, 1f, 0f);
 
-                float3 neckPos0 = BasisNeckCueCore.Solve(P.NeckTargetPos, P.NeckTargetRot, P.NeckScaledOffset, worldUp, P.NeckExtensionDamp, P.NeckFlexionDamp);
+                float3 neckPos0 = BasisNeckCueCore.Solve(P.NeckTargetPos, P.NeckTargetRot, P.NeckScaledOffset, solveUp, P.NeckExtensionDamp, P.NeckFlexionDamp);
                 neck.OutgoingPosition = neckPos0;
                 ApplyWorldAndLastBurst(ref neck, in P.ParentMatrix, in P.ParentRotation);
 
@@ -160,7 +159,7 @@ namespace Basis.IK
                     }
                 }
 
-                ComputeHipsPosition( in neckForHips, in headPosWorld, in supportXZ, in worldUp, P.LenTotal, in torsoYawTarget, biasScale, in desiredHipsXZ, freeze, in tposeHips, P.StandingHipsLocalY, P.StandingHeadLocalY, P.TrackingLiftY, P.PostureModel != 0, P.HipsCompressionStrength, P.HipsMaxDropMeters, out float3 hipsPos);
+                ComputeHipsPosition( in neckForHips, in headPosWorld, in supportXZ, in solveUp, P.LenTotal, in torsoYawTarget, biasScale, in desiredHipsXZ, freeze, in tposeHips, P.StandingHipsLocalY, P.StandingHeadLocalY, P.TrackingLiftY, P.PostureModel != 0, P.HipsCompressionStrength, P.HipsMaxDropMeters, out float3 hipsPos);
 
                 quaternion hipsRotTarget = freeze ? quaternion.identity : torsoYawTarget;
                 quaternion hipsCurrent = hips.OutgoingRotation;
@@ -364,22 +363,17 @@ namespace Basis.IK
             result = new quaternion(0f, q.y * inv, 0f, q.w * inv);
         }
         [BurstCompile]
-        private static void NormalizeSafeWithFallback(in float3 v, in float3 fallback, out float3 result)
-        {
-            result = math.lengthsq(v) < 1e-6f ? fallback : math.normalize(v);
-        }
-        [BurstCompile]
         private static void ComposePosition(in float3 basePos, in quaternion rot, in float3 localOffset, out float3 result)
         {
             result = basePos + math.mul(rot, localOffset);
         }
         [BurstCompile]
-        internal static void ComputeHipsPosition( in float3 neckPos, in float3 headPos, in float3 supportXZ, in float3 worldUp, float lenTotal, in quaternion headYaw, float biasScale, in float3 desiredHipsXZ, bool freezeToTpose, in float3 tposeHips, float standingHipsLocalY, float standingHeadLocalY, float trackingLiftY, bool usePostureModel, float compressionStrength, float maxDrop, out float3 result)
+        internal static void ComputeHipsPosition( in float3 neckPos, in float3 headPos, in float3 supportXZ, in float3 solveUp, float lenTotal, in quaternion headYaw, float biasScale, in float3 desiredHipsXZ, bool freezeToTpose, in float3 tposeHips, float standingHipsLocalY, float standingHeadLocalY, float trackingLiftY, bool usePostureModel, float compressionStrength, float maxDrop, out float3 result)
         {
             float standingHipsY = standingHipsLocalY + trackingLiftY;
             float standingHeadY = standingHeadLocalY + trackingLiftY;
 
-            float3 hipsBase = freezeToTpose ? tposeHips + new float3(0f, trackingLiftY, 0f) : neckPos - worldUp * lenTotal;
+            float3 hipsBase = freezeToTpose ? tposeHips + new float3(0f, trackingLiftY, 0f) : neckPos - solveUp * lenTotal;
             quaternion biasYaw = freezeToTpose ? quaternion.identity : headYaw;
             float3 forwardBias = math.mul(biasYaw, new float3(0f, 0f, 1f)) * biasScale;
 

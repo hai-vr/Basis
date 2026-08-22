@@ -13,6 +13,9 @@ namespace Cilbox
 
 			// Basis types
 			"BasisNetworkContentBase",
+			// "did the local player spawn this" for a prop, world or avatar, as a bool.
+			// The creator UUID itself stays prop-box only, see CilboxPropBasis.
+			"BasisContent",
             "BasisNetworkContentBase+BasisContentInformation",
             "Basis.Scripts.BasisSdk.Interactions.BasisPickUpUseMode",
 			"Basis.Scripts.Device_Management.Devices.BasisInput", // Restrictive, only used as a type.
@@ -422,6 +425,15 @@ namespace Cilbox
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.LocalPlayer)).GetGetMethod().Name,
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.displayName)).GetGetMethod().Name,
 				"get_playerId", nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.GetAllPlayers),
+				} },
+			{ typeof(BasisContent), new HashSet<string>{ "SpawnedByLocalPlayer" } },
+			// Read-only identity. AssignContentIdentifier and get_ContentInformation are held back:
+			// the first forges a spawn identity, the second hands over the whole struct.
+			{ typeof(BasisNetworkContentBase), new HashSet<string>{
+				"TryGetIdentifier",
+				"TryGetNetworkGUIDIdentifier",
+				"get_clientIdentifier",
+				"get_SpawnedByLocalPlayer",
 				} },
 			{ typeof(UnityEngine.GameObject),          new HashSet<string>{
 				nameof(UnityEngine.GameObject.SetActive),
