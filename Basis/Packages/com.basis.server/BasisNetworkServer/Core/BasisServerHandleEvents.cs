@@ -732,6 +732,7 @@ namespace BasisServerHandle
                 BasisNetworkServer.Security.BasisResourceLimitManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisPlayerModeration.SendReductionSettingsToPeer(newPeer);
                 BasisNetworkServer.Security.BasisPlayerModeration.SendImageBandwidthToPeer(newPeer);
+                BasisNetworkServer.Security.BasisPlayerModeration.SendPeerLimitToPeer(newPeer);
                 SendShoutStateToPeer(newPeer);
             }
             else

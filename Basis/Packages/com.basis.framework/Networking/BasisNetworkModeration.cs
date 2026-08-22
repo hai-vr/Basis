@@ -478,6 +478,10 @@ public static class BasisNetworkModeration
                 HandleImageBandwidth(reader);
                 break;
 
+            case AdminRequestMode.GlobalGetPeerLimit:
+                HandlePeerLimit(reader);
+                break;
+
             case AdminRequestMode.GlobalGetReductionSettings:
                 HandleReductionSettings(reader);
                 break;
@@ -1611,6 +1615,35 @@ public static class BasisNetworkModeration
             w => w.Put(uploadMegabits),
             w => w.Put(downloadMegabits),
             w => w.Put(enforcementPercent));
+    }
+
+    /// <summary>
+    /// Server-pushed maximum player count — the mirror of Configuration.PeerLimit. Pushed on connect
+    /// and on every admin change, so the admin panel edits the live cap rather than a stale one.
+    /// </summary>
+    public static int ServerPeerLimit { get; private set; } = ushort.MaxValue;
+
+    /// <summary>Fired when the server pushes a new maximum player count.</summary>
+    public static event Action<int> OnPeerLimitChanged;
+
+    private static void HandlePeerLimit(NetDataReader reader)
+    {
+        ServerPeerLimit = reader.GetInt();
+        OnPeerLimitChanged?.Invoke(ServerPeerLimit);
+    }
+
+    /// <summary>
+    /// Admin: set the maximum number of simultaneously connected players. Persisted to config.xml
+    /// and enforced from the next join onward — lowering it past the current population never
+    /// disconnects anyone, the server just stops admitting players until it drains under the cap.
+    /// </summary>
+    public static void SetGlobalPeerLimit(int peerLimit)
+    {
+        if (peerLimit < 1) peerLimit = 1;
+        if (peerLimit > ushort.MaxValue) peerLimit = ushort.MaxValue;
+        SendAdminRequest(
+            AdminRequestMode.SetGlobalPeerLimit,
+            w => w.Put(peerLimit));
     }
 
     private static void HandleReductionSettings(NetDataReader reader)

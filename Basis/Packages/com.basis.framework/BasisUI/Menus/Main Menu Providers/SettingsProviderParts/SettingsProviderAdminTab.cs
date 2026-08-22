@@ -36,6 +36,13 @@ namespace Basis.BasisUI
             toggle.SetValueWithoutNotify(serverState());
         }
 
+        /// <summary>
+        /// Mirrors the clamp the server applies to the player cap. The field refuses an out-of-range
+        /// number rather than clamping it, so Apply can never quietly install a cap nobody typed.
+        /// </summary>
+        private static bool TryParsePeerLimit(string text, out int peerLimit) =>
+            int.TryParse(text, out peerLimit) && peerLimit >= 1 && peerLimit <= ushort.MaxValue;
+
         public static PanelTabPage AdminTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
@@ -620,6 +627,17 @@ namespace Basis.BasisUI
             // Fire-and-forget; failure is silent (the fields just stay blank).
             _ = PrefillServerInfoFieldsAsync(serverNameField, serverMotdField, controller, serverDirty);
 
+            // Unlike name and MOTD this one has a server→client echo (GlobalGetPeerLimit), so its
+            // baseline is the live server value rather than a locally remembered "last applied".
+            PanelTextField maxPlayersField = PanelTextField.CreateNewEntry(container);
+            maxPlayersField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.maxPlayers"));
+            maxPlayersField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.maxPlayers.tooltip"));
+            maxPlayersField._inputField.contentType = TMP_InputField.ContentType.IntegerNumber;
+            maxPlayersField.SetValueWithoutNotify(BasisNetworkModeration.ServerPeerLimit.ToString());
+            maxPlayersField.SetValidator(text => TryParsePeerLimit(text, out _)
+                ? null
+                : BasisLocalization.Get("ui.validation.range", 1, ushort.MaxValue));
+
             // Normal / AllowList / RejoinOnly is one tri-state on the wire. It used to be driven by
             // two independent bool toggles, which could both read ON until the server echo corrected
             // them; a dropdown can only ever express one mode.
@@ -654,6 +672,12 @@ namespace Basis.BasisUI
                     controller.AppliedServerMotd = motd;
                 }
 
+                if (TryParsePeerLimit(maxPlayersField.Value, out int peerLimit) &&
+                    peerLimit != BasisNetworkModeration.ServerPeerLimit)
+                {
+                    BasisNetworkModeration.SetGlobalPeerLimit(peerLimit);
+                }
+
                 BasisUserRestrictionMode mode = NameToRestrictionMode(restrictionDropdown.Value);
                 if (mode != BasisNetworkModeration.GlobalUserRestrictionMode)
                 {
@@ -669,6 +693,7 @@ namespace Basis.BasisUI
 
             controller.RestrictionDropdown = restrictionDropdown;
             controller.CrashReportingToggle = crashReportingToggle;
+            controller.MaxPlayersField = maxPlayersField;
 
             PanelTextField allowlistUuidField = PanelTextField.CreateNewEntry(container);
             allowlistUuidField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.allowlistUuid"));
@@ -703,6 +728,7 @@ namespace Basis.BasisUI
             serverDirty.Attach(serverToggle, serverBox);
             serverDirty.WatchText(serverNameField, () => controller.AppliedServerName);
             serverDirty.WatchText(serverMotdField, () => controller.AppliedServerMotd);
+            serverDirty.WatchNumericText(maxPlayersField, () => BasisNetworkModeration.ServerPeerLimit);
             serverDirty.WatchDropdown(restrictionDropdown, () => RestrictionModeToName(BasisNetworkModeration.GlobalUserRestrictionMode));
             serverDirty.WatchToggle(crashReportingToggle, () => BasisNetworkModeration.CrashReportingEnabled);
             controller.DirtySections.Add(serverDirty);
@@ -982,6 +1008,7 @@ namespace Basis.BasisUI
             public PanelToggle HeadlessDisallowToggle;
             public PanelDropdown RestrictionDropdown;
             public PanelToggle CrashReportingToggle;
+            public PanelTextField MaxPlayersField;
             public PanelSlider OpusPacketLossSlider;
             public PanelToggle OpusBitrateOverrideToggle;
             public PanelSlider OpusBitrateSlider;
@@ -1097,6 +1124,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnReductionSettingsChanged += OnReductionSettingsChanged;
                 BasisNetworkModeration.OnImageBandwidthChanged -= OnImageBandwidthChanged;
                 BasisNetworkModeration.OnImageBandwidthChanged += OnImageBandwidthChanged;
+                BasisNetworkModeration.OnPeerLimitChanged -= OnPeerLimitChanged;
+                BasisNetworkModeration.OnPeerLimitChanged += OnPeerLimitChanged;
             }
 
             private void OnDisable()
@@ -1130,6 +1159,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
                 BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
                 BasisNetworkModeration.OnImageBandwidthChanged -= OnImageBandwidthChanged;
+                BasisNetworkModeration.OnPeerLimitChanged -= OnPeerLimitChanged;
             }
 
             private void OnDestroy()
@@ -1161,6 +1191,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
                 BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
                 BasisNetworkModeration.OnImageBandwidthChanged -= OnImageBandwidthChanged;
+                BasisNetworkModeration.OnPeerLimitChanged -= OnPeerLimitChanged;
             }
 
             private void OnGlobalLockStateChanged(bool avatars, bool props, bool worlds, bool servers)
@@ -1321,6 +1352,12 @@ namespace Basis.BasisUI
                 if (ReductionBundleMinBytesField != null) ReductionBundleMinBytesField.SetValueWithoutNotify(BasisNetworkModeration.ServerAvatarBundleMinBytes.ToString());
                 if (ReductionProfilingToggle != null) ReductionProfilingToggle.SetValueWithoutNotify(BasisNetworkModeration.ServerEnableBSRProfiling);
                 ReductionProfiling = BasisNetworkModeration.ServerEnableBSRProfiling;
+                ReevaluateDirty();
+            }
+
+            private void OnPeerLimitChanged(int peerLimit)
+            {
+                if (MaxPlayersField != null) MaxPlayersField.SetValueWithoutNotify(peerLimit.ToString());
                 ReevaluateDirty();
             }
 

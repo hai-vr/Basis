@@ -11099,6 +11099,10 @@
       "value": "Enter a whole number of {0} or more."
     },
     {
+      "key": "ui.validation.range",
+      "value": "Enter a whole number between {0} and {1}."
+    },
+    {
       "key": "ui.search",
       "value": "Search..."
     },
@@ -12899,6 +12903,14 @@
     {
       "key": "settings.admin.title.disallowWorldViewpoint",
       "value": "Disallow World & Viewpoint"
+    },
+    {
+      "key": "settings.admin.title.maxPlayers",
+      "value": "Max Players"
+    },
+    {
+      "key": "settings.admin.title.maxPlayers.tooltip",
+      "value": "Maximum number of players allowed on this server at once (1 to 65535). Saved to the server config. Applies from the next join — setting it below the current player count never disconnects anyone."
     },
     {
       "key": "settings.admin.title.serverConfiguration",

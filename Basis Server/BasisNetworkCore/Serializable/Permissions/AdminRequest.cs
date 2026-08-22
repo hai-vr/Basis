@@ -239,6 +239,14 @@ namespace BasisNetworkCore.Serializable
             // Payload: [int uploadMbps][int downloadMbps][int enforcementPercent]
             SetGlobalImageBandwidth,
             GlobalGetImageBandwidth, // server→client: current image bandwidth budgets (same field order)
+
+            // admin: set the maximum number of simultaneously connected players. Persisted to
+            // config.xml and read live by the connection gate, so a new cap is in force from the
+            // very next join. Lowering it below the current population disconnects nobody — the
+            // instance simply stops admitting players until it drains under the cap.
+            // Payload: [int peerLimit], clamped server-side to 1..ushort.MaxValue.
+            SetGlobalPeerLimit,
+            GlobalGetPeerLimit, // server→client: current maximum player count. Payload: [int peerLimit]
         }
     }
 }

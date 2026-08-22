@@ -543,6 +543,11 @@ namespace BasisNetworkServer.Security
                         SendBackMessage(peer, ApplyAllowlistMode(reader.GetByte())));
                     break;
 
+                case AdminRequestMode.SetGlobalPeerLimit:
+                    Require(peer, PermNodes.ConfigurationEditor, () =>
+                        HandlePeerLimitSet(peer, reader));
+                    break;
+
                 case AdminRequestMode.AddAllowlist:
                     Require(peer, PermNodes.ModerationAllowlist, () =>
                         SendBackMessage(peer, ApplyAllowlistAdd(reader.GetString())));
@@ -1210,6 +1215,51 @@ namespace BasisNetworkServer.Security
         {
             var writer = NetworkServer.RentWriter();
             WriteImageBandwidth(writer);
+            NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        /// <summary>
+        /// Applies the maximum player count from an admin.
+        ///
+        /// The gate that reads it runs per connection request, so the new cap binds from the next
+        /// join onward. Setting it below the current population is allowed and drops nobody — the
+        /// instance stops admitting players until it drains under the cap.
+        /// </summary>
+        private static void HandlePeerLimitSet(NetPeer peer, NetPacketReader reader)
+        {
+            var config = NetworkServer.Configuration;
+            config.PeerLimit = reader.GetInt();
+
+            // 0 or negative would seal the instance shut, and player ids are ushort on the wire, so
+            // a cap past ushort.MaxValue could never be reached anyway.
+            if (config.PeerLimit < 1) config.PeerLimit = 1;
+            if (config.PeerLimit > ushort.MaxValue) config.PeerLimit = ushort.MaxValue;
+
+            SaveConfig();
+            BroadcastPeerLimit();
+            SendBackMessage(peer,
+                $"Max players set to {config.PeerLimit}. Applies from the next join; nobody connected now is disconnected.");
+        }
+
+        private static void WritePeerLimit(NetDataWriter writer)
+        {
+            new AdminRequest().Serialize(writer, AdminRequestMode.GlobalGetPeerLimit);
+            writer.Put(NetworkServer.Configuration.PeerLimit);
+        }
+
+        private static void BroadcastPeerLimit()
+        {
+            var writer = NetworkServer.RentWriter();
+            WritePeerLimit(writer);
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.AdminChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        public static void SendPeerLimitToPeer(NetPeer peer)
+        {
+            var writer = NetworkServer.RentWriter();
+            WritePeerLimit(writer);
             NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
