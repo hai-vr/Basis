@@ -784,6 +784,47 @@ downloader.DownloadImage(""https://example.com/sign.png"", result =>
 });",
             },
 
+            new CilboxApiEntry
+            {
+                GroupKey = GroupData,
+                TitleKey = "sdk.cilbox.api.stringDownload.title",
+                SummaryKey = "sdk.cilbox.api.stringDownload.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.BasisStringDownloader", "DownloadString") },
+                Example =
+@"using Basis;
+
+// Same address checks as the image downloader, plus the URL trust prompt for
+// hosts the player has not approved yet (declined => Error is ""User declined URL"").
+var downloader = new BasisStringDownloader();
+downloader.DownloadString(""https://example.github.io/questions.json"", result =>
+{
+    if (result.Success) LoadQuestions(result.Result);
+    else Debug.LogWarning(result.Error);
+});",
+            },
+            new CilboxApiEntry
+            {
+                GroupKey = GroupData,
+                TitleKey = "sdk.cilbox.api.json.title",
+                SummaryKey = "sdk.cilbox.api.json.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisJson", "Parse") },
+                Example =
+@"using Basis.Shims;
+
+// Parsed on the host; the script only ever sees nodes and primitives.
+BasisJsonNode root = BasisJson.Parse(text);
+if (root == null) return;
+string title = root.GetString(""title"", ""Untitled"");
+BasisJsonNode questions = root.Get(""questions"");
+int count = questions != null ? questions.Count : 0;
+for (int i = 0; i < count; i++)
+{
+    BasisJsonNode question = questions.Get(i);
+    string prompt = question.GetString(""q"", """");
+    string[] answers = question.GetStringArray(""a"");
+    int correct = question.GetInt(""correct"", 0);
+}",
+            },
             // ---------------------------------------------------------- media
             new CilboxApiEntry
             {
