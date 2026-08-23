@@ -158,6 +158,15 @@ namespace HVR.Basis.Comms
             }
 
             MessageReceived?.Invoke(message);
+            DispatchToSubscribers(message);
+        }
+
+        internal static void DispatchToSubscribers(OscMessage message)
+        {
+            if (message == null)
+            {
+                return;
+            }
 
             DispatcherState snapshot = Volatile.Read(ref _dispatcherState);
             DeliverMessage(snapshot, message, MatchOwners(snapshot, message.Path ?? string.Empty));

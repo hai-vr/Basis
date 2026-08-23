@@ -625,6 +625,64 @@ namespace HVR.Basis.Comms.Tests
         }
 
         [Test]
+        public void BasisOsc_PublishValue_DispatchesToAnotherLocalSubscriber()
+        {
+            DestroySceneInstance();
+            GameObject avatarObject = new GameObject("OscLocalDispatchAvatar");
+            GameObject publisherObject = new GameObject("OscLocalDispatchPublisher");
+            GameObject subscriberObject = new GameObject("OscLocalDispatchSubscriber");
+            Action<OscMessage> globalHandler = null;
+
+            try
+            {
+                BasisAvatar avatar = avatarObject.AddComponent<BasisAvatar>();
+                avatar.IsOwnedLocally = true;
+                publisherObject.transform.SetParent(avatarObject.transform, false);
+                subscriberObject.transform.SetParent(avatarObject.transform, false);
+
+                BasisOsc publisher = publisherObject.AddComponent<BasisOsc>();
+                BasisOsc subscriber = subscriberObject.AddComponent<BasisOsc>();
+                int callbackCount = 0;
+                int globalCallbackCount = 0;
+                OscMessage receivedMessage = null;
+                OscData[] receivedArguments = null;
+                const string address = "/avatar/public/LocalDispatchProbe";
+
+                subscriber.Subscribe(address, (message, arguments) =>
+                {
+                    callbackCount++;
+                    receivedMessage = message;
+                    receivedArguments = arguments;
+                });
+                globalHandler = _ => globalCallbackCount++;
+                BasisOscService.MessageReceived += globalHandler;
+
+                publisher.PublishValue(address, OscData.Float32(0.75f));
+
+                Assert.That(ResolveNode(GetQueryRoot(), "avatar", "public", "LocalDispatchProbe"), Is.Not.Null,
+                    "PublishValue should still update the OSCQuery node map.");
+                Assert.That(callbackCount, Is.EqualTo(1));
+                Assert.That(globalCallbackCount, Is.EqualTo(0),
+                    "A local publish should not be reflected into inbound/global OSC handlers.");
+                Assert.That(receivedMessage, Is.Not.Null);
+                Assert.That(receivedMessage.Path, Is.EqualTo(address));
+                Assert.That(receivedMessage.TypeTag, Is.EqualTo(",f"));
+                Assert.That(receivedArguments, Has.Length.EqualTo(1));
+                Assert.That(receivedArguments[0].FloatValue, Is.EqualTo(0.75f));
+            }
+            finally
+            {
+                if (globalHandler != null)
+                {
+                    BasisOscService.MessageReceived -= globalHandler;
+                }
+
+                Object.DestroyImmediate(avatarObject);
+                DestroySceneInstance();
+            }
+        }
+
+        [Test]
         public void BasisOsc_LocalAvatarPublishesIntoAvatarNamespace()
         {
             DestroySceneInstance();
