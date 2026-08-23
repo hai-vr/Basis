@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Basis.BasisUI;
 using HVR.Basis.Comms.OSC;
+using HVR.Basis.Comms.OSC.Lyuma;
 using HVR.Osushi;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -191,12 +192,15 @@ namespace HVR.Basis.Comms
                 return;
             }
 
+            string typeTag = BuildTypeTag(values);
+            object[] oscArguments = BuildOscArguments(values);
+
             lock (_queryLock)
             {
                 EnsureOscQueryRoot();
                 OsushiNode leaf = EnsureQueryNode(normalizedAddress);
                 leaf.ACCESS = PublishAccess;
-                leaf.TYPE = BuildTypeTag(values);
+                leaf.TYPE = typeTag;
                 leaf.VALUE = BuildQueryValues(values);
             }
 
@@ -204,13 +208,20 @@ namespace HVR.Basis.Comms
             {
                 try
                 {
-                    _client.SendOscMultivalue(normalizedAddress, BuildOscArguments(values));
+                    _client.SendOscMultivalue(normalizedAddress, oscArguments);
                 }
                 catch (Exception e)
                 {
                     BasisDebug.LogWarning($"Failed to publish OSC value ({e.Message})", BasisDebug.LogTag.LocalNetwork);
                 }
             }
+
+            BasisOscService.DispatchToSubscribers(OscMessage.FromRaw(new SimpleOSC.OSCMessage
+            {
+                path = normalizedAddress,
+                typeTag = typeTag,
+                arguments = oscArguments,
+            }));
         }
 
         public void UpdateSubscriptions(EntityId ownerId, IEnumerable<string> subscribedAddresses, IEnumerable<string> subscribedPrefixes)
