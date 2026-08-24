@@ -314,17 +314,6 @@ namespace Basis.Tests.Camera
             }
         }
 
-        [Test]
-        public void AMeteringModeChangeIsSomethingASavedModeNotices()
-        {
-            CameraSettings stored = BasisCameraSettingsRig.DistinctiveSettings();
-
-            CameraSettings other = BasisCameraSettingsRig.DistinctiveSettings();
-            other.autoBrightnessMetering = stored.autoBrightnessMetering == 0 ? 1 : 0;
-
-            Assert.That(BasisCameraUserMode.SettingsMatch(stored, other), Is.False);
-        }
-
         private static NativeArray<Color32> FlatFrame(int width, int height, byte level)
         {
             NativeArray<Color32> pixels = new NativeArray<Color32>(width * height, Allocator.Temp);

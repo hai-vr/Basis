@@ -151,12 +151,10 @@ namespace Basis.ImagePickup
         private Task<byte[]> _readTask;
         private BasisBurstGifDecodeRequest _decodeRequest;
         private BasisBurstGifDecodeResult _decodeResult;
-        private BasisBurstAnimationEncodeRequest _encodeRequest;
         private Task<byte[]> _posterEncodeTask;
         private Color32[] _posterPixels;
         private BasisNativeAnimationPayload _animationPayload;
         private string _animationNetworkError;
-        private bool _animationEncodingComplete;
         private BasisGifDecodeJobResult _result;
         private State _state;
         private bool _disposed;
@@ -201,8 +199,7 @@ namespace Basis.ImagePickup
                 State.Complete => true,
                 State.Reading => _readTask?.IsCompleted == true,
                 State.Decoding => _decodeRequest?.IsCompleted == true,
-                State.Encoding => (_animationEncodingComplete || _encodeRequest?.IsCompleted == true)
-                    && _posterEncodeTask?.IsCompleted == true,
+                State.Encoding => _posterEncodeTask?.IsCompleted == true,
                 _ => false,
             };
 
@@ -260,57 +257,13 @@ namespace Basis.ImagePickup
                     return;
                 }
 
-                if (_decodeResult.Animation.FrameCount <= 1)
-                {
-                    _animationEncodingComplete = true;
-                }
-                else
-                {
-                    try
-                    {
-                        _encodeRequest = new BasisBurstAnimationEncodeRequest(_decodeResult.Animation);
-                    }
-                    catch (BasisAnimationMemoryBudgetException exception)
-                    {
-                        _animationNetworkError = exception.Message;
-                        _animationEncodingComplete = true;
-                    }
-                    catch (Exception exception)
-                    {
-                        _animationNetworkError =
-                            "Animation Burst encoding could not start: "
-                            + exception.Message;
-                        _animationEncodingComplete = true;
-                    }
-                }
+                if (_decodeResult.Animation.FrameCount > 1)
+                    _animationNetworkError = TryTakeGifPayload();
                 _state = State.Encoding;
             }
 
             if (_state == State.Encoding)
             {
-                if (!_animationEncodingComplete)
-                {
-                    BasisBurstAnimationEncodeResult encoded;
-                    if (block)
-                        encoded = _encodeRequest.Complete();
-                    else if (!_encodeRequest.TryComplete(out encoded))
-                        return;
-
-                    if (encoded == null || !encoded.Ok)
-                    {
-                        _animationNetworkError =
-                            encoded?.Error
-                            ?? "Animation Burst encoder returned no result.";
-                    }
-                    else
-                    {
-                        _animationPayload = encoded.TakePayload();
-                    }
-                    _animationEncodingComplete = true;
-                    _encodeRequest.Dispose();
-                    _encodeRequest = null;
-                }
-
                 if (!block && !_posterEncodeTask.IsCompleted)
                     return;
 
@@ -412,6 +365,40 @@ namespace Basis.ImagePickup
             return bytes;
         }
 
+        private string TryTakeGifPayload()
+        {
+            NativeArray<byte> source = _decodeResult.TakeSource();
+            if (!source.IsCreated || source.Length <= 0)
+                return "GIF source bytes were not retained for the network payload.";
+            int length = source.Length;
+            if (length > BasisImagePickupSettings.MaxAnimationNetworkBytes)
+            {
+                source.Dispose();
+                return "GIF exceeds the configured network payload limit.";
+            }
+            if (!BasisNativeAnimationPayload.TryReserveBytes(length, out string budgetError))
+            {
+                source.Dispose();
+                return budgetError;
+            }
+            try
+            {
+                _animationPayload = new BasisNativeAnimationPayload(
+                    source,
+                    length,
+                    true,
+                    BasisNativeAnimationPayload.FormatGif
+                );
+                return null;
+            }
+            catch (Exception exception)
+            {
+                BasisNativeAnimationPayload.ReleaseReservation(length);
+                source.Dispose();
+                return "GIF network payload could not be created: " + exception.Message;
+            }
+        }
+
         private void StartPosterEncoding()
         {
             if (
@@ -499,26 +486,18 @@ namespace Basis.ImagePickup
                 _animationPayload = null;
                 try
                 {
-                    _encodeRequest?.Dispose();
+                    _decodeResult?.Dispose();
                 }
                 finally
                 {
-                    _encodeRequest = null;
+                    _decodeResult = null;
                     try
                     {
-                        _decodeResult?.Dispose();
+                        _decodeRequest?.Dispose();
                     }
                     finally
                     {
-                        _decodeResult = null;
-                        try
-                        {
-                            _decodeRequest?.Dispose();
-                        }
-                        finally
-                        {
-                            _decodeRequest = null;
-                        }
+                        _decodeRequest = null;
                     }
                 }
             }
@@ -741,6 +720,18 @@ namespace Basis.ImagePickup
             if (bytes == null || bytes.Length == 0)
                 throw new ArgumentException("GIF data is empty.", nameof(bytes));
             return new BasisGifDecodeJobRequest(bytes);
+        }
+
+        public static IBasisAnimationDecodeRequest ScheduleAnimationDecode(
+            BasisNativeAnimationPayload payload,
+            BasisAnimationDecodeTrust trust
+        )
+        {
+            if (payload == null || !payload.IsCreated || payload.Length <= 0)
+                throw new ArgumentException("Animation payload is empty.", nameof(payload));
+            return payload.Format == BasisNativeAnimationPayload.FormatGif
+                ? (IBasisAnimationDecodeRequest)new BasisBurstGifDecodeRequest(payload.Bytes, payload.Length, false, trust)
+                : new BasisBurstAnimationDecodeRequest(payload.Bytes, payload.Length, false, trust);
         }
 
         public static BasisAnimationPacketJobRequest SchedulePacketBuild(

@@ -20,7 +20,7 @@ namespace Basis.ImagePickup
 
         private BasisAnimatedImageData _data;
         private BasisNativeAnimationPayload _reloadPayload;
-        private BasisBurstAnimationDecodeRequest _reloadRequest;
+        private IBasisAnimationDecodeRequest _reloadRequest;
         private BasisImagePickupObject _pickup;
         private BasisAnimatedImageGpuCanvas _gpuCanvas;
         private BasisAnimatedImageCpuCanvas _cpuCanvas;
@@ -365,10 +365,8 @@ namespace Basis.ImagePickup
             _reservedReloadNativeBytes = _reloadNativeByteEstimate;
             try
             {
-                _reloadRequest = new BasisBurstAnimationDecodeRequest(
-                    _reloadPayload.Bytes,
-                    _reloadPayload.Length,
-                    false,
+                _reloadRequest = BasisAnimatedImageJobs.ScheduleAnimationDecode(
+                    _reloadPayload,
                     ResolveReloadDecodeTrust(_pickup != null && _pickup.IsOwner)
                 );
                 return false;

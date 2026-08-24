@@ -25,8 +25,8 @@ namespace Basis.Cinematics
     [Serializable]
     public class BasisCameraDollyPreset
     {
-        /// <summary>Shared with saved modes, so one name field can serve both without a surprise.</summary>
-        public const int MaxNameLength = BasisCameraUserMode.MaxNameLength;
+        /// <summary>Longest name that still fits the dropdown and the panel's section header.</summary>
+        public const int MaxNameLength = 40;
 
         /// <summary>Matches the waypoint cap the panel and the wire format already share.</summary>
         public const int MaxPoints = BasisCameraDollyPacket.MaxPoints;
@@ -123,7 +123,7 @@ namespace Basis.Cinematics
         /// </summary>
         public static string SanitizeName(string raw)
         {
-            string cleaned = BasisCameraUserMode.SanitizeName(raw);
+            string cleaned = CollapseName(raw);
             if (cleaned == null) return null;
 
             char[] characters = cleaned.ToCharArray();
@@ -136,7 +136,47 @@ namespace Basis.Cinematics
                 changed = true;
             }
 
-            return changed ? BasisCameraUserMode.SanitizeName(new string(characters)) : cleaned;
+            return changed ? CollapseName(new string(characters)) : cleaned;
+        }
+
+        /// <summary>
+        /// Trims a name down to something that can be stored, shown and matched. Returns null for
+        /// anything that is only whitespace, which is the one name a preset cannot have: the
+        /// dropdown would show a blank row and nothing could ever be selected back off it.
+        /// </summary>
+        private static string CollapseName(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+
+            // Newlines and tabs would break the dropdown row, and a name is a label rather than a
+            // paragraph, so they collapse to spaces rather than being rejected — pasting a name
+            // out of a document should work.
+            char[] cleaned = new char[raw.Length];
+            int written = 0;
+            bool lastWasSpace = true;
+            for (int Index = 0; Index < raw.Length; Index++)
+            {
+                char character = raw[Index];
+                bool isSpace = char.IsWhiteSpace(character) || char.IsControl(character);
+                if (isSpace)
+                {
+                    if (lastWasSpace) continue;
+                    cleaned[written++] = ' ';
+                    lastWasSpace = true;
+                    continue;
+                }
+
+                cleaned[written++] = character;
+                lastWasSpace = false;
+            }
+
+            while (written > 0 && cleaned[written - 1] == ' ') written--;
+            if (written == 0) return null;
+            if (written > MaxNameLength) written = MaxNameLength;
+
+            // Trimming to the length cap can strand a trailing space that was legal a character ago.
+            while (written > 0 && cleaned[written - 1] == ' ') written--;
+            return written == 0 ? null : new string(cleaned, 0, written);
         }
 
         public static bool NamesMatch(string left, string right) =>

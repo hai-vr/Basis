@@ -330,24 +330,6 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
-        public void SavingAModeOffAPartlyUsedCamera_KeepsTheBodyAndForgetsTheCount()
-        {
-            using (var rig = new BasisCameraSettingsRig())
-            {
-                rig.Camera.ApplyCameraMode(BasisCameraMode.Disposable);
-                rig.Camera.TryTakeFrameForTest();
-
-                BasisCameraUserMode saved = rig.Camera.CaptureUserMode("half a roll", Color.white);
-
-                Assert.That(saved.settings.cameraBody, Is.EqualTo((int)BasisCameraBodyKind.Disposable),
-                    "A mode saved off a disposable is a disposable.");
-                Assert.That(saved.settings.exposuresRemaining, Is.EqualTo(BasisHandHeldCamera.FullRoll),
-                    "A mode is a configuration; one that handed back the frames its owner happened " +
-                    "to have left would be a snapshot of an afternoon instead.");
-            }
-        }
-
-        [Test]
         public void ACameraWithEveryOverrideFitted_StillMatchesTheKindItWasGiven()
         {
             // The bare fixture above skips every optical compare for want of a volume profile, so

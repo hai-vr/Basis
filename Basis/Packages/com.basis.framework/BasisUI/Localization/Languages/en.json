@@ -563,6 +563,22 @@
       "value": "Image"
     },
     {
+      "key": "camera.tab.photo",
+      "value": "Photo"
+    },
+    {
+      "key": "camera.tab.streaming",
+      "value": "Streaming"
+    },
+    {
+      "key": "camera.tab.recording",
+      "value": "Recording"
+    },
+    {
+      "key": "camera.tab.handling",
+      "value": "Handling"
+    },
+    {
       "key": "camera.tab.advanced",
       "value": "Advanced"
     },
@@ -1231,6 +1247,14 @@
       "value": "Output"
     },
     {
+      "key": "camera.stream",
+      "value": "Live Stream"
+    },
+    {
+      "key": "camera.whileStreaming",
+      "value": "While Streaming"
+    },
+    {
       "key": "camera.directToScreen",
       "value": "Show On Main Screen"
     },
@@ -1500,7 +1524,7 @@
     },
     {
       "key": "camera.photoHandling",
-      "value": "Photo & Handling"
+      "value": "Taking Photos"
     },
     {
       "key": "camera.photoResolution",
@@ -9976,11 +10000,11 @@
     },
     {
       "key": "camera.photoMetadata.description",
-      "value": "What gets written into the photo file alongside the picture. These apply to every camera and are not changed by the reset below."
+      "value": "What gets written into the photo file alongside the picture. These apply to every camera and are not changed by Reset."
     },
     {
       "key": "camera.debugGizmos.description",
-      "value": "Drawn into the world, so photos taken while these are on will show them too."
+      "value": "Drawn into the world for your own view only. They never appear in a photo, a recording or a stream."
     },
     {
       "key": "camera.cameraHidden",
@@ -13807,6 +13831,14 @@
     {
       "key": "camera.modifier.rotation.description",
       "value": "What decides where the camera points. One is fitted at a time."
+    },
+    {
+      "key": "camera.modifier.advanced",
+      "value": "Advanced"
+    },
+    {
+      "key": "camera.modifier.advanced.description",
+      "value": "The fitted mode's own dials. Most shots never need them."
     },
     {
       "key": "camera.modifier.effects",

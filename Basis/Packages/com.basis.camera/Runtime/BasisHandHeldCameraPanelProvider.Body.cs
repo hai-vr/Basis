@@ -3,8 +3,8 @@ using UnityEngine;
 namespace Basis.BasisUI.HandHeldCamera
 {
     /// <summary>
-    /// The camera you are holding, at the top of the Capture tab: which body it is, what the shutter
-    /// is doing, and whether the flash is armed — the three things to check before the button.
+    /// The camera you are holding, at the top of the Image tab: which body it is, what the shutter
+    /// is doing, and whether the flash is armed — the camera whose picture the rest of the tab tunes.
     ///
     /// <para>Everything else on that tab is a setting. This section is not — the shutter waits on
     /// a wind-on or a print coming up, and nothing on the panel can talk it out of that.</para>
@@ -22,7 +22,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelToggle _bodyFlashToggle;
 
         private bool? _lastBodyFlash;
-        private RectTransform _capturePageContent;
+        private RectTransform _bodyPageContent;
         private int _bodyCheckCountdown;
 
         /// <summary>
@@ -108,8 +108,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private void RebuildBodyLayout()
         {
-            if (_bodyGroup == null || _capturePageContent == null) return;
-            PanelElementDescriptor.RebuildLayoutChain(_bodyGroup.ContentParent, _capturePageContent);
+            if (_bodyGroup == null || _bodyPageContent == null) return;
+            PanelElementDescriptor.RebuildLayoutChain(_bodyGroup.ContentParent, _bodyPageContent);
         }
 
         /// <summary>
@@ -154,7 +154,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _bodyGroup = null;
             _bodyStatus = null;
             _bodyFlashToggle = null;
-            _capturePageContent = null;
+            _bodyPageContent = null;
             _bodyCheckCountdown = 0;
 
             // Forces the card to be written on the next open. It is rebuilt holding the help line,

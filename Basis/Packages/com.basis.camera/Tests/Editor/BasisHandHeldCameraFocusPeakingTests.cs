@@ -159,27 +159,5 @@ namespace Basis.Tests.Camera
             Assert.That(defaults.focusPeakingSensitivity, Is.GreaterThan(0f),
                 "A saved sensitivity of zero would come back as the least sensitive setting rather than a usable one.");
         }
-
-        [Test]
-        public void AModeNoticesEachPartOfTheOverlayChanging()
-        {
-            CameraSettings stored = BasisCameraSettingsRig.DistinctiveSettings();
-
-            CameraSettings peakingOff = BasisCameraSettingsRig.DistinctiveSettings();
-            peakingOff.focusPeaking = !stored.focusPeaking;
-            Assert.That(BasisCameraUserMode.SettingsMatch(stored, peakingOff), Is.False);
-
-            CameraSettings otherColour = BasisCameraSettingsRig.DistinctiveSettings();
-            otherColour.focusPeakingColour = stored.focusPeakingColour + 1;
-            Assert.That(BasisCameraUserMode.SettingsMatch(stored, otherColour), Is.False);
-
-            CameraSettings otherSensitivity = BasisCameraSettingsRig.DistinctiveSettings();
-            otherSensitivity.focusPeakingSensitivity = stored.focusPeakingSensitivity + 0.2f;
-            Assert.That(BasisCameraUserMode.SettingsMatch(stored, otherSensitivity), Is.False);
-
-            CameraSettings otherGrey = BasisCameraSettingsRig.DistinctiveSettings();
-            otherGrey.focusPeakingGreyPicture = !stored.focusPeakingGreyPicture;
-            Assert.That(BasisCameraUserMode.SettingsMatch(stored, otherGrey), Is.False);
-        }
     }
 }

@@ -78,7 +78,8 @@ namespace Basis.ImagePickup
 
         // Values 0 and 1 were used by pre-release animation transport experiments and remain
         // reserved so stale clients cannot misinterpret the production V2 native-LZ4 payload.
-        private const byte AnimationFormatNativeLz4 = 2;
+        private const byte AnimationFormatNativeLz4 = BasisNativeAnimationPayload.FormatNativeLz4;
+        private const byte AnimationFormatGif = BasisNativeAnimationPayload.FormatGif;
 
         /// <summary>Opcode, image id, chunk index, and chunk length — see <see cref="EncodeChunk"/>.</summary>
         private const int ImageChunkHeaderBytes = 1 + BasisGuid128.SerializedSize + sizeof(int) * 2;
@@ -215,6 +216,7 @@ namespace Basis.ImagePickup
         {
             public ushort Sender;
             public Guid Id;
+            public byte Format;
             public NativeArray<byte> Buffer;
             public long ReservedBytes;
             public NativeArray<byte> Received;
@@ -273,7 +275,7 @@ namespace Basis.ImagePickup
             public int PayloadBytes;
             public int DecodedBytes;
             public long PlaybackEpochUtcTicks;
-            public BasisBurstAnimationDecodeRequest Job;
+            public IBasisAnimationDecodeRequest Job;
         }
 
         private sealed class OutboundImageTransfer
@@ -1369,10 +1371,10 @@ namespace Basis.ImagePickup
                     string attachmentMessage = decodedDataDeferred
                         ? "Image pickup: GIF animation retained as a compact payload and deferred to "
                             + $"the closest-animation decoded-data budget ({frameCount} frames, "
-                            + $"{animationPayload.Length} LZ4 bytes)."
+                            + $"{animationPayload.Length} payload bytes)."
                         : "Image pickup: GIF animation attached locally; Burst packet batches will use "
-                            + $"the compact persistent native payload ({frameCount} frames, "
-                            + $"{animationPayload.Length} LZ4 bytes).";
+                            + $"the GIF source as the persistent native payload ({frameCount} frames, "
+                            + $"{animationPayload.Length} payload bytes).";
                     BasisDebug.Log(attachmentMessage, LogTag);
                 }
                 else
@@ -2468,7 +2470,7 @@ namespace Basis.ImagePickup
             int totalChunks = reader.ReadInt32();
             long playbackEpochUtcTicks = reader.ReadInt64();
 
-            if (format != AnimationFormatNativeLz4)
+            if (format != AnimationFormatNativeLz4 && format != AnimationFormatGif)
             {
                 BasisDebug.LogWarningOnce(
                     "BasisImagePickup.UnsupportedAnimationFormat",
@@ -2506,6 +2508,7 @@ namespace Basis.ImagePickup
                 {
                     Sender = senderId,
                     Id = id,
+                    Format = format,
                     Buffer = buffer,
                     ReservedBytes = totalBytes,
                     Received = received,
@@ -2597,14 +2600,7 @@ namespace Basis.ImagePickup
                 return;
             }
 
-            if (
-                !BasisBurstAnimationCodec.TryReadOuterHeader(
-                    transfer.Buffer,
-                    transfer.Buffer.Length,
-                    out int decodedBytes,
-                    out string headerError
-                )
-            )
+            if (!TryReadInboundAnimationDecodedBytes(transfer, out int decodedBytes, out string headerError))
             {
                 if (transfer.Buffer.IsCreated)
                     transfer.Buffer.Dispose();
@@ -2647,7 +2643,7 @@ namespace Basis.ImagePickup
             bool payloadReservationHeld = true;
             try
             {
-                payload = new BasisNativeAnimationPayload(transfer.Buffer, payloadBytes, true);
+                payload = new BasisNativeAnimationPayload(transfer.Buffer, payloadBytes, true, transfer.Format);
                 payloadReservationHeld = false;
                 transfer.Buffer = default;
                 _queuedInboundAnimationDecodes.Add(
@@ -2692,6 +2688,43 @@ namespace Basis.ImagePickup
             StartQueuedInboundAnimationDecodes();
         }
 
+        private static bool TryReadInboundAnimationDecodedBytes(InboundAnimationTransfer transfer, out int decodedBytes, out string error)
+        {
+            if (transfer.Format != AnimationFormatGif)
+            {
+                return BasisBurstAnimationCodec.TryReadOuterHeader(
+                    transfer.Buffer,
+                    transfer.Buffer.Length,
+                    out decodedBytes,
+                    out error
+                );
+            }
+
+            decodedBytes = 0;
+            if (
+                !BasisBurstGifDecoder.TryScan(
+                    transfer.Buffer,
+                    transfer.Buffer.Length,
+                    BasisBurstGifDecoder.ResolveDecodedPixelLimit(BasisAnimationDecodeTrust.UntrustedRemote),
+                    out int frameCount,
+                    out int pixelCount,
+                    out error
+                )
+            )
+            {
+                return false;
+            }
+
+            long nativeBytes = BasisAnimatedImageData.CalculateNativeByteCount(frameCount, pixelCount, frameCount);
+            if (nativeBytes <= 0 || nativeBytes > int.MaxValue)
+            {
+                error = "GIF decoded size exceeds the configured limit.";
+                return false;
+            }
+            decodedBytes = (int)nativeBytes;
+            return true;
+        }
+
         private static void StartQueuedInboundAnimationDecodes()
         {
             int queuedDecodeCount = _queuedInboundAnimationDecodes.Count;
@@ -2727,13 +2760,12 @@ namespace Basis.ImagePickup
 
                 _queuedInboundAnimationDecodes.RemoveAt(index);
                 queuedDecodeCount--;
-                BasisBurstAnimationDecodeRequest job = null;
+                IBasisAnimationDecodeRequest job = null;
                 try
                 {
-                    job = new BasisBurstAnimationDecodeRequest(
-                        queued.Payload.Bytes,
-                        queued.Payload.Length,
-                        false
+                    job = BasisAnimatedImageJobs.ScheduleAnimationDecode(
+                        queued.Payload,
+                        BasisAnimationDecodeTrust.UntrustedRemote
                     );
                     _pendingInboundAnimationDecodes.Add(
                         new PendingInboundAnimationDecode
@@ -4009,7 +4041,7 @@ namespace Basis.ImagePickup
                 id,
                 animationPayload,
                 playbackEpochUtcTicks,
-                AnimationFormatNativeLz4,
+                animationPayload.Format,
                 OpAnimationSpawn,
                 OpAnimationChunk,
                 BasisImagePickupSettings.ChunkPayloadBytes,

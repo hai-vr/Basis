@@ -490,7 +490,7 @@ namespace Basis.Tests.Camera
             // The target is a live reference to something in the world the mode was saved in, so it
             // is never written to disk. Coming back Attached to nothing would present an anchor the
             // camera has no way to actually be on.
-            _camera.ApplyUserModePlacementForTest((int)CameraPinSpace.Attached);
+            _camera.ApplyPlacementForTest((int)CameraPinSpace.Attached);
 
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace));
         }
@@ -502,7 +502,7 @@ namespace Basis.Tests.Camera
             try
             {
                 _camera.SetAnchorToObject(boat.transform, "Boat");
-                _camera.ApplyUserModePlacementForTest((int)CameraPinSpace.Attached);
+                _camera.ApplyPlacementForTest((int)CameraPinSpace.Attached);
 
                 Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.Attached));
                 Assert.That(_camera.AnchorKind, Is.EqualTo(CameraAnchorKind.Object));
@@ -518,7 +518,7 @@ namespace Basis.Tests.Camera
         {
             // A settings file written by a newer build names an anchor by number, and the cast that
             // reads it back cannot fail on its own.
-            _camera.ApplyUserModePlacementForTest(99);
+            _camera.ApplyPlacementForTest(99);
 
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.HandHeld));
         }

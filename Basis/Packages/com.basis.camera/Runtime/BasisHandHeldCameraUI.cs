@@ -684,10 +684,6 @@ public partial class BasisHandHeldCameraUI
             flashEnabled = HHC != null && HHC.BodyTraits.HasFlash
                 ? HHC.FlashEnabled
                 : baseline.flashEnabled,
-            // Settled at the bottom of this method, once there is a whole file to judge it
-            // against. Seeded from the baseline so a camera with no live half still saves the
-            // name it loaded rather than dropping it.
-            userMode = baseline.userMode,
 
             // No live source: carried forward so a save cannot drop them.
             apertureIndex = baseline.apertureIndex,
@@ -813,16 +809,6 @@ public partial class BasisHandHeldCameraUI
             settings.VolumetricFogenableMainLightContribution = HHC.MetaData.VolumetricFogVolume.enableMainLightContribution.value;
         }
 #endif
-
-        // Last, and against the finished file: a saved mode is a claim about every value above
-        // this line, so it can only be checked once they are all in. Handing the harvest over
-        // rather than letting the camera take its own also keeps this from re-entering itself.
-        if (HHC != null)
-        {
-            HHC.RefreshUserMode(settings);
-            // Never null on the way into a file — see the constructor.
-            settings.userMode = HHC.UserModeName ?? string.Empty;
-        }
 
         return settings;
     }
@@ -983,15 +969,7 @@ public partial class BasisHandHeldCameraUI
         settings.settingsVersion = CameraSettings.CurrentVersion;
     }
 
-    /// <summary>
-    /// Applies a settings file that came from somewhere other than disk — today, a saved mode.
-    /// The apply is private because a settings file is normally the load path's business, but a
-    /// mode <em>is</em> a settings file, and giving it a second apply of its own would be a second
-    /// place for a field to be forgotten.
-    /// </summary>
-    internal void ApplyModeSettings(CameraSettings settings) => ApplySettings(settings);
-
-    /// <summary>Everything the camera is set to, for a saved mode to keep or be checked against.</summary>
+    /// <summary>Everything the camera is set to, for the settings readout.</summary>
     internal CameraSettings CaptureSettings() => CreateCurrentCameraSettings();
 
 #if UNITY_INCLUDE_TESTS
@@ -1130,11 +1108,6 @@ public partial class BasisHandHeldCameraUI
             // once all of it has landed. Restoring earlier would have the re-derive compare the
             // saved mode against values the apply had not reached yet and call it Custom.
             HHC.RestoreCameraMode((BasisCameraMode)settings.cameraMode);
-
-            // After the built-in label, and allowed to sit on top of it: a saved mode owns the
-            // camera whenever one is named, and the built-in underneath is only what the values
-            // would have been called had nobody saved them.
-            HHC.RestoreUserMode(settings.userMode);
 
             // Update readouts
             RefreshAllReadouts();

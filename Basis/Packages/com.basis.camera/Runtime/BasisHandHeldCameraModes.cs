@@ -674,10 +674,6 @@ public partial class BasisHandHeldCamera
     /// </summary>
     public void ApplyCameraMode(BasisCameraMode mode)
     {
-        // Picking a built-in is picking something else, whatever it turns out to be — even Custom,
-        // which writes nothing but is still a statement that the saved mode is no longer in charge.
-        UserModeName = null;
-
         if (!TryGetPreset(mode, out BasisCameraModePreset preset))
         {
             CameraMode = BasisCameraMode.Custom;
@@ -726,9 +722,8 @@ public partial class BasisHandHeldCamera
         ApplyPlacement(preset.Pin, preset.BuildStack(Modifiers));
 
     /// <summary>
-    /// The placement write itself, shared with the saved modes in
-    /// <see cref="BasisHandHeldCameraUserModes"/> — the ordering above is subtle enough that a
-    /// second copy of it would be a second chance to get it wrong.
+    /// The placement write itself — the ordering above is subtle enough that a second copy of it
+    /// would be a second chance to get it wrong.
     /// </summary>
     internal void ApplyPlacement(CameraPinSpace pin, BasisCameraModifierStack stack)
     {
@@ -737,7 +732,7 @@ public partial class BasisHandHeldCamera
             ApplyModifierStack(stack);
         }
 
-        // A saved mode is an int off disk, so it can name an anchor this build does not have.
+        // The pin is an int off disk, so it can name an anchor this build does not have.
         if (pin < CameraPinSpace.HandHeld || pin > CameraPinSpace.Attached)
         {
             pin = CameraPinSpace.HandHeld;
@@ -1141,9 +1136,9 @@ public partial class BasisHandHeldCamera
     public void RestoreCameraModeForTest(BasisCameraMode mode) => RestoreCameraMode(mode);
 
     /// <summary>
-    /// Test-only access to the placement write a saved mode goes through, taking the raw int a
-    /// settings file actually stores rather than the enum it is read back as.
+    /// Test-only access to the placement write, taking the raw int a settings file actually
+    /// stores rather than the enum it is read back as.
     /// </summary>
-    public void ApplyUserModePlacementForTest(int pinSpace) => ApplyPlacement((CameraPinSpace)pinSpace, null);
+    public void ApplyPlacementForTest(int pinSpace) => ApplyPlacement((CameraPinSpace)pinSpace, null);
 #endif
 }

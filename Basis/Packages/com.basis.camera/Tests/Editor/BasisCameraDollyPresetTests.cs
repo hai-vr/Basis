@@ -383,5 +383,35 @@ namespace Basis.Tests.Camera
             Assert.That(BasisCameraDollyPresets.Export(empty, out _, out string error), Is.False);
             Assert.That(error, Is.EqualTo("camera.dollyPreset.error.noPoints"));
         }
+
+        [Test]
+        public void ANameOfNothingButSpaceIsNotAName()
+        {
+            Assert.That(BasisCameraDollyPreset.SanitizeName(null), Is.Null);
+            Assert.That(BasisCameraDollyPreset.SanitizeName(string.Empty), Is.Null);
+            Assert.That(BasisCameraDollyPreset.SanitizeName("   \t  "), Is.Null);
+        }
+
+        [Test]
+        public void ANameIsTrimmedCollapsedAndCapped()
+        {
+            Assert.That(BasisCameraDollyPreset.SanitizeName("  Night   Shot  "), Is.EqualTo("Night Shot"));
+            Assert.That(BasisCameraDollyPreset.SanitizeName("Two\nLines"), Is.EqualTo("Two Lines"));
+
+            string tooLong = new string('a', BasisCameraDollyPreset.MaxNameLength + 20);
+            Assert.That(BasisCameraDollyPreset.SanitizeName(tooLong).Length,
+                Is.EqualTo(BasisCameraDollyPreset.MaxNameLength));
+        }
+
+        /// <summary>
+        /// A cap that landed mid-word used to leave the trailing space behind, so "aaa… bbb"
+        /// truncated to a name ending in a space that no round trip could reproduce.
+        /// </summary>
+        [Test]
+        public void ANameCappedOnASpaceDoesNotKeepIt()
+        {
+            string name = new string('a', BasisCameraDollyPreset.MaxNameLength - 1) + " bbb";
+            Assert.That(BasisCameraDollyPreset.SanitizeName(name), Does.Not.EndWith(" "));
+        }
     }
 }

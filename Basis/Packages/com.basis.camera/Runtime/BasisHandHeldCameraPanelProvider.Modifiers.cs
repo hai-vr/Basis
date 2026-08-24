@@ -64,6 +64,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private PanelSectionToggle _positionSection;
         private PanelElementDescriptor _positionGroup;
+        private PanelSectionToggle _positionAdvancedSection;
+        private PanelElementDescriptor _positionAdvancedGroup;
         private PanelDropdown _positionDropdown;
         private PanelDropdown _bindingModeDropdown;
         private PanelSlider _placeOffsetXSlider;
@@ -105,6 +107,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private PanelSectionToggle _rotationSection;
         private PanelElementDescriptor _rotationGroup;
+        private PanelSectionToggle _rotationAdvancedSection;
+        private PanelElementDescriptor _rotationAdvancedGroup;
         private PanelDropdown _rotationDropdown;
         private PanelSlider _aimPitchSlider;
         private PanelSlider _aimYawSlider;
@@ -261,9 +265,11 @@ namespace Basis.BasisUI.HandHeldCamera
             // rows are added while that group is still active.
             BuildDollyGroup(_positionGroup.ContentParent);
 
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_positionAdvancedSection, _positionAdvancedGroup, false, OnSectionExpanded);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_positionSection, _positionGroup, true, OnSectionExpanded);
 
             BuildRotationGroup(parent);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_rotationAdvancedSection, _rotationAdvancedGroup, false, OnSectionExpanded);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_rotationSection, _rotationGroup, true, OnSectionExpanded);
         }
 
@@ -298,6 +304,12 @@ namespace Basis.BasisUI.HandHeldCamera
                 RefreshDoFModeVisibility();
                 RefreshModifierVisibility();
             };
+
+            _positionAdvancedSection = PanelSectionToggle.CreateNewEntry(content);
+            _positionAdvancedGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                _positionAdvancedSection, content, BasisLocalization.Get("camera.modifier.advanced"), false);
+            _positionAdvancedSection.Descriptor.SetDescription(BasisLocalization.Get("camera.modifier.advanced.description"));
+            content = _positionAdvancedGroup.ContentParent;
 
             _bindingModeDropdown = PanelDropdown.CreateNewEntry(content);
             _bindingModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.bindingMode"));
@@ -701,6 +713,12 @@ namespace Basis.BasisUI.HandHeldCamera
                 RefreshDoFModeVisibility();
                 RefreshModifierVisibility();
             };
+
+            _rotationAdvancedSection = PanelSectionToggle.CreateNewEntry(content);
+            _rotationAdvancedGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                _rotationAdvancedSection, content, BasisLocalization.Get("camera.modifier.advanced"), false);
+            _rotationAdvancedSection.Descriptor.SetDescription(BasisLocalization.Get("camera.modifier.advanced.description"));
+            content = _rotationAdvancedGroup.ContentParent;
 
             _aimPitchSlider = PanelSlider.CreateNew(content);
             _aimPitchSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(
@@ -1805,6 +1823,8 @@ namespace Basis.BasisUI.HandHeldCamera
             bool dolly = stack.positionModifier == BasisCameraPositionModifier.DollyTrack;
             bool placement = follow || framing;
 
+            PanelSectionToggleHelpers.SetSectionVisible(_positionAdvancedSection, _positionAdvancedGroup, placement || orbit || dolly);
+
             _bindingModeDropdown?.gameObject.SetActive(placement);
             _placeOffsetXSlider?.gameObject.SetActive(placement);
             _placeOffsetYSlider?.gameObject.SetActive(placement);
@@ -1860,6 +1880,8 @@ namespace Basis.BasisUI.HandHeldCamera
                         stack.rotationModifier == BasisCameraRotationModifier.MatchSubject || compose;
             bool damps = stack.rotationModifier == BasisCameraRotationModifier.LookAtSubject ||
                          stack.rotationModifier == BasisCameraRotationModifier.MatchSubject;
+
+            PanelSectionToggleHelpers.SetSectionVisible(_rotationAdvancedSection, _rotationAdvancedGroup, aims);
 
             _aimPitchSlider?.gameObject.SetActive(aims);
             _aimYawSlider?.gameObject.SetActive(aims);
@@ -1930,8 +1952,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _modifierEffectsEmptyState?.gameObject.SetActive(stack.EffectCount == 0);
 
             ForceLayoutRebuild(_followGroup);
-            ForceLayoutRebuild(_positionGroup);
-            ForceLayoutRebuild(_rotationGroup);
+            ForceLayoutRebuild(_positionAdvancedGroup);
+            ForceLayoutRebuild(_rotationAdvancedGroup);
             ForceLayoutRebuild(_modifierEffectsGroup);
         }
 
@@ -2089,6 +2111,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _positionSection = null;
             _positionGroup = null;
+            _positionAdvancedSection = null;
+            _positionAdvancedGroup = null;
             _positionDropdown = null;
             _bindingModeDropdown = null;
             _placeOffsetXSlider = null;
@@ -2130,6 +2154,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _rotationSection = null;
             _rotationGroup = null;
+            _rotationAdvancedSection = null;
+            _rotationAdvancedGroup = null;
             _rotationDropdown = null;
             _aimPitchSlider = null;
             _aimYawSlider = null;

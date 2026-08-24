@@ -40,8 +40,18 @@ namespace Basis.ImagePickup
         InvalidLz4Token,
     }
 
+    internal interface IBasisAnimationDecodeRequest : IDisposable
+    {
+        bool IsCompleted { get; }
+        bool TryComplete(out BasisBurstAnimationDecodeResult result);
+        BasisBurstAnimationDecodeResult Complete();
+    }
+
     internal sealed class BasisNativeAnimationPayload : IDisposable
     {
+        public const byte FormatNativeLz4 = 2;
+        public const byte FormatGif = 3;
+
         private static readonly object MemoryBudgetLock = new();
         private static long _allocatedBytes;
         private static long _reservedBytes;
@@ -51,6 +61,7 @@ namespace Basis.ImagePickup
         private bool _disposed;
 
         public int Length { get; }
+        public byte Format { get; }
         internal int AllocatedBytes => IsCreated ? _allocatedByteCount : 0;
         internal static long TotalAllocatedBytes
         {
@@ -64,11 +75,17 @@ namespace Basis.ImagePickup
         internal NativeArray<byte> Bytes => _bytes;
 
         internal BasisNativeAnimationPayload(NativeArray<byte> bytes, int length, bool consumeReservation)
+            : this(bytes, length, consumeReservation, FormatNativeLz4) { }
+
+        internal BasisNativeAnimationPayload(NativeArray<byte> bytes, int length, bool consumeReservation, byte format)
         {
             if (!bytes.IsCreated || length <= 0 || length > bytes.Length)
                 throw new ArgumentException("Animation payload is invalid.");
+            if (format != FormatNativeLz4 && format != FormatGif)
+                throw new ArgumentException("Animation payload format is unsupported.");
             _bytes = bytes;
             Length = length;
+            Format = format;
             _allocatedByteCount = bytes.IsCreated ? bytes.Length : 0;
             lock (MemoryBudgetLock)
             {
@@ -407,7 +424,7 @@ namespace Basis.ImagePickup
         }
     }
 
-    internal sealed class BasisBurstAnimationDecodeRequest : IDisposable
+    internal sealed class BasisBurstAnimationDecodeRequest : IBasisAnimationDecodeRequest
     {
         private enum DecodeState
         {

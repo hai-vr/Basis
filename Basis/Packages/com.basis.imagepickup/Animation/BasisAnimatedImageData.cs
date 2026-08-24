@@ -183,8 +183,15 @@ namespace Basis.ImagePickup
 
         internal static long EstimateGifDecodeWorkingBytes(int sourceBytes)
         {
+            return EstimateGifDecodeWorkingBytes(sourceBytes, BasisImagePickupSettings.MaxAnimationDecodedFramePixels);
+        }
+
+        internal static long EstimateGifDecodeWorkingBytes(int sourceBytes, long maxDecodedPixels)
+        {
             if (sourceBytes <= 0)
                 throw new ArgumentOutOfRangeException(nameof(sourceBytes));
+            if (maxDecodedPixels <= 0 || maxDecodedPixels > BasisImagePickupSettings.MaxAnimationDecodedFramePixels)
+                throw new ArgumentOutOfRangeException(nameof(maxDecodedPixels));
 
             long frameScratchBytes = checked(
                 (long)BasisImagePickupSettings.MaxAnimationFrames
@@ -192,7 +199,7 @@ namespace Basis.ImagePickup
             );
             return checked(
                 sourceBytes
-                + BasisImagePickupSettings.MaxAnimationDecodedFramePixels * 4L
+                + maxDecodedPixels * 4L
                 + BasisImagePickupSettings.MaxAnimationCanvasPixels * 4L
                 + frameScratchBytes
                 + 1024L * 1024L

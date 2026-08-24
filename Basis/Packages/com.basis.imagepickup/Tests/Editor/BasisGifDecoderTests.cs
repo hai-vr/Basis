@@ -644,6 +644,114 @@ namespace Basis.ImagePickup.Tests
             }
         }
 
+        [Test]
+        public void GifPipelineShipsSourceBytesAsPayload()
+        {
+            byte[] source = Convert.FromBase64String(AnimatedGif);
+            long payloadBytesBefore = BasisNativeAnimationPayload.TotalAllocatedBytes;
+            using (var request = BasisAnimatedImageJobs.ScheduleGifDecode(source))
+            {
+                BasisGifDecodeJobResult worker = request.Complete();
+                Assert.That(worker.Ok, Is.True, worker.Error);
+                Assert.That(worker.AnimationNetworkError, Is.Null);
+                Assert.That(worker.AnimationPayload, Is.Not.Null);
+                Assert.That(worker.AnimationPayload.Format, Is.EqualTo(BasisNativeAnimationPayload.FormatGif));
+                Assert.That(worker.AnimationPayload.Length, Is.EqualTo(source.Length));
+                Assert.That(worker.AnimationPayload.AllocatedBytes, Is.EqualTo(source.Length));
+                Assert.That(worker.AnimationPayload.Bytes.ToArray(), Is.EqualTo(source));
+                Assert.That(
+                    BasisNativeAnimationPayload.TotalAllocatedBytes,
+                    Is.EqualTo(payloadBytesBefore + source.Length)
+                );
+            }
+            Assert.That(BasisNativeAnimationPayload.TotalAllocatedBytes, Is.EqualTo(payloadBytesBefore));
+        }
+
+        [Test]
+        public void GifPayloadRestoresThroughGifDecoder()
+        {
+            byte[] source = Convert.FromBase64String(InterlacedPreviousGif);
+            using var request = BasisAnimatedImageJobs.ScheduleGifDecode(source);
+            BasisGifDecodeJobResult worker = request.Complete();
+            Assert.That(worker.Ok, Is.True, worker.Error);
+            using BasisNativeAnimationPayload payload = worker.TakeAnimationPayload();
+            Assert.That(payload.Format, Is.EqualTo(BasisNativeAnimationPayload.FormatGif));
+            using IBasisAnimationDecodeRequest reload = BasisAnimatedImageJobs.ScheduleAnimationDecode(
+                payload,
+                BasisAnimationDecodeTrust.UntrustedRemote
+            );
+            BasisBurstAnimationDecodeResult restored;
+            while (!reload.TryComplete(out restored))
+                Thread.Yield();
+            Assert.That(restored.Ok, Is.True, restored.Error);
+            using (restored.Animation)
+            {
+                Assert.That(restored.Animation.FrameCount, Is.EqualTo(worker.Animation.FrameCount));
+                Assert.That(restored.Animation.GetFrame(1).Disposal, Is.EqualTo(BasisAnimationDisposal.Previous));
+                Assert.That(
+                    restored.Animation.CopyFramePixelsToManaged(1),
+                    Is.EqualTo(worker.Animation.CopyFramePixelsToManaged(1))
+                );
+            }
+        }
+
+        [Test]
+        public void GifScanReportsDecodedSizeAndHonorsPixelLimit()
+        {
+            byte[] source = Convert.FromBase64String(InterlacedPreviousGif);
+            using var native = new NativeArray<byte>(source, Allocator.Persistent);
+            Assert.That(
+                BasisBurstGifDecoder.TryScan(
+                    native,
+                    native.Length,
+                    BasisImagePickupSettings.MaxAnimationDecodedFramePixels,
+                    out int frameCount,
+                    out int pixelCount,
+                    out string error
+                ),
+                Is.True,
+                error
+            );
+            using BasisBurstGifDecodeRequest request = BasisBurstGifDecoder.Schedule(source);
+            using BasisBurstGifDecodeResult decoded = request.Complete();
+            Assert.That(decoded.Ok, Is.True, decoded.Error);
+            Assert.That(frameCount, Is.EqualTo(decoded.Animation.FrameCount));
+            Assert.That(pixelCount, Is.EqualTo(decoded.Animation.DecodedFramePixels));
+            Assert.That(
+                BasisBurstGifDecoder.TryScan(native, native.Length, pixelCount - 1, out _, out _, out error),
+                Is.False
+            );
+            Assert.That(error, Does.Contain("frame-pixel budget"));
+        }
+
+        [Test]
+        public void PosterlessGifRequestSkipsPosterAndReturnsSource()
+        {
+            byte[] source = Convert.FromBase64String(AnimatedGif);
+            using var native = new NativeArray<byte>(source, Allocator.Persistent);
+            using var request = new BasisBurstGifDecodeRequest(
+                native,
+                native.Length,
+                false,
+                BasisAnimationDecodeTrust.TrustedLocal
+            );
+            using BasisBurstGifDecodeResult result = request.Complete();
+            Assert.That(result.Ok, Is.True, result.Error);
+            Assert.That(result.PosterPixels.IsCreated, Is.False);
+            Assert.That(result.Source.IsCreated, Is.True);
+            Assert.That(result.Source.ToArray(), Is.EqualTo(source));
+            Assert.That(result.Animation.FrameCount, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void RemoteGifDecodedPixelLimitNeverExceedsLocal()
+        {
+            long local = BasisBurstGifDecoder.ResolveDecodedPixelLimit(BasisAnimationDecodeTrust.TrustedLocal);
+            long remote = BasisBurstGifDecoder.ResolveDecodedPixelLimit(BasisAnimationDecodeTrust.UntrustedRemote);
+            Assert.That(local, Is.EqualTo(BasisImagePickupSettings.MaxAnimationDecodedFramePixels));
+            Assert.That(remote, Is.InRange(1L, local));
+        }
+
         private static byte[] InsertBytes(byte[] source, int offset, byte[] inserted)
         {
             var combined = new byte[source.Length + inserted.Length];
