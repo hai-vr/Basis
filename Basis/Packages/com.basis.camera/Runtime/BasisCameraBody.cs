@@ -98,7 +98,7 @@ public sealed class BasisCameraBodyTraits
 
     /// <summary>
     /// Whether the body can send its feed anywhere but its own viewfinder. False on the film bodies:
-    /// there is no socket on the back of a disposable, so the preview screen, direct-to-screen and
+    /// there is no socket on the back of a disposable, so direct-to-screen and
     /// the video output are all things this camera does not have rather than things switched off.
     /// </summary>
     public readonly bool LivePreview;

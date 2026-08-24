@@ -19,10 +19,6 @@
       "value": "Flip the avatar preview so it faces you like a mirror."
     },
     {
-      "key": "settings.general.cameraHud.tooltip",
-      "value": "VR only: spawns a grabbable, resizable screen by your handheld camera showing its view, while the camera is in direct-to-screen (recording) mode."
-    },
-    {
       "key": "camera.selector",
       "value": "Camera"
     },
@@ -1309,14 +1305,6 @@
     {
       "key": "camera.closeHidesInstead.description",
       "value": "Closing the camera hides it rather than destroying it, so bringing it back resumes the same session."
-    },
-    {
-      "key": "camera.previewScreen",
-      "value": "Spawn Preview Screen"
-    },
-    {
-      "key": "camera.previewScreen.description",
-      "value": "Spawn a grabbable, resizable screen showing this camera's feed."
     },
     {
       "key": "camera.hearFromCamera",
@@ -6353,14 +6341,6 @@
     {
       "key": "settings.general.avatarPreviewMirror.description",
       "value": "Flip the avatar preview horizontally so it reads like a mirror."
-    },
-    {
-      "key": "settings.general.cameraHud",
-      "value": "Camera Preview Screen"
-    },
-    {
-      "key": "settings.general.cameraHud.description",
-      "value": "In VR, spawn a movable, resizable screen next to your handheld camera that shows its view while the camera is in direct-to-screen (recording) mode. Grab with both hands to resize."
     },
     {
       "key": "settings.general.camera.title",

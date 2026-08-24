@@ -6597,13 +6597,6 @@ MonoBehaviour:
   pano360CubeFaceSize: 0
   pano360StereoSeparation: 0.064
   showFollowPip: 1
-  previewScreenSideOffset: 0.35
-  previewScreenWidth: 0.45
-  previewScreenMinScalePercent: 40
-  previewScreenMaxScalePercent: 1200
-  previewScreenReferenceDistance: 0.5
-  previewScreenMinDistance: 0.4
-  previewScreenMaxDistance: 1.5
   references:
     version: 2
     RefIds:

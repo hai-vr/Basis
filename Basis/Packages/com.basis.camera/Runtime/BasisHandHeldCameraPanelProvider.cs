@@ -791,7 +791,6 @@ namespace Basis.BasisUI.HandHeldCamera
                     if (!confirmed || camera == null) return;
 
                     camera.HandHeld.ResetSettings();
-                    BasisSettingsDefaults.CameraHud.ResetToDefault();
                     BasisSettingsDefaults.LimitHandHeldCameraRate.ResetToDefault();
                     BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
                     BasisMainMenu.Close();

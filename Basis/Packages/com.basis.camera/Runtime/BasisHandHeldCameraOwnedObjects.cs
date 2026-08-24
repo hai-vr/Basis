@@ -6,9 +6,8 @@ public partial class BasisHandHeldCamera
     private readonly List<Transform> spawnedRoots = new List<Transform>(4);
 
     /// <summary>
-    /// Registers something the camera has put into the world in its own right — the follow puck,
-    /// the preview screen — so everything the camera aims at can tell the camera's own furniture
-    /// apart from the scene.
+    /// Registers something the camera has put into the world in its own right — the follow puck —
+    /// so everything the camera aims at can tell the camera's own furniture apart from the scene.
     /// <para>
     /// These are scene roots, not children, because they have to stay put while the camera moves.
     /// That makes them ordinary world geometry to a raycast, and both carry a collider so they can

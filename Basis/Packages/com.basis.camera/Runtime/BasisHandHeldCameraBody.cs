@@ -51,7 +51,7 @@ public partial class BasisHandHeldCamera
 
     /// <summary>
     /// Whether this body can send its picture anywhere but its own viewfinder. False on the film
-    /// bodies, which gates the preview screen, direct-to-screen and the video output — there is no
+    /// bodies, which gates direct-to-screen and the video output — there is no
     /// socket on the back of a disposable, so those are things it does not have rather than things
     /// somebody switched off.
     /// </summary>
@@ -360,8 +360,8 @@ public partial class BasisHandHeldCamera
     }
 
     /// <summary>
-    /// Re-runs the three gates a body's lack of an output socket closes: direct-to-screen, the
-    /// preview screen it spawns, and the video stream.
+    /// Re-runs the gates a body's lack of an output socket closes: direct-to-screen and the video
+    /// stream.
     ///
     /// <para>Run in both directions, because coming back off a film body has to give them back —
     /// the toggles were never cleared, only overruled, so the settings return with the camera that

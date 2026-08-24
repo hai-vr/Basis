@@ -114,8 +114,8 @@ namespace Basis.Tests.Camera
         public void SwitchingItOnDoesNotByItselfPutTheViewfinderOnTheOverlay()
         {
             // The overlay only becomes the viewfinder's feed once a frame has been drawn into it.
-            // Claiming it earlier would show one frame of black on the prop, the preview screen and
-            // the desktop output at once.
+            // Claiming it earlier would show one frame of black on the prop and the desktop output at
+            // once.
             _camera.SetViewfinderGridEnabled(true);
 
             Assert.That(_camera.IsViewfinderGridLive, Is.False);

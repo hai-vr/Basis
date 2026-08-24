@@ -285,8 +285,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.targetTexture = renderTexture;
         captureCamera.gameObject.SetActive(true);
 
-        SubscribePreviewScreen();
-
         // Ordered render phase instead of Unity's LateUpdate, so this always runs after the camera
         // has been moved for the frame rather than racing it.
         BasisLocalPlayer.AfterSimulateOnRender.AddAction(SimulateLatePriority, SimulateLate);
@@ -380,9 +378,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         _activeHandHeldCount = Mathf.Max(0, _activeHandHeldCount - 1);
         ApplyReticleSuppression();
         BasisHandHeldCameraRegistry.Remove(this);
-
-        UnsubscribePreviewScreen();
-        DespawnPreviewScreen();
 
         string myLoadedNetId = gameObject.name;
         UnRegisterLoadedNetID(myLoadedNetId);
@@ -528,8 +523,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     private void CacheOnPropUI()
     {
-        // Grabbed once at init, before the preview screen can exist, so hiding the prop can
-        // never reach the separately-rooted screen the user may have placed in the world.
         cameraBodyRenderers = GetComponentsInChildren<Renderer>(true);
 
         onPropUICanvas = GetComponentInChildren<Canvas>(true);
@@ -646,8 +639,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
     /// <summary>
     /// Layers the render-layers UI must not expose, because the camera manages them itself.
-    /// OverlayUI carries the camera's own world markers — the detached preview screen, both
-    /// detached markers (follow-PIP puck and wireframe gizmo) and the dolly waypoints — which
+    /// OverlayUI carries the camera's own world markers — both detached markers (follow-PIP
+    /// puck and wireframe gizmo) and the dolly waypoints — which
     /// would leak the rig into every shot.
     /// The UI layer (players' nameplates) is exposed there as its own toggle, so there is no
     /// separate "Show Nameplates" control, and HandHeldCameraUI (the prop's HUD) is exposed
@@ -1142,9 +1135,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// Keeps the prop's viewfinder undistorted. The quad is a fixed shape, so a feed that is not
     /// the capture aspect — which is what Direct To Screen produces, since the feed then follows
     /// the screen — gets squashed onto it. Showing the middle of the feed instead keeps faces the
-    /// right width; the full frame is still there on the floating preview screen and the menu
-    /// panel, both of which size themselves to the feed. Identity whenever the feed and the
-    /// capture aspect agree, which is every case except that mode.
+    /// right width; the full frame is still there on the menu panel, which sizes itself to the
+    /// feed. Identity whenever the feed and the capture aspect agree, which is every case except
+    /// that mode.
     /// </summary>
     private void ApplyViewfinderCrop()
     {
@@ -1488,8 +1481,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// Per-frame camera upkeep, run from <see cref="BasisLocalPlayer.AfterSimulateOnRender"/> rather
     /// than a Unity LateUpdate.
     /// <para>
-    /// Everything here reads the capture camera's pose — the preview screen, the detached marker,
-    /// and the networked PIP position. The camera is moved by UpdateCamera at priority 202 in the
+    /// Everything here reads the capture camera's pose — the detached marker and the networked
+    /// PIP position. The camera is moved by UpdateCamera at priority 202 in the
     /// same render phase, so a plain LateUpdate raced it: with no script execution order set, this
     /// could run either side of the move and would intermittently publish and place things from the
     /// previous frame's pose. That inconsistency read as jitter.
@@ -1513,7 +1506,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // After the peaks, so the grid lies over them: it is the thing being aligned against.
         TickViewfinderGrid();
 
-        UpdatePreviewScreenTexture();
         TickVideoOutput();
         TickGifRecorder();
         TickVideoRecorder();
@@ -1693,13 +1685,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
     /// <summary>
     /// True while something other than the prop's own viewfinder is showing this camera's feed:
-    /// the settings panel's preview, the detached preview screen, the desktop output, or a live
-    /// video stream. Each draws the render texture somewhere the prop's own visibility says
+    /// the settings panel's preview, the desktop output, or a live video stream. Each draws the
+    /// render texture somewhere the prop's own visibility says
     /// nothing about, so each has to keep the camera rendering on its own account — otherwise it
     /// freezes on whatever frame the prop was last on screen for.
     /// </summary>
     private bool HasOffPropFeedConsumer =>
-        IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || panelPreviewActive || IsPreviewScreenVisible;
+        IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || panelPreviewActive;
 
     /// <summary>
     /// Told by the settings panel while it is open on this camera. Its preview is a second window
