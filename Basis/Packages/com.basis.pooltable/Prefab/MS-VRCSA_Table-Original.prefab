@@ -1147,9 +1147,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -1159,16 +1171,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079664
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -1581,9 +1602,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -1593,16 +1626,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079669
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -2087,9 +2129,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -2099,16 +2153,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079662
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -2456,9 +2519,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -2468,16 +2543,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079668
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -2785,6 +2869,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
   m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
@@ -3238,9 +3323,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -3250,16 +3347,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079672
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -5145,9 +5251,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -5157,16 +5275,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079670
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -6085,9 +6212,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -6097,16 +6236,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079675
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -7677,9 +7825,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -7689,16 +7849,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079673
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -7800,6 +7969,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
   m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
@@ -7851,7 +8021,6 @@ GameObject:
   m_Component:
   - component: {fileID: 2559712782818124714}
   - component: {fileID: 4369898792788061657}
-  - component: {fileID: 3888884496885480871}
   m_Layer: 22
   m_Name: intl.cue-0
   m_TagString: Untagged
@@ -7897,8 +8066,8 @@ MonoBehaviour:
   table: {fileID: 6338887527519480172}
   primary: {fileID: 2948694613320407311}
   secondary: {fileID: 6584396154955782145}
-  PrimaryNetworking: {fileID: 3857375466028423495}
-  SecondaryNetworking: {fileID: 4976643593653778596}
+  PrimaryNetworking: {fileID: 1263242683386063668}
+  SecondaryNetworking: {fileID: 5908656186759809824}
   desktop: {fileID: 2806593605229712321}
   body: {fileID: 5693218740758710614}
   cuetip: {fileID: 3247918946330016694}
@@ -7910,52 +8079,6 @@ MonoBehaviour:
     secondaryLocked: 0
     secondaryLockPos: {x: 0, y: 0, z: 0}
     cueScale: 0
---- !u!114 &3888884496885480871
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2559712782818124717}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d2aa9116619ed954aa8e19d984b58ada, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  HasNetworkID: 0
-  IsOwnedLocallyOnServer: 0
-  IsOwnedLocallyOnClient: 0
-  CurrentOwnerId: 0
-  BasisPickupInteractable: {fileID: 0}
-  CanNetworkSteal: 1
-  LocalLastData:
-    x: 0
-    y: 0
-    z: 0
-    Rotation: 0
-    Scalex: 0
-    Scaley: 0
-    Scalez: 0
-  BTU:
-    TargetPosition:
-      x: 0
-      y: 0
-      z: 0
-    TargetRotation:
-      value:
-        x: 0
-        y: 0
-        z: 0
-        w: 0
-    TargetScales:
-      x: 0
-      y: 0
-      z: 0
-    LerpMultipliers: 0
-  pendingStealRequest: {fileID: 0}
-  CatchupLerp: 5
-  buffer: 00000000000000000000
-  SelfTransform: {fileID: 0}
 --- !u!1 &2600184695699564004
 GameObject:
   m_ObjectHideFlags: 0
@@ -8955,9 +9078,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -8967,16 +9102,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079663
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -9202,9 +9346,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -9214,16 +9370,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079676
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -9969,7 +10134,7 @@ GameObject:
   - component: {fileID: 3247918945509032056}
   - component: {fileID: 6584396154955782145}
   - component: {fileID: 7041556081356693364}
-  - component: {fileID: 4976643593653778596}
+  - component: {fileID: 5908656186759809824}
   m_Layer: 22
   m_Name: secondary
   m_TagString: Untagged
@@ -10136,9 +10301,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0
   DesktopZoopSpeed: 0
   DesktopZoopMinDistance: 0
@@ -10148,16 +10325,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 0
   minAngularVelocity: 0
   interactEndAngularVelocityMultiplier: 0
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 3247918945509032056}
   InputConstraint:
     rid: 4390602043453079680
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -10198,7 +10384,7 @@ MonoBehaviour:
         _restPosition: {x: 0, y: 0, z: 0}
         _restRotation: {x: 0, y: 0, z: 0, w: 0}
         sources: []
---- !u!114 &4976643593653778596
+--- !u!114 &5908656186759809824
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -10207,43 +10393,107 @@ MonoBehaviour:
   m_GameObject: {fileID: 3247918945509031943}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d2aa9116619ed954aa8e19d984b58ada, type: 3}
+  m_Script: {fileID: 11500000, guid: 52a9ea38cfa7aca4ebec1aec993bbb64, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Basis Framework::BasisPickupSyncNetworking
   HasNetworkID: 0
   IsOwnedLocallyOnServer: 0
   IsOwnedLocallyOnClient: 0
   CurrentOwnerId: 0
-  BasisPickupInteractable: {fileID: 0}
+  SendIntervalSeconds: 0.05
+  KeyframeIntervalSeconds: 0.5
+  ContinuousEpsilon: 0.0001
+  RotationSendThresholdDegrees: 0.5
+  UseDirectP2P: 1
+  ForceP2POnly: 0
+  OverrideP2PRate: 0
+  P2PSendIntervalSeconds: 0.033
+  P2PKeyframeIntervalSeconds: 0.5
+  Delivery: 4
+  KeyframeDelivery: 2
+  Extrapolate: 0
+  MaxExtrapolationSeconds: 0.2
+  JitterBufferDepth: 2
+  UseTeleportThreshold: 0
+  TeleportThreshold: 3
+  DistanceReduction: 1
+  RelevanceCulling: 0
+  RelevanceRadius: 50
+  UseChecksum: 1
+  _serializedVersion: 3
+  Target: {fileID: 3247918945509031942}
+  SyncPosition: 1
+  PositionX: 1
+  PositionY: 1
+  PositionZ: 1
+  SyncRotation: 1
+  RotationMode: 0
+  SmallestThreeBits: 9
+  RotationX: 1
+  RotationY: 1
+  RotationZ: 1
+  SyncScale: 1
+  ScaleUniform: 0
+  ScaleX: 1
+  ScaleY: 1
+  ScaleZ: 1
+  WorldSpace: 0
+  RelativeTo: {fileID: 0}
+  InterpolatePosition: 1
+  InterpolateRotation: 1
+  InterpolateScale: 1
+  PosCompX:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  PosCompY:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  PosCompZ:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  RotCompX:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  RotCompY:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  RotCompZ:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  ScaleCompX:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  ScaleCompY:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  ScaleCompZ:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  BasisPickupInteractable: {fileID: 7041556081356693364}
   CanNetworkSteal: 1
-  LocalLastData:
-    x: 0
-    y: 0
-    z: 0
-    Rotation: 0
-    Scalex: 0
-    Scaley: 0
-    Scalez: 0
-  BTU:
-    TargetPosition:
-      x: 0
-      y: 0
-      z: 0
-    TargetRotation:
-      value:
-        x: 0
-        y: 0
-        z: 0
-        w: 0
-    TargetScales:
-      x: 0
-      y: 0
-      z: 0
-    LerpMultipliers: 0
+  IsStatic: 0
   pendingStealRequest: {fileID: 0}
-  CatchupLerp: 5
-  buffer: 00000000000000000000
-  SelfTransform: {fileID: 0}
+  RemoteDeadReckon: 0
+  AttachToHandOnGrab: 1
+  FullRateWhileHeld: 1
 --- !u!1 &3247918946102524185
 GameObject:
   m_ObjectHideFlags: 0
@@ -10259,7 +10509,7 @@ GameObject:
   - component: {fileID: 3247918946102524186}
   - component: {fileID: 2948694613320407311}
   - component: {fileID: 9220151100236105554}
-  - component: {fileID: 3857375466028423495}
+  - component: {fileID: 1263242683386063668}
   m_Layer: 22
   m_Name: primary
   m_TagString: Untagged
@@ -10426,9 +10676,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0
   DesktopZoopSpeed: 0
   DesktopZoopMinDistance: 0
@@ -10438,16 +10700,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 0
   minAngularVelocity: 0
   interactEndAngularVelocityMultiplier: 0
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 3247918946102524186}
   InputConstraint:
     rid: 4390602043453079678
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -10488,7 +10759,7 @@ MonoBehaviour:
         _restPosition: {x: 0, y: 0, z: 0}
         _restRotation: {x: 0, y: 0, z: 0, w: 0}
         sources: []
---- !u!114 &3857375466028423495
+--- !u!114 &1263242683386063668
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -10497,43 +10768,107 @@ MonoBehaviour:
   m_GameObject: {fileID: 3247918946102524185}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d2aa9116619ed954aa8e19d984b58ada, type: 3}
+  m_Script: {fileID: 11500000, guid: 52a9ea38cfa7aca4ebec1aec993bbb64, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Basis Framework::BasisPickupSyncNetworking
   HasNetworkID: 0
   IsOwnedLocallyOnServer: 0
   IsOwnedLocallyOnClient: 0
   CurrentOwnerId: 0
-  BasisPickupInteractable: {fileID: 0}
+  SendIntervalSeconds: 0.05
+  KeyframeIntervalSeconds: 0.5
+  ContinuousEpsilon: 0.0001
+  RotationSendThresholdDegrees: 0.5
+  UseDirectP2P: 1
+  ForceP2POnly: 0
+  OverrideP2PRate: 0
+  P2PSendIntervalSeconds: 0.033
+  P2PKeyframeIntervalSeconds: 0.5
+  Delivery: 4
+  KeyframeDelivery: 2
+  Extrapolate: 0
+  MaxExtrapolationSeconds: 0.2
+  JitterBufferDepth: 2
+  UseTeleportThreshold: 0
+  TeleportThreshold: 3
+  DistanceReduction: 1
+  RelevanceCulling: 0
+  RelevanceRadius: 50
+  UseChecksum: 1
+  _serializedVersion: 3
+  Target: {fileID: 3247918946102524184}
+  SyncPosition: 1
+  PositionX: 1
+  PositionY: 1
+  PositionZ: 1
+  SyncRotation: 1
+  RotationMode: 0
+  SmallestThreeBits: 9
+  RotationX: 1
+  RotationY: 1
+  RotationZ: 1
+  SyncScale: 1
+  ScaleUniform: 0
+  ScaleX: 1
+  ScaleY: 1
+  ScaleZ: 1
+  WorldSpace: 0
+  RelativeTo: {fileID: 0}
+  InterpolatePosition: 1
+  InterpolateRotation: 1
+  InterpolateScale: 1
+  PosCompX:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  PosCompY:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  PosCompZ:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  RotCompX:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  RotCompY:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  RotCompZ:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  ScaleCompX:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  ScaleCompY:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  ScaleCompZ:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  BasisPickupInteractable: {fileID: 9220151100236105554}
   CanNetworkSteal: 1
-  LocalLastData:
-    x: 0
-    y: 0
-    z: 0
-    Rotation: 0
-    Scalex: 0
-    Scaley: 0
-    Scalez: 0
-  BTU:
-    TargetPosition:
-      x: 0
-      y: 0
-      z: 0
-    TargetRotation:
-      value:
-        x: 0
-        y: 0
-        z: 0
-        w: 0
-    TargetScales:
-      x: 0
-      y: 0
-      z: 0
-    LerpMultipliers: 0
+  IsStatic: 0
   pendingStealRequest: {fileID: 0}
-  CatchupLerp: 5
-  buffer: 00000000000000000000
-  SelfTransform: {fileID: 0}
+  RemoteDeadReckon: 0
+  AttachToHandOnGrab: 1
+  FullRateWhileHeld: 1
 --- !u!1 &3247918946330016694
 GameObject:
   m_ObjectHideFlags: 0
@@ -13235,6 +13570,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
   m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
@@ -13920,9 +14256,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -13932,16 +14280,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079674
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -14074,6 +14431,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
   m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
@@ -15537,9 +15895,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -15549,16 +15919,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079671
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -16445,7 +16824,6 @@ GameObject:
   m_Component:
   - component: {fileID: 5478351985242798854}
   - component: {fileID: 2551853043993737570}
-  - component: {fileID: 548959092325805664}
   m_Layer: 22
   m_Name: intl.cue-1
   m_TagString: Untagged
@@ -16491,8 +16869,8 @@ MonoBehaviour:
   table: {fileID: 6338887527519480172}
   primary: {fileID: 7826626209579736159}
   secondary: {fileID: 1790165073254704023}
-  PrimaryNetworking: {fileID: 5853561038233622977}
-  SecondaryNetworking: {fileID: 8294986388532547892}
+  PrimaryNetworking: {fileID: 4113548530700423493}
+  SecondaryNetworking: {fileID: 3850944192408199763}
   desktop: {fileID: 1278764928797503435}
   body: {fileID: 6878229089086821707}
   cuetip: {fileID: 7592781117894492560}
@@ -16504,52 +16882,6 @@ MonoBehaviour:
     secondaryLocked: 0
     secondaryLockPos: {x: 0, y: 0, z: 0}
     cueScale: 0
---- !u!114 &548959092325805664
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5478351985242798849}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d2aa9116619ed954aa8e19d984b58ada, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  HasNetworkID: 0
-  IsOwnedLocallyOnServer: 0
-  IsOwnedLocallyOnClient: 0
-  CurrentOwnerId: 0
-  BasisPickupInteractable: {fileID: 0}
-  CanNetworkSteal: 1
-  LocalLastData:
-    x: 0
-    y: 0
-    z: 0
-    Rotation: 0
-    Scalex: 0
-    Scaley: 0
-    Scalez: 0
-  BTU:
-    TargetPosition:
-      x: 0
-      y: 0
-      z: 0
-    TargetRotation:
-      value:
-        x: 0
-        y: 0
-        z: 0
-        w: 0
-    TargetScales:
-      x: 0
-      y: 0
-      z: 0
-    LerpMultipliers: 0
-  pendingStealRequest: {fileID: 0}
-  CatchupLerp: 5
-  buffer: 00000000000000000000
-  SelfTransform: {fileID: 0}
 --- !u!1 &5525487902652233909
 GameObject:
   m_ObjectHideFlags: 0
@@ -17076,9 +17408,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -17088,16 +17432,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079666
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -21232,7 +21585,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &5951911174225750892
 RectTransform:
   m_ObjectHideFlags: 0
@@ -21271,6 +21624,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
   m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
@@ -25886,9 +26240,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -25898,16 +26264,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079667
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -27245,7 +27620,7 @@ GameObject:
   - component: {fileID: 6524798722430289606}
   - component: {fileID: 1790165073254704023}
   - component: {fileID: 9184321857923938895}
-  - component: {fileID: 8294986388532547892}
+  - component: {fileID: 3850944192408199763}
   m_Layer: 22
   m_Name: secondary
   m_TagString: Untagged
@@ -27412,9 +27787,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0
   DesktopZoopSpeed: 0
   DesktopZoopMinDistance: 0
@@ -27424,16 +27811,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 0
   minAngularVelocity: 0
   interactEndAngularVelocityMultiplier: 0
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 6524798722430289606}
   InputConstraint:
     rid: 4390602043453079679
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -27474,7 +27870,7 @@ MonoBehaviour:
         _restPosition: {x: 0, y: 0, z: 0}
         _restRotation: {x: 0, y: 0, z: 0, w: 0}
         sources: []
---- !u!114 &8294986388532547892
+--- !u!114 &3850944192408199763
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -27483,43 +27879,107 @@ MonoBehaviour:
   m_GameObject: {fileID: 6667137909423648945}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d2aa9116619ed954aa8e19d984b58ada, type: 3}
+  m_Script: {fileID: 11500000, guid: 52a9ea38cfa7aca4ebec1aec993bbb64, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Basis Framework::BasisPickupSyncNetworking
   HasNetworkID: 0
   IsOwnedLocallyOnServer: 0
   IsOwnedLocallyOnClient: 0
   CurrentOwnerId: 0
-  BasisPickupInteractable: {fileID: 0}
+  SendIntervalSeconds: 0.05
+  KeyframeIntervalSeconds: 0.5
+  ContinuousEpsilon: 0.0001
+  RotationSendThresholdDegrees: 0.5
+  UseDirectP2P: 1
+  ForceP2POnly: 0
+  OverrideP2PRate: 0
+  P2PSendIntervalSeconds: 0.033
+  P2PKeyframeIntervalSeconds: 0.5
+  Delivery: 4
+  KeyframeDelivery: 2
+  Extrapolate: 0
+  MaxExtrapolationSeconds: 0.2
+  JitterBufferDepth: 2
+  UseTeleportThreshold: 0
+  TeleportThreshold: 3
+  DistanceReduction: 1
+  RelevanceCulling: 0
+  RelevanceRadius: 50
+  UseChecksum: 1
+  _serializedVersion: 3
+  Target: {fileID: 473830966156656754}
+  SyncPosition: 1
+  PositionX: 1
+  PositionY: 1
+  PositionZ: 1
+  SyncRotation: 1
+  RotationMode: 0
+  SmallestThreeBits: 9
+  RotationX: 1
+  RotationY: 1
+  RotationZ: 1
+  SyncScale: 1
+  ScaleUniform: 0
+  ScaleX: 1
+  ScaleY: 1
+  ScaleZ: 1
+  WorldSpace: 0
+  RelativeTo: {fileID: 0}
+  InterpolatePosition: 1
+  InterpolateRotation: 1
+  InterpolateScale: 1
+  PosCompX:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  PosCompY:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  PosCompZ:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  RotCompX:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  RotCompY:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  RotCompZ:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  ScaleCompX:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  ScaleCompY:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  ScaleCompZ:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  BasisPickupInteractable: {fileID: 9184321857923938895}
   CanNetworkSteal: 1
-  LocalLastData:
-    x: 0
-    y: 0
-    z: 0
-    Rotation: 0
-    Scalex: 0
-    Scaley: 0
-    Scalez: 0
-  BTU:
-    TargetPosition:
-      x: 0
-      y: 0
-      z: 0
-    TargetRotation:
-      value:
-        x: 0
-        y: 0
-        z: 0
-        w: 0
-    TargetScales:
-      x: 0
-      y: 0
-      z: 0
-    LerpMultipliers: 0
+  IsStatic: 0
   pendingStealRequest: {fileID: 0}
-  CatchupLerp: 5
-  buffer: 00000000000000000000
-  SelfTransform: {fileID: 0}
+  RemoteDeadReckon: 0
+  AttachToHandOnGrab: 1
+  FullRateWhileHeld: 1
 --- !u!1 &6727535241551991469
 GameObject:
   m_ObjectHideFlags: 0
@@ -28188,9 +28648,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -28200,16 +28672,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079665
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -28381,9 +28862,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -28393,16 +28886,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 4390602043453079661
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -29408,7 +29910,7 @@ GameObject:
   - component: {fileID: 7876456815965063224}
   - component: {fileID: 7826626209579736159}
   - component: {fileID: 1750550754277565211}
-  - component: {fileID: 5853561038233622977}
+  - component: {fileID: 4113548530700423493}
   m_Layer: 22
   m_Name: primary
   m_TagString: Untagged
@@ -29575,9 +30077,21 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 0
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  LerpToHandOnPickup: 1
+  WeldToHand: 1
+  GripPoint: {fileID: 0}
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0
   DesktopZoopSpeed: 0
   DesktopZoopMinDistance: 0
@@ -29587,16 +30101,25 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 0
   minAngularVelocity: 0
   interactEndAngularVelocityMultiplier: 0
+  throwWindowSeconds: 0.05
+  throwLookbackSeconds: 0.15
   RigidRef: {fileID: 7876456815965063224}
   InputConstraint:
     rid: 4390602043453079677
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0
@@ -29637,7 +30160,7 @@ MonoBehaviour:
         _restPosition: {x: 0, y: 0, z: 0}
         _restRotation: {x: 0, y: 0, z: 0, w: 0}
         sources: []
---- !u!114 &5853561038233622977
+--- !u!114 &4113548530700423493
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -29646,43 +30169,107 @@ MonoBehaviour:
   m_GameObject: {fileID: 7228318045472997889}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d2aa9116619ed954aa8e19d984b58ada, type: 3}
+  m_Script: {fileID: 11500000, guid: 52a9ea38cfa7aca4ebec1aec993bbb64, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Basis Framework::BasisPickupSyncNetworking
   HasNetworkID: 0
   IsOwnedLocallyOnServer: 0
   IsOwnedLocallyOnClient: 0
   CurrentOwnerId: 0
-  BasisPickupInteractable: {fileID: 0}
+  SendIntervalSeconds: 0.05
+  KeyframeIntervalSeconds: 0.5
+  ContinuousEpsilon: 0.0001
+  RotationSendThresholdDegrees: 0.5
+  UseDirectP2P: 1
+  ForceP2POnly: 0
+  OverrideP2PRate: 0
+  P2PSendIntervalSeconds: 0.033
+  P2PKeyframeIntervalSeconds: 0.5
+  Delivery: 4
+  KeyframeDelivery: 2
+  Extrapolate: 0
+  MaxExtrapolationSeconds: 0.2
+  JitterBufferDepth: 2
+  UseTeleportThreshold: 0
+  TeleportThreshold: 3
+  DistanceReduction: 1
+  RelevanceCulling: 0
+  RelevanceRadius: 50
+  UseChecksum: 1
+  _serializedVersion: 3
+  Target: {fileID: 6216185029835161115}
+  SyncPosition: 1
+  PositionX: 1
+  PositionY: 1
+  PositionZ: 1
+  SyncRotation: 1
+  RotationMode: 0
+  SmallestThreeBits: 9
+  RotationX: 1
+  RotationY: 1
+  RotationZ: 1
+  SyncScale: 1
+  ScaleUniform: 0
+  ScaleX: 1
+  ScaleY: 1
+  ScaleZ: 1
+  WorldSpace: 0
+  RelativeTo: {fileID: 0}
+  InterpolatePosition: 1
+  InterpolateRotation: 1
+  InterpolateScale: 1
+  PosCompX:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  PosCompY:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  PosCompZ:
+    Mode: 0
+    Min: -1024
+    Max: 1024
+    Bits: 16
+  RotCompX:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  RotCompY:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  RotCompZ:
+    Mode: 0
+    Min: 0
+    Max: 360
+    Bits: 16
+  ScaleCompX:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  ScaleCompY:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  ScaleCompZ:
+    Mode: 0
+    Min: 0
+    Max: 64
+    Bits: 16
+  BasisPickupInteractable: {fileID: 1750550754277565211}
   CanNetworkSteal: 1
-  LocalLastData:
-    x: 0
-    y: 0
-    z: 0
-    Rotation: 0
-    Scalex: 0
-    Scaley: 0
-    Scalez: 0
-  BTU:
-    TargetPosition:
-      x: 0
-      y: 0
-      z: 0
-    TargetRotation:
-      value:
-        x: 0
-        y: 0
-        z: 0
-        w: 0
-    TargetScales:
-      x: 0
-      y: 0
-      z: 0
-    LerpMultipliers: 0
+  IsStatic: 0
   pendingStealRequest: {fileID: 0}
-  CatchupLerp: 5
-  buffer: 00000000000000000000
-  SelfTransform: {fileID: 0}
+  RemoteDeadReckon: 0
+  AttachToHandOnGrab: 1
+  FullRateWhileHeld: 1
 --- !u!1 &7265568154260023420
 GameObject:
   m_ObjectHideFlags: 0
@@ -31289,7 +31876,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   BasisBundleDescription:
     AssetBundleName: pool Table
-    AssetBundleDescription: 
+    AssetBundleDescription: "pool Table \u2014 a prop for Basis."
+    AssetBundleIcon: {fileID: 0}
+    Tags: []
+    ContentGroupId: aec939fe436a4fa880b551a84cc33fef20260824
+  SpawnMetaData:
+    Placement: 0
+    Hand: 0
+    HasCustomDistance: 0
+    Distance: 1.5
+    HasCustomScale: 0
+    UniformScale: 1
+    AlignToSurface: 1
+    FaceThePlayer: 0
 --- !u!1 &7842375238297827535
 GameObject:
   m_ObjectHideFlags: 0
@@ -34470,6 +35069,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
   m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0

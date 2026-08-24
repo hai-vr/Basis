@@ -122,8 +122,8 @@ public class CueController : BasisNetworkBehaviour
     {
         cueRenderer = this.transform.Find("body/render").GetComponent<Renderer>();
 
-        primaryController = primary.GetComponent<CueGrip>();
-        secondaryController = secondary.GetComponent<CueGrip>();
+        primaryController = primary;
+        secondaryController = secondary;
         primaryController._Init(this, false);
         secondaryController._Init(this, true);
 
@@ -212,8 +212,8 @@ public class CueController : BasisNetworkBehaviour
     }
     public void UpdateDesktopPosition()
     {
-        desktop.transform.position = body.transform.position;
-        desktop.transform.rotation = body.transform.rotation;
+        body.transform.GetPositionAndRotation(out var pos,out Quaternion Rotation);
+        desktop.transform.SetPositionAndRotation(pos, Rotation);
     }
     private void FixedUpdate()
     {
@@ -322,7 +322,9 @@ public class CueController : BasisNetworkBehaviour
         // otherwise vrchat will try to change it because it's a pickup
         lagPrimaryPosition = Vector3.Lerp(lagPrimaryPosition, primary.transform.position, 1 - Mathf.Pow(0.5f, Time.fixedDeltaTime * cueSmoothing));
         if (!SynccueLockState.secondaryLocked)
+        {
             lagSecondaryPosition = Vector3.Lerp(lagSecondaryPosition, secondary.transform.position, 1 - Mathf.Pow(0.5f, Time.fixedDeltaTime * cueSmoothing));
+        }
     }
 
     private Vector3 clamp(Vector3 input, float minX, float maxX, float minY, float maxY, float minZ, float maxZ)
