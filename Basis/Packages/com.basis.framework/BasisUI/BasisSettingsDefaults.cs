@@ -483,6 +483,13 @@ namespace Basis.BasisUI
         // at the start of each calibration; leave off in normal play.
         public static BasisSettingsBinding<bool> DumpCalibrationCsv = new("devdumpcalibrationcsv", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<bool> SpawnAnchorHandles = new("spawnanchorhandles", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> SpawnAnchorSeatOnSurface = new("spawnanchorseatonsurface", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> SpawnAnchorPositionSnap = new("spawnanchorpositionsnap", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> SpawnAnchorPositionSnapSize = new("spawnanchorpositionsnapsize", new BasisPlatformDefault<float>(0.25f));
+        public static BasisSettingsBinding<bool> SpawnAnchorRotationSnap = new("spawnanchorrotationsnap", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> SpawnAnchorRotationSnapDegrees = new("spawnanchorrotationsnapdegrees", new BasisPlatformDefault<float>(15f));
+
         public static BasisSettingsBinding<bool> EnableShaderPrewarm = new("enableshaderprewarm", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> EnableMaterialCorrection = new("enablematerialcorrection", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> EnableShaderBlocklist = new("enableshaderblocklist", new BasisPlatformDefault<bool>(false));
@@ -2157,6 +2164,12 @@ namespace Basis.BasisUI
             DevShowCalibrationDebug.LoadBindingValue();
             DevAlwaysShowCalibration.LoadBindingValue();
             DumpCalibrationCsv.LoadBindingValue();
+            SpawnAnchorHandles.LoadBindingValue();
+            SpawnAnchorSeatOnSurface.LoadBindingValue();
+            SpawnAnchorPositionSnap.LoadBindingValue();
+            SpawnAnchorPositionSnapSize.LoadBindingValue();
+            SpawnAnchorRotationSnap.LoadBindingValue();
+            SpawnAnchorRotationSnapDegrees.LoadBindingValue();
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;
             DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;

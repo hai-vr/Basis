@@ -1591,7 +1591,7 @@ namespace Basis.BasisUI
                     placementDropDown.Descriptor.SetTitle(BasisLocalization.Get("library.placement"));
                     placementDropDown.Descriptor.SetDescription(GetPlacementDescription(item.PlacementOverride));
                     placementDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.TeleportTo);
-                    placementDropDown.AssignEntries(PlacementDisplayNames.Values.ToList());
+                    placementDropDown.AssignEntries(PlacementChoices(item));
                     placementDropDown.Descriptor.SetSize(new Vector2(700, 80));
                     placementDropDown.SetValueWithoutNotify(GetPlacementDisplayName(item.PlacementOverride));
                     placementDropDown.OnValueChanged = async (val) =>
@@ -1861,7 +1861,23 @@ namespace Basis.BasisUI
             [BasisPropSpawnPlacement.OnGround] = BasisLocalization.Get("library.placement.onGround"),
             [BasisPropSpawnPlacement.InFrontOfPlayer] = BasisLocalization.Get("library.placement.inFront"),
             [BasisPropSpawnPlacement.AtPlayerOrigin] = BasisLocalization.Get("library.placement.playerOrigin"),
+            [BasisPropSpawnPlacement.AtAnchor] = BasisLocalization.Get("library.placement.atAnchor"),
         };
+
+        private static List<string> PlacementChoices(BasisDataStoreItemKeys.ItemKey item)
+        {
+            bool anchorPresent = BasisSpawnAnchors.Count > 0 || item.PlacementOverride == BasisPropSpawnPlacement.AtAnchor;
+            List<string> choices = new List<string>();
+            foreach (KeyValuePair<BasisPropSpawnPlacement, string> kvp in PlacementDisplayNames)
+            {
+                if (kvp.Key == BasisPropSpawnPlacement.AtAnchor && !anchorPresent)
+                {
+                    continue;
+                }
+                choices.Add(kvp.Value);
+            }
+            return choices;
+        }
 
         private static string GetPlacementDisplayName(BasisPropSpawnPlacement placement)
         {
@@ -1898,6 +1914,8 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("library.placement.inFront.description"),
                 BasisPropSpawnPlacement.AtPlayerOrigin =>
                     BasisLocalization.Get("library.placement.playerOrigin.description"),
+                BasisPropSpawnPlacement.AtAnchor =>
+                    BasisLocalization.Get("library.placement.atAnchor.description"),
                 _ =>
                     BasisLocalization.Get("library.placement.automatic.description"),
             };

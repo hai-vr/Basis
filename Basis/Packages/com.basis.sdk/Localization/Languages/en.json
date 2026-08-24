@@ -88,6 +88,7 @@
     { "key": "sdk.propInspector.spawn.placement.inAir", "value": "Floats in the air at a set distance along the direction the player is looking." },
     { "key": "sdk.propInspector.spawn.placement.onGround", "value": "Drops to the floor in front of the player, resting on whatever surface is below." },
     { "key": "sdk.propInspector.spawn.placement.inHand", "value": "Goes straight into the player's hand once it loads. Desktop players get it in the air in front of them instead. Needs a pickup on the prop." },
+    { "key": "sdk.propInspector.spawn.placement.atAnchor", "value": "Lands on the spawn anchor the player has selected under Settings > Developer > Spawn Anchors, using that anchor's scale override when it has one. Without a selected anchor the player places it by aiming, like Raycast." },
     { "key": "sdk.propInspector.spawn.hand", "value": "Hand" },
     { "key": "sdk.propInspector.spawn.overrideDistance", "value": "Override Distance" },
     { "key": "sdk.propInspector.spawn.distance", "value": "Distance (m)" },

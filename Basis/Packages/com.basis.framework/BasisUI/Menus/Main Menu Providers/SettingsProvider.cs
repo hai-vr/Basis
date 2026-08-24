@@ -3194,6 +3194,8 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             });
 
+            SettingsProviderSpawnAnchors.Build(container, descriptor);
+
             // ---- Package Tools (sections contributed by feature packages, e.g. Avatar Recorder) ----
             if (DeveloperSectionBuilders.Count > 0)
             {
@@ -3521,6 +3523,12 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EyeTrackingPreferOsc.ResetToDefault();
             BasisSettingsDefaults.EyeFoveationAutoManage.ResetToDefault();
             BasisSettingsDefaults.SwapMode.ResetToDefault();
+            BasisSettingsDefaults.SpawnAnchorHandles.ResetToDefault();
+            BasisSettingsDefaults.SpawnAnchorSeatOnSurface.ResetToDefault();
+            BasisSettingsDefaults.SpawnAnchorPositionSnap.ResetToDefault();
+            BasisSettingsDefaults.SpawnAnchorPositionSnapSize.ResetToDefault();
+            BasisSettingsDefaults.SpawnAnchorRotationSnap.ResetToDefault();
+            BasisSettingsDefaults.SpawnAnchorRotationSnapDegrees.ResetToDefault();
 
             for (int i = 0; i < DeveloperResetActions.Count; i++)
             {

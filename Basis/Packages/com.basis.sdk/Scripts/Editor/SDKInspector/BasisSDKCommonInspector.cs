@@ -628,7 +628,15 @@ public static class BasisSDKCommonInspector
         help.style.opacity = 0.85f;
         foldout.Add(help);
 
-        EnumField placementField = new EnumField(BasisEditorLocalization.Get("sdk.propInspector.spawn.placement"), prop.SpawnMetaData.Placement);
+        List<BasisPropSpawnPlacement> placementChoices = new List<BasisPropSpawnPlacement>();
+        foreach (BasisPropSpawnPlacement value in Enum.GetValues(typeof(BasisPropSpawnPlacement)))
+        {
+            if (value != BasisPropSpawnPlacement.AtAnchor || prop.SpawnMetaData.Placement == BasisPropSpawnPlacement.AtAnchor)
+            {
+                placementChoices.Add(value);
+            }
+        }
+        PopupField<BasisPropSpawnPlacement> placementField = new PopupField<BasisPropSpawnPlacement>(BasisEditorLocalization.Get("sdk.propInspector.spawn.placement"), placementChoices, prop.SpawnMetaData.Placement, value => ObjectNames.NicifyVariableName(value.ToString()), value => ObjectNames.NicifyVariableName(value.ToString()));
         foldout.Add(placementField);
 
         Label placementHelp = BodyLabel(string.Empty);
@@ -782,6 +790,8 @@ public static class BasisSDKCommonInspector
                 return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.onGround");
             case BasisPropSpawnPlacement.InHand:
                 return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.inHand");
+            case BasisPropSpawnPlacement.AtAnchor:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.atAnchor");
             default:
                 return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.unspecified");
         }

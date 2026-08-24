@@ -16747,6 +16747,166 @@
     {
       "key": "settings.microphone.test.status.recordingLocal",
       "value": "Recording {0:F1}s of {1}s — outbound voice is off, only you can hear this."
+    },
+    {
+      "key": "settings.developer.group.spawnAnchors",
+      "value": "Spawn Anchors"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.target",
+      "value": "Spawn props at"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.target.tooltip",
+      "value": "Props spawned from the library land on this anchor instead of using their normal placement. None restores normal placement."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.none",
+      "value": "None"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.name",
+      "value": "Anchor {0}"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.handles",
+      "value": "Show anchor handles"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.handles.tooltip",
+      "value": "Puts a grabbable handle on every anchor. Grab it to move and rotate the anchor (desktop: scroll to push or pull, middle-drag to turn). While holding it, press the trigger on your other hand and move your hands apart or together to change its scale override. The blue bar points forward, the green bar up."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.seat",
+      "value": "Seat prop on anchor"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.seat.tooltip",
+      "value": "Rests the bottom of the prop on the anchor instead of putting the prop's pivot there."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.scaleOverride",
+      "value": "Scale override"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.scaleOverride.tooltip",
+      "value": "Spawns props at the selected anchor with the scale below instead of the scale the prop asks for."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.scale",
+      "value": "Anchor scale"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.scale.tooltip",
+      "value": "Also changed in-world by holding the anchor handle with both hands and moving them apart or together."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.place",
+      "value": "Place anchor"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.place.tooltip",
+      "value": "Closes the menu; aim at a surface and press the trigger to put an anchor down there. It becomes the selected anchor."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.addAtPlayer",
+      "value": "Add anchor at player"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.addAtPlayer.tooltip",
+      "value": "Puts an anchor at your feet, facing the way you are looking, and selects it."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.remove",
+      "value": "Remove selected anchor"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.clear",
+      "value": "Clear all anchors"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.file",
+      "value": "Anchor file"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.file.tooltip",
+      "value": "Where Save and Load read and write. A bare file name goes next to the default file. Anchors also save to the default file after every change."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.save",
+      "value": "Save anchors to file"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.load",
+      "value": "Load anchors from file"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.openFolder",
+      "value": "Open anchors folder"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.positionSnap",
+      "value": "Snap position"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.positionSnap.tooltip",
+      "value": "Snaps anchors to a grid while a handle is dragged and when a new anchor is placed."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.positionSnapSize",
+      "value": "Grid size"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.positionSnapSize.description",
+      "value": "Spacing of the grid anchor positions snap to."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.rotationSnap",
+      "value": "Snap rotation"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.rotationSnap.tooltip",
+      "value": "Snaps anchor rotation to a fixed step while a handle is dragged and when a new anchor is placed."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.rotationSnapDegrees",
+      "value": "Rotation step"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.rotationSnapDegrees.description",
+      "value": "Angle anchor rotations snap to."
+    },
+    {
+      "key": "library.placement.atAnchor",
+      "value": "At spawn anchor"
+    },
+    {
+      "key": "library.placement.atAnchor.description",
+      "value": "Lands on the spawn anchor selected under Settings > Developer > Spawn Anchors. Without one it falls back to aiming."
+    },
+    {
+      "key": "settings.developer.spawnAnchors.positionX",
+      "value": "Position X"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.positionY",
+      "value": "Position Y"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.positionZ",
+      "value": "Position Z"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.rotationX",
+      "value": "Rotation X"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.rotationY",
+      "value": "Rotation Y"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.rotationZ",
+      "value": "Rotation Z"
     }
   ]
 }

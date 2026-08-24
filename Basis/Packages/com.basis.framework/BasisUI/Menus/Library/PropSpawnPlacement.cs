@@ -167,6 +167,21 @@ namespace Basis.BasisUI
                     rotation = FacingRotation(meta, flatForward);
                     return;
 
+                case BasisPropSpawnPlacement.AtAnchor:
+                    if (BasisSpawnAnchors.TryGetSelected(out BasisSpawnAnchors.SpawnAnchor anchor))
+                    {
+                        if (anchor.OverrideScale)
+                        {
+                            scale = Vector3.one * anchor.Scale;
+                        }
+                        rotation = anchor.Rotation;
+                        position = SeatOnSurface(anchor.Position, rotation, bounds, scale);
+                        return;
+                    }
+                    position = head + flatForward * distance;
+                    rotation = FacingRotation(meta, flatForward);
+                    return;
+
                 default:
                     position = head + flatForward * distance;
                     rotation = FacingRotation(meta, flatForward);
@@ -195,7 +210,7 @@ namespace Basis.BasisUI
             return Quaternion.LookRotation(projected.normalized, up);
         }
 
-        private static Vector3 SeatOnSurface(Vector3 surfacePoint, Quaternion rotation, BasisBounds bounds, Vector3 scale)
+        public static Vector3 SeatOnSurface(Vector3 surfacePoint, Quaternion rotation, BasisBounds bounds, Vector3 scale)
         {
             Vector3 localBottom = bounds.center - Vector3.up * bounds.extents.y;
             localBottom.Scale(scale);

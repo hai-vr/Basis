@@ -14,6 +14,7 @@ public enum BasisPropSpawnPlacement : byte
     InAirAtDistance = 4,
     OnGround = 5,
     InHand = 6,
+    AtAnchor = 7,
 }
 
 /// <summary>

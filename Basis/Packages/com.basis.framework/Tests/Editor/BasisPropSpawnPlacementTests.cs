@@ -52,6 +52,7 @@ namespace Basis.Tests.UI
         [TestCase(BasisPropSpawnPlacement.InAirAtDistance)]
         [TestCase(BasisPropSpawnPlacement.OnGround)]
         [TestCase(BasisPropSpawnPlacement.InHand)]
+        [TestCase(BasisPropSpawnPlacement.AtAnchor)]
         public void Resolve_HonorsAuthoredPlacement(BasisPropSpawnPlacement placement)
         {
             BasisPropSpawnMetaData resolved = PropSpawnPlacement.Resolve(Item(), Connector(Authored(placement)));
@@ -64,6 +65,7 @@ namespace Basis.Tests.UI
         [TestCase(BasisPropSpawnPlacement.InAirAtDistance)]
         [TestCase(BasisPropSpawnPlacement.OnGround)]
         [TestCase(BasisPropSpawnPlacement.InHand)]
+        [TestCase(BasisPropSpawnPlacement.AtAnchor)]
         public void Resolve_PlayerOverrideBeatsAuthoredPlacement(BasisPropSpawnPlacement chosen)
         {
             // The prop asks for OnGround; the player picked something else in the library entry.
