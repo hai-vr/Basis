@@ -231,6 +231,16 @@ public partial class BasisHandHeldCamera
             stack.positionModifier = Position;
             stack.rotationModifier = Rotation;
 
+            bool needsSubject = BasisCameraModifiers.NeedsSubject(Position) || BasisCameraModifiers.NeedsSubject(Rotation);
+            for (int Index = 0; !needsSubject && Effects != null && Index < Effects.Length; Index++)
+            {
+                needsSubject = BasisCameraModifiers.NeedsSubject(Effects[Index]);
+            }
+            if (needsSubject && !stack.ResolvesSubject)
+            {
+                stack.subject.modifier = BasisCameraSubjectModifier.FollowPlayer;
+            }
+
             stack.ClearEffects();
             if (Effects != null)
             {

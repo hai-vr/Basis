@@ -357,5 +357,46 @@ namespace Basis.Tests.Camera
             Assert.That(BasisCameraLegacyFollow.TryRead(null, out _), Is.False);
             Assert.That(BasisCameraLegacyFollow.TryRead(string.Empty, out _), Is.False);
         }
+
+        [Test]
+        public void NobodyToFilmUnfitsEverythingThatNeedsSomebody()
+        {
+            BasisCameraModifierStack stack = new BasisCameraModifierStack
+            {
+                positionModifier = BasisCameraPositionModifier.FollowSubject,
+                rotationModifier = BasisCameraRotationModifier.LookAtSubject,
+            };
+            stack.dolly.mode = BasisCameraDollyMode.FollowSubject;
+            stack.AddEffect(BasisCameraEffectModifier.LookAhead);
+            stack.AddEffect(BasisCameraEffectModifier.Shake);
+            stack.subject.modifier = BasisCameraSubjectModifier.None;
+
+            stack.Sanitize();
+
+            Assert.That(stack.positionModifier, Is.EqualTo(BasisCameraPositionModifier.FreeFly));
+            Assert.That(stack.rotationModifier, Is.EqualTo(BasisCameraRotationModifier.Hold));
+            Assert.That(stack.dolly.mode, Is.EqualTo(BasisCameraDollyMode.Manual));
+            Assert.That(stack.HasEffect(BasisCameraEffectModifier.LookAhead), Is.False,
+                "A stack cannot say it films somebody and then film nobody.");
+            Assert.That(stack.HasEffect(BasisCameraEffectModifier.Shake), Is.True,
+                "Only what needs a subject goes; the rest of the stack is left alone.");
+        }
+
+        [Test]
+        public void AFixedPointHasNoFacingToMatch()
+        {
+            BasisCameraModifierStack stack = new BasisCameraModifierStack
+            {
+                positionModifier = BasisCameraPositionModifier.Orbit,
+                rotationModifier = BasisCameraRotationModifier.MatchSubject,
+            };
+            stack.subject.modifier = BasisCameraSubjectModifier.FixedPoint;
+
+            stack.Sanitize();
+
+            Assert.That(stack.rotationModifier, Is.EqualTo(BasisCameraRotationModifier.Hold));
+            Assert.That(stack.positionModifier, Is.EqualTo(BasisCameraPositionModifier.Orbit),
+                "A place can still be orbited; it just cannot be faced.");
+        }
     }
 }

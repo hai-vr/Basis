@@ -62,7 +62,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _anchorDropdown = PanelDropdown.CreateNewEntry(content);
             _anchorDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.anchor"));
-            _anchorDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.anchor.description"));
+            _anchorDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.anchor.description"));
             _anchorDropdown.AssignLocalizedEntries(
                 new List<string>(AnchorSpaceKeys), new List<string>(AnchorSpaceKeys));
             _anchorDropdown.OnValueChanged = _ =>
@@ -76,7 +76,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _anchorFollowsBodyToggle = PanelToggle.CreateNewEntry(content);
             _anchorFollowsBodyToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.anchorFollowsBody"));
-            _anchorFollowsBodyToggle.Descriptor.SetDescription(
+            _anchorFollowsBodyToggle.Descriptor.SetTooltip(
                 BasisLocalization.Get("camera.anchorFollowsBody.description"));
             _anchorFollowsBodyToggle.OnValueChanged = v =>
             {
@@ -85,14 +85,14 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _anchorTargetDropdown = PanelDropdown.CreateNewEntry(content);
             _anchorTargetDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.anchorTarget"));
-            _anchorTargetDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.anchorTarget.description"));
+            _anchorTargetDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.anchorTarget.description"));
             _anchorTargetDropdown.OnValueChanged = _ => OnAnchorTargetPicked();
 
             RectTransform pickRow = PanelElementDescriptor.BuildActionRow(content, "CameraAnchorPickRow");
 
             PanelButton surfaceButton = PanelButton.CreateNew(pickRow);
             surfaceButton.Descriptor.SetTitle(BasisLocalization.Get("camera.anchorToSurface"));
-            surfaceButton.Descriptor.SetDescription(BasisLocalization.Get("camera.anchorToSurface.description"));
+            surfaceButton.Descriptor.SetTooltip(BasisLocalization.Get("camera.anchorToSurface.description"));
             surfaceButton.OnClicked += () =>
             {
                 _activeCamera?.TryAnchorToSurfaceBelow();
@@ -101,7 +101,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             PanelButton viewButton = PanelButton.CreateNew(pickRow);
             viewButton.Descriptor.SetTitle(BasisLocalization.Get("camera.anchorToView"));
-            viewButton.Descriptor.SetDescription(BasisLocalization.Get("camera.anchorToView.description"));
+            viewButton.Descriptor.SetTooltip(BasisLocalization.Get("camera.anchorToView.description"));
             viewButton.OnClicked += () =>
             {
                 _activeCamera?.TryAnchorToViewTarget();

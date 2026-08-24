@@ -71,6 +71,10 @@ namespace Basis.Cinematics
         /// <summary>Whether a move is actually fitted. Manual and Follow have no speed to show.</summary>
         public bool MotionActive;
 
+        public float MotionScale;
+
+        public bool PaintsBySpeed => ColorBySpeed && MotionActive && Motion.mode == BasisCameraDollyMode.Play;
+
         /// <summary>
         /// How the track is shared. Read every refresh rather than cached, so a change of mode
         /// reaches the markers on the next frame without a separate apply path to keep in step.
@@ -346,7 +350,7 @@ namespace Basis.Cinematics
         /// </summary>
         private void ColorLine(int samples, float scale)
         {
-            if (!ColorBySpeed || !MotionActive || Motion.mode != BasisCameraDollyMode.Play)
+            if (!PaintsBySpeed)
             {
                 if (lineColored)
                 {
@@ -380,7 +384,7 @@ namespace Basis.Cinematics
 
                 float metresPerSecond = BasisCameraDollySpeed.MetresPerSecond(
                     Motion, Index / denominator, Looped, stretch);
-                lineColors[Index] = BasisCameraDollySpeed.Sample(metresPerSecond, scale);
+                lineColors[Index] = BasisCameraDollySpeed.Sample(metresPerSecond, MotionScale > 0f ? MotionScale : scale);
             }
 
             BasisGizmoManager.SetLineGizmoColors(lineId, lineColors, samples);

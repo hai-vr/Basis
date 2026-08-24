@@ -369,5 +369,17 @@ namespace Basis.Tests.Camera
                 Assert.That(descriptor.DescriptionKey, Is.Not.Null.And.Not.Empty);
             }
         }
+
+        [Test]
+        public void AModeThatFilmsSomebodyBringsASubjectWithIt()
+        {
+            _camera.SetSubjectModifier(BasisCameraSubjectModifier.None);
+
+            _camera.ApplyCameraMode(BasisCameraMode.FollowMe);
+
+            Assert.That(_camera.Modifiers.subject.modifier, Is.EqualTo(BasisCameraSubjectModifier.FollowPlayer),
+                "Follow Me with nobody selected would otherwise sanitize itself back to a free camera.");
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.True);
+        }
     }
 }

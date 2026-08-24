@@ -1091,6 +1091,46 @@
       "value": "Image Effects"
     },
     {
+      "key": "camera.grid.show",
+      "value": "Show Grid"
+    },
+    {
+      "key": "camera.focusPeaking.show",
+      "value": "Show Peaking"
+    },
+    {
+      "key": "camera.colour",
+      "value": "Colour"
+    },
+    {
+      "key": "camera.filmLook",
+      "value": "Film Look"
+    },
+    {
+      "key": "camera.section.bloom",
+      "value": "Bloom"
+    },
+    {
+      "key": "camera.section.vignette",
+      "value": "Vignette"
+    },
+    {
+      "key": "camera.section.filmGrain",
+      "value": "Film Grain"
+    },
+    {
+      "key": "camera.section.lensEffects",
+      "value": "Lens Effects"
+    },
+    {
+      "key": "camera.section.motionBlur",
+      "value": "Motion Blur"
+    },
+    {
+      "key": "camera.section.fog",
+      "value": "Fog"
+    },
+    {
       "key": "camera.bloomIntensity",
       "value": "Bloom Intensity"
     },
@@ -1100,7 +1140,7 @@
     },
     {
       "key": "camera.vignette",
-      "value": "Vignette"
+      "value": "Vignette Amount"
     },
     {
       "key": "camera.chromaticAberration",
@@ -1108,7 +1148,7 @@
     },
     {
       "key": "camera.filmGrain",
-      "value": "Film Grain"
+      "value": "Grain Amount"
     },
     {
       "key": "camera.lensDistortion",
@@ -1188,7 +1228,7 @@
     },
     {
       "key": "camera.motionBlur",
-      "value": "Motion Blur"
+      "value": "Blur Amount"
     },
     {
       "key": "camera.motionBlur.description",
@@ -1601,6 +1641,14 @@
     {
       "key": "camera.smoothDrag.leash.description",
       "value": "Furthest the camera may fall behind your hand before it is pulled along."
+    },
+    {
+      "key": "camera.resize",
+      "value": "Camera Resizing"
+    },
+    {
+      "key": "camera.resize.description",
+      "value": "Lets the camera be resized with a two-hand grab, like any other pickup. Off puts it back at the size your avatar gives it and keeps it there."
     },
     {
       "key": "camera.openPhotosFolder",

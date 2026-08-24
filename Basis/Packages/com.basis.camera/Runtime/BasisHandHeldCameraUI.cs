@@ -776,6 +776,7 @@ public partial class BasisHandHeldCameraUI
             smoothDragRotationDamping = HHC != null ? HHC.smoothDragRotationDamping : baseline.smoothDragRotationDamping,
             smoothDragMaxDistance = HHC != null ? HHC.smoothDragMaxDistance : baseline.smoothDragMaxDistance,
             flySpeed = HHC != null ? HHC.flySpeed : baseline.flySpeed,
+            resizeWithGesture = HHC != null ? HHC.ResizeWithGesture : baseline.resizeWithGesture,
             printPhoto = HHC != null && HHC.printPhotoEnabled,
             gifDurationSeconds = HHC != null ? HHC.GifDurationSeconds : baseline.gifDurationSeconds,
             gifFrameRate = HHC != null ? HHC.GifFrameRate : baseline.gifFrameRate,
@@ -1214,6 +1215,7 @@ public partial class BasisHandHeldCameraUI
         HHC.SetSmoothDragRotationDamping(settings.smoothDragRotationDamping);
         HHC.SetSmoothDragMaxDistance(settings.smoothDragMaxDistance);
         HHC.SetFlySpeed(settings.flySpeed);
+        HHC.SetResizeWithGesture(settings.resizeWithGesture);
         HHC.printPhotoEnabled = settings.printPhoto;
 
         // Through the setters, not the fields: a settings file is text on disk, and these

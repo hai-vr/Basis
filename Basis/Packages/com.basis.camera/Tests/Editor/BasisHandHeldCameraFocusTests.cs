@@ -274,10 +274,12 @@ namespace Basis.Tests.Camera
             _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
             _camera.SetSubjectModifier(BasisCameraSubjectModifier.None);
 
-            Assert.That(_camera.AutoFocusHasNoSubject, Is.True,
-                "A fitted slot with an empty Subject is still filming nobody.");
+            Assert.That(_camera.Modifiers.positionModifier, Is.EqualTo(BasisCameraPositionModifier.FreeFly),
+                "Nobody to follow unfits Follow Subject rather than leaving it filming nobody.");
+            Assert.That(_camera.AutoFocusHasNoSubject, Is.True);
 
             _camera.SetSubjectModifier(BasisCameraSubjectModifier.FollowPlayer);
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
             Assert.That(_camera.AutoFocusHasNoSubject, Is.False);
         }

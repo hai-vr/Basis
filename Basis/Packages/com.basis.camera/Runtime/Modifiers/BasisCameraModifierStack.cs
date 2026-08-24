@@ -213,6 +213,21 @@ namespace Basis.Cinematics
                 effects.RemoveAt(effects.Count - 1);
             }
 
+            if (!ResolvesSubject)
+            {
+                if (BasisCameraModifiers.NeedsSubject(positionModifier)) positionModifier = BasisCameraPositionModifier.FreeFly;
+                if (BasisCameraModifiers.NeedsSubject(rotationModifier)) rotationModifier = BasisCameraRotationModifier.Hold;
+                if (dolly.mode == BasisCameraDollyMode.FollowSubject) dolly.mode = BasisCameraDollyMode.Manual;
+                for (int Index = effects.Count - 1; Index >= 0; Index--)
+                {
+                    if (BasisCameraModifiers.NeedsSubject((BasisCameraEffectModifier)effects[Index])) effects.RemoveAt(Index);
+                }
+            }
+            else if (subject.modifier == BasisCameraSubjectModifier.FixedPoint && rotationModifier == BasisCameraRotationModifier.MatchSubject)
+            {
+                rotationModifier = BasisCameraRotationModifier.Hold;
+            }
+
             follow.damping = ClampDamping(follow.damping);
             follow.lateralTracking = Mathf.Clamp01(follow.lateralTracking);
             follow.teleportDistance = Mathf.Max(0.1f, follow.teleportDistance);

@@ -117,6 +117,7 @@ public static class BasisCameraSettingsReadout
         Row("camera.smoothDrag.position", Number(settings.smoothDragPositionDamping) + " s");
         Row("camera.smoothDrag.rotation", Number(settings.smoothDragRotationDamping) + " s");
         Row("camera.smoothDrag.leash", Number(settings.smoothDragMaxDistance) + " m");
+        Row("camera.resize", OnOff(settings.resizeWithGesture));
         Row("camera.streamPreset", BasisCameraStreamPresets.Label(BasisCameraStreamPresets.KeyFor((BasisVideoTransport)settings.streamTransport, settings.streamWidth, settings.streamHeight, settings.streamFrameRate, settings.streamQuality)));
         Row("camera.transport", BasisHandHeldCamera.GetVideoTransportName((BasisVideoTransport)settings.streamTransport));
         Row("camera.streamResolution", settings.streamWidth + " x " + settings.streamHeight);

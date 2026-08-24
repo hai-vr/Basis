@@ -125,6 +125,7 @@ public partial class BasisHandHeldCameraUI
             smoothDragRotationDamping = 0.5f;
             smoothDragMaxDistance = 0.25f;
             flySpeed = 2f;
+            resizeWithGesture = true;
 
             gifDurationSeconds = 5f;
             gifFrameRate = 15;
@@ -360,6 +361,7 @@ public partial class BasisHandHeldCameraUI
         public float smoothDragRotationDamping;
         public float smoothDragMaxDistance;
         public float flySpeed;
+        public bool resizeWithGesture;
 
         // GIF recording. Every default is set in the constructor, so an older file that lacks
         // them loads the intended values without a migration.

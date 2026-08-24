@@ -48,7 +48,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _videoTimeLimitToggle = PanelToggle.CreateNewEntry(content);
             _videoTimeLimitToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.video.timeLimit"));
-            _videoTimeLimitToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.video.timeLimit.description"));
+            _videoTimeLimitToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.video.timeLimit.description"));
             _videoTimeLimitToggle.OnValueChanged = v =>
             {
                 if (_activeCamera != null) _activeCamera.VideoRecordingTimeLimit = v;
@@ -60,13 +60,13 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisLocalization.Get("camera.video.length"),
                 BasisHandHeldCamera.MinVideoDurationSeconds, BasisHandHeldCamera.MaxVideoDurationSeconds,
                 true, 0, ValueDisplayMode.Raw));
-            _videoDurationSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.video.length.description"));
+            _videoDurationSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.video.length.description"));
             _videoDurationSlider.SetResetDefault(defaults.videoDurationSeconds);
             _videoDurationSlider.OnValueChanged = v => _activeCamera?.SetVideoRecordingDuration(v);
 
             _videoAutoNewClipToggle = PanelToggle.CreateNewEntry(content);
             _videoAutoNewClipToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.video.autoNewClip"));
-            _videoAutoNewClipToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.video.autoNewClip.description"));
+            _videoAutoNewClipToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.video.autoNewClip.description"));
             _videoAutoNewClipToggle.OnValueChanged = v =>
             {
                 if (_activeCamera != null) _activeCamera.VideoContinuousClips = v;
@@ -77,13 +77,13 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisLocalization.Get("camera.video.frameRate"),
                 BasisHandHeldCamera.MinVideoFrameRate, BasisHandHeldCamera.MaxVideoFrameRate,
                 true, 0, ValueDisplayMode.Hz));
-            _videoRecordFrameRateSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.video.frameRate.description"));
+            _videoRecordFrameRateSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.video.frameRate.description"));
             _videoRecordFrameRateSlider.SetResetDefault(defaults.videoFrameRate);
             _videoRecordFrameRateSlider.OnValueChanged = v => _activeCamera?.SetVideoRecordingFrameRate((int)v);
 
             _videoSizeDropdown = PanelDropdown.CreateNewEntry(content);
             _videoSizeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.video.size"));
-            _videoSizeDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.video.size.description"));
+            _videoSizeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.video.size.description"));
             _videoSizeDropdown.AssignEntries(BuildWidthLabels(BasisHandHeldCamera.VideoWidthPresets));
             _videoSizeDropdown.OnValueChanged = _ =>
             {
@@ -100,7 +100,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisLocalization.Get("camera.video.quality"),
                 BasisHandHeldCamera.MinVideoQuality, BasisHandHeldCamera.MaxVideoQuality,
                 true, 0, ValueDisplayMode.Raw));
-            _videoQualitySlider.Descriptor.SetDescription(BasisLocalization.Get("camera.video.quality.description"));
+            _videoQualitySlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.video.quality.description"));
             _videoQualitySlider.SetResetDefault(defaults.videoQuality);
             _videoQualitySlider.OnValueChanged = v => _activeCamera?.SetVideoRecordingQuality((int)v);
 

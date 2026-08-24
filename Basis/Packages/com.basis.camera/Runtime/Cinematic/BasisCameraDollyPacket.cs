@@ -46,10 +46,16 @@ namespace Basis.Cinematics
         /// different path from the one the author is looking at.
         /// </summary>
         private const byte RosterFlagLooped = 1 << 0;
+        private const byte RosterFlagMotion = 1 << 1;
+        private const byte RosterFlagSpeedColors = 1 << 2;
         private const int MoveSize = HeaderSize + OwnerSize + 1 + PointSize;
         private const int ClaimSize = HeaderSize + OwnerSize + 1 + 1;
 
-        public static int RosterSize(int count) => RosterHeader + Mathf.Clamp(count, 0, MaxPoints) * PointSize;
+        public const int MotionSize = 4 + 1 + 4 + 1 + 4 + 4;
+
+        private static int PointsEnd(int count) => RosterHeader + Mathf.Clamp(count, 0, MaxPoints) * PointSize;
+
+        public static int RosterSize(int count) => PointsEnd(count) + MotionSize;
 
         public static int PointMoveSize => MoveSize;
 
@@ -62,6 +68,39 @@ namespace Basis.Cinematics
             public Quaternion Rotation;
         }
 
+        public struct Motion
+        {
+            public float Speed;
+            public BasisCameraEase EaseIn;
+            public float EaseInPortion;
+            public BasisCameraEase EaseOut;
+            public float EaseOutPortion;
+            public float Scale;
+
+            public static Motion From(in BasisCameraDollySettings dolly, float scale) => new Motion
+            {
+                Speed = dolly.speed,
+                EaseIn = dolly.easeIn,
+                EaseInPortion = dolly.easeInPortion,
+                EaseOut = dolly.easeOut,
+                EaseOutPortion = dolly.easeOutPortion,
+                Scale = scale,
+            };
+
+            public readonly void ApplyTo(ref BasisCameraDollySettings dolly)
+            {
+                dolly.speed = Speed;
+                dolly.easeIn = EaseIn;
+                dolly.easeInPortion = EaseInPortion;
+                dolly.easeOut = EaseOut;
+                dolly.easeOutPortion = EaseOutPortion;
+            }
+
+            public readonly bool SameAs(in Motion other) =>
+                Speed == other.Speed && EaseIn == other.EaseIn && EaseInPortion == other.EaseInPortion &&
+                EaseOut == other.EaseOut && EaseOutPortion == other.EaseOutPortion && Scale == other.Scale;
+        }
+
         // ---- Writing ---------------------------------------------------------------------
 
         /// <summary>
@@ -69,23 +108,32 @@ namespace Basis.Cinematics
         /// callers size with <see cref="RosterSize"/>, so 0 means a caller bug rather than a
         /// runtime condition to handle.
         /// </summary>
-        public static int WriteRoster(byte[] buffer, BasisCameraDollySync mode, bool looped, Point[] points, int count)
+        public static int WriteRoster(byte[] buffer, BasisCameraDollySync mode, bool looped, Point[] points, int count) =>
+            WriteRoster(buffer, mode, looped, points, count, default, false);
+
+        public static int WriteRoster(byte[] buffer, BasisCameraDollySync mode, bool looped, Point[] points, int count,
+            in Motion motion, bool speedColors)
         {
             count = Mathf.Clamp(count, 0, MaxPoints);
             if (points == null) count = 0;
 
             if (buffer == null || buffer.Length < RosterSize(count)) return 0;
 
+            byte flags = RosterFlagMotion;
+            if (looped) flags |= RosterFlagLooped;
+            if (speedColors) flags |= RosterFlagSpeedColors;
+
             int offset = 0;
             buffer[offset++] = (byte)BasisCameraDollyPacketType.Roster;
             buffer[offset++] = (byte)mode;
             buffer[offset++] = (byte)count;
-            buffer[offset++] = looped ? RosterFlagLooped : (byte)0;
+            buffer[offset++] = flags;
 
             for (int Index = 0; Index < count; Index++)
             {
                 WritePoint(buffer, ref offset, points[Index]);
             }
+            WriteMotion(buffer, ref offset, motion);
             return offset;
         }
 
@@ -137,11 +185,17 @@ namespace Basis.Cinematics
         /// False when the packet is truncated or names a mode this build does not have.
         /// </summary>
         public static bool TryReadRoster(byte[] buffer, int length, Point[] points,
-            out BasisCameraDollySync mode, out bool looped, out int count)
+            out BasisCameraDollySync mode, out bool looped, out int count) =>
+            TryReadRoster(buffer, length, points, out mode, out looped, out count, out _, out _);
+
+        public static bool TryReadRoster(byte[] buffer, int length, Point[] points,
+            out BasisCameraDollySync mode, out bool looped, out int count, out Motion motion, out bool speedColors)
         {
             mode = BasisCameraDollySync.LocalOnly;
             looped = false;
             count = 0;
+            motion = default;
+            speedColors = false;
 
             if (!TryReadType(buffer, length, out BasisCameraDollyPacketType type) ||
                 type != BasisCameraDollyPacketType.Roster)
@@ -153,10 +207,13 @@ namespace Basis.Cinematics
 
             int declared = buffer[2];
             if (declared > MaxPoints) return false;
-            if (length < RosterSize(declared)) return false;
+
+            byte flags = buffer[3];
+            bool hasMotion = (flags & RosterFlagMotion) != 0;
+            if (length < PointsEnd(declared) + (hasMotion ? MotionSize : 0)) return false;
 
             mode = (BasisCameraDollySync)buffer[1];
-            looped = (buffer[3] & RosterFlagLooped) != 0;
+            looped = (flags & RosterFlagLooped) != 0;
             count = declared;
 
             int offset = RosterHeader;
@@ -164,6 +221,11 @@ namespace Basis.Cinematics
             {
                 points[Index] = ReadPoint(buffer, ref offset);
             }
+
+            if (!hasMotion) return true;
+
+            motion = ReadMotion(buffer, ref offset);
+            speedColors = (flags & RosterFlagSpeedColors) != 0;
             return true;
         }
 
@@ -265,6 +327,35 @@ namespace Basis.Cinematics
             }
             return point;
         }
+
+        private static void WriteMotion(byte[] buffer, ref int offset, in Motion motion)
+        {
+            WriteFloat(buffer, ref offset, motion.Speed);
+            buffer[offset++] = (byte)motion.EaseIn;
+            WriteFloat(buffer, ref offset, motion.EaseInPortion);
+            buffer[offset++] = (byte)motion.EaseOut;
+            WriteFloat(buffer, ref offset, motion.EaseOutPortion);
+            WriteFloat(buffer, ref offset, motion.Scale);
+        }
+
+        private static Motion ReadMotion(byte[] buffer, ref int offset)
+        {
+            Motion motion = new Motion();
+            motion.Speed = Finite(ReadFloat(buffer, ref offset), 0f);
+            motion.EaseIn = ReadEase(buffer[offset++]);
+            motion.EaseInPortion = Mathf.Clamp(Finite(ReadFloat(buffer, ref offset), 0f), 0f, BasisCameraDollySpeed.MaximumEasePortion);
+            motion.EaseOut = ReadEase(buffer[offset++]);
+            motion.EaseOutPortion = Mathf.Clamp(Finite(ReadFloat(buffer, ref offset), 0f), 0f, BasisCameraDollySpeed.MaximumEasePortion);
+            float scale = Finite(ReadFloat(buffer, ref offset), 1f);
+            motion.Scale = scale > 0f ? scale : 1f;
+            return motion;
+        }
+
+        private static BasisCameraEase ReadEase(byte value) =>
+            BasisCameraEasing.IsDefined((BasisCameraEase)value) ? (BasisCameraEase)value : BasisCameraEase.Linear;
+
+        private static float Finite(float value, float fallback) =>
+            float.IsNaN(value) || float.IsInfinity(value) ? fallback : value;
 
         private static void WriteFloat(byte[] buffer, ref int offset, float value)
         {

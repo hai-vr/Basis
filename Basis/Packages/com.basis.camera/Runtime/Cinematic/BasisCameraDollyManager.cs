@@ -56,6 +56,8 @@ namespace Basis.Cinematics
         private static float _nextKeyframe;
         private static int _lastSentCount = -1;
         private static BasisCameraDollySync _lastSentMode = BasisCameraDollySync.LocalOnly;
+        private static BasisCameraDollyPacket.Motion _lastSentMotion;
+        private static bool _lastSentSpeedColors;
         private static bool _mirrorTickRequested;
 
         /// <summary>
@@ -220,7 +222,10 @@ namespace Basis.Cinematics
                 return;
             }
 
+            BasisCameraDollyPacket.Motion motion = LocalMotion();
+            bool speedColors = _local.PaintsBySpeed;
             bool changed = _local.Count != _lastSentCount || _local.SyncMode != _lastSentMode
+                || !motion.SameAs(_lastSentMotion) || speedColors != _lastSentSpeedColors
                 || LocalTrackIsHeld() || _remoteMoveApplied;
             bool due = changed ? time >= _nextRoster : time >= _nextKeyframe;
             if (!due) return;
@@ -230,6 +235,8 @@ namespace Basis.Cinematics
             _nextKeyframe = time + KeyframeInterval;
             _lastSentCount = _local.Count;
             _lastSentMode = _local.SyncMode;
+            _lastSentMotion = motion;
+            _lastSentSpeedColors = speedColors;
             _remoteMoveApplied = false;
         }
 
@@ -237,6 +244,9 @@ namespace Basis.Cinematics
         /// Whether a point is in somebody's hand. A drag moves points without changing the count, so
         /// without this a track being laid out would only reach the others at the keyframe rate.
         /// </summary>
+        private static BasisCameraDollyPacket.Motion LocalMotion() =>
+            BasisCameraDollyPacket.Motion.From(_local.Motion, BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
+
         private static bool LocalTrackIsHeld()
         {
             for (int Index = 0; Index < _local.Count; Index++)
@@ -263,7 +273,8 @@ namespace Basis.Cinematics
             }
 
             EnsureBuffer(BasisCameraDollyPacket.RosterSize(count));
-            int written = BasisCameraDollyPacket.WriteRoster(_sendBuffer, _local.SyncMode, _local.Looped, _scratch, count);
+            int written = BasisCameraDollyPacket.WriteRoster(_sendBuffer, _local.SyncMode, _local.Looped, _scratch, count,
+                LocalMotion(), _local.PaintsBySpeed);
             if (written > 0) Send(written, DeliveryMethod.ReliableOrdered, recipients);
         }
 
@@ -330,7 +341,8 @@ namespace Basis.Cinematics
         private static void ApplyRoster(ushort playerId, byte[] buffer, int length)
         {
             if (!BasisCameraDollyPacket.TryReadRoster(buffer, length, _scratch,
-                out BasisCameraDollySync mode, out bool looped, out int count))
+                out BasisCameraDollySync mode, out bool looped, out int count,
+                out BasisCameraDollyPacket.Motion motion, out bool speedColors))
             {
                 return;
             }
@@ -347,7 +359,7 @@ namespace Basis.Cinematics
                 _mirrors[playerId] = mirror;
                 UpdateMirrorTickRequest();
             }
-            mirror.Apply(mode, looped, _scratch, count);
+            mirror.Apply(mode, looped, _scratch, count, motion, speedColors);
         }
 
         private static void ApplyPointMove(ushort playerId, byte[] buffer, int length)

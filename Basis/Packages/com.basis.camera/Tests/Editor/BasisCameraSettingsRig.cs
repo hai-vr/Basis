@@ -204,6 +204,7 @@ namespace Basis.Tests.Camera
                 smoothDragRotationDamping = 0.85f,
                 smoothDragMaxDistance = 0.4f,
                 flySpeed = 3.5f,
+                resizeWithGesture = false,
                 printPhoto = true,
                 gifDurationSeconds = 8f,
                 gifFrameRate = 24,

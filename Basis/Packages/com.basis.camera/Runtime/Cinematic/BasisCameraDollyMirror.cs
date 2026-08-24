@@ -50,11 +50,20 @@ namespace Basis.Cinematics
         /// Brings the shown track in line with what the author sent: the same count, the same
         /// places, the same path through them, and the same rule about whether it can be touched.
         /// </summary>
-        public void Apply(BasisCameraDollySync mode, bool looped, BasisCameraDollyPacket.Point[] points, int count)
+        public void Apply(BasisCameraDollySync mode, bool looped, BasisCameraDollyPacket.Point[] points, int count,
+            in BasisCameraDollyPacket.Motion motion, bool speedColors)
         {
             _mode = mode;
             _track.SyncMode = mode;
             _track.Looped = looped;
+
+            BasisCameraDollySettings move = _track.Motion;
+            motion.ApplyTo(ref move);
+            move.mode = speedColors ? BasisCameraDollyMode.Play : BasisCameraDollyMode.Manual;
+            _track.Motion = move;
+            _track.MotionActive = speedColors;
+            _track.ColorBySpeed = speedColors;
+            _track.MotionScale = motion.Scale;
 
             count = Mathf.Clamp(count, 0, BasisCameraDollyPacket.MaxPoints);
 

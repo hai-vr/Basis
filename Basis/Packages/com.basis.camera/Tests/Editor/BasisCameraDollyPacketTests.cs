@@ -244,6 +244,186 @@ namespace Basis.Tests.Camera
             Assert.That(closedCount, Is.EqualTo(openCount), "The loop flag must not disturb the count.");
         }
 
+        private static BasisCameraDollyPacket.Motion Motion() => new BasisCameraDollyPacket.Motion
+        {
+            Speed = -2.75f,
+            EaseIn = BasisCameraEase.Back,
+            EaseInPortion = 0.35f,
+            EaseOut = BasisCameraEase.Bounce,
+            EaseOutPortion = 0.2f,
+            Scale = 1.6f,
+        };
+
+        [Test]
+        public void TheMoveRidesWithTheTrack_SoAMirrorCanPaintTheSpeed()
+        {
+            // The colours along the path are drawn from the move, not the points: the same
+            // waypoints read cool under a slow move and hot under a fast one. Left off the wire,
+            // every mirror painted the resting colour while the author's own track was coloured.
+            BasisCameraDollyPacket.Point[] sent = Points(3);
+            byte[] buffer = new byte[BasisCameraDollyPacket.RosterSize(3)];
+            int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, false, sent, 3, Motion(), true);
+            Assert.That(written, Is.EqualTo(buffer.Length), "The writer and the size helper disagree.");
+
+            var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, written, read, out _, out _, out int count,
+                out BasisCameraDollyPacket.Motion motion, out bool speedColors), Is.True);
+
+            Assert.That(count, Is.EqualTo(3));
+            Assert.That(speedColors, Is.True);
+            Assert.That(motion.Speed, Is.EqualTo(-2.75f), "The sign is the direction of travel, and the run-up sits at the end it starts from.");
+            Assert.That(motion.EaseIn, Is.EqualTo(BasisCameraEase.Back));
+            Assert.That(motion.EaseInPortion, Is.EqualTo(0.35f).Within(1e-6f));
+            Assert.That(motion.EaseOut, Is.EqualTo(BasisCameraEase.Bounce));
+            Assert.That(motion.EaseOutPortion, Is.EqualTo(0.2f).Within(1e-6f));
+            Assert.That(motion.Scale, Is.EqualTo(1.6f).Within(1e-6f), "The author's scale is what the ramp was drawn against on their screen.");
+            Assert.That(read[2].Position, Is.EqualTo(sent[2].Position), "The move must not shift the points.");
+        }
+
+        [Test]
+        public void AnAuthorWhoIsNotPainting_SendsThatToo()
+        {
+            byte[] buffer = new byte[BasisCameraDollyPacket.RosterSize(2)];
+            int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, false, Points(2), 2, Motion(), false);
+
+            var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, written, read, out _, out _, out _,
+                out BasisCameraDollyPacket.Motion motion, out bool speedColors), Is.True);
+
+            Assert.That(speedColors, Is.False, "A flat track on the author's screen is a flat track on everyone's.");
+            Assert.That(motion.Speed, Is.EqualTo(-2.75f), "The move travels either way; the flag is only whether to paint with it.");
+        }
+
+        [Test]
+        public void ATrackFromABuildThatSentNoMove_StillArrives()
+        {
+            // The move is a trailing block behind a flag. A roster from before it existed has
+            // neither, and has to read exactly as it always did, points and all, rather than be
+            // refused for being short.
+            BasisCameraDollyPacket.Point[] sent = Points(2);
+            byte[] modern = new byte[BasisCameraDollyPacket.RosterSize(2)];
+            int written = BasisCameraDollyPacket.WriteRoster(modern, BasisCameraDollySync.NetworkedLocked, true, sent, 2, Motion(), true);
+
+            int legacyLength = written - BasisCameraDollyPacket.MotionSize;
+            byte[] legacy = new byte[legacyLength];
+            System.Array.Copy(modern, legacy, legacyLength);
+            legacy[3] = 1;   // looped, and nothing else: the only flag a build without the move knew
+
+            var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(legacy, legacyLength, read,
+                out BasisCameraDollySync mode, out bool looped, out int count,
+                out BasisCameraDollyPacket.Motion motion, out bool speedColors), Is.True);
+
+            Assert.That(mode, Is.EqualTo(BasisCameraDollySync.NetworkedLocked));
+            Assert.That(looped, Is.True);
+            Assert.That(count, Is.EqualTo(2));
+            Assert.That(read[1].Position, Is.EqualTo(sent[1].Position));
+            Assert.That(speedColors, Is.False, "No move on the wire means nothing to paint with.");
+            Assert.That(motion.Scale, Is.EqualTo(0f), "No scale either, so the track falls back to its own.");
+        }
+
+        [Test]
+        public void ThePointsSitWhereTheyAlwaysDid_SoAnOlderReaderStillFindsThem()
+        {
+            // The block trails the points rather than leading them: a build that reads only as far
+            // as its own idea of the size takes every point from the same offset it always has, and
+            // simply never looks at what follows.
+            BasisCameraDollyPacket.Point[] sent = Points(2);
+            byte[] modern = new byte[BasisCameraDollyPacket.RosterSize(2)];
+            int written = BasisCameraDollyPacket.WriteRoster(modern, BasisCameraDollySync.Networked, false, sent, 2, Motion(), true);
+
+            byte[] withoutMove = new byte[BasisCameraDollyPacket.RosterSize(2)];
+            BasisCameraDollyPacket.WriteRoster(withoutMove, BasisCameraDollySync.Networked, false, sent, 2);
+
+            int pointsEnd = written - BasisCameraDollyPacket.MotionSize;
+            for (int Index = 4; Index < pointsEnd; Index++)
+            {
+                Assert.That(modern[Index], Is.EqualTo(withoutMove[Index]), $"byte {Index} moved");
+            }
+        }
+
+        [Test]
+        public void AMoveCutShortIsCorruptRatherThanOld()
+        {
+            // The flag says a block follows. A packet that ends inside it is damaged, and is refused
+            // the way a track short of its points is, rather than read as a roster without a move.
+            byte[] buffer = new byte[BasisCameraDollyPacket.RosterSize(1)];
+            int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, false, Points(1), 1, Motion(), true);
+
+            var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, written - 1, read, out _, out _, out _, out _, out _), Is.False);
+        }
+
+        [Test]
+        public void AnEaseCurveThisBuildDoesNotHave_ArrivesAsLinear()
+        {
+            // A newer build's curve is not a reason to lose the whole track: the ramp is drawn
+            // with a straight run-up instead, which is at worst a little less colourful.
+            byte[] buffer = new byte[BasisCameraDollyPacket.RosterSize(1)];
+            int written = BasisCameraDollyPacket.WriteRoster(buffer, BasisCameraDollySync.Networked, false, Points(1), 1, Motion(), true);
+            buffer[written - BasisCameraDollyPacket.MotionSize + 4] = 200;
+
+            var read = new BasisCameraDollyPacket.Point[BasisCameraDollyPacket.MaxPoints];
+            Assert.That(BasisCameraDollyPacket.TryReadRoster(buffer, written, read, out _, out _, out _,
+                out BasisCameraDollyPacket.Motion motion, out _), Is.True);
+
+            Assert.That(motion.EaseIn, Is.EqualTo(BasisCameraEase.Linear));
+            Assert.That(motion.EaseOut, Is.EqualTo(BasisCameraEase.Bounce), "Only the unknown curve is replaced.");
+        }
+
+        [Test]
+        public void TheMoveRoundTripsThroughTheSettingsItWasTakenFrom()
+        {
+            BasisCameraDollySettings dolly = BasisCameraDollySettings.Default;
+            dolly.speed = 3.5f;
+            dolly.easeIn = BasisCameraEase.Expo;
+            dolly.easeInPortion = 0.4f;
+            dolly.easeOut = BasisCameraEase.Circ;
+            dolly.easeOutPortion = 0.1f;
+            dolly.damping = 0.9f;
+
+            BasisCameraDollyPacket.Motion motion = BasisCameraDollyPacket.Motion.From(dolly, 2f);
+            BasisCameraDollySettings restored = BasisCameraDollySettings.Default;
+            motion.ApplyTo(ref restored);
+
+            Assert.That(restored.speed, Is.EqualTo(3.5f));
+            Assert.That(restored.easeIn, Is.EqualTo(BasisCameraEase.Expo));
+            Assert.That(restored.easeInPortion, Is.EqualTo(0.4f));
+            Assert.That(restored.easeOut, Is.EqualTo(BasisCameraEase.Circ));
+            Assert.That(restored.easeOutPortion, Is.EqualTo(0.1f));
+            Assert.That(restored.damping, Is.EqualTo(BasisCameraDollySettings.Default.damping),
+                "The shape of the move travels; the playhead and the damping are the author's own.");
+
+            Assert.That(motion.SameAs(BasisCameraDollyPacket.Motion.From(dolly, 2f)), Is.True);
+            dolly.speed += 0.5f;
+            Assert.That(motion.SameAs(BasisCameraDollyPacket.Motion.From(dolly, 2f)), Is.False,
+                "A speed change has to count as a change, or it only leaves the author at the keyframe rate.");
+        }
+
+        [Test]
+        public void PaintingNeedsAPlayMoveFittedAndTheColoursSwitchedOn()
+        {
+            // The one rule the author's own line and the wire flag both read, so what leaves the
+            // author is exactly what their screen is showing.
+            var track = new BasisCameraDollyTrack { ColorBySpeed = true, MotionActive = true };
+            BasisCameraDollySettings move = BasisCameraDollySettings.Default;
+            move.mode = BasisCameraDollyMode.Play;
+            track.Motion = move;
+            Assert.That(track.PaintsBySpeed, Is.True);
+
+            track.ColorBySpeed = false;
+            Assert.That(track.PaintsBySpeed, Is.False, "the toggle is off");
+            track.ColorBySpeed = true;
+
+            track.MotionActive = false;
+            Assert.That(track.PaintsBySpeed, Is.False, "nothing is fitted");
+            track.MotionActive = true;
+
+            move.mode = BasisCameraDollyMode.Manual;
+            track.Motion = move;
+            Assert.That(track.PaintsBySpeed, Is.False, "a hand-placed playhead has no speed to show");
+        }
+
         [Test]
         public void OnlyALockedTrackTakesTheMoveAwayFromEveryoneElse()
         {

@@ -867,6 +867,16 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         ApplyCameraScale();
     }
 
+    public bool ResizeWithGesture => enableScaleWithGesture;
+
+    public void SetResizeWithGesture(bool enabled)
+    {
+        enableScaleWithGesture = enabled;
+        if (enabled) return;
+        userScaleMultiplier = 1f;
+        ApplyCameraScale();
+    }
+
     private bool isPlayerManuallyUnlocked = false;
     private bool desktopSetup = false;
     private CameraPinSpace previousPinState = CameraPinSpace.HandHeld;

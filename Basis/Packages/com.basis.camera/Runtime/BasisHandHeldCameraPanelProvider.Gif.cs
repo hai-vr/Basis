@@ -51,7 +51,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisLocalization.Get("camera.gif.length"),
                 BasisHandHeldCamera.MinGifDurationSeconds, BasisHandHeldCamera.MaxGifDurationSeconds,
                 true, 0, ValueDisplayMode.Raw));
-            _gifDurationSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.gif.length.description"));
+            _gifDurationSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.gif.length.description"));
             _gifDurationSlider.SetResetDefault(defaults.gifDurationSeconds);
             _gifDurationSlider.OnValueChanged = v => _activeCamera?.SetGifDuration(v);
 
@@ -60,13 +60,13 @@ namespace Basis.BasisUI.HandHeldCamera
                 BasisLocalization.Get("camera.gif.frameRate"),
                 BasisHandHeldCamera.MinGifFrameRate, BasisHandHeldCamera.MaxGifFrameRate,
                 true, 0, ValueDisplayMode.Hz));
-            _gifFrameRateSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.gif.frameRate.description"));
+            _gifFrameRateSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.gif.frameRate.description"));
             _gifFrameRateSlider.SetResetDefault(defaults.gifFrameRate);
             _gifFrameRateSlider.OnValueChanged = v => _activeCamera?.SetGifFrameRate((int)v);
 
             _gifSizeDropdown = PanelDropdown.CreateNewEntry(content);
             _gifSizeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.gif.size"));
-            _gifSizeDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.gif.size.description"));
+            _gifSizeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.gif.size.description"));
             _gifSizeDropdown.AssignEntries(BuildWidthLabels(BasisHandHeldCamera.GifWidthPresets));
             _gifSizeDropdown.OnValueChanged = _ =>
             {
@@ -80,7 +80,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _gifLoopToggle = PanelToggle.CreateNewEntry(content);
             _gifLoopToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.gif.loop"));
-            _gifLoopToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.gif.loop.description"));
+            _gifLoopToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.gif.loop.description"));
             _gifLoopToggle.OnValueChanged = v =>
             {
                 if (_activeCamera != null) _activeCamera.GifLoop = v;
@@ -88,7 +88,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _gifDitherToggle = PanelToggle.CreateNewEntry(content);
             _gifDitherToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.gif.dither"));
-            _gifDitherToggle.Descriptor.SetDescription(BasisLocalization.Get("camera.gif.dither.description"));
+            _gifDitherToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.gif.dither.description"));
             _gifDitherToggle.OnValueChanged = v =>
             {
                 if (_activeCamera != null) _activeCamera.GifDither = v;
@@ -192,7 +192,7 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             PanelElementDescriptor card = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
             card.SetTitle(BasisLocalization.Get(titleKey));
-            card.SetDescription(BasisLocalization.Get(idleKey));
+            card.SetDescription(string.IsNullOrEmpty(idleKey) ? string.Empty : BasisLocalization.Get(idleKey));
             if (card.IconBackground != null) card.IconBackground.SetActive(false);
             ReleaseControlSlot(card);
             return card;
