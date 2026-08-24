@@ -144,6 +144,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private readonly List<PanelButton> _topButtons = new List<PanelButton>();
         private RectTransform _topActionRow;
         private RawImage _previewImage;
+        private GameObject _expandedOverlay;
+        private RawImage _expandedImage;
+        private AspectRatioFitter _expandedFitter;
+        private bool _previewExpanded;
 
         private PanelSlider _fovSlider;
         private PanelSlider _exposureSlider;
@@ -226,6 +230,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelToggle _recordToggle;
         private PanelToggle _flyToggle;
         private PanelSlider _flySpeedSlider;
+        private PanelSlider _flyClimbSpeedSlider;
+        private PanelSlider _flyFastMultiplierSlider;
+        private PanelSlider _flyTurnSpeedSlider;
+        private PanelSlider _flyMouseSensitivitySlider;
         private PanelToggle _autoLevelToggle;
         private PanelToggle _vrStabToggle;
         private PanelToggle _smoothDragToggle;
@@ -278,6 +286,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private bool? _lastSelfie;
         private bool? _lastFly;
         private float _lastFlySpeed = float.NaN;
+        private float _lastFlyClimbSpeed = float.NaN;
+        private float _lastFlyFastMultiplier = float.NaN;
+        private float _lastFlyTurnSpeed = float.NaN;
+        private float _lastFlyMouseSensitivity = float.NaN;
         private bool? _lastAutoLevel;
         private bool? _lastVrStab;
         private bool? _lastSmoothDrag;
@@ -345,6 +357,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
             _navColumn = _tabGroup.ExtrasContainer;
+            BuildExpandedPreview(panel.Descriptor.ContentParent);
             _pageContents.Clear();
             _searches.Clear();
             _searchTabKeys.Clear();
@@ -467,6 +480,8 @@ namespace Basis.BasisUI.HandHeldCamera
                 _tabGroup.SelectionButtons[_lastTabIndex]?.OnClicked?.Invoke();
             }
 
+            BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
+            BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
             SetPanelTickSubscription(true);
         }
 
@@ -706,6 +721,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _bloomIntensitySlider?.SetResetDefault(defaults.bloomIntensity);
             _bloomThresholdSlider?.SetResetDefault(defaults.bloomThreshold);
             _flySpeedSlider?.SetResetDefault(defaults.flySpeed);
+            _flyClimbSpeedSlider?.SetResetDefault(defaults.flyClimbSpeed);
+            _flyFastMultiplierSlider?.SetResetDefault(defaults.flyFastMultiplier);
+            _flyTurnSpeedSlider?.SetResetDefault(defaults.flyTurnSpeed);
+            _flyMouseSensitivitySlider?.SetResetDefault(defaults.flyMouseSensitivity);
             _apertureSlider?.SetResetDefault(defaults.depthAperture);
             _focusSlider?.SetResetDefault(defaults.depthFocusDistance);
             _dofFocalLengthSlider?.SetResetDefault(defaults.dofFocalLength);
@@ -802,6 +821,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private void OnPanelClosed()
         {
+            BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
             ApplyOnPropUIVisibility(false);
             SetPanelTickSubscription(false);
             ClearModifierReferences();
@@ -841,6 +861,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _streamGroup = null;
             _actionGroup = null;
             _previewImage = null;
+            _expandedOverlay = null;
+            _expandedImage = null;
+            _expandedFitter = null;
+            _previewExpanded = false;
             _fovSlider = null;
             _exposureSlider = null;
             _exposureOnCameraToggle = null;
@@ -947,6 +971,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _recordToggle = null;
             _flyToggle = null;
             _flySpeedSlider = null;
+            _flyClimbSpeedSlider = null;
+            _flyFastMultiplierSlider = null;
+            _flyTurnSpeedSlider = null;
+            _flyMouseSensitivitySlider = null;
             _autoLevelToggle = null;
             _vrStabToggle = null;
             _smoothDragToggle = null;
@@ -956,6 +984,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _resizeToggle = null;
             _lastFly = null;
             _lastFlySpeed = float.NaN;
+            _lastFlyClimbSpeed = float.NaN;
+            _lastFlyFastMultiplier = float.NaN;
+            _lastFlyTurnSpeed = float.NaN;
+            _lastFlyMouseSensitivity = float.NaN;
             _lastAutoLevel = null;
             _lastVrStab = null;
             _lastSmoothDrag = null;
@@ -1035,8 +1067,12 @@ namespace Basis.BasisUI.HandHeldCamera
             }
 
             _previewImage = card.gameObject.AddComponent<RawImage>();
-            _previewImage.raycastTarget = false;
+            _previewImage.raycastTarget = true;
             if (cardMaterial != null) _previewImage.material = cardMaterial;
+
+            UnityEngine.UI.Button expand = card.gameObject.AddComponent<UnityEngine.UI.Button>();
+            expand.transition = Selectable.Transition.None;
+            expand.onClick.AddListener(ExpandPreview);
 
             // The card shrink-wraps its rows; the header is hidden and Content is empty for
             // this group, so its fitter would collapse the preview flat. Own the height and
@@ -1047,6 +1083,65 @@ namespace Basis.BasisUI.HandHeldCamera
             if (!card.TryGetComponent(out _previewLayout)) _previewLayout = card.gameObject.AddComponent<LayoutElement>();
             _previewLayout.preferredHeight = PreviewFallbackHeight;
             card.sizeDelta = new Vector2(card.sizeDelta.x, PreviewFallbackHeight);
+        }
+
+        private void BuildExpandedPreview(RectTransform parent)
+        {
+            _expandedOverlay = new GameObject("CameraPreviewExpanded", typeof(RectTransform));
+            RectTransform overlay = (RectTransform)_expandedOverlay.transform;
+            overlay.SetParent(parent, false);
+            overlay.anchorMin = Vector2.zero;
+            overlay.anchorMax = Vector2.one;
+            overlay.offsetMin = Vector2.zero;
+            overlay.offsetMax = Vector2.zero;
+            _expandedOverlay.AddComponent<LayoutElement>().ignoreLayout = true;
+
+            Material material = _previewImage != null ? _previewImage.material : null;
+
+            Image backdrop = _expandedOverlay.AddComponent<Image>();
+            backdrop.color = new Color(0.05f, 0.05f, 0.06f, 0.97f);
+            if (material != null) backdrop.material = material;
+
+            GameObject imageGo = new GameObject("Feed", typeof(RectTransform));
+            RectTransform imageRect = (RectTransform)imageGo.transform;
+            imageRect.SetParent(overlay, false);
+            imageRect.anchorMin = Vector2.zero;
+            imageRect.anchorMax = Vector2.one;
+            imageRect.offsetMin = new Vector2(16f, 104f);
+            imageRect.offsetMax = new Vector2(-16f, -16f);
+            _expandedImage = imageGo.AddComponent<RawImage>();
+            _expandedImage.raycastTarget = false;
+            if (material != null) _expandedImage.material = material;
+            _expandedFitter = imageGo.AddComponent<AspectRatioFitter>();
+            _expandedFitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            _expandedFitter.aspectRatio = 16f / 9f;
+
+            PanelButton back = PanelButton.CreateNew(overlay);
+            back.Descriptor.SetTitle(BasisLocalization.Get("camera.preview.back"));
+            back.Descriptor.SetSize(new Vector2(320f, 72f));
+            RectTransform backRect = (RectTransform)back.transform;
+            backRect.anchorMin = Vector2.zero;
+            backRect.anchorMax = Vector2.zero;
+            backRect.pivot = Vector2.zero;
+            backRect.anchoredPosition = new Vector2(16f, 16f);
+            back.OnClicked += CollapsePreview;
+
+            _expandedOverlay.SetActive(false);
+        }
+
+        private void ExpandPreview()
+        {
+            if (_expandedOverlay == null || _activeCamera == null) return;
+            _previewExpanded = true;
+            _expandedOverlay.transform.SetAsLastSibling();
+            _expandedOverlay.SetActive(true);
+            RefreshPreviewTexture();
+        }
+
+        private void CollapsePreview()
+        {
+            _previewExpanded = false;
+            if (_expandedOverlay != null) _expandedOverlay.SetActive(false);
         }
 
         private void BuildLensGroup(RectTransform parent)
@@ -1928,6 +2023,42 @@ namespace Basis.BasisUI.HandHeldCamera
             _flySpeedSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.flySpeed.description"));
             _flySpeedSlider.OnValueChanged = v => _activeCamera?.SetFlySpeed(v);
 
+            _flyClimbSpeedSlider = PanelSlider.CreateNew(content);
+            _flyClimbSpeedSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.flyClimbSpeed"),
+                BasisHandHeldCameraInteractable.MinFlyClimbSpeed,
+                BasisHandHeldCameraInteractable.MaxFlyClimbSpeed,
+                false, 2, ValueDisplayMode.Raw));
+            _flyClimbSpeedSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyClimbSpeed.description"));
+            _flyClimbSpeedSlider.OnValueChanged = v => _activeCamera?.SetFlyClimbSpeed(v);
+
+            _flyFastMultiplierSlider = PanelSlider.CreateNew(content);
+            _flyFastMultiplierSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.flyFastMultiplier"),
+                BasisHandHeldCameraInteractable.MinFlyFastMultiplier,
+                BasisHandHeldCameraInteractable.MaxFlyFastMultiplier,
+                false, 1, ValueDisplayMode.Raw));
+            _flyFastMultiplierSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyFastMultiplier.description"));
+            _flyFastMultiplierSlider.OnValueChanged = v => _activeCamera?.SetFlyFastMultiplier(v);
+
+            _flyTurnSpeedSlider = PanelSlider.CreateNew(content);
+            _flyTurnSpeedSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.flyTurnSpeed"),
+                BasisHandHeldCameraInteractable.MinFlyTurnSpeed,
+                BasisHandHeldCameraInteractable.MaxFlyTurnSpeed,
+                true, 0, ValueDisplayMode.Raw));
+            _flyTurnSpeedSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyTurnSpeed.description"));
+            _flyTurnSpeedSlider.OnValueChanged = v => _activeCamera?.SetFlyTurnSpeed(v);
+
+            _flyMouseSensitivitySlider = PanelSlider.CreateNew(content);
+            _flyMouseSensitivitySlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.flyMouseSensitivity"),
+                BasisHandHeldCameraInteractable.MinFlyMouseSensitivity,
+                BasisHandHeldCameraInteractable.MaxFlyMouseSensitivity,
+                false, 2, ValueDisplayMode.Raw));
+            _flyMouseSensitivitySlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyMouseSensitivity.description"));
+            _flyMouseSensitivitySlider.OnValueChanged = v => _activeCamera?.SetFlyMouseSensitivity(v);
+
             _autoLevelToggle = PanelToggle.CreateNewEntry(content);
             _autoLevelToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.autoLevel"));
             _autoLevelToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.autoLevel.description"));
@@ -1984,6 +2115,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _resizeToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.resize"));
             _resizeToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.resize.description"));
             _resizeToggle.OnValueChanged = v => _activeCamera?.SetResizeWithGesture(v);
+
+            RefreshPlatformVisibility();
         }
 
         private void BuildActionsGroup(RectTransform parent)
@@ -2070,6 +2203,21 @@ namespace Basis.BasisUI.HandHeldCamera
             RefreshSearch();
             ForceLayoutRebuild(_handlingGroup);
         }
+
+        private void RefreshPlatformVisibility()
+        {
+            bool desktop = BasisDeviceManagement.IsUserInDesktop();
+
+            _flyMouseSensitivitySlider?.gameObject.SetActive(desktop);
+            _flyClimbSpeedSlider?.gameObject.SetActive(!desktop);
+            _flyTurnSpeedSlider?.gameObject.SetActive(!desktop);
+            _vrStabToggle?.gameObject.SetActive(!desktop);
+            _resizeToggle?.gameObject.SetActive(!desktop);
+            RefreshSearch();
+            ForceLayoutRebuild(_handlingGroup);
+        }
+
+        private void OnBootModeChanged(string mode) => RefreshPlatformVisibility();
 
         /// <summary>
         /// Keeps the last-photo card and its reveal button honest. Photos are taken from the prop
@@ -2445,6 +2593,7 @@ namespace Basis.BasisUI.HandHeldCamera
             }
             if (_topActionRow != null) _topActionRow.gameObject.SetActive(active);
             if (_previewGroup != null) _previewGroup.SetActive(active);
+            if (!active) CollapsePreview();
             if (_modeDropdown != null) _modeDropdown.gameObject.SetActive(active);
             if (_streamPresetDropdown != null) _streamPresetDropdown.gameObject.SetActive(active);
             if (_videoOutputToggle != null) _videoOutputToggle.gameObject.SetActive(active);
@@ -2474,6 +2623,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SetSectionActive(_positionSection, _positionGroup, active);
             SetSectionActive(_rotationSection, _rotationGroup, active);
             SetSectionActive(_modifierEffectsSection, _modifierEffectsGroup, active);
+            SetEffectSectionsActive(active);
             // The dolly track block is not listed: it is a card inside the position group and goes
             // with it, and RefreshModifierVisibility owns whether the fitted slot wants it at all.
             SetSectionActive(_backgroundSection, _backgroundGroup, active);
@@ -2662,6 +2812,14 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_flyToggle, _activeCamera.IsFlyModeEnabled, ref _lastFly);
             _lastFlySpeed = _activeCamera.flySpeed;
             _flySpeedSlider?.SetValueWithoutNotify(_activeCamera.flySpeed);
+            _lastFlyClimbSpeed = _activeCamera.vrFlyElevationSpeed;
+            _flyClimbSpeedSlider?.SetValueWithoutNotify(_activeCamera.vrFlyElevationSpeed);
+            _lastFlyFastMultiplier = _activeCamera.flyFastMultiplier;
+            _flyFastMultiplierSlider?.SetValueWithoutNotify(_activeCamera.flyFastMultiplier);
+            _lastFlyTurnSpeed = _activeCamera.vrFlyTurnSpeed;
+            _flyTurnSpeedSlider?.SetValueWithoutNotify(_activeCamera.vrFlyTurnSpeed);
+            _lastFlyMouseSensitivity = _activeCamera.mouseSensitivity;
+            _flyMouseSensitivitySlider?.SetValueWithoutNotify(_activeCamera.mouseSensitivity);
             _autoLevelToggle?.SetValueWithoutNotify(_activeCamera.useAutoLeveling);
             _vrStabToggle?.SetValueWithoutNotify(_activeCamera.useVRHandheldSmoothing);
             _lastSmoothDrag = _activeCamera.useSmoothDrag;
@@ -2858,6 +3016,14 @@ namespace Basis.BasisUI.HandHeldCamera
             if (_previewImage.texture != feed) _previewImage.texture = feed;
             _previewImage.enabled = feed != null;
             ApplyPreviewAspect(feed);
+
+            if (_expandedImage == null || !_previewExpanded) return;
+            if (_expandedImage.texture != feed) _expandedImage.texture = feed;
+            _expandedImage.enabled = feed != null;
+            if (_expandedFitter != null && feed != null && feed.height > 0)
+            {
+                _expandedFitter.aspectRatio = (float)feed.width / feed.height;
+            }
         }
 
         /// <summary>
@@ -2962,6 +3128,10 @@ namespace Basis.BasisUI.HandHeldCamera
             // camera rather than assume it is the only writer.
             SyncToggle(_flyToggle, _activeCamera.IsFlyModeEnabled, ref _lastFly);
             SyncSlider(_flySpeedSlider, _activeCamera.flySpeed, ref _lastFlySpeed);
+            SyncSlider(_flyClimbSpeedSlider, _activeCamera.vrFlyElevationSpeed, ref _lastFlyClimbSpeed);
+            SyncSlider(_flyFastMultiplierSlider, _activeCamera.flyFastMultiplier, ref _lastFlyFastMultiplier);
+            SyncSlider(_flyTurnSpeedSlider, _activeCamera.vrFlyTurnSpeed, ref _lastFlyTurnSpeed);
+            SyncSlider(_flyMouseSensitivitySlider, _activeCamera.mouseSensitivity, ref _lastFlyMouseSensitivity);
             SyncToggle(_autoLevelToggle, _activeCamera.useAutoLeveling, ref _lastAutoLevel);
             SyncToggle(_vrStabToggle, _activeCamera.useVRHandheldSmoothing, ref _lastVrStab);
 

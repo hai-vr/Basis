@@ -111,6 +111,10 @@ public static class BasisCameraSettingsReadout
         Row("camera.n360Capture", OnOff(settings.capture360));
         Row("camera.printPhoto", OnOff(settings.printPhoto));
         Row("camera.flySpeed", Number(settings.flySpeed) + " m/s");
+        Row("camera.flyClimbSpeed", Number(settings.flyClimbSpeed) + " m/s");
+        Row("camera.flyFastMultiplier", Number(settings.flyFastMultiplier) + "x");
+        Row("camera.flyTurnSpeed", Number(settings.flyTurnSpeed) + " °/s");
+        Row("camera.flyMouseSensitivity", Number(settings.flyMouseSensitivity));
         Row("camera.autoLevel", OnOff(settings.useAutoLeveling));
         Row("camera.vrStabilization", OnOff(settings.useVRHandheldSmoothing));
         Row("camera.smoothDrag", OnOff(settings.useSmoothDrag));

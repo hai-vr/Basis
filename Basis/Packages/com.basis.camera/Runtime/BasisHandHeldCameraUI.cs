@@ -776,6 +776,10 @@ public partial class BasisHandHeldCameraUI
             smoothDragRotationDamping = HHC != null ? HHC.smoothDragRotationDamping : baseline.smoothDragRotationDamping,
             smoothDragMaxDistance = HHC != null ? HHC.smoothDragMaxDistance : baseline.smoothDragMaxDistance,
             flySpeed = HHC != null ? HHC.flySpeed : baseline.flySpeed,
+            flyClimbSpeed = HHC != null ? HHC.vrFlyElevationSpeed : baseline.flyClimbSpeed,
+            flyFastMultiplier = HHC != null ? HHC.flyFastMultiplier : baseline.flyFastMultiplier,
+            flyTurnSpeed = HHC != null ? HHC.vrFlyTurnSpeed : baseline.flyTurnSpeed,
+            flyMouseSensitivity = HHC != null ? HHC.mouseSensitivity : baseline.flyMouseSensitivity,
             resizeWithGesture = HHC != null ? HHC.ResizeWithGesture : baseline.resizeWithGesture,
             printPhoto = HHC != null && HHC.printPhotoEnabled,
             gifDurationSeconds = HHC != null ? HHC.GifDurationSeconds : baseline.gifDurationSeconds,
@@ -1215,6 +1219,10 @@ public partial class BasisHandHeldCameraUI
         HHC.SetSmoothDragRotationDamping(settings.smoothDragRotationDamping);
         HHC.SetSmoothDragMaxDistance(settings.smoothDragMaxDistance);
         HHC.SetFlySpeed(settings.flySpeed);
+        HHC.SetFlyClimbSpeed(settings.flyClimbSpeed);
+        HHC.SetFlyFastMultiplier(settings.flyFastMultiplier);
+        HHC.SetFlyTurnSpeed(settings.flyTurnSpeed);
+        HHC.SetFlyMouseSensitivity(settings.flyMouseSensitivity);
         HHC.SetResizeWithGesture(settings.resizeWithGesture);
         HHC.printPhotoEnabled = settings.printPhoto;
 

@@ -154,10 +154,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _dollyZoomMaxSlider;
         private PanelSlider _rigWeightResponseSlider;
         private PanelSlider _rigWeightBounceSlider;
-        private readonly Dictionary<BasisCameraEffectModifier, RectTransform> _effectRemoveRows =
-            new Dictionary<BasisCameraEffectModifier, RectTransform>();
-        private readonly Dictionary<BasisCameraEffectModifier, PanelButton> _effectRemoveButtons =
-            new Dictionary<BasisCameraEffectModifier, PanelButton>();
+        private readonly Dictionary<BasisCameraEffectModifier, PanelSectionToggle> _effectSections =
+            new Dictionary<BasisCameraEffectModifier, PanelSectionToggle>();
+        private readonly Dictionary<BasisCameraEffectModifier, PanelElementDescriptor> _effectGroups =
+            new Dictionary<BasisCameraEffectModifier, PanelElementDescriptor>();
         private int _lastEffectSignature = -1;
         private BasisCameraPositionModifier? _lastPositionModifier;
         private BasisCameraRotationModifier? _lastRotationModifier;
@@ -884,9 +884,9 @@ namespace Basis.BasisUI.HandHeldCamera
             _modifierEffectsSection = PanelSectionToggle.CreateNewEntry(parent);
             _modifierEffectsGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
                 _modifierEffectsSection, parent, BasisLocalization.Get(BasisCameraModifiers.EffectsKey), false);
-            RectTransform content = _modifierEffectsGroup.ContentParent;
+            RectTransform header = _modifierEffectsGroup.ContentParent;
 
-            _effectAddDropdown = PanelDropdown.CreateNewEntry(content);
+            _effectAddDropdown = PanelDropdown.CreateNewEntry(header);
             _effectAddDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.modifier.addEffect"));
             _effectAddDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.modifier.addEffect.description"));
             _effectAddDropdown.OnValueChanged = _ =>
@@ -901,12 +901,12 @@ namespace Basis.BasisUI.HandHeldCamera
             };
 
             _modifierEffectsEmptyState = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, content);
+                PanelElementDescriptor.ElementStyles.Group, header);
             _modifierEffectsEmptyState.SetTitle(BasisLocalization.Get("camera.modifier.noEffects"));
             _modifierEffectsEmptyState.SetTooltip(BasisLocalization.Get("camera.modifier.noEffects.description"));
             _modifierEffectsEmptyState.SetDescription(string.Empty);
 
-            BuildEffectBlock(content, BasisCameraEffectModifier.SteadySubject, () =>
+            BuildEffectBlock(parent, BasisCameraEffectModifier.SteadySubject, content =>
             {
                 _steadySmoothingSlider = PanelSlider.CreateNew(content);
                 _steadySmoothingSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
@@ -927,7 +927,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 };
             });
 
-            BuildEffectBlock(content, BasisCameraEffectModifier.LookAhead, () =>
+            BuildEffectBlock(parent, BasisCameraEffectModifier.LookAhead, content =>
             {
                 _lookAheadTimeSlider = PanelSlider.CreateNew(content);
                 _lookAheadTimeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
@@ -947,7 +947,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 };
             });
 
-            BuildEffectBlock(content, BasisCameraEffectModifier.AvoidOcclusion, () =>
+            BuildEffectBlock(parent, BasisCameraEffectModifier.AvoidOcclusion, content =>
             {
                 _occlusionPaddingSlider = PanelSlider.CreateNew(content);
                 _occlusionPaddingSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
@@ -984,7 +984,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 };
             });
 
-            BuildEffectBlock(content, BasisCameraEffectModifier.AvoidCollision, () =>
+            BuildEffectBlock(parent, BasisCameraEffectModifier.AvoidCollision, content =>
             {
                 _collisionRadiusSlider = PanelSlider.CreateNew(content);
                 _collisionRadiusSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
@@ -1004,7 +1004,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 };
             });
 
-            BuildEffectBlock(content, BasisCameraEffectModifier.LensOverride, () =>
+            BuildEffectBlock(parent, BasisCameraEffectModifier.LensOverride, content =>
             {
                 _lensFovSlider = PanelSlider.CreateNew(content);
                 _lensFovSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(
@@ -1024,7 +1024,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 };
             });
 
-            BuildEffectBlock(content, BasisCameraEffectModifier.DollyZoom, () =>
+            BuildEffectBlock(parent, BasisCameraEffectModifier.DollyZoom, content =>
             {
                 _dollyZoomMinSlider = PanelSlider.CreateNew(content);
                 _dollyZoomMinSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(
@@ -1045,7 +1045,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 };
             });
 
-            BuildEffectBlock(content, BasisCameraEffectModifier.RigWeight, () =>
+            BuildEffectBlock(parent, BasisCameraEffectModifier.RigWeight, content =>
             {
                 _rigWeightResponseSlider = PanelSlider.CreateNew(content);
                 _rigWeightResponseSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
@@ -1066,7 +1066,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 };
             });
 
-            BuildEffectBlock(content, BasisCameraEffectModifier.Shake, () =>
+            BuildEffectBlock(parent, BasisCameraEffectModifier.Shake, content =>
             {
                 _noiseProfileDropdown = PanelDropdown.CreateNewEntry(content);
                 _noiseProfileDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.noiseProfile"));
@@ -1106,18 +1106,23 @@ namespace Basis.BasisUI.HandHeldCamera
         }
 
         /// <summary>
-        /// Builds one effect's row: a remove button carrying its name and the channel it writes,
-        /// then its own controls. Built once for every effect and shown by
-        /// <see cref="RefreshModifierVisibility"/>, rather than spawned and destroyed as effects
-        /// are fitted — a rebuild under an open panel moves the row the pointer is over.
+        /// Builds one effect's section: its controls, then a remove button. Built once for every
+        /// effect and shown by <see cref="RefreshModifierVisibility"/>, rather than spawned and
+        /// destroyed as effects are fitted — a rebuild under an open panel moves the row the
+        /// pointer is over.
         /// </summary>
-        private void BuildEffectBlock(RectTransform content, BasisCameraEffectModifier effect, System.Action buildControls)
+        private void BuildEffectBlock(RectTransform parent, BasisCameraEffectModifier effect, System.Action<RectTransform> buildControls)
         {
-            RectTransform row = PanelElementDescriptor.BuildActionRow(content, $"CameraEffect{effect}Row");
+            PanelSectionToggle section = PanelSectionToggle.CreateNewEntry(parent);
+            PanelElementDescriptor group = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                section, parent, BasisLocalization.Get(BasisCameraModifiers.NameKey(effect)), false);
+            section.Descriptor.SetTooltip(BasisLocalization.Get(BasisCameraModifiers.DescriptionKey(effect)));
 
-            PanelButton remove = PanelButton.CreateNew(row);
-            remove.Descriptor.SetTitle($"{BasisLocalization.Get(BasisCameraModifiers.NameKey(effect))}  ✕");
-            remove.Descriptor.SetTooltip(BasisLocalization.Get(BasisCameraModifiers.DescriptionKey(effect)));
+            buildControls(group.ContentParent);
+
+            PanelButton remove = PanelButton.CreateNew(group.ContentParent);
+            remove.Descriptor.SetTitle(BasisLocalization.Get("camera.modifier.removeEffect"));
+            remove.Descriptor.SetTooltip(BasisLocalization.Get("camera.modifier.removeEffect.description"));
             remove.OnClicked += () =>
             {
                 if (_activeCamera == null) return;
@@ -1127,9 +1132,9 @@ namespace Basis.BasisUI.HandHeldCamera
                 RefreshModifierVisibility();
             };
 
-            _effectRemoveRows[effect] = row;
-            _effectRemoveButtons[effect] = remove;
-            buildControls();
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(section, group, true, OnSectionExpanded);
+            _effectSections[effect] = section;
+            _effectGroups[effect] = group;
         }
 
         /// <summary>
@@ -1978,33 +1983,6 @@ namespace Basis.BasisUI.HandHeldCamera
             SetEffectRowActive(BasisCameraEffectModifier.DollyZoom, dollyZoom);
             SetEffectRowActive(BasisCameraEffectModifier.RigWeight, rigWeight);
 
-            _lookAheadTimeSlider?.gameObject.SetActive(lookAhead);
-            _lookAheadLimitSlider?.gameObject.SetActive(lookAhead);
-
-            _occlusionPaddingSlider?.gameObject.SetActive(occlusion);
-            _occlusionMinSlider?.gameObject.SetActive(occlusion);
-            _occlusionReturnSlider?.gameObject.SetActive(occlusion);
-            _occlusionRadiusSlider?.gameObject.SetActive(occlusion);
-
-            _noiseProfileDropdown?.gameObject.SetActive(shake);
-            _noiseAmplitudeSlider?.gameObject.SetActive(shake);
-            _noiseFrequencySlider?.gameObject.SetActive(shake);
-
-            _lensFovSlider?.gameObject.SetActive(lens);
-            _lensDampSlider?.gameObject.SetActive(lens);
-
-            _steadySmoothingSlider?.gameObject.SetActive(steady);
-            _steadyDeadZoneSlider?.gameObject.SetActive(steady);
-
-            _collisionRadiusSlider?.gameObject.SetActive(collision);
-            _collisionPaddingSlider?.gameObject.SetActive(collision);
-
-            _dollyZoomMinSlider?.gameObject.SetActive(dollyZoom);
-            _dollyZoomMaxSlider?.gameObject.SetActive(dollyZoom);
-
-            _rigWeightResponseSlider?.gameObject.SetActive(rigWeight);
-            _rigWeightBounceSlider?.gameObject.SetActive(rigWeight);
-
             RefreshEffectSubjectNotices(stack);
 
             _modifierEffectsEmptyState?.gameObject.SetActive(stack.EffectCount == 0);
@@ -2013,6 +1991,7 @@ namespace Basis.BasisUI.HandHeldCamera
             ForceLayoutRebuild(_positionAdvancedGroup);
             ForceLayoutRebuild(_rotationAdvancedGroup);
             ForceLayoutRebuild(_modifierEffectsGroup);
+            ForceLayoutRebuild(null);
         }
 
         /// <summary>
@@ -2033,14 +2012,21 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private void SetEffectRowActive(BasisCameraEffectModifier effect, bool active)
         {
-            if (_effectRemoveRows.TryGetValue(effect, out RectTransform row) && row != null)
+            _effectSections.TryGetValue(effect, out PanelSectionToggle section);
+            _effectGroups.TryGetValue(effect, out PanelElementDescriptor group);
+            SetSectionActive(section, group, active);
+        }
+
+        private void SetEffectSectionsActive(bool active)
+        {
+            foreach (KeyValuePair<BasisCameraEffectModifier, PanelSectionToggle> pair in _effectSections)
             {
-                row.gameObject.SetActive(active);
+                SetEffectRowActive(pair.Key, active && Stack != null && Stack.HasEffect(pair.Key));
             }
         }
 
         /// <summary>
-        /// Says so on the row when a fitted effect has nothing to work on. The subject slot is on
+        /// Says so on the section header when a fitted effect has nothing to work on. The subject slot is on
         /// another page, so an effect that has quietly stopped mattering because the slot was
         /// emptied would otherwise look exactly like one that is running.
         /// </summary>
@@ -2048,7 +2034,7 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             bool hasSubject = stack.ResolvesSubject;
 
-            foreach (KeyValuePair<BasisCameraEffectModifier, PanelButton> pair in _effectRemoveButtons)
+            foreach (KeyValuePair<BasisCameraEffectModifier, PanelSectionToggle> pair in _effectSections)
             {
                 if (pair.Value == null || pair.Value.Descriptor == null) continue;
 
@@ -2250,8 +2236,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _dollyZoomMaxSlider = null;
             _rigWeightResponseSlider = null;
             _rigWeightBounceSlider = null;
-            _effectRemoveRows.Clear();
-            _effectRemoveButtons.Clear();
+            _effectSections.Clear();
+            _effectGroups.Clear();
             _addableEffects.Clear();
             _lastEffectSignature = -1;
             _subjectDropdown = null;

@@ -558,7 +558,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> MicrophoneIconOffsetY = new("microphoneiconoffsety", new BasisPlatformDefault<float>(0f));
 
         // Swaps the microphone glyph for a shader-drawn circle outline that grows with voice level.
-        public static BasisSettingsBinding<bool> MicrophoneIconLevelRing = new("microphoneiconlevelring", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> MicrophoneIconLevelRing = new("microphoneiconlevelring_v2", new BasisPlatformDefault<bool>(true));
 
         public static BasisSettingsBinding<bool> AvatarRangeIndicator = new("avatarrangeindicator", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> HearingRangeIndicator = new("hearingrangeindicator", new BasisPlatformDefault<bool>(false));

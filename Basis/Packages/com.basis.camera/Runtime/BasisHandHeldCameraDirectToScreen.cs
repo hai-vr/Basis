@@ -203,7 +203,7 @@ public partial class BasisHandHeldCamera
 
         if (!encode)
         {
-            HDROutputUtils.ConfigureHDROutput(material, HDROutputUtils.Operation.None);
+            material.DisableKeyword(HDROutputUtils.ShaderKeywords.HDR_COLORSPACE_CONVERSION_AND_ENCODING);
             return;
         }
 

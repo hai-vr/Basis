@@ -1468,7 +1468,39 @@
     },
     {
       "key": "camera.flySpeed.description",
-      "value": "Metres per second the camera flies at full stick or with WASD. Grip on the move hand, or Shift, triples it."
+      "value": "Metres per second the camera flies at full stick or with WASD. Grip on the move hand, or Shift, flies faster by the Fast Fly Multiplier below."
+    },
+    {
+      "key": "camera.flyClimbSpeed",
+      "value": "Climb Speed"
+    },
+    {
+      "key": "camera.flyClimbSpeed.description",
+      "value": "Metres per second the VR turn stick raises or lowers the camera at full deflection. On desktop, climbing uses Fly Speed."
+    },
+    {
+      "key": "camera.flyFastMultiplier",
+      "value": "Fast Fly Multiplier"
+    },
+    {
+      "key": "camera.flyFastMultiplier.description",
+      "value": "How much faster the camera flies while the fast control is held — grip on the move hand in VR, Shift on desktop."
+    },
+    {
+      "key": "camera.flyTurnSpeed",
+      "value": "Turn Speed"
+    },
+    {
+      "key": "camera.flyTurnSpeed.description",
+      "value": "Degrees per second the VR turn stick yaws and pitches the camera at full deflection."
+    },
+    {
+      "key": "camera.flyMouseSensitivity",
+      "value": "Mouse Sensitivity"
+    },
+    {
+      "key": "camera.flyMouseSensitivity.description",
+      "value": "How far the camera turns per mouse movement while flying on desktop."
     },
     {
       "key": "camera.follow",
@@ -1649,6 +1681,10 @@
     {
       "key": "camera.resize.description",
       "value": "Lets the camera be resized with a two-hand grab, like any other pickup. Off puts it back at the size your avatar gives it and keeps it there."
+    },
+    {
+      "key": "camera.preview.back",
+      "value": "Back"
     },
     {
       "key": "camera.openPhotosFolder",
@@ -13903,6 +13939,14 @@
     {
       "key": "camera.modifier.addEffect.description",
       "value": "Add another effect on top of the position and aim controls."
+    },
+    {
+      "key": "camera.modifier.removeEffect",
+      "value": "Remove Effect"
+    },
+    {
+      "key": "camera.modifier.removeEffect.description",
+      "value": "Takes this effect off the camera."
     },
     {
       "key": "camera.modifier.noEffects",

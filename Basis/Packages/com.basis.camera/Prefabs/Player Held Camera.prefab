@@ -648,7 +648,7 @@ GameObject:
   - component: {fileID: 3862822240176920585}
   - component: {fileID: 2162034001241313835}
   - component: {fileID: 8448445719509802784}
-  m_Layer: 8
+  m_Layer: 11
   m_Name: ' Camera PP'
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1159,7 +1159,7 @@ GameObject:
   - component: {fileID: 8341825270649406967}
   - component: {fileID: 138172265524768872}
   - component: {fileID: 6274092639850310123}
-  m_Layer: 8
+  m_Layer: 11
   m_Name: BasisCamera
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2877,7 +2877,7 @@ GameObject:
   - component: {fileID: 5179867508575954381}
   - component: {fileID: 8280212263386802300}
   - component: {fileID: 3711318573083370660}
-  m_Layer: 8
+  m_Layer: 11
   m_Name: Overlay Image
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3976,7 +3976,7 @@ GameObject:
   - component: {fileID: 3733254523009507069}
   - component: {fileID: 3294614558523437359}
   - component: {fileID: 7719236147771000001}
-  m_Layer: 8
+  m_Layer: 11
   m_Name: Camera
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4586,7 +4586,7 @@ GameObject:
   - component: {fileID: 1849650170420533500}
   - component: {fileID: 1045180460938415514}
   - component: {fileID: 3979263900647468684}
-  m_Layer: 8
+  m_Layer: 11
   m_Name: CursorPreviewScreen
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5490,7 +5490,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4443430006390566858}
-  m_Layer: 8
+  m_Layer: 11
   m_Name: orientationSource
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -6046,7 +6046,7 @@ GameObject:
   - component: {fileID: 7645383868568982598}
   - component: {fileID: 6965530686622236972}
   - component: {fileID: 931780104200720558}
-  m_Layer: 8
+  m_Layer: 11
   m_Name: BasisCameraImagePreview
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -6371,7 +6371,7 @@ GameObject:
   - component: {fileID: 6265056561024954311}
   - component: {fileID: 6723639694777943521}
   - component: {fileID: 888522258817766430}
-  m_Layer: 8
+  m_Layer: 11
   m_Name: Player Held Camera
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -6461,7 +6461,7 @@ MonoBehaviour:
   OnPickupUse:
     m_PersistentCalls:
       m_Calls: []
-  enableScaleWithGesture: 1
+  enableScaleWithGesture: 0
   minScalePercent: 25
   maxScalePercent: 400
   constrainToAxis: 3

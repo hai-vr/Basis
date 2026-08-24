@@ -48,6 +48,12 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     public const float MinFlySpeed = 0.25f, MaxFlySpeed = 20f, FlyPitchTriggerThreshold = 0.5f;
 
     public void SetFlySpeed(float metresPerSecond) => flySpeed = Mathf.Clamp(metresPerSecond, MinFlySpeed, MaxFlySpeed);
+    public const float MinFlyClimbSpeed = 0.25f, MaxFlyClimbSpeed = 8f, MinFlyFastMultiplier = 1f, MaxFlyFastMultiplier = 10f;
+    public const float MinFlyTurnSpeed = 15f, MaxFlyTurnSpeed = 240f, MinFlyMouseSensitivity = 0.05f, MaxFlyMouseSensitivity = 3f;
+    public void SetFlyClimbSpeed(float metresPerSecond) => vrFlyElevationSpeed = Mathf.Clamp(metresPerSecond, MinFlyClimbSpeed, MaxFlyClimbSpeed);
+    public void SetFlyFastMultiplier(float multiplier) => flyFastMultiplier = Mathf.Clamp(multiplier, MinFlyFastMultiplier, MaxFlyFastMultiplier);
+    public void SetFlyTurnSpeed(float degreesPerSecond) => vrFlyTurnSpeed = Mathf.Clamp(degreesPerSecond, MinFlyTurnSpeed, MaxFlyTurnSpeed);
+    public void SetFlyMouseSensitivity(float sensitivity) => mouseSensitivity = Mathf.Clamp(sensitivity, MinFlyMouseSensitivity, MaxFlyMouseSensitivity);
 
     [Header("Camera Rotation")]
     /// <summary>Mouse sensitivity for fly rotation.</summary>
