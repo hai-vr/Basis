@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
+using Basis;
 using Basis.BasisUI;
 using TMPro;
 using Basis.Cinematics;
@@ -778,6 +779,7 @@ public partial class BasisHandHeldCameraUI
             smoothDragPositionDamping = HHC != null ? HHC.smoothDragPositionDamping : baseline.smoothDragPositionDamping,
             smoothDragRotationDamping = HHC != null ? HHC.smoothDragRotationDamping : baseline.smoothDragRotationDamping,
             smoothDragMaxDistance = HHC != null ? HHC.smoothDragMaxDistance : baseline.smoothDragMaxDistance,
+            flySpeed = HHC != null ? HHC.flySpeed : baseline.flySpeed,
             printPhoto = HHC != null && HHC.printPhotoEnabled,
             gifDurationSeconds = HHC != null ? HHC.GifDurationSeconds : baseline.gifDurationSeconds,
             gifFrameRate = HHC != null ? HHC.GifFrameRate : baseline.gifFrameRate,
@@ -790,6 +792,13 @@ public partial class BasisHandHeldCameraUI
             videoQuality = HHC != null ? HHC.VideoRecordingQuality : baseline.videoQuality,
             videoTimeLimit = HHC == null || HHC.VideoRecordingTimeLimit,
             videoContinuousClips = HHC != null && HHC.VideoContinuousClips,
+            streamTransport = HHC != null ? (int)HHC.VideoTransport : baseline.streamTransport,
+            streamWidth = HHC != null ? HHC.VideoOutputSettings.Width : baseline.streamWidth,
+            streamHeight = HHC != null ? HHC.VideoOutputSettings.Height : baseline.streamHeight,
+            streamFrameRate = HHC != null ? HHC.VideoOutputSettings.FrameRate : baseline.streamFrameRate,
+            streamQuality = HHC != null ? HHC.VideoOutputSettings.WebQuality : baseline.streamQuality,
+            streamPort = HHC != null ? HHC.VideoOutputSettings.WebPort : baseline.streamPort,
+            streamSenderName = HHC != null ? HHC.VideoOutputSettings.SenderName ?? string.Empty : baseline.streamSenderName,
             backgroundMode = HHC != null ? (int)HHC.backgroundMode : 0,
             backgroundCustomColor = HHC != null ? HHC.backgroundCustomColor : BasisHandHeldCamera.ChromaGreen,
             backgroundKeepsWorld = HHC != null && HHC.backgroundKeepsWorld,
@@ -1231,6 +1240,7 @@ public partial class BasisHandHeldCameraUI
         HHC.SetSmoothDragPositionDamping(settings.smoothDragPositionDamping);
         HHC.SetSmoothDragRotationDamping(settings.smoothDragRotationDamping);
         HHC.SetSmoothDragMaxDistance(settings.smoothDragMaxDistance);
+        HHC.SetFlySpeed(settings.flySpeed);
         HHC.printPhotoEnabled = settings.printPhoto;
 
         // Through the setters, not the fields: a settings file is text on disk, and these
@@ -1246,6 +1256,7 @@ public partial class BasisHandHeldCameraUI
         HHC.SetVideoRecordingQuality(settings.videoQuality);
         HHC.VideoRecordingTimeLimit = settings.videoTimeLimit;
         HHC.VideoContinuousClips = settings.videoContinuousClips;
+        HHC.ApplyStreamSettings((BasisVideoTransport)settings.streamTransport, settings.streamWidth, settings.streamHeight, settings.streamFrameRate, settings.streamQuality, settings.streamPort, settings.streamSenderName);
 
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC.MetaData.VolumetricFogVolume != null)

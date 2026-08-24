@@ -49,9 +49,12 @@ namespace Basis.Cinematics
         public IReadOnlyList<Vector3> DollyPoints;
         public bool DollyLooped;
 
-        /// <summary>The pose the operator's own controls produced, for the channels they still own.</summary>
+        /// <summary>The pose the solve seeds from when it has no memory of its own yet.</summary>
         public Vector3 OperatorPosition;
         public Quaternion OperatorRotation;
+
+        public Vector3 OperatorMove;
+        public float OperatorYaw, OperatorPitch;
 
         public BasisCameraOcclusionProbe OcclusionProbe;
         public BasisCameraSweepProbe SweepProbe;

@@ -119,9 +119,18 @@ public class BasisDocInspector_UI : Editor
 
         var hostType = target.GetType();
         _useApiPanel = ShouldHandleType(hostType);
-        if (!_useApiPanel) return base.CreateInspectorGUI();
+        var banner = BasisDeprecatedComponentUpgrader.Banner(targets);
+        if (!_useApiPanel)
+        {
+            if (banner == null) return base.CreateInspectorGUI();
+            var plain = new VisualElement();
+            plain.Add(banner);
+            InspectorElement.FillDefaultInspector(plain, serializedObject, this);
+            return plain;
+        }
 
         var root = new VisualElement();
+        if (banner != null) root.Add(banner);
         InspectorElement.FillDefaultInspector(root, serializedObject, this);
 
         var apiFoldout = CreateApiReferenceFoldout();

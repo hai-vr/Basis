@@ -1,4 +1,5 @@
 using System.Text;
+using Basis;
 using Basis.BasisUI;
 using UnityEngine;
 using CameraSettings = BasisHandHeldCameraUI.CameraSettings;
@@ -109,12 +110,20 @@ public static class BasisCameraSettingsReadout
         Row("camera.msaa", settings.msaaSamples + "x");
         Row("camera.n360Capture", OnOff(settings.capture360));
         Row("camera.printPhoto", OnOff(settings.printPhoto));
+        Row("camera.flySpeed", Number(settings.flySpeed) + " m/s");
         Row("camera.autoLevel", OnOff(settings.useAutoLeveling));
         Row("camera.vrStabilization", OnOff(settings.useVRHandheldSmoothing));
         Row("camera.smoothDrag", OnOff(settings.useSmoothDrag));
         Row("camera.smoothDrag.position", Number(settings.smoothDragPositionDamping) + " s");
         Row("camera.smoothDrag.rotation", Number(settings.smoothDragRotationDamping) + " s");
         Row("camera.smoothDrag.leash", Number(settings.smoothDragMaxDistance) + " m");
+        Row("camera.streamPreset", BasisCameraStreamPresets.Label(BasisCameraStreamPresets.KeyFor((BasisVideoTransport)settings.streamTransport, settings.streamWidth, settings.streamHeight, settings.streamFrameRate, settings.streamQuality)));
+        Row("camera.transport", BasisHandHeldCamera.GetVideoTransportName((BasisVideoTransport)settings.streamTransport));
+        Row("camera.streamResolution", settings.streamWidth + " x " + settings.streamHeight);
+        Row("camera.streamFrameRate", Number(settings.streamFrameRate) + " Hz");
+        Row("camera.streamQuality", settings.streamQuality.ToString());
+        Row("camera.streamPort", settings.streamPort.ToString());
+        Row("camera.senderName", settings.streamSenderName);
 
         Section("camera.gif");
         Row("camera.gif.length", Number(settings.gifDurationSeconds) + " s");

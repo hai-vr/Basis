@@ -91,6 +91,8 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public volatile bool ShoutActive;
 
+        public volatile bool Muted;
+
         /// <summary>
         /// Tracks whether initialization completed successfully.
         /// </summary>
@@ -203,6 +205,7 @@ namespace Basis.Scripts.Drivers
             {
                 openLipSyncContext = new BasisOpenLipSyncContext();
                 openLipSyncContext.Initialize(Avatar, ctxHandle);
+                openLipSyncContext.SetMuted(Muted);
                 UseOpenLipSync = true;
                 return true;
             }
@@ -387,7 +390,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void ProcessAudioSamples(float[] data, int channels, int Length)
         {
-            if (FaceVisible == false || !InVisemeRange)
+            if (FaceVisible == false || !InVisemeRange || Muted)
             {
                 return;
             }
@@ -416,10 +419,8 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnPausedEvent(bool IsPaused)
         {
-            if (IsPaused && UseOpenLipSync && openLipSyncContext != null)
-            {
-                openLipSyncContext.ZeroVisemes();
-            }
+            Muted = IsPaused;
+            openLipSyncContext?.SetMuted(IsPaused);
         }
     }
 }

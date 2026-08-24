@@ -18,7 +18,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private static readonly int[] MsaaSampleCounts = { 1, 2, 4, 8 };
 
         // Index 0 follows the subject's depth automatically; index 1 uses the Focus Distance slider.
-        private static readonly string[] FocusModeLabels = { "Follow Subject", "Manual" };
+        private static readonly string[] FocusModeKeys = { "camera.focusAuto", "camera.focusManual" };
 
         // Ordered to match BasisCameraDetachedMarker (Off / Puck / Wireframe).
         private static readonly string[] DetachedMarkerKeys =
@@ -199,6 +199,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelDropdown _formatDropdown;
         private PanelToggle _recordToggle;
         private PanelToggle _flyToggle;
+        private PanelSlider _flySpeedSlider;
         private PanelToggle _autoLevelToggle;
         private PanelToggle _vrStabToggle;
         private PanelToggle _smoothDragToggle;
@@ -217,6 +218,9 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelToggle _hideCameraToggle;
         private PanelToggle _closeHidesToggle;
         private PanelToggle _videoOutputToggle;
+        private PanelDropdown _streamPresetDropdown;
+        private List<BasisCameraStreamPreset> _streamPresets = new List<BasisCameraStreamPreset>();
+        private string _lastStreamPresetKey;
         private PanelDropdown _transportDropdown;
         private List<BasisVideoTransport> _transports = new List<BasisVideoTransport>();
         private PanelDropdown _videoResolutionDropdown;
@@ -246,6 +250,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private float _lastFocus = float.NaN;
         private bool? _lastSelfie;
         private bool? _lastFly;
+        private float _lastFlySpeed = float.NaN;
         private bool? _lastAutoLevel;
         private bool? _lastVrStab;
         private bool? _lastSmoothDrag;
@@ -326,6 +331,9 @@ namespace Basis.BasisUI.HandHeldCamera
             // what the button does, where the result is sent, and what sits behind the subject.
             AddTab("camera.capture", content =>
             {
+                _capturePageContent = content;
+                BuildBodySection(content);
+
                 BuildActionsGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_actionSection, _actionGroup, true, OnSectionExpanded);
 
@@ -350,6 +358,9 @@ namespace Basis.BasisUI.HandHeldCamera
                 BuildEffectsGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_effectsSection, _effectsGroup, false, OnSectionExpanded);
 
+                BuildLayersGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_layersSection, _layersGroup, false, OnSectionExpanded);
+
                 BuildGifGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_gifSection, _gifGroup, false, OnSectionExpanded);
 
@@ -369,11 +380,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
             AddTab("camera.tab.advanced", content =>
             {
-                BuildLayersGroup(content);
-                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_layersSection, _layersGroup, true, OnSectionExpanded);
-
                 BuildPhotoMetadataGroup(content);
-                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_photoMetadataSection, _photoMetadataGroup, false, OnSectionExpanded);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_photoMetadataSection, _photoMetadataGroup, true, OnSectionExpanded);
 
                 BuildGizmoGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_gizmoSection, _gizmoGroup, false, OnSectionExpanded);
@@ -633,6 +641,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _exposureSlider?.SetResetDefault(defaults.exposureIndex);
             _bloomIntensitySlider?.SetResetDefault(defaults.bloomIntensity);
             _bloomThresholdSlider?.SetResetDefault(defaults.bloomThreshold);
+            _flySpeedSlider?.SetResetDefault(defaults.flySpeed);
             _apertureSlider?.SetResetDefault(defaults.depthAperture);
             _focusSlider?.SetResetDefault(defaults.depthFocusDistance);
             _dofFocalLengthSlider?.SetResetDefault(defaults.dofFocalLength);
@@ -859,6 +868,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _formatDropdown = null;
             _recordToggle = null;
             _flyToggle = null;
+            _flySpeedSlider = null;
             _autoLevelToggle = null;
             _vrStabToggle = null;
             _smoothDragToggle = null;
@@ -866,6 +876,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _smoothDragRotationSlider = null;
             _smoothDragLeashSlider = null;
             _lastFly = null;
+            _lastFlySpeed = float.NaN;
             _lastAutoLevel = null;
             _lastVrStab = null;
             _lastSmoothDrag = null;
@@ -888,6 +899,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _hideCameraToggle = null;
             _closeHidesToggle = null;
             _videoOutputToggle = null;
+            _streamPresetDropdown = null;
             _transportDropdown = null;
             _videoResolutionDropdown = null;
             _videoFrameRateSlider = null;
@@ -901,6 +913,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastVideoOutputActive = null;
             _lastWebStreamActive = null;
             _lastWebStreamDescription = null;
+            _lastStreamPresetKey = null;
             _lastRecordingView = null;
             _lastPreviewScreenVisible = null;
             _lastCameraHidden = null;
@@ -1043,7 +1056,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _focusModeDropdown = PanelDropdown.CreateNewEntry(content);
             _focusModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.focus"));
             _focusModeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.focus.description"));
-            _focusModeDropdown.AssignEntries(new List<string>(FocusModeLabels));
+            _focusModeDropdown.AssignLocalizedEntries(new List<string>(FocusModeKeys), new List<string>(FocusModeKeys));
             _focusModeDropdown.OnValueChanged = _ =>
             {
                 if (_activeCamera == null || _focusModeDropdown == null) return;
@@ -1471,6 +1484,36 @@ namespace Basis.BasisUI.HandHeldCamera
                 _lastAudioListener = null;
             };
 
+            _streamPresets = BasisCameraStreamPresets.Available();
+            List<string> presetKeys = new List<string>(_streamPresets.Count + 1);
+            List<string> presetLabels = new List<string>(_streamPresets.Count + 1);
+            List<string> presetTooltips = new List<string>(_streamPresets.Count + 1);
+            for (int Index = 0; Index < _streamPresets.Count; Index++)
+            {
+                presetKeys.Add(_streamPresets[Index].Key);
+                presetLabels.Add(BasisCameraStreamPresets.Label(_streamPresets[Index].Key));
+                presetTooltips.Add(BasisCameraStreamPresets.Tooltip(_streamPresets[Index].Key));
+            }
+            presetKeys.Add(BasisCameraStreamPresets.CustomKey);
+            presetLabels.Add(BasisCameraStreamPresets.Label(BasisCameraStreamPresets.CustomKey));
+            presetTooltips.Add(BasisCameraStreamPresets.Tooltip(BasisCameraStreamPresets.CustomKey));
+
+            _streamPresetDropdown = PanelDropdown.CreateNewEntry(content);
+            _streamPresetDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.streamPreset"));
+            _streamPresetDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.streamPreset.description"));
+            _streamPresetDropdown.AssignEntries(presetKeys, presetLabels, presetTooltips);
+            _streamPresetDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _streamPresetDropdown == null) return;
+                _lastStreamPresetKey = null;
+                int index = _streamPresetDropdown.Index;
+                if (index < 0 || index >= _streamPresets.Count) return;
+                _activeCamera.ApplyStreamPreset(_streamPresets[index]);
+                _lastVideoOutputActive = null;
+                _lastWebStreamActive = null;
+                RefreshVideoOutputState();
+            };
+
             // No platform gate here: the web stream is pure sockets, so there is always at
             // least one transport to choose from, even where no shared-texture backend exists.
             _transports = BasisHandHeldCamera.AvailableVideoTransports();
@@ -1702,7 +1745,7 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             _actionSection = PanelSectionToggle.CreateNewEntry(parent);
             _actionGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
-                _actionSection, parent, BasisLocalization.Get("camera.capture"), false);
+                _actionSection, parent, BasisLocalization.Get("camera.photoHandling"), false);
             RectTransform content = _actionGroup.ContentParent;
 
             _resolutionDropdown = PanelDropdown.CreateNewEntry(content);
@@ -1755,6 +1798,15 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.flyMode"));
             _flyToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyMode.description"));
             _flyToggle.OnValueChanged = v => _activeCamera?.SetFlyModeEnabled(v);
+
+            _flySpeedSlider = PanelSlider.CreateNew(content);
+            _flySpeedSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.flySpeed"),
+                BasisHandHeldCameraInteractable.MinFlySpeed,
+                BasisHandHeldCameraInteractable.MaxFlySpeed,
+                false, 2, ValueDisplayMode.Raw));
+            _flySpeedSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.flySpeed.description"));
+            _flySpeedSlider.OnValueChanged = v => _activeCamera?.SetFlySpeed(v);
 
             _autoLevelToggle = PanelToggle.CreateNewEntry(content);
             _autoLevelToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.autoLevel"));
@@ -2312,7 +2364,7 @@ namespace Basis.BasisUI.HandHeldCamera
             }
 
             _lastFocusFollows = _activeCamera.autoFocusFollowSubject;
-            _focusModeDropdown?.SetValueWithoutNotify(FocusModeLabels[_activeCamera.autoFocusFollowSubject ? 0 : 1]);
+            _focusModeDropdown?.SetValueWithoutNotify(FocusModeKeys[_activeCamera.autoFocusFollowSubject ? 0 : 1]);
 
             _autoBrightnessToggle?.SetValueWithoutNotify(_activeCamera.autoBrightnessEnabled);
             _autoBrightnessTargetSlider?.SetValueWithoutNotify(_activeCamera.autoBrightnessTarget * 100f);
@@ -2415,6 +2467,8 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_selfieToggle, _activeCamera.HandHeld.IsSelfieMode, ref _lastSelfie);
             SyncToggle(_closeHidesToggle, _activeCamera.HandHeld.CloseHidesCamera, ref _lastCloseHides);
             SyncToggle(_flyToggle, _activeCamera.IsFlyModeEnabled, ref _lastFly);
+            _lastFlySpeed = _activeCamera.flySpeed;
+            _flySpeedSlider?.SetValueWithoutNotify(_activeCamera.flySpeed);
             _autoLevelToggle?.SetValueWithoutNotify(_activeCamera.useAutoLeveling);
             _vrStabToggle?.SetValueWithoutNotify(_activeCamera.useVRHandheldSmoothing);
             _lastSmoothDrag = _activeCamera.useSmoothDrag;
@@ -2561,6 +2615,19 @@ namespace Basis.BasisUI.HandHeldCamera
             _videoOutputToggle.Descriptor.SetDescription(description);
         }
 
+        private void RefreshStreamPresetSelection()
+        {
+            if (_streamPresetDropdown == null || _activeCamera == null) return;
+            if (_streamPresetDropdown.DropdownComponent != null && _streamPresetDropdown.DropdownComponent.IsExpanded) return;
+
+            int index = BasisCameraStreamPresets.IndexOf(_streamPresets, _activeCamera.VideoTransport, _activeCamera.VideoOutputSettings);
+            string key = index >= 0 ? _streamPresets[index].Key : BasisCameraStreamPresets.CustomKey;
+            if (_lastStreamPresetKey == key) return;
+
+            _lastStreamPresetKey = key;
+            _streamPresetDropdown.SetValueWithoutNotify(key);
+        }
+
         private void RefreshVideoOutputState()
         {
             if (_activeCamera == null) return;
@@ -2568,6 +2635,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_videoOutputToggle, _activeCamera.IsAnyVideoOutputActive, ref _lastVideoOutputActive);
             _lastWebStreamActive = _activeCamera.IsWebStreamActive;
             RefreshTransportSelection();
+            RefreshStreamPresetSelection();
             RefreshLiveOutputDescription();
             _videoFrameRateSlider?.SetValueWithoutNotify(_activeCamera.VideoOutputSettings.FrameRate);
             _webQualitySlider?.SetValueWithoutNotify(_activeCamera.VideoOutputSettings.WebQuality);
@@ -2652,6 +2720,7 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 RefreshVideoOutputState();
             }
+            RefreshStreamPresetSelection();
 
             SyncToggle(_recordToggle, _activeCamera.enableRecordingView, ref _lastRecordingView);
             SyncToggle(_previewScreenToggle, _activeCamera.IsPreviewScreenVisible, ref _lastPreviewScreenVisible);
@@ -2664,6 +2733,7 @@ namespace Basis.BasisUI.HandHeldCamera
             TickVideoSection();
             TickRenderRateLock();
             TickPhotoStatus();
+            TickBodySection();
             RefreshTimerLabel();
             RefreshHiddenState();
         }
@@ -2694,6 +2764,7 @@ namespace Basis.BasisUI.HandHeldCamera
             // the mode presets switch it off from underneath — so the toggle has to follow the
             // camera rather than assume it is the only writer.
             SyncToggle(_flyToggle, _activeCamera.IsFlyModeEnabled, ref _lastFly);
+            SyncSlider(_flySpeedSlider, _activeCamera.flySpeed, ref _lastFlySpeed);
             SyncToggle(_autoLevelToggle, _activeCamera.useAutoLeveling, ref _lastAutoLevel);
             SyncToggle(_vrStabToggle, _activeCamera.useVRHandheldSmoothing, ref _lastVrStab);
 
@@ -2716,7 +2787,7 @@ namespace Basis.BasisUI.HandHeldCamera
             if (_lastFocusFollows != focusFollows)
             {
                 _lastFocusFollows = focusFollows;
-                _focusModeDropdown?.SetValueWithoutNotify(FocusModeLabels[focusFollows ? 0 : 1]);
+                _focusModeDropdown?.SetValueWithoutNotify(FocusModeKeys[focusFollows ? 0 : 1]);
                 RefreshDoFModeVisibility();
             }
 
@@ -2838,7 +2909,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _activeCamera.HandHeld.SetFocusFollowsSubject(follows);
             if (follows) _activeCamera.BasisDOFInteractionHandler?.SetDoFState(true);
 
-            _focusModeDropdown?.SetValueWithoutNotify(FocusModeLabels[follows ? 0 : 1]);
+            _focusModeDropdown?.SetValueWithoutNotify(FocusModeKeys[follows ? 0 : 1]);
             RefreshDoFModeVisibility();
         }
 
@@ -3022,6 +3093,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 all.AddRange(BasisHandHeldCamera.GridPatternKeys);
                 all.AddRange(MeteringKeys);
                 all.AddRange(GrainTypeKeys);
+                all.AddRange(BasisCameraStreamPresets.OptionKeys);
                 for (int Index = 0; Index < BasisCameraModifiers.Effects.Length; Index++)
                 {
                     all.Add(BasisCameraModifiers.Effects[Index].NameKey);
@@ -3031,7 +3103,7 @@ namespace Basis.BasisUI.HandHeldCamera
         }
         public static string[] MeteringKeysForTest => MeteringKeys;
         public static string[] DollyEaseKeysForTest => DollyEaseKeys;
-        public static string[] FocusModeLabelsForTest => FocusModeLabels;
+        public static string[] FocusModeLabelsForTest => FocusModeKeys;
         public static int[] MsaaSampleCountsForTest => MsaaSampleCounts;
         public static int[] VideoResolutionWidthsForTest => VideoResolutionWidths;
         public static int[] VideoResolutionHeightsForTest => VideoResolutionHeights;

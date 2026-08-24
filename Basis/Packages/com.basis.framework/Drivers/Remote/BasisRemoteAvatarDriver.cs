@@ -47,6 +47,7 @@ namespace Basis.Scripts.Drivers
         public float NamePlateHeightAboveHipsModel;
 
         public Quaternion DerivedRootToCharacterBasis = Quaternion.identity;
+        public Quaternion HipsToCharacterBasis = Quaternion.identity;
 
         public bool InBoneDriver = false;
 
@@ -393,6 +394,7 @@ namespace Basis.Scripts.Drivers
             // avatar's facing, and anything aiming at the player (the follow camera) has to divide
             // it back out.
             DerivedRootToCharacterBasis = BasisGenericBoneRotationUtils.GetDerivedRootToCharacterBasis(References);
+            HipsToCharacterBasis = math.conjugate(BasisGenericBoneRotationUtils.GetRestFrame(References, HumanBodyBones.Hips));
 
             // Initialize this player's interpolation slot before registering it with the bone
             // job system. The bone Schedule reads _filtered*[playerId] earlier in LateUpdate than

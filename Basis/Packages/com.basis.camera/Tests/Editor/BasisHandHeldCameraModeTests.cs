@@ -203,30 +203,42 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
-        public void EnableFly_StopsAutoFollow()
+        public void EnableFly_LeavesAFittedModifierAlone()
         {
             _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
             _camera.SetFlyModeEnabled(true);
 
-            Assert.That(_camera.Modifiers.DrivesPosition, Is.False,
-                "Follow and manual flight both drive the world pin; only one can own it.");
+            Assert.That(_camera.IsFlyModeEnabled, Is.True);
+            Assert.That(_camera.Modifiers.DrivesPosition, Is.True,
+                "Flight is an override on top of the stack, not a state that unfits it.");
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace));
         }
 
         [Test]
-        public void EnableAutoFollow_StopsFly()
+        public void FittingAModifier_LeavesFlightArmed()
         {
-            // The other direction. Follow wins inside MoveCameraFlying either way, so leaving fly
-            // armed held the player's look/move/crouch locks for a stick that steered nothing.
             _camera.SetFlyModeEnabled(true);
 
             _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
 
-            Assert.That(_camera.IsFlyModeEnabled, Is.False);
+            Assert.That(_camera.IsFlyModeEnabled, Is.True,
+                "The sticks keep steering over the modifier until flight is switched off.");
             Assert.That(_camera.Modifiers.DrivesPosition, Is.True);
+            Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace));
+        }
+
+        [Test]
+        public void DisableFly_WithAModifierFitted_StaysInTheWorld()
+        {
+            _camera.SetPositionModifier(BasisCameraPositionModifier.FollowSubject);
+            _camera.SetFlyModeEnabled(true);
+
+            _camera.SetFlyModeEnabled(false);
+
+            Assert.That(_camera.IsFlyModeEnabled, Is.False);
             Assert.That(_camera.PinSpace, Is.EqualTo(CameraPinSpace.WorldSpace),
-                "Follow claims the world pin on the way in, after fly has handed it back.");
+                "The modifier still has the camera; only the sticks were handed back.");
         }
 
         [Test]
@@ -299,8 +311,8 @@ namespace Basis.Tests.Camera
             Assert.That(
                 typeof(BasisHandHeldCameraUI.CameraSettings).GetFields(
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance),
-                Has.None.Matches<System.Reflection.FieldInfo>(f => f.Name.ToLowerInvariant().Contains("fly")),
-                "Fly mode is per-session state, not a saved setting.");
+                Has.None.Matches<System.Reflection.FieldInfo>(f => f.Name.ToLowerInvariant().Contains("fly") && f.Name != "flySpeed"),
+                "Fly mode is per-session state, not a saved setting; the speed it flies at is one.");
         }
 
         [Test]
@@ -536,14 +548,51 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
-        public void RemoteSubjectYaw_DividesOutTheirRigsRootConstant()
+        public void RemoteSubjectYaw_ReadsTheirHipsThroughTheRigsRestFrame()
         {
-            // The root pose the bone jobs write is backed out of the hips' parent and carries
-            // whatever the exporter baked above the skeleton; a model authored facing -Z puts a
-            // straight 180 degrees in it. None of that shows in the avatar — the hips are applied
-            // in world space and the mesh follows them — so the camera was the one thing that could
-            // see it, and it set the shot up behind everyone wearing one of those rigs.
+            // The root pose the bone jobs write is backed out of the hips' PARENT, so it never turns
+            // when somebody turns around in their own playspace; only their hips do. The rig's hips
+            // rest frame is what turns that hips rotation back into which way the avatar faces.
             const ushort netId = 14;
+            GameObject root = new GameObject("RemoteRootUnderTest");
+            GameObject hips = new GameObject("RemoteHipsUnderTest");
+            GameObject mouth = new GameObject("RemoteMouthUnderTest");
+            root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.Euler(0f, 90f, 0f));
+            hips.transform.SetParent(root.transform, false);
+            hips.transform.rotation = Quaternion.Euler(0f, 45f, 0f);
+            mouth.transform.position = new Vector3(0f, 1.6f, 0f);
+
+            BasisRemotePlayer remote = new BasisRemotePlayer
+            {
+                AvatarAnimatorTransform = root.transform,
+                MouthTransform = mouth.transform,
+            };
+            remote.RemoteAvatarDriver.References.Hips = hips.transform;
+            remote.RemoteAvatarDriver.HipsToCharacterBasis = Quaternion.Euler(0f, 180f, 0f);
+            remote.RemoteAvatarDriver.DerivedRootToCharacterBasis = Quaternion.Euler(0f, 180f, 0f);
+
+            try
+            {
+                Assert.That(_camera.TryResolveRemoteSubjectForTest(netId, remote, out Quaternion yaw, out _, out _),
+                    Is.True);
+                Assert.That(Quaternion.Angle(yaw, Quaternion.Euler(0f, 225f, 0f)), Is.LessThan(0.5f),
+                    "The shot is framed against the way the body faces, not the way its root does.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(mouth);
+                Object.DestroyImmediate(hips);
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void RemoteSubjectYaw_FallsBackToTheRootAndItsRigConstantWithoutHips()
+        {
+            // Before the hips are registered the root is all there is. It carries whatever the
+            // exporter baked above the skeleton — a model authored facing -Z puts a straight 180
+            // degrees in it — and that constant is divided back out.
+            const ushort netId = 15;
             GameObject root = new GameObject("RemoteRootFlippedRigUnderTest");
             GameObject mouth = new GameObject("RemoteMouthFlippedRigUnderTest");
             root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.Euler(0f, 90f, 0f));

@@ -9,6 +9,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Cinematics;
+using Basis.Scripts.Networking.NetworkedAvatar;
 
 /// <summary>
 /// Interactable handheld/fly camera controller:
@@ -43,6 +44,10 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
     /// <summary>Position smoothing factor while flying.</summary>
     public float flyMovementSmoothing = 12f;
+
+    public const float MinFlySpeed = 0.25f, MaxFlySpeed = 20f, FlyPitchTriggerThreshold = 0.5f;
+
+    public void SetFlySpeed(float metresPerSecond) => flySpeed = Mathf.Clamp(metresPerSecond, MinFlySpeed, MaxFlySpeed);
 
     [Header("Camera Rotation")]
     /// <summary>Mouse sensitivity for fly rotation.</summary>
@@ -255,25 +260,21 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         string className = nameof(BasisHandHeldCameraInteractable);
 
-        // Flight and a position modifier both drive the same world pin, and the stack wins inside
-        // MoveCameraFlying. Written straight onto the stack rather than through SetPositionModifier,
-        // which would call back into ExitFlyMode from underneath this one.
-        if (Modifiers.DrivesPosition)
-        {
-            Modifiers.positionModifier = BasisCameraPositionModifier.FreeFly;
-        }
-
         LookLock.Add(className);
         MovementLock.Add(className);
         CrouchingLock.Add(className);
 
+        bool fromHand = PinSpace == CameraPinSpace.HandHeld;
         DetachFromHand();
 
-        if (HHC != null && HHC.captureCamera != null)
+        if (fromHand && HHC != null && HHC.captureCamera != null)
         {
             HHC.captureCamera.transform.GetPositionAndRotation(out Vector3 heldPosition, out Quaternion heldRotation);
             SeedPose(heldPosition, heldRotation);
         }
+
+        pendingYaw = 0f;
+        pendingPitch = 0f;
 
         if (BasisDeviceManagement.IsUserInDesktop())
         {
@@ -283,20 +284,6 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         }
 
         isVRFlying = true;
-
-        // Seed the aim from where the camera already points, so arming it does not snap.
-        SeedOperatorAimFromCurrentRotation();
-    }
-
-    /// <summary>
-    /// Points the operator's pitch and yaw at wherever the camera is now, so whatever takes the
-    /// rotation channel next continues from the live shot rather than from a stale aim.
-    /// </summary>
-    private void SeedOperatorAimFromCurrentRotation()
-    {
-        Vector3 euler = smoothedRotation.eulerAngles;
-        currentPitch = targetPitch = NormalizeAngle(euler.x);
-        currentYaw = targetYaw = NormalizeAngle(euler.y);
     }
 
     /// <summary>
@@ -325,7 +312,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
             // Only flight's own detach is undone here. A camera the user put on an anchor stays on
             // it: they chose where it sits, and landing it back in their hand would undo that.
-            if (PinSpace == CameraPinSpace.WorldSpace)
+            if (PinSpace == CameraPinSpace.WorldSpace && !Modifiers.DrivesAnything)
             {
                 PinSpace = CameraPinSpace.HandHeld;
             }
@@ -336,7 +323,8 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         if (!CrouchingLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove CrouchingLock");
 
         velocityMomentum = Vector3.zero;
-        rotationMomentum = 0f;
+        pendingYaw = 0f;
+        pendingPitch = 0f;
     }
 
     /// <summary>
@@ -450,7 +438,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     {
         InitializeModifiers();
         modifiers.positionModifier = BasisCameraPositionModifier.FreeFly;
-        modifiers.rotationModifier = BasisCameraRotationModifier.FreeLook;
+        modifiers.rotationModifier = BasisCameraRotationModifier.Hold;
         ClearAnchorTarget();
         PinSpace = CameraPinSpace.WorldSpace;
         SeedPose(position, rotation);
@@ -506,7 +494,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         // foot-plant as shake, its rotation is slammed to identity on teleport, and it is
         // replaced on every avatar swap. The root is what locomotion actually moves.
         BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out Vector3 rootPos, out Quaternion anchorRot);
-        Quaternion anchorYaw = FlattenToYaw(anchorRot);
+        Quaternion anchorYaw = ResolveLocalBodyYaw(anchorRot);
 
         float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
 
@@ -569,6 +557,21 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         return Quaternion.LookRotation(flat.normalized, Vector3.up);
     }
 
+    private static Quaternion ResolveLocalBodyYaw(Quaternion rootRotation)
+    {
+        BasisLocalBoneControl hips = BasisLocalBoneDriver.HipsControl;
+        if (hips == null) return FlattenToYaw(rootRotation);
+        return FlattenToYaw(hips.OutgoingWorldData.rotation * (Quaternion)BasisGenericBoneRotationUtils.GetCharacterBasis(BasisLocalAvatarDriver.Mapping));
+    }
+
+    private static Quaternion ResolveRemoteBodyYaw(BasisRemotePlayer remote, Quaternion rootRotation)
+    {
+        BasisRemoteAvatarDriver driver = remote.RemoteAvatarDriver;
+        if (driver == null) return FlattenToYaw(rootRotation);
+        Transform hips = driver.References?.Hips;
+        return hips != null ? FlattenToYaw(hips.rotation * driver.HipsToCharacterBasis) : FlattenToYaw(rootRotation * driver.DerivedRootToCharacterBasis);
+    }
+
     /// <summary>Nominal root-to-head height used only while a remote has no avatar root to read.</summary>
     private const float RemoteFallbackHeadHeight = 1.5f;
 
@@ -612,18 +615,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         if (root != null)
         {
             root.GetPositionAndRotation(out rootPos, out Quaternion rootRot);
-
-            // The root's own rotation is NOT which way they are facing. The remote pipeline backs
-            // that pose out of the hips' PARENT, so it carries whatever the exporter baked between
-            // the animator and the skeleton, and the animator root is not the anatomical frame
-            // either — a model authored facing −Z is a legal humanoid rig. Neither shows in the
-            // avatar (hips are applied in world space and the mesh follows them), so the camera was
-            // the only thing that could see it: on those rigs the shot set up 180° out and filmed
-            // the subject from behind. The correction is a per-avatar constant measured at
-            // calibration, and identity on a rig with hips straight off a +Z-facing root.
-            yaw = FlattenToYaw(rootRot * (remote.RemoteAvatarDriver != null
-                ? remote.RemoteAvatarDriver.DerivedRootToCharacterBasis
-                : Quaternion.identity));
+            yaw = ResolveRemoteBodyYaw(remote, rootRot);
             lastRemoteBodyYaw = yaw;
             lastRemoteBodyYawSubject = netId;
         }
@@ -883,34 +875,17 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     private Vector3 currentVelocity = Vector3.zero;
     private Vector3 targetVelocity = Vector3.zero;
     private Vector3 velocityMomentum = Vector3.zero;
-    private float rotationMomentum = 0f;
-
-    // Rotation state
-    private float currentPitch = 0f;
-    private float currentYaw = 0f;
-    private float targetPitch = 0f;
-    private float targetYaw = 0f;
+    private float pendingYaw, pendingPitch;
 
     // Smoothed transform (for pin constraint offset)
     private Vector3 smoothedPosition = Vector3.zero;
     private Quaternion smoothedRotation = Quaternion.identity;
 
-    /// <summary>
-    /// The pose the operator's own controls hold, before any modifier has run.
-    ///
-    /// <para>Kept apart from <see cref="smoothedPosition"/> because the finished pose can carry an
-    /// effect on top of it. Integrating the next frame from a pose that already has shake in it
-    /// folds every frame's wander into the base, and the camera random-walks away from where the
-    /// stick left it.</para>
-    /// </summary>
-    private Vector3 operatorPosition = Vector3.zero;
-    private Quaternion operatorRotation = Quaternion.identity;
-
-    /// <summary>Puts the operator's pose and the published pose at the same place.</summary>
     private void SeedPose(Vector3 position, Quaternion rotation)
     {
-        operatorPosition = smoothedPosition = position;
-        operatorRotation = smoothedRotation = rotation;
+        smoothedPosition = position;
+        smoothedRotation = rotation;
+        modifierState.Seed(position, rotation, GetCaptureFov());
     }
 
     private bool pauseMove = false;
@@ -1530,22 +1505,13 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
     /// <summary>
     /// Moves every pose the camera holds between frames onto the anchor's new frame — the
-    /// operator's pose, the published one, the fly rig's own heading and momentum, and the solver's
-    /// memory. Anything left behind would pull the camera back off the anchor on the next step.
+    /// published pose, the fly rig's momentum, and the solver's memory. Anything left behind would
+    /// pull the camera back off the anchor on the next step.
     /// </summary>
     private void TransportRememberedPoses(Vector3 fromPosition, Quaternion fromRotation, Vector3 toPosition, Quaternion toRotation)
     {
-        operatorPosition = BasisCameraAnchorMath.TransportPoint(operatorPosition, fromPosition, fromRotation, toPosition, toRotation);
         smoothedPosition = BasisCameraAnchorMath.TransportPoint(smoothedPosition, fromPosition, fromRotation, toPosition, toRotation);
-        operatorRotation = BasisCameraAnchorMath.TransportRotation(operatorRotation, fromRotation, toRotation);
         smoothedRotation = BasisCameraAnchorMath.TransportRotation(smoothedRotation, fromRotation, toRotation);
-
-        // The desktop fly rig rebuilds its rotation from these two floats every frame, so a
-        // transported quaternion alone would be overwritten before it was ever published. Pitch is
-        // not carried: the rig stores pitch and yaw about world axes with roll pinned to zero, so
-        // an anchor that tips has no representation in it to be carried into.
-        currentYaw = BasisCameraAnchorMath.TransportHeading(currentYaw, fromRotation, toRotation);
-        targetYaw = BasisCameraAnchorMath.TransportHeading(targetYaw, fromRotation, toRotation);
 
         currentVelocity = BasisCameraAnchorMath.TransportDirection(currentVelocity, fromRotation, toRotation);
         targetVelocity = BasisCameraAnchorMath.TransportDirection(targetVelocity, fromRotation, toRotation);
@@ -1706,10 +1672,8 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     }
 
     /// <summary>
-    /// One step of camera motion. The operator's own controls run for whichever channels the
-    /// modifier stack has not claimed, and the stack then solves over the top of them — so a
-    /// hand-flown camera that keeps somebody framed is just a stack with the position slot empty,
-    /// rather than a mode of its own.
+    /// One step of camera motion. The stack solves the pose, and the operator's fly controls steer
+    /// over the top of whatever it produced.
     /// </summary>
     private void MoveCameraFlying()
     {
@@ -1720,62 +1684,50 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         if (HHC != null && HHC.TryGetFollowPipPose(out Vector3 pipPos, out Quaternion pipRot))
         {
             SeedPose(pipPos, pipRot);
-
-            // The stack keeps up with the puck rather than holding wherever it last solved, so
-            // letting go eases on from where the camera actually is instead of sweeping back.
-            ModifierState.Seed(pipPos, pipRot, GetCaptureFov());
             return;
         }
 
-        BasisCameraModifierStack stack = Modifiers;
-        bool drivesPosition = stack.DrivesPosition;
-        bool drivesRotation = stack.DrivesRotation;
+        ReadOperatorInput(deltaTime, out Vector3 move, out float yaw, out float pitch);
+        MoveCameraModifiers(deltaTime, move, yaw, pitch);
+    }
 
-        if (!drivesPosition || !drivesRotation)
+    private void ReadOperatorInput(float deltaTime, out Vector3 move, out float yaw, out float pitch)
+    {
+        if (HandleMovementInput(out Vector3 inputMovement, out float speedMultiplier))
         {
-            MoveCameraOperator(deltaTime, !drivesPosition, !drivesRotation);
+            UpdateMovement(inputMovement, speedMultiplier, deltaTime);
         }
-
-        if (stack.DrivesAnything)
+        else if (useMomentum)
         {
-            MoveCameraModifiers(deltaTime);
+            ApplyInertia(deltaTime);
         }
         else
         {
-            smoothedPosition = operatorPosition;
-            smoothedRotation = operatorRotation;
+            currentVelocity = Vector3.zero;
+            targetVelocity = Vector3.zero;
         }
-    }
+        move = (currentVelocity + (useMomentum ? velocityMomentum : Vector3.zero)) * deltaTime;
 
-    /// <summary>
-    /// The operator's own fly controls: input, acceleration, momentum and auto-levelling, for the
-    /// channels the stack has left them.
-    /// </summary>
-    private void MoveCameraOperator(float deltaTime, bool applyPosition, bool applyRotation)
-    {
-        if (applyPosition)
+        if (HandleRotationInput(deltaTime, out Vector2 rotationDelta))
         {
-            if (HandleMovementInput(out Vector3 inputMovement, out float speedMultiplier))
-            {
-                UpdateMovement(inputMovement, speedMultiplier, deltaTime);
-            }
-            else if (useMomentum)
-            {
-                ApplyInertia(deltaTime);
-            }
-            else
-            {
-                currentVelocity = Vector3.zero;
-                targetVelocity = Vector3.zero;
-            }
+            pendingYaw += rotationDelta.x;
+            pendingPitch -= rotationDelta.y;
         }
-
-        if (applyRotation && HandleRotationInput(deltaTime, out Vector2 rotationDelta))
+        float fraction = Mathf.Clamp01(rotationSmoothing * deltaTime);
+        yaw = pendingYaw * fraction;
+        pitch = pendingPitch * fraction;
+        pendingYaw -= yaw;
+        pendingPitch -= pitch;
+        if (Mathf.Abs(pendingYaw) < 0.001f)
         {
-            UpdateRotation(rotationDelta, deltaTime);
+            yaw += pendingYaw;
+            pendingYaw = 0f;
         }
-
-        ApplySmoothedPosition(deltaTime, applyPosition, applyRotation);
+        if (Mathf.Abs(pendingPitch) < 0.001f)
+        {
+            pitch += pendingPitch;
+            pendingPitch = 0f;
+        }
     }
 
     /// <summary>
@@ -1796,7 +1748,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             if (planar.magnitude > 1f)
                 planar.Normalize();
 
-            float climb = TryGetFlyTurnInput(out BasisInputState turnState)
+            float climb = TryGetFlyTurnInput(out BasisInputState turnState) && turnState.Trigger < FlyPitchTriggerThreshold
                 ? turnState.Primary2DAxisDeadZoned.y
                 : 0f;
 
@@ -1898,16 +1850,15 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         if (isVRFlying)
         {
-            targetPitch = 0f;
-
             if (!TryGetFlyTurnInput(out BasisInputState turnState))
                 return false;
 
-            float yawInput = turnState.Primary2DAxisDeadZoned.x;
-            if (Mathf.Abs(yawInput) < 0.01f)
+            Vector2 stick = turnState.Primary2DAxisDeadZoned;
+            float pitchInput = turnState.Trigger >= FlyPitchTriggerThreshold ? stick.y : 0f;
+            if (Mathf.Abs(stick.x) < 0.01f && Mathf.Abs(pitchInput) < 0.01f)
                 return false;
 
-            rotationDelta = new Vector2(yawInput * vrFlyTurnSpeed * deltaTime, 0f);
+            rotationDelta = new Vector2(stick.x, pitchInput) * (vrFlyTurnSpeed * deltaTime);
             return true;
         }
 
@@ -1919,19 +1870,6 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         rotationDelta = mouseInput * mouseSensitivity;
         return true;
-    }
-
-    /// <summary>Updates target yaw/pitch from input and builds rotation momentum.</summary>
-    private void UpdateRotation(Vector2 rotationDelta, float deltaTime)
-    {
-        targetYaw += rotationDelta.x;
-        targetPitch -= rotationDelta.y;
-
-        targetPitch = Mathf.Clamp(targetPitch, -90f, 90f);
-        targetYaw = NormalizeAngle(targetYaw);
-
-        float rotationSpeed = rotationDelta.magnitude;
-        rotationMomentum = Mathf.Lerp(rotationMomentum, rotationSpeed * 0.1f, deltaTime * 5f);
     }
 
     /// <summary>
@@ -1948,32 +1886,6 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         return Quaternion.Euler(NormalizeAngle(targetEuler.x), NormalizeAngle(targetEuler.y), roll);
     }
 
-    /// <summary>
-    /// Integrates velocity into <see cref="operatorPosition"/> and applies smoothed rotation
-    /// with momentum-influenced smoothing.
-    /// </summary>
-    private void ApplySmoothedPosition(float deltaTime, bool applyPosition = true, bool applyRotation = true)
-    {
-        if (applyPosition)
-        {
-            Vector3 finalVelocity = currentVelocity + (useMomentum ? velocityMomentum : Vector3.zero);
-            operatorPosition += finalVelocity * deltaTime;
-        }
-
-        if (!applyRotation)
-        {
-            return;
-        }
-
-        float enhancedRotationSmoothness = rotationSmoothing + rotationMomentum;
-
-        currentPitch = Mathf.LerpAngle(currentPitch, targetPitch, enhancedRotationSmoothness * deltaTime);
-        currentYaw = Mathf.LerpAngle(currentYaw, targetYaw, enhancedRotationSmoothness * deltaTime);
-
-        Quaternion targetRotationQuat = Quaternion.Euler(currentPitch, currentYaw, 0f);
-        operatorRotation = Quaternion.Slerp(operatorRotation, targetRotationQuat, rotationSmoothing * deltaTime);
-    }
-
     /// <summary>Normalizes an angle to the range [-180, 180].</summary>
     private float NormalizeAngle(float angle)
     {
@@ -1988,7 +1900,8 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         currentVelocity = Vector3.zero;
         targetVelocity = Vector3.zero;
         velocityMomentum = Vector3.zero;
-        rotationMomentum = 0f;
+        pendingYaw = 0f;
+        pendingPitch = 0f;
     }
     /// <summary>
     /// Whether the body is being dragged right now. Desktop holds are a permanent head constraint,

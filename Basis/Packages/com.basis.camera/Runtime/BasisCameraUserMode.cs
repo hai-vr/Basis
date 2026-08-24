@@ -241,6 +241,7 @@ public class BasisCameraUserMode
         if (!Near(left.smoothDragPositionDamping, right.smoothDragPositionDamping, Epsilon)) return false;
         if (!Near(left.smoothDragRotationDamping, right.smoothDragRotationDamping, Epsilon)) return false;
         if (!Near(left.smoothDragMaxDistance, right.smoothDragMaxDistance, Epsilon)) return false;
+        if (!Near(left.flySpeed, right.flySpeed, Epsilon)) return false;
         if (left.printPhoto != right.printPhoto) return false;
 
         if (!Near(left.gifDurationSeconds, right.gifDurationSeconds, Epsilon)) return false;
@@ -255,6 +256,14 @@ public class BasisCameraUserMode
         if (left.videoQuality != right.videoQuality) return false;
         if (left.videoTimeLimit != right.videoTimeLimit) return false;
         if (left.videoContinuousClips != right.videoContinuousClips) return false;
+
+        if (left.streamTransport != right.streamTransport) return false;
+        if (left.streamWidth != right.streamWidth) return false;
+        if (left.streamHeight != right.streamHeight) return false;
+        if (!Near(left.streamFrameRate, right.streamFrameRate, Epsilon)) return false;
+        if (left.streamQuality != right.streamQuality) return false;
+        if (left.streamPort != right.streamPort) return false;
+        if (!string.Equals(left.streamSenderName, right.streamSenderName)) return false;
 
         if (left.backgroundMode != right.backgroundMode) return false;
         if (!Near(left.backgroundCustomColor, right.backgroundCustomColor)) return false;

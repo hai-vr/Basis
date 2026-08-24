@@ -964,7 +964,7 @@ namespace Basis.Tests.Camera
             state.Seed(Vector3.zero, Quaternion.identity, 40f);
 
             BasisCameraSolveContext context = WithSweep(StackFixture.Context(), 1f);
-            context.OperatorPosition = new Vector3(0f, 0f, 5f);
+            context.OperatorMove = new Vector3(0f, 0f, 5f);
 
             BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
 
@@ -980,7 +980,7 @@ namespace Basis.Tests.Camera
             state.Seed(Vector3.zero, Quaternion.identity, 40f);
 
             BasisCameraSolveContext context = WithSweep(StackFixture.Context(), 0f, hit: false);
-            context.OperatorPosition = new Vector3(0f, 0f, 5f);
+            context.OperatorMove = new Vector3(0f, 0f, 5f);
 
             BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
 
@@ -997,7 +997,7 @@ namespace Basis.Tests.Camera
             state.Seed(Vector3.zero, Quaternion.identity, 40f);
 
             BasisCameraSolveContext context = WithSweep(StackFixture.Context(), 0f);
-            context.OperatorPosition = new Vector3(0f, 0f, 5f);
+            context.OperatorMove = new Vector3(0f, 0f, 5f);
 
             BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
 
@@ -1012,7 +1012,7 @@ namespace Basis.Tests.Camera
             state.Seed(Vector3.zero, Quaternion.identity, 40f);
 
             BasisCameraSolveContext context = WithSweep(StackFixture.Context(), 100f);
-            context.OperatorPosition = new Vector3(0f, 0f, 2f);
+            context.OperatorMove = new Vector3(0f, 0f, 2f);
 
             BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
 
@@ -1027,7 +1027,7 @@ namespace Basis.Tests.Camera
             state.Seed(Vector3.zero, Quaternion.identity, 40f);
 
             BasisCameraSolveContext context = StackFixture.Context();
-            context.OperatorPosition = new Vector3(0f, 0f, 5f);
+            context.OperatorMove = new Vector3(0f, 0f, 5f);
 
             BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, context);
 
@@ -1063,7 +1063,7 @@ namespace Basis.Tests.Camera
             BasisCameraPose first = BasisCameraModifierSolver.Solve(stack, state, near);
 
             BasisCameraSolveContext far = StackFixture.Context();
-            far.OperatorPosition = new Vector3(0f, 0f, 9f);
+            far.OperatorMove = new Vector3(0f, 0f, 6f);
             BasisCameraPose second = BasisCameraModifierSolver.Solve(stack, state, far);
 
             Assert.That(second.Fov, Is.LessThan(first.Fov),
@@ -1085,7 +1085,7 @@ namespace Basis.Tests.Camera
             BasisCameraModifierSolver.Solve(stack, state, near);
 
             BasisCameraSolveContext miles = StackFixture.Context();
-            miles.OperatorPosition = new Vector3(0f, 0f, 400f);
+            miles.OperatorMove = new Vector3(0f, 0f, 397f);
             BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, miles);
 
             Assert.That(pose.Fov, Is.EqualTo(30f).Within(1e-3f));
@@ -1141,17 +1141,16 @@ namespace Basis.Tests.Camera
         private static BasisCameraModifierStack RigWeightStack()
         {
             BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.LockedOff);
-            stack.rotationModifier = BasisCameraRotationModifier.FreeLook;
             stack.rigWeight.responsiveness = 3f;
             stack.rigWeight.bounce = 1f;
             stack.AddEffect(BasisCameraEffectModifier.RigWeight);
             return stack;
         }
 
-        private static BasisCameraSolveContext Aimed(float yawDegrees)
+        private static BasisCameraSolveContext Steer(float yawDegrees)
         {
             BasisCameraSolveContext context = StackFixture.Context();
-            context.OperatorRotation = BasisCameraDamping.Yaw(yawDegrees);
+            context.OperatorYaw = yawDegrees;
             return context;
         }
 
@@ -1168,7 +1167,7 @@ namespace Basis.Tests.Camera
             float furthest = 0f;
             for (int Frame = 0; Frame < 120; Frame++)
             {
-                BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, Aimed(30f));
+                BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, Steer(Frame == 0 ? 30f : 0f));
                 furthest = Mathf.Max(furthest, Yaw(pose.Rotation));
             }
 
@@ -1186,7 +1185,7 @@ namespace Basis.Tests.Camera
             BasisCameraPose pose = default;
             for (int Frame = 0; Frame < 600; Frame++)
             {
-                pose = BasisCameraModifierSolver.Solve(stack, state, Aimed(30f));
+                pose = BasisCameraModifierSolver.Solve(stack, state, Steer(Frame == 0 ? 30f : 0f));
             }
 
             Assert.That(Yaw(pose.Rotation), Is.EqualTo(30f).Within(0.5f));
@@ -1203,7 +1202,7 @@ namespace Basis.Tests.Camera
 
             for (int Frame = 0; Frame < 600; Frame++)
             {
-                BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, Aimed(30f));
+                BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, Steer(Frame == 0 ? 30f : 0f));
                 Assert.That(Yaw(pose.Rotation), Is.LessThanOrEqualTo(30f + 1e-2f));
             }
         }
@@ -1222,7 +1221,7 @@ namespace Basis.Tests.Camera
             BasisCameraPose pose = default;
             for (int Frame = 0; Frame < 400; Frame++)
             {
-                BasisCameraSolveContext context = Aimed(30f);
+                BasisCameraSolveContext context = Steer(Frame == 0 ? 30f : 0f);
                 context.DeltaTime = 0.25f;
                 pose = BasisCameraModifierSolver.Solve(stack, state, context);
             }
@@ -1236,9 +1235,9 @@ namespace Basis.Tests.Camera
             BasisCameraModifierStack stack = RigWeightStack();
             BasisCameraModifierState state = StackFixture.State();
             state.Seed(Vector3.zero, Quaternion.identity, 40f);
-            BasisCameraModifierSolver.Solve(stack, state, Aimed(0f));
+            BasisCameraModifierSolver.Solve(stack, state, Steer(0f));
 
-            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, Aimed(170f));
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, Steer(170f));
 
             Assert.That(Mathf.Abs(Yaw(pose.Rotation)), Is.EqualTo(170f).Within(1e-2f),
                 "Past the snap angle the aim has cut, and springing across it would sweep the shot.");
@@ -1255,7 +1254,7 @@ namespace Basis.Tests.Camera
 
             for (int Frame = 0; Frame < 60; Frame++)
             {
-                BasisCameraModifierSolver.Solve(stack, state, Aimed(30f));
+                BasisCameraModifierSolver.Solve(stack, state, Steer(Frame == 0 ? 30f : 0f));
             }
 
             Assert.That(Yaw(state.Rotation), Is.EqualTo(30f).Within(1e-2f),
@@ -1266,7 +1265,7 @@ namespace Basis.Tests.Camera
     public class BasisCameraOperatorChannelTests
     {
         [Test]
-        public void FreeFlyHandsThePositionChannelBackToTheOperator()
+        public void AFreshStateSeedsFromTheOperatorPose()
         {
             BasisCameraModifierStack stack = new BasisCameraModifierStack
             {
@@ -1284,20 +1283,25 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
-        public void FreeLookHandsTheRotationChannelBackToTheOperator()
+        public void HoldAbsorbsTheOperatorsSteeringIntoItsOwnRotation()
         {
             BasisCameraModifierStack stack = new BasisCameraModifierStack
             {
                 positionModifier = BasisCameraPositionModifier.LockedOff,
-                rotationModifier = BasisCameraRotationModifier.FreeLook,
+                rotationModifier = BasisCameraRotationModifier.Hold,
             };
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
 
-            BasisCameraSolveContext context = StackFixture.Context();
-            context.OperatorRotation = BasisCameraDamping.Yaw(90f);
-
-            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, StackFixture.State(), context);
-
+            BasisCameraSolveContext steering = StackFixture.Context();
+            steering.OperatorYaw = 90f;
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, steering);
             Assert.That(Quaternion.Angle(pose.Rotation, BasisCameraDamping.Yaw(90f)), Is.LessThan(0.01f));
+
+            BasisCameraPose released = BasisCameraModifierSolver.Solve(stack, state, StackFixture.Context());
+            Assert.That(Quaternion.Angle(released.Rotation, BasisCameraDamping.Yaw(90f)), Is.LessThan(0.01f),
+                "Hold keeps whatever the operator left it at.");
+            Assert.That(Quaternion.Angle(state.Rotation, BasisCameraDamping.Yaw(90f)), Is.LessThan(0.01f));
         }
 
         [Test]
@@ -1535,6 +1539,183 @@ namespace Basis.Tests.Camera
             Assert.That(state.Position, Is.EqualTo(new Vector3(1f, 2f, 3f)));
             Assert.That(state.HasLastAnchor, Is.False);
             Assert.That(state.SmoothedLateralSpeed, Is.EqualTo(0f));
+        }
+    }
+
+    public class BasisCameraOperatorOverrideTests
+    {
+        private static BasisCameraSolveContext Pushed(Vector3 move)
+        {
+            BasisCameraSolveContext context = StackFixture.Context();
+            context.OperatorMove = move;
+            return context;
+        }
+
+        private static BasisCameraSolveContext Steered(float yaw, float pitch)
+        {
+            BasisCameraSolveContext context = StackFixture.Context();
+            context.OperatorYaw = yaw;
+            context.OperatorPitch = pitch;
+            return context;
+        }
+
+        private static float Yaw(Quaternion rotation)
+            => BasisCameraDamping.NormalizeAngle(rotation.eulerAngles.y);
+
+        [Test]
+        public void FreeFlyKeepsEveryPushTheOperatorMakes()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FreeFly);
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            for (int Frame = 0; Frame < 10; Frame++)
+            {
+                BasisCameraModifierSolver.Solve(stack, state, Pushed(new Vector3(0.1f, 0f, 0f)));
+            }
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, StackFixture.Context());
+
+            Assert.That(pose.Position.x, Is.EqualTo(1f).Within(1e-4f), "Nothing steers a free-flying camera back.");
+        }
+
+        [Test]
+        public void AFollowCameraGivesWayWhilePushedAndEasesBackWhenReleased()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FollowSubject);
+            StackFixture.Offset(stack, new Vector3(0f, 0f, 2f));
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(new Vector3(0f, 0f, 2f), Quaternion.identity, 40f);
+
+            BasisCameraPose pushed = default;
+            for (int Frame = 0; Frame < 30; Frame++)
+            {
+                pushed = BasisCameraModifierSolver.Solve(stack, state, Pushed(new Vector3(0f, 0f, 0.1f)));
+            }
+            Assert.That(pushed.Position.z, Is.EqualTo(5f).Within(1e-3f),
+                "While the stick is held the operator moves the camera off its mark, whatever the damping.");
+
+            BasisCameraPose released = default;
+            for (int Frame = 0; Frame < 600; Frame++)
+            {
+                released = BasisCameraModifierSolver.Solve(stack, state, StackFixture.Context());
+            }
+            Assert.That(released.Position.z, Is.EqualTo(2f).Within(1e-2f), "Let go and the modifier takes the camera back.");
+        }
+
+        [Test]
+        public void AnOrbitIsPushedOffItsRingOnlyWhileTheStickIsHeld()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.Orbit);
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+            BasisCameraPose onRing = BasisCameraModifierSolver.Solve(stack, state, StackFixture.Context());
+
+            BasisCameraPose pushed = default;
+            for (int Frame = 0; Frame < 20; Frame++)
+            {
+                pushed = BasisCameraModifierSolver.Solve(stack, state, Pushed(new Vector3(0f, 0.1f, 0f)));
+            }
+            Assert.That(pushed.Position.y - onRing.Position.y, Is.EqualTo(2f).Within(1e-3f),
+                "A modifier with no memory of its own still gives way to the operator.");
+
+            BasisCameraPose released = default;
+            for (int Frame = 0; Frame < 600; Frame++)
+            {
+                released = BasisCameraModifierSolver.Solve(stack, state, StackFixture.Context());
+            }
+            Assert.That(Vector3.Distance(released.Position, onRing.Position), Is.LessThan(1e-2f));
+        }
+
+        [Test]
+        public void LookAtSubjectIsSteeredWhileInputIsGivenAndReaimsWhenItStops()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.LockedOff);
+            stack.rotationModifier = BasisCameraRotationModifier.LookAtSubject;
+            stack.lookAt.damping = Vector3.zero;
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+            BasisCameraSolveContext context = StackFixture.Context(StackFixture.Subject(new Vector3(0f, 0f, 10f)));
+
+            BasisCameraSolveContext steering = context;
+            steering.OperatorYaw = 30f;
+            BasisCameraPose steered = BasisCameraModifierSolver.Solve(stack, state, steering);
+            Assert.That(Yaw(steered.Rotation), Is.EqualTo(30f).Within(0.5f));
+            Assert.That(Yaw(state.Rotation), Is.EqualTo(0f).Within(0.5f),
+                "The modifier's own aim is untouched; the steering sits on top of it.");
+
+            BasisCameraPose released = default;
+            for (int Frame = 0; Frame < 600; Frame++)
+            {
+                released = BasisCameraModifierSolver.Solve(stack, state, context);
+            }
+            Assert.That(Yaw(released.Rotation), Is.EqualTo(0f).Within(0.5f));
+        }
+
+        [Test]
+        public void SteeringNeverPitchesPastVertical()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.LockedOff);
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+
+            BasisCameraPose pose = BasisCameraModifierSolver.Solve(stack, state, Steered(0f, 200f));
+
+            Assert.That(BasisCameraModifierSolver.PitchDegrees(pose.Rotation),
+                Is.EqualTo(BasisCameraModifierSolver.OperatorMaxPitch).Within(1e-3f));
+        }
+
+        [Test]
+        public void SteeringLevelsARolledCamera()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.LockedOff);
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, BasisCameraDamping.Roll(20f), 40f);
+
+            BasisCameraPose pose = default;
+            for (int Frame = 0; Frame < 600; Frame++)
+            {
+                pose = BasisCameraModifierSolver.Solve(stack, state, Steered(0.01f, 0f));
+            }
+
+            Vector3 right = pose.Rotation * Vector3.right;
+            Assert.That(Mathf.Abs(right.y), Is.LessThan(1e-3f), "Held roll drains out while the operator steers.");
+        }
+
+        [Test]
+        public void AWallClipsThePushRatherThanRememberingItBeyondTheWall()
+        {
+            BasisCameraModifierStack stack = StackFixture.PositionOnly(BasisCameraPositionModifier.FollowSubject);
+            StackFixture.Offset(stack, new Vector3(0f, 0f, 2f));
+            stack.AddEffect(BasisCameraEffectModifier.AvoidCollision);
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(new Vector3(0f, 0f, 2f), Quaternion.identity, 40f);
+
+            for (int Frame = 0; Frame < 10; Frame++)
+            {
+                BasisCameraSolveContext context = Pushed(new Vector3(0f, 0f, 1f));
+                context.SweepProbe = (Vector3 origin, Vector3 direction, float distance, float radius, out float free) =>
+                {
+                    free = Mathf.Max(0f, 2.5f - origin.z);
+                    return true;
+                };
+                BasisCameraModifierSolver.Solve(stack, state, context);
+            }
+
+            Assert.That(state.OperatorOffset.z, Is.LessThanOrEqualTo(0.5f),
+                "What the wall took off the push comes off the offset too, or letting go would leave the camera stuck at the wall while a phantom offset drained.");
+        }
+
+        [Test]
+        public void ThePushRidesAnAnchorThatTurns()
+        {
+            BasisCameraModifierState state = StackFixture.State();
+            state.Seed(Vector3.zero, Quaternion.identity, 40f);
+            state.OperatorOffset = new Vector3(1f, 0f, 0f);
+
+            state.Transport(Vector3.zero, Quaternion.identity, Vector3.zero, BasisCameraDamping.Yaw(90f));
+
+            Assert.That(state.OperatorOffset, Is.EqualTo(new Vector3(0f, 0f, -1f))
+                .Using(BasisCameraFollowModifierTests.Vec(1e-4f)));
         }
     }
 }

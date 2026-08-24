@@ -6,9 +6,9 @@ using UnityEngine;
 
 /// <summary>
 /// Drives the camera from its modifier stack. One modifier owns the position channel, one owns the
-/// rotation channel, and effects layer on top; whichever channels the stack does not claim are left
-/// to the operator's own controls, so flying a camera by hand while it keeps somebody framed is the
-/// ordinary case rather than a special one.
+/// rotation channel, and effects layer on top; the operator's fly controls steer over whatever the
+/// stack produced, so flying a camera by hand while it keeps somebody framed is the ordinary case
+/// rather than a special one.
 /// </summary>
 public abstract partial class BasisHandHeldCameraInteractable
 {
@@ -242,9 +242,7 @@ public abstract partial class BasisHandHeldCameraInteractable
     }
 
     /// <summary>
-    /// Settles the camera around a change of stack. Taking the position channel ends manual flight
-    /// — both drive the same world pin, so leaving it armed would hold the player's locks for a
-    /// stick that no longer steers anything — and the state is seeded from where the camera
+    /// Settles the camera around a change of stack. The state is seeded from where the camera
     /// actually is, so fitting a modifier eases from the live pose rather than cutting to wherever
     /// the solve last left off.
     /// </summary>
@@ -253,28 +251,18 @@ public abstract partial class BasisHandHeldCameraInteractable
         InitializeModifiers();
         modifiers.Sanitize();
 
-        // Handing the rotation channel back means the operator's own aim takes over on the next
-        // frame, and it has not been updated for however long something else was steering. Re-seed
-        // it from where the camera is actually pointing, or letting go snaps the shot.
-        if (!modifiers.DrivesRotation)
+        if (seedFromCamera && HHC != null && HHC.captureCamera != null)
         {
-            SeedOperatorAimFromCurrentRotation();
+            HHC.captureCamera.transform.GetPositionAndRotation(out Vector3 livePosition, out Quaternion liveRotation);
+            SeedPose(livePosition, liveRotation);
+        }
+        else
+        {
+            modifierState.Seed(smoothedPosition, smoothedRotation, GetCaptureFov());
         }
 
         if (modifiers.DrivesAnything)
         {
-            if (modifiers.DrivesPosition)
-            {
-                ExitFlyMode();
-            }
-
-            if (seedFromCamera && HHC != null && HHC.captureCamera != null)
-            {
-                HHC.captureCamera.transform.GetPositionAndRotation(out Vector3 livePosition, out Quaternion liveRotation);
-                SeedPose(livePosition, liveRotation);
-            }
-
-            modifierState.Seed(smoothedPosition, smoothedRotation, GetCaptureFov());
             DetachFromHand();
             hasLastSolveAnchor = false;
         }
@@ -289,7 +277,7 @@ public abstract partial class BasisHandHeldCameraInteractable
     {
         InitializeModifiers();
         modifiers.positionModifier = BasisCameraPositionModifier.FreeFly;
-        modifiers.rotationModifier = BasisCameraRotationModifier.FreeLook;
+        modifiers.rotationModifier = BasisCameraRotationModifier.Hold;
         modifiers.ClearEffects();
         OnModifiersChanged();
     }
@@ -300,7 +288,7 @@ public abstract partial class BasisHandHeldCameraInteractable
     /// One modifier step. Writes the same <c>smoothedPosition</c>/<c>smoothedRotation</c> the pin
     /// constraint consumes, so nothing downstream needs to know what produced the pose.
     /// </summary>
-    private void MoveCameraModifiers(float deltaTime)
+    private void MoveCameraModifiers(float deltaTime, Vector3 operatorMove, float operatorYaw, float operatorPitch)
     {
         InitializeModifiers();
 
@@ -357,8 +345,11 @@ public abstract partial class BasisHandHeldCameraInteractable
             Time = Time.time,
             DollyPoints = DollyTrack?.Points,
             DollyLooped = DollyTrack != null && DollyTrack.Looped,
-            OperatorPosition = operatorPosition,
-            OperatorRotation = operatorRotation,
+            OperatorPosition = smoothedPosition,
+            OperatorRotation = smoothedRotation,
+            OperatorMove = operatorMove,
+            OperatorYaw = operatorYaw,
+            OperatorPitch = operatorPitch,
             OcclusionProbe = occlusionProbe,
             SweepProbe = sweepProbe,
         };
@@ -375,11 +366,6 @@ public abstract partial class BasisHandHeldCameraInteractable
 
         smoothedPosition = pose.Position;
         smoothedRotation = pose.Rotation;
-
-        // The solve's own un-shaken pose is what the operator continues from when a channel is
-        // handed back, so effects never accumulate into the pose the sticks are steering.
-        if (!modifiers.DrivesPosition) operatorPosition = modifierState.Position;
-        if (!modifiers.DrivesRotation) operatorRotation = modifierState.Rotation;
 
         if (modifiers.DrivesLens && HHC != null && HHC.captureCamera != null)
         {

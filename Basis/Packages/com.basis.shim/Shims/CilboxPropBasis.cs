@@ -27,6 +27,7 @@ namespace Cilbox
 			// ButtonDown/ButtonUp's delegate type. Needed to construct/assign a handler; the delegate's
 			// own Invoke is unreachable regardless (CheckMethodAllowed blanket-denies any "Invoke" method).
 			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton+ClickEvent",
+			"Basis.Scripts.BasisSdk.Players.BasisTeleportMode",
 
 			// System IO
 			"System.IO.BinaryReader",

@@ -69,6 +69,18 @@ namespace Basis.Cinematics
             return new Quaternion(0f, Mathf.Sin(half), 0f, Mathf.Cos(half));
         }
 
+        public static Quaternion Pitch(float degrees)
+        {
+            float half = degrees * 0.5f * Mathf.Deg2Rad;
+            return new Quaternion(Mathf.Sin(half), 0f, 0f, Mathf.Cos(half));
+        }
+
+        public static Quaternion Roll(float degrees)
+        {
+            float half = degrees * 0.5f * Mathf.Deg2Rad;
+            return new Quaternion(0f, 0f, Mathf.Sin(half), Mathf.Cos(half));
+        }
+
         public static Quaternion ApproachRotation(Quaternion current, Quaternion target, float dampTime, float deltaTime)
             => Quaternion.Slerp(current, target, Fraction(dampTime, deltaTime));
 

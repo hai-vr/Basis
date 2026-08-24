@@ -63,6 +63,9 @@ namespace Basis.Cinematics
 
             SolvePosition(stack, state, context, subject, anchor, scale, deltaTime, ref fov);
 
+            bool holdsOperatorPosition = HoldsOperatorPosition(stack.positionModifier);
+            Vector3 basePosition = ApplyOperatorPosition(state, context, holdsOperatorPosition, deltaTime);
+
             if (stack.HasEffect(BasisCameraEffectModifier.AvoidOcclusion) && subject.Valid)
             {
                 state.Position = SolveOcclusion(stack, state, context, lookPoint, deltaTime);
@@ -76,10 +79,16 @@ namespace Basis.Cinematics
             // own that wants sweeping.
             if (stack.HasEffect(BasisCameraEffectModifier.AvoidCollision))
             {
+                Vector3 beforeSweep = state.Position;
                 state.Position = SolveCollision(stack, state, context);
+                if (!holdsOperatorPosition)
+                {
+                    state.OperatorOffset += state.Position - beforeSweep;
+                }
             }
 
             SolveRotation(stack, state, context, subject, lookPoint, fov, deltaTime);
+            Quaternion rotation = ApplyOperatorRotation(stack, state, context, deltaTime);
 
             if (stack.HasEffect(BasisCameraEffectModifier.LensOverride))
             {
@@ -106,7 +115,10 @@ namespace Basis.Cinematics
             state.HasPreviousPosition = true;
 
             Vector3 position = state.Position;
-            Quaternion rotation = state.Rotation;
+            if (!holdsOperatorPosition)
+            {
+                state.Position = basePosition;
+            }
 
             if (stack.HasEffect(BasisCameraEffectModifier.RigWeight))
             {
@@ -137,6 +149,77 @@ namespace Basis.Cinematics
 
         private static float LensDamping(BasisCameraModifierStack stack)
             => stack.HasEffect(BasisCameraEffectModifier.LensOverride) ? stack.lens.damping : stack.framing.damping.z;
+
+        public const float OperatorReleaseDamping = 0.5f;
+        public const float OperatorLevelDamping = 0.35f;
+        public const float OperatorMaxPitch = 89f;
+
+        public static bool HoldsOperatorPosition(BasisCameraPositionModifier modifier)
+            => modifier == BasisCameraPositionModifier.FreeFly || modifier == BasisCameraPositionModifier.LockedOff;
+
+        private static Vector3 ApplyOperatorPosition(BasisCameraModifierState state, in BasisCameraSolveContext context, bool holdsOperatorPosition, float deltaTime)
+        {
+            Vector3 basePosition = state.Position;
+            Vector3 move = context.OperatorMove;
+            if (holdsOperatorPosition)
+            {
+                state.Position += move;
+                state.OperatorOffset = Vector3.zero;
+                return state.Position;
+            }
+            state.OperatorOffset = move != Vector3.zero ? state.OperatorOffset + move : BasisCameraDamping.Approach(state.OperatorOffset, Vector3.zero, OperatorReleaseDamping, deltaTime);
+            state.Position = basePosition + state.OperatorOffset;
+            return basePosition;
+        }
+
+        private static Quaternion ApplyOperatorRotation(BasisCameraModifierStack stack, BasisCameraModifierState state, in BasisCameraSolveContext context, float deltaTime)
+        {
+            float yaw = context.OperatorYaw, pitch = context.OperatorPitch;
+            bool steering = yaw != 0f || pitch != 0f;
+            if (stack.rotationModifier == BasisCameraRotationModifier.Hold)
+            {
+                state.OperatorYawOffset = 0f;
+                state.OperatorPitchOffset = 0f;
+                if (steering)
+                {
+                    state.Rotation = Steer(state.Rotation, yaw, pitch, 1f - BasisCameraDamping.Fraction(OperatorLevelDamping, deltaTime));
+                }
+                return state.Rotation;
+            }
+            if (steering)
+            {
+                state.OperatorYawOffset = BasisCameraDamping.NormalizeAngle(state.OperatorYawOffset + yaw);
+                state.OperatorPitchOffset += pitch;
+            }
+            else
+            {
+                state.OperatorYawOffset = BasisCameraDamping.Approach(state.OperatorYawOffset, 0f, OperatorReleaseDamping, deltaTime);
+                state.OperatorPitchOffset = BasisCameraDamping.Approach(state.OperatorPitchOffset, 0f, OperatorReleaseDamping, deltaTime);
+            }
+            float basePitch = PitchDegrees(state.Rotation);
+            state.OperatorPitchOffset = Mathf.Clamp(state.OperatorPitchOffset, -OperatorMaxPitch - basePitch, OperatorMaxPitch - basePitch);
+            if (state.OperatorYawOffset == 0f && state.OperatorPitchOffset == 0f)
+            {
+                return state.Rotation;
+            }
+            return BasisCameraDamping.Yaw(state.OperatorYawOffset) * state.Rotation * BasisCameraDamping.Pitch(state.OperatorPitchOffset);
+        }
+
+        public static float PitchDegrees(Quaternion rotation)
+        {
+            Vector3 forward = rotation * Vector3.forward;
+            return Mathf.Asin(Mathf.Clamp(-forward.y, -1f, 1f)) * Mathf.Rad2Deg;
+        }
+
+        public static Quaternion Steer(Quaternion rotation, float yawDelta, float pitchDelta, float rollRetained)
+        {
+            float heading = BasisCameraAnchorMath.YawDegrees(rotation);
+            float pitch = PitchDegrees(rotation);
+            Quaternion twist = BasisCameraDamping.Conjugate(BasisCameraDamping.Yaw(heading) * BasisCameraDamping.Pitch(pitch)) * rotation;
+            float roll = BasisCameraDamping.NormalizeAngle(2f * Mathf.Atan2(twist.z, twist.w) * Mathf.Rad2Deg) * rollRetained;
+            pitch = Mathf.Clamp(pitch + pitchDelta, -OperatorMaxPitch, OperatorMaxPitch);
+            return BasisCameraDamping.Yaw(heading + yawDelta) * BasisCameraDamping.Pitch(pitch) * BasisCameraDamping.Roll(roll);
+        }
 
         /// <summary>
         /// Corrects the subject toward a settled version of themselves and moves the aim point by the
@@ -327,14 +410,7 @@ namespace Basis.Cinematics
             in BasisCameraSolveContext context, in BasisCameraSubject subject, Vector3 anchor, float scale,
             float deltaTime, ref float fov)
         {
-            if (stack.positionModifier == BasisCameraPositionModifier.FreeFly)
-            {
-                state.Position = context.OperatorPosition;
-                state.ResetSubjectHistory();
-                return;
-            }
-
-            if (stack.positionModifier == BasisCameraPositionModifier.LockedOff)
+            if (HoldsOperatorPosition(stack.positionModifier))
             {
                 state.ResetSubjectHistory();
                 return;
@@ -618,14 +694,9 @@ namespace Basis.Cinematics
         private static void SolveRotation(BasisCameraModifierStack stack, BasisCameraModifierState state,
             in BasisCameraSolveContext context, in BasisCameraSubject subject, Vector3 lookPoint, float fov, float deltaTime)
         {
-            switch (stack.rotationModifier)
+            if (stack.rotationModifier == BasisCameraRotationModifier.Hold)
             {
-                case BasisCameraRotationModifier.FreeLook:
-                    state.Rotation = context.OperatorRotation;
-                    return;
-
-                case BasisCameraRotationModifier.Hold:
-                    return;
+                return;
             }
 
             if (!subject.Valid)

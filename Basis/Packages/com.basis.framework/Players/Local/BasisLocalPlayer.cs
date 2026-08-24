@@ -348,6 +348,9 @@ namespace Basis.Scripts.BasisSdk.Players
         public void OnCalibration()
         {
             LocalVisemeDriver.TryInitialize(this);
+#if !BASIS_DISABLE_MICROPHONE
+            LocalVisemeDriver.OnPausedEvent(BasisLocalMicrophoneDriver.isPaused);
+#endif
             if (HasCalibrationEvents == false)
             {
 #if !BASIS_DISABLE_MICROPHONE

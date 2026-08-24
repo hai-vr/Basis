@@ -53,6 +53,7 @@ namespace Cilbox
 
 			// System types - primitives and core data
 			"System.Action",
+			"System.Action`1",
 			"System.Array",
 			"System.BitConverter", // HMMMMMMMMM SUSSY
 			"System.Boolean",

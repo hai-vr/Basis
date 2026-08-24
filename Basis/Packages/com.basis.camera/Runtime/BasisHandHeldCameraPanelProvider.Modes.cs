@@ -160,11 +160,6 @@ namespace Basis.BasisUI.HandHeldCamera
             RebuildModeList();
             _modeDropdown.OnValueChanged = _ => OnModeSelected();
 
-            // Directly under the picker, and above the modes people save: the picker is what hands
-            // you a body, and what is left in that body is the first thing worth knowing about the
-            // choice — well before the colour a saved mode paints its sections.
-            BuildBodySection(parent);
-
             _modeEditorSection = PanelSectionToggle.CreateNewEntry(parent);
             _modeEditorGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
                 _modeEditorSection, parent, BasisLocalization.Get("camera.userMode.title"), false);
@@ -765,10 +760,6 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 _modeCheckCountdown = ModeCheckInterval;
                 changed |= RefreshHarvestedState();
-
-                // On the same beat as the readout: a wind-on is over a second long and a flash
-                // recycle is six, so four looks a second is faster than either can be missed.
-                RefreshBodyControls();
 
                 // The field only reports a committed edit, so without this the Save button would
                 // stay greyed out under a name that has been typed but not yet tabbed away from.

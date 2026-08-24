@@ -14,7 +14,7 @@ namespace Basis.Tests.Camera
             BasisCameraModifierStack stack = new BasisCameraModifierStack();
 
             Assert.That(stack.positionModifier, Is.EqualTo(BasisCameraPositionModifier.FreeFly));
-            Assert.That(stack.rotationModifier, Is.EqualTo(BasisCameraRotationModifier.FreeLook));
+            Assert.That(stack.rotationModifier, Is.EqualTo(BasisCameraRotationModifier.Hold));
             Assert.That(stack.DrivesAnything, Is.False,
                 "A camera that has never been configured must sit in your hand, not fly off.");
         }
@@ -64,7 +64,7 @@ namespace Basis.Tests.Camera
             stack.Sanitize();
 
             Assert.That(stack.positionModifier, Is.EqualTo(BasisCameraPositionModifier.FreeFly));
-            Assert.That(stack.rotationModifier, Is.EqualTo(BasisCameraRotationModifier.FreeLook));
+            Assert.That(stack.rotationModifier, Is.EqualTo(BasisCameraRotationModifier.Hold));
         }
 
         [Test]
@@ -154,7 +154,7 @@ namespace Basis.Tests.Camera
                 s => s.subject.framingRadius += 0.5f,
                 s => s.subject.fixedPoint += Vector3.one,
                 s => s.positionModifier = BasisCameraPositionModifier.LockedOff,
-                s => s.rotationModifier = BasisCameraRotationModifier.Hold,
+                s => s.rotationModifier = BasisCameraRotationModifier.LookAtSubject,
                 s => s.AddEffect(BasisCameraEffectModifier.AvoidOcclusion),
                 s => s.follow.positionOffset += Vector3.one,
                 s => s.follow.bindingMode = BasisCameraBindingMode.SubjectYaw,
@@ -295,7 +295,6 @@ namespace Basis.Tests.Camera
             Assert.That(BasisCameraModifiers.NeedsSubject(BasisCameraPositionModifier.DollyTrack), Is.False,
                 "A track is authored in the world, so it rides whether or not anybody is being filmed.");
 
-            Assert.That(BasisCameraModifiers.NeedsSubject(BasisCameraRotationModifier.FreeLook), Is.False);
             Assert.That(BasisCameraModifiers.NeedsSubject(BasisCameraRotationModifier.Hold), Is.False);
         }
 

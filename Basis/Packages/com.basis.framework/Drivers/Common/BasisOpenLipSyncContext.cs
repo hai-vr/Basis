@@ -75,9 +75,12 @@ namespace Basis.Scripts.Drivers
         private bool _initialized;
         private bool _disposed;
         private bool _faceVisible = true;
+        private bool _muted;
+        private bool _muteReleased;
 
         private const int AudioBufferSize = 48000; // 1 second at 48kHz
         private const float BlendShapeWriteEps = 0.25f;
+        public const float MuteReleaseSeconds = 0.1f;
 
         // Reusable buffer for batch task audio — eliminates per-frame float[] allocation
         private float[] _audioChunk = new float[AudioBufferSize];
@@ -394,6 +397,13 @@ namespace Basis.Scripts.Drivers
         public void Simulate(float deltaTime)
         {
             if (!_initialized || _disposed || !_faceVisible) return;
+            if (_muted)
+            {
+                _writeIndexA = 0;
+                _writeIndexB = 0;
+                _hasNewAudio = 0;
+                return;
+            }
 
             // Already queued for batch processing. This is the only gate left: it protects
             // _audioChunk, which the batch task is reading. Whether Apply() has picked up the
@@ -561,27 +571,69 @@ namespace Basis.Scripts.Drivers
             if (generation != _consumedGeneration)
             {
                 _consumedGeneration = generation;
-                float[] published = _resultFrames[generation & 1].Visemes;
-                int visemeCount = Math.Min(published.Length, _cachedVisemeWeights.Length);
-                Array.Copy(published, _cachedVisemeWeights, visemeCount);
+                if (!_muted)
+                {
+                    float[] published = _resultFrames[generation & 1].Visemes;
+                    int visemeCount = Math.Min(published.Length, _cachedVisemeWeights.Length);
+                    Array.Copy(published, _cachedVisemeWeights, visemeCount);
+                }
+            }
+
+            if (_muted)
+            {
+                if (_muteReleased) return;
+                ReleaseTowardRest(deltaTime);
             }
 
             if (_identityMapping)
             {
                 ApplyDirect();
-                return;
-            }
-
-            if (_mode == BasisVisemeDriveMode.WinnerTakeAll)
-            {
-                ResolveWinnerTakeAll(deltaTime);
             }
             else
             {
-                ResolveContinuous();
+                if (_mode == BasisVisemeDriveMode.WinnerTakeAll)
+                {
+                    ResolveWinnerTakeAll(deltaTime);
+                }
+                else
+                {
+                    ResolveContinuous();
+                }
+                ApplyShaped(deltaTime);
             }
 
-            ApplyShaped(deltaTime);
+            if (_muted && AtRest())
+            {
+                ZeroVisemes();
+                _muteReleased = true;
+            }
+        }
+
+        private void ReleaseTowardRest(float deltaTime)
+        {
+            float step = deltaTime / MuteReleaseSeconds;
+            for (int i = 0; i < VisemeCount; i++)
+            {
+                float value = _cachedVisemeWeights[i] - step;
+                _cachedVisemeWeights[i] = value > 0f ? value : 0f;
+            }
+        }
+
+        private bool AtRest()
+        {
+            for (int i = 0; i < VisemeCount; i++)
+            {
+                if (_cachedVisemeWeights[i] > 0f) return false;
+                if (_current != null && _hasViseme[i] && _current[i] != _target[i]) return false;
+            }
+            return true;
+        }
+
+        public void SetMuted(bool muted)
+        {
+            if (_muted == muted) return;
+            _muted = muted;
+            _muteReleased = false;
         }
 
         /// <summary>

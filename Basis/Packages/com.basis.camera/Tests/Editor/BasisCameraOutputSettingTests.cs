@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Basis.BasisUI.HandHeldCamera;
 using NUnit.Framework;
 using UnityEngine;
@@ -129,6 +130,236 @@ namespace Basis.Tests.Camera
             Assert.That(_rig.Camera.VideoTransport, Is.EqualTo(transports[1]));
             Assert.That(_rig.Camera.IsAnyVideoOutputActive, Is.False,
                 "Picking a transport is not the same as switching the stream on.");
+        }
+
+        // ---------- Stream presets ----------
+
+        [Test]
+        public void EveryStreamPresetOffered_UsesATransportThisBuildCanRun()
+        {
+            List<BasisVideoTransport> transports = BasisHandHeldCamera.AvailableVideoTransports();
+            List<BasisCameraStreamPreset> presets = BasisCameraStreamPresets.Available();
+
+            Assert.That(presets, Is.Not.Empty, "The web stream is always available, so its presets always are.");
+            for (int Index = 0; Index < presets.Count; Index++)
+            {
+                Assert.That(transports, Does.Contain(presets[Index].Transport),
+                    $"{presets[Index].Key} names a transport the transport dropdown does not offer.");
+            }
+        }
+
+        [Test]
+        public void TheMjpegPresets_AreOfferedEverywhere_AndThePlatformOnesOnlyWithABackend()
+        {
+            List<BasisCameraStreamPreset> presets = BasisCameraStreamPresets.Available();
+            int web = 0, platform = 0, webInRoster = 0, platformInRoster = 0;
+            for (int Index = 0; Index < presets.Count; Index++)
+            {
+                if (presets[Index].Transport == BasisVideoTransport.Web) web++; else platform++;
+            }
+            for (int Index = 0; Index < BasisCameraStreamPresets.All.Length; Index++)
+            {
+                if (BasisCameraStreamPresets.All[Index].Transport == BasisVideoTransport.Web) webInRoster++; else platformInRoster++;
+            }
+
+            Assert.That(webInRoster, Is.GreaterThan(0));
+            Assert.That(platformInRoster, Is.GreaterThan(0));
+            Assert.That(web, Is.EqualTo(webInRoster),
+                "MJPEG needs nothing installed, so every one of its presets is offered on every platform.");
+            Assert.That(platform, Is.EqualTo(BasisHandHeldCamera.IsVideoOutputSupported ? platformInRoster : 0),
+                "A Spout or Syphon preset on a build with no shared-texture backend would apply a transport that refuses to start.");
+        }
+
+        [Test]
+        public void EveryStreamPreset_SitsOnTheRowsThePanelCanShow()
+        {
+            int[] widths = BasisHandHeldCameraPanelProvider.VideoResolutionWidthsForTest;
+            int[] heights = BasisHandHeldCameraPanelProvider.VideoResolutionHeightsForTest;
+
+            for (int Index = 0; Index < BasisCameraStreamPresets.All.Length; Index++)
+            {
+                BasisCameraStreamPreset preset = BasisCameraStreamPresets.All[Index];
+                bool listed = false;
+                for (int Row = 0; Row < widths.Length; Row++)
+                {
+                    listed |= widths[Row] == preset.Width && heights[Row] == preset.Height;
+                }
+
+                Assert.That(listed, Is.True,
+                    $"{preset.Key} uses a size the resolution dropdown has no row for, so the dropdown would show nothing once it is applied.");
+                Assert.That(preset.FrameRate, Is.InRange(15f, 120f), $"{preset.Key} sets a frame rate outside the slider's travel.");
+                if (preset.Transport == BasisVideoTransport.Web)
+                {
+                    Assert.That(preset.WebQuality, Is.InRange(10, 95), $"{preset.Key} sets a JPEG quality outside the slider's travel.");
+                }
+            }
+        }
+
+        [Test]
+        public void StreamPresetKeys_AreUniqueAndAllListedForTheTextSweep()
+        {
+            string[] keys = BasisCameraStreamPresets.OptionKeys;
+            HashSet<string> seen = new HashSet<string>();
+            for (int Index = 0; Index < keys.Length; Index++)
+            {
+                Assert.That(seen.Add(keys[Index]), Is.True,
+                    $"{keys[Index]} is listed twice; the dropdown resolves a selection by matching its key.");
+            }
+
+            Assert.That(keys.Length, Is.EqualTo(BasisCameraStreamPresets.All.Length + 1));
+            Assert.That(keys, Does.Contain(BasisCameraStreamPresets.CustomKey));
+            for (int Index = 0; Index < BasisCameraStreamPresets.All.Length; Index++)
+            {
+                Assert.That(keys, Does.Contain(BasisCameraStreamPresets.All[Index].Key));
+            }
+        }
+
+        [Test]
+        public void ApplyingAStreamPreset_LandsEveryValueAndReadsBackAsThatPreset()
+        {
+            List<BasisCameraStreamPreset> presets = BasisCameraStreamPresets.Available();
+
+            for (int Index = 0; Index < presets.Count; Index++)
+            {
+                BasisCameraStreamPreset preset = presets[Index];
+                _rig.Camera.ApplyStreamPreset(preset);
+
+                Assert.That(_rig.Camera.VideoTransport, Is.EqualTo(preset.Transport), preset.Key);
+                Assert.That(_rig.Camera.VideoOutputSettings.Width, Is.EqualTo(preset.Width), preset.Key);
+                Assert.That(_rig.Camera.VideoOutputSettings.Height, Is.EqualTo(preset.Height), preset.Key);
+                Assert.That(_rig.Camera.VideoOutputSettings.FrameRate, Is.EqualTo(preset.FrameRate).Within(1e-3f), preset.Key);
+                if (preset.Transport == BasisVideoTransport.Web)
+                {
+                    Assert.That(_rig.Camera.VideoOutputSettings.WebQuality, Is.EqualTo(preset.WebQuality), preset.Key);
+                }
+
+                Assert.That(_rig.Camera.MatchesStreamPreset(preset), Is.True,
+                    $"{preset.Key} was applied and the camera does not read as being in it.");
+                Assert.That(BasisCameraStreamPresets.IndexOf(presets, _rig.Camera.VideoTransport, _rig.Camera.VideoOutputSettings), Is.EqualTo(Index),
+                    $"{preset.Key} was applied and the dropdown would show a different row.");
+            }
+        }
+
+        [Test]
+        public void ApplyingAStreamPreset_DoesNotSwitchTheStreamOn()
+        {
+            List<BasisCameraStreamPreset> presets = BasisCameraStreamPresets.Available();
+            for (int Index = 0; Index < presets.Count; Index++)
+            {
+                _rig.Camera.ApplyStreamPreset(presets[Index]);
+                Assert.That(_rig.Camera.IsAnyVideoOutputActive, Is.False,
+                    "Picking a preset is not the same as switching the stream on; that is the Live Output toggle's job.");
+            }
+        }
+
+        [Test]
+        public void EditingAStreamSettingByHand_DropsThePresetToCustom()
+        {
+            BasisCameraStreamPreset preset = BasisCameraStreamPresets.Available()[0];
+
+            _rig.Camera.ApplyStreamPreset(preset);
+            Assert.That(BasisCameraStreamPresets.KeyFor(_rig.Camera.VideoTransport, _rig.Camera.VideoOutputSettings), Is.EqualTo(preset.Key));
+
+            _rig.Camera.SetVideoOutputFrameRate(preset.FrameRate + 5f);
+            Assert.That(BasisCameraStreamPresets.KeyFor(_rig.Camera.VideoTransport, _rig.Camera.VideoOutputSettings), Is.EqualTo(BasisCameraStreamPresets.CustomKey),
+                "A changed frame rate is no longer the preset's frame rate, and the dropdown has to say so.");
+
+            _rig.Camera.ApplyStreamPreset(preset);
+            _rig.Camera.SetVideoOutputResolution(preset.Width / 2, preset.Height / 2);
+            Assert.That(BasisCameraStreamPresets.KeyFor(_rig.Camera.VideoTransport, _rig.Camera.VideoOutputSettings), Is.EqualTo(BasisCameraStreamPresets.CustomKey),
+                "A changed resolution is no longer the preset's resolution.");
+        }
+
+        [Test]
+        public void AWebPresetOwnsTheJpegQuality_AndAPlatformPresetLeavesItAlone()
+        {
+            List<BasisCameraStreamPreset> presets = BasisCameraStreamPresets.Available();
+            int webIndex = -1, platformIndex = -1;
+            for (int Index = 0; Index < presets.Count; Index++)
+            {
+                if (presets[Index].Transport == BasisVideoTransport.Web) { if (webIndex < 0) webIndex = Index; }
+                else if (platformIndex < 0) platformIndex = Index;
+            }
+            Assert.That(webIndex, Is.GreaterThanOrEqualTo(0), "There is always an MJPEG preset.");
+
+            _rig.Camera.SetWebStreamQuality(33);
+            _rig.Camera.ApplyStreamPreset(presets[webIndex]);
+            Assert.That(_rig.Camera.VideoOutputSettings.WebQuality, Is.EqualTo(presets[webIndex].WebQuality),
+                "An MJPEG preset is a bandwidth choice, and the JPEG quality is most of that.");
+
+            _rig.Camera.SetWebStreamQuality(presets[webIndex].WebQuality - 1);
+            Assert.That(_rig.Camera.MatchesStreamPreset(presets[webIndex]), Is.False,
+                "The quality is part of what an MJPEG preset means, so changing it leaves the preset.");
+
+            if (platformIndex < 0) return;
+
+            _rig.Camera.SetWebStreamQuality(33);
+            _rig.Camera.ApplyStreamPreset(presets[platformIndex]);
+            Assert.That(_rig.Camera.VideoOutputSettings.WebQuality, Is.EqualTo(33),
+                "A shared-texture preset encodes nothing, so it has no opinion about JPEG quality.");
+            Assert.That(_rig.Camera.MatchesStreamPreset(presets[platformIndex]), Is.True);
+        }
+
+        [Test]
+        public void AStreamPreset_KeepsThePortAndSenderName()
+        {
+            _rig.Camera.SetWebStreamPort(9123);
+            _rig.Camera.VideoOutputSettings.SenderName = "Studio Cam";
+
+            List<BasisCameraStreamPreset> presets = BasisCameraStreamPresets.Available();
+            for (int Index = 0; Index < presets.Count; Index++)
+            {
+                _rig.Camera.ApplyStreamPreset(presets[Index]);
+                Assert.That(_rig.Camera.VideoOutputSettings.WebPort, Is.EqualTo(9123), presets[Index].Key);
+                Assert.That(_rig.Camera.VideoOutputSettings.SenderName, Is.EqualTo("Studio Cam"), presets[Index].Key);
+            }
+        }
+
+        [Test]
+        public void StreamSettingsFromAFile_AreClampedAndFallBackToTheWebStream()
+        {
+            string name = _rig.Camera.VideoOutputSettings.SenderName;
+
+            _rig.Camera.ApplyStreamSettings((BasisVideoTransport)7, 4, 100000, 24f, 500, 80, "   ");
+
+            Assert.That(_rig.Camera.VideoTransport, Is.EqualTo(BasisVideoTransport.Web),
+                "A transport this build has no backend for would refuse to start; the web stream always can.");
+            Assert.That(_rig.Camera.VideoOutputSettings.Width, Is.EqualTo(16));
+            Assert.That(_rig.Camera.VideoOutputSettings.Height, Is.EqualTo(8192));
+            Assert.That(_rig.Camera.VideoOutputSettings.FrameRate, Is.EqualTo(24f).Within(1e-3f));
+            Assert.That(_rig.Camera.VideoOutputSettings.WebQuality, Is.EqualTo(100));
+            Assert.That(_rig.Camera.VideoOutputSettings.WebPort, Is.EqualTo(1024));
+            Assert.That(_rig.Camera.VideoOutputSettings.SenderName, Is.EqualTo(name), "A blank name is not a name.");
+        }
+
+        [Test]
+        public void TheStreamSettings_ComeBackOffTheSettingsFile()
+        {
+            BasisHandHeldCameraUI.CameraSettings stored = new BasisHandHeldCameraUI.CameraSettings
+            {
+                streamTransport = (int)BasisVideoTransport.Web,
+                streamWidth = 1280,
+                streamHeight = 720,
+                streamFrameRate = 24f,
+                streamQuality = 55,
+                streamPort = 9123,
+                streamSenderName = "Studio Cam",
+            };
+
+            _rig.UI.ApplySettingsForTest(stored);
+            BasisHandHeldCameraUI.CameraSettings captured = _rig.UI.CreateCurrentCameraSettingsForTest();
+
+            Assert.That(captured.streamTransport, Is.EqualTo((int)BasisVideoTransport.Web));
+            Assert.That(captured.streamWidth, Is.EqualTo(1280));
+            Assert.That(captured.streamHeight, Is.EqualTo(720));
+            Assert.That(captured.streamFrameRate, Is.EqualTo(24f).Within(1e-3f));
+            Assert.That(captured.streamQuality, Is.EqualTo(55));
+            Assert.That(captured.streamPort, Is.EqualTo(9123));
+            Assert.That(captured.streamSenderName, Is.EqualTo("Studio Cam"));
+
+            _rig.UI.ApplySettingsForTest(new BasisHandHeldCameraUI.CameraSettings { streamTransport = 99 });
+            Assert.That(_rig.UI.CreateCurrentCameraSettingsForTest().streamTransport, Is.EqualTo((int)BasisVideoTransport.Web),
+                "A transport number the build does not know loads as the one that always works.");
         }
 
         // ---------- Stream pacing ----------

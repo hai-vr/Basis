@@ -521,7 +521,7 @@ namespace Basis.Tests.Camera
 
             BasisCameraUserMode filming = NewMode("Filming");
             filming.settings.modifiers.positionModifier = Basis.Cinematics.BasisCameraPositionModifier.FreeFly;
-            filming.settings.modifiers.rotationModifier = Basis.Cinematics.BasisCameraRotationModifier.FreeLook;
+            filming.settings.modifiers.rotationModifier = Basis.Cinematics.BasisCameraRotationModifier.Hold;
             BasisCameraModeDescriptor filmDescriptor = BasisCameraModes.DescribeUserMode(filming);
 
             Assert.That(filmDescriptor.RoleOf(BasisCameraPanelSection.Subject),

@@ -320,7 +320,7 @@ namespace Basis.Tests.Camera
 
             Assert.That(_rig.Camera.PinSpace, Is.EqualTo(BasisHandHeldCameraInteractable.CameraPinSpace.WorldSpace));
 
-            _rig.Camera.SetRotationModifier(BasisCameraRotationModifier.FreeLook);
+            _rig.Camera.SetRotationModifier(BasisCameraRotationModifier.Hold);
             _rig.Camera.SetPositionModifier(BasisCameraPositionModifier.FreeFly);
 
             Assert.That(_rig.Camera.PinSpace, Is.EqualTo(BasisHandHeldCameraInteractable.CameraPinSpace.HandHeld),

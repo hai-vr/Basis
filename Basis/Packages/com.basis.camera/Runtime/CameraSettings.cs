@@ -1,4 +1,5 @@
 using System;
+using Basis;
 using Basis.Cinematics;
 using UnityEngine;
 
@@ -128,6 +129,7 @@ public partial class BasisHandHeldCameraUI
             smoothDragPositionDamping = 0.4f;
             smoothDragRotationDamping = 0.5f;
             smoothDragMaxDistance = 0.25f;
+            flySpeed = 2f;
 
             gifDurationSeconds = 5f;
             gifFrameRate = 15;
@@ -141,6 +143,14 @@ public partial class BasisHandHeldCameraUI
             videoQuality = 80;
             videoTimeLimit = true;
             videoContinuousClips = false;
+
+            streamTransport = (int)(BasisHandHeldCamera.IsVideoOutputSupported ? BasisVideoTransport.Platform : BasisVideoTransport.Web);
+            streamWidth = BasisVideoOutputSettings.DefaultWidth;
+            streamHeight = BasisVideoOutputSettings.DefaultHeight;
+            streamFrameRate = BasisVideoOutputSettings.DefaultFrameRate;
+            streamQuality = BasisVideoOutputSettings.DefaultWebQuality;
+            streamPort = BasisVideoOutputSettings.DefaultWebPort;
+            streamSenderName = BasisVideoOutputSettings.DefaultSenderName;
         }
 
         /// <summary>
@@ -365,6 +375,7 @@ public partial class BasisHandHeldCameraUI
         public float smoothDragPositionDamping;
         public float smoothDragRotationDamping;
         public float smoothDragMaxDistance;
+        public float flySpeed;
 
         // GIF recording. Every default is set in the constructor, so an older file that lacks
         // them loads the intended values without a migration.
@@ -389,6 +400,14 @@ public partial class BasisHandHeldCameraUI
         /// older file loads as the single-clip recording it was written as.
         /// </summary>
         public bool videoContinuousClips;
+
+        public int streamTransport;
+        public int streamWidth;
+        public int streamHeight;
+        public float streamFrameRate;
+        public int streamQuality;
+        public int streamPort;
+        public string streamSenderName;
 
         /// <summary>
         /// Whether each saved photo is also printed into the world as a shared image pickup,

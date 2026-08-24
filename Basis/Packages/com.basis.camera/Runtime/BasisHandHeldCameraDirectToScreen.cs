@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 /// <summary>
@@ -23,6 +24,12 @@ public partial class BasisHandHeldCamera
     private GameObject directToScreenGO;
     private RawImage directToScreenImage;
     private AspectRatioFitter directToScreenFitter;
+    private Material directToScreenMaterial;
+    private bool directToScreenShaderMissing;
+    private bool directToScreenHdrConfigured;
+    private bool directToScreenHdrEncode;
+    private ColorGamut directToScreenHdrGamut;
+    private float directToScreenHdrMaxNits;
 
     /// <summary>Sorting order high enough to sit above the regular UI while mirroring.</summary>
     private const int DirectToScreenSortingOrder = 30000;
@@ -33,6 +40,11 @@ public partial class BasisHandHeldCamera
     /// scaled up to the screen, which is what it did at every size before.
     /// </summary>
     private const int DirectToScreenMaxDimension = 3840;
+
+    private const string DirectToScreenShaderResource = "BasisDirectToScreen";
+    public const float DirectToScreenPaperWhiteNits = 160f;
+    private static readonly int DirectToScreenPaperWhiteId = Shader.PropertyToID("_PaperWhite");
+    private static readonly int DirectToScreenMaxNitsId = Shader.PropertyToID("_MaxNits");
 
     /// <summary>
     /// Pixel size the feed should render at to cover the screen exactly. Prefers the overlay
@@ -97,6 +109,8 @@ public partial class BasisHandHeldCamera
 
         directToScreenImage = feed.AddComponent<RawImage>();
         directToScreenImage.raycastTarget = false;
+        directToScreenImage.material = ResolveDirectToScreenMaterial();
+        directToScreenHdrConfigured = false;
 
         // Centre-anchored, because AspectRatioFitter drives the size and warns on stretched anchors.
         RectTransform rect = directToScreenImage.rectTransform;
@@ -111,6 +125,23 @@ public partial class BasisHandHeldCamera
         directToScreenFitter = feed.AddComponent<AspectRatioFitter>();
         directToScreenFitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
         directToScreenFitter.aspectRatio = 16f / 9f;
+    }
+
+    private Material ResolveDirectToScreenMaterial()
+    {
+        if (directToScreenMaterial != null) return directToScreenMaterial;
+        if (directToScreenShaderMissing) return null;
+
+        Shader shader = Resources.Load<Shader>(DirectToScreenShaderResource);
+        if (shader == null)
+        {
+            directToScreenShaderMissing = true;
+            BasisDebug.LogError($"Direct To Screen shader '{DirectToScreenShaderResource}' could not be loaded — the feed will not be encoded for an HDR display.", BasisDebug.LogTag.Camera);
+            return null;
+        }
+
+        directToScreenMaterial = new Material(shader) { name = "Basis Direct To Screen", hideFlags = HideFlags.HideAndDontSave };
+        return directToScreenMaterial;
     }
 
     /// <summary>
@@ -141,6 +172,44 @@ public partial class BasisHandHeldCamera
                 directToScreenFitter.aspectRatio = aspect;
             }
         }
+
+        UpdateDirectToScreenHdrOutput();
+    }
+
+    private void UpdateDirectToScreenHdrOutput()
+    {
+        if (directToScreenMaterial == null) return;
+
+        HDROutputSettings display = HDROutputSettings.main;
+        bool hdrOutputActive = display.available && display.active;
+        bool encode = DirectToScreenNeedsHdrEncode(hdrOutputActive, SupportedRenderingFeatures.active.rendersUIOverlay);
+        ColorGamut gamut = encode ? display.displayColorGamut : ColorGamut.sRGB;
+        float maxNits = encode ? display.maxToneMapLuminance : 0f;
+
+        if (directToScreenHdrConfigured && encode == directToScreenHdrEncode && gamut == directToScreenHdrGamut && Mathf.Approximately(maxNits, directToScreenHdrMaxNits)) return;
+
+        directToScreenHdrConfigured = true;
+        directToScreenHdrEncode = encode;
+        directToScreenHdrGamut = gamut;
+        directToScreenHdrMaxNits = maxNits;
+        ConfigureDirectToScreenMaterial(directToScreenMaterial, encode, gamut, maxNits);
+    }
+
+    public static bool DirectToScreenNeedsHdrEncode(bool hdrOutputActive, bool pipelineRendersOverlayUI) => hdrOutputActive && !pipelineRendersOverlayUI;
+
+    public static void ConfigureDirectToScreenMaterial(Material material, bool encode, ColorGamut gamut, float maxNits)
+    {
+        if (material == null) return;
+
+        if (!encode)
+        {
+            HDROutputUtils.ConfigureHDROutput(material, HDROutputUtils.Operation.None);
+            return;
+        }
+
+        HDROutputUtils.ConfigureHDROutput(material, gamut, HDROutputUtils.Operation.ColorConversion | HDROutputUtils.Operation.ColorEncoding);
+        material.SetFloat(DirectToScreenPaperWhiteId, DirectToScreenPaperWhiteNits);
+        material.SetFloat(DirectToScreenMaxNitsId, maxNits > 0f ? maxNits : DirectToScreenPaperWhiteNits);
     }
 
     private void DespawnDirectToScreenOverlay()
@@ -152,5 +221,11 @@ public partial class BasisHandHeldCamera
         }
         directToScreenImage = null;
         directToScreenFitter = null;
+        if (directToScreenMaterial != null)
+        {
+            Destroy(directToScreenMaterial);
+            directToScreenMaterial = null;
+        }
+        directToScreenHdrConfigured = false;
     }
 }

@@ -44,7 +44,7 @@
     },
     {
       "key": "camera.modePreset.photo.description",
-      "value": "The ordinary handheld camera, set up exactly as it ships. Stays in your hand, normal lens, no effects added. The follow and cinematic sections do nothing in this preset."
+      "value": "The ordinary handheld camera, set up exactly as it ships. Stays in your hand, normal lens, no effects added. The Movement tab does nothing in this preset."
     },
     {
       "key": "camera.modePreset.flyingPuck",
@@ -60,7 +60,7 @@
     },
     {
       "key": "camera.modePreset.followMe.description",
-      "value": "The camera flies itself and keeps you in frame, staying focused on you as you move. Use the Follow section to place it around you and to point it at someone else instead."
+      "value": "The camera flies itself and keeps you in frame, staying focused on you as you move. Use the Subject section on the Movement tab to place it around you and to point it at someone else instead."
     },
     {
       "key": "camera.modePreset.cinematic",
@@ -68,7 +68,7 @@
     },
     {
       "key": "camera.modePreset.cinematic.description",
-      "value": "The shot rig drives the camera along your dolly, orbit and framing moves. A longer lens, shallower focus and a little motion blur for the filmic look. Follow does nothing here — the rig owns where the camera goes."
+      "value": "The camera follows and frames the subject on its own, leading a moving subject and adding a little handheld shake. A longer lens, shallower focus and a little motion blur for the filmic look. Change the shot on the Movement tab."
     },
     {
       "key": "camera.modePreset.disposable",
@@ -76,7 +76,7 @@
     },
     {
       "key": "camera.modePreset.disposable.description",
-      "value": "A single-use 35mm camera. Twenty-seven frames, a fixed wide lens that never focuses, and a flash you have to wait six seconds for. Warm, grainy and vignetted, with the date burned into the corner. When the roll runs out, reload it from the Camera section."
+      "value": "A single-use 35mm camera. Twenty-seven frames, a fixed wide lens that never focuses, and a flash you have to wait six seconds for. Warm, grainy and vignetted, with the date burned into the corner. When the roll runs out, reload it from the Camera Body section."
     },
     {
       "key": "camera.modePreset.instant",
@@ -104,7 +104,7 @@
     },
     {
       "key": "camera.body",
-      "value": "Camera"
+      "value": "Camera Body"
     },
     {
       "key": "camera.body.digital",
@@ -120,7 +120,7 @@
     },
     {
       "key": "camera.body.help",
-      "value": "Which camera you are holding and what its shutter is doing. Picking a body above hands you a fresh one."
+      "value": "Which camera you are holding and what its shutter is doing. Picking a body on the Preset tab hands you a fresh one."
     },
     {
       "key": "camera.body.flash",
@@ -216,7 +216,7 @@
     },
     {
       "key": "camera.filmGrain.response",
-      "value": "Grain in Shadows"
+      "value": "Grain In Shadows"
     },
     {
       "key": "camera.filmGrain.response.description",
@@ -224,7 +224,7 @@
     },
     {
       "key": "camera.bloomTint",
-      "value": "Glow Colour"
+      "value": "Bloom Colour"
     },
     {
       "key": "camera.bloomTint.description",
@@ -232,7 +232,7 @@
     },
     {
       "key": "camera.bloomTint.strength",
-      "value": "Glow Colour Strength"
+      "value": "Bloom Colour Strength"
     },
     {
       "key": "camera.vignetteColour",
@@ -324,7 +324,7 @@
     },
     {
       "key": "camera.userMode.save",
-      "value": "Save Current Settings"
+      "value": "Save As Preset"
     },
     {
       "key": "camera.userMode.save.tooltip",
@@ -408,7 +408,7 @@
     },
     {
       "key": "camera.anchorFollowsBody",
-      "value": "Follow My Body"
+      "value": "Move With My Body"
     },
     {
       "key": "camera.anchorFollowsBody.description",
@@ -456,7 +456,7 @@
     },
     {
       "key": "camera.anchor.status",
-      "value": "Riding"
+      "value": "Attachment Status"
     },
     {
       "key": "camera.anchor.status.none",
@@ -492,7 +492,7 @@
     },
     {
       "key": "camera.focusAuto",
-      "value": "Follow Subject"
+      "value": "Auto (On Subject)"
     },
     {
       "key": "camera.followOffset",
@@ -764,7 +764,7 @@
     },
     {
       "key": "camera.msaa",
-      "value": "MSAA"
+      "value": "Anti-Aliasing (MSAA)"
     },
     {
       "key": "camera.msaa.description",
@@ -776,7 +776,7 @@
     },
     {
       "key": "camera.mode",
-      "value": "Mode"
+      "value": "Blur Type"
     },
     {
       "key": "camera.mode.description",
@@ -792,11 +792,11 @@
     },
     {
       "key": "camera.focus",
-      "value": "Focus"
+      "value": "Focus Mode"
     },
     {
       "key": "camera.focus.description",
-      "value": "Follow Subject keeps depth of field on whoever the camera follows (turns it on), and needs Auto Follow on or a Follow Target picked; Manual sets the focus distance by hand."
+      "value": "Auto keeps focus on whoever the camera is filming, and needs a Subject picked on the Movement tab; Manual sets the focus distance by hand."
     },
     {
       "key": "camera.focusDistance",
@@ -804,11 +804,11 @@
     },
     {
       "key": "camera.focus.noSubject",
-      "value": "Nobody Is Being Tracked"
+      "value": "No Subject To Focus On"
     },
     {
       "key": "camera.focus.noSubject.description",
-      "value": "Follow Subject has no one to keep sharp, so focus is not being driven and the distance slider is still in charge. Choose who the camera films on the Modifiers tab, under Subject — fit a position or rotation modifier there, or pick a Follow Target."
+      "value": "Auto focus has no one to keep sharp, so the distance slider is still in charge. Pick who the camera films on the Movement tab, under Subject."
     },
     {
       "key": "camera.aperture",
@@ -844,7 +844,7 @@
     },
     {
       "key": "camera.focusPeaking.colour",
-      "value": "Peak Colour"
+      "value": "Peaking Colour"
     },
     {
       "key": "camera.focusPeaking.colour.description",
@@ -892,7 +892,7 @@
     },
     {
       "key": "camera.focusPeaking.sensitivity",
-      "value": "Peak Sensitivity"
+      "value": "Peaking Sensitivity"
     },
     {
       "key": "camera.focusPeaking.sensitivity.description",
@@ -900,7 +900,7 @@
     },
     {
       "key": "camera.focusPeaking.grey",
-      "value": "Grey The Picture"
+      "value": "Grey Out Preview"
     },
     {
       "key": "camera.focusPeaking.grey.description",
@@ -916,7 +916,7 @@
     },
     {
       "key": "camera.grid.pattern",
-      "value": "Grid"
+      "value": "Grid Pattern"
     },
     {
       "key": "camera.grid.pattern.description",
@@ -980,7 +980,7 @@
     },
     {
       "key": "camera.autoBrightness",
-      "value": "Auto Brightness"
+      "value": "Auto Exposure"
     },
     {
       "key": "camera.autoBrightness.description",
@@ -1028,7 +1028,7 @@
     },
     {
       "key": "camera.autoBrightness.speed",
-      "value": "Response"
+      "value": "Adjust Speed"
     },
     {
       "key": "camera.autoBrightness.speed.description",
@@ -1036,7 +1036,7 @@
     },
     {
       "key": "camera.autoBrightness.range",
-      "value": "Brightness Range"
+      "value": "Adjustment Range"
     },
     {
       "key": "camera.autoBrightness.range.description",
@@ -1044,7 +1044,7 @@
     },
     {
       "key": "camera.exposureOnCamera",
-      "value": "Exposure On Camera"
+      "value": "Show Exposure On Camera"
     },
     {
       "key": "camera.exposureOnCamera.description",
@@ -1064,7 +1064,7 @@
     },
     {
       "key": "camera.whiteBalanceTemp",
-      "value": "White Balance Temp"
+      "value": "White Balance Temperature"
     },
     {
       "key": "camera.whiteBalanceTint",
@@ -1072,7 +1072,7 @@
     },
     {
       "key": "camera.effects",
-      "value": "Effects"
+      "value": "Image Effects"
     },
     {
       "key": "camera.bloomIntensity",
@@ -1140,7 +1140,7 @@
     },
     {
       "key": "camera.tonemapping",
-      "value": "Photo Grade"
+      "value": "Photo Tonemapping"
     },
     {
       "key": "camera.tonemapping.description",
@@ -1232,7 +1232,7 @@
     },
     {
       "key": "camera.directToScreen",
-      "value": "Direct To Screen"
+      "value": "Show On Main Screen"
     },
     {
       "key": "camera.directToScreen.description",
@@ -1248,7 +1248,7 @@
     },
     {
       "key": "camera.closeHidesInstead",
-      "value": "Close Hides Instead"
+      "value": "Close Only Hides"
     },
     {
       "key": "camera.closeHidesInstead.description",
@@ -1256,7 +1256,7 @@
     },
     {
       "key": "camera.previewScreen",
-      "value": "Preview Screen"
+      "value": "Spawn Preview Screen"
     },
     {
       "key": "camera.previewScreen.description",
@@ -1272,7 +1272,7 @@
     },
     {
       "key": "camera.transport",
-      "value": "Transport"
+      "value": "Output Method"
     },
     {
       "key": "camera.liveOutput",
@@ -1303,12 +1303,108 @@
       "value": "Sender Name"
     },
     {
+      "key": "camera.streamPreset",
+      "value": "Stream Preset"
+    },
+    {
+      "key": "camera.streamPreset.description",
+      "value": "A ready-made transport, size and frame rate for streaming. Pick one, then switch Live Output on. Change any stream setting by hand and this shows Custom."
+    },
+    {
+      "key": "camera.streamPreset.custom",
+      "value": "Custom"
+    },
+    {
+      "key": "camera.streamPreset.custom.tooltip",
+      "value": "The stream settings below do not match any preset. Nothing to apply; pick a preset to replace them."
+    },
+    {
+      "key": "camera.streamPreset.platform720p60",
+      "value": "{0} 720p 60fps"
+    },
+    {
+      "key": "camera.streamPreset.platform720p60.tooltip",
+      "value": "{0} at 1280 x 720, 60 frames a second. The lightest shared-texture output, for a lower-end machine or a small overlay in OBS."
+    },
+    {
+      "key": "camera.streamPreset.platform1080p30",
+      "value": "{0} 1080p 30fps"
+    },
+    {
+      "key": "camera.streamPreset.platform1080p30.tooltip",
+      "value": "{0} at 1920 x 1080, 30 frames a second. The everyday choice for a stream or a recording."
+    },
+    {
+      "key": "camera.streamPreset.platform1080p60",
+      "value": "{0} 1080p 60fps"
+    },
+    {
+      "key": "camera.streamPreset.platform1080p60.tooltip",
+      "value": "{0} at 1920 x 1080, 60 frames a second. Smooth motion for a gameplay stream; the camera renders at least 60 times a second while it is up."
+    },
+    {
+      "key": "camera.streamPreset.platform1440p60",
+      "value": "{0} 1440p 60fps"
+    },
+    {
+      "key": "camera.streamPreset.platform1440p60.tooltip",
+      "value": "{0} at 2560 x 1440, 60 frames a second. A high-resolution stream or recording, at the cost of a bigger render every frame."
+    },
+    {
+      "key": "camera.streamPreset.platform2160p30",
+      "value": "{0} 4K 30fps"
+    },
+    {
+      "key": "camera.streamPreset.platform2160p30.tooltip",
+      "value": "{0} at 3840 x 2160, 30 frames a second. Maximum detail for a recording; the heaviest render of the set."
+    },
+    {
+      "key": "camera.streamPreset.web720p30",
+      "value": "MJPEG 720p 30fps"
+    },
+    {
+      "key": "camera.streamPreset.web720p30.tooltip",
+      "value": "Web stream at 1280 x 720, 30 frames a second, JPEG quality 60. The lightest MJPEG option: the smallest encode and the least bandwidth."
+    },
+    {
+      "key": "camera.streamPreset.web1080p30",
+      "value": "MJPEG 1080p 30fps"
+    },
+    {
+      "key": "camera.streamPreset.web1080p30.tooltip",
+      "value": "Web stream at 1920 x 1080, 30 frames a second, JPEG quality 70. A good balance for an OBS Browser source."
+    },
+    {
+      "key": "camera.streamPreset.web1080p60",
+      "value": "MJPEG 1080p 60fps"
+    },
+    {
+      "key": "camera.streamPreset.web1080p60.tooltip",
+      "value": "Web stream at 1920 x 1080, 60 frames a second, JPEG quality 65. Smooth motion; encoding twice as many frames costs CPU."
+    },
+    {
+      "key": "camera.streamPreset.web1080p30hq",
+      "value": "MJPEG 1080p 30fps High Quality"
+    },
+    {
+      "key": "camera.streamPreset.web1080p30hq.tooltip",
+      "value": "Web stream at 1920 x 1080, 30 frames a second, JPEG quality 90. Near-lossless frames at several times the bandwidth."
+    },
+    {
       "key": "camera.flyMode",
       "value": "Fly Mode"
     },
     {
       "key": "camera.flyMode.description",
-      "value": "Send the camera out into the world and steer it yourself. In VR this switch is the way in and out, and the hand that launched it keeps the controls, so you can let go of the camera and keep flying. On desktop middle click toggles it too, and you fly with the mouse and WASD. Your own movement is held still while it flies."
+      "value": "Send the camera out into the world and steer it over whatever the modifiers are doing: while you give input you drive, let go and they take back over. In VR this switch is the way in and out. The left stick moves, the right stick turns and climbs, and holding the right trigger makes the right stick pitch instead. On desktop middle click toggles it too, and you fly with the mouse and WASD. Your own movement is held still while it flies."
+    },
+    {
+      "key": "camera.flySpeed",
+      "value": "Fly Speed"
+    },
+    {
+      "key": "camera.flySpeed.description",
+      "value": "Metres per second the camera flies at full stick or with WASD. Grip on the move hand, or Shift, triples it."
     },
     {
       "key": "camera.follow",
@@ -1320,7 +1416,7 @@
     },
     {
       "key": "camera.teleportToMe",
-      "value": "Teleport To Me"
+      "value": "Bring Camera To Me"
     },
     {
       "key": "camera.teleportToMe.description",
@@ -1328,7 +1424,7 @@
     },
     {
       "key": "camera.detachedMarker",
-      "value": "Detached Marker"
+      "value": "Marker When Let Go"
     },
     {
       "key": "camera.detachedMarker.description",
@@ -1336,7 +1432,7 @@
     },
     {
       "key": "camera.followTarget",
-      "value": "Follow Target"
+      "value": "Player To Film"
     },
     {
       "key": "camera.followTarget.description",
@@ -1344,7 +1440,7 @@
     },
     {
       "key": "camera.followPlayspace",
-      "value": "Follow Playspace"
+      "value": "Track My Body"
     },
     {
       "key": "camera.followPlayspace.description",
@@ -1360,23 +1456,23 @@
     },
     {
       "key": "camera.sideOffsetX",
-      "value": "Side Offset (X)"
+      "value": "Sideways Offset"
     },
     {
       "key": "camera.lateralTrackingX",
-      "value": "Lateral Tracking (X)"
+      "value": "Sideways Tracking"
     },
     {
       "key": "camera.lateralTrackingX.description",
-      "value": "How much side-to-side movement pulls the camera in to keep you framed. 0 holds the side offset."
+      "value": "How much side-to-side movement pulls the camera in to keep you framed. 0 holds the sideways offset."
     },
     {
       "key": "camera.pitchOffsetX",
-      "value": "Pitch Offset (X)"
+      "value": "Tilt Offset"
     },
     {
       "key": "camera.heightOffsetY",
-      "value": "Height Offset (Y)"
+      "value": "Height Offset"
     },
     {
       "key": "camera.heightOffsetY.description",
@@ -1384,15 +1480,15 @@
     },
     {
       "key": "camera.lookAtHeightY",
-      "value": "Look At Height (Y)"
+      "value": "Aim Height"
     },
     {
       "key": "camera.yawOffsetY",
-      "value": "Yaw Offset (Y)"
+      "value": "Pan Offset"
     },
     {
       "key": "camera.distanceZ",
-      "value": "Distance (Z)"
+      "value": "Distance"
     },
     {
       "key": "camera.distanceZ.description",
@@ -1401,6 +1497,10 @@
     {
       "key": "camera.capture",
       "value": "Capture"
+    },
+    {
+      "key": "camera.photoHandling",
+      "value": "Photo & Handling"
     },
     {
       "key": "camera.photoResolution",
@@ -1412,11 +1512,11 @@
     },
     {
       "key": "camera.n360Capture",
-      "value": "360 Capture"
+      "value": "360° Photo"
     },
     {
       "key": "camera.printPhoto",
-      "value": "Print Photo"
+      "value": "Spawn Photo In World"
     },
     {
       "key": "camera.printPhoto.description",
@@ -1432,7 +1532,7 @@
     },
     {
       "key": "camera.autoLevel",
-      "value": "Auto Level"
+      "value": "Auto Level Horizon"
     },
     {
       "key": "camera.autoLevel.description",
@@ -1484,7 +1584,7 @@
     },
     {
       "key": "camera.openSavedPhoto",
-      "value": "Show Saved Photo"
+      "value": "Show Last Photo"
     },
     {
       "key": "camera.openSavedPhoto.none",
@@ -13462,7 +13562,7 @@
     },
     {
       "key": "camera.bindingMode",
-      "value": "Offset Space"
+      "value": "Offset Direction"
     },
     {
       "key": "camera.bindingMode.description",
@@ -13494,7 +13594,7 @@
     },
     {
       "key": "camera.dampApproach",
-      "value": "Approach Lag"
+      "value": "Distance Lag"
     },
     {
       "key": "camera.dampRotation",
@@ -13522,7 +13622,7 @@
     },
     {
       "key": "camera.screenX",
-      "value": "Subject Across"
+      "value": "Subject Across Frame"
     },
     {
       "key": "camera.screenX.description",
@@ -13530,7 +13630,7 @@
     },
     {
       "key": "camera.screenY",
-      "value": "Subject Up"
+      "value": "Subject Height In Frame"
     },
     {
       "key": "camera.deadZoneWidth",
@@ -13546,7 +13646,7 @@
     },
     {
       "key": "camera.softZoneWidth",
-      "value": "Limit Width"
+      "value": "Hard Limit Width"
     },
     {
       "key": "camera.softZone.description",
@@ -13554,19 +13654,19 @@
     },
     {
       "key": "camera.softZoneHeight",
-      "value": "Limit Height"
+      "value": "Hard Limit Height"
     },
     {
       "key": "camera.composerDampH",
-      "value": "Framing Lag Across"
+      "value": "Framing Lag Sideways"
     },
     {
       "key": "camera.composerDampV",
-      "value": "Framing Lag Up"
+      "value": "Framing Lag Vertical"
     },
     {
       "key": "camera.lookAhead",
-      "value": "Lead The Subject"
+      "value": "Lead Time"
     },
     {
       "key": "camera.lookAhead.description",
@@ -13622,11 +13722,11 @@
     },
     {
       "key": "camera.orbitHeading",
-      "value": "Angle Around"
+      "value": "Orbit Angle"
     },
     {
       "key": "camera.orbitVertical",
-      "value": "Height Along Orbit"
+      "value": "Orbit Height"
     },
     {
       "key": "camera.orbitVertical.description",
@@ -13682,11 +13782,11 @@
     },
     {
       "key": "camera.modifiers",
-      "value": "Modifiers"
+      "value": "Movement"
     },
     {
       "key": "camera.tab.effects",
-      "value": "Effects"
+      "value": "Movement Effects"
     },
     {
       "key": "camera.subject",
@@ -13694,7 +13794,7 @@
     },
     {
       "key": "camera.modifier.position",
-      "value": "Position Modifier"
+      "value": "Camera Position"
     },
     {
       "key": "camera.modifier.position.description",
@@ -13702,7 +13802,7 @@
     },
     {
       "key": "camera.modifier.rotation",
-      "value": "Rotation Modifier"
+      "value": "Camera Aim"
     },
     {
       "key": "camera.modifier.rotation.description",
@@ -13710,11 +13810,11 @@
     },
     {
       "key": "camera.modifier.effects",
-      "value": "Effects"
+      "value": "Movement Effects"
     },
     {
       "key": "camera.modifier.effects.description",
-      "value": "Extras layered on top of the slots. Each can be fitted once, and each runs at the point in the solve where it makes sense — settling before anything films the subject, shake last of all."
+      "value": "Extras layered on top of the position and aim controls. Each can be added once, and each runs at the point where it makes sense — steadying before anything films the subject, shake last of all."
     },
     {
       "key": "camera.modifier.addEffect",
@@ -13722,15 +13822,15 @@
     },
     {
       "key": "camera.modifier.addEffect.description",
-      "value": "Fit another effect on top of the fitted modifiers."
+      "value": "Add another effect on top of the position and aim controls."
     },
     {
       "key": "camera.modifier.noEffects",
-      "value": "No effects fitted"
+      "value": "No effects added"
     },
     {
       "key": "camera.modifier.noEffects.description",
-      "value": "Add one above to layer look-ahead, occlusion avoidance, shake or a fixed lens over whatever is driving the camera."
+      "value": "Add one above to lead the subject, keep the view clear, shake the camera or hold a field of view over whatever is driving the camera."
     },
     {
       "key": "camera.modifier.freeFly",
@@ -13766,7 +13866,7 @@
     },
     {
       "key": "camera.modifier.frameSubject",
-      "value": "Frame Subject"
+      "value": "Hold Subject Size"
     },
     {
       "key": "camera.modifier.frameSubject.description",
@@ -13774,7 +13874,7 @@
     },
     {
       "key": "camera.modifier.lockedOff",
-      "value": "Locked Off"
+      "value": "Stay Put"
     },
     {
       "key": "camera.modifier.lockedOff.description",
@@ -13798,7 +13898,7 @@
     },
     {
       "key": "camera.modifier.compose",
-      "value": "Compose"
+      "value": "Soft Look At Subject"
     },
     {
       "key": "camera.modifier.compose.description",
@@ -13806,7 +13906,7 @@
     },
     {
       "key": "camera.modifier.matchSubject",
-      "value": "Match Subject"
+      "value": "Match Subject Facing"
     },
     {
       "key": "camera.modifier.matchSubject.description",
@@ -13814,15 +13914,15 @@
     },
     {
       "key": "camera.modifier.hold",
-      "value": "Hold"
+      "value": "Hold Current Aim"
     },
     {
       "key": "camera.modifier.hold.description",
-      "value": "Keeps whatever rotation it already had."
+      "value": "Keeps whatever rotation it already had. Fly Mode turns it while you steer, and it stays wherever you leave it."
     },
     {
       "key": "camera.modifier.lookAhead",
-      "value": "Look Ahead"
+      "value": "Lead Moving Subject"
     },
     {
       "key": "camera.modifier.lookAhead.description",
@@ -13830,7 +13930,7 @@
     },
     {
       "key": "camera.modifier.avoidOcclusion",
-      "value": "Avoid Occlusion"
+      "value": "Keep View Clear"
     },
     {
       "key": "camera.modifier.avoidOcclusion.description",
@@ -13838,7 +13938,7 @@
     },
     {
       "key": "camera.modifier.shake",
-      "value": "Shake"
+      "value": "Camera Shake"
     },
     {
       "key": "camera.modifier.shake.description",
@@ -13846,15 +13946,15 @@
     },
     {
       "key": "camera.modifier.lensOverride",
-      "value": "Lens Override"
+      "value": "Field Of View Override"
     },
     {
       "key": "camera.modifier.lensOverride.description",
-      "value": "Drives the field of view from the stack instead of the lens slider."
+      "value": "Holds the field of view at the value below instead of the Lens slider."
     },
     {
       "key": "camera.modifier.needsSubject",
-      "value": "Idle — this one needs somebody to film, and the Subject slot is empty."
+      "value": "Idle — this effect needs someone to film, and no Subject is picked."
     },
     {
       "key": "camera.modifier.steadySubject",
@@ -13866,7 +13966,7 @@
     },
     {
       "key": "camera.modifier.avoidCollision",
-      "value": "Avoid Collision"
+      "value": "Stop At Walls"
     },
     {
       "key": "camera.modifier.avoidCollision.description",
@@ -13874,7 +13974,7 @@
     },
     {
       "key": "camera.modifier.dollyZoom",
-      "value": "Dolly Zoom"
+      "value": "Dolly Zoom (Vertigo)"
     },
     {
       "key": "camera.modifier.dollyZoom.description",
@@ -13882,11 +13982,11 @@
     },
     {
       "key": "camera.modifier.rigWeight",
-      "value": "Rig Weight"
+      "value": "Camera Weight"
     },
     {
       "key": "camera.modifier.rigWeight.description",
-      "value": "Gives the rig weight, so a fast move carries past the mark and settles back onto it."
+      "value": "Gives the camera weight, so a fast move carries past the mark and settles back onto it."
     },
     {
       "key": "camera.steadySmoothing",
@@ -13906,7 +14006,7 @@
     },
     {
       "key": "camera.collisionRadius",
-      "value": "Collision Radius"
+      "value": "Camera Radius"
     },
     {
       "key": "camera.collisionRadius.description",
@@ -13914,7 +14014,7 @@
     },
     {
       "key": "camera.collisionPadding",
-      "value": "Collision Clearance"
+      "value": "Wall Clearance"
     },
     {
       "key": "camera.collisionPadding.description",
@@ -13922,7 +14022,7 @@
     },
     {
       "key": "camera.dollyZoomMin",
-      "value": "Narrowest Lens"
+      "value": "Min Field Of View"
     },
     {
       "key": "camera.dollyZoomMin.description",
@@ -13930,7 +14030,7 @@
     },
     {
       "key": "camera.dollyZoomMax",
-      "value": "Widest Lens"
+      "value": "Max Field Of View"
     },
     {
       "key": "camera.dollyZoomMax.description",
@@ -13938,19 +14038,19 @@
     },
     {
       "key": "camera.rigWeightResponse",
-      "value": "Response"
+      "value": "Responsiveness"
     },
     {
       "key": "camera.rigWeightResponse.description",
-      "value": "How quickly the rig catches up to where it is being aimed. Lower is heavier."
+      "value": "How quickly the camera catches up to where it is being aimed. Lower is heavier."
     },
     {
       "key": "camera.rigWeightBounce",
-      "value": "Bounce"
+      "value": "Overshoot"
     },
     {
       "key": "camera.rigWeightBounce.description",
-      "value": "How far past the mark a fast move carries before settling. At zero the rig only lags, and never overshoots."
+      "value": "How far past the mark a fast move carries before settling. At zero the camera only lags, and never overshoots."
     },
     {
       "key": "camera.teleportDistance",
@@ -13990,7 +14090,7 @@
     },
     {
       "key": "camera.orbitDamping",
-      "value": "Orbit Damping"
+      "value": "Orbit Lag"
     },
     {
       "key": "camera.orbitDamping.description",
@@ -14006,7 +14106,7 @@
     },
     {
       "key": "camera.lookAheadLimit",
-      "value": "Look Ahead Limit"
+      "value": "Lead Distance Limit"
     },
     {
       "key": "camera.occlusionPadding",
@@ -14022,7 +14122,7 @@
     },
     {
       "key": "camera.occlusionReturn",
-      "value": "Return Damping"
+      "value": "Return Lag"
     },
     {
       "key": "camera.occlusionReturn.description",
@@ -14030,23 +14130,23 @@
     },
     {
       "key": "camera.occlusionRadius",
-      "value": "Probe Radius"
+      "value": "Sight Line Width"
     },
     {
       "key": "camera.lensFov",
-      "value": "Lens Field Of View"
+      "value": "Target Field Of View"
     },
     {
       "key": "camera.lensFov.description",
-      "value": "The field of view the stack holds the camera at."
+      "value": "The field of view the camera is held at."
     },
     {
       "key": "camera.lensDamping",
-      "value": "Lens Damping"
+      "value": "Zoom Lag"
     },
     {
       "key": "camera.dollyDamping",
-      "value": "Track Damping"
+      "value": "Track Lag"
     },
     {
       "key": "camera.dolly.description",
@@ -14054,7 +14154,7 @@
     },
     {
       "key": "camera.dolly.inactive",
-      "value": "Lay out a track here, then fit Dolly Track in the position slot to ride it."
+      "value": "Lay out a track here, then pick Dolly Track as the Camera Position to ride it."
     },
     {
       "key": "camera.modifier.subject",
@@ -14062,11 +14162,11 @@
     },
     {
       "key": "camera.modifier.subject.description",
-      "value": "Who the camera is filming. Every other modifier reads whoever this resolves to."
+      "value": "Who the camera is filming. The position and aim controls all use whoever this resolves to."
     },
     {
       "key": "camera.modifier.followPlayer",
-      "value": "Follow Player"
+      "value": "One Player"
     },
     {
       "key": "camera.modifier.followPlayer.description",
@@ -14074,7 +14174,7 @@
     },
     {
       "key": "camera.modifier.targetGroup",
-      "value": "Target Group"
+      "value": "Group Of Players"
     },
     {
       "key": "camera.modifier.targetGroup.description",
@@ -14082,7 +14182,7 @@
     },
     {
       "key": "camera.modifier.fixedPoint",
-      "value": "Fixed Point"
+      "value": "Point In The World"
     },
     {
       "key": "camera.modifier.fixedPoint.description",
@@ -14094,7 +14194,7 @@
     },
     {
       "key": "camera.modifier.noSubject.description",
-      "value": "Films no one. Modifiers that need a subject hold wherever they were."
+      "value": "Films no one. Controls that need a subject hold wherever they were."
     },
     {
       "key": "camera.groupIncludesMe",
@@ -14122,7 +14222,7 @@
     },
     {
       "key": "camera.fixedPointHere",
-      "value": "Point Here"
+      "value": "Set Point At Camera"
     },
     {
       "key": "camera.fixedPointHere.description",
@@ -14130,7 +14230,7 @@
     },
     {
       "key": "camera.fixedPointAtMe",
-      "value": "Point At Me"
+      "value": "Set Point At Me"
     },
     {
       "key": "camera.fixedPointAtMe.description",
@@ -14138,11 +14238,11 @@
     },
     {
       "key": "camera.composerBiasX",
-      "value": "Bias Sideways"
+      "value": "Extra Room Sideways"
     },
     {
       "key": "camera.composerBiasY",
-      "value": "Bias Vertical"
+      "value": "Extra Room Vertical"
     },
     {
       "key": "camera.composerBias.description",
@@ -14166,7 +14266,7 @@
     },
     {
       "key": "camera.dollyMode",
-      "value": "Track Mode"
+      "value": "Track Control"
     },
     {
       "key": "camera.dollyMode.description",
@@ -14198,7 +14298,7 @@
     },
     {
       "key": "camera.detachedMarker.off.tooltip",
-      "value": "Nothing marks where the camera went. You will need Teleport To Me to get it back."
+      "value": "Nothing marks where the camera went. You will need Bring Camera To Me to get it back."
     },
     {
       "key": "camera.detachedMarker.puck.tooltip",
@@ -14454,7 +14554,7 @@
     },
     {
       "key": "camera.dollyPosition",
-      "value": "Track Position"
+      "value": "Position On Track"
     },
     {
       "key": "camera.dollyPosition.description",
@@ -14474,7 +14574,7 @@
     },
     {
       "key": "camera.backgroundMode",
-      "value": "Background"
+      "value": "Background Type"
     },
     {
       "key": "camera.backgroundMode.description",

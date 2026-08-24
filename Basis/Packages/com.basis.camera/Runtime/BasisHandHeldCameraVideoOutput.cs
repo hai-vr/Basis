@@ -240,6 +240,43 @@ public partial class BasisHandHeldCamera
         if (wasActive) StartLiveOutput();
     }
 
+    public static bool IsVideoTransportAvailable(BasisVideoTransport transport) =>
+        transport == BasisVideoTransport.Web || (transport == BasisVideoTransport.Platform && IsVideoOutputSupported);
+
+    public bool MatchesStreamPreset(in BasisCameraStreamPreset preset) => preset.Matches(VideoTransport, VideoOutputSettings);
+
+    public void ApplyStreamPreset(in BasisCameraStreamPreset preset)
+    {
+        BasisVideoOutputSettings settings = VideoOutputSettings;
+        int quality = preset.Transport == BasisVideoTransport.Web ? preset.WebQuality : settings.WebQuality;
+        ApplyStreamSettings(preset.Transport, preset.Width, preset.Height, preset.FrameRate, quality, settings.WebPort, settings.SenderName);
+    }
+
+    public void ApplyStreamSettings(BasisVideoTransport transport, int width, int height, float frameRate, int webQuality, int webPort, string senderName)
+    {
+        if (!IsVideoTransportAvailable(transport)) transport = BasisVideoTransport.Web;
+        width = Mathf.Clamp(width, 16, 8192);
+        height = Mathf.Clamp(height, 16, 8192);
+        webQuality = Mathf.Clamp(webQuality, 1, 100);
+        webPort = Mathf.Clamp(webPort, 1024, 65500);
+
+        BasisVideoOutputSettings settings = VideoOutputSettings;
+        bool sizeChanged = settings.Width != width || settings.Height != height;
+        bool restart = IsAnyVideoOutputActive && (VideoTransport != transport || (IsVideoOutputActive && sizeChanged) || (IsWebStreamActive && settings.WebPort != webPort));
+        if (restart) StopLiveOutput();
+
+        VideoTransport = transport;
+        settings.Width = width;
+        settings.Height = height;
+        settings.FrameRate = frameRate;
+        settings.WebQuality = webQuality;
+        settings.WebPort = webPort;
+        if (!string.IsNullOrWhiteSpace(senderName)) settings.SenderName = senderName;
+
+        if (restart) StartLiveOutput();
+        else if (IsWebStreamActive && sizeChanged) ResizeWebStreamTexture();
+    }
+
     /// <summary>
     /// Starts an MJPEG stream on loopback. Unlike Spout/Syphon this needs nothing installed
     /// on the receiving side — OBS reads it with a stock Browser or Media source — but it
@@ -272,11 +309,7 @@ public partial class BasisHandHeldCamera
         ClaimedWebPorts.Add(webSink.Port);
         settings.WebPort = webSink.Port;
 
-        webStreamTexture = new RenderTexture(new RenderTextureDescriptor(settings.Width, settings.Height, RenderTextureFormat.ARGB32, 0) { sRGB = true })
-        {
-            name = "BasisWebVideoOutput"
-        };
-        webStreamTexture.Create();
+        ResizeWebStreamTexture();
 
         webStreamPacer.Reset();
         // The render texture already holds a frame, so the first viewer gets a picture without
@@ -341,6 +374,22 @@ public partial class BasisHandHeldCamera
             webStreamTexture = null;
         }
         if (wasActive) UpdateRenderGate();
+    }
+
+    private void ResizeWebStreamTexture()
+    {
+        BasisVideoOutputSettings settings = VideoOutputSettings;
+        settings.Width = Mathf.Clamp(settings.Width, 16, 8192);
+        settings.Height = Mathf.Clamp(settings.Height, 16, 8192);
+        if (webStreamTexture != null && webStreamTexture.width == settings.Width && webStreamTexture.height == settings.Height) return;
+        if (webStreamTexture != null)
+        {
+            webStreamTexture.Release();
+            Destroy(webStreamTexture);
+        }
+        webStreamTexture = new RenderTexture(new RenderTextureDescriptor(settings.Width, settings.Height, RenderTextureFormat.ARGB32, 0) { sRGB = true }) { name = "BasisWebVideoOutput" };
+        webStreamTexture.Create();
+        streamFrameIsFresh = true;
     }
 
     private void TickWebStream()
@@ -480,6 +529,7 @@ public partial class BasisHandHeldCamera
         VideoOutputSettings.Width = width;
         VideoOutputSettings.Height = height;
         if (IsVideoOutputActive) StartVideoOutput();
+        else if (IsWebStreamActive) ResizeWebStreamTexture();
     }
 
     /// <summary>Sets the stream framerate. Applies live; 0 or below streams at the render rate.</summary>
@@ -744,20 +794,23 @@ namespace Basis
 
     public class BasisVideoOutputSettings
     {
-        public int Width = 1920;
-        public int Height = 1080;
+        public const int DefaultWidth = 1920, DefaultHeight = 1080, DefaultWebPort = 8787, DefaultWebQuality = 70;
+        public const float DefaultFrameRate = 30f;
+        public const string DefaultSenderName = "Basis Camera";
+        public int Width = DefaultWidth;
+        public int Height = DefaultHeight;
         /// <summary>Target framerate. 0 or below streams at the render rate.</summary>
-        public float FrameRate = 30f;
+        public float FrameRate = DefaultFrameRate;
         /// <summary>Sender/server name shown to Spout (Windows) and Syphon (macOS) receivers.</summary>
-        public string SenderName = "Basis Camera";
+        public string SenderName = DefaultSenderName;
         /// <summary>Optional explicit /dev/videoN path (Linux only). Empty auto-detects the first v4l2loopback device.</summary>
         public string DevicePath = string.Empty;
 
         /// <summary>Loopback port for the MJPEG web stream. Taken ports roll forward to the next free one.</summary>
-        public int WebPort = 8787;
+        public int WebPort = DefaultWebPort;
 
         /// <summary>JPEG quality for the web stream, 1-100. Lower is cheaper to encode and to send.</summary>
-        public int WebQuality = 70;
+        public int WebQuality = DefaultWebQuality;
     }
 
     /// <summary>

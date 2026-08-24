@@ -300,7 +300,7 @@ public partial class BasisHandHeldCamera
     private static readonly BasisCameraModePreset PhotoPreset = new BasisCameraModePreset(
         pin: CameraPinSpace.HandHeld,
         position: BasisCameraPositionModifier.FreeFly,
-        rotation: BasisCameraRotationModifier.FreeLook,
+        rotation: BasisCameraRotationModifier.Hold,
         effects: NoEffects,
         autoLevel: false,
         vrStabilisation: false,
@@ -323,7 +323,7 @@ public partial class BasisHandHeldCamera
     private static readonly BasisCameraModePreset FlyingPuckPreset = new BasisCameraModePreset(
         pin: CameraPinSpace.WorldSpace,
         position: BasisCameraPositionModifier.FreeFly,
-        rotation: BasisCameraRotationModifier.FreeLook,
+        rotation: BasisCameraRotationModifier.Hold,
         effects: NoEffects,
         autoLevel: true,
         vrStabilisation: true,
@@ -393,7 +393,7 @@ public partial class BasisHandHeldCamera
     private static readonly BasisCameraModePreset DisposablePreset = new BasisCameraModePreset(
         pin: CameraPinSpace.HandHeld,
         position: BasisCameraPositionModifier.FreeFly,
-        rotation: BasisCameraRotationModifier.FreeLook,
+        rotation: BasisCameraRotationModifier.Hold,
         effects: NoEffects,
         autoLevel: false,
         vrStabilisation: false,
@@ -463,7 +463,7 @@ public partial class BasisHandHeldCamera
     private static readonly BasisCameraModePreset InstantPreset = new BasisCameraModePreset(
         pin: CameraPinSpace.HandHeld,
         position: BasisCameraPositionModifier.FreeFly,
-        rotation: BasisCameraRotationModifier.FreeLook,
+        rotation: BasisCameraRotationModifier.Hold,
         effects: NoEffects,
         autoLevel: false,
         vrStabilisation: false,
@@ -529,7 +529,7 @@ public partial class BasisHandHeldCamera
     private static readonly BasisCameraModePreset CamcorderPreset = new BasisCameraModePreset(
         pin: CameraPinSpace.HandHeld,
         position: BasisCameraPositionModifier.FreeFly,
-        rotation: BasisCameraRotationModifier.FreeLook,
+        rotation: BasisCameraRotationModifier.Hold,
         effects: NoEffects,
         autoLevel: false,
         vrStabilisation: false,
@@ -588,7 +588,7 @@ public partial class BasisHandHeldCamera
     private static readonly BasisCameraModePreset SecurityPreset = new BasisCameraModePreset(
         pin: CameraPinSpace.HandHeld,
         position: BasisCameraPositionModifier.FreeFly,
-        rotation: BasisCameraRotationModifier.FreeLook,
+        rotation: BasisCameraRotationModifier.Hold,
         effects: NoEffects,
         autoLevel: true,
         vrStabilisation: true,

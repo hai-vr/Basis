@@ -52,16 +52,14 @@ namespace Basis.Cinematics
     /// <summary>What decides where the camera points. Exactly one is fitted at a time.</summary>
     public enum BasisCameraRotationModifier
     {
-        /// <summary>The operator drives.</summary>
-        FreeLook = 0,
+        /// <summary>Keep whatever rotation it already had.</summary>
+        Hold = 0,
         /// <summary>Subject dead centre, every frame.</summary>
         LookAtSubject = 1,
         /// <summary>Screen composition with a dead zone and a soft zone.</summary>
         Compose = 2,
         /// <summary>Copy the subject's own facing, for over-the-shoulder shots.</summary>
         MatchSubject = 3,
-        /// <summary>Keep whatever rotation it already had.</summary>
-        Hold = 4,
     }
 
     /// <summary>
@@ -162,11 +160,10 @@ namespace Basis.Cinematics
 
         public static readonly BasisCameraRotationModifier[] RotationModifiers =
         {
-            BasisCameraRotationModifier.FreeLook,
+            BasisCameraRotationModifier.Hold,
             BasisCameraRotationModifier.LookAtSubject,
             BasisCameraRotationModifier.Compose,
             BasisCameraRotationModifier.MatchSubject,
-            BasisCameraRotationModifier.Hold,
         };
 
         public static readonly BasisCameraEffectDescriptor[] Effects =
@@ -238,8 +235,7 @@ namespace Basis.Cinematics
                 case BasisCameraRotationModifier.LookAtSubject: return "camera.modifier.lookAtSubject";
                 case BasisCameraRotationModifier.Compose: return "camera.modifier.compose";
                 case BasisCameraRotationModifier.MatchSubject: return "camera.modifier.matchSubject";
-                case BasisCameraRotationModifier.Hold: return "camera.modifier.hold";
-                default: return "camera.modifier.freeLook";
+                default: return "camera.modifier.hold";
             }
         }
 
@@ -284,7 +280,7 @@ namespace Basis.Cinematics
 
         /// <summary>Whether the rotation slot takes the channel off the operator.</summary>
         public static bool DrivesRotation(BasisCameraRotationModifier modifier)
-            => modifier != BasisCameraRotationModifier.FreeLook;
+            => modifier != BasisCameraRotationModifier.Hold;
 
         /// <summary>Whether the fitted subject slot resolves to anybody at all.</summary>
         public static bool ResolvesSubject(BasisCameraSubjectModifier modifier)

@@ -56,6 +56,9 @@ namespace Basis.Cinematics
         public Vector3 RigWeightVelocity;
         public bool HasRigWeight;
 
+        public Vector3 OperatorOffset;
+        public float OperatorYawOffset, OperatorPitchOffset;
+
         /// <summary>
         /// Continue from an explicit pose — the stack being fitted, or the camera being taken back
         /// from something else, so it eases from where it actually is rather than cutting.
@@ -74,9 +77,17 @@ namespace Basis.Cinematics
             RigWeightVelocity = Vector3.zero;
             HasRigWeight = true;
             HasDollyZoomReference = false;
+            ClearOperatorOffsets();
 
             ResetSubjectHistory();
             ResetSubjectSmoothing();
+        }
+
+        public void ClearOperatorOffsets()
+        {
+            OperatorOffset = Vector3.zero;
+            OperatorYawOffset = 0f;
+            OperatorPitchOffset = 0f;
         }
 
         /// <summary>
@@ -107,6 +118,8 @@ namespace Basis.Cinematics
                 RigWeightRotation = BasisCameraAnchorMath.TransportRotation(RigWeightRotation, fromRotation, toRotation);
                 RigWeightVelocity = BasisCameraAnchorMath.TransportDirection(RigWeightVelocity, fromRotation, toRotation);
             }
+
+            OperatorOffset = BasisCameraAnchorMath.TransportDirection(OperatorOffset, fromRotation, toRotation);
         }
 
         /// <summary>
@@ -122,6 +135,7 @@ namespace Basis.Cinematics
             HasPreviousPosition = false;
             HasDollyZoomReference = false;
             HasRigWeight = false;
+            ClearOperatorOffsets();
             ResetSubjectHistory();
             ResetSubjectSmoothing();
         }

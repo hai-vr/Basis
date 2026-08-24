@@ -60,7 +60,7 @@ namespace Basis.Cinematics
             subject = BasisCameraSubjectSettings.Default;
 
             positionModifier = BasisCameraPositionModifier.FreeFly;
-            rotationModifier = BasisCameraRotationModifier.FreeLook;
+            rotationModifier = BasisCameraRotationModifier.Hold;
 
             follow = BasisCameraFollowSettings.Default;
             orbit = BasisCameraOrbitSettings.Default;
@@ -185,7 +185,7 @@ namespace Basis.Cinematics
             }
             if (!Enum.IsDefined(typeof(BasisCameraRotationModifier), rotationModifier))
             {
-                rotationModifier = BasisCameraRotationModifier.FreeLook;
+                rotationModifier = BasisCameraRotationModifier.Hold;
             }
 
             effects ??= new List<int>();
