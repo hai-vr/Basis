@@ -65,8 +65,7 @@ public partial class BasisHandHeldCamera
     }
 
     private RenderTexture PreviewScreenFeed =>
-        // Single render path now: the camera always renders into its own RT (see
-        // BasisHandHeldCameraDirectToScreen), so the preview screen never needs the copy RT.
+        // The camera always renders into its own RT, so the preview screen reads it directly.
         // It is a viewfinder, so it takes the focus-peaking overlay when there is one.
         ViewfinderTexture;
 
@@ -103,7 +102,7 @@ public partial class BasisHandHeldCamera
         bool shouldShow = BodyAllowsLiveFeed
             && (previewScreenOverride ?? (BasisSettingsDefaults.CameraHud.RawValue
                 && BasisDeviceManagement.IsCurrentModeVR()
-                && (IsFlying || IsOverridingDesktopView)));
+                && IsFlying));
 
         if (shouldShow)
         {

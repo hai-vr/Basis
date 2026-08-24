@@ -72,17 +72,6 @@ public partial class BasisHandHeldCamera
     private bool frameCountShowing;
 
     /// <summary>
-    /// Set when a body change moved whether this camera has an output socket, and cleared by the
-    /// render tick once it has re-asked the three gates that depend on it.
-    ///
-    /// <para>Deferred rather than done on the spot because a body is restored from the settings
-    /// file <em>while the camera is still being set up</em>, and the re-ask goes through
-    /// <c>OverrideDesktopOutput</c> — which points the capture camera at a render texture that does
-    /// not exist yet at that moment. The tick is the first place both are certainly true.</para>
-    /// </summary>
-    private bool bodyFeedDirty;
-
-    /// <summary>
     /// Reused across captures. A stamp is a few dozen rectangles and this is reached from a GPU
     /// readback callback, so it is the one allocation on the path worth not making every photo.
     /// </summary>
@@ -236,8 +225,6 @@ public partial class BasisHandHeldCamera
         {
             ClearFrameCount();
         }
-
-        TickBodyLiveFeed();
     }
 
     /// <summary>Puts the frames left on the prop's display, if the self-timer is not using it.</summary>
@@ -392,21 +379,6 @@ public partial class BasisHandHeldCamera
         // by a body that had a socket, and the one being fitted does not. Safe to call at any time
         // — it is a no-op on a camera that was not streaming.
         if (!traits.LivePreview) StopVideoOutput();
-
-        bodyFeedDirty = true;
-    }
-
-    /// <summary>
-    /// Re-asks direct-to-screen and the preview screen now that the body has changed what the
-    /// camera is allowed to present. Both derive the answer themselves, so this only has to make
-    /// them look again.
-    /// </summary>
-    private void TickBodyLiveFeed()
-    {
-        if (!bodyFeedDirty || captureCamera == null || renderTexture == null) return;
-
-        bodyFeedDirty = false;
-        OverrideDesktopOutput();
     }
 
     // ---------- The stamp ----------

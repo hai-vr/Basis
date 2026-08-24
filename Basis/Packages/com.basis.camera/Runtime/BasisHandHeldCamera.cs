@@ -99,8 +99,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public int InstanceID;
 
     [Header("Advanced/Debug")]
-    /// <summary>If true and not on desktop, camera renders to display instead of RT.</summary>
-    public bool enableRecordingView = false;
 
     /// <summary>Static metadata/presets and PP component references.</summary>
     public BasisHandHeldCameraMetaData MetaData = new BasisHandHeldCameraMetaData();
@@ -400,7 +398,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         SetAudioListener(false);
         DespawnFollowPip();
         DestroyDetachedGizmo();
-        DespawnDirectToScreenOverlay();
 
         DebugGizmos.Shutdown();
 
@@ -1138,17 +1135,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         if (captureInFlight) return;
 
-        if (IsOverridingDesktopView)
-        {
-            // A window that reports nothing to fill — minimised — leaves the feed where it is.
-            // Falling back to the preview size would rebuild the RT twice per restore.
-            if (TryGetDirectToScreenFeedSize(out int screenWidth, out int screenHeight))
-            {
-                SetResolution(screenWidth, screenHeight, AntialiasingQuality.Low, PreviewRenderTextureFormat);
-            }
-            return;
-        }
-
         SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low, PreviewRenderTextureFormat);
     }
 
@@ -1490,14 +1476,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         StartCoroutine(TakeScreenshot(format, renderFormat));
     }
-    bool IsOverridingDesktopView = false;
-
-    /// <summary>
-    /// True while the camera's feed is also presented on the main screen (Direct To Screen). The
-    /// camera still renders into its own RT — the mode only adds a fullscreen overlay showing it —
-    /// so post-processing, MSAA and colour are the same as when it is off.
-    /// </summary>
-    public bool IsDirectToScreen => IsOverridingDesktopView;
     private BasisRenderRateLimiter renderRateLimiter;
 
     public const float MinHandHeldRenderHz = 1f;
@@ -1535,11 +1513,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // After the peaks, so the grid lies over them: it is the thing being aligned against.
         TickViewfinderGrid();
 
-        if (IsOverridingDesktopView)
-        {
-            UpdateDirectToScreenTexture();
-        }
-
         UpdatePreviewScreenTexture();
         TickVideoOutput();
         TickGifRecorder();
@@ -1556,40 +1529,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             captureCamera.transform.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
             BasisNetworkPIPCameraDriver.SendPIPPosition(pos, rot);
         }
-    }
-    /// <summary>
-    /// When enabled and not on desktop, renders to the main display instead of the RT
-    /// (and fills the RT with black). Otherwise restores RT output.
-    /// </summary>
-    public void OverrideDesktopOutput()
-    {
-        // The body has the last word. There is no socket on the back of a disposable, so a film
-        // body cannot present its feed anywhere but its own viewfinder however the toggle is left —
-        // and the toggle is left alone rather than cleared, so the setting comes back with the body.
-        IsOverridingDesktopView = enableRecordingView
-            && !BasisDeviceManagement.IsUserInDesktop()
-            && BodyAllowsLiveFeed;
-
-        // ONE render path. The camera always renders into its own RT, so post-processing, MSAA and
-        // colour are identical whether or not Direct To Screen is on; the mode only changes where
-        // that RT is presented. Re-targeting the camera at the backbuffer (what this used to do)
-        // was the root cause of PP dropping out, MSAA falling back and the mismatched look.
-        captureCamera.depth = -1;
-        captureCamera.targetDisplay = 0;
-        captureCamera.targetTexture = renderTexture;
-        BindViewfinderFeed(true);
-
-        SetDirectToScreenOverlayActive(IsOverridingDesktopView);
-
-        UpdateRenderGate();
-        UpdatePreviewScreen();
-    }
-
-    /// <summary>UI callback to toggle recording view and apply <see cref="OverrideDesktopOutput"/>.</summary>
-    public void OnOverrideDesktopOutputButtonPress()
-    {
-        enableRecordingView = !enableRecordingView;
-        OverrideDesktopOutput();
     }
     /// <summary>
     /// Encodes and writes the screenshot to disk asynchronously using the selected format.
@@ -1710,11 +1649,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             : TonemappingMode.ACES;
     }
 
-    /// <summary>Boot-mode swap handler (keeps overrides in sync).</summary>
+    /// <summary>Boot-mode swap handler.</summary>
     private new void OnBootModeChanged(string obj)
     {
-        OverrideDesktopOutput();
-        // base.OnBootModeChanged(obj);
     }
 
     /// <summary>Unhooks visibility observer from the preview renderer.</summary>
@@ -1762,7 +1699,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// freezes on whatever frame the prop was last on screen for.
     /// </summary>
     private bool HasOffPropFeedConsumer =>
-        IsOverridingDesktopView || IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || panelPreviewActive || IsPreviewScreenVisible;
+        IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || panelPreviewActive || IsPreviewScreenVisible;
 
     /// <summary>
     /// Told by the settings panel while it is open on this camera. Its preview is a second window
@@ -1798,12 +1735,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (!shouldRender)
         {
             captureCamera.enabled = false;
-            return;
-        }
-
-        if (IsOverridingDesktopView)
-        {
-            captureCamera.enabled = true;
             return;
         }
 

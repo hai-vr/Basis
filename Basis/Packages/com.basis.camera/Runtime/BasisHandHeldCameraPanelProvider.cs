@@ -228,7 +228,6 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private PanelDropdown _resolutionDropdown;
         private PanelDropdown _formatDropdown;
-        private PanelToggle _recordToggle;
         private PanelToggle _flyToggle;
         private PanelSlider _flySpeedSlider;
         private PanelSlider _flyClimbSpeedSlider;
@@ -275,7 +274,6 @@ namespace Basis.BasisUI.HandHeldCamera
         private bool? _lastVideoOutputActive;
         private bool? _lastWebStreamActive;
         private string _lastWebStreamDescription;
-        private bool? _lastRecordingView;
         private bool? _lastCameraHidden;
         private bool? _lastAudioListener;
         private float _lastFov = float.NaN;
@@ -968,7 +966,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _targetGroupToggle = null;
             _resolutionDropdown = null;
             _formatDropdown = null;
-            _recordToggle = null;
             _flyToggle = null;
             _flySpeedSlider = null;
             _flyClimbSpeedSlider = null;
@@ -1025,7 +1022,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastWebStreamActive = null;
             _lastWebStreamDescription = null;
             _lastStreamPresetKey = null;
-            _lastRecordingView = null;
             _lastCameraHidden = null;
             _lastAudioListener = null;
             _lastSelfie = null;
@@ -1684,15 +1680,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _outputGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
                 _outputSection, parent, BasisLocalization.Get("camera.whileStreaming"), false);
             RectTransform content = _outputGroup.ContentParent;
-
-            _recordToggle = PanelToggle.CreateNewEntry(content);
-            _recordToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.directToScreen"));
-            _recordToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.directToScreen.description"));
-            _recordToggle.OnValueChanged = v =>
-            {
-                if (_activeCamera == null) return;
-                if (_activeCamera.enableRecordingView != v) _activeCamera.OnOverrideDesktopOutputButtonPress();
-            };
 
             _hideCameraToggle = PanelToggle.CreateNewEntry(content);
             _hideCameraToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.hideCamera"));
@@ -2794,7 +2781,6 @@ namespace Basis.BasisUI.HandHeldCamera
                 }
             }
 
-            SyncToggle(_recordToggle, _activeCamera.enableRecordingView, ref _lastRecordingView);
             SyncToggle(_hideCameraToggle, _activeCamera.IsCameraHidden, ref _lastCameraHidden);
             SyncToggle(_audioListenerToggle, _activeCamera.IsAudioListener, ref _lastAudioListener);
             SyncToggle(_selfieToggle, _activeCamera.HandHeld.IsSelfieMode, ref _lastSelfie);
@@ -2886,15 +2872,6 @@ namespace Basis.BasisUI.HandHeldCamera
                     _transportDropdown.SetValueWithoutNotify(
                         BasisHandHeldCamera.GetVideoTransportName(_transports[index]));
                 }
-            }
-
-            // Direct To Screen swaps the headset view for the camera's. On desktop there is no
-            // second view to give up — OverrideDesktopOutput already no-ops there — so the row
-            // would be a control that does nothing. Matches the prop HUD, which hides its own
-            // button the same way.
-            if (_recordToggle != null)
-            {
-                _recordToggle.gameObject.SetActive(BasisDeviceManagement.IsCurrentModeVR());
             }
 
             bool web = _activeCamera.VideoTransport == BasisVideoTransport.Web;
@@ -3075,7 +3052,6 @@ namespace Basis.BasisUI.HandHeldCamera
             }
             RefreshStreamPresetSelection();
 
-            SyncToggle(_recordToggle, _activeCamera.enableRecordingView, ref _lastRecordingView);
             SyncSharedControls();
             RefreshFocusSubjectNotice();
             RefreshFollowTargets();

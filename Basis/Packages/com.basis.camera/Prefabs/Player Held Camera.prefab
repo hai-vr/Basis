@@ -6515,7 +6515,6 @@ MonoBehaviour:
   autoLevelStrength: 2
   cinematicDamping: 0.8
   useVRHandheldSmoothing: 0
-  onlySmoothWhenStreamingToDesktop: 1
   vrHandheldPositionSmoothing: 20
   vrHandheldRotationSmoothing: 5
   cameraPinConstraint:
@@ -6580,7 +6579,6 @@ MonoBehaviour:
   depth: 24
   msaaSamples: 2
   InstanceID: 0
-  enableRecordingView: 0
   MetaData:
     Profile: {fileID: 11400000, guid: 49fa3e3e4ae0a5a43985fc094a849f4a, type: 2}
     tonemapping: {fileID: 0}

@@ -91,7 +91,6 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
     [Header("VR Handheld Stabilization")]
     public bool useVRHandheldSmoothing = false;
-    public bool onlySmoothWhenStreamingToDesktop = true;
 
     [Range(1f, 30f)]
     public float vrHandheldPositionSmoothing = 12f;
@@ -2032,8 +2031,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         bool shouldSmooth =
             !BasisDeviceManagement.IsUserInDesktop() &&
             PinSpace == CameraPinSpace.HandHeld &&
-            useVRHandheldSmoothing &&
-            (!onlySmoothWhenStreamingToDesktop || HHC.enableRecordingView);
+            useVRHandheldSmoothing;
 
         Transform cameraTransform = HHC.captureCamera.transform;
         Transform cameraParent = cameraTransform.parent;

@@ -1295,14 +1295,6 @@
       "value": "While Streaming"
     },
     {
-      "key": "camera.directToScreen",
-      "value": "Show On Main Screen"
-    },
-    {
-      "key": "camera.directToScreen.description",
-      "value": "Render this camera to the main screen in place of your own view. Nothing is written to disk."
-    },
-    {
       "key": "camera.hideCamera",
       "value": "Hide Camera"
     },
