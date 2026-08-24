@@ -305,8 +305,11 @@ public class BasisBulkBuildWindowEditor : EditorWindow
 
                 try
                 {
-                    // Preview PNG (same idea as your inspectors)
-                    Texture2D img = AssetPreview.GetAssetPreview(prefab) ?? AssetPreview.GetAssetPreview(buildRoot);
+                    BasisContentBase content = buildRoot.GetComponentInChildren<BasisContentBase>(true);
+                    Texture2D img = content?.BasisBundleDescription.AssetBundleIcon;
+                    if (img == null)
+                        img = AssetPreview.GetAssetPreview(prefab) ?? AssetPreview.GetAssetPreview(buildRoot);
+
                     string imageBytes = img != null ? BasisTextureCompression.ToPngBytes(img) : null;
 
                     switch (e.type)
