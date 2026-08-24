@@ -148,6 +148,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private RawImage _expandedImage;
         private AspectRatioFitter _expandedFitter;
         private bool _previewExpanded;
+        private readonly List<GameObject> _hiddenByPreview = new List<GameObject>();
 
         private PanelSlider _fovSlider;
         private PanelSlider _exposureSlider;
@@ -247,7 +248,6 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelButton _revealPhotoButton;
         private string _lastPhotoStatusText;
         private bool? _lastRevealPhotoInteractable;
-        private PanelToggle _previewScreenToggle;
         private PanelToggle _audioListenerToggle;
         private PanelToggle _selfieToggle;
         private PanelToggle _hideCameraToggle;
@@ -276,7 +276,6 @@ namespace Basis.BasisUI.HandHeldCamera
         private bool? _lastWebStreamActive;
         private string _lastWebStreamDescription;
         private bool? _lastRecordingView;
-        private bool? _lastPreviewScreenVisible;
         private bool? _lastCameraHidden;
         private bool? _lastAudioListener;
         private float _lastFov = float.NaN;
@@ -357,7 +356,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
             _navColumn = _tabGroup.ExtrasContainer;
-            BuildExpandedPreview(panel.Descriptor.ContentParent);
+            BuildExpandedPreview((RectTransform)panel.transform);
             _pageContents.Clear();
             _searches.Clear();
             _searchTabKeys.Clear();
@@ -865,6 +864,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _expandedImage = null;
             _expandedFitter = null;
             _previewExpanded = false;
+            _hiddenByPreview.Clear();
             _fovSlider = null;
             _exposureSlider = null;
             _exposureOnCameraToggle = null;
@@ -1005,7 +1005,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _revealPhotoButton = null;
             _lastPhotoStatusText = null;
             _lastRevealPhotoInteractable = null;
-            _previewScreenToggle = null;
             _audioListenerToggle = null;
             _selfieToggle = null;
             _hideCameraToggle = null;
@@ -1027,7 +1026,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastWebStreamDescription = null;
             _lastStreamPresetKey = null;
             _lastRecordingView = null;
-            _lastPreviewScreenVisible = null;
             _lastCameraHidden = null;
             _lastAudioListener = null;
             _lastSelfie = null;
@@ -1102,13 +1100,17 @@ namespace Basis.BasisUI.HandHeldCamera
             backdrop.color = new Color(0.05f, 0.05f, 0.06f, 0.97f);
             if (material != null) backdrop.material = material;
 
+            UnityEngine.UI.Button collapse = _expandedOverlay.AddComponent<UnityEngine.UI.Button>();
+            collapse.transition = Selectable.Transition.None;
+            collapse.onClick.AddListener(CollapsePreview);
+
             GameObject imageGo = new GameObject("Feed", typeof(RectTransform));
             RectTransform imageRect = (RectTransform)imageGo.transform;
             imageRect.SetParent(overlay, false);
             imageRect.anchorMin = Vector2.zero;
             imageRect.anchorMax = Vector2.one;
-            imageRect.offsetMin = new Vector2(16f, 104f);
-            imageRect.offsetMax = new Vector2(-16f, -16f);
+            imageRect.offsetMin = Vector2.zero;
+            imageRect.offsetMax = Vector2.zero;
             _expandedImage = imageGo.AddComponent<RawImage>();
             _expandedImage.raycastTarget = false;
             if (material != null) _expandedImage.material = material;
@@ -1116,23 +1118,24 @@ namespace Basis.BasisUI.HandHeldCamera
             _expandedFitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
             _expandedFitter.aspectRatio = 16f / 9f;
 
-            PanelButton back = PanelButton.CreateNew(overlay);
-            back.Descriptor.SetTitle(BasisLocalization.Get("camera.preview.back"));
-            back.Descriptor.SetSize(new Vector2(320f, 72f));
-            RectTransform backRect = (RectTransform)back.transform;
-            backRect.anchorMin = Vector2.zero;
-            backRect.anchorMax = Vector2.zero;
-            backRect.pivot = Vector2.zero;
-            backRect.anchoredPosition = new Vector2(16f, 16f);
-            back.OnClicked += CollapsePreview;
-
             _expandedOverlay.SetActive(false);
         }
 
         private void ExpandPreview()
         {
-            if (_expandedOverlay == null || _activeCamera == null) return;
+            if (_expandedOverlay == null || _activeCamera == null || _previewExpanded) return;
             _previewExpanded = true;
+
+            Transform root = _expandedOverlay.transform.parent;
+            _hiddenByPreview.Clear();
+            for (int Index = 0; Index < root.childCount; Index++)
+            {
+                GameObject child = root.GetChild(Index).gameObject;
+                if (child == _expandedOverlay || !child.activeSelf) continue;
+                _hiddenByPreview.Add(child);
+                child.SetActive(false);
+            }
+
             _expandedOverlay.transform.SetAsLastSibling();
             _expandedOverlay.SetActive(true);
             RefreshPreviewTexture();
@@ -1140,8 +1143,14 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private void CollapsePreview()
         {
+            if (!_previewExpanded) return;
             _previewExpanded = false;
             if (_expandedOverlay != null) _expandedOverlay.SetActive(false);
+            for (int Index = 0; Index < _hiddenByPreview.Count; Index++)
+            {
+                if (_hiddenByPreview[Index] != null) _hiddenByPreview[Index].SetActive(true);
+            }
+            _hiddenByPreview.Clear();
         }
 
         private void BuildLensGroup(RectTransform parent)
@@ -1701,24 +1710,6 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 if (_activeCamera != null) _activeCamera.HandHeld.CloseHidesCamera = v;
                 _lastCloseHides = v;
-            };
-
-            // One row drives both halves of the preview screen: the selected camera's own
-            // override, so the flip is immediate whatever the camera is doing, and the
-            // account-wide Camera HUD setting, so it is remembered and every other camera
-            // spawns one by itself once it goes direct-to-screen or flies in VR. They were two
-            // controls until the second read as a duplicate of the first - and worse, setting
-            // the override was one-way, so touching this row once left the account setting with
-            // no effect on this camera for the rest of its life. Written together they cannot
-            // disagree. The tooltip is the moved setting's own string, kept with its
-            // settings.general.cameraHud key because it is translated into sixteen languages.
-            _previewScreenToggle = PanelToggle.CreateNewEntry(content);
-            _previewScreenToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.previewScreen"));
-            _previewScreenToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.cameraHud.tooltip"));
-            _previewScreenToggle.OnValueChanged = v =>
-            {
-                _activeCamera?.SetPreviewScreenVisible(v);
-                BasisSettingsDefaults.CameraHud.SetValue(v);
             };
 
             _audioListenerToggle = PanelToggle.CreateNewEntry(content);
@@ -2804,7 +2795,6 @@ namespace Basis.BasisUI.HandHeldCamera
             }
 
             SyncToggle(_recordToggle, _activeCamera.enableRecordingView, ref _lastRecordingView);
-            SyncToggle(_previewScreenToggle, _activeCamera.IsPreviewScreenVisible, ref _lastPreviewScreenVisible);
             SyncToggle(_hideCameraToggle, _activeCamera.IsCameraHidden, ref _lastCameraHidden);
             SyncToggle(_audioListenerToggle, _activeCamera.IsAudioListener, ref _lastAudioListener);
             SyncToggle(_selfieToggle, _activeCamera.HandHeld.IsSelfieMode, ref _lastSelfie);
@@ -3086,7 +3076,6 @@ namespace Basis.BasisUI.HandHeldCamera
             RefreshStreamPresetSelection();
 
             SyncToggle(_recordToggle, _activeCamera.enableRecordingView, ref _lastRecordingView);
-            SyncToggle(_previewScreenToggle, _activeCamera.IsPreviewScreenVisible, ref _lastPreviewScreenVisible);
             SyncSharedControls();
             RefreshFocusSubjectNotice();
             RefreshFollowTargets();

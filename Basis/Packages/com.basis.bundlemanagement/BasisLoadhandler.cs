@@ -123,10 +123,14 @@ public static class BasisLoadHandler
         // belongs to somebody else's live avatar.
         string Key = loadableBundle.ReservedWrapperKey;
         loadableBundle.ReservedWrapperKey = null;
+        bool IsDefaultAvatar = string.Equals(CombinedURL, BasisBeeConstants.DefaultAvatar, StringComparison.OrdinalIgnoreCase);
         if (string.IsNullOrEmpty(Key))
         {
             Key = GetBundleKey(loadableBundle);
-            BasisDebug.LogWarning($"No load reservation recorded for {CombinedURL}; releasing against recomputed key '{Key}'. Either this is a double release, or the content was loaded by a path that never reserved.", BasisDebug.LogTag.Event);
+            if (!IsDefaultAvatar)
+            {
+                BasisDebug.LogWarning($"No load reservation recorded for {CombinedURL}; releasing against recomputed key '{Key}'. Either this is a double release, or the content was loaded by a path that never reserved.", BasisDebug.LogTag.Event);
+            }
         }
         if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper Wrapper))
         {
@@ -147,7 +151,7 @@ public static class BasisLoadHandler
         }
         else
         {
-            if (CombinedURL.ToLower() != BasisBeeConstants.DefaultAvatar.ToLower())
+            if (!IsDefaultAvatar)
             {
                 // The key is logged because a miss here is almost always key drift rather than a
                 // genuinely absent bundle: the reservation stays held, so the wrapper never

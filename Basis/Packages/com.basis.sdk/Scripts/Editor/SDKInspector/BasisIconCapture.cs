@@ -67,6 +67,7 @@ public static class BasisIconCapture
             clone = Object.Instantiate(source);
             preview.AddSingleGO(clone);
             clone.SetActive(true);
+            Canvas.ForceUpdateCanvases();
 
             if (!TryComputeRendererBounds(clone, out Bounds bounds))
             {
@@ -409,6 +410,30 @@ public static class BasisIconCapture
             else
             {
                 bounds.Encapsulate(renderer.bounds);
+            }
+        }
+
+        RectTransform[] rects = root.GetComponentsInChildren<RectTransform>(includeInactive);
+        Vector3[] corners = new Vector3[4];
+        for (int Index = 0; Index < rects.Length; Index++)
+        {
+            RectTransform rect = rects[Index];
+            if (rect == null)
+            {
+                continue;
+            }
+            rect.GetWorldCorners(corners);
+            for (int Corner = 0; Corner < 4; Corner++)
+            {
+                if (!hasAny)
+                {
+                    bounds = new Bounds(corners[Corner], Vector3.zero);
+                    hasAny = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(corners[Corner]);
+                }
             }
         }
 

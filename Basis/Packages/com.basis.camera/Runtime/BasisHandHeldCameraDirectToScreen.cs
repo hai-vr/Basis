@@ -125,6 +125,8 @@ public partial class BasisHandHeldCamera
         directToScreenFitter = feed.AddComponent<AspectRatioFitter>();
         directToScreenFitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
         directToScreenFitter.aspectRatio = 16f / 9f;
+
+        BasisDebug.Log($"[DirectToScreen] overlay spawned: canvas order {DirectToScreenSortingOrder}, material '{(directToScreenImage.material != null ? directToScreenImage.material.name : "null")}', feed '{(ViewfinderTexture != null ? ViewfinderTexture.name : "null")}'.", BasisDebug.LogTag.Camera);
     }
 
     private Material ResolveDirectToScreenMaterial()
@@ -193,6 +195,8 @@ public partial class BasisHandHeldCamera
         directToScreenHdrGamut = gamut;
         directToScreenHdrMaxNits = maxNits;
         ConfigureDirectToScreenMaterial(directToScreenMaterial, encode, gamut, maxNits);
+
+        BasisDebug.Log($"[DirectToScreen] HDR gate: display available {display.available}, active {display.active}, pipeline overlay {SupportedRenderingFeatures.active.rendersUIOverlay} -> encode {encode}, gamut {gamut}, maxNits {maxNits}.", BasisDebug.LogTag.Camera);
     }
 
     public static bool DirectToScreenNeedsHdrEncode(bool hdrOutputActive, bool pipelineRendersOverlayUI) => hdrOutputActive && !pipelineRendersOverlayUI;

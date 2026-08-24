@@ -1683,10 +1683,6 @@
       "value": "Lets the camera be resized with a two-hand grab, like any other pickup. Off puts it back at the size your avatar gives it and keeps it there."
     },
     {
-      "key": "camera.preview.back",
-      "value": "Back"
-    },
-    {
       "key": "camera.openPhotosFolder",
       "value": "Open Photos Folder"
     },

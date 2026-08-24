@@ -1598,10 +1598,18 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     /// Reads one hand's live input state, re-resolved every frame rather than latched —
     /// <see cref="BasisInputWrapper"/> is a struct, so a copy keeps reporting the state it was
     /// taken with. <see cref="BasisInputSources.TryGetByRole"/> answers true for either hand
-    /// whether or not that slot has a device in it, so the null checks are the real test.
+    /// whether or not that slot has a device in it, so the null checks are the real test. Answers
+    /// nothing while either hand is pointing at UI, so the menu gets the sticks — the same gate the
+    /// play space mover uses.
     /// </summary>
     private bool TryGetFlyStick(BasisBoneTrackedRole role, out BasisInputState state)
     {
+        if (AnyHandPointingAtUI())
+        {
+            state = null;
+            return false;
+        }
+
         if (Inputs.TryGetByRole(role, out BasisInputWrapper wrapper) &&
             wrapper.Source != null && wrapper.BoneControl != null)
         {
@@ -1610,6 +1618,25 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         }
 
         state = null;
+        return false;
+    }
+
+    private static bool AnyHandPointingAtUI()
+    {
+        if (BasisDeviceManagement.Instance == null) return false;
+        var devices = BasisDeviceManagement.Instance.AllInputDevices;
+        if (devices == null) return false;
+
+        foreach (BasisInput device in devices)
+        {
+            if (device == null || device.HasControl == false) continue;
+            if (device.HasRaycaster == false || device.BasisUIRaycast == null) continue;
+            if (device.BasisUIRaycast.HadRaycastUITarget == false) continue;
+            if (device.TryGetRole(out BasisBoneTrackedRole role) == false) continue;
+            if (role != BasisBoneTrackedRole.LeftHand && role != BasisBoneTrackedRole.RightHand) continue;
+            return true;
+        }
+
         return false;
     }
 

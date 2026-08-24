@@ -23,7 +23,8 @@ namespace Basis.BasisUI
         public static Bounds CalculateLocalRenderBounds(GameObject parent)
         {
             var renderers = parent.GetComponentsInChildren<Renderer>(true);
-            if (renderers == null || renderers.Length == 0)
+            var rects = parent.GetComponentsInChildren<RectTransform>(true);
+            if ((renderers == null || renderers.Length == 0) && (rects == null || rects.Length == 0))
                 return new Bounds(Vector3.zero, Vector3.zero);
 
             Matrix4x4 parentWorldToLocal = parent.transform.worldToLocalMatrix;
@@ -70,6 +71,26 @@ namespace Basis.BasisUI
                 {
                     accum.Encapsulate(transformed.min);
                     accum.Encapsulate(transformed.max);
+                }
+            }
+
+            Vector3[] corners = new Vector3[4];
+            foreach (var rect in rects)
+            {
+                if (rect == null) continue;
+                rect.GetWorldCorners(corners);
+                for (int i = 0; i < 4; i++)
+                {
+                    Vector3 corner = parentWorldToLocal.MultiplyPoint3x4(corners[i]);
+                    if (!hasAny)
+                    {
+                        accum = new Bounds(corner, Vector3.zero);
+                        hasAny = true;
+                    }
+                    else
+                    {
+                        accum.Encapsulate(corner);
+                    }
                 }
             }
 
