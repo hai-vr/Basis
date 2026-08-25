@@ -1787,6 +1787,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         {
             currentVelocity = Vector3.zero;
             targetVelocity = Vector3.zero;
+            velocityMomentum = Vector3.zero;
         }
         move = (currentVelocity + (useMomentum ? velocityMomentum : Vector3.zero)) * deltaTime;
 

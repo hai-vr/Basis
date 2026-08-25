@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "Градусов в секунду, на которые VR-стик поворота разворачивает и наклоняет камеру при полном отклонении." },
     { "key": "camera.flyMouseSensitivity", "value": "Чувствительность мыши" },
     { "key": "camera.flyMouseSensitivity.description", "value": "Насколько камера поворачивается за движение мыши во время полёта на десктопе." },
+    { "key": "camera.flyMomentum", "value": "Плавная остановка" },
+    { "key": "camera.flyMomentum.description", "value": "Включено — летящая камера плавно замедляется после того, как вы отпустили WASD или стик перемещения. Выключено — она останавливается мгновенно. Настройка одна и та же для десктопа и VR." },
     { "key": "camera.follow", "value": "Слежение" },
     { "key": "camera.autoFollow", "value": "Автослежение" },
     { "key": "camera.teleportToMe", "value": "Вернуть камеру ко мне" },

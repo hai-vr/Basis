@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "Graus por segundo que o stick de giro do VR gira e inclina a câmera no máximo." },
     { "key": "camera.flyMouseSensitivity", "value": "Sensibilidade do Mouse" },
     { "key": "camera.flyMouseSensitivity.description", "value": "Quanto a câmera gira por movimento do mouse enquanto voa no desktop." },
+    { "key": "camera.flyMomentum", "value": "Paragem suave" },
+    { "key": "camera.flyMomentum.description", "value": "Ligado, a câmara em voo abranda até parar depois de largares o WASD ou o stick de movimento. Desligado, para no instante em que largas. A mesma opção serve para desktop e VR." },
     { "key": "camera.follow", "value": "Seguir" },
     { "key": "camera.autoFollow", "value": "Seguimento automático" },
     { "key": "camera.teleportToMe", "value": "Trazer Câmera Para Mim" },

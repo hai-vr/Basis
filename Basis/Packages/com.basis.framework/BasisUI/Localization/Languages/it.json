@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "Gradi al secondo di cui lo stick di rotazione VR ruota e inclina la fotocamera a fondo corsa." },
     { "key": "camera.flyMouseSensitivity", "value": "Sensibilità del mouse" },
     { "key": "camera.flyMouseSensitivity.description", "value": "Di quanto ruota la fotocamera per movimento del mouse mentre vola su desktop." },
+    { "key": "camera.flyMomentum", "value": "Arresto morbido" },
+    { "key": "camera.flyMomentum.description", "value": "Attivo, la camera in volo rallenta fino a fermarsi quando rilasci WASD o la levetta di movimento. Disattivo, si ferma di colpo. La stessa opzione vale per desktop e VR." },
     { "key": "camera.follow", "value": "Segui" },
     { "key": "camera.autoFollow", "value": "Segui automatico" },
     { "key": "camera.teleportToMe", "value": "Porta la fotocamera da me" },

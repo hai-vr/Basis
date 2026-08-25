@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "الدرجات في الثانية التي تدير بها عصا الدوران في VR الكاميرا وتميلها عند الدفع الكامل." },
     { "key": "camera.flyMouseSensitivity", "value": "حساسية الماوس" },
     { "key": "camera.flyMouseSensitivity.description", "value": "مقدار دوران الكاميرا مع كل حركة للماوس أثناء الطيران على سطح المكتب." },
+    { "key": "camera.flyMomentum", "value": "الانزلاق حتى التوقف" },
+    { "key": "camera.flyMomentum.description", "value": "عند التفعيل، تنزلق الكاميرا الطائرة حتى تتوقف بعد ترك مفاتيح WASD أو عصا التحرك. عند التعطيل، تتوقف فور ترك التحكم. ينطبق الخيار نفسه على سطح المكتب والواقع الافتراضي." },
     { "key": "camera.follow", "value": "التتبع" },
     { "key": "camera.autoFollow", "value": "تتبع تلقائي" },
     { "key": "camera.teleportToMe", "value": "إحضار الكاميرا إليّ" },

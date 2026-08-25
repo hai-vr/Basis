@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "VR टर्न स्टिक पूरी झुकाने पर कैमरा प्रति सेकंड कितने डिग्री घूमता और झुकता है।" },
     { "key": "camera.flyMouseSensitivity", "value": "माउस सेंसिटिविटी" },
     { "key": "camera.flyMouseSensitivity.description", "value": "डेस्कटॉप पर उड़ते समय हर माउस मूवमेंट पर कैमरा कितना घूमता है।" },
+    { "key": "camera.flyMomentum", "value": "धीरे-धीरे रुकना" },
+    { "key": "camera.flyMomentum.description", "value": "चालू होने पर, WASD या मूव स्टिक छोड़ने के बाद उड़ता हुआ कैमरा धीरे-धीरे रुकता है। बंद होने पर, छोड़ते ही तुरंत रुक जाता है। यही सेटिंग डेस्कटॉप और VR दोनों पर लागू होती है।" },
     { "key": "camera.follow", "value": "फ़ॉलो" },
     { "key": "camera.autoFollow", "value": "ऑटो फ़ॉलो" },
     { "key": "camera.teleportToMe", "value": "कैमरा मेरे पास लाएँ" },

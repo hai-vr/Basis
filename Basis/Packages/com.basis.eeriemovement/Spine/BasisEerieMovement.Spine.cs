@@ -259,20 +259,7 @@ namespace Basis.IK
                 poseStream.SetRotation(chainHeadToSpine[chestIdx], chestTrackedRot);
                 SweepHead(headTargetPos, firstJoint, chestIdx - 1, restChordHeadUpper, false, ccdUp, ccdRight, tolerance, maxIters);
             }
-            if (!chestSplit)
-            {
-                SweepHead(headTargetPos, firstJoint, chainLen - 2, restChordHeadLumbar, plan.hipsTracked, ccdUp, ccdRight, tolerance, maxIters);
-            }
-            else
-            {
-                Vector3 tip = poseStream.GetPosition(chainHeadToSpine[tipIdx]), toHead = headTargetPos - tip;
-                float relaxBand = Mathf.Max(tolerance * relaxEaseToleranceFactor, restChordHeadLumbar * relaxEaseChordFrac);
-                float relax = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((toHead.magnitude - tolerance) / Mathf.Max(relaxBand, epsilon)));
-                if (relax > 0f)
-                {
-                    SweepHead(tip + toHead * relax, firstJoint, chainLen - 2, restChordHeadLumbar, plan.hipsTracked, ccdUp, ccdRight, tolerance, maxIters);
-                }
-            }
+            SweepHead(headTargetPos, firstJoint, chainLen - 2, restChordHeadLumbar, plan.hipsTracked, ccdUp, ccdRight, tolerance, maxIters);
             Quaternion finalHeadRot = headTargetRot * offsetRotationHead;
             ShareNeckYaw(finalHeadRot);
             poseStream.SetRotation(chainHeadToSpine[tipIdx], finalHeadRot);
@@ -314,7 +301,7 @@ namespace Basis.IK
             }
         }
         const float aimDeadbandDeg = 1f, seedPlaneBlendSin = 0.139f, aimDampToleranceFactor = 4f;
-        const float relaxEaseToleranceFactor = 8f, relaxEaseChordFrac = 0.02f, seedRampStartFrac = 0.001f, seedRampFullFrac = 0.004f;
+        const float seedRampStartFrac = 0.001f, seedRampFullFrac = 0.004f;
         const int seedPasses = 3;
         float JointShare(int i)
         {
@@ -417,8 +404,8 @@ namespace Basis.IK
             if (compression > 0f)
             {
                 float bandFull = spineTautBandFrac * chainReach, band = bandFull > epsilon ? bandFull * Mathf.Clamp01(1f - (chainReach - restChord) / bandFull) : 0f;
-                float denom = compression * compression + band * band;
-                commandedDist = denom > 0f ? restChord - compression * compression * compression / denom : targetDist;
+                float d2 = compression * compression, b2 = band * band, denom = d2 * d2 + b2 * b2;
+                commandedDist = denom > 0f ? restChord - compression * (d2 * d2) / denom : targetDist;
             }
             else
             {

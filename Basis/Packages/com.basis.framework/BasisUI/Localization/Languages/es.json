@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "Grados por segundo que el stick de giro de RV gira e inclina la cámara a tope." },
     { "key": "camera.flyMouseSensitivity", "value": "Sensibilidad del ratón" },
     { "key": "camera.flyMouseSensitivity.description", "value": "Cuánto gira la cámara por movimiento del ratón mientras vuela en escritorio." },
+    { "key": "camera.flyMomentum", "value": "Frenado suave" },
+    { "key": "camera.flyMomentum.description", "value": "Activado, la cámara en vuelo se detiene poco a poco al soltar WASD o el stick de movimiento. Desactivado, se para en el instante en que sueltas. La misma opción sirve para escritorio y VR." },
     { "key": "camera.follow", "value": "Seguimiento" },
     { "key": "camera.autoFollow", "value": "Seguimiento automático" },
     { "key": "camera.teleportToMe", "value": "Traer la cámara hacia mí" },

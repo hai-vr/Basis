@@ -1619,6 +1619,11 @@ namespace Basis.BasisUI
         // Width of the spine CCD's taut band as a fraction of hips->head length. Must exceed the sub-millimetre
         // compressions an upright head commands through the neck-pivot lever, or the solver sits on its
         // full-extension singularity.
+        // ⚠ MEASURED 2026-08-25: narrowing this to 0.003 to cut the head's few-millimetre band residual
+        // reintroduces the standing buzz it exists to prevent (buzz-band, both avatar-scale gates and the
+        // full-extension continuity gate all go red) and costs corpus accuracy (1.61 -> 1.73 cm mean). The
+        // width is not the knob -- the regularizer's TAIL is, and it is quartic in SolveSequentialSpineIK so
+        // the head is released within a fraction of a millimetre once the compression is real.
         public static BasisSettingsBinding<float> FBIKSpineTautBandFrac = new("fbikspinetautbandfrac", new BasisPlatformDefault<float>(0.015f));
         // Lateral bend -> a little same-side axial rotation, so a sustained lean reads as a spinal coupling
         // rather than a pure hinge.

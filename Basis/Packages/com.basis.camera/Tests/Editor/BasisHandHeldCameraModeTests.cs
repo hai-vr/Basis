@@ -303,9 +303,10 @@ namespace Basis.Tests.Camera
             public bool MiddleClickReserved => DesktopMiddleClickReserved;
         }
 
-        private static readonly string[] FlySpeedSettings =
+        private static readonly string[] PersistedFlySettings =
         {
             "flySpeed", "flyClimbSpeed", "flyFastMultiplier", "flyTurnSpeed", "flyMouseSensitivity",
+            "flyMomentum",
         };
 
         [Test]
@@ -316,8 +317,8 @@ namespace Basis.Tests.Camera
             Assert.That(
                 typeof(BasisHandHeldCameraUI.CameraSettings).GetFields(
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance),
-                Has.None.Matches<System.Reflection.FieldInfo>(f => f.Name.ToLowerInvariant().Contains("fly") && System.Array.IndexOf(FlySpeedSettings, f.Name) < 0),
-                "Fly mode is per-session state, not a saved setting; the speeds it flies and turns at are.");
+                Has.None.Matches<System.Reflection.FieldInfo>(f => f.Name.ToLowerInvariant().Contains("fly") && System.Array.IndexOf(PersistedFlySettings, f.Name) < 0),
+                "Fly mode is per-session state, not a saved setting; the speeds it flies and turns at, and whether it glides to a stop, are.");
         }
 
         [Test]

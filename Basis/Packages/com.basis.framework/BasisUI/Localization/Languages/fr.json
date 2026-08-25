@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "Degrés par seconde dont le stick de rotation VR fait pivoter et incliner la caméra à pleine déflexion." },
     { "key": "camera.flyMouseSensitivity", "value": "Sensibilité de la souris" },
     { "key": "camera.flyMouseSensitivity.description", "value": "De combien la caméra tourne par mouvement de souris pendant le vol sur bureau." },
+    { "key": "camera.flyMomentum", "value": "Arrêt en douceur" },
+    { "key": "camera.flyMomentum.description", "value": "Activé, la caméra en vol ralentit jusqu'à l'arrêt après le relâchement de WASD ou du stick de déplacement. Désactivé, elle s'arrête net. Le même réglage vaut pour le bureau et la VR." },
     { "key": "camera.follow", "value": "Suivi" },
     { "key": "camera.autoFollow", "value": "Suivi automatique" },
     { "key": "camera.teleportToMe", "value": "Ramener la caméra à moi" },
