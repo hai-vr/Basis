@@ -133,7 +133,7 @@ public class SMModuleMotionBlurOverrideURP : BasisSettingsBase
         host.transform.SetParent(transform, false);
         // The local player camera's volume layer mask is Default only, so the trigger has to sit on
         // Default to be seen at all. It also keeps this off the handheld camera, whose mask is layer
-        // 8 - that camera drives its own MotionBlur from the photo panel.
+        // 11 - that camera drives its own MotionBlur from the photo panel.
         host.layer = 0;
 
         VolumeProfile profile = ScriptableObject.CreateInstance<VolumeProfile>();

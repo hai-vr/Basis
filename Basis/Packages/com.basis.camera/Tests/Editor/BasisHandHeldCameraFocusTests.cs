@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using Basis.Cinematics;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 using UnityCamera = UnityEngine.Camera;
@@ -16,6 +17,8 @@ namespace Basis.Tests.Camera
     /// </summary>
     public class BasisHandHeldCameraFocusTests
     {
+        private const string PrefabPath = "Packages/com.basis.camera/Prefabs/Player Held Camera.prefab";
+
         private GameObject _go;
         private GameObject _captureGo;
         private BasisHandHeldCamera _camera;
@@ -295,6 +298,64 @@ namespace Basis.Tests.Camera
 
             Assert.That(far - near, Is.GreaterThan(0.25f),
                 "f/1 on a 125mm lens gave a 3cm band at 3m, so no subject was ever usefully in focus.");
+        }
+
+        [Test]
+        public void FocusLayers_DropTheLayersTheCaptureCameraDoesNotRender()
+        {
+            int ui = 1 << 5, overlayUi = 1 << 9, handHeldCameraUi = 1 << 11;
+            int requested = ~(1 << 2);
+            int cullingMask = ~(ui | overlayUi | handHeldCameraUi);
+
+            int visible = BasisDepthOfFieldInteractionHandler.VisibleFocusLayers(requested, cullingMask);
+
+            Assert.That(visible & ui, Is.Zero,
+                "The player's menu is culled from every shot, so it must not be able to take the focus.");
+            Assert.That(visible & overlayUi, Is.Zero);
+            Assert.That(visible & handHeldCameraUi, Is.Zero,
+                "The camera's own panel sits a hand's width from the lens and was the nearest hit for most clicks.");
+            Assert.That(visible & 1, Is.Not.Zero, "Default is in the picture, so it stays focusable.");
+        }
+
+        [Test]
+        public void FocusLayers_KeepALayerTheOperatorPutBackIntoTheCapture()
+        {
+            int visible = BasisDepthOfFieldInteractionHandler.VisibleFocusLayers(~(1 << 2), ~0);
+
+            Assert.That(visible & (1 << 5), Is.Not.Zero,
+                "Turning the UI layer back on for captures makes nameplates real subjects again.");
+        }
+
+        [Test]
+        public void FocusLayers_AreLeftAloneWhenThereIsNoCameraToReadAMaskFrom()
+        {
+            int requested = ~(1 << 2);
+
+            Assert.That(BasisDepthOfFieldInteractionHandler.VisibleFocusLayers(requested, 0), Is.EqualTo(requested));
+        }
+
+        [Test]
+        public void ThePrefabsFocusRayCannotLandOnAnythingTheShotDoesNotShow()
+        {
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+            Assert.That(prefab, Is.Not.Null, PrefabPath);
+
+            BasisDepthOfFieldInteractionHandler handler = prefab.GetComponentInChildren<BasisDepthOfFieldInteractionHandler>(true);
+            BasisHandHeldCamera handHeld = prefab.GetComponentInChildren<BasisHandHeldCamera>(true);
+            Assert.That(handler, Is.Not.Null);
+            Assert.That(handHeld, Is.Not.Null);
+            Assert.That(handHeld.captureCamera, Is.Not.Null);
+
+            int cullingMask = handHeld.captureCamera.cullingMask;
+            int visible = BasisDepthOfFieldInteractionHandler.VisibleFocusLayers(handler.focusLayers.value, cullingMask);
+
+            Assert.That(visible, Is.Not.Zero, "Narrowing the mask must still leave something focusable.");
+            for (int layer = 0; layer < 32; layer++)
+            {
+                if ((cullingMask & (1 << layer)) != 0) continue;
+                Assert.That(visible & (1 << layer), Is.Zero,
+                    $"Layer {layer} ({LayerMask.LayerToName(layer)}) is culled from every shot, but the focus ray could still land on it.");
+            }
         }
 
         /// <summary>Mirrors the Bokeh pass's maxCoC so the clamp is checked against the real formula.</summary>

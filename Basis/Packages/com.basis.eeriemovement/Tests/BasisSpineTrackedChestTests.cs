@@ -214,8 +214,10 @@ namespace Basis.Tests.IK
                 float pitchKept = Quaternion.Angle(skeleton.Stream.GetRotation(job.handleChest), Quaternion.identity), pitchHeadErr = (skeleton.Stream.GetPosition(job.handleHead) - benthHeadPos).magnitude;
                 Solve(ref job, headPos, Quaternion.identity, chestPos, Quaternion.Euler(0f, 90f, 0f));
                 float yawKept = Quaternion.Angle(skeleton.Stream.GetRotation(job.handleChest), Quaternion.identity);
-                Solve(ref job, headPos, Quaternion.identity, chestPos, Quaternion.Euler(20f, 0f, 0f));
-                float mildKept = Quaternion.Angle(skeleton.Stream.GetRotation(job.handleChest), Quaternion.Euler(20f, 0f, 0f));
+                Quaternion mildRot = Quaternion.Euler(20f, 0f, 0f);
+                Vector3 mildHeadPos = chestPos + mildRot * Vector3.up * (heights[5] - heights[2]);
+                Solve(ref job, mildHeadPos, Quaternion.identity, chestPos, mildRot);
+                float mildKept = Quaternion.Angle(skeleton.Stream.GetRotation(job.handleChest), mildRot);
                 float headRotErr = Quaternion.Angle(skeleton.Stream.GetRotation(job.handleHead), Quaternion.identity);
                 TestContext.WriteLine($"120 deg pitch request -> {pitchKept:F1} deg kept (head err {pitchHeadErr * 1000f:F2} mm), 90 deg yaw request -> {yawKept:F1} deg kept, 20 deg pitch request kept within {mildKept:F3} deg, head rot err {headRotErr:F4}");
                 Assert.Less(pitchKept, 90f, "a chest pitched 120 deg against tracked hips must be pulled back inside the human envelope between hips and head");

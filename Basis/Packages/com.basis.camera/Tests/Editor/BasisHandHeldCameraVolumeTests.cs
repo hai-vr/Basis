@@ -109,6 +109,20 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void ThePrefabsVolumeIsOffTheLayerTheLocalPlayersCameraBlends()
+        {
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+            Assert.That(prefab, Is.Not.Null, PrefabPath);
+
+            Volume volume = prefab.GetComponentInChildren<Volume>(true);
+            Assert.That(volume, Is.Not.Null);
+
+            const int PlayerCameraVolumeMask = 1;
+            Assert.That(PlayerCameraVolumeMask & (1 << volume.gameObject.layer), Is.Zero,
+                $"The accessibility overrides walk every Volume the player's camera blends and read Volume.profile, which swaps that Volume onto a private clone. Layer {volume.gameObject.layer} ({LayerMask.LayerToName(volume.gameObject.layer)}) must stay outside that mask or every control on the camera's Image tab writes to a profile nothing renders.");
+        }
+
+        [Test]
         public void ThePrefabsCaptureCameraSeesItsOwnVolume()
         {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);

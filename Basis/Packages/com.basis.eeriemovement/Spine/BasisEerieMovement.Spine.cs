@@ -259,9 +259,18 @@ namespace Basis.IK
                 poseStream.SetRotation(chainHeadToSpine[chestIdx], chestTrackedRot);
                 SweepHead(headTargetPos, firstJoint, chestIdx - 1, restChordHeadUpper, false, ccdUp, ccdRight, tolerance, maxIters);
             }
-            if (!chestSplit || (headTargetPos - poseStream.GetPosition(chainHeadToSpine[tipIdx])).sqrMagnitude > tolSqr)
+            if (!chestSplit)
             {
                 SweepHead(headTargetPos, firstJoint, chainLen - 2, restChordHeadLumbar, plan.hipsTracked, ccdUp, ccdRight, tolerance, maxIters);
+            }
+            else
+            {
+                Vector3 tip = poseStream.GetPosition(chainHeadToSpine[tipIdx]), toHead = headTargetPos - tip;
+                float relax = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((toHead.magnitude - tolerance) / Mathf.Max(tolerance * relaxEaseToleranceFactor, epsilon)));
+                if (relax > 0f)
+                {
+                    SweepHead(tip + toHead * relax, firstJoint, chainLen - 2, restChordHeadLumbar, plan.hipsTracked, ccdUp, ccdRight, tolerance, maxIters);
+                }
             }
             Quaternion finalHeadRot = headTargetRot * offsetRotationHead;
             ShareNeckYaw(finalHeadRot);
@@ -279,50 +288,31 @@ namespace Basis.IK
             {
                 shareTotal += JointShare(i);
             }
-            headTargetPos = CommandHeadTarget(headTargetPos, lastJoint, restChord, measuredRoot, out float chainReach, out bool atReach);
-            if (atReach)
-            {
-                StraightenAndAim(firstJoint, lastJoint, headTargetPos);
-                return;
-            }
+            headTargetPos = CommandHeadTarget(headTargetPos, lastJoint, restChord, measuredRoot, out float chainReach);
             for (int k = 0; k < seedPasses; k++)
             {
                 SeedBow(firstJoint, lastJoint, headTargetPos, chainReach, shareTotal, ccdRight);
                 ReachHeadJoint(lastJoint, headTargetPos, firstJoint, chestIdx, jointSpan, ccdUp, 1f, true);
             }
+            float dampSqr = tolerance * aimDampToleranceFactor;
+            dampSqr *= dampSqr;
             for (int iter = 0; iter < maxIters; iter++)
             {
-                if ((headTargetPos - poseStream.GetPosition(chainHeadToSpine[0])).sqrMagnitude < tolSqr)
+                float errSqr = (headTargetPos - poseStream.GetPosition(chainHeadToSpine[0])).sqrMagnitude;
+                if (errSqr < tolSqr)
                     break;
 
+                bool damp = errSqr < dampSqr;
                 float remaining = shareTotal;
                 for (int i = firstJoint; i <= lastJoint; i++)
                 {
                     float share = JointShare(i);
-                    ReachHeadJoint(i, headTargetPos, firstJoint, chestIdx, jointSpan, ccdUp, remaining > epsilon ? share / remaining : 1f, i == lastJoint);
+                    ReachHeadJoint(i, headTargetPos, firstJoint, chestIdx, jointSpan, ccdUp, remaining > epsilon ? share / remaining : 1f, !damp || i == lastJoint);
                     remaining -= share;
                 }
             }
         }
-        void StraightenAndAim(int firstJoint, int lastJoint, Vector3 target)
-        {
-            Vector3 dir = target - poseStream.GetPosition(chainHeadToSpine[lastJoint]);
-            if (dir.sqrMagnitude < sqrEpsilon)
-            {
-                return;
-            }
-            for (int i = lastJoint; i >= firstJoint; i--)
-            {
-                Vector3 seg = poseStream.GetPosition(chainHeadToSpine[i - 1]) - poseStream.GetPosition(chainHeadToSpine[i]);
-                if (seg.sqrMagnitude < sqrEpsilon)
-                {
-                    continue;
-                }
-                poseStream.SetRotation(chainHeadToSpine[i], BasisQuaternionExt.FromToRotation(seg, dir) * poseStream.GetRotation(chainHeadToSpine[i]));
-                GuardSpineJoint(i);
-            }
-        }
-        const float aimDeadbandDeg = 1f, seedPlaneBlendSin = 0.139f;
+        const float aimDeadbandDeg = 1f, seedPlaneBlendSin = 0.139f, aimDampToleranceFactor = 4f, relaxEaseToleranceFactor = 8f;
         const int seedPasses = 3;
         float JointShare(int i)
         {
@@ -355,10 +345,11 @@ namespace Basis.IK
                         continue;
                     }
                     poseStream.SetRotation(chainHeadToSpine[i], Quaternion.Slerp(Quaternion.identity, BasisQuaternionExt.FromToRotation(seg, dir), unfold) * poseStream.GetRotation(chainHeadToSpine[i]));
+                    GuardSpineJoint(i);
                 }
                 return;
             }
-            float bowDeg = BasisSpineBendCore.BowFromCompression(need / chainReach, spineTautBandFrac);
+            float bowDeg = BasisSpineBendCore.BowAngleDeg(need / chainReach);
             if (!(bowDeg > 0f))
             {
                 return;
@@ -391,12 +382,11 @@ namespace Basis.IK
                 poseStream.SetRotation(chainHeadToSpine[i], bow * poseStream.GetRotation(chainHeadToSpine[i]));
             }
         }
-        Vector3 CommandHeadTarget(Vector3 headTargetPos, int lastJoint, float restChord, bool measuredRoot, out float chainReach, out bool atReach)
+        Vector3 CommandHeadTarget(Vector3 headTargetPos, int lastJoint, float restChord, bool measuredRoot, out float chainReach)
         {
             Vector3 rootPos = poseStream.GetPosition(chainHeadToSpine[lastJoint]), rootToTarget = headTargetPos - rootPos;
             float targetDist = rootToTarget.magnitude;
             chainReach = SpineChainReach(lastJoint);
-            atReach = false;
             if (!(targetDist > epsilon) || !(chainReach > epsilon))
             {
                 return headTargetPos;
@@ -431,7 +421,6 @@ namespace Basis.IK
             {
                 commandedDist = Mathf.Min(targetDist, chainReach);
             }
-            atReach = chainReach - commandedDist <= Mathf.Max(0f, spineTolerance);
             return rootPos + rootToTarget * (commandedDist / targetDist);
         }
         void ShareNeckYaw(Quaternion finalHeadRot)

@@ -33,10 +33,22 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
     public float maxRaycastDistance = 1000f;
 
     /// <summary>
-    /// Layers the focus ray is allowed to land on. Defaults to Unity's DefaultRaycastLayers —
-    /// everything but Ignore Raycast — which is what the untargeted overload used.
+    /// Layers the focus ray is allowed to land on, before it is narrowed to the ones the capture
+    /// camera renders. Defaults to Unity's DefaultRaycastLayers — everything but Ignore Raycast —
+    /// which is what the untargeted overload used.
     /// </summary>
     public LayerMask focusLayers = ~(1 << 2);
+
+    /// <summary>
+    /// The requested layers narrowed to the ones the capture camera actually renders. UI,
+    /// OverlayUI and HandHeldCameraUI all carry colliders and are all culled from every shot, so
+    /// without this the open camera panel or the player's own menu — a hand's width in front of
+    /// the lens and absent from the picture — is the nearest hit for most clicks and takes the
+    /// focus. It also decides how far the subject picker may look: the world hit is what caps
+    /// that search, so an invisible panel in the way makes every player behind it unpickable.
+    /// A zero culling mask means there is no camera to read, so the request is left alone.
+    /// </summary>
+    public static int VisibleFocusLayers(int requested, int cullingMask) => cullingMask == 0 ? requested : requested & cullingMask;
 
     /// <summary>
     /// Metres of slop added to every bone capsule when hit-testing a player, so a click that lands
@@ -118,7 +130,8 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
     {
         if (cameraController == null) return;
 
-        bool hasWorld = BasisCameraSubjectPicker.TryRaycastWorld(ray, maxRaycastDistance, focusLayers, cameraController, out RaycastHit worldHit, out float worldDistance);
+        int layers = VisibleFocusLayers(focusLayers.value, cameraController.WorldCullingMask);
+        bool hasWorld = BasisCameraSubjectPicker.TryRaycastWorld(ray, maxRaycastDistance, layers, cameraController, out RaycastHit worldHit, out float worldDistance);
 
         if (BasisCameraSubjectPicker.TryPickSubject(ray, maxRaycastDistance, hasWorld ? worldDistance : float.PositiveInfinity, subjectPadding, !cameraController.IsDetachedFromHand, out BasisCameraSubjectHit subject))
         {

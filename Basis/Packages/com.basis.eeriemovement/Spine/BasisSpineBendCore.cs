@@ -101,6 +101,10 @@ namespace Basis.IK
             r.ChestYawEff = chestYawEff;
             r.BowDeg = bowDeg;
         }
+        public static float BowAngleDeg(float compressionFrac)
+        {
+            return compressionFrac > 0f ? Mathf.Rad2Deg * Mathf.Sqrt(24f * compressionFrac) : 0f;
+        }
         public static float BowFromCompression(float compressionFrac, float bandFrac)
         {
             float band = Mathf.Max(bandFrac, 1e-4f), e = compressionFrac - band;
@@ -108,7 +112,7 @@ namespace Basis.IK
             {
                 return 0f;
             }
-            return Mathf.Rad2Deg * Mathf.Sqrt(24f * compressionFrac) * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(e / (3f * band)));
+            return BowAngleDeg(compressionFrac) * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(e / (3f * band)));
         }
         public static Quaternion Compose(Vector3 e)
         {

@@ -178,6 +178,50 @@ namespace Basis.Tests.IK
             Assert.Less(headErr, 0.006f, "the head must stay near its target around the whole orbit (band residual + solver polish)");
         }
         [Test]
+        public void TrackedChestYaw_SweptThroughTheMiddle_DoesNotSnap()
+        {
+            var job = Job(hipsTracked: true);
+            BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { hipsTracked = true, chestTracked = true });
+            var report = new StringBuilder("tracked chest yaw -60..60 deg, 1 deg steps, hips + head fixed (the left-right sweep through the middle):\n");
+            Vector3 hips = bones[0].position, head = bones[5].position, chest = bones[2].position;
+            float worst = Sweep(ref job, 120, s =>
+            {
+                job.targetPositionChest = chest;
+                job.targetPositionChestRaw = chest;
+                job.targetRotationChest = Quaternion.Euler(0f, -60f + s, 0f);
+                return (hips, Quaternion.identity, head, Quaternion.identity);
+            }, report, out _, out _, out float headErr);
+            TestContext.WriteLine(report.ToString());
+            Assert.Less(worst, maxStepDeg, "a 1 deg tracked-chest yaw step must not snap any spine joint, especially through the middle where the upper chain can just reach the head");
+            Assert.Less(headErr, 0.004f, "the head must stay on target through the whole chest yaw sweep");
+        }
+        [Test]
+        public void TrackedChestPitch_SweptThroughTheMiddle_DoesNotSnap()
+        {
+            var job = Job(hipsTracked: true);
+            BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { hipsTracked = true, chestTracked = true });
+            var report = new StringBuilder("tracked chest pitch -35..35 then roll -30..30, 1 deg steps, hips + head fixed:\n");
+            Vector3 hips = bones[0].position, head = bones[5].position, chest = bones[2].position;
+            float worstPitch = Sweep(ref job, 70, s =>
+            {
+                job.targetPositionChest = chest;
+                job.targetPositionChestRaw = chest;
+                job.targetRotationChest = Quaternion.Euler(-35f + s, 0f, 0f);
+                return (hips, Quaternion.identity, head, Quaternion.identity);
+            }, report, out _, out _, out float headErrPitch);
+            float worstRoll = Sweep(ref job, 60, s =>
+            {
+                job.targetPositionChest = chest;
+                job.targetPositionChestRaw = chest;
+                job.targetRotationChest = Quaternion.Euler(0f, 0f, -30f + s);
+                return (hips, Quaternion.identity, head, Quaternion.identity);
+            }, report, out _, out _, out float headErrRoll);
+            TestContext.WriteLine(report.ToString());
+            Assert.Less(worstPitch, maxStepDeg, "a 1 deg tracked-chest pitch step must not snap any spine joint");
+            Assert.Less(worstRoll, maxStepDeg, "a 1 deg tracked-chest roll step must not snap any spine joint");
+            Assert.Less(Mathf.Max(headErrPitch, headErrRoll), 0.006f, "the head must stay near target through the chest pitch/roll sweeps");
+        }
+        [Test]
         public void SynthesizedHips_HeadLeansThroughEveryDirection_DoesNotPopTheSpine()
         {
             var job = Job(hipsTracked: false);

@@ -39,9 +39,13 @@ public class SMModuleBloomOverrideURP : BasisSettingsBase
 
     private void ApplyOverride()
     {
+        int playerVolumeLayers = PlayerVolumeLayerMask;
         Volume[] volumes = FindObjectsByType<Volume>(FindObjectsInactive.Exclude);
         foreach (Volume volume in volumes)
         {
+            if (!CanOverrideVolume(volume, playerVolumeLayers))
+                continue;
+
             if (volume.profile == null)
                 continue;
 
