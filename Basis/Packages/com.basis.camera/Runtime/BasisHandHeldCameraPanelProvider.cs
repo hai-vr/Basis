@@ -235,6 +235,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _flyFastMultiplierSlider;
         private PanelSlider _flyTurnSpeedSlider;
         private PanelSlider _flyMouseSensitivitySlider;
+        private PanelToggle _flyMomentumToggle;
         private PanelToggle _autoLevelToggle;
         private PanelToggle _vrStabToggle;
         private PanelToggle _smoothDragToggle;
@@ -291,6 +292,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private float _lastFlyFastMultiplier = float.NaN;
         private float _lastFlyTurnSpeed = float.NaN;
         private float _lastFlyMouseSensitivity = float.NaN;
+        private bool? _lastFlyMomentum;
         private bool? _lastAutoLevel;
         private bool? _lastVrStab;
         private bool? _lastSmoothDrag;
@@ -976,6 +978,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyFastMultiplierSlider = null;
             _flyTurnSpeedSlider = null;
             _flyMouseSensitivitySlider = null;
+            _flyMomentumToggle = null;
             _autoLevelToggle = null;
             _vrStabToggle = null;
             _smoothDragToggle = null;
@@ -989,6 +992,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastFlyFastMultiplier = float.NaN;
             _lastFlyTurnSpeed = float.NaN;
             _lastFlyMouseSensitivity = float.NaN;
+            _lastFlyMomentum = null;
             _lastAutoLevel = null;
             _lastVrStab = null;
             _lastSmoothDrag = null;
@@ -2075,6 +2079,14 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyMouseSensitivitySlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyMouseSensitivity.description"));
             _flyMouseSensitivitySlider.OnValueChanged = v => _activeCamera?.SetFlyMouseSensitivity(v);
 
+            _flyMomentumToggle = PanelToggle.CreateNewEntry(content);
+            _flyMomentumToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.flyMomentum"));
+            _flyMomentumToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyMomentum.description"));
+            _flyMomentumToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera != null) _activeCamera.useMomentum = v;
+            };
+
             _autoLevelToggle = PanelToggle.CreateNewEntry(content);
             _autoLevelToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.autoLevel"));
             _autoLevelToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.autoLevel.description"));
@@ -2835,6 +2847,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyTurnSpeedSlider?.SetValueWithoutNotify(_activeCamera.vrFlyTurnSpeed);
             _lastFlyMouseSensitivity = _activeCamera.mouseSensitivity;
             _flyMouseSensitivitySlider?.SetValueWithoutNotify(_activeCamera.mouseSensitivity);
+            _lastFlyMomentum = _activeCamera.useMomentum;
+            _flyMomentumToggle?.SetValueWithoutNotify(_activeCamera.useMomentum);
             _autoLevelToggle?.SetValueWithoutNotify(_activeCamera.useAutoLeveling);
             _vrStabToggle?.SetValueWithoutNotify(_activeCamera.useVRHandheldSmoothing);
             _lastSmoothDrag = _activeCamera.useSmoothDrag;
@@ -3175,6 +3189,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncSlider(_flyFastMultiplierSlider, _activeCamera.flyFastMultiplier, ref _lastFlyFastMultiplier);
             SyncSlider(_flyTurnSpeedSlider, _activeCamera.vrFlyTurnSpeed, ref _lastFlyTurnSpeed);
             SyncSlider(_flyMouseSensitivitySlider, _activeCamera.mouseSensitivity, ref _lastFlyMouseSensitivity);
+            SyncToggle(_flyMomentumToggle, _activeCamera.useMomentum, ref _lastFlyMomentum);
             SyncToggle(_autoLevelToggle, _activeCamera.useAutoLeveling, ref _lastAutoLevel);
             SyncToggle(_vrStabToggle, _activeCamera.useVRHandheldSmoothing, ref _lastVrStab);
 

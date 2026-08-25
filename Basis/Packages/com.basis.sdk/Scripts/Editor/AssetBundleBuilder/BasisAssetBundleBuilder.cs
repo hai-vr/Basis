@@ -12,6 +12,10 @@ public static class AssetBundleBuilder
 {
     public static async Task<(BasisBundleGenerated, InformationHash)> BuildAssetBundle(AssetBundleBuild[] BundledData, string targetDirectory, BasisAssetBundleObject settings, string assetBundleName, string mode, string password, BuildTarget buildTarget, bool isEncrypted = true)
     {
+        return await BuildAssetBundle(BundledData, targetDirectory, settings, assetBundleName, mode, password, buildTarget, BasisBundleContentKind.None, isEncrypted);
+    }
+    public static async Task<(BasisBundleGenerated, InformationHash)> BuildAssetBundle(AssetBundleBuild[] BundledData, string targetDirectory, BasisAssetBundleObject settings, string assetBundleName, string mode, string password, BuildTarget buildTarget, BasisBundleContentKind contentKind, bool isEncrypted = true)
+    {
         InformationHash Hash = new InformationHash();
         BasisBundleGenerated BasisBundleGenerated = new BasisBundleGenerated();
         EnsureDirectoryExists(targetDirectory);
@@ -28,7 +32,16 @@ public static class AssetBundleBuilder
             options = settings.BuildAssetBundleOptions
         };
 
-        AssetBundleManifest manifest = BuildPipeline.BuildAssetBundles(BABP);
+        AssetBundleManifest manifest;
+        BasisBundleShaderStripScope.Begin(contentKind, settings, buildTarget);
+        try
+        {
+            manifest = BuildPipeline.BuildAssetBundles(BABP);
+        }
+        finally
+        {
+            BasisBundleShaderStripScope.End(assetBundleName);
+        }
 
         if (manifest != null)
         {

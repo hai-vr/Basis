@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "Grad pro Sekunde, um die der VR-Drehstick die Kamera bei vollem Ausschlag dreht und neigt." },
     { "key": "camera.flyMouseSensitivity", "value": "Mausempfindlichkeit" },
     { "key": "camera.flyMouseSensitivity.description", "value": "Wie weit sich die Kamera pro Mausbewegung dreht, während sie am Desktop fliegt." },
+    { "key": "camera.flyMomentum", "value": "Ausrollen" },
+    { "key": "camera.flyMomentum.description", "value": "An: Die fliegende Kamera rollt aus, wenn du WASD oder den Bewegungsstick loslässt. Aus: Sie stoppt im selben Moment. Der Schalter gilt für Desktop und VR gleichermaßen." },
     { "key": "camera.follow", "value": "Folgen" },
     { "key": "camera.autoFollow", "value": "Auto-Folgen" },
     { "key": "camera.teleportToMe", "value": "Kamera zu mir holen" },

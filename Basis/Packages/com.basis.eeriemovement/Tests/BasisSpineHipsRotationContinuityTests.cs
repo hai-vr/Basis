@@ -109,6 +109,7 @@ namespace Basis.Tests.IK
         {
             var prev = new Quaternion[names.Length];
             var cur = new Quaternion[names.Length];
+            var trace = new System.Collections.Generic.List<Quaternion[]>();
             float worst = 0f;
             int worstHeadStep = -1;
             worstStep = -1;
@@ -118,6 +119,7 @@ namespace Basis.Tests.IK
             {
                 var (hips, hipsRot, head, headRot) = at(s);
                 Solve(ref job, hips, hipsRot, head, headRot, cur);
+                trace.Add((Quaternion[])cur.Clone());
                 float headErr = (skeleton.Stream.GetPosition(job.handleHead) - head).magnitude;
                 if (headErr > worstHeadErr)
                 {
@@ -140,6 +142,15 @@ namespace Basis.Tests.IK
                 for (int i = 0; i < names.Length; i++) prev[i] = cur[i];
             }
             report.AppendLine($"  worst per-step joint change {worst:F2} deg at step {worstStep} on chain[{worstJoint}] ({(worstJoint >= 0 ? names[names.Length - 1 - worstJoint] : "-")}), worst head error {worstHeadErr * 1000f:F2} mm at step {worstHeadStep}");
+            if (worst > maxStepDeg && worstJoint >= 0)
+            {
+                report.Append("    per-step deltas around the worst step:");
+                for (int s = Mathf.Max(1, worstStep - 5); s <= Mathf.Min(trace.Count - 1, worstStep + 5); s++)
+                {
+                    report.Append($" [{s}] {Quaternion.Angle(trace[s - 1][worstJoint], trace[s][worstJoint]):F2}");
+                }
+                report.AppendLine();
+            }
             return worst;
         }
         [Test]
@@ -193,7 +204,7 @@ namespace Basis.Tests.IK
             }, report, out _, out _, out float headErr);
             TestContext.WriteLine(report.ToString());
             Assert.Less(worst, maxStepDeg, "a 1 deg tracked-chest yaw step must not snap any spine joint, especially through the middle where the upper chain can just reach the head");
-            Assert.Less(headErr, 0.004f, "the head must stay on target through the whole chest yaw sweep");
+            Assert.Less(headErr, 0.001f, "the head must not bob as the chest yaws -- it stays on the HMD throughout");
         }
         [Test]
         public void TrackedChestPitch_SweptThroughTheMiddle_DoesNotSnap()
@@ -219,7 +230,7 @@ namespace Basis.Tests.IK
             TestContext.WriteLine(report.ToString());
             Assert.Less(worstPitch, maxStepDeg, "a 1 deg tracked-chest pitch step must not snap any spine joint");
             Assert.Less(worstRoll, maxStepDeg, "a 1 deg tracked-chest roll step must not snap any spine joint");
-            Assert.Less(Mathf.Max(headErrPitch, headErrRoll), 0.006f, "the head must stay near target through the chest pitch/roll sweeps");
+            Assert.Less(Mathf.Max(headErrPitch, headErrRoll), 0.001f, "the head must not bob as the chest pitches or rolls -- it stays on the HMD throughout");
         }
         [Test]
         public void SynthesizedHips_HeadLeansThroughEveryDirection_DoesNotPopTheSpine()

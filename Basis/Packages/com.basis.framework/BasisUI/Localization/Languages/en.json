@@ -1507,6 +1507,14 @@
       "value": "How far the camera turns per mouse movement while flying on desktop."
     },
     {
+      "key": "camera.flyMomentum",
+      "value": "Glide To Stop"
+    },
+    {
+      "key": "camera.flyMomentum.description",
+      "value": "On, the flying camera coasts to a stop after you let go of WASD or the move stick. Off, it stops the instant you release. The same switch covers desktop and VR."
+    },
+    {
       "key": "camera.follow",
       "value": "Follow"
     },

@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "VR 轉向搖桿滿推時相機每秒偏轉和俯仰的度數。" },
     { "key": "camera.flyMouseSensitivity", "value": "滑鼠靈敏度" },
     { "key": "camera.flyMouseSensitivity.description", "value": "桌面端飛行時，每次滑鼠移動相機轉動的幅度。" },
+    { "key": "camera.flyMomentum", "value": "滑行停止" },
+    { "key": "camera.flyMomentum.description", "value": "開啟後，放開 WASD 或移動搖桿時，飛行中的相機會滑行減速停下；關閉則在放手瞬間立刻停止。桌面端與 VR 共用同一項設定。" },
     { "key": "camera.follow", "value": "跟隨" },
     { "key": "camera.autoFollow", "value": "自動跟隨" },
     { "key": "camera.teleportToMe", "value": "把相機帶到我身邊" },

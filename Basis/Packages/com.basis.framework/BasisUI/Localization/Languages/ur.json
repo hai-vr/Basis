@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "VR ٹرن اسٹک پوری جھکانے پر کیمرہ فی سیکنڈ کتنے ڈگری گھومتا اور جھکتا ہے۔" },
     { "key": "camera.flyMouseSensitivity", "value": "ماؤس کی حساسیت" },
     { "key": "camera.flyMouseSensitivity.description", "value": "ڈیسک ٹاپ پر اڑتے وقت ہر ماؤس حرکت پر کیمرہ کتنا گھومتا ہے۔" },
+    { "key": "camera.flyMomentum", "value": "آہستہ رکنا" },
+    { "key": "camera.flyMomentum.description", "value": "آن ہونے پر، WASD یا موو اسٹک چھوڑنے کے بعد اُڑتا کیمرہ آہستہ آہستہ رکتا ہے۔ آف ہونے پر چھوڑتے ہی فوراً رک جاتا ہے۔ یہی ترتیب ڈیسک ٹاپ اور وی آر دونوں پر لاگو ہوتی ہے۔" },
     { "key": "camera.follow", "value": "فالو" },
     { "key": "camera.autoFollow", "value": "آٹو فالو" },
     { "key": "camera.teleportToMe", "value": "کیمرہ میرے پاس لائیں" },

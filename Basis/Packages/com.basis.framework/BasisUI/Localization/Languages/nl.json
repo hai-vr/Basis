@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "Graden per seconde waarmee de VR-draaistick de camera bij volle uitslag draait en kantelt." },
     { "key": "camera.flyMouseSensitivity", "value": "Muisgevoeligheid" },
     { "key": "camera.flyMouseSensitivity.description", "value": "Hoe ver de camera per muisbeweging draait tijdens het vliegen op desktop." },
+    { "key": "camera.flyMomentum", "value": "Uitrollen" },
+    { "key": "camera.flyMomentum.description", "value": "Aan: de vliegende camera rolt uit nadat je WASD of de bewegingsstick loslaat. Uit: hij stopt direct. Dezelfde instelling geldt voor desktop en VR." },
     { "key": "camera.follow", "value": "Volgen" },
     { "key": "camera.autoFollow", "value": "Automatisch volgen" },
     { "key": "camera.teleportToMe", "value": "Camera Naar Mij Halen" },

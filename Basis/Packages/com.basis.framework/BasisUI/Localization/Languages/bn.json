@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "VR টার্ন স্টিক পুরো ঠেললে ক্যামেরা প্রতি সেকেন্ডে কত ডিগ্রি ঘোরে ও ঝোঁকে।" },
     { "key": "camera.flyMouseSensitivity", "value": "মাউস সংবেদনশীলতা" },
     { "key": "camera.flyMouseSensitivity.description", "value": "ডেস্কটপে ওড়ার সময় প্রতিটি মাউস নড়াচড়ায় ক্যামেরা কতটা ঘোরে।" },
+    { "key": "camera.flyMomentum", "value": "গ্লাইড করে থামা" },
+    { "key": "camera.flyMomentum.description", "value": "চালু থাকলে, WASD বা মুভ স্টিক ছেড়ে দেওয়ার পর উড়ন্ত ক্যামেরা ধীরে ধীরে থামে। বন্ধ থাকলে, ছাড়ার সঙ্গে সঙ্গেই থেমে যায়। একই সেটিং ডেস্কটপ ও ভিআর দুই ক্ষেত্রেই কাজ করে।" },
     { "key": "camera.follow", "value": "ফলো" },
     { "key": "camera.autoFollow", "value": "অটো ফলো" },
     { "key": "camera.teleportToMe", "value": "ক্যামেরা আমার কাছে আনুন" },

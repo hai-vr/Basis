@@ -538,6 +538,34 @@ namespace Basis.Tests.Camera
             Assert.That(loaded.modifiers.DrivesAnything, Is.False);
         }
 
+        [Test]
+        public void TheGlideSwitch_ReachesTheCameraBothWays()
+        {
+            BasisHandHeldCameraUI.CameraSettings settings = BasisCameraSettingsRig.DistinctiveSettings();
+
+            settings.flyMomentum = false;
+            _rig.UI.ApplySettingsForTest(settings);
+            Assert.That(_rig.Camera.useMomentum, Is.False,
+                "Instant Stop has to cut the fly velocity dead, on desktop and in VR alike.");
+
+            settings.flyMomentum = true;
+            _rig.UI.ApplySettingsForTest(settings);
+            Assert.That(_rig.Camera.useMomentum, Is.True);
+        }
+
+        [Test]
+        public void AFileWrittenBeforeTheGlideSwitch_StillCoastsToAStop()
+        {
+            // Defaulted in the constructor rather than migrated, so a file that has never heard of
+            // the switch loads as the coast it was flown with instead of zero-filling to a hard stop.
+            var loaded = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(
+                "{\"settingsVersion\":11,\"flySpeed\":3.0}");
+
+            Assert.That(loaded.flySpeed, Is.EqualTo(3f).Within(1e-4f),
+                "the file this is standing in for has to actually have been read");
+            Assert.That(loaded.flyMomentum, Is.True);
+        }
+
         // ---------- helpers ----------
 
         private static IEnumerable<FieldInfo> SettingsFields() =>

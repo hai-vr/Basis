@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using Basis.Scripts.BasisSdk;
 using System.Text.RegularExpressions;
@@ -43,6 +44,11 @@ public class BasisFarAvatarSharedLifetimeTests
         return (T)SharedType.GetField(name).GetValue(shared);
     }
 
+    private static List<BasisFarAvatarInstance> Wearers(object shared)
+    {
+        return Field<List<BasisFarAvatarInstance>>(shared, "Wearers");
+    }
+
     private static SkinnedMeshRenderer RendererOf(BasisAvatar avatar)
     {
         return avatar.GetComponentInChildren<SkinnedMeshRenderer>(true);
@@ -75,7 +81,7 @@ public class BasisFarAvatarSharedLifetimeTests
     private static void RetireWearer(BasisAvatar avatar)
     {
         BasisFarAvatarInstance instance = avatar.GetComponent<BasisFarAvatarInstance>();
-        BasisFarAvatarBuilder.ReleaseSharedByVersion(instance.SharedVersion);
+        BasisFarAvatarBuilder.ReleaseSharedByWearer(instance);
         instance.SharedVersion = null;
         UnityEngine.Object.DestroyImmediate(avatar.gameObject);
     }
@@ -204,37 +210,72 @@ public class BasisFarAvatarSharedLifetimeTests
     }
 
     /// <summary>
-    /// The reference count is bookkeeping and can be wrong; the live wearer list is not. Even with
-    /// the count driven to zero under two live wearers — an unbalanced release, a wearer built on a
-    /// path that never counted — the drain must keep the assets, because destroying the shared mesh
-    /// out from under a renderer is exactly the null far LOD mesh and is unrecoverable for it.
+    /// A wearer that has already handed its reference back still carries the version string, and
+    /// releases are looked up by that string — so a second release from it used to spend somebody
+    /// else's reference. Handing the same wearer back twice (an install that released a failed
+    /// build and then destroyed it, an OnDestroy landing behind an explicit release) must not
+    /// retire a version another wearer is still on: that frees the shared mesh under a live
+    /// renderer, which is exactly the null far LOD mesh and is unrecoverable for it.
     /// </summary>
     [Test]
-    public void UndercountedRefs_CannotFreeTheMeshUnderALiveWearer()
+    public void ReleasingTheSameWearerTwice_CannotRetireALiveVersion()
     {
         string version = NewVersion();
         object shared = AcquireShared(version, BasisFarLodTestPayloads.CreateInstallable());
-        BasisAvatar first = BuildAvatar(shared, "live-one");
-        BasisAvatar second = BuildAvatar(shared, "live-two");
+        BasisAvatar first = BuildAvatar(shared, "leaver");
+        BasisAvatar second = BuildAvatar(shared, "stayer");
         Assert.IsNotNull(first);
         Assert.IsNotNull(second);
         Mesh mesh = Field<Mesh>(shared, "Mesh");
+        BasisFarAvatarInstance leaver = first.GetComponent<BasisFarAvatarInstance>();
 
-        SharedType.GetField("RefCount").SetValue(shared, 0);
-        BasisFarAvatarBuilder.ReleaseSharedByVersion(version);
-        // The guard reports the unbalanced pair every time it saves a live wearer; that report is
-        // the behaviour under test, not an incidental log.
-        LogAssert.Expect(LogType.Error, new Regex("queued for teardown while 2 wearer"));
+        BasisFarAvatarBuilder.ReleaseSharedByWearer(leaver);
+        BasisFarAvatarBuilder.ReleaseSharedByWearer(leaver);
         DrainPendingTeardowns();
 
-        Assert.AreSame(mesh, Field<Mesh>(shared, "Mesh"), "a wrong count must never free a mesh in use");
-        Assert.IsNotNull(RendererOf(first).sharedMesh, "first live wearer keeps its mesh");
-        Assert.IsNotNull(RendererOf(second).sharedMesh, "second live wearer keeps its mesh");
-        Assert.AreEqual(2, SharedType.GetField("RefCount").GetValue(shared), "the count is re-synced from the live wearers");
+        Assert.AreSame(mesh, Field<Mesh>(shared, "Mesh"), "a repeated release must never free a mesh in use");
+        Assert.IsNotNull(RendererOf(second).sharedMesh, "the remaining wearer keeps its mesh");
+        Assert.AreEqual(1, Wearers(shared).Count, "only the wearer that left gives a reference up");
+        Assert.IsTrue(IsSharedUsable(version), "the version stays serviceable while anyone is on it");
 
-        RetireWearer(first);
+        UnityEngine.Object.DestroyImmediate(first.gameObject);
         RetireWearer(second);
         DrainPendingTeardowns();
         Assert.IsFalse(IsSharedUsable(version), "with every wearer gone the version finally retires");
+    }
+
+    /// <summary>
+    /// A wearer stranded by an eviction was built from the dead entry but still names the version,
+    /// and the rebuilt entry answers to that same name. Its teardown must find nothing to hand
+    /// back: releasing the rebuilt version from there retires assets its own live wearers render.
+    /// </summary>
+    [Test]
+    public void StrandedWearerOfAnEvictedEntry_CannotRetireTheRebuiltVersion()
+    {
+        string version = NewVersion();
+        object dead = AcquireShared(version, BasisFarLodTestPayloads.CreateInstallable());
+        BasisAvatar stranded = BuildAvatar(dead, "stranded");
+        Assert.IsNotNull(stranded);
+
+        UnityEngine.Object.DestroyImmediate(Field<Mesh>(dead, "Mesh"));
+        LogAssert.Expect(LogType.Error, new Regex("were destroyed under 1 wearer"));
+        Assert.IsFalse(IsSharedUsable(version), "an entry whose mesh died must not be reported usable");
+        Assert.IsNull(stranded.FarLodSharedVersion, "eviction cuts the strand loose so the tick reinstalls it");
+
+        object rebuilt = AcquireShared(version, BasisFarLodTestPayloads.CreateInstallable());
+        BasisAvatar live = BuildAvatar(rebuilt, "rebuilt-wearer");
+        Assert.IsNotNull(live);
+        Mesh mesh = Field<Mesh>(rebuilt, "Mesh");
+
+        RetireWearer(stranded);
+        DrainPendingTeardowns();
+
+        Assert.AreSame(mesh, Field<Mesh>(rebuilt, "Mesh"), "a stranded wearer must not retire the rebuilt version");
+        Assert.IsNotNull(RendererOf(live).sharedMesh, "the rebuilt version's wearer keeps its mesh");
+        Assert.IsTrue(IsSharedUsable(version), "the rebuilt version stays serviceable");
+
+        RetireWearer(live);
+        DrainPendingTeardowns();
+        Assert.IsFalse(IsSharedUsable(version), "its real last wearer retires it");
     }
 }

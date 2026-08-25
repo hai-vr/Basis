@@ -389,6 +389,8 @@
     { "key": "camera.flyTurnSpeed.description", "value": "VR の回転スティックを倒し切ったとき、カメラが旋回・上下に向く秒速度数。" },
     { "key": "camera.flyMouseSensitivity", "value": "マウス感度" },
     { "key": "camera.flyMouseSensitivity.description", "value": "デスクトップで飛行中、マウスの動きに対してカメラがどれだけ向きを変えるか。" },
+    { "key": "camera.flyMomentum", "value": "惰性で停止" },
+    { "key": "camera.flyMomentum.description", "value": "オンにすると、WASD や移動スティックを離したあとも飛行中のカメラが惰性で減速して止まります。オフでは離した瞬間に停止します。デスクトップと VR の両方に同じ設定が効きます。" },
     { "key": "camera.follow", "value": "追従" },
     { "key": "camera.autoFollow", "value": "オートフォロー" },
     { "key": "camera.teleportToMe", "value": "カメラを手元に呼ぶ" },

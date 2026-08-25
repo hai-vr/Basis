@@ -129,6 +129,7 @@ public partial class BasisHandHeldCameraUI
             flyFastMultiplier = 3f;
             flyTurnSpeed = 90f;
             flyMouseSensitivity = 0.5f;
+            flyMomentum = true;
 
             gifDurationSeconds = 5f;
             gifFrameRate = 15;
@@ -368,6 +369,12 @@ public partial class BasisHandHeldCameraUI
         public float flyFastMultiplier;
         public float flyTurnSpeed;
         public float flyMouseSensitivity;
+
+        /// <summary>
+        /// On, releasing the fly controls coasts the camera to a stop; off, it stops dead. Defaulted
+        /// in the constructor rather than migrated, so a file written before it existed still glides.
+        /// </summary>
+        public bool flyMomentum;
         public bool resizeWithGesture;
 
         // GIF recording. Every default is set in the constructor, so an older file that lacks

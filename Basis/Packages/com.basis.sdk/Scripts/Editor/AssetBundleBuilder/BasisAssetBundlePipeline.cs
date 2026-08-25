@@ -26,6 +26,12 @@ public static class BasisAssetBundlePipeline
     public static AfterBuildHandler OnAfterBuildScene;
     public static BuildErrorHandler OnBuildErrorScene;
 
+    private static BasisBundleContentKind ResolveContentKind(bool isScene, GameObject asset)
+    {
+        if (isScene) return BasisBundleContentKind.Scene;
+        if (asset != null && asset.GetComponent<BasisAvatar>() != null) return BasisBundleContentKind.Avatar;
+        return BasisBundleContentKind.Prop;
+    }
     public static async Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))>
     BuildAssetBundle(GameObject originalPrefab, BasisAssetBundleObject settings, string Password, BuildTarget Target, string buildId)
     {
@@ -119,7 +125,8 @@ public static class BasisAssetBundlePipeline
                     uniqueID,
                     isScene ? "Scene" : "GameObject",
                     Password,
-                    Target);
+                    Target,
+                    ResolveContentKind(isScene, asset));
 
             TemporaryStorageHandler.ClearTemporaryStorage(settings.TemporaryStorage);
             AssetDatabase.Refresh();
