@@ -225,6 +225,41 @@ namespace Basis.Tests.Graphics
         }
 
         [Test]
+        public void TheTogglePropagatesToThePipelinesOwnDefaultVolumeProfile()
+        {
+            // Basis ships DefaultVolumeProfile with the effect overridden ON. URP seeds every camera's
+            // stack from it before any scene volume, so unless the toggle reaches it the effect is pinned on.
+            host = new GameObject("ssgi-settings-module");
+            SMModuleScreenSpaceGlobalIlluminationURP module = host.AddComponent<SMModuleScreenSpaceGlobalIlluminationURP>();
+            module.ApplyOverride();
+
+            VolumeProfile profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            try
+            {
+                ScreenSpaceGlobalIlluminationVolume seeded = profile.Add<ScreenSpaceGlobalIlluminationVolume>(false);
+                seeded.enable.overrideState = true;
+                seeded.enable.value = true;
+
+                module.ValidSettingsChange(BasisSettingsDefaults.UseScreenSpaceGlobalIllumination.BindingKey, "false");
+                module.ApplyToProfile(profile);
+
+                Assert.IsTrue(seeded.enable.overrideState);
+                Assert.IsFalse(seeded.enable.value, "Turning the setting off must also clear the pipeline default profile.");
+
+                module.ValidSettingsChange(BasisSettingsDefaults.UseScreenSpaceGlobalIllumination.BindingKey, "true");
+                module.ApplyToProfile(profile);
+                Assert.IsTrue(seeded.enable.value);
+
+                module.RestoreAuthoredProfiles();
+                Assert.IsTrue(seeded.enable.value, "Teardown restores what the asset was authored with.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(profile);
+            }
+        }
+
+        [Test]
         public void ApplyingRendererOptionsWithoutAFeatureIsHarmless()
         {
             // Android ships a renderer without the feature, so the lookup returns null every frame there.

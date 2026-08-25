@@ -83,6 +83,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         }
         remoteAvatarHooks.Clear();
         RestoreAuthoredFeatureValues();
+        RestoreAuthoredProfiles();
         if (instance == this)
         {
             instance = null;
@@ -339,7 +340,74 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         Apply(ssgi, ssgiEnabled, quality, fullResolution, intensity, capturing, denoiseStrength);
         volume.gameObject.SetActive(true);
         EnsureCameraVolumes();
+        ApplyDefaultProfiles();
         ApplyFeature();
+    }
+
+    /// <summary>
+    /// Drives the pipeline's own default volume profiles. URP seeds every camera's stack from the global
+    /// default profile and the quality asset's profile before any scene volume is blended, and Basis ships
+    /// those with the effect overridden ON, so leaving them alone pins the effect on no matter what the
+    /// player's own volume says. Toggling has to happen here as well for the setting to mean anything.
+    /// </summary>
+    public void ApplyDefaultProfiles()
+    {
+        ApplyToProfile(VolumeManager.instance.globalDefaultProfile);
+        ApplyToProfile(VolumeManager.instance.qualityDefaultProfile);
+    }
+
+    public void ApplyToProfile(VolumeProfile profile)
+    {
+        if (profile == null || !profile.TryGet(out ScreenSpaceGlobalIlluminationVolume target))
+        {
+            return;
+        }
+        RememberAuthoredProfile(profile, target);
+        Apply(target, ssgiEnabled, quality, fullResolution, intensity, capturing, denoiseStrength);
+    }
+
+    // These profiles are project assets like the feature is, so the authored state is restored on teardown.
+    private readonly Dictionary<VolumeProfile, AuthoredProfile> authoredProfiles = new Dictionary<VolumeProfile, AuthoredProfile>();
+
+    private readonly struct AuthoredProfile
+    {
+        public readonly bool Active;
+        public readonly bool EnableOverride;
+        public readonly bool Enable;
+
+        public AuthoredProfile(ScreenSpaceGlobalIlluminationVolume target)
+        {
+            Active = target.active;
+            EnableOverride = target.enable.overrideState;
+            Enable = target.enable.value;
+        }
+
+        public void RestoreTo(ScreenSpaceGlobalIlluminationVolume target)
+        {
+            target.active = Active;
+            target.enable.overrideState = EnableOverride;
+            target.enable.value = Enable;
+        }
+    }
+
+    private void RememberAuthoredProfile(VolumeProfile profile, ScreenSpaceGlobalIlluminationVolume target)
+    {
+        if (!authoredProfiles.ContainsKey(profile))
+        {
+            authoredProfiles.Add(profile, new AuthoredProfile(target));
+        }
+    }
+
+    public void RestoreAuthoredProfiles()
+    {
+        foreach (KeyValuePair<VolumeProfile, AuthoredProfile> entry in authoredProfiles)
+        {
+            if (entry.Key != null && entry.Key.TryGet(out ScreenSpaceGlobalIlluminationVolume target))
+            {
+                entry.Value.RestoreTo(target);
+            }
+        }
+        authoredProfiles.Clear();
     }
 
     /// <summary>
