@@ -59,6 +59,8 @@ RayHit RayMarching(Ray ray, float2 screenUV, half dither, half3 viewDirectionWS)
 
     bool isBackBuffer = false;
 
+    half3 nearHitRadiance = half3(0.0, 0.0, 0.0);
+
     UNITY_LOOP
     for (int i = 1; i <= MAX_STEP; i++)
     {
@@ -173,10 +175,19 @@ RayHit RayMarching(Ray ray, float2 screenUV, half dither, half3 viewDirectionWS)
             hitSuccessful = ((depthDiff <= 0.0) && (depthDiff >= -marchingThickness) && !isSky) ? true : false;
         }
 
-        // Keep marching through the surface the ray started on instead of counting it as the light source. There is
-        // no exemption for emissive surfaces: a hit returns the COLOUR HISTORY at the hit, so a near-self hit reads the
-        // surface's own previous colour and compounds it every frame no matter what made it bright.
-        hitSuccessful = hitSuccessful && (rayDistance > minHitDistance);
+        // A hit inside the shading point's own pixel footprint cannot deliver reflected light: the colour history
+        // there is this surface's own accumulated colour, and taking it feeds back and compounds every frame. Its
+        // self-illumination is safe though, and it is the only way a surface right beside an emissive panel can catch
+        // the glow, because this guard measures WORLD distance and an adjacent surface sits well inside it.
+        bool nearHit = rayDistance <= minHitDistance;
+        half nearHitWeight = 0.0;
+
+        UNITY_BRANCH
+        if (hitSuccessful && nearHit)
+        {
+            nearHitRadiance = SSGINearHitRadiance(rayPositionNDC.xy, nearHitWeight);
+            hitSuccessful = nearHitWeight > 0.0;
+        }
 
         // If we find the intersection.
         if (hitSuccessful)
@@ -185,7 +196,9 @@ RayHit RayMarching(Ray ray, float2 screenUV, half dither, half3 viewDirectionWS)
             rayHit.distance = rayDistance;
 
             UNITY_BRANCH
-            if (_BackDepthEnabled == 2.0 && isBackBuffer)
+            if (nearHit)
+                rayHit.emission = nearHitRadiance;
+            else if (_BackDepthEnabled == 2.0 && isBackBuffer)
                 rayHit.emission = SAMPLE_TEXTURE2D_X_LOD(_CameraBackOpaqueTexture, my_point_clamp_sampler, rayPositionNDC.xy, 0).rgb;
             else
                 rayHit.emission = SSGIHitRadiance(SAMPLE_TEXTURE2D_X_LOD(_SSGIHistoryCameraColorTexture, my_point_clamp_sampler, rayPositionNDC.xy, 0).rgb, rayPositionNDC.xy);
