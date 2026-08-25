@@ -152,6 +152,7 @@ namespace Basis.Tests.IK
             i.HintPosition = i.Elbow;
             Vector3 foreDir = (i.Hand - i.Elbow).normalized;
             i.HintRotation = Quaternion.AngleAxis(60f, foreDir) * i.MidRotation;   // the tracker measures 60° of pronation
+            i.HasHintRotation = true;
             Roll(ref i, 80f);                                                      // the hand demands 80°
 
             BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
@@ -172,6 +173,7 @@ namespace Basis.Tests.IK
             i.HintPosition = i.Elbow;
             Vector3 foreDir = (i.Hand - i.Elbow).normalized;
             i.HintRotation = Quaternion.AngleAxis(-45f, foreDir) * i.MidRotation;
+            i.HasHintRotation = true;
             i.TipRotation = default;   // no animated wrist feed: the hand gets no say
 
             BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
@@ -213,6 +215,7 @@ namespace Basis.Tests.IK
             left.TargetRotation = MirrorQ(right.TargetRotation);
             left.TargetOffset = MirrorQ(right.TargetOffset);
             left.HintRotation = MirrorQ(right.HintRotation);
+            left.HasHintRotation = right.HasHintRotation;
             BasisArmSolveCore.Solve(left, out BasisArmSolveResult rL);
 
             Vector3 expected = MirrorV(rR.ElbowSolved);
@@ -299,6 +302,7 @@ namespace Basis.Tests.IK
                 Quaternion qRef = Quaternion.Inverse(off.MidRotationSolved * K) * off.MidRotationSolved;
                 BasisArmSolveInput i = baseline;
                 i.HintRotation = (trueFore * K) * qRef;
+                i.HasHintRotation = true;
                 BasisArmSolveCore.Solve(i, out BasisArmSolveResult on);
 
                 if (float.IsNaN(reference)) reference = on.ForearmRollDeg;

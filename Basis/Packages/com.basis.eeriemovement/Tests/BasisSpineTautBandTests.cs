@@ -57,6 +57,7 @@ namespace Basis.Tests.IK
             job = new BasisEerieMovement
             {
                 chainHeadToSpine = _chain,
+                chainChestIdx = 3,
                 handleHips = skeleton.Bind(bones[0]),
                 spineMaxIterations = 20,
                 spineTolerance = 0.001f,
@@ -282,15 +283,14 @@ namespace Basis.Tests.IK
             TestContext.WriteLine($"aim error toward an off-axis beyond-reach target: {aimErr:F3} deg");
             Assert.Less(aimErr, 3f, "the reach clamp must preserve the aim direction of an unreachable target");
         }
-        // --------------------------------------------------- the lordosis early-out must not drop the pin
+        // --------------------------------------------------- the lordosis early-out must not move the head
         [Test]
         public void LordosisEarlyOut_KeepsTheHeadPinned()
         {
-            // With cervical lordosis enabled and BaseDeg tuned to ~0, |lordosisDeg| crosses the 0.01
-            // early-out cutoff constantly at level gaze. The early-out branch used to skip the head
-            // position pin unless the pitch clamp had engaged, so the head toggled between "pinned to
-            // target" and "CCD FK" with that threshold. Set up a sub-tolerance gap the CCD will not
-            // close (0.8 mm), then check the pin lands on BOTH sides of the early-out.
+            // Lordosis now runs BEFORE the CCD as a shape prior and returns the (pitch-clamped) head
+            // rotation for the pin; the CCD owns the head position. Set up a sub-tolerance gap the CCD
+            // will not close (0.8 mm) and check the head lands inside tolerance on BOTH sides of the
+            // 0.01 deg early-out, i.e. neither branch of the lordosis pass moves the head.
             job.lordosisBaseDeg = 0f;
             job.lordosisPitchGainDeg = 8f;
             job.lordosisNeckShare = 0.65f;
@@ -315,13 +315,13 @@ namespace Basis.Tests.IK
 
                 skeleton.GatherNow();
                 job.poseStream = skeleton.Stream;
-                job.SolveSequentialSpineIK(target, gaze);
+                Quaternion headRot = job.ApplyCervicalLordosis();
                 job.poseStream = skeleton.Stream;
-                job.ApplyCervicalLordosis();
+                job.SolveSequentialSpineIK(target, headRot);
 
                 float headErr = (skeleton.Stream.GetPosition(_chain[0]) - target).magnitude;
                 TestContext.WriteLine($"pitch {pitchDeg} deg: head-to-target {headErr * 1000f:F3} mm");
-                Assert.Less(headErr, 0.0002f, $"the head pin must land on both sides of the lordosis early-out (pitch {pitchDeg})");
+                Assert.LessOrEqual(headErr, job.spineTolerance + 1e-4f, $"the head must stay inside the CCD tolerance on both sides of the lordosis early-out (pitch {pitchDeg})");
             }
         }
     }

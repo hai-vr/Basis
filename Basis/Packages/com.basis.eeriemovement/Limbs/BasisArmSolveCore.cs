@@ -16,6 +16,7 @@ namespace Basis.IK
             r = default;
 
             r.MidPostRoll = Quaternion.identity;
+            Quaternion hintRotation = i.HasHintRotation ? i.HintRotation : default;
 
             Vector3 aPosition = i.Shoulder, bPosition = i.Elbow, cPosition = i.Hand;
             Quaternion rootRot = i.RootRotation, midRot = i.MidRotation;
@@ -107,9 +108,9 @@ namespace Basis.IK
                         if (i.HasPrevPole)
                         {
                             Quaternion carryRot = Quaternion.identity;
-                            if (IsValidRotation(i.PrevHintRotation) && IsValidRotation(i.HintRotation))
+                            if (IsValidRotation(i.PrevHintRotation) && IsValidRotation(hintRotation))
                             {
-                                carryRot = i.HintRotation * Quaternion.Inverse(i.PrevHintRotation);
+                                carryRot = hintRotation * Quaternion.Inverse(i.PrevHintRotation);
                             }
 
                             anchorCarriedRaw = carryRot * i.PrevPoleDir;
@@ -120,7 +121,7 @@ namespace Basis.IK
                         if (poleMeasurable && (poleCondW >= 1f || !i.HasPrevPole))
                         {
                             r.PoleDirUsed = ahProj / hintProjMag;
-                            r.PoleRotUsed = i.HintRotation;
+                            r.PoleRotUsed = hintRotation;
                             r.PoleAnchorValid = true;
                         }
                         else if (i.HasPrevPole)
@@ -132,7 +133,7 @@ namespace Basis.IK
                             {
                                 float ease = BasisIKMath.SignedAngleRad(anchorCarried, ahProj, acNorm) * poleCondW;
                                 r.PoleDirUsed = (BasisIKMath.AngleAxisRad(ease, acNorm) * anchorCarriedRaw).normalized;
-                                r.PoleRotUsed = i.HintRotation;
+                                r.PoleRotUsed = hintRotation;
                             }
                         }
                     }
@@ -257,7 +258,7 @@ namespace Basis.IK
                 }
             }
 
-            float hintRotSqr = i.HintRotation.x * i.HintRotation.x + i.HintRotation.y * i.HintRotation.y + i.HintRotation.z * i.HintRotation.z + i.HintRotation.w * i.HintRotation.w;
+            float hintRotSqr = hintRotation.x * hintRotation.x + hintRotation.y * hintRotation.y + hintRotation.z * hintRotation.z + hintRotation.w * hintRotation.w;
             {
                 Vector3 foreRoll = cPosition - bPosition;
                 if (foreRoll.sqrMagnitude > sqrEpsilon)
@@ -275,7 +276,7 @@ namespace Basis.IK
                     bool rollLive = false;
                     if (i.HintIsTracker && hintRotSqr > 0.5f)
                     {
-                        float trackerRoll = BasisIKMath.TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), foreRollN);
+                        float trackerRoll = BasisIKMath.TwistAngleRad(hintRotation * Quaternion.Inverse(midRot), foreRollN);
 
                         roll = trackerRoll;
                         rollLive = true;

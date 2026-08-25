@@ -104,6 +104,7 @@ namespace Basis.Tests.IK
                 i.TargetRotation = Quaternion.identity; i.TargetOffset = Quaternion.identity;
                 i.HintPosition = hint;
                 i.HintRotation = ForearmRot(target, swivel, userArm);
+                i.HasHintRotation = true;
                 i.HintWeight = true;
                 i.HintIsTracker = true;
                 i.PlayerUp = Vector3.up;
@@ -203,6 +204,7 @@ namespace Basis.Tests.IK
                     baseline.TargetRotation = Quaternion.identity; baseline.TargetOffset = Quaternion.identity;
                     baseline.HintPosition = trueElbow;
                     baseline.HintRotation = ForearmRot(target, sw, arm);
+                    baseline.HasHintRotation = true;
                     baseline.HintWeight = true; baseline.HintIsTracker = true;
                     baseline.PlayerUp = Vector3.up; baseline.HintMaxStepDeg = float.MaxValue;
 

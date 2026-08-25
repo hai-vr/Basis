@@ -76,7 +76,7 @@ namespace Basis.IK
         public Quaternion TargetOffset;
         public Vector3 PlayerUp;
         public float HintMaxStepDeg;
-        public bool HintIsTracker;
+        public bool HintIsTracker, HasHintRotation;
         public Quaternion TipRotation, HintRotation;
         public bool HasPrevPole;
         public Vector3 PrevPoleDir;
@@ -149,7 +149,7 @@ namespace Basis.IK
         public Quaternion TargetOffset;
         public Vector3 BendNormal, AnteriorNormal;
         public Quaternion HintRotation;
-        public bool HintIsTracker;
+        public bool HintIsTracker, HasHintRotation;
     }
     public struct BasisLegSolveResult
     {

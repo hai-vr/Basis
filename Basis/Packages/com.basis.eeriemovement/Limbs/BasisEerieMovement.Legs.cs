@@ -13,17 +13,11 @@ namespace Basis.IK
         }
         void SolveToePass()
         {
-            if (plan.hasLeftToe)
-            {
-                if (plan.leftToeTracked) poseStream.SetRotation(handleLeftToe, leftDrivenTargetRot * offsetRotationLeftToe);
-                else ApplyToeSurfaceBend(handleLeftToe, leftToeBendDeg, leftToeBendAxis);
-            }
+            if (plan.leftToeDriven) poseStream.SetRotation(handleLeftToe, leftDrivenTargetRot * offsetRotationLeftToe);
+            else if (plan.leftToeSurface) ApplyToeSurfaceBend(handleLeftToe, leftToeBendDeg, leftToeBendAxis);
 
-            if (plan.hasRightToe)
-            {
-                if (plan.rightToeTracked) poseStream.SetRotation(handleRightToe, rightDrivenTargetRot * offsetRotationRightToe);
-                else ApplyToeSurfaceBend(handleRightToe, rightToeBendDeg, rightToeBendAxis);
-            }
+            if (plan.rightToeDriven) poseStream.SetRotation(handleRightToe, rightDrivenTargetRot * offsetRotationRightToe);
+            else if (plan.rightToeSurface) ApplyToeSurfaceBend(handleRightToe, rightToeBendDeg, rightToeBendAxis);
         }
         BasisSwivelFrame BuildLegFrame()
         {
@@ -47,7 +41,7 @@ namespace Basis.IK
             BasisBoneHandle root = isLeft ? handleLeftUpperLeg : handleRightUpperLeg;
             BasisBoneHandle mid = isLeft ? handleLeftLowerLeg : handleRightLowerLeg;
             BasisBoneHandle tip = isLeft ? handleLeftFoot : handleRightFoot;
-            Vector3 hintPos = isLeft ? hintPositionLeftLowerLeg : hintPositionRightLowerLeg;
+            Vector3 hint = isLeft ? hintPositionLeftLowerLeg : hintPositionRightLowerLeg;
             Quaternion hintRot = isLeft ? hintRotationLeftLowerLeg : hintRotationRightLowerLeg;
             float hintW = leg.hintWeight;
             Quaternion targetOffset = isLeft ? offsetRotationLeftFoot : offsetRotationRightFoot;
@@ -60,28 +54,18 @@ namespace Basis.IK
             bool preserveTip = leg.preserveTip;
             if (preserveTip) tRot = origTipRot;
 
-            Vector3 targetPos = isLeft ? targetPositionLeftLowerLeg : targetPositionRightLowerLeg, hint = hintPos;
-            float hintDistrust = 0f;
-            bool usedModelHint = false;
-            if (leg.modelHint)
+            Vector3 targetPos = isLeft ? targetPositionLeftLowerLeg : targetPositionRightLowerLeg, modelHint = default;
+            float hintDistrust = 0f, conf = 0f;
+            bool usedModelHint = leg.modelHint && BasisLegHintCore.Solve(BuildLegFrame(), poseStream.GetPosition(root), poseStream.GetPosition(mid), poseStream.GetPosition(tip), targetPos, isLeft, out modelHint, out conf, out hintDistrust);
+            if (usedModelHint)
             {
-                BasisSwivelFrame frame = BuildLegFrame();
-                Vector3 hipPos = poseStream.GetPosition(root);
-                float upperLen = (poseStream.GetPosition(mid) - hipPos).magnitude;
-                float lowerLen = (poseStream.GetPosition(tip) - poseStream.GetPosition(mid)).magnitude;
-                float legLen = upperLen + lowerLen;
-                if (BasisSwivelHintCore.LegHint(frame, hipPos, targetPos, legLen, isLeft, out Vector3 modelHint, out float conf))
+                hint = modelHint;
+                hintW = 1f;
+                if (plan.hasLegDiagnostics)
                 {
-                    hint = modelHint;
-                    hintW = 1f;
-                    usedModelHint = true;
-                    if (plan.hasLegDiagnostics)
-                    {
-                        ref BasisLegDiagnostics d = ref Ref(legDiagnostics, legSlot);
-                        d.ModelHintUsed = 1f;
-                        d.ModelConfidence = conf;
-                    }
-                    hintDistrust = 1f - BasisSwivelHintCore.LegModelTrust(conf);
+                    ref BasisLegDiagnostics d = ref Ref(legDiagnostics, legSlot);
+                    d.ModelHintUsed = 1f;
+                    d.ModelConfidence = conf;
                 }
             }
 
@@ -101,7 +85,8 @@ namespace Basis.IK
             input.TargetOffset = targetOffset;
             input.BendNormal = bendNormal;
             input.AnteriorNormal = kneeAnteriorRef;
-            input.HintRotation = hintIsTracker ? hintRot : default;
+            input.HintRotation = hintRot;
+            input.HasHintRotation = leg.hintRoll;
             input.HintIsTracker = hintIsTracker;
 
             BasisLegSolveCore.Solve(input, out BasisLegSolveResult result);
@@ -137,9 +122,9 @@ namespace Basis.IK
             }
 
             RecordHipDiagnostics(root, mid, legSlot);
-            if (legSwivelSmoothing)
+            if (leg.swivel)
             {
-                if (hintIsTracker || footIsTracker)
+                if (leg.swivelTracked)
                 {
                     bool footDerivedPole = !hintIsTracker && footIsTracker && !usedModelHint;
                     SmoothKneeSwivel(root, mid, tip, legSlot, trackedKneeSwivelMinCutoffHz, trackedKneeSwivelBeta, trackedKneeSwivelDerivCutoffHz, conditionOnPole: !hintIsTracker && (!footDerivedPole || kneeFootPoleConditioning), holdWhenSingular: !footDerivedPole || kneeFootPoleHold);
@@ -173,10 +158,6 @@ namespace Basis.IK
         }
         void SmoothKneeSwivel(BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, int slot, float minCutoffHz, float beta, float derivCutoffHz, bool conditionOnPole, bool holdWhenSingular)
         {
-            if (!plan.hasLegState || !plan.hasHips)
-            {
-                return;
-            }
             ref BasisLegSlotState leg = ref Ref(legState, slot);
             BasisSwivelSmootherInput input = default;
             input.Root = poseStream.GetPosition(root);
@@ -230,8 +211,6 @@ namespace Basis.IK
         }
         public void ApplyToeSurfaceBend(BasisBoneHandle handle, float bendDeg, Vector3 axis)
         {
-            if (Mathf.Abs(bendDeg) < 0.01f || axis.sqrMagnitude < 1e-6f) return;
-
             Quaternion current = poseStream.GetRotation(handle);
             poseStream.SetRotation(handle, Quaternion.AngleAxis(-bendDeg, axis.normalized) * current);
         }

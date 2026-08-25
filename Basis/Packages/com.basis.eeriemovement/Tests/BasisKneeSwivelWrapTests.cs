@@ -216,6 +216,7 @@ namespace Basis.Tests.IK
             i.AnteriorNormal = Vector3.right;
             i.HintIsTracker = true;
             i.HintRotation = Quaternion.identity;
+            i.HasHintRotation = true;
 
             BasisLegSolveCore.Solve(i, out BasisLegSolveResult r);
 

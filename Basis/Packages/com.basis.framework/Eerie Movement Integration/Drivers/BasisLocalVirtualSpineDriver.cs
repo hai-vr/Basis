@@ -14,7 +14,7 @@ namespace Basis.IK
     {
         private bool initialized;
         private float lenNeckToChest, lenChestToSpine, lenSpineToHips, lenSpineTotal, chestTransform, spineTransform, restHipsLocalY;
-        private float restHeadLocalY;
+        private float restHeadLocalY, hipsRestDropY;
         private float3 hipsFromEyeTposeXZ, headFromEyeTposeXZ, yawPivotFromEyeTposeXZ, eyeFromHeadTpose;
         private float tposeNeckMinusEyeY;
         private readonly BasisNodPivotSampler nodPivotSampler = new BasisNodPivotSampler(30);
@@ -124,11 +124,7 @@ namespace Basis.IK
 
             bool isVR = BasisDeviceManagement.IsCurrentModeVR();
 
-            float torsoYawDeadzoneDeg = Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.RawValue;
-            if (isVR && !Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawPlayInVR.RawValue)
-            {
-                torsoYawDeadzoneDeg = 0f;
-            }
+            float torsoYawDeadzoneDeg = isVR ? (Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawPlayInVR.RawValue ? Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawDeadzoneVRDeg.RawValue : 0f) : Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.RawValue;
 
             if (BasisLocalPlayer.Instance.LocalCharacterDriver.IsProne)
             {
@@ -207,6 +203,7 @@ namespace Basis.IK
                 PostureModel = (byte)(Basis.BasisUI.BasisSettingsDefaults.VSpinePostureModel.RawValue ? 1 : 0),
                 HipsCompressionStrength = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsCompressionStrength.RawValue,
                 HipsMaxDropMeters = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsMaxDropMeters.RawValue * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale,
+                HipsRestDropY = hipsRestDropY,
             };
 
             new BasisVirtualSpineCore.BasisVirtualSpineSolveJob
@@ -259,7 +256,8 @@ namespace Basis.IK
             chestTransform = math.saturate(lenNeckToChest / lenSpineTotal);
             spineTransform = math.saturate((lenNeckToChest + lenChestToSpine) / lenSpineTotal);
 
-            restHipsLocalY = pNeck.y - lenSpineTotal;
+            hipsRestDropY = pNeck.y - pHips.y;
+            restHipsLocalY = hipsRestDropY > 0f ? pHips.y : pNeck.y - lenSpineTotal;
 
             restHeadLocalY = math.max(pHead.y, 1e-3f);
 

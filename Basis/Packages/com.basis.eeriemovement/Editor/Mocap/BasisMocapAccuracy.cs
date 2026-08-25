@@ -311,6 +311,7 @@ namespace Basis.IK.Mocap
                     // A real tracker reports rotation too: the truth lower-arm plays it, so the tracker
                     // forearm roll is exercised against the corpus exactly as the live rig runs it.
                     i.HintRotation = clip.Get(f, jE).Rotation;
+                    i.HasHintRotation = true;
                     break;
                 case BasisMocapHintSource.ElbowField:
                 case BasisMocapHintSource.NeuralField:

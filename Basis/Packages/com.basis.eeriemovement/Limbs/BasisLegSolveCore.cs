@@ -43,6 +43,7 @@ namespace Basis.IK
             r = default;
 
             r.MidPostRoll = Quaternion.identity;
+            Quaternion hintRotation = i.HasHintRotation ? i.HintRotation : default;
 
             Vector3 aPosition = i.Root, bPosition = i.Mid, cPosition = i.Tip;
             Quaternion rootRot = i.RootRotation, midRot = i.MidRotation;
@@ -182,14 +183,14 @@ namespace Basis.IK
                 }
             }
 
-            float hintRotSqr = i.HintRotation.x * i.HintRotation.x + i.HintRotation.y * i.HintRotation.y + i.HintRotation.z * i.HintRotation.z + i.HintRotation.w * i.HintRotation.w;
+            float hintRotSqr = hintRotation.x * hintRotation.x + hintRotation.y * hintRotation.y + hintRotation.z * hintRotation.z + hintRotation.w * hintRotation.w;
             if (i.HintIsTracker && hintRotSqr > 0.5f)
             {
                 Vector3 shinRoll = cPosition - bPosition;
                 if (shinRoll.sqrMagnitude > sqrEpsilon)
                 {
                     Vector3 shinRollN = shinRoll.normalized;
-                    float roll = BasisIKMath.TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), shinRollN);
+                    float roll = BasisIKMath.TwistAngleRad(hintRotation * Quaternion.Inverse(midRot), shinRollN);
                     float rollAbs = Mathf.Abs(roll), rollCap = TrackerShinRollMaxDeg * Mathf.Deg2Rad;
                     if (rollAbs > rollCap) rollAbs = rollCap;
                     if (rollAbs > 1e-6f)

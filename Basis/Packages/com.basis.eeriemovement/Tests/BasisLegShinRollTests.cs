@@ -49,6 +49,7 @@ namespace Basis.Tests.IK
             BasisLegSolveInput i = Leg(side);
             i.TargetRotation = footTracker;
             i.HintRotation = shinTracker;
+            i.HasHintRotation = true;
             i.HintIsTracker = hintIsTracker;
             BasisLegSolveCore.Solve(i, out on);
 
@@ -92,6 +93,7 @@ namespace Basis.Tests.IK
             Quaternion trueShin = Quaternion.AngleAxis(tibialDeg, axis) * liveOff.MidRotationSolved;
             BasisLegSolveInput i = Leg(side);
             i.HintRotation = trueShin * K * qRef;
+            i.HasHintRotation = true;
             i.HintIsTracker = true;
             BasisLegSolveCore.Solve(i, out BasisLegSolveResult on);
 
@@ -129,6 +131,7 @@ namespace Basis.Tests.IK
             BasisLegSolveInput nan = Leg(-1f);
             nan.HintIsTracker = true;
             nan.HintRotation = new Quaternion(float.NaN, float.NaN, float.NaN, float.NaN);
+            nan.HasHintRotation = true;
             BasisLegSolveCore.Solve(nan, out BasisLegSolveResult rNaN);
 
             Assert.That(rNaN.MidPostRoll.w, Is.EqualTo(1f), "a NaN hint rotation must not reach the shin");
@@ -137,9 +140,10 @@ namespace Basis.Tests.IK
             BasisLegSolveInput zero = Leg(-1f);
             zero.HintIsTracker = true;
             zero.HintRotation = new Quaternion(0f, 0f, 0f, 0f);
+            zero.HasHintRotation = true;
             BasisLegSolveCore.Solve(zero, out BasisLegSolveResult rZero);
 
-            Assert.That(rZero.MidPostRoll.w, Is.EqualTo(1f), "the zero quaternion is the feature-off sentinel");
+            Assert.That(rZero.MidPostRoll.w, Is.EqualTo(1f), "a zero hint rotation must take the safe path");
         }
         [Test]
         public void AcrossTheTibialSweep_TheAnkleKeepsItsTrueAngleAndTheFootStaysPut([Values(-40f, -30f, -20f, -10f, 0f, 10f, 20f, 30f, 40f)] float tibialDeg)

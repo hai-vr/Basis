@@ -394,8 +394,8 @@ namespace Basis.IK
             if (plan.hasHips)
             {
                 poseStream.GetPositionAndRotation(handleHips, out Vector3 hipsPos, out Quaternion hipsRot);
-                gizmos.Direction(stage, hipsPos, playerUp.normalized, len * 2f, BasisIKGizmoPalette.Green);
-                gizmos.Label(stage, hipsPos + playerUp.normalized * len * 2f, "playerUp");
+                gizmos.Direction(stage, hipsPos, playerUp, len * 2f, BasisIKGizmoPalette.Green);
+                gizmos.Label(stage, hipsPos + playerUp * len * 2f, "playerUp");
 
                 Quaternion hipsAnat = hipsRot * Quaternion.Inverse(offsetRotationHips);
                 gizmos.Axes(stage, hipsPos, hipsAnat, len);
@@ -473,7 +473,7 @@ namespace Basis.IK
         }
         void RecordSpineRomCones(BasisIKGizmoStage stage)
         {
-            if (!spineAnatomicalRom || !plan.hasSpineRestFrames)
+            if (!plan.spineRom)
             {
                 return;
             }

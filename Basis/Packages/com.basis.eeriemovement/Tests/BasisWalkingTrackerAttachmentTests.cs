@@ -502,6 +502,7 @@ namespace Basis.Tests.IK
                 var job = new BasisEerieMovement
                 {
                     chainHeadToSpine = chain,
+                    chainChestIdx = 3,
                     handleHips = skeleton.Bind(bones[0]),
                     spineMaxIterations = 20,
                     spineTolerance = 0.001f,

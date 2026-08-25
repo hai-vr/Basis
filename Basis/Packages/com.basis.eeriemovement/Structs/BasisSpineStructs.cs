@@ -36,12 +36,19 @@ namespace Basis.IK
         public float BendTwistCoupling, SquishBoost, RestLen;
         public bool HasSpine, HasUpper;
     }
+    public struct BasisSpineBendChestInput
+    {
+        public float ChestBendPitch, ChestBendYaw, ChestBendRoll, TautBandFrac;
+        public Vector3 NeckCue;
+        public bool HasChest, HasNeckCue;
+    }
     public struct BasisSpineBendResult
     {
         public bool EarlyOut;
         public bool WriteSpine; public Vector3 SpineEuler;
+        public bool WriteChest; public Vector3 ChestEuler;
         public bool WriteUpper; public Vector3 UpperEuler;
-        public float BendPitchDeg, TwistY, SquishMult, BendGate, SpineYawEff, UpperYawEff;
+        public float BendPitchDeg, TwistY, SquishMult, BendGate, SpineYawEff, UpperYawEff, ChestYawEff, BowDeg;
     }
     public struct BasisCrouchOffsetInput
     {

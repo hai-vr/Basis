@@ -44,7 +44,7 @@ namespace Basis.IK
             public float LenTotal, TChest, TSpine, StandingHipsLocalY, StandingHeadLocalY;
             public float3 EyePos, HipsAnchorOffsetLocal, HeadRestFromEyeLocal, YawPivotFromEyeLocal;
             public byte PostureModel;
-            public float HipsCompressionStrength, HipsMaxDropMeters;
+            public float HipsCompressionStrength, HipsMaxDropMeters, HipsRestDropY;
         }
         public struct SpineSolveState
         {
@@ -154,12 +154,12 @@ namespace Basis.IK
                     if (reach * reach > horizSq)
                     {
                         float maxVertical = math.sqrt(reach * reach - horizSq);
-                        float reachLimitNeckY = headPosWorld.y - maxVertical + P.LenTotal;
+                        float reachLimitNeckY = headPosWorld.y - maxVertical + (P.HipsRestDropY > 0f ? P.HipsRestDropY : P.LenTotal);
                         neckForHips.y = math.max(neckForHips.y, math.min(reachLimitNeckY, neckPosWorld.y));
                     }
                 }
 
-                ComputeHipsPosition( in neckForHips, in headPosWorld, in supportXZ, in solveUp, P.LenTotal, in torsoYawTarget, biasScale, in desiredHipsXZ, freeze, in tposeHips, P.StandingHipsLocalY, P.StandingHeadLocalY, P.TrackingLiftY, P.PostureModel != 0, P.HipsCompressionStrength, P.HipsMaxDropMeters, out float3 hipsPos);
+                ComputeHipsPosition( in neckForHips, in headPosWorld, in supportXZ, in solveUp, P.LenTotal, in torsoYawTarget, biasScale, in desiredHipsXZ, freeze, in tposeHips, P.StandingHipsLocalY, P.StandingHeadLocalY, P.TrackingLiftY, P.PostureModel != 0, P.HipsCompressionStrength, P.HipsMaxDropMeters, P.HipsRestDropY, out float3 hipsPos);
 
                 quaternion hipsRotTarget = freeze ? quaternion.identity : torsoYawTarget;
                 quaternion hipsCurrent = hips.OutgoingRotation;
@@ -370,10 +370,15 @@ namespace Basis.IK
         [BurstCompile]
         internal static void ComputeHipsPosition( in float3 neckPos, in float3 headPos, in float3 supportXZ, in float3 solveUp, float lenTotal, in quaternion headYaw, float biasScale, in float3 desiredHipsXZ, bool freezeToTpose, in float3 tposeHips, float standingHipsLocalY, float standingHeadLocalY, float trackingLiftY, bool usePostureModel, float compressionStrength, float maxDrop, out float3 result)
         {
+            ComputeHipsPosition(in neckPos, in headPos, in supportXZ, in solveUp, lenTotal, in headYaw, biasScale, in desiredHipsXZ, freezeToTpose, in tposeHips, standingHipsLocalY, standingHeadLocalY, trackingLiftY, usePostureModel, compressionStrength, maxDrop, 0f, out result);
+        }
+        [BurstCompile]
+        internal static void ComputeHipsPosition( in float3 neckPos, in float3 headPos, in float3 supportXZ, in float3 solveUp, float lenTotal, in quaternion headYaw, float biasScale, in float3 desiredHipsXZ, bool freezeToTpose, in float3 tposeHips, float standingHipsLocalY, float standingHeadLocalY, float trackingLiftY, bool usePostureModel, float compressionStrength, float maxDrop, float restDropY, out float3 result)
+        {
             float standingHipsY = standingHipsLocalY + trackingLiftY;
             float standingHeadY = standingHeadLocalY + trackingLiftY;
 
-            float3 hipsBase = freezeToTpose ? tposeHips + new float3(0f, trackingLiftY, 0f) : neckPos - solveUp * lenTotal;
+            float3 hipsBase = freezeToTpose ? tposeHips + new float3(0f, trackingLiftY, 0f) : neckPos - solveUp * (restDropY > 0f ? restDropY : lenTotal);
             quaternion biasYaw = freezeToTpose ? quaternion.identity : headYaw;
             float3 forwardBias = math.mul(biasYaw, new float3(0f, 0f, 1f)) * biasScale;
 

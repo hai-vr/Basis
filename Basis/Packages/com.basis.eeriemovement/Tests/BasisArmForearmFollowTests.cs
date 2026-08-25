@@ -117,6 +117,7 @@ namespace Basis.Tests.IK
             i.HintPosition = i.Elbow;
             Vector3 foreDir = (i.Hand - i.Elbow).normalized;
             i.HintRotation = Quaternion.AngleAxis(60f, foreDir) * i.MidRotation;
+            i.HasHintRotation = true;
             Roll(ref i, 80f);
 
             BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);

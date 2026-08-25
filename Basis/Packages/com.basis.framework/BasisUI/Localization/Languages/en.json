@@ -2431,6 +2431,30 @@
       "value": "How much forward and backward lean the lower spine handles."
     },
     {
+      "key": "settings.bodyTracking.chestBendPitch.title.tooltip",
+      "value": "How much forward and backward lean the chest (lower thoracic) handles."
+    },
+    {
+      "key": "settings.bodyTracking.chestBendYaw.title.tooltip",
+      "value": "How much side-to-side turning the chest (lower thoracic) handles."
+    },
+    {
+      "key": "settings.bodyTracking.chestBendRoll.title.tooltip",
+      "value": "How much sideways lean the chest (lower thoracic) handles."
+    },
+    {
+      "key": "settings.bodyTracking.neckYawShare.title.tooltip",
+      "value": "Share of a head turn the neck bone carries; the rest stays at the head joint."
+    },
+    {
+      "key": "settings.bodyTracking.spineStretchMax.title.tooltip",
+      "value": "How far the spine bones may stretch before the head comes off the headset when tracked hips or chest sit too far from the head."
+    },
+    {
+      "key": "settings.bodyTracking.vspineTorsoYawDeadzoneVR.title.tooltip",
+      "value": "Head turn the torso ignores in VR before it follows; glances inside it stay in the neck."
+    },
+    {
       "key": "settings.bodyTracking.spineBendYaw.title.tooltip",
       "value": "How much side-to-side turning the lower spine handles."
     },
@@ -8504,7 +8528,55 @@
     },
     {
       "key": "settings.bodyTracking.spineBendPitch.description",
-      "value": "Fraction of forward/back lean absorbed by the spine bone (lumbar). Default: 0.45"
+      "value": "Fraction of forward/back lean absorbed by the spine bone (lumbar). Default: 0.40"
+    },
+    {
+      "key": "settings.bodyTracking.chestBendPitch.title",
+      "value": "Chest Bend Pitch (forward/back)"
+    },
+    {
+      "key": "settings.bodyTracking.chestBendPitch.description",
+      "value": "Fraction of forward/back lean absorbed by the chest bone (lower thoracic). Default: 0.20"
+    },
+    {
+      "key": "settings.bodyTracking.chestBendYaw.title",
+      "value": "Chest Bend Yaw (twist)"
+    },
+    {
+      "key": "settings.bodyTracking.chestBendYaw.description",
+      "value": "Fraction of head yaw absorbed by the chest bone (lower thoracic). Default: 0.15"
+    },
+    {
+      "key": "settings.bodyTracking.chestBendRoll.title",
+      "value": "Chest Bend Roll (side)"
+    },
+    {
+      "key": "settings.bodyTracking.chestBendRoll.description",
+      "value": "Fraction of sideways lean absorbed by the chest bone (lower thoracic). Default: 0.15"
+    },
+    {
+      "key": "settings.bodyTracking.neckYawShare.title",
+      "value": "Neck Yaw Share"
+    },
+    {
+      "key": "settings.bodyTracking.neckYawShare.description",
+      "value": "Share of the head's turn relative to the torso that the neck bone carries; the remainder stays at the head joint. Default: 0.5"
+    },
+    {
+      "key": "settings.bodyTracking.spineStretchMax.title",
+      "value": "Spine Stretch Max"
+    },
+    {
+      "key": "settings.bodyTracking.spineStretchMax.description",
+      "value": "Maximum uniform stretch of the spine bones (fraction) before the head is projected onto the chain's reach when tracked hips or chest sit too far from the head. Default: 0.03"
+    },
+    {
+      "key": "settings.bodyTracking.vspineTorsoYawDeadzoneVR.title",
+      "value": "Torso Yaw Deadzone in VR (deg)"
+    },
+    {
+      "key": "settings.bodyTracking.vspineTorsoYawDeadzoneVR.description",
+      "value": "Head turn the torso ignores in VR before it follows the head; used when Torso Yaw Play In VR is on. Default: 30"
     },
     {
       "key": "settings.bodyTracking.spineBendYaw.title",

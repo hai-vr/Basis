@@ -708,6 +708,24 @@ public static class SettingsProviderIK
                 upperChestBendRoll.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.upperChestBendRoll.title.tooltip"));
             }
 
+            var chestBendPitch = PanelSlider.CreateAndBind(
+                bendParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.chestBendPitch.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKChestBendPitch);
+            chestBendPitch?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.chestBendPitch.title.tooltip"));
+
+            var chestBendYaw = PanelSlider.CreateAndBind(
+                bendParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.chestBendYaw.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKChestBendYaw);
+            chestBendYaw?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.chestBendYaw.title.tooltip"));
+
+            var chestBendRoll = PanelSlider.CreateAndBind(
+                bendParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.chestBendRoll.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKChestBendRoll);
+            chestBendRoll?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.chestBendRoll.title.tooltip"));
+
             var spineSquishBoost = PanelSlider.CreateAndBind(
                 bendParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineSquishBoost.title"), 0f, 2f, false, 2, ValueDisplayMode.Raw),
@@ -804,11 +822,23 @@ public static class SettingsProviderIK
                 BasisSettingsDefaults.FBIKNeckGazeFollowMaxDeg);
             neckGazeFollowMax?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.neckGazeFollowMax.title.tooltip"));
 
-            var thoracicStiffen = PanelSlider.CreateAndBind(
+            // var thoracicStiffen = PanelSlider.CreateAndBind(
+            //     bendParent,
+            //     PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.thoracicBendStiffen.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+            //     BasisSettingsDefaults.FBIKThoracicBendStiffen);
+            // thoracicStiffen?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.thoracicBendStiffen.title.tooltip"));
+
+            var neckYawShare = PanelSlider.CreateAndBind(
                 bendParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.thoracicBendStiffen.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.FBIKThoracicBendStiffen);
-            thoracicStiffen?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.thoracicBendStiffen.title.tooltip"));
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.neckYawShare.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKNeckYawShare);
+            neckYawShare?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.neckYawShare.title.tooltip"));
+
+            var spineStretchMax = PanelSlider.CreateAndBind(
+                bendParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineStretchMax.title"), 0f, 0.1f, false, 3, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKSpineStretchMax);
+            spineStretchMax?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineStretchMax.title.tooltip"));
 
             var tautBand = PanelSlider.CreateAndBind(
                 bendParent,
@@ -1240,6 +1270,12 @@ public static class SettingsProviderIK
             {
                 vspineTorsoYawDeadzone.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawDeadzone.title.tooltip"));
             }
+
+            var vspineTorsoYawDeadzoneVR = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawDeadzoneVR.title"), 0f, 90f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineTorsoYawDeadzoneVRDeg);
+            vspineTorsoYawDeadzoneVR?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawDeadzoneVR.title.tooltip"));
 
             var vspineTorsoYawBlend = PanelSlider.CreateAndBind(
                 vspineParent,
@@ -1837,6 +1873,11 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKUpperChestBendPitch.ResetToDefault();
         BasisSettingsDefaults.FBIKUpperChestBendYaw.ResetToDefault();
         BasisSettingsDefaults.FBIKUpperChestBendRoll.ResetToDefault();
+        BasisSettingsDefaults.FBIKChestBendPitch.ResetToDefault();
+        BasisSettingsDefaults.FBIKChestBendYaw.ResetToDefault();
+        BasisSettingsDefaults.FBIKChestBendRoll.ResetToDefault();
+        BasisSettingsDefaults.FBIKNeckYawShare.ResetToDefault();
+        BasisSettingsDefaults.FBIKSpineStretchMax.ResetToDefault();
         BasisSettingsDefaults.FBIKHipHingeStartDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKHipHingeMaxAddDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.ResetToDefault();
@@ -1873,6 +1914,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.ResetToDefault();
         BasisSettingsDefaults.VSpineTorsoYawBlendSpeed.ResetToDefault();
         BasisSettingsDefaults.VSpineTorsoYawPlayInVR.ResetToDefault();
+        BasisSettingsDefaults.VSpineTorsoYawDeadzoneVRDeg.ResetToDefault();
         BasisSettingsDefaults.VSpinePostureModel.ResetToDefault();
         BasisSettingsDefaults.VSpineHipsCompressionStrength.ResetToDefault();
         BasisSettingsDefaults.VSpineHipsMaxDropMeters.ResetToDefault();

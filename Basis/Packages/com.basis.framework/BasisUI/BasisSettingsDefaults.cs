@@ -1549,12 +1549,17 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKKneeFootPoleConditioning = new("fbikkneefootpoleconditioning", new BasisPlatformDefault<bool>(false));
 
         // Spine relax: per-axis bend distribution onto lumbar (spine) and thoracic (upperChest)
-        public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch", new BasisPlatformDefault<float>(0.45f));
+        public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch_v2", new BasisPlatformDefault<float>(0.40f));
         public static BasisSettingsBinding<float> FBIKSpineBendYaw = new("fbikspinebendyaw", new BasisPlatformDefault<float>(0.10f));
-        public static BasisSettingsBinding<float> FBIKSpineBendRoll = new("fbikspinebendroll", new BasisPlatformDefault<float>(0.35f));
-        public static BasisSettingsBinding<float> FBIKUpperChestBendPitch = new("fbikupperchestbendpitch", new BasisPlatformDefault<float>(0.25f));
-        public static BasisSettingsBinding<float> FBIKUpperChestBendYaw = new("fbikupperchestbendyaw", new BasisPlatformDefault<float>(0.30f));
-        public static BasisSettingsBinding<float> FBIKUpperChestBendRoll = new("fbikupperchestbendroll", new BasisPlatformDefault<float>(0.20f));
+        public static BasisSettingsBinding<float> FBIKSpineBendRoll = new("fbikspinebendroll_v2", new BasisPlatformDefault<float>(0.30f));
+        public static BasisSettingsBinding<float> FBIKChestBendPitch = new("fbikchestbendpitch", new BasisPlatformDefault<float>(0.20f));
+        public static BasisSettingsBinding<float> FBIKChestBendYaw = new("fbikchestbendyaw", new BasisPlatformDefault<float>(0.15f));
+        public static BasisSettingsBinding<float> FBIKChestBendRoll = new("fbikchestbendroll", new BasisPlatformDefault<float>(0.15f));
+        public static BasisSettingsBinding<float> FBIKUpperChestBendPitch = new("fbikupperchestbendpitch_v2", new BasisPlatformDefault<float>(0.15f));
+        public static BasisSettingsBinding<float> FBIKUpperChestBendYaw = new("fbikupperchestbendyaw_v2", new BasisPlatformDefault<float>(0.15f));
+        public static BasisSettingsBinding<float> FBIKUpperChestBendRoll = new("fbikupperchestbendroll_v2", new BasisPlatformDefault<float>(0.15f));
+        public static BasisSettingsBinding<float> FBIKNeckYawShare = new("fbikneckyawshare", new BasisPlatformDefault<float>(0.5f));
+        public static BasisSettingsBinding<float> FBIKSpineStretchMax = new("fbikspinestretchmax", new BasisPlatformDefault<float>(0.03f));
         // Spine relax: hip hinge coupling
         public static BasisSettingsBinding<float> FBIKHipHingeStartDeg = new("fbikhiphingestartdeg_v2", new BasisPlatformDefault<float>(40f));
         public static BasisSettingsBinding<float> FBIKHipHingeMaxAddDeg = new("fbikhiphingemaxadddeg_v2", new BasisPlatformDefault<float>(52f));
@@ -1815,7 +1820,8 @@ namespace Basis.BasisUI
 
         // Off forces the yaw deadzone to 0 in VR (torso follows immediately); on uses the configured
         // VSpineTorsoYawDeadzoneDeg cone in VR too. Desktop always uses the configured value.
-        public static BasisSettingsBinding<bool> VSpineTorsoYawPlayInVR = new("vspinetorsoyawplayinvr", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> VSpineTorsoYawPlayInVR = new("vspinetorsoyawplayinvr_v2", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> VSpineTorsoYawDeadzoneVRDeg = new("vspinetorsoyawdeadzonevrdeg", new BasisPlatformDefault<float>(30f));
 
 
         // ---------------- TRACKER PAIRING (virtual midpoint) ----------------
@@ -2574,6 +2580,11 @@ namespace Basis.BasisUI
             FBIKUpperChestBendPitch.LoadBindingValue();
             FBIKUpperChestBendYaw.LoadBindingValue();
             FBIKUpperChestBendRoll.LoadBindingValue();
+            FBIKChestBendPitch.LoadBindingValue();
+            FBIKChestBendYaw.LoadBindingValue();
+            FBIKChestBendRoll.LoadBindingValue();
+            FBIKNeckYawShare.LoadBindingValue();
+            FBIKSpineStretchMax.LoadBindingValue();
             FBIKHipHingeStartDeg.LoadBindingValue();
             FBIKHipHingeMaxAddDeg.LoadBindingValue();
             FBIKChestSpringHz.LoadBindingValue();
@@ -2642,6 +2653,7 @@ namespace Basis.BasisUI
             VSpineTorsoYawDeadzoneDeg.LoadBindingValue();
             VSpineTorsoYawBlendSpeed.LoadBindingValue();
             VSpineTorsoYawPlayInVR.LoadBindingValue();
+            VSpineTorsoYawDeadzoneVRDeg.LoadBindingValue();
 
             // Tracker pairing
             TrackerLinkingAdvancedVisible.LoadBindingValue();
