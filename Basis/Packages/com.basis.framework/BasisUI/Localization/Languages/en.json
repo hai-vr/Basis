@@ -7267,6 +7267,14 @@
       "value": "How much of the previous frame's bounce light is reused to steady the image. Lower it if the light smears or trails behind you when you move; raise it if the bounce looks grainy while standing still."
     },
     {
+      "key": "settings.graphics.ssgi.realtimeBlend",
+      "value": "Realtime Bounce Blend"
+    },
+    {
+      "key": "settings.graphics.ssgi.realtimeBlend.tooltip",
+      "value": "How much of the world's own baked lighting the realtime bounce replaces. At 1 the bounce takes over completely, which can look dark where it finds less light than the baked lighting it replaced. Lower it to keep more of what the world was built to look like."
+    },
+    {
       "key": "settings.graphics.ssgi.emissive",
       "value": "Glowing Surface Strength"
     },

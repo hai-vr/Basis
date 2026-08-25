@@ -36,6 +36,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
     private bool backfaceLighting = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationBackfaceLighting.DefaultValue.GetDefault();
     private float denoiseStrength = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength.DefaultValue.GetDefault();
     private float emissive = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationEmissive.DefaultValue.GetDefault();
+    private float realtimeBlend = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationRealtimeBlend.DefaultValue.GetDefault();
     private float fallbackMaxGain = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackMaxGain.DefaultValue.GetDefault();
     private bool capturing;
     private Volume volume;
@@ -57,6 +58,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
     private static string K_SSGI_BACKFACE_LIGHTING => BasisSettingsDefaults.ScreenSpaceGlobalIlluminationBackfaceLighting.BindingKey;
     private static string K_SSGI_DENOISE => BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength.BindingKey;
     private static string K_SSGI_EMISSIVE => BasisSettingsDefaults.ScreenSpaceGlobalIlluminationEmissive.BindingKey;
+    private static string K_SSGI_REALTIME_BLEND => BasisSettingsDefaults.ScreenSpaceGlobalIlluminationRealtimeBlend.BindingKey;
     private static string K_SSGI_FALLBACK_MAX_GAIN => BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackMaxGain.BindingKey;
 
     public override void Awake()
@@ -304,6 +306,14 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
             }
             emissive = emissiveValue;
         }
+        else if (matchedSettingName == K_SSGI_REALTIME_BLEND)
+        {
+            if (!SliderReadOption(optionValue, out float blend))
+            {
+                return;
+            }
+            realtimeBlend = blend;
+        }
         else if (matchedSettingName == K_SSGI_FALLBACK_MAX_GAIN)
         {
             if (!SliderReadOption(optionValue, out float gain))
@@ -333,6 +343,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         backfaceLighting = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationBackfaceLighting.RawValue;
         denoiseStrength = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength.RawValue;
         emissive = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationEmissive.RawValue;
+        realtimeBlend = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationRealtimeBlend.RawValue;
         fallbackMaxGain = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackMaxGain.RawValue;
         ScreenSpaceGlobalIlluminationURP.DebugView = ReadDebugView(BasisSettingsDefaults.DevSsgiDebugView.RawValue);
         ApplyOverride();
@@ -449,7 +460,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
     {
         ScreenSpaceGlobalIlluminationURP feature = FindFeature();
         RememberAuthoredFeatureValues(feature);
-        Apply(feature, ssgiEnabled, gBufferFallback, fallbackAlbedo, reflectionProbes, highQualityUpscaling, overrideAmbient, backfaceLighting, emissive, fallbackMaxGain);
+        Apply(feature, ssgiEnabled, gBufferFallback, fallbackAlbedo, reflectionProbes, highQualityUpscaling, overrideAmbient, backfaceLighting, emissive, fallbackMaxGain, realtimeBlend);
     }
 
     // The feature is a sub-asset of the renderer, not a scene object, so writing to it in the editor
@@ -464,6 +475,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
     private bool authoredBackfaceLighting;
     private float authoredEmissive;
     private float authoredFallbackMaxGain;
+    private float authoredRealtimeBlend;
 
     private void RememberAuthoredFeatureValues(ScreenSpaceGlobalIlluminationURP feature)
     {
@@ -481,6 +493,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         authoredBackfaceLighting = feature.BackfaceLighting;
         authoredEmissive = feature.EmissiveMultiplier;
         authoredFallbackMaxGain = feature.FallbackMaxGain;
+        authoredRealtimeBlend = feature.RealtimeBlend;
     }
 
     public void RestoreAuthoredFeatureValues()
@@ -492,10 +505,10 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         hasAuthoredFeatureValues = false;
         Apply(FindFeature(), authoredActive, authoredGBufferFallback, authoredFallbackAlbedo, authoredReflectionProbes,
             authoredHighQualityUpscaling, authoredOverrideAmbient, authoredBackfaceLighting, authoredEmissive,
-            authoredFallbackMaxGain);
+            authoredFallbackMaxGain, authoredRealtimeBlend);
     }
 
-    public static void Apply(ScreenSpaceGlobalIlluminationURP feature, bool enabled, bool gBufferFallback, float fallbackAlbedo, bool reflectionProbes, bool highQualityUpscaling, bool overrideAmbient, bool backfaceLighting, float emissive, float fallbackMaxGain)
+    public static void Apply(ScreenSpaceGlobalIlluminationURP feature, bool enabled, bool gBufferFallback, float fallbackAlbedo, bool reflectionProbes, bool highQualityUpscaling, bool overrideAmbient, bool backfaceLighting, float emissive, float fallbackMaxGain, float realtimeBlend)
     {
         if (feature == null)
         {
@@ -509,6 +522,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         feature.BackfaceLighting = backfaceLighting;
         feature.EmissiveMultiplier = Mathf.Clamp(emissive, BasisSettingsDefaults.SSGI_EMISSIVE_MIN, BasisSettingsDefaults.SSGI_EMISSIVE_MAX);
         feature.FallbackMaxGain = Mathf.Clamp(fallbackMaxGain, BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MIN, BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MAX);
+        feature.RealtimeBlend = Mathf.Clamp(realtimeBlend, BasisSettingsDefaults.SSGI_REALTIME_BLEND_MIN, BasisSettingsDefaults.SSGI_REALTIME_BLEND_MAX);
         if (feature.isActive != enabled)
         {
             feature.SetActive(enabled);

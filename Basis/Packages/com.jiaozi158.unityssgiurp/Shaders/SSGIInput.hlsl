@@ -151,6 +151,10 @@ half _SSGIDebugView;
 // 1: the ambient (SH / APV) term is removed from the camera colour and replaced by the traced bounce.
 half _OverrideAmbientLighting;
 
+// Crossfade between the world's baked lighting and the traced bounce. 1 replaces the ambient outright, 0 keeps it
+// and the effect contributes nothing. Both halves of the combine scale by it, so the two always sum to one whole.
+half _SSGIRealtimeBlend;
+
 // Shaders without a "UniversalGBuffer" pass leave the GBuffer empty. When enabled, those pixels use a normal
 // reconstructed from depth and an albedo implied by their colour so they still receive global illumination.
 half _SSGIGBufferFallback;

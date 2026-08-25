@@ -199,11 +199,14 @@ namespace Basis.Tests.IK
             Solve(ref lockHips, headPos, Quaternion.identity, bones[2].position, Quaternion.identity);
             float errLockHips = (skeleton.Stream.GetPosition(lockHips.handleHead) - headPos).magnitude, hipsMovedLockHips = (skeleton.Stream.GetPosition(lockHips.handleHips) - hipsPos).magnitude;
 
-            TestContext.WriteLine($"stretch: head err {errStretch * 1000f:F2} mm hips moved {hipsMovedStretch * 1000f:F2} mm | yield: head err {errYield * 1000f:F2} mm hips moved {hipsMovedYield * 1000f:F2} mm | lock hips: head err {errLockHips * 1000f:F2} mm hips moved {hipsMovedLockHips * 1000f:F2} mm");
+            // The priority ladder for a MEASURED pelvis: the stretch absorbs small gaps with the head exact
+            // and the pelvis untouched; past the stretch a small mismatch is charged to the HEAD, because the
+            // legs are solved from the pelvis and moving measured hardware costs more than a few mm of head.
+            // Only a gross mismatch yields the pelvis (BasisSpineHipsRotationContinuityTests covers that).
+            TestContext.WriteLine($"stretch: head err {errStretch * 1000f:F2} mm hips moved {hipsMovedStretch * 1000f:F2} mm | stretch off: head err {errYield * 1000f:F2} mm hips moved {hipsMovedYield * 1000f:F2} mm | lock hips: head err {errLockHips * 1000f:F2} mm hips moved {hipsMovedLockHips * 1000f:F2} mm");
             Assert.Less(errStretch, 0.0015f, "a 2% over-reach must be absorbed by the spine stretch");
             Assert.Less(hipsMovedStretch, 0.0005f, "the tracked hips must not move while the stretch can cover the gap");
-            Assert.Less(errYield, 0.0015f, "in lock-head mode the head stays on the HMD even with the stretch off");
-            Assert.Greater(hipsMovedYield, 0.005f, "in lock-head mode the tracked hips yield toward the head once the chain cannot span the gap");
+            Assert.Less(hipsMovedYield, 0.0005f, "with the stretch off, a small over-reach must NOT drag a measured pelvis -- that is leg error");
             Assert.Greater(errLockHips, 0.005f, "in lock-hips mode the head is the one that gives");
             Assert.Less(hipsMovedLockHips, 0.0005f, "in lock-hips mode the tracked hips stay put");
         }

@@ -209,6 +209,43 @@ namespace SSGIURP.Tests
         }
 
         [Test]
+        public void TheCombineRemovesAndReplacesTheSameShareOfTheBakedLighting()
+        {
+            // The two halves have to scale together: removing all of the ambient while adding only part of the bounce
+            // is what makes a scene go dark, and adding all of the bounce while removing none double counts it.
+            string shader = File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader"));
+            StringAssert.Contains("SSGIAmbientRemovalFactor(cameraColor, ambientLighting * _SSGIRealtimeBlend, albedo, metallic)",
+                PassSource(shader, "Combine GI"));
+            StringAssert.Contains("_IndirectDiffuseLightingMultiplier * _SSGIRealtimeBlend",
+                PassSource(shader, "Combine GI Add"));
+        }
+
+        [Test]
+        public void ANearHitTakesTheBakedTargetWholeRatherThanIsolatingEmission()
+        {
+            // Emission and baked lighting are written to one target together and cannot be separated, and for a ray
+            // landing on a neighbour they are the same thing: light the surface carries that the trace cannot compute.
+            // Both come from this frame's GBuffer, so neither can feed back the way the colour history does.
+            string utilities = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGIUtilities.hlsl"));
+            int start = utilities.IndexOf("half3 SSGINearHitRadiance", System.StringComparison.Ordinal);
+            Assert.Greater(start, 0);
+            string nearHit = utilities.Substring(start, utilities.IndexOf("half3 SSGIHitRadiance", System.StringComparison.Ordinal) - start);
+
+            StringAssert.Contains("SSGISampleBakedRadiance(hitUV)", nearHit);
+            Assert.IsFalse(nearHit.Contains("_SSGIHistoryCameraColorTexture"), "a near hit must never read the colour history");
+            Assert.IsFalse(nearHit.Contains("SSGISampleEmission"), "the baked half is wanted too, not emission alone");
+            // A hard threshold would let rays flip between accepted and rejected as the noise moves, which flickers.
+            StringAssert.Contains("saturate(Luminance(excess)", nearHit);
+
+            // Baked lighting is non-zero on every lit surface, so an absolute test fires everywhere and a hit one or
+            // two pixel footprints away is largely the shading point itself: the surface adds its own baked radiance
+            // back to itself. Only the excess over what the shading point already carries may be taken.
+            StringAssert.Contains("SSGISampleBakedRadiance(originUV)", nearHit);
+            Assert.IsTrue(Regex.IsMatch(nearHit, @"max\(SSGISampleBakedRadiance\(hitUV\) - SSGISampleBakedRadiance\(originUV\)"),
+                "a surface cannot light itself: the near hit takes the difference");
+        }
+
+        [Test]
         public void EmissionIsTakenNetOfTheAmbientTheGBufferTargetAlsoCarries()
         {
             // URP's Lit GBuffer pass writes "surfaceData.emission + bakedGI" into this target, so the ambient the

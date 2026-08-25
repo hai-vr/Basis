@@ -1032,5 +1032,147 @@ namespace Basis.Tests.Sync
                 Is.EqualTo(94), "High rotation block: 606 bone bits + 140 finger bits = 746 = 94 bytes");
             Assert.That(BasisBoneRotationCompression.SyncBoneCount, Is.EqualTo(51));
         }
+
+        // ---------- where the avatar's front is ----------
+
+        /// <summary>
+        /// A T-posed humanoid standing on the origin facing +Z, in the root-local frame
+        /// <see cref="BasisTransformMapping.TposeFromRoot"/> stores. Bones the caller nulls out are
+        /// dropped, which is how RecordPoses represents a rig that does not carry them.
+        /// </summary>
+        private static BasisTransformMapping TposedRig(bool toes = true, bool eyes = true, bool mirroredLabels = false,
+            bool leaningHead = false)
+        {
+            BasisTransformMapping rig = new BasisTransformMapping();
+
+            void Bone(HumanBodyBones bone, float x, float y, float z) =>
+                rig.TposeFromRoot[bone] = new BasisCalibratedCoords
+                {
+                    position = new Vector3(x, y, z),
+                    rotation = Quaternion.identity,
+                };
+
+            Bone(HumanBodyBones.Hips, 0f, 0.95f, 0f);
+            Bone(HumanBodyBones.Spine, 0f, 1.05f, 0f);
+            Bone(HumanBodyBones.Chest, 0f, 1.20f, 0f);
+            Bone(HumanBodyBones.Neck, 0f, 1.45f, 0f);
+            Bone(HumanBodyBones.Head, leaningHead ? 0.02f : 0f, 1.55f, leaningHead ? 0.03f : 0f);
+
+            float legSide = mirroredLabels ? -0.09f : 0.09f;
+            Bone(HumanBodyBones.LeftUpperLeg, -legSide, 0.90f, 0f);
+            Bone(HumanBodyBones.RightUpperLeg, legSide, 0.90f, 0f);
+            Bone(HumanBodyBones.LeftFoot, -legSide, 0.08f, 0f);
+            Bone(HumanBodyBones.RightFoot, legSide, 0.08f, 0f);
+
+            if (toes)
+            {
+                Bone(HumanBodyBones.LeftToes, -legSide, 0.03f, 0.12f);
+                Bone(HumanBodyBones.RightToes, legSide, 0.03f, 0.12f);
+            }
+
+            if (eyes)
+            {
+                Bone(HumanBodyBones.LeftEye, -0.03f, 1.60f, 0.08f);
+                Bone(HumanBodyBones.RightEye, 0.03f, 1.60f, 0.08f);
+            }
+
+            return rig;
+        }
+
+        /// <summary>Turns a rig round inside its own root, the way an armature authored facing -Z sits.</summary>
+        private static BasisTransformMapping TurnedAround(BasisTransformMapping rig)
+        {
+            BasisTransformMapping turned = new BasisTransformMapping();
+            foreach (var pair in rig.TposeFromRoot)
+            {
+                turned.TposeFromRoot[pair.Key] = new BasisCalibratedCoords
+                {
+                    position = new Vector3(-pair.Value.position.x, pair.Value.position.y, -pair.Value.position.z),
+                    rotation = pair.Value.rotation,
+                };
+            }
+            return turned;
+        }
+
+        private static Vector3 Facing(BasisTransformMapping rig)
+        {
+            Assert.That(BasisTransformMapping.TryComputeForwardUpFromTpose(
+                rig, out Vector3 forward, out Vector3 up, out Vector3 right), Is.True,
+                "the rig carries hips, a spine and legs - the geometry is readable");
+            Assert.That(up.y, Is.GreaterThan(0.99f), "up must come out of the spine");
+            Assert.That(Vector3.Dot(forward, up), Is.EqualTo(0f).Within(1e-3f), "forward must be level");
+            Assert.That(Vector3.Dot(right, up), Is.EqualTo(0f).Within(1e-3f), "right must be level");
+            return forward;
+        }
+
+        [Test]
+        public void ACanonicalRig_FacesItsOwnPlusZ()
+        {
+            Assert.That(Vector3.Dot(Facing(TposedRig()), Vector3.forward), Is.GreaterThan(0.99f));
+        }
+
+        [Test]
+        public void ARigAuthoredTurnedAround_ReadsItsOwnFrontNotItsRootsFront()
+        {
+            Assert.That(Vector3.Dot(Facing(TurnedAround(TposedRig())), Vector3.back), Is.GreaterThan(0.99f));
+        }
+
+        /// <summary>
+        /// The Left/Right humanoid bones are assignments a rigger makes, and a mirrored model gets
+        /// them the wrong way round often enough to matter. Deriving the front from right x up used
+        /// to hand those avatars a back-to-front basis, so the follow camera filmed them from
+        /// behind: the toes are the measurement that does not care which leg is called which.
+        /// </summary>
+        [Test]
+        public void AMirroredRigStillReadsItsFrontFromItsToes()
+        {
+            Assert.That(Vector3.Dot(Facing(TposedRig(mirroredLabels: true)), Vector3.forward), Is.GreaterThan(0.99f));
+        }
+
+        [Test]
+        public void ARigWithNoToes_ReadsItsFrontFromItsEyes()
+        {
+            Assert.That(Vector3.Dot(Facing(TposedRig(toes: false)), Vector3.forward), Is.GreaterThan(0.99f));
+            Assert.That(Vector3.Dot(Facing(TurnedAround(TposedRig(toes: false))), Vector3.back), Is.GreaterThan(0.99f));
+        }
+
+        /// <summary>
+        /// Nothing anterior left to measure, so the legs are all there is. Correctly labelled they
+        /// give the right answer; this is the one shape a mirrored rig cannot be rescued from.
+        /// </summary>
+        [Test]
+        public void ARigWithNeitherToesNorEyes_FallsBackToTheLegs()
+        {
+            Assert.That(Vector3.Dot(Facing(TposedRig(toes: false, eyes: false)), Vector3.forward),
+                Is.GreaterThan(0.99f));
+        }
+
+        /// <summary>
+        /// A head bone is a couple of centimetres off the hips on plenty of rigs, and head minus
+        /// hips is vertical: flatten it and what is left is that couple of centimetres of nothing,
+        /// which used to be normalised into a heading and swung the follow camera round by tens of
+        /// degrees. It is not a facing measurement and is no longer read as one.
+        /// </summary>
+        [Test]
+        public void AnOffAxisHeadBone_IsNotMistakenForAHeading()
+        {
+            Assert.That(Vector3.Dot(Facing(TposedRig(toes: false, eyes: false, leaningHead: true)), Vector3.forward),
+                Is.GreaterThan(0.99f));
+        }
+
+        /// <summary>The basis the wire and the camera actually consume, built off that forward.</summary>
+        [Test]
+        public void TheCharacterBasis_TurnsARigsOwnFrontIntoPlusZ()
+        {
+            BasisTransformMapping rig = TurnedAround(TposedRig());
+            Assert.That(BasisTransformMapping.TryComputeForwardUpFromTpose(
+                rig, out Vector3 forward, out Vector3 up, out _), Is.True);
+
+            quaternion basis = BasisGenericBoneRotationUtils.GetCharacterBasis(forward, up);
+            Vector3 front = math.mul(basis, new float3(0f, 0f, 1f));
+
+            Assert.That(Vector3.Dot(front, Vector3.back), Is.GreaterThan(0.99f),
+                "the basis maps canonical +Z onto where this rig's front actually points");
+        }
     }
 }

@@ -1806,6 +1806,16 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength);
             sliderSsgiDenoise.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.denoise.tooltip"));
 
+            PanelSlider sliderSsgiBlend = PanelSlider.CreateEntryAndBind(
+                ssgiGroup.ContentParent,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.realtimeBlend"),
+                    "",
+                    BasisSettingsDefaults.SSGI_REALTIME_BLEND_MIN,
+                    BasisSettingsDefaults.SSGI_REALTIME_BLEND_MAX,
+                    false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.ScreenSpaceGlobalIlluminationRealtimeBlend);
+            sliderSsgiBlend.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.realtimeBlend.tooltip"));
+
             PanelSlider sliderSsgiEmissive = PanelSlider.CreateEntryAndBind(
                 ssgiGroup.ContentParent,
                 new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.emissive"),
@@ -1869,6 +1879,7 @@ namespace Basis.BasisUI
                 toggleSsgiFullResolution.Descriptor.SetActive(val);
                 sliderSsgiIntensity.Descriptor.SetActive(val);
                 sliderSsgiDenoise.Descriptor.SetActive(val);
+                sliderSsgiBlend.Descriptor.SetActive(val);
                 sliderSsgiEmissive.Descriptor.SetActive(val);
                 toggleSsgiGBufferFallback.Descriptor.SetActive(val);
                 sliderSsgiFallbackAlbedo.Descriptor.SetActive(val && toggleSsgiGBufferFallback.Value);

@@ -208,6 +208,15 @@ namespace Basis.IK
             {
                 return;
             }
+            if (plan.hipsTracked)
+            {
+                float deadzone = restReachHeadLumbar * hipsYieldDeadzoneFrac;
+                excess *= Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((excess - deadzone) / Mathf.Max(deadzone, epsilon)));
+                if (!(excess > 0f))
+                {
+                    return;
+                }
+            }
             Vector3 hipsPos = poseStream.GetPosition(handleHips) + toHead * (excess / dist);
             targetPositionHips = hipsPos;
             poseStream.SetPosition(handleHips, hipsPos);
@@ -301,7 +310,7 @@ namespace Basis.IK
             }
         }
         const float aimDeadbandDeg = 1f, seedPlaneBlendSin = 0.139f, aimDampToleranceFactor = 4f;
-        const float seedRampStartFrac = 0.001f, seedRampFullFrac = 0.004f;
+        const float seedRampStartFrac = 0.001f, seedRampFullFrac = 0.004f, hipsYieldDeadzoneFrac = 0.06f;
         const int seedPasses = 3;
         float JointShare(int i)
         {

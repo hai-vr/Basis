@@ -173,9 +173,12 @@ namespace Basis.Tests.IK
             float worstPitch = Sweep(ref job, 100, s => (hips, Quaternion.Euler(-50f + s, 0f, 0f), head, Quaternion.identity), report, out _, out _, out float headErrPitch);
             float worstRoll = Sweep(ref job, 80, s => (hips, Quaternion.Euler(0f, 0f, -40f + s), head, Quaternion.identity), report, out _, out _, out float headErrRoll);
             TestContext.WriteLine(report.ToString());
+            // Pitching a TRACKED pelvis 50 deg while the head does not move is a geometrically inconsistent
+            // pose -- something has to give. The pelvis is measured hardware the legs are solved from, so the
+            // head is charged instead, bounded by the yield deadzone (6% of the spine's reach).
             Assert.Less(worstPitch, maxStepDeg, "a 1 deg hips pitch step must not pop any spine joint");
             Assert.Less(worstRoll, maxStepDeg, "a 1 deg hips roll step must not pop any spine joint");
-            Assert.Less(Mathf.Max(headErrPitch, headErrRoll), 0.002f, "the head must stay on target through the pitch/roll sweeps");
+            Assert.Less(Mathf.Max(headErrPitch, headErrRoll), 0.035f, "the head may give at most the pelvis-yield deadzone when a tracked pelvis is rotated away from it");
         }
         [Test]
         public void HeadOrbit_AroundTheChainAxis_DoesNotPopTheSpine()
@@ -187,6 +190,99 @@ namespace Basis.Tests.IK
             TestContext.WriteLine(report.ToString());
             Assert.Less(worst, maxStepDeg, "a 2 deg head orbit step must not pop any spine joint");
             Assert.Less(headErr, 0.006f, "the head must stay near its target around the whole orbit (band residual + solver polish)");
+        }
+        // The legs hang off the pelvis (BuildLegFrame roots on the hips bone), so ANY pelvis displacement the
+        // spine solve introduces lands in the legs. Every other fixture here is a perfectly straight spine,
+        // where the chain's path length and its straight-line chord are equal -- which is exactly the case
+        // that cannot see a rest-distance change. This one is authored with a real S-curve so it can.
+        Transform[] BuildCurvedRig()
+        {
+            if (chain.IsCreated) chain.Dispose();
+            skeleton?.Dispose();
+            if (root != null) Object.DestroyImmediate(root);
+            Vector3[] curved =
+            {
+                new Vector3(0f, 0.95f, 0f), new Vector3(0f, 1.06f, -0.03f), new Vector3(0f, 1.21f, -0.05f),
+                new Vector3(0f, 1.33f, -0.02f), new Vector3(0f, 1.45f, 0.01f), new Vector3(0f, 1.57f, 0f),
+            };
+            root = new GameObject("CurvedSpineRig");
+            bones = new Transform[names.Length];
+            Transform parent = root.transform;
+            for (int i = 0; i < names.Length; i++)
+            {
+                var go = new GameObject(names[i]);
+                go.transform.SetPositionAndRotation(curved[i], Quaternion.identity);
+                go.transform.SetParent(parent, true);
+                bones[i] = go.transform;
+                parent = go.transform;
+            }
+            skeleton = new BasisPoseSkeleton();
+            skeleton.Build(bones[0], bones);
+            skeleton.GatherNow();
+            chain = new NativeArray<BasisBoneHandle>(names.Length, Allocator.Persistent);
+            for (int i = 0; i < names.Length; i++) chain[i] = skeleton.Bind(bones[names.Length - 1 - i]);
+            return bones;
+        }
+        [Test]
+        public void CurvedSpine_RestingPelvis_IsNotDisplacedByTheSpineSolve()
+        {
+            BuildCurvedRig();
+            float path = 0f;
+            for (int i = 1; i < names.Length; i++) path += Vector3.Distance(bones[i - 1].position, bones[i].position);
+            float chord = Vector3.Distance(bones[0].position, bones[5].position);
+
+            var report = new StringBuilder($"curved spine: hips->head path {path * 100f:F2} cm vs chord {chord * 100f:F2} cm (delta {(path - chord) * 100f:F2} cm)\n");
+            var cur = new Quaternion[names.Length];
+            foreach (bool hipsTracked in new[] { true, false })
+            {
+                var job = Job(hipsTracked);
+                Vector3 hipsTarget = bones[0].position, headTarget = bones[5].position;
+                Solve(ref job, hipsTarget, Quaternion.identity, headTarget, Quaternion.identity, cur);
+                Vector3 solvedHips = skeleton.Stream.GetPosition(job.handleHips);
+                float drift = (solvedHips - hipsTarget).magnitude, headErr = (skeleton.Stream.GetPosition(job.handleHead) - headTarget).magnitude;
+                report.AppendLine($"  hipsTracked={hipsTracked}: pelvis drift {drift * 1000f:F2} mm (up {(solvedHips.y - hipsTarget.y) * 1000f:F2}, fwd {(solvedHips.z - hipsTarget.z) * 1000f:F2}), head err {headErr * 1000f:F2} mm");
+                Assert.Less(drift, 0.002f, $"the resting pelvis must not be displaced by the spine solve (hipsTracked={hipsTracked}) -- the legs are solved from it");
+                Assert.Less(headErr, 0.002f, $"the head must still be reached on a curved spine (hipsTracked={hipsTracked})");
+            }
+            TestContext.WriteLine(report.ToString());
+        }
+        [Test]
+        public void CurvedSpine_HeadSweptUpAndDown_DoesNotDragThePelvis()
+        {
+            BuildCurvedRig();
+            var job = Job(hipsTracked: true);
+            var report = new StringBuilder("curved spine, tracked hips: head swept +/-6 cm vertically and +/-6 cm forward, 1 mm steps:\n");
+            Vector3 hips = bones[0].position, head = bones[5].position;
+            var cur = new Quaternion[names.Length];
+            float worstDrift = 0f;
+            int worstStep = -1;
+            for (int s = 0; s <= 120; s++)
+            {
+                Vector3 target = head + new Vector3(0f, (s - 60) * 0.001f, Mathf.Sin(s * 0.05f) * 0.06f);
+                Solve(ref job, hips, Quaternion.identity, target, Quaternion.identity, cur);
+                float drift = (skeleton.Stream.GetPosition(job.handleHips) - hips).magnitude;
+                if (drift > worstDrift) { worstDrift = drift; worstStep = s; }
+            }
+            report.AppendLine($"  worst pelvis drift {worstDrift * 1000f:F2} mm at step {worstStep}");
+            TestContext.WriteLine(report.ToString());
+            Assert.Less(worstDrift, 0.005f, "a tracked pelvis must stay put through ordinary head motion -- the legs are solved from it, so pelvis drift IS leg error");
+        }
+        [Test]
+        public void GrosslyDisplacedTrackedHips_StillYield_SoTheHeadStaysPinned()
+        {
+            BuildCurvedRig();
+            var job = Job(hipsTracked: true);
+            Vector3 hips = bones[0].position, head = bones[5].position;
+            var cur = new Quaternion[names.Length];
+            // The hips tracker parked 30 cm below/behind where the head can possibly reach: in lock-head the
+            // pelvis is what gives, or the head comes off the HMD.
+            Vector3 farHips = hips + new Vector3(0f, -0.25f, -0.15f);
+            Solve(ref job, farHips, Quaternion.identity, head, Quaternion.identity, cur);
+            float yielded = (skeleton.Stream.GetPosition(job.handleHips) - farHips).magnitude;
+            float headErr = (skeleton.Stream.GetPosition(job.handleHead) - head).magnitude;
+            TestContext.WriteLine($"hips tracker parked 29 cm out of reach: pelvis yielded {yielded * 1000f:F1} mm, head err {headErr * 1000f:F2} mm");
+            Assert.Greater(yielded, 0.05f, "a grossly displaced hips tracker must still yield in lock-head mode");
+            Assert.Less(headErr, 0.005f, "and the head must stay on the HMD once it has");
         }
         [Test]
         public void TrackedChestYaw_SweptThroughTheMiddle_DoesNotSnap()

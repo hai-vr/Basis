@@ -86,7 +86,7 @@ public static class BasisCalibrationMirror
         }
 
         Vector3 head = BasisLocalCameraDriver.HeadPosition;
-        Vector3 forward = BasisLocalCameraDriver.HeadForward();
+        Vector3 forward = Vector3.ProjectOnPlane(BasisLocalCameraDriver.HeadForward(), Vector3.up);
         if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
         forward.Normalize();
         Vector3 position = head + forward * 0.9f;

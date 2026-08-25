@@ -185,7 +185,7 @@ RayHit RayMarching(Ray ray, float2 screenUV, half dither, half3 viewDirectionWS)
         UNITY_BRANCH
         if (hitSuccessful && nearHit)
         {
-            nearHitRadiance = SSGINearHitRadiance(rayPositionNDC.xy, nearHitWeight);
+            nearHitRadiance = SSGINearHitRadiance(rayPositionNDC.xy, screenUV, nearHitWeight);
             hitSuccessful = nearHitWeight > 0.0;
         }
 

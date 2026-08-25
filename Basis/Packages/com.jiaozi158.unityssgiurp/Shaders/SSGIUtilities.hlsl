@@ -427,6 +427,13 @@ void SSGISampleAlbedoMetallic(float2 screenUV, bool hasGBuffer, half3 color, hal
 // before the traced bounce is added in place of the ambient. Pixels lit by little more than ambient hold only precision noise
 // after the subtraction, so they are treated as pure ambient; the threshold is relative to the pixel so dim (night) scenes keep
 // their direct light instead of losing everything below a fixed luminance.
+// Everything the GBuffer emission target holds: the surface's own emission plus the baked lighting URP writes
+// alongside it. Feedback free, because it is a material and bake product rather than an accumulating buffer.
+half3 SSGISampleBakedRadiance(float2 screenUV)
+{
+    return SAMPLE_TEXTURE2D_X_LOD(_SSGIEmissionTexture, my_point_clamp_sampler, screenUV, 0).rgb;
+}
+
 // Self-illumination of the surface a ray landed on. The GBuffer emission target holds emission plus baked lighting
 // (URP's Lit GBuffer pass writes "surfaceData.emission + bakedGI" there), so the ambient term the prepare pass already
 // resolved is taken back out to leave emission alone.
@@ -446,21 +453,34 @@ half3 SSGISampleEmission(float2 screenUV)
 // is what lets a surface right beside an emissive panel catch its glow -- the guard measures WORLD distance, so an
 // adjacent surface at a similar depth falls inside it. The weight ramps in rather than switching, so a ray cannot flip
 // between accepted and rejected frame to frame as the blue noise moves, which is what made this flicker before.
-half3 SSGINearHitRadiance(float2 hitUV, out half weight)
+half3 SSGINearHitRadiance(float2 hitUV, float2 originUV, out half weight)
 {
-    half3 emission = half3(0.0, 0.0, 0.0);
+    half3 excess = half3(0.0, 0.0, 0.0);
     weight = 0.0;
 
     UNITY_BRANCH
     if (_SSGIEmissionValid != 0.0)
     {
-        emission = SSGISampleEmission(hitUV) * max(_SSGIEmissiveMultiplier, 1.0);
-        weight = saturate(Luminance(emission) * rcp(SSGI_NEAR_HIT_EMISSIVE_LUMINANCE));
-        half maxChannel = Max3(emission.x, emission.y, emission.z);
-        emission *= maxChannel > _SSGIEmissiveMaxBrightness ? _SSGIEmissiveMaxBrightness * rcp(max(maxChannel, 1e-4)) : 1.0;
+        // The whole GBuffer target, not the emission isolated out of it. Separating emission from baked lighting here
+        // is neither possible nor useful: URP writes "emission + bakedGI" together, and for a ray landing on a
+        // neighbour they are the same thing -- light the surface carries that the trace cannot compute for itself.
+        // Both come from THIS FRAME'S GBuffer and neither accumulates, so unlike the colour history nothing here can
+        // feed back.
+        //
+        // Only the EXCESS over what the shading point already carries counts. Baked lighting is non-zero on every lit
+        // surface, so an absolute test fires everywhere, and at one or two pixel footprints the hit is largely the
+        // shading point itself: the surface ends up adding its own baked radiance back to itself every frame. A
+        // surface cannot light itself, so what is taken is the difference, which is exactly the light a bright
+        // neighbour contributes and is zero for a hit on the surface's own kind.
+        half multiplier = max(_SSGIEmissiveMultiplier, 1.0);
+        excess = max(SSGISampleBakedRadiance(hitUV) - SSGISampleBakedRadiance(originUV), half3(0.0, 0.0, 0.0)) * multiplier;
+
+        weight = saturate(Luminance(excess) * rcp(SSGI_NEAR_HIT_EMISSIVE_LUMINANCE));
+        half maxChannel = Max3(excess.x, excess.y, excess.z);
+        excess *= maxChannel > _SSGIEmissiveMaxBrightness ? _SSGIEmissiveMaxBrightness * rcp(max(maxChannel, 1e-4)) : 1.0;
     }
 
-    return emission * weight;
+    return excess * weight;
 }
 
 // Radiance a ray brings back from where it landed. The colour history already carries emission, so the emission buffer

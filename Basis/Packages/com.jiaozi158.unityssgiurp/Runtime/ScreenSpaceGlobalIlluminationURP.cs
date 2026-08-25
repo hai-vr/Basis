@@ -36,6 +36,8 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
     [Header("Lighting")]
     [Tooltip("Specifies if screen space global illumination overrides ambient lighting. \nThis ensures the accuracy of indirect lighting from SSGI.")]
     [SerializeField] private bool m_OverrideAmbientLighting = true;
+    [Tooltip("Crossfade between the world's baked lighting and the traced bounce. \n1 replaces the baked ambient outright; lower values keep part of it, which is what stops a scene going dark where the trace finds less light than the ambient it replaced.")]
+    [SerializeField, Range(0.1f, 1.0f)] private float m_RealtimeBlend = 1.0f;
 
     [Tooltip("Lets surfaces whose shader has no \"UniversalGBuffer\" pass receive global illumination, using a normal reconstructed from depth and an albedo implied by the pixel colour and the ambient light at it.")]
     [SerializeField] private bool m_GBufferFallback = true;
@@ -135,6 +137,16 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
     {
         get { return m_OverrideAmbientLighting; }
         set { m_OverrideAmbientLighting = value; }
+    }
+
+    /// <summary>
+    /// Crossfade between the world's baked lighting and the traced bounce. Both halves of the combine scale by it,
+    /// so what is removed from the image and what replaces it always match.
+    /// </summary>
+    public float RealtimeBlend
+    {
+        get { return m_RealtimeBlend; }
+        set { m_RealtimeBlend = Mathf.Clamp(value, 0.1f, 1.0f); }
     }
 
     /// <summary>
@@ -453,6 +465,7 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
     private static readonly int _ReBlurDenoiserRadius = Shader.PropertyToID("_ReBlurDenoiserRadius");
     private static readonly int _SSGIDebugView = Shader.PropertyToID("_SSGIDebugView");
     private static readonly int _OverrideAmbientLightingId = Shader.PropertyToID("_OverrideAmbientLighting");
+    private static readonly int _SSGIRealtimeBlend = Shader.PropertyToID("_SSGIRealtimeBlend");
     private static readonly int _SSGIGBufferFallback = Shader.PropertyToID("_SSGIGBufferFallback");
     private static readonly int _SSGIFallbackAlbedo = Shader.PropertyToID("_SSGIFallbackAlbedo");
     private static readonly int _SSGIFallbackMaxGain = Shader.PropertyToID("_SSGIFallbackMaxGain");
@@ -658,11 +671,28 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         Shader.DisableKeyword(SSGI_RENDER_BACKFACE_COLOR);
     }
 
+    // SSGI_TRACE_BEGIN - temporary diagnostic, delete this whole region when the effect is settled.
+    private static string ssgiLastTrace;
+
+    private static void SsgiTrace(string reason)
+    {
+    #if UNITY_EDITOR || DEBUG
+        if (reason == ssgiLastTrace)
+            return;
+        ssgiLastTrace = reason;
+        Debug.Log("SSGI [trace]: " + reason);
+    #endif
+    }
+    // SSGI_TRACE_END
+
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
         // Do not add render passes if any error occurs.
         if (isShaderMismatchLogPrinted)
+        {
+            SsgiTrace("OFF: shader failed to load");
             return;
+        }
 
         Camera currentCamera = renderingData.cameraData.camera;
 
@@ -670,12 +700,18 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
             return;
 
         if (CameraFilter != null && !CameraFilter(currentCamera))
+        {
+            SsgiTrace("OFF: camera filter rejected '" + currentCamera.name + "' (" + currentCamera.cameraType + ")");
             return;
+        }
 
         var stack = VolumeManager.instance.stack;
         ScreenSpaceGlobalIlluminationVolume ssgiVolume = stack.GetComponent<ScreenSpaceGlobalIlluminationVolume>();
         if (ssgiVolume == null || !ssgiVolume.IsActive())
+        {
+            SsgiTrace("OFF: volume " + (ssgiVolume == null ? "missing" : "enable=" + ssgiVolume.enable.value) + " on '" + currentCamera.name + "'");
             return;
+        }
 
         bool isDebugger = DebugManager.instance.isAnyDebugUIActive && !KeepRenderingWithDebugger;
         bool shouldDisable = !m_ReflectionProbes && currentCamera.cameraType == CameraType.Reflection;
@@ -683,7 +719,10 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         shouldDisable |= renderingData.cameraData.renderType == CameraRenderType.Overlay;
 
         if (shouldDisable)
+        {
+            SsgiTrace("OFF: shouldDisable on '" + currentCamera.name + "' (" + currentCamera.cameraType + ", " + renderingData.cameraData.renderType + ")");
             return;
+        }
 
     #if UNITY_EDITOR || DEBUG
         if (isDebugger && !m_RenderingDebugger)
@@ -715,6 +754,13 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         m_SSGIMaterial.SetFloat(_AggressiveDenoise, ssgiVolume.denoiserAlgorithmSS.value == ScreenSpaceGlobalIlluminationVolume.DenoiserAlgorithm.Aggressive ? 1.0f : 0.0f);
         m_SSGIMaterial.SetFloat(_SSGIDebugView, (float)DebugView);
         m_SSGIMaterial.SetFloat(_OverrideAmbientLightingId, m_OverrideAmbientLighting ? 1.0f : 0.0f);
+        m_SSGIMaterial.SetFloat(_SSGIRealtimeBlend, m_RealtimeBlend);
+        SsgiTrace("ON '" + currentCamera.name + "': featureActive=" + isActive + ", blend=" + m_RealtimeBlend
+            + ", multiplier=" + ssgiVolume.indirectDiffuseLightingMultiplier.value + ", fullRes=" + ssgiVolume.fullResolutionSS.value
+            + ", scale=" + (ssgiVolume.fullResolutionSS.value ? 1.0f : ssgiVolume.resolutionScaleSS.value)
+            + ", debugView=" + DebugView + ", overrideAmbient=" + m_OverrideAmbientLighting
+            + ", fallback=" + m_GBufferFallback + "/" + m_FallbackAlbedo + "/gain " + m_FallbackMaxGain
+            + ", emissive=" + m_EmissiveMultiplier + ", tracedResGBuffer=" + m_TracedResolutionGBuffer);
         m_SSGIMaterial.SetFloat(_SSGIGBufferFallback, m_GBufferFallback ? 1.0f : 0.0f);
         m_SSGIMaterial.SetFloat(_SSGIFallbackAlbedo, m_FallbackAlbedo);
         m_SSGIMaterial.SetFloat(_SSGIFallbackMaxGain, m_FallbackMaxGain);

@@ -662,7 +662,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 if (!any(albedo))
                     return half4(1.0, 1.0, 1.0, 1.0);
 
-                return half4(SSGIAmbientRemovalFactor(cameraColor, ambientLighting, albedo, metallic), 1.0);
+                return half4(SSGIAmbientRemovalFactor(cameraColor, ambientLighting * _SSGIRealtimeBlend, albedo, metallic), 1.0);
             }
             ENDHLSL
         }
@@ -983,7 +983,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 half3 indirectLighting = SSGIResolveIndirectLighting(screenUV, depth);
 
                 // Apply the indirect lighting multiplier, then bound what a guessed albedo is allowed to do to the pixel.
-                half3 giContribution = indirectLighting * albedo * (1.0 - metallic) * _IndirectDiffuseLightingMultiplier;
+                half3 giContribution = indirectLighting * albedo * (1.0 - metallic) * _IndirectDiffuseLightingMultiplier * _SSGIRealtimeBlend;
                 giContribution = SSGIClampFallbackContribution(giContribution, cameraColor, ambientLighting, hasGBuffer);
 
                 UNITY_BRANCH

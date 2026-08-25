@@ -341,6 +341,9 @@ namespace Basis.BasisUI
         // moves. 0.8 still denoises well and settles in roughly a third of the frames.
         public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationDenoiseStrength = new("screenspaceglobalilluminationdenoisestrength", new BasisPlatformDefault<float>(0.8f));
         public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationEmissive = new("screenspaceglobalilluminationemissive", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationRealtimeBlend = new("screenspaceglobalilluminationrealtimeblend", new BasisPlatformDefault<float>(1f));
+        public const float SSGI_REALTIME_BLEND_MIN = 0.1f;
+        public const float SSGI_REALTIME_BLEND_MAX = 1f;
         public const float SSGI_EMISSIVE_MIN = 1f;
         public const float SSGI_EMISSIVE_MAX = 8f;
         public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationFallbackMaxGain = new("screenspaceglobalilluminationfallbackmaxgain", new BasisPlatformDefault<float>(2f));
@@ -2176,6 +2179,7 @@ namespace Basis.BasisUI
             ScreenSpaceGlobalIlluminationBackfaceLighting.LoadBindingValue();
             ScreenSpaceGlobalIlluminationDenoiseStrength.LoadBindingValue();
             ScreenSpaceGlobalIlluminationEmissive.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationRealtimeBlend.LoadBindingValue();
             ScreenSpaceGlobalIlluminationFallbackMaxGain.LoadBindingValue();
             //UseRealtimeReflectionProbes.LoadBindingValue();
             //RealtimeReflectionProbeRate.LoadBindingValue();

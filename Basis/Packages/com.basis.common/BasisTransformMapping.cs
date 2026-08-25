@@ -617,7 +617,7 @@ namespace Basis.Scripts.Common
             {
                 AvatarForwards = Vector3.forward;
                 AvatarUpwards = Vector3.up;
-                AvatarRightwards = Vector3.down;
+                AvatarRightwards = Vector3.right;
             }
         }
 
@@ -681,7 +681,7 @@ namespace Basis.Scripts.Common
                 };
             }
         }
-        private static bool TryComputeForwardUpFromTpose(
+        public static bool TryComputeForwardUpFromTpose(
      BasisTransformMapping refs,
      out Vector3 forwardLocal,
      out Vector3 upLocal,
@@ -778,58 +778,41 @@ namespace Basis.Scripts.Common
                 rightLocal = Vector3.right;
 
             // ---------
-            // 3) FORWARD from toes direction (strongest "facing" signal in a T-pose)
+            // 3) FORWARD from an anterior landmark, sign and all. Toes lead the ankles and eyes
+            //    lead the head on every humanoid, and neither reading goes through a cross product
+            //    or the Left/Right bone labels, so a mirrored rig or a negatively scaled root -
+            //    which flip both - still reads its own front. right x up is the last resort, for a
+            //    rig that carries neither landmark.
             // ---------
+            static bool TryAnterior(Vector3 candidate, Vector3 up, out Vector3 forward)
+            {
+                forward = SafeProjectOnPlane(candidate, up);
+                return NormalizeNonZero(ref forward);
+            }
+
             bool hasLFt = TryGet(refs, HumanBodyBones.LeftFoot, out var lf);
             bool hasRFt = TryGet(refs, HumanBodyBones.RightFoot, out var rf);
             bool hasLT = TryGet(refs, HumanBodyBones.LeftToes, out var lt);
             bool hasRT = TryGet(refs, HumanBodyBones.RightToes, out var rt);
+            bool hasLE = TryGet(refs, HumanBodyBones.LeftEye, out var le);
+            bool hasRE = TryGet(refs, HumanBodyBones.RightEye, out var re);
+            bool hasHead = TryGet(refs, HumanBodyBones.Head, out var headPos);
 
-            if (hasLFt && hasRFt && hasLT && hasRT)
-            {
-                Vector3 feetMid = (lf + rf) * 0.5f;
-                Vector3 toesMid = (lt + rt) * 0.5f;
-                forwardLocal = toesMid - feetMid;
-            }
-            else
-            {
-                // Fallback 1: try head/neck projected onto up plane (weaker)
-                if (TryGet(refs, HumanBodyBones.Head, out var head))
-                    forwardLocal = head - hips;
-                else if (TryGet(refs, HumanBodyBones.Neck, out var neck))
-                    forwardLocal = neck - hips;
-                else
-                {
-                    // Fallback 2: derive forward from right-handed frame (still ambiguous sign)
-                    forwardLocal = Vector3.Cross(rightLocal, upLocal);
-                }
-            }
+            bool measured =
+                (hasLFt && hasRFt && hasLT && hasRT
+                    && TryAnterior((lt + rt) * 0.5f - (lf + rf) * 0.5f, upLocal, out forwardLocal))
+                || (hasLE && hasRE && hasHead
+                    && TryAnterior((le + re) * 0.5f - headPos, upLocal, out forwardLocal));
 
-            // Only care about yaw-ish forward: remove any up component
-            forwardLocal = SafeProjectOnPlane(forwardLocal, upLocal);
-            if (!NormalizeNonZero(ref forwardLocal))
+            if (!measured)
             {
-                // Last resort
                 forwardLocal = Vector3.Cross(rightLocal, upLocal);
                 if (!NormalizeNonZero(ref forwardLocal))
                     forwardLocal = Vector3.forward;
             }
 
             // ---------
-            // 4) Hemisphere sanity: ensure forward is consistent with right/up (right-handed basis)
-            // ---------
-            // Compute what forward "should" be from right x up. If we got the opposite,
-            // flip forward (and keep right unchanged) so the basis stays right-handed.
-            Vector3 derivedForward = Vector3.Cross(rightLocal, upLocal);
-            if (derivedForward.sqrMagnitude > 1e-8f)
-            {
-                derivedForward.Normalize();
-                if (Vector3.Dot(forwardLocal, derivedForward) < 0f)
-                    forwardLocal = -forwardLocal;
-            }
-
-            // ---------
-            // 5) Final re-orthonormalization (makes the trio consistent)
+            // 4) Final re-orthonormalization (makes the trio consistent)
             // ---------
             // Recompute right from up & forward, then forward from right & up.
             rightLocal = Vector3.Cross(upLocal, forwardLocal);

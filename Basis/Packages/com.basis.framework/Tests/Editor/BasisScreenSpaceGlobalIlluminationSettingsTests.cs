@@ -180,7 +180,7 @@ namespace Basis.Tests.Graphics
             ScreenSpaceGlobalIlluminationURP feature = ScriptableObject.CreateInstance<ScreenSpaceGlobalIlluminationURP>();
             try
             {
-                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.25f, false, true, false, true, 1f, 2f);
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.25f, false, true, false, true, 1f, 2f, 1f);
 
                 Assert.IsTrue(feature.GBufferFallback);
                 Assert.AreEqual(0.25f, feature.FallbackAlbedo, 0.0001f);
@@ -189,7 +189,7 @@ namespace Basis.Tests.Graphics
                 Assert.IsFalse(feature.OverrideAmbientLighting);
                 Assert.IsTrue(feature.BackfaceLighting);
 
-                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, false, 9f, true, false, true, false, 1f, 2f);
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, false, 9f, true, false, true, false, 1f, 2f, 1f);
                 Assert.IsFalse(feature.GBufferFallback);
                 Assert.AreEqual(BasisSettingsDefaults.SSGI_FALLBACK_ALBEDO_MAX, feature.FallbackAlbedo, 0.0001f);
             }
@@ -205,15 +205,15 @@ namespace Basis.Tests.Graphics
             ScreenSpaceGlobalIlluminationURP feature = ScriptableObject.CreateInstance<ScreenSpaceGlobalIlluminationURP>();
             try
             {
-                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.5f, true, true, true, false, 3f, 4f);
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.5f, true, true, true, false, 3f, 4f, 0.5f);
                 Assert.AreEqual(3f, feature.EmissiveMultiplier, 0.0001f);
                 Assert.AreEqual(4f, feature.FallbackMaxGain, 0.0001f);
 
-                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.5f, true, true, true, false, 999f, 999f);
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.5f, true, true, true, false, 999f, 999f, 999f);
                 Assert.AreEqual(BasisSettingsDefaults.SSGI_EMISSIVE_MAX, feature.EmissiveMultiplier, 0.0001f);
                 Assert.AreEqual(BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MAX, feature.FallbackMaxGain, 0.0001f);
 
-                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.5f, true, true, true, false, -5f, -5f);
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.5f, true, true, true, false, -5f, -5f, -5f);
                 Assert.AreEqual(BasisSettingsDefaults.SSGI_EMISSIVE_MIN, feature.EmissiveMultiplier, 0.0001f);
                 Assert.AreEqual(BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MIN, feature.FallbackMaxGain, 0.0001f);
             }
@@ -241,10 +241,10 @@ namespace Basis.Tests.Graphics
             ScreenSpaceGlobalIlluminationURP feature = ScriptableObject.CreateInstance<ScreenSpaceGlobalIlluminationURP>();
             try
             {
-                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, false, true, 0.5f, true, false, true, false, 1f, 2f);
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, false, true, 0.5f, true, false, true, false, 1f, 2f, 1f);
                 Assert.IsFalse(feature.isActive);
 
-                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.5f, true, false, true, false, 1f, 2f);
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.5f, true, false, true, false, 1f, 2f, 1f);
                 Assert.IsTrue(feature.isActive);
             }
             finally
@@ -371,7 +371,7 @@ namespace Basis.Tests.Graphics
         public void ApplyingRendererOptionsWithoutAFeatureIsHarmless()
         {
             // Android ships a renderer without the feature, so the lookup returns null every frame there.
-            Assert.DoesNotThrow(() => SMModuleScreenSpaceGlobalIlluminationURP.Apply(null, true, true, 0.5f, true, true, true, true, 1f, 2f));
+            Assert.DoesNotThrow(() => SMModuleScreenSpaceGlobalIlluminationURP.Apply(null, true, true, 0.5f, true, true, true, true, 1f, 2f, 1f));
             Assert.IsNull(SMModuleScreenSpaceGlobalIlluminationURP.FindFeature(null));
         }
 
