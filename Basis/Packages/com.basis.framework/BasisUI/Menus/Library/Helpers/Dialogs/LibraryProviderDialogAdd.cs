@@ -16,7 +16,7 @@ namespace Basis.BasisUI
     {
         #region PromptUserForNewContent, AddNewNewItemKey, ChangeInputFieldStyle
 
-         private static void ChangeInputFieldStyle(GameObject inputFieldObject, bool isError)
+        private static void ChangeInputFieldStyle(GameObject inputFieldObject, bool isError)
         {
             if (inputFieldObject == null) return;
 
@@ -218,7 +218,7 @@ namespace Basis.BasisUI
                                 newItemDialogBox.CloseWithResult(null);
 
                                 // set the tab
-                                TrySwitchToTabFromItemType( itemType );
+                                TrySwitchToTabFromItemType(itemType);
 
                                 // switch to the page
                                 await RefreshCurrentTab();

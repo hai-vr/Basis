@@ -111,6 +111,30 @@ namespace Basis.Tests.UI
                 "a password may legitimately start and end with a quote; only the URL is unwrapped.");
         }
 
+        [Test]
+        public void SplitUrlFragmentPassword_PreservesHexKeyPasswordInFragment()
+        {
+            const string hexKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+            InputValidation.SplitUrlFragmentPassword(
+                $"https://example.com/asset.bee#{hexKey}", string.Empty,
+                out string url, out string password);
+
+            Assert.That(url, Is.EqualTo("https://example.com/asset.bee"));
+            Assert.That(password, Is.EqualTo(hexKey),
+                "64-character hex password must not be corrupted by base64 decoding.");
+        }
+
+        [Test]
+        public void SplitUrlFragmentPassword_AcceptsPlaintextPasswordInFragment()
+        {
+            InputValidation.SplitUrlFragmentPassword(
+                "https://example.com/thing.bee#hunter2", string.Empty,
+                out string url, out string password);
+
+            Assert.That(url, Is.EqualTo("https://example.com/thing.bee"));
+            Assert.That(password, Is.EqualTo("hunter2"));
+        }
+
         [TestCase('"')]
         [TestCase('\u201C')]
         [TestCase('\u201D')]
