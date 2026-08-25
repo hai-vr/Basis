@@ -285,8 +285,11 @@ namespace Basis.IK
                 StraightenAndAim(firstJoint, lastJoint, headTargetPos);
                 return;
             }
-            SeedBow(firstJoint, lastJoint, headTargetPos, chainReach, shareTotal, ccdRight);
-            ReachHeadJoint(lastJoint, headTargetPos, firstJoint, chestIdx, jointSpan, ccdUp, 1f, true);
+            for (int k = 0; k < seedPasses; k++)
+            {
+                SeedBow(firstJoint, lastJoint, headTargetPos, chainReach, shareTotal, ccdRight);
+                ReachHeadJoint(lastJoint, headTargetPos, firstJoint, chestIdx, jointSpan, ccdUp, 1f, true);
+            }
             for (int iter = 0; iter < maxIters; iter++)
             {
                 if ((headTargetPos - poseStream.GetPosition(chainHeadToSpine[0])).sqrMagnitude < tolSqr)
@@ -320,6 +323,7 @@ namespace Basis.IK
             }
         }
         const float aimDeadbandDeg = 1f, seedPlaneBlendSin = 0.139f;
+        const int seedPasses = 3;
         float JointShare(int i)
         {
             bool unset = !(spineBendPitch > 0f) && !(chestBendPitch > 0f) && !(upperChestBendPitch > 0f);

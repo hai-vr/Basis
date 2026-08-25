@@ -4,7 +4,7 @@ namespace Basis.IK
     public static class BasisSpineBendCore
     {
         const float sqrEpsilon = 1e-8f, epsilon = 1e-5f, bendDeadbandDeg = 3f, bendDeadbandWidthDeg = 7f;
-        const float twistFadeFullHoriz = 0.342f, twistFadeZeroHoriz = 0.174f, twistPoleFadeStartDeg = 120f, twistPoleFadeEndDeg = 179f;
+        const float twistFadeFullHoriz = 0.342f, twistFadeZeroHoriz = 0.174f, twistPoleFadeStartDeg = 120f, twistPoleFadeEndDeg = 179f, bowLeanFullDeg = 8f;
         public static void Solve(in BasisSpineBendInput i, out BasisSpineBendResult r) => Solve(i, default, out r);
         public static void Solve(in BasisSpineBendInput i, in BasisSpineBendChestInput c, out BasisSpineBendResult r)
         {
@@ -59,28 +59,34 @@ namespace Basis.IK
                 chestYawEff = total * 0.75f * (1f - upperFrac);
             }
             float bowDeg = 0f;
+            Vector2 bowVec = new Vector2(1f, 0f);
             if (c.HasNeckCue && i.RestLen > epsilon)
             {
                 bowDeg = BowFromCompression(1f - (c.NeckCue - i.HipsPos).magnitude / i.RestLen, c.TautBandFrac);
+                if (bendMag > epsilon)
+                {
+                    float leanW = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(bendMag / bowLeanFullDeg));
+                    bowVec = bowVec * (1f - leanW) + new Vector2(bendEuler.x, bendEuler.z) * (leanW / bendMag);
+                }
             }
 
             if (i.HasSpine)
             {
-                Vector3 e = new Vector3( bendEuler.x * spinePitchEff * squishMult * bendGate + bowDeg * spinePitchEff, twistY * spineYawEff * squishMult, bendEuler.z * spineRollEff * squishMult * bendGate );
+                Vector3 e = new Vector3( bendEuler.x * spinePitchEff * squishMult * bendGate + bowDeg * spinePitchEff * bowVec.x, twistY * spineYawEff * squishMult, bendEuler.z * spineRollEff * squishMult * bendGate + bowDeg * spineRollEff * bowVec.y );
                 e.y += i.BendTwistCoupling * e.z;
                 r.SpineEuler = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 r.WriteSpine = true;
             }
             if (c.HasChest)
             {
-                Vector3 e = new Vector3( bendEuler.x * chestPitchEff * squishMult * bendGate + bowDeg * chestPitchEff, twistY * chestYawEff * squishMult, bendEuler.z * chestRollEff * squishMult * bendGate );
+                Vector3 e = new Vector3( bendEuler.x * chestPitchEff * squishMult * bendGate + bowDeg * chestPitchEff * bowVec.x, twistY * chestYawEff * squishMult, bendEuler.z * chestRollEff * squishMult * bendGate + bowDeg * chestRollEff * bowVec.y );
                 e.y += i.BendTwistCoupling * e.z;
                 r.ChestEuler = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 r.WriteChest = true;
             }
             if (i.HasUpper)
             {
-                Vector3 e = new Vector3( bendEuler.x * upperPitchEff * squishMult * bendGate + bowDeg * upperPitchEff, twistY * upperYawEff * squishMult, bendEuler.z * upperRollEff * squishMult * bendGate );
+                Vector3 e = new Vector3( bendEuler.x * upperPitchEff * squishMult * bendGate + bowDeg * upperPitchEff * bowVec.x, twistY * upperYawEff * squishMult, bendEuler.z * upperRollEff * squishMult * bendGate + bowDeg * upperRollEff * bowVec.y );
                 e.y += i.BendTwistCoupling * e.z;
                 r.UpperEuler = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 r.WriteUpper = true;
