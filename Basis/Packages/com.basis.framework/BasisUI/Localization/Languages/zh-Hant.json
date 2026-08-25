@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "主體背後為純白色。" },
     { "key": "camera.background.magenta.tooltip", "value": "主體背後為純洋紅色，適合主體身上同時帶有綠色與藍色時用來去背。" },
     { "key": "camera.background.custom.tooltip", "value": "以下方滑桿自行選取的顏色。" },
+    { "key": "camera.background.transparent.tooltip", "value": "主體背後不繪製任何內容並保留 Alpha 通道，帶 Alpha 的串流或照片不必去背即可疊在任何畫面上。" },
     { "key": "camera.dollySync", "value": "軌道共享" },
     { "key": "camera.dollySync.description", "value": "房間中其他人是否能看見此軌道，以及是否能移動其上的點。" },
     { "key": "camera.dollySync.local", "value": "僅本機" },

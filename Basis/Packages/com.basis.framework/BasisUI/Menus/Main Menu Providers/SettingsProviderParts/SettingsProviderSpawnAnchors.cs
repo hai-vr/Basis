@@ -73,6 +73,17 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             };
 
+            PanelTextField nameField = PanelTextField.CreateNewEntry(container);
+            nameField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.spawnAnchors.anchorName"));
+            nameField.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.spawnAnchors.anchorName.tooltip"));
+            TMP_InputField nameInput = nameField._inputField;
+            if (nameInput != null)
+            {
+                nameInput.contentType = TMP_InputField.ContentType.Standard;
+                nameInput.lineType = TMP_InputField.LineType.SingleLine;
+                nameInput.characterLimit = 40;
+            }
+
             PanelTextField positionX = NumberField(container, "settings.developer.spawnAnchors.positionX");
             PanelTextField positionY = NumberField(container, "settings.developer.spawnAnchors.positionY");
             PanelTextField positionZ = NumberField(container, "settings.developer.spawnAnchors.positionZ");
@@ -141,21 +152,19 @@ namespace Basis.BasisUI
                     return;
                 }
                 syncing = true;
-                if (structural)
-                {
-                    AssignEntries(target);
-                }
+                AssignEntries(target);
                 target.SetValueWithoutNotify(BasisSpawnAnchors.SelectedIndex >= 0 ? BasisSpawnAnchors.SelectedIndex.ToString() : NoneEntry);
                 bool hasSelection = BasisSpawnAnchors.TryGetSelected(out BasisSpawnAnchors.SpawnAnchor anchor);
                 bool scaleVisible = hasSelection && anchor.OverrideScale;
                 removeButton.SetInteractable(hasSelection);
-                SetFieldsActive(hasSelection, positionX, positionY, positionZ, rotationX, rotationY, rotationZ);
+                SetFieldsActive(hasSelection, nameField, positionX, positionY, positionZ, rotationX, rotationY, rotationZ);
                 scaleOverrideToggle.Descriptor.SetActive(hasSelection);
                 scaleOverrideToggle.SetValueWithoutNotify(scaleVisible);
                 scaleField.Descriptor.SetActive(scaleVisible);
                 if (hasSelection)
                 {
                     Vector3 euler = anchor.Rotation.eulerAngles;
+                    ShowText(nameField, anchor.Name);
                     Show(positionX, anchor.Position.x, "0.###");
                     Show(positionY, anchor.Position.y, "0.###");
                     Show(positionZ, anchor.Position.z, "0.###");
@@ -193,6 +202,15 @@ namespace Basis.BasisUI
                 if (!syncing && TryParse(text, out float value) && BasisSpawnAnchors.TryGetSelected(out BasisSpawnAnchors.SpawnAnchor anchor))
                 {
                     BasisSpawnAnchors.SetScaleOverride(anchor, anchor.OverrideScale, value);
+                }
+            };
+
+            nameField.OnValueChanged += text =>
+            {
+                if (!syncing && BasisSpawnAnchors.TryGetSelected(out BasisSpawnAnchors.SpawnAnchor anchor))
+                {
+                    BasisSpawnAnchors.SetName(anchor, text);
+                    nameField.SetValueWithoutNotify(anchor.Name);
                 }
             };
 
@@ -258,6 +276,15 @@ namespace Basis.BasisUI
                 return;
             }
             field.SetValueWithoutNotify(value.ToString(format, CultureInfo.InvariantCulture));
+        }
+
+        private static void ShowText(PanelTextField field, string value)
+        {
+            if (field._inputField != null && field._inputField.isFocused)
+            {
+                return;
+            }
+            field.SetValueWithoutNotify(value);
         }
 
         private static bool TryParse(string text, out float value)

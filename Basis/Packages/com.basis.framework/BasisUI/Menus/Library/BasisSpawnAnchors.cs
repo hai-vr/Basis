@@ -106,7 +106,7 @@ namespace Basis.BasisUI
             {
                 if (handles[i] != null)
                 {
-                    handles[i].ForgetLabel();
+                    handles[i].ForgetGizmos();
                 }
             }
         }
@@ -316,6 +316,17 @@ namespace Basis.BasisUI
             }
             anchor.OverrideScale = overrideScale;
             anchor.Scale = Mathf.Clamp(scale, MinScale, MaxScale);
+            Changed(false);
+        }
+
+        public static void SetName(SpawnAnchor anchor, string name)
+        {
+            name = (name ?? string.Empty).Trim();
+            if (anchor == null || name.Length == 0 || name == anchor.Name)
+            {
+                return;
+            }
+            anchor.Name = name;
             Changed(false);
         }
 

@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "أبيض مسطَّح خلف الموضوع." },
     { "key": "camera.background.magenta.tooltip", "value": "أرجواني مسطَّح خلف الموضوع، للفصل اللوني عندما يحتوي الموضوع على الأخضر والأزرق معًا." },
     { "key": "camera.background.custom.tooltip", "value": "لون تختاره بالمنزلقات أدناه." },
+    { "key": "camera.background.transparent.tooltip", "value": "لا شيء خلف الموضوع مع الاحتفاظ بقناة ألفا، ليمكن وضع بث أو صورة تحمل ألفا فوق أي شيء دون فصل لوني." },
     { "key": "camera.dollySync", "value": "مشاركة المسار" },
     { "key": "camera.dollySync.description", "value": "ما إذا كان بإمكان أي شخص آخر في المثيل رؤية هذا المسار، وما إذا كان يمكنه تحريك نقاطه." },
     { "key": "camera.dollySync.local", "value": "محلي فقط" },

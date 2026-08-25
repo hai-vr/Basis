@@ -1,7 +1,12 @@
 {
     "name": "BasisCamera.Editor",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "BasisCamera",
+        "Basis Framework",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
     "includePlatforms": [
         "Editor"
     ],

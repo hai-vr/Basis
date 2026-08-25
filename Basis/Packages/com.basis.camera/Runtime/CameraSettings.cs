@@ -403,6 +403,14 @@ public partial class BasisHandHeldCameraUI
         public string streamSenderName;
 
         /// <summary>
+        /// Direct To Screen: the feed drawn over the game window in place of the headset mirror
+        /// while the operator is in VR. Saved because it is a way of working rather than a shot —
+        /// a streamer who films from the headset wants the monitor to be the camera every session
+        /// — and off is the zero fill, so an older file loads with the window left alone.
+        /// </summary>
+        public bool directToScreen;
+
+        /// <summary>
         /// Whether each saved photo is also printed into the world as a shared image pickup,
         /// exactly as if its file had been drag-and-dropped onto the window.
         /// </summary>

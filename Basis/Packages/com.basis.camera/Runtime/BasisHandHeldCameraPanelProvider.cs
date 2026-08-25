@@ -272,6 +272,9 @@ namespace Basis.BasisUI.HandHeldCamera
         private readonly List<BasisHandHeldCamera> _entries = new List<BasisHandHeldCamera>();
         private bool _panelTickSubscribed;
         private bool? _lastVideoOutputActive;
+        private PanelToggle _directToScreenToggle;
+        private bool? _lastDirectToScreen;
+        private string _lastDirectToScreenDescription;
         private bool? _lastWebStreamActive;
         private string _lastWebStreamDescription;
         private bool? _lastCameraHidden;
@@ -1021,6 +1024,9 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastWebStreamActive = null;
             _lastWebStreamDescription = null;
             _lastStreamPresetKey = null;
+            _directToScreenToggle = null;
+            _lastDirectToScreen = null;
+            _lastDirectToScreenDescription = null;
             _lastCameraHidden = null;
             _lastAudioListener = null;
             _lastSelfie = null;
@@ -1756,6 +1762,24 @@ namespace Basis.BasisUI.HandHeldCamera
                 _lastWebStreamActive = null;
                 RefreshVideoOutputState();
             };
+
+            // The monitor as an output, beside the stream that is the other way off the camera. Not
+            // offered where there is no monitor: a standalone headset's window is the headset.
+            if (BasisHandHeldCamera.IsDirectToScreenSupported)
+            {
+                _directToScreenToggle = PanelToggle.CreateNewEntry(parent);
+                _directToScreenToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.directToScreen"));
+                _directToScreenToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.directToScreen.description"));
+                _directToScreenToggle.OnValueChanged = v =>
+                {
+                    if (_activeCamera == null) return;
+                    _activeCamera.SetDirectToScreen(v);
+                    _lastDirectToScreen = v;
+                    // The line under the toggle depends on the device mode and the body, not just
+                    // the click — and the click may have taken the window off another camera.
+                    RefreshDirectToScreenState();
+                };
+            }
 
             _streamSection = PanelSectionToggle.CreateNewEntry(parent);
             _streamGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
@@ -2574,6 +2598,7 @@ namespace Basis.BasisUI.HandHeldCamera
             if (_modeDropdown != null) _modeDropdown.gameObject.SetActive(active);
             if (_streamPresetDropdown != null) _streamPresetDropdown.gameObject.SetActive(active);
             if (_videoOutputToggle != null) _videoOutputToggle.gameObject.SetActive(active);
+            if (_directToScreenToggle != null) _directToScreenToggle.gameObject.SetActive(active);
             // The pages have nothing to drive without a camera, so the navigation goes with them.
             if (_tabGroup != null && _tabGroup.TabButtonParent != null)
             {
@@ -2936,6 +2961,42 @@ namespace Basis.BasisUI.HandHeldCamera
             _videoOutputToggle.Descriptor.SetDescription(description);
         }
 
+        /// <summary>
+        /// Keeps the Direct To Screen row honest. The toggle follows the camera's setting — switching
+        /// it on for one camera switches it off for the rest — and the line under it says whether the
+        /// monitor is actually showing the feed and, if not, what it is waiting on. Polled: a device
+        /// switch and a body change both move it, and neither raises a panel event.
+        /// </summary>
+        private void RefreshDirectToScreenState()
+        {
+            if (_directToScreenToggle == null || _activeCamera == null) return;
+
+            SyncToggle(_directToScreenToggle, _activeCamera.DirectToScreen, ref _lastDirectToScreen);
+
+            string description = DescribeDirectToScreen(_activeCamera);
+            if (_lastDirectToScreenDescription == description) return;
+
+            _lastDirectToScreenDescription = description;
+            _directToScreenToggle.Descriptor.SetDescription(description);
+        }
+
+        private static string DescribeDirectToScreen(BasisHandHeldCamera camera)
+        {
+            switch (camera.DirectToScreenState)
+            {
+                case BasisCameraDirectToScreenState.Presenting:
+                    return BasisLocalization.Get("camera.directToScreen.presenting");
+                case BasisCameraDirectToScreenState.WaitingForVR:
+                    return BasisLocalization.Get("camera.directToScreen.waitingForVR");
+                case BasisCameraDirectToScreenState.NoOutputSocket:
+                    return BasisLocalization.Get("camera.directToScreen.noSocket", camera.BodyTraits.Kind);
+                case BasisCameraDirectToScreenState.Unsupported:
+                    return BasisLocalization.Get("camera.directToScreen.unsupported");
+                default:
+                    return string.Empty;
+            }
+        }
+
         private void RefreshStreamPresetSelection()
         {
             if (_streamPresetDropdown == null || _activeCamera == null) return;
@@ -2958,6 +3019,7 @@ namespace Basis.BasisUI.HandHeldCamera
             RefreshTransportSelection();
             RefreshStreamPresetSelection();
             RefreshLiveOutputDescription();
+            RefreshDirectToScreenState();
             _videoFrameRateSlider?.SetValueWithoutNotify(_activeCamera.VideoOutputSettings.FrameRate);
             _webQualitySlider?.SetValueWithoutNotify(_activeCamera.VideoOutputSettings.WebQuality);
             _webPortField?.SetValueWithoutNotify(_activeCamera.VideoOutputSettings.WebPort.ToString());
@@ -3050,6 +3112,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 RefreshVideoOutputState();
             }
             RefreshStreamPresetSelection();
+            RefreshDirectToScreenState();
 
             SyncSharedControls();
             RefreshFocusSubjectNotice();

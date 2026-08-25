@@ -1323,6 +1323,30 @@
       "value": "Live Output"
     },
     {
+      "key": "camera.directToScreen",
+      "value": "Direct To Screen"
+    },
+    {
+      "key": "camera.directToScreen.description",
+      "value": "In VR, draw this camera's feed over the game window in place of the headset mirror, so the monitor — and anything capturing it — shows the shot. Switching to desktop hands the window back; switching into VR takes it over again. The camera renders every frame while it is on."
+    },
+    {
+      "key": "camera.directToScreen.presenting",
+      "value": "Showing on the monitor in place of the headset view."
+    },
+    {
+      "key": "camera.directToScreen.waitingForVR",
+      "value": "Takes over the monitor once you are in VR — in desktop mode the window is already your own view."
+    },
+    {
+      "key": "camera.directToScreen.noSocket",
+      "value": "A {0} body has no output socket — it only shows its own viewfinder. Switch the body on the Presets tab."
+    },
+    {
+      "key": "camera.directToScreen.unsupported",
+      "value": "There is no desktop window on this platform to show the feed on."
+    },
+    {
       "key": "camera.streamResolution",
       "value": "Stream Resolution"
     },
@@ -14525,6 +14549,10 @@
       "value": "A colour you pick with the sliders below."
     },
     {
+      "key": "camera.background.transparent.tooltip",
+      "value": "Nothing behind the subject, with the alpha kept, so a stream or photo that carries alpha can be laid over anything without keying."
+    },
+    {
       "key": "camera.dollySync",
       "value": "Track Sharing"
     },
@@ -16738,7 +16766,7 @@
     },
     {
       "key": "settings.developer.spawnAnchors.target.tooltip",
-      "value": "Props spawned from the library land on this anchor instead of using their normal placement. None restores normal placement."
+      "value": "The anchor used by library entries whose placement is set to At spawn anchor. Other placements are unaffected; with None those entries fall back to aiming."
     },
     {
       "key": "settings.developer.spawnAnchors.none",
@@ -16754,7 +16782,7 @@
     },
     {
       "key": "settings.developer.spawnAnchors.handles.tooltip",
-      "value": "Puts a grabbable handle on every anchor. Grab it to move and rotate the anchor (desktop: scroll to push or pull, middle-drag to turn). While holding it, press the trigger on your other hand and move your hands apart or together to change its scale override. The blue bar points forward, the green bar up."
+      "value": "Puts a grabbable handle on every anchor. Grab it to move and rotate the anchor (desktop: scroll to push or pull, middle-drag to turn). While holding it, press the trigger on your other hand and move your hands apart or together to change its scale override. The blue arrow points forward and the green arrow up; the ring shows the heading in degrees from world forward, with tick marks at the rotation snap step, and a second arc shows how far the anchor tilts off vertical."
     },
     {
       "key": "settings.developer.spawnAnchors.seat",
@@ -16887,6 +16915,14 @@
     {
       "key": "settings.developer.spawnAnchors.rotationZ",
       "value": "Rotation Z"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.anchorName",
+      "value": "Name"
+    },
+    {
+      "key": "settings.developer.spawnAnchors.anchorName.tooltip",
+      "value": "Renames the selected anchor. The name shows on its handle and in the anchor dropdown."
     }
   ]
 }

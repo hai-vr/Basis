@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "सब्जेक्ट के पीछे सपाट सफ़ेद।" },
     { "key": "camera.background.magenta.tooltip", "value": "सब्जेक्ट के पीछे सपाट मैजेंटा, जब सब्जेक्ट में हरा और नीला दोनों हों तब की करने के लिए।" },
     { "key": "camera.background.custom.tooltip", "value": "नीचे के स्लाइडर्स से आपका चुना हुआ रंग।" },
+    { "key": "camera.background.transparent.tooltip", "value": "सब्जेक्ट के पीछे कुछ नहीं, अल्फ़ा चैनल बरकरार, ताकि अल्फ़ा वाली स्ट्रीम या फ़ोटो को बिना की किए किसी भी चीज़ पर रखा जा सके।" },
     { "key": "camera.dollySync", "value": "ट्रैक शेयरिंग" },
     { "key": "camera.dollySync.description", "value": "क्या इंस्टेंस में कोई और यह ट्रैक देख सकता है, और क्या वे इसके पॉइंट्स हिला सकते हैं।" },
     { "key": "camera.dollySync.local", "value": "केवल लोकल" },

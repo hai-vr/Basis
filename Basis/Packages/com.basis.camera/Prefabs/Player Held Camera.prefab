@@ -4067,10 +4067,10 @@ MonoBehaviour:
   m_RequiresOpaqueTextureOption: 2
   m_CameraType: 0
   m_Cameras: []
-  m_RendererIndex: 1
+  m_RendererIndex: -1
   m_VolumeLayerMask:
     serializedVersion: 2
-    m_Bits: 256
+    m_Bits: 2048
   m_VolumeTrigger: {fileID: 3862822240176920585}
   m_VolumeFrameworkUpdateModeOption: 2
   m_RenderPostProcessing: 1

@@ -1660,6 +1660,7 @@
     { "key": "camera.background.white.tooltip", "value": "Branco chapado atrás do assunto." },
     { "key": "camera.background.magenta.tooltip", "value": "Magenta chapado atrás do assunto, para recorte quando o assunto tem verde e azul nele." },
     { "key": "camera.background.custom.tooltip", "value": "Uma cor que você escolhe com os controles deslizantes abaixo." },
+    { "key": "camera.background.transparent.tooltip", "value": "Nada atrás do assunto, com o canal alfa preservado, para que uma transmissão ou foto com alfa possa ser sobreposta a qualquer coisa sem recorte." },
     { "key": "camera.dollySync", "value": "Compartilhamento do Trilho" },
     { "key": "camera.dollySync.description", "value": "Se mais alguém na instância pode ver este trilho, e se pode mover seus pontos." },
     { "key": "camera.dollySync.local", "value": "Somente Local" },

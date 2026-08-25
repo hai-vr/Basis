@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "Bianco uniforme dietro al soggetto." },
     { "key": "camera.background.magenta.tooltip", "value": "Magenta uniforme dietro al soggetto, per la chiave cromatica quando il soggetto contiene sia verde sia blu." },
     { "key": "camera.background.custom.tooltip", "value": "Un colore che scegli con i cursori qui sotto." },
+    { "key": "camera.background.transparent.tooltip", "value": "Nulla dietro al soggetto, con il canale alfa conservato, così uno stream o una foto con alfa si può sovrapporre a qualsiasi cosa senza chiave cromatica." },
     { "key": "camera.dollySync", "value": "Condivisione percorso" },
     { "key": "camera.dollySync.description", "value": "Se qualcun altro nell'istanza può vedere questo percorso, e se può spostarne i punti." },
     { "key": "camera.dollySync.local", "value": "Solo locale" },

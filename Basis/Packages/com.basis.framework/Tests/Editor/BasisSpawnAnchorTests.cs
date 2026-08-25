@@ -179,6 +179,50 @@ namespace Basis.Tests.UI
         }
 
         [Test]
+        public void SetNameTrimsAndAutosaves()
+        {
+            BasisSpawnAnchors.SpawnAnchor a = BasisSpawnAnchors.Add("A", Vector3.zero, Quaternion.identity);
+            BasisSpawnAnchors.SetName(a, "  Stage left  ");
+            Assert.AreEqual("Stage left", a.Name);
+            BasisSpawnAnchors.SpawnAnchorFile file = JsonUtility.FromJson<BasisSpawnAnchors.SpawnAnchorFile>(File.ReadAllText(tempFile));
+            Assert.AreEqual("Stage left", file.Anchors[0].Name);
+        }
+
+        [Test]
+        public void SetNameIgnoresBlankNames()
+        {
+            BasisSpawnAnchors.SpawnAnchor a = BasisSpawnAnchors.Add("A", Vector3.zero, Quaternion.identity);
+            BasisSpawnAnchors.SetName(a, "   ");
+            BasisSpawnAnchors.SetName(a, null);
+            Assert.AreEqual("A", a.Name);
+        }
+
+        [Test]
+        public void FillArcSweepsFromTheStartVectorToItsRotation()
+        {
+            Vector3[] points = new Vector3[BasisSpawnAnchorHandle.ArcPoints];
+            Vector3 origin = new Vector3(1f, 2f, 3f);
+            BasisSpawnAnchorHandle.FillArc(points, origin, Vector3.up, Vector3.forward, 90f, 2f);
+            Assert.That(Vector3.Distance(points[0], origin + Vector3.forward * 2f), Is.LessThan(1e-5f));
+            Assert.That(Vector3.Distance(points[points.Length - 1], origin + Vector3.right * 2f), Is.LessThan(1e-5f));
+            Assert.That(Vector3.Distance(points[(points.Length - 1) / 2], origin + (Vector3.forward + Vector3.right).normalized * 2f), Is.LessThan(1e-5f));
+        }
+
+        [Test]
+        public void FillRingClosesOnItself()
+        {
+            Vector3[] points = new Vector3[BasisSpawnAnchorHandle.RingPoints];
+            BasisSpawnAnchorHandle.FillRing(points, Vector3.zero, Vector3.up, Vector3.forward, 1f);
+            for (int i = 0; i < points.Length; i++)
+            {
+                Assert.That(points[i].magnitude, Is.EqualTo(1f).Within(1e-5f));
+                Assert.That(points[i].y, Is.EqualTo(0f).Within(1e-6f));
+            }
+            Assert.That(Vector3.Distance(points[0], Vector3.forward), Is.LessThan(1e-5f));
+            Assert.That(Vector3.Distance(points[points.Length / 4], Vector3.right), Is.LessThan(1e-5f));
+        }
+
+        [Test]
         public void SnapPositionRoundsEveryAxisToTheGrid()
         {
             Vector3 snapped = BasisSpawnAnchors.SnapPosition(new Vector3(1.12f, -0.4f, 2.87f), 0.25f);

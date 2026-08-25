@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "Blanc uni derrière le sujet." },
     { "key": "camera.background.magenta.tooltip", "value": "Magenta uni derrière le sujet, pour l'incrustation quand le sujet contient à la fois du vert et du bleu." },
     { "key": "camera.background.custom.tooltip", "value": "Une couleur que vous choisissez avec les curseurs ci-dessous." },
+    { "key": "camera.background.transparent.tooltip", "value": "Rien derrière le sujet, avec la couche alpha conservée, pour qu'un flux ou une photo avec alpha puisse être superposé à n'importe quoi sans incrustation." },
     { "key": "camera.dollySync", "value": "Partage du rail" },
     { "key": "camera.dollySync.description", "value": "Si les autres personnes de l'instance peuvent voir ce rail, et si elles peuvent déplacer ses points." },
     { "key": "camera.dollySync.local", "value": "Local uniquement" },

@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "বিষয়ের পেছনে সমতল সাদা।" },
     { "key": "camera.background.magenta.tooltip", "value": "বিষয়ের পেছনে সমতল ম্যাজেন্টা, বিষয়ে সবুজ ও নীল উভয়ই থাকলে কি করার জন্য।" },
     { "key": "camera.background.custom.tooltip", "value": "নিচের স্লাইডার দিয়ে আপনি বেছে নেওয়া একটি রং।" },
+    { "key": "camera.background.transparent.tooltip", "value": "বিষয়ের পেছনে কিছু নেই, আলফা চ্যানেল রাখা থাকে, যাতে আলফাসহ স্ট্রিম বা ছবি কি না করেই যেকোনো কিছুর ওপর বসানো যায়।" },
     { "key": "camera.dollySync", "value": "ট্র্যাক শেয়ারিং" },
     { "key": "camera.dollySync.description", "value": "ইনস্ট্যান্সে অন্য কেউ এই ট্র্যাক দেখতে পারে কিনা, এবং তারা এর বিন্দুগুলো সরাতে পারে কিনা।" },
     { "key": "camera.dollySync.local", "value": "শুধু লোকাল" },

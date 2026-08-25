@@ -800,6 +800,7 @@ public partial class BasisHandHeldCameraUI
             streamQuality = HHC != null ? HHC.VideoOutputSettings.WebQuality : baseline.streamQuality,
             streamPort = HHC != null ? HHC.VideoOutputSettings.WebPort : baseline.streamPort,
             streamSenderName = HHC != null ? HHC.VideoOutputSettings.SenderName ?? string.Empty : baseline.streamSenderName,
+            directToScreen = HHC != null && HHC.DirectToScreen,
             backgroundMode = HHC != null ? (int)HHC.backgroundMode : 0,
             backgroundCustomColor = HHC != null ? HHC.backgroundCustomColor : BasisHandHeldCamera.ChromaGreen,
             backgroundKeepsWorld = HHC != null && HHC.backgroundKeepsWorld,
@@ -1240,6 +1241,10 @@ public partial class BasisHandHeldCameraUI
         HHC.VideoRecordingTimeLimit = settings.videoTimeLimit;
         HHC.VideoContinuousClips = settings.videoContinuousClips;
         HHC.ApplyStreamSettings((BasisVideoTransport)settings.streamTransport, settings.streamWidth, settings.streamHeight, settings.streamFrameRate, settings.streamQuality, settings.streamPort, settings.streamSenderName);
+
+        // After the body, which this defers to: a file that names a film body and asks for the
+        // monitor loads with the setting kept and the window left alone, as the panel then says.
+        HHC.SetDirectToScreen(settings.directToScreen);
 
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC.MetaData.VolumetricFogVolume != null)

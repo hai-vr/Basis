@@ -304,11 +304,8 @@ namespace Basis.BasisUI
                 }
 
                 BasisPropSpawnMetaData spawnMeta = PropSpawnPlacement.Resolve(item, cached.BasisBundleConnector);
-                if (BasisSpawnAnchors.TryGetSelected(out BasisSpawnAnchors.SpawnAnchor anchor))
-                {
-                    spawnMeta.Placement = BasisPropSpawnPlacement.AtAnchor;
-                }
-                else if (spawnMeta.Placement == BasisPropSpawnPlacement.AtAnchor)
+                BasisSpawnAnchors.SpawnAnchor anchor = null;
+                if (spawnMeta.Placement == BasisPropSpawnPlacement.AtAnchor && !BasisSpawnAnchors.TryGetSelected(out anchor))
                 {
                     spawnMeta.Placement = BasisPropSpawnPlacement.Raycast;
                 }

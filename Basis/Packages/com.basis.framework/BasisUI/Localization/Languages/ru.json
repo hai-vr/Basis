@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "Однотонный белый фон позади объекта." },
     { "key": "camera.background.magenta.tooltip", "value": "Однотонный пурпурный фон позади объекта — для хромакея, если в кадре объекта есть и зелёный, и синий цвета." },
     { "key": "camera.background.custom.tooltip", "value": "Цвет, который вы выбираете с помощью ползунков ниже." },
+    { "key": "camera.background.transparent.tooltip", "value": "Позади объекта ничего нет, альфа-канал сохраняется — поток или фото с альфой можно наложить на что угодно без хромакея." },
     { "key": "camera.dollySync", "value": "Общий доступ к траектории" },
     { "key": "camera.dollySync.description", "value": "Видят ли эту траекторию другие участники инстанса и могут ли они перемещать её точки." },
     { "key": "camera.dollySync.local", "value": "Только локально" },

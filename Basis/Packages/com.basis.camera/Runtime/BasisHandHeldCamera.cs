@@ -259,6 +259,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisHandHeldCameraRegistry.Add(this);
 
         InitializeCameraSettings();
+        InitializePostProcessingVolume();
         InitializeMaterial();
         InitializeMeshRendererCheck();
         await InitializeUI();
@@ -399,6 +400,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         UnsubscribeMeshRendererCheck();
         BasisCullingCameraRegistry.Unregister(captureCamera);
         BasisMirrorViewerRegistry.Unregister(captureCamera);
+        ShutdownDirectToScreen();
         ReleaseRenderTexture();
         ReleaseFocusPeaking();
         ReleaseViewfinderGrid();
@@ -469,6 +471,32 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.targetTexture = renderTexture;
         captureCamera.targetDisplay = 1;
         SyncBackgroundFromMainCamera();
+    }
+
+    public void InitializePostProcessingVolume()
+    {
+        if (captureCamera == null) return;
+        if (CameraData == null) CameraData = captureCamera.GetUniversalAdditionalCameraData();
+
+        Volume volume = FindPostProcessingVolume();
+        if (volume == null) return;
+
+        if (MetaData.Profile == null) MetaData.Profile = volume.sharedProfile;
+        else if (volume.sharedProfile != MetaData.Profile) volume.sharedProfile = MetaData.Profile;
+
+        CameraData.volumeLayerMask = 1 << volume.gameObject.layer;
+        CameraData.volumeTrigger = volume.transform;
+        CameraData.renderPostProcessing = true;
+    }
+
+    private Volume FindPostProcessingVolume()
+    {
+        Volume[] volumes = GetComponentsInChildren<Volume>(true);
+        for (int Index = 0; Index < volumes.Length; Index++)
+        {
+            if (MetaData.Profile != null && volumes[Index].sharedProfile == MetaData.Profile) return volumes[Index];
+        }
+        return volumes.Length > 0 ? volumes[0] : null;
     }
 
     private void SyncBackgroundFromMainCamera()
@@ -1490,6 +1518,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     private void SimulateLate()
     {
+        // Before the gate, so the frame the monitor is being given — or no longer is — is the
+        // one the gate decides for.
+        TickDirectToScreen();
         UpdateRenderGate();
 
         // Wind-on, develop and the flash all count down here rather than in an Update, so the lamp
@@ -1644,6 +1675,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Boot-mode swap handler.</summary>
     private new void OnBootModeChanged(string obj)
     {
+        // A switch to desktop hands the window back; a switch into VR takes it over again if
+        // the mode is still on. The setting itself is not touched either way.
+        RefreshDirectToScreen();
     }
 
     /// <summary>Unhooks visibility observer from the preview renderer.</summary>
@@ -1691,7 +1725,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// freezes on whatever frame the prop was last on screen for.
     /// </summary>
     private bool HasOffPropFeedConsumer =>
-        IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || panelPreviewActive;
+        IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || panelPreviewActive || IsDirectToScreenPresenting;
 
     /// <summary>
     /// Told by the settings panel while it is open on this camera. Its preview is a second window
@@ -1751,6 +1785,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             targetHz = Mathf.Max(targetHz, videoRecorder.FrameRate);
         }
+
+        // The monitor is a consumer that wants every frame: a picture that stutters where the
+        // headset mirror used to be smooth reads as broken, not as saving work. The cap is lifted
+        // rather than raised, since a window has no rate of its own but the display's.
+        if (IsDirectToScreenPresenting) limitEnabled = false;
 
         captureCamera.enabled = renderRateLimiter.AllowThisFrame(Time.unscaledDeltaTime, targetHz, limitEnabled);
     }

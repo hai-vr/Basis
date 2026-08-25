@@ -10,9 +10,22 @@ namespace Basis.BasisUI
     {
         public const float BodyDiameter = 0.12f;
         public const float ArrowLength = 0.18f;
-        public const float ArrowThickness = 0.02f;
+        public const float UpArrowLength = 0.09f;
+        public const float HeadLength = 0.035f;
+        public const float HeadAngle = 28f;
+        public const float RingRadius = 0.2f;
+        public const float ArcRadius = 0.16f;
+        public const float TickLength = 0.02f;
+        public const float LineWidth = 0.008f;
+        public const float ThinLineWidth = 0.004f;
+        public const int RingPoints = 48;
+        public const int ArcPoints = 25;
+        public const int MaxSnapTicks = 72;
+        public const float MinArcDegrees = 0.5f;
         public const float LabelGap = 0.06f;
         public const float LabelScale = 0.02f;
+        public const float AngleLabelScale = 0.014f;
+        public const float AngleLabelGap = 0.04f;
         public const float GestureStep = 1.02f;
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -21,6 +34,14 @@ namespace Basis.BasisUI
         private static readonly Color IdleColor = new Color(0.85f, 0.85f, 0.9f, 1f);
         private static readonly Color ForwardColor = new Color(0.25f, 0.55f, 1f, 1f);
         private static readonly Color UpColor = new Color(0.35f, 0.9f, 0.4f, 1f);
+        private static readonly Color RingColor = new Color(0.7f, 0.7f, 0.75f, 0.45f);
+        private static readonly Color SelectedRingColor = new Color(1f, 0.65f, 0.1f, 0.6f);
+        private static readonly Color TickColor = new Color(0.7f, 0.7f, 0.75f, 0.7f);
+        private static readonly Color NorthColor = new Color(0.95f, 0.95f, 1f, 0.9f);
+        private static readonly Color PlumbColor = new Color(0.35f, 0.9f, 0.4f, 0.35f);
+        private static readonly Vector3[] ring = new Vector3[RingPoints];
+        private static readonly Vector3[] yawArc = new Vector3[ArcPoints];
+        private static readonly Vector3[] tiltArc = new Vector3[ArcPoints];
         private static MaterialPropertyBlock block;
 
         public bool IsGrabbed { get; private set; }
@@ -28,6 +49,7 @@ namespace Basis.BasisUI
         public Action<BasisSpawnAnchorHandle> OnReleased;
         public Action<BasisSpawnAnchorHandle, float> OnScaleGesture;
 
+        private readonly BasisGizmoSet gizmos = new BasisGizmoSet("SpawnAnchor");
         private Transform body;
         private Renderer bodyRenderer;
         private Material material;
@@ -35,7 +57,11 @@ namespace Basis.BasisUI
         private float anchorScale = 1f;
         private string labelText = string.Empty;
         private Color labelColor = IdleColor;
-        private int labelId = -1;
+        private Color ringColor = RingColor;
+        private int yawKey = int.MinValue;
+        private int tiltKey = int.MinValue;
+        private string yawText = string.Empty;
+        private string tiltText = string.Empty;
 
         public static BasisSpawnAnchorHandle Spawn(Transform parent)
         {
@@ -49,9 +75,7 @@ namespace Basis.BasisUI
             root.layer = layer;
 
             Material material = CreateMaterial();
-            Renderer bodyRenderer = BuildPart(PrimitiveType.Sphere, "Body", root.transform, Vector3.zero, Vector3.one * BodyDiameter, layer, material, IdleColor, true);
-            BuildPart(PrimitiveType.Cube, "Forward", root.transform, new Vector3(0f, 0f, BodyDiameter * 0.5f + ArrowLength * 0.5f), new Vector3(ArrowThickness, ArrowThickness, ArrowLength), layer, material, ForwardColor, false);
-            BuildPart(PrimitiveType.Cube, "Up", root.transform, new Vector3(0f, BodyDiameter * 0.5f + ArrowLength * 0.25f, 0f), new Vector3(ArrowThickness, ArrowLength * 0.5f, ArrowThickness), layer, material, UpColor, false);
+            Renderer bodyRenderer = BuildBody(root.transform, layer, material);
 
             BasisSpawnAnchorHandle handle = root.AddComponent<BasisSpawnAnchorHandle>();
             handle.body = bodyRenderer.transform;
@@ -78,18 +102,14 @@ namespace Basis.BasisUI
             return shader == null ? null : new Material(shader);
         }
 
-        private static Renderer BuildPart(PrimitiveType type, string name, Transform parent, Vector3 localPosition, Vector3 localScale, int layer, Material material, Color color, bool keepCollider)
+        private static Renderer BuildBody(Transform parent, int layer, Material material)
         {
-            GameObject part = GameObject.CreatePrimitive(type);
-            part.name = name;
+            GameObject part = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            part.name = "Body";
             part.layer = layer;
             part.transform.SetParent(parent, false);
-            part.transform.localPosition = localPosition;
-            part.transform.localScale = localScale;
-            if (!keepCollider && part.TryGetComponent(out Collider collider))
-            {
-                DestroyImmediate(collider);
-            }
+            part.transform.localPosition = Vector3.zero;
+            part.transform.localScale = Vector3.one * BodyDiameter;
             Renderer renderer = part.GetComponent<Renderer>();
             if (material != null)
             {
@@ -97,7 +117,7 @@ namespace Basis.BasisUI
             }
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
-            Tint(renderer, color);
+            Tint(renderer, IdleColor);
             return renderer;
         }
 
@@ -130,39 +150,152 @@ namespace Basis.BasisUI
                 body.localScale = Vector3.one * (BodyDiameter * Mathf.Clamp(anchorScale, 0.5f, 2.5f));
             }
             labelColor = selected ? SelectedColor : IdleColor;
+            ringColor = selected ? SelectedRingColor : RingColor;
             Tint(bodyRenderer, labelColor);
             labelText = anchor.OverrideScale ? $"{anchor.Name}\n×{anchor.Scale:0.00}" : anchor.Name;
         }
 
         public void Tick(Vector3 cameraPosition, float scale)
         {
-            float bodyHeight = body != null ? body.localScale.y * 0.5f : BodyDiameter * 0.5f;
-            Vector3 position = transform.position + Vector3.up * (bodyHeight + LabelGap * scale);
-            if (labelId <= 0 && !BasisGizmoManager.CreateTextGizmo("SpawnAnchor", out labelId, position, labelText, labelColor))
+            Vector3 origin = transform.position;
+            Quaternion rotation = transform.rotation;
+            Vector3 forward = rotation * Vector3.forward;
+            Vector3 up = rotation * Vector3.up;
+            Vector3 right = rotation * Vector3.right;
+            float bodyRadius = body != null ? body.localScale.y * 0.5f : BodyDiameter * 0.5f;
+
+            float yaw = rotation.eulerAngles.y;
+            bool showYaw = yaw >= MinArcDegrees && yaw <= 360f - MinArcDegrees;
+            float tilt = Vector3.Angle(Vector3.up, up);
+            bool showTilt = tilt >= MinArcDegrees;
+            Vector3 tiltAxis = Vector3.Cross(Vector3.up, up);
+            tiltAxis = tiltAxis.sqrMagnitude <= 1e-8f ? right : tiltAxis.normalized;
+            float tiltRadius = bodyRadius + UpArrowLength * 0.6f;
+
+            gizmos.Begin();
+            FillRing(ring, origin, Vector3.up, Vector3.forward, RingRadius);
+            gizmos.Poly(ring, ringColor, true, ThinLineWidth);
+            if (showYaw)
+            {
+                FillArc(yawArc, origin, Vector3.up, Vector3.forward, yaw, ArcRadius);
+                gizmos.Poly(yawArc, ForwardColor, false, ThinLineWidth);
+            }
+            if (showTilt)
+            {
+                FillArc(tiltArc, origin, tiltAxis, Vector3.up, tilt, tiltRadius);
+                gizmos.Poly(tiltArc, UpColor, false, ThinLineWidth);
+            }
+
+            Arrow(origin + forward * bodyRadius, forward, ArrowLength, up, right, ForwardColor, LineWidth);
+            Arrow(origin + up * bodyRadius, up, UpArrowLength, forward, right, UpColor, LineWidth);
+            if (showYaw)
+            {
+                ArcHead(yawArc, Vector3.up, ForwardColor);
+            }
+            if (showTilt)
+            {
+                ArcHead(tiltArc, tiltAxis, UpColor);
+                gizmos.Line(origin + Vector3.up * bodyRadius, origin + Vector3.up * (bodyRadius + UpArrowLength), PlumbColor, ThinLineWidth);
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 direction = Quaternion.AngleAxis(90f * i, Vector3.up) * Vector3.forward;
+                gizmos.Line(origin + direction * RingRadius, origin + direction * (RingRadius + (i == 0 ? TickLength * 1.5f : TickLength)), i == 0 ? NorthColor : TickColor, ThinLineWidth);
+            }
+            if (enableRotationSnap && rotationSnapDegrees >= 1f)
+            {
+                int steps = Mathf.Min(Mathf.RoundToInt(360f / rotationSnapDegrees), MaxSnapTicks);
+                for (int i = 1; i < steps; i++)
+                {
+                    float angle = i * rotationSnapDegrees;
+                    float cardinal = Mathf.Repeat(angle, 90f);
+                    if (cardinal < 0.01f || cardinal > 89.99f)
+                    {
+                        continue;
+                    }
+                    Vector3 direction = Quaternion.AngleAxis(angle, Vector3.up) * Vector3.forward;
+                    gizmos.Line(origin + direction * (RingRadius - TickLength * 0.5f), origin + direction * RingRadius, TickColor, ThinLineWidth);
+                }
+            }
+
+            Vector3 labelPosition = origin + Vector3.up * (bodyRadius + LabelGap * scale);
+            gizmos.Label(labelPosition, labelText, labelColor, cameraPosition, LabelScale * scale);
+            if (showYaw)
+            {
+                int key = Mathf.RoundToInt(yaw) % 360;
+                if (key != yawKey)
+                {
+                    yawKey = key;
+                    yawText = key + "°";
+                }
+                Vector3 mid = Quaternion.AngleAxis(yaw * 0.5f, Vector3.up) * Vector3.forward;
+                gizmos.Label(origin + mid * (RingRadius + AngleLabelGap), yawText, ForwardColor, cameraPosition, AngleLabelScale * scale);
+            }
+            if (showTilt)
+            {
+                int key = Mathf.RoundToInt(tilt);
+                if (key != tiltKey)
+                {
+                    tiltKey = key;
+                    tiltText = key + "°";
+                }
+                Vector3 mid = Quaternion.AngleAxis(tilt * 0.5f, tiltAxis) * Vector3.up;
+                gizmos.Label(origin + mid * (tiltRadius + AngleLabelGap), tiltText, UpColor, cameraPosition, AngleLabelScale * scale);
+            }
+            gizmos.End();
+        }
+
+        public static void FillRing(Vector3[] points, Vector3 origin, Vector3 axis, Vector3 start, float radius)
+        {
+            for (int i = 0; i < points.Length; i++)
+            {
+                points[i] = origin + Quaternion.AngleAxis(360f * i / points.Length, axis) * start * radius;
+            }
+        }
+
+        public static void FillArc(Vector3[] points, Vector3 origin, Vector3 axis, Vector3 start, float degrees, float radius)
+        {
+            int last = points.Length - 1;
+            for (int i = 0; i <= last; i++)
+            {
+                points[i] = origin + Quaternion.AngleAxis(degrees * i / last, axis) * start * radius;
+            }
+        }
+
+        private void Arrow(Vector3 start, Vector3 direction, float length, Vector3 finA, Vector3 finB, Color color, float width)
+        {
+            Vector3 tip = start + direction * length;
+            gizmos.Line(start, tip, color, width);
+            Vector3 root = tip - direction * (HeadLength * Mathf.Cos(HeadAngle * Mathf.Deg2Rad));
+            float side = HeadLength * Mathf.Sin(HeadAngle * Mathf.Deg2Rad);
+            gizmos.Line(tip, root + finA * side, color, width);
+            gizmos.Line(tip, root - finA * side, color, width);
+            gizmos.Line(tip, root + finB * side, color, width);
+            gizmos.Line(tip, root - finB * side, color, width);
+        }
+
+        private void ArcHead(Vector3[] arc, Vector3 planeAxis, Color color)
+        {
+            Vector3 tip = arc[arc.Length - 1];
+            Vector3 tangent = tip - arc[arc.Length - 2];
+            if (tangent.sqrMagnitude <= 1e-10f)
             {
                 return;
             }
-            BasisGizmoManager.UpdateTextGizmo(labelId, position, BasisGizmoManager.BillboardRotation(position, cameraPosition), LabelScale * scale, labelText, labelColor);
+            tangent.Normalize();
+            gizmos.Line(tip, tip - Quaternion.AngleAxis(HeadAngle, planeAxis) * tangent * HeadLength, color, ThinLineWidth);
+            gizmos.Line(tip, tip - Quaternion.AngleAxis(-HeadAngle, planeAxis) * tangent * HeadLength, color, ThinLineWidth);
         }
 
-        public void ForgetLabel()
+        public void ForgetGizmos()
         {
-            labelId = -1;
+            gizmos.Forget();
         }
 
         public void Despawn()
         {
-            DestroyLabel();
+            gizmos.Clear();
             Destroy(gameObject);
-        }
-
-        private void DestroyLabel()
-        {
-            if (labelId > 0)
-            {
-                BasisGizmoManager.DestroyGizmo(labelId);
-            }
-            labelId = -1;
         }
 
         private void Grabbed(BasisInput input)
@@ -203,7 +336,7 @@ namespace Basis.BasisUI
         public override void OnDestroy()
         {
             base.OnDestroy();
-            DestroyLabel();
+            gizmos.Clear();
             if (material != null)
             {
                 Destroy(material);

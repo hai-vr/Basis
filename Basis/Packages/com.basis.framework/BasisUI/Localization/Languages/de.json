@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "Flächiges Weiß hinter dem Motiv." },
     { "key": "camera.background.magenta.tooltip", "value": "Flächiges Magenta hinter dem Motiv, zum Freistellen, wenn das Motiv sowohl Grün- als auch Blautöne enthält." },
     { "key": "camera.background.custom.tooltip", "value": "Eine Farbe, die du mit den Reglern unten wählst." },
+    { "key": "camera.background.transparent.tooltip", "value": "Nichts hinter dem Motiv, mit erhaltenem Alphakanal, sodass sich ein Stream oder Foto mit Alpha ohne Freistellen über alles legen lässt." },
     { "key": "camera.dollySync", "value": "Schienen-Freigabe" },
     { "key": "camera.dollySync.description", "value": "Ob andere in der Instanz diese Schiene sehen können und ob sie deren Punkte verschieben dürfen." },
     { "key": "camera.dollySync.local", "value": "Nur lokal" },

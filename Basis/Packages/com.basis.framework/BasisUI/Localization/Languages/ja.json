@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "被写体の背後を単色の白にします。" },
     { "key": "camera.background.magenta.tooltip", "value": "被写体の背後を単色のマゼンタにします。被写体自体に緑と青の両方が含まれる場合のクロマキー合成に使用します。" },
     { "key": "camera.background.custom.tooltip", "value": "下のスライダーで選んだ色を使用します。" },
+    { "key": "camera.background.transparent.tooltip", "value": "被写体の背後には何も描かず、アルファチャンネルを保持します。アルファ付きの配信や写真をクロマキーなしで何にでも重ねられます。" },
     { "key": "camera.dollySync", "value": "トラックの共有" },
     { "key": "camera.dollySync.description", "value": "インスタンス内の他のプレイヤーがこのトラックを見られるか、またそのポイントを動かせるかを設定します。" },
     { "key": "camera.dollySync.local", "value": "自分のみ" },

@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "Vlak wit achter het onderwerp." },
     { "key": "camera.background.magenta.tooltip", "value": "Vlak magenta achter het onderwerp, voor keying wanneer het onderwerp zowel groen als blauw bevat." },
     { "key": "camera.background.custom.tooltip", "value": "Een kleur die je kiest met de schuifregelaars hieronder." },
+    { "key": "camera.background.transparent.tooltip", "value": "Niets achter het onderwerp, met behoud van het alfakanaal, zodat een stream of foto met alfa zonder keyen over alles heen gelegd kan worden." },
     { "key": "camera.dollySync", "value": "Raildeling" },
     { "key": "camera.dollySync.description", "value": "Of iemand anders in de instance deze rail kan zien, en of ze de punten ervan mogen verplaatsen." },
     { "key": "camera.dollySync.local", "value": "Alleen Lokaal" },

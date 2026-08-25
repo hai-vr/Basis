@@ -379,6 +379,10 @@ public partial class BasisHandHeldCamera
         // by a body that had a socket, and the one being fitted does not. Safe to call at any time
         // — it is a no-op on a camera that was not streaming.
         if (!traits.LivePreview) StopVideoOutput();
+
+        // The window gate runs in both directions: a film body takes the monitor back, and the
+        // digital body fitted after it returns the feed without the setting having moved.
+        RefreshDirectToScreen();
     }
 
     // ---------- The stamp ----------

@@ -1709,6 +1709,7 @@
     { "key": "camera.background.white.tooltip", "value": "Blanco uniforme detrás del sujeto." },
     { "key": "camera.background.magenta.tooltip", "value": "Magenta uniforme detrás del sujeto, para hacer croma cuando el sujeto tiene tanto verde como azul." },
     { "key": "camera.background.custom.tooltip", "value": "Un color que eliges con los controles deslizantes de abajo." },
+    { "key": "camera.background.transparent.tooltip", "value": "Nada detrás del sujeto, conservando el canal alfa, para que una transmisión o foto con alfa se pueda superponer sobre cualquier cosa sin hacer croma." },
     { "key": "camera.dollySync", "value": "Compartir riel" },
     { "key": "camera.dollySync.description", "value": "Si alguien más en la instancia puede ver este riel, y si puede mover sus puntos." },
     { "key": "camera.dollySync.local", "value": "Solo local" },
