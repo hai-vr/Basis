@@ -27,7 +27,7 @@ namespace Basis.Scripts.UI.NamePlate
     /// already in — so it is Burst-safe, unit-testable without a scene, and shared by every
     /// placement site instead of being copied into each one.
     /// </summary>
-    internal static class BasisNamePlateAnchorMath
+    public static class BasisNamePlateAnchorMath
     {
         /// <summary>
         /// Half-height of the baked name panel in plate-local units (see

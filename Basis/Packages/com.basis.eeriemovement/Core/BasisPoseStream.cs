@@ -7,6 +7,7 @@ namespace Basis.IK
     {
         public int IndexPlusOne;
         public int Index => IndexPlusOne - 1;
+        public bool IsBound => IndexPlusOne > 0;
         public static BasisBoneHandle Unbound => default;
         public static BasisBoneHandle FromIndex(int index) => new BasisBoneHandle { IndexPlusOne = index + 1 };
     }
@@ -71,6 +72,8 @@ namespace Basis.IK
         [ReadOnly] public NativeArray<int> Parent;
         [ReadOnly] public NativeArray<float> BindLength;
         [ReadOnly] public NativeArray<byte> TranslationFree;
+        [ReadOnly] public NativeArray<quaternion> RestLocalRotation;
+        [ReadOnly] public NativeArray<float3> RestLocalPosition, RestLocalScale;
         public NativeArray<float3> WorldPositionCache;
         public NativeArray<quaternion> WorldRotationCache;
         public NativeArray<float3> WorldScaleCache;
@@ -107,6 +110,24 @@ namespace Basis.IK
             {
                 SetWorldRotation(handle.Index, rotation);
             }
+        }
+        public void ResetToRest(BasisBoneHandle handle)
+        {
+            if (!IsValid(handle) || !RestLocalRotation.IsCreated)
+            {
+                return;
+            }
+            int index = handle.Index;
+            LocalRotation[index] = RestLocalRotation[index];
+            if (RestLocalPosition.IsCreated && TranslationFree[index] == 0)
+            {
+                LocalPosition[index] = RestLocalPosition[index];
+            }
+            if (RestLocalScale.IsCreated)
+            {
+                LocalScale[index] = RestLocalScale[index];
+            }
+            InvalidateWorldCache();
         }
         public void InvalidateWorldCache()
         {

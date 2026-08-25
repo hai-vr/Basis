@@ -560,7 +560,7 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 if (HasControl)
                 {
-                    BasisDebug.Log($"UnAssigning Tracker {Control.name}", BasisDebug.LogTag.Input);
+                    BasisDebug.Log($"UnAssigning Tracker {Control.Role}", BasisDebug.LogTag.Input);
                     Control.SetInverseOffset(Vector3.zero, Quaternion.identity);
                     Control.UseInverseOffset = false;
                 }
@@ -632,7 +632,7 @@ namespace Basis.Scripts.Device_Management.Devices
                     }
                     else
                     {
-                        BasisDebug.Log($"Skipping {Control.name}! device had multiple devices associated waiting on removal of {string.Join("", Control.DevicesWithRoles)}", BasisDebug.LogTag.Input);
+                        BasisDebug.Log($"Skipping {Control.Role}! device had multiple devices associated waiting on removal of {string.Join("", Control.DevicesWithRoles)}", BasisDebug.LogTag.Input);
                     }
                 }
                 else
@@ -646,7 +646,7 @@ namespace Basis.Scripts.Device_Management.Devices
                     Control.HasRigLayer = HasLayer;
                 }
 
-                BasisDebug.Log($"Set Tracker State for tracker {UniqueDeviceIdentifier} with bone {Control.name} as {Control.HasTracked} | {Control.HasRigLayer}", BasisDebug.LogTag.Input);
+                BasisDebug.Log($"Set Tracker State for tracker {UniqueDeviceIdentifier} with bone {Control.Role} as {Control.HasTracked} | {Control.HasRigLayer}", BasisDebug.LogTag.Input);
 
                 // Recompute whether ANY FBIK trackers remain — the animator checks this
                 // flag to decide if it should drive legs. Without this, removing trackers

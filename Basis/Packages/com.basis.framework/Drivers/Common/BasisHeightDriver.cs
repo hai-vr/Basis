@@ -159,11 +159,11 @@ public static class BasisHeightDriver
             && BasisCalibrationMath.ImpliedHeightFromEye(PlayerEyeHeight)
                > BasisCalibrationMath.ImpliedHeightFromSpan(PlayerArmSpan) * BasisCalibrationMath.AutoModeEyePreferenceBand;
 
-        // An eye that implies a body far taller than the measured span implies was measured while the
-        // play space was shifted up (space drag / grounding lift / external offset) — anatomy cannot
-        // produce it. Persisting it poisons every subsequent boot's scale, so it never saves.
-        bool eyeLooksLiftPoisoned = spanPlausible
-            && BasisCalibrationMath.EyeHeightLooksLiftPoisoned(PlayerEyeHeight, PlayerArmSpan);
+        // An eye taller than any standing player was measured while the play space was shifted up (space
+        // drag / grounding lift / external offset). Persisting it poisons every subsequent boot's scale, so
+        // it never saves. The span does not testify against the eye: a bent-arm span reads exactly like a
+        // lifted eye, and shrinking a real eye to match it is the worse failure.
+        bool eyeLooksLiftPoisoned = BasisCalibrationMath.EyeHeightLooksLiftPoisoned(PlayerEyeHeight);
 
         // A stated height is the strongest veto available: it bounds the answer directly rather than
         // inferring it from a sibling measurement, so a reading that contradicts it never reaches disk.
@@ -172,7 +172,8 @@ public static class BasisHeightDriver
         {
             Basis.BasisUI.BasisSettingsDefaults.SavedPlayerEyeHeight.SetValue(PlayerEyeHeight);
         }
-        if (spanPlausible && spanLooksUnderMeasured == false && BasisStatedHeight.IsPlausibleSpan(PlayerArmSpan))
+        if (spanPlausible && BasisStatedHeight.IsPlausibleSpan(PlayerArmSpan)
+            && (spanLooksUnderMeasured == false || PlayerArmSpan > Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.RawValue))
         {
             Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.SetValue(PlayerArmSpan);
         }
@@ -189,16 +190,26 @@ public static class BasisHeightDriver
         {
             return;
         }
-        // Heal a lift-poisoned save from before the persist guard existed: an eye that is anatomically
-        // impossible against its own saved span was measured while the play space was shifted. Restore
-        // the eye the span implies instead of booting every session at the poisoned scale.
+        // Heal a lift-poisoned save from before the persist guard existed: an eye taller than any standing
+        // player was measured while the play space was shifted. The stated height, then the saved span,
+        // stand in for it. The span alone never testifies against the eye — a bent-arm span reads exactly
+        // like a lifted eye, and shrinking a real eye to match it boots a 1.7 m player as a 1.1 m one.
         float savedSpanForCheck = Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.RawValue;
-        if (savedSpanForCheck >= MinPlausibleBodyMeasure && savedSpanForCheck <= MaxPlausibleBodyMeasure
-            && BasisCalibrationMath.EyeHeightLooksLiftPoisoned(savedEye, savedSpanForCheck))
+        bool savedSpanUsable = savedSpanForCheck >= MinPlausibleBodyMeasure && savedSpanForCheck <= MaxPlausibleBodyMeasure;
+        if (BasisCalibrationMath.EyeHeightLooksLiftPoisoned(savedEye))
         {
-            float healedEye = BasisCalibrationMath.ImpliedHeightFromSpan(savedSpanForCheck) * BasisCalibrationMath.EyeToHeightRatio;
-            BasisDebug.LogWarning($"Saved eye height {savedEye:F3}m is implausible against saved arm span {savedSpanForCheck:F3}m (lift-poisoned calibration); using span-implied eye {healedEye:F3}m instead. Recalibrate to re-measure.", BasisDebug.LogTag.Avatar);
+            if (!BasisStatedHeight.IsSet && !savedSpanUsable)
+            {
+                BasisDebug.LogWarning($"Saved eye height {savedEye:F3}m is taller than any standing player (lift-poisoned calibration); ignoring the saved body size. Recalibrate to re-measure.", BasisDebug.LogTag.Avatar);
+                return;
+            }
+            float healedEye = BasisStatedHeight.IsSet ? BasisStatedHeight.ImpliedEyeHeight : BasisCalibrationMath.ImpliedHeightFromSpan(savedSpanForCheck) * BasisCalibrationMath.EyeToHeightRatio;
+            BasisDebug.LogWarning($"Saved eye height {savedEye:F3}m is taller than any standing player (lift-poisoned calibration); using {(BasisStatedHeight.IsSet ? "your stated" : "the span-implied")} eye {healedEye:F3}m instead. Recalibrate to re-measure.", BasisDebug.LogTag.Avatar);
             savedEye = healedEye;
+        }
+        else if (savedSpanUsable && BasisCalibrationMath.ArmSpanLooksUnderMeasured(savedEye, savedSpanForCheck))
+        {
+            BasisDebug.Log($"Saved arm span {savedSpanForCheck:F3}m reads a body shorter than the saved eye height {savedEye:F3}m implies (arms not fully extended when measured); keeping the eye, a fuller reach replaces the span once observed.", BasisDebug.LogTag.Avatar);
         }
         PlayerEyeHeight = savedEye;
         HasGenuinePlayerEyeHeight = true;
@@ -498,11 +509,10 @@ public static class BasisHeightDriver
         if (BasisBodyEvidenceSampler.TryGetEyeHeight(out float observedEye, out float eyeConfidence))
         {
             ObservedEyeConfidence = eyeConfidence;
-            // The one way an eye reading CAN come out too long is a vertical shift of the play space.
-            // The arm span is one witness against that; a stated height is a far better one, because it
-            // bounds the answer directly instead of inferring it from a second measurement.
-            bool poisoned = result.SpanIsGenuine
-                && BasisCalibrationMath.EyeHeightLooksLiftPoisoned(observedEye, result.ArmSpan);
+            // The one way an eye reading CAN come out too long is a vertical shift of the play space; the
+            // absolute ceiling and a stated height catch that. The arm span is not a witness: a bent-arm
+            // span would veto every honest eye reading above it and freeze the scale at the short reach.
+            bool poisoned = BasisCalibrationMath.EyeHeightLooksLiftPoisoned(observedEye);
             if (observedEye > result.EyeHeight && Plausible(observedEye)
                 && poisoned == false && BasisStatedHeight.IsPlausibleEye(observedEye))
             {
@@ -724,7 +734,8 @@ public static class BasisHeightDriver
         // Arm span only earns a say once it is a real measurement of THIS player; the fallback value is
         // just the default height wearing a different name, and letting it steer the scale would size
         // every player as though their reach equalled their height.
-        float armWeight = HasGenuinePlayerArmSpan
+        bool spanUnderMeasured = HasGenuinePlayerEyeHeight && BasisCalibrationMath.ArmSpanLooksUnderMeasured(PlayerEyeHeight, PlayerArmSpan);
+        float armWeight = HasGenuinePlayerArmSpan && !spanUnderMeasured
             ? BasisScaleFitCore.ArmSpanWeight * Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(ObservedArmSpanConfidence))
             : 0f;
 

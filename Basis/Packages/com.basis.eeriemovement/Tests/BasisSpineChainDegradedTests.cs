@@ -94,15 +94,15 @@ namespace Basis.Tests.IK
             job.handleSpine = skeleton.Bind(bones[1]);
             job.handleChest = skeleton.Bind(bones[2]);
             job.handleHead = skeleton.Bind(bones[3]);
-            job.enabledSpineIK = true;
             job.ikLockMode = BasisIKLockMode.LockHead;
-            job.hasHipsTracker = true;
             job.minHeadSpineHeight = 0.62f;
             job.tposeLengthNeckToHips = new Vector3(0f, 0.5f, 0f);
             job.offsetRotationChest = Quaternion.identity;
             job.targetRotationHips = Quaternion.identity;
             job.targetRotationChest = Quaternion.identity;
             job.targetPositionHips = bones[0].position;
+            BasisEeriePlanner.Bind(ref job);
+            BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { hipsTracked = true });
 
             Quaternion gaze = Quaternion.Euler(15f, 30f, 0f);
             Vector3 headTarget = bones[3].position - new Vector3(0f, 0.002f, 0f);
@@ -130,15 +130,15 @@ namespace Basis.Tests.IK
             job.handleHips = skeleton.Bind(bones[0]);
             job.handleSpine = skeleton.Bind(bones[1]);
             job.handleHead = skeleton.Bind(bones[2]);
-            job.enabledSpineIK = true;
             job.ikLockMode = BasisIKLockMode.LockHead;
-            job.hasHipsTracker = true;
             job.minHeadSpineHeight = 0.62f;
             job.tposeLengthNeckToHips = new Vector3(0f, 0.5f, 0f);
             job.offsetRotationChest = Quaternion.identity;
             job.targetRotationHips = Quaternion.identity;
             job.targetRotationChest = Quaternion.identity;
             job.targetPositionHips = bones[0].position;
+            BasisEeriePlanner.Bind(ref job);
+            BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { hipsTracked = true });
 
             Quaternion gaze = Quaternion.Euler(-10f, -40f, 0f);
             Vector3 headTarget = bones[2].position - new Vector3(0f, 0.002f, 0f);
@@ -168,6 +168,7 @@ namespace Basis.Tests.IK
             job.handleSpine = skeleton.Bind(bones[1]);
             job.handleNeck = skeleton.Bind(bones[2]);
             job.handleHead = skeleton.Bind(bones[3]);
+            BasisEeriePlanner.Bind(ref job);
 
             Vector3 headTarget = bones[3].position - new Vector3(0f, 0.002f, 0f);
 
@@ -194,6 +195,7 @@ namespace Basis.Tests.IK
 
             var job = CcdJob();
             job.chainHeadToSpine = _chain;
+            BasisEeriePlanner.Bind(ref job);
 
             Quaternion gaze = Quaternion.Euler(0f, 25f, 0f);
             job.poseStream = skeleton.Stream;
@@ -218,6 +220,8 @@ namespace Basis.Tests.IK
             job.chainHeadToSpine = _chain;
             job.handleHips = skeleton.Bind(bones[0]);
             job.offsetRotationHips = hipsBind;
+            BasisEeriePlanner.Bind(ref job);
+            BasisEeriePlanner.Frame(ref job, default);
 
             Vector3 target = bones[5].position + new Vector3(0.10f, -0.06f, 0.04f);
             job.poseStream = skeleton.Stream;

@@ -383,6 +383,14 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void TheAimPointDropdownHasOneLabelPerPoint()
+        {
+            Assert.That(BasisHandHeldCameraPanelProvider.AimPointKeysForTest.Length,
+                Is.EqualTo(Enum.GetValues(typeof(Basis.Cinematics.BasisCameraAimPoint)).Length),
+                "The dropdown indexes the aim-point catalogue, so a missing label makes a point unreachable.");
+        }
+
+        [Test]
         public void EveryDropdownOptionKeyHasATranslationAndATooltip()
         {
             // The options are keys rather than text, so a key with nothing behind it shows as the

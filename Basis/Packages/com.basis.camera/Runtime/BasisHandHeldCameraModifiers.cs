@@ -548,7 +548,7 @@ public abstract partial class BasisHandHeldCameraInteractable
             GroundPos = source.GroundPos,
             Yaw = source.Yaw,
             Scale = source.Scale > 1e-4f ? source.Scale : 1f,
-            Radius = Mathf.Max(0.05f, subjectSettings.framingRadius),
+            Radius = BasisCameraSubjectAim.FramingRadius(subjectSettings.aimPoint, subjectSettings.framingRadius, source.Height, source.Scale),
         };
 
     /// <summary>

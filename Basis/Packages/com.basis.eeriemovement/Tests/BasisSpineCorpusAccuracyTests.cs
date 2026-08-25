@@ -152,7 +152,6 @@ namespace Basis.Tests.IK
                 playerUp = Vector3.up,
                 chestIkTarget = false,
                 spineAnatomicalRom = false,
-                hasChestTracker = false,
                 // Rest anatomy for the pre-bend's neck cue and rest length.
                 tposeHeadToNeckLocal = Quaternion.Inverse(rig.RestGaze) * (clip.Get(restFrame, BasisMocapJoint.Neck).Position - clip.Get(restFrame, BasisMocapJoint.Head).Position),
                 tposeLengthNeckToHips = clip.Get(restFrame, BasisMocapJoint.Neck).Position - clip.Get(restFrame, BasisMocapJoint.Hips).Position,
@@ -166,6 +165,8 @@ namespace Basis.Tests.IK
                 chestPosPullMaxDeg = 20f, chestPullMaxDist = 0.5f, chestFollowChestShare = 0.6f,
                 trunkCounterbalanceMaxSpineFrac = 0.45f, neckGazeFollowMaxDeg = 18f,
             };
+            BasisEeriePlanner.Bind(ref rig.Job);
+            BasisEeriePlanner.Frame(ref rig.Job, default);
             return rig;
         }
         static void ApplyConfig(ref BasisEerieMovement job, in SpineConfig cfg)

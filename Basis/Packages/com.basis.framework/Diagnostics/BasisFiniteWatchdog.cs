@@ -466,7 +466,7 @@ public static class BasisFiniteWatchdog
             var incoming = control.IncomingData;
             if (!IsSane(incoming.position) || !IsSaneRotation(incoming.rotation))
             {
-                ReportValue(stage, $"bone control '{control.name}' IncomingData (device / virtual pose)",
+                ReportValue(stage, $"bone control '{control.Role}' IncomingData (device / virtual pose)",
                     $"position={incoming.position} rotation={DescribeRotation(incoming.rotation)}");
                 return true;
             }
@@ -474,7 +474,7 @@ public static class BasisFiniteWatchdog
             var outgoing = control.OutGoingData;
             if (!IsSane(outgoing.position) || !IsSaneRotation(outgoing.rotation))
             {
-                ReportValue(stage, $"bone control '{control.name}' OutGoingData (chain job local output)",
+                ReportValue(stage, $"bone control '{control.Role}' OutGoingData (chain job local output)",
                     $"position={outgoing.position} rotation={DescribeRotation(outgoing.rotation)}");
                 return true;
             }
@@ -482,7 +482,7 @@ public static class BasisFiniteWatchdog
             var world = control.OutgoingWorldData;
             if (!IsSane(world.position) || !IsSaneRotation(world.rotation))
             {
-                ReportValue(stage, $"bone control '{control.name}' OutgoingWorldData (the IK's raw target)",
+                ReportValue(stage, $"bone control '{control.Role}' OutgoingWorldData (the IK's raw target)",
                     $"position={world.position} rotation={DescribeRotation(world.rotation)}");
                 return true;
             }

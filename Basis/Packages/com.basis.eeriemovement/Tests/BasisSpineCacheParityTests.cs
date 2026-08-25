@@ -103,15 +103,15 @@ namespace Basis.Tests.IK
             job.handleChest = skeleton.Bind(bones[2]);
             job.handleNeck = skeleton.Bind(bones[3]);
             job.handleHead = skeleton.Bind(bones[4]);
-            job.enabledSpineIK = true;
             job.ikLockMode = BasisIKLockMode.LockHead;
-            job.hasHipsTracker = true;
             job.minHeadSpineHeight = 0.62f;
             job.tposeLengthNeckToHips = new Vector3(0f, 0.5f, 0f);
             job.offsetRotationChest = Quaternion.identity;
             job.targetRotationHips = Quaternion.identity;
             job.targetRotationChest = Quaternion.identity;
             job.targetPositionHips = bones[0].position;
+            BasisEeriePlanner.Bind(ref job);
+            BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { hipsTracked = true });
             return job;
         }
         static readonly float[] Heights = { 0.95f, 1.10f, 1.25f, 1.45f, 1.57f };

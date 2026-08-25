@@ -523,6 +523,8 @@ namespace Basis.Tests.IK
                     chestIkTarget = false,
                     spineAnatomicalRom = false,
                 };
+                BasisEeriePlanner.Bind(ref job);
+                BasisEeriePlanner.Frame(ref job, default);
 
                 Vector3 restHead = new Vector3(0f, Heights[5], 0f);
 

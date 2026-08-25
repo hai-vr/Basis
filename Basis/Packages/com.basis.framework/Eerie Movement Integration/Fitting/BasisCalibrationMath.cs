@@ -123,7 +123,9 @@ public static class BasisCalibrationMath
         return impliedEye >= BasisHeightDriver.MinPlausibleBodyMeasure && impliedEye <= BasisHeightDriver.MaxPlausibleBodyMeasure;
     }
     public const float EyeOverSpanPersistBand = 1.15f;
-    public static bool EyeHeightLooksLiftPoisoned(float playerEye, float playerSpan)
+    public const float MaxPlausibleStandingEyeMeters = 1.90f;
+    public static bool EyeHeightLooksLiftPoisoned(float playerEye) => playerEye > MaxPlausibleStandingEyeMeters;
+    public static bool ArmSpanLooksUnderMeasured(float playerEye, float playerSpan)
     {
         if (playerEye <= 0f || playerSpan <= 0f)
         {

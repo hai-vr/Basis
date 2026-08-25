@@ -201,6 +201,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private static readonly string[] SubjectLabelKeys = BuildSubjectLabelKeys();
         private static readonly string[] PositionLabelKeys = BuildPositionLabelKeys();
         private static readonly string[] RotationLabelKeys = BuildRotationLabelKeys();
+        private static readonly string[] AimPointKeys = BuildAimPointKeys();
 
         private static string[] BuildSubjectLabelKeys()
         {
@@ -228,6 +229,16 @@ namespace Basis.BasisUI.HandHeldCamera
             for (int Index = 0; Index < keys.Length; Index++)
             {
                 keys[Index] = BasisCameraModifiers.NameKey(BasisCameraModifiers.RotationModifiers[Index]);
+            }
+            return keys;
+        }
+
+        private static string[] BuildAimPointKeys()
+        {
+            var keys = new string[BasisCameraModifiers.AimPoints.Length];
+            for (int Index = 0; Index < keys.Length; Index++)
+            {
+                keys[Index] = BasisCameraModifiers.NameKey(BasisCameraModifiers.AimPoints[Index]);
             }
             return keys;
         }
@@ -1869,10 +1880,13 @@ namespace Basis.BasisUI.HandHeldCamera
             bool fixedPoint = stack.subject.modifier == BasisCameraSubjectModifier.FixedPoint;
             bool hasSubject = stack.ResolvesSubject;
 
+            bool body = player || group;
+            bool fullBody = body && stack.subject.aimPoint == BasisCameraAimPoint.FullBody;
             _followTargetDropdown?.gameObject.SetActive(player);
-            _followPlayspaceToggle?.gameObject.SetActive(player || group);
+            _followPlayspaceToggle?.gameObject.SetActive(body);
+            _aimPointDropdown?.gameObject.SetActive(body);
             _followLookAtHeightSlider?.gameObject.SetActive(hasSubject);
-            _subjectRadiusSlider?.gameObject.SetActive(hasSubject);
+            _subjectRadiusSlider?.gameObject.SetActive(hasSubject && !fullBody);
             _targetGroupToggle?.gameObject.SetActive(group);
             if (_groupRefreshRow != null) _groupRefreshRow.gameObject.SetActive(group);
             if (_fixedPointRow != null) _fixedPointRow.gameObject.SetActive(fixedPoint);

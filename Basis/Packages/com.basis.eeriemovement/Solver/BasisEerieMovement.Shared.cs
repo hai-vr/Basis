@@ -10,17 +10,20 @@ namespace Basis.IK
         {
             for (int i = 0; i < slotPositions.Length; i++)
             {
-                if (!slotWeights[i])
+                if (!slotWeights[i] || (plan.boundSlots & (1u << i)) == 0)
                 {
                     continue;
                 }
                 BasisBoneHandle handle = SlotHandle(i);
-                if (poseStream.IsValid(handle))
-                {
-                    poseStream.SetPosition(handle, slotPositions[i]);
-                    poseStream.SetRotation(handle, slotRotations[i] * slotOffsets[i]);
-                }
+                poseStream.SetPosition(handle, slotPositions[i]);
+                poseStream.SetRotation(handle, slotRotations[i] * slotOffsets[i]);
             }
+        }
+        void ResetToRest(BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip)
+        {
+            poseStream.ResetToRest(root);
+            poseStream.ResetToRest(mid);
+            poseStream.ResetToRest(tip);
         }
         public static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
@@ -128,13 +131,6 @@ namespace Basis.IK
             }
 
             return 2f * Mathf.Atan2(s, c) * Mathf.Rad2Deg;
-        }
-        public void ApplyRotation(bool enabled, BasisBoneHandle handle, Quaternion targetRot, Quaternion offset)
-        {
-            if (enabled && poseStream.IsValid(handle))
-            {
-                poseStream.SetRotation(handle, targetRot * offset);
-            }
         }
     }
 }

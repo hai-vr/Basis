@@ -10,6 +10,7 @@ using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Cinematics;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.UI.NamePlate;
 
 /// <summary>
 /// Interactable handheld/fly camera controller:
@@ -222,6 +223,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         public Quaternion Yaw;      // yaw-only facing of the subject
         public Vector3 LookPoint;   // head-height point to aim at and focus on
         public float Scale;         // avatar-to-default scale for offset sizing
+        public float Height;
     }
 
     /// <summary>True while the fly controls have the camera, so it is off in the world somewhere.</summary>
@@ -506,7 +508,10 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         // Height is measured from calibrated eye level, not the feet, so a zero offset films you
         // level with your eyeline on any avatar. GetTposeHeadHeight is already avatar-scaled, and
         // being calibration-derived it does not bob with crouching the way the live head does.
-        Vector3 anchorPos = rootPos + Vector3.up * GetTposeHeadHeight();
+        float headHeight = GetTposeHeadHeight();
+        float topHeight = GetTposeTopHeight(headHeight);
+        Vector3 anchorPos = rootPos + Vector3.up * headHeight;
+        float topY = rootPos.y + topHeight;
 
         float hipsHeight = GetTposeHipsHeight();
         if (subjectSettings.anchorToBody && hipsHeight > 0f && BasisLocalBoneDriver.HipsControl != null)
@@ -515,8 +520,11 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             // eye-above-hips gap and a zero offset still sits on your eyeline. Vertical now
             // tracks crouching, which the playspace root cannot do.
             Vector3 hips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
-            anchorPos = hips + Vector3.up * Mathf.Max(0f, GetTposeHeadHeight() - hipsHeight);
+            anchorPos = hips + Vector3.up * Mathf.Max(0f, headHeight - hipsHeight);
+            topY = hips.y + Mathf.Max(0f, topHeight - hipsHeight);
         }
+
+        Vector3 headPoint = BasisLocalCameraDriver.HasInstance ? BasisLocalCameraDriver.HeadPosition : anchorPos;
 
         return new FollowSubject
         {
@@ -524,8 +532,9 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             AnchorPos = anchorPos,
             GroundPos = rootPos,
             Yaw = anchorYaw,
-            LookPoint = anchorPos + Vector3.up * (subjectSettings.aimHeightOffset * scale),
+            LookPoint = BasisCameraSubjectAim.LookPoint(subjectSettings.aimPoint, anchorPos, headPoint, rootPos, topY, subjectSettings.aimHeightOffset * scale),
             Scale = scale,
+            Height = topY - rootPos.y,
         };
     }
 
@@ -649,18 +658,29 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         float headHeight = lookPoint.y - rootPos.y;
         float scale = headHeight > 0.2f ? Mathf.Min(headHeight / RemoteFallbackHeadHeight, 20f) : 1f;
 
+        Vector3 normalPoint = new Vector3(rootPos.x, lookPoint.y, rootPos.z);
+        float topY = ResolveRemoteTop(remote, root, rootPos.y, lookPoint.y);
+
         subject = new FollowSubject
         {
             Valid = true,
             IsRemote = true,
-            AnchorPos = new Vector3(rootPos.x, lookPoint.y, rootPos.z),
+            AnchorPos = normalPoint,
             GroundPos = rootPos,
             Yaw = yaw,
-            // Head height (the synced head transform), matching the local path's default.
-            LookPoint = new Vector3(rootPos.x, lookPoint.y + subjectSettings.aimHeightOffset, rootPos.z),
+            LookPoint = BasisCameraSubjectAim.LookPoint(subjectSettings.aimPoint, normalPoint, lookPoint, rootPos, topY, subjectSettings.aimHeightOffset * scale),
             Scale = scale,
+            Height = topY - rootPos.y,
         };
         return true;
+    }
+
+    private static float ResolveRemoteTop(BasisRemotePlayer remote, Transform root, float groundY, float headY)
+    {
+        BasisRemoteAvatarDriver driver = remote.RemoteAvatarDriver;
+        Transform hips = root != null && driver != null && driver.NamePlateHeightAboveHipsModel > 0f ? driver.References?.Hips : null;
+        if (hips == null) return BasisCameraSubjectAim.FallbackTop(groundY, headY);
+        return hips.position.y + driver.NamePlateHeightAboveHipsModel * root.lossyScale.y;
     }
 
     /// <summary>Focus point (world head-height of the follow subject) for the DoF auto-focus, or null.</summary>
@@ -757,6 +777,26 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             }
         }
         return BasisHeightDriver.SelectedScaledAvatarHeight;
+    }
+
+    private static float GetTposeTopHeight(float headHeight)
+    {
+        float hipsHeight = GetTposeHipsHeight();
+        BasisLocalPlayer player = BasisLocalPlayer.Instance;
+        if (!BasisLocalAvatarDriver.HasTposeBoneSnapshot || hipsHeight <= 0f || player == null || player.BasisAvatar == null)
+        {
+            return BasisCameraSubjectAim.FallbackTop(0f, headHeight);
+        }
+
+        float eyeHeight = 0f;
+        var tposeWorld = BasisLocalAvatarDriver.Mapping?.TposeWorld;
+        if (tposeWorld != null && tposeWorld.TryGetValue(HumanBodyBones.Head, out BasisCalibratedCoords authoredHead) && authoredHead.position.y > 1e-4f)
+        {
+            eyeHeight = player.BasisAvatar.AvatarEyePosition.x * (headHeight / authoredHead.position.y);
+        }
+
+        float crown = BasisNamePlateAnchorMath.EstimateCrownAboveRoot(hipsHeight, headHeight, eyeHeight, 0f, false);
+        return hipsHeight + BasisNamePlateAnchorMath.HeightAboveHips(hipsHeight, crown);
     }
 
     private float appliedCameraScale = -1f;

@@ -222,6 +222,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private bool _followTargetsBuilt;
         private PanelDropdown _focusModeDropdown;
         private PanelToggle _followPlayspaceToggle;
+        private PanelDropdown _aimPointDropdown;
         private PanelSlider _followLookAtHeightSlider;
         private PanelSlider _subjectRadiusSlider;
         private PanelToggle _targetGroupToggle;
@@ -963,6 +964,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastRenderRateHz = float.NaN;
             _followMarkerDropdown = null;
             _followPlayspaceToggle = null;
+            _aimPointDropdown = null;
             _followLookAtHeightSlider = null;
             _subjectRadiusSlider = null;
             _targetGroupToggle = null;
@@ -1947,6 +1949,19 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (_activeCamera != null) _activeCamera.subjectSettings.anchorToBody = v;
             };
 
+            _aimPointDropdown = PanelDropdown.CreateNewEntry(content);
+            _aimPointDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.aimPoint"));
+            _aimPointDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.aimPoint.description"));
+            _aimPointDropdown.AssignLocalizedEntries(new List<string>(AimPointKeys), new List<string>(AimPointKeys));
+            _aimPointDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _aimPointDropdown == null) return;
+                int index = _aimPointDropdown.Index;
+                if (index < 0 || index >= BasisCameraModifiers.AimPoints.Length) return;
+                _activeCamera.subjectSettings.aimPoint = BasisCameraModifiers.AimPoints[index];
+                RefreshModifierVisibility();
+            };
+
             _followLookAtHeightSlider = PanelSlider.CreateNew(content);
             _followLookAtHeightSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 BasisLocalization.Get("camera.lookAtHeightY"), -3f, 3f, false, 2, ValueDisplayMode.Meters));
@@ -2849,6 +2864,7 @@ namespace Basis.BasisUI.HandHeldCamera
             RefreshFollowTargets();
 
             _followPlayspaceToggle?.SetValueWithoutNotify(_activeCamera.subjectSettings.anchorToBody);
+            _aimPointDropdown?.SetValueWithoutNotify(AimPointKeys[Mathf.Clamp((int)_activeCamera.subjectSettings.aimPoint, 0, AimPointKeys.Length - 1)]);
             _followLookAtHeightSlider?.SetValueWithoutNotify(_activeCamera.subjectSettings.aimHeightOffset);
             _subjectRadiusSlider?.SetValueWithoutNotify(_activeCamera.subjectSettings.framingRadius);
             _targetGroupToggle?.SetValueWithoutNotify(_activeCamera.subjectSettings.groupIncludesLocal);
@@ -3474,6 +3490,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 all.Add(AnchorTargetNoneKey);
                 all.Add(AnchorTargetLocalKey);
                 all.AddRange(SubjectLabelKeys);
+                all.AddRange(AimPointKeys);
                 all.AddRange(PositionLabelKeys);
                 all.AddRange(RotationLabelKeys);
                 all.AddRange(BindingModeKeys);
@@ -3498,6 +3515,7 @@ namespace Basis.BasisUI.HandHeldCamera
         }
         public static string[] MeteringKeysForTest => MeteringKeys;
         public static string[] DollyEaseKeysForTest => DollyEaseKeys;
+        public static string[] AimPointKeysForTest => AimPointKeys;
         public static string[] FocusModeLabelsForTest => FocusModeKeys;
         public static int[] MsaaSampleCountsForTest => MsaaSampleCounts;
         public static int[] VideoResolutionWidthsForTest => VideoResolutionWidths;

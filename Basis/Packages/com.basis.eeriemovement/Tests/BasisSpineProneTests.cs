@@ -102,10 +102,7 @@ namespace Basis.Tests.IK
             job.handleChest = skeleton.Bind(bones[2]);
             job.handleNeck = skeleton.Bind(bones[3]);
             job.handleHead = skeleton.Bind(bones[4]);
-            job.enabledSpineIK = true;
             job.ikLockMode = BasisIKLockMode.LockHead;
-            job.hasHipsTracker = false;
-            job.proneBodyPose = true;
             job.minHeadSpineHeight = 0.62f;
             job.tposeLengthNeckToHips = new Vector3(0f, 0.5f, 0f);
             job.offsetRotationChest = Quaternion.identity;
@@ -114,6 +111,8 @@ namespace Basis.Tests.IK
             // The stale standing-model target the virtual spine would emit: hips stacked under a
             // floor-height head. Honouring it is exactly the failure this flag exists to prevent.
             job.targetPositionHips = new Vector3(0f, 0.62f, 0.32f);
+            BasisEeriePlanner.Bind(ref job);
+            BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { prone = true });
             return job;
         }
         [Test]
@@ -231,8 +230,7 @@ namespace Basis.Tests.IK
                 });
             _chain = BindChainTipFirst(bones);
             var job = ProneJob(bones);
-            job.proneBodyPose = false;
-            job.hasHipsTracker = true;
+            BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { hipsTracked = true });
 
             Vector3 hipsTarget = bones[0].position + new Vector3(0.1f, 0f, 0.05f);
             job.targetPositionHips = hipsTarget;

@@ -14189,6 +14189,38 @@
       "value": "Moves the point the camera aims at up or down the body. Negative aims lower."
     },
     {
+      "key": "camera.aimPoint",
+      "value": "Aim At"
+    },
+    {
+      "key": "camera.aimPoint.description",
+      "value": "Where on the subject the camera aims and focuses."
+    },
+    {
+      "key": "camera.aimPoint.normal",
+      "value": "Normal"
+    },
+    {
+      "key": "camera.aimPoint.normal.tooltip",
+      "value": "A steady point at head height on the body's centre line. Does not move as they lean or nod."
+    },
+    {
+      "key": "camera.aimPoint.head",
+      "value": "Head"
+    },
+    {
+      "key": "camera.aimPoint.head.tooltip",
+      "value": "Their head itself, so it stays centred as they lean, crouch or look around. Focus follows it too."
+    },
+    {
+      "key": "camera.aimPoint.fullBody",
+      "value": "Full Body"
+    },
+    {
+      "key": "camera.aimPoint.fullBody.tooltip",
+      "value": "The middle of the avatar from feet to crown, with the framing sized to their full height so nothing is cut off. Takes the place of Subject Size."
+    },
+    {
       "key": "camera.framingSize",
       "value": "Frame Fill"
     },

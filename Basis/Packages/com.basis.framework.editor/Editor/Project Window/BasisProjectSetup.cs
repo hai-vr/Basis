@@ -713,7 +713,7 @@ public class FollowTrackedRole : MonoBehaviour
         {
             _control = c;
             CancelInvoke(nameof(TryResolve));
-            // Optional: Debug.Log($""Resolved tracked role {role} to {_control.name}"");
+            // Optional: Debug.Log($""Resolved tracked role {role} to {_control.Role}"");
         }
     }
 }";

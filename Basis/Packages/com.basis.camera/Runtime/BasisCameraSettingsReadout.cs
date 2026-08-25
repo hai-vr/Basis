@@ -152,6 +152,7 @@ public static class BasisCameraSettingsReadout
         Row("camera.modifier.subject",
             BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.subject.modifier)));
         Row("camera.followPlayspace", OnOff(stack.subject.anchorToBody));
+        Row("camera.aimPoint", BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.subject.aimPoint)));
         Row("camera.lookAtHeightY", Number(stack.subject.aimHeightOffset));
         Row("camera.subjectRadius", Number(stack.subject.framingRadius));
         Row("camera.groupIncludesMe", OnOff(stack.subject.groupIncludesLocal));

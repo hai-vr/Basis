@@ -379,14 +379,11 @@ namespace Basis.Scripts.Avatar
                 rootRot = Mapping.HasAnimatorRoot ? Mapping.AnimatorRoot.rotation : Quaternion.identity;
             }
 
-            // The head is driven straight from the HMD with no tracker mounting offset, so its calibrated
-            // reference is pose-independent: the head effector offset is purely the avatar's head bind.
-            // Capturing it like a tracker — against the LIVE head rotation — baked the head's
-            // calibration-time pitch/roll into the offset. That's harmless for a level manual calibration
-            // (get-ready pose), but automatic calibration fires whenever the trackers announce or a
-            // SlimeVR reset lands — usually while you're looking down at the trackers — so the head sat
-            // rotated wrong afterward. An identity reference makes the head offset the bind exactly, which
-            // is what a perfectly level manual calibration already yields (so no manual regression).
+            // A control without a tracker has no mounting to calibrate: its reference is identity and the
+            // offset is the avatar's bind exactly — the same value the load path bakes. Capturing it against
+            // the LIVE control baked whatever the virtual spine held at trigger time (look-down pitch, torso
+            // yaw lag) into the offset, so the bone sat rotated wrong afterward. The head stays identity even
+            // under a Head-role HMD: it is worn on the eyes, not mounted.
             s_refHead = Quaternion.identity;
             s_refHips = CaptureCalibrationReference(BasisLocalBoneDriver.HipsControl, rootRot);
             s_refChest = CaptureCalibrationReference(BasisLocalBoneDriver.ChestControl, rootRot);
@@ -422,10 +419,19 @@ namespace Basis.Scripts.Avatar
             BasisLocalRigDriver.HasRecalibratedRotationOffsets = true;
         }
 
-        // Avatar-bind-independent calibration reference: Inverse(boneSimOutgoing) * AnimatorRoot.
+        // Avatar-bind-independent calibration reference: Inverse(boneSimOutgoing) * AnimatorRoot for a
+        // tracked control, identity (pure bind) for an untracked one.
         private static Quaternion CaptureCalibrationReference(BasisLocalBoneControl control, Quaternion animatorRootRot)
         {
-            return control != null ? Quaternion.Inverse(control.OutgoingWorldData.rotation) * animatorRootRot : Quaternion.identity;
+            return control != null ? EffectorReference(control.HasTracked == BasisHasTracked.HasTracker, control.OutgoingWorldData.rotation, animatorRootRot) : Quaternion.identity;
+        }
+        public static Quaternion EffectorReference(bool tracked, Quaternion controlWorldRotation, Quaternion anchorRotation)
+        {
+            return tracked ? Quaternion.Inverse(controlWorldRotation) * anchorRotation : Quaternion.identity;
+        }
+        public static Quaternion PureBind(Quaternion animatorRootInv, Transform avatarBone, BasisBoneTrackedRole role)
+        {
+            return OffsetFromReference(Quaternion.identity, animatorRootInv, avatarBone, role, Quaternion.identity);
         }
 
         // offset = reference * (avatar bone relative to its own animator root). On the calibration avatar this

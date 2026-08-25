@@ -26,7 +26,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
 
         [NonSerialized] internal int Index;
 
-        [SerializeField] public string name;
+        [SerializeField] public BasisBoneTrackedRole Role;
 
         [NonSerialized] public int TargetIndex = -1;
 

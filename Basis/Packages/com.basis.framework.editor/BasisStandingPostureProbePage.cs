@@ -117,7 +117,7 @@ namespace Basis.IK.Debugging
                 Row("IK head target", worldToLocal.MultiplyPoint3x4(rig.IKJob.targetPositionHead));
                 Row("IK hips target", worldToLocal.MultiplyPoint3x4(rig.IKJob.targetPositionHips));
                 sb.AppendLine($"crouchDepth {rig.IKJob.crouchDepth:F3} m   standingHeadHeight {rig.IKJob.standingHeadHeight:F3} m   " +
-                              $"hipsTracker {rig.IKJob.hasHipsTracker} chestTracker {rig.IKJob.hasChestTracker}");
+                              $"hipsTracker {rig.IKJob.plan.hipsTracked} chestTracker {rig.IKJob.plan.chestTracked}");
             }
 
             var de = BasisDesktopEye.Instance;

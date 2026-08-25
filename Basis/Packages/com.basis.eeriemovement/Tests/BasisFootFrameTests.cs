@@ -266,7 +266,6 @@ namespace Basis.Tests.IK
             Quaternion.Euler(-31f, 160f, 5f),
             Quaternion.Euler(3f, -120f, 44f),
         };
-        private static bool IsSentinel(Quaternion q) => q.x == 0f && q.y == 0f && q.z == 0f && q.w == 0f;
         [Test]
         public void FootTargetRotation_SurvivesTheSolvesOwnOffsetMultiply()
         {
@@ -274,8 +273,7 @@ namespace Basis.Tests.IK
             {
                 foreach (Quaternion offset in offsets)
                 {
-                    Quaternion target = BasisLocalRigDriver.SafeFootTargetRotation(bone, offset);
-                    Assert.IsFalse(IsSentinel(target), $"valid inputs must not degrade to the sentinel (offset={offset.eulerAngles})");
+                    Assert.IsTrue(BasisLocalRigDriver.TryFootTargetRotation(bone, offset, out Quaternion target), $"valid inputs must not be rejected (offset={offset.eulerAngles})");
 
                     // Exactly what SolveTwoBone does to the target we just handed it.
                     Quaternion solved = target * offset;
@@ -296,26 +294,26 @@ namespace Basis.Tests.IK
             Assert.Less(Quaternion.Angle(errorIntroduced, offset), 0.5f,"and the error introduced is precisely the calibration offset -- that is the double-offset signature");
         }
         [Test]
-        public void FootTargetRotation_DegenerateOffset_DegradesToSentinelNotNaN()
+        public void FootTargetRotation_DegenerateOffset_IsRejectedNotNaN()
         {
             Quaternion bone = Quaternion.Euler(12f, 47f, -8f);
 
             var zero = new Quaternion(0f, 0f, 0f, 0f);
             var nan = new Quaternion(float.NaN, float.NaN, float.NaN, float.NaN);
 
-            Assert.IsTrue(IsSentinel(BasisLocalRigDriver.SafeFootTargetRotation(bone, zero)),"a zero-quaternion offset (the serialized default) must fall back to the sentinel");
-            Assert.IsTrue(IsSentinel(BasisLocalRigDriver.SafeFootTargetRotation(bone, nan)),"a NaN offset must fall back to the sentinel -- this is the guard whose `<` form failed open");
+            Assert.IsFalse(BasisLocalRigDriver.TryFootTargetRotation(bone, zero, out _),"a zero-quaternion offset (the serialized default) must be rejected");
+            Assert.IsFalse(BasisLocalRigDriver.TryFootTargetRotation(bone, nan, out _),"a NaN offset must be rejected -- this is the guard whose `<` form failed open");
         }
         [Test]
-        public void FootTargetRotation_DegenerateFootRotation_DegradesToSentinelNotNaN()
+        public void FootTargetRotation_DegenerateFootRotation_IsRejectedNotNaN()
         {
             Quaternion offset = Quaternion.Euler(-73f, 14f, 122f);
 
             var zero = new Quaternion(0f, 0f, 0f, 0f);
             var nan = new Quaternion(float.NaN, float.NaN, float.NaN, float.NaN);
 
-            Assert.IsTrue(IsSentinel(BasisLocalRigDriver.SafeFootTargetRotation(zero, offset)),"a zero foot rotation must fall back to the sentinel");
-            Assert.IsTrue(IsSentinel(BasisLocalRigDriver.SafeFootTargetRotation(nan, offset)),"a NaN foot rotation must fall back to the sentinel");
+            Assert.IsFalse(BasisLocalRigDriver.TryFootTargetRotation(zero, offset, out _),"a zero foot rotation must be rejected");
+            Assert.IsFalse(BasisLocalRigDriver.TryFootTargetRotation(nan, offset, out _),"a NaN foot rotation must be rejected");
         }
     }
 }

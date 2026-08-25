@@ -138,7 +138,7 @@ namespace Basis.Scripts.Drivers
                 ClipHipsOffset = poseBake.ClipHipsOffset,
                 ClipSampleCount = poseBake.ClipSampleCount,
                 ClipLength = poseBake.ClipLength,
-                RestPositions = rig.PoseSkeleton.RestLocalPosition,
+                RestPositions = rig.PoseSkeleton.Stream.RestLocalPosition,
                 NodeCount = poseBake.NodeCount,
                 HipsNode = poseBake.HipsNode,
                 OutLocalPosition = rig.PoseSkeleton.Stream.LocalPosition,

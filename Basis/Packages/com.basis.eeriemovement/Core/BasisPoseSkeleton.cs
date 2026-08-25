@@ -11,7 +11,6 @@ namespace Basis.IK
         public Transform[] Nodes = Array.Empty<Transform>();
         public int[] WriteIndices = Array.Empty<int>();
         public Transform Anchor;
-        public NativeArray<float3> RestLocalPosition;
         public float[] FitScale = Array.Empty<float>();
         public bool FitActive;
         float3[] authoredLocalPosition = Array.Empty<float3>();
@@ -66,6 +65,9 @@ namespace Basis.IK
                 Parent = new NativeArray<int>(count, Allocator.Persistent),
                 BindLength = new NativeArray<float>(count, Allocator.Persistent),
                 TranslationFree = new NativeArray<byte>(count, Allocator.Persistent),
+                RestLocalRotation = new NativeArray<quaternion>(count, Allocator.Persistent),
+                RestLocalPosition = new NativeArray<float3>(count, Allocator.Persistent),
+                RestLocalScale = new NativeArray<float3>(count, Allocator.Persistent),
                 WorldPositionCache = new NativeArray<float3>(count, Allocator.Persistent),
                 WorldRotationCache = new NativeArray<quaternion>(count, Allocator.Persistent),
                 WorldScaleCache = new NativeArray<float3>(count, Allocator.Persistent),
@@ -73,7 +75,6 @@ namespace Basis.IK
                 Count = count,
             };
             Stream.WorldCacheStamp[count] = 1;
-            RestLocalPosition = new NativeArray<float3>(count, Allocator.Persistent);
             FitScale = new float[count];
             authoredLocalPosition = new float3[count];
 
@@ -95,14 +96,16 @@ namespace Basis.IK
                 float rotationLengthSq = math.lengthsq(localRotation.value);
                 float3 localScale = node.localScale;
                 authoredLocalPosition[i] = authored;
-                RestLocalPosition[i] = authored;
+                Stream.RestLocalPosition[i] = authored;
                 FitScale[i] = 1f;
                 Stream.Parent[i] = parent;
                 Stream.BindLength[i] = math.length(authored);
                 Stream.TranslationFree[i] = (byte)(parent < 0 ? 1 : 0);
                 Stream.LocalPosition[i] = authored;
                 Stream.LocalRotation[i] = math.isfinite(rotationLengthSq) && rotationLengthSq > 1e-8f ? localRotation : quaternion.identity;
+                Stream.RestLocalRotation[i] = Stream.LocalRotation[i];
                 Stream.LocalScale[i] = math.all(math.isfinite(localScale)) ? localScale : new float3(1f);
+                Stream.RestLocalScale[i] = Stream.LocalScale[i];
             }
             if (nonFinite > 0)
             {
@@ -142,7 +145,7 @@ namespace Basis.IK
             float safe = scale > 0f && math.isfinite(scale) ? scale : 1f;
             float3 fitted = authoredLocalPosition[index] * safe;
             FitScale[index] = safe;
-            RestLocalPosition[index] = math.all(math.isfinite(fitted)) ? fitted : float3.zero;
+            Stream.RestLocalPosition[index] = math.all(math.isfinite(fitted)) ? fitted : float3.zero;
             Stream.BindLength[index] = math.length(authoredLocalPosition[index]) * safe;
             if (!Mathf.Approximately(safe, 1f))
             {
@@ -154,7 +157,7 @@ namespace Basis.IK
             for (int i = 0; i < FitScale.Length; i++)
             {
                 FitScale[i] = 1f;
-                RestLocalPosition[i] = authoredLocalPosition[i];
+                Stream.RestLocalPosition[i] = authoredLocalPosition[i];
                 Stream.BindLength[i] = math.length(authoredLocalPosition[i]);
             }
             FitActive = false;
@@ -169,7 +172,7 @@ namespace Basis.IK
             {
                 if (!Mathf.Approximately(FitScale[i], 1f))
                 {
-                    Stream.LocalPosition[i] = RestLocalPosition[i];
+                    Stream.LocalPosition[i] = Stream.RestLocalPosition[i];
                 }
             }
             Stream.InvalidateWorldCache();
@@ -180,13 +183,13 @@ namespace Basis.IK
             {
                 return;
             }
-            RestLocalPosition.CopyTo(Stream.LocalPosition);
+            Stream.RestLocalPosition.CopyTo(Stream.LocalPosition);
             for (int i = 0; i < WriteIndices.Length; i++)
             {
                 int index = WriteIndices[i];
                 if (Nodes[index] != null)
                 {
-                    Nodes[index].localPosition = RestLocalPosition[index];
+                    Nodes[index].localPosition = Stream.RestLocalPosition[index];
                 }
             }
             Stream.InvalidateWorldCache();
@@ -263,11 +266,13 @@ namespace Basis.IK
             Stream.Parent.Dispose();
             Stream.BindLength.Dispose();
             Stream.TranslationFree.Dispose();
+            Stream.RestLocalRotation.Dispose();
             Stream.WorldPositionCache.Dispose();
             Stream.WorldRotationCache.Dispose();
             Stream.WorldScaleCache.Dispose();
             Stream.WorldCacheStamp.Dispose();
-            RestLocalPosition.Dispose();
+            Stream.RestLocalPosition.Dispose();
+            Stream.RestLocalScale.Dispose();
             Stream = default;
             Nodes = Array.Empty<Transform>();
             WriteIndices = Array.Empty<int>();

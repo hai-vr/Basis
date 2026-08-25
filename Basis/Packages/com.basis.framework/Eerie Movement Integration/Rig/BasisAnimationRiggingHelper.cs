@@ -1,3 +1,4 @@
+using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
@@ -6,10 +7,6 @@ using UnityEngine;
 using Basis.IK;
 public static class BasisAnimationRiggingHelper
 {
-    public static Quaternion CalibratedRotationOffset(BasisLocalBoneControl control, Transform animatorRoot, Transform avatarBone)
-    {
-        return CalibratedRotationOffset(control.OutgoingWorldData.rotation, avatarBone.rotation);
-    }
     public static Quaternion CalibratedRotationOffset(Quaternion boneOutgoingWorldRotation, Quaternion avatarBoneRotation)
     {
         return Quaternion.Inverse(boneOutgoingWorldRotation) * avatarBoneRotation;
@@ -19,10 +16,10 @@ public static class BasisAnimationRiggingHelper
         BasisEerieMovementSetup.SetDefaultValues(ref job);
 
         Quaternion avatarRootInv = Quaternion.Inverse(player.AvatarTransform.rotation);
-        job.offsetRotationHead = Mapping.Hashead ? avatarRootInv * Mapping.head.rotation : Quaternion.identity;
+        job.offsetRotationHead = Mapping.Hashead ? BasisAvatarIKStageCalibration.PureBind(avatarRootInv, Mapping.head, BasisBoneTrackedRole.Head) : Quaternion.identity;
 
-        job.offsetRotationLeftFoot = Mapping.HasleftFoot ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftFootControl, Mapping.AnimatorRoot, Mapping.leftFoot) : Quaternion.identity;
-        job.offsetRotationRightFoot = Mapping.HasrightFoot ? CalibratedRotationOffset(BasisLocalBoneDriver.RightFootControl, Mapping.AnimatorRoot, Mapping.rightFoot) : Quaternion.identity;
+        job.offsetRotationLeftFoot = Mapping.HasleftFoot ? BasisAvatarIKStageCalibration.PureBind(avatarRootInv, Mapping.leftFoot, BasisBoneTrackedRole.LeftFoot) : Quaternion.identity;
+        job.offsetRotationRightFoot = Mapping.HasrightFoot ? BasisAvatarIKStageCalibration.PureBind(avatarRootInv, Mapping.rightFoot, BasisBoneTrackedRole.RightFoot) : Quaternion.identity;
 
         Quaternion leftLandmarkBind = Quaternion.identity;
         Quaternion rightLandmarkBind = Quaternion.identity;
@@ -53,14 +50,14 @@ public static class BasisAnimationRiggingHelper
         job.offsetRotationLeftHand = Quaternion.Inverse(leftLandmarkBind) * leftBoneBind;
         job.offsetRotationRightHand = Quaternion.Inverse(rightLandmarkBind) * rightBoneBind;
 
-        job.offsetRotationChest = Mapping.Haschest ? avatarRootInv * Mapping.chest.rotation : Quaternion.identity;
-        job.offsetRotationLeftToe = Mapping.HasleftToes ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftToeControl, Mapping.AnimatorRoot, Mapping.leftToe) : Quaternion.identity;
-        job.offsetRotationRightToe = Mapping.HasrightToes ? CalibratedRotationOffset(BasisLocalBoneDriver.RightToeControl, Mapping.AnimatorRoot, Mapping.rightToe) : Quaternion.identity;
+        job.offsetRotationChest = Mapping.Haschest ? BasisAvatarIKStageCalibration.PureBind(avatarRootInv, Mapping.chest, BasisBoneTrackedRole.Chest) : Quaternion.identity;
+        job.offsetRotationLeftToe = Mapping.HasleftToes ? BasisAvatarIKStageCalibration.PureBind(avatarRootInv, Mapping.leftToe, BasisBoneTrackedRole.LeftToes) : Quaternion.identity;
+        job.offsetRotationRightToe = Mapping.HasrightToes ? BasisAvatarIKStageCalibration.PureBind(avatarRootInv, Mapping.rightToe, BasisBoneTrackedRole.RightToes) : Quaternion.identity;
 
-        job.offsetRotationLeftShoulder = Mapping.HasleftShoulder ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftShoulderControl, Mapping.AnimatorRoot, Mapping.leftShoulder) : Quaternion.identity;
-        job.offsetRotationRightShoulder = Mapping.HasRightShoulder ? CalibratedRotationOffset(BasisLocalBoneDriver.RightShoulderControl, Mapping.AnimatorRoot, Mapping.RightShoulder) : Quaternion.identity;
+        job.offsetRotationLeftShoulder = Mapping.HasleftShoulder ? BasisAvatarIKStageCalibration.PureBind(avatarRootInv, Mapping.leftShoulder, BasisBoneTrackedRole.LeftShoulder) : Quaternion.identity;
+        job.offsetRotationRightShoulder = Mapping.HasRightShoulder ? BasisAvatarIKStageCalibration.PureBind(avatarRootInv, Mapping.RightShoulder, BasisBoneTrackedRole.RightShoulder) : Quaternion.identity;
 
-        job.offsetRotationHips = Mapping.HasHips ? avatarRootInv * Mapping.Hips.rotation : Quaternion.identity;
+        job.offsetRotationHips = Mapping.HasHips ? BasisAvatarIKStageCalibration.PureBind(avatarRootInv, Mapping.Hips, BasisBoneTrackedRole.Hips) : Quaternion.identity;
 
         if (BasisCalibrationDebugRecorder.Enabled)
         {

@@ -68,6 +68,17 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void SanitizeDropsAnUnknownAimPoint()
+        {
+            BasisCameraModifierStack stack = new BasisCameraModifierStack();
+            stack.subject.aimPoint = (BasisCameraAimPoint)99;
+
+            stack.Sanitize();
+
+            Assert.That(stack.subject.aimPoint, Is.EqualTo(BasisCameraAimPoint.Normal));
+        }
+
+        [Test]
         public void SanitizeDropsDuplicateAndUnknownEffects()
         {
             BasisCameraModifierStack stack = new BasisCameraModifierStack();
@@ -148,6 +159,7 @@ namespace Basis.Tests.Camera
             Action<BasisCameraModifierStack>[] perturbations =
             {
                 s => s.subject.modifier = BasisCameraSubjectModifier.FixedPoint,
+                s => s.subject.aimPoint = BasisCameraAimPoint.FullBody,
                 s => s.subject.anchorToBody = !s.subject.anchorToBody,
                 s => s.subject.groupIncludesLocal = !s.subject.groupIncludesLocal,
                 s => s.subject.aimHeightOffset += 1f,
@@ -266,6 +278,8 @@ namespace Basis.Tests.Camera
                 Is.EqualTo(Enum.GetValues(typeof(BasisCameraEffectModifier)).Length));
             Assert.That(BasisCameraModifiers.SubjectModifiers.Length,
                 Is.EqualTo(Enum.GetValues(typeof(BasisCameraSubjectModifier)).Length));
+            Assert.That(BasisCameraModifiers.AimPoints.Length,
+                Is.EqualTo(Enum.GetValues(typeof(BasisCameraAimPoint)).Length));
         }
 
         [Test]

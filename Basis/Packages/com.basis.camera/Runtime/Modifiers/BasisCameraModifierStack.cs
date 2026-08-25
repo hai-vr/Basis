@@ -177,6 +177,10 @@ namespace Basis.Cinematics
             {
                 subject.modifier = BasisCameraSubjectModifier.FollowPlayer;
             }
+            if (!Enum.IsDefined(typeof(BasisCameraAimPoint), subject.aimPoint))
+            {
+                subject.aimPoint = BasisCameraAimPoint.Normal;
+            }
             subject.framingRadius = Mathf.Max(0.05f, subject.framingRadius);
 
             if (!Enum.IsDefined(typeof(BasisCameraPositionModifier), positionModifier))
@@ -401,7 +405,7 @@ namespace Basis.Cinematics
         private static bool Near(Vector3 a, Vector3 b) => Near(a.x, b.x) && Near(a.y, b.y) && Near(a.z, b.z);
 
         private static bool MatchesSubject(in BasisCameraSubjectSettings a, in BasisCameraSubjectSettings b)
-            => a.modifier == b.modifier && a.anchorToBody == b.anchorToBody &&
+            => a.modifier == b.modifier && a.aimPoint == b.aimPoint && a.anchorToBody == b.anchorToBody &&
                a.groupIncludesLocal == b.groupIncludesLocal &&
                Near(a.aimHeightOffset, b.aimHeightOffset) && Near(a.framingRadius, b.framingRadius) &&
                Near(a.fixedPoint, b.fixedPoint);

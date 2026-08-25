@@ -287,22 +287,39 @@ namespace Basis.Tests.Calibration
         }
 
         /// <summary>
-        /// The lift-poison guard, pinned on the exact pair recovered from a poisoned install: a saved
-        /// eye of 1.992 m against a span of 1.507 m is anatomically impossible (that span implies a
-        /// ~1.5 m body) — it is a calibration taken while vertically shifted and must never persist.
-        /// Honest short-armed players stay inside the band.
+        /// The lift-poison guard is an absolute ceiling on the eye, never a ratio against the span. The
+        /// first field pair (eye 1.992 / span 1.507) is a 2.14 m body and must be flagged; the second
+        /// (eye 1.578 / span 1.182) is a 1.70 m player whose reach was measured with bent arms — there
+        /// the SPAN is the suspect, and shrinking the eye to match it booted them as a 1.1 m player.
         /// </summary>
         [Test]
         public void LiftPoisonGuard_CatchesTheImpossibleEye_AndSparesRealBodies()
         {
-            Assert.IsTrue(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.992f, 1.507f),
-                "the field-recovered poisoned pair (eye 1.992 / span 1.507) must be flagged");
-            Assert.IsFalse(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.60f, 1.50f),
+            Assert.IsTrue(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.992f),
+                "the field-recovered poisoned eye (1.992 m) must be flagged");
+            Assert.IsFalse(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.578f),
+                "a 1.70 m player's eye must survive a bent-arm saved span");
+            Assert.IsFalse(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.60f),
+                "a normal eye must not be flagged");
+            Assert.IsTrue(BasisCalibrationMath.ArmSpanLooksUnderMeasured(1.578f, 1.182f),
+                "in that pair the span is the suspect");
+            Assert.IsFalse(BasisCalibrationMath.ArmSpanLooksUnderMeasured(1.60f, 1.50f),
                 "a short-armed but honest body must not be flagged");
-            Assert.IsFalse(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.50f, 1.55f),
+            Assert.IsFalse(BasisCalibrationMath.ArmSpanLooksUnderMeasured(1.50f, 1.55f),
                 "a normal body must not be flagged");
-            Assert.IsFalse(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.60f, 0f),
+            Assert.IsFalse(BasisCalibrationMath.ArmSpanLooksUnderMeasured(1.60f, 0f),
                 "no span measurement, no verdict");
+        }
+
+        [Test]
+        public void EffectorReference_UntrackedIsPureBind_TrackedLandsOnTheAnchoredBind()
+        {
+            Quaternion anchor = Quaternion.Euler(0f, 35f, 0f), liveControl = Quaternion.Euler(20f, 50f, 5f), bind = Quaternion.Euler(3f, 0f, -90f);
+            Assert.AreEqual(Quaternion.identity, BasisAvatarIKStageCalibration.EffectorReference(false, liveControl, anchor),
+                "an untracked control carries no mounting: identity reference, so offset == bind, the same value the load path bakes");
+            Quaternion offset = BasisAvatarIKStageCalibration.EffectorReference(true, liveControl, anchor) * bind;
+            Assert.Less(Quaternion.Angle(liveControl * offset, anchor * bind), 0.01f,
+                "a tracked control's offset puts the bone on the head-anchored T-pose bind at the calibration instant");
         }
 
         /// <summary>

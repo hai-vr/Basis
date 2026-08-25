@@ -324,6 +324,7 @@ namespace Basis.Tests.Camera
             stack.rigWeight.bounce = 0.7f;
 
             stack.subject.modifier = BasisCameraSubjectModifier.TargetGroup;
+            stack.subject.aimPoint = BasisCameraAimPoint.Head;
             stack.subject.anchorToBody = false;
             stack.subject.aimHeightOffset = -0.35f;
             stack.subject.framingRadius = 0.8f;

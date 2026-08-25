@@ -38,8 +38,6 @@ namespace Basis.Scripts.Drivers
             public Vector3 HiddenScale;
         }
 
-        public static bool HasTPoseEvent = false;
-
         public static BasisLocalAvatarDriver Instance;
 
         public static bool IsNormalHead;
@@ -74,11 +72,8 @@ namespace Basis.Scripts.Drivers
             BasisCalibrationDebugRecorder.Begin(SafeAvatarLabel(player));
             RecordCalibrationMeta(player);
             RecordCalibrationStage("Spawn", player);
-            if (HasTPoseEvent == false)
-            {
-                TposeStateChange += player.LocalRigDriver.OnTPose;
-                HasTPoseEvent = true;
-            }
+            TposeStateChange -= player.LocalRigDriver.OnTPose;
+            TposeStateChange += player.LocalRigDriver.OnTPose;
             if (IsAble())
             {
                 // BasisDebug.Log("LocalCalibration Underway");
@@ -182,13 +177,10 @@ namespace Basis.Scripts.Drivers
             CaptureTposeBoneSnapshot();
 
             player.AvatarTransform.rotation = player.transform.rotation;
+            CalculateTransformPositions(player, player.LocalBoneDriver);
+            ComputeOffsets(player.LocalBoneDriver);
             player.LocalBoneDriver.SimulateAndApplyWithoutLerp(player);
             player.LocalRigDriver.SetBodySettings();
-
-
-            CalculateTransformPositions(player, player.LocalBoneDriver);
-
-            ComputeOffsets(player.LocalBoneDriver);
 
             player.BasisLocalFootDriver.InitializeVariables();
 

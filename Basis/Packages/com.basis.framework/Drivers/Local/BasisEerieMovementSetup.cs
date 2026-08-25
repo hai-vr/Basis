@@ -9,24 +9,15 @@ namespace Basis.Scripts.Drivers
     {
         public static void SetDefaultValues(ref BasisEerieMovement job)
         {
-            job.hasChestTracker = true;
-            job.hintWeightLeftLowerLeg = job.hintWeightRightLowerLeg = 1f;
-            job.enabledSpineIK = true;
-            job.hasHipsTracker = false;
-            job.footIsTrackerLeftLeg = job.footIsTrackerRightLeg = false;
-            job.enabledLeftLowerLeg = job.enabledRightLowerLeg = 1f;
-            job.hintIsTrackerLeftLowerLeg = job.hintIsTrackerRightLowerLeg = false;
             job.ikLockMode = BasisIKLockMode.LockHead;
 
-            job.hintWeightLeftHand = job.hintWeightRightHand = true;
-            job.enabledLeftHand = job.enabledRightHand = 1f;
-            job.enabledLeftShoulder = job.enabledRightShoulder = false;
             job.offsetRotationHead = job.offsetRotationLeftFoot = job.offsetRotationRightFoot = Quaternion.identity;
             job.offsetRotationLeftHand = job.offsetRotationRightHand = Quaternion.identity;
             job.tposeLeftLowerArmTwistBind = job.tposeLeftLowerArmChildBind = Quaternion.identity;
             job.tposeRightLowerArmTwistBind = job.tposeRightLowerArmChildBind = Quaternion.identity;
             job.tposeLeftUpperArmTwistBind = job.tposeLeftUpperArmChildBind = Quaternion.identity;
             job.tposeRightUpperArmTwistBind = job.tposeRightUpperArmChildBind = Quaternion.identity;
+            job.tposeArmFitScale = job.tposeTorsoFitScale = 1f;
 
             job.playerUp = Vector3.up;
 
@@ -42,8 +33,6 @@ namespace Basis.Scripts.Drivers
             job.offsetRotationHips = Quaternion.identity;
 
             job.leftDrivenTargetRot = job.rightDrivenTargetRot = Quaternion.identity;
-            job.leftToeEnabled = false;
-            job.rightToeEnabled = false;
 
             job.chestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue;
             job.collisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue;
@@ -214,6 +203,7 @@ namespace Basis.Scripts.Drivers
             job.tposeRightUpperArmChildBind = BindLocal(Mapping.RightUpperArm, Mapping.RightLowerArm);
 
             GenerateHeadToSpine(ref job, skeleton, Mapping);
+            job.tposeArmFitScale = job.tposeTorsoFitScale = 1f;
             job.spineMaxIterations = 20;
             job.spineTolerance = 0.001f;
             job.chestSpring = new NativeArray<BasisChestSpringState>(1, Allocator.Persistent);
@@ -221,6 +211,7 @@ namespace Basis.Scripts.Drivers
             job.armState = new NativeArray<BasisArmSlotState>(BasisEerieMovement.swingCount, Allocator.Persistent);
             job.legState = new NativeArray<BasisLegSlotState>(2, Allocator.Persistent);
             job.legDiagnostics = new NativeArray<BasisLegDiagnostics>(2, Allocator.Persistent);
+            BasisEeriePlanner.Bind(ref job);
         }
         static void BuildSpineAnatomy(ref BasisEerieMovement job, Transform[] chain, BasisTransformMapping Mapping)
         {

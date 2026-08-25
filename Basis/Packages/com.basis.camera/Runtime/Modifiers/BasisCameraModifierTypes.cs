@@ -38,6 +38,13 @@ namespace Basis.Cinematics
         None = 3,
     }
 
+    public enum BasisCameraAimPoint
+    {
+        Normal = 0,
+        Head = 1,
+        FullBody = 2,
+    }
+
     /// <summary>How the dolly modifier decides where along its track the camera sits.</summary>
     public enum BasisCameraDollyMode
     {
@@ -148,6 +155,13 @@ namespace Basis.Cinematics
             BasisCameraSubjectModifier.None,
         };
 
+        public static readonly BasisCameraAimPoint[] AimPoints =
+        {
+            BasisCameraAimPoint.Normal,
+            BasisCameraAimPoint.Head,
+            BasisCameraAimPoint.FullBody,
+        };
+
         public static readonly BasisCameraPositionModifier[] PositionModifiers =
         {
             BasisCameraPositionModifier.FreeFly,
@@ -212,6 +226,16 @@ namespace Basis.Cinematics
                 case BasisCameraSubjectModifier.FixedPoint: return "camera.modifier.fixedPoint";
                 case BasisCameraSubjectModifier.None: return "camera.modifier.noSubject";
                 default: return "camera.modifier.followPlayer";
+            }
+        }
+
+        public static string NameKey(BasisCameraAimPoint aim)
+        {
+            switch (aim)
+            {
+                case BasisCameraAimPoint.Head: return "camera.aimPoint.head";
+                case BasisCameraAimPoint.FullBody: return "camera.aimPoint.fullBody";
+                default: return "camera.aimPoint.normal";
             }
         }
 
