@@ -73,6 +73,11 @@
             "name": "jp.keijiro.klak.syphon",
             "expression": "",
             "define": "BASIS_HAS_SYPHON"
+        },
+        {
+            "name": "com.jiaozi158.unityssgiurp",
+            "expression": "",
+            "define": "BASIS_HAS_SSGI"
         }
     ],
     "noEngineReferences": false

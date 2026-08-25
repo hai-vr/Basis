@@ -29,6 +29,12 @@
     "defineConstraints": [
         "UNITY_INCLUDE_TESTS"
     ],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.jiaozi158.unityssgiurp",
+            "expression": "",
+            "define": "BASIS_HAS_SSGI"
+        }
+    ],
     "noEngineReferences": false
 }

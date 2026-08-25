@@ -1759,6 +1759,7 @@ namespace Basis.BasisUI
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(qualityToggle, qualityGroup, true,
                 _ => descriptor.ForceRebuild());
 
+#if BASIS_HAS_SSGI && !UNITY_ANDROID
             PanelSectionToggle ssgiToggle = PanelSectionToggle.CreateNewEntry(container);
             PanelElementDescriptor ssgiGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
                 ssgiToggle,
@@ -1877,6 +1878,7 @@ namespace Basis.BasisUI
 
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(ssgiToggle, ssgiGroup, true,
                 _ => descriptor.ForceRebuild());
+#endif
 
             PanelSectionToggle renderingToggle = PanelSectionToggle.CreateNewEntry(container);
             PanelElementDescriptor renderingGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
@@ -3134,6 +3136,7 @@ namespace Basis.BasisUI
                 toggleVrsDesktop.AssignBinding(BasisSettingsDefaults.DevVariableRateShadingDesktop);
             }
 
+#if BASIS_HAS_SSGI && !UNITY_ANDROID
             PanelDropdown dropdownSsgiDebug = PanelDropdown.CreateNewEntry(container);
             dropdownSsgiDebug.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.ssgiDebug"));
             dropdownSsgiDebug.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.ssgiDebug.tooltip"));
@@ -3141,6 +3144,7 @@ namespace Basis.BasisUI
                 new List<string> { "Off", "Indirect Light", "GI Contribution", "GBuffer Albedo", "GBuffer Normals" },
                 new List<string> { "ui.option.off", "settings.developer.ssgiDebug.indirect", "settings.developer.ssgiDebug.contribution", "settings.developer.ssgiDebug.albedo", "settings.developer.ssgiDebug.normals" });
             dropdownSsgiDebug.AssignBinding(BasisSettingsDefaults.DevSsgiDebugView);
+#endif
 
             PanelToggle togglePrewarm = PanelToggle.CreateNewEntry(container);
             togglePrewarm.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.shaderPrewarm"));

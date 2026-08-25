@@ -1,3 +1,7 @@
+// Screen space global illumination is optional: the define comes from the
+// com.jiaozi158.unityssgiurp package being present (asmdef versionDefines), and the effect is
+// not viable on mobile GPUs, so the whole integration compiles out on Android.
+#if BASIS_HAS_SSGI && !UNITY_ANDROID
 using System;
 using Basis.BasisUI;
 using Basis.Scripts.Drivers;
@@ -500,3 +504,4 @@ namespace Basis.Tests.Graphics
         }
     }
 }
+#endif

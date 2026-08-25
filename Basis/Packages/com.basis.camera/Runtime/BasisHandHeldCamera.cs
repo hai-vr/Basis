@@ -368,7 +368,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     public new async void OnDestroy()
     {
+#if BASIS_HAS_SSGI && !UNITY_ANDROID
         SMModuleScreenSpaceGlobalIlluminationURP.UnregisterCamera(captureCamera);
+#endif
         // Notify network that PIP camera was destroyed
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
@@ -488,7 +490,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         CameraData.volumeLayerMask = 1 << volume.gameObject.layer;
         CameraData.volumeTrigger = volume.transform;
         CameraData.renderPostProcessing = true;
+#if BASIS_HAS_SSGI && !UNITY_ANDROID
         SMModuleScreenSpaceGlobalIlluminationURP.RegisterCamera(captureCamera);
+#endif
     }
 
     private Volume FindPostProcessingVolume()
@@ -1219,14 +1223,18 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisLocalAvatarDriver.ScaleHeadToNormal();
         ToggleToneMapping(CaptureTonemapping);
 
+#if BASIS_HAS_SSGI && !UNITY_ANDROID
         SMModuleScreenSpaceGlobalIlluminationURP.BeginCapture(captureCamera);
+#endif
         try
         {
             captureCamera.Render();
         }
         finally
         {
+#if BASIS_HAS_SSGI && !UNITY_ANDROID
             SMModuleScreenSpaceGlobalIlluminationURP.EndCapture();
+#endif
         }
 
         BasisHandHeldCameraPhotoMetadata.PhotoMetadata photoMetadata = BasisHandHeldCameraPhotoMetadata.CollectMetadata(captureCamera, transform);
