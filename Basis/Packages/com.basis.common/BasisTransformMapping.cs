@@ -561,14 +561,14 @@ namespace Basis.Scripts.Common
         }
 
         // All captured bones (skip missing/null)
-        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeFromRoot = new Dictionary<HumanBodyBones, BasisCalibratedCoords>((int)HumanBodyBones.LastBone, HumanBodyBonesComparer.Instance);
-        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeLocal = new Dictionary<HumanBodyBones, BasisCalibratedCoords>((int)HumanBodyBones.LastBone, HumanBodyBonesComparer.Instance);
+        [NonSerialized] public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeFromRoot = new Dictionary<HumanBodyBones, BasisCalibratedCoords>((int)HumanBodyBones.LastBone, HumanBodyBonesComparer.Instance);
+        [NonSerialized] public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeLocal = new Dictionary<HumanBodyBones, BasisCalibratedCoords>((int)HumanBodyBones.LastBone, HumanBodyBonesComparer.Instance);
         /// <summary>
         /// Root-relative positions at world scale (no division by localScale).
         /// Unlike TposeFromRoot which uses InverseTransformPoint (divides by scale),
         /// these give correct meter values regardless of the avatar root's localScale.
         /// </summary>
-        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeWorld = new Dictionary<HumanBodyBones, BasisCalibratedCoords>((int)HumanBodyBones.LastBone, HumanBodyBonesComparer.Instance);
+        [NonSerialized] public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeWorld = new Dictionary<HumanBodyBones, BasisCalibratedCoords>((int)HumanBodyBones.LastBone, HumanBodyBonesComparer.Instance);
         public Quaternion RootRotation; // rotation during calibration
         public Vector3 RootPosition;
         /// <summary>

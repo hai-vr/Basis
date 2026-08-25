@@ -781,6 +781,7 @@ public partial class BasisHandHeldCameraUI
             flyTurnSpeed = HHC != null ? HHC.vrFlyTurnSpeed : baseline.flyTurnSpeed,
             flyMouseSensitivity = HHC != null ? HHC.mouseSensitivity : baseline.flyMouseSensitivity,
             flyMomentum = HHC == null || HHC.useMomentum,
+            showFlyOnMainMenu = HHC != null && HHC.showFlyOnMainMenu,
             resizeWithGesture = HHC != null ? HHC.ResizeWithGesture : baseline.resizeWithGesture,
             printPhoto = HHC != null && HHC.printPhotoEnabled,
             gifDurationSeconds = HHC != null ? HHC.GifDurationSeconds : baseline.gifDurationSeconds,
@@ -1226,6 +1227,7 @@ public partial class BasisHandHeldCameraUI
         HHC.SetFlyTurnSpeed(settings.flyTurnSpeed);
         HHC.SetFlyMouseSensitivity(settings.flyMouseSensitivity);
         HHC.useMomentum = settings.flyMomentum;
+        HHC.SetShowFlyOnMainMenu(settings.showFlyOnMainMenu);
         HHC.SetResizeWithGesture(settings.resizeWithGesture);
         HHC.printPhotoEnabled = settings.printPhoto;
 

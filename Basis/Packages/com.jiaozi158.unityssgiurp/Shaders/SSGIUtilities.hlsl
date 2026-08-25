@@ -370,6 +370,10 @@ void SSGIReadSurfaceAlbedoMetallic(float2 screenUV, out half3 albedo, out half m
 // Guards the division below. The result is bounded by the assumed albedo anyway, so this only avoids dividing by zero.
 #define SSGI_IMPLIED_ALBEDO_MIN_AMBIENT 1e-4
 
+// No real surface reflects more than it receives, and the target the albedo is written to cannot hold more than this
+// anyway, so a channel above it is clipped rather than represented.
+#define SSGI_IMPLIED_ALBEDO_MAX_CHANNEL 1.0
+
 // Most a guessed bounce may add to a pixel, as a multiple of the light the pixel already stands in. Bounding it by the
 // pixel's own colour alone is wrong next to a bright source: a dark surface beside a neon sign legitimately gains many
 // times its own brightness, and capping there is what stopped emissive surfaces from reading as light. The bound is the
@@ -393,9 +397,15 @@ half3 SSGIImpliedAlbedo(half3 color, half3 ambientLighting)
     // Scaling the whole estimate down by its luminance instead keeps the hue and saturation and only bounds the
     // brightness, the same way the ray clamp bounds a firefly. The bound the removal relies on survives, because the
     // scale is never above 1 and implied * ambient is the pixel's colour by construction.
+    // Two bounds, and the tighter one wins so the scale stays uniform and the hue is untouched. Luminance alone is
+    // not enough: on a saturated surface one channel carries nearly all of it, so bounding the luminance at 0.1 can
+    // still leave a channel above 1. That is not a physical albedo, it clips in the target it is written to, and it
+    // shows up as a blown out colour cast on exactly the most saturated surfaces.
     half impliedLuminance = Luminance(implied);
-    half scale = min(1.0, _SSGIFallbackAlbedo * rcp(max(impliedLuminance, SSGI_IMPLIED_ALBEDO_MIN_AMBIENT)));
-    return implied * scale;
+    half impliedMaxChannel = Max3(implied.r, implied.g, implied.b);
+    half scale = min(_SSGIFallbackAlbedo * rcp(max(impliedLuminance, SSGI_IMPLIED_ALBEDO_MIN_AMBIENT)),
+                     SSGI_IMPLIED_ALBEDO_MAX_CHANNEL * rcp(max(impliedMaxChannel, SSGI_IMPLIED_ALBEDO_MIN_AMBIENT)));
+    return implied * min(1.0, scale);
 }
 
 // Bounds what a guessed albedo can do to a pixel. GBuffer surfaces carry a real albedo and are left alone; fallback surfaces

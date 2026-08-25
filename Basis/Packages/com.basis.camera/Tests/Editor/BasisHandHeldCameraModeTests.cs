@@ -306,7 +306,7 @@ namespace Basis.Tests.Camera
         private static readonly string[] PersistedFlySettings =
         {
             "flySpeed", "flyClimbSpeed", "flyFastMultiplier", "flyTurnSpeed", "flyMouseSensitivity",
-            "flyMomentum",
+            "flyMomentum", "showFlyOnMainMenu",
         };
 
         [Test]
@@ -318,7 +318,7 @@ namespace Basis.Tests.Camera
                 typeof(BasisHandHeldCameraUI.CameraSettings).GetFields(
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance),
                 Has.None.Matches<System.Reflection.FieldInfo>(f => f.Name.ToLowerInvariant().Contains("fly") && System.Array.IndexOf(PersistedFlySettings, f.Name) < 0),
-                "Fly mode is per-session state, not a saved setting; the speeds it flies and turns at, and whether it glides to a stop, are.");
+                "Fly mode is per-session state, not a saved setting; the speeds it flies and turns at, whether it glides to a stop, and whether the hotbar carries a switch for it, are.");
         }
 
         [Test]

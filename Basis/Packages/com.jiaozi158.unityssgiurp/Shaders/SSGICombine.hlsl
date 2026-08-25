@@ -2,6 +2,7 @@
 #define URP_SCREEN_SPACE_GLOBAL_ILLUMINATION_COMBINE_HLSL
 
 #include "./SSGIUtilities.hlsl"
+#include "./SSGIDenoise.hlsl"
 
 // Shared by both combine passes, so the upscale and the debug views exist once rather than once per blend mode.
 
@@ -130,21 +131,39 @@ half3 SSGIResolveIndirectLighting(float2 screenUV, float deviceDepth)
     return indirectLighting;
 }
 
-half3 SSGIDebugColor(float2 screenUV, half3 indirectLighting, half3 giContribution)
+half3 SSGIDebugColor(float2 screenUV, half3 indirectLighting, half3 giContribution,
+    half3 cameraColor, half3 ambientLighting, half3 albedo, half metallic, bool hasGBuffer)
 {
     half3 result = half3(0.0, 0.0, 0.0);
 
+    // Every stage the effect actually reads, in the order it produces them, so a wrong image can be traced to the
+    // stage that made it rather than guessed at from the composite.
     if (_SSGIDebugView == 1.0)
-        result = indirectLighting * _IndirectDiffuseLightingMultiplier;
+        result = indirectLighting * _IndirectDiffuseLightingMultiplier;     // traced bounce, before the surface
     else if (_SSGIDebugView == 2.0)
-        result = giContribution;
+        result = giContribution;                                            // what is added to the image
     // The GBuffer views show what the forward GBuffer pass wrote: black surfaces have no "UniversalGBuffer" pass.
     else if (_SSGIDebugView == 3.0)
         result = SAMPLE_TEXTURE2D_X_LOD(_GBuffer0, my_point_clamp_sampler, screenUV, 0).rgb;
-    else if (_SSGIDebugView == 5.0)
-        result = SSGISampleEmission(screenUV);
-    else
+    else if (_SSGIDebugView == 4.0)
         result = SSGIDecodeNormal(SAMPLE_TEXTURE2D_X_LOD(_GBuffer2, my_point_clamp_sampler, screenUV, 0).xyz) * 0.5 + 0.5;
+    else if (_SSGIDebugView == 5.0)
+        result = SSGISampleEmission(screenUV);                              // emission net of the baked term
+    else if (_SSGIDebugView == 6.0)
+        result = albedo;                                                    // what the combine multiplies by
+    else if (_SSGIDebugView == 7.0)
+        result = SSGIReadSurfaceNormal(screenUV) * 0.5 + 0.5;               // resolved normal, reconstruction included
+    else if (_SSGIDebugView == 8.0)
+        result = ambientLighting;                                           // the baked term being replaced
+    else if (_SSGIDebugView == 9.0)
+        result = SSGIAmbientRemovalFactor(cameraColor, ambientLighting * _SSGIRealtimeBlend, albedo, metallic);
+    else if (_SSGIDebugView == 10.0)
+        result = SSGINoisiness(screenUV).xxx;                               // how hard the denoiser is working
+    else if (_SSGIDebugView == 11.0)
+        // Green where the GBuffer really covers this pixel, red where the depth-and-colour estimate stands in.
+        result = hasGBuffer ? half3(0.0, 1.0, 0.0) : half3(1.0, 0.0, 0.0);
+    else
+        result = SSGISampleBakedRadiance(screenUV);                         // emission + baked, as written
 
     return result;
 }

@@ -230,6 +230,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelDropdown _resolutionDropdown;
         private PanelDropdown _formatDropdown;
         private PanelToggle _flyToggle;
+        private PanelToggle _flyOnMenuToggle;
         private PanelSlider _flySpeedSlider;
         private PanelSlider _flyClimbSpeedSlider;
         private PanelSlider _flyFastMultiplierSlider;
@@ -271,6 +272,12 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelTextField _videoSenderNameField;
 
         private BasisHandHeldCamera _activeCamera;
+
+        /// <summary>
+        /// The camera the panel is bound to, for anything outside the panel that has to drive the
+        /// same one. Survives the panel closing, so the last selection is still the answer.
+        /// </summary>
+        public static BasisHandHeldCamera SelectedCamera => _instance?._activeCamera;
         private readonly List<BasisHandHeldCamera> _entries = new List<BasisHandHeldCamera>();
         private bool _panelTickSubscribed;
         private bool? _lastVideoOutputActive;
@@ -287,6 +294,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private float _lastFocus = float.NaN;
         private bool? _lastSelfie;
         private bool? _lastFly;
+        private bool? _lastFlyOnMenu;
         private float _lastFlySpeed = float.NaN;
         private float _lastFlyClimbSpeed = float.NaN;
         private float _lastFlyFastMultiplier = float.NaN;
@@ -973,6 +981,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _resolutionDropdown = null;
             _formatDropdown = null;
             _flyToggle = null;
+            _flyOnMenuToggle = null;
             _flySpeedSlider = null;
             _flyClimbSpeedSlider = null;
             _flyFastMultiplierSlider = null;
@@ -987,6 +996,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _smoothDragLeashSlider = null;
             _resizeToggle = null;
             _lastFly = null;
+            _lastFlyOnMenu = null;
             _lastFlySpeed = float.NaN;
             _lastFlyClimbSpeed = float.NaN;
             _lastFlyFastMultiplier = float.NaN;
@@ -2034,6 +2044,13 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyMode.description"));
             _flyToggle.OnValueChanged = v => _activeCamera?.SetFlyModeEnabled(v);
 
+            // Sits under the switch it copies: flight is most often wanted while the camera is out
+            // in the world and this panel is not, and the hotbar is reachable from anywhere.
+            _flyOnMenuToggle = PanelToggle.CreateNewEntry(content);
+            _flyOnMenuToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.flyOnMenu"));
+            _flyOnMenuToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyOnMenu.description"));
+            _flyOnMenuToggle.OnValueChanged = v => _activeCamera?.SetShowFlyOnMainMenu(v);
+
             _flySpeedSlider = PanelSlider.CreateNew(content);
             _flySpeedSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 BasisLocalization.Get("camera.flySpeed"),
@@ -2837,6 +2854,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_selfieToggle, _activeCamera.HandHeld.IsSelfieMode, ref _lastSelfie);
             SyncToggle(_closeHidesToggle, _activeCamera.HandHeld.CloseHidesCamera, ref _lastCloseHides);
             SyncToggle(_flyToggle, _activeCamera.IsFlyModeEnabled, ref _lastFly);
+            SyncToggle(_flyOnMenuToggle, _activeCamera.showFlyOnMainMenu, ref _lastFlyOnMenu);
             _lastFlySpeed = _activeCamera.flySpeed;
             _flySpeedSlider?.SetValueWithoutNotify(_activeCamera.flySpeed);
             _lastFlyClimbSpeed = _activeCamera.vrFlyElevationSpeed;
@@ -3184,6 +3202,7 @@ namespace Basis.BasisUI.HandHeldCamera
             // the mode presets switch it off from underneath — so the toggle has to follow the
             // camera rather than assume it is the only writer.
             SyncToggle(_flyToggle, _activeCamera.IsFlyModeEnabled, ref _lastFly);
+            SyncToggle(_flyOnMenuToggle, _activeCamera.showFlyOnMainMenu, ref _lastFlyOnMenu);
             SyncSlider(_flySpeedSlider, _activeCamera.flySpeed, ref _lastFlySpeed);
             SyncSlider(_flyClimbSpeedSlider, _activeCamera.vrFlyElevationSpeed, ref _lastFlyClimbSpeed);
             SyncSlider(_flyFastMultiplierSlider, _activeCamera.flyFastMultiplier, ref _lastFlyFastMultiplier);

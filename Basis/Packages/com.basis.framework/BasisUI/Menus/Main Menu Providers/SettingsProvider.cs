@@ -1760,157 +1760,160 @@ namespace Basis.BasisUI
                 _ => descriptor.ForceRebuild());
 
 #if BASIS_HAS_SSGI && !UNITY_ANDROID
-            PanelSectionToggle ssgiToggle = PanelSectionToggle.CreateNewEntry(container);
-            PanelElementDescriptor ssgiGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
-                ssgiToggle,
-                container,
-                BasisLocalization.Get("settings.graphics.ssgi.title"),
-                showGroupTitle: false);
-
-            PanelToggle toggleSsgi = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
-            toggleSsgi.AssignBinding(BasisSettingsDefaults.UseScreenSpaceGlobalIllumination);
-            toggleSsgi.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.enable"));
-            toggleSsgi.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.enable.tooltip"));
-            SettingsProviderBottleneckHints.Mark(toggleSsgi, BasisFrameCostSide.Gpu);
-
-            PanelDropdown dropdownSsgiQuality = PanelDropdown.CreateNewEntry(ssgiGroup.ContentParent);
-            dropdownSsgiQuality.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.quality"));
-            dropdownSsgiQuality.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.quality.tooltip"));
-            dropdownSsgiQuality.AssignLocalizedEntries(
-                new List<string> { "Low", "Medium", "High" },
-                new List<string> { "settings.graphics.quality.low", "settings.graphics.quality.medium", "settings.graphics.quality.high" });
-            dropdownSsgiQuality.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationQuality);
-
-            PanelToggle toggleSsgiFullResolution = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
-            toggleSsgiFullResolution.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFullResolution);
-            toggleSsgiFullResolution.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.fullResolution"));
-            toggleSsgiFullResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.fullResolution.tooltip"));
-
-            PanelSlider sliderSsgiIntensity = PanelSlider.CreateEntryAndBind(
-                ssgiGroup.ContentParent,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.intensity"),
-                    "",
-                    BasisSettingsDefaults.SSGI_INTENSITY_MIN,
-                    BasisSettingsDefaults.SSGI_INTENSITY_MAX,
-                    false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.ScreenSpaceGlobalIlluminationIntensity);
-            sliderSsgiIntensity.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.intensity.tooltip"));
-
-            PanelSlider sliderSsgiDenoise = PanelSlider.CreateEntryAndBind(
-                ssgiGroup.ContentParent,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.denoise"),
-                    "",
-                    BasisSettingsDefaults.SSGI_DENOISE_MIN,
-                    BasisSettingsDefaults.SSGI_DENOISE_MAX,
-                    false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength);
-            sliderSsgiDenoise.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.denoise.tooltip"));
-
-            PanelSlider sliderSsgiBlend = PanelSlider.CreateEntryAndBind(
-                ssgiGroup.ContentParent,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.realtimeBlend"),
-                    "",
-                    BasisSettingsDefaults.SSGI_REALTIME_BLEND_MIN,
-                    BasisSettingsDefaults.SSGI_REALTIME_BLEND_MAX,
-                    false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.ScreenSpaceGlobalIlluminationRealtimeBlend);
-            sliderSsgiBlend.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.realtimeBlend.tooltip"));
-
-            PanelSlider sliderSsgiEmissive = PanelSlider.CreateEntryAndBind(
-                ssgiGroup.ContentParent,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.emissive"),
-                    "",
-                    BasisSettingsDefaults.SSGI_EMISSIVE_MIN,
-                    BasisSettingsDefaults.SSGI_EMISSIVE_MAX,
-                    false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.ScreenSpaceGlobalIlluminationEmissive);
-            sliderSsgiEmissive.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.emissive.tooltip"));
-
-            PanelToggle toggleSsgiGBufferFallback = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
-            toggleSsgiGBufferFallback.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationGBufferFallback);
-            toggleSsgiGBufferFallback.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.gbufferFallback"));
-            toggleSsgiGBufferFallback.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.gbufferFallback.tooltip"));
-
-            PanelSlider sliderSsgiFallbackAlbedo = PanelSlider.CreateEntryAndBind(
-                ssgiGroup.ContentParent,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.fallbackAlbedo"),
-                    "",
-                    BasisSettingsDefaults.SSGI_FALLBACK_ALBEDO_MIN,
-                    BasisSettingsDefaults.SSGI_FALLBACK_ALBEDO_MAX,
-                    false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackAlbedo);
-            sliderSsgiFallbackAlbedo.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.fallbackAlbedo.tooltip"));
-
-            PanelSlider sliderSsgiFallbackMaxGain = PanelSlider.CreateEntryAndBind(
-                ssgiGroup.ContentParent,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.fallbackMaxGain"),
-                    "",
-                    BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MIN,
-                    BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MAX,
-                    false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackMaxGain);
-            sliderSsgiFallbackMaxGain.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.fallbackMaxGain.tooltip"));
-
-            PanelToggle toggleSsgiReflectionProbes = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
-            toggleSsgiReflectionProbes.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationReflectionProbes);
-            toggleSsgiReflectionProbes.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.reflectionProbes"));
-            toggleSsgiReflectionProbes.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.reflectionProbes.tooltip"));
-            SettingsProviderBottleneckHints.Mark(toggleSsgiReflectionProbes, BasisFrameCostSide.Gpu);
-
-            PanelToggle toggleSsgiUpscaling = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
-            toggleSsgiUpscaling.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationHighQualityUpscaling);
-            toggleSsgiUpscaling.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.highQualityUpscaling"));
-            toggleSsgiUpscaling.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.highQualityUpscaling.tooltip"));
-
-            PanelToggle toggleSsgiOverrideAmbient = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
-            toggleSsgiOverrideAmbient.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationOverrideAmbient);
-            toggleSsgiOverrideAmbient.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.overrideAmbient"));
-            toggleSsgiOverrideAmbient.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.overrideAmbient.tooltip"));
-
-            PanelToggle toggleSsgiBackfaceLighting = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
-            toggleSsgiBackfaceLighting.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationBackfaceLighting);
-            toggleSsgiBackfaceLighting.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.backfaceLighting"));
-            toggleSsgiBackfaceLighting.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.backfaceLighting.tooltip"));
-            SettingsProviderBottleneckHints.Mark(toggleSsgiBackfaceLighting, BasisFrameCostSide.Gpu);
-
-            void SetSsgiRowsActive(bool val)
+            if (BasisSettingsDefaults.ShowDeveloperTab.RawValue)
             {
-                dropdownSsgiQuality.Descriptor.SetActive(val);
-                toggleSsgiFullResolution.Descriptor.SetActive(val);
-                sliderSsgiIntensity.Descriptor.SetActive(val);
-                sliderSsgiDenoise.Descriptor.SetActive(val);
-                sliderSsgiBlend.Descriptor.SetActive(val);
-                sliderSsgiEmissive.Descriptor.SetActive(val);
-                toggleSsgiGBufferFallback.Descriptor.SetActive(val);
-                sliderSsgiFallbackAlbedo.Descriptor.SetActive(val && toggleSsgiGBufferFallback.Value);
-                sliderSsgiFallbackMaxGain.Descriptor.SetActive(val && toggleSsgiGBufferFallback.Value);
-                toggleSsgiReflectionProbes.Descriptor.SetActive(val);
-                toggleSsgiUpscaling.Descriptor.SetActive(val);
-                toggleSsgiOverrideAmbient.Descriptor.SetActive(val);
-                toggleSsgiBackfaceLighting.Descriptor.SetActive(val);
-            }
+                PanelSectionToggle ssgiToggle = PanelSectionToggle.CreateNewEntry(container);
+                PanelElementDescriptor ssgiGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                    ssgiToggle,
+                    container,
+                    BasisLocalization.Get("settings.graphics.ssgi.title"),
+                    showGroupTitle: false);
 
-            SetSsgiRowsActive(toggleSsgi.Value);
-            toggleSsgiGBufferFallback.OnValueChanged += (_) =>
-            {
+                PanelToggle toggleSsgi = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
+                toggleSsgi.AssignBinding(BasisSettingsDefaults.UseScreenSpaceGlobalIllumination);
+                toggleSsgi.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.enable"));
+                toggleSsgi.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.enable.tooltip"));
+                SettingsProviderBottleneckHints.Mark(toggleSsgi, BasisFrameCostSide.Gpu);
+
+                PanelDropdown dropdownSsgiQuality = PanelDropdown.CreateNewEntry(ssgiGroup.ContentParent);
+                dropdownSsgiQuality.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.quality"));
+                dropdownSsgiQuality.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.quality.tooltip"));
+                dropdownSsgiQuality.AssignLocalizedEntries(
+                    new List<string> { "Low", "Medium", "High" },
+                    new List<string> { "settings.graphics.quality.low", "settings.graphics.quality.medium", "settings.graphics.quality.high" });
+                dropdownSsgiQuality.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationQuality);
+
+                PanelToggle toggleSsgiFullResolution = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
+                toggleSsgiFullResolution.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFullResolution);
+                toggleSsgiFullResolution.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.fullResolution"));
+                toggleSsgiFullResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.fullResolution.tooltip"));
+
+                PanelSlider sliderSsgiIntensity = PanelSlider.CreateEntryAndBind(
+                    ssgiGroup.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.intensity"),
+                        "",
+                        BasisSettingsDefaults.SSGI_INTENSITY_MIN,
+                        BasisSettingsDefaults.SSGI_INTENSITY_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.ScreenSpaceGlobalIlluminationIntensity);
+                sliderSsgiIntensity.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.intensity.tooltip"));
+
+                PanelSlider sliderSsgiDenoise = PanelSlider.CreateEntryAndBind(
+                    ssgiGroup.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.denoise"),
+                        "",
+                        BasisSettingsDefaults.SSGI_DENOISE_MIN,
+                        BasisSettingsDefaults.SSGI_DENOISE_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength);
+                sliderSsgiDenoise.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.denoise.tooltip"));
+
+                PanelSlider sliderSsgiBlend = PanelSlider.CreateEntryAndBind(
+                    ssgiGroup.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.realtimeBlend"),
+                        "",
+                        BasisSettingsDefaults.SSGI_REALTIME_BLEND_MIN,
+                        BasisSettingsDefaults.SSGI_REALTIME_BLEND_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.ScreenSpaceGlobalIlluminationRealtimeBlend);
+                sliderSsgiBlend.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.realtimeBlend.tooltip"));
+
+                PanelSlider sliderSsgiEmissive = PanelSlider.CreateEntryAndBind(
+                    ssgiGroup.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.emissive"),
+                        "",
+                        BasisSettingsDefaults.SSGI_EMISSIVE_MIN,
+                        BasisSettingsDefaults.SSGI_EMISSIVE_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.ScreenSpaceGlobalIlluminationEmissive);
+                sliderSsgiEmissive.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.emissive.tooltip"));
+
+                PanelToggle toggleSsgiGBufferFallback = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
+                toggleSsgiGBufferFallback.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationGBufferFallback);
+                toggleSsgiGBufferFallback.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.gbufferFallback"));
+                toggleSsgiGBufferFallback.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.gbufferFallback.tooltip"));
+
+                PanelSlider sliderSsgiFallbackAlbedo = PanelSlider.CreateEntryAndBind(
+                    ssgiGroup.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.fallbackAlbedo"),
+                        "",
+                        BasisSettingsDefaults.SSGI_FALLBACK_ALBEDO_MIN,
+                        BasisSettingsDefaults.SSGI_FALLBACK_ALBEDO_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackAlbedo);
+                sliderSsgiFallbackAlbedo.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.fallbackAlbedo.tooltip"));
+
+                PanelSlider sliderSsgiFallbackMaxGain = PanelSlider.CreateEntryAndBind(
+                    ssgiGroup.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.fallbackMaxGain"),
+                        "",
+                        BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MIN,
+                        BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackMaxGain);
+                sliderSsgiFallbackMaxGain.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.fallbackMaxGain.tooltip"));
+
+                PanelToggle toggleSsgiReflectionProbes = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
+                toggleSsgiReflectionProbes.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationReflectionProbes);
+                toggleSsgiReflectionProbes.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.reflectionProbes"));
+                toggleSsgiReflectionProbes.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.reflectionProbes.tooltip"));
+                SettingsProviderBottleneckHints.Mark(toggleSsgiReflectionProbes, BasisFrameCostSide.Gpu);
+
+                PanelToggle toggleSsgiUpscaling = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
+                toggleSsgiUpscaling.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationHighQualityUpscaling);
+                toggleSsgiUpscaling.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.highQualityUpscaling"));
+                toggleSsgiUpscaling.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.highQualityUpscaling.tooltip"));
+
+                PanelToggle toggleSsgiOverrideAmbient = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
+                toggleSsgiOverrideAmbient.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationOverrideAmbient);
+                toggleSsgiOverrideAmbient.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.overrideAmbient"));
+                toggleSsgiOverrideAmbient.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.overrideAmbient.tooltip"));
+
+                PanelToggle toggleSsgiBackfaceLighting = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
+                toggleSsgiBackfaceLighting.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationBackfaceLighting);
+                toggleSsgiBackfaceLighting.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.backfaceLighting"));
+                toggleSsgiBackfaceLighting.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.backfaceLighting.tooltip"));
+                SettingsProviderBottleneckHints.Mark(toggleSsgiBackfaceLighting, BasisFrameCostSide.Gpu);
+
+                void SetSsgiRowsActive(bool val)
+                {
+                    dropdownSsgiQuality.Descriptor.SetActive(val);
+                    toggleSsgiFullResolution.Descriptor.SetActive(val);
+                    sliderSsgiIntensity.Descriptor.SetActive(val);
+                    sliderSsgiDenoise.Descriptor.SetActive(val);
+                    sliderSsgiBlend.Descriptor.SetActive(val);
+                    sliderSsgiEmissive.Descriptor.SetActive(val);
+                    toggleSsgiGBufferFallback.Descriptor.SetActive(val);
+                    sliderSsgiFallbackAlbedo.Descriptor.SetActive(val && toggleSsgiGBufferFallback.Value);
+                    sliderSsgiFallbackMaxGain.Descriptor.SetActive(val && toggleSsgiGBufferFallback.Value);
+                    toggleSsgiReflectionProbes.Descriptor.SetActive(val);
+                    toggleSsgiUpscaling.Descriptor.SetActive(val);
+                    toggleSsgiOverrideAmbient.Descriptor.SetActive(val);
+                    toggleSsgiBackfaceLighting.Descriptor.SetActive(val);
+                }
+
                 SetSsgiRowsActive(toggleSsgi.Value);
-                ssgiGroup.ForceRebuild();
-                descriptor.ForceRebuild();
-            };
-            toggleSsgi.OnValueChanged += (val) =>
-            {
-                SetSsgiRowsActive(val);
-                ssgiGroup.ForceRebuild();
-                descriptor.ForceRebuild();
-            };
+                toggleSsgiGBufferFallback.OnValueChanged += (_) =>
+                {
+                    SetSsgiRowsActive(toggleSsgi.Value);
+                    ssgiGroup.ForceRebuild();
+                    descriptor.ForceRebuild();
+                };
+                toggleSsgi.OnValueChanged += (val) =>
+                {
+                    SetSsgiRowsActive(val);
+                    ssgiGroup.ForceRebuild();
+                    descriptor.ForceRebuild();
+                };
 
-            if (Application.platform == RuntimePlatform.Android)
-            {
-                toggleSsgi.SetInteractable(false, BasisLocalization.Get("settings.graphics.ssgi.unsupported"));
+                if (Application.platform == RuntimePlatform.Android)
+                {
+                    toggleSsgi.SetInteractable(false, BasisLocalization.Get("settings.graphics.ssgi.unsupported"));
+                }
+
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(ssgiToggle, ssgiGroup, true,
+                    _ => descriptor.ForceRebuild());
             }
-
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(ssgiToggle, ssgiGroup, true,
-                _ => descriptor.ForceRebuild());
 #endif
 
             PanelSectionToggle renderingToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -2598,6 +2601,16 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.ScreenSpaceGlobalIlluminationQuality.ResetToDefault();
             BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFullResolution.ResetToDefault();
             BasisSettingsDefaults.ScreenSpaceGlobalIlluminationIntensity.ResetToDefault();
+            BasisSettingsDefaults.ScreenSpaceGlobalIlluminationRealtimeBlend.ResetToDefault();
+            BasisSettingsDefaults.ScreenSpaceGlobalIlluminationEmissive.ResetToDefault();
+            BasisSettingsDefaults.ScreenSpaceGlobalIlluminationGBufferFallback.ResetToDefault();
+            BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackAlbedo.ResetToDefault();
+            BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackMaxGain.ResetToDefault();
+            BasisSettingsDefaults.ScreenSpaceGlobalIlluminationReflectionProbes.ResetToDefault();
+            BasisSettingsDefaults.ScreenSpaceGlobalIlluminationHighQualityUpscaling.ResetToDefault();
+            BasisSettingsDefaults.ScreenSpaceGlobalIlluminationOverrideAmbient.ResetToDefault();
+            BasisSettingsDefaults.ScreenSpaceGlobalIlluminationBackfaceLighting.ResetToDefault();
+            BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength.ResetToDefault();
 
             // Note: Resolution & ScreenMode are not shown as BasisSettingsDefaults bindings in your snippet.
             // If you later add bindings for them, add them here.
@@ -3105,6 +3118,11 @@ namespace Basis.BasisUI
             toggleGizmoDrawOnTop.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoDrawOnTop.tooltip"));
             toggleGizmoDrawOnTop.AssignBinding(BasisSettingsDefaults.GizmoDrawOnTop);
 
+            PanelToggle toggleGizmoAllCameras = PanelToggle.CreateNewEntry(container);
+            toggleGizmoAllCameras.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoAllCameras"));
+            toggleGizmoAllCameras.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoAllCameras.tooltip"));
+            toggleGizmoAllCameras.AssignBinding(BasisSettingsDefaults.GizmoRenderInAllCameras);
+
             PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(gizmosToggle, container, gizmosStart, false,
                 _ => descriptor.ForceRebuild());
 
@@ -3174,8 +3192,8 @@ namespace Basis.BasisUI
             dropdownSsgiDebug.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.ssgiDebug"));
             dropdownSsgiDebug.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.ssgiDebug.tooltip"));
             dropdownSsgiDebug.AssignLocalizedEntries(
-                new List<string> { "Off", "Indirect Light", "GI Contribution", "GBuffer Albedo", "GBuffer Normals", "Emission" },
-                new List<string> { "ui.option.off", "settings.developer.ssgiDebug.indirect", "settings.developer.ssgiDebug.contribution", "settings.developer.ssgiDebug.albedo", "settings.developer.ssgiDebug.normals", "settings.developer.ssgiDebug.emission" });
+                new List<string> { "Off", "Indirect Light", "GI Contribution", "GBuffer Albedo", "GBuffer Normals", "Emission", "Prepared Albedo", "Prepared Normals", "Ambient Lighting", "Ambient Removal", "Noise", "Surface Source", "Baked Radiance" },
+                new List<string> { "ui.option.off", "settings.developer.ssgiDebug.indirect", "settings.developer.ssgiDebug.contribution", "settings.developer.ssgiDebug.albedo", "settings.developer.ssgiDebug.normals", "settings.developer.ssgiDebug.emission", "settings.developer.ssgiDebug.preparedAlbedo", "settings.developer.ssgiDebug.preparedNormals", "settings.developer.ssgiDebug.ambient", "settings.developer.ssgiDebug.removal", "settings.developer.ssgiDebug.noise", "settings.developer.ssgiDebug.surfaceSource", "settings.developer.ssgiDebug.bakedRadiance" });
             dropdownSsgiDebug.AssignBinding(BasisSettingsDefaults.DevSsgiDebugView);
 #endif
 
@@ -3659,6 +3677,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GizmoNetworkAdditionalInfo.ResetToDefault();
             BasisSettingsDefaults.GizmoLabels.ResetToDefault();
             BasisSettingsDefaults.GizmoDrawOnTop.ResetToDefault();
+            BasisSettingsDefaults.GizmoRenderInAllCameras.ResetToDefault();
             BasisSettingsDefaults.AvatarRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.HearingRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.MicrophoneRangeIndicator.ResetToDefault();

@@ -330,14 +330,14 @@ namespace Basis.IK.Debugging
             try
             {
                 BodySample s0 = sc.Sample(0f);
-                Pose(cfg, sc, s0, out float3 hips0, out float3 head0, out float3 fwd0, out float3 bodyRight0);
+                Pose(cfg, sc, s0, out float3 hips0, out _, out float3 fwd0, out float3 bodyRight0);
 
                 var left = InitFoot(cfg, sc, p, -1, hips0, fwd0, bodyRight0);
                 var right = InitFoot(cfg, sc, p, +1, hips0, fwd0, bodyRight0);
                 feet[0] = left; feet[1] = right;
                 simState[0] = new BasisFootSimState
                 {
-                    prevHeadPos = head0,
+                    prevHeadPos = hips0,
                     prevHeadYaw = Yaw(fwd0),
                     smoothedVelocity = float3.zero,
                     smoothedBodyFwd = fwd0,
@@ -1007,10 +1007,10 @@ namespace Basis.IK.Debugging
             try
             {
                 BodySample s0 = sc.Sample(0f);
-                Pose(cfg, sc, s0, out float3 hips0, out float3 head0, out float3 fwd0, out float3 right0);
+                Pose(cfg, sc, s0, out float3 hips0, out _, out float3 fwd0, out float3 right0);
                 feet[0] = InitFoot(cfg, sc, p, -1, hips0, fwd0, right0);
                 feet[1] = InitFoot(cfg, sc, p, +1, hips0, fwd0, right0);
-                simState[0] = new BasisFootSimState { prevHeadPos = head0, prevHeadYaw = Yaw(fwd0), smoothedVelocity = float3.zero, smoothedBodyFwd = fwd0, smoothedBodyRight = right0 };
+                simState[0] = new BasisFootSimState { prevHeadPos = hips0, prevHeadYaw = Yaw(fwd0), smoothedVelocity = float3.zero, smoothedBodyFwd = fwd0, smoothedBodyRight = right0 };
 
                 float half = p.stanceWidth * 0.5f;
                 float3 root0 = hips0 + right0 * (-1f * half);   // left hip socket, sways rigidly with the body

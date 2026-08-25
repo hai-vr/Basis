@@ -42,12 +42,28 @@ public static class BasisGizmoManager
             }
             return renderLayer;
         }
-        set => renderLayer = value;
+        set
+        {
+            if (renderLayer == value)
+            {
+                return;
+            }
+            renderLayer = value;
+            ApplySharedLayerToLabels();
+        }
     }
 
     private const int LayerNotResolved = -2;
+
+    /// <summary>
+    /// Default — the layer the world itself is on, so every camera in the scene renders it.
+    /// Where <see cref="RenderInAllCameras"/> puts gizmos.
+    /// </summary>
+    private const int AllCameraLayer = 0;
+
     private static int renderLayer = LayerNotResolved;
-    private static int defaultRenderLayer = LayerNotResolved;
+    private static int overlayLayer = LayerNotResolved;
+    private static bool renderInAllCameras;
 
     /// <summary>
     /// Where gizmos live unless something moves them: OverlayUI.
@@ -59,18 +75,55 @@ public static class BasisGizmoManager
     /// else, which is what makes the waypoint markers already sitting on it grabbable.</para>
     ///
     /// <para>Falls back to the Default layer in a project that does not define OverlayUI, which is
-    /// where gizmos used to live — visible to every camera including the capture.</para>
+    /// where gizmos used to live — visible to every camera including the capture. Turning
+    /// <see cref="RenderInAllCameras"/> on asks for that same layer deliberately.</para>
     /// </summary>
     public static int DefaultRenderLayer
     {
         get
         {
-            if (defaultRenderLayer == LayerNotResolved)
+            if (renderInAllCameras)
+            {
+                return AllCameraLayer;
+            }
+            if (overlayLayer == LayerNotResolved)
             {
                 int overlayUi = LayerMask.NameToLayer("OverlayUI");
-                defaultRenderLayer = overlayUi >= 0 ? overlayUi : 0;
+                overlayLayer = overlayUi >= 0 ? overlayUi : AllCameraLayer;
             }
-            return defaultRenderLayer;
+            return overlayLayer;
+        }
+    }
+
+    /// <summary>
+    /// Whether gizmos are drawn for every camera in the scene rather than only the ones that
+    /// render <see cref="DefaultRenderLayer"/>. Off by default: gizmos belong to the person
+    /// operating the thing they describe, so photos, streams and the follow PIP stay clean.
+    /// On moves them to the Default layer the world itself is on, which every camera renders —
+    /// captures, mirrors and any world camera then show what the player sees.
+    /// <para>
+    /// Gizmos parked on a layer of their own with <see cref="SetGizmoLayer"/> stay there: those
+    /// are a camera rig's own markers (its frustum, its dolly track, the follow puck), kept out
+    /// of its own shot on purpose rather than by this default.
+    /// </para>
+    /// </summary>
+    public static bool RenderInAllCameras
+    {
+        get => renderInAllCameras;
+        set
+        {
+            if (renderInAllCameras == value)
+            {
+                return;
+            }
+            int previousDefault = DefaultRenderLayer;
+            renderInAllCameras = value;
+            // Anything that pointed RenderLayer somewhere of its own — the calibration mirror
+            // relay — keeps it, and restores to DefaultRenderLayer, which now reads the new value.
+            if (renderLayer == LayerNotResolved || renderLayer == previousDefault)
+            {
+                RenderLayer = DefaultRenderLayer;
+            }
         }
     }
 
@@ -132,6 +185,7 @@ public static class BasisGizmoManager
         if (Parent == null)
         {
             Parent = new GameObject("Parent Of Debug Data");
+            Parent.layer = RenderLayer;
         }
     }
 
@@ -187,6 +241,7 @@ public static class BasisGizmoManager
     {
         public BasisTextGizmos Component;
         public Vector3 Position;   // last requested — ranks nearest-K even while hidden
+        public int Layer = -1;     // -1 follows RenderLayer; see SetGizmoLayer
         public bool Active = true;
         public bool Visible = true;
     }
@@ -636,8 +691,8 @@ public static class BasisGizmoManager
         t.position = position;
         component.gameObject.name = gizmoName;
         // A label that came back from the pool still carries whatever layer SetGizmoLayer put
-        // it on; the next renter has not asked for that, so it starts on the container's layer.
-        component.gameObject.layer = Parent.layer;
+        // it on; the next renter has not asked for that, so it starts on the shared layer.
+        component.gameObject.layer = RenderLayer;
         component.ResetContent(text, color);
         component.gameObject.SetActive(true);
         return component;
@@ -814,6 +869,7 @@ public static class BasisGizmoManager
         }
         if (_textByID.TryGetValue(linkedID, out TextSlot text) && text.Component != null)
         {
+            text.Layer = layer;
             text.Component.gameObject.layer = ResolveLayer(layer);
             return true;
         }
@@ -824,6 +880,29 @@ public static class BasisGizmoManager
     private static int ResolveLayer(int slotLayer)
     {
         return slotLayer >= 0 ? slotLayer : RenderLayer;
+    }
+
+    /// <summary>
+    /// Moves the label objects that follow the shared layer onto it. Spheres and lines are
+    /// batched draws whose layer is read at submission, so they need nothing; labels are
+    /// GameObjects and carry the layer they were rented on until something rewrites it.
+    /// </summary>
+    private static void ApplySharedLayerToLabels()
+    {
+        int layer = RenderLayer;
+        if (Parent != null)
+        {
+            Parent.layer = layer;
+        }
+        foreach (KeyValuePair<int, TextSlot> kvp in _textByID)
+        {
+            TextSlot slot = kvp.Value;
+            if (slot.Layer >= 0 || slot.Component == null)
+            {
+                continue;
+            }
+            slot.Component.gameObject.layer = layer;
+        }
     }
 
     /// <summary>

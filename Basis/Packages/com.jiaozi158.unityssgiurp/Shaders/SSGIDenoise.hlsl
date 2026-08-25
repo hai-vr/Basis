@@ -59,6 +59,25 @@ half SSGIHistoryNoisiness(float2 screenUV)
     return saturate(1.0 - historyLength * rcp(MAX_ACCUM_FRAME_NUM));
 }
 
+// Relative standard deviation of a neighbourhood: the share of what a pixel shows that is noise rather than signal.
+// Relative rather than absolute so a bright region is not treated as noisy just for being bright.
+half SSGINeighbourhoodNoise(half3 moment1, half3 moment2, half sampleCount)
+{
+    half invCount = rcp(max(sampleCount, 1.0));
+    half3 mean = moment1 * invCount;
+    half3 variance = max(moment2 * invCount - mean * mean, half3(0.0, 0.0, 0.0));
+    return saturate(sqrt(Luminance(variance)) * rcp(max(Luminance(mean), 1e-3)));
+}
+
+// How much filtering this pixel needs, from both of the things that make an estimate unreliable: too few frames of
+// history, and too much spread between neighbours. Taking the larger means a pixel that has converged to a noisy
+// answer is still filtered, which history length alone gets exactly backwards.
+half SSGINoisiness(float2 screenUV)
+{
+    half fromVariance = SAMPLE_TEXTURE2D_X_LOD(_SSGINormalTexture, my_point_clamp_sampler, screenUV, 0).a;
+    return max(SSGIHistoryNoisiness(screenUV), fromVariance);
+}
+
 half3 DirectClipToAABB(half3 history, half3 minimum, half3 maximum)
 {
     // note: only clips towards aabb center (but fast!)

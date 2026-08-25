@@ -107,6 +107,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
         BasisGizmoManager.OnUseGizmosChanged += OnUseGizmosChanged;
         HookSolveGizmoStages();
         HookGizmoDrawOnTop();
+        HookGizmoRenderInAllCameras();
     }
 
     // Driven off the binding rather than ValidSettingsChange so the current value lands on the
@@ -133,6 +134,29 @@ public class SMModuleDebugOptions : BasisSettingsBase
         }
         BasisSettingsDefaults.GizmoDrawOnTop.OnChanged -= _gizmoDrawOnTopChanged;
         _gizmoDrawOnTopChanged = null;
+    }
+
+    private Action<bool> _gizmoRenderInAllCamerasChanged;
+
+    private void HookGizmoRenderInAllCameras()
+    {
+        if (_gizmoRenderInAllCamerasChanged != null)
+        {
+            return;
+        }
+        _gizmoRenderInAllCamerasChanged = value => BasisGizmoManager.RenderInAllCameras = value;
+        BasisSettingsDefaults.GizmoRenderInAllCameras.OnChanged += _gizmoRenderInAllCamerasChanged;
+        BasisGizmoManager.RenderInAllCameras = BasisSettingsDefaults.GizmoRenderInAllCameras.RawValue;
+    }
+
+    private void UnhookGizmoRenderInAllCameras()
+    {
+        if (_gizmoRenderInAllCamerasChanged == null)
+        {
+            return;
+        }
+        BasisSettingsDefaults.GizmoRenderInAllCameras.OnChanged -= _gizmoRenderInAllCamerasChanged;
+        _gizmoRenderInAllCamerasChanged = null;
     }
 
     // The IK solve gizmo toggles are generated from BasisIKSolveGizmoStages rather than declared
@@ -178,6 +202,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
         BasisGizmoManager.OnUseGizmosChanged -= OnUseGizmosChanged;
         UnhookSolveGizmoStages();
         UnhookGizmoDrawOnTop();
+        UnhookGizmoRenderInAllCameras();
         ClearTrackerGizmos();
         ClearLinkLines();
         BasisAudioGizmos.Shutdown();

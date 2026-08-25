@@ -461,6 +461,11 @@ namespace Basis.BasisUI
         // through the world so a marker buried inside an avatar stays readable.
         public static BasisSettingsBinding<bool> GizmoDrawOnTop = new("gizmodrawontop", new BasisPlatformDefault<bool>(false));
 
+        // Which cameras see the gizmos. Off (the default) keeps them on OverlayUI, which the
+        // handheld camera culls, so they stay out of photos, streams and the follow PIP; on moves
+        // them to the layer the world itself is on, so every camera in the scene renders them.
+        public static BasisSettingsBinding<bool> GizmoRenderInAllCameras = new("gizmorenderinallcameras", new BasisPlatformDefault<bool>(false));
+
         // Network value-sync debug gizmos (see BasisSyncGizmos): from→to interpolation
         // window, live-position sphere, extrapolation overshoot, jitter-buffer-health colour.
         public static BasisSettingsBinding<bool> GizmoNetworkSync = new("gizmonetworksync", new BasisPlatformDefault<bool>(false));
@@ -1582,16 +1587,20 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKKneeFootPoleConditioning = new("fbikkneefootpoleconditioning", new BasisPlatformDefault<bool>(false));
 
         // Spine relax: per-axis bend distribution onto lumbar (spine) and thoracic (upperChest)
-        public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch_v2", new BasisPlatformDefault<float>(0.40f));
+        public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch", new BasisPlatformDefault<float>(0.45f));
         public static BasisSettingsBinding<float> FBIKSpineBendYaw = new("fbikspinebendyaw", new BasisPlatformDefault<float>(0.10f));
-        public static BasisSettingsBinding<float> FBIKSpineBendRoll = new("fbikspinebendroll_v2", new BasisPlatformDefault<float>(0.30f));
+        public static BasisSettingsBinding<float> FBIKSpineBendRoll = new("fbikspinebendroll", new BasisPlatformDefault<float>(0.35f));
         public static BasisSettingsBinding<float> FBIKChestBendPitch = new("fbikchestbendpitch", new BasisPlatformDefault<float>(0.20f));
         public static BasisSettingsBinding<float> FBIKChestBendYaw = new("fbikchestbendyaw", new BasisPlatformDefault<float>(0.15f));
         public static BasisSettingsBinding<float> FBIKChestBendRoll = new("fbikchestbendroll", new BasisPlatformDefault<float>(0.15f));
-        public static BasisSettingsBinding<float> FBIKUpperChestBendPitch = new("fbikupperchestbendpitch_v2", new BasisPlatformDefault<float>(0.15f));
-        public static BasisSettingsBinding<float> FBIKUpperChestBendYaw = new("fbikupperchestbendyaw_v2", new BasisPlatformDefault<float>(0.15f));
-        public static BasisSettingsBinding<float> FBIKUpperChestBendRoll = new("fbikupperchestbendroll_v2", new BasisPlatformDefault<float>(0.15f));
-        public static BasisSettingsBinding<float> FBIKNeckYawShare = new("fbikneckyawshare", new BasisPlatformDefault<float>(0.5f));
+        public static BasisSettingsBinding<float> FBIKUpperChestBendPitch = new("fbikupperchestbendpitch", new BasisPlatformDefault<float>(0.25f));
+        public static BasisSettingsBinding<float> FBIKUpperChestBendYaw = new("fbikupperchestbendyaw", new BasisPlatformDefault<float>(0.30f));
+        public static BasisSettingsBinding<float> FBIKUpperChestBendRoll = new("fbikupperchestbendroll", new BasisPlatformDefault<float>(0.20f));
+        // OFF by default (_v2 re-keys the installs that ran the 0.5 build). Splitting a head turn onto the neck
+        // bone is anatomically right, but in-headset it made the neck read worse -- it stacks on whatever the
+        // torso-yaw deadzone already leaves for the neck to carry. Live-tunable; needs a headset A/B before it
+        // is turned back on.
+        public static BasisSettingsBinding<float> FBIKNeckYawShare = new("fbikneckyawshare_v2", new BasisPlatformDefault<float>(0f));
         public static BasisSettingsBinding<float> FBIKSpineStretchMax = new("fbikspinestretchmax", new BasisPlatformDefault<float>(0.03f));
         // Spine relax: hip hinge coupling
         public static BasisSettingsBinding<float> FBIKHipHingeStartDeg = new("fbikhiphingestartdeg_v2", new BasisPlatformDefault<float>(40f));
@@ -1858,7 +1867,11 @@ namespace Basis.BasisUI
 
         // Off forces the yaw deadzone to 0 in VR (torso follows immediately); on uses the configured
         // VSpineTorsoYawDeadzoneDeg cone in VR too. Desktop always uses the configured value.
-        public static BasisSettingsBinding<bool> VSpineTorsoYawPlayInVR = new("vspinetorsoyawplayinvr_v2", new BasisPlatformDefault<bool>(true));
+        // ⚠ Left OFF: turning this on in VR was speculative and never headset-verified. With a deadzone the
+        // torso stops following the head, so every degree inside it is charged to the neck -- reported as the
+        // neck reading worse. The de-orbit fix it was premised on is real, but this is a FEEL change and needs
+        // its own A/B.
+        public static BasisSettingsBinding<bool> VSpineTorsoYawPlayInVR = new("vspinetorsoyawplayinvr", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> VSpineTorsoYawDeadzoneVRDeg = new("vspinetorsoyawdeadzonevrdeg", new BasisPlatformDefault<float>(30f));
 
 
@@ -2211,6 +2224,7 @@ namespace Basis.BasisUI
             GizmoNetworkAdditionalInfo.LoadBindingValue();
             GizmoLabels.LoadBindingValue();
             GizmoDrawOnTop.LoadBindingValue();
+            GizmoRenderInAllCameras.LoadBindingValue();
             EnableStatistics.LoadBindingValue();
             ShowVoiceRange.LoadBindingValue();
             AvatarDataDebugEnabled.LoadBindingValue();

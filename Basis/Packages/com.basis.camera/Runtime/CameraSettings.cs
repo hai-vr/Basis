@@ -375,6 +375,12 @@ public partial class BasisHandHeldCameraUI
         /// in the constructor rather than migrated, so a file written before it existed still glides.
         /// </summary>
         public bool flyMomentum;
+
+        /// <summary>
+        /// On, the main menu's hotbar carries a fly switch, so flight can be armed and landed
+        /// without opening this panel. Off is the zero fill, so an older file loads without it.
+        /// </summary>
+        public bool showFlyOnMainMenu;
         public bool resizeWithGesture;
 
         // GIF recording. Every default is set in the constructor, so an older file that lacks

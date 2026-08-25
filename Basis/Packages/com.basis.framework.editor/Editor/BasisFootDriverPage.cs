@@ -2,6 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 
 public class BasisFootDriverPage : Basis.IK.Debugging.BasisIKSweepPage
 {
@@ -91,12 +92,26 @@ public class BasisFootDriverPage : Basis.IK.Debugging.BasisIKSweepPage
         }
 
         EditorGUILayout.Space(4);
+
+        Vector3 hips = fd.HipsPosition;
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+        {
+            BasisEditorUI.SectionTitle("Stance Anchor");
+            EditorGUILayout.Vector3Field("Hips (avatar bone)", hips);
+            Vector3 hipsControl = BasisLocalBoneDriver.HipsControl != null ? BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position : Vector3.zero;
+            EditorGUILayout.Vector3Field("Hips (bone control)", hipsControl);
+            EditorGUILayout.FloatField("Bone vs Control (cm)", Horizontal(hips, hipsControl) * 100f);
+            EditorGUILayout.Vector3Field("Player Root", BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.transform.position : Vector3.zero);
+            BasisEditorUI.Note("Ideal is centred on the avatar hips bone. If Ideal sits under the hips but the feet do not, the divergence is downstream of the foot sim.");
+        }
+
+        EditorGUILayout.Space(4);
         DrawFootGUI("Left", fd.LeftIsPlanted, fd.LeftStepProgress, fd.LeftFootPosition,
-            fd.LeftIdealPos, fd.LeftStepTarget, new Color(0.2f, 0.9f, 0.4f));
+            fd.LeftIdealPos, fd.LeftStepTarget, hips, new Color(0.2f, 0.9f, 0.4f));
 
         EditorGUILayout.Space(4);
         DrawFootGUI("Right", fd.RightIsPlanted, fd.RightStepProgress, fd.RightFootPosition,
-            fd.RightIdealPos, fd.RightStepTarget, new Color(0.2f, 0.5f, 1f));
+            fd.RightIdealPos, fd.RightStepTarget, hips, new Color(0.2f, 0.5f, 1f));
 
         EditorGUILayout.Space(6);
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
@@ -116,8 +131,10 @@ public class BasisFootDriverPage : Basis.IK.Debugging.BasisIKSweepPage
 
     }
 
+    private static float Horizontal(Vector3 a, Vector3 b) => new Vector2(a.x - b.x, a.z - b.z).magnitude;
+
     private void DrawFootGUI(string name, bool planted, float progress, Vector3 pos,
-        Vector3 ideal, Vector3 stepTarget, Color tint)
+        Vector3 ideal, Vector3 stepTarget, Vector3 hips, Color tint)
     {
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
@@ -140,6 +157,9 @@ public class BasisFootDriverPage : Basis.IK.Debugging.BasisIKSweepPage
             EditorGUILayout.Vector3Field("Position", pos);
             EditorGUILayout.Vector3Field("Ideal", ideal);
             if (!planted) EditorGUILayout.Vector3Field("Step Target", stepTarget);
+
+            EditorGUILayout.FloatField("Ideal off Hips (cm)", Horizontal(ideal, hips) * 100f);
+            EditorGUILayout.FloatField("Foot off Hips (cm)", Horizontal(pos, hips) * 100f);
 
             float drift = new Vector2(pos.x - ideal.x, pos.z - ideal.z).magnitude;
             var rect = EditorGUILayout.GetControlRect(GUILayout.Height(14));

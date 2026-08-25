@@ -116,6 +116,7 @@ public static class BasisCameraSettingsReadout
         Row("camera.flyTurnSpeed", Number(settings.flyTurnSpeed) + " °/s");
         Row("camera.flyMouseSensitivity", Number(settings.flyMouseSensitivity));
         Row("camera.flyMomentum", OnOff(settings.flyMomentum));
+        Row("camera.flyOnMenu", OnOff(settings.showFlyOnMainMenu));
         Row("camera.autoLevel", OnOff(settings.useAutoLeveling));
         Row("camera.vrStabilization", OnOff(settings.useVRHandheldSmoothing));
         Row("camera.smoothDrag", OnOff(settings.useSmoothDrag));

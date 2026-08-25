@@ -1515,6 +1515,14 @@
       "value": "On, the flying camera coasts to a stop after you let go of WASD or the move stick. Off, it stops the instant you release. The same switch covers desktop and VR."
     },
     {
+      "key": "camera.flyOnMenu",
+      "value": "Show Fly Switch On Main Menu"
+    },
+    {
+      "key": "camera.flyOnMenu.description",
+      "value": "Puts a fly switch on the main menu's bar, so the camera can be sent out into the world and brought back without opening this panel. It drives the camera selected here, and lights up while that camera is flying."
+    },
+    {
       "key": "camera.follow",
       "value": "Follow"
     },
@@ -2145,6 +2153,10 @@
     {
       "key": "settings.developer.gizmoDrawOnTop.tooltip",
       "value": "Draw every gizmo through the world so markers inside an avatar or behind a wall stay visible. Off by default, so gizmos depth-test like anything else and the world hides whatever is actually behind them."
+    },
+    {
+      "key": "settings.developer.gizmoAllCameras.tooltip",
+      "value": "Render gizmos for every camera, so photos, streams and mirrors show them too. Off by default, gizmos sit on the layer the handheld camera culls, so only your own view shows them."
     },
     {
       "key": "settings.general.networking.jitterBufferOverride.tooltip",
@@ -3805,6 +3817,14 @@
     {
       "key": "menu.provider.respawn",
       "value": "Respawn"
+    },
+    {
+      "key": "menu.provider.cameraFly",
+      "value": "Fly Camera"
+    },
+    {
+      "key": "menu.provider.cameraFly.stop",
+      "value": "Stop Flying"
     },
     {
       "key": "menu.provider.servers",
@@ -9819,6 +9839,34 @@
       "value": "Emission"
     },
     {
+      "key": "settings.developer.ssgiDebug.preparedAlbedo",
+      "value": "Prepared Albedo"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.preparedNormals",
+      "value": "Prepared Normals"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.ambient",
+      "value": "Ambient Lighting"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.removal",
+      "value": "Ambient Removal"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.noise",
+      "value": "Noise"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.surfaceSource",
+      "value": "Surface Source"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.bakedRadiance",
+      "value": "Baked Radiance"
+    },
+    {
       "key": "settings.developer.vrs.title",
       "value": "Variable Rate Shading"
     },
@@ -10057,6 +10105,10 @@
     {
       "key": "settings.developer.gizmoDrawOnTop",
       "value": "Draw Gizmos On Top"
+    },
+    {
+      "key": "settings.developer.gizmoAllCameras",
+      "value": "Gizmos In All Cameras"
     },
     {
       "key": "settings.developer.eyeTracking.title",

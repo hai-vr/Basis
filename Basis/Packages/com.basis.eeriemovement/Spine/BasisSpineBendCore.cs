@@ -4,9 +4,8 @@ namespace Basis.IK
     public static class BasisSpineBendCore
     {
         const float sqrEpsilon = 1e-8f, epsilon = 1e-5f, bendDeadbandDeg = 3f, bendDeadbandWidthDeg = 7f;
-        const float twistFadeFullHoriz = 0.342f, twistFadeZeroHoriz = 0.174f, twistPoleFadeStartDeg = 120f, twistPoleFadeEndDeg = 179f, bowLeanFullDeg = 8f;
-        public static void Solve(in BasisSpineBendInput i, out BasisSpineBendResult r) => Solve(i, default, out r);
-        public static void Solve(in BasisSpineBendInput i, in BasisSpineBendChestInput c, out BasisSpineBendResult r)
+        const float twistFadeFullHoriz = 0.342f, twistFadeZeroHoriz = 0.174f;
+        public static void Solve(in BasisSpineBendInput i, out BasisSpineBendResult r)
         {
             r = default;
 
@@ -32,7 +31,6 @@ namespace Basis.IK
             float twistY = (horizMagSq < sqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
             float twistFadeT = Mathf.Clamp01((Mathf.Sqrt(horizMagSq) - twistFadeZeroHoriz) / (twistFadeFullHoriz - twistFadeZeroHoriz));
             twistY *= Mathf.SmoothStep(0f, 1f, twistFadeT);
-            twistY *= 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Mathf.Abs(twistY) - twistPoleFadeStartDeg) / (twistPoleFadeEndDeg - twistPoleFadeStartDeg)));
 
             float maxFwd = Mathf.Max(0f, i.SpineMaxForwardDeg), maxBack = Mathf.Max(0f, i.SpineMaxBackwardDeg);
             float maxLat = Mathf.Max(0f, i.SpineMaxLateralDeg);
@@ -43,8 +41,6 @@ namespace Basis.IK
             float spineYawEff = Mathf.Clamp01(i.SpineBendYaw), spineRollEff = Mathf.Clamp01(i.SpineBendRoll);
             float upperPitchEff = Mathf.Clamp01(i.UpperBendPitch), upperYawEff = Mathf.Clamp01(i.UpperBendYaw);
             float upperRollEff = Mathf.Clamp01(i.UpperBendRoll);
-            float chestPitchEff = c.HasChest ? Mathf.Clamp01(c.ChestBendPitch) : 0f, chestYawEff = c.HasChest ? Mathf.Clamp01(c.ChestBendYaw) : 0f;
-            float chestRollEff = c.HasChest ? Mathf.Clamp01(c.ChestBendRoll) : 0f;
             if (i.AnatDifferentialStiffness)
             {
                 spineYawEff *= 0.4f;
@@ -52,41 +48,21 @@ namespace Basis.IK
             }
             if (i.AnatPelvicTwistRouting)
             {
-                float total = spineYawEff + chestYawEff + upperYawEff, thoracic = chestYawEff + upperYawEff;
-                float upperFrac = thoracic > epsilon ? upperYawEff / thoracic : 1f;
+                float total = spineYawEff + upperYawEff;
                 spineYawEff = total * 0.25f;
-                upperYawEff = total * 0.75f * upperFrac;
-                chestYawEff = total * 0.75f * (1f - upperFrac);
-            }
-            float bowDeg = 0f;
-            Vector2 bowVec = new Vector2(1f, 0f);
-            if (c.HasNeckCue && i.RestLen > epsilon)
-            {
-                bowDeg = BowFromCompression(1f - (c.NeckCue - i.HipsPos).magnitude / i.RestLen, c.TautBandFrac);
-                if (bendMag > epsilon)
-                {
-                    float leanW = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(bendMag / bowLeanFullDeg));
-                    bowVec = bowVec * (1f - leanW) + new Vector2(bendEuler.x, bendEuler.z) * (leanW / bendMag);
-                }
+                upperYawEff = total * 0.75f;
             }
 
             if (i.HasSpine)
             {
-                Vector3 e = new Vector3( bendEuler.x * spinePitchEff * squishMult * bendGate + bowDeg * spinePitchEff * bowVec.x, twistY * spineYawEff * squishMult, bendEuler.z * spineRollEff * squishMult * bendGate + bowDeg * spineRollEff * bowVec.y );
+                Vector3 e = new Vector3( bendEuler.x * spinePitchEff * squishMult * bendGate, twistY * spineYawEff * squishMult, bendEuler.z * spineRollEff * squishMult * bendGate );
                 e.y += i.BendTwistCoupling * e.z;
                 r.SpineEuler = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 r.WriteSpine = true;
             }
-            if (c.HasChest)
-            {
-                Vector3 e = new Vector3( bendEuler.x * chestPitchEff * squishMult * bendGate + bowDeg * chestPitchEff * bowVec.x, twistY * chestYawEff * squishMult, bendEuler.z * chestRollEff * squishMult * bendGate + bowDeg * chestRollEff * bowVec.y );
-                e.y += i.BendTwistCoupling * e.z;
-                r.ChestEuler = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
-                r.WriteChest = true;
-            }
             if (i.HasUpper)
             {
-                Vector3 e = new Vector3( bendEuler.x * upperPitchEff * squishMult * bendGate + bowDeg * upperPitchEff * bowVec.x, twistY * upperYawEff * squishMult, bendEuler.z * upperRollEff * squishMult * bendGate + bowDeg * upperRollEff * bowVec.y );
+                Vector3 e = new Vector3( bendEuler.x * upperPitchEff * squishMult * bendGate, twistY * upperYawEff * squishMult, bendEuler.z * upperRollEff * squishMult * bendGate );
                 e.y += i.BendTwistCoupling * e.z;
                 r.UpperEuler = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 r.WriteUpper = true;
@@ -98,21 +74,6 @@ namespace Basis.IK
             r.BendGate = bendGate;
             r.SpineYawEff = spineYawEff;
             r.UpperYawEff = upperYawEff;
-            r.ChestYawEff = chestYawEff;
-            r.BowDeg = bowDeg;
-        }
-        public static float BowAngleDeg(float compressionFrac)
-        {
-            return compressionFrac > 0f ? Mathf.Rad2Deg * Mathf.Sqrt(24f * compressionFrac) : 0f;
-        }
-        public static float BowFromCompression(float compressionFrac, float bandFrac)
-        {
-            float band = Mathf.Max(bandFrac, 1e-4f), e = compressionFrac - band;
-            if (!(e > 0f))
-            {
-                return 0f;
-            }
-            return BowAngleDeg(compressionFrac) * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(e / (3f * band)));
         }
         public static Quaternion Compose(Vector3 e)
         {

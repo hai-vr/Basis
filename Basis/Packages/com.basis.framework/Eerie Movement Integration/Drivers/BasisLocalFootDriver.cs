@@ -353,15 +353,13 @@ public partial class BasisLocalFootDriver
         leftN.landRot = leftN.currentRot;
         rightN.landRot = rightN.currentRot;
 
-        var hc = BasisLocalBoneDriver.HeadControl;
-        Vector3 headPos = hc.OutgoingWorldData.position;
         Vector3 bodyFwd = BasisLocalPose.GetRotation(BasisPoseSlot.AvatarRoot, avatarTransform) * Vector3.forward;
         Vector3 bodyRight = Vector3.Cross(cachedPlayerUp, bodyFwd).normalized;
 
         prevHeadYaw = HeadYaw();
         nativeSimState[0] = new BasisFootSimState
         {
-            prevHeadPos = headPos,
+            prevHeadPos = BasisLocalPose.GetPosition(BasisPoseSlot.Hips, hips),
             prevHeadYaw = prevHeadYaw,
             smoothedVelocity = float3.zero,
             smoothedBodyFwd = bodyFwd,

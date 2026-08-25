@@ -358,6 +358,13 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
             case "gbuffer albedo": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.GBufferAlbedo;
             case "gbuffer normals": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.GBufferNormals;
             case "emission": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.Emission;
+            case "prepared albedo": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.PreparedAlbedo;
+            case "prepared normals": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.PreparedNormals;
+            case "ambient lighting": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.AmbientLighting;
+            case "ambient removal": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.AmbientRemoval;
+            case "noise": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.Noise;
+            case "surface source": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.SurfaceSource;
+            case "baked radiance": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.BakedRadiance;
             default: return ScreenSpaceGlobalIlluminationURP.DebugViewMode.None;
         }
     }

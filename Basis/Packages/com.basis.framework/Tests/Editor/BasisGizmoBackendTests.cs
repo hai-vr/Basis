@@ -271,6 +271,60 @@ namespace Basis.Tests.IK
         }
 
         [Test]
+        public void RenderInAllCameras_MovesTheSharedLayerToTheOneEveryCameraRenders()
+        {
+            // Off, gizmos ride OverlayUI, which the handheld camera culls out of its shots.
+            // On, they move to Default — the layer the world itself is on — so a capture,
+            // a mirror or any other camera in the scene draws them like the player's view does.
+            bool original = BasisGizmoManager.RenderInAllCameras;
+            int originalLayer = BasisGizmoManager.RenderLayer;
+            try
+            {
+                BasisGizmoManager.RenderInAllCameras = false;
+                BasisGizmoManager.RenderLayer = BasisGizmoManager.DefaultRenderLayer;
+                int overlay = LayerMask.NameToLayer("OverlayUI");
+                Assume.That(overlay, Is.GreaterThanOrEqualTo(0), "This project no longer defines the OverlayUI layer.");
+                Assert.AreEqual(overlay, BasisGizmoManager.RenderLayer);
+
+                BasisGizmoManager.RenderInAllCameras = true;
+                Assert.AreEqual(0, BasisGizmoManager.DefaultRenderLayer, "Default is the layer every camera renders.");
+                Assert.AreEqual(0, BasisGizmoManager.RenderLayer, "The shared layer follows the toggle.");
+
+                BasisGizmoManager.RenderInAllCameras = false;
+                Assert.AreEqual(overlay, BasisGizmoManager.RenderLayer, "and goes back when it is turned off.");
+            }
+            finally
+            {
+                BasisGizmoManager.RenderInAllCameras = original;
+                BasisGizmoManager.RenderLayer = originalLayer;
+            }
+        }
+
+        [Test]
+        public void RenderInAllCameras_LeavesALayerSomethingElseChose()
+        {
+            // The calibration mirror relay parks RenderLayer on LocalPlayerAvatar while its
+            // cutout mirror is alive and restores DefaultRenderLayer afterwards. Toggling
+            // underneath it must not yank the gizmos out of the reflection.
+            bool original = BasisGizmoManager.RenderInAllCameras;
+            int originalLayer = BasisGizmoManager.RenderLayer;
+            try
+            {
+                BasisGizmoManager.RenderInAllCameras = false;
+                BasisGizmoManager.RenderLayer = 9;
+
+                BasisGizmoManager.RenderInAllCameras = true;
+                Assert.AreEqual(9, BasisGizmoManager.RenderLayer, "an explicit layer outranks the toggle");
+                Assert.AreEqual(0, BasisGizmoManager.DefaultRenderLayer, "which the restore then picks up");
+            }
+            finally
+            {
+                BasisGizmoManager.RenderInAllCameras = original;
+                BasisGizmoManager.RenderLayer = originalLayer;
+            }
+        }
+
+        [Test]
         public void SetGizmoActive_TogglesWithoutDestroying()
         {
             BasisGizmoManager.CreateSphereGizmo("s", out int sphereId, Vector3.zero, 0.1f, Color.white);

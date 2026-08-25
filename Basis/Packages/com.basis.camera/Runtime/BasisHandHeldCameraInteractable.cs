@@ -56,6 +56,17 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     public void SetFlyTurnSpeed(float degreesPerSecond) => vrFlyTurnSpeed = Mathf.Clamp(degreesPerSecond, MinFlyTurnSpeed, MaxFlyTurnSpeed);
     public void SetFlyMouseSensitivity(float sensitivity) => mouseSensitivity = Mathf.Clamp(sensitivity, MinFlyMouseSensitivity, MaxFlyMouseSensitivity);
 
+    public bool showFlyOnMainMenu;
+    public static event System.Action OnFlyStateChanged;
+    public static event System.Action OnFlyMenuVisibilityChanged;
+
+    public void SetShowFlyOnMainMenu(bool enabled)
+    {
+        if (showFlyOnMainMenu == enabled) return;
+        showFlyOnMainMenu = enabled;
+        OnFlyMenuVisibilityChanged?.Invoke();
+    }
+
     [Header("Camera Rotation")]
     /// <summary>Mouse sensitivity for fly rotation.</summary>
     public float mouseSensitivity = 0.5f;
@@ -287,10 +298,12 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         {
             pauseMove = true;
             flyCamera?.Enable();
+            OnFlyStateChanged?.Invoke();
             return;
         }
 
         isVRFlying = true;
+        OnFlyStateChanged?.Invoke();
     }
 
     /// <summary>
@@ -332,6 +345,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         velocityMomentum = Vector3.zero;
         pendingYaw = 0f;
         pendingPitch = 0f;
+        OnFlyStateChanged?.Invoke();
     }
 
     /// <summary>
@@ -522,6 +536,16 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             Vector3 hips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
             anchorPos = hips + Vector3.up * Mathf.Max(0f, headHeight - hipsHeight);
             topY = hips.y + Mathf.Max(0f, topHeight - hipsHeight);
+
+            // Horizontally the head, though: you turn about your head and the solver hangs the hips
+            // off it at a lean, so a hips-centred ring sweeps that lean as an arc every time you
+            // turn on the spot. The remote path already reads its XZ off a root that cannot swing.
+            if (BasisLocalCameraDriver.HasInstance)
+            {
+                Vector3 turnAxis = BasisLocalCameraDriver.HeadPosition;
+                anchorPos.x = turnAxis.x;
+                anchorPos.z = turnAxis.z;
+            }
         }
 
         Vector3 headPoint = BasisLocalCameraDriver.HasInstance ? BasisLocalCameraDriver.HeadPosition : anchorPos;

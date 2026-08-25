@@ -129,10 +129,23 @@ namespace Basis.Tests.Camera
             // layer with the world puts every one of them — tracker markers, IK probes, the dolly
             // track, this camera's own frustum — into every photo, 360 and video frame the handheld
             // camera takes. Pinning the two together means moving either one fails here first.
-            Assert.That(BasisGizmoManager.DefaultRenderLayer, Is.EqualTo(BasisHandHeldCamera.MarkerLayer),
-                "Gizmos must default to the layer the capture camera culls.");
-            Assert.That(BasisGizmoManager.RenderLayer, Is.EqualTo(BasisHandHeldCamera.MarkerLayer),
-                "Nothing should have moved the shared gizmo layer off its default.");
+            // BasisGizmoManager.RenderInAllCameras is the one thing allowed to ask for the world's
+            // layer, so this pins the default it starts from rather than whatever it is set to now.
+            bool originalAllCameras = BasisGizmoManager.RenderInAllCameras;
+            int originalLayer = BasisGizmoManager.RenderLayer;
+            try
+            {
+                BasisGizmoManager.RenderInAllCameras = false;
+                Assert.That(BasisGizmoManager.DefaultRenderLayer, Is.EqualTo(BasisHandHeldCamera.MarkerLayer),
+                    "Gizmos must default to the layer the capture camera culls.");
+                Assert.That(BasisGizmoManager.RenderLayer, Is.EqualTo(BasisHandHeldCamera.MarkerLayer),
+                    "Nothing should have moved the shared gizmo layer off its default.");
+            }
+            finally
+            {
+                BasisGizmoManager.RenderInAllCameras = originalAllCameras;
+                BasisGizmoManager.RenderLayer = originalLayer;
+            }
         }
     }
 }

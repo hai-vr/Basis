@@ -591,11 +591,11 @@ namespace Basis.Scripts.Drivers
             BodyData.chestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue * Scale;
             BodyData.collisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue * Scale;
             BasisCalibratedCoords hips = BasisLocalBoneDriver.HipsControl.TposeLocalScaled, spine = BasisLocalBoneDriver.SpineControl.TposeLocalScaled, chest = BasisLocalBoneDriver.ChestControl.TposeLocalScaled, neck = BasisLocalBoneDriver.NeckControl.TposeLocalScaled, head = BasisLocalBoneDriver.HeadControl.TposeLocalScaled;
-            float minHeadSpineHeight = Vector3.Distance(hips.position, head.position);
-            if (!(minHeadSpineHeight > 1e-4f))
-            {
-                minHeadSpineHeight = Vector3.Distance(hips.position, spine.position) + Vector3.Distance(spine.position, chest.position) + Vector3.Distance(chest.position, neck.position) + Vector3.Distance(neck.position, head.position);
-            }
+            float minHeadSpineHeight = 0f;
+            minHeadSpineHeight += Vector3.Distance(hips.position, spine.position);
+            minHeadSpineHeight += Vector3.Distance(spine.position, chest.position);
+            minHeadSpineHeight += Vector3.Distance(chest.position, neck.position);
+            minHeadSpineHeight += Vector3.Distance(neck.position, head.position);
             BodyData.minHeadSpineHeight = minHeadSpineHeight * (BodyData.tposeTorsoFitScale > 0f ? BodyData.tposeTorsoFitScale : 1f);
 
             BodyData.RescaleTposeScalars(Scale);

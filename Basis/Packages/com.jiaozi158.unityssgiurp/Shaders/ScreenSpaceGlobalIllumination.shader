@@ -278,7 +278,9 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 float2 screenUV = input.texcoord;
 
                 // Normals at this resolution for the denoisers, so a tap is a single fetch instead of a decode.
-                normalOutput = half4(SSGIReadSurfaceNormal(screenUV), 0.0);
+                // The spare channel carries how noisy this pixel's estimate is, which costs the denoisers nothing to
+                // read because they already fetch this texture for the normal.
+                half noise = 0.0;
 
                 half2 velocity = SAMPLE_TEXTURE2D_X_LOD(_MotionVectorTexture, sampler_LinearClamp, screenUV, 0).xy;
 
@@ -305,6 +307,20 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
 
                 half sampleCount = clamp(historySample + 1.0, 0.0, MAX_ACCUM_FRAME_NUM);
 
+                // The neighbourhood moments are measured for every pixel, not only for the ones that failed to
+                // reproject. They were already paid for there; measured everywhere they also say how noisy each
+                // pixel's estimate is, which is what the spatial denoisers need in order to widen where it matters.
+                half3 boxMax = currentColor.rgb;
+                half3 boxMin = currentColor.rgb;
+                half3 moment1 = currentColor.rgb;
+                half3 moment2 = currentColor.rgb * currentColor.rgb;
+
+                // adjacent pixels
+                AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, 0.0, -1.0);
+                AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, -1.0, 0.0);
+                AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, 1.0, 0.0);
+                AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, 0.0, 1.0);
+
                 half3 result;
 
                 UNITY_BRANCH
@@ -314,28 +330,6 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 }
                 else if (_AggressiveDenoise)
                 {
-                    // Performance cost here can be reduced by removing less important operations.
-
-                    // Color Variance
-                    half3 boxMax = currentColor.rgb;
-                    half3 boxMin = currentColor.rgb;
-                    half3 moment1 = currentColor.rgb;
-                    half3 moment2 = currentColor.rgb * currentColor.rgb;
-
-                    // adjacent pixels
-                    AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, 0.0, -1.0);
-                    AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, -1.0, 0.0);
-                    AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, 1.0, 0.0);
-                    AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, 0.0, 1.0);
-
-                    /*
-                    // remaining pixels in a 9x9 square (excluding center)
-                    AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, -1.0, -1.0);
-                    AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, 1.0, -1.0);
-                    AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, -1.0, 1.0);
-                    AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, 1.0, 1.0);
-                    */
-
                     prevColor = ClipToVarianceBox(prevColor, boxMin, boxMax, moment1, moment2, 5.0);
 
                     // We still try to reuse (clamped) history samples even if they are invalid
@@ -347,6 +341,13 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                     sampleCount = 1.0;
                 }
 
+                // Relative standard deviation of the neighbourhood: how much of what this pixel shows is noise rather
+                // than signal. A pixel can have a full history and still be noisy -- a few outlier rays near a bright
+                // source do it -- and history length alone calls that converged and filters it narrowly, which is
+                // exactly backwards. The denoisers read it back out of the normal target's spare channel.
+                noise = SSGINeighbourhoodNoise(moment1, moment2, 5.0);
+
+                normalOutput = half4(SSGIReadSurfaceNormal(screenUV), noise);
                 denoiseOutput = half4(result, currentColor.a);
                 //denoiseOutput = half4(historySample.xxx * rcp(MAX_ACCUM_FRAME_NUM) - rcp(MAX_ACCUM_FRAME_NUM), currentColor.a); // debug sample count
                 currentSample = sampleCount;
@@ -408,7 +409,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
 
                 // Reduce blur intensity if the hit distance is small, but never below what a pixel that has just been
                 // disoccluded needs: it holds a single noisy sample and the temporal pass has nothing to hide it with.
-                half noisiness = SSGIHistoryNoisiness(screenUV);
+                half noisiness = SSGINoisiness(screenUV);
                 half blurAmount = hitDistance < 1.0 && _HistoryTextureValid ? 0.05 : 1.0;
                 blurAmount = max(blurAmount, noisiness);
 
@@ -793,7 +794,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 //half blurRadius = ComputeBlurRadius(1.0, BLUR_MAX_RADIUS) * _ReBlurDenoiserRadius;
                 // A pixel with a full history is already clean and only loses detail to a wide kernel; one with a
                 // single sample needs every tap it can get. The radius follows how converged the estimate is.
-                half blurRadius = _ReBlurDenoiserRadius * lerp(1.0, SSGI_NOISY_RADIUS_BOOST, SSGIHistoryNoisiness(screenUV)); // * BLUR_MAX_RADIUS;
+                half blurRadius = _ReBlurDenoiserRadius * lerp(1.0, SSGI_NOISY_RADIUS_BOOST, SSGINoisiness(screenUV)); // * BLUR_MAX_RADIUS;
                 //blurRadius *= max(1.0 - saturate(accumulationFactor / MAX_ACCUM_FRAME_NUM), 1.0);
                 //blurRadius *= HitDistanceAttenuation(centerRoughness, distanceToCamera, centerSignal.w);
                 //blurRadius *= lerp(saturate((distanceToCamera - MIN_BLUR_DISTANCE) / BLUR_OUT_RANGE), 0.0, 1.0);
@@ -988,7 +989,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
 
                 UNITY_BRANCH
                 if (_SSGIDebugView != 0.0)
-                    return half4(SSGIDebugColor(screenUV, indirectLighting, giContribution), 0.0);
+                    return half4(SSGIDebugColor(screenUV, indirectLighting, giContribution, cameraColor, ambientLighting, albedo, metallic, hasGBuffer), 0.0);
 
                 return half4(giContribution, 0.0);
             }

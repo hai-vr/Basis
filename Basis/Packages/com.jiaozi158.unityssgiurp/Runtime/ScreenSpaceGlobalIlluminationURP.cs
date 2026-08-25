@@ -379,6 +379,13 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         GBufferAlbedo = 3,
         GBufferNormals = 4,
         Emission = 5,
+        PreparedAlbedo = 6,
+        PreparedNormals = 7,
+        AmbientLighting = 8,
+        AmbientRemoval = 9,
+        Noise = 10,
+        SurfaceSource = 11,
+        BakedRadiance = 12,
     }
 
     /// <summary>

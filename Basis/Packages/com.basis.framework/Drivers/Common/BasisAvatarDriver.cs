@@ -694,13 +694,6 @@ namespace Basis.Scripts.Drivers
                 r.gameObject.layer = layer;
             }
         }
-        private struct BasisShadowCloneEntry
-        {
-            public SkinnedMeshRenderer Source;
-            public SkinnedMeshRenderer Clone;
-            public int BlendShapeCount;
-            public float[] Values;
-        }
         private static List<BasisShadowCloneBlendshapeSync> ShadowCloneSyncs = new();
         public static void RemoveOldShadowClones()
         {

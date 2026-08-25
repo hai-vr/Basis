@@ -209,6 +209,7 @@ namespace Basis.Tests.Camera
                 flyTurnSpeed = 120f,
                 flyMouseSensitivity = 0.8f,
                 flyMomentum = false,
+                showFlyOnMainMenu = true,
                 resizeWithGesture = true,
                 printPhoto = true,
                 gifDurationSeconds = 8f,

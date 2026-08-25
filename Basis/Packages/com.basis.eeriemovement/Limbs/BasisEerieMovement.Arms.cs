@@ -56,7 +56,6 @@ namespace Basis.IK
             Quaternion delta = hipsRot * Quaternion.AngleAxis(yawDeg, Vector3.up) * Quaternion.Inverse(hipsRot);
             poseStream.SetRotation(shoulder, delta * poseStream.GetRotation(shoulder));
         }
-        const float armSwingPitchShare = 0.33f;
         void ApplyArmSwingChestFollow()
         {
             float factor = chestArmSwingFactor;
@@ -71,8 +70,7 @@ namespace Basis.IK
             float forwardDist = Mathf.Max(0.1f, Mathf.Abs(localMid.z));
             float yawDeg = Mathf.Atan2(localMid.x, forwardDist) * Mathf.Rad2Deg * factor;
             Vector3 localMidChest = invHipsAnat * (handMid - poseStream.GetPosition(handleChest));
-            float reachGate = Mathf.Clamp01(localMidChest.z / Mathf.Max(0.5f * Mathf.Max(tposeShoulderToHandLeft, tposeShoulderToHandRight), 0.05f));
-            float pitchDeg = Mathf.Atan2(-localMidChest.y, forwardDist) * Mathf.Rad2Deg * factor * reachGate * armSwingPitchShare;
+            float pitchDeg = Mathf.Atan2(-localMidChest.y, forwardDist) * Mathf.Rad2Deg * factor;
             float maxDeg = chestArmSwingMaxDeg;
             if (maxDeg > 0f)
             {

@@ -157,10 +157,8 @@ namespace Basis.Tests.IK
                 tposeHeadToNeckLocal = Quaternion.Inverse(rig.RestGaze) * (clip.Get(restFrame, BasisMocapJoint.Neck).Position - clip.Get(restFrame, BasisMocapJoint.Head).Position),
                 tposeLengthNeckToHips = clip.Get(restFrame, BasisMocapJoint.Neck).Position - clip.Get(restFrame, BasisMocapJoint.Hips).Position,
                 // Production bend weights / limits (BasisFullIKConstraintJob.SetDefaults).
-                spineBendPitch = 0.40f, spineBendYaw = 0.10f, spineBendRoll = 0.30f,
-                chestBendPitch = 0.20f, chestBendYaw = 0.15f, chestBendRoll = 0.15f,
-                upperChestBendPitch = 0.15f, upperChestBendYaw = 0.15f, upperChestBendRoll = 0.15f,
-                neckYawShare = 0.5f, spineStretchMax = 0.03f,
+                spineBendPitch = 0.45f, spineBendYaw = 0.10f, spineBendRoll = 0.35f,
+                upperChestBendPitch = 0.25f, upperChestBendYaw = 0.30f, upperChestBendRoll = 0.20f,
                 spineMaxForwardDeg = 60f, spineMaxBackwardDeg = 25f, spineMaxLateralDeg = 25f,
                 spineSquishBoost = 0.5f, spineGazeFollow = 0.25f,
                 thoracicBendStiffen = 0.3f, spineTautBandFrac = 0.015f, bendTwistCoupling = 0.15f,
@@ -180,9 +178,8 @@ namespace Basis.Tests.IK
             job.neckMaxConeDeg = cfg.ConeDeg;
             job.spineTolerance = cfg.Tolerance;
             job.spineMaxIterations = cfg.Iters;
-            job.spineBendPitch = 0.40f * cfg.PitchScale;
-            job.chestBendPitch = 0.20f * cfg.PitchScale;
-            job.upperChestBendPitch = 0.15f * cfg.PitchScale;
+            job.spineBendPitch = 0.45f * cfg.PitchScale;
+            job.upperChestBendPitch = 0.25f * cfg.PitchScale;
         }
         // Runs one configuration over one clip; appends each measured joint's error (metres).
         static void RunClip(Rig rig, BasisMotionClip clip, in SpineConfig cfg, bool solve, List<float> errors)

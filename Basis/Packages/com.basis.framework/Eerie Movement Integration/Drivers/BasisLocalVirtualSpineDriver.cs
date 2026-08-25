@@ -256,8 +256,7 @@ namespace Basis.IK
             chestTransform = math.saturate(lenNeckToChest / lenSpineTotal);
             spineTransform = math.saturate((lenNeckToChest + lenChestToSpine) / lenSpineTotal);
 
-            hipsRestDropY = pNeck.y - pHips.y;
-            restHipsLocalY = hipsRestDropY > 0f ? pHips.y : pNeck.y - lenSpineTotal;
+            restHipsLocalY = pNeck.y - lenSpineTotal;
 
             restHeadLocalY = math.max(pHead.y, 1e-3f);
 
