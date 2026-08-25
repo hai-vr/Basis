@@ -130,11 +130,13 @@ namespace SSGIURP.Tests
             StringAssert.Contains("out half4 outGBuffer0 : SV_Target0", pass);
             StringAssert.Contains("out half4 outGBuffer1 : SV_Target1", pass);
             StringAssert.Contains("out half4 outGBuffer2 : SV_Target2", pass);
+            StringAssert.Contains("out half4 outGBuffer3 : SV_Target3", pass);
             StringAssert.DoesNotContain("outNormalWS", pass);
             StringAssert.DoesNotContain("outRenderingLayers", pass);
             StringAssert.DoesNotContain("return float4(0, 1, 0, 1);", pass);
             StringAssert.Contains("outGBuffer0 = half4(poiFragData.baseColor, 0.0);", pass);
             StringAssert.Contains("outGBuffer2 = half4(packedNormalWS, 0.5);", pass);
+            StringAssert.Contains("outGBuffer3 = half4(0.0, 0.0, 0.0, 1.0);", pass);
             StringAssert.Contains("poiMesh.normals[1]", pass);
             StringAssert.Contains("clip(poiFragData.alpha - _Cutoff);", pass);
 

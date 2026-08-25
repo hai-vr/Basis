@@ -35,6 +35,8 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
     private bool overrideAmbient = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationOverrideAmbient.DefaultValue.GetDefault();
     private bool backfaceLighting = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationBackfaceLighting.DefaultValue.GetDefault();
     private float denoiseStrength = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength.DefaultValue.GetDefault();
+    private float emissive = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationEmissive.DefaultValue.GetDefault();
+    private float fallbackMaxGain = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackMaxGain.DefaultValue.GetDefault();
     private bool capturing;
     private Volume volume;
     private ScreenSpaceGlobalIlluminationVolume ssgi;
@@ -54,6 +56,8 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
     private static string K_SSGI_OVERRIDE_AMBIENT => BasisSettingsDefaults.ScreenSpaceGlobalIlluminationOverrideAmbient.BindingKey;
     private static string K_SSGI_BACKFACE_LIGHTING => BasisSettingsDefaults.ScreenSpaceGlobalIlluminationBackfaceLighting.BindingKey;
     private static string K_SSGI_DENOISE => BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength.BindingKey;
+    private static string K_SSGI_EMISSIVE => BasisSettingsDefaults.ScreenSpaceGlobalIlluminationEmissive.BindingKey;
+    private static string K_SSGI_FALLBACK_MAX_GAIN => BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackMaxGain.BindingKey;
 
     public override void Awake()
     {
@@ -292,6 +296,22 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
             }
             denoiseStrength = denoise;
         }
+        else if (matchedSettingName == K_SSGI_EMISSIVE)
+        {
+            if (!SliderReadOption(optionValue, out float emissiveValue))
+            {
+                return;
+            }
+            emissive = emissiveValue;
+        }
+        else if (matchedSettingName == K_SSGI_FALLBACK_MAX_GAIN)
+        {
+            if (!SliderReadOption(optionValue, out float gain))
+            {
+                return;
+            }
+            fallbackMaxGain = gain;
+        }
         else
         {
             return;
@@ -312,6 +332,8 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         overrideAmbient = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationOverrideAmbient.RawValue;
         backfaceLighting = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationBackfaceLighting.RawValue;
         denoiseStrength = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength.RawValue;
+        emissive = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationEmissive.RawValue;
+        fallbackMaxGain = BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackMaxGain.RawValue;
         ScreenSpaceGlobalIlluminationURP.DebugView = ReadDebugView(BasisSettingsDefaults.DevSsgiDebugView.RawValue);
         ApplyOverride();
     }
@@ -324,6 +346,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
             case "gi contribution": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.GlobalIlluminationContribution;
             case "gbuffer albedo": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.GBufferAlbedo;
             case "gbuffer normals": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.GBufferNormals;
+            case "emission": return ScreenSpaceGlobalIlluminationURP.DebugViewMode.Emission;
             default: return ScreenSpaceGlobalIlluminationURP.DebugViewMode.None;
         }
     }
@@ -426,7 +449,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
     {
         ScreenSpaceGlobalIlluminationURP feature = FindFeature();
         RememberAuthoredFeatureValues(feature);
-        Apply(feature, ssgiEnabled, gBufferFallback, fallbackAlbedo, reflectionProbes, highQualityUpscaling, overrideAmbient, backfaceLighting);
+        Apply(feature, ssgiEnabled, gBufferFallback, fallbackAlbedo, reflectionProbes, highQualityUpscaling, overrideAmbient, backfaceLighting, emissive, fallbackMaxGain);
     }
 
     // The feature is a sub-asset of the renderer, not a scene object, so writing to it in the editor
@@ -439,6 +462,8 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
     private bool authoredHighQualityUpscaling;
     private bool authoredOverrideAmbient;
     private bool authoredBackfaceLighting;
+    private float authoredEmissive;
+    private float authoredFallbackMaxGain;
 
     private void RememberAuthoredFeatureValues(ScreenSpaceGlobalIlluminationURP feature)
     {
@@ -454,6 +479,8 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         authoredHighQualityUpscaling = feature.HighQualityUpscaling;
         authoredOverrideAmbient = feature.OverrideAmbientLighting;
         authoredBackfaceLighting = feature.BackfaceLighting;
+        authoredEmissive = feature.EmissiveMultiplier;
+        authoredFallbackMaxGain = feature.FallbackMaxGain;
     }
 
     public void RestoreAuthoredFeatureValues()
@@ -464,10 +491,11 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         }
         hasAuthoredFeatureValues = false;
         Apply(FindFeature(), authoredActive, authoredGBufferFallback, authoredFallbackAlbedo, authoredReflectionProbes,
-            authoredHighQualityUpscaling, authoredOverrideAmbient, authoredBackfaceLighting);
+            authoredHighQualityUpscaling, authoredOverrideAmbient, authoredBackfaceLighting, authoredEmissive,
+            authoredFallbackMaxGain);
     }
 
-    public static void Apply(ScreenSpaceGlobalIlluminationURP feature, bool enabled, bool gBufferFallback, float fallbackAlbedo, bool reflectionProbes, bool highQualityUpscaling, bool overrideAmbient, bool backfaceLighting)
+    public static void Apply(ScreenSpaceGlobalIlluminationURP feature, bool enabled, bool gBufferFallback, float fallbackAlbedo, bool reflectionProbes, bool highQualityUpscaling, bool overrideAmbient, bool backfaceLighting, float emissive, float fallbackMaxGain)
     {
         if (feature == null)
         {
@@ -479,6 +507,8 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         feature.HighQualityUpscaling = highQualityUpscaling;
         feature.OverrideAmbientLighting = overrideAmbient;
         feature.BackfaceLighting = backfaceLighting;
+        feature.EmissiveMultiplier = Mathf.Clamp(emissive, BasisSettingsDefaults.SSGI_EMISSIVE_MIN, BasisSettingsDefaults.SSGI_EMISSIVE_MAX);
+        feature.FallbackMaxGain = Mathf.Clamp(fallbackMaxGain, BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MIN, BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MAX);
         if (feature.isActive != enabled)
         {
             feature.SetActive(enabled);

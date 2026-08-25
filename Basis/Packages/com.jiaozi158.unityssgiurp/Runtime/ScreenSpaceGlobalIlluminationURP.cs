@@ -30,6 +30,8 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
     [SerializeField] private bool m_ReflectionProbes = true;
     [Tooltip("Enables high-quality upscaling for screen space global illumination. \nThis may impact performance.")]
     [SerializeField] private bool m_HighQualityUpscaling = false;
+    [Tooltip("Renders the GBuffer the effect reads at the resolution the effect is traced at instead of at full resolution. \nQuarters the cost of the GBuffer pass; softens the edges of the surfaces the bounce is applied to.")]
+    [SerializeField] private bool m_TracedResolutionGBuffer = false;
 
     [Header("Lighting")]
     [Tooltip("Specifies if screen space global illumination overrides ambient lighting. \nThis ensures the accuracy of indirect lighting from SSGI.")]
@@ -39,10 +41,20 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
     [SerializeField] private bool m_GBufferFallback = true;
     [Tooltip("Albedo assumed for surfaces without a GBuffer pass where no ambient light reaches them, so nothing can be implied from their colour.")]
     [SerializeField, Range(0.0f, 1.0f)] private float m_FallbackAlbedo = 0.5f;
+    [Tooltip("Most a guessed bounce may add to a surface without GBuffer data, relative to the light it already stands in. \nRaise it to let bright sources light such surfaces; lower it if dark alpha tested geometry blows out.")]
+    [SerializeField, Range(0.25f, 8.0f)] private float m_FallbackMaxGain = 2.0f;
+
+    [Header("Emission")]
+    [Tooltip("How much the self-illumination of a surface counts for when a ray lands on it. \n1 matches the behaviour without an emission buffer, where emissive light only reaches the effect through the colour history.")]
+    [SerializeField, Range(0.0f, 8.0f)] private float m_EmissiveMultiplier = 1.0f;
+    [Tooltip("Ceiling for the emissive part of a single ray. The firefly clamp that bounds every ray still applies on top, so this can only tighten the emissive term, never let it exceed what reflected light is allowed.")]
+    [SerializeField, Range(1.0f, 8.0f)] private float m_EmissiveMaxBrightness = 7.0f;
     [Tooltip("Renderers registered through RegisterRenderers whose shader has no GBuffer pass are drawn into the GBuffer with this shader, which reads the material's _MainTex, _Color and _BumpMap.")]
     [SerializeField] private Shader m_GBufferOverrideShader;
     [Tooltip("Rendering layer bit that marks the renderers drawn with the override shader.")]
     [SerializeField, Range(1, 31)] private int m_GBufferOverrideRenderingLayerBit = 31;
+    [Tooltip("Draws every opaque renderer with the override shader instead of only the ones registered through RegisterRenderer, so props, scene geometry and published asset bundle content receive global illumination with their real albedo and normals rather than an estimate. \nCosts roughly one extra opaque draw.")]
+    [SerializeField] private bool m_GBufferOverrideAllOpaques = true;
 
     [Header("Advanced")]
     [Tooltip("Renders back-face lighting when using automatic thickness mode. \nThis improves accuracy in some cases, but may severely impact performance.")]
@@ -105,6 +117,15 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
     }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the GBuffer the effect reads is rendered at the traced resolution.
+    /// </summary>
+    public bool TracedResolutionGBuffer
+    {
+        get { return m_TracedResolutionGBuffer; }
+        set { m_TracedResolutionGBuffer = value; }
+    }
+
+    /// <summary>
     /// Gets or sets a value indicating whether screen space global illumination overrides ambient lighting.
     /// </summary>
     /// <remarks>
@@ -136,12 +157,84 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
     }
 
     /// <summary>
+    /// Most a guessed bounce may add to a surface without GBuffer data, relative to the light it already stands in.
+    /// </summary>
+    public float FallbackMaxGain
+    {
+        get { return m_FallbackMaxGain; }
+        set { m_FallbackMaxGain = Mathf.Clamp(value, 0.25f, 8.0f); }
+    }
+
+    /// <summary>
+    /// How much the self-illumination of a surface counts for when a ray lands on it. 1 leaves emissive light
+    /// reaching the effect only through the colour history, which is the behaviour without an emission buffer.
+    /// </summary>
+    public float EmissiveMultiplier
+    {
+        get { return m_EmissiveMultiplier; }
+        set { m_EmissiveMultiplier = Mathf.Clamp(value, 0.0f, 8.0f); }
+    }
+
+    /// <summary>
+    /// Ceiling for the emissive part of a single ray. The firefly clamp still applies on top of it.
+    /// </summary>
+    public float EmissiveMaxBrightness
+    {
+        get { return m_EmissiveMaxBrightness; }
+        set { m_EmissiveMaxBrightness = Mathf.Clamp(value, 1.0f, 8.0f); }
+    }
+
+    /// <summary>
     /// Shader used to draw registered renderers without a GBuffer pass into the GBuffer.
     /// </summary>
     public Shader GBufferOverrideShader
     {
         get { return m_GBufferOverrideShader; }
         set { m_GBufferOverrideShader = value; }
+    }
+
+    private static bool isOverrideAllOpaquesLogPrinted;
+
+    /// <summary>
+    /// Whether drawing every opaque renderer with the override shader is worth doing on this pipeline.
+    /// A draw submitted through a BatchRendererGroup - which the GPU Resident Drawer routes most static geometry
+    /// through - IGNORES DrawingSettings.overrideShader and draws the renderer's own forward pass instead. That
+    /// writes a fully shaded colour where albedo belongs, costs a second lighting evaluation for nothing, and logs a
+    /// warning per draw. Registered renderers stay covered either way: avatars are skinned meshes, which the resident
+    /// drawer does not batch.
+    /// </summary>
+    // Read by reflection: the enum lives in Unity.RenderPipelines.GPUDriven.Runtime, and this package is built to
+    // work across URP versions that may not ship it. Mirrors how the deferred path is detected above.
+    private static readonly PropertyInfo gpuResidentDrawerModeProperty = typeof(UniversalRenderPipelineAsset).GetProperty("gpuResidentDrawerMode");
+
+    private static bool CanOverrideAllOpaques()
+    {
+        UniversalRenderPipelineAsset asset = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+        object mode = asset != null && gpuResidentDrawerModeProperty != null ? gpuResidentDrawerModeProperty.GetValue(asset) : null;
+        bool canOverride = mode == null || Convert.ToInt32(mode) == 0; // 0 is GPUResidentDrawerMode.Disabled
+
+    #if UNITY_EDITOR || DEBUG
+        if (!canOverride && !isOverrideAllOpaquesLogPrinted)
+        {
+            Debug.Log("Screen Space Global Illumination URP: the GPU Resident Drawer is enabled, so batched renderers ignore the GBuffer override shader. Only renderers registered through RegisterRenderer are drawn with it; everything else without a GBuffer pass uses the depth and colour fallback.");
+            isOverrideAllOpaquesLogPrinted = true;
+        }
+        else if (canOverride)
+            isOverrideAllOpaquesLogPrinted = false;
+    #endif
+
+        return canOverride;
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether every opaque renderer is drawn with the override shader, rather than
+    /// only those registered through <see cref="RegisterRenderer"/>. This is what gives content that cannot carry a
+    /// GBuffer pass its real albedo and normals instead of an estimate.
+    /// </summary>
+    public bool GBufferOverrideAllOpaques
+    {
+        get { return m_GBufferOverrideAllOpaques; }
+        set { m_GBufferOverrideAllOpaques = value; }
     }
 
     /// <summary>
@@ -273,6 +366,7 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         GlobalIlluminationContribution = 2,
         GBufferAlbedo = 3,
         GBufferNormals = 4,
+        Emission = 5,
     }
 
     /// <summary>
@@ -361,6 +455,10 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
     private static readonly int _OverrideAmbientLightingId = Shader.PropertyToID("_OverrideAmbientLighting");
     private static readonly int _SSGIGBufferFallback = Shader.PropertyToID("_SSGIGBufferFallback");
     private static readonly int _SSGIFallbackAlbedo = Shader.PropertyToID("_SSGIFallbackAlbedo");
+    private static readonly int _SSGIFallbackMaxGain = Shader.PropertyToID("_SSGIFallbackMaxGain");
+    private static readonly int _SSGIEmissiveMultiplier = Shader.PropertyToID("_SSGIEmissiveMultiplier");
+    private static readonly int _SSGIEmissiveMaxBrightness = Shader.PropertyToID("_SSGIEmissiveMaxBrightness");
+    private static readonly int _SSGIEmissionValid = Shader.PropertyToID("_SSGIEmissionValid");
     private static readonly int _SSGIBlueNoise = Shader.PropertyToID("_SSGIBlueNoise");
 
     private const string _CameraDepthTexture = "_CameraDepthTexture";
@@ -383,6 +481,9 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
     private const string _SSGIHistorySampleTexture = "_SSGIHistorySampleTexture";
     private const string _SSGIHistoryCameraColorTexture = "_SSGIHistoryCameraColorTexture";
     private const string _SSGIAmbientLightingTexture = "_SSGIAmbientLightingTexture";
+    private const string _SSGISurfaceNormalTexture = "_SSGISurfaceNormalTexture";
+    private const string _SSGISurfaceAlbedoTexture = "_SSGISurfaceAlbedoTexture";
+    private const string _SSGIEmissionTexture = "_SSGIEmissionTexture";
 
     private static readonly int cameraDepthTexture = Shader.PropertyToID(_CameraDepthTexture);
     private static readonly int indirectDiffuseTexture = Shader.PropertyToID(_IndirectDiffuseTexture);
@@ -395,8 +496,13 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
     private static readonly int cameraBackOpaqueTexture = Shader.PropertyToID(_CameraBackOpaqueTexture);
     private static readonly int historyIndirectDiffuseTexture = Shader.PropertyToID(_HistoryIndirectDiffuseTexture);
     private static readonly int ssgiHistorySampleTexture = Shader.PropertyToID(_SSGIHistorySampleTexture);
+    private static readonly int ssgiSampleTexture = Shader.PropertyToID(_SSGISampleTexture);
     private static readonly int ssgiHistoryCameraColorTexture = Shader.PropertyToID(_SSGIHistoryCameraColorTexture);
     private static readonly int ssgiAmbientLightingTexture = Shader.PropertyToID(_SSGIAmbientLightingTexture);
+    private static readonly int ssgiSurfaceNormalTexture = Shader.PropertyToID(_SSGISurfaceNormalTexture);
+    private static readonly int ssgiSurfaceAlbedoTexture = Shader.PropertyToID(_SSGISurfaceAlbedoTexture);
+    private static readonly int ssgiEmissionTexture = Shader.PropertyToID(_SSGIEmissionTexture);
+    private static readonly int ssgiHistoryEmissionTexture = Shader.PropertyToID("_SSGIHistoryEmissionTexture");
 
     private const string _GBuffer0 = "_GBuffer0";
     private const string _GBuffer1 = "_GBuffer1";
@@ -604,7 +710,6 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         m_SSGIMaterial.SetFloat(_Thickness_Increment, ssgiVolume.depthBufferThickness.value * 0.25f);
         m_SSGIMaterial.SetFloat(_RayCount, ssgiVolume.sampleCount.value);
         m_SSGIMaterial.SetFloat(_TemporalIntensity, temporalIntensity);
-        m_SSGIMaterial.SetFloat(_ReBlurDenoiserRadius, ssgiVolume.denoiserRadiusSS.value * 2.0f * k_BlurMaxRadius); // Optimized for roughness = 1.0
         m_SSGIMaterial.SetFloat(_IndirectDiffuseLightingMultiplier, ssgiVolume.indirectDiffuseLightingMultiplier.value);
         m_SSGIMaterial.SetFloat(_MaxBrightness, 7.0f);
         m_SSGIMaterial.SetFloat(_AggressiveDenoise, ssgiVolume.denoiserAlgorithmSS.value == ScreenSpaceGlobalIlluminationVolume.DenoiserAlgorithm.Aggressive ? 1.0f : 0.0f);
@@ -612,6 +717,9 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         m_SSGIMaterial.SetFloat(_OverrideAmbientLightingId, m_OverrideAmbientLighting ? 1.0f : 0.0f);
         m_SSGIMaterial.SetFloat(_SSGIGBufferFallback, m_GBufferFallback ? 1.0f : 0.0f);
         m_SSGIMaterial.SetFloat(_SSGIFallbackAlbedo, m_FallbackAlbedo);
+        m_SSGIMaterial.SetFloat(_SSGIFallbackMaxGain, m_FallbackMaxGain);
+        m_SSGIMaterial.SetFloat(_SSGIEmissiveMultiplier, m_EmissiveMultiplier);
+        m_SSGIMaterial.SetFloat(_SSGIEmissiveMaxBrightness, m_EmissiveMaxBrightness);
 
         // Depth and motion vectors only. The GBuffer fallback reconstructs normals from depth on purpose: asking for the
         // normals texture switches URP to a depth normals prepass, which cannot target an MSAA depth attachment under
@@ -735,12 +843,19 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         // Assuming the current device supports at least 4 MRTs since we require Unity shader model 3.5
         if (!isUsingDeferred)
         {
+            m_ForwardGBufferPass.overrideAllOpaques = m_GBufferOverrideAllOpaques && CanOverrideAllOpaques();
+            m_ForwardGBufferPass.renderTracedResolution = m_TracedResolutionGBuffer;
+            m_ForwardGBufferPass.resolutionScale = resolutionScale;
+            m_ForwardGBufferPass.depthPrimingMaterial = m_SSGIMaterial;
             renderer.EnqueuePass(m_ForwardGBufferPass);
             Shader.EnableKeyword(SSGI_RENDER_GBUFFER);
+            // The emission target only exists when this pass runs; in the deferred path GBuffer 3 is the camera colour.
+            m_SSGIMaterial.SetFloat(_SSGIEmissionValid, 1.0f);
         }
         else
         {
             Shader.DisableKeyword(SSGI_RENDER_GBUFFER);
+            m_SSGIMaterial.SetFloat(_SSGIEmissionValid, 0.0f);
         }
     }
     public class PreRenderScreenSpaceGlobalIlluminationPass : ScriptableRenderPass
@@ -827,11 +942,15 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         public bool hasProbeAtlas;
         public Material m_SSGIMaterial;
 
+        // The second sweep of the recurrent denoiser widens as well as re-rotates, so it reaches past the first.
+        private const float k_SecondBlurRadiusScale = 1.75f;
+
         // The persistent history textures live in "CameraHistoryData" so every camera (and every eye in multi-pass XR) reprojects from its own history.
         // Each history is a pair of textures: the pass reads last frame's and writes this frame's, then the roles swap, so nothing is copied.
 
         private readonly RenderTargetIdentifier[] rTHandles = new RenderTargetIdentifier[2];
         private readonly RenderTargetIdentifier[] rTHandles3 = new RenderTargetIdentifier[3];
+        private readonly RenderTargetIdentifier[] rTHandles4 = new RenderTargetIdentifier[4];
         private readonly Matrix4x4[] prevInvViewProjMatrices = new Matrix4x4[2];
 
         private bool enableDenoise;
@@ -844,6 +963,18 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         public static readonly float[] k_PreBlurRands = new float[] { 0.840188f, 0.394383f, 0.783099f, 0.79844f, 0.911647f, 0.197551f, 0.335223f, 0.76823f, 0.277775f, 0.55397f, 0.477397f, 0.628871f, 0.364784f, 0.513401f, 0.95223f, 0.916195f, 0.635712f, 0.717297f, 0.141603f, 0.606969f, 0.0163006f, 0.242887f, 0.137232f, 0.804177f, 0.156679f, 0.400944f, 0.12979f, 0.108809f, 0.998924f, 0.218257f, 0.512932f, 0.839112f };
         public static readonly float[] k_BlurRands = new float[] { 0.61264f, 0.296032f, 0.637552f, 0.524287f, 0.493583f, 0.972775f, 0.292517f, 0.771358f, 0.526745f, 0.769914f, 0.400229f, 0.891529f, 0.283315f, 0.352458f, 0.807725f, 0.919026f, 0.0697553f, 0.949327f, 0.525995f, 0.0860558f, 0.192214f, 0.663227f, 0.890233f, 0.348893f, 0.0641713f, 0.020023f, 0.457702f, 0.0630958f, 0.23828f, 0.970634f, 0.902208f, 0.85092f };
         public static readonly float[] k_PostBlurRands = new float[] { 0.266666f, 0.53976f, 0.375207f, 0.760249f, 0.512535f, 0.667724f, 0.531606f, 0.0392803f, 0.437638f, 0.931835f, 0.93081f, 0.720952f, 0.284293f, 0.738534f, 0.639979f, 0.354049f, 0.687861f, 0.165974f, 0.440105f, 0.880075f, 0.829201f, 0.330337f, 0.228968f, 0.893372f, 0.35036f, 0.68667f, 0.956468f, 0.58864f, 0.657304f, 0.858676f, 0.43956f, 0.92397f };
+
+        // Every step of the chain runs inside one unsafe pass, so without a sampler per step the whole effect
+        // reports as a single number and none of it can be attributed.
+        internal static readonly ProfilingSampler s_PrepareSampler = new ProfilingSampler("SSGI Prepare");
+        internal static readonly ProfilingSampler s_CopyDepthSampler = new ProfilingSampler("SSGI Copy Depth");
+        internal static readonly ProfilingSampler s_TraceSampler = new ProfilingSampler("SSGI Trace");
+        internal static readonly ProfilingSampler s_ReprojectSampler = new ProfilingSampler("SSGI Temporal Reprojection");
+        internal static readonly ProfilingSampler s_PoissonSampler = new ProfilingSampler("SSGI Poisson Denoise");
+        internal static readonly ProfilingSampler s_SpatialSampler = new ProfilingSampler("SSGI Spatial Denoise");
+        internal static readonly ProfilingSampler s_StabilizeSampler = new ProfilingSampler("SSGI Temporal Stabilization");
+        internal static readonly ProfilingSampler s_CombineSampler = new ProfilingSampler("SSGI Combine");
+        internal static readonly ProfilingSampler s_HistorySampler = new ProfilingSampler("SSGI Copy Color History");
 
         public ScreenSpaceGlobalIlluminationPass(Material material)
         {
@@ -866,6 +997,7 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
 
             internal RenderTargetIdentifier[] rTHandles;
             internal RenderTargetIdentifier[] rTHandles3;
+            internal RenderTargetIdentifier[] rTHandles4;
 
             // Camera color & direct lighting color
             internal TextureHandle cameraColorTargetHandle;
@@ -874,6 +1006,15 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
             internal TextureHandle intermediateCameraColorHandle;
             internal TextureHandle historyCameraColorHandle;
             internal TextureHandle ambientLightingHandle;
+
+            // Written once by the prepare pass and read by every later pass instead of being re-derived.
+            internal TextureHandle surfaceNormalHandle;
+            internal TextureHandle surfaceAlbedoHandle;
+
+            internal Vector4 blurRotator;
+            internal Vector4 secondBlurRotator;
+            internal float blurRadius;
+            internal float secondBlurRadius;
 
             // SSGI diffuse lighting: this frame's result, which is next frame's history
             internal TextureHandle diffuseHandle;
@@ -903,8 +1044,10 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         static void ExecutePass(PassData data, UnsafeGraphContext context)
         {
             CommandBuffer cmd = CommandBufferHelpers.GetNativeCommandBuffer(context.cmd);
-
             data.ssgiMaterial.SetTexture(cameraDepthTexture, data.cameraDepthTextureHandle);
+
+            cmd.SetGlobalVector(_ReBlurBlurRotator, data.blurRotator);
+            cmd.SetGlobalFloat(_ReBlurDenoiserRadius, data.blurRadius);
 
             if (data.localGBuffers)
             {
@@ -933,57 +1076,86 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
 
             // RT-1: camera colour
             // RT-2: ambient lighting at each pixel
-            data.rTHandles[0] = data.intermediateCameraColorHandle;
-            data.rTHandles[1] = data.ambientLightingHandle;
-            SetRenderTargets(cmd, data.rTHandles, data.intermediateCameraColorHandle);
-            Blitter.BlitTexture(cmd, data.cameraColorTargetHandle, m_ScaleBias, data.ssgiMaterial, pass: 0);
-            data.ssgiMaterial.SetTexture(ssgiAmbientLightingTexture, data.ambientLightingHandle);
+            // RT-3: world normal + the bit saying whether the GBuffer at this pixel belongs to this surface
+            // RT-4: albedo + metallic, already resolved through the fallback
+            using (new ProfilingScope(cmd, s_PrepareSampler))
+            {
+                data.rTHandles4[0] = data.intermediateCameraColorHandle;
+                data.rTHandles4[1] = data.ambientLightingHandle;
+                data.rTHandles4[2] = data.surfaceNormalHandle;
+                data.rTHandles4[3] = data.surfaceAlbedoHandle;
+                SetRenderTargets(cmd, data.rTHandles4, data.intermediateCameraColorHandle);
+                Blitter.BlitTexture(cmd, data.cameraColorTargetHandle, m_ScaleBias, data.ssgiMaterial, pass: 0);
+                data.ssgiMaterial.SetTexture(ssgiAmbientLightingTexture, data.ambientLightingHandle);
+                data.ssgiMaterial.SetTexture(ssgiSurfaceNormalTexture, data.surfaceNormalHandle);
+                data.ssgiMaterial.SetTexture(ssgiSurfaceAlbedoTexture, data.surfaceAlbedoHandle);
+            }
 
             // Depth at the traced resolution: read by the denoisers this frame and by the reprojection next frame.
-            Blitter.BlitCameraTexture(cmd, data.depthHandle, data.depthHandle, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, data.ssgiMaterial, pass: 5);
+            using (new ProfilingScope(cmd, s_CopyDepthSampler))
+                Blitter.BlitCameraTexture(cmd, data.depthHandle, data.depthHandle, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, data.ssgiMaterial, pass: 5);
 
             if (data.denoise)
             {
                 data.ssgiMaterial.SetTexture(ssgiNormalTexture, data.normalHandle);
 
-                // Render SSGI
-                Blitter.BlitCameraTexture(cmd, data.intermediateCameraColorHandle, data.intermediateDiffuseHandle, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store, data.ssgiMaterial, pass: 1);
+                using (new ProfilingScope(cmd, s_TraceSampler))
+                    Blitter.BlitCameraTexture(cmd, data.intermediateCameraColorHandle, data.intermediateDiffuseHandle, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store, data.ssgiMaterial, pass: 1);
 
-                // Reproject GI
-                data.rTHandles3[0] = data.diffuseHandle;
-                data.rTHandles3[1] = data.accumulateSampleHandle;
-                data.rTHandles3[2] = data.normalHandle;
-                // RT-1: accumulated results
-                // RT-2: accumulated sample count
-                // RT-3: normals at the traced resolution, for the denoisers
-                SetRenderTargets(cmd, data.rTHandles3, data.accumulateSampleHandle);
-                Blitter.BlitTexture(cmd, data.intermediateDiffuseHandle, m_ScaleBias, data.ssgiMaterial, pass: 2);
+                using (new ProfilingScope(cmd, s_ReprojectSampler))
+                {
+                    data.rTHandles3[0] = data.diffuseHandle;
+                    data.rTHandles3[1] = data.accumulateSampleHandle;
+                    data.rTHandles3[2] = data.normalHandle;
+                    // RT-1: accumulated results
+                    // RT-2: accumulated sample count
+                    // RT-3: normals at the traced resolution, for the denoisers
+                    SetRenderTargets(cmd, data.rTHandles3, data.accumulateSampleHandle);
+                    Blitter.BlitTexture(cmd, data.intermediateDiffuseHandle, m_ScaleBias, data.ssgiMaterial, pass: 2);
+                }
 
                 if (data.aggressiveDenoise)
                 {
-                    Blitter.BlitCameraTexture(cmd, data.diffuseHandle, data.intermediateDiffuseHandle, data.ssgiMaterial, pass: 8);
-                    Blitter.BlitCameraTexture(cmd, data.intermediateDiffuseHandle, data.diffuseHandle, data.ssgiMaterial, pass: 8);
+                    using (new ProfilingScope(cmd, s_PoissonSampler))
+                    {
+                        Blitter.BlitCameraTexture(cmd, data.diffuseHandle, data.intermediateDiffuseHandle, data.ssgiMaterial, pass: 8);
+                        // A second sweep through the same disk at the same rotation re-filters the kernel it just
+                        // used, so it gets its own rotation and a wider radius. These have to be command buffer
+                        // globals: a material property is read when the buffer is submitted, so changing one here
+                        // would apply to both blits rather than only the second.
+                        cmd.SetGlobalVector(_ReBlurBlurRotator, data.secondBlurRotator);
+                        cmd.SetGlobalFloat(_ReBlurDenoiserRadius, data.secondBlurRadius);
+                        Blitter.BlitCameraTexture(cmd, data.intermediateDiffuseHandle, data.diffuseHandle, data.ssgiMaterial, pass: 8);
+                        cmd.SetGlobalVector(_ReBlurBlurRotator, data.blurRotator);
+                        cmd.SetGlobalFloat(_ReBlurDenoiserRadius, data.blurRadius);
+                    }
                 }
 
                 if (data.secondDenoise)
                 {
-                    Blitter.BlitCameraTexture(cmd, data.diffuseHandle, data.intermediateDiffuseHandle, data.ssgiMaterial, pass: 3);
-                    Blitter.BlitCameraTexture(cmd, data.intermediateDiffuseHandle, data.diffuseHandle, data.ssgiMaterial, pass: 4);
+                    using (new ProfilingScope(cmd, s_SpatialSampler))
+                        Blitter.BlitCameraTexture(cmd, data.diffuseHandle, data.intermediateDiffuseHandle, data.ssgiMaterial, pass: 3);
+                    using (new ProfilingScope(cmd, s_StabilizeSampler))
+                        Blitter.BlitCameraTexture(cmd, data.intermediateDiffuseHandle, data.diffuseHandle, data.ssgiMaterial, pass: 4);
                 }
             }
             else
             {
-                // SSGI
-                Blitter.BlitCameraTexture(cmd, data.intermediateCameraColorHandle, data.diffuseHandle, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store, data.ssgiMaterial, pass: 1);
+                using (new ProfilingScope(cmd, s_TraceSampler))
+                    Blitter.BlitCameraTexture(cmd, data.intermediateCameraColorHandle, data.diffuseHandle, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store, data.ssgiMaterial, pass: 1);
             }
 
-            // Combine: multiply the camera colour by the ambient removal factor, then add the bounce.
-            // Both are blended onto the camera target sample by sample, which keeps MSAA edges intact.
-            Blitter.BlitCameraTexture(cmd, data.intermediateCameraColorHandle, data.cameraColorTargetHandle, data.ssgiMaterial, pass: 6);
-            Blitter.BlitCameraTexture(cmd, data.intermediateCameraColorHandle, data.cameraColorTargetHandle, data.ssgiMaterial, pass: 10);
+            // Combine: the camera colour loses its ambient term and gains the traced bounce, blended onto the camera
+            // target sample by sample so MSAA edges survive. Merging the two into one dual source blended pass is not
+            // available: ShaderLab has no Src1Color blend factor, so a shader that uses one fails to parse.
+            using (new ProfilingScope(cmd, s_CombineSampler))
+            {
+                Blitter.BlitCameraTexture(cmd, data.intermediateCameraColorHandle, data.cameraColorTargetHandle, data.ssgiMaterial, pass: 6);
+                Blitter.BlitCameraTexture(cmd, data.intermediateCameraColorHandle, data.cameraColorTargetHandle, data.ssgiMaterial, pass: 10);
+            }
 
-            // Copy History Scene Color
-            Blitter.BlitCameraTexture(cmd, data.cameraColorTargetHandle, data.historyCameraColorHandle, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, data.ssgiMaterial, pass: 9);
+            using (new ProfilingScope(cmd, s_HistorySampler))
+                Blitter.BlitCameraTexture(cmd, data.cameraColorTargetHandle, data.historyCameraColorHandle, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, data.ssgiMaterial, pass: 9);
         }
 
         // This is where the renderGraph handle can be accessed.
@@ -1011,7 +1183,8 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
                     m_SSGIMaterial.SetFloat(probeSet, 0.0f);
 
                 m_SSGIMaterial.SetFloat(frameIndex, frameCount);
-                m_SSGIMaterial.SetVector(_ReBlurBlurRotator, EvaluateRotator(k_BlurRands[frameCount % 32]));
+                float blurRadius = ssgiVolume.denoiserRadiusSS.value * 2.0f * k_BlurMaxRadius; // Optimized for roughness = 1.0
+                passData.blurRotator = EvaluateRotator(k_BlurRands[frameCount % 32]);
                 frameCount = (frameCount + 1) % NoiseFrameCount;
 
                 // The camera target descriptor already includes the render scale and, in XR, the per-eye size and array layout.
@@ -1074,6 +1247,15 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
                 TextureHandle intermediateCameraColorHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, name: _IntermediateCameraColorTexture, false, FilterMode.Point, TextureWrapMode.Clamp);
                 TextureHandle ambientLightingHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, name: _SSGIAmbientLightingTexture, false, FilterMode.Point, TextureWrapMode.Clamp);
 
+                // The prepare pass resolves the surface once: the normal (with the GBuffer-valid bit in alpha) and the
+                // albedo and metallic already put through the fallback. Every later pass reads these instead of
+                // sampling the GBuffer, matching its depth against the camera depth and reconstructing a normal again.
+                desc.graphicsFormat = ForwardGBufferPass.GBufferFormat(2);
+                TextureHandle surfaceNormalHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, name: _SSGISurfaceNormalTexture, false, FilterMode.Point, TextureWrapMode.Clamp);
+                desc.graphicsFormat = ForwardGBufferPass.GBufferFormat(0);
+                TextureHandle surfaceAlbedoHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, name: _SSGISurfaceAlbedoTexture, false, FilterMode.Point, TextureWrapMode.Clamp);
+                desc.graphicsFormat = GraphicsFormat.B10G11R11_UFloatPack32;
+
                 // Everything below is at the traced resolution.
                 desc.width = Mathf.FloorToInt(desc.width * resolutionScale);
                 desc.height = Mathf.FloorToInt(desc.height * resolutionScale);
@@ -1109,6 +1291,8 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
                 RTHandle sampleWrite = write == 0 ? history.accumulateSampleHandle0 : history.accumulateSampleHandle1;
                 RTHandle sampleRead = read == 0 ? history.accumulateSampleHandle0 : history.accumulateSampleHandle1;
                 m_SSGIMaterial.SetTexture(ssgiHistorySampleTexture, sampleRead);
+                // The denoisers read this frame's count to decide how wide to filter each pixel.
+                m_SSGIMaterial.SetTexture(ssgiSampleTexture, sampleWrite);
                 passData.accumulateSampleHandle = renderGraph.ImportTexture(sampleWrite);
                 passData.accumulateHistorySampleHandle = renderGraph.ImportTexture(sampleRead);
 
@@ -1126,8 +1310,14 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
                 passData.intermediateDiffuseHandle = intermediateDiffuseHandle;
                 passData.intermediateCameraColorHandle = intermediateCameraColorHandle;
                 passData.ambientLightingHandle = ambientLightingHandle;
+                passData.surfaceNormalHandle = surfaceNormalHandle;
+                passData.surfaceAlbedoHandle = surfaceAlbedoHandle;
                 passData.rTHandles = rTHandles;
                 passData.rTHandles3 = rTHandles3;
+                passData.rTHandles4 = rTHandles4;
+                passData.blurRadius = blurRadius;
+                passData.secondBlurRadius = blurRadius * k_SecondBlurRadiusScale;
+                passData.secondBlurRotator = EvaluateRotator(k_PostBlurRands[frameCount % 32]);
 
                 // UnsafePasses don't setup the outputs using UseTextureFragment/UseTextureFragmentDepth, you should specify your writes with UseTexture instead
                 builder.UseTexture(passData.cameraColorTargetHandle, AccessFlags.ReadWrite);
@@ -1138,10 +1328,12 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
                 builder.UseTexture(passData.intermediateDiffuseHandle, AccessFlags.ReadWrite);
                 builder.UseTexture(passData.depthHandle, AccessFlags.ReadWrite);
                 builder.UseTexture(passData.historyDepthHandle, AccessFlags.Read);
-                builder.UseTexture(passData.accumulateSampleHandle, AccessFlags.Write);
+                builder.UseTexture(passData.accumulateSampleHandle, AccessFlags.ReadWrite);
                 builder.UseTexture(passData.accumulateHistorySampleHandle, AccessFlags.ReadWrite);
                 builder.UseTexture(passData.intermediateCameraColorHandle, AccessFlags.ReadWrite);
                 builder.UseTexture(passData.ambientLightingHandle, AccessFlags.ReadWrite);
+                builder.UseTexture(passData.surfaceNormalHandle, AccessFlags.ReadWrite);
+                builder.UseTexture(passData.surfaceAlbedoHandle, AccessFlags.ReadWrite);
                 builder.UseTexture(resourceData.motionVectorColor, AccessFlags.Read);
                 //if (enableRenderingLayers) { builder.UseTexture(resourceData.renderingLayersTexture, AccessFlags.Read); }
 
@@ -1576,7 +1768,14 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         // selected through their forward pass. They are drawn first so a real GBuffer pass always wins.
         public Shader overrideShader;
         public uint overrideRenderingLayerMask;
-        private readonly ShaderTagId[] m_OverrideShaderTagIds = new ShaderTagId[] { new ShaderTagId("UniversalForward") };
+
+        public bool overrideAllOpaques;
+        public bool renderTracedResolution;
+        public float resolutionScale = 1.0f;
+        public Material depthPrimingMaterial;
+
+        internal const int k_DepthPrimePassIndex = 11;
+        private readonly ShaderTagId m_OverrideShaderTag = new ShaderTagId("UniversalForward");
 
         // Materials tagged "UniversalMaterialType" = "Unlit" (URP Unlit, Shader Graph Unlit) keep their normal in the GBuffer
         // but write no albedo, so ambient removal and the bounce leave screens and emissive panels alone.
@@ -1589,6 +1788,8 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         // Depth Priming.
         private RenderStateBlock m_RenderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
 
+        // Only the albedo target is masked: an unlit surface keeps its normal, so nothing is removed from it and
+        // nothing is added to it, while its emission still reaches the emission target and lights the scene.
         internal static RenderStateBlock CreateUnlitStateBlock(RenderStateBlock baseBlock)
         {
             BlendState blendState = new BlendState(true, false);
@@ -1632,6 +1833,8 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
                     return GraphicsFormat.R8G8B8A8_SNorm;
                 else
                     return GraphicsFormat.R16G16B16A16_SFloat;
+            else if (index == 3) // emission + baked lighting, which URP's own GBuffer pass already writes here
+                return GraphicsFormat.B10G11R11_UFloatPack32;
             else
                 return GraphicsFormat.None;
         }
@@ -1667,6 +1870,30 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
             internal RendererListHandle overrideRendererListHandle;
         }
 
+        private class DepthPrimePassData
+        {
+            internal Material material;
+            internal TextureHandle sourceDepth;
+        }
+
+        // Copies the camera's resolved depth into this pass's own depth attachment, so the opaque draw that follows
+        // can reject everything the camera already knows is hidden.
+        private void RecordDepthPrimePass(RenderGraph renderGraph, TextureHandle depthHandle, TextureHandle cameraDepth)
+        {
+            using (var builder = renderGraph.AddRasterRenderPass<DepthPrimePassData>("SSGI Prime GBuffer Depth", out var passData))
+            {
+                passData.material = depthPrimingMaterial;
+                passData.sourceDepth = cameraDepth;
+                builder.UseTexture(cameraDepth, AccessFlags.Read);
+                builder.SetRenderAttachmentDepth(depthHandle, AccessFlags.Write);
+                builder.SetRenderFunc((DepthPrimePassData data, RasterGraphContext context) =>
+                {
+                    data.material.SetTexture(cameraDepthTexture, data.sourceDepth);
+                    Blitter.BlitTexture(context.cmd, data.sourceDepth, m_ScaleBias, data.material, k_DepthPrimePassIndex);
+                });
+            }
+        }
+
         // This static method is used to execute the pass and passed as the RenderFunc delegate to the RenderGraph render pass
         static void ExecutePass(PassData data, RasterGraphContext context)
         {
@@ -1687,104 +1914,141 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
         // Each ScriptableRenderPass can use the RenderGraph handle to add multiple render passes to the render graph
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
+            // UniversalResourceData contains all the texture handles used by the renderer, including the active color and depth textures
+            // The active color and depth textures are the main color and depth buffers that the camera renders into
+            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
+            UniversalRenderingData universalRenderingData = frameData.Get<UniversalRenderingData>();
+            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+            UniversalLightData lightData = frameData.Get<UniversalLightData>();
+
+            RenderTextureDescriptor desc = cameraData.cameraTargetDescriptor;
+            desc.msaaSamples = 1;
+            desc.bindMS = false;
+            desc.depthBufferBits = 0;
+
+            // The albedo and normals here only ever modulate a bounce that was traced and denoised at the traced
+            // resolution, so rendering them at full resolution costs four times what the effect can use.
+            bool tracedResolution = renderTracedResolution && resolutionScale < 1.0f;
+            if (tracedResolution)
+            {
+                desc.width = Mathf.Max(1, Mathf.FloorToInt(desc.width * resolutionScale));
+                desc.height = Mathf.Max(1, Mathf.FloorToInt(desc.height * resolutionScale));
+            }
+
+            // Cleared to zero: surfaces whose shader has no GBuffer pass read back all zeros, which the SSGI shader detects.
+            // Albedo.rgb + MaterialFlags.a
+            desc.graphicsFormat = GetGBufferFormat(0);
+            TextureHandle gBuffer0Handle = CreateClearedTexture(renderGraph, desc, _GBuffer0);
+
+            // Specular.rgb + Occlusion.a
+            desc.graphicsFormat = GetGBufferFormat(1);
+            TextureHandle gBuffer1Handle = CreateClearedTexture(renderGraph, desc, _GBuffer1);
+
+            // [Resolve Later] The "_CameraNormalsTexture" still exists after disabling DepthNormals Prepass, which may cause issue during rendering.
+            // So instead of checking the RTHandle, we need to check if DepthNormals Prepass is enqueued.
+
+            /*
+            TextureHandle gBuffer2Handle;
+            // If "_CameraNormalsTexture" exists (lacking smoothness info), set the target to it instead of creating a new RT.
+            if (normalsTextureFieldInfo.GetValue(cameraData.renderer) is not RTHandle normalsTextureHandle)
+            {
+                // NormalWS.rgb + Smoothness.a
+                desc.graphicsFormat = GetGBufferFormat(2);
+                gBuffer2Handle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, name: _GBuffer2, false, FilterMode.Point, TextureWrapMode.Clamp);
+            }
+            else
+            {
+                gBuffer2Handle = resourceData.cameraNormalsTexture;
+            }
+            */
+
+            // NormalWS.rgb + Smoothness.a
+            desc.graphicsFormat = GetGBufferFormat(2);
+            TextureHandle gBuffer2Handle = CreateClearedTexture(renderGraph, desc, _GBuffer2);
+
+            // Emission + baked lighting. URP's own GBuffer pass writes this target already, so binding it costs
+            // nothing beyond the attachment and gives every Lit and Unlit surface a self-illumination term that
+            // does not have to travel through the colour history a frame late.
+            desc.graphicsFormat = GetGBufferFormat(3);
+            TextureHandle gBuffer3Handle = CreateClearedTexture(renderGraph, desc, _SSGIEmissionTexture);
+
+            // [OpenGL] Reusing the depth buffer seems to cause black glitching artifacts, so clear the existing depth.
+            bool isOpenGL = (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3) || (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLCore); // GLES 2 is deprecated.
+
+            // Sharing the camera's depth attachment needs it to be single sample, so a multisampled camera never
+            // qualifies and this pass would otherwise rasterise every opaque surface against a freshly cleared
+            // depth buffer: no early Z, full overdraw, and it is the most expensive thing the effect does.
+            // Copying the resolved "_CameraDepthTexture" into the transient depth target first restores the
+            // rejection, because every fragment behind the nearest surface then fails the depth test.
+            bool sharesCameraDepth = !isOpenGL && (cameraData.renderType == CameraRenderType.Base || cameraData.clearDepth) && cameraData.cameraTargetDescriptor.msaaSamples == desc.msaaSamples;
+            bool primeFromCameraDepth = !isOpenGL && !sharesCameraDepth && !tracedResolution && depthPrimingMaterial != null && resourceData.cameraDepthTexture.IsValid();
+            bool canDepthPriming = sharesCameraDepth;
+
+            //RenderTextureDescriptor depthDesc = cameraData.cameraTargetDescriptor;
+            //depthDesc.msaaSamples = 1;
+            //depthDesc.bindMS = false;
+            //depthDesc.graphicsFormat = GraphicsFormat.None;
+            //if (resourceData.activeDepthTexture.IsValid())
+            //    depthDesc.depthBufferBits = (int)resourceData.activeDepthTexture.GetDescriptor(renderGraph).depthBufferBits;
+
+            TextureDesc depthDesc;
+            if (!resourceData.isActiveTargetBackBuffer)
+            {
+                depthDesc = resourceData.activeDepthTexture.GetDescriptor(renderGraph);
+            }
+            else
+            {
+                depthDesc = resourceData.cameraDepthTexture.GetDescriptor(renderGraph);
+                var backBufferInfo = renderGraph.GetRenderTargetInfo(resourceData.backBufferDepth);
+                depthDesc.colorFormat = backBufferInfo.format;
+            }
+            depthDesc.name = _GBufferDepth;
+            depthDesc.useMipMap = false;
+            depthDesc.width = desc.width;
+            depthDesc.height = desc.height;
+            // Without depth priming (MSAA cameras) this is a fresh transient depth buffer, so it must start cleared.
+            // The prime pass writes every pixel, so it does not need clearing on top of that.
+            depthDesc.clearBuffer = !canDepthPriming && !primeFromCameraDepth;
+            depthDesc.msaaSamples = MSAASamples.None;
+            depthDesc.bindTextureMS = false;
+            depthDesc.filterMode = FilterMode.Point;
+            depthDesc.wrapMode = TextureWrapMode.Clamp;
+
+            TextureHandle depthHandle;
+            if (canDepthPriming)
+                depthHandle = resourceData.activeDepthTexture; // Note: there was a problem that the RT format was R32 (not the depth buffer) instead of D32, but I cannot reproduce it again
+            else
+                depthHandle = renderGraph.CreateTexture(depthDesc);
+                //depthHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, depthDesc, name: _GBufferDepth, false, FilterMode.Point, TextureWrapMode.Clamp);
+
+            if (primeFromCameraDepth)
+                RecordDepthPrimePass(renderGraph, depthHandle, resourceData.cameraDepthTexture);
+
+            // Reduce GBuffer overdraw using the depth from opaque pass. (excluding OpenGL platforms)
+            if (canDepthPriming)
+            {
+                m_RenderStateBlock.depthState = new DepthState(false, CompareFunction.Equal);
+                m_RenderStateBlock.mask |= RenderStateMask.Depth;
+            }
+            else if (primeFromCameraDepth)
+            {
+                // The primed depth holds the scene's own depth, so LessEqual keeps the nearest surface and rejects
+                // everything behind it. Equal would do the same but demands the copy be bit exact; LessEqual does
+                // not, and rejecting the occluded fragments is where the saving is.
+                m_RenderStateBlock.depthState = new DepthState(false, CompareFunction.LessEqual);
+                m_RenderStateBlock.mask |= RenderStateMask.Depth;
+            }
+            else if (m_RenderStateBlock.depthState.compareFunction == CompareFunction.Equal || !m_RenderStateBlock.depthState.writeEnabled)
+            {
+                m_RenderStateBlock.depthState = new DepthState(true, CompareFunction.LessEqual);
+                m_RenderStateBlock.mask |= RenderStateMask.Depth;
+            }
+
+            // Everything above is set up before the pass is opened: Render Graph refuses AddRasterRenderPass,
+            // which the depth prime pass needs, while another pass is being recorded.
             // add a raster render pass to the render graph, specifying the name and the data type that will be passed to the ExecutePass function
             using (var builder = renderGraph.AddRasterRenderPass<PassData>(m_ProfilerTag, out var passData))
             {
-                // UniversalResourceData contains all the texture handles used by the renderer, including the active color and depth textures
-                // The active color and depth textures are the main color and depth buffers that the camera renders into
-                UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
-                UniversalRenderingData universalRenderingData = frameData.Get<UniversalRenderingData>();
-                UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
-                UniversalLightData lightData = frameData.Get<UniversalLightData>();
-
-                RenderTextureDescriptor desc = cameraData.cameraTargetDescriptor;
-                desc.msaaSamples = 1;
-                desc.bindMS = false;
-                desc.depthBufferBits = 0;
-
-                // Cleared to zero: surfaces whose shader has no GBuffer pass read back all zeros, which the SSGI shader detects.
-                // Albedo.rgb + MaterialFlags.a
-                desc.graphicsFormat = GetGBufferFormat(0);
-                TextureHandle gBuffer0Handle = CreateClearedTexture(renderGraph, desc, _GBuffer0);
-
-                // Specular.rgb + Occlusion.a
-                desc.graphicsFormat = GetGBufferFormat(1);
-                TextureHandle gBuffer1Handle = CreateClearedTexture(renderGraph, desc, _GBuffer1);
-
-                // [Resolve Later] The "_CameraNormalsTexture" still exists after disabling DepthNormals Prepass, which may cause issue during rendering.
-                // So instead of checking the RTHandle, we need to check if DepthNormals Prepass is enqueued.
-
-                /*
-                TextureHandle gBuffer2Handle;
-                // If "_CameraNormalsTexture" exists (lacking smoothness info), set the target to it instead of creating a new RT.
-                if (normalsTextureFieldInfo.GetValue(cameraData.renderer) is not RTHandle normalsTextureHandle)
-                {
-                    // NormalWS.rgb + Smoothness.a
-                    desc.graphicsFormat = GetGBufferFormat(2);
-                    gBuffer2Handle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, name: _GBuffer2, false, FilterMode.Point, TextureWrapMode.Clamp);
-                }
-                else
-                {
-                    gBuffer2Handle = resourceData.cameraNormalsTexture;
-                }
-                */
-
-                // NormalWS.rgb + Smoothness.a
-                desc.graphicsFormat = GetGBufferFormat(2);
-                TextureHandle gBuffer2Handle = CreateClearedTexture(renderGraph, desc, _GBuffer2);
-
-                // [OpenGL] Reusing the depth buffer seems to cause black glitching artifacts, so clear the existing depth.
-                bool isOpenGL = (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3) || (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLCore); // GLES 2 is deprecated.
-
-                // Disable depth priming if camera uses MSAA
-                bool canDepthPriming = !isOpenGL && (cameraData.renderType == CameraRenderType.Base || cameraData.clearDepth) && cameraData.cameraTargetDescriptor.msaaSamples == desc.msaaSamples;
-
-                //RenderTextureDescriptor depthDesc = cameraData.cameraTargetDescriptor;
-                //depthDesc.msaaSamples = 1;
-                //depthDesc.bindMS = false;
-                //depthDesc.graphicsFormat = GraphicsFormat.None;
-                //if (resourceData.activeDepthTexture.IsValid())
-                //    depthDesc.depthBufferBits = (int)resourceData.activeDepthTexture.GetDescriptor(renderGraph).depthBufferBits;
-
-                TextureDesc depthDesc;
-                if (!resourceData.isActiveTargetBackBuffer)
-                {
-                    depthDesc = resourceData.activeDepthTexture.GetDescriptor(renderGraph);
-                }
-                else
-                {
-                    depthDesc = resourceData.cameraDepthTexture.GetDescriptor(renderGraph);
-                    var backBufferInfo = renderGraph.GetRenderTargetInfo(resourceData.backBufferDepth);
-                    depthDesc.colorFormat = backBufferInfo.format;
-                }
-                depthDesc.name = _GBufferDepth;
-                depthDesc.useMipMap = false;
-                // Without depth priming (MSAA cameras) this is a fresh transient depth buffer, so it must start cleared.
-                depthDesc.clearBuffer = !canDepthPriming;
-                depthDesc.msaaSamples = MSAASamples.None;
-                depthDesc.bindTextureMS = false;
-                depthDesc.filterMode = FilterMode.Point;
-                depthDesc.wrapMode = TextureWrapMode.Clamp;
-
-                TextureHandle depthHandle;
-                if (canDepthPriming)
-                    depthHandle = resourceData.activeDepthTexture; // Note: there was a problem that the RT format was R32 (not the depth buffer) instead of D32, but I cannot reproduce it again
-                else
-                    depthHandle = renderGraph.CreateTexture(depthDesc);
-                    //depthHandle = UniversalRenderer.CreateRenderGraphTexture(renderGraph, depthDesc, name: _GBufferDepth, false, FilterMode.Point, TextureWrapMode.Clamp);
-
-                // Reduce GBuffer overdraw using the depth from opaque pass. (excluding OpenGL platforms)
-                if ( canDepthPriming)
-                {
-                    m_RenderStateBlock.depthState = new DepthState(false, CompareFunction.Equal);
-                    m_RenderStateBlock.mask |= RenderStateMask.Depth;
-                }
-                else if (m_RenderStateBlock.depthState.compareFunction == CompareFunction.Equal)
-                {
-                    m_RenderStateBlock.depthState = new DepthState(true, CompareFunction.LessEqual);
-                    m_RenderStateBlock.mask |= RenderStateMask.Depth;
-                }
-
                 // GBuffer cannot store surface data from transparent objects.
                 SortingCriteria sortingCriteria = cameraData.defaultOpaqueSortFlags;
                 DrawingSettings drawingSettings = RenderingUtils.CreateDrawingSettings(m_ShaderTagIdList, universalRenderingData, cameraData, lightData, sortingCriteria);
@@ -1810,17 +2074,40 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
                 // We declare the RendererList we just created as an input dependency to this pass, via UseRendererList()
                 builder.UseRendererList(passData.rendererListHandle);
 
-                passData.hasOverrideRendererList = overrideShader != null && overrideRenderingLayerMask != 0;
+                // Surfaces whose shader has no GBuffer pass are drawn with the override shader, which reads the
+                // material's own albedo and normal map. Covering every opaque renderer rather than only the ones
+                // registered through RegisterRenderer is what turns the fallback from an estimate into real data for
+                // props, scene geometry and anything already inside a published asset bundle. Renderers that do have
+                // a GBuffer pass are drawn over, so nothing is lost by including them.
+                // The same per material type state blocks as the real list: without them the override writes an albedo
+                // for unlit surfaces, and URP's own unlit GBuffer pass masks its albedo write, so it would never be
+                // overwritten and screens and emissive panels would start receiving GI.
+                passData.hasOverrideRendererList = overrideShader != null && (overrideAllOpaques || overrideRenderingLayerMask != 0);
                 if (passData.hasOverrideRendererList)
                 {
-                    RendererListDesc overrideListDesc = new RendererListDesc(m_OverrideShaderTagIds, universalRenderingData.cullResults, cameraData.camera);
-                    overrideListDesc.overrideShader = overrideShader;
-                    overrideListDesc.overrideShaderPassIndex = 0;
-                    overrideListDesc.renderingLayerMask = overrideRenderingLayerMask;
-                    overrideListDesc.stateBlock = m_RenderStateBlock;
-                    overrideListDesc.sortingCriteria = sortingCriteria;
-                    overrideListDesc.renderQueueRange = m_filter.renderQueueRange;
-                    passData.overrideRendererListHandle = renderGraph.CreateRendererList(overrideListDesc);
+                    FilteringSettings overrideFilter = new FilteringSettings(m_filter.renderQueueRange);
+                    overrideFilter.renderingLayerMask = overrideAllOpaques ? uint.MaxValue : overrideRenderingLayerMask;
+
+                    DrawingSettings overrideDrawingSettings = RenderingUtils.CreateDrawingSettings(m_OverrideShaderTag, universalRenderingData, cameraData, lightData, sortingCriteria);
+                    overrideDrawingSettings.perObjectData = PerObjectData.None;
+                    overrideDrawingSettings.overrideShader = overrideShader;
+                    overrideDrawingSettings.overrideShaderPassIndex = 0;
+
+                    NativeArray<ShaderTagId> overrideTypeValues = new NativeArray<ShaderTagId>(m_MaterialTypeValues, Allocator.Temp);
+                    NativeArray<RenderStateBlock> overrideTypeStates = new NativeArray<RenderStateBlock>(m_MaterialTypeValues.Length, Allocator.Temp);
+                    for (int i = 0; i < overrideTypeStates.Length; i++)
+                        overrideTypeStates[i] = i == k_UnlitMaterialTypeIndex ? CreateUnlitStateBlock(m_RenderStateBlock) : m_RenderStateBlock;
+
+                    RendererListParams overrideListParams = new RendererListParams(universalRenderingData.cullResults, overrideDrawingSettings, overrideFilter)
+                    {
+                        tagName = m_MaterialTypeTag,
+                        tagValues = overrideTypeValues,
+                        stateBlocks = overrideTypeStates,
+                        isPassTagName = false
+                    };
+                    passData.overrideRendererListHandle = renderGraph.CreateRendererList(overrideListParams);
+                    overrideTypeValues.Dispose();
+                    overrideTypeStates.Dispose();
                     builder.UseRendererList(passData.overrideRendererListHandle);
                 }
 
@@ -1828,12 +2115,14 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
                 builder.SetRenderAttachment(gBuffer0Handle, 0);
                 builder.SetRenderAttachment(gBuffer1Handle, 1);
                 builder.SetRenderAttachment(gBuffer2Handle, 2);
-                builder.SetRenderAttachmentDepth(depthHandle, AccessFlags.Write);
+                builder.SetRenderAttachment(gBuffer3Handle, 3);
+                builder.SetRenderAttachmentDepth(depthHandle, primeFromCameraDepth ? AccessFlags.ReadWrite : AccessFlags.Write);
 
                 // Set global textures after this pass
                 builder.SetGlobalTextureAfterPass(gBuffer0Handle, gBuffer0);
                 builder.SetGlobalTextureAfterPass(gBuffer1Handle, gBuffer1);
                 builder.SetGlobalTextureAfterPass(gBuffer2Handle, gBuffer2);
+                builder.SetGlobalTextureAfterPass(gBuffer3Handle, ssgiEmissionTexture);
                 // The GBuffer's own depth tells the effect which pixels this pass actually wrote. A surface whose shader has no
                 // GBuffer pass is skipped here, so without it the pixel silently reads the surface behind it.
                 builder.SetGlobalTextureAfterPass(depthHandle, gBufferDepth);

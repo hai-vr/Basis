@@ -16,7 +16,7 @@ namespace SSGIURP.Tests
         // Pass indices are hard-coded in the feature (Blitter.BlitCameraTexture(..., pass: N)), so the order is load-bearing.
         private static readonly string[] PassNames =
         {
-            "Copy Direct Lighting",
+            "Prepare",
             "Screen Space Global Illumination",
             "Temporal Reprojection",
             "Edge-Avoiding Spatial Denoise",
@@ -27,6 +27,7 @@ namespace SSGIURP.Tests
             "Poisson Disk Recurrent Denoise",
             "Blit Color Texture",
             "Combine GI Add",
+            "Prime Depth",
         };
 
         // Every screen-sized texture the passes read. Sampling any of these without the _X macros breaks stereo instancing.
@@ -46,6 +47,11 @@ namespace SSGIURP.Tests
             string assetPath = AssetDatabase.GetAssetPath(FindShader());
             Assert.IsFalse(string.IsNullOrEmpty(assetPath));
             return Path.GetDirectoryName(Path.GetFullPath(assetPath));
+        }
+
+        private static string RuntimeDirectory()
+        {
+            return Path.Combine(Path.GetDirectoryName(ShaderDirectory()), "Runtime");
         }
 
         private static ScreenSpaceGlobalIlluminationURP CreateFeature()
@@ -140,12 +146,38 @@ namespace SSGIURP.Tests
         }
 
         [Test]
-        public void CopyPassAlwaysWritesTheAmbientLightingTarget()
+        public void PreparePassAlwaysWritesEverySurfaceTarget()
         {
-            string pass = PassSource(File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader")), "Copy Direct Lighting");
-            // The feature binds both targets unconditionally, so the fragment signature must not depend on a keyword.
+            string pass = PassSource(File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader")), "Prepare");
+            // The feature binds all four targets unconditionally, so the fragment signature must not depend on a keyword.
             Assert.AreEqual(1, Regex.Matches(pass, @"void\s+frag\s*\(").Count);
-            Assert.IsTrue(Regex.IsMatch(pass, @"void\s+frag\s*\([^)]*SV_Target0[^)]*SV_Target1[^)]*\)"), "the copy pass writes the camera colour and the ambient lighting");
+            Assert.IsTrue(Regex.IsMatch(pass, @"void\s+frag\s*\([^)]*SV_Target0[^)]*SV_Target1[^)]*SV_Target2[^)]*SV_Target3[^)]*\)"),
+                "the prepare pass writes the camera colour, the ambient lighting, the normal and the albedo");
+        }
+
+        [Test]
+        public void TheCombinePassesReadThePreparedSurfaceInsteadOfRederivingIt()
+        {
+            // Re-deriving the normal in the upscale, five times per pixel, cost more than the trace it was upscaling.
+            string shader = File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader"));
+            string combine = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGICombine.hlsl"));
+            Assert.IsFalse(combine.Contains("SSGISampleNormalWS"), "the upscale must read the prepared normal");
+            foreach (string passName in new[] { "Combine GI", "Combine GI Add" })
+            {
+                string pass = PassSource(shader, passName);
+                Assert.IsFalse(Regex.IsMatch(pass, @"SSGISampleAlbedoMetallic\("), passName + " must read the prepared albedo");
+                StringAssert.Contains("SSGIReadSurfaceAlbedoMetallic(screenUV, albedo, metallic)", pass);
+            }
+        }
+
+        [Test]
+        public void OnlyThePreparePassResolvesTheSurfaceFromScratch()
+        {
+            string shader = File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader"));
+            // SSGIGBufferMatchesSurface costs two fetches and two depth linearisations every time it is asked.
+            Assert.AreEqual(1, Regex.Matches(shader, @"SSGISampleNormalWS\(screenUV, hasGBuffer\)").Count);
+            Assert.IsFalse(PassSource(shader, "Screen Space Global Illumination").Contains("SSGISampleNormalWS"));
+            Assert.IsFalse(PassSource(shader, "Temporal Reprojection").Contains("SSGISampleNormalWS"));
         }
 
         [Test]
@@ -159,8 +191,94 @@ namespace SSGIURP.Tests
             {
                 string pass = PassSource(shader, passName);
                 StringAssert.Contains("_SSGIAmbientLightingTexture", pass);
-                Assert.IsTrue(Regex.IsMatch(pass, @"SSGISampleAlbedoMetallic\(screenUV, (?:SSGIHasGBuffer\(screenUV\)|hasGBuffer), cameraColor, ambientLighting, albedo, metallic\)"), passName);
+                Assert.IsTrue(Regex.IsMatch(pass, @"SSGIReadSurfaceAlbedoMetallic\(screenUV, albedo, metallic\)"), passName);
             }
+        }
+
+        [Test]
+        public void EmissiveLightIsAddedOnTopOfTheColourHistoryRatherThanInsteadOfIt()
+        {
+            // The colour history already carries emission, so adding the emission buffer on top would double count it.
+            // Scaling by (multiplier - 1) makes a multiplier of 1 byte for byte what the effect did without one.
+            string utilities = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGIUtilities.hlsl"));
+            string march = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGI.hlsl"));
+
+            StringAssert.Contains("(_SSGIEmissiveMultiplier - 1.0)", utilities);
+            StringAssert.Contains("historyColor + boost", utilities);
+            StringAssert.Contains("SSGIHitRadiance(", march);
+        }
+
+        [Test]
+        public void EmissionIsTakenNetOfTheAmbientTheGBufferTargetAlsoCarries()
+        {
+            // URP's Lit GBuffer pass writes "surfaceData.emission + bakedGI" into this target, so the ambient the
+            // prepare pass already resolved has to come back out or ambient light would be counted as emission.
+            string utilities = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGIUtilities.hlsl"));
+            int start = utilities.IndexOf("half3 SSGISampleEmission", System.StringComparison.Ordinal);
+            Assert.Greater(start, 0);
+            string emission = utilities.Substring(start, utilities.IndexOf("half3 SSGIHitRadiance", System.StringComparison.Ordinal) - start);
+            StringAssert.Contains("_SSGIEmissionTexture", emission);
+            StringAssert.Contains("ambient * albedo", emission);
+            StringAssert.Contains("max(emission -", emission);
+        }
+
+        [Test]
+        public void TheFireflyClampIsAppliedPerRayNotToTheAverage()
+        {
+            // Clamping the mean lets one outlier lift the average and then scales every correct ray down with it.
+            string pass = PassSource(File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader")), "Screen Space Global Illumination");
+            int clamp = pass.IndexOf("_MaxBrightness", System.StringComparison.Ordinal);
+            int loopEnd = pass.IndexOf("lightingDistance.rgb += rayRadiance * sampleWeight;", System.StringComparison.Ordinal);
+            Assert.Greater(clamp, 0);
+            Assert.Greater(loopEnd, clamp, "the clamp must run before the ray is accumulated");
+            Assert.IsFalse(Regex.IsMatch(pass, @"maxChannel\s*=\s*Max3\(lightingDistance"), "the clamp must not read the accumulated sum");
+        }
+
+        [Test]
+        public void TheSpatialDenoisersWidenWhereTheEstimateHasLittleHistory()
+        {
+            string denoise = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGIDenoise.hlsl"));
+            string shader = File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader"));
+            StringAssert.Contains("SSGIHistoryNoisiness", denoise);
+            StringAssert.Contains("_SSGISampleTexture", denoise);
+            foreach (string passName in new[] { "Edge-Avoiding Spatial Denoise", "Poisson Disk Recurrent Denoise" })
+                StringAssert.Contains("SSGIHistoryNoisiness", PassSource(shader, passName));
+        }
+
+        [Test]
+        public void TheTemporalPassesClipHistoryToTheVarianceTheyAlreadyMeasure()
+        {
+            // Both passes built first and second moments and then threw them away, clamping to a raw min and max box.
+            string shader = File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader"));
+            string denoise = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGIDenoise.hlsl"));
+            StringAssert.Contains("half3 ClipToVarianceBox(", denoise);
+            foreach (string passName in new[] { "Temporal Reprojection", "Temporal Stabilization" })
+            {
+                string pass = PassSource(shader, passName);
+                StringAssert.Contains("ClipToVarianceBox(prevColor, boxMin, boxMax, moment1, moment2", pass);
+                Assert.IsFalse(Regex.IsMatch(pass, @"prevColor\s*=\s*clamp\(prevColor"), passName + " must use the moments it computed");
+            }
+        }
+
+        [Test]
+        public void TheColourHistoryIsFilteredWhenItIsDownsampled()
+        {
+            // Every ray hit reads this. Point sampling threw away three pixels in four and the aliasing that left
+            // popped in and out of the bounce as the camera moved.
+            string pass = PassSource(File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader")), "Blit Color Texture");
+            StringAssert.Contains("my_linear_clamp_sampler", pass);
+            Assert.IsFalse(pass.Contains("my_point_clamp_sampler"));
+        }
+
+        [Test]
+        public void TheRayMarchResolvesTheProjectionBranchOnceInsteadOfPerStep()
+        {
+            // ConvertLinearEyeDepth branches on the projection type, and the march called it up to 128 times a pixel.
+            string march = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGI.hlsl"));
+            StringAssert.Contains("SSGIGetDepthLinearizer(isPerspective)", march);
+            int loop = march.IndexOf("for (int i = 1; i <= MAX_STEP", System.StringComparison.Ordinal);
+            Assert.Greater(loop, 0);
+            Assert.IsFalse(march.Substring(loop).Contains("ConvertLinearEyeDepth("), "the loop must use the resolved linearizer");
         }
 
         [Test]
@@ -172,8 +290,83 @@ namespace SSGIURP.Tests
 
             // saturate() would hand every directly lit surface an albedo of 1, and with it the full traced irradiance.
             Assert.IsFalse(implied.Contains("saturate("), "the implied albedo must not be capped at 1");
-            StringAssert.Contains("min(implied", implied);
             StringAssert.Contains("_SSGIFallbackAlbedo", implied);
+
+            // Capping each channel on its own is what made every directly lit fallback surface come back grey: the
+            // ratio is above the cap in all three channels, so all three land on the same value. The cap has to act
+            // on the luminance and scale the estimate, so hue and saturation survive.
+            Assert.IsFalse(Regex.IsMatch(implied, @"min\(implied,"), "the cap must not clamp the channels independently");
+            StringAssert.Contains("Luminance(implied)", implied);
+            StringAssert.Contains("implied * scale", implied);
+        }
+
+        [Test]
+        public void AGuessedAlbedoKeepsTheSurfacesColour()
+        {
+            // Reproduces the shader's arithmetic: a red surface under white ambient must come back red, not grey,
+            // whether it is lit only by that ambient or by direct light far brighter than it.
+            Vector3 ambient = new Vector3(0.2f, 0.2f, 0.2f);
+            const float cap = 0.5f;
+
+            foreach (float directLight in new[] { 1f, 4f, 40f })
+            {
+                Vector3 color = new Vector3(0.8f * directLight * ambient.x, 0.1f * directLight * ambient.y, 0.1f * directLight * ambient.z);
+                Vector3 implied = new Vector3(color.x / ambient.x, color.y / ambient.y, color.z / ambient.z);
+                float luminance = 0.2126f * implied.x + 0.7152f * implied.y + 0.0722f * implied.z;
+                float scale = Mathf.Min(1f, cap / Mathf.Max(luminance, 1e-4f));
+                Vector3 albedo = implied * scale;
+
+                Assert.Greater(albedo.x, albedo.y * 2f, "the red channel must stay dominant at direct light " + directLight);
+                Assert.LessOrEqual(0.2126f * albedo.x + 0.7152f * albedo.y + 0.0722f * albedo.z, cap + 1e-4f);
+                // The bound the ambient removal relies on: albedo * ambient never exceeds the pixel's own colour.
+                Assert.LessOrEqual(albedo.x * ambient.x, color.x + 1e-4f);
+            }
+        }
+
+        [Test]
+        public void TheOverrideListMasksUnlitAlbedoTheSameWayTheRealListDoes()
+        {
+            // Drawing every opaque with the override shader covers unlit surfaces too, and URP's own unlit GBuffer
+            // pass masks its albedo write, so it would never overwrite what the override put there: screens and
+            // emissive panels would start receiving GI. The override list needs the same per material type states.
+            string runtime = File.ReadAllText(Path.Combine(RuntimeDirectory(), "ScreenSpaceGlobalIlluminationURP.cs"));
+            int start = runtime.IndexOf("passData.hasOverrideRendererList", System.StringComparison.Ordinal);
+            Assert.Greater(start, 0);
+            string overrideList = runtime.Substring(start, runtime.IndexOf("// Set render targets", start, System.StringComparison.Ordinal) - start);
+
+            StringAssert.Contains("CreateUnlitStateBlock", overrideList);
+            StringAssert.Contains("k_UnlitMaterialTypeIndex", overrideList);
+            StringAssert.Contains("tagName = m_MaterialTypeTag", overrideList);
+            // A single stateBlock cannot vary per material type, which is what RendererListDesc is limited to.
+            Assert.IsFalse(overrideList.Contains("RendererListDesc"), "the override list must carry per material type states");
+        }
+
+        [Test]
+        public void DrawingEveryOpaqueDoesNotForceTwoSidedRasterisation()
+        {
+            // The override pass draws the whole scene a second time; rasterising every closed mesh two sided would
+            // double its triangles for nothing.
+            string overrideShader = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGIGBufferOverride.shader"));
+            StringAssert.Contains("Cull [_Cull]", overrideShader);
+            Assert.IsFalse(Regex.IsMatch(overrideShader, @"^\s*Cull Off\s*$", RegexOptions.Multiline), "the material's own cull mode must be followed");
+            // Materials that do not declare _Cull keep the two sided default cards and foliage need.
+            Assert.IsTrue(Regex.IsMatch(overrideShader, @"_Cull \(""Cull"", Float\) = 0"));
+        }
+
+        [Test]
+        public void AReconstructedNormalGivesWayToTheViewDirectionWhereTheDepthIsNotASurface()
+        {
+            // A leaf or hair card a couple of pixels wide has no neighbour on its own surface in either direction, so
+            // the cross product of two unrelated depths is noise -- and the trace aims a whole hemisphere with it.
+            string utilities = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGIUtilities.hlsl"));
+            string config = File.ReadAllText(Path.Combine(ShaderDirectory(), "SSGIConfig.hlsl"));
+            int start = utilities.IndexOf("half3 SSGIReconstructNormalWS", System.StringComparison.Ordinal);
+            Assert.Greater(start, 0);
+            string reconstruct = utilities.Substring(start, utilities.IndexOf("half3 SSGISampleNormalWS", System.StringComparison.Ordinal) - start);
+
+            StringAssert.Contains("SSGI_NORMAL_MAX_CURVATURE", config);
+            StringAssert.Contains("curvature", reconstruct);
+            StringAssert.Contains("lerp(viewDirectionWS, normalWS, planarity)", reconstruct);
         }
 
         [Test]
@@ -197,7 +390,7 @@ namespace SSGIURP.Tests
             string add = PassSource(File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader")), "Combine GI Add");
 
             StringAssert.Contains("SSGI_FALLBACK_MAX_GAIN", utilities);
-            StringAssert.Contains("SSGIClampFallbackContribution(giContribution, cameraColor, hasGBuffer)", add);
+            StringAssert.Contains("SSGIClampFallbackContribution(giContribution, cameraColor, ambientLighting, hasGBuffer)", add);
         }
 
         [Test]

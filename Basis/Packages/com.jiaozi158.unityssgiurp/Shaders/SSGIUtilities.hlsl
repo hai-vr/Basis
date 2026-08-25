@@ -167,6 +167,36 @@ float ConvertLinearEyeDepth(float deviceDepth)
 
 }
 
+// The projection type is constant for a whole draw, but the ray march linearises a depth once or twice per step -- up
+// to 128 times per pixel at High quality -- and paid for the branch every time. Resolving it once turns each of those
+// into a multiply-add and a reciprocal, or a lerp under an orthographic projection.
+struct SSGIDepthLinearizer
+{
+    float2 zParams;
+    float2 orthoRange;
+    half isPerspective;
+};
+
+SSGIDepthLinearizer SSGIGetDepthLinearizer(bool isPerspective)
+{
+    SSGIDepthLinearizer linearizer;
+    linearizer.zParams = _ZBufferParams.zw;
+    linearizer.orthoRange = float2(_ProjectionParams.y, _ProjectionParams.z);
+    linearizer.isPerspective = isPerspective ? 1.0 : 0.0;
+    return linearizer;
+}
+
+float SSGILinearEyeDepth(SSGIDepthLinearizer linearizer, float deviceDepth)
+{
+    float perspective = rcp(linearizer.zParams.x * deviceDepth + linearizer.zParams.y);
+#if UNITY_REVERSED_Z
+    float orthographic = lerp(linearizer.orthoRange.x, linearizer.orthoRange.y, 1.0 - deviceDepth);
+#else
+    float orthographic = lerp(linearizer.orthoRange.x, linearizer.orthoRange.y, deviceDepth);
+#endif
+    return linearizer.isPerspective != 0.0 ? perspective : orthographic;
+}
+
 // The forward GBuffer pass clears its targets, so a pixel whose shader has no "UniversalGBuffer" pass reads back all zeros.
 bool SSGIHasGBuffer(half4 rawGBuffer2)
 {
@@ -239,8 +269,13 @@ half3 SSGIReconstructNormalWS(float2 screenUV)
     float3 PU = ComputeWorldSpacePosition(uvU, dU, UNITY_MATRIX_I_VP);
 
     float e0 = ConvertLinearEyeDepth(d0);
-    float3 dX = abs(ConvertLinearEyeDepth(dL) - e0) < abs(ConvertLinearEyeDepth(dR) - e0) ? P0 - PL : PR - P0;
-    float3 dY = abs(ConvertLinearEyeDepth(dD) - e0) < abs(ConvertLinearEyeDepth(dU) - e0) ? P0 - PD : PU - P0;
+    float eL = ConvertLinearEyeDepth(dL);
+    float eR = ConvertLinearEyeDepth(dR);
+    float eD = ConvertLinearEyeDepth(dD);
+    float eU = ConvertLinearEyeDepth(dU);
+
+    float3 dX = abs(eL - e0) < abs(eR - e0) ? P0 - PL : PR - P0;
+    float3 dY = abs(eD - e0) < abs(eU - e0) ? P0 - PD : PU - P0;
 
     half3 normalWS = half3(normalize(cross(dY, dX)));
 
@@ -248,6 +283,17 @@ half3 SSGIReconstructNormalWS(float2 screenUV)
     half3 viewDirectionWS = IsPerspectiveProjection() ? half3(normalize(GetCameraPositionWS() - P0)) : half3(normalize(UNITY_MATRIX_V[2].xyz));
     if (dot(normalWS, viewDirectionWS) < 0.0)
         normalWS = -normalWS;
+
+    // Taking the nearer neighbour on each axis handles a surface that ends at a silhouette, but not a surface that is
+    // ALL silhouette: an alpha tested leaf, a hair card, a blade of grass a couple of pixels wide has no neighbour on
+    // its own surface in either direction, and the cross product of two unrelated depths is noise. The trace then aims
+    // a whole hemisphere of rays with it. Curvature separates the two cases: across a plane the eye depth is very
+    // nearly linear however steeply it is inclined, so the second difference stays small, while a depth that jumps to
+    // another surface makes it large. Where it is large the estimate gives way to the view direction, which is stable
+    // and is roughly right for the camera facing cards this mostly happens on.
+    float curvature = abs(eL + eR - 2.0 * e0) + abs(eU + eD - 2.0 * e0);
+    half planarity = saturate(1.0 - curvature * rcp(max(e0 * SSGI_NORMAL_MAX_CURVATURE, 1e-4)));
+    normalWS = half3(normalize(lerp(viewDirectionWS, normalWS, planarity)));
 
     return normalWS;
 }
@@ -293,13 +339,43 @@ half3 SSGIEvaluateAmbientLighting(float2 screenUV, float3 positionWS, half3 norm
 #endif
 }
 
+// Alpha of the prepared normal target. The GBuffer validity test costs two fetches and two depth linearisations,
+// and every consumer used to repeat it; the prepare pass answers it once and stores the answer here.
+#define SSGI_SURFACE_HAS_GBUFFER 1.0
+#define SSGI_SURFACE_NO_GBUFFER  0.0
+#define SSGI_SURFACE_GBUFFER_THRESHOLD 0.5
+
+half4 SSGIReadSurfaceNormalRaw(float2 screenUV)
+{
+    return SAMPLE_TEXTURE2D_X_LOD(_SSGISurfaceNormalTexture, my_point_clamp_sampler, screenUV, 0);
+}
+
+half3 SSGIReadSurfaceNormal(float2 screenUV)
+{
+    return SSGIReadSurfaceNormalRaw(screenUV).xyz;
+}
+
+bool SSGIReadSurfaceHasGBuffer(float2 screenUV)
+{
+    return SSGIReadSurfaceNormalRaw(screenUV).a > SSGI_SURFACE_GBUFFER_THRESHOLD;
+}
+
+void SSGIReadSurfaceAlbedoMetallic(float2 screenUV, out half3 albedo, out half metallic)
+{
+    half4 packed = SAMPLE_TEXTURE2D_X_LOD(_SSGISurfaceAlbedoTexture, my_point_clamp_sampler, screenUV, 0);
+    albedo = packed.rgb;
+    metallic = packed.a;
+}
+
 // Guards the division below. The result is bounded by the assumed albedo anyway, so this only avoids dividing by zero.
 #define SSGI_IMPLIED_ALBEDO_MIN_AMBIENT 1e-4
 
-// Most a guessed bounce may add to a pixel, as a multiple of the pixel's own colour. A surface lit by the ambient alone shows
-// albedo * ambient, so a bounce of the same size adds about the pixel's colour again; anything far beyond that means the albedo
-// guess or the traced hemisphere was wrong, and on a dark surface it reads as a blown-out card rather than as bounce light.
-#define SSGI_FALLBACK_MAX_GAIN 1.0
+// Most a guessed bounce may add to a pixel, as a multiple of the light the pixel already stands in. Bounding it by the
+// pixel's own colour alone is wrong next to a bright source: a dark surface beside a neon sign legitimately gains many
+// times its own brightness, and capping there is what stopped emissive surfaces from reading as light. The bound is the
+// larger of the pixel's colour and the ambient term it is replacing, so dark foliage (dark colour AND low ambient) keeps
+// its protection while a dark surface in bright surroundings does not inherit it.
+#define SSGI_FALLBACK_MAX_GAIN _SSGIFallbackMaxGain
 
 // Albedo of a surface without GBuffer data, implied by its colour: a surface lit by the ambient alone shows albedo * ambient,
 // so the ratio recovers the albedo. It is only an UPPER bound - a surface lit directly as well is brighter than the ambient
@@ -310,19 +386,25 @@ half3 SSGIEvaluateAmbientLighting(float2 screenUV, float3 positionWS, half3 norm
 half3 SSGIImpliedAlbedo(half3 color, half3 ambientLighting)
 {
     half3 implied = color * rcp(max(ambientLighting, half3(SSGI_IMPLIED_ALBEDO_MIN_AMBIENT, SSGI_IMPLIED_ALBEDO_MIN_AMBIENT, SSGI_IMPLIED_ALBEDO_MIN_AMBIENT)));
-    return min(implied, half3(_SSGIFallbackAlbedo, _SSGIFallbackAlbedo, _SSGIFallbackAlbedo));
+
+    // Capping each channel on its own destroys the surface's colour. A directly lit pixel is brighter than the ambient
+    // alone could make it in every channel, so every channel hits the cap and comes back equal: red couches and blue
+    // walls end up with the same grey albedo, and the bounce they receive loses the tint that makes it read as GI.
+    // Scaling the whole estimate down by its luminance instead keeps the hue and saturation and only bounds the
+    // brightness, the same way the ray clamp bounds a firefly. The bound the removal relies on survives, because the
+    // scale is never above 1 and implied * ambient is the pixel's colour by construction.
+    half impliedLuminance = Luminance(implied);
+    half scale = min(1.0, _SSGIFallbackAlbedo * rcp(max(impliedLuminance, SSGI_IMPLIED_ALBEDO_MIN_AMBIENT)));
+    return implied * scale;
 }
 
 // Bounds what a guessed albedo can do to a pixel. GBuffer surfaces carry a real albedo and are left alone; fallback surfaces
 // only ever had an estimate, so the light they gain is limited relative to the light they already show. Identity is unaffected:
 // when the bounce equals the ambient it replaces the contribution is at most the pixel's colour, which is below the cap.
-half3 SSGIClampFallbackContribution(half3 giContribution, half3 color, bool hasGBuffer)
+half3 SSGIClampFallbackContribution(half3 giContribution, half3 color, half3 ambientLighting, bool hasGBuffer)
 {
-    UNITY_BRANCH
-    if (hasGBuffer)
-        return giContribution;
-
-    return min(giContribution, color * SSGI_FALLBACK_MAX_GAIN);
+    half3 bound = max(color, ambientLighting) * SSGI_FALLBACK_MAX_GAIN;
+    return hasGBuffer ? giContribution : min(giContribution, bound);
 }
 
 // Albedo and metallic of the surface at the pixel: from the GBuffer, or implied by the pixel colour for surfaces without one.
@@ -345,6 +427,60 @@ void SSGISampleAlbedoMetallic(float2 screenUV, bool hasGBuffer, half3 color, hal
 // before the traced bounce is added in place of the ambient. Pixels lit by little more than ambient hold only precision noise
 // after the subtraction, so they are treated as pure ambient; the threshold is relative to the pixel so dim (night) scenes keep
 // their direct light instead of losing everything below a fixed luminance.
+// Self-illumination of the surface a ray landed on. The GBuffer emission target holds emission plus baked lighting
+// (URP's Lit GBuffer pass writes "surfaceData.emission + bakedGI" there), so the ambient term the prepare pass already
+// resolved is taken back out to leave emission alone.
+half3 SSGISampleEmission(float2 screenUV)
+{
+    half3 emission = SAMPLE_TEXTURE2D_X_LOD(_SSGIEmissionTexture, my_point_clamp_sampler, screenUV, 0).rgb;
+    half3 ambient = SAMPLE_TEXTURE2D_X_LOD(_SSGIAmbientLightingTexture, my_point_clamp_sampler, screenUV, 0).rgb;
+    half3 albedo;
+    half metallic;
+    SSGIReadSurfaceAlbedoMetallic(screenUV, albedo, metallic);
+    return max(emission - ambient * albedo * (1.0 - metallic), half3(0.0, 0.0, 0.0));
+}
+
+// Radiance a ray may take from a hit inside its own pixel footprint. Only the self-illumination is taken, never the
+// colour history: the history there is this surface's own accumulated colour, and feeding that back is what compounds
+// into a blow-out. Emission is read from this frame's GBuffer and never accumulates, so it is safe to deliver, and it
+// is what lets a surface right beside an emissive panel catch its glow -- the guard measures WORLD distance, so an
+// adjacent surface at a similar depth falls inside it. The weight ramps in rather than switching, so a ray cannot flip
+// between accepted and rejected frame to frame as the blue noise moves, which is what made this flicker before.
+half3 SSGINearHitRadiance(float2 hitUV, out half weight)
+{
+    half3 emission = half3(0.0, 0.0, 0.0);
+    weight = 0.0;
+
+    UNITY_BRANCH
+    if (_SSGIEmissionValid != 0.0)
+    {
+        emission = SSGISampleEmission(hitUV) * max(_SSGIEmissiveMultiplier, 1.0);
+        weight = saturate(Luminance(emission) * rcp(SSGI_NEAR_HIT_EMISSIVE_LUMINANCE));
+        half maxChannel = Max3(emission.x, emission.y, emission.z);
+        emission *= maxChannel > _SSGIEmissiveMaxBrightness ? _SSGIEmissiveMaxBrightness * rcp(max(maxChannel, 1e-4)) : 1.0;
+    }
+
+    return emission * weight;
+}
+
+// Radiance a ray brings back from where it landed. The colour history already carries emission, so the emission buffer
+// only supplies what the multiplier asks for beyond it: at multiplier 1 this is exactly the colour history on its own.
+half3 SSGIHitRadiance(half3 historyColor, float2 hitUV)
+{
+    half3 boost = half3(0.0, 0.0, 0.0);
+
+    UNITY_BRANCH
+    if (_SSGIEmissionValid != 0.0)
+    {
+        boost = SSGISampleEmission(hitUV) * (_SSGIEmissiveMultiplier - 1.0);
+        half maxChannel = Max3(boost.x, boost.y, boost.z);
+        boost *= maxChannel > _SSGIEmissiveMaxBrightness ? _SSGIEmissiveMaxBrightness * rcp(max(maxChannel, 1e-4)) : 1.0;
+        boost = max(boost, half3(0.0, 0.0, 0.0));
+    }
+
+    return historyColor + boost;
+}
+
 half3 SSGIAmbientRemovalFactor(half3 color, half3 ambientLighting, half3 albedo, half metallic)
 {
     half3 removed = max(color - ambientLighting * albedo * (1.0 - metallic), half3(0.0, 0.0, 0.0));

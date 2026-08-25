@@ -9,7 +9,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
     {
         Cull Off ZWrite Off ZTest Always
 
-        // Pass 0: Copy Direct Lighting (camera colour + ambient light per pixel, the inputs of the combine passes)
+        // Pass 0: Prepare (camera colour, ambient light, surface normal + validity, albedo + metallic)
         // Pass 1: SSGI
         // Pass 2: Temporal Reprojection
         // Pass 3: Edge-Avoiding Spatial Denoise
@@ -20,10 +20,11 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
         // Pass 8: Poisson Disk Recurrent Denoise
         // Pass 9: Blit Color Texture
         // Pass 10: Combine GI Add (upscale + add, blended per MSAA sample; debug views)
+        // Pass 11: Prime Depth (copies the camera depth into a depth attachment so the forward GBuffer pass gets early Z)
 
         Pass
         {
-            Name "Copy Direct Lighting"
+            Name "Prepare"
             Tags { "LightMode" = "Screen Space Global Illumination" }
 
             Blend One Zero
@@ -47,9 +48,13 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
 
             #include "./SSGI.hlsl"
 
+            // Everything the rest of the effect needs about the surface at this pixel, resolved once.
             // RT-1: the camera colour, which the combine passes rebuild from.
             // RT-2: ambient light at the pixel for its normal (adaptive probe volume or ambient probe): the term SSGI replaces.
-            void frag(Varyings input, out half4 cameraColor : SV_Target0, out half3 ambientLighting : SV_Target1)
+            // RT-3: world normal, with the GBuffer-belongs-to-this-surface bit in alpha.
+            // RT-4: albedo and metallic, already put through the fallback for surfaces with no GBuffer data.
+            void frag(Varyings input, out half4 cameraColor : SV_Target0, out half3 ambientLighting : SV_Target1,
+                out half4 surfaceNormal : SV_Target2, out half4 surfaceAlbedo : SV_Target3)
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 float2 screenUV = input.texcoord;
@@ -62,6 +67,8 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
 
                 cameraColor = SAMPLE_TEXTURE2D_X_LOD(_BlitTexture, my_point_clamp_sampler, screenUV, 0).rgba;
                 ambientLighting = half3(0.0, 0.0, 0.0);
+                surfaceNormal = half4(0.0, 0.0, 0.0, 0.0);
+                surfaceAlbedo = half4(0.0, 0.0, 0.0, 0.0);
 
                 // If the current pixel is sky
                 bool isBackground = abs(depth - UNITY_RAW_FAR_CLIP_VALUE) < RAW_FAR_CLIP_THRESHOLD;
@@ -71,9 +78,17 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
 
                 UpdateAmbientSH();
 
-                half3 normalWS = SSGISampleNormalWS(screenUV);
+                bool hasGBuffer;
+                half3 normalWS = SSGISampleNormalWS(screenUV, hasGBuffer);
                 float3 positionWS = ComputeWorldSpacePosition(screenUV, depth, UNITY_MATRIX_I_VP);
                 ambientLighting = SSGIEvaluateAmbientLighting(screenUV, positionWS, normalWS);
+
+                half3 albedo;
+                half metallic;
+                SSGISampleAlbedoMetallic(screenUV, hasGBuffer, cameraColor.rgb, ambientLighting, albedo, metallic);
+
+                surfaceNormal = half4(normalWS, hasGBuffer ? SSGI_SURFACE_HAS_GBUFFER : SSGI_SURFACE_NO_GBUFFER);
+                surfaceAlbedo = half4(albedo, metallic);
             }
             ENDHLSL
         }
@@ -147,7 +162,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 half2 velocity = SAMPLE_TEXTURE2D_X_LOD(_MotionVectorTexture, my_linear_clamp_sampler, screenUV, 0).xy;
                 float2 prevUV = screenUV - velocity;
 
-                half3 normalWS = SSGISampleNormalWS(screenUV);
+                half3 normalWS = SSGIReadSurfaceNormal(screenUV);
 
                 half maxRadius = ComputeMaxReprojectionWorldRadius(positionWS, viewDirectionWS, normalWS, _PixelSpreadAngleTangent);
                 float prevDeviceDepth = SAMPLE_TEXTURE2D_X_LOD(_SSGIHistoryDepthTexture, my_point_clamp_sampler, prevUV, 0).r;
@@ -204,22 +219,28 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
 
                     bool hitSuccessful = rayHit.distance > REAL_EPS;
 
+                    half3 rayRadiance = half3(0.0, 0.0, 0.0);
+
                     UNITY_BRANCH
                     if (hitSuccessful)
                     {
-                        lightingDistance.rgb += rayHit.emission * sampleWeight;
+                        rayRadiance = rayHit.emission;
                         lightingDistance.a += rayHit.distance * sampleWeight;
                     }
                     else
                     {
-                        lightingDistance.rgb += SampleReflectionProbes(ray.direction, positionWS, 1.0h, screenUV) * sampleWeight;
+                        rayRadiance = SampleReflectionProbes(ray.direction, positionWS, 1.0h, screenUV);
                         lightingDistance.a += sampleWeight; // 1.0 * sampleWeight
                     }
-                }
 
-                // Reduce noise and fireflies by limiting the maximum brightness (scaling the colour keeps its hue and saturation, like clamping the HSV value)
-                half maxChannel = Max3(lightingDistance.x, lightingDistance.y, lightingDistance.z);
-                lightingDistance.xyz *= maxChannel > _MaxBrightness ? _MaxBrightness * rcp(maxChannel) : 1.0;
+                    // Clamping the mean instead of each ray lets one outlier lift the average and then scales every
+                    // correct ray down with it, so the surface loses light the outlier never contributed. Clamping the
+                    // ray keeps the rest of the estimate intact. Scaling the colour preserves hue and saturation.
+                    half rayMaxChannel = Max3(rayRadiance.x, rayRadiance.y, rayRadiance.z);
+                    rayRadiance *= rayMaxChannel > _MaxBrightness ? _MaxBrightness * rcp(rayMaxChannel) : 1.0;
+
+                    lightingDistance.rgb += rayRadiance * sampleWeight;
+                }
 
                 // Set it to negative to pass "canBeReprojected" to the denoising pass
                 lightingDistance.w = canBeReprojected ? lightingDistance.w : -lightingDistance.w;
@@ -256,8 +277,8 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 float2 screenUV = input.texcoord;
 
-                // Normals at this resolution for the denoisers, decoded (or reconstructed from depth) once instead of at every tap.
-                normalOutput = half4(SSGISampleNormalWS(screenUV), 0.0);
+                // Normals at this resolution for the denoisers, so a tap is a single fetch instead of a decode.
+                normalOutput = half4(SSGIReadSurfaceNormal(screenUV), 0.0);
 
                 half2 velocity = SAMPLE_TEXTURE2D_X_LOD(_MotionVectorTexture, sampler_LinearClamp, screenUV, 0).xy;
 
@@ -315,9 +336,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                     AdjustColorBox(boxMin, boxMax, moment1, moment2, screenUV, 1.0, 1.0);
                     */
 
-                    // Can be replace by clamp() to reduce performance cost.
-                    //prevColor = DirectClipToAABB(prevColor, boxMin, boxMax);
-                    prevColor = clamp(prevColor, boxMin, boxMax);
+                    prevColor = ClipToVarianceBox(prevColor, boxMin, boxMax, moment1, moment2, 5.0);
 
                     // We still try to reuse (clamped) history samples even if they are invalid
                     result = (currentColor.rgb * (1.0 - accumulationFactor) + prevColor.rgb * accumulationFactor);
@@ -387,11 +406,15 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 // Dynamic dilation rate
                 // This reduces repetitive artifacts of A-Trous filtering.
 
-                // Reduce blur intensity if the hit distance is small
+                // Reduce blur intensity if the hit distance is small, but never below what a pixel that has just been
+                // disoccluded needs: it holds a single noisy sample and the temporal pass has nothing to hide it with.
+                half noisiness = SSGIHistoryNoisiness(screenUV);
                 half blurAmount = hitDistance < 1.0 && _HistoryTextureValid ? 0.05 : 1.0;
+                blurAmount = max(blurAmount, noisiness);
 
                 half minRange = max(2.0 * _DownSample, 2.0);
                 half maxRange = max(5.0 * _DownSample, minRange + 4.0);
+                maxRange *= lerp(1.0, SSGI_NOISY_RADIUS_BOOST, noisiness);
 
                 half random = SSGIBlueNoise(uint2(input.positionCS.xy));
                 float2 intensity = floor(lerp(minRange, maxRange, random)) * _BlitTexture_TexelSize.xy;
@@ -522,9 +545,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 // Re-projected color from last frame.
                 half3 prevColor = SAMPLE_TEXTURE2D_X_LOD(_HistoryIndirectDiffuseTexture, sampler_LinearClamp, prevUV, 0).rgb;
 
-                // Can be replace by clamp() to reduce performance cost.
-                //prevColor = DirectClipToAABB(prevColor, boxMin, boxMax);
-                prevColor = clamp(prevColor, boxMin, boxMax);
+                prevColor = ClipToVarianceBox(prevColor, boxMin, boxMax, moment1, moment2, 5.0);
 
                 half intensity = saturate(min(_TemporalIntensity - (abs(velocity.x)) * _TemporalIntensity, _TemporalIntensity - (abs(velocity.y)) * _TemporalIntensity));
 
@@ -635,7 +656,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 half3 ambientLighting = SAMPLE_TEXTURE2D_X_LOD(_SSGIAmbientLightingTexture, my_point_clamp_sampler, screenUV, 0).rgb;
                 half3 albedo;
                 half metallic;
-                SSGISampleAlbedoMetallic(screenUV, SSGIHasGBuffer(screenUV), cameraColor, ambientLighting, albedo, metallic);
+                SSGIReadSurfaceAlbedoMetallic(screenUV, albedo, metallic);
 
                 // Unlit surfaces carry a normal but no albedo in the GBuffer: nothing to remove (and the add pass adds nothing).
                 if (!any(albedo))
@@ -770,7 +791,9 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
                 // Evaluate the blur radius
                 //float distanceToCamera = length(positionWS - cameraPositionWS);
                 //half blurRadius = ComputeBlurRadius(1.0, BLUR_MAX_RADIUS) * _ReBlurDenoiserRadius;
-                half blurRadius = _ReBlurDenoiserRadius; // * BLUR_MAX_RADIUS;
+                // A pixel with a full history is already clean and only loses detail to a wide kernel; one with a
+                // single sample needs every tap it can get. The radius follows how converged the estimate is.
+                half blurRadius = _ReBlurDenoiserRadius * lerp(1.0, SSGI_NOISY_RADIUS_BOOST, SSGIHistoryNoisiness(screenUV)); // * BLUR_MAX_RADIUS;
                 //blurRadius *= max(1.0 - saturate(accumulationFactor / MAX_ACCUM_FRAME_NUM), 1.0);
                 //blurRadius *= HitDistanceAttenuation(centerRoughness, distanceToCamera, centerSignal.w);
                 //blurRadius *= lerp(saturate((distanceToCamera - MIN_BLUR_DISTANCE) / BLUR_OUT_RANGE), 0.0, 1.0);
@@ -880,14 +903,18 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
             float4 _BlitTexture_TexelSize;
         #endif
 
-            SAMPLER(my_point_clamp_sampler);
+            SAMPLER(my_linear_clamp_sampler);
 
             half4 frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 float2 screenUV = input.texcoord;
 
-                return SAMPLE_TEXTURE2D_X_LOD(_BlitTexture, my_point_clamp_sampler, screenUV, 0).rgba;
+                // This writes the colour history that every ray hit reads back, at the traced resolution. Point
+                // sampling threw away three pixels in four, and the aliasing that left was temporally unstable: small
+                // bright details popped in and out of the bounce as the camera moved. A bilinear tap at the centre of
+                // a half resolution texel covers exactly the four pixels it stands for.
+                return SAMPLE_TEXTURE2D_X_LOD(_BlitTexture, my_linear_clamp_sampler, screenUV, 0).rgba;
             }
             ENDHLSL
         }
@@ -921,117 +948,7 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
         #endif
 
             #include "./SSGI.hlsl"
-
-            // Nearest-depth upscaling
-            // Refer to "https://developer.download.nvidia.com/assets/gamedev/files/sdk/11/OpacityMappingSDKWhitePaper.pdf".
-
-            half3 DepthNormalsUpscale(float2 screenUV, float deviceDepth)
-            {
-                float2 offsetUV = screenUV;
-                offsetUV.y -= _IndirectDiffuseTexture_TexelSize.y;
-
-                half3 centerNormal = SSGISampleNormalWS(screenUV);
-                float centerDepth = ConvertLinearEyeDepth(deviceDepth);
-
-                half3 resultColor = half3(0.0, 0.0, 0.0);
-
-                float2 uv0 = offsetUV + float2(0.0, _IndirectDiffuseTexture_TexelSize.y);
-                float2 uv1 = offsetUV + _IndirectDiffuseTexture_TexelSize.xy;
-                float2 uv2 = offsetUV + float2(_IndirectDiffuseTexture_TexelSize.x, 0.0);
-                float2 uv3 = offsetUV + float2(0.0, 0.0);
-
-                // We can use a gather here but that requires shader model 5.0
-                float4 neighborDepth = float4(
-                    SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, my_point_clamp_sampler, uv0, 0).x,
-                    SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, my_point_clamp_sampler, uv1, 0).x,
-                    SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, my_point_clamp_sampler, uv2, 0).x,
-                    SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, my_point_clamp_sampler, uv3, 0).x);
-
-            #if !UNITY_REVERSED_Z
-                neighborDepth = lerp(UNITY_NEAR_CLIP_VALUE.xxxx, float4(1.0, 1.0, 1.0, 1.0), neighborDepth);
-            #endif
-
-                neighborDepth = float4(
-                    ConvertLinearEyeDepth(neighborDepth.x),
-                    ConvertLinearEyeDepth(neighborDepth.y),
-                    ConvertLinearEyeDepth(neighborDepth.z),
-                    ConvertLinearEyeDepth(neighborDepth.w));
-
-                half3 normal0 = SSGISampleNormalWS(uv0);
-                half3 normal1 = SSGISampleNormalWS(uv1);
-                half3 normal2 = SSGISampleNormalWS(uv2);
-                half3 normal3 = SSGISampleNormalWS(uv3);
-
-                half4 distances;
-                distances.x = distance(neighborDepth.x, centerDepth);
-                distances.y = distance(neighborDepth.y, centerDepth);
-                distances.z = distance(neighborDepth.z, centerDepth);
-                distances.w = distance(neighborDepth.w, centerDepth);
-
-                distances.x *= (1 - saturate(dot(normal0, centerNormal)));
-                distances.y *= (1 - saturate(dot(normal1, centerNormal)));
-                distances.z *= (1 - saturate(dot(normal2, centerNormal)));
-                distances.w *= (1 - saturate(dot(normal3, centerNormal)));
-
-                half bestDistance = min(min(min(distances.x, distances.y), distances.z), distances.w);
-
-                float2 bestUV = bestDistance == distances.x ? uv0 : bestDistance == distances.y ? uv1 : bestDistance == distances.z ? uv2 : uv3;
-
-                resultColor = SAMPLE_TEXTURE2D_X_LOD(_IndirectDiffuseTexture, my_linear_clamp_sampler, bestUV, 0).xyz;
-
-                return resultColor;
-            }
-
-            half3 DepthUpscale(float2 screenUV, float deviceDepth)
-            {
-                float2 offsetUV = screenUV;
-                offsetUV.y -= _IndirectDiffuseTexture_TexelSize.y;
-
-                float centerDepth = Linear01Depth(deviceDepth, _ZBufferParams);
-
-                half3 resultColor = half3(0.0, 0.0, 0.0);
-
-                float2 uv0 = offsetUV + float2(0.0, _IndirectDiffuseTexture_TexelSize.y);
-                float2 uv1 = offsetUV + _IndirectDiffuseTexture_TexelSize.xy;
-                float2 uv2 = offsetUV + float2(_IndirectDiffuseTexture_TexelSize.x, 0.0);
-                float2 uv3 = offsetUV + float2(0.0, 0.0);
-
-                // We can use a gather here but that requires shader model 5.0
-                float4 neighborDepth = float4(
-                    SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, my_point_clamp_sampler, uv0, 0).x,
-                    SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, my_point_clamp_sampler, uv1, 0).x,
-                    SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, my_point_clamp_sampler, uv2, 0).x,
-                    SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, my_point_clamp_sampler, uv3, 0).x);
-
-            #if !UNITY_REVERSED_Z
-                neighborDepth = lerp(UNITY_NEAR_CLIP_VALUE.xxxx, float4(1.0, 1.0, 1.0, 1.0), neighborDepth);
-            #endif
-
-                neighborDepth = float4(
-                    Linear01Depth(neighborDepth.x, _ZBufferParams),
-                    Linear01Depth(neighborDepth.y, _ZBufferParams),
-                    Linear01Depth(neighborDepth.z, _ZBufferParams),
-                    Linear01Depth(neighborDepth.w, _ZBufferParams));
-
-                half4 distances;
-                distances.x = abs(neighborDepth.x - centerDepth);
-                distances.y = abs(neighborDepth.y - centerDepth);
-                distances.z = abs(neighborDepth.z - centerDepth);
-                distances.w = abs(neighborDepth.w - centerDepth);
-
-                half bestDistance = min(min(min(distances.x, distances.y), distances.z), distances.w);
-
-                float2 bestUV = bestDistance == distances.x ? uv0 : bestDistance == distances.y ? uv1 : bestDistance == distances.z ? uv2 : uv3;
-
-                const half depthThreshold = 0.01;
-
-                if (distances.x < depthThreshold && distances.y < depthThreshold && distances.z < depthThreshold && distances.w < depthThreshold)
-                    resultColor = SAMPLE_TEXTURE2D_X_LOD(_IndirectDiffuseTexture, my_linear_clamp_sampler, bestUV, 0).xyz;
-                else
-                    resultColor = SAMPLE_TEXTURE2D_X_LOD(_IndirectDiffuseTexture, my_point_clamp_sampler, screenUV, 0).xyz;
-
-                return resultColor;
-            }
+            #include "./SSGICombine.hlsl"
 
             half4 frag(Varyings input) : SV_Target
             {
@@ -1058,44 +975,56 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIllumination"
 
                 half3 cameraColor = SAMPLE_TEXTURE2D_X_LOD(_BlitTexture, my_point_clamp_sampler, screenUV, 0).rgb;
                 half3 ambientLighting = SAMPLE_TEXTURE2D_X_LOD(_SSGIAmbientLightingTexture, my_point_clamp_sampler, screenUV, 0).rgb;
-                bool hasGBuffer = SSGIHasGBuffer(screenUV);
+                bool hasGBuffer = SSGIReadSurfaceHasGBuffer(screenUV);
                 half3 albedo;
                 half metallic;
-                SSGISampleAlbedoMetallic(screenUV, hasGBuffer, cameraColor, ambientLighting, albedo, metallic);
+                SSGIReadSurfaceAlbedoMetallic(screenUV, albedo, metallic);
 
-                half3 indirectLighting;
-
-                UNITY_BRANCH
-                if (_DownSample == 1.0)
-                    indirectLighting = SAMPLE_TEXTURE2D_X_LOD(_IndirectDiffuseTexture, my_point_clamp_sampler, screenUV, 0).rgb;
-                else
-                #ifdef _DEPTH_NORMALS_UPSCALE
-                    indirectLighting = DepthNormalsUpscale(screenUV, depth);
-                #else
-                    indirectLighting = DepthUpscale(screenUV, depth);
-                #endif
+                half3 indirectLighting = SSGIResolveIndirectLighting(screenUV, depth);
 
                 // Apply the indirect lighting multiplier, then bound what a guessed albedo is allowed to do to the pixel.
                 half3 giContribution = indirectLighting * albedo * (1.0 - metallic) * _IndirectDiffuseLightingMultiplier;
-                giContribution = SSGIClampFallbackContribution(giContribution, cameraColor, hasGBuffer);
+                giContribution = SSGIClampFallbackContribution(giContribution, cameraColor, ambientLighting, hasGBuffer);
 
                 UNITY_BRANCH
                 if (_SSGIDebugView != 0.0)
-                {
-                    if (_SSGIDebugView == 1.0)
-                        return half4(indirectLighting * _IndirectDiffuseLightingMultiplier, 0.0);
-                    if (_SSGIDebugView == 2.0)
-                        return half4(giContribution, 0.0);
-
-                    // The GBuffer views show what the forward GBuffer pass wrote: black surfaces have no "UniversalGBuffer" pass.
-                    if (_SSGIDebugView == 3.0)
-                        return half4(SAMPLE_TEXTURE2D_X_LOD(_GBuffer0, my_point_clamp_sampler, screenUV, 0).rgb, 0.0);
-
-                    half3 rawNormalWS = SSGIDecodeNormal(SAMPLE_TEXTURE2D_X_LOD(_GBuffer2, my_point_clamp_sampler, screenUV, 0).xyz);
-                    return half4(rawNormalWS * 0.5 + 0.5, 0.0);
-                }
+                    return half4(SSGIDebugColor(screenUV, indirectLighting, giContribution), 0.0);
 
                 return half4(giContribution, 0.0);
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "Prime Depth"
+            Tags { "LightMode" = "Screen Space Global Illumination" }
+
+            // The forward GBuffer pass cannot share a multisampled camera depth attachment, so without this it draws
+            // every opaque surface against a cleared depth buffer and pays for all of the overdraw. Writing the
+            // camera's own resolved depth here lets the depth test reject whatever the camera already knows is hidden.
+            ColorMask 0
+            ZWrite On
+            ZTest Always
+
+            HLSLPROGRAM
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            // The Blit.hlsl file provides the vertex shader (Vert),
+            // input structure (Attributes) and output structure (Varyings)
+            #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
+
+            #pragma vertex Vert
+            #pragma fragment frag
+
+            #pragma target 3.5
+
+            TEXTURE2D_X_FLOAT(_CameraDepthTexture);
+            SAMPLER(my_point_clamp_sampler);
+
+            void frag(Varyings input, out float outDepth : SV_Depth)
+            {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+                outDepth = SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, my_point_clamp_sampler, input.texcoord, 0).r;
             }
             ENDHLSL
         }

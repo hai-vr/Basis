@@ -41,6 +41,11 @@ RayHit RayMarching(Ray ray, float2 screenUV, half dither, half3 viewDirectionWS)
     float4 rayDirectionCS = mul(worldToHClip, float4(ray.direction, 0.0));
     bool isPerspective = IsPerspectiveProjection();
 
+    // Linearising a depth branches on the projection type. It is the same branch on every step of every ray, so the
+    // two coefficients it selects between are resolved once here and the loop is left with a multiply-add and a
+    // reciprocal (perspective) or a plain lerp (orthographic).
+    SSGIDepthLinearizer linearizer = SSGIGetDepthLinearizer(isPerspective);
+
     // Distance travelled along the ray (also the hit distance).
     float rayDistance = 0.0;
 
@@ -94,8 +99,8 @@ RayHit RayMarching(Ray ray, float2 screenUV, half dither, half3 viewDirectionWS)
 
         // Convert Z-Depth to Linear Eye Depth
         // Value Range: Camera Near Plane -> Camera Far Plane
-        float sceneDepth = ConvertLinearEyeDepth(deviceDepth);
-        float hitDepth = isPerspective ? rayPositionCS.w : ConvertLinearEyeDepth(rayPositionNDC.z);
+        float sceneDepth = SSGILinearEyeDepth(linearizer, deviceDepth);
+        float hitDepth = isPerspective ? rayPositionCS.w : SSGILinearEyeDepth(linearizer, rayPositionNDC.z);
 
         // Calculate (front) depth difference
         // Positive: ray is in front of the front-faces of object.
@@ -117,7 +122,7 @@ RayHit RayMarching(Ray ray, float2 screenUV, half dither, half3 viewDirectionWS)
         bool backDepthValid = false;
     #if defined(_BACKFACE_TEXTURES)
         deviceBackDepth = SAMPLE_TEXTURE2D_X_LOD(_CameraBackDepthTexture, my_point_clamp_sampler, rayPositionNDC.xy, 0).r;
-        sceneBackDepth = ConvertLinearEyeDepth(deviceBackDepth);
+        sceneBackDepth = SSGILinearEyeDepth(linearizer, deviceBackDepth);
 
         backDepthValid = (deviceBackDepth != UNITY_RAW_FAR_CLIP_VALUE) && (sceneBackDepth >= sceneDepth);
         backDepthDiff = backDepthValid ? (hitDepth - sceneBackDepth) : (depthDiff - marchingThickness);
@@ -168,7 +173,9 @@ RayHit RayMarching(Ray ray, float2 screenUV, half dither, half3 viewDirectionWS)
             hitSuccessful = ((depthDiff <= 0.0) && (depthDiff >= -marchingThickness) && !isSky) ? true : false;
         }
 
-        // Keep marching through the surface the ray started on instead of counting it as the light source.
+        // Keep marching through the surface the ray started on instead of counting it as the light source. There is
+        // no exemption for emissive surfaces: a hit returns the COLOUR HISTORY at the hit, so a near-self hit reads the
+        // surface's own previous colour and compounds it every frame no matter what made it bright.
         hitSuccessful = hitSuccessful && (rayDistance > minHitDistance);
 
         // If we find the intersection.
@@ -181,7 +188,7 @@ RayHit RayMarching(Ray ray, float2 screenUV, half dither, half3 viewDirectionWS)
             if (_BackDepthEnabled == 2.0 && isBackBuffer)
                 rayHit.emission = SAMPLE_TEXTURE2D_X_LOD(_CameraBackOpaqueTexture, my_point_clamp_sampler, rayPositionNDC.xy, 0).rgb;
             else
-                rayHit.emission = SAMPLE_TEXTURE2D_X_LOD(_SSGIHistoryCameraColorTexture, my_point_clamp_sampler, rayPositionNDC.xy, 0).rgb;
+                rayHit.emission = SSGIHitRadiance(SAMPLE_TEXTURE2D_X_LOD(_SSGIHistoryCameraColorTexture, my_point_clamp_sampler, rayPositionNDC.xy, 0).rgb, rayPositionNDC.xy);
 
             break;
         }

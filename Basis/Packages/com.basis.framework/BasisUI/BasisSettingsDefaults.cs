@@ -340,6 +340,12 @@ namespace Basis.BasisUI
         // own range, which keeps ~91% per frame once accumulated and smears the bounce behind anything that
         // moves. 0.8 still denoises well and settles in roughly a third of the frames.
         public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationDenoiseStrength = new("screenspaceglobalilluminationdenoisestrength", new BasisPlatformDefault<float>(0.8f));
+        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationEmissive = new("screenspaceglobalilluminationemissive", new BasisPlatformDefault<float>(1f));
+        public const float SSGI_EMISSIVE_MIN = 1f;
+        public const float SSGI_EMISSIVE_MAX = 8f;
+        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationFallbackMaxGain = new("screenspaceglobalilluminationfallbackmaxgain", new BasisPlatformDefault<float>(2f));
+        public const float SSGI_FALLBACK_MAX_GAIN_MIN = 0.25f;
+        public const float SSGI_FALLBACK_MAX_GAIN_MAX = 8f;
         public const float SSGI_DENOISE_MIN = 0.5f;
         public const float SSGI_DENOISE_MAX = 0.95f;
 
@@ -2169,6 +2175,8 @@ namespace Basis.BasisUI
             ScreenSpaceGlobalIlluminationOverrideAmbient.LoadBindingValue();
             ScreenSpaceGlobalIlluminationBackfaceLighting.LoadBindingValue();
             ScreenSpaceGlobalIlluminationDenoiseStrength.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationEmissive.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationFallbackMaxGain.LoadBindingValue();
             //UseRealtimeReflectionProbes.LoadBindingValue();
             //RealtimeReflectionProbeRate.LoadBindingValue();
             ShowGizmos.LoadBindingValue();

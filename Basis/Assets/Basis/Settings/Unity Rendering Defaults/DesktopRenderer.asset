@@ -232,11 +232,16 @@ MonoBehaviour:
   m_RenderingDebugger: 0
   m_ReflectionProbes: 1
   m_HighQualityUpscaling: 1
+  m_TracedResolutionGBuffer: 1
   m_OverrideAmbientLighting: 1
   m_GBufferFallback: 1
   m_FallbackAlbedo: 0.1
+  m_FallbackMaxGain: 2
+  m_EmissiveMultiplier: 1
+  m_EmissiveMaxBrightness: 27.2
   m_GBufferOverrideShader: {fileID: 4800000, guid: 9b2e7c4d1f6a4b8e9c3d5e7f0a1b2c44, type: 3}
   m_GBufferOverrideRenderingLayerBit: 31
+  m_GBufferOverrideAllOpaques: 1
   m_BackfaceLighting: 1
 --- !u!114 &8304327589836468309
 MonoBehaviour:

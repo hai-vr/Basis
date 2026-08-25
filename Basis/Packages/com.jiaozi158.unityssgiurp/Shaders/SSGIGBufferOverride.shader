@@ -1,5 +1,5 @@
 // Draws a renderer into the screen space global illumination GBuffer using only the material's common properties
-// (_MainTex, _Color, _BumpMap, _Cutoff). Used as an override shader for materials whose shader has neither a
+// (_MainTex, _Color, _BumpMap, _Cutoff, _EmissionColor, _EmissionMap). Used as an override shader for materials whose shader has neither a
 // "UniversalGBuffer" nor an "SSGIGBuffer" pass, so those surfaces receive GI with their real albedo and normals
 // without touching the shader itself. Skinned meshes are skinned by Unity before this vertex shader like any other.
 Shader "Hidden/Lighting/ScreenSpaceGlobalIlluminationGBufferOverride"
@@ -13,6 +13,10 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIlluminationGBufferOverride"
         _Cutoff ("Alpha Cutoff", Range(0, 1.001)) = 0.5
         _Mode ("Rendering Preset (Poiyomi)", Float) = 0
         _AlphaClip ("Alpha Clip (URP)", Float) = 0
+        [HDR] _EmissionColor ("Emission Color", Color) = (0, 0, 0, 1)
+        _EmissionMap ("Emission Map", 2D) = "white" {}
+        _EmissionStrength ("Emission Strength (Poiyomi)", Float) = 1.0
+        [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 0
     }
 
     SubShader
@@ -24,7 +28,10 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIlluminationGBufferOverride"
             Name "SSGIGBufferOverride"
             Tags { "LightMode" = "SSGIGBuffer" }
 
-            Cull Off
+            // Follows the material's own cull mode where it declares one, which nearly every shader does, so a
+            // closed mesh is not rasterised twice. Materials without the property keep the two sided default that
+            // cards and foliage need.
+            Cull [_Cull]
             ZWrite On
             ZTest LEqual
             Blend One Zero
@@ -42,6 +49,8 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIlluminationGBufferOverride"
             SAMPLER(sampler_MainTex);
             TEXTURE2D(_BumpMap);
             SAMPLER(sampler_BumpMap);
+            TEXTURE2D(_EmissionMap);
+            SAMPLER(sampler_EmissionMap);
 
             CBUFFER_START(UnityPerMaterial)
             float4 _MainTex_ST;
@@ -50,6 +59,10 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIlluminationGBufferOverride"
             half _Cutoff;
             half _Mode;
             half _AlphaClip;
+            half4 _EmissionColor;
+            float4 _EmissionMap_ST;
+            half _EmissionStrength;
+            half _Cull;
             CBUFFER_END
 
             struct Attributes
@@ -91,7 +104,8 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIlluminationGBufferOverride"
             void Frag(Varyings input, bool isFrontFace : SV_IsFrontFace,
                 out half4 outGBuffer0 : SV_Target0,
                 out half4 outGBuffer1 : SV_Target1,
-                out half4 outGBuffer2 : SV_Target2)
+                out half4 outGBuffer2 : SV_Target2,
+                out half4 outEmission : SV_Target3)
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
@@ -117,10 +131,15 @@ Shader "Hidden/Lighting/ScreenSpaceGlobalIlluminationGBufferOverride"
                 half3 packedNormalWS = normalWS;
             #endif
 
-                // URP GBuffer layout, first three targets: albedo + material flags, metallic + occlusion, normal + smoothness.
+                // URP GBuffer layout: albedo + material flags, metallic + occlusion, normal + smoothness, emission.
+                // A material with no emission properties leaves _EmissionColor at zero, so this stays black for it.
+                half3 emission = _EmissionColor.rgb * _EmissionStrength;
+                emission *= SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, TRANSFORM_TEX(input.uv, _EmissionMap)).rgb;
+
                 outGBuffer0 = half4(albedo.rgb, 0.0);
                 outGBuffer1 = half4(0.0, 0.0, 0.0, 1.0);
                 outGBuffer2 = half4(packedNormalWS, 0.5);
+                outEmission = half4(emission, 1.0);
             }
             ENDHLSL
         }

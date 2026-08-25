@@ -33,6 +33,32 @@ void AdjustColorBox(inout half3 boxMin, inout half3 boxMax, inout half3 moment1,
     moment2 += color * color;
 }
 
+// The five tap neighbourhood already gives first and second moments; clamping to its min and max throws that away and
+// lets a single bright neighbour widen the box far enough to admit a stale history sample. Bounding by the mean plus a
+// few standard deviations instead is what stops ghosting on a moving edge, and it costs nothing that was not already
+// computed. Kept wide enough not to over-clamp converged, low variance regions into flatness.
+#define SSGI_VARIANCE_GAMMA 1.25
+
+half3 ClipToVarianceBox(half3 history, half3 boxMin, half3 boxMax, half3 moment1, half3 moment2, half sampleCount)
+{
+    half invCount = rcp(max(sampleCount, 1.0));
+    half3 mean = moment1 * invCount;
+    half3 variance = max(moment2 * invCount - mean * mean, half3(0.0, 0.0, 0.0));
+    half3 deviation = sqrt(variance) * SSGI_VARIANCE_GAMMA;
+    return clamp(history, max(boxMin, mean - deviation), min(boxMax, mean + deviation));
+}
+
+// Noise left in a pixel's estimate, from how many frames of history it has accumulated. A freshly disoccluded pixel
+// carries one sample and needs the widest filter; a converged one needs almost none. The spatial denoisers used a
+// fixed radius for both, so they over-blurred what was already clean and under-filtered what was not.
+#define SSGI_NOISY_RADIUS_BOOST 2.0
+
+half SSGIHistoryNoisiness(float2 screenUV)
+{
+    half historyLength = SAMPLE_TEXTURE2D_X_LOD(_SSGISampleTexture, my_point_clamp_sampler, screenUV, 0).r;
+    return saturate(1.0 - historyLength * rcp(MAX_ACCUM_FRAME_NUM));
+}
+
 half3 DirectClipToAABB(half3 history, half3 minimum, half3 maximum)
 {
     // note: only clips towards aabb center (but fast!)

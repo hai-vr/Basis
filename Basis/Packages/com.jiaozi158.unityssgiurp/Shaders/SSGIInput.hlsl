@@ -96,6 +96,8 @@ float4 _MotionVectorTexture_TexelSize;
 
 TEXTURE2D_X(_HistoryIndirectDiffuseTexture);
 TEXTURE2D_X(_SSGIHistorySampleTexture);
+// This frame's accumulated sample count, written by the reprojection pass: how converged each pixel's estimate is.
+TEXTURE2D_X(_SSGISampleTexture);
 TEXTURE2D_X_FLOAT(_SSGIHistoryDepthTexture);
 // Depth and normals at the resolution the effect is traced and denoised at (this frame).
 TEXTURE2D_X_FLOAT(_SSGIDepthTexture);
@@ -103,6 +105,12 @@ TEXTURE2D_X(_SSGINormalTexture);
 TEXTURE2D_X(_IndirectDiffuseTexture);
 TEXTURE2D_X(_SSGIHistoryCameraColorTexture);
 TEXTURE2D_X(_SSGIAmbientLightingTexture);
+// Written once by the prepare pass: the world normal with the GBuffer validity bit in alpha, and the albedo and
+// metallic already resolved through the fallback. Read everywhere the surface is needed.
+TEXTURE2D_X(_SSGISurfaceNormalTexture);
+TEXTURE2D_X(_SSGISurfaceAlbedoTexture);
+// Self-illumination at each pixel, from the GBuffer emission target where a surface has one.
+TEXTURE2D_X(_SSGIEmissionTexture);
 float4 _IndirectDiffuseTexture_TexelSize;
 
 half4 ssgi_SHAr;
@@ -148,6 +156,17 @@ half _OverrideAmbientLighting;
 half _SSGIGBufferFallback;
 // Albedo assumed where no ambient light reaches such a pixel, so nothing can be implied from its colour.
 half _SSGIFallbackAlbedo;
+
+// Most a guessed bounce may add to a surface without GBuffer data, as a multiple of the light it already shows.
+half _SSGIFallbackMaxGain;
+
+// How much the self-illumination of a hit surface counts for beyond what the colour history already carries.
+// 1 is exactly the behaviour without an emission buffer.
+half _SSGIEmissiveMultiplier;
+// Ceiling for the emissive part of a ray. The firefly clamp on the whole ray still applies on top.
+half _SSGIEmissiveMaxBrightness;
+// 1 when the GBuffer carries a usable emission target.
+half _SSGIEmissionValid;
 
 // 64x64 tileable blue noise (R8, one value per texel), see ScreenSpaceGlobalIlluminationBlueNoise.
 TEXTURE2D(_SSGIBlueNoise);

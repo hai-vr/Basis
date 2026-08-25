@@ -19,6 +19,14 @@
 // A ray hit within this many pixel footprints of its origin is the origin surface itself, not a light source.
 #define SELF_INTERSECTION_PIXELS	2.0
 
+// How far the depth may bend between adjacent pixels, relative to the eye depth, before a normal reconstructed
+// from it is treated as noise rather than as a surface. A plane keeps this near zero at any inclination.
+#define SSGI_NORMAL_MAX_CURVATURE	0.05
+
+// Luminance at which a hit inside the ray's own pixel footprint counts fully as a light source. Below it the
+// contribution ramps down to nothing, so the decision is never a per-frame switch.
+#define SSGI_NEAR_HIT_EMISSIVE_LUMINANCE	0.25
+
 // Temporal Accumulation maximum history samples
 #define MAX_ACCUM_FRAME_NUM			8
 

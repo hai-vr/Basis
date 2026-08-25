@@ -7267,6 +7267,14 @@
       "value": "How much of the previous frame's bounce light is reused to steady the image. Lower it if the light smears or trails behind you when you move; raise it if the bounce looks grainy while standing still."
     },
     {
+      "key": "settings.graphics.ssgi.emissive",
+      "value": "Glowing Surface Strength"
+    },
+    {
+      "key": "settings.graphics.ssgi.emissive.tooltip",
+      "value": "How much light glowing surfaces throw onto everything around them. At 1 they light the room only as much as they already showed up in the picture; raise it to make neon signs, screens and glowing avatar parts actually cast light."
+    },
+    {
       "key": "settings.graphics.ssgi.gbufferFallback",
       "value": "Light Unsupported Shaders"
     },
@@ -7281,6 +7289,14 @@
     {
       "key": "settings.graphics.ssgi.fallbackAlbedo.tooltip",
       "value": "How much light those surfaces are assumed to reflect where their colour cannot say. Lower is darker and more cautious, higher picks up more bounce."
+    },
+    {
+      "key": "settings.graphics.ssgi.fallbackMaxGain",
+      "value": "Unsupported Shader Light Limit"
+    },
+    {
+      "key": "settings.graphics.ssgi.fallbackMaxGain.tooltip",
+      "value": "How much bounce light a shader that was not built for it is allowed to gain. Raise it so bright and glowing surfaces light such content properly; lower it if dark leaves, hair or grass wash out."
     },
     {
       "key": "settings.graphics.ssgi.reflectionProbes",
@@ -9789,6 +9805,10 @@
     {
       "key": "settings.developer.ssgiDebug.normals",
       "value": "GBuffer Normals"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.emission",
+      "value": "Emission"
     },
     {
       "key": "settings.developer.vrs.title",

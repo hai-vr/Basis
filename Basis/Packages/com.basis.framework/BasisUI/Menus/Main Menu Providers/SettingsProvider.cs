@@ -1806,6 +1806,16 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.ScreenSpaceGlobalIlluminationDenoiseStrength);
             sliderSsgiDenoise.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.denoise.tooltip"));
 
+            PanelSlider sliderSsgiEmissive = PanelSlider.CreateEntryAndBind(
+                ssgiGroup.ContentParent,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.emissive"),
+                    "",
+                    BasisSettingsDefaults.SSGI_EMISSIVE_MIN,
+                    BasisSettingsDefaults.SSGI_EMISSIVE_MAX,
+                    false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.ScreenSpaceGlobalIlluminationEmissive);
+            sliderSsgiEmissive.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.emissive.tooltip"));
+
             PanelToggle toggleSsgiGBufferFallback = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
             toggleSsgiGBufferFallback.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationGBufferFallback);
             toggleSsgiGBufferFallback.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.ssgi.gbufferFallback"));
@@ -1820,6 +1830,16 @@ namespace Basis.BasisUI
                     false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackAlbedo);
             sliderSsgiFallbackAlbedo.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.fallbackAlbedo.tooltip"));
+
+            PanelSlider sliderSsgiFallbackMaxGain = PanelSlider.CreateEntryAndBind(
+                ssgiGroup.ContentParent,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.ssgi.fallbackMaxGain"),
+                    "",
+                    BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MIN,
+                    BasisSettingsDefaults.SSGI_FALLBACK_MAX_GAIN_MAX,
+                    false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.ScreenSpaceGlobalIlluminationFallbackMaxGain);
+            sliderSsgiFallbackMaxGain.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.ssgi.fallbackMaxGain.tooltip"));
 
             PanelToggle toggleSsgiReflectionProbes = PanelToggle.CreateNewEntry(ssgiGroup.ContentParent);
             toggleSsgiReflectionProbes.AssignBinding(BasisSettingsDefaults.ScreenSpaceGlobalIlluminationReflectionProbes);
@@ -1849,8 +1869,10 @@ namespace Basis.BasisUI
                 toggleSsgiFullResolution.Descriptor.SetActive(val);
                 sliderSsgiIntensity.Descriptor.SetActive(val);
                 sliderSsgiDenoise.Descriptor.SetActive(val);
+                sliderSsgiEmissive.Descriptor.SetActive(val);
                 toggleSsgiGBufferFallback.Descriptor.SetActive(val);
                 sliderSsgiFallbackAlbedo.Descriptor.SetActive(val && toggleSsgiGBufferFallback.Value);
+                sliderSsgiFallbackMaxGain.Descriptor.SetActive(val && toggleSsgiGBufferFallback.Value);
                 toggleSsgiReflectionProbes.Descriptor.SetActive(val);
                 toggleSsgiUpscaling.Descriptor.SetActive(val);
                 toggleSsgiOverrideAmbient.Descriptor.SetActive(val);
@@ -3141,8 +3163,8 @@ namespace Basis.BasisUI
             dropdownSsgiDebug.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.ssgiDebug"));
             dropdownSsgiDebug.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.ssgiDebug.tooltip"));
             dropdownSsgiDebug.AssignLocalizedEntries(
-                new List<string> { "Off", "Indirect Light", "GI Contribution", "GBuffer Albedo", "GBuffer Normals" },
-                new List<string> { "ui.option.off", "settings.developer.ssgiDebug.indirect", "settings.developer.ssgiDebug.contribution", "settings.developer.ssgiDebug.albedo", "settings.developer.ssgiDebug.normals" });
+                new List<string> { "Off", "Indirect Light", "GI Contribution", "GBuffer Albedo", "GBuffer Normals", "Emission" },
+                new List<string> { "ui.option.off", "settings.developer.ssgiDebug.indirect", "settings.developer.ssgiDebug.contribution", "settings.developer.ssgiDebug.albedo", "settings.developer.ssgiDebug.normals", "settings.developer.ssgiDebug.emission" });
             dropdownSsgiDebug.AssignBinding(BasisSettingsDefaults.DevSsgiDebugView);
 #endif
 

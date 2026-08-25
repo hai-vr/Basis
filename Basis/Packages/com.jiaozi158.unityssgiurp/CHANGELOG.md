@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Emissive surfaces contribute light directly. The forward GBuffer pass binds a fourth target (`_SSGIEmissionTexture`), which URP's own GBuffer pass already writes as emission plus baked lighting, so no extra draw is needed; `SSGISampleEmission` subtracts the ambient term the prepare pass resolved to leave emission alone. A ray hit adds `emission * (EmissiveMultiplier - 1)` on top of the colour history, so a multiplier of 1 is exactly the behaviour without an emission buffer and nothing is double counted. `EmissiveMaxBrightness` bounds the emissive part of a ray separately from the firefly clamp on reflected light. The runtime override shader reads `_EmissionColor` / `_EmissionMap` / `_EmissionStrength` off the material, which is the path Poiyomi and lilToon avatars take.
+- Prepare pass (pass 0, was "Copy Direct Lighting") resolves the surface once into four targets: camera colour, ambient lighting, world normal with the GBuffer validity bit in alpha (`_SSGISurfaceNormalTexture`), and albedo plus metallic already put through the fallback (`_SSGISurfaceAlbedoTexture`). Every later pass reads those instead of sampling the GBuffer, comparing its depth against the camera depth and reconstructing a normal again.
+- Depth priming for the forward GBuffer pass (pass 11, "Prime Depth"): a multisampled camera cannot share its depth attachment with this single sample pass, so it used to rasterise every opaque surface against a cleared depth buffer with no early Z. The camera's resolved depth is copied into the transient depth target first and the draw tests `LEqual` against it, which also rejects GBuffer geometry hidden behind a surface whose shader has no GBuffer pass -- the case `SSGIGBufferMatchesSurface` was added to catch.
+- `TracedResolutionGBuffer`: renders the GBuffer the effect reads at the traced resolution instead of full resolution. Its albedo and normals only ever modulate a bounce traced and denoised at that resolution.
+- `FallbackMaxGain`: bounds a guessed bounce by the larger of the pixel's colour and the ambient it replaces, rather than by the pixel's colour alone. Capping at the pixel's own colour is what stopped a dark surface beside a bright or emissive one from receiving light; dark foliage keeps its protection because its ambient is low too.
+- A profiling sampler per step of the chain. The eleven blits ran inside one unsafe pass under a single marker, so none of the effect could be attributed.
 - VR support: per-eye previous-frame matrices for stereo instancing, multi-pass XR history per eye, and MRT passes that bind every texture array slice.
 - `ScreenSpaceGlobalIlluminationURP.CameraFilter` so a host can limit the effect to specific cameras.
 - `ScreenSpaceGlobalIlluminationURP.DebugView` (`_SSGIDebugView`): the combine pass can output the indirect light, the GI contribution, or the GBuffer albedo / normals.
@@ -36,6 +42,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- The firefly clamp is applied per ray instead of to the averaged result. Clamping the mean let one outlier lift the average and then scaled every correct ray down with it.
+- The temporal passes clip history to the variance they already measured. Both built first and second moments across their neighbourhood and then discarded them, clamping to a raw min and max box that a single bright neighbour could widen far enough to admit a stale sample.
+- The two spatial denoisers scale their radius by how much history a pixel has accumulated (`_SSGISampleTexture`), so a freshly disoccluded pixel gets the widest filter and a converged one keeps its detail.
+- The second sweep of the recurrent denoiser gets its own rotation and a wider radius. Both sweeps used the same rotator, so the second re-filtered the kernel the first had just used. The two parameters are command buffer globals now, because a material property is read when the buffer is submitted and a value changed between two blits would apply to both.
+- The colour history every ray hit reads is filtered when it is downsampled. Point sampling discarded three pixels in four, and the aliasing that left popped in and out of the bounce as the camera moved.
+- The ray march resolves the projection type once instead of branching on it inside `ConvertLinearEyeDepth` on every step, up to 128 times per pixel at High quality.
+- A ray may hit an emissive surface closer than the self intersection guard allows. The guard exists to stop a surface reading its own reflected colour back out of the history and compounding it; emission does not take part in that loop, so a thin emissive strip seen at a grazing angle can be found on the first step.
 - History textures are kept per camera in the Render Graph path too, and a new camera never reprojects from another camera's history.
 - The forward GBuffer pass clears its targets, and its transient depth buffer when depth priming is unavailable (MSAA).
 - The per-pixel ambient texture (`_SSGIAmbientLightingTexture`, formerly `_APVLightingTexture`) is always written, APV or ambient probe, and the ambient probe coefficients are uploaded every frame: the sky ray-miss fallback needs them even with ambient override off.

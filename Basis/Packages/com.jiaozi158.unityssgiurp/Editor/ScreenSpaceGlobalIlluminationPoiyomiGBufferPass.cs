@@ -190,9 +190,10 @@ public static class ScreenSpaceGlobalIlluminationPoiyomiGBufferPass
             indent + ", out half4 outGBuffer0 : SV_Target0" + newline +
             indent + ", out half4 outGBuffer1 : SV_Target1" + newline +
             indent + ", out half4 outGBuffer2 : SV_Target2" + newline +
+            indent + ", out half4 outGBuffer3 : SV_Target3" + newline +
             indent + ")");
         gbufferPass = FragmentTail.Replace(gbufferPass,
-            "// Screen space global illumination GBuffer: URP layout, first three targets." + newline +
+            "// Screen space global illumination GBuffer: URP layout, four targets." + newline +
             indent + "\tfloat3 normalWS = NormalizeNormalPerPixel(poiMesh.normals[1]);" + newline +
             indent + "\t#if defined(_GBUFFER_NORMALS_OCT)" + newline +
             indent + "\tfloat2 octNormalWS = PackNormalOctQuadEncode(normalWS);" + newline +
@@ -202,7 +203,11 @@ public static class ScreenSpaceGlobalIlluminationPoiyomiGBufferPass
             indent + "\t#endif" + newline +
             indent + "\toutGBuffer0 = half4(poiFragData.baseColor, 0.0);" + newline +
             indent + "\toutGBuffer1 = half4(0.0, 0.0, 0.0, 1.0);" + newline +
-            indent + "\toutGBuffer2 = half4(packedNormalWS, 0.5);");
+            indent + "\toutGBuffer2 = half4(packedNormalWS, 0.5);" + newline +
+            // This pass is a clone of DepthNormals, which never runs Poiyomi's emission module, so there is no
+            // emission term to take here. Poiyomi emissive surfaces reach the effect through the runtime override
+            // shader, which reads _EmissionColor and _EmissionMap off the material directly.
+            indent + "\toutGBuffer3 = half4(0.0, 0.0, 0.0, 1.0);");
 
         result = source.Substring(0, passEnd) + newline + newline + gbufferPass + source.Substring(passEnd);
         return true;

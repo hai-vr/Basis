@@ -54,7 +54,7 @@ namespace Basis.Scripts.Drivers
         public JiggleRig[] JiggleRigs = Array.Empty<JiggleRig>();
         private static Vector3[] sJiggleRootsBeforeSnap = Array.Empty<Vector3>();
 
-        public Basis.IK.BasisBodyFitResult AppliedBodyFit = Basis.IK.BasisBodyFitResult.Identity;
+        [NonSerialized] public Basis.IK.BasisBodyFitResult AppliedBodyFit = Basis.IK.BasisBodyFitResult.Identity;
 
         readonly Transform[] _fitBones = new Transform[Basis.IK.BasisBodyFitApply.BoneCount];
         readonly Vector3[] _fitRestLocal = new Vector3[Basis.IK.BasisBodyFitApply.BoneCount];
