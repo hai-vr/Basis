@@ -61,8 +61,8 @@ namespace Basis.IK
         public float hipHingeMaxAddDeg, moveBodyBackWhenCrouching, crouchDepth, standingHeadHeight, trunkCounterbalance;
         public float trunkCounterbalanceMaxSpineFrac, thoracicBendStiffen, spineTautBandFrac, bendTwistCoupling;
         public float neckGazeFollowMaxDeg, chestBendPitch, chestBendYaw, chestBendRoll, neckYawShare, spineStretchMax;
-        public float restChordHeadHips, restChordHeadChest, restReachHeadHips;
-        public Quaternion chestTrackedRot;
+        public float restChordHeadHips, restChordHeadLumbar, restChordHeadUpper, restReachHeadLumbar;
+        public Quaternion chestTrackedRot, chestRestFromHead;
         public bool chestIkTarget;
         public float chestIkWeight, chestPosPullMaxDeg, chestPullMaxDist;
         public int chestIkIterations, chestIkHeadRestoreSweeps;

@@ -4,7 +4,7 @@ namespace Basis.IK
     public static class BasisSpineBendCore
     {
         const float sqrEpsilon = 1e-8f, epsilon = 1e-5f, bendDeadbandDeg = 3f, bendDeadbandWidthDeg = 7f;
-        const float twistFadeFullHoriz = 0.342f, twistFadeZeroHoriz = 0.174f;
+        const float twistFadeFullHoriz = 0.342f, twistFadeZeroHoriz = 0.174f, twistPoleFadeStartDeg = 120f, twistPoleFadeEndDeg = 179f;
         public static void Solve(in BasisSpineBendInput i, out BasisSpineBendResult r) => Solve(i, default, out r);
         public static void Solve(in BasisSpineBendInput i, in BasisSpineBendChestInput c, out BasisSpineBendResult r)
         {
@@ -32,6 +32,7 @@ namespace Basis.IK
             float twistY = (horizMagSq < sqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
             float twistFadeT = Mathf.Clamp01((Mathf.Sqrt(horizMagSq) - twistFadeZeroHoriz) / (twistFadeFullHoriz - twistFadeZeroHoriz));
             twistY *= Mathf.SmoothStep(0f, 1f, twistFadeT);
+            twistY *= 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Mathf.Abs(twistY) - twistPoleFadeStartDeg) / (twistPoleFadeEndDeg - twistPoleFadeStartDeg)));
 
             float maxFwd = Mathf.Max(0f, i.SpineMaxForwardDeg), maxBack = Mathf.Max(0f, i.SpineMaxBackwardDeg);
             float maxLat = Mathf.Max(0f, i.SpineMaxLateralDeg);
@@ -101,7 +102,7 @@ namespace Basis.IK
             {
                 return 0f;
             }
-            return Mathf.Rad2Deg * Mathf.Sqrt(24f) * e / Mathf.Sqrt(e + band);
+            return Mathf.Rad2Deg * Mathf.Sqrt(24f * compressionFrac) * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(e / (3f * band)));
         }
         public static Quaternion Compose(Vector3 e)
         {

@@ -25,7 +25,7 @@ namespace Basis.Scripts.Drivers
             job.minFactor = 0.95f;
             job.maxFactor = 1.05f;
             job.spineMaxIterations = 20;
-            job.spineTolerance = 0.001f;
+            job.spineTolerance = 0.0005f;
             job.chainChestIdx = -1;
 
             job.targetPositionHips = Vector3.zero;
@@ -210,7 +210,7 @@ namespace Basis.Scripts.Drivers
             GenerateHeadToSpine(ref job, skeleton, Mapping);
             job.tposeArmFitScale = job.tposeTorsoFitScale = 1f;
             job.spineMaxIterations = 20;
-            job.spineTolerance = 0.001f;
+            job.spineTolerance = 0.0005f;
             job.chestSpring = new NativeArray<BasisChestSpringState>(1, Allocator.Persistent);
             job.swingContinuity = new NativeArray<BasisSwingContinuityState>(BasisEerieMovement.swingCount, Allocator.Persistent);
             job.armState = new NativeArray<BasisArmSlotState>(BasisEerieMovement.swingCount, Allocator.Persistent);

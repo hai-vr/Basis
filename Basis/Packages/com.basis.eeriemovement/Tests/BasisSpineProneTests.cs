@@ -230,6 +230,7 @@ namespace Basis.Tests.IK
                 });
             _chain = BindChainTipFirst(bones);
             var job = ProneJob(bones);
+            job.spineStretchMax = 0.03f;
             BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { hipsTracked = true });
 
             Vector3 hipsTarget = bones[0].position + new Vector3(0.1f, 0f, 0.05f);

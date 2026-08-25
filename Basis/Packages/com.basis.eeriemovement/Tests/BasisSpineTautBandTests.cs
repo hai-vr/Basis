@@ -315,13 +315,20 @@ namespace Basis.Tests.IK
 
                 skeleton.GatherNow();
                 job.poseStream = skeleton.Stream;
-                Quaternion headRot = job.ApplyCervicalLordosis();
-                job.poseStream = skeleton.Stream;
-                job.SolveSequentialSpineIK(target, headRot);
+                job.SolveSequentialSpineIK(target, gaze);
+                float headErrCcdOnly = (skeleton.Stream.GetPosition(_chain[0]) - target).magnitude;
 
+                skeleton.GatherNow();
+                job.poseStream = skeleton.Stream;
+                job.ApplyCervicalLordosis();
+                job.poseStream = skeleton.Stream;
+                job.SolveSequentialSpineIK(target, gaze);
                 float headErr = (skeleton.Stream.GetPosition(_chain[0]) - target).magnitude;
-                TestContext.WriteLine($"pitch {pitchDeg} deg: head-to-target {headErr * 1000f:F3} mm");
-                Assert.LessOrEqual(headErr, job.spineTolerance + 1e-4f, $"the head must stay inside the CCD tolerance on both sides of the lordosis early-out (pitch {pitchDeg})");
+                float headRotErr = Quaternion.Angle(skeleton.Stream.GetRotation(_chain[0]), gaze);
+
+                TestContext.WriteLine($"pitch {pitchDeg} deg: head-to-target {headErr * 1000f:F3} mm (CCD alone {headErrCcdOnly * 1000f:F3} mm), head rot err {headRotErr:F4} deg");
+                Assert.LessOrEqual(headErr, headErrCcdOnly + job.spineTolerance + 1e-4f, $"the lordosis pass must not move the head beyond what the CCD leaves (pitch {pitchDeg})");
+                Assert.Less(headRotErr, 0.01f, $"the head rotation must always match the gaze (pitch {pitchDeg})");
             }
         }
     }
