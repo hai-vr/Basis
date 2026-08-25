@@ -415,19 +415,24 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
     }
 
     /// <summary>
-    /// Pushes the renderer-level options onto the feature itself. These are serialized on the renderer
-    /// asset rather than on a Volume, so they cannot be driven through the volume stack like the rest.
+    /// Pushes the renderer-level options onto the feature itself, and the master switch onto the feature's
+    /// own active flag. These are serialized on the renderer asset rather than on a Volume, so they cannot
+    /// be driven through the volume stack like the rest. Turning the feature off is what actually stops the
+    /// effect: the volume stack only decides what the feature does once URP has already called into it, so
+    /// a profile the player's volume never reaches - a world volume the camera's layer mask does see, or a
+    /// default profile the pipeline seeds every stack from - can hold the effect on by itself.
     /// </summary>
     public void ApplyFeature()
     {
         ScreenSpaceGlobalIlluminationURP feature = FindFeature();
         RememberAuthoredFeatureValues(feature);
-        Apply(feature, gBufferFallback, fallbackAlbedo, reflectionProbes, highQualityUpscaling, overrideAmbient, backfaceLighting);
+        Apply(feature, ssgiEnabled, gBufferFallback, fallbackAlbedo, reflectionProbes, highQualityUpscaling, overrideAmbient, backfaceLighting);
     }
 
     // The feature is a sub-asset of the renderer, not a scene object, so writing to it in the editor
     // edits the project. The authored values are kept so play mode leaves the asset as it found it.
     private bool hasAuthoredFeatureValues;
+    private bool authoredActive;
     private bool authoredGBufferFallback;
     private float authoredFallbackAlbedo;
     private bool authoredReflectionProbes;
@@ -442,6 +447,7 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
             return;
         }
         hasAuthoredFeatureValues = true;
+        authoredActive = feature.isActive;
         authoredGBufferFallback = feature.GBufferFallback;
         authoredFallbackAlbedo = feature.FallbackAlbedo;
         authoredReflectionProbes = feature.ReflectionProbes;
@@ -457,11 +463,11 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
             return;
         }
         hasAuthoredFeatureValues = false;
-        Apply(FindFeature(), authoredGBufferFallback, authoredFallbackAlbedo, authoredReflectionProbes,
+        Apply(FindFeature(), authoredActive, authoredGBufferFallback, authoredFallbackAlbedo, authoredReflectionProbes,
             authoredHighQualityUpscaling, authoredOverrideAmbient, authoredBackfaceLighting);
     }
 
-    public static void Apply(ScreenSpaceGlobalIlluminationURP feature, bool gBufferFallback, float fallbackAlbedo, bool reflectionProbes, bool highQualityUpscaling, bool overrideAmbient, bool backfaceLighting)
+    public static void Apply(ScreenSpaceGlobalIlluminationURP feature, bool enabled, bool gBufferFallback, float fallbackAlbedo, bool reflectionProbes, bool highQualityUpscaling, bool overrideAmbient, bool backfaceLighting)
     {
         if (feature == null)
         {
@@ -473,6 +479,14 @@ public class SMModuleScreenSpaceGlobalIlluminationURP : BasisSettingsBase
         feature.HighQualityUpscaling = highQualityUpscaling;
         feature.OverrideAmbientLighting = overrideAmbient;
         feature.BackfaceLighting = backfaceLighting;
+        if (feature.isActive != enabled)
+        {
+            feature.SetActive(enabled);
+        }
+        if (!enabled)
+        {
+            ScreenSpaceGlobalIlluminationURP.DisableGlobalKeywords();
+        }
     }
 
     /// <summary>

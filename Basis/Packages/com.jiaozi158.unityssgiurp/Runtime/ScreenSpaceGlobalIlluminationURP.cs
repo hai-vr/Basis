@@ -536,6 +536,20 @@ public class ScreenSpaceGlobalIlluminationURP : ScriptableRendererFeature
 
         if (m_SSGIMaterial != null)
             CoreUtils.Destroy(m_SSGIMaterial);
+
+        DisableGlobalKeywords();
+    }
+
+    /// <summary>
+    /// Clears the global keywords the effect turns on while it renders. They are only ever written from
+    /// AddRenderPasses, so a feature that is switched off never reaches the branch that clears them and
+    /// every shader in the scene keeps rendering its GBuffer and backface variants for nothing.
+    /// </summary>
+    public static void DisableGlobalKeywords()
+    {
+        Shader.DisableKeyword(SSGI_RENDER_GBUFFER);
+        Shader.DisableKeyword(SSGI_RENDER_BACKFACE_DEPTH);
+        Shader.DisableKeyword(SSGI_RENDER_BACKFACE_COLOR);
     }
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)

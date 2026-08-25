@@ -180,7 +180,7 @@ namespace Basis.Tests.Graphics
             ScreenSpaceGlobalIlluminationURP feature = ScriptableObject.CreateInstance<ScreenSpaceGlobalIlluminationURP>();
             try
             {
-                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, 0.25f, false, true, false, true);
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.25f, false, true, false, true);
 
                 Assert.IsTrue(feature.GBufferFallback);
                 Assert.AreEqual(0.25f, feature.FallbackAlbedo, 0.0001f);
@@ -189,13 +189,84 @@ namespace Basis.Tests.Graphics
                 Assert.IsFalse(feature.OverrideAmbientLighting);
                 Assert.IsTrue(feature.BackfaceLighting);
 
-                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, false, 9f, true, false, true, false);
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, false, 9f, true, false, true, false);
                 Assert.IsFalse(feature.GBufferFallback);
                 Assert.AreEqual(BasisSettingsDefaults.SSGI_FALLBACK_ALBEDO_MAX, feature.FallbackAlbedo, 0.0001f);
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(feature);
+            }
+        }
+
+        [Test]
+        public void TurningTheEffectOffDeactivatesTheRendererFeature()
+        {
+            // Regression: the master switch only wrote enable=false onto volume profiles, so a world volume
+            // or a pipeline default profile the player's own volume never outranked kept SSGI rendering.
+            // URP skips AddRenderPasses entirely for an inactive feature, so that is the switch that holds.
+            ScreenSpaceGlobalIlluminationURP feature = ScriptableObject.CreateInstance<ScreenSpaceGlobalIlluminationURP>();
+            try
+            {
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, false, true, 0.5f, true, false, true, false);
+                Assert.IsFalse(feature.isActive);
+
+                SMModuleScreenSpaceGlobalIlluminationURP.Apply(feature, true, true, 0.5f, true, false, true, false);
+                Assert.IsTrue(feature.isActive);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(feature);
+            }
+        }
+
+        [Test]
+        public void TheShippedRendererAndPipelineProfilesCarryTheEffectSwitchedOff()
+        {
+            // The setting defaults to off, so everything the project ships has to agree with it: a renderer
+            // feature left active or a pipeline default profile left enabled renders bounce light before the
+            // settings module has run at all, and on every camera the module's own volume never reaches.
+            ScreenSpaceGlobalIlluminationURP feature = SMModuleScreenSpaceGlobalIlluminationURP.FindFeature();
+            if (feature == null)
+            {
+                Assert.Ignore("The active render pipeline carries no screen space global illumination feature.");
+            }
+            Assert.IsFalse(feature.isActive, "The renderer ships with the screen space global illumination feature active.");
+            AssertProfileCarriesTheEffectOff(VolumeManager.instance.globalDefaultProfile);
+            AssertProfileCarriesTheEffectOff(VolumeManager.instance.qualityDefaultProfile);
+        }
+
+        private static void AssertProfileCarriesTheEffectOff(VolumeProfile profile)
+        {
+            if (profile == null || !profile.TryGet(out ScreenSpaceGlobalIlluminationVolume ssgi))
+            {
+                return;
+            }
+            Assert.IsFalse(ssgi.enable.value, profile.name + " ships with screen space global illumination enabled.");
+        }
+
+        [Test]
+        public void TheModuleDrivesTheFeatureActiveStateFromTheSetting()
+        {
+            host = new GameObject("ssgi-settings-module");
+            SMModuleScreenSpaceGlobalIlluminationURP module = host.AddComponent<SMModuleScreenSpaceGlobalIlluminationURP>();
+            ScreenSpaceGlobalIlluminationURP feature = SMModuleScreenSpaceGlobalIlluminationURP.FindFeature();
+            if (feature == null)
+            {
+                Assert.Ignore("The active render pipeline carries no screen space global illumination feature.");
+            }
+            bool authored = feature.isActive;
+            try
+            {
+                module.ValidSettingsChange(BasisSettingsDefaults.UseScreenSpaceGlobalIllumination.BindingKey, "true");
+                Assert.IsTrue(feature.isActive);
+
+                module.ValidSettingsChange(BasisSettingsDefaults.UseScreenSpaceGlobalIllumination.BindingKey, "false");
+                Assert.IsFalse(feature.isActive);
+            }
+            finally
+            {
+                feature.SetActive(authored);
             }
         }
 
@@ -267,7 +338,7 @@ namespace Basis.Tests.Graphics
         public void ApplyingRendererOptionsWithoutAFeatureIsHarmless()
         {
             // Android ships a renderer without the feature, so the lookup returns null every frame there.
-            Assert.DoesNotThrow(() => SMModuleScreenSpaceGlobalIlluminationURP.Apply(null, true, 0.5f, true, true, true, true));
+            Assert.DoesNotThrow(() => SMModuleScreenSpaceGlobalIlluminationURP.Apply(null, true, true, 0.5f, true, true, true, true));
             Assert.IsNull(SMModuleScreenSpaceGlobalIlluminationURP.FindFeature(null));
         }
 
