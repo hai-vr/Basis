@@ -320,6 +320,29 @@ namespace Basis.BasisUI
         public const float MOTION_BLUR_CLAMP_MIN = 0f;
         public const float MOTION_BLUR_CLAMP_MAX = 0.2f;
 
+        public static BasisSettingsBinding<bool> UseScreenSpaceGlobalIllumination = new("usescreenspaceglobalillumination", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<string> ScreenSpaceGlobalIlluminationQuality = new("screenspaceglobalilluminationquality", new BasisPlatformDefault<string>("Medium"));
+        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationFullResolution = new("screenspaceglobalilluminationfullresolution", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationIntensity = new("screenspaceglobalilluminationintensity", new BasisPlatformDefault<float>(1f));
+        public const float SSGI_INTENSITY_MIN = 0.1f;
+        public const float SSGI_INTENSITY_MAX = 4f;
+        // Content already built into asset bundles cannot gain a GBuffer pass, so without the fallback
+        // those avatars, props and worlds receive no bounce light at all. On by default for that reason.
+        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationGBufferFallback = new("screenspaceglobalilluminationgbufferfallback", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationFallbackAlbedo = new("screenspaceglobalilluminationfallbackalbedo", new BasisPlatformDefault<float>(0.5f));
+        public const float SSGI_FALLBACK_ALBEDO_MIN = 0.1f;
+        public const float SSGI_FALLBACK_ALBEDO_MAX = 1f;
+        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationReflectionProbes = new("screenspaceglobalilluminationreflectionprobes", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationHighQualityUpscaling = new("screenspaceglobalilluminationhighqualityupscaling", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationOverrideAmbient = new("screenspaceglobalilluminationoverrideambient", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationBackfaceLighting = new("screenspaceglobalilluminationbackfacelighting", new BasisPlatformDefault<bool>(true));
+        // How much of last frame's bounce is kept each frame. The volume ships this at 0.95, the top of its
+        // own range, which keeps ~91% per frame once accumulated and smears the bounce behind anything that
+        // moves. 0.8 still denoises well and settles in roughly a third of the frames.
+        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationDenoiseStrength = new("screenspaceglobalilluminationdenoisestrength", new BasisPlatformDefault<float>(0.8f));
+        public const float SSGI_DENOISE_MIN = 0.5f;
+        public const float SSGI_DENOISE_MAX = 0.95f;
+
         // Commented out 2026-08-04: the realtime-reflection-probe driver these described was
         // never implemented — no UI exposes them and nothing reads them (the Performance Mode
         // table only wrote the bool). Restore both together with the probe driver.
@@ -350,6 +373,7 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> DevVariableRateShading = new("devvariablerateshading", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevVariableRateShadingDesktop = new("devvariablerateshadingdesktop", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<string> DevSsgiDebugView = new("devssgidebugview", new BasisPlatformDefault<string>("Off"));
 
         public static BasisSettingsBinding<bool> EyeTrackingPreferOsc = new("eyetrackingpreferosc", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> EyeFoveationAutoManage = new("eyefoveationautomanage", new BasisPlatformDefault<bool>(true));
@@ -2116,6 +2140,7 @@ namespace Basis.BasisUI
             Antialiasing.LoadBindingValue();
             DevVariableRateShading.LoadBindingValue();
             DevVariableRateShadingDesktop.LoadBindingValue();
+            DevSsgiDebugView.LoadBindingValue();
             VrsFovealInnerRadius.LoadBindingValue();
             VrsFovealOuterRadius.LoadBindingValue();
             UseBloomOverride.LoadBindingValue();
@@ -2128,6 +2153,17 @@ namespace Basis.BasisUI
             MotionBlurClamp.LoadBindingValue();
             MotionBlurQuality.LoadBindingValue();
             MotionBlurMode.LoadBindingValue();
+            UseScreenSpaceGlobalIllumination.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationQuality.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationFullResolution.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationIntensity.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationGBufferFallback.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationFallbackAlbedo.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationReflectionProbes.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationHighQualityUpscaling.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationOverrideAmbient.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationBackfaceLighting.LoadBindingValue();
+            ScreenSpaceGlobalIlluminationDenoiseStrength.LoadBindingValue();
             //UseRealtimeReflectionProbes.LoadBindingValue();
             //RealtimeReflectionProbeRate.LoadBindingValue();
             ShowGizmos.LoadBindingValue();

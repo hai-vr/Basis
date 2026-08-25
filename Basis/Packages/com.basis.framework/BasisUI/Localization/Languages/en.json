@@ -7215,6 +7215,102 @@
       "value": "Camera And Objects"
     },
     {
+      "key": "settings.graphics.ssgi.title",
+      "value": "Screen Space Global Illumination"
+    },
+    {
+      "key": "settings.graphics.ssgi.enable",
+      "value": "Enable Screen Space GI"
+    },
+    {
+      "key": "settings.graphics.ssgi.enable.tooltip",
+      "value": "Bounce light from everything on screen, avatars included, onto everything else. Expensive, especially in VR, so it is off by default. When off, worlds cannot switch it on for you."
+    },
+    {
+      "key": "settings.graphics.ssgi.quality",
+      "value": "GI Quality"
+    },
+    {
+      "key": "settings.graphics.ssgi.quality.tooltip",
+      "value": "Rays traced per pixel and how far each one marches. Higher is cleaner and costs more."
+    },
+    {
+      "key": "settings.graphics.ssgi.fullResolution",
+      "value": "Full Resolution GI"
+    },
+    {
+      "key": "settings.graphics.ssgi.fullResolution.tooltip",
+      "value": "Trace at the full render resolution instead of half. Sharper, at roughly four times the cost."
+    },
+    {
+      "key": "settings.graphics.ssgi.intensity",
+      "value": "Bounce Light Strength"
+    },
+    {
+      "key": "settings.graphics.ssgi.intensity.tooltip",
+      "value": "Multiplier on the bounced light. 1 is neutral."
+    },
+    {
+      "key": "settings.graphics.ssgi.denoise",
+      "value": "Bounce Light Smoothing"
+    },
+    {
+      "key": "settings.graphics.ssgi.denoise.tooltip",
+      "value": "How much of the previous frame's bounce light is reused to steady the image. Lower it if the light smears or trails behind you when you move; raise it if the bounce looks grainy while standing still."
+    },
+    {
+      "key": "settings.graphics.ssgi.gbufferFallback",
+      "value": "Light Unsupported Shaders"
+    },
+    {
+      "key": "settings.graphics.ssgi.gbufferFallback.tooltip",
+      "value": "Let avatars, props and worlds whose shaders were not built for bounce light receive it anyway, using their shape and colour to stand in for the missing data. Everything already published works this way, so turning this off leaves most content unlit by the bounce."
+    },
+    {
+      "key": "settings.graphics.ssgi.fallbackAlbedo",
+      "value": "Unsupported Shader Brightness"
+    },
+    {
+      "key": "settings.graphics.ssgi.fallbackAlbedo.tooltip",
+      "value": "How much light those surfaces are assumed to reflect where their colour cannot say. Lower is darker and more cautious, higher picks up more bounce."
+    },
+    {
+      "key": "settings.graphics.ssgi.reflectionProbes",
+      "value": "Bounce In Reflections"
+    },
+    {
+      "key": "settings.graphics.ssgi.reflectionProbes.tooltip",
+      "value": "Also compute bounce light inside reflection probes, so mirrors and shiny surfaces agree with the rest of the scene. Costs more."
+    },
+    {
+      "key": "settings.graphics.ssgi.highQualityUpscaling",
+      "value": "High Quality Upscaling"
+    },
+    {
+      "key": "settings.graphics.ssgi.highQualityUpscaling.tooltip",
+      "value": "Use depth and normals when scaling the bounce light up to the full image. Cleaner edges, slightly more expensive. Has no effect at full resolution."
+    },
+    {
+      "key": "settings.graphics.ssgi.overrideAmbient",
+      "value": "Replace Ambient Light"
+    },
+    {
+      "key": "settings.graphics.ssgi.overrideAmbient.tooltip",
+      "value": "Remove the flat ambient light a surface already receives and put the traced bounce in its place. This is what makes the lighting accurate; turning it off adds the bounce on top and brightens everything."
+    },
+    {
+      "key": "settings.graphics.ssgi.backfaceLighting",
+      "value": "Light From Behind Surfaces"
+    },
+    {
+      "key": "settings.graphics.ssgi.backfaceLighting.tooltip",
+      "value": "Trace light arriving from the hidden side of objects. More accurate in cluttered rooms and noticeably more expensive."
+    },
+    {
+      "key": "settings.graphics.ssgi.unsupported",
+      "value": "Not available on this platform."
+    },
+    {
       "key": "settings.graphics.cameraClip.title",
       "value": "Camera Clip Distances"
     },
@@ -9661,6 +9757,30 @@
     {
       "key": "settings.developer.voiceRange.more",
       "value": "…and {0} more"
+    },
+    {
+      "key": "settings.developer.ssgiDebug",
+      "value": "SSGI Debug View"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.tooltip",
+      "value": "Show one of the screen space global illumination buffers instead of the final image. The GBuffer views are black on surfaces whose shader cannot receive GI."
+    },
+    {
+      "key": "settings.developer.ssgiDebug.indirect",
+      "value": "Indirect Light"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.contribution",
+      "value": "GI Contribution"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.albedo",
+      "value": "GBuffer Albedo"
+    },
+    {
+      "key": "settings.developer.ssgiDebug.normals",
+      "value": "GBuffer Normals"
     },
     {
       "key": "settings.developer.vrs.title",

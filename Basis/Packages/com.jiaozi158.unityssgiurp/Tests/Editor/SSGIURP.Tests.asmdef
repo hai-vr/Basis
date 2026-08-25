@@ -1,19 +1,11 @@
 {
-    "name": "Basis.Framework.Tests",
+    "name": "SSGIURP.Tests",
     "rootNamespace": "",
     "references": [
-        "Basis Framework",
-        "BasisSDK",
-        "BasisCommon",
-        "BasisGizmos",
-        "BasisSettings",
         "SSGIURP",
-        "Unity.RenderPipelines.Core.Runtime",
+        "SSGIURP.Editor",
         "Unity.RenderPipelines.Universal.Runtime",
-        "Unity.TextMeshPro",
-        "Unity.Collections",
-        "Unity.Mathematics",
-        "Unity.Burst",
+        "Unity.RenderPipelines.Core.Runtime",
         "UnityEngine.TestRunner"
     ],
     "includePlatforms": [

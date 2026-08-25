@@ -97,7 +97,8 @@ MonoBehaviour:
   - {fileID: -6138350381377972815}
   - {fileID: -1772261579603543917}
   - {fileID: -7061326814219087741}
-  m_RendererFeatureMap: 55b0addaf1e53e732c1a306845c91e69b11515bbd932d0aa9378a8b27ba967e783d087cbac20019e
+  - {fileID: 8203663953992116006}
+  m_RendererFeatureMap: 55b0addaf1e53e732c1a306845c91e69b11515bbd932d0aa9378a8b27ba967e783d087cbac20019e266760bae644d971
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   m_AssetVersion: 3
@@ -214,6 +215,29 @@ MonoBehaviour:
   bakeMaxResolution: 256
   bakedAPVVolumeAsset: {fileID: 0}
   bakeUseAsyncCompute: 0
+--- !u!114 &8203663953992116006
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8826dbbd2f20a84180629a9ae196e22, type: 3}
+  m_Name: ScreenSpaceGlobalIlluminationURP
+  m_EditorClassIdentifier: SSGIURP::ScreenSpaceGlobalIlluminationURP
+  m_Active: 1
+  m_Shader: {fileID: 4800000, guid: 052b080a79c052c4993acc96081d70b1, type: 3}
+  m_RenderingDebugger: 0
+  m_ReflectionProbes: 1
+  m_HighQualityUpscaling: 1
+  m_OverrideAmbientLighting: 1
+  m_GBufferFallback: 1
+  m_FallbackAlbedo: 0.064
+  m_GBufferOverrideShader: {fileID: 4800000, guid: 9b2e7c4d1f6a4b8e9c3d5e7f0a1b2c44, type: 3}
+  m_GBufferOverrideRenderingLayerBit: 31
+  m_BackfaceLighting: 1
 --- !u!114 &8304327589836468309
 MonoBehaviour:
   m_ObjectHideFlags: 1

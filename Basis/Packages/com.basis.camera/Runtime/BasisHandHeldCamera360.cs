@@ -108,6 +108,7 @@ public partial class BasisHandHeldCamera
         RenderTexture cubeLeft = NewCubeRT(faceSize);
         RenderTexture cubeRight = stereo ? NewCubeRT(faceSize) : null;
 
+        SMModuleScreenSpaceGlobalIlluminationURP.SuspendCamera(captureCamera, true);
         bool rendered;
         if (stereo)
         {
@@ -125,6 +126,7 @@ public partial class BasisHandHeldCamera
             if (rendered)
                 cubeLeft.ConvertToEquirect(equirect, Camera.MonoOrStereoscopicEye.Mono);
         }
+        SMModuleScreenSpaceGlobalIlluminationURP.SuspendCamera(captureCamera, false);
 
         captureCamera.usePhysicalProperties = savedPhysical;
         captureCamera.targetTexture = savedTarget;

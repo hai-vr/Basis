@@ -54,6 +54,11 @@ MonoBehaviour:
     - path: LICENSE.md
       spdx: MIT
       overrideProductName: 
+  - packageName: com.jiaozi158.unityssgiurp
+    licenses:
+    - path: LICENSE.md
+      spdx: MIT
+      overrideProductName: 
   - packageName: dev.hai-vr.basis.comms
     licenses:
     - path: LICENSE

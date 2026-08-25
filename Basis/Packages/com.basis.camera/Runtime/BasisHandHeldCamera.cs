@@ -368,6 +368,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     public new async void OnDestroy()
     {
+        SMModuleScreenSpaceGlobalIlluminationURP.UnregisterCamera(captureCamera);
         // Notify network that PIP camera was destroyed
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
@@ -487,6 +488,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         CameraData.volumeLayerMask = 1 << volume.gameObject.layer;
         CameraData.volumeTrigger = volume.transform;
         CameraData.renderPostProcessing = true;
+        SMModuleScreenSpaceGlobalIlluminationURP.RegisterCamera(captureCamera);
     }
 
     private Volume FindPostProcessingVolume()
@@ -1217,7 +1219,15 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisLocalAvatarDriver.ScaleHeadToNormal();
         ToggleToneMapping(CaptureTonemapping);
 
-        captureCamera.Render();
+        SMModuleScreenSpaceGlobalIlluminationURP.BeginCapture(captureCamera);
+        try
+        {
+            captureCamera.Render();
+        }
+        finally
+        {
+            SMModuleScreenSpaceGlobalIlluminationURP.EndCapture();
+        }
 
         BasisHandHeldCameraPhotoMetadata.PhotoMetadata photoMetadata = BasisHandHeldCameraPhotoMetadata.CollectMetadata(captureCamera, transform);
 

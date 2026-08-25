@@ -30,6 +30,7 @@
         "BasisProfiler",
         "BasisSettings",
         "com.cqf.urpvolumetricfog.runtime",
+        "SSGIURP",
         "OpusSharp",
         "Basis.OpenLipSync.Runtime",
         "Klak.Spout.Runtime",
