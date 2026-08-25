@@ -110,6 +110,27 @@ namespace SSGIURP.Tests
             StringAssert.Contains("Blend One One", shader.Substring(add, 400));
         }
 
+        [Test]
+        public void RenderingLayerReadsCallAFunctionThisUrpDeclares()
+        {
+            // _USE_RENDERING_LAYERS is a multi_compile, so a player build compiles it even though Basis never
+            // turns _WRITE_RENDERING_LAYERS on. Upstream called SampleSceneRenderingLayer, which URP 17 dropped,
+            // and nothing caught it until a build: the editor only ever compiles the variants it renders with.
+            string headerPath = Path.GetFullPath("Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareRenderingLayerTexture.hlsl");
+            if (!File.Exists(headerPath))
+            {
+                Assert.Ignore("URP's DeclareRenderingLayerTexture.hlsl was not found at " + headerPath);
+            }
+            string header = File.ReadAllText(headerPath);
+            string shader = File.ReadAllText(Path.Combine(ShaderDirectory(), "ScreenSpaceGlobalIllumination.shader"));
+            MatchCollection calls = Regex.Matches(shader, @"\b(\w+SceneRenderingLayer)\s*\(");
+            Assert.Greater(calls.Count, 0, "the combine passes no longer read the rendering layers texture");
+            foreach (Match call in calls)
+            {
+                StringAssert.Contains(call.Groups[1].Value + "(", header, call.Groups[1].Value + " is not declared by this URP");
+            }
+        }
+
         private static string PassSource(string shader, string passName)
         {
             int start = shader.IndexOf("Name \"" + passName + "\"", System.StringComparison.Ordinal);
