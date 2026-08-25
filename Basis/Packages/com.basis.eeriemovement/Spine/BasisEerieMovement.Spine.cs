@@ -266,7 +266,8 @@ namespace Basis.IK
             else
             {
                 Vector3 tip = poseStream.GetPosition(chainHeadToSpine[tipIdx]), toHead = headTargetPos - tip;
-                float relax = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((toHead.magnitude - tolerance) / Mathf.Max(tolerance * relaxEaseToleranceFactor, epsilon)));
+                float relaxBand = Mathf.Max(tolerance * relaxEaseToleranceFactor, restChordHeadLumbar * relaxEaseChordFrac);
+                float relax = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((toHead.magnitude - tolerance) / Mathf.Max(relaxBand, epsilon)));
                 if (relax > 0f)
                 {
                     SweepHead(tip + toHead * relax, firstJoint, chainLen - 2, restChordHeadLumbar, plan.hipsTracked, ccdUp, ccdRight, tolerance, maxIters);
@@ -312,7 +313,8 @@ namespace Basis.IK
                 }
             }
         }
-        const float aimDeadbandDeg = 1f, seedPlaneBlendSin = 0.139f, aimDampToleranceFactor = 4f, relaxEaseToleranceFactor = 8f;
+        const float aimDeadbandDeg = 1f, seedPlaneBlendSin = 0.139f, aimDampToleranceFactor = 4f;
+        const float relaxEaseToleranceFactor = 8f, relaxEaseChordFrac = 0.02f, seedRampStartFrac = 0.001f, seedRampFullFrac = 0.004f;
         const int seedPasses = 3;
         float JointShare(int i)
         {
@@ -349,7 +351,8 @@ namespace Basis.IK
                 }
                 return;
             }
-            float bowDeg = BasisSpineBendCore.BowAngleDeg(need / chainReach);
+            float needFrac = need / chainReach;
+            float bowDeg = BasisSpineBendCore.BowAngleDeg(needFrac) * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((needFrac - seedRampStartFrac) / (seedRampFullFrac - seedRampStartFrac)));
             if (!(bowDeg > 0f))
             {
                 return;
