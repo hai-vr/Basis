@@ -44,6 +44,11 @@ namespace Cilbox
 			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton+ClickEvent",
 			"Basis.Scripts.BasisSdk.Players.BasisTeleportMode",
 
+			// HVR Discovery
+			"HVR.Discovery.HVRDiscoveryBeacon",
+			"HVR.Discovery.HVRDiscoveryFinder",
+			"HVR.Discovery.HVRDiscovery",
+
 			// System IO
 			"System.IO.BinaryReader",
 			"System.IO.BinaryWriter",
@@ -312,6 +317,19 @@ namespace Cilbox
 			{
 				typeof(global::BasisPickupSyncNetworking),
 				new HashSet<string>()
+			},
+			// HVR Discovery: Expose methods that allow Cilbox scripts to obtain specific properties and object handles.
+			{
+				typeof(HVR.Discovery.HVRDiscoveryBeacon),
+				new HashSet<string> { "NewBeacon", "AsTransform", "InitializeScriptValue", "TryGetScriptValue", "HasScriptValue", "GetScriptValue" }
+			},
+			{
+				typeof(HVR.Discovery.HVRDiscoveryFinder),
+				new HashSet<string> { "NewRangeFinder", "AsTransform" }
+			},
+			{
+				typeof(HVR.Discovery.HVRDiscovery),
+				new HashSet<string> { "Register", "Unregister" }
 			},
 #if BASIS_HAS_EXAMPLES
 			// BasisInteractableButton: only the setter a prop needs to wire its own "pressed" handler.

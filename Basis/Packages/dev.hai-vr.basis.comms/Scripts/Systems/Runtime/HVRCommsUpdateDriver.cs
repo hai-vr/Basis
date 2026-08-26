@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using HVR.Discovery;
 using HVR.Vixxy;
 using Unity.Profiling;
 
@@ -53,6 +54,7 @@ namespace HVR.Basis.Comms
         /// </summary>
         public static void SimulateActuators()
         {
+            HVRDiscovery.Tick();
             SimulateEyeActuations();
             SimulateOrchestrators();
             SimulateActivityRelays();
