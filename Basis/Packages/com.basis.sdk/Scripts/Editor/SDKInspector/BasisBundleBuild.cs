@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Basis.Editor.Localization;
 using Basis.Scripts.BasisSdk;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
@@ -50,11 +51,9 @@ public static class BasisBundleBuild
             }
         }
 
-        var meta = GenerateMetaData(BasisContentBase.gameObject);
         string FolderPath = MakeSafeFolderName(BasisContentBase.BasisBundleDescription.AssetBundleName);
         return await BuildBundle(FolderPath,
             basisContentBase: BasisContentBase,
-            MetaData: meta,
             BasisBounds: BasisBounds,
             Images: Image,
             targets: Targets,
@@ -196,11 +195,9 @@ public static class BasisBundleBuild
         var unitybounds = CalculateSceneBounds(scene);
         BasisBounds BasisBounds = new BasisBounds(unitybounds.center, unitybounds.size);
 
-        var meta = GenerateSceneMetaData(scene);
         string FolderName = MakeSafeFolderName(BasisContentBase.BasisBundleDescription.AssetBundleName);
         return await BuildBundle(FolderName,
             basisContentBase: BasisContentBase,
-            MetaData: meta,
             BasisBounds: BasisBounds,
             Images: Image,
             targets: Targets,
@@ -487,14 +484,13 @@ public static class BasisBundleBuild
     }
     public static async Task<(bool, string)> BuildBundle(string FolderName,
       BasisContentBase basisContentBase,
-      BasisBundleConnector.BasisMetaData MetaData,
       BasisBounds BasisBounds,
       string Images,
       List<BuildTarget> targets,
       bool useProvidedPassword,
       string OverriddenPassword,
       Func<BasisContentBase, BasisAssetBundleObject, string, BuildTarget, string,
-           Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))>> buildFunction,
+           Task<(bool, BasisBundleBuildResult)>> buildFunction,
       string FarLodBase64 = null)
     {
         string generatedID = null;
@@ -550,6 +546,8 @@ public static class BasisBundleBuild
             List<BasisBundleGenerated> bundles = new List<BasisBundleGenerated>(targetsLength + 1);
             List<string> paths = new List<string>();
 
+            bool metaDataSet = false;
+            BasisBundleConnector.BasisMetaData MetaData = default;
             for (int Index = 0; Index < targetsLength; Index++)
             {
                 BuildTarget target = targets[Index];
@@ -561,12 +559,18 @@ public static class BasisBundleBuild
                     return (false, $"Failure While Building for {target}");
                 }
 
-                bundles.Add(result.Item1);
+                if (!metaDataSet)
+                {
+                    MetaData = result.BasisMetaData;
+                    metaDataSet = true;
+                }
 
-                string hashPath = PathConversion(result.Item2.EncyptedPath);
+                bundles.Add(result.BasisBundleGenerated);
+
+                string hashPath = PathConversion(result.InformationHash.EncyptedPath);
                 paths.Add(hashPath);
 
-                BasisDebug.Log("Adding " + result.Item2.EncyptedPath);
+                BasisDebug.Log("Adding " + result.InformationHash.EncyptedPath);
             }
 
             // Avatars additionally get a platform-agnostic Generic (glTF) section, appended
@@ -932,5 +936,19 @@ public static class BasisBundleBuild
         }
         Debug.Log("Hexadecimal string conversion successful.");
         return hex.ToString();
+    }
+
+    public class BasisBundleBuildResult
+    {
+        public BasisBundleBuildResult(BasisBundleGenerated basisBundleGenerated, AssetBundleBuilder.InformationHash informationHash, BasisBundleConnector.BasisMetaData basisMetaData)
+        {
+            BasisBundleGenerated = basisBundleGenerated;
+            InformationHash = informationHash;
+            BasisMetaData = basisMetaData;
+        }
+
+        public BasisBundleGenerated BasisBundleGenerated { get; }
+        public AssetBundleBuilder.InformationHash InformationHash { get; }
+        public BasisBundleConnector.BasisMetaData BasisMetaData { get; }
     }
 }
