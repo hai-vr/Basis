@@ -7243,123 +7243,375 @@
       "value": "Camera And Objects"
     },
     {
-      "key": "settings.graphics.ssgi.title",
-      "value": "Screen Space Global Illumination"
+      "key": "settings.graphics.gi.title",
+      "value": "Global Illumination"
     },
     {
-      "key": "settings.graphics.ssgi.enable",
-      "value": "Enable Screen Space GI"
+      "key": "settings.graphics.rtao.title",
+      "value": "Ambient Occlusion (Avatars)"
     },
     {
-      "key": "settings.graphics.ssgi.enable.tooltip",
+      "key": "settings.graphics.rtao.enable",
+      "value": "Enable Ambient Occlusion"
+    },
+    {
+      "key": "settings.graphics.rtao.enable.tooltip",
+      "value": "Darken the creases and contact points on avatars, so a hand resting on an arm reads as touching it rather than floating over it. This only looks at avatars, local and remote - the world around them is not traced, which is what keeps it affordable. Costs real frame time, so it is off by default."
+    },
+    {
+      "key": "settings.graphics.rtao.mode",
+      "value": "Occlusion Source"
+    },
+    {
+      "key": "settings.graphics.rtao.mode.tooltip",
+      "value": "Auto traces the real scene on a graphics card that supports ray tracing and drops to the screen space estimator on one that does not. Ray Traced turns the effect off rather than falling back. Screen Space only sees what is already drawn on screen, but it runs anywhere."
+    },
+    {
+      "key": "settings.graphics.rtao.mode.auto",
+      "value": "Auto"
+    },
+    {
+      "key": "settings.graphics.rtao.mode.rayTraced",
+      "value": "Ray Traced"
+    },
+    {
+      "key": "settings.graphics.rtao.mode.screenSpace",
+      "value": "Screen Space"
+    },
+    {
+      "key": "settings.graphics.rtao.quality",
+      "value": "Occlusion Quality"
+    },
+    {
+      "key": "settings.graphics.rtao.quality.tooltip",
+      "value": "How many rays each pixel casts and how hard the result is filtered afterwards. Higher settles faster and holds more detail; lower leans on the temporal filter and costs less."
+    },
+    {
+      "key": "settings.graphics.rtao.intensity",
+      "value": "Occlusion Strength"
+    },
+    {
+      "key": "settings.graphics.rtao.intensity.tooltip",
+      "value": "How dark the occluded areas on an avatar get. This is a look choice and costs nothing."
+    },
+    {
+      "key": "settings.graphics.rtao.radius",
+      "value": "Occlusion Radius"
+    },
+    {
+      "key": "settings.graphics.rtao.radius.tooltip",
+      "value": "How far a surface looks for things that shade it, in metres. At this scale it is contact shadows: the darkening where a hand meets an arm or a strap meets a shoulder. Larger values reach further along a limb and cost more. Only avatars are traced, so nothing in the world casts occlusion."
+    },
+    {
+      "key": "settings.graphics.rtao.apply",
+      "value": "Occlusion Applies To"
+    },
+    {
+      "key": "settings.graphics.rtao.apply.tooltip",
+      "value": "Lighting feeds the occlusion into how surfaces are lit. It is the truthful option, but it only reaches materials that know how to read it, an avatar's own baked shading can override it, and light coming straight from the sun is barely touched. Final Image darkens the finished picture instead, the way Unity's own ambient occlusion does: it lands on everything, at the cost of dimming light that already has shadows of its own."
+    },
+    {
+      "key": "settings.graphics.rtao.apply.lighting",
+      "value": "Lighting"
+    },
+    {
+      "key": "settings.graphics.rtao.apply.finalImage",
+      "value": "Final Image"
+    },
+    {
+      "key": "settings.graphics.rtao.denoise",
+      "value": "Noise Reduction"
+    },
+    {
+      "key": "settings.graphics.rtao.denoise.tooltip",
+      "value": "How hard the occlusion is smoothed after it is traced. Each step widens the filter without blurring across edges, trading a little contact shadow detail for a cleaner, less grainy result. Turn it up if the shading looks speckled, down if corners look washed out."
+    },
+    {
+      "key": "settings.graphics.rtao.denoise.standard",
+      "value": "Standard"
+    },
+    {
+      "key": "settings.graphics.rtao.denoise.high",
+      "value": "High"
+    },
+    {
+      "key": "settings.graphics.rtao.denoise.maximum",
+      "value": "Maximum"
+    },
+    {
+      "key": "settings.graphics.rtao.directStrength",
+      "value": "Occlusion On Direct Light"
+    },
+    {
+      "key": "settings.graphics.rtao.directStrength.tooltip",
+      "value": "Occlusion always dims bounced and ambient light in full. This is how much of it also dims light coming straight from a lamp or the sun. At zero, a brightly lit surface barely changes even where the occlusion buffer looks dark; turning it up brings the shaded image closer to what the buffer shows, at the cost of some realism."
+    },
+    {
+      "key": "settings.developer.rtaoDebug",
+      "value": "Show Occlusion Buffer"
+    },
+    {
+      "key": "settings.developer.rtaoDebug.tooltip",
+      "value": "Draw the ambient occlusion on its own instead of through the lighting, so it is obvious what the effect is producing. The shaded image will always show less than this, because occlusion only dims part of the light reaching a surface."
+    },
+    {
+      "key": "settings.developer.rtaoStage",
+      "value": "Occlusion Buffer Stage"
+    },
+    {
+      "key": "settings.developer.rtaoStage.tooltip",
+      "value": "Which buffer Show Occlusion Buffer draws. The occlusion passes through several stages before it reaches the picture, and a fault looks the same in the finished image whichever stage caused it. Step through these and find the first one that shows the problem: that is where it comes from. Final is the composited result, Raw is straight out of the tracer, Temporal is after blending with the previous frame, Denoised is after the blur, and Position and Normal are the surface data everything else is built on."
+    },
+    {
+      "key": "settings.developer.rtaoStage.final",
+      "value": "Final"
+    },
+    {
+      "key": "settings.developer.rtaoStage.raw",
+      "value": "Raw Trace"
+    },
+    {
+      "key": "settings.developer.rtaoStage.temporal",
+      "value": "After Temporal"
+    },
+    {
+      "key": "settings.developer.rtaoStage.denoised",
+      "value": "After Denoise"
+    },
+    {
+      "key": "settings.developer.rtaoStage.position",
+      "value": "Position"
+    },
+    {
+      "key": "settings.developer.rtaoStage.normal",
+      "value": "Normal"
+    },
+    {
+      "key": "settings.developer.rtaoSkinnedBudget",
+      "value": "Avatars Re-posed Per Frame"
+    },
+    {
+      "key": "settings.developer.rtaoSkinnedBudget.tooltip",
+      "value": "How many avatars may have their pose handed to the ray tracer in a single frame. Each one is a skin on the processor plus a rebuild of that avatar's geometry, so this is the most expensive thing the occlusion quality buys. Zero follows the quality setting: 1 on Low, 4 on Medium, 16 on High, 100 on Ultra. Any other value pins it, which is how you measure what a busy instance really costs."
+    },
+    {
+      "key": "settings.graphics.rtao.otherCameras",
+      "value": "Occlusion In Mirrors And Camera"
+    },
+    {
+      "key": "settings.graphics.rtao.otherCameras.tooltip",
+      "value": "Whether mirrors and the handheld camera get their own ambient occlusion. On, a mirror shows the room the same way you see it and photos match the view. Off, only your own view is traced, which is the first thing to turn off when the frame gets tight since every extra camera costs its own pass."
+    },
+    {
+      "key": "settings.graphics.rtao.skinned",
+      "value": "Avatars Cast Occlusion"
+    },
+    {
+      "key": "settings.graphics.rtao.skinned.tooltip",
+      "value": "Whether the people in the room darken the surfaces they stand near. Dynamic re-poses them for the trace on a per frame budget, which is processor time the effect does not otherwise spend."
+    },
+    {
+      "key": "settings.graphics.rtao.skinned.off",
+      "value": "Off"
+    },
+    {
+      "key": "settings.graphics.rtao.skinned.static",
+      "value": "Static"
+    },
+    {
+      "key": "settings.graphics.rtao.skinned.dynamic",
+      "value": "Dynamic"
+    },
+    {
+      "key": "settings.graphics.gi.enable",
+      "value": "Enable Global Illumination"
+    },
+    {
+      "key": "settings.graphics.gi.enable.tooltip",
       "value": "Bounce light from everything on screen, avatars included, onto everything else. Expensive, especially in VR, so it is off by default. When off, worlds cannot switch it on for you."
     },
     {
-      "key": "settings.graphics.ssgi.quality",
+      "key": "settings.graphics.gi.mode",
+      "value": "GI Mode"
+    },
+    {
+      "key": "settings.graphics.gi.mode.tooltip",
+      "value": "Screen Space bounces light using what the camera already drew, so anything off screen or behind you contributes nothing. Ray Traced traces the world itself and shades what it hits with the real lights and glowing materials, which costs more and needs a graphics card with ray tracing - without one it falls back to Screen Space."
+    },
+    {
+      "key": "settings.graphics.gi.mode.screenSpace",
+      "value": "Screen Space"
+    },
+    {
+      "key": "settings.graphics.gi.mode.rayTraced",
+      "value": "Ray Traced"
+    },
+    {
+      "key": "settings.graphics.gi.skinned",
+      "value": "GI Avatars"
+    },
+    {
+      "key": "settings.graphics.gi.skinned.tooltip",
+      "value": "Whether avatars bounce and block light in the ray traced mode. Dynamic follows them as they move and is the most expensive; Static places them once where they were found; Off leaves people out of the bounce entirely."
+    },
+    {
+      "key": "settings.graphics.gi.skinned.off",
+      "value": "Off"
+    },
+    {
+      "key": "settings.graphics.gi.skinned.static",
+      "value": "Static"
+    },
+    {
+      "key": "settings.graphics.gi.skinned.dynamic",
+      "value": "Dynamic"
+    },
+    {
+      "key": "settings.graphics.gi.quality",
       "value": "GI Quality"
     },
     {
-      "key": "settings.graphics.ssgi.quality.tooltip",
-      "value": "Rays traced per pixel and how far each one marches. Higher is cleaner and costs more."
+      "key": "settings.graphics.gi.quality.tooltip",
+      "value": "How many rays each pixel casts and how far each one is followed. Higher is cleaner and slower; the temporal filter makes up much of the difference while you stand still."
     },
     {
-      "key": "settings.graphics.ssgi.fullResolution",
-      "value": "Full Resolution GI"
+      "key": "settings.graphics.gi.resolution",
+      "value": "GI Resolution"
     },
     {
-      "key": "settings.graphics.ssgi.fullResolution.tooltip",
-      "value": "Trace at the full render resolution instead of half. Sharper, at roughly four times the cost."
+      "key": "settings.graphics.gi.resolution.tooltip",
+      "value": "Resolution the bounce is traced at. Bounce light is soft, so Half looks near identical to Full for a quarter of the cost. Photos are always taken at Full."
     },
     {
-      "key": "settings.graphics.ssgi.intensity",
-      "value": "Bounce Light Strength"
+      "key": "settings.graphics.gi.resolution.full",
+      "value": "Full"
     },
     {
-      "key": "settings.graphics.ssgi.intensity.tooltip",
-      "value": "Multiplier on the bounced light. 1 is neutral."
+      "key": "settings.graphics.gi.resolution.half",
+      "value": "Half"
     },
     {
-      "key": "settings.graphics.ssgi.denoise",
-      "value": "Bounce Light Smoothing"
+      "key": "settings.graphics.gi.resolution.quarter",
+      "value": "Quarter"
     },
     {
-      "key": "settings.graphics.ssgi.denoise.tooltip",
-      "value": "How much of the previous frame's bounce light is reused to steady the image. Lower it if the light smears or trails behind you when you move; raise it if the bounce looks grainy while standing still."
+      "key": "settings.graphics.gi.intensity",
+      "value": "GI Intensity"
     },
     {
-      "key": "settings.graphics.ssgi.realtimeBlend",
-      "value": "Realtime Bounce Blend"
+      "key": "settings.graphics.gi.intensity.tooltip",
+      "value": "How much bounced light is added. 1 is the physically motivated amount; higher exaggerates the effect."
     },
     {
-      "key": "settings.graphics.ssgi.realtimeBlend.tooltip",
-      "value": "How much of the world's own baked lighting the realtime bounce replaces. At 1 the bounce takes over completely, which can look dark where it finds less light than the baked lighting it replaced. Lower it to keep more of what the world was built to look like."
+      "key": "settings.graphics.gi.saturation",
+      "value": "GI Saturation"
     },
     {
-      "key": "settings.graphics.ssgi.emissive",
-      "value": "Glowing Surface Strength"
+      "key": "settings.graphics.gi.saturation.tooltip",
+      "value": "How much colour the bounce carries from the surface it came off. Lower it if coloured walls tint the room more than you want."
     },
     {
-      "key": "settings.graphics.ssgi.emissive.tooltip",
-      "value": "How much light glowing surfaces throw onto everything around them. At 1 they light the room only as much as they already showed up in the picture; raise it to make neon signs, screens and glowing avatar parts actually cast light."
+      "key": "settings.graphics.gi.obscurance",
+      "value": "Near-Field Obscurance"
     },
     {
-      "key": "settings.graphics.ssgi.gbufferFallback",
-      "value": "Light Unsupported Shaders"
+      "key": "settings.graphics.gi.obscurance.tooltip",
+      "value": "Ambient occlusion gathered from the same rays as the bounce, so it costs nothing extra. Darkens creases and contact points."
     },
     {
-      "key": "settings.graphics.ssgi.gbufferFallback.tooltip",
-      "value": "Let avatars, props and worlds whose shaders were not built for bounce light receive it anyway, using their shape and colour to stand in for the missing data. Everything already published works this way, so turning this off leaves most content unlit by the bounce."
+      "key": "settings.graphics.gi.rayLength",
+      "value": "Ray Length"
     },
     {
-      "key": "settings.graphics.ssgi.fallbackAlbedo",
-      "value": "Unsupported Shader Brightness"
+      "key": "settings.graphics.gi.rayLength.tooltip",
+      "value": "How far, in metres, a ray looks for something to bounce off. Longer picks up light from across a room and costs more per ray."
     },
     {
-      "key": "settings.graphics.ssgi.fallbackAlbedo.tooltip",
-      "value": "How much light those surfaces are assumed to reflect where their colour cannot say. Lower is darker and more cautious, higher picks up more bounce."
+      "key": "settings.graphics.gi.smoothing",
+      "value": "Smoothing"
     },
     {
-      "key": "settings.graphics.ssgi.fallbackMaxGain",
-      "value": "Unsupported Shader Light Limit"
+      "key": "settings.graphics.gi.smoothing.tooltip",
+      "value": "Width of the edge-aware blur applied to the bounce. Higher hides more of the sampling pattern and softens detail."
     },
     {
-      "key": "settings.graphics.ssgi.fallbackMaxGain.tooltip",
-      "value": "How much bounce light a shader that was not built for it is allowed to gain. Raise it so bright and glowing surfaces light such content properly; lower it if dark leaves, hair or grass wash out."
+      "key": "settings.graphics.gi.wideBlur",
+      "value": "Wide Blur"
     },
     {
-      "key": "settings.graphics.ssgi.reflectionProbes",
-      "value": "Bounce In Reflections"
+      "key": "settings.graphics.gi.wideBlur.tooltip",
+      "value": "A second, wider blur pass. Removes the low frequency blotching a small blur leaves behind, for one more pass over the traced buffer."
     },
     {
-      "key": "settings.graphics.ssgi.reflectionProbes.tooltip",
-      "value": "Also compute bounce light inside reflection probes, so mirrors and shiny surfaces agree with the rest of the scene. Costs more."
+      "key": "settings.graphics.gi.temporalFilter",
+      "value": "Temporal Filter"
     },
     {
-      "key": "settings.graphics.ssgi.highQualityUpscaling",
-      "value": "High Quality Upscaling"
+      "key": "settings.graphics.gi.temporalFilter.tooltip",
+      "value": "Accumulate the bounce across frames. Much cleaner while you stand still; turn it off if you would rather have noise than any trailing."
     },
     {
-      "key": "settings.graphics.ssgi.highQualityUpscaling.tooltip",
-      "value": "Use depth and normals when scaling the bounce light up to the full image. Cleaner edges, slightly more expensive. Has no effect at full resolution."
+      "key": "settings.graphics.gi.temporalResponse",
+      "value": "Temporal Response"
     },
     {
-      "key": "settings.graphics.ssgi.overrideAmbient",
-      "value": "Replace Ambient Light"
+      "key": "settings.graphics.gi.temporalResponse.tooltip",
+      "value": "How much of each new frame replaces the accumulated bounce. Low is the stillest image and trails furthest behind movement; high reacts immediately and is noisier."
     },
     {
-      "key": "settings.graphics.ssgi.overrideAmbient.tooltip",
-      "value": "Remove the flat ambient light a surface already receives and put the traced bounce in its place. This is what makes the lighting accurate; turning it off adds the bounce on top and brightens everything."
+      "key": "settings.graphics.gi.fallback",
+      "value": "Ray Miss Fallback"
     },
     {
-      "key": "settings.graphics.ssgi.backfaceLighting",
-      "value": "Light From Behind Surfaces"
+      "key": "settings.graphics.gi.fallback.tooltip",
+      "value": "Where a ray that hits nothing takes its light from. The reflection probe matches the room; the sky is cheaper and flatter."
     },
     {
-      "key": "settings.graphics.ssgi.backfaceLighting.tooltip",
-      "value": "Trace light arriving from the hidden side of objects. More accurate in cluttered rooms and noticeably more expensive."
+      "key": "settings.graphics.gi.fallback.none",
+      "value": "None"
     },
     {
-      "key": "settings.graphics.ssgi.unsupported",
+      "key": "settings.graphics.gi.fallback.sky",
+      "value": "Sky"
+    },
+    {
+      "key": "settings.graphics.gi.fallback.probe",
+      "value": "Reflection Probe"
+    },
+    {
+      "key": "settings.graphics.gi.rayReuse",
+      "value": "Reuse Off-Screen Rays"
+    },
+    {
+      "key": "settings.graphics.gi.rayReuse.tooltip",
+      "value": "Let a ray that leaves the screen keep the light it found at the edge instead of falling back outright. Steadies the bounce near screen borders as you turn."
+    },
+    {
+      "key": "settings.graphics.gi.emitters",
+      "value": "Emitters"
+    },
+    {
+      "key": "settings.graphics.gi.emitters.tooltip",
+      "value": "Carry light from registered emitters analytically. A sign or a strip light is smaller than one traced pixel, and anything behind you is off screen, so neither reaches the bounce any other way."
+    },
+    {
+      "key": "settings.graphics.gi.emitterIntensity",
+      "value": "Emitter Intensity"
+    },
+    {
+      "key": "settings.graphics.gi.emitterIntensity.tooltip",
+      "value": "How much light registered emitters contribute."
+    },
+    {
+      "key": "settings.graphics.gi.reflectionProbes",
+      "value": "GI In Reflection Probes"
+    },
+    {
+      "key": "settings.graphics.gi.reflectionProbes.tooltip",
+      "value": "Compute the bounce inside reflection probe captures too. A realtime probe pays for the whole effect once per face, so this is off by default."
+    },
+    {
+      "key": "settings.graphics.gi.unsupported",
       "value": "Not available on this platform."
     },
     {
@@ -9811,60 +10063,32 @@
       "value": "…and {0} more"
     },
     {
-      "key": "settings.developer.ssgiDebug",
-      "value": "SSGI Debug View"
+      "key": "settings.developer.giDebug",
+      "value": "GI Debug View"
     },
     {
-      "key": "settings.developer.ssgiDebug.tooltip",
-      "value": "Show one of the screen space global illumination buffers instead of the final image. The GBuffer views are black on surfaces whose shader cannot receive GI."
+      "key": "settings.developer.giDebug.tooltip",
+      "value": "Replace the image with one stage of the global illumination pipeline. Off renders normally."
     },
     {
-      "key": "settings.developer.ssgiDebug.indirect",
-      "value": "Indirect Light"
+      "key": "settings.developer.giDebug.indirect",
+      "value": "Indirect"
     },
     {
-      "key": "settings.developer.ssgiDebug.contribution",
-      "value": "GI Contribution"
+      "key": "settings.developer.giDebug.obscurance",
+      "value": "Obscurance"
     },
     {
-      "key": "settings.developer.ssgiDebug.albedo",
-      "value": "GBuffer Albedo"
+      "key": "settings.developer.giDebug.normals",
+      "value": "Normals"
     },
     {
-      "key": "settings.developer.ssgiDebug.normals",
-      "value": "GBuffer Normals"
+      "key": "settings.developer.giDebug.rayHits",
+      "value": "Ray Hits"
     },
     {
-      "key": "settings.developer.ssgiDebug.emission",
-      "value": "Emission"
-    },
-    {
-      "key": "settings.developer.ssgiDebug.preparedAlbedo",
-      "value": "Prepared Albedo"
-    },
-    {
-      "key": "settings.developer.ssgiDebug.preparedNormals",
-      "value": "Prepared Normals"
-    },
-    {
-      "key": "settings.developer.ssgiDebug.ambient",
-      "value": "Ambient Lighting"
-    },
-    {
-      "key": "settings.developer.ssgiDebug.removal",
-      "value": "Ambient Removal"
-    },
-    {
-      "key": "settings.developer.ssgiDebug.noise",
-      "value": "Noise"
-    },
-    {
-      "key": "settings.developer.ssgiDebug.surfaceSource",
-      "value": "Surface Source"
-    },
-    {
-      "key": "settings.developer.ssgiDebug.bakedRadiance",
-      "value": "Baked Radiance"
+      "key": "settings.developer.giDebug.indirectOnly",
+      "value": "Indirect Only"
     },
     {
       "key": "settings.developer.vrs.title",

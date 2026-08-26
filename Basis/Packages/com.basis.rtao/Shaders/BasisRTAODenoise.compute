@@ -1,0 +1,200 @@
+#pragma kernel BasisRTAOTemporal
+#pragma kernel BasisRTAOBlur
+
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+#include "Packages/com.basis.rtao/Shaders/BasisRTAOCommon.hlsl"
+
+Texture2DArray<float4> _BasisRtaoPositionTex;
+Texture2DArray<float4> _BasisRtaoNormalTex;
+Texture2DArray<float2> _BasisRtaoRawTex;
+Texture2DArray<float4> _BasisRtaoHistoryTex;
+Texture2DArray<float> _BasisRtaoHistoryDepthTex;
+RWTexture2DArray<float4> _BasisRtaoTemporalOutTex;
+RWTexture2DArray<float> _BasisRtaoTemporalDepthOutTex;
+
+Texture2DArray<float4> _BasisRtaoBlurSourceTex;
+RWTexture2DArray<float4> _BasisRtaoBlurTargetTex;
+
+float4x4 _BasisRtaoPrevViewProj[2];
+float4 _BasisRtaoViewPlane[2];
+float4 _BasisRtaoPrevViewPlane[2];
+float4 _BasisRtaoReference;
+float4 _BasisRtaoSize;
+float4 _BasisRtaoTemporalParams;
+float4 _BasisRtaoBlurParams;
+float4 _BasisRtaoBlurDirection;
+int _BasisRtaoViewCount;
+int _BasisRtaoHasHistory;
+
+#define TEMPORAL_MAX_FRAMES _BasisRtaoTemporalParams.x
+#define TEMPORAL_MIN_ALPHA _BasisRtaoTemporalParams.y
+#define TEMPORAL_DEPTH_TOLERANCE _BasisRtaoTemporalParams.z
+#define TEMPORAL_NORMAL_TOLERANCE _BasisRtaoTemporalParams.w
+
+#define BLUR_MAX_RADIUS _BasisRtaoBlurParams.x
+#define BLUR_MIN_RADIUS _BasisRtaoBlurParams.y
+#define BLUR_DEPTH_SIGMA _BasisRtaoBlurParams.z
+#define BLUR_NORMAL_POWER _BasisRtaoBlurParams.w
+
+// A-trous: the kernel keeps its shape while the taps spread further apart each iteration, so the reach
+// doubles per pass for the same tap count. Edge stopping on depth and normal is what keeps the widening
+// from bleeding across geometry.
+#define BLUR_STRIDE max(1, (int)_BasisRtaoBlurDirection.z)
+
+float BasisRtaoViewDepth(float4 plane, float3 positionWS)
+{
+    return dot(plane.xyz, positionWS) + plane.w;
+}
+
+bool OutOfRange(uint3 id)
+{
+    return id.x >= (uint)_BasisRtaoSize.x || id.y >= (uint)_BasisRtaoSize.y || id.z >= (uint)_BasisRtaoViewCount;
+}
+
+[numthreads(8, 8, 1)]
+void BasisRTAOTemporal(uint3 id : SV_DispatchThreadID)
+{
+    if (OutOfRange(id))
+        return;
+
+    float4 packed = _BasisRtaoPositionTex.Load(int4(id.xy, id.z, 0));
+    if (packed.w < 0.5)
+    {
+        _BasisRtaoTemporalOutTex[id] = float4(1.0, TEMPORAL_MAX_FRAMES, 0.0, 0.0);
+        _BasisRtaoTemporalDepthOutTex[id] = 0.0;
+        return;
+    }
+
+    float3 positionWS = packed.xyz + _BasisRtaoReference.xyz;
+    float2 encodedNormal = _BasisRtaoNormalTex.Load(int4(id.xy, id.z, 0)).xy;
+    float3 normalWS = BasisRtaoDecodeNormal(encodedNormal);
+    float2 raw = _BasisRtaoRawTex.Load(int4(id.xy, id.z, 0));
+
+    float currentDepth = BasisRtaoViewDepth(_BasisRtaoViewPlane[id.z], positionWS);
+
+    float historyVisibility = raw.x;
+    float frames = 0.0;
+
+    if (_BasisRtaoHasHistory != 0)
+    {
+        float4 prevClip = mul(_BasisRtaoPrevViewProj[id.z], float4(positionWS, 1.0));
+        float prevDepth = BasisRtaoViewDepth(_BasisRtaoPrevViewPlane[id.z], positionWS);
+        if (prevClip.w > 1e-4 && prevDepth > 1e-4)
+        {
+            float2 prevUV = prevClip.xy / prevClip.w * 0.5 + 0.5;
+            if (all(prevUV > 0.0) && all(prevUV < 1.0))
+            {
+                float2 coord = prevUV * _BasisRtaoSize.xy - 0.5;
+                int2 baseCoord = int2(floor(coord));
+                float2 frac2 = coord - float2(baseCoord);
+                float weights[4] =
+                {
+                    (1.0 - frac2.x) * (1.0 - frac2.y),
+                    frac2.x * (1.0 - frac2.y),
+                    (1.0 - frac2.x) * frac2.y,
+                    frac2.x * frac2.y
+                };
+
+                float sumWeight = 0.0;
+                float sumVisibility = 0.0;
+                float sumFrames = 0.0;
+
+                UNITY_UNROLL
+                for (int t = 0; t < 4; ++t)
+                {
+                    int2 tapCoord = baseCoord + int2(t & 1, t >> 1);
+                    if (any(tapCoord < 0) || any(tapCoord >= int2(_BasisRtaoSize.xy)))
+                        continue;
+
+                    float tapDepth = _BasisRtaoHistoryDepthTex.Load(int4(tapCoord, id.z, 0));
+                    if (tapDepth <= 0.0)
+                        continue;
+                    if (abs(tapDepth - prevDepth) > TEMPORAL_DEPTH_TOLERANCE * max(prevDepth, 1e-3))
+                        continue;
+
+                    float4 tapHistory = _BasisRtaoHistoryTex.Load(int4(tapCoord, id.z, 0));
+                    if (dot(BasisRtaoDecodeNormal(tapHistory.zw), normalWS) < TEMPORAL_NORMAL_TOLERANCE)
+                        continue;
+
+                    sumWeight += weights[t];
+                    sumVisibility += weights[t] * tapHistory.x;
+                    sumFrames += weights[t] * tapHistory.y;
+                }
+
+                if (sumWeight > 1e-4)
+                {
+                    float rcpWeight = 1.0 / sumWeight;
+                    historyVisibility = sumVisibility * rcpWeight;
+                    frames = min(sumFrames * rcpWeight + 1.0, TEMPORAL_MAX_FRAMES);
+                }
+            }
+        }
+    }
+
+    float alpha = max(1.0 / (frames + 1.0), TEMPORAL_MIN_ALPHA);
+    float visibility = saturate(lerp(historyVisibility, raw.x, alpha));
+
+    _BasisRtaoTemporalOutTex[id] = float4(visibility, frames, encodedNormal);
+    _BasisRtaoTemporalDepthOutTex[id] = currentDepth;
+}
+
+[numthreads(8, 8, 1)]
+void BasisRTAOBlur(uint3 id : SV_DispatchThreadID)
+{
+    if (OutOfRange(id))
+        return;
+
+    float4 center = _BasisRtaoBlurSourceTex.Load(int4(id.xy, id.z, 0));
+    float4 centerPacked = _BasisRtaoPositionTex.Load(int4(id.xy, id.z, 0));
+    if (centerPacked.w < 0.5)
+    {
+        _BasisRtaoBlurTargetTex[id] = center;
+        return;
+    }
+
+    float3 centerPosition = centerPacked.xyz;
+    float3 centerNormal = BasisRtaoDecodeNormal(center.zw);
+    float centerDepth = BasisRtaoViewDepth(_BasisRtaoViewPlane[id.z], centerPosition + _BasisRtaoReference.xyz);
+
+    float radius = lerp(BLUR_MAX_RADIUS, BLUR_MIN_RADIUS, saturate(center.y / max(1.0, TEMPORAL_MAX_FRAMES)));
+    int steps = (int)max(0.0, round(radius));
+    int stride = BLUR_STRIDE;
+
+    float sumWeight = 1.0;
+    float sumVisibility = center.x;
+    float sigma = max(0.5, radius * 0.5);
+    float rcpTwoSigmaSq = 1.0 / (2.0 * sigma * sigma);
+    int2 direction = int2(_BasisRtaoBlurDirection.xy);
+
+    // A wider stride reaches across more geometry, so the edge stopping has to tighten with it or the
+    // later iterations smear occlusion over creases the first iteration respected.
+    float depthSigma = max(1e-4, BLUR_DEPTH_SIGMA / float(stride));
+    float normalPower = BLUR_NORMAL_POWER * float(stride);
+
+    for (int offset = -steps; offset <= steps; ++offset)
+    {
+        if (offset == 0)
+            continue;
+
+        int2 tapCoord = int2(id.xy) + direction * (offset * stride);
+        if (any(tapCoord < 0) || any(tapCoord >= int2(_BasisRtaoSize.xy)))
+            continue;
+
+        float4 tapPacked = _BasisRtaoPositionTex.Load(int4(tapCoord, id.z, 0));
+        if (tapPacked.w < 0.5)
+            continue;
+
+        float4 tap = _BasisRtaoBlurSourceTex.Load(int4(tapCoord, id.z, 0));
+        float tapDepth = BasisRtaoViewDepth(_BasisRtaoViewPlane[id.z], tapPacked.xyz + _BasisRtaoReference.xyz);
+
+        float depthWeight = exp(-abs(tapDepth - centerDepth) / (depthSigma * max(centerDepth, 1e-3)));
+        float normalWeight = pow(saturate(dot(BasisRtaoDecodeNormal(tap.zw), centerNormal)), normalPower);
+        float spatialWeight = exp(-float(offset * offset) * rcpTwoSigmaSq);
+        float weight = spatialWeight * depthWeight * normalWeight;
+
+        sumWeight += weight;
+        sumVisibility += weight * tap.x;
+    }
+
+    _BasisRtaoBlurTargetTex[id] = float4(saturate(sumVisibility / sumWeight), center.y, center.z, center.w);
+}

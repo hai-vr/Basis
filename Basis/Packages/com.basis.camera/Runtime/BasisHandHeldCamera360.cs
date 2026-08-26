@@ -108,8 +108,8 @@ public partial class BasisHandHeldCamera
         RenderTexture cubeLeft = NewCubeRT(faceSize);
         RenderTexture cubeRight = stereo ? NewCubeRT(faceSize) : null;
 
-#if BASIS_HAS_SSGI && !UNITY_ANDROID
-        SMModuleScreenSpaceGlobalIlluminationURP.SuspendCamera(captureCamera, true);
+#if BASIS_HAS_GI && !UNITY_ANDROID
+        SMModuleGlobalIlluminationURP.SuspendCamera(captureCamera, true);
 #endif
         bool rendered;
         if (stereo)
@@ -128,8 +128,8 @@ public partial class BasisHandHeldCamera
             if (rendered)
                 cubeLeft.ConvertToEquirect(equirect, Camera.MonoOrStereoscopicEye.Mono);
         }
-#if BASIS_HAS_SSGI && !UNITY_ANDROID
-        SMModuleScreenSpaceGlobalIlluminationURP.SuspendCamera(captureCamera, false);
+#if BASIS_HAS_GI && !UNITY_ANDROID
+        SMModuleGlobalIlluminationURP.SuspendCamera(captureCamera, false);
 #endif
 
         captureCamera.usePhysicalProperties = savedPhysical;

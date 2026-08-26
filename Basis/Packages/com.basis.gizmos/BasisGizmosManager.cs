@@ -931,6 +931,33 @@ public static class BasisGizmoManager
         }
     }
 
+    /// <summary>
+    /// One-line dump of everything between a submitted gizmo and a pixel: how many slots exist,
+    /// how many pass the drawable test, the layer they are submitted on, and whether the line
+    /// material resolved. Every one of these fails the same way from the outside -- nothing on
+    /// screen -- so a caller chasing "my gizmo does not show" needs all of them at once.
+    /// </summary>
+    public static string DescribeState(Vector3 viewer)
+    {
+        int lineSlots = _linesByID.Count;
+        int drawableLines = 0;
+        float maxDistSq = float.IsPositiveInfinity(MaxDrawDistance) ? float.PositiveInfinity : MaxDrawDistance * MaxDrawDistance;
+        int inactive = 0, degenerate = 0, culled = 0;
+        foreach (KeyValuePair<int, LineSlot> kvp in _linesByID)
+        {
+            LineSlot slot = kvp.Value;
+            if (!slot.Active) { inactive++; continue; }
+            if (slot.Count < 2) { degenerate++; continue; }
+            if (!(maxDistSq >= float.PositiveInfinity) && (slot.Points[0] - viewer).sqrMagnitude > maxDistSq) { culled++; continue; }
+            drawableLines++;
+        }
+        return $"lines slots={lineSlots} drawable={drawableLines} (inactive={inactive} degenerate={degenerate} distanceCulled={culled})"
+            + $" | spheres={_sphereByID.Count} labels={_textByID.Count}"
+            + $" | layer={RenderLayer} ('{LayerMask.LayerToName(RenderLayer)}') renderInAllCameras={RenderInAllCameras}"
+            + $" | lineMaterial={(_lineMaterial != null ? _lineMaterial.shader.name : "NULL -- shader missing")}"
+            + $" | drawOnTop={DrawOnTop} maxDrawDistance={MaxDrawDistance}";
+    }
+
     /// <summary>True while a gizmo with this ID exists in any of the stores.</summary>
     public static bool Exists(int linkedID)
     {

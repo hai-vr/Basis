@@ -164,7 +164,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
     // Subscribing to the bindings keeps them feeding the derived render gate all the same.
     private Action<bool> _solveGizmoStageChanged;
 
-    private void HookSolveGizmoStages()
+    private void HookSolveGizmoStages() 
     {
         if (_solveGizmoStageChanged != null)
         {

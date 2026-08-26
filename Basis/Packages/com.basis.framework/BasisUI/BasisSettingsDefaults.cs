@@ -320,37 +320,99 @@ namespace Basis.BasisUI
         public const float MOTION_BLUR_CLAMP_MIN = 0f;
         public const float MOTION_BLUR_CLAMP_MAX = 0.2f;
 
-        public static BasisSettingsBinding<bool> UseScreenSpaceGlobalIllumination = new("usescreenspaceglobalillumination", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<string> ScreenSpaceGlobalIlluminationQuality = new("screenspaceglobalilluminationquality", new BasisPlatformDefault<string>("Medium"));
-        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationFullResolution = new("screenspaceglobalilluminationfullresolution", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationIntensity = new("screenspaceglobalilluminationintensity", new BasisPlatformDefault<float>(1f));
-        public const float SSGI_INTENSITY_MIN = 0.1f;
-        public const float SSGI_INTENSITY_MAX = 4f;
-        // Content already built into asset bundles cannot gain a GBuffer pass, so without the fallback
-        // those avatars, props and worlds receive no bounce light at all. On by default for that reason.
-        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationGBufferFallback = new("screenspaceglobalilluminationgbufferfallback", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationFallbackAlbedo = new("screenspaceglobalilluminationfallbackalbedo", new BasisPlatformDefault<float>(0.5f));
-        public const float SSGI_FALLBACK_ALBEDO_MIN = 0.1f;
-        public const float SSGI_FALLBACK_ALBEDO_MAX = 1f;
-        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationReflectionProbes = new("screenspaceglobalilluminationreflectionprobes", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationHighQualityUpscaling = new("screenspaceglobalilluminationhighqualityupscaling", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationOverrideAmbient = new("screenspaceglobalilluminationoverrideambient", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<bool> ScreenSpaceGlobalIlluminationBackfaceLighting = new("screenspaceglobalilluminationbackfacelighting", new BasisPlatformDefault<bool>(true));
-        // How much of last frame's bounce is kept each frame. The volume ships this at 0.95, the top of its
-        // own range, which keeps ~91% per frame once accumulated and smears the bounce behind anything that
-        // moves. 0.8 still denoises well and settles in roughly a third of the frames.
-        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationDenoiseStrength = new("screenspaceglobalilluminationdenoisestrength", new BasisPlatformDefault<float>(0.8f));
-        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationEmissive = new("screenspaceglobalilluminationemissive", new BasisPlatformDefault<float>(1f));
-        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationRealtimeBlend = new("screenspaceglobalilluminationrealtimeblend", new BasisPlatformDefault<float>(1f));
-        public const float SSGI_REALTIME_BLEND_MIN = 0.1f;
-        public const float SSGI_REALTIME_BLEND_MAX = 1f;
-        public const float SSGI_EMISSIVE_MIN = 1f;
-        public const float SSGI_EMISSIVE_MAX = 8f;
-        public static BasisSettingsBinding<float> ScreenSpaceGlobalIlluminationFallbackMaxGain = new("screenspaceglobalilluminationfallbackmaxgain", new BasisPlatformDefault<float>(2f));
-        public const float SSGI_FALLBACK_MAX_GAIN_MIN = 0.25f;
-        public const float SSGI_FALLBACK_MAX_GAIN_MAX = 8f;
-        public const float SSGI_DENOISE_MIN = 0.5f;
-        public const float SSGI_DENOISE_MAX = 0.95f;
+        public static BasisSettingsBinding<bool> UseGlobalIllumination = new("useglobalillumination", new BasisPlatformDefault<bool>(false));
+        // Screen Space marches the depth buffer and can only gather what the frame already drew. Ray Traced
+        // traces the scene itself against an acceleration structure, so it also carries light from behind the
+        // camera and shades what it hits with the real lights and emissive materials - and it needs a GPU
+        // with ray tracing, falling back to Screen Space on one that has none.
+        public static BasisSettingsBinding<string> GlobalIlluminationMode = new("globalilluminationmode", new BasisPlatformDefault<string>("Screen Space"));
+        // Avatars are skinned meshes, so this is what decides whether the people in the room bounce and
+        // occlude light in the pose they are standing in. Dynamic re-bakes them on a per-frame budget.
+        public static BasisSettingsBinding<string> GlobalIlluminationSkinnedMeshes = new("globalilluminationskinnedmeshes", new BasisPlatformDefault<string>("Dynamic"));
+        public static BasisSettingsBinding<string> GlobalIlluminationQuality = new("globalilluminationquality", new BasisPlatformDefault<string>("Medium"));
+        // Half resolution is what makes the effect affordable at VR framerates; Full is for photo mode and
+        // for people who would rather spend the frame on it.
+        public static BasisSettingsBinding<string> GlobalIlluminationResolution = new("globalilluminationresolution", new BasisPlatformDefault<string>("Half"));
+        public static BasisSettingsBinding<string> GlobalIlluminationFallback = new("globalilluminationfallback", new BasisPlatformDefault<string>("Reflection Probe"));
+        public static BasisSettingsBinding<float> GlobalIlluminationIntensity = new("globalilluminationintensity", new BasisPlatformDefault<float>(1f));
+        public const float GI_INTENSITY_MIN = 0.1f;
+        public const float GI_INTENSITY_MAX = 4f;
+        public static BasisSettingsBinding<float> GlobalIlluminationSaturation = new("globalilluminationsaturation", new BasisPlatformDefault<float>(1f));
+        public const float GI_SATURATION_MIN = 0.1f;
+        public const float GI_SATURATION_MAX = 2f;
+        // Near-field obscurance is the effect's own ambient occlusion, gathered from the same rays, so it
+        // costs nothing extra to turn up.
+        public static BasisSettingsBinding<float> GlobalIlluminationObscurance = new("globalilluminationobscurance", new BasisPlatformDefault<float>(0.5f));
+        public const float GI_OBSCURANCE_MIN = 0.05f;
+        public const float GI_OBSCURANCE_MAX = 1f;
+        public static BasisSettingsBinding<float> GlobalIlluminationRayLength = new("globalilluminationraylength", new BasisPlatformDefault<float>(16f));
+        public const float GI_RAY_LENGTH_MIN = 1f;
+        public const float GI_RAY_LENGTH_MAX = 64f;
+        public static BasisSettingsBinding<float> GlobalIlluminationSmoothing = new("globalilluminationsmoothing", new BasisPlatformDefault<float>(1f));
+        public const float GI_SMOOTHING_MIN = 0.25f;
+        public const float GI_SMOOTHING_MAX = 2f;
+        // How much of this frame's trace replaces the accumulated bounce. Low keeps the image stillest but
+        // smears the bounce behind anything that moves, which is a comfort question in VR, so it is the
+        // player's call rather than the world's.
+        public static BasisSettingsBinding<float> GlobalIlluminationTemporalResponse = new("globalilluminationtemporalresponse", new BasisPlatformDefault<float>(0.15f));
+        public const float GI_TEMPORAL_RESPONSE_MIN = 0.05f;
+        public const float GI_TEMPORAL_RESPONSE_MAX = 1f;
+        public static BasisSettingsBinding<bool> GlobalIlluminationTemporalFilter = new("globalilluminationtemporalfilter", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> GlobalIlluminationWideBlur = new("globalilluminationwideblur", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> GlobalIlluminationRayReuse = new("globalilluminationrayreuse", new BasisPlatformDefault<bool>(true));
+        // Emitters carry light from sources the trace cannot see: a sign or a strip light is under one
+        // texel at traced resolution, and anything behind the camera is off screen entirely.
+        public static BasisSettingsBinding<bool> GlobalIlluminationEmitters = new("globalilluminationemitters", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> GlobalIlluminationEmitterIntensity = new("globalilluminationemitterintensity", new BasisPlatformDefault<float>(1f));
+        public const float GI_EMITTER_INTENSITY_MIN = 0.1f;
+        public const float GI_EMITTER_INTENSITY_MAX = 8f;
+        // Off by default: a realtime reflection probe pays for the whole effect once per face.
+        public static BasisSettingsBinding<bool> GlobalIlluminationReflectionProbes = new("globalilluminationreflectionprobes", new BasisPlatformDefault<bool>(false));
+
+        // Ray traced ambient occlusion. Off by default because it is a real slice of the frame and it
+        // needs a ray tracing GPU for the traced path.
+        public static BasisSettingsBinding<bool> UseRayTracedAmbientOcclusion = new("useraytracedambientocclusion", new BasisPlatformDefault<bool>(false));
+        // Auto traces against the scene on a ray tracing GPU and drops to the screen space estimator on one
+        // without. Direct3D11 has no ray tracing path at all, so it always lands on Screen Space there.
+        public static BasisSettingsBinding<string> RayTracedAmbientOcclusionMode = new("raytracedambientocclusionmode", new BasisPlatformDefault<string>("Auto"));
+        public static BasisSettingsBinding<string> RayTracedAmbientOcclusionQuality = new("raytracedambientocclusionquality", new BasisPlatformDefault<string>("Medium"));
+        public static BasisSettingsBinding<float> RayTracedAmbientOcclusionIntensity = new("raytracedambientocclusionintensity", new BasisPlatformDefault<float>(1f));
+        public const float RTAO_INTENSITY_MIN = 0.05f;
+        public const float RTAO_INTENSITY_MAX = 1f;
+        // How far a surface looks for occluders, in metres. The whole range is contact shadow scale - two to
+        // ten centimetres - because that is the distance an avatar's own geometry occludes itself over.
+        public static BasisSettingsBinding<float> RayTracedAmbientOcclusionRadius = new("raytracedambientocclusionradius", new BasisPlatformDefault<float>(RTAO_RADIUS_MIN));
+        public const float RTAO_RADIUS_MIN = 0.02f;
+        public const float RTAO_RADIUS_MAX = 0.1f;
+        // Avatars are skinned meshes, so this decides whether people in the room cast contact shadows.
+        // Dynamic re-bakes them on a per-frame budget, which is CPU the traced path does not otherwise spend.
+        public static BasisSettingsBinding<string> RayTracedAmbientOcclusionSkinnedMeshes = new("raytracedambientocclusionskinnedmeshes", new BasisPlatformDefault<string>("Dynamic"));
+        // URP multiplies the whole indirect term by the occlusion but only lerps the direct term toward it by
+        // this much, so in a scene carried by a bright directional light the effect reads far weaker than the
+        // occlusion buffer looks. Raising this pulls the shaded image back toward the buffer.
+        public static BasisSettingsBinding<float> RayTracedAmbientOcclusionDirectStrength = new("raytracedambientocclusiondirectstrength", new BasisPlatformDefault<float>(0.5f));
+        // Each denoise pass reuses the same edge aware kernel with its taps spread twice as far, so the reach
+        // doubles per pass for the same cost. More passes means less grain and softer contact shadows.
+        public static BasisSettingsBinding<string> RayTracedAmbientOcclusionDenoise = new("raytracedambientocclusiondenoise", new BasisPlatformDefault<string>("High"));
+        // Mirrors and the handheld camera each trace and denoise their own view. Correct, and a real
+        // multiple of the cost, so it is the first thing to turn off when the frame gets tight.
+        public static BasisSettingsBinding<bool> RayTracedAmbientOcclusionOtherCameras = new("raytracedambientocclusionothercameras", new BasisPlatformDefault<bool>(true));
+        // Lighting feeds URP's lighting, which is honest but only reaches shaders that read the occlusion
+        // texture and is clamped by a material's own occlusion map. Final Image multiplies the finished
+        // opaque frame the way Unity's own SSAO does in After Opaque, so it lands on everything.
+        public static BasisSettingsBinding<string> RayTracedAmbientOcclusionApply = new("raytracedambientocclusionapply", new BasisPlatformDefault<string>("Lighting"));
+        public const float RTAO_DIRECT_STRENGTH_MIN = 0f;
+        public const float RTAO_DIRECT_STRENGTH_MAX = 1f;
+        public static BasisSettingsBinding<bool> DevRtaoDebugView = new("devrtaodebugview", new BasisPlatformDefault<bool>(false));
+        // Which buffer the debug view draws. An artifact looks the same in the finished picture whichever
+        // stage made it, so stepping through these is how you find the one that did.
+        public static BasisSettingsBinding<string> DevRtaoDebugStage = new("devrtaodebugstage", new BasisPlatformDefault<string>("Final"));
+        // How many avatars may be re-posed for the ray tracer in one frame. Zero follows the occlusion
+        // quality (1 / 4 / 16 / 100); anything else pins it, which is the knob for measuring what a busy
+        // instance actually costs.
+        public static BasisSettingsBinding<float> DevRtaoSkinnedBudget = new("devrtaoskinnedbudget", new BasisPlatformDefault<float>(0f));
+        public const float RTAO_SKINNED_BUDGET_MIN = 0f;
+        public const float RTAO_SKINNED_BUDGET_MAX = 128f;
 
         // Commented out 2026-08-04: the realtime-reflection-probe driver these described was
         // never implemented — no UI exposes them and nothing reads them (the Performance Mode
@@ -382,7 +444,7 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> DevVariableRateShading = new("devvariablerateshading", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevVariableRateShadingDesktop = new("devvariablerateshadingdesktop", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<string> DevSsgiDebugView = new("devssgidebugview", new BasisPlatformDefault<string>("Off"));
+        public static BasisSettingsBinding<string> DevGiDebugView = new("devgidebugview", new BasisPlatformDefault<string>("Off"));
 
         public static BasisSettingsBinding<bool> EyeTrackingPreferOsc = new("eyetrackingpreferosc", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> EyeFoveationAutoManage = new("eyefoveationautomanage", new BasisPlatformDefault<bool>(true));
@@ -2167,7 +2229,7 @@ namespace Basis.BasisUI
             Antialiasing.LoadBindingValue();
             DevVariableRateShading.LoadBindingValue();
             DevVariableRateShadingDesktop.LoadBindingValue();
-            DevSsgiDebugView.LoadBindingValue();
+            DevGiDebugView.LoadBindingValue();
             VrsFovealInnerRadius.LoadBindingValue();
             VrsFovealOuterRadius.LoadBindingValue();
             UseBloomOverride.LoadBindingValue();
@@ -2180,20 +2242,38 @@ namespace Basis.BasisUI
             MotionBlurClamp.LoadBindingValue();
             MotionBlurQuality.LoadBindingValue();
             MotionBlurMode.LoadBindingValue();
-            UseScreenSpaceGlobalIllumination.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationQuality.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationFullResolution.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationIntensity.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationGBufferFallback.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationFallbackAlbedo.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationReflectionProbes.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationHighQualityUpscaling.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationOverrideAmbient.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationBackfaceLighting.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationDenoiseStrength.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationEmissive.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationRealtimeBlend.LoadBindingValue();
-            ScreenSpaceGlobalIlluminationFallbackMaxGain.LoadBindingValue();
+            UseGlobalIllumination.LoadBindingValue();
+            GlobalIlluminationMode.LoadBindingValue();
+            GlobalIlluminationSkinnedMeshes.LoadBindingValue();
+            GlobalIlluminationQuality.LoadBindingValue();
+            GlobalIlluminationResolution.LoadBindingValue();
+            GlobalIlluminationFallback.LoadBindingValue();
+            GlobalIlluminationIntensity.LoadBindingValue();
+            GlobalIlluminationSaturation.LoadBindingValue();
+            GlobalIlluminationObscurance.LoadBindingValue();
+            GlobalIlluminationRayLength.LoadBindingValue();
+            GlobalIlluminationSmoothing.LoadBindingValue();
+            GlobalIlluminationTemporalResponse.LoadBindingValue();
+            GlobalIlluminationTemporalFilter.LoadBindingValue();
+            GlobalIlluminationWideBlur.LoadBindingValue();
+            GlobalIlluminationRayReuse.LoadBindingValue();
+            GlobalIlluminationEmitters.LoadBindingValue();
+            GlobalIlluminationEmitterIntensity.LoadBindingValue();
+            GlobalIlluminationReflectionProbes.LoadBindingValue();
+
+            UseRayTracedAmbientOcclusion.LoadBindingValue();
+            RayTracedAmbientOcclusionMode.LoadBindingValue();
+            RayTracedAmbientOcclusionQuality.LoadBindingValue();
+            RayTracedAmbientOcclusionIntensity.LoadBindingValue();
+            RayTracedAmbientOcclusionRadius.LoadBindingValue();
+            RayTracedAmbientOcclusionSkinnedMeshes.LoadBindingValue();
+            RayTracedAmbientOcclusionDirectStrength.LoadBindingValue();
+            RayTracedAmbientOcclusionDenoise.LoadBindingValue();
+            RayTracedAmbientOcclusionOtherCameras.LoadBindingValue();
+            RayTracedAmbientOcclusionApply.LoadBindingValue();
+            DevRtaoDebugView.LoadBindingValue();
+            DevRtaoDebugStage.LoadBindingValue();
+            DevRtaoSkinnedBudget.LoadBindingValue();
             //UseRealtimeReflectionProbes.LoadBindingValue();
             //RealtimeReflectionProbeRate.LoadBindingValue();
             ShowGizmos.LoadBindingValue();
