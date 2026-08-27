@@ -6999,6 +6999,38 @@
       "value": "Vertical Sync"
     },
     {
+      "key": "settings.graphics.refreshRate",
+      "value": "Headset Refresh Rate"
+    },
+    {
+      "key": "settings.graphics.refreshRate.tooltip",
+      "value": "How many times a second the headset shows a new image. Higher is smoother and costs more GPU time and battery; the headset falls back to the closest rate it supports."
+    },
+    {
+      "key": "settings.graphics.refreshRate.auto",
+      "value": "Auto"
+    },
+    {
+      "key": "settings.graphics.refreshRate.auto.tooltip",
+      "value": "Keep whatever rate the headset runtime chose."
+    },
+    {
+      "key": "settings.graphics.refreshRate.72",
+      "value": "72 Hz"
+    },
+    {
+      "key": "settings.graphics.refreshRate.90",
+      "value": "90 Hz"
+    },
+    {
+      "key": "settings.graphics.refreshRate.120",
+      "value": "120 Hz"
+    },
+    {
+      "key": "settings.graphics.refreshRate.144",
+      "value": "144 Hz"
+    },
+    {
       "key": "settings.graphics.verticalSync.description",
       "value": "VR uses headset refreshrate"
     },
@@ -10504,7 +10536,7 @@
     },
     {
       "key": "settings.developer.graphicsStatePrewarm.description",
-      "value": "Trace and persist full GPU pipeline states (PSOs), then pre-create them on later loads. Off by default; only helps on DX12, Vulkan, and Metal, and the gain is on re-loads of content seen in a previous session."
+      "value": "Trace and persist full GPU pipeline states (PSOs), then pre-create them ahead of first draw. Only does anything on DX12, Vulkan, and Metal, where the driver cannot build pipeline state lazily. A seed shipped with the app covers the base game on first launch; your own traced cache covers content you have loaded before."
     },
     {
       "key": "settings.developer.gridSnap.title",
@@ -17459,6 +17491,50 @@
     {
       "key": "settings.developer.spawnAnchors.anchorName.tooltip",
       "value": "Renames the selected anchor. The name shows on its handle and in the anchor dropdown."
+    },
+    {
+      "key": "settings.graphics.renderer.title",
+      "value": "Renderer"
+    },
+    {
+      "key": "settings.graphics.renderer.description",
+      "value": "This session is rendering with {0}. Only the graphics APIs this build ships are listed."
+    },
+    {
+      "key": "settings.graphics.renderer.api",
+      "value": "Graphics API"
+    },
+    {
+      "key": "settings.graphics.renderer.api.restart",
+      "value": "Graphics API (restart required)"
+    },
+    {
+      "key": "settings.graphics.renderer.api.running",
+      "value": "{0} (running)"
+    },
+    {
+      "key": "settings.graphics.renderer.api.editorLocked",
+      "value": "The editor holds the graphics API it started on. Switch renderers in a standalone build."
+    },
+    {
+      "key": "settings.graphics.renderer.api.tooltip",
+      "value": "Which graphics API Basis renders with. DirectX 12 spreads rendering work over more CPU threads, and hardware ray tracing and variable rate shading need it; DirectX 11 is the default and has no first-draw pipeline stalls. Avatars and worlds work on either without rebuilding, since both use the same compiled shaders. The API is chosen as Basis launches, so a change applies on restart, and Basis stays on the one that works if the chosen API is unavailable on this machine."
+    },
+    {
+      "key": "settings.graphics.renderer.restart.title",
+      "value": "Restart Required"
+    },
+    {
+      "key": "settings.graphics.renderer.restart.prompt",
+      "value": "The graphics API is chosen as Basis starts. Restart and reconnect now to render with {0}?"
+    },
+    {
+      "key": "settings.graphics.renderer.restart.now",
+      "value": "Restart Now"
+    },
+    {
+      "key": "settings.graphics.renderer.restart.later",
+      "value": "Later"
     }
   ]
 }
