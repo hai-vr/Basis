@@ -111,7 +111,7 @@ namespace Basis.Rendering.RTAO
         private BasisRTAOSceneSettings sceneSettings = BasisRTAOSceneSettings.Default;
         private ComputeShader screenSpace;
         private int screenSpaceKernel = -1;
-        private BasisRTAOTracingMode tracingMode = BasisRTAOTracingMode.Auto;
+        private BasisRTAOTracingMode tracingMode = BasisRTAOTracingMode.ScreenSpace;
         private BasisRTAOApplyMode applyMode = BasisRTAOApplyMode.Lighting;
         private BasisRTAOBackend backend = BasisRTAOBackend.None;
         private bool debugView;
@@ -174,10 +174,7 @@ namespace Basis.Rendering.RTAO
                     break;
                 case BasisRTAOBackend.ScreenSpace:
                     Debug.LogWarning(
-                        $"[BasisRTAO] Tracing mode {mode} resolved to the screen space fallback" +
-                        (mode == BasisRTAOTracingMode.Auto
-                            ? " because this device reports no hardware ray tracing - on Windows that needs Direct3D12, and Direct3D11 has no ray tracing path at all."
-                            : ".") +
+                        $"[BasisRTAO] Tracing mode {mode} resolved to the screen space estimator." +
                         " That path reads the depth buffer instead of the acceleration structure, so the layer" +
                         " mask, BasisRTAOExclude and the shadow casting filter do not apply and everything drawn" +
                         " occludes.");

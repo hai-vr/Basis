@@ -430,7 +430,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UseRayTracedAmbientOcclusion = new("useraytracedambientocclusion", new BasisPlatformDefault<bool>(false));
         // Auto traces against the scene on a ray tracing GPU and drops to the screen space estimator on one
         // without. Direct3D11 has no ray tracing path at all, so it always lands on Screen Space there.
-        public static BasisSettingsBinding<string> RayTracedAmbientOcclusionMode = new("raytracedambientocclusionmode", new BasisPlatformDefault<string>("Auto"));
+        // Screen space rather than the traced path: this is the backend everything can run, and nobody
+        // should be handed the expensive one without asking for it. The master toggle above is still off
+        // by default, so this only decides how it gathers once somebody turns it on.
+        public static BasisSettingsBinding<string> RayTracedAmbientOcclusionMode = new("raytracedambientocclusionmode", new BasisPlatformDefault<string>("Screen Space"));
         public static BasisSettingsBinding<string> RayTracedAmbientOcclusionQuality = new("raytracedambientocclusionquality", new BasisPlatformDefault<string>("Medium"));
         public static BasisSettingsBinding<float> RayTracedAmbientOcclusionIntensity = new("raytracedambientocclusionintensity", new BasisPlatformDefault<float>(1f));
         public const float RTAO_INTENSITY_MIN = 0.05f;

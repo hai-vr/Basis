@@ -7,6 +7,11 @@
 #define BASISGI_RT_MAX_LIGHTS 64
 #define BASISGI_RT_MAX_LIGHT_SAMPLES 4
 #define BASISGI_RT_FLAG_HAS_NORMALS 1u
+/// <summary>
+/// This instance is one of an avatar's proxy capsules rather than geometry the camera drew. See
+/// BasisGlobalIlluminationRayInstance.FlagProxy and BasisGIRtTraceEscapingProxies below.
+/// </summary>
+#define BASISGI_RT_FLAG_PROXY 2u
 
 struct BasisGIRtInstance
 {

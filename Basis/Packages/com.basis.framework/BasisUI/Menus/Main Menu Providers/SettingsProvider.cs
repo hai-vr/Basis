@@ -2112,8 +2112,8 @@ namespace Basis.BasisUI
                 dropdownRtaoMode.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.rtao.mode"));
                 dropdownRtaoMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.mode.tooltip"));
                 dropdownRtaoMode.AssignLocalizedEntries(
-                    new List<string> { "Auto", "Ray Traced", "Screen Space" },
-                    new List<string> { "settings.graphics.rtao.mode.auto", "settings.graphics.rtao.mode.rayTraced", "settings.graphics.rtao.mode.screenSpace" });
+                    new List<string> { "Screen Space", "Ray Traced" },
+                    new List<string> { "settings.graphics.rtao.mode.screenSpace", "settings.graphics.rtao.mode.rayTraced" });
                 dropdownRtaoMode.AssignBinding(BasisSettingsDefaults.RayTracedAmbientOcclusionMode);
                 SettingsProviderBottleneckHints.Mark(dropdownRtaoMode, BasisFrameCostSide.Gpu);
 

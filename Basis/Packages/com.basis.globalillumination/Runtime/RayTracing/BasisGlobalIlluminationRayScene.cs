@@ -65,6 +65,17 @@ public struct BasisGlobalIlluminationRayInstance
     public const int Stride = 96;
     public const uint FlagHasNormals = 1u;
 
+    /// <summary>
+    /// This instance is one of an avatar's proxy capsules rather than geometry the camera drew.
+    ///
+    /// The trace needs to know, because a proxy is the one thing in the structure that does not match what
+    /// is on screen. A ray leaving the visible surface of a body starts INSIDE that body's own capsule -
+    /// the spine bone sits near the back, so a 0.115 x height torso capsule swallows the chest - and comes
+    /// straight back reporting the surface is fully enclosed. The kernel uses this flag to recognise the
+    /// case and step out of the capsule instead of shading it.
+    /// </summary>
+    public const uint FlagProxy = 2u;
+
     public Vector4 albedo;
     public Vector4 emission;
     public uint indexOffset, vertexOffset, flags, indexCount;
@@ -368,10 +379,7 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
                 MeshInstanceDesc desc = new MeshInstanceDesc(mesh, index)
                 {
                     localToWorldMatrix = matrix,
-                    // Tagged with which half of the room it is. Free while this structure is the only one
-                    // tracing it - a ray asking for everything still hits every instance - and it is what
-                    // lets one structure serve two effects that want different halves.
-                    mask = entry.category,
+                    mask = 0xff,
                     instanceID = (uint)instanceId,
                     enableTriangleCulling = false,
                     opaqueGeometry = true
@@ -854,8 +862,7 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
                 MeshInstanceDesc desc = new MeshInstanceDesc(capsule, 0)
                 {
                     localToWorldMatrix = matrix,
-                    // Always an avatar: these capsules exist only because a humanoid is standing there.
-                    mask = BasisTracedCategory.Avatar,
+                    mask = 0xff,
                     instanceID = (uint)instanceId,
                     enableTriangleCulling = false,
                     opaqueGeometry = true
@@ -878,7 +885,8 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
             instances[instanceId].indexOffset = (uint)indices.Offset;
             instances[instanceId].indexCount = (uint)indices.Count;
             instances[instanceId].vertexOffset = (uint)entry.geometry.normals.Offset;
-            instances[instanceId].flags = entry.geometry.hasNormals && indices.IsValid ? BasisGlobalIlluminationRayInstance.FlagHasNormals : 0u;
+            instances[instanceId].flags = BasisGlobalIlluminationRayInstance.FlagProxy
+                | (entry.geometry.hasNormals && indices.IsValid ? BasisGlobalIlluminationRayInstance.FlagHasNormals : 0u);
             instances[instanceId].SetNormalMatrix(matrix);
             MarkInstanceDirty(instanceId);
         }

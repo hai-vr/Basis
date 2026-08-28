@@ -131,7 +131,6 @@ namespace Basis.Rendering.RTAO.Tests
 
             string[] required =
             {
-                "settings.graphics.rtao.mode.auto",
                 "settings.graphics.rtao.mode.rayTraced",
                 "settings.graphics.rtao.mode.screenSpace",
                 "settings.graphics.rtao.denoise.standard",
@@ -139,8 +138,7 @@ namespace Basis.Rendering.RTAO.Tests
                 "settings.graphics.rtao.denoise.maximum",
                 "settings.graphics.rtao.otherCameras",
                 "settings.graphics.rtao.skinned.off",
-                "settings.graphics.rtao.skinned.static",
-                "settings.graphics.rtao.skinned.dynamic"
+                "settings.graphics.rtao.skinned.proxy"
             };
 
             foreach (string key in required)
@@ -162,7 +160,6 @@ namespace Basis.Rendering.RTAO.Tests
         {
             Dictionary<string, string> english = EnglishKeys();
 
-            Assert.AreEqual(BasisRTAOTracingMode.Auto, BasisRTAOSettingsMap.ReadMode(english["settings.graphics.rtao.mode.auto"]));
             Assert.AreEqual(BasisRTAOTracingMode.RayTracedOnly, BasisRTAOSettingsMap.ReadMode(english["settings.graphics.rtao.mode.rayTraced"]));
             Assert.AreEqual(BasisRTAOTracingMode.ScreenSpace, BasisRTAOSettingsMap.ReadMode(english["settings.graphics.rtao.mode.screenSpace"]));
         }

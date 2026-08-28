@@ -191,7 +191,7 @@ float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::
             shadowRay.direction = chosenDirection;
             shadowRay.tMin = 0.0;
             shadowRay.tMax = max(0.0, chosenDistance - BASISGI_RT_NORMAL_BIAS * 2.0);
-            visibility = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, (uint)_BasisGIRtTraceMask, shadowRay, 0) ? 0.0 : 1.0;
+            visibility = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xffffffff, shadowRay, 0) ? 0.0 : 1.0;
         }
 
         total += chosenRadiance * ((weightSum / chosenWeight) * visibility);
@@ -213,6 +213,60 @@ float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::
 /// how much of that to keep from the roughness it does know. See BasisSampleTracedReflection in the forked
 /// URP's GlobalIllumination.hlsl.
 /// </summary>
+/// How many capsule walls one ray may step out of before it gives up and takes the hit. Four covers the
+/// worst real overlap - hips, spine, chest and an arm crossing the body - without letting a degenerate
+/// case spin.
+#define BASISGI_RT_MAX_PROXY_ESCAPES 4u
+/// Far enough past the wall not to land back on it through floating point, small enough not to skip
+/// anything real standing immediately behind it.
+#define BASISGI_RT_PROXY_ESCAPE_EPSILON 0.01
+
+/// <summary>
+/// One ray, stepping out of any proxy capsule it began inside of.
+///
+/// Avatars are traced as capsules on their bones, but the depth buffer - and so the point every ray starts
+/// from - is the avatar's REAL surface. The spine bone sits towards the back of a torso, so a capsule of
+/// 0.115 x body height swallows the chest: a ray leaving the visible chest starts inside that capsule and
+/// hits it at almost zero distance, which reads as "this surface is completely enclosed". What you see is a
+/// hard edged dark patch in the shape of the capsule, and no ray start offset small enough to keep contact
+/// darkening honest is large enough to escape it - it takes about a third of a metre, which would lift the
+/// darkening off every corner in the world.
+///
+/// A ray that starts inside a closed shape leaves it through a BACK face, so that is the entire test. No
+/// distance to tune, and world geometry is left alone because only proxies are checked - a back face on a
+/// leaf card or a double sided wall is still real occlusion and is still counted.
+/// </summary>
+UnifiedRT::Hit BasisGIRtTraceEscapingProxies(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::RayTracingAccelStruct accelStruct,
+    inout float3 origin, float3 direction, float tMax)
+{
+    UnifiedRT::Hit hit = UnifiedRT::Hit::Invalid();
+
+    UNITY_LOOP
+    for (uint attempt = 0u; attempt < BASISGI_RT_MAX_PROXY_ESCAPES; attempt++)
+    {
+        UnifiedRT::Ray ray;
+        ray.origin = origin;
+        ray.tMin = 0.0;
+        ray.direction = direction;
+        ray.tMax = tMax;
+
+        hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, 0xffffffff, ray, 0);
+        if (!hit.IsValid() || hit.isFrontFace) { return hit; }
+
+        BasisGIRtInstance instance = _BasisGIRtInstances[hit.instanceID];
+        if ((instance.geometry.z & BASISGI_RT_FLAG_PROXY) == 0u) { return hit; }
+
+        // Step just past the wall and try again. tMax comes down with the origin so the ray can never
+        // reach further in total than it was allowed to.
+        float advance = hit.hitDistance + BASISGI_RT_PROXY_ESCAPE_EPSILON;
+        origin += direction * advance;
+        tMax -= advance;
+        if (tMax <= 0.0) { return UnifiedRT::Hit::Invalid(); }
+    }
+
+    return hit;
+}
+
 float4 BasisGIRtTraceSpecular(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::RayTracingAccelStruct accelStruct,
     float3 positionWS, float3 normalWS, float originBias, float fade, uint seed)
 {
@@ -233,15 +287,13 @@ float4 BasisGIRtTraceSpecular(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::R
     UNITY_LOOP
     for (uint bounce = 0; bounce < bounces; bounce++)
     {
-        UnifiedRT::Ray ray;
-        ray.origin = origin;
-        ray.tMin = 0.0;
-        ray.direction = direction;
         // The mirror ray gets its own reach, because a reflection carries much further than a bounce does:
         // the far wall of a room is a bounce nobody can see and a reflection everybody can.
-        ray.tMax = bounce == 0 ? BASISGI_RT_SPEC_RAY_LENGTH : BASISGI_RT_RAY_LENGTH;
+        float reach = bounce == 0 ? BASISGI_RT_SPEC_RAY_LENGTH : BASISGI_RT_RAY_LENGTH;
 
-        UnifiedRT::Hit hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, (uint)_BasisGIRtTraceMask, ray, 0);
+        // A reflection off a body starts inside that body's own capsule exactly as the diffuse gather does,
+        // and a mirror ray that hits it returns the inside of the avatar rather than the room.
+        UnifiedRT::Hit hit = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, origin, direction, reach);
         if (!hit.IsValid())
         {
             // A miss is the sky, and for a reflection the sky is a real answer rather than a gap in one -
@@ -368,13 +420,8 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
         UNITY_LOOP
         for (uint bounce = 0; bounce < bounces; bounce++)
         {
-            UnifiedRT::Ray ray;
-            ray.origin = origin;
-            ray.tMin = 0.0;
-            ray.direction = direction;
-            ray.tMax = BASISGI_RT_RAY_LENGTH;
-
-            UnifiedRT::Hit hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, (uint)_BasisGIRtTraceMask, ray, 0);
+            float3 startedAt = origin;
+            UnifiedRT::Hit hit = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, origin, direction, BASISGI_RT_RAY_LENGTH);
             if (!hit.IsValid())
             {
                 radiance += throughput * BasisGIRtSampleSky(direction);
@@ -383,7 +430,10 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
 
             if (bounce == 0)
             {
-                occlusion += 1.0 - saturate(hit.hitDistance / max(BASISGI_RT_OBSCURANCE_RADIUS, BASISGI_RT_EPSILON));
+                // Measured from where the ray actually started, not from where it resumed, so stepping out
+                // of a capsule cannot make the thing beyond it read as closer than it is.
+                float travelled = distance(origin, startedAt) + hit.hitDistance;
+                occlusion += 1.0 - saturate(travelled / max(BASISGI_RT_OBSCURANCE_RADIUS, BASISGI_RT_EPSILON));
             }
 
             BasisGIRtInstance instance = _BasisGIRtInstances[hit.instanceID];

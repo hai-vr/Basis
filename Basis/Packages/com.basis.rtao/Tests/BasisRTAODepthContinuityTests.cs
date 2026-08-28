@@ -34,7 +34,7 @@ namespace Basis.Rendering.RTAO.Tests
         public void SetUp()
         {
             BasisRTAOGpuHarness.SkipUnlessComputeIsAvailable();
-            if (BasisRTAOTracing.Resolve(BasisRTAOTracingMode.Auto) == BasisRTAOBackend.None)
+            if (BasisRTAOTracing.Resolve(BasisRTAOTracingMode.RayTracedOnly) == BasisRTAOBackend.None)
                 Assert.Ignore("No RTAO backend is available on this device.");
 
             LogAssert.ignoreFailingMessages = true;
@@ -45,7 +45,7 @@ namespace Basis.Rendering.RTAO.Tests
             feature = Track(ScriptableObject.CreateInstance<BasisRTAOFeature>());
             feature.name = "BasisRTAOFeature";
             SerializedFieldSetter.Set(feature, "resources", resources);
-            SerializedFieldSetter.Set(feature, "tracingMode", BasisRTAOTracingMode.Auto);
+            SerializedFieldSetter.Set(feature, "tracingMode", BasisRTAOTracingMode.RayTracedOnly);
             SerializedFieldSetter.Set(feature, "debugView", true);
             SerializedFieldSetter.Set(feature, "overrideQualityPreset", true);
 

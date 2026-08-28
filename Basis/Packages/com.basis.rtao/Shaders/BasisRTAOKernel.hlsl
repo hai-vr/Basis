@@ -66,7 +66,7 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
         for (uint i = 0; i < rayCount; ++i)
         {
             ray.direction = BasisRtaoCosineHemisphere(BasisRtaoHammersley(i, rayCount, jitter), normalWS);
-            UnifiedRT::Hit hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, (uint)_BasisRtaoTraceMask, ray, 0);
+            UnifiedRT::Hit hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, 0xffffffff, ray, 0);
             if (hit.IsValid())
             {
                 float normalized = saturate(hit.hitDistance / _BasisRtaoTrace.y);
@@ -85,7 +85,7 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
         for (uint i = 0; i < rayCount; ++i)
         {
             ray.direction = BasisRtaoCosineHemisphere(BasisRtaoHammersley(i, rayCount, jitter), normalWS);
-            bool occluded = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, (uint)_BasisRtaoTraceMask, ray, 0);
+            bool occluded = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xffffffff, ray, 0);
             visibility += occluded ? 0.0 : 1.0;
             distanceSum += occluded ? 0.0 : 1.0;
         }

@@ -4,7 +4,6 @@ namespace Basis.Rendering.RTAO
 {
     public static class BasisRTAOSettingsMap
     {
-        public const string ModeAuto = "Auto";
         public const string ModeRayTraced = "Ray Traced";
         public const string ModeScreenSpace = "Screen Space";
 
@@ -22,8 +21,11 @@ namespace Basis.Rendering.RTAO
                 case "computebvh":
                 case "compute bvh":
                     return BasisRTAOTracingMode.ComputeBvh;
+                // "Auto" still reads, because a settings file written before it was removed keeps saying it
+                // for as long as that file survives. It lands on screen space rather than on ray tracing:
+                // Auto's whole problem was handing people the expensive backend without being asked.
                 default:
-                    return BasisRTAOTracingMode.Auto;
+                    return BasisRTAOTracingMode.ScreenSpace;
             }
         }
 
@@ -32,8 +34,7 @@ namespace Basis.Rendering.RTAO
             switch (mode)
             {
                 case BasisRTAOTracingMode.RayTracedOnly: return ModeRayTraced;
-                case BasisRTAOTracingMode.ScreenSpace: return ModeScreenSpace;
-                default: return ModeAuto;
+                default: return ModeScreenSpace;
             }
         }
 

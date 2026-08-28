@@ -15,7 +15,7 @@ namespace Basis.Rendering.RTAO
         [SerializeField] private bool overrideQualityPreset;
         [SerializeField] private BasisRTAOSettings settings = BasisRTAOSettings.Default;
         [SerializeField] private BasisRTAOSceneSettings sceneSettings = BasisRTAOSceneSettings.Default;
-        [SerializeField] private BasisRTAOTracingMode tracingMode = BasisRTAOTracingMode.Auto;
+        [SerializeField] private BasisRTAOTracingMode tracingMode = BasisRTAOTracingMode.ScreenSpace;
         [SerializeField] private BasisRTAOApplyMode applyMode = BasisRTAOApplyMode.Lighting;
         [SerializeField] private BasisRTAODebugStage debugStage = BasisRTAODebugStage.Final;
         [SerializeField] private bool debugView;
@@ -62,7 +62,7 @@ namespace Basis.Rendering.RTAO
         public static bool HasFadeEndOverride;
         public static float FadeEndOverride = 60f;
         public static bool HasTracingModeOverride;
-        public static BasisRTAOTracingMode TracingModeOverride = BasisRTAOTracingMode.Auto;
+        public static BasisRTAOTracingMode TracingModeOverride = BasisRTAOTracingMode.ScreenSpace;
         public static bool HasLayerMaskOverride;
         public static LayerMask LayerMaskOverride = BasisRTAOSceneSettings.AvatarLayerMask;
         /// <summary>

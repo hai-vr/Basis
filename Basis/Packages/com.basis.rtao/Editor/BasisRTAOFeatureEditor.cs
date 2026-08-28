@@ -70,9 +70,6 @@ namespace Basis.Rendering.RTAO.Editor
         {
             switch (mode)
             {
-                case BasisRTAOTracingMode.Auto:
-                    EditorGUILayout.HelpBox($"Resolves to {BasisRTAOTracing.Describe(BasisRTAOTracing.Resolve(mode))} on this device.", MessageType.None);
-                    break;
                 case BasisRTAOTracingMode.RayTracedOnly:
                     EditorGUILayout.HelpBox("Ray tracing or nothing. The feature turns itself off on a GPU without hardware ray tracing.", MessageType.None);
                     break;

@@ -35,7 +35,7 @@ namespace Basis.Rendering.RTAO.Tests
 
             BasisRTAOResources resources = Track(ScriptableObject.CreateInstance<BasisRTAOResources>());
             resources.PopulateFromPackage();
-            BasisRTAOBackend backend = BasisRTAOTracing.Resolve(BasisRTAOTracingMode.Auto);
+            BasisRTAOBackend backend = BasisRTAOTracing.Resolve(BasisRTAOTracingMode.RayTracedOnly);
             Assert.IsTrue(resources.IsComplete(backend), resources.DescribeMissing(backend));
 
             feature = Track(ScriptableObject.CreateInstance<BasisRTAOFeature>());
@@ -117,7 +117,7 @@ namespace Basis.Rendering.RTAO.Tests
         private static void ApplyFeatureFields(BasisRTAOFeature feature, BasisRTAOResources resources)
         {
             SerializedFieldSetter.Set(feature, "resources", resources);
-            SerializedFieldSetter.Set(feature, "tracingMode", BasisRTAOTracingMode.Auto);
+            SerializedFieldSetter.Set(feature, "tracingMode", BasisRTAOTracingMode.RayTracedOnly);
             SerializedFieldSetter.Set(feature, "debugView", true);
             SerializedFieldSetter.Set(feature, "overrideQualityPreset", true);
 
@@ -531,7 +531,7 @@ namespace Basis.Rendering.RTAO.Tests
             // BasisRTAOExclude takes a renderer out of the acceleration structure. The screen space fallback
             // never consults that structure - it reads the depth buffer - so anything still being drawn still
             // occludes there, by design. Only the traced path can honour this.
-            if (!BasisRTAOTracing.IsRayTraced(BasisRTAOTracing.Resolve(BasisRTAOTracingMode.Auto)))
+            if (!BasisRTAOTracing.IsRayTraced(BasisRTAOTracing.Resolve(BasisRTAOTracingMode.RayTracedOnly)))
                 Assert.Ignore("This device resolves to the screen space fallback, which cannot honour an acceleration structure exclusion.");
 
             Texture2D included = RenderAndReadback();

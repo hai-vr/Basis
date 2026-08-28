@@ -7399,10 +7399,6 @@
       "value": "Auto traces the real scene on a graphics card that supports ray tracing and drops to the screen space estimator on one that does not. Ray Traced turns the effect off rather than falling back. Screen Space only sees what is already drawn on screen, but it runs anywhere."
     },
     {
-      "key": "settings.graphics.rtao.mode.auto",
-      "value": "Auto"
-    },
-    {
       "key": "settings.graphics.rtao.mode.rayTraced",
       "value": "Ray Traced"
     },

@@ -461,8 +461,7 @@ namespace Basis.Rendering.RTAO
                     MeshInstanceDesc desc = new MeshInstanceDesc(capsule, 0)
                     {
                         localToWorldMatrix = pose.MatrixAt(i),
-                        // Always an avatar: these capsules exist only because a humanoid is standing there.
-                        mask = BasisTracedCategory.Avatar,
+                        mask = 0xff,
                         enableTriangleCulling = false,
                         opaqueGeometry = true
                     };
@@ -561,7 +560,7 @@ namespace Basis.Rendering.RTAO
                     MeshInstanceDesc desc = new MeshInstanceDesc(mesh, i)
                     {
                         localToWorldMatrix = matrix,
-                        mask = category,
+                        mask = 0xff,
                         enableTriangleCulling = false,
                         opaqueGeometry = true
                     };

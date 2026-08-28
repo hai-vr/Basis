@@ -7,7 +7,8 @@ namespace Basis.Rendering.RTAO.Tests
         [Test]
         public void ModeReadsTheDropdownEntries()
         {
-            Assert.AreEqual(BasisRTAOTracingMode.Auto, BasisRTAOSettingsMap.ReadMode("Auto"));
+            Assert.AreEqual(BasisRTAOTracingMode.ScreenSpace, BasisRTAOSettingsMap.ReadMode("Auto"),
+                "Auto was removed, but a settings file written before that still says it. It has to land on the new default rather than on the expensive backend it used to pick.");
             Assert.AreEqual(BasisRTAOTracingMode.RayTracedOnly, BasisRTAOSettingsMap.ReadMode("Ray Traced"));
             Assert.AreEqual(BasisRTAOTracingMode.ScreenSpace, BasisRTAOSettingsMap.ReadMode("Screen Space"));
         }
@@ -24,9 +25,9 @@ namespace Basis.Rendering.RTAO.Tests
         [Test]
         public void UnknownModeFallsBackToAuto()
         {
-            Assert.AreEqual(BasisRTAOTracingMode.Auto, BasisRTAOSettingsMap.ReadMode(null));
-            Assert.AreEqual(BasisRTAOTracingMode.Auto, BasisRTAOSettingsMap.ReadMode(string.Empty));
-            Assert.AreEqual(BasisRTAOTracingMode.Auto, BasisRTAOSettingsMap.ReadMode("nonsense"),
+            Assert.AreEqual(BasisRTAOTracingMode.ScreenSpace, BasisRTAOSettingsMap.ReadMode(null));
+            Assert.AreEqual(BasisRTAOTracingMode.ScreenSpace, BasisRTAOSettingsMap.ReadMode(string.Empty));
+            Assert.AreEqual(BasisRTAOTracingMode.ScreenSpace, BasisRTAOSettingsMap.ReadMode("nonsense"),
                 "A stale settings file must not turn the effect off, it must land on the safe default.");
         }
 
@@ -155,7 +156,7 @@ namespace Basis.Rendering.RTAO.Tests
         [Test]
         public void EveryModeRoundTripsThroughTheDropdownString()
         {
-            foreach (BasisRTAOTracingMode mode in new[] { BasisRTAOTracingMode.Auto, BasisRTAOTracingMode.RayTracedOnly, BasisRTAOTracingMode.ScreenSpace })
+            foreach (BasisRTAOTracingMode mode in new[] { BasisRTAOTracingMode.RayTracedOnly, BasisRTAOTracingMode.ScreenSpace })
                 Assert.AreEqual(mode, BasisRTAOSettingsMap.ReadMode(BasisRTAOSettingsMap.WriteMode(mode)));
         }
 
@@ -176,7 +177,7 @@ namespace Basis.Rendering.RTAO.Tests
         [Test]
         public void WrittenStringsMatchTheDropdownEntriesTheUiRegisters()
         {
-            Assert.AreEqual("Auto", BasisRTAOSettingsMap.WriteMode(BasisRTAOTracingMode.Auto));
+            Assert.AreEqual("Screen Space", BasisRTAOSettingsMap.WriteMode(BasisRTAOTracingMode.ScreenSpace));
             Assert.AreEqual("Ray Traced", BasisRTAOSettingsMap.WriteMode(BasisRTAOTracingMode.RayTracedOnly));
             Assert.AreEqual("Screen Space", BasisRTAOSettingsMap.WriteMode(BasisRTAOTracingMode.ScreenSpace));
             Assert.AreEqual("Off", BasisRTAOSettingsMap.WriteSkinnedMode(BasisRTAOSkinnedMode.Off));
@@ -236,7 +237,7 @@ namespace Basis.Rendering.RTAO.Tests
         [Test]
         public void AutoSettingResolvesToTheFallbackWithoutRayTracing()
         {
-            BasisRTAOTracingMode mode = BasisRTAOSettingsMap.ReadMode("Auto");
+            BasisRTAOTracingMode mode = BasisRTAOSettingsMap.ReadMode("Screen Space");
             Assert.AreEqual(BasisRTAOBackend.ScreenSpace, BasisRTAOTracing.Resolve(mode, false, true));
         }
     }

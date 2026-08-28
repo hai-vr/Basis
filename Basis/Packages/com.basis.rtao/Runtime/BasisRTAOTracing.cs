@@ -2,9 +2,20 @@ using UnityEngine;
 
 namespace Basis.Rendering.RTAO
 {
+    /// <summary>
+    /// Which backend the occlusion is gathered with.
+    ///
+    /// Auto is gone. It resolved to hardware ray tracing wherever the device offered it, which meant the
+    /// answer to "what is this setting doing" was different on every machine, and the expensive path was
+    /// the one people got without asking for it. The choice is now explicit.
+    ///
+    /// The remaining values keep their old numbers rather than closing the gap, because the mode is
+    /// serialized on BasisRTAOFeature. An asset written before this holds a 0 where Auto used to be; that
+    /// is not a value any more, so it falls through Resolve and ReadMode to Screen Space, which is where
+    /// the default now sits.
+    /// </summary>
     public enum BasisRTAOTracingMode
     {
-        Auto = 0,
         RayTracedOnly = 1,
         ScreenSpace = 2,
         ComputeBvh = 3
@@ -80,12 +91,11 @@ namespace Basis.Rendering.RTAO
             {
                 case BasisRTAOTracingMode.RayTracedOnly:
                     return hardwareSupported ? BasisRTAOBackend.Hardware : BasisRTAOBackend.None;
-                case BasisRTAOTracingMode.ScreenSpace:
-                    return BasisRTAOBackend.ScreenSpace;
                 case BasisRTAOTracingMode.ComputeBvh:
                     return BasisRTAOBackend.ComputeBvh;
+                // Screen space, and the 0 an asset written before Auto was removed still holds.
                 default:
-                    return hardwareSupported ? BasisRTAOBackend.Hardware : BasisRTAOBackend.ScreenSpace;
+                    return BasisRTAOBackend.ScreenSpace;
             }
         }
 

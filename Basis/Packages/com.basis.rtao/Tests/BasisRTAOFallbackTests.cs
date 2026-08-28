@@ -36,20 +36,20 @@ namespace Basis.Rendering.RTAO.Tests
         [Test]
         public void AutoPicksRayTracingWhenTheGpuHasIt()
         {
-            Assert.AreEqual(BasisRTAOBackend.Hardware, BasisRTAOTracing.Resolve(BasisRTAOTracingMode.Auto, true, true));
+            Assert.AreEqual(BasisRTAOBackend.Hardware, BasisRTAOTracing.Resolve(BasisRTAOTracingMode.RayTracedOnly, true, true));
         }
 
         [Test]
         public void AutoFallsBackToScreenSpaceWithoutRayTracing()
         {
-            Assert.AreEqual(BasisRTAOBackend.ScreenSpace, BasisRTAOTracing.Resolve(BasisRTAOTracingMode.Auto, false, true),
+            Assert.AreEqual(BasisRTAOBackend.ScreenSpace, BasisRTAOTracing.Resolve(BasisRTAOTracingMode.ScreenSpace, false, true),
                 "Direct3D11 has no ray tracing at all, so Auto has to land on the screen space estimator rather than turning the effect off.");
         }
 
         [Test]
         public void AutoDisablesItselfWithoutComputeShaders()
         {
-            Assert.AreEqual(BasisRTAOBackend.None, BasisRTAOTracing.Resolve(BasisRTAOTracingMode.Auto, false, false));
+            Assert.AreEqual(BasisRTAOBackend.None, BasisRTAOTracing.Resolve(BasisRTAOTracingMode.ScreenSpace, false, false));
             Assert.AreEqual(BasisRTAOBackend.None, BasisRTAOTracing.Resolve(BasisRTAOTracingMode.ScreenSpace, false, false),
                 "The fallback is a compute kernel, so it cannot rescue a device without compute support.");
         }
