@@ -7527,6 +7527,26 @@
       "value": "Whether mirrors and the handheld camera get their own ambient occlusion. On, a mirror shows the room the same way you see it and photos match the view. Off, only your own view is traced, which is the first thing to turn off when the frame gets tight since every extra camera costs its own pass."
     },
     {
+      "key": "settings.graphics.rtao.layers",
+      "value": "Occlusion From"
+    },
+    {
+      "key": "settings.graphics.rtao.layers.tooltip",
+      "value": "What goes into the traced scene. Avatars is the cheapest and what this effect was built for: people darkening the surfaces they stand near. World adds the room, which is what puts occlusion under furniture and into corners, and costs a rebuild whenever that geometry moves. World And Avatars is both, and the most expensive. Ray traced only - the screen space estimator uses whatever the camera already drew."
+    },
+    {
+      "key": "settings.graphics.rtao.layers.avatars",
+      "value": "Avatars"
+    },
+    {
+      "key": "settings.graphics.rtao.layers.world",
+      "value": "World"
+    },
+    {
+      "key": "settings.graphics.rtao.layers.worldAndAvatars",
+      "value": "World + Avatars"
+    },
+    {
       "key": "settings.graphics.rtao.skinned",
       "value": "Avatars Cast Occlusion"
     },
@@ -7565,6 +7585,26 @@
     {
       "key": "settings.graphics.gi.mode.rayTraced",
       "value": "Ray Traced"
+    },
+    {
+      "key": "settings.graphics.gi.layers",
+      "value": "Bounce Light From"
+    },
+    {
+      "key": "settings.graphics.gi.layers.tooltip",
+      "value": "What the ray traced path is allowed to hit. World And Avatars is everything and is how the bounce has always worked. World leaves people out of the trace, so the room still lights itself but nobody tints the wall beside them. Avatars is the cheapest by far, because the traced scene is then a handful of capsules rather than the whole world. Ray traced only - Screen Space bounces whatever the camera already drew and has no scene to filter."
+    },
+    {
+      "key": "settings.graphics.gi.layers.avatars",
+      "value": "Avatars"
+    },
+    {
+      "key": "settings.graphics.gi.layers.world",
+      "value": "World"
+    },
+    {
+      "key": "settings.graphics.gi.layers.worldAndAvatars",
+      "value": "World + Avatars"
     },
     {
       "key": "settings.graphics.gi.skinned",

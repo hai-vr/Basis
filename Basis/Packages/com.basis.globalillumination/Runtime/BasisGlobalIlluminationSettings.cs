@@ -422,6 +422,19 @@ public sealed class BasisGlobalIlluminationSettings
     }
 
     /// <summary>
+    /// The room without the people in it: everything the trace would walk by default, minus the avatar
+    /// layers. Subtracted from the wide set rather than naming Default, because worlds put geometry on
+    /// plenty of layers and a "World" option that only walked Default would miss most of a room.
+    ///
+    /// Avatars and World are disjoint and together they are exactly the default set, so the three sets the
+    /// panel offers partition it cleanly.
+    /// </summary>
+    public static LayerMask WorldLayers()
+    {
+        return DefaultRayTracedLayers().value & ~AvatarLayers();
+    }
+
+    /// <summary>
     /// The layers the trace actually walks. Everything means the mask was left alone, and the interface
     /// layers come out of it; any other mask was chosen by somebody and is taken exactly as written.
     /// </summary>

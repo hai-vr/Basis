@@ -19,6 +19,16 @@ public struct BasisGlobalIlluminationState
     public bool Enabled;
     public BasisGlobalIlluminationMode Mode;
     public BasisGlobalIlluminationRaySkinnedMode SkinnedMeshes;
+    /// <summary>
+    /// Which layers the ray traced path walks, kept as the dropdown option rather than a resolved mask.
+    /// Nothing on the screen space path reads it.
+    ///
+    /// A mask here would have to be resolved by layer name, and this struct is built from a field
+    /// initializer on SMModuleGlobalIlluminationURP - where Unity forbids NameToLayer outright ("not
+    /// allowed to be called from a MonoBehaviour constructor"), and throwing there aborts the module's
+    /// construction. The option is resolved in Apply instead, which runs well after Awake.
+    /// </summary>
+    public string Layers;
     public BasisGlobalIlluminationQuality Quality;
     public BasisGlobalIlluminationResolution Resolution;
     public BasisGlobalIlluminationFallback Fallback;
@@ -44,6 +54,7 @@ public struct BasisGlobalIlluminationState
             Enabled = BasisSettingsDefaults.UseGlobalIllumination.DefaultValue.GetDefault(),
             Mode = SMModuleGlobalIlluminationURP.ReadMode(BasisSettingsDefaults.GlobalIlluminationMode.DefaultValue.GetDefault()),
             SkinnedMeshes = SMModuleGlobalIlluminationURP.ReadSkinnedMode(BasisSettingsDefaults.GlobalIlluminationSkinnedMeshes.DefaultValue.GetDefault()),
+            Layers = BasisSettingsDefaults.GlobalIlluminationLayers.DefaultValue.GetDefault(),
             Quality = SMModuleGlobalIlluminationURP.ReadQuality(BasisSettingsDefaults.GlobalIlluminationQuality.DefaultValue.GetDefault()),
             Resolution = SMModuleGlobalIlluminationURP.ReadResolution(BasisSettingsDefaults.GlobalIlluminationResolution.DefaultValue.GetDefault()),
             Fallback = SMModuleGlobalIlluminationURP.ReadFallback(BasisSettingsDefaults.GlobalIlluminationFallback.DefaultValue.GetDefault()),
@@ -71,6 +82,7 @@ public struct BasisGlobalIlluminationState
             Enabled = BasisSettingsDefaults.UseGlobalIllumination.RawValue,
             Mode = SMModuleGlobalIlluminationURP.ReadMode(BasisSettingsDefaults.GlobalIlluminationMode.RawValue),
             SkinnedMeshes = SMModuleGlobalIlluminationURP.ReadSkinnedMode(BasisSettingsDefaults.GlobalIlluminationSkinnedMeshes.RawValue),
+            Layers = BasisSettingsDefaults.GlobalIlluminationLayers.RawValue,
             Quality = SMModuleGlobalIlluminationURP.ReadQuality(BasisSettingsDefaults.GlobalIlluminationQuality.RawValue),
             Resolution = SMModuleGlobalIlluminationURP.ReadResolution(BasisSettingsDefaults.GlobalIlluminationResolution.RawValue),
             Fallback = SMModuleGlobalIlluminationURP.ReadFallback(BasisSettingsDefaults.GlobalIlluminationFallback.RawValue),
@@ -111,6 +123,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     private static string K_USE_GI => BasisSettingsDefaults.UseGlobalIllumination.BindingKey;
     private static string K_GI_MODE => BasisSettingsDefaults.GlobalIlluminationMode.BindingKey;
     private static string K_GI_SKINNED => BasisSettingsDefaults.GlobalIlluminationSkinnedMeshes.BindingKey;
+    private static string K_GI_LAYERS => BasisSettingsDefaults.GlobalIlluminationLayers.BindingKey;
     private static string K_GI_QUALITY => BasisSettingsDefaults.GlobalIlluminationQuality.BindingKey;
     private static string K_GI_RESOLUTION => BasisSettingsDefaults.GlobalIlluminationResolution.BindingKey;
     private static string K_GI_FALLBACK => BasisSettingsDefaults.GlobalIlluminationFallback.BindingKey;
@@ -237,6 +250,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         if (matchedSettingName == K_USE_GI) { state.Enabled = optionValue == "true"; }
         else if (matchedSettingName == K_GI_MODE) { state.Mode = ReadMode(optionValue); }
         else if (matchedSettingName == K_GI_SKINNED) { state.SkinnedMeshes = ReadSkinnedMode(optionValue); }
+        else if (matchedSettingName == K_GI_LAYERS) { state.Layers = optionValue; }
         else if (matchedSettingName == K_GI_QUALITY) { state.Quality = ReadQuality(optionValue); }
         else if (matchedSettingName == K_GI_RESOLUTION) { state.Resolution = ReadResolution(optionValue); }
         else if (matchedSettingName == K_GI_FALLBACK) { state.Fallback = ReadFallback(optionValue); }
@@ -328,6 +342,23 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     /// is what Proxy does now, so they land there rather than on Off - answering Off would quietly take
     /// the bounce off avatars away from everyone who had asked for it.
     /// </summary>
+    /// <summary>
+    /// Which layers the ray traced path walks, as the three sets a player can actually tell apart. Anything
+    /// finer belongs on the renderer feature, where a full mask field already exists.
+    ///
+    /// The default is the widest set, because that is what the trace walked before this was a choice and
+    /// bounce light off the room is most of what the effect is for.
+    /// </summary>
+    public static LayerMask ReadLayers(string optionValue)
+    {
+        switch (optionValue?.ToLowerInvariant())
+        {
+            case "avatars": return BasisGlobalIlluminationSettings.AvatarLayers();
+            case "world": return BasisGlobalIlluminationSettings.WorldLayers();
+            default: return BasisGlobalIlluminationSettings.DefaultRayTracedLayers();
+        }
+    }
+
     public static BasisGlobalIlluminationRaySkinnedMode ReadSkinnedMode(string optionValue)
     {
         switch (optionValue?.ToLowerInvariant())
@@ -495,6 +526,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         // player's call.
         target.mode = state.Mode;
         target.rayTracedSkinnedMeshes = state.SkinnedMeshes;
+        target.rayTracedLayerMask = ReadLayers(state.Layers);
 
         target.quality = state.Quality;
         target.resolution = state.Capture ? BasisGlobalIlluminationResolution.Full : state.Resolution;

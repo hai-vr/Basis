@@ -140,7 +140,11 @@ namespace Basis.Rendering.RTAO
         {
             switch (Normalise(value))
             {
-                case "avatars and world": return BasisRTAOSceneSettings.AvatarAndWorldLayers;
+                case "world": return BasisRTAOSceneSettings.WorldLayers;
+                case "world and avatars": return BasisRTAOSceneSettings.EverythingButInterfaceLayers;
+                // Written by earlier builds. "Avatars And World" was the same intent under a different
+                // name, and "Everything" was already interface-filtered, so both are the widest set.
+                case "avatars and world":
                 case "everything": return BasisRTAOSceneSettings.EverythingButInterfaceLayers;
                 default: return BasisRTAOSceneSettings.AvatarLayers;
             }
@@ -148,8 +152,8 @@ namespace Basis.Rendering.RTAO
 
         public static string WriteLayers(UnityEngine.LayerMask mask)
         {
-            if (mask.value == BasisRTAOSceneSettings.EverythingButInterfaceLayers.value) { return "Everything"; }
-            if (mask.value == BasisRTAOSceneSettings.AvatarAndWorldLayers.value) { return "Avatars And World"; }
+            if (mask.value == BasisRTAOSceneSettings.EverythingButInterfaceLayers.value) { return "World And Avatars"; }
+            if (mask.value == BasisRTAOSceneSettings.WorldLayers.value) { return "World"; }
             return "Avatars";
         }
 

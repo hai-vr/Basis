@@ -48,6 +48,51 @@ namespace Basis.Rendering.RTAO.Tests
         }
 
         [Test]
+        public void LayerOptionsRoundTripThroughTheDropdownString()
+        {
+            foreach (string option in new[] { "Avatars", "World", "World And Avatars" })
+                Assert.AreEqual(option, BasisRTAOSettingsMap.WriteLayers(BasisRTAOSettingsMap.ReadLayers(option)));
+        }
+
+        /// <summary>
+        /// Avatars and World must be disjoint and must together be exactly World + Avatars. Without that
+        /// the three rows overlap, and a player who picks World still pays for the avatars they thought
+        /// they had just excluded.
+        /// </summary>
+        [Test]
+        public void LayerSetsPartitionCleanly()
+        {
+            int avatars = BasisRTAOSettingsMap.ReadLayers("Avatars").value;
+            int world = BasisRTAOSettingsMap.ReadLayers("World").value;
+            int both = BasisRTAOSettingsMap.ReadLayers("World And Avatars").value;
+
+            // AvatarLayers answers ~0 when neither named layer exists, which makes World empty and the
+            // partition meaningless. LayersMatchTheirNames is the test that owns that failure.
+            if (avatars == ~0) { Assert.Ignore("The avatar layers are not present in this project."); }
+            Assert.AreNotEqual(0, avatars, "The avatar layers have to resolve, or every option is the same set.");
+            Assert.AreEqual(0, avatars & world, "World must not carry the avatar layers.");
+            Assert.AreEqual(both, avatars | world, "The two halves have to add up to the combined set.");
+        }
+
+        [Test]
+        public void RetiredLayerNamesStillReadAsTheWidestSet()
+        {
+            int both = BasisRTAOSettingsMap.ReadLayers("World And Avatars").value;
+            Assert.AreEqual(both, BasisRTAOSettingsMap.ReadLayers("Avatars And World").value,
+                "The same intent under the name earlier builds wrote.");
+            Assert.AreEqual(both, BasisRTAOSettingsMap.ReadLayers("Everything").value,
+                "Everything was already interface filtered, so it was this set under another name.");
+        }
+
+        [Test]
+        public void UnknownLayerValueStaysOnAvatars()
+        {
+            Assert.AreEqual(BasisRTAOSceneSettings.AvatarLayers.value, BasisRTAOSettingsMap.ReadLayers("garbage").value,
+                "Tracing the whole world is the expensive answer, so an unreadable value must not opt the player into it.");
+            Assert.AreEqual(BasisRTAOSceneSettings.AvatarLayers.value, BasisRTAOSettingsMap.ReadLayers(null).value);
+        }
+
+        [Test]
         public void RetiredModesStillReadAsProxy()
         {
             Assert.AreEqual(BasisRTAOSkinnedMode.Proxy, BasisRTAOSettingsMap.ReadSkinnedMode("static"),

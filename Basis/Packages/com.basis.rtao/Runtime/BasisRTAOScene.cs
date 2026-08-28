@@ -91,6 +91,17 @@ namespace Basis.Rendering.RTAO
         }
 
         /// <summary>
+        /// The room without the people in it: everything traced by <see cref="EverythingButInterfaceLayers"/>
+        /// minus the two avatar layers.
+        ///
+        /// Subtracting from the wide set rather than naming Default is deliberate - worlds put geometry on
+        /// plenty of layers, and a "World" option that only traced Default would quietly miss most of a
+        /// room. Defined this way the three player-facing sets partition cleanly: Avatars and World are
+        /// disjoint and together they are exactly World + Avatars, which LayerSetsPartitionCleanly pins.
+        /// </summary>
+        public static LayerMask WorldLayers => EverythingButInterfaceLayers.value & ~AvatarLayers.value;
+
+        /// <summary>
         /// Everything except the interface layers. A menu panel in the acceleration structure occludes the
         /// room behind a surface the player reads as an overlay - the same trap the global illumination
         /// trace hit, and the reason neither of them ever means literally everything.
@@ -473,31 +484,37 @@ namespace Basis.Rendering.RTAO
 
         private void RemoveProxy(EntityId id, ProxyEntry entry)
         {
-            if (entry.handles != null)
-            {
-                for (int i = 0; i < entry.handles.Length; i++)
-                {
-                    if (entry.handles[i] >= 0)
-                        accelStruct.RemoveInstance(entry.handles[i]);
-                    entry.handles[i] = -1;
-                }
-            }
+            ReleaseProxyHandles(entry);
             proxies.Remove(id);
             structureDirty = true;
+        }
+
+        /// <summary>
+        /// Hands one avatar's limb instances back, if there is still a structure to hand them back to.
+        ///
+        /// The null check is the teardown path. Dispose releases the structure, and releasing the proxies
+        /// after that used to dereference it - which nothing hit while the shipped default put avatars in
+        /// as re-baked meshes, because then this dictionary was always empty. Nothing leaks either way:
+        /// disposing the structure invalidates every handle in it at once.
+        /// </summary>
+        private void ReleaseProxyHandles(ProxyEntry entry)
+        {
+            if (entry.handles == null)
+                return;
+
+            for (int i = 0; i < entry.handles.Length; i++)
+            {
+                if (entry.handles[i] >= 0 && accelStruct != null)
+                    accelStruct.RemoveInstance(entry.handles[i]);
+                entry.handles[i] = -1;
+            }
         }
 
         private void ClearProxies()
         {
             foreach (KeyValuePair<EntityId, ProxyEntry> pair in proxies)
-            {
-                if (pair.Value.handles == null)
-                    continue;
-                for (int i = 0; i < pair.Value.handles.Length; i++)
-                {
-                    if (pair.Value.handles[i] >= 0)
-                        accelStruct.RemoveInstance(pair.Value.handles[i]);
-                }
-            }
+                ReleaseProxyHandles(pair.Value);
+
             proxies.Clear();
             proxyRemoval.Clear();
             structureDirty = true;
@@ -713,8 +730,11 @@ namespace Basis.Rendering.RTAO
 
         public void Dispose()
         {
-            // Nothing here owns a mesh any more: an entry registers the renderer's own shared mesh and the
-            // proxies share one capsule, so a torn down scene has nothing of its own left to destroy.
+            // Proxies first, while there is still a structure to release them from. Nothing here owns a
+            // mesh - an entry registers the renderer's own shared mesh and the proxies share one capsule -
+            // so once the instances are back there is nothing else for a torn down scene to destroy.
+            ClearProxies();
+
             if (accelStruct != null)
             {
                 accelStruct.Dispose();
@@ -722,7 +742,6 @@ namespace Basis.Rendering.RTAO
             }
             needsReset = false;
             entries.Clear();
-            ClearProxies();
             pendingRemoval.Clear();
         }
     }

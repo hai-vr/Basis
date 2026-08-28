@@ -375,6 +375,10 @@ namespace Basis.BasisUI
         /// is the lever for a world where that is too much.
         /// </summary>
         public static BasisSettingsBinding<bool> GlobalIlluminationMirrors = new("globalilluminationmirrors", new BasisPlatformDefault<bool>(true));
+        // Which layers the ray traced trace walks. World And Avatars is what it walked before this was a
+        // choice; narrowing it to Avatars is the cheap option, because the acceleration structure then
+        // holds a handful of capsules instead of the whole room.
+        public static BasisSettingsBinding<string> GlobalIlluminationLayers = new("globalilluminationlayers", new BasisPlatformDefault<string>("World And Avatars"));
 
         // Ray traced ambient occlusion. Off by default because it is a real slice of the frame and it
         // needs a ray tracing GPU for the traced path.
@@ -393,6 +397,11 @@ namespace Basis.BasisUI
         public const float RTAO_RADIUS_MAX = 0.1f;
         // Avatars are skinned meshes, so this decides whether people in the room cast contact shadows.
         // Dynamic re-bakes them on a per-frame budget, which is CPU the traced path does not otherwise spend.
+        // Avatars only by default: this effect was built for the people in the room, and the wider sets pay
+        // for acceleration structure rebuilds over the whole world to darken corners a screen space
+        // estimator already handles.
+        public static BasisSettingsBinding<string> RayTracedAmbientOcclusionLayers = new("raytracedambientocclusionlayers", new BasisPlatformDefault<string>("Avatars"));
+
         public static BasisSettingsBinding<string> RayTracedAmbientOcclusionSkinnedMeshes = new("raytracedambientocclusionskinnedmeshes", new BasisPlatformDefault<string>("Proxy"));
         // URP multiplies the whole indirect term by the occlusion but only lerps the direct term toward it by
         // this much, so in a scene carried by a bright directional light the effect reads far weaker than the
@@ -2273,12 +2282,14 @@ namespace Basis.BasisUI
             GlobalIlluminationEmitterIntensity.LoadBindingValue();
             GlobalIlluminationReflectionProbes.LoadBindingValue();
             GlobalIlluminationMirrors.LoadBindingValue();
+            GlobalIlluminationLayers.LoadBindingValue();
 
             UseRayTracedAmbientOcclusion.LoadBindingValue();
             RayTracedAmbientOcclusionMode.LoadBindingValue();
             RayTracedAmbientOcclusionQuality.LoadBindingValue();
             RayTracedAmbientOcclusionIntensity.LoadBindingValue();
             RayTracedAmbientOcclusionRadius.LoadBindingValue();
+            RayTracedAmbientOcclusionLayers.LoadBindingValue();
             RayTracedAmbientOcclusionSkinnedMeshes.LoadBindingValue();
             RayTracedAmbientOcclusionDirectStrength.LoadBindingValue();
             RayTracedAmbientOcclusionDenoise.LoadBindingValue();

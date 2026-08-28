@@ -128,7 +128,7 @@ MonoBehaviour:
     requireShadowCasting: 1
     rescanInterval: 2
     skinnedMode: 3
-  tracingMode: 0
+  tracingMode: 3
   applyMode: 0
   debugStage: 0
   debugView: 0

@@ -1793,6 +1793,15 @@ namespace Basis.BasisUI
                 dropdownGiMode.AssignBinding(BasisSettingsDefaults.GlobalIlluminationMode);
                 SettingsProviderBottleneckHints.Mark(dropdownGiMode, BasisFrameCostSide.Gpu);
 
+                PanelDropdown dropdownGiLayers = PanelDropdown.CreateNewEntry(giGroup.ContentParent);
+                dropdownGiLayers.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.layers"));
+                dropdownGiLayers.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.layers.tooltip"));
+                dropdownGiLayers.AssignLocalizedEntries(
+                    new List<string> { "Avatars", "World", "World And Avatars" },
+                    new List<string> { "settings.graphics.gi.layers.avatars", "settings.graphics.gi.layers.world", "settings.graphics.gi.layers.worldAndAvatars" });
+                dropdownGiLayers.AssignBinding(BasisSettingsDefaults.GlobalIlluminationLayers);
+                SettingsProviderBottleneckHints.Mark(dropdownGiLayers, BasisFrameCostSide.Gpu);
+
                 PanelDropdown dropdownGiSkinned = PanelDropdown.CreateNewEntry(giGroup.ContentParent);
                 dropdownGiSkinned.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.skinned"));
                 dropdownGiSkinned.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.skinned.tooltip"));
@@ -1929,6 +1938,10 @@ namespace Basis.BasisUI
                 {
                     bool rayTraced = val && dropdownGiMode.Value == "Ray Traced";
                     dropdownGiMode.Descriptor.SetActive(val);
+                    // Both of these describe what goes into the acceleration structure, which only the ray
+                    // traced path builds. On screen space the trace walks the depth buffer, so neither has
+                    // anything to act on and showing them promises a control that does nothing.
+                    dropdownGiLayers.Descriptor.SetActive(rayTraced);
                     dropdownGiSkinned.Descriptor.SetActive(rayTraced);
                     dropdownGiQuality.Descriptor.SetActive(val);
                     dropdownGiResolution.Descriptor.SetActive(val);
@@ -2072,6 +2085,15 @@ namespace Basis.BasisUI
                 toggleRtaoOtherCameras.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.otherCameras.tooltip"));
                 SettingsProviderBottleneckHints.Mark(toggleRtaoOtherCameras, BasisFrameCostSide.Gpu);
 
+                PanelDropdown dropdownRtaoLayers = PanelDropdown.CreateNewEntry(rtaoGroup.ContentParent);
+                dropdownRtaoLayers.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.rtao.layers"));
+                dropdownRtaoLayers.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.layers.tooltip"));
+                dropdownRtaoLayers.AssignLocalizedEntries(
+                    new List<string> { "Avatars", "World", "World And Avatars" },
+                    new List<string> { "settings.graphics.rtao.layers.avatars", "settings.graphics.rtao.layers.world", "settings.graphics.rtao.layers.worldAndAvatars" });
+                dropdownRtaoLayers.AssignBinding(BasisSettingsDefaults.RayTracedAmbientOcclusionLayers);
+                SettingsProviderBottleneckHints.Mark(dropdownRtaoLayers, BasisFrameCostSide.Gpu);
+
                 PanelDropdown dropdownRtaoSkinned = PanelDropdown.CreateNewEntry(rtaoGroup.ContentParent);
                 dropdownRtaoSkinned.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.rtao.skinned"));
                 dropdownRtaoSkinned.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.skinned.tooltip"));
@@ -2096,6 +2118,11 @@ namespace Basis.BasisUI
                     bool throughLighting = val && dropdownRtaoApply.Value != "Final Image";
                     sliderRtaoDirect.Descriptor.SetActive(throughLighting);
                     toggleRtaoOtherCameras.Descriptor.SetActive(val);
+                    // Both describe the acceleration structure, which only the traced path builds. On the
+                    // screen space estimator there is no structure for either to fill or filter, and on a
+                    // GPU that cannot trace at all the mode row is hidden too, so tracesGeometry - not the
+                    // dropdown alone - is what decides these.
+                    dropdownRtaoLayers.Descriptor.SetActive(tracesGeometry);
                     dropdownRtaoSkinned.Descriptor.SetActive(tracesGeometry);
                 }
 
@@ -2912,6 +2939,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MotionBlurMode.ResetToDefault();
             BasisSettingsDefaults.UseGlobalIllumination.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationMode.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationLayers.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationSkinnedMeshes.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationQuality.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationResolution.ResetToDefault();
@@ -2933,6 +2961,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.RayTracedAmbientOcclusionQuality.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionIntensity.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionRadius.ResetToDefault();
+            BasisSettingsDefaults.RayTracedAmbientOcclusionLayers.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionSkinnedMeshes.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionDirectStrength.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionDenoise.ResetToDefault();
