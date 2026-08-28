@@ -59,6 +59,15 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
+        /// Writes this control's default straight in, with no window and no question. The gesture on
+        /// a single control asks first; a section reset has already asked once for the whole section,
+        /// so its rows are written rather than each opening a confirmation of its own.
+        /// </summary>
+        public virtual void ApplyResetToDefault()
+        {
+        }
+
+        /// <summary>
         /// Describes how this control's bound setting currently differs from its default, for the
         /// panel Reset dialogue's list of what a page reset would change. False when the control
         /// has no settings binding or its value already is the default.

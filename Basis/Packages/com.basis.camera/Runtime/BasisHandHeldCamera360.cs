@@ -190,6 +190,7 @@ public partial class BasisHandHeldCamera
     private async void Process360AndSave(byte[] raw, int width, int height, bool exr, BasisHandHeldCameraPhotoMetadata.PhotoMetadata photoMetadata, int perEyeWidth, int fullHeight, bool stereo, float headingDegrees, float exposure, float contrast, float saturation)
     {
         byte[] imageData;
+        Texture2D printSource = null;
 
         if (exr)
         {
@@ -206,7 +207,9 @@ public partial class BasisHandHeldCamera
             tex.LoadRawTextureData(rgba);
             tex.Apply(false);
             imageData = tex.EncodeToPNG();
-            Destroy(tex);
+            // Held past the encode rather than freed with it: an equirect is wider than anything
+            // the pickup service imports, so the print copy has to come off these pixels.
+            printSource = tex;
         }
 
         if (photoMetadata != null)
@@ -227,6 +230,9 @@ public partial class BasisHandHeldCamera
         string filename = $"Screenshot360_{layout}_{timestamp}_{width}x{height}.{extension}";
         string path = GetSavePath(filename);
 
+        BasisCameraPrintResize.PrintCopy printCopy = BuildPrintCopy(printSource, imageData.LongLength);
+        if (printSource != null) Destroy(printSource);
+
         // Same reasoning as the flat save path: this is async void, so a write that fails has to
         // be captured here or it never reaches the user.
         try
@@ -240,7 +246,7 @@ public partial class BasisHandHeldCamera
         }
 
         RecordPhotoSaved(path);
-        PrintPhotoIfEnabled(path);
+        PrintPhotoIfEnabled(path, printCopy);
     }
 
     private static byte[] TonemapEquirectToRgba32(byte[] linearFloatRgba, int width, int height, float exposure, float contrast, float saturation)

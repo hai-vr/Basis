@@ -397,6 +397,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         SetAudioListener(false);
         DespawnFollowPip();
         DestroyDetachedGizmo();
+        DespawnPuckPreview();
 
         DebugGizmos.Shutdown();
 
@@ -1562,6 +1563,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         TickFocusRack();
         UpdateAutoFocus();
         UpdateFollowPip();
+        // After the marker, so the puck and the screen parked past it are placed from one pose.
+        UpdatePuckPreview();
         DebugGizmos.Tick(this);
 
         // Send PIP camera position to network
@@ -1588,6 +1591,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         int savedHeight = screenshot != null ? screenshot.height : captureHeight;
         string filename = $"Screenshot_{timestamp}_{savedWidth}x{savedHeight}.{extension}";
         string path = GetSavePath(filename);
+        BasisCameraPrintResize.PrintCopy printCopy = default;
 
         // async void: anything thrown out of here surfaces as an unhandled exception rather than
         // as something the shooter can act on, so encode-and-write is captured and reported on
@@ -1601,6 +1605,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             if (photoMetadata != null)
                 imageData = BasisHandHeldCameraPhotoMetadata.Embed(imageData, captureFormat, photoMetadata, screenshot.width, screenshot.height);
 
+            // Before the write is awaited, while the readback texture is still the one that was
+            // just shot: a photo larger than the pickup service imports is fitted from those
+            // pixels rather than by reading the file back off disk to decode it again.
+            printCopy = BuildPrintCopy(screenshot, imageData.LongLength);
+
             await File.WriteAllBytesAsync(path, imageData);
         }
         catch (Exception e)
@@ -1610,7 +1619,35 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         }
 
         RecordPhotoSaved(path);
-        PrintPhotoIfEnabled(path);
+        PrintPhotoIfEnabled(path, printCopy);
+    }
+
+    /// <summary>
+    /// Fits a shot to the pickup service's import bounds while its pixels are still in hand, or
+    /// returns nothing when the shot already fits — which is every photo below the two largest
+    /// resolution presets, and the case that still spawns straight from the file on disk.
+    ///
+    /// <para>Caught on its own rather than under the save's handler: a resize that fails costs a
+    /// card, and must never be the reason a photograph that encoded perfectly well is reported
+    /// to the shooter as unsaved. Nothing produced here means the file is offered to the service
+    /// as it always was, rejection popup included.</para>
+    /// </summary>
+    private BasisCameraPrintResize.PrintCopy BuildPrintCopy(Texture2D picture, long encodedBytes)
+    {
+        if (!printPhotoEnabled) return default;
+        if (captureFormat == "EXR") return default;
+
+        try
+        {
+            return BasisCameraPrintResize.Build(picture, encodedBytes);
+        }
+        catch (Exception e)
+        {
+            BasisDebug.LogWarning(
+                $"Print Photo could not resize the shot to fit the image pickup limits: {e.GetType().Name}: {e.Message}",
+                BasisDebug.LogTag.Camera);
+            return default;
+        }
     }
 
     /// <summary>
@@ -1618,8 +1655,12 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// of the player as the same shareable, replicated card a drag-and-dropped image file makes.
     /// PNG only: EXR is a float format the pickup pipeline cannot decode, so those saves stay on
     /// disk rather than raising a rejection popup for every shot.
+    ///
+    /// <para>A shot past what the service imports is shared as the resized copy
+    /// <see cref="BuildPrintCopy"/> made of it, and the shooter is told once that it happened.
+    /// The file on disk is untouched either way — it is still the full-size photograph.</para>
     /// </summary>
-    private void PrintPhotoIfEnabled(string path)
+    private void PrintPhotoIfEnabled(string path, BasisCameraPrintResize.PrintCopy printCopy)
     {
         if (!printPhotoEnabled) return;
         if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
@@ -1627,7 +1668,57 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             BasisDebug.Log("Print Photo skipped: only PNG photos can become image pickups.", BasisDebug.LogTag.Camera);
             return;
         }
-        BasisImagePickupManager.SpawnFromFile(path);
+
+        if (!printCopy.Exists)
+        {
+            BasisImagePickupManager.SpawnFromFile(path);
+            return;
+        }
+
+        // False means the service refused the spawn for a reason of its own — an admin lock, or
+        // the per-player image limit — and has already told the shooter why. A second popup
+        // about a resize that no longer matters would only bury that one.
+        if (!BasisImagePickupManager.SpawnFromImageData(printCopy.Png, Path.GetFileName(path))) return;
+
+        BasisDebug.Log(
+            $"Print Photo resized {printCopy.SourceWidth}x{printCopy.SourceHeight} to "
+                + $"{printCopy.Width}x{printCopy.Height} to fit the image pickup limits.",
+            BasisDebug.LogTag.Camera);
+        ShowPrintResizedNotice(printCopy);
+    }
+
+    /// <summary>
+    /// The capture size the resize notice was last shown for. A shooter working at 8K takes a
+    /// roll of them, and a modal dialogue between every shutter press would be worse than the
+    /// rejection this replaced; the notice is worth showing once per size, not once per photo.
+    /// </summary>
+    private Vector2Int lastResizeNoticeFor;
+
+    /// <summary>
+    /// Tells the shooter that the card in front of them is a smaller copy, and that the photo
+    /// they shot is on disk at full size. Diverted into the notification centre when the user has
+    /// asked for popups to go there, like every other non-blocking notice.
+    /// </summary>
+    private void ShowPrintResizedNotice(BasisCameraPrintResize.PrintCopy printCopy)
+    {
+        var shotAt = new Vector2Int(printCopy.SourceWidth, printCopy.SourceHeight);
+        if (lastResizeNoticeFor == shotAt) return;
+        lastResizeNoticeFor = shotAt;
+
+        string title = BasisLocalization.Get("camera.printPhoto.resized.title");
+        string body = BasisLocalization.Get("camera.printPhoto.resized.description",
+            printCopy.SourceWidth, printCopy.SourceHeight, printCopy.Width, printCopy.Height);
+        string accept = BasisLocalization.Get("ui.ok");
+
+        // Unsolicited, so under do-not-disturb this belongs in the notification bell rather than
+        // in front of someone mid-roll — CreateNew makes that call itself. Only the branch that
+        // actually draws a panel needs a menu, and a null Instance just means it is closed.
+        if (!BasisNotificationCenter.RouteToNotifications && !BasisMainMenu.Instance)
+        {
+            BasisMainMenu.Open();
+        }
+
+        BasisMenuDialoguePanel.CreateNew(title, body, accept, (Action<bool>)null, true, BasisPanelSeverity.Calm, BasisNotificationCategory.Content);
     }
 
     /// <summary>Builds a platform-appropriate save path for a screenshot filename.</summary>
@@ -1737,13 +1828,15 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
     /// <summary>
     /// True while something other than the prop's own viewfinder is showing this camera's feed:
-    /// the settings panel's preview, the desktop output, or a live video stream. Each draws the
-    /// render texture somewhere the prop's own visibility says
+    /// the settings panel's preview, the look-at preview a detached camera turned on you puts up,
+    /// the desktop output, or a live video stream. Each draws the render texture somewhere the
+    /// prop's own visibility says
     /// nothing about, so each has to keep the camera rendering on its own account — otherwise it
     /// freezes on whatever frame the prop was last on screen for.
     /// </summary>
     private bool HasOffPropFeedConsumer =>
-        IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || panelPreviewActive || IsDirectToScreenPresenting;
+        IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || panelPreviewActive
+        || IsPuckPreviewVisible || IsDirectToScreenPresenting;
 
     /// <summary>
     /// Told by the settings panel while it is open on this camera. Its preview is a second window

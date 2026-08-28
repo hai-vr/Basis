@@ -18,49 +18,87 @@ using CameraSettings = BasisHandHeldCameraUI.CameraSettings;
 /// "f/2.8", not "1". The tables live on <see cref="BasisHandHeldCameraMetaData"/>, which is a plain
 /// serializable class with readonly defaults, so passing null is only a fallback for a camera that
 /// has not built one yet rather than the normal case.</para>
+///
+/// <para>Rows carrying a value the camera's mode did not put there are written in blue. The mode
+/// dropdown can only say "Custom" — it is one bit, and by the time it says that the one thing worth
+/// knowing is <em>which</em> of fifty values moved. That is the question this page exists for, and
+/// the colour is the answer to it.</para>
 /// </summary>
 public static class BasisCameraSettingsReadout
 {
     private static readonly StringBuilder Builder = new StringBuilder(2048);
 
     /// <summary>
+    /// The changed-row colour: the panel's accent, lightened until it reads as body text on the
+    /// card's own background rather than as a pressed control.
+    /// </summary>
+    private const string ChangedOpen = "<color=#5FA8FF>";
+
+    private const string ChangedClose = "</color>";
+
+    /// <summary>
+    /// What the rows are being measured against for this pass. Held beside the builder rather than
+    /// threaded through every row, which the builder itself already is.
+    /// </summary>
+    private static BasisCameraPresetDiff Changes;
+
+    /// <summary>
     /// The whole file as text. <paramref name="pinSpace"/> is passed alongside because it is
     /// placement rather than
     /// settings — <see cref="CameraSettings"/> deliberately does not carry them — and leaving them
     /// out would make the readout silent about the two things that decide where the camera goes.
+    ///
+    /// <para><paramref name="changes"/> is what the camera's mode wanted, from
+    /// <c>BasisHandHeldCamera.CompareToMode</c>. Left out, nothing is coloured and the page reads
+    /// as it always has.</para>
     /// </summary>
     public static string Build(
         CameraSettings settings,
         int pinSpace,
-        BasisHandHeldCameraMetaData metaData)
+        BasisHandHeldCameraMetaData metaData,
+        BasisCameraPresetDiff changes = default)
     {
         if (settings == null) return string.Empty;
 
         Builder.Clear();
+        Changes = changes;
+
+        // Named, because the dropdown above is showing Custom by now and cannot say it: the colour
+        // is only meaningful once the reader knows which mode the rows are being held against.
+        if (changes.HasChanges)
+        {
+            Builder.Append(ChangedOpen)
+                .Append(BasisLocalization.Get(
+                    "camera.readout.changedFrom",
+                    BasisLocalization.Get(BasisCameraModes.Get(changes.Mode).TitleKey)))
+                .Append(ChangedClose)
+                .Append('\n');
+        }
 
         Section("camera.placement");
         Row("camera.anchor", PinSpaceLabel(pinSpace));
         Row("camera.anchorFollowsBody", OnOff(settings.anchorFollowsBody));
 
         Section("camera.lens");
-        Row("camera.fieldOfView", Number(settings.fov));
+        Row("camera.fieldOfView", Number(settings.fov), BasisCameraPresetField.FieldOfView);
         Row("camera.sensorSize", $"{Number(settings.sensorSizeX)} x {Number(settings.sensorSizeY)} mm");
         Row("camera.aperture", Preset(metaData?.apertures, settings.apertureIndex));
         Row("camera.shutterSpeed", Preset(metaData?.shutterSpeeds, settings.shutterSpeedIndex));
         Row("camera.iso", Preset(metaData?.isoValues, settings.isoIndex));
 
         Section("camera.depthOfField");
-        Row("camera.depthOfField", OnOff(settings.depthIsActive));
-        Row("camera.mode", DepthModeLabel(settings.dofMode));
-        Row("camera.aperture", "f/" + Number(settings.depthAperture));
-        Row("camera.focalLength", Number(settings.dofFocalLength) + " mm");
+        Row("camera.depthOfField", OnOff(settings.depthIsActive), BasisCameraPresetField.DepthOfField);
+        Row("camera.mode", DepthModeLabel(settings.dofMode), BasisCameraPresetField.DepthStyle);
+        Row("camera.aperture", "f/" + Number(settings.depthAperture), BasisCameraPresetField.DepthAperture);
+        Row("camera.focalLength", Number(settings.dofFocalLength) + " mm", BasisCameraPresetField.FocalLength);
         Row("camera.bokehBlades", settings.dofBladeCount.ToString());
         Row("camera.focusMode", BasisLocalization.Get(settings.useManualFocus ? "camera.focusManual" : "camera.focusAuto"));
         Row("camera.focusDistance", Number(settings.depthFocusDistance));
 
         Section("camera.body");
         Row("camera.body.kind", BasisLocalization.Get(
-            BasisCameraBodies.TitleKey(BasisCameraBodies.Sanitize(settings.cameraBody))));
+            BasisCameraBodies.TitleKey(BasisCameraBodies.Sanitize(settings.cameraBody))),
+            BasisCameraPresetField.Body);
 
         BasisCameraBodyTraits body = BasisCameraBodies.Get(BasisCameraBodies.Sanitize(settings.cameraBody));
         if (body.HasFlash) Row("camera.body.flash", OnOff(settings.flashEnabled));
@@ -68,35 +106,35 @@ public static class BasisCameraSettingsReadout
         Section("camera.exposureColour");
         Row("camera.exposure", ExposureLabel(settings.exposureIndex));
         Row("camera.exposureOnCamera", OnOff(settings.showExposureOnCamera));
-        Row("camera.contrast", Number(settings.contrast));
-        Row("camera.saturation", Number(settings.saturation));
+        Row("camera.contrast", Number(settings.contrast), BasisCameraPresetField.Contrast);
+        Row("camera.saturation", Number(settings.saturation), BasisCameraPresetField.Saturation);
         Row("camera.hueShift", Number(settings.hueShift));
-        Row("camera.whiteBalanceTemp", Number(settings.whiteBalanceTemperature));
-        Row("camera.whiteBalanceTint", Number(settings.whiteBalanceTint));
-        Row("camera.splitToning.shadows", Swatch(settings.splitToningShadows));
-        Row("camera.splitToning.highlights", Swatch(settings.splitToningHighlights));
-        Row("camera.splitToning.balance", Number(settings.splitToningBalance));
-        Row("camera.filmLift", Number(settings.filmLift));
-        Row("camera.tonemapping", TonemappingLabel(settings.captureTonemapping));
+        Row("camera.whiteBalanceTemp", Number(settings.whiteBalanceTemperature), BasisCameraPresetField.WhiteBalanceTemperature);
+        Row("camera.whiteBalanceTint", Number(settings.whiteBalanceTint), BasisCameraPresetField.WhiteBalanceTint);
+        Row("camera.splitToning.shadows", Swatch(settings.splitToningShadows), BasisCameraPresetField.SplitShadows);
+        Row("camera.splitToning.highlights", Swatch(settings.splitToningHighlights), BasisCameraPresetField.SplitHighlights);
+        Row("camera.splitToning.balance", Number(settings.splitToningBalance), BasisCameraPresetField.SplitBalance);
+        Row("camera.filmLift", Number(settings.filmLift), BasisCameraPresetField.FilmLift);
+        Row("camera.tonemapping", TonemappingLabel(settings.captureTonemapping), BasisCameraPresetField.Tonemapping);
 
         Section("camera.effects");
-        Row("camera.bloomIntensity", Number(settings.bloomIntensity));
-        Row("camera.bloomThreshold", Number(settings.bloomThreshold));
+        Row("camera.bloomIntensity", Number(settings.bloomIntensity), BasisCameraPresetField.BloomIntensity);
+        Row("camera.bloomThreshold", Number(settings.bloomThreshold), BasisCameraPresetField.BloomThreshold);
         Row("camera.bloomScatter", Number(settings.bloomScatter));
-        Row("camera.vignette", Number(settings.vignette));
-        Row("camera.vignetteSmoothness", Number(settings.vignetteSmoothness));
-        Row("camera.chromaticAberration", Number(settings.chromaticAberration));
-        Row("camera.filmGrain", Number(settings.filmGrain));
-        Row("camera.filmGrain.type", FilmGrainTypeLabel(settings.filmGrainType));
-        Row("camera.filmGrain.response", Number(settings.filmGrainResponse));
-        Row("camera.bloomTint", Swatch(settings.bloomTint));
-        Row("camera.vignetteColour", Swatch(settings.vignetteColour));
-        Row("camera.vignetteRounded", OnOff(settings.vignetteRounded));
-        Row("camera.lensDistortion", Number(settings.lensDistortion));
-        Row("camera.lensDistortionScale", Number(settings.lensDistortionScale));
+        Row("camera.vignette", Number(settings.vignette), BasisCameraPresetField.Vignette);
+        Row("camera.vignetteSmoothness", Number(settings.vignetteSmoothness), BasisCameraPresetField.VignetteSmoothness);
+        Row("camera.chromaticAberration", Number(settings.chromaticAberration), BasisCameraPresetField.ChromaticAberration);
+        Row("camera.filmGrain", Number(settings.filmGrain), BasisCameraPresetField.FilmGrain);
+        Row("camera.filmGrain.type", FilmGrainTypeLabel(settings.filmGrainType), BasisCameraPresetField.GrainType);
+        Row("camera.filmGrain.response", Number(settings.filmGrainResponse), BasisCameraPresetField.GrainResponse);
+        Row("camera.bloomTint", Swatch(settings.bloomTint), BasisCameraPresetField.BloomTint);
+        Row("camera.vignetteColour", Swatch(settings.vignetteColour), BasisCameraPresetField.VignetteColour);
+        Row("camera.vignetteRounded", OnOff(settings.vignetteRounded), BasisCameraPresetField.VignetteRounded);
+        Row("camera.lensDistortion", Number(settings.lensDistortion), BasisCameraPresetField.LensDistortion);
+        Row("camera.lensDistortionScale", Number(settings.lensDistortionScale), BasisCameraPresetField.LensDistortionScale);
         Row("camera.panini", Number(settings.paniniDistance));
         Row("camera.paniniCrop", Number(settings.paniniCropToFit));
-        Row("camera.motionBlur", Number(settings.motionBlurIntensity));
+        Row("camera.motionBlur", Number(settings.motionBlurIntensity), BasisCameraPresetField.MotionBlur);
         Row("camera.motionBlurClamp", Number(settings.motionBlurClamp));
         Row("camera.motionBlurQuality", MotionBlurQualityLabel(settings.motionBlurQuality));
         Row("camera.motionBlurMode", MotionBlurModeLabel(settings.motionBlurMode));
@@ -108,7 +146,7 @@ public static class BasisCameraSettingsReadout
         Row("camera.photoResolution", ResolutionLabel(metaData, settings.resolutionIndex));
         Row("camera.photoFormat", Preset(metaData?.formats, settings.formatIndex));
         Row("camera.msaa", settings.msaaSamples + "x");
-        Row("camera.n360Capture", OnOff(settings.capture360));
+        Row("camera.n360Capture", OnOff(settings.capture360), BasisCameraPresetField.Capture360);
         Row("camera.printPhoto", OnOff(settings.printPhoto));
         Row("camera.flySpeed", Number(settings.flySpeed) + " m/s");
         Row("camera.flyClimbSpeed", Number(settings.flyClimbSpeed) + " m/s");
@@ -117,8 +155,8 @@ public static class BasisCameraSettingsReadout
         Row("camera.flyMouseSensitivity", Number(settings.flyMouseSensitivity));
         Row("camera.flyMomentum", OnOff(settings.flyMomentum));
         Row("camera.flyOnMenu", OnOff(settings.showFlyOnMainMenu));
-        Row("camera.autoLevel", OnOff(settings.useAutoLeveling));
-        Row("camera.vrStabilization", OnOff(settings.useVRHandheldSmoothing));
+        Row("camera.autoLevel", OnOff(settings.useAutoLeveling), BasisCameraPresetField.AutoLevel);
+        Row("camera.vrStabilization", OnOff(settings.useVRHandheldSmoothing), BasisCameraPresetField.VrStabilisation);
         Row("camera.smoothDrag", OnOff(settings.useSmoothDrag));
         Row("camera.smoothDrag.position", Number(settings.smoothDragPositionDamping) + " s");
         Row("camera.smoothDrag.rotation", Number(settings.smoothDragRotationDamping) + " s");
@@ -130,7 +168,11 @@ public static class BasisCameraSettingsReadout
         Row("camera.streamFrameRate", Number(settings.streamFrameRate) + " Hz");
         Row("camera.streamQuality", settings.streamQuality.ToString());
         Row("camera.streamPort", settings.streamPort.ToString());
-        Row("camera.senderName", settings.streamSenderName);
+
+        // The one value on the page somebody typed. Everything else here is a number or a label the
+        // panel wrote itself, and the card parses tags now — so a sender name with a bracket in it
+        // would eat the rest of the readout as markup.
+        Row("camera.senderName", "<noparse>" + settings.streamSenderName + "</noparse>");
 
         Section("camera.gif");
         Row("camera.gif.length", Number(settings.gifDurationSeconds) + " s");
@@ -153,7 +195,7 @@ public static class BasisCameraSettingsReadout
         Section("camera.subject");
         Row("camera.modifier.subject",
             BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.subject.modifier)));
-        Row("camera.followPlayspace", OnOff(stack.subject.anchorToBody));
+        Row("camera.followPlayspace", OnOff(stack.subject.anchorToBody), BasisCameraPresetField.AnchorToBody);
         Row("camera.aimPoint", BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.subject.aimPoint)));
         Row("camera.lookAtHeightY", Number(stack.subject.aimHeightOffset));
         Row("camera.subjectRadius", Number(stack.subject.framingRadius));
@@ -162,15 +204,19 @@ public static class BasisCameraSettingsReadout
 
         Section("camera.modifiers");
         Row("camera.modifier.position",
-            BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.positionModifier)));
+            BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.positionModifier)),
+            BasisCameraPresetField.PositionModifier);
         Row("camera.modifier.rotation",
-            BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.rotationModifier)));
-        Row("camera.modifier.effects", EffectList(stack));
-        Row("camera.followOffset", Vector(stack.follow.positionOffset));
+            BasisLocalization.Get(Basis.Cinematics.BasisCameraModifiers.NameKey(stack.rotationModifier)),
+            BasisCameraPresetField.RotationModifier);
+        Row("camera.modifier.effects", EffectList(stack), BasisCameraPresetField.Effects);
+        Row("camera.followOffset", Vector(stack.follow.positionOffset), BasisCameraPresetField.FollowOffset);
         Row("camera.lateralTrackingX", Number(stack.follow.lateralTracking));
         Row("camera.followRotationOffset", Vector(stack.lookAt.rotationOffset));
-        Row("camera.autoFocusSubject", OnOff(settings.autoFocusFollowSubject));
+        Row("camera.autoFocusSubject", OnOff(settings.autoFocusFollowSubject), BasisCameraPresetField.AutoFocusSubject);
         Row("camera.detachedMarker", DetachedMarkerLabel(settings.detachedMarker));
+        Row("camera.detachedMarker.size", Number(settings.detachedMarkerScale * 100f) + "%");
+        Row("camera.puckPreview", OnOff(settings.puckLookAtPreview));
 
         Section("camera.background");
         Row("camera.backgroundMode", BackgroundModeLabel(settings.backgroundMode));
@@ -193,6 +239,25 @@ public static class BasisCameraSettingsReadout
     // indent made of tabs is a different width in every panel it is read in.
     private static void Row(string key, string value) =>
         Builder.Append("  ").Append(BasisLocalization.Get(key)).Append(": ").Append(value).Append('\n');
+
+    /// <summary>
+    /// A row for a value the camera's mode owns, coloured where the camera is no longer holding it.
+    ///
+    /// <para>The label is coloured along with the value. A blue number alone reads as a number
+    /// worth noticing; the whole row reading blue is what makes a page of fifty scannable at a
+    /// glance, which is the only way this is quicker than reopening the tab it lives on.</para>
+    /// </summary>
+    private static void Row(string key, string value, BasisCameraPresetField field)
+    {
+        if (!Changes.Differs(field))
+        {
+            Row(key, value);
+            return;
+        }
+
+        Builder.Append("  ").Append(ChangedOpen).Append(BasisLocalization.Get(key)).Append(": ")
+            .Append(value).Append(ChangedClose).Append('\n');
+    }
 
     /// <summary>Trailing zeros are noise on a readout — 40 and 2.8 rather than 40.00 and 2.80.</summary>
     private static string Number(float value) => value.ToString("0.###");

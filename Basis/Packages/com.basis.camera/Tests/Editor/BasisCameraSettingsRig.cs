@@ -195,6 +195,8 @@ namespace Basis.Tests.Camera
                 autoFocusFollowSubject = true,
                 modifiers = DistinctiveModifiers(),
                 detachedMarker = (int)BasisCameraDetachedMarker.Gizmo,
+                detachedMarkerScale = 1.75f,
+                puckLookAtPreview = true,
                 anchorFollowsBody = true,
                 capture360 = true,
                 useAutoLeveling = true,
@@ -297,6 +299,9 @@ namespace Basis.Tests.Camera
 
             stack.matchSubject.rotationOffset = new Vector3(-3f, 8f, 1f);
             stack.matchSubject.damping = new Vector3(0.45f, 0.5f, 0.9f);
+
+            stack.trackAim.rotationOffset = new Vector3(6f, -14f, 3f);
+            stack.trackAim.damping = new Vector3(0.18f, 0.28f, 0.38f);
 
             stack.lookAhead.time = 0.4f;
             stack.lookAhead.limit = 3.5f;

@@ -14,8 +14,9 @@ public partial class BasisHandHeldCameraUI
         /// v2 added the auto-follow config, capture toggles and MSAA. v9 replaced the auto-follow
         /// block and the shot list with the modifier stack. v10 added the camera body. v11 added
         /// the film grading — grain shape, halation tint, vignette colour, split toning and lift.
+        /// v12 added the Aim Along Track block.
         /// </summary>
-        public const int CurrentVersion = 11;
+        public const int CurrentVersion = 12;
         public int settingsVersion = CurrentVersion;
 
         public CameraSettings()
@@ -38,6 +39,10 @@ public partial class BasisHandHeldCameraUI
 
             modifiers = new BasisCameraModifierStack();
             detachedMarker = (int)BasisCameraDetachedMarker.Puck;
+            // Defaulted here rather than migrated: a file written before the marker could be
+            // resized has no field to read, and JsonUtility leaves it holding this rather than
+            // zeroing it — which is the difference between the shipped marker and no marker at all.
+            detachedMarkerScale = 1f;
 
             dofMode = 2;          // Bokeh, matching the authored profile
             dofFocalLength = 50f;
@@ -340,6 +345,21 @@ public partial class BasisHandHeldCameraUI
         /// with nowhere to be saved, so it reset to Puck every session.
         /// </summary>
         public int detachedMarker;
+
+        /// <summary>
+        /// How big that marker is drawn, as a ratio of its natural size — the two-hand resize on
+        /// the puck and the panel's own slider both write here. Defaulted in the constructor rather
+        /// than migrated: an older file has no field to read and arrives holding that default, and
+        /// the zero fill would be a marker with no size at all.
+        /// </summary>
+        public float detachedMarkerScale;
+
+        /// <summary>
+        /// Whether a detached camera turned back toward you puts its feed up in front of it. Off is
+        /// the zero fill and is what shipped before it existed, so an older file loads as the
+        /// camera it was saved as and no version bump is owed.
+        /// </summary>
+        public bool puckLookAtPreview;
 
         /// <summary>
         /// Whether a playspace anchor rides your body rather than your playspace origin. Off is the

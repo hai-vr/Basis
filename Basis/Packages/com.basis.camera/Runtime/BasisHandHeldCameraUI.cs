@@ -768,6 +768,8 @@ public partial class BasisHandHeldCameraUI
             modifiers = HHC != null ? HHC.Modifiers.Clone() : new BasisCameraModifierStack(),
             anchorFollowsBody = HHC != null && HHC.anchorFollowsBody,
             detachedMarker = HHC != null ? (int)HHC.detachedMarker : (int)BasisCameraDetachedMarker.Puck,
+            detachedMarkerScale = HHC != null ? HHC.DetachedMarkerScale : baseline.detachedMarkerScale,
+            puckLookAtPreview = HHC != null && HHC.puckLookAtPreview,
             capture360 = HHC != null && HHC.capture360Enabled,
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
             useVRHandheldSmoothing = HHC != null && HHC.useVRHandheldSmoothing,
@@ -970,6 +972,14 @@ public partial class BasisHandHeldCameraUI
             settings.modifiers.subject.framingRadius = settings.modifiers.subject.framingRadius > 0f
                 ? settings.modifiers.subject.framingRadius
                 : new CameraSettings().modifiers.subject.framingRadius;
+        }
+
+        if (settings.settingsVersion < 12)
+        {
+            // Aim Along Track's block did not exist, and a damping of zero is not a neutral
+            // absence — it is a hard lock that snaps the shot round on every bend of the path.
+            settings.modifiers ??= new BasisCameraModifierStack();
+            settings.modifiers.trackAim = BasisCameraTrackAimSettings.Default;
         }
 
         settings.modifiers ??= new BasisCameraModifierStack();
@@ -1214,6 +1224,8 @@ public partial class BasisHandHeldCameraUI
         HHC.anchorFollowsBody = settings.anchorFollowsBody;
         HHC.SetDetachedMarker((BasisCameraDetachedMarker)Mathf.Clamp(
             settings.detachedMarker, 0, (int)BasisCameraDetachedMarker.Gizmo));
+        HHC.SetDetachedMarkerScale(settings.detachedMarkerScale);
+        HHC.SetPuckLookAtPreview(settings.puckLookAtPreview);
         HHC.capture360Enabled = settings.capture360;
         HHC.useAutoLeveling = settings.useAutoLeveling;
         HHC.useVRHandheldSmoothing = settings.useVRHandheldSmoothing;
