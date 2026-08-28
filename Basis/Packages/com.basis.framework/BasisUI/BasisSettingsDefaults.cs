@@ -368,6 +368,13 @@ namespace Basis.BasisUI
         public const float GI_EMITTER_INTENSITY_MAX = 8f;
         // Off by default: a realtime reflection probe pays for the whole effect once per face.
         public static BasisSettingsBinding<bool> GlobalIlluminationReflectionProbes = new("globalilluminationreflectionprobes", new BasisPlatformDefault<bool>(false));
+        /// <summary>
+        /// Whether mirrors show the bounce. On by default because the alternative is a mirror rendering the
+        /// room without any of the light the same room has when looked at directly, which reads as a broken
+        /// mirror rather than as a performance setting. Each mirror camera pays for its own gather, so this
+        /// is the lever for a world where that is too much.
+        /// </summary>
+        public static BasisSettingsBinding<bool> GlobalIlluminationMirrors = new("globalilluminationmirrors", new BasisPlatformDefault<bool>(true));
 
         // Ray traced ambient occlusion. Off by default because it is a real slice of the frame and it
         // needs a ray tracing GPU for the traced path.
@@ -2271,6 +2278,7 @@ namespace Basis.BasisUI
             GlobalIlluminationEmitters.LoadBindingValue();
             GlobalIlluminationEmitterIntensity.LoadBindingValue();
             GlobalIlluminationReflectionProbes.LoadBindingValue();
+            GlobalIlluminationMirrors.LoadBindingValue();
 
             UseRayTracedAmbientOcclusion.LoadBindingValue();
             RayTracedAmbientOcclusionMode.LoadBindingValue();

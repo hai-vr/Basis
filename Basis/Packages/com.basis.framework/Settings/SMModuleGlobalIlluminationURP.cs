@@ -34,6 +34,7 @@ public struct BasisGlobalIlluminationState
     public bool Emitters;
     public float EmitterIntensity;
     public bool ReflectionProbes;
+    public bool Mirrors;
     public bool Capture;
 
     public static BasisGlobalIlluminationState FromDefaults()
@@ -58,6 +59,7 @@ public struct BasisGlobalIlluminationState
             Emitters = BasisSettingsDefaults.GlobalIlluminationEmitters.DefaultValue.GetDefault(),
             EmitterIntensity = BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.DefaultValue.GetDefault(),
             ReflectionProbes = BasisSettingsDefaults.GlobalIlluminationReflectionProbes.DefaultValue.GetDefault(),
+            Mirrors = BasisSettingsDefaults.GlobalIlluminationMirrors.DefaultValue.GetDefault(),
             Capture = false
         };
     }
@@ -84,6 +86,7 @@ public struct BasisGlobalIlluminationState
             Emitters = BasisSettingsDefaults.GlobalIlluminationEmitters.RawValue,
             EmitterIntensity = BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.RawValue,
             ReflectionProbes = BasisSettingsDefaults.GlobalIlluminationReflectionProbes.RawValue,
+            Mirrors = BasisSettingsDefaults.GlobalIlluminationMirrors.RawValue,
             Capture = false
         };
     }
@@ -91,7 +94,6 @@ public struct BasisGlobalIlluminationState
 
 public class SMModuleGlobalIlluminationURP : BasisSettingsBase
 {
-    public const float OverridePriority = 1000f;
     public const int CaptureRayCount = 8;
     public const int CaptureRaySteps = 64;
 
@@ -99,16 +101,10 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     private static readonly HashSet<Camera> suspendedCameras = new HashSet<Camera>();
     private static SMModuleGlobalIlluminationURP instance;
 
-    private readonly Dictionary<int, Volume> cameraVolumes = new Dictionary<int, Volume>();
-    private readonly Dictionary<VolumeProfile, AuthoredProfile> authoredProfiles = new Dictionary<VolumeProfile, AuthoredProfile>();
-
     private BasisGlobalIlluminationState state = BasisGlobalIlluminationState.FromDefaults();
-    private Volume volume;
-    private BasisGlobalIlluminationVolume gi;
 
-    public Volume Volume => volume;
-    public BasisGlobalIlluminationVolume GlobalIllumination => gi;
-    public IReadOnlyDictionary<int, Volume> CameraVolumes => cameraVolumes;
+    /// <summary>What the effect is rendering with. The settings provider writes straight into this.</summary>
+    public BasisGlobalIlluminationSettings GlobalIllumination => BasisGlobalIlluminationSettings.Current;
     public bool Capturing => state.Capture;
     public BasisGlobalIlluminationState State => state;
 
@@ -130,6 +126,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     private static string K_GI_EMITTERS => BasisSettingsDefaults.GlobalIlluminationEmitters.BindingKey;
     private static string K_GI_EMITTER_INTENSITY => BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.BindingKey;
     private static string K_GI_REFLECTION_PROBES => BasisSettingsDefaults.GlobalIlluminationReflectionProbes.BindingKey;
+    private static string K_GI_MIRRORS => BasisSettingsDefaults.GlobalIlluminationMirrors.BindingKey;
     private static string K_GI_DEBUG_VIEW => BasisSettingsDefaults.DevGiDebugView.BindingKey;
 
     public override void Awake()
@@ -145,7 +142,6 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     {
         base.OnDestroy();
         RestoreAuthoredFeatureValues();
-        RestoreAuthoredProfiles();
         if (instance == this)
         {
             BasisGlobalIlluminationFeature.CameraFilter = null;
@@ -159,6 +155,15 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         if (localCamera == null || ReferenceEquals(camera, localCamera))
         {
             return true;
+        }
+        // Mirrors are not registered by anything - they are created by whatever world the player walked
+        // into, not by a Basis system that could announce them - so an allow-list of registered cameras
+        // rejects every one of them. That is why a mirror has never shown a bounce. The feature itself
+        // decides whether mirrors are wanted; this only stops the allow-list from being the thing that
+        // silently answers the question.
+        if (BasisGlobalIlluminationFeature.IsMirrorReflection(camera))
+        {
+            return !suspendedCameras.Contains(camera);
         }
         return registeredCameras.Contains(camera) && !suspendedCameras.Contains(camera);
     }
@@ -227,27 +232,6 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         instance.ApplyOverride();
     }
 
-    public static int UncoveredVolumeLayer(Camera camera)
-    {
-        if (camera == null || !camera.TryGetComponent(out UniversalAdditionalCameraData cameraData))
-        {
-            return -1;
-        }
-        int mask = cameraData.volumeLayerMask.value;
-        if ((mask & 1) != 0)
-        {
-            return -1;
-        }
-        for (int layer = 1; layer < 32; layer++)
-        {
-            if ((mask & (1 << layer)) != 0)
-            {
-                return layer;
-            }
-        }
-        return -1;
-    }
-
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
         if (matchedSettingName == K_USE_GI) { state.Enabled = optionValue == "true"; }
@@ -261,6 +245,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         else if (matchedSettingName == K_GI_RAY_REUSE) { state.RayReuse = optionValue == "true"; }
         else if (matchedSettingName == K_GI_EMITTERS) { state.Emitters = optionValue == "true"; }
         else if (matchedSettingName == K_GI_REFLECTION_PROBES) { state.ReflectionProbes = optionValue == "true"; }
+        else if (matchedSettingName == K_GI_MIRRORS) { state.Mirrors = optionValue == "true"; }
         else if (matchedSettingName == K_GI_DEBUG_VIEW)
         {
             BasisGlobalIlluminationFeature feature = FindFeature();
@@ -343,7 +328,8 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         {
             case "off": return BasisGlobalIlluminationRaySkinnedMode.Off;
             case "static": return BasisGlobalIlluminationRaySkinnedMode.Static;
-            default: return BasisGlobalIlluminationRaySkinnedMode.Dynamic;
+            case "dynamic": return BasisGlobalIlluminationRaySkinnedMode.Dynamic;
+            default: return BasisGlobalIlluminationRaySkinnedMode.Proxy;
         }
     }
 
@@ -393,75 +379,10 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
 
     public void ApplyOverride()
     {
-        EnsureVolume();
-        Apply(gi, state);
-        volume.gameObject.SetActive(true);
-        EnsureCameraVolumes();
-        ApplyDefaultProfiles();
+        Apply(BasisGlobalIlluminationSettings.Current, state);
         ApplyFeature();
     }
 
-    /// <summary>
-    /// Drives the pipeline's own default volume profiles. URP seeds every camera's stack from the global
-    /// default profile and the quality asset's profile before any scene volume is blended, so leaving them
-    /// alone would pin the effect to whatever those assets ship with no matter what the player chose.
-    /// </summary>
-    public void ApplyDefaultProfiles()
-    {
-        ApplyToProfile(VolumeManager.instance.globalDefaultProfile);
-        ApplyToProfile(VolumeManager.instance.qualityDefaultProfile);
-    }
-
-    public void ApplyToProfile(VolumeProfile profile)
-    {
-        if (profile == null || !profile.TryGet(out BasisGlobalIlluminationVolume target))
-        {
-            return;
-        }
-        RememberAuthoredProfile(profile, target);
-        Apply(target, state);
-    }
-
-    private readonly struct AuthoredProfile
-    {
-        public readonly bool Active;
-        public readonly bool EnableOverride;
-        public readonly bool Enable;
-
-        public AuthoredProfile(BasisGlobalIlluminationVolume target)
-        {
-            Active = target.active;
-            EnableOverride = target.enable.overrideState;
-            Enable = target.enable.value;
-        }
-
-        public void RestoreTo(BasisGlobalIlluminationVolume target)
-        {
-            target.active = Active;
-            target.enable.overrideState = EnableOverride;
-            target.enable.value = Enable;
-        }
-    }
-
-    private void RememberAuthoredProfile(VolumeProfile profile, BasisGlobalIlluminationVolume target)
-    {
-        if (!authoredProfiles.ContainsKey(profile))
-        {
-            authoredProfiles.Add(profile, new AuthoredProfile(target));
-        }
-    }
-
-    public void RestoreAuthoredProfiles()
-    {
-        foreach (KeyValuePair<VolumeProfile, AuthoredProfile> entry in authoredProfiles)
-        {
-            if (entry.Key != null && entry.Key.TryGet(out BasisGlobalIlluminationVolume target))
-            {
-                entry.Value.RestoreTo(target);
-            }
-        }
-        authoredProfiles.Clear();
-    }
 
     /// <summary>
     /// Pushes the renderer-level options onto the feature itself, and the master switch onto the feature's
@@ -473,7 +394,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     {
         BasisGlobalIlluminationFeature feature = FindFeature();
         RememberAuthoredFeatureValues(feature);
-        Apply(feature, state.Enabled, state.ReflectionProbes);
+        Apply(feature, state.Enabled, state.ReflectionProbes, state.Mirrors);
     }
 
     // The feature is a sub-asset of the renderer, not a scene object, so writing to it in the editor
@@ -481,6 +402,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     private bool hasAuthoredFeatureValues;
     private bool authoredActive;
     private bool authoredReflectionProbes;
+    private bool authoredMirrors;
 
     private void RememberAuthoredFeatureValues(BasisGlobalIlluminationFeature feature)
     {
@@ -491,6 +413,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         hasAuthoredFeatureValues = true;
         authoredActive = feature.isActive;
         authoredReflectionProbes = feature.ReflectionProbes;
+        authoredMirrors = feature.Mirrors;
     }
 
     public void RestoreAuthoredFeatureValues()
@@ -500,16 +423,17 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
             return;
         }
         hasAuthoredFeatureValues = false;
-        Apply(FindFeature(), authoredActive, authoredReflectionProbes);
+        Apply(FindFeature(), authoredActive, authoredReflectionProbes, authoredMirrors);
     }
 
-    public static void Apply(BasisGlobalIlluminationFeature feature, bool enabled, bool reflectionProbes)
+    public static void Apply(BasisGlobalIlluminationFeature feature, bool enabled, bool reflectionProbes, bool mirrors)
     {
         if (feature == null)
         {
             return;
         }
         feature.ReflectionProbes = reflectionProbes;
+        feature.Mirrors = mirrors;
         if (feature.isActive != enabled)
         {
             feature.SetActive(enabled);
@@ -553,110 +477,58 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         return null;
     }
 
-    public static void Apply(BasisGlobalIlluminationVolume target, BasisGlobalIlluminationState state)
+    public static void Apply(BasisGlobalIlluminationSettings target, BasisGlobalIlluminationState state)
     {
         if (target == null)
         {
             return;
         }
 
-        target.active = true;
-        target.enable.overrideState = true;
-        target.enable.value = state.Enabled;
+        target.enable = state.Enabled;
 
         // Ray traced costs a great deal more than screen space, and putting every skinned mesh in the room
         // into the acceleration structure is what makes it cost that on a busy instance, so both are the
-        // player's call rather than the world's - like the master switch is.
-        target.mode.overrideState = true;
-        target.mode.value = state.Mode;
-        target.rayTracedSkinnedMeshes.overrideState = true;
-        target.rayTracedSkinnedMeshes.value = state.SkinnedMeshes;
+        // player's call.
+        target.mode = state.Mode;
+        target.rayTracedSkinnedMeshes = state.SkinnedMeshes;
 
-        target.quality.overrideState = true;
-        target.quality.value = state.Quality;
-        target.resolution.overrideState = true;
-        target.resolution.value = state.Capture ? BasisGlobalIlluminationResolution.Full : state.Resolution;
+        target.quality = state.Quality;
+        target.resolution = state.Capture ? BasisGlobalIlluminationResolution.Full : state.Resolution;
 
         // A photo is a single frame, so the temporal filter has nothing to accumulate from and the ray
         // budget is the only thing that decides how clean it is.
-        target.overrideQualityCounts.overrideState = true;
-        target.overrideQualityCounts.value = state.Capture;
-        target.rayCount.overrideState = true;
-        target.rayCount.value = CaptureRayCount;
-        target.rayMaxSteps.overrideState = true;
-        target.rayMaxSteps.value = CaptureRaySteps;
+        target.overrideQualityCounts = state.Capture;
+        target.rayCount = CaptureRayCount;
+        target.rayMaxSteps = CaptureRaySteps;
 
-        target.fallback.overrideState = true;
-        target.fallback.value = state.Fallback;
+        target.fallback = state.Fallback;
 
-        target.intensity.overrideState = true;
-        target.intensity.value = Mathf.Clamp(state.Intensity, BasisSettingsDefaults.GI_INTENSITY_MIN, BasisSettingsDefaults.GI_INTENSITY_MAX);
-        target.saturation.overrideState = true;
-        target.saturation.value = Mathf.Clamp(state.Saturation, BasisSettingsDefaults.GI_SATURATION_MIN, BasisSettingsDefaults.GI_SATURATION_MAX);
-        target.obscuranceIntensity.overrideState = true;
-        target.obscuranceIntensity.value = Mathf.Clamp(state.Obscurance, BasisSettingsDefaults.GI_OBSCURANCE_MIN, BasisSettingsDefaults.GI_OBSCURANCE_MAX);
-        target.maxRayLength.overrideState = true;
-        target.maxRayLength.value = Mathf.Clamp(state.RayLength, BasisSettingsDefaults.GI_RAY_LENGTH_MIN, BasisSettingsDefaults.GI_RAY_LENGTH_MAX);
-        target.smoothing.overrideState = true;
-        target.smoothing.value = Mathf.Clamp(state.Smoothing, BasisSettingsDefaults.GI_SMOOTHING_MIN, BasisSettingsDefaults.GI_SMOOTHING_MAX);
+        // Clamped to the range the SLIDER advertises, which is narrower than the range the value itself
+        // permits - Max Ray Length is the clearest case, 64 on the panel against a 128 ceiling on the
+        // field. Clamp() below is the backstop for anything that never came through a slider; this is
+        // what stops a hand-edited settings file handing the player a value their panel cannot show.
+        target.intensity = Mathf.Clamp(state.Intensity, BasisSettingsDefaults.GI_INTENSITY_MIN, BasisSettingsDefaults.GI_INTENSITY_MAX);
+        target.saturation = Mathf.Clamp(state.Saturation, BasisSettingsDefaults.GI_SATURATION_MIN, BasisSettingsDefaults.GI_SATURATION_MAX);
+        target.obscuranceIntensity = Mathf.Clamp(state.Obscurance, BasisSettingsDefaults.GI_OBSCURANCE_MIN, BasisSettingsDefaults.GI_OBSCURANCE_MAX);
+        target.maxRayLength = Mathf.Clamp(state.RayLength, BasisSettingsDefaults.GI_RAY_LENGTH_MIN, BasisSettingsDefaults.GI_RAY_LENGTH_MAX);
+        target.smoothing = Mathf.Clamp(state.Smoothing, BasisSettingsDefaults.GI_SMOOTHING_MIN, BasisSettingsDefaults.GI_SMOOTHING_MAX);
 
         // Temporal accumulation is a comfort setting: at a low response the bounce trails behind anything
-        // that moves, so the player's choice wins over the world's, like the master switch does.
-        target.temporalFilter.overrideState = true;
-        target.temporalFilter.value = state.TemporalFilter && !state.Capture;
-        target.temporalResponse.overrideState = true;
-        target.temporalResponse.value = Mathf.Clamp(state.TemporalResponse, BasisSettingsDefaults.GI_TEMPORAL_RESPONSE_MIN, BasisSettingsDefaults.GI_TEMPORAL_RESPONSE_MAX);
+        // that moves, so the player's choice is what drives it.
+        target.temporalFilter = state.TemporalFilter && !state.Capture;
+        target.temporalResponse = Mathf.Clamp(state.TemporalResponse, BasisSettingsDefaults.GI_TEMPORAL_RESPONSE_MIN, BasisSettingsDefaults.GI_TEMPORAL_RESPONSE_MAX);
 
-        target.wideBlur.overrideState = true;
-        target.wideBlur.value = state.WideBlur;
-        target.rayReuse.overrideState = true;
-        target.rayReuse.value = state.RayReuse;
+        target.wideBlur = state.WideBlur;
+        target.rayReuse = state.RayReuse;
 
-        target.emitters.overrideState = true;
-        target.emitters.value = state.Emitters;
-        target.emitterIntensity.overrideState = true;
-        target.emitterIntensity.value = Mathf.Clamp(state.EmitterIntensity, BasisSettingsDefaults.GI_EMITTER_INTENSITY_MIN, BasisSettingsDefaults.GI_EMITTER_INTENSITY_MAX);
+        target.emitters = state.Emitters;
+        target.emitterIntensity = Mathf.Clamp(state.EmitterIntensity, BasisSettingsDefaults.GI_EMITTER_INTENSITY_MIN, BasisSettingsDefaults.GI_EMITTER_INTENSITY_MAX);
+
+        // The sliders carry their own ranges, but a persisted settings file is just text on disk and a
+        // hand-edited one reaches here unchecked. One call holds the whole object inside its documented
+        // ranges rather than clamping value by value at the twelve call sites that used to.
+        target.Clamp();
     }
 
-    private void EnsureVolume()
-    {
-        if (volume != null)
-        {
-            return;
-        }
-        VolumeProfile profile = ScriptableObject.CreateInstance<VolumeProfile>();
-        profile.name = "BasisGlobalIllumination";
-        profile.hideFlags = HideFlags.HideAndDontSave;
-        gi = profile.Add<BasisGlobalIlluminationVolume>(false);
-        volume = CreateVolume(0, profile);
-    }
-
-    private void EnsureCameraVolumes()
-    {
-        registeredCameras.RemoveWhere(camera => camera == null);
-        suspendedCameras.RemoveWhere(camera => camera == null);
-        foreach (Camera camera in registeredCameras)
-        {
-            int layer = UncoveredVolumeLayer(camera);
-            if (layer < 0 || cameraVolumes.ContainsKey(layer))
-            {
-                continue;
-            }
-            cameraVolumes[layer] = CreateVolume(layer, volume.sharedProfile);
-        }
-    }
-
-    private Volume CreateVolume(int layer, VolumeProfile profile)
-    {
-        GameObject host = new GameObject(layer == 0 ? "BasisGlobalIllumination" : $"BasisGlobalIllumination Layer {layer}");
-        host.transform.SetParent(transform, false);
-        host.layer = layer;
-        Volume created = host.AddComponent<Volume>();
-        created.isGlobal = true;
-        created.priority = OverridePriority;
-        created.weight = 1f;
-        created.sharedProfile = profile;
-        return created;
-    }
 }
 #endif
