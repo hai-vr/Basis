@@ -1958,6 +1958,12 @@ namespace Basis.BasisUI
                 toggleGiReflectionProbes.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.reflectionProbes.tooltip"));
                 SettingsProviderBottleneckHints.Mark(toggleGiReflectionProbes, BasisFrameCostSide.Gpu);
 
+                PanelToggle toggleGiSpecular = PanelToggle.CreateNewEntry(giAdvanced.ContentParent);
+                toggleGiSpecular.AssignBinding(BasisSettingsDefaults.GlobalIlluminationSpecular);
+                toggleGiSpecular.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.specular"));
+                toggleGiSpecular.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.specular.tooltip"));
+                SettingsProviderBottleneckHints.Mark(toggleGiSpecular, BasisFrameCostSide.Gpu);
+
                 PanelSlider sliderGiObscuranceRadius = PanelSlider.CreateEntryAndBind(
                     giAdvanced.ContentParent,
                     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.obscuranceRadius"),
@@ -3168,6 +3174,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GlobalIlluminationEmitters.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationReflectionProbes.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationSpecular.ResetToDefault();
             BasisSettingsDefaults.UseRayTracedAmbientOcclusion.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionMode.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionQuality.ResetToDefault();

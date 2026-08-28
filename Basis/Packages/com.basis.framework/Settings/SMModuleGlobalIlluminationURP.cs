@@ -47,6 +47,7 @@ public struct BasisGlobalIlluminationState
     public float EmitterIntensity;
     public bool ReflectionProbes;
     public bool Mirrors;
+    public bool Specular;
     // The tracing internals. Constants until an artifact needed explaining; see BasisSettingsDefaults.
     public float ObscuranceRadius;
     public float FadeDistance;
@@ -81,6 +82,7 @@ public struct BasisGlobalIlluminationState
             EmitterIntensity = BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.DefaultValue.GetDefault(),
             ReflectionProbes = BasisSettingsDefaults.GlobalIlluminationReflectionProbes.DefaultValue.GetDefault(),
             Mirrors = BasisSettingsDefaults.GlobalIlluminationMirrors.DefaultValue.GetDefault(),
+            Specular = BasisSettingsDefaults.GlobalIlluminationSpecular.DefaultValue.GetDefault(),
             ObscuranceRadius = BasisSettingsDefaults.GlobalIlluminationObscuranceRadius.DefaultValue.GetDefault(),
             FadeDistance = BasisSettingsDefaults.GlobalIlluminationFadeDistance.DefaultValue.GetDefault(),
             NormalBias = BasisSettingsDefaults.GlobalIlluminationNormalBias.DefaultValue.GetDefault(),
@@ -116,6 +118,7 @@ public struct BasisGlobalIlluminationState
             EmitterIntensity = BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.RawValue,
             ReflectionProbes = BasisSettingsDefaults.GlobalIlluminationReflectionProbes.RawValue,
             Mirrors = BasisSettingsDefaults.GlobalIlluminationMirrors.RawValue,
+            Specular = BasisSettingsDefaults.GlobalIlluminationSpecular.RawValue,
             ObscuranceRadius = BasisSettingsDefaults.GlobalIlluminationObscuranceRadius.RawValue,
             FadeDistance = BasisSettingsDefaults.GlobalIlluminationFadeDistance.RawValue,
             NormalBias = BasisSettingsDefaults.GlobalIlluminationNormalBias.RawValue,
@@ -170,6 +173,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     private static string K_GI_EMITTER_INTENSITY => BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.BindingKey;
     private static string K_GI_REFLECTION_PROBES => BasisSettingsDefaults.GlobalIlluminationReflectionProbes.BindingKey;
     private static string K_GI_MIRRORS => BasisSettingsDefaults.GlobalIlluminationMirrors.BindingKey;
+    private static string K_GI_SPECULAR => BasisSettingsDefaults.GlobalIlluminationSpecular.BindingKey;
     private static string K_GI_DEBUG_VIEW => BasisSettingsDefaults.DevGiDebugView.BindingKey;
 
     public override void Awake()
@@ -321,6 +325,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         else if (matchedSettingName == K_GI_EMITTERS) { state.Emitters = optionValue == "true"; }
         else if (matchedSettingName == K_GI_REFLECTION_PROBES) { state.ReflectionProbes = optionValue == "true"; }
         else if (matchedSettingName == K_GI_MIRRORS) { state.Mirrors = optionValue == "true"; }
+        else if (matchedSettingName == K_GI_SPECULAR) { state.Specular = optionValue == "true"; }
         else if (matchedSettingName == K_GI_DEBUG_VIEW)
         {
             BasisGlobalIlluminationFeature feature = FindFeature();
@@ -588,6 +593,11 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         target.mode = state.Mode;
         target.rayTracedSkinnedMeshes = state.SkinnedMeshes;
         target.rayTracedLayerMask = ReadLayers(state.Layers);
+
+        // Independent of Mode by design (see BasisGlobalIlluminationSettings.specular) - a reflection is
+        // worth having over a screen space diffuse gather, so this is not gated on target.IsRayTraced().
+        // The renderer feature is what falls a GPU with no ray tracing backend back to no reflections.
+        target.specular = state.Specular;
 
         // The tracing internals. Clamp() below holds every one of them inside its documented range, so a
         // hand edited settings file cannot hand the tracer a radius of zero or a bias of a metre.

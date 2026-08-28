@@ -381,6 +381,12 @@ namespace Basis.BasisUI
         /// is the lever for a world where that is too much.
         /// </summary>
         public static BasisSettingsBinding<bool> GlobalIlluminationMirrors = new("globalilluminationmirrors", new BasisPlatformDefault<bool>(true));
+        /// <summary>
+        /// Ray traced reflections. A single mirror ray per pixel, shaded with the same lights and emitters
+        /// the diffuse gather uses. Off by default, and independent of it - a diffuse gather is worth having
+        /// without reflections, and reflections are worth having over a screen space diffuse gather.
+        /// </summary>
+        public static BasisSettingsBinding<bool> GlobalIlluminationSpecular = new("globalilluminationspecular", new BasisPlatformDefault<bool>(false));
         // Which layers the ray traced trace walks. World And Avatars is what it walked before this was a
         // choice; narrowing it to Avatars is the cheap option, because the acceleration structure then
         // holds a handful of capsules instead of the whole room.
@@ -2376,6 +2382,7 @@ namespace Basis.BasisUI
             GlobalIlluminationEmitterIntensity.LoadBindingValue();
             GlobalIlluminationReflectionProbes.LoadBindingValue();
             GlobalIlluminationMirrors.LoadBindingValue();
+            GlobalIlluminationSpecular.LoadBindingValue();
             GlobalIlluminationLayers.LoadBindingValue();
             GlobalIlluminationObscuranceRadius.LoadBindingValue();
             GlobalIlluminationFadeDistance.LoadBindingValue();

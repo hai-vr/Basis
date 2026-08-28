@@ -239,6 +239,7 @@ public sealed partial class BasisGlobalIlluminationPass
                 passData.stage = Stage.RayResolve;
                 passData.material = rayStagesMaterial;
                 passData.materialPass = PassRayResolve;
+                passData.source = rayResult;
                 passData.rayResult = rayResult;
                 builder.SetRenderAttachment(traced, 0, AccessFlags.WriteAll);
                 builder.UseTexture(rayResult);
@@ -255,6 +256,7 @@ public sealed partial class BasisGlobalIlluminationPass
                     passData.stage = Stage.Temporal;
                     passData.material = material;
                     passData.materialPass = PassTemporal;
+                    passData.source = traced;
                     passData.indirect = traced;
                     passData.history = historyRead;
                     passData.historyStats = historyReadStats;
@@ -293,6 +295,7 @@ public sealed partial class BasisGlobalIlluminationPass
                 passData.stage = Stage.Composite;
                 passData.material = material;
                 passData.materialPass = PassSpecularUpsample;
+                passData.source = denoiseSource;
                 passData.indirect = denoiseSource;
                 // Render graph pools PassData and does not clear it. The Composite stage binds normals when
                 // the handle is valid, and a stale one here is a handle from a graph that no longer exists.
@@ -355,6 +358,7 @@ public sealed partial class BasisGlobalIlluminationPass
                 passData.stage = Stage.Blur;
                 passData.material = material;
                 passData.materialPass = PassBlur;
+                passData.source = source;
                 passData.indirect = source;
                 passData.stats = stats;
                 passData.statsValid = statsValid;

@@ -5,7 +5,7 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// Average colour of a base map or emission map, resolved once per texture and cached forever.
+/// Average colour of a base map or emission map, resolved per texture and cached until it goes stale.
 /// A hit only carries a per-instance colour, so without this every textured surface would bounce its
 /// material tint instead of what it actually looks like - and almost every lit material ships white.
 /// The average is read off the smallest mip of a scratch copy, which works for compressed and
@@ -20,8 +20,21 @@ public sealed class BasisGlobalIlluminationRayTextureAverage : IDisposable
     public const int RequestsInFlightLimit = 4;
     private const int ScratchSize = 16;
     private const int ScratchMip = 4;
+    private const float ResolvedTtlSeconds = 2f;
 
-    private readonly Dictionary<EntityId, Color> resolved = new Dictionary<EntityId, Color>();
+    private readonly struct ResolvedEntry
+    {
+        public readonly Color Average;
+        public readonly float ResolvedAt;
+
+        public ResolvedEntry(Color average, float resolvedAt)
+        {
+            Average = average;
+            ResolvedAt = resolvedAt;
+        }
+    }
+
+    private readonly Dictionary<EntityId, ResolvedEntry> resolved = new Dictionary<EntityId, ResolvedEntry>();
     private readonly HashSet<EntityId> pending = new HashSet<EntityId>();
     private readonly Dictionary<EntityId, Texture> queued = new Dictionary<EntityId, Texture>();
     private readonly List<EntityId> drainScratch = new List<EntityId>();
@@ -49,7 +62,14 @@ public sealed class BasisGlobalIlluminationRayTextureAverage : IDisposable
         if (texture == null || disposed) { return Color.white; }
 
         EntityId key = texture.GetEntityId();
-        if (resolved.TryGetValue(key, out Color average)) { return average; }
+        if (resolved.TryGetValue(key, out ResolvedEntry entry))
+        {
+            if (!pending.Contains(key) && Time.unscaledTime - entry.ResolvedAt >= ResolvedTtlSeconds)
+            {
+                queued[key] = texture;
+            }
+            return entry.Average;
+        }
         if (!pending.Contains(key)) { queued[key] = texture; }
         return Color.white;
     }
@@ -79,7 +99,7 @@ public sealed class BasisGlobalIlluminationRayTextureAverage : IDisposable
             EntityId key = drainScratch[index];
             Texture texture = queued[key];
             queued.Remove(key);
-            if (texture == null) { resolved[key] = Color.white; version++; continue; }
+            if (texture == null) { Resolve(key, Color.white); continue; }
             Request(texture, key);
         }
         drainScratch.Clear();
@@ -89,8 +109,7 @@ public sealed class BasisGlobalIlluminationRayTextureAverage : IDisposable
     {
         if (!SystemInfo.supportsAsyncGPUReadback)
         {
-            resolved[key] = Color.white;
-            version++;
+            Resolve(key, Color.white);
             return;
         }
 
@@ -109,8 +128,7 @@ public sealed class BasisGlobalIlluminationRayTextureAverage : IDisposable
         catch (Exception)
         {
             RenderTexture.ReleaseTemporary(scratch);
-            resolved[key] = Color.white;
-            version++;
+            Resolve(key, Color.white);
             return;
         }
 
@@ -120,8 +138,7 @@ public sealed class BasisGlobalIlluminationRayTextureAverage : IDisposable
             RenderTexture.ReleaseTemporary(scratch);
             if (disposed) { return; }
             pending.Remove(key);
-            resolved[key] = Complete(request);
-            version++;
+            Resolve(key, Complete(request));
         });
     }
 
@@ -135,6 +152,12 @@ public sealed class BasisGlobalIlluminationRayTextureAverage : IDisposable
         for (int index = 0; index < pixels.Length; index++) { total += pixels[index]; }
         Color average = total / pixels.Length;
         return new Color(Mathf.Max(0f, average.r), Mathf.Max(0f, average.g), Mathf.Max(0f, average.b), 1f);
+    }
+
+    private void Resolve(EntityId key, Color average)
+    {
+        resolved[key] = new ResolvedEntry(average, Time.unscaledTime);
+        version++;
     }
 
     public void Clear()
