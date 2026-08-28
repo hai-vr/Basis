@@ -153,12 +153,18 @@ namespace Basis.Rendering.RTAO
             return "Avatars";
         }
 
+        /// <summary>
+        /// Static and Dynamic still read, because a settings file written before they were removed is just
+        /// text on disk and will keep saying one of them for as long as that file survives. They land on
+        /// Proxy rather than Off: both meant "put avatars in the structure", Proxy is how that is done now,
+        /// and answering Off would quietly take avatar occlusion away from everyone who had asked for it.
+        /// </summary>
         public static BasisRTAOSkinnedMode ReadSkinnedMode(string value)
         {
             switch (Normalise(value))
             {
-                case "static": return BasisRTAOSkinnedMode.Static;
-                case "dynamic": return BasisRTAOSkinnedMode.Dynamic;
+                case "static":
+                case "dynamic":
                 case "proxy": return BasisRTAOSkinnedMode.Proxy;
                 default: return BasisRTAOSkinnedMode.Off;
             }
@@ -168,8 +174,6 @@ namespace Basis.Rendering.RTAO
         {
             switch (mode)
             {
-                case BasisRTAOSkinnedMode.Static: return "Static";
-                case BasisRTAOSkinnedMode.Dynamic: return "Dynamic";
                 case BasisRTAOSkinnedMode.Proxy: return "Proxy";
                 default: return "Off";
             }

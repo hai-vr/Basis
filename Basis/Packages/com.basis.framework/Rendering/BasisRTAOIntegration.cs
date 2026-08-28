@@ -110,8 +110,7 @@ namespace Basis.Scripts.Rendering
                 || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionOtherCameras.BindingKey
                 || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionApply.BindingKey
                 || lowered == BasisSettingsDefaults.DevRtaoDebugView.BindingKey
-                || lowered == BasisSettingsDefaults.DevRtaoDebugStage.BindingKey
-                || lowered == BasisSettingsDefaults.DevRtaoSkinnedBudget.BindingKey;
+                || lowered == BasisSettingsDefaults.DevRtaoDebugStage.BindingKey;
         }
 
         public static void Apply()
@@ -150,11 +149,6 @@ namespace Basis.Scripts.Rendering
             BasisRTAOFeature.HasApplyModeOverride = true;
             BasisRTAOFeature.ApplyModeOverride = BasisRTAOSettingsMap.ReadApplyMode(BasisSettingsDefaults.RayTracedAmbientOcclusionApply.RawValue);
 
-            // Zero means "follow the occlusion quality", so the override only engages once it is pinned.
-            int budget = Mathf.RoundToInt(BasisSettingsDefaults.DevRtaoSkinnedBudget.RawValue);
-            BasisRTAOFeature.HasSkinnedBudgetOverride = budget >= 1;
-            BasisRTAOFeature.SkinnedBudgetOverride = budget;
-
             BasisRTAOFeature.HasDebugViewOverride = true;
             BasisRTAOFeature.DebugViewOverride = BasisSettingsDefaults.DevRtaoDebugView.RawValue;
 
@@ -173,7 +167,6 @@ namespace Basis.Scripts.Rendering
             BasisRTAOFeature.HasDirectStrengthOverride = false;
             BasisRTAOFeature.HasDenoisePassesOverride = false;
             BasisRTAOFeature.HasSkinnedModeOverride = false;
-            BasisRTAOFeature.HasSkinnedBudgetOverride = false;
             BasisRTAOFeature.HasApplyModeOverride = false;
             BasisRTAOFeature.HasDebugStageOverride = false;
             BasisRTAOFeature.HasDebugViewOverride = false;

@@ -136,8 +136,10 @@ namespace Basis.Tests.Graphics
         }
 
         [TestCase("Off", BasisGlobalIlluminationRaySkinnedMode.Off)]
-        [TestCase("static", BasisGlobalIlluminationRaySkinnedMode.Static)]
-        [TestCase("DYNAMIC", BasisGlobalIlluminationRaySkinnedMode.Dynamic)]
+        // Retired modes: a settings file written before they were removed still says one of them, and both
+        // meant avatars are in the trace - which is what Proxy does now.
+        [TestCase("static", BasisGlobalIlluminationRaySkinnedMode.Proxy)]
+        [TestCase("DYNAMIC", BasisGlobalIlluminationRaySkinnedMode.Proxy)]
         [TestCase("Proxy", BasisGlobalIlluminationRaySkinnedMode.Proxy)]
         // Unreadable input lands on the shipped default, which is now the proxy path.
         [TestCase("garbage", BasisGlobalIlluminationRaySkinnedMode.Proxy)]

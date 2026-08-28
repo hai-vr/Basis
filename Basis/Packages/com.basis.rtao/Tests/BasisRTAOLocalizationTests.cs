@@ -167,14 +167,20 @@ namespace Basis.Rendering.RTAO.Tests
             Assert.AreEqual(BasisRTAOTracingMode.ScreenSpace, BasisRTAOSettingsMap.ReadMode(english["settings.graphics.rtao.mode.screenSpace"]));
         }
 
+        /// <summary>
+        /// The dropdown registers stored values and localized labels as two separate lists, and it is the
+        /// VALUE that reaches the parser - so that is what has to round trip. The label is free to read as
+        /// plain English ("On") without the parser ever seeing it.
+        /// </summary>
         [Test]
-        public void SkinnedDropdownTextMatchesWhatTheParserAccepts()
+        public void SkinnedDropdownValuesMatchWhatTheParserAccepts()
         {
             Dictionary<string, string> english = EnglishKeys();
+            Assert.IsTrue(english.ContainsKey("settings.graphics.rtao.skinned.off"), "The Off row lost its label.");
+            Assert.IsTrue(english.ContainsKey("settings.graphics.rtao.skinned.proxy"), "The avatars-on row lost its label.");
 
-            Assert.AreEqual(BasisRTAOSkinnedMode.Off, BasisRTAOSettingsMap.ReadSkinnedMode(english["settings.graphics.rtao.skinned.off"]));
-            Assert.AreEqual(BasisRTAOSkinnedMode.Static, BasisRTAOSettingsMap.ReadSkinnedMode(english["settings.graphics.rtao.skinned.static"]));
-            Assert.AreEqual(BasisRTAOSkinnedMode.Dynamic, BasisRTAOSettingsMap.ReadSkinnedMode(english["settings.graphics.rtao.skinned.dynamic"]));
+            Assert.AreEqual(BasisRTAOSkinnedMode.Off, BasisRTAOSettingsMap.ReadSkinnedMode("Off"));
+            Assert.AreEqual(BasisRTAOSkinnedMode.Proxy, BasisRTAOSettingsMap.ReadSkinnedMode("Proxy"));
         }
 
         [Test]

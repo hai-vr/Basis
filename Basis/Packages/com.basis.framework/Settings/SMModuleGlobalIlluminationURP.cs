@@ -322,13 +322,17 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         }
     }
 
+    /// <summary>
+    /// Static and Dynamic still read, because a settings file written before they were removed keeps
+    /// saying one of them for as long as that file survives. Both meant "put avatars in the trace", which
+    /// is what Proxy does now, so they land there rather than on Off - answering Off would quietly take
+    /// the bounce off avatars away from everyone who had asked for it.
+    /// </summary>
     public static BasisGlobalIlluminationRaySkinnedMode ReadSkinnedMode(string optionValue)
     {
         switch (optionValue?.ToLowerInvariant())
         {
             case "off": return BasisGlobalIlluminationRaySkinnedMode.Off;
-            case "static": return BasisGlobalIlluminationRaySkinnedMode.Static;
-            case "dynamic": return BasisGlobalIlluminationRaySkinnedMode.Dynamic;
             default: return BasisGlobalIlluminationRaySkinnedMode.Proxy;
         }
     }

@@ -44,8 +44,16 @@ namespace Basis.Rendering.RTAO.Tests
         public void SkinnedModeReadsEveryEntry()
         {
             Assert.AreEqual(BasisRTAOSkinnedMode.Off, BasisRTAOSettingsMap.ReadSkinnedMode("Off"));
-            Assert.AreEqual(BasisRTAOSkinnedMode.Static, BasisRTAOSettingsMap.ReadSkinnedMode("static"));
-            Assert.AreEqual(BasisRTAOSkinnedMode.Dynamic, BasisRTAOSettingsMap.ReadSkinnedMode("Dynamic"));
+            Assert.AreEqual(BasisRTAOSkinnedMode.Proxy, BasisRTAOSettingsMap.ReadSkinnedMode("Proxy"));
+        }
+
+        [Test]
+        public void RetiredModesStillReadAsProxy()
+        {
+            Assert.AreEqual(BasisRTAOSkinnedMode.Proxy, BasisRTAOSettingsMap.ReadSkinnedMode("static"),
+                "A settings file written before Static was removed still says Static, and it meant avatars are in the structure.");
+            Assert.AreEqual(BasisRTAOSkinnedMode.Proxy, BasisRTAOSettingsMap.ReadSkinnedMode("Dynamic"),
+                "Same for Dynamic: answering Off here would silently take avatar occlusion away from anyone who had it on.");
         }
 
         [Test]
@@ -84,7 +92,7 @@ namespace Basis.Rendering.RTAO.Tests
             Assert.AreEqual("Ray Traced", BasisRTAOSettingsMap.WriteMode(BasisRTAOTracingMode.RayTracedOnly));
             Assert.AreEqual("Screen Space", BasisRTAOSettingsMap.WriteMode(BasisRTAOTracingMode.ScreenSpace));
             Assert.AreEqual("Off", BasisRTAOSettingsMap.WriteSkinnedMode(BasisRTAOSkinnedMode.Off));
-            Assert.AreEqual("Dynamic", BasisRTAOSettingsMap.WriteSkinnedMode(BasisRTAOSkinnedMode.Dynamic));
+            Assert.AreEqual("Proxy", BasisRTAOSettingsMap.WriteSkinnedMode(BasisRTAOSkinnedMode.Proxy));
         }
 
         [Test]

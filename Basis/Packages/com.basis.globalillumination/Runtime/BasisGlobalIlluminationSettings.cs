@@ -90,9 +90,6 @@ public sealed class BasisGlobalIlluminationSettings
     public const int LightSamplesMax = 4;
     public const float RayTracedNormalBiasMin = 0f, RayTracedNormalBiasMax = 0.5f;
     public const float RescanIntervalMin = 0.1f, RescanIntervalMax = 30f;
-    public const int SkinnedBudgetMin = 0, SkinnedBudgetMax = 8;
-    public const int SkinnedIntervalMin = 1, SkinnedIntervalMax = 30;
-    public const float SkinnedDistanceMin = 0f, SkinnedDistanceMax = 64f;
 
     /// <summary>
     /// What every camera renders with. One object, assigned in place by the settings module, read by the
@@ -181,9 +178,6 @@ public sealed class BasisGlobalIlluminationSettings
 
     public bool rayTracedTextureAlbedo = true;
     public BasisGlobalIlluminationRaySkinnedMode rayTracedSkinnedMeshes = BasisGlobalIlluminationRaySkinnedMode.Proxy;
-    public int rayTracedSkinnedBudget = 2;
-    public int rayTracedSkinnedInterval = 4;
-    public float rayTracedSkinnedDistance = 16f;
     public LayerMask rayTracedLayerMask = ~0;
     public bool rayTracedShadowCastersOnly = false;
     public float rayTracedRescanInterval = 2f;
@@ -273,9 +267,6 @@ public sealed class BasisGlobalIlluminationSettings
         avatarEmissionScale = Mathf.Clamp(avatarEmissionScale, EmissionScaleMin, EmissionScaleMax);
         bounces = Mathf.Clamp(bounces, BouncesMin, BouncesMax);
         rayTracedLightIntensity = Mathf.Clamp(rayTracedLightIntensity, LightIntensityMin, LightIntensityMax);
-        rayTracedSkinnedBudget = Mathf.Clamp(rayTracedSkinnedBudget, SkinnedBudgetMin, SkinnedBudgetMax);
-        rayTracedSkinnedInterval = Mathf.Clamp(rayTracedSkinnedInterval, SkinnedIntervalMin, SkinnedIntervalMax);
-        rayTracedSkinnedDistance = Mathf.Clamp(rayTracedSkinnedDistance, SkinnedDistanceMin, SkinnedDistanceMax);
         rayTracedRescanInterval = Mathf.Clamp(rayTracedRescanInterval, RescanIntervalMin, RescanIntervalMax);
         rayTracedNormalBias = Mathf.Clamp(rayTracedNormalBias, RayTracedNormalBiasMin, RayTracedNormalBiasMax);
         specularIntensity = Mathf.Clamp(specularIntensity, IntensityMin, IntensityMax);
@@ -307,8 +298,7 @@ public sealed class BasisGlobalIlluminationSettings
         rayTracedEmissiveSurfaces = other.rayTracedEmissiveSurfaces; respectBakedEmission = other.respectBakedEmission;
         emissionScale = other.emissionScale; avatarEmissionScale = other.avatarEmissionScale;
         rayTracedTextureAlbedo = other.rayTracedTextureAlbedo; rayTracedSkinnedMeshes = other.rayTracedSkinnedMeshes;
-        rayTracedSkinnedBudget = other.rayTracedSkinnedBudget; rayTracedSkinnedInterval = other.rayTracedSkinnedInterval;
-        rayTracedSkinnedDistance = other.rayTracedSkinnedDistance; rayTracedLayerMask = other.rayTracedLayerMask;
+        rayTracedLayerMask = other.rayTracedLayerMask;
         rayTracedShadowCastersOnly = other.rayTracedShadowCastersOnly;
         rayTracedRescanInterval = other.rayTracedRescanInterval; rayTracedNormalBias = other.rayTracedNormalBias;
         specular = other.specular; specularIntensity = other.specularIntensity;
@@ -495,9 +485,6 @@ public sealed class BasisGlobalIlluminationSettings
             shadowCastersOnly = rayTracedShadowCastersOnly,
             rescanInterval = rayTracedRescanInterval,
             skinnedMode = rayTracedSkinnedMeshes,
-            skinnedBakesPerFrame = rayTracedSkinnedBudget,
-            skinnedBakeInterval = rayTracedSkinnedInterval,
-            skinnedMaxDistance = rayTracedSkinnedDistance,
             textureAlbedo = rayTracedTextureAlbedo,
             emissiveSurfaces = rayTracedEmissiveSurfaces,
             respectBakedEmission = respectBakedEmission,

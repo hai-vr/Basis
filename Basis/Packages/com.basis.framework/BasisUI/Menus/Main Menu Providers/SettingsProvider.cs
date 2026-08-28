@@ -1797,8 +1797,8 @@ namespace Basis.BasisUI
                 dropdownGiSkinned.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.skinned"));
                 dropdownGiSkinned.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.skinned.tooltip"));
                 dropdownGiSkinned.AssignLocalizedEntries(
-                    new List<string> { "Off", "Static", "Dynamic" },
-                    new List<string> { "settings.graphics.gi.skinned.off", "settings.graphics.gi.skinned.static", "settings.graphics.gi.skinned.dynamic" });
+                    new List<string> { "Off", "Proxy" },
+                    new List<string> { "settings.graphics.gi.skinned.off", "settings.graphics.gi.skinned.proxy" });
                 dropdownGiSkinned.AssignBinding(BasisSettingsDefaults.GlobalIlluminationSkinnedMeshes);
                 SettingsProviderBottleneckHints.Mark(dropdownGiSkinned, BasisFrameCostSide.Cpu);
 
@@ -2076,8 +2076,8 @@ namespace Basis.BasisUI
                 dropdownRtaoSkinned.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.rtao.skinned"));
                 dropdownRtaoSkinned.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.skinned.tooltip"));
                 dropdownRtaoSkinned.AssignLocalizedEntries(
-                    new List<string> { "Off", "Static", "Dynamic" },
-                    new List<string> { "settings.graphics.rtao.skinned.off", "settings.graphics.rtao.skinned.static", "settings.graphics.rtao.skinned.dynamic" });
+                    new List<string> { "Off", "Proxy" },
+                    new List<string> { "settings.graphics.rtao.skinned.off", "settings.graphics.rtao.skinned.proxy" });
                 dropdownRtaoSkinned.AssignBinding(BasisSettingsDefaults.RayTracedAmbientOcclusionSkinnedMeshes);
                 SettingsProviderBottleneckHints.Mark(dropdownRtaoSkinned, BasisFrameCostSide.Cpu);
 
@@ -2938,7 +2938,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.RayTracedAmbientOcclusionDenoise.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionOtherCameras.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionApply.ResetToDefault();
-            BasisSettingsDefaults.DevRtaoSkinnedBudget.ResetToDefault();
 
             // Note: Resolution & ScreenMode are not shown as BasisSettingsDefaults bindings in your snippet.
             // If you later add bindings for them, add them here.
@@ -3533,16 +3532,6 @@ namespace Basis.BasisUI
                     "settings.developer.rtaoStage.position", "settings.developer.rtaoStage.normal"
                 });
             dropdownRtaoStage.AssignBinding(BasisSettingsDefaults.DevRtaoDebugStage);
-
-            PanelSlider sliderRtaoBudget = PanelSlider.CreateEntryAndBind(
-                container,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.developer.rtaoSkinnedBudget"),
-                    "",
-                    BasisSettingsDefaults.RTAO_SKINNED_BUDGET_MIN,
-                    BasisSettingsDefaults.RTAO_SKINNED_BUDGET_MAX,
-                    true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.DevRtaoSkinnedBudget);
-            sliderRtaoBudget.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.rtaoSkinnedBudget.tooltip"));
 #endif
 
 #if BASIS_HAS_GI && !UNITY_ANDROID

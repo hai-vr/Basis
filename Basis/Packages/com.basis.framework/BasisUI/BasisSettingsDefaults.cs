@@ -328,7 +328,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> GlobalIlluminationMode = new("globalilluminationmode", new BasisPlatformDefault<string>("Screen Space"));
         // Avatars are skinned meshes, so this is what decides whether the people in the room bounce and
         // occlude light in the pose they are standing in. Dynamic re-bakes them on a per-frame budget.
-        public static BasisSettingsBinding<string> GlobalIlluminationSkinnedMeshes = new("globalilluminationskinnedmeshes", new BasisPlatformDefault<string>("Dynamic"));
+        public static BasisSettingsBinding<string> GlobalIlluminationSkinnedMeshes = new("globalilluminationskinnedmeshes", new BasisPlatformDefault<string>("Proxy"));
         public static BasisSettingsBinding<string> GlobalIlluminationQuality = new("globalilluminationquality", new BasisPlatformDefault<string>("Medium"));
         // Half resolution is what makes the effect affordable at VR framerates; Full is for photo mode and
         // for people who would rather spend the frame on it.
@@ -393,7 +393,7 @@ namespace Basis.BasisUI
         public const float RTAO_RADIUS_MAX = 0.1f;
         // Avatars are skinned meshes, so this decides whether people in the room cast contact shadows.
         // Dynamic re-bakes them on a per-frame budget, which is CPU the traced path does not otherwise spend.
-        public static BasisSettingsBinding<string> RayTracedAmbientOcclusionSkinnedMeshes = new("raytracedambientocclusionskinnedmeshes", new BasisPlatformDefault<string>("Dynamic"));
+        public static BasisSettingsBinding<string> RayTracedAmbientOcclusionSkinnedMeshes = new("raytracedambientocclusionskinnedmeshes", new BasisPlatformDefault<string>("Proxy"));
         // URP multiplies the whole indirect term by the occlusion but only lerps the direct term toward it by
         // this much, so in a scene carried by a bright directional light the effect reads far weaker than the
         // occlusion buffer looks. Raising this pulls the shaded image back toward the buffer.
@@ -414,12 +414,6 @@ namespace Basis.BasisUI
         // Which buffer the debug view draws. An artifact looks the same in the finished picture whichever
         // stage made it, so stepping through these is how you find the one that did.
         public static BasisSettingsBinding<string> DevRtaoDebugStage = new("devrtaodebugstage", new BasisPlatformDefault<string>("Final"));
-        // How many avatars may be re-posed for the ray tracer in one frame. Zero follows the occlusion
-        // quality (1 / 4 / 16 / 100); anything else pins it, which is the knob for measuring what a busy
-        // instance actually costs.
-        public static BasisSettingsBinding<float> DevRtaoSkinnedBudget = new("devrtaoskinnedbudget", new BasisPlatformDefault<float>(0f));
-        public const float RTAO_SKINNED_BUDGET_MIN = 0f;
-        public const float RTAO_SKINNED_BUDGET_MAX = 128f;
 
         // Commented out 2026-08-04: the realtime-reflection-probe driver these described was
         // never implemented — no UI exposes them and nothing reads them (the Performance Mode
@@ -2292,7 +2286,6 @@ namespace Basis.BasisUI
             RayTracedAmbientOcclusionApply.LoadBindingValue();
             DevRtaoDebugView.LoadBindingValue();
             DevRtaoDebugStage.LoadBindingValue();
-            DevRtaoSkinnedBudget.LoadBindingValue();
             //UseRealtimeReflectionProbes.LoadBindingValue();
             //RealtimeReflectionProbeRate.LoadBindingValue();
             ShowGizmos.LoadBindingValue();

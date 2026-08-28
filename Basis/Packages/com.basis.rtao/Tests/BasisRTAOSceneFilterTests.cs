@@ -106,19 +106,21 @@ namespace Basis.Rendering.RTAO.Tests
         {
             Renderer renderer = Cube().GetComponent<Renderer>();
             Assert.IsTrue(BasisRTAOScene.IsSupportedRendererType(renderer, BasisRTAOSkinnedMode.Off));
-            Assert.IsTrue(BasisRTAOScene.IsSupportedRendererType(renderer, BasisRTAOSkinnedMode.Dynamic));
+            Assert.IsTrue(BasisRTAOScene.IsSupportedRendererType(renderer, BasisRTAOSkinnedMode.Proxy));
         }
 
         [Test]
-        public void SkinnedRendererFollowsSkinnedMode()
+        public void SkinnedRendererIsNeverASupportedType()
         {
             GameObject go = new GameObject("skinned", typeof(SkinnedMeshRenderer));
             spawned.Add(go);
             Renderer renderer = go.GetComponent<SkinnedMeshRenderer>();
 
+            // An avatar reaches the structure as proxy capsules, never as its own deforming mesh, so no
+            // skinned renderer is registered in either mode. Proxy answering false here is the whole point:
+            // a registered skinned mesh would be a body that has to be re-baked to stay in its own pose.
             Assert.IsFalse(BasisRTAOScene.IsSupportedRendererType(renderer, BasisRTAOSkinnedMode.Off));
-            Assert.IsTrue(BasisRTAOScene.IsSupportedRendererType(renderer, BasisRTAOSkinnedMode.Static));
-            Assert.IsTrue(BasisRTAOScene.IsSupportedRendererType(renderer, BasisRTAOSkinnedMode.Dynamic));
+            Assert.IsFalse(BasisRTAOScene.IsSupportedRendererType(renderer, BasisRTAOSkinnedMode.Proxy));
         }
 
         [Test]
@@ -126,7 +128,7 @@ namespace Basis.Rendering.RTAO.Tests
         {
             GameObject go = new GameObject("line", typeof(LineRenderer));
             spawned.Add(go);
-            Assert.IsFalse(BasisRTAOScene.IsSupportedRendererType(go.GetComponent<LineRenderer>(), BasisRTAOSkinnedMode.Dynamic));
+            Assert.IsFalse(BasisRTAOScene.IsSupportedRendererType(go.GetComponent<LineRenderer>(), BasisRTAOSkinnedMode.Proxy));
         }
 
         [Test]

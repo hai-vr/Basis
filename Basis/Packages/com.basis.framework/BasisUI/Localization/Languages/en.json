@@ -7519,14 +7519,6 @@
       "value": "Normal"
     },
     {
-      "key": "settings.developer.rtaoSkinnedBudget",
-      "value": "Avatars Re-posed Per Frame"
-    },
-    {
-      "key": "settings.developer.rtaoSkinnedBudget.tooltip",
-      "value": "How many avatars may have their pose handed to the ray tracer in a single frame. Each one is a skin on the processor plus a rebuild of that avatar's geometry, so this is the most expensive thing the occlusion quality buys. Zero follows the quality setting: 1 on Low, 4 on Medium, 16 on High, 100 on Ultra. Any other value pins it, which is how you measure what a busy instance really costs."
-    },
-    {
       "key": "settings.graphics.rtao.otherCameras",
       "value": "Occlusion In Mirrors And Camera"
     },
@@ -7540,19 +7532,15 @@
     },
     {
       "key": "settings.graphics.rtao.skinned.tooltip",
-      "value": "Whether the people in the room darken the surfaces they stand near. Dynamic re-poses them for the trace on a per frame budget, which is processor time the effect does not otherwise spend."
+      "value": "Whether the people in the room darken the surfaces they stand near. Avatars are traced as capsules on their bones rather than as their full mesh, so everyone updates every frame for very little processor time. Fingers and loose clothing are not in the shape, which at this resolution costs nothing you can see."
     },
     {
       "key": "settings.graphics.rtao.skinned.off",
       "value": "Off"
     },
     {
-      "key": "settings.graphics.rtao.skinned.static",
-      "value": "Static"
-    },
-    {
-      "key": "settings.graphics.rtao.skinned.dynamic",
-      "value": "Dynamic"
+      "key": "settings.graphics.rtao.skinned.proxy",
+      "value": "On"
     },
     {
       "key": "settings.graphics.gi.enable",
@@ -7584,19 +7572,15 @@
     },
     {
       "key": "settings.graphics.gi.skinned.tooltip",
-      "value": "Whether avatars bounce and block light in the ray traced mode. Dynamic follows them as they move and is the most expensive; Static places them once where they were found; Off leaves people out of the bounce entirely."
+      "value": "Whether avatars bounce and block light in the ray traced mode. They are traced as capsules on their bones rather than as their full mesh, so everyone follows their own movement every frame instead of a few people at a time lagging behind theirs. Off leaves people out of the bounce entirely."
     },
     {
       "key": "settings.graphics.gi.skinned.off",
       "value": "Off"
     },
     {
-      "key": "settings.graphics.gi.skinned.static",
-      "value": "Static"
-    },
-    {
-      "key": "settings.graphics.gi.skinned.dynamic",
-      "value": "Dynamic"
+      "key": "settings.graphics.gi.skinned.proxy",
+      "value": "On"
     },
     {
       "key": "settings.graphics.gi.quality",

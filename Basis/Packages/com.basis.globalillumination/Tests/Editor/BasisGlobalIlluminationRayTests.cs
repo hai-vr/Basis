@@ -95,19 +95,13 @@ namespace Basis.Tests.GlobalIllumination
         [Test]
         public void SceneSettingsCarryTheVolumeValues()
         {
-            volume.rayTracedSkinnedMeshes = BasisGlobalIlluminationRaySkinnedMode.Static;
-            volume.rayTracedSkinnedBudget = 5;
-            volume.rayTracedSkinnedInterval = 7;
-            volume.rayTracedSkinnedDistance = 21f;
+            volume.rayTracedSkinnedMeshes = BasisGlobalIlluminationRaySkinnedMode.Off;
             volume.rayTracedTextureAlbedo = false;
             volume.rayTracedEmissiveSurfaces = false;
             volume.rayTracedShadowCastersOnly = true;
 
             BasisGlobalIlluminationRaySceneSettings settings = volume.ResolvedSceneSettings();
-            Assert.AreEqual(BasisGlobalIlluminationRaySkinnedMode.Static, settings.skinnedMode);
-            Assert.AreEqual(5, settings.skinnedBakesPerFrame);
-            Assert.AreEqual(7, settings.skinnedBakeInterval);
-            Assert.AreEqual(21f, settings.skinnedMaxDistance);
+            Assert.AreEqual(BasisGlobalIlluminationRaySkinnedMode.Off, settings.skinnedMode);
             Assert.IsFalse(settings.textureAlbedo);
             Assert.IsFalse(settings.emissiveSurfaces);
             Assert.IsTrue(settings.shadowCastersOnly);
@@ -316,15 +310,18 @@ namespace Basis.Tests.GlobalIllumination
         }
 
         [Test]
-        public void SkinnedRenderersAreOnlyTracedWhenTheModeAsksForThem()
+        public void SkinnedRenderersAreNeverTracedDirectly()
         {
             GameObject host = new GameObject("BasisGIRayTestSkinned");
             try
             {
                 SkinnedMeshRenderer skinned = host.AddComponent<SkinnedMeshRenderer>();
+
+                // Proxy answering false is the point: an avatar bounces light as capsules on its bones, so
+                // registering its deforming mesh would put a body in the structure that has to be re-baked
+                // every pose - which is exactly the cost the proxy path exists to avoid.
                 Assert.IsFalse(BasisGlobalIlluminationRayScene.IsSupportedRendererType(skinned, BasisGlobalIlluminationRaySkinnedMode.Off));
-                Assert.IsTrue(BasisGlobalIlluminationRayScene.IsSupportedRendererType(skinned, BasisGlobalIlluminationRaySkinnedMode.Static));
-                Assert.IsTrue(BasisGlobalIlluminationRayScene.IsSupportedRendererType(skinned, BasisGlobalIlluminationRaySkinnedMode.Dynamic));
+                Assert.IsFalse(BasisGlobalIlluminationRayScene.IsSupportedRendererType(skinned, BasisGlobalIlluminationRaySkinnedMode.Proxy));
             }
             finally
             {

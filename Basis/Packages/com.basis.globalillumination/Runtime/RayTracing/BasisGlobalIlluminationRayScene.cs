@@ -5,15 +5,23 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.UnifiedRayTracing;
 
+/// <summary>
+/// Static and Dynamic are gone. Both re-baked a SkinnedMeshRenderer into a mesh of its own, which the
+/// backend can only swap in by removing and re-adding the instance - a bottom level rebuild per pose,
+/// rationed by a per frame budget. The body that bounced light was therefore each avatar's pose from
+/// several frames ago, staggered differently per person, and no budget setting could fix that because the
+/// rebuild is the cost. Proxy costs one transform update per limb, so everyone updates every frame.
+///
+/// The numbering is left alone: the mode is serialized into BasisGlobalIlluminationSettings, and an asset
+/// or settings file holding a 3 must keep meaning Proxy.
+/// </summary>
 public enum BasisGlobalIlluminationRaySkinnedMode
 {
     Off = 0,
-    Static = 1,
-    Dynamic = 2,
     /// <summary>
-    /// Avatars are traced as capsules on their bones rather than as their own deforming mesh. Every avatar
-    /// updates every frame for a fraction of what one Dynamic re-bake costs, which is what removes the
-    /// staggered staleness Dynamic cannot avoid. See BasisAvatarProxy.
+    /// Avatars are traced as capsules on their bones rather than as their own deforming mesh, so every
+    /// avatar updates every frame instead of waiting its turn in a bake budget. Shares its poses with the
+    /// ambient occlusion tracer - see BasisAvatarProxy in Common.
     /// </summary>
     Proxy = 3
 }
@@ -25,9 +33,6 @@ public struct BasisGlobalIlluminationRaySceneSettings
     public bool shadowCastersOnly;
     public float rescanInterval;
     public BasisGlobalIlluminationRaySkinnedMode skinnedMode;
-    public int skinnedBakesPerFrame;
-    public int skinnedBakeInterval;
-    public float skinnedMaxDistance;
     public bool textureAlbedo;
     public bool emissiveSurfaces;
     /// <summary>
@@ -44,10 +49,7 @@ public struct BasisGlobalIlluminationRaySceneSettings
         layerMask = ~0,
         shadowCastersOnly = false,
         rescanInterval = 2f,
-        skinnedMode = BasisGlobalIlluminationRaySkinnedMode.Dynamic,
-        skinnedBakesPerFrame = 2,
-        skinnedBakeInterval = 4,
-        skinnedMaxDistance = 16f,
+        skinnedMode = BasisGlobalIlluminationRaySkinnedMode.Proxy,
         textureAlbedo = true,
         emissiveSurfaces = true,
         respectBakedEmission = true,
@@ -98,15 +100,13 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
     {
         public Renderer renderer;
         public Transform transform;
-        public SkinnedMeshRenderer skinned;
-        public Mesh sourceMesh, bakedMesh;
+        public Mesh sourceMesh;
         public MeshGeometry geometry;
         public bool sharedGeometry;
         public Matrix4x4 matrix;
         public int[] handles;
         public int[] instanceIds;
         public bool isStatic, seen;
-        public int lastBakeFrame;
     }
 
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -124,7 +124,6 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
     private readonly BasisGlobalIlluminationRayArena indexArena = new BasisGlobalIlluminationRayArena("_BasisGIRtIndices");
     private readonly Dictionary<EntityId, Entry> entries = new Dictionary<EntityId, Entry>();
     private readonly Dictionary<EntityId, MeshGeometry> meshCache = new Dictionary<EntityId, MeshGeometry>();
-    private readonly List<Entry> skinnedEntries = new List<Entry>();
 
     /// <summary>
     /// One avatar's capsules. The limbs never change shape, so this holds nothing but instance handles and
@@ -160,7 +159,6 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
     private int instanceDirtyStart = int.MaxValue, instanceDirtyEnd = -1;
     private bool instanceBufferResized = true;
     private float nextScanTime;
-    private int skinnedCursor;
     private int textureVersion = -1;
     private bool structureDirty = true;
     private bool everBuilt;
@@ -171,7 +169,6 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
     public GraphicsBuffer IndexBuffer => indexArena.Buffer;
     public int EntryCount => entries.Count;
     public int InstanceCount => instanceHighWater;
-    public int SkinnedCount => skinnedEntries.Count;
     public bool NeedsBuild => structureDirty || !everBuilt;
     public bool HasGeometry => instanceHighWater > 0 && instanceBuffer != null;
 
@@ -195,13 +192,13 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
         return renderer.GetComponent<BasisGlobalIlluminationRayExclude>() == null;
     }
 
+    /// <summary>
+    /// Never a SkinnedMeshRenderer. An avatar reaches the structure as proxy capsules or not at all, so no
+    /// deforming mesh is registered here any more and there is nothing left to re-bake. The mode is still
+    /// taken so callers do not have to know that.
+    /// </summary>
     public static bool IsSupportedRendererType(Renderer renderer, BasisGlobalIlluminationRaySkinnedMode skinnedMode)
     {
-        if (renderer is SkinnedMeshRenderer)
-        {
-            return skinnedMode != BasisGlobalIlluminationRaySkinnedMode.Off
-                && skinnedMode != BasisGlobalIlluminationRaySkinnedMode.Proxy;
-        }
         return renderer is MeshRenderer;
     }
 
@@ -238,11 +235,7 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
 
         UpdateTransforms();
 
-        if (settings.skinnedMode == BasisGlobalIlluminationRaySkinnedMode.Dynamic)
-        {
-            UpdateSkinned(settings, viewers, frameCount);
-        }
-        else if (settings.skinnedMode == BasisGlobalIlluminationRaySkinnedMode.Proxy)
+        if (settings.skinnedMode == BasisGlobalIlluminationRaySkinnedMode.Proxy)
         {
             UpdateProxies(frameCount);
         }
@@ -278,7 +271,7 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
             }
 
             if (instanceHighWater >= MaxInstances) { continue; }
-            AddEntry(renderer, mesh, renderer as SkinnedMeshRenderer, settings);
+            AddEntry(renderer, mesh, settings);
         }
 
         if (settings.skinnedMode == BasisGlobalIlluminationRaySkinnedMode.Proxy) { RescanProxies(settings); }
@@ -319,65 +312,33 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
         }
     }
 
-    private void AddEntry(Renderer renderer, Mesh mesh, SkinnedMeshRenderer skinned, in BasisGlobalIlluminationRaySceneSettings settings)
+    private void AddEntry(Renderer renderer, Mesh mesh, in BasisGlobalIlluminationRaySceneSettings settings)
     {
-        Mesh geometryMesh = mesh;
-        Mesh baked = null;
-        if (skinned != null)
-        {
-            baked = new Mesh { name = "BasisGIRayBaked_" + renderer.name, hideFlags = HideFlags.HideAndDontSave };
-            try
-            {
-                skinned.BakeMesh(baked, true);
-            }
-            catch (Exception)
-            {
-                UnityEngine.Object.DestroyImmediate(baked);
-                return;
-            }
-            geometryMesh = baked;
-        }
+        MeshGeometry geometry = AcquireGeometry(mesh);
+        if (geometry == null) { return; }
 
-        MeshGeometry geometry = skinned != null ? BuildGeometry(geometryMesh) : AcquireGeometry(geometryMesh);
-        if (geometry == null)
-        {
-            if (baked != null) { UnityEngine.Object.DestroyImmediate(baked); }
-            return;
-        }
-
-        Matrix4x4 matrix = MatrixFor(renderer, skinned);
+        Matrix4x4 matrix = renderer.transform.localToWorldMatrix;
         Entry entry = new Entry
         {
             renderer = renderer,
             transform = renderer.transform,
-            skinned = skinned,
             sourceMesh = mesh,
-            bakedMesh = baked,
             geometry = geometry,
-            sharedGeometry = skinned == null,
+            sharedGeometry = true,
             matrix = matrix,
-            isStatic = renderer.gameObject.isStatic && skinned == null,
-            seen = true,
-            lastBakeFrame = Time.frameCount
+            isStatic = renderer.gameObject.isStatic,
+            seen = true
         };
 
-        if (!AddInstances(entry, geometryMesh, matrix))
+        if (!AddInstances(entry, mesh, matrix))
         {
             ReleaseGeometry(entry);
-            if (baked != null) { UnityEngine.Object.DestroyImmediate(baked); }
             return;
         }
 
         entries[renderer.GetEntityId()] = entry;
-        if (skinned != null) { skinnedEntries.Add(entry); }
         WriteMaterials(entry, settings);
         structureDirty = true;
-    }
-
-    private static Matrix4x4 MatrixFor(Renderer renderer, SkinnedMeshRenderer skinned)
-    {
-        if (skinned == null) { return renderer.transform.localToWorldMatrix; }
-        return Matrix4x4.TRS(renderer.transform.position, renderer.transform.rotation, Vector3.one);
     }
 
     private bool AddInstances(Entry entry, Mesh mesh, in Matrix4x4 matrix)
@@ -755,8 +716,6 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
     {
         RemoveInstances(entry);
         ReleaseGeometry(entry);
-        if (entry.bakedMesh != null) { UnityEngine.Object.DestroyImmediate(entry.bakedMesh); }
-        if (entry.skinned != null) { skinnedEntries.Remove(entry); }
         entries.Remove(id);
         structureDirty = true;
     }
@@ -795,7 +754,7 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
         foreach (KeyValuePair<EntityId, Entry> pair in entries)
         {
             Entry entry = pair.Value;
-            if (entry.isStatic || entry.transform == null || entry.skinned != null) { continue; }
+            if (entry.isStatic || entry.transform == null) { continue; }
 
             Matrix4x4 matrix = entry.transform.localToWorldMatrix;
             if (matrix == entry.matrix) { continue; }
@@ -1030,94 +989,6 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
         structureDirty = true;
     }
 
-    private void UpdateSkinned(in BasisGlobalIlluminationRaySceneSettings settings, in BasisGlobalIlluminationRayViewers viewers, int frameCount)
-    {
-        if (skinnedEntries.Count == 0 || settings.skinnedBakesPerFrame <= 0) { return; }
-
-        int budget = settings.skinnedBakesPerFrame;
-        int examined = 0;
-        float maxDistanceSquared = settings.skinnedMaxDistance * settings.skinnedMaxDistance;
-
-        while (budget > 0 && examined < skinnedEntries.Count)
-        {
-            skinnedCursor = (skinnedCursor + 1) % skinnedEntries.Count;
-            examined++;
-
-            Entry entry = skinnedEntries[skinnedCursor];
-            if (entry.skinned == null || entry.bakedMesh == null || entry.transform == null) { continue; }
-            if (frameCount - entry.lastBakeFrame < settings.skinnedBakeInterval) { continue; }
-            if (maxDistanceSquared > 0f && viewers.DistanceSquared(entry.transform.position) > maxDistanceSquared) { continue; }
-
-            entry.lastBakeFrame = frameCount;
-            budget--;
-            RebakeSkinned(entry);
-        }
-    }
-
-    /// <summary>
-    /// Re-bakes one skinned renderer into its own mesh and re-adds it to the structure. The topology never
-    /// changes across a pose, so the arena blocks and the instance ids survive the rebake and only the
-    /// normals are rewritten - which is what keeps the ids the trace kernel resolves stable.
-    /// </summary>
-    private void RebakeSkinned(Entry entry)
-    {
-        try
-        {
-            entry.skinned.BakeMesh(entry.bakedMesh, true);
-        }
-        catch (Exception)
-        {
-            return;
-        }
-
-        if (entry.geometry.hasNormals && entry.bakedMesh.isReadable)
-        {
-            try
-            {
-                entry.bakedMesh.GetNormals(normalScratch);
-                if (normalScratch.Count == entry.geometry.vertexCount) { WriteNormals(entry.geometry.normals); }
-            }
-            catch (Exception)
-            {
-                // Keep the previous pose's normals rather than dropping the avatar out of the trace.
-            }
-        }
-
-        Matrix4x4 matrix = MatrixFor(entry.renderer, entry.skinned);
-        for (int index = 0; index < entry.handles.Length; index++)
-        {
-            if (entry.handles[index] >= 0)
-            {
-                accelStruct.RemoveInstance(entry.handles[index]);
-                entry.handles[index] = -1;
-            }
-            if (entry.instanceIds[index] < 0) { continue; }
-
-            try
-            {
-                MeshInstanceDesc desc = new MeshInstanceDesc(entry.bakedMesh, index)
-                {
-                    localToWorldMatrix = matrix,
-                    mask = 0xff,
-                    instanceID = (uint)entry.instanceIds[index],
-                    enableTriangleCulling = false,
-                    opaqueGeometry = true
-                };
-                entry.handles[index] = accelStruct.AddInstance(desc);
-            }
-            catch (Exception)
-            {
-                continue;
-            }
-
-            instances[entry.instanceIds[index]].SetNormalMatrix(matrix);
-            MarkInstanceDirty(entry.instanceIds[index]);
-        }
-
-        entry.matrix = matrix;
-        structureDirty = true;
-    }
-
     private void Upload()
     {
         normalArena.Upload();
@@ -1160,14 +1031,11 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
 
     public void Dispose()
     {
-        foreach (KeyValuePair<EntityId, Entry> pair in entries)
-        {
-            if (pair.Value.bakedMesh != null) { UnityEngine.Object.DestroyImmediate(pair.Value.bakedMesh); }
-        }
+        // No mesh is owned here any more: entries share the renderer's own mesh through the cache and the
+        // proxies share one capsule, so there is nothing of this scene's to destroy on the way out.
         entries.Clear();
         meshCache.Clear();
         ClearProxies();
-        skinnedEntries.Clear();
         pendingRemoval.Clear();
         freeInstanceIds.Clear();
 

@@ -237,63 +237,29 @@ namespace Basis.Rendering.RTAO.Tests
                 Assert.IsTrue(BasisRTAOSettings.FromQuality(quality).stereoCoherentNoise, $"{quality} must default to stereo coherent noise so both eyes agree.");
         }
 
-        [Test]
-        public void BakeBudgetClimbsWithQuality()
-        {
-            Assert.AreEqual(1, BasisRTAOSceneSettings.BakeBudgetForQuality(BasisRTAOQuality.Low));
-            Assert.AreEqual(4, BasisRTAOSceneSettings.BakeBudgetForQuality(BasisRTAOQuality.Medium));
-            Assert.AreEqual(16, BasisRTAOSceneSettings.BakeBudgetForQuality(BasisRTAOQuality.High));
-            Assert.AreEqual(100, BasisRTAOSceneSettings.BakeBudgetForQuality(BasisRTAOQuality.Ultra));
-        }
+        // BakeBudgetClimbsWithQuality, BakeIntervalTightensWithQuality, QualityDrivesBothHalvesOfTheBakeBudget
+        // and SceneSettingsValidationClampsTheBudget went with Static and Dynamic. There is no per frame
+        // re-pose budget any more: a proxy avatar is one transform update per limb, which costs the same at
+        // every quality level and needs no rationing, no interval and no distance gate.
 
         [Test]
-        public void BakeIntervalTightensWithQuality()
-        {
-            int low = BasisRTAOSceneSettings.BakeIntervalForQuality(BasisRTAOQuality.Low);
-            int ultra = BasisRTAOSceneSettings.BakeIntervalForQuality(BasisRTAOQuality.Ultra);
-
-            Assert.Greater(low, ultra);
-            Assert.AreEqual(1, ultra,
-                "A budget of 100 buys nothing if every avatar is still rate limited, so Ultra has to allow a re-pose every frame.");
-        }
-
-        [Test]
-        public void QualityDrivesBothHalvesOfTheBakeBudget()
-        {
-            foreach (BasisRTAOQuality quality in System.Enum.GetValues(typeof(BasisRTAOQuality)))
-            {
-                BasisRTAOSceneSettings settings = BasisRTAOSceneSettings.FromQuality(quality);
-                Assert.AreEqual(BasisRTAOSceneSettings.BakeBudgetForQuality(quality), settings.skinnedBakesPerFrame);
-                Assert.AreEqual(BasisRTAOSceneSettings.BakeIntervalForQuality(quality), settings.skinnedBakeInterval);
-            }
-        }
-
-        [Test]
-        public void SceneSettingsValidationClampsTheBudget()
-        {
-            BasisRTAOSceneSettings settings = BasisRTAOSceneSettings.Default;
-            settings.skinnedBakesPerFrame = -5;
-            Assert.AreEqual(0, settings.Validated().skinnedBakesPerFrame, "Zero is a valid budget: it means nobody is re-posed.");
-
-            settings.skinnedBakesPerFrame = 9999;
-            Assert.AreEqual(128, settings.Validated().skinnedBakesPerFrame);
-
-            settings.skinnedBakeInterval = 0;
-            Assert.AreEqual(1, settings.Validated().skinnedBakeInterval, "An interval of zero would divide the rate limit by nothing.");
-        }
-
-        [Test]
-        public void SceneDefaultsBakeSkinnedMeshes()
+        public void SceneDefaultsTraceAvatarsAsProxies()
         {
             Assert.AreEqual(BasisRTAOSceneSettings.AvatarLayerMask, BasisRTAOSceneSettings.Default.layerMask.value,
                 "This system is only used on avatars, so the default must not be paying to trace the world.");
 
-            Assert.AreEqual(BasisRTAOSkinnedMode.Dynamic, BasisRTAOSceneSettings.Default.skinnedMode,
-                "Avatars are the thing people look at, so they cast occlusion by default; the per frame bake budget is what keeps it affordable.");
-            Assert.Greater(BasisRTAOSceneSettings.Default.skinnedBakesPerFrame, 0, "Dynamic skinned mode needs a bake budget to do anything.");
-            Assert.Greater(BasisRTAOSceneSettings.Default.skinnedBakeInterval, 1, "Re-baking every avatar every frame is not a budget.");
-            Assert.GreaterOrEqual(BasisRTAOSceneSettings.Default.skinnedMaxDistance, 14f,
-                "Basis stops an avatar casting shadows at mesh LOD 2, roughly 14 m, so the pose budget should reach at least that far or remotes stop being re-posed while they are still plainly visible.");
+            Assert.AreEqual(BasisRTAOSkinnedMode.Proxy, BasisRTAOSceneSettings.Default.skinnedMode,
+                "Avatars are the thing people look at, so they cast occlusion by default, and the capsule proxy is what makes that affordable enough to be the default.");
+        }
+
+        [Test]
+        public void EveryQualityTracesAvatarsTheSameWay()
+        {
+            foreach (BasisRTAOQuality quality in System.Enum.GetValues(typeof(BasisRTAOQuality)))
+            {
+                Assert.AreEqual(BasisRTAOSkinnedMode.Proxy, BasisRTAOSceneSettings.FromQuality(quality).skinnedMode,
+                    $"{quality} must still trace avatars: the proxy costs the same at every level, so there is nothing for a lower level to save by dropping them.");
+            }
         }
     }
 }

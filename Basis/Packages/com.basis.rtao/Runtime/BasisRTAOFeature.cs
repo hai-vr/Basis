@@ -50,8 +50,6 @@ namespace Basis.Rendering.RTAO
         public static LayerMask LayerMaskOverride = BasisRTAOSceneSettings.AvatarLayerMask;
         public static bool HasSkinnedModeOverride;
         public static BasisRTAOSkinnedMode SkinnedModeOverride = BasisRTAOSkinnedMode.Off;
-        public static bool HasSkinnedBudgetOverride;
-        public static int SkinnedBudgetOverride = 4;
         public static bool HasDebugViewOverride;
         public static bool HasDebugStageOverride;
         public static BasisRTAODebugStage DebugStageOverride = BasisRTAODebugStage.Final;
@@ -114,24 +112,16 @@ namespace Basis.Rendering.RTAO
             return resolved.Validated();
         }
 
+        // No quality branch left: avatars cost one transform update per limb whatever the level is set to,
+        // so there is no per frame budget for the quality preset to ration any more.
         public BasisRTAOSceneSettings ResolveSceneSettings()
         {
             BasisRTAOSceneSettings resolved = sceneSettings;
-
-            // The bake budget is what the occlusion quality actually buys on avatars, so unless the renderer
-            // is authored by hand it rides the quality level rather than sitting on a number nobody sees.
-            if (!overrideQualityPreset)
-            {
-                resolved.skinnedBakesPerFrame = BasisRTAOSceneSettings.BakeBudgetForQuality(EffectiveQuality);
-                resolved.skinnedBakeInterval = BasisRTAOSceneSettings.BakeIntervalForQuality(EffectiveQuality);
-            }
 
             if (HasLayerMaskOverride)
                 resolved.layerMask = LayerMaskOverride;
             if (HasSkinnedModeOverride)
                 resolved.skinnedMode = SkinnedModeOverride;
-            if (HasSkinnedBudgetOverride)
-                resolved.skinnedBakesPerFrame = SkinnedBudgetOverride;
 
             return resolved.Validated();
         }

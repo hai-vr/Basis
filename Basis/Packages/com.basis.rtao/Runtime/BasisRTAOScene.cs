@@ -6,11 +6,20 @@ using UnityEngine.Rendering.UnifiedRayTracing;
 
 namespace Basis.Rendering.RTAO
 {
+    /// <summary>
+    /// Static and Dynamic are gone. Both re-baked a SkinnedMeshRenderer into a mesh of its own and swapped
+    /// that mesh into the structure, which this backend can only do by removing and re-adding it - a full
+    /// bottom level rebuild per pose. That had to be rationed by a per frame budget, so the body which
+    /// occluded was each avatar's pose from up to several frames ago, staggered differently for every
+    /// person in the room. Proxy costs one transform update per limb, so every avatar updates every frame
+    /// for less than a single re-bake, and there is nothing the bake path did better.
+    ///
+    /// The numbering is left alone because the mode is serialized on BasisRTAOFeature: an asset saved with
+    /// Proxy holds a 3, and renumbering would silently reinterpret it.
+    /// </summary>
     public enum BasisRTAOSkinnedMode
     {
         Off = 0,
-        Static = 1,
-        Dynamic = 2,
         /// <summary>
         /// Avatars are traced as capsules on their bones rather than as their own deforming mesh, so every
         /// avatar updates every frame instead of waiting its turn in a bake budget. Shares its poses with
@@ -26,9 +35,6 @@ namespace Basis.Rendering.RTAO
         public bool requireShadowCasting;
         [Min(0.1f)] public float rescanInterval;
         public BasisRTAOSkinnedMode skinnedMode;
-        [Range(0, 128)] public int skinnedBakesPerFrame;
-        [Range(1, 30)] public int skinnedBakeInterval;
-        [Min(0f)] public float skinnedMaxDistance;
 
         public const string LocalAvatarLayer = "LocalPlayerAvatar";
         public const string RemoteAvatarLayer = "RemotePlayerAvatar";
@@ -106,56 +112,25 @@ namespace Basis.Rendering.RTAO
 
         public static BasisRTAOSceneSettings Default => FromQuality(BasisRTAOQuality.Medium);
 
+        // Nothing in here scales with quality any more. The bake budget was the one genuinely expensive
+        // thing a quality level bought - CPU skinning plus a bottom level rebuild, per avatar - and the
+        // proxy path replaces it with a transform update per limb, which costs the same trivial amount at
+        // every level. The parameter stays so callers keep reading settings through one door.
         public static BasisRTAOSceneSettings FromQuality(BasisRTAOQuality quality)
         {
-            BasisRTAOSceneSettings settings = new BasisRTAOSceneSettings
+            return new BasisRTAOSceneSettings
             {
                 layerMask = AvatarLayerMask,
                 requireShadowCasting = true,
                 rescanInterval = 2f,
-                skinnedMode = BasisRTAOSkinnedMode.Proxy,
-                skinnedMaxDistance = 15f
+                skinnedMode = BasisRTAOSkinnedMode.Proxy
             };
-
-            settings.skinnedBakesPerFrame = BakeBudgetForQuality(quality);
-            settings.skinnedBakeInterval = BakeIntervalForQuality(quality);
-            return settings;
-        }
-
-        // Re-posing an avatar is CPU skinning plus a BLAS rebuild, so this is the single most expensive
-        // thing the quality level buys. Ultra re-poses a full instance every frame; Low keeps whoever is
-        // nearest and lets everyone else wear a slightly older pose.
-        public static int BakeBudgetForQuality(BasisRTAOQuality quality)
-        {
-            switch (quality)
-            {
-                case BasisRTAOQuality.Low: return 1;
-                case BasisRTAOQuality.High: return 16;
-                case BasisRTAOQuality.Ultra: return 100;
-                default: return 4;
-            }
-        }
-
-        // The budget is per frame and the interval is per avatar, so both have to move together: a budget of
-        // 100 does nothing if every avatar is still rate limited to one re-pose every four frames.
-        public static int BakeIntervalForQuality(BasisRTAOQuality quality)
-        {
-            switch (quality)
-            {
-                case BasisRTAOQuality.Low: return 8;
-                case BasisRTAOQuality.High: return 2;
-                case BasisRTAOQuality.Ultra: return 1;
-                default: return 4;
-            }
         }
 
         public BasisRTAOSceneSettings Validated()
         {
             BasisRTAOSceneSettings copy = this;
             copy.rescanInterval = Mathf.Max(0.1f, copy.rescanInterval);
-            copy.skinnedBakesPerFrame = Mathf.Clamp(copy.skinnedBakesPerFrame, 0, 128);
-            copy.skinnedBakeInterval = Mathf.Clamp(copy.skinnedBakeInterval, 1, 30);
-            copy.skinnedMaxDistance = Mathf.Max(0f, copy.skinnedMaxDistance);
             return copy;
         }
     }
@@ -167,23 +142,13 @@ namespace Basis.Rendering.RTAO
             public EntityId id;
             public Renderer renderer;
             public Transform transform;
-            public SkinnedMeshRenderer skinned;
             // The mesh the handles were registered against. Unity drops an instance itself when the mesh
             // behind it dies and hands the handle out again, so removing by handle is only safe while this
             // is alive.
-            public Mesh sourceMesh, bakedMesh, instanceMesh;
+            public Mesh sourceMesh, instanceMesh;
             public Matrix4x4 matrix;
             public int[] handles;
-            // A flag, not "skinned != null": a destroyed SkinnedMeshRenderer compares equal to null, so the
-            // component answers no exactly when the entry has to come out of skinnedEntries.
-            public bool isStatic, seen, isSkinned;
-            // The bake AddEntry takes is of a body that has not been posed yet — a freshly instantiated
-            // avatar still stands in the pose its mesh was imported in. The first re-bake therefore ignores
-            // both the interval and the distance gate. Without that, an avatar installing further away than
-            // skinnedMaxDistance wears that import pose as its occlusion for good, because the distance gate
-            // is exactly what stops distant avatars from ever being re-posed.
-            public bool needsPosedBake;
-            public int lastBakeFrame;
+            public bool isStatic, seen;
         }
 
         private readonly BasisRTAOContext context;
@@ -206,12 +171,10 @@ namespace Basis.Rendering.RTAO
 
         public int ProxyCount => proxies.Count;
         private readonly List<EntityId> pendingRemoval = new List<EntityId>();
-        private readonly List<Entry> skinnedEntries = new List<Entry>();
         private IRayTracingAccelStruct accelStruct;
         private float nextScanTime;
         private int lastRefreshFrame = int.MinValue;
         private bool forceRefresh = true;
-        private int skinnedCursor;
         private bool structureDirty = true;
         private bool everBuilt;
         // Set when an entry had to be dropped while the mesh its instances were registered against was
@@ -222,17 +185,6 @@ namespace Basis.Rendering.RTAO
 
         public IRayTracingAccelStruct AccelerationStructure => accelStruct;
         public int InstanceCount => entries.Count;
-        public int SkinnedCount => skinnedEntries.Count;
-        public int StaleSkinnedCount(int frameCount, int interval)
-        {
-            int count = 0;
-            for (int i = 0; i < skinnedEntries.Count; i++)
-            {
-                if (frameCount - skinnedEntries[i].lastBakeFrame >= interval)
-                    count++;
-            }
-            return count;
-        }
         public bool NeedsBuild => structureDirty || !everBuilt;
         public bool HasGeometry => entries.Count > 0;
         /// <summary>
@@ -241,18 +193,6 @@ namespace Basis.Rendering.RTAO
         /// number that climbs every swap means something is releasing too late.
         /// </summary>
         public int StructureResetCount => resetCount;
-
-        /// <summary>
-        /// The mesh this scene baked for <paramref name="renderer"/>, or null if it holds no skinned entry
-        /// for it. The bake is owned here and lives exactly as long as its entry, so this is what shows
-        /// whether a swap replaced an avatar's geometry or merely added the new body alongside the old one.
-        /// </summary>
-        internal Mesh BakedMeshFor(Renderer renderer)
-        {
-            if (renderer == null)
-                return null;
-            return entries.TryGetValue(renderer.GetEntityId(), out Entry entry) ? entry.bakedMesh : null;
-        }
 
         public BasisRTAOScene(BasisRTAOContext context)
         {
@@ -280,10 +220,13 @@ namespace Basis.Rendering.RTAO
             return true;
         }
 
+        /// <summary>
+        /// Never a SkinnedMeshRenderer. An avatar reaches the structure as proxy capsules or not at all, so
+        /// there is no deforming entry left to go stale - which is what retired the whole bake path. The
+        /// mode is still taken so callers do not have to know that, and so a future third answer has a seat.
+        /// </summary>
         public static bool IsSupportedRendererType(Renderer renderer, BasisRTAOSkinnedMode skinnedMode)
         {
-            if (renderer is SkinnedMeshRenderer)
-                return skinnedMode != BasisRTAOSkinnedMode.Off && skinnedMode != BasisRTAOSkinnedMode.Proxy;
             return renderer is MeshRenderer;
         }
 
@@ -325,11 +268,7 @@ namespace Basis.Rendering.RTAO
 
             UpdateTransforms();
 
-            if (settings.skinnedMode == BasisRTAOSkinnedMode.Dynamic)
-                UpdateSkinned(settings, viewerPosition, frameCount);
-            else if (settings.skinnedMode == BasisRTAOSkinnedMode.Static)
-                BakeFirstPoses(settings, frameCount);
-            else if (settings.skinnedMode == BasisRTAOSkinnedMode.Proxy)
+            if (settings.skinnedMode == BasisRTAOSkinnedMode.Proxy)
                 UpdateProxies(frameCount);
 
             // Last, so it sees everything the sweep and the re-bakes dropped this frame, and so the
@@ -366,7 +305,7 @@ namespace Basis.Rendering.RTAO
                     RemoveEntry(id, existing);
                 }
 
-                AddEntry(renderer, mesh, renderer as SkinnedMeshRenderer);
+                AddEntry(renderer, mesh);
             }
 
             pendingRemoval.Clear();
@@ -384,67 +323,28 @@ namespace Basis.Rendering.RTAO
             ResetStructure();
         }
 
-        private void AddEntry(Renderer renderer, Mesh mesh, SkinnedMeshRenderer skinned)
+        private void AddEntry(Renderer renderer, Mesh mesh)
         {
-            Mesh geometry = mesh;
-            Mesh baked = null;
-            if (skinned != null)
-            {
-                baked = new Mesh
-                {
-                    name = "BasisRTAOBaked_" + renderer.name,
-                    hideFlags = HideFlags.HideAndDontSave
-                };
-                try
-                {
-                    skinned.BakeMesh(baked, true);
-                }
-                catch (Exception)
-                {
-                    UnityEngine.Object.DestroyImmediate(baked);
-                    return;
-                }
-                geometry = baked;
-            }
-
-            Matrix4x4 matrix = MatrixFor(renderer, skinned);
-            int[] handles = AddInstances(geometry, matrix);
+            Matrix4x4 matrix = renderer.transform.localToWorldMatrix;
+            int[] handles = AddInstances(mesh, matrix);
             if (handles == null)
-            {
-                if (baked != null)
-                    UnityEngine.Object.DestroyImmediate(baked);
                 return;
-            }
 
             Entry entry = new Entry
             {
                 id = renderer.GetEntityId(),
                 renderer = renderer,
                 transform = renderer.transform,
-                skinned = skinned,
                 sourceMesh = mesh,
-                bakedMesh = baked,
-                instanceMesh = geometry,
+                instanceMesh = mesh,
                 matrix = matrix,
                 handles = handles,
-                isStatic = renderer.gameObject.isStatic && skinned == null,
-                seen = true,
-                isSkinned = skinned != null,
-                needsPosedBake = skinned != null,
-                lastBakeFrame = Time.frameCount
+                isStatic = renderer.gameObject.isStatic,
+                seen = true
             };
 
             entries[entry.id] = entry;
-            if (entry.isSkinned)
-                skinnedEntries.Add(entry);
             structureDirty = true;
-        }
-
-        private static Matrix4x4 MatrixFor(Renderer renderer, SkinnedMeshRenderer skinned)
-        {
-            if (skinned == null)
-                return renderer.transform.localToWorldMatrix;
-            return Matrix4x4.TRS(renderer.transform.position, renderer.transform.rotation, Vector3.one);
         }
 
         /// <summary>
@@ -729,14 +629,14 @@ namespace Basis.Rendering.RTAO
                 entry.handles = null;
                 entry.instanceMesh = null;
 
-                Mesh geometry = entry.isSkinned ? entry.bakedMesh : entry.sourceMesh;
+                Mesh geometry = entry.sourceMesh;
                 if (entry.renderer == null || entry.transform == null || !IsUsableMesh(geometry))
                 {
                     pendingRemoval.Add(pair.Key);
                     continue;
                 }
 
-                entry.matrix = MatrixFor(entry.renderer, entry.skinned);
+                entry.matrix = entry.transform.localToWorldMatrix;
                 entry.handles = AddInstances(geometry, entry.matrix);
                 if (entry.handles == null)
                 {
@@ -761,21 +661,13 @@ namespace Basis.Rendering.RTAO
         private void RemoveEntry(EntityId id, Entry entry)
         {
             ReleaseInstances(entry);
-            if (entry.bakedMesh != null)
-                UnityEngine.Object.DestroyImmediate(entry.bakedMesh);
-            entry.bakedMesh = null;
-            if (entry.isSkinned)
-            {
-                skinnedEntries.Remove(entry);
-                entry.isSkinned = false;
-            }
             entries.Remove(id);
             structureDirty = true;
         }
 
-        // Dead entries are swept here rather than only on the rescan: an avatar is destroyed the moment it
-        // is swapped, and the geometry it left behind was baked into a mesh this class owns, so it outlives
-        // the avatar and keeps occluding from wherever the old body was standing.
+        // Dead entries are swept here rather than only on the rescan: a renderer is destroyed the moment
+        // its avatar is swapped, and waiting out the rescan interval leaves it occluding from wherever the
+        // old body was standing.
         private void UpdateTransforms()
         {
             pendingRemoval.Clear();
@@ -787,7 +679,7 @@ namespace Basis.Rendering.RTAO
                     pendingRemoval.Add(pair.Key);
                     continue;
                 }
-                if (entry.isStatic || entry.isSkinned)
+                if (entry.isStatic)
                     continue;
 
                 Matrix4x4 matrix = entry.transform.localToWorldMatrix;
@@ -808,122 +700,6 @@ namespace Basis.Rendering.RTAO
             pendingRemoval.Clear();
         }
 
-        private void UpdateSkinned(in BasisRTAOSceneSettings settings, Vector3 viewerPosition, int frameCount)
-        {
-            if (skinnedEntries.Count == 0 || settings.skinnedBakesPerFrame <= 0)
-                return;
-
-            float maxDistanceSq = settings.skinnedMaxDistance * settings.skinnedMaxDistance;
-
-            // Every avatar follows its own transform every frame, near or far, so a remote never occludes
-            // from where it used to be standing.
-            for (int i = 0; i < skinnedEntries.Count; i++)
-                FollowSkinnedTransform(skinnedEntries[i]);
-
-            int budget = settings.skinnedBakesPerFrame;
-            int examined = 0;
-
-            while (budget > 0 && examined < skinnedEntries.Count)
-            {
-                skinnedCursor = (skinnedCursor + 1) % skinnedEntries.Count;
-                examined++;
-
-                Entry entry = skinnedEntries[skinnedCursor];
-                if (entry.skinned == null || entry.bakedMesh == null || entry.transform == null)
-                    continue;
-                // Both gates are about re-posing, and neither applies to an avatar that has never been
-                // posed at all. See Entry.needsPosedBake.
-                if (!entry.needsPosedBake)
-                {
-                    if (frameCount - entry.lastBakeFrame < settings.skinnedBakeInterval)
-                        continue;
-                    if (maxDistanceSq > 0f && (entry.transform.position - viewerPosition).sqrMagnitude > maxDistanceSq)
-                        continue;
-                }
-
-                entry.lastBakeFrame = frameCount;
-                budget--;
-                RebakeSkinned(entry);
-            }
-        }
-
-        /// <summary>
-        /// The one thing Static mode still has to do every frame: give an avatar that has never been posed
-        /// its first real bake.
-        ///
-        /// Static bakes an avatar once and never re-poses it, and the bake AddEntry takes is of a body that
-        /// was instantiated moments earlier and is still standing in the pose its mesh was imported in.
-        /// Without this pass that import pose IS the avatar's occlusion for the rest of the session — a
-        /// T-pose worth of limbs casting from where no limb is. Budgeted the same way Dynamic is, because a
-        /// room filling up is a room full of first bakes.
-        /// </summary>
-        private void BakeFirstPoses(in BasisRTAOSceneSettings settings, int frameCount)
-        {
-            int budget = settings.skinnedBakesPerFrame;
-            if (budget <= 0)
-                return;
-
-            // Backwards: RebakeSkinned drops the entry if the re-add fails, and that compacts this list.
-            for (int i = skinnedEntries.Count - 1; i >= 0 && budget > 0; i--)
-            {
-                Entry entry = skinnedEntries[i];
-                if (!entry.needsPosedBake)
-                    continue;
-                if (entry.skinned == null || entry.bakedMesh == null || entry.transform == null)
-                    continue;
-
-                entry.lastBakeFrame = frameCount;
-                budget--;
-                RebakeSkinned(entry);
-            }
-        }
-
-        private void FollowSkinnedTransform(Entry entry)
-        {
-            if (entry.transform == null || entry.handles == null)
-                return;
-
-            Matrix4x4 matrix = MatrixFor(entry.renderer, entry.skinned);
-            if (matrix == entry.matrix)
-                return;
-
-            entry.matrix = matrix;
-            for (int i = 0; i < entry.handles.Length; i++)
-                accelStruct.UpdateInstanceTransform(entry.handles[i], matrix);
-            structureDirty = true;
-        }
-
-        private void RebakeSkinned(Entry entry)
-        {
-            try
-            {
-                entry.skinned.BakeMesh(entry.bakedMesh, true);
-            }
-            catch (Exception)
-            {
-                return;
-            }
-
-            // Only once the bake actually landed: a throw leaves the import pose in place, and that entry
-            // still has to be first in line next frame.
-            entry.needsPosedBake = false;
-
-            ReleaseInstances(entry);
-
-            Matrix4x4 matrix = MatrixFor(entry.renderer, entry.skinned);
-            int[] handles = AddInstances(entry.bakedMesh, matrix);
-            if (handles == null)
-            {
-                RemoveEntry(entry.id, entry);
-                return;
-            }
-
-            entry.handles = handles;
-            entry.instanceMesh = entry.bakedMesh;
-            entry.matrix = matrix;
-            structureDirty = true;
-        }
-
         public void Build(CommandBuffer cmd)
         {
             if (accelStruct == null || cmd == null)
@@ -937,15 +713,8 @@ namespace Basis.Rendering.RTAO
 
         public void Dispose()
         {
-            // Outside the null check: the baked meshes are HideAndDontSave, so nothing else will ever
-            // collect them, and a scene torn down after its structure had already gone would leak one
-            // per avatar it was tracing.
-            foreach (KeyValuePair<EntityId, Entry> pair in entries)
-            {
-                if (pair.Value.bakedMesh != null)
-                    UnityEngine.Object.DestroyImmediate(pair.Value.bakedMesh);
-            }
-
+            // Nothing here owns a mesh any more: an entry registers the renderer's own shared mesh and the
+            // proxies share one capsule, so a torn down scene has nothing of its own left to destroy.
             if (accelStruct != null)
             {
                 accelStruct.Dispose();
@@ -954,7 +723,6 @@ namespace Basis.Rendering.RTAO
             needsReset = false;
             entries.Clear();
             ClearProxies();
-            skinnedEntries.Clear();
             pendingRemoval.Clear();
         }
     }

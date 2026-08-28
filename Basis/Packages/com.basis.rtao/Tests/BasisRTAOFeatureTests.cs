@@ -37,7 +37,6 @@ namespace Basis.Rendering.RTAO.Tests
             BasisRTAOFeature.HasDenoisePassesOverride = false;
             BasisRTAOFeature.AllowSecondaryCameras = true;
             BasisRTAOFeature.ViewerPosition = null;
-            BasisRTAOFeature.HasSkinnedBudgetOverride = false;
             BasisRTAOFeature.HasApplyModeOverride = false;
         }
 
@@ -264,58 +263,11 @@ namespace Basis.Rendering.RTAO.Tests
             Assert.AreEqual(0.9f, resolved.directLightingStrength, 1e-4f);
         }
 
-        [Test]
-        public void SceneSettingsFollowTheOcclusionQuality()
-        {
-            SerializedFieldSetter.Set(feature, "overrideQualityPreset", false);
-
-            BasisRTAOFeature.HasQualityOverride = true;
-            BasisRTAOFeature.QualityOverride = BasisRTAOQuality.Ultra;
-            Assert.AreEqual(100, feature.ResolveSceneSettings().skinnedBakesPerFrame,
-                "Ultra is what buys a whole instance being re-posed every frame.");
-
-            BasisRTAOFeature.QualityOverride = BasisRTAOQuality.Low;
-            Assert.AreEqual(1, feature.ResolveSceneSettings().skinnedBakesPerFrame);
-        }
-
-        [Test]
-        public void AuthoredSceneSettingsAreLeftAlone()
-        {
-            BasisRTAOSceneSettings authored = BasisRTAOSceneSettings.Default;
-            authored.skinnedBakesPerFrame = 7;
-            SerializedFieldSetter.Set(feature, "overrideQualityPreset", true);
-            SerializedFieldSetter.Set(feature, "sceneSettings", authored);
-
-            BasisRTAOFeature.HasQualityOverride = true;
-            BasisRTAOFeature.QualityOverride = BasisRTAOQuality.Ultra;
-
-            Assert.AreEqual(7, feature.ResolveSceneSettings().skinnedBakesPerFrame,
-                "Ticking the override is how a renderer says it wants its own numbers, quality included.");
-        }
-
-        [Test]
-        public void TheBudgetOverridePinsItAgainstQuality()
-        {
-            SerializedFieldSetter.Set(feature, "overrideQualityPreset", false);
-            BasisRTAOFeature.HasQualityOverride = true;
-            BasisRTAOFeature.QualityOverride = BasisRTAOQuality.Ultra;
-
-            BasisRTAOFeature.HasSkinnedBudgetOverride = true;
-            BasisRTAOFeature.SkinnedBudgetOverride = 3;
-
-            Assert.AreEqual(3, feature.ResolveSceneSettings().skinnedBakesPerFrame,
-                "The developer slider has to win, or there is no way to measure a fixed budget.");
-        }
-
-        [Test]
-        public void ResolvedSceneSettingsAreValidated()
-        {
-            SerializedFieldSetter.Set(feature, "overrideQualityPreset", false);
-            BasisRTAOFeature.HasSkinnedBudgetOverride = true;
-            BasisRTAOFeature.SkinnedBudgetOverride = 100000;
-
-            Assert.AreEqual(128, feature.ResolveSceneSettings().skinnedBakesPerFrame);
-        }
+        // SceneSettingsFollowTheOcclusionQuality, AuthoredSceneSettingsAreLeftAlone,
+        // TheBudgetOverridePinsItAgainstQuality and ResolvedSceneSettingsAreValidated all measured the
+        // per frame re-pose budget, which went with Static and Dynamic. Avatars are proxy capsules now and
+        // cost one transform update per limb, so there is no budget for a quality level, an authored value
+        // or a developer slider to disagree about.
 
         [Test]
         public void SecondaryCamerasAreAllowedByDefault()

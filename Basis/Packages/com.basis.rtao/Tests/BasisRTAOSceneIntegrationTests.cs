@@ -201,7 +201,7 @@ namespace Basis.Rendering.RTAO.Tests
         }
 
         [Test]
-        public void SkinnedRenderersAreIgnoredUnlessAskedFor()
+        public void SkinnedRenderersNeverEnterTheStructure()
         {
             GameObject skinnedObject = new GameObject("BasisRTAOSkinned");
             spawned.Add(skinnedObject);
@@ -211,13 +211,14 @@ namespace Basis.Rendering.RTAO.Tests
             BasisRTAOSceneSettings off = BasisRTAOTestSettings.EveryLayer;
             off.skinnedMode = BasisRTAOSkinnedMode.Off;
             scene.Rescan(off);
-            Assert.AreEqual(0, scene.SkinnedCount);
+            Assert.AreEqual(0, scene.InstanceCount);
 
             BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Dynamic;
+            settings.skinnedMode = BasisRTAOSkinnedMode.Proxy;
             scene.Rescan(settings);
 
-            Assert.AreEqual(1, scene.SkinnedCount, "Turning skinned mode on must bring skinned renderers into the structure.");
+            Assert.AreEqual(0, scene.InstanceCount,
+                "Even with avatars switched on, a deforming mesh is never registered: the body enters as proxy capsules, which is what removed the re-bake budget along with the staleness it caused.");
         }
 
         private GameObject SkinnedAvatar(string name, Vector3 position)
@@ -241,14 +242,11 @@ namespace Basis.Rendering.RTAO.Tests
             avatar.GetComponent<SkinnedMeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
 
             BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Dynamic;
+            settings.skinnedMode = BasisRTAOSkinnedMode.Proxy;
             settings.requireShadowCasting = true;
 
             Assert.IsTrue(BasisRTAOScene.ShouldInclude(avatar.GetComponent<SkinnedMeshRenderer>(), settings),
                 "Shadow casting mode is an authoring signal on world geometry, but on a remote avatar it is driven at runtime by the shadow LOD. Filtering avatars on it drops most of the room out of the structure.");
-
-            scene.Rescan(settings);
-            Assert.AreEqual(1, scene.SkinnedCount);
         }
 
         [Test]
@@ -264,135 +262,31 @@ namespace Basis.Rendering.RTAO.Tests
                 "On a mesh renderer the flag is what the author set, so it stays a valid opt out.");
         }
 
-        [Test]
-        public void DistantAvatarsKeepOccludingFromWhereTheyActuallyAre()
-        {
-            GameObject avatar = SkinnedAvatar("BasisRTAOFarAvatar", new Vector3(50f, 0f, 0f));
-
-            BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Dynamic;
-            settings.skinnedMaxDistance = 8f;
-            settings.rescanInterval = 10000f;
-
-            scene.Rescan(settings);
-            int instances = scene.InstanceCount;
-            BuildOnce();
-
-            avatar.transform.position = new Vector3(60f, 0f, 0f);
-            scene.Refresh(settings, Vector3.zero, 1f, 100);
-
-            Assert.AreEqual(instances, scene.InstanceCount,
-                "A remote past the pose budget must stay in the structure; dropping it means it casts nothing at all.");
-            Assert.IsTrue(scene.NeedsBuild,
-                "Its instance transform has to follow it, or it occludes from where it used to be standing.");
-        }
-
-        [Test]
-        public void OnlyNearbyAvatarsSpendTheBakeBudget()
-        {
-            SkinnedAvatar("BasisRTAONearAvatar", new Vector3(1f, 0f, 0f));
-            SkinnedAvatar("BasisRTAOFarAvatar", new Vector3(500f, 0f, 0f));
-
-            BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Dynamic;
-            settings.skinnedMaxDistance = 8f;
-            settings.skinnedBakesPerFrame = 8;
-            settings.skinnedBakeInterval = 1;
-            settings.rescanInterval = 10000f;
-
-            scene.Rescan(settings);
-            Assert.AreEqual(2, scene.SkinnedCount);
-
-            // The first bake is exempt from both gates, so let each avatar take it before measuring what
-            // the budget does from there. See AnAvatarThatInstallsOutOfRangeStillGetsAPosedBake.
-            scene.Refresh(settings, Vector3.zero, 1f, 500);
-            Assert.AreEqual(0, scene.StaleSkinnedCount(500, 1));
-
-            scene.Refresh(settings, Vector3.zero, 2f, 501);
-
-            Assert.AreEqual(1, scene.StaleSkinnedCount(501, 1),
-                "The distant avatar keeps its last pose so the budget goes to the ones close enough to read.");
-        }
-
-        [Test]
-        public void AnAvatarThatInstallsOutOfRangeStillGetsAPosedBake()
-        {
-            SkinnedAvatar("BasisRTAOFarInstallAvatar", new Vector3(500f, 0f, 0f));
-
-            BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Dynamic;
-            settings.skinnedMaxDistance = 8f;
-            settings.skinnedBakesPerFrame = 8;
-            settings.skinnedBakeInterval = 4;
-            settings.rescanInterval = 10000f;
-
-            scene.Rescan(settings);
-            scene.Refresh(settings, Vector3.zero, 1f, 500);
-
-            Assert.AreEqual(0, scene.StaleSkinnedCount(500, 1),
-                "AddEntry snapshots a body that has not been posed yet, and the distance gate is exactly what stops a distant avatar from ever being re-posed. Applying that gate to the FIRST bake leaves everyone who installed further out than skinnedMaxDistance occluding as the pose their mesh was imported in, for as long as they stay out there.");
-        }
-
-        [Test]
-        public void StaticSkinnedModeStillTakesTheFirstPosedBake()
-        {
-            SkinnedAvatar("BasisRTAOStaticAvatar", new Vector3(1f, 0f, 0f));
-
-            BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Static;
-            settings.skinnedBakesPerFrame = 4;
-            settings.rescanInterval = 10000f;
-
-            scene.Rescan(settings);
-            Assert.AreEqual(1, scene.SkinnedCount);
-
-            scene.Refresh(settings, Vector3.zero, 1f, 600);
-
-            Assert.AreEqual(0, scene.StaleSkinnedCount(600, 1),
-                "Static never re-poses an avatar, so the one bake it does keep has to be of a posed body. AddEntry's bake is of an avatar instantiated moments earlier, still in its import pose - leave that as the only one and every avatar occludes as a T-pose for the whole session.");
-        }
-
-        [Test]
-        public void AZeroDistanceBudgetBakesEveryAvatar()
-        {
-            SkinnedAvatar("BasisRTAODistantAvatar", new Vector3(500f, 0f, 0f));
-
-            BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Dynamic;
-            settings.skinnedMaxDistance = 0f;
-            settings.skinnedBakesPerFrame = 8;
-            settings.skinnedBakeInterval = 1;
-            settings.rescanInterval = 10000f;
-
-            scene.Rescan(settings);
-            scene.Refresh(settings, Vector3.zero, 1f, 500);
-
-            Assert.AreEqual(0, scene.StaleSkinnedCount(500, 1), "A distance of zero means unlimited.");
-        }
+        // DistantAvatarsKeepOccludingFromWhereTheyActuallyAre, OnlyNearbyAvatarsSpendTheBakeBudget,
+        // AnAvatarThatInstallsOutOfRangeStillGetsAPosedBake, StaticSkinnedModeStillTakesTheFirstPosedBake
+        // and AZeroDistanceBudgetBakesEveryAvatar all pinned the behaviour of the per frame re-pose budget
+        // and its distance gate. Every one of them existed because a bake could be skipped and leave an
+        // avatar wearing an old pose. A proxy avatar updates every limb every frame, so there is no budget
+        // to spend, no gate to be caught behind and no staleness left to measure.
 
         [Test]
         public void SeveralCamerasInOneFrameRefreshTheSceneOnce()
         {
-            SkinnedAvatar("BasisRTAOBudgetAvatar", new Vector3(1f, 0f, 0f));
-
             BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Dynamic;
-            settings.skinnedBakesPerFrame = 1;
-            settings.skinnedBakeInterval = 1;
             settings.rescanInterval = 10000f;
 
-            scene.Rescan(settings);
-
-            // frame 500: the main view, then a mirror, then the handheld camera
             scene.Refresh(settings, Vector3.zero, 1f, 500);
-            Assert.AreEqual(0, scene.StaleSkinnedCount(500, 1), "The first camera of the frame does the work.");
+            int afterFirstCamera = scene.InstanceCount;
 
-            // if the later cameras refreshed too they would each spend the bake budget again
+            // Appears between the mirror pass and the handheld camera pass of the same frame.
+            Cube("BasisRTAOSecondCameraCube", Vector3.zero);
+
+            // frame 500 again: the mirror, then the handheld camera
             scene.Refresh(settings, Vector3.zero, 1f, 500);
             scene.Refresh(settings, Vector3.zero, 1f, 500);
 
-            Assert.AreEqual(0, scene.StaleSkinnedCount(500, 1),
-                "A mirror and the handheld camera record their own passes in the same frame, so the rescan, the transform sweep and the avatar re-bakes must happen once, not once per camera.");
+            Assert.AreEqual(afterFirstCamera, scene.InstanceCount,
+                "A mirror and the handheld camera record their own passes in the same frame, so the rescan and the transform sweep must happen once, not once per camera.");
         }
 
         [Test]
@@ -477,80 +371,50 @@ namespace Basis.Rendering.RTAO.Tests
         }
 
         [Test]
-        public void SwappedAvatarsLeaveTheStructureAndTheSkinnedList()
+        public void DestroyedRenderersLeaveTheStructureOnTheNextRescan()
         {
-            GameObject avatar = SkinnedAvatar("BasisRTAOSwapAvatar", new Vector3(1f, 0f, 0f));
+            GameObject cube = Cube("BasisRTAOSwapCube", new Vector3(1f, 0f, 0f));
 
             BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Dynamic;
+            settings.skinnedMode = BasisRTAOSkinnedMode.Proxy;
 
             scene.Rescan(settings);
-            int withAvatar = scene.InstanceCount;
-            Assert.AreEqual(1, scene.SkinnedCount);
+            int withCube = scene.InstanceCount;
+            Assert.Greater(withCube, 0);
 
-            Object.DestroyImmediate(avatar);
-            spawned.Remove(avatar);
+            Object.DestroyImmediate(cube);
+            spawned.Remove(cube);
             scene.Rescan(settings);
 
-            Assert.AreEqual(withAvatar - 1, scene.InstanceCount,
-                "The avatar you took off goes on occluding until its instances leave the structure: the geometry is a baked copy this class owns, so destroying the avatar does not take it with it.");
-            Assert.AreEqual(0, scene.SkinnedCount,
-                "A destroyed SkinnedMeshRenderer compares equal to null, so whether an entry is skinned has to be remembered as a flag - asking the component answers no exactly when the entry needs taking out of the re-bake list.");
+            Assert.AreEqual(withCube - 1, scene.InstanceCount,
+                "Geometry you took away goes on occluding until its instances leave the structure.");
         }
 
         [Test]
-        public void ADestroyedAvatarLeavesBeforeTheNextRescanIsDue()
+        public void ADestroyedRendererLeavesBeforeTheNextRescanIsDue()
         {
-            GameObject avatar = SkinnedAvatar("BasisRTAOSwapAvatarBetweenScans", new Vector3(1f, 0f, 0f));
+            GameObject cube = Cube("BasisRTAOSwapCubeBetweenScans", new Vector3(1f, 0f, 0f));
 
             BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Dynamic;
+            settings.skinnedMode = BasisRTAOSkinnedMode.Proxy;
             settings.rescanInterval = 10000f;
 
             scene.Refresh(settings, Vector3.zero, 1f, 900);
-            int withAvatar = scene.InstanceCount;
-            Assert.Greater(withAvatar, 0);
+            int withCube = scene.InstanceCount;
+            Assert.Greater(withCube, 0);
 
-            Object.DestroyImmediate(avatar);
-            spawned.Remove(avatar);
+            Object.DestroyImmediate(cube);
+            spawned.Remove(cube);
             scene.Refresh(settings, Vector3.zero, 2f, 901);
 
-            Assert.AreEqual(withAvatar - 1, scene.InstanceCount,
-                "Avatars are destroyed the moment they are swapped, which is almost never on a scan boundary. Waiting for the interval leaves the old body occluding for up to that long.");
-            Assert.AreEqual(0, scene.SkinnedCount);
+            Assert.AreEqual(withCube - 1, scene.InstanceCount,
+                "Avatars and their props are destroyed the moment they are swapped, which is almost never on a scan boundary. Waiting for the interval leaves the old geometry occluding for up to that long.");
         }
 
-        [Test]
-        public void SwappingAnAvatarBakesTheNewBodyAndDropsTheOldBake()
-        {
-            GameObject worn = SkinnedAvatar("BasisRTAOWornAvatar", Vector3.zero);
-
-            BasisRTAOSceneSettings settings = BasisRTAOTestSettings.EveryLayer;
-            settings.skinnedMode = BasisRTAOSkinnedMode.Dynamic;
-            settings.rescanInterval = 10000f;
-
-            scene.Rescan(settings);
-            Assert.AreEqual(1, scene.SkinnedCount);
-            Mesh firstBake = scene.BakedMeshFor(worn.GetComponent<SkinnedMeshRenderer>());
-            Assert.IsNotNull(firstBake);
-
-            // The swap: the outgoing body is gone and the incoming one installs in the same frame, which is
-            // the frame BasisAvatarFactory.OnAnyAvatarInstalled dirties the scene in.
-            Object.DestroyImmediate(worn);
-            spawned.Remove(worn);
-            GameObject swapped = SkinnedAvatar("BasisRTAOSwappedAvatar", Vector3.zero);
-
-            scene.MarkDirty();
-            scene.Refresh(settings, Vector3.zero, 1f, 500);
-
-            Assert.AreEqual(1, scene.SkinnedCount, "The swap has to leave one avatar in the structure, not two.");
-            Assert.IsTrue(firstBake == null,
-                "The outgoing avatar's bake is owned by the scene and is HideAndDontSave, so an entry that survives its avatar keeps a whole extra body's worth of geometry alive and occluding.");
-
-            Mesh secondBake = scene.BakedMeshFor(swapped.GetComponent<SkinnedMeshRenderer>());
-            Assert.IsNotNull(secondBake, "The incoming avatar has to be baked on the swap, not at whatever point the rescan interval next comes round.");
-            Assert.AreEqual(0, scene.StructureResetCount, "A swap whose meshes outlive their release needs no rebuild.");
-        }
+        // SwappingAnAvatarBakesTheNewBodyAndDropsTheOldBake watched the scene destroy the outgoing body's
+        // baked mesh and bake the incoming one. Nothing here owns a mesh any more - proxies share a single
+        // capsule and entries register the renderer's own shared mesh - so there is no bake to leak and
+        // nothing for a swap to drop.
 
         [Test]
         public void AnEntryWhoseMeshDiedLeavesThroughARebuild()

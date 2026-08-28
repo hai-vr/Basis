@@ -79,7 +79,6 @@ namespace Basis.Rendering.RTAO.Tests
             BasisRTAOFeature.HasDirectStrengthOverride = false;
             BasisRTAOFeature.HasDenoisePassesOverride = false;
             BasisRTAOFeature.HasApplyModeOverride = false;
-            BasisRTAOFeature.HasSkinnedBudgetOverride = false;
             BasisRTAOFeature.AllowSecondaryCameras = true;
             BasisRTAOFeature.ViewerPosition = null;
 
