@@ -69,6 +69,10 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         public Texture skyCube;
         public Vector4 reference, size, trace, bias, options, sky, skyDecode, specularParams;
         public int rayCount, bounces, lightCount, lightSamples, viewCount, frameIndex;
+        // Which halves of the structure this trace may hit. The structure can hold more than this effect
+        // asked for - it is shared with ambient occlusion, which answers the same question differently -
+        // so the ray narrows it rather than the contents.
+        public int traceMask;
         public int width, height;
         // The kernel serves both gathers from one entry point, and the two passes that use it want different
         // halves. Render graph pools this object and does not clear it between frames, so both flags are
@@ -131,6 +135,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     private static readonly int idRtLightSamples = Shader.PropertyToID("_BasisGIRtLightSamples");
     private static readonly int idRtViewCount = Shader.PropertyToID("_BasisGIRtViewCount");
     private static readonly int idRtFrameIndex = Shader.PropertyToID("_BasisGIRtFrameIndex");
+    private static readonly int idRtTraceMask = Shader.PropertyToID("_BasisGIRtTraceMask");
     private const string RtAccelName = "_BasisGIRtAccel";
 
     private static readonly ProfilingSampler samplerRayPrepass = new ProfilingSampler("Basis GI Ray Prepass");
@@ -537,6 +542,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
             data.lightSamples = lightSamples;
             data.viewCount = viewCount;
             data.frameIndex = frame % 64;
+            data.traceMask = settings.TraceCategories;
             data.width = tracedWidth;
             data.height = tracedHeight;
 
@@ -615,6 +621,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         shader.SetIntParam(cmd, idRtLightSamples, data.lightSamples);
         shader.SetIntParam(cmd, idRtViewCount, data.viewCount);
         shader.SetIntParam(cmd, idRtFrameIndex, data.frameIndex);
+        shader.SetIntParam(cmd, idRtTraceMask, data.traceMask);
 
         GraphicsBuffer scratch = tracer.Context.GetTraceScratch(data.width, data.height, data.viewCount);
         shader.Dispatch(cmd, scratch, (uint)data.width, (uint)data.height, (uint)data.viewCount);

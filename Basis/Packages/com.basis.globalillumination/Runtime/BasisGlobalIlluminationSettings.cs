@@ -445,6 +445,26 @@ public sealed class BasisGlobalIlluminationSettings
     }
 
     /// <summary>
+    /// Which halves of the room this effect wants to trace, as instance mask bits.
+    ///
+    /// Separate from the layer mask because the structure being traced may hold more than this effect asked
+    /// for: it can be shared with ambient occlusion, which answers the same question differently, and then
+    /// the structure holds the union and the ray is what narrows it. Falls back to everything rather than
+    /// nothing, so a mask matching neither set still traces something.
+    /// </summary>
+    public byte TraceCategories
+    {
+        get
+        {
+            int layers = ResolvedTraceLayers().value;
+            byte categories = 0;
+            if ((layers & AvatarLayers()) != 0) { categories |= BasisTracedCategory.Avatar; }
+            if ((layers & WorldLayers().value) != 0) { categories |= BasisTracedCategory.World; }
+            return categories == 0 ? BasisTracedCategory.All : categories;
+        }
+    }
+
+    /// <summary>
     /// A second bounce doubles the ray budget, so the quality ladder owns it unless the counts were
     /// explicitly taken over.
     /// </summary>

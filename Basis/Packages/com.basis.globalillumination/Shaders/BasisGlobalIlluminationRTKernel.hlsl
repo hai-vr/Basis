@@ -30,6 +30,9 @@ float4 _BasisGIRtSky;
 float4 _BasisGIRtSkyDecode;
 float4 _BasisGIRtSpecular;
 int _BasisGIRtRayCount;
+// Which halves of the structure this trace may hit. The structure can be shared with ambient
+// occlusion, which wants its own answer, so the ray narrows it rather than the contents.
+int _BasisGIRtTraceMask;
 int _BasisGIRtBounces;
 int _BasisGIRtLightCount;
 int _BasisGIRtLightSamples;
@@ -188,7 +191,7 @@ float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::
             shadowRay.direction = chosenDirection;
             shadowRay.tMin = 0.0;
             shadowRay.tMax = max(0.0, chosenDistance - BASISGI_RT_NORMAL_BIAS * 2.0);
-            visibility = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xffffffff, shadowRay, 0) ? 0.0 : 1.0;
+            visibility = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, (uint)_BasisGIRtTraceMask, shadowRay, 0) ? 0.0 : 1.0;
         }
 
         total += chosenRadiance * ((weightSum / chosenWeight) * visibility);
@@ -238,7 +241,7 @@ float4 BasisGIRtTraceSpecular(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::R
         // the far wall of a room is a bounce nobody can see and a reflection everybody can.
         ray.tMax = bounce == 0 ? BASISGI_RT_SPEC_RAY_LENGTH : BASISGI_RT_RAY_LENGTH;
 
-        UnifiedRT::Hit hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, 0xffffffff, ray, 0);
+        UnifiedRT::Hit hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, (uint)_BasisGIRtTraceMask, ray, 0);
         if (!hit.IsValid())
         {
             // A miss is the sky, and for a reflection the sky is a real answer rather than a gap in one -
@@ -371,7 +374,7 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
             ray.direction = direction;
             ray.tMax = BASISGI_RT_RAY_LENGTH;
 
-            UnifiedRT::Hit hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, 0xffffffff, ray, 0);
+            UnifiedRT::Hit hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, (uint)_BasisGIRtTraceMask, ray, 0);
             if (!hit.IsValid())
             {
                 radiance += throughput * BasisGIRtSampleSky(direction);

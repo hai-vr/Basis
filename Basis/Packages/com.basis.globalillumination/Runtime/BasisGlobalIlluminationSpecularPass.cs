@@ -223,6 +223,7 @@ public sealed partial class BasisGlobalIlluminationPass
                 data.lightSamples = lightSamples;
                 data.viewCount = viewCount;
                 data.frameIndex = frame % 64;
+                data.traceMask = settings.TraceCategories;
                 data.width = tracedWidth;
                 data.height = tracedHeight;
 

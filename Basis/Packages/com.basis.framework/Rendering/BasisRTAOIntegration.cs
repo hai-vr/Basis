@@ -10,6 +10,8 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Settings;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.UnifiedRayTracing;
 
 namespace Basis.Scripts.Rendering
 {
@@ -28,6 +30,10 @@ namespace Basis.Scripts.Rendering
             installed = true;
             BasisRTAOFeature.CameraFilter = AcceptsCamera;
             BasisRTAOFeature.ViewerPosition = LocalViewerPosition;
+#if BASIS_HAS_GI
+            BasisRTAOFeature.SharedStructureProvider = ProvideSharedStructure;
+            BasisRTAOFeature.SharedStructureBuilder = BuildSharedStructure;
+#endif
             BasisSettingsSystem.OnSettingChanged += OnSettingChanged;
             BasisSettingsSystem.OnSettingsFinishedChanges += Apply;
 
@@ -54,8 +60,58 @@ namespace Basis.Scripts.Rendering
             BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayerChanged;
             BasisRTAOFeature.CameraFilter = null;
             BasisRTAOFeature.ViewerPosition = null;
+#if BASIS_HAS_GI
+            BasisRTAOFeature.SharedStructureProvider = null;
+            BasisRTAOFeature.SharedStructureBuilder = null;
+#endif
             ClearOverrides();
         }
+
+#if BASIS_HAS_GI
+        /// <summary>
+        /// The acceleration structure global illumination is already tracing, when it holds everything
+        /// ambient occlusion asked for.
+        ///
+        /// Both effects trace the same avatars and the same world, and building that twice a frame - two
+        /// scans of the scene, two transform sweeps, two builds, two copies of every avatar's capsules -
+        /// is the single largest thing they duplicate. Sharing costs nothing in fidelity: the instances
+        /// carry a category mask and each effect's rays only walk the half it asked for.
+        ///
+        /// Only ever borrowed, never widened. If global illumination is tracing a narrower set than
+        /// occlusion wants - the player asked for World + Avatars here and Avatars there - the structure
+        /// simply does not contain the geometry, and no mask can add it back, so occlusion keeps its own.
+        /// </summary>
+        private static IRayTracingAccelStruct ProvideSharedStructure(byte wanted)
+        {
+            BasisGlobalIlluminationSettings settings = BasisGlobalIlluminationSettings.Current;
+            if (settings == null || !settings.enable || settings.mode != BasisGlobalIlluminationMode.RayTraced)
+                return null;
+
+            BasisGlobalIlluminationRayTracer tracer = BasisGlobalIlluminationRayTracer.Instance;
+            if (tracer == null || tracer.Scene == null || !tracer.Scene.HasGeometry)
+                return null;
+
+            byte held = settings.TraceCategories;
+            if ((held & wanted) != wanted)
+                return null;
+
+            return tracer.Scene.AccelerationStructure;
+        }
+
+        /// <summary>
+        /// Records the shared structure's build if it still needs one.
+        ///
+        /// The occlusion pass runs at AfterRenderingPrePasses and the global illumination pass runs after
+        /// the opaques, so the borrower is the one that gets there first and has to do the building. Build
+        /// clears the dirty flag, so the later pass finds nothing to do rather than building it twice.
+        /// </summary>
+        private static void BuildSharedStructure(CommandBuffer cmd)
+        {
+            BasisGlobalIlluminationRayTracer tracer = BasisGlobalIlluminationRayTracer.Instance;
+            if (tracer?.Scene != null && tracer.Scene.NeedsBuild)
+                tracer.Scene.Build(cmd);
+        }
+#endif
 
         // Mirrors and the handheld camera are separate Game cameras. A mirror that shows the room without
         // its contact shadows reads as a different room, and a photo that does not match the view is worse

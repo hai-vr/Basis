@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.UnifiedRayTracing;
 using UnityEngine.Rendering.Universal;
 
 namespace Basis.Rendering.RTAO
@@ -48,6 +50,22 @@ namespace Basis.Rendering.RTAO
         public static BasisRTAOTracingMode TracingModeOverride = BasisRTAOTracingMode.Auto;
         public static bool HasLayerMaskOverride;
         public static LayerMask LayerMaskOverride = BasisRTAOSceneSettings.AvatarLayerMask;
+        /// <summary>
+        /// Hands back a ray tracing structure owned by something else that already holds every category
+        /// asked for, or null when there is none. Set by the framework when global illumination is running
+        /// its ray traced path: both effects trace the same avatars and the same world, and building that
+        /// twice a frame is the single largest thing they duplicate.
+        ///
+        /// A delegate rather than a reference so this package keeps no knowledge of the other one.
+        /// </summary>
+        public static Func<byte, IRayTracingAccelStruct> SharedStructureProvider;
+
+        /// <summary>
+        /// Records a build of the shared structure if it still needs one. Called by whichever pass reaches
+        /// it first in the frame, which is this one - the global illumination pass runs after the opaques.
+        /// </summary>
+        public static Action<CommandBuffer> SharedStructureBuilder;
+
         public static bool HasSkinnedModeOverride;
         public static BasisRTAOSkinnedMode SkinnedModeOverride = BasisRTAOSkinnedMode.Off;
         public static bool HasDebugViewOverride;

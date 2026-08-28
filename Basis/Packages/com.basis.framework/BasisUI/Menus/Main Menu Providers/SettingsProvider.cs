@@ -1727,43 +1727,49 @@ namespace Basis.BasisUI
                 new List<string> { "settings.graphics.aa.off.tooltip" });
             dropdownAntialiasing.AssignBinding(BasisSettingsDefaults.Antialiasing);
 
-            PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
-            dropdownVSync.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.verticalSync"));
-            dropdownVSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.verticalSync.tooltip"));
-            dropdownVSync.AssignLocalizedEntries(
-                new List<string> { "On", "Capped", "Off", "Half" },
-                new List<string> { "ui.option.on", "settings.graphics.vsync.capped", "ui.option.off", "settings.graphics.vsync.half" },
-                new List<string> { "settings.graphics.vsync.on.tooltip", null, "settings.graphics.vsync.off.tooltip" });
-            dropdownVSync.AssignBinding(BasisSettingsDefaults.VSync);
-
-            PanelDropdown dropdownRefreshRate = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
-            dropdownRefreshRate.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.refreshRate"));
-            dropdownRefreshRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.refreshRate.tooltip"));
-            dropdownRefreshRate.AssignLocalizedEntries(
-                new List<string> { "Auto", "72", "90", "120", "144" },
-                new List<string> { "settings.graphics.refreshRate.auto", "settings.graphics.refreshRate.72", "settings.graphics.refreshRate.90", "settings.graphics.refreshRate.120", "settings.graphics.refreshRate.144" },
-                new List<string> { "settings.graphics.refreshRate.auto.tooltip" });
-            dropdownRefreshRate.AssignBinding(BasisSettingsDefaults.HeadsetRefreshRate);
-
-            PanelTextField fpsCapField = PanelTextField.CreateNewEntry(qualityGroup.ContentParent);
-            fpsCapField.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.frameRateCap"));
-            fpsCapField.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.frameRateCap.tooltip"));
-            fpsCapField.AssignBinding(BasisSettingsDefaults.VSyncCapFps);
-
-            TMP_InputField fpsInput = fpsCapField._inputField;
-            if (fpsInput != null)
+            if (BasisDeviceManagement.IsUserInDesktop())
             {
-                fpsInput.contentType = TMP_InputField.ContentType.IntegerNumber;
-                fpsInput.lineType = TMP_InputField.LineType.SingleLine;
+                PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
+                dropdownVSync.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.verticalSync"));
+                dropdownVSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.verticalSync.tooltip"));
+                dropdownVSync.AssignLocalizedEntries(
+                    new List<string> { "On", "Capped", "Off", "Half" },
+                    new List<string> { "ui.option.on", "settings.graphics.vsync.capped", "ui.option.off", "settings.graphics.vsync.half" },
+                    new List<string> { "settings.graphics.vsync.on.tooltip", null, "settings.graphics.vsync.off.tooltip" });
+                dropdownVSync.AssignBinding(BasisSettingsDefaults.VSync);
+
+                PanelTextField fpsCapField = PanelTextField.CreateNewEntry(qualityGroup.ContentParent);
+                fpsCapField.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.frameRateCap"));
+                fpsCapField.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.frameRateCap.tooltip"));
+                fpsCapField.AssignBinding(BasisSettingsDefaults.VSyncCapFps);
+
+                TMP_InputField fpsInput = fpsCapField._inputField;
+                if (fpsInput != null)
+                {
+                    fpsInput.contentType = TMP_InputField.ContentType.IntegerNumber;
+                    fpsInput.lineType = TMP_InputField.LineType.SingleLine;
+                }
+
+                fpsCapField.Descriptor.SetActive(dropdownVSync.Value == "Capped");
+
+                dropdownVSync.OnValueChanged += (val) =>
+                {
+                    fpsCapField.Descriptor.SetActive(val == "Capped");
+                    qualityGroup.ForceRebuild();
+                };
             }
 
-            fpsCapField.Descriptor.SetActive(dropdownVSync.Value == "Capped");
-
-            dropdownVSync.OnValueChanged += (val) =>
+            if (BasisDeviceManagement.IsCurrentModeVR())
             {
-                fpsCapField.Descriptor.SetActive(val == "Capped");
-                qualityGroup.ForceRebuild();
-            };
+                PanelDropdown dropdownRefreshRate = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
+                dropdownRefreshRate.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.refreshRate"));
+                dropdownRefreshRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.refreshRate.tooltip"));
+                dropdownRefreshRate.AssignLocalizedEntries(
+                    new List<string> { "Auto", "72", "90", "120", "144" },
+                    new List<string> { "settings.graphics.refreshRate.auto", "settings.graphics.refreshRate.72", "settings.graphics.refreshRate.90", "settings.graphics.refreshRate.120", "settings.graphics.refreshRate.144" },
+                    new List<string> { "settings.graphics.refreshRate.auto.tooltip" });
+                dropdownRefreshRate.AssignBinding(BasisSettingsDefaults.HeadsetRefreshRate);
+            }
 
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(qualityToggle, qualityGroup, true,
                 _ => descriptor.ForceRebuild());

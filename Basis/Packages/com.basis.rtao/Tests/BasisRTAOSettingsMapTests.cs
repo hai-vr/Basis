@@ -47,6 +47,49 @@ namespace Basis.Rendering.RTAO.Tests
             Assert.AreEqual(BasisRTAOSkinnedMode.Proxy, BasisRTAOSettingsMap.ReadSkinnedMode("Proxy"));
         }
 
+        /// <summary>
+        /// The mask on the ray is what keeps two effects honest about wanting different halves of one
+        /// shared structure, so every option has to name a non-empty set, and the three have to nest the
+        /// same way the layer sets do.
+        /// </summary>
+        [Test]
+        public void TraceCategoriesFollowTheLayerOption()
+        {
+            BasisRTAOSceneSettings settings = BasisRTAOSceneSettings.Default;
+            if (BasisRTAOSceneSettings.AvatarLayers.value == ~0) { Assert.Ignore("The avatar layers are not present in this project."); }
+
+            settings.layerMask = BasisRTAOSettingsMap.ReadLayers("Avatars");
+            Assert.AreEqual(BasisTracedCategory.Avatar, settings.TraceCategories);
+
+            settings.layerMask = BasisRTAOSettingsMap.ReadLayers("World");
+            Assert.AreEqual(BasisTracedCategory.World, settings.TraceCategories);
+
+            settings.layerMask = BasisRTAOSettingsMap.ReadLayers("World And Avatars");
+            Assert.AreEqual(BasisTracedCategory.All, settings.TraceCategories,
+                "The widest option has to ask for both halves, or borrowing a shared structure would silently drop one of them.");
+        }
+
+        [Test]
+        public void AnUnrecognisedLayerSetStillTracesSomething()
+        {
+            BasisRTAOSceneSettings settings = BasisRTAOSceneSettings.Default;
+            settings.layerMask = 0;
+            Assert.AreEqual(BasisTracedCategory.All, settings.TraceCategories,
+                "A mask of zero would be a ray that can hit nothing at all, which reads as the effect being broken rather than as a narrow setting.");
+        }
+
+        [Test]
+        public void CategoriesFollowTheLayerAnObjectIsOn()
+        {
+            const int avatarMask = (1 << 6) | (1 << 7);
+            Assert.AreEqual(BasisTracedCategory.Avatar, BasisTracedCategory.For(6, avatarMask));
+            Assert.AreEqual(BasisTracedCategory.Avatar, BasisTracedCategory.For(7, avatarMask));
+            Assert.AreEqual(BasisTracedCategory.World, BasisTracedCategory.For(0, avatarMask),
+                "Default is the room, not a person.");
+            Assert.AreNotEqual(0, BasisTracedCategory.Avatar & BasisTracedCategory.All);
+            Assert.AreNotEqual(0, BasisTracedCategory.World & BasisTracedCategory.All);
+        }
+
         [Test]
         public void LayerOptionsRoundTripThroughTheDropdownString()
         {

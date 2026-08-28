@@ -107,6 +107,11 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
         public int[] handles;
         public int[] instanceIds;
         public bool isStatic, seen;
+        /// <summary>
+        /// Which half of the room this is, remembered rather than re-derived because the renderer it came
+        /// from may already be gone by the time the instance has to be re-registered.
+        /// </summary>
+        public byte category;
     }
 
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -327,7 +332,8 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
             sharedGeometry = true,
             matrix = matrix,
             isStatic = renderer.gameObject.isStatic,
-            seen = true
+            seen = true,
+            category = BasisTracedCategory.For(renderer.gameObject.layer, BasisGlobalIlluminationSettings.AvatarLayers())
         };
 
         if (!AddInstances(entry, mesh, matrix))
@@ -362,7 +368,10 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
                 MeshInstanceDesc desc = new MeshInstanceDesc(mesh, index)
                 {
                     localToWorldMatrix = matrix,
-                    mask = 0xff,
+                    // Tagged with which half of the room it is. Free while this structure is the only one
+                    // tracing it - a ray asking for everything still hits every instance - and it is what
+                    // lets one structure serve two effects that want different halves.
+                    mask = entry.category,
                     instanceID = (uint)instanceId,
                     enableTriangleCulling = false,
                     opaqueGeometry = true
@@ -845,7 +854,8 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
                 MeshInstanceDesc desc = new MeshInstanceDesc(capsule, 0)
                 {
                     localToWorldMatrix = matrix,
-                    mask = 0xff,
+                    // Always an avatar: these capsules exist only because a humanoid is standing there.
+                    mask = BasisTracedCategory.Avatar,
                     instanceID = (uint)instanceId,
                     enableTriangleCulling = false,
                     opaqueGeometry = true

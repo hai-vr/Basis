@@ -3,6 +3,7 @@
     "rootNamespace": "Basis.Rendering.RTAO.Tests",
     "references": [
         "Basis.RTAO",
+        "BasisCommon",
         "Basis.RTAO.Editor",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime",

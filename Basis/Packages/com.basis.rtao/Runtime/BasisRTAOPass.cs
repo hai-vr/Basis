@@ -52,6 +52,7 @@ namespace Basis.Rendering.RTAO
         public static readonly int HasHistory = Shader.PropertyToID("_BasisRtaoHasHistory");
         public static readonly int Composite = Shader.PropertyToID("_BasisRtaoComposite");
         public static readonly int AccelStruct = Shader.PropertyToID("_BasisRtaoAccel");
+        public static readonly int TraceMask = Shader.PropertyToID("_BasisRtaoTraceMask");
         public static readonly int ScreenParams = Shader.PropertyToID("_BasisRtaoScreenParams");
         public const string AccelStructName = "_BasisRtaoAccel";
     }
@@ -99,6 +100,9 @@ namespace Basis.Rendering.RTAO
         private BasisRTAOResources resources;
         private BasisRTAOContext context;
         private BasisRTAOScene scene;
+        // Decided in RecordRenderGraph and read by RecordTrace, the same way scene crosses that boundary.
+        // Null means nothing was worth borrowing this frame and the scene above is what gets traced.
+        private IRayTracingAccelStruct sharedStructure;
         private Material prepassMaterial, compositeMaterial;
         private MaterialPropertyBlock compositeBlock;
         private ComputeShader denoise;
@@ -302,9 +306,15 @@ namespace Basis.Rendering.RTAO
         {
             public BasisRTAOContext context;
             public BasisRTAOScene scene;
+            /// <summary>Borrowed from global illumination when set; this pass owns no part of it.</summary>
+            public IRayTracingAccelStruct sharedStructure;
             public TextureHandle position, normal, result;
             public Vector4 reference, trace, bias, size;
             public int rayCount, viewCount, frameIndex, stereoCoherent;
+            // Which halves of the structure this trace is allowed to hit. The structure may hold more than
+            // this effect asked for - it is shared with global illumination, which has its own answer to
+            // the same question - so the ray, not the structure, is what narrows it.
+            public int traceMask;
             public int width, height;
         }
 
@@ -379,7 +389,17 @@ namespace Basis.Rendering.RTAO
             Vector3 reference = camera.transform.position;
 
             bool rayTraced = BasisRTAOTracing.IsRayTraced(backend);
-            if (rayTraced)
+
+            // Global illumination traces the same avatars and the same world out of a structure of its own.
+            // When it is running and its structure already holds everything this effect asked for, borrowing
+            // it costs the frame nothing: no second scan of the scene, no second transform sweep, no second
+            // build, and no second copy of every avatar's capsules. The mask on the ray is what keeps the
+            // two effects honest about wanting different halves of it.
+            sharedStructure = rayTraced && BasisRTAOFeature.SharedStructureProvider != null
+                ? BasisRTAOFeature.SharedStructureProvider(sceneSettings.TraceCategories)
+                : null;
+
+            if (rayTraced && sharedStructure == null)
             {
                 Vector3 viewer = BasisRTAOFeature.ViewerPosition != null ? BasisRTAOFeature.ViewerPosition() : reference;
                 scene.Refresh(sceneSettings, viewer, Time.unscaledTime, Time.frameCount);
@@ -526,6 +546,7 @@ namespace Basis.Rendering.RTAO
             {
                 data.context = context;
                 data.scene = scene;
+                data.sharedStructure = sharedStructure;
                 data.position = position;
                 data.normal = normal;
                 data.result = result;
@@ -537,6 +558,7 @@ namespace Basis.Rendering.RTAO
                 data.viewCount = viewCount;
                 data.frameIndex = frameIndex;
                 data.stereoCoherent = settings.stereoCoherentNoise ? 1 : 0;
+                data.traceMask = sceneSettings.TraceCategories;
                 data.width = traceSize.x;
                 data.height = traceSize.y;
 
@@ -548,11 +570,26 @@ namespace Basis.Rendering.RTAO
                 builder.SetRenderFunc(static (TraceData data, UnsafeGraphContext ctx) =>
                 {
                     CommandBuffer cmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
-                    if (data.scene.NeedsBuild)
-                        data.scene.Build(cmd);
+
+                    // This pass runs at AfterRenderingPrePasses and the global illumination pass runs after
+                    // the opaques, so when the structure is shared THIS is the pass that has to record the
+                    // build - the borrower is simply the one that gets there first. Build clears the dirty
+                    // flag, so the later pass finds nothing to do rather than building it twice.
+                    IRayTracingAccelStruct structure;
+                    if (data.sharedStructure != null)
+                    {
+                        BasisRTAOFeature.SharedStructureBuilder?.Invoke(cmd);
+                        structure = data.sharedStructure;
+                    }
+                    else
+                    {
+                        if (data.scene.NeedsBuild)
+                            data.scene.Build(cmd);
+                        structure = data.scene.AccelerationStructure;
+                    }
 
                     IRayTracingShader shader = data.context.TraceShader;
-                    shader.SetAccelerationStructure(cmd, BasisRTAOShaderIds.AccelStructName, data.scene.AccelerationStructure);
+                    shader.SetAccelerationStructure(cmd, BasisRTAOShaderIds.AccelStructName, structure);
                     shader.SetTextureParam(cmd, BasisRTAOShaderIds.PositionTex, data.position);
                     shader.SetTextureParam(cmd, BasisRTAOShaderIds.NormalTex, data.normal);
                     shader.SetTextureParam(cmd, BasisRTAOShaderIds.ResultTex, data.result);
@@ -564,6 +601,7 @@ namespace Basis.Rendering.RTAO
                     shader.SetIntParam(cmd, BasisRTAOShaderIds.ViewCount, data.viewCount);
                     shader.SetIntParam(cmd, BasisRTAOShaderIds.FrameIndex, data.frameIndex);
                     shader.SetIntParam(cmd, BasisRTAOShaderIds.StereoCoherent, data.stereoCoherent);
+                    shader.SetIntParam(cmd, BasisRTAOShaderIds.TraceMask, data.traceMask);
 
                     GraphicsBuffer scratch = data.context.GetTraceScratch(data.width, data.height, data.viewCount);
                     shader.Dispatch(cmd, scratch, (uint)data.width, (uint)data.height, (uint)data.viewCount);

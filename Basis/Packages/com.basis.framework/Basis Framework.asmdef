@@ -36,6 +36,7 @@
         "Klak.Spout.Runtime",
         "Klak.Syphon.Runtime",
         "Basis.Eerie.Movement",
+        "Unity.UnifiedRayTracing.Runtime",
         "Basis.RTAO"
     ],
     "includePlatforms": [],

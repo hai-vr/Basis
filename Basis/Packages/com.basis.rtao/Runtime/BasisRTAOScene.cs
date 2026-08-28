@@ -138,6 +138,25 @@ namespace Basis.Rendering.RTAO
             };
         }
 
+        /// <summary>
+        /// Which halves of the room this effect wants to trace, as instance mask bits.
+        ///
+        /// Separate from <see cref="layerMask"/> because the structure being traced may hold more than this
+        /// effect asked for: it can be shared with global illumination, which answers the same question
+        /// differently, and then the structure holds the union and the ray is what narrows it. Falls back
+        /// to everything rather than nothing, so a mask that matches neither set still traces.
+        /// </summary>
+        public byte TraceCategories
+        {
+            get
+            {
+                byte categories = 0;
+                if ((layerMask.value & AvatarLayers.value) != 0) { categories |= BasisTracedCategory.Avatar; }
+                if ((layerMask.value & WorldLayers.value) != 0) { categories |= BasisTracedCategory.World; }
+                return categories == 0 ? BasisTracedCategory.All : categories;
+            }
+        }
+
         public BasisRTAOSceneSettings Validated()
         {
             BasisRTAOSceneSettings copy = this;
@@ -160,6 +179,9 @@ namespace Basis.Rendering.RTAO
             public Matrix4x4 matrix;
             public int[] handles;
             public bool isStatic, seen;
+            // Remembered rather than re-derived: ResetStructure re-registers every entry against a cleared
+            // structure, and the renderer it came from may already be gone by then.
+            public byte category;
         }
 
         private readonly BasisRTAOContext context;
@@ -336,8 +358,9 @@ namespace Basis.Rendering.RTAO
 
         private void AddEntry(Renderer renderer, Mesh mesh)
         {
+            byte category = BasisTracedCategory.For(renderer.gameObject.layer, BasisRTAOSceneSettings.AvatarLayers.value);
             Matrix4x4 matrix = renderer.transform.localToWorldMatrix;
-            int[] handles = AddInstances(mesh, matrix);
+            int[] handles = AddInstances(mesh, matrix, category);
             if (handles == null)
                 return;
 
@@ -351,7 +374,8 @@ namespace Basis.Rendering.RTAO
                 matrix = matrix,
                 handles = handles,
                 isStatic = renderer.gameObject.isStatic,
-                seen = true
+                seen = true,
+                category = category
             };
 
             entries[entry.id] = entry;
@@ -437,7 +461,8 @@ namespace Basis.Rendering.RTAO
                     MeshInstanceDesc desc = new MeshInstanceDesc(capsule, 0)
                     {
                         localToWorldMatrix = pose.MatrixAt(i),
-                        mask = 0xff,
+                        // Always an avatar: these capsules exist only because a humanoid is standing there.
+                        mask = BasisTracedCategory.Avatar,
                         enableTriangleCulling = false,
                         opaqueGeometry = true
                     };
@@ -520,7 +545,12 @@ namespace Basis.Rendering.RTAO
             structureDirty = true;
         }
 
-        private int[] AddInstances(Mesh mesh, Matrix4x4 matrix)
+        /// <summary>
+        /// Registers one mesh, tagged with which half of the room it is. The tag costs nothing while this
+        /// structure is the only one tracing it - a ray asking for everything still hits every instance -
+        /// and it is what allows a single structure to serve two effects that want different halves.
+        /// </summary>
+        private int[] AddInstances(Mesh mesh, Matrix4x4 matrix, byte category)
         {
             int subMeshCount = mesh.subMeshCount;
             int[] handles = new int[subMeshCount];
@@ -531,7 +561,7 @@ namespace Basis.Rendering.RTAO
                     MeshInstanceDesc desc = new MeshInstanceDesc(mesh, i)
                     {
                         localToWorldMatrix = matrix,
-                        mask = 0xff,
+                        mask = category,
                         enableTriangleCulling = false,
                         opaqueGeometry = true
                     };
@@ -654,7 +684,7 @@ namespace Basis.Rendering.RTAO
                 }
 
                 entry.matrix = entry.transform.localToWorldMatrix;
-                entry.handles = AddInstances(geometry, entry.matrix);
+                entry.handles = AddInstances(geometry, entry.matrix, entry.category);
                 if (entry.handles == null)
                 {
                     pendingRemoval.Add(pair.Key);
