@@ -941,6 +941,9 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     public void SetResizeWithGesture(bool enabled)
     {
         enableScaleWithGesture = enabled;
+        // The detached marker's grab handle takes the same preference — the same gesture, on
+        // something the same hands are holding — but keeps whatever size it was left at.
+        if (HHC != null) HHC.SetDetachedMarkerResizeWithGesture(enabled);
         if (enabled) return;
         userScaleMultiplier = 1f;
         ApplyCameraScale();

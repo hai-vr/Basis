@@ -649,28 +649,71 @@ public abstract partial class BasisHandHeldCameraInteractable
         return DollyTrack.AddWaypoint(position, rotation, BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
     }
 
-    /// <summary>Drops a waypoint an arm's length in front of the player, for building a track on foot.</summary>
+    /// <summary>How far in front of the eye a hand-placed waypoint lands, in metres at default scale.</summary>
+    private const float WaypointReach = 0.5f;
+
+    /// <summary>
+    /// Drops a waypoint at eye height an arm's length in front of the player, for building a track
+    /// on foot. Placed against the eye rather than the player root: the root is the playspace
+    /// origin, so in VR it sits wherever the room was centred and turns only with the turn stick —
+    /// placing against it dropped the point metres from where the player was standing, facing a
+    /// direction they had never looked.
+    /// </summary>
     public BasisCameraDollyWaypoint SpawnWaypointInFrontOfPlayer()
     {
         InitializeModifiers();
 
         float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
-        Vector3 position;
-        Quaternion rotation = Quaternion.identity;
+        ReadPlayerEye(out Vector3 eye, out Quaternion yaw);
+        Vector3 position = eye + yaw * (Vector3.forward * (WaypointReach * scale));
+
+        return DollyTrack.AddWaypoint(position, yaw, scale);
+    }
+
+    /// <summary>
+    /// Where the player is looking from and which way they are facing, flattened to a heading.
+    ///
+    /// <para>Head rather than camera, so a third-person view places at the player and not out where
+    /// the orbiting camera sits; flattened, because a waypoint dropped while glancing at the floor
+    /// belongs at the height it was placed at rather than in it.</para>
+    /// </summary>
+    private void ReadPlayerEye(out Vector3 eye, out Quaternion yaw)
+    {
+        if (BasisLocalCameraDriver.HasInstance)
+        {
+            eye = BasisLocalCameraDriver.HeadPosition;
+            Vector3 forward = Vector3.ProjectOnPlane(BasisLocalCameraDriver.HeadForward(), Vector3.up);
+            if (forward.sqrMagnitude > 1e-6f)
+            {
+                yaw = Quaternion.LookRotation(forward.normalized, Vector3.up);
+                return;
+            }
+
+            // Looking straight up or down flattens to nothing. The root's heading is the wrong
+            // frame for a position but is still the player's own facing on desktop, and is the only
+            // heading left to fall back on.
+            yaw = RootYaw();
+            return;
+        }
 
         if (BasisLocalPlayer.Instance != null)
         {
-            BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out Vector3 root, out Quaternion rot);
-            Quaternion yaw = Quaternion.Euler(0f, rot.eulerAngles.y, 0f);
-            position = root + yaw * new Vector3(0f, 1.2f * scale, 1f * scale);
-            rotation = yaw;
-        }
-        else
-        {
-            transform.GetPositionAndRotation(out position, out _);
+            eye = BasisLocalPlayer.Instance.transform.position;
+            yaw = RootYaw();
+            return;
         }
 
-        return DollyTrack.AddWaypoint(position, rotation, scale);
+        transform.GetPositionAndRotation(out eye, out Quaternion cameraRotation);
+        yaw = BasisCameraDamping.Yaw(cameraRotation.eulerAngles.y);
+    }
+
+    private static Quaternion RootYaw()
+    {
+        if (BasisLocalPlayer.Instance == null)
+        {
+            return Quaternion.identity;
+        }
+        return BasisCameraDamping.Yaw(BasisLocalPlayer.Instance.transform.eulerAngles.y);
     }
 
     public bool RemoveWaypoint(int index) => DollyTrack != null && DollyTrack.RemoveWaypointAt(index);
@@ -787,14 +830,17 @@ public abstract partial class BasisHandHeldCameraInteractable
         scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
         if (scale <= 0.001f) scale = 1f;
 
+        ReadPlayerEye(out Vector3 eye, out Quaternion facing);
+        yaw = facing.eulerAngles.y;
+
+        // Under the player rather than at their eye: a preset is laid back out on the floor they
+        // are standing on. The height comes off the root, the only thing that knows where that
+        // floor is; the two horizontal axes come off the head, the only thing that knows where in
+        // the playspace they have walked to.
+        anchor = eye;
         if (BasisLocalPlayer.Instance != null)
         {
-            BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out anchor, out Quaternion rotation);
-            yaw = rotation.eulerAngles.y;
-            return;
+            anchor.y = BasisLocalPlayer.Instance.transform.position.y;
         }
-
-        transform.GetPositionAndRotation(out anchor, out Quaternion fallback);
-        yaw = fallback.eulerAngles.y;
     }
 }

@@ -239,14 +239,6 @@
         "com.unity.ugui": "2.0.0"
       }
     },
-    "com.basis.rtao": {
-      "version": "file:com.basis.rtao",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {
-        "com.unity.render-pipelines.universal": "17.5.0"
-      }
-    },
     "com.basis.sdk": {
       "version": "file:com.basis.sdk",
       "depth": 0,

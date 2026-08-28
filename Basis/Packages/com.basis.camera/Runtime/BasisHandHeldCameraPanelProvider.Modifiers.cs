@@ -753,13 +753,17 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 if (Stack == null) return;
                 Vector3 damping = new Vector3(v, v, v * 2f);
-                if (Stack.rotationModifier == BasisCameraRotationModifier.MatchSubject)
+                switch (Stack.rotationModifier)
                 {
-                    Stack.matchSubject.damping = damping;
-                }
-                else
-                {
-                    Stack.lookAt.damping = damping;
+                    case BasisCameraRotationModifier.MatchSubject:
+                        Stack.matchSubject.damping = damping;
+                        break;
+                    case BasisCameraRotationModifier.AimAlongTrack:
+                        Stack.trackAim.damping = damping;
+                        break;
+                    default:
+                        Stack.lookAt.damping = damping;
+                        break;
                 }
             };
 
@@ -876,6 +880,13 @@ namespace Basis.BasisUI.HandHeldCamera
                     Vector3 offset = Stack.matchSubject.rotationOffset;
                     offset[axis] = value;
                     Stack.matchSubject.rotationOffset = offset;
+                    break;
+                }
+                case BasisCameraRotationModifier.AimAlongTrack:
+                {
+                    Vector3 offset = Stack.trackAim.rotationOffset;
+                    offset[axis] = value;
+                    Stack.trackAim.rotationOffset = offset;
                     break;
                 }
                 default:
@@ -1785,14 +1796,17 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 BasisCameraRotationModifier.Compose => stack.compose.rotationOffset,
                 BasisCameraRotationModifier.MatchSubject => stack.matchSubject.rotationOffset,
+                BasisCameraRotationModifier.AimAlongTrack => stack.trackAim.rotationOffset,
                 _ => stack.lookAt.rotationOffset,
             };
             _aimPitchSlider?.SetValueWithoutNotify(aim.x);
             _aimYawSlider?.SetValueWithoutNotify(aim.y);
-            _aimDampSlider?.SetValueWithoutNotify(
-                stack.rotationModifier == BasisCameraRotationModifier.MatchSubject
-                    ? stack.matchSubject.damping.x
-                    : stack.lookAt.damping.x);
+            _aimDampSlider?.SetValueWithoutNotify(stack.rotationModifier switch
+            {
+                BasisCameraRotationModifier.MatchSubject => stack.matchSubject.damping.x,
+                BasisCameraRotationModifier.AimAlongTrack => stack.trackAim.damping.x,
+                _ => stack.lookAt.damping.x,
+            });
 
             _screenXSlider?.SetValueWithoutNotify(stack.compose.composer.screenX);
             _screenYSlider?.SetValueWithoutNotify(stack.compose.composer.screenY);
@@ -1898,6 +1912,7 @@ namespace Basis.BasisUI.HandHeldCamera
             bool framing = stack.positionModifier == BasisCameraPositionModifier.FrameSubject;
             bool orbit = stack.positionModifier == BasisCameraPositionModifier.Orbit;
             bool dolly = stack.positionModifier == BasisCameraPositionModifier.DollyTrack;
+            bool alongTrack = stack.rotationModifier == BasisCameraRotationModifier.AimAlongTrack;
             bool placement = follow || framing;
 
             PanelSectionToggleHelpers.SetSectionVisible(_positionAdvancedSection, _positionAdvancedGroup, placement || orbit || dolly);
@@ -1945,18 +1960,21 @@ namespace Basis.BasisUI.HandHeldCamera
             _dollyOffsetYSlider?.gameObject.SetActive(dolly);
             _dollyOffsetZSlider?.gameObject.SetActive(dolly);
 
-            // The track editor rides with the slot that reads it: fitting Dolly Track brings the
-            // whole block onto the page, and anything else takes it off.
-            _dollyGroup?.SetActive(dolly);
+            // The track editor rides with whichever slot reads the track — the position slot riding
+            // it, or the rotation slot aiming down it. Aiming along a track with nothing to build
+            // one from would otherwise leave the page with no way to lay the points it needs.
+            _dollyGroup?.SetActive(dolly || alongTrack);
 
             _positionSection?.Descriptor.SetTooltip(BasisLocalization.Get(
                 BasisCameraModifiers.DescriptionKey(stack.positionModifier)));
 
             bool compose = stack.rotationModifier == BasisCameraRotationModifier.Compose;
             bool aims = stack.rotationModifier == BasisCameraRotationModifier.LookAtSubject ||
-                        stack.rotationModifier == BasisCameraRotationModifier.MatchSubject || compose;
+                        stack.rotationModifier == BasisCameraRotationModifier.MatchSubject ||
+                        compose || alongTrack;
             bool damps = stack.rotationModifier == BasisCameraRotationModifier.LookAtSubject ||
-                         stack.rotationModifier == BasisCameraRotationModifier.MatchSubject;
+                         stack.rotationModifier == BasisCameraRotationModifier.MatchSubject ||
+                         alongTrack;
 
             PanelSectionToggleHelpers.SetSectionVisible(_rotationAdvancedSection, _rotationAdvancedGroup, aims);
 

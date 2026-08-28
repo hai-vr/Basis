@@ -212,6 +212,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private PanelElementDescriptor _followGroup;
         private PanelDropdown _followMarkerDropdown;
+        private PanelSlider _markerScaleSlider;
+        private PanelToggle _puckPreviewToggle;
         private PanelDropdown _followTargetDropdown;
         // Networked members only, in dropdown order. Row 0 of the dropdown is always "Me", so row
         // n maps to _followTargetIds[n - 1]. The local player is not an id: net id 0 is a real
@@ -311,6 +313,8 @@ namespace Basis.BasisUI.HandHeldCamera
         private bool? _lastCloseHides;
         private bool? _lastExposureOnCamera;
         private bool? _lastFocusFollows;
+        private bool? _lastPuckPreview;
+        private float _lastMarkerScale = float.NaN;
 
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
@@ -776,6 +780,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _placeOffsetZSlider?.SetResetDefault(defaults.modifiers.follow.positionOffset.z);
             _aimYawSlider?.SetResetDefault(defaults.modifiers.lookAt.rotationOffset.y);
             _aimPitchSlider?.SetResetDefault(defaults.modifiers.lookAt.rotationOffset.x);
+            _markerScaleSlider?.SetResetDefault(defaults.detachedMarkerScale * 100f);
             _followLookAtHeightSlider?.SetResetDefault(defaults.modifiers.subject.aimHeightOffset);
             _subjectRadiusSlider?.SetResetDefault(defaults.modifiers.subject.framingRadius);
             _followLateralSlider?.SetResetDefault(defaults.modifiers.follow.lateralTracking);
@@ -787,6 +792,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _dollyZoomMaxSlider?.SetResetDefault(defaults.modifiers.dollyZoom.maxFov);
             _rigWeightResponseSlider?.SetResetDefault(defaults.modifiers.rigWeight.responsiveness);
             _rigWeightBounceSlider?.SetResetDefault(defaults.modifiers.rigWeight.bounce * 100f);
+
+            AssignFilmResetDefaults(defaults);
         }
 
         private void PromptResetSettings()
@@ -973,6 +980,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastRenderRateLimit = null;
             _lastRenderRateHz = float.NaN;
             _followMarkerDropdown = null;
+            _markerScaleSlider = null;
+            _lastMarkerScale = float.NaN;
+            _puckPreviewToggle = null;
+            _lastPuckPreview = null;
             _followPlayspaceToggle = null;
             _aimPointDropdown = null;
             _followLookAtHeightSlider = null;
@@ -1936,7 +1947,25 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (_activeCamera == null || _followMarkerDropdown == null) return;
                 int index = _followMarkerDropdown.Index;
                 if (index >= 0) _activeCamera.SetDetachedMarker((BasisCameraDetachedMarker)index);
+                RefreshDetachedMarkerVisibility();
             };
+
+            _markerScaleSlider = PanelSlider.CreateNew(content);
+            _markerScaleSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.detachedMarker.size"),
+                BasisHandHeldCamera.MinDetachedMarkerScale * 100f,
+                BasisHandHeldCamera.MaxDetachedMarkerScale * 100f,
+                false, 0, ValueDisplayMode.Percentage));
+            _markerScaleSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.detachedMarker.size.description"));
+            // The same number the two-hand pinch on the puck writes, which is why it is a share of
+            // the marker's natural size rather than a distance: this is the desktop way to the
+            // control VR already has in hand.
+            _markerScaleSlider.OnValueChanged = v => _activeCamera?.SetDetachedMarkerScale(v / 100f);
+
+            _puckPreviewToggle = PanelToggle.CreateNewEntry(content);
+            _puckPreviewToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.puckPreview"));
+            _puckPreviewToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.puckPreview.description"));
+            _puckPreviewToggle.OnValueChanged = v => _activeCamera?.SetPuckLookAtPreview(v);
 
             _followTargetDropdown = PanelDropdown.CreateNewEntry(content);
             _followTargetDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.followTarget"));
@@ -2232,6 +2261,19 @@ namespace Basis.BasisUI.HandHeldCamera
                 openFolderButton.Descriptor.SetTitle(BasisLocalization.Get("camera.openPhotosFolder"));
                 openFolderButton.OnClicked += () => BasisHandHeldCamera.OpenPhotosFolder();
             }
+        }
+
+        /// <summary>
+        /// The marker's size follows the marker: with the marker off there is nothing on screen for
+        /// it to size, and a slider that visibly does nothing reads as a broken one.
+        /// </summary>
+        private void RefreshDetachedMarkerVisibility()
+        {
+            bool marked = _activeCamera != null && _activeCamera.detachedMarker != BasisCameraDetachedMarker.Off;
+
+            _markerScaleSlider?.gameObject.SetActive(marked);
+            RefreshSearch();
+            ForceLayoutRebuild(_followGroup);
         }
 
         /// <summary>
@@ -2887,6 +2929,11 @@ namespace Basis.BasisUI.HandHeldCamera
                 int markerIndex = Mathf.Clamp((int)_activeCamera.detachedMarker, 0, DetachedMarkerKeys.Length - 1);
                 _followMarkerDropdown.SetValueWithoutNotify(DetachedMarkerKeys[markerIndex]);
             }
+            _lastMarkerScale = _activeCamera.DetachedMarkerScale * 100f;
+            _markerScaleSlider?.SetValueWithoutNotify(_lastMarkerScale);
+            RefreshDetachedMarkerVisibility();
+            _lastPuckPreview = _activeCamera.puckLookAtPreview;
+            _puckPreviewToggle?.SetValueWithoutNotify(_activeCamera.puckLookAtPreview);
             // Each camera holds its own follow target, and the roster has not changed just because
             // the selected camera has — so drop the cached list to force the rebuild. Without it
             // the dropdown kept showing the previous camera's target, and picking the name already
@@ -3225,6 +3272,13 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncSlider(_smoothDragRotationSlider, _activeCamera.smoothDragRotationDamping, ref _lastSmoothDragRotation);
             SyncSlider(_smoothDragLeashSlider, _activeCamera.smoothDragMaxDistance, ref _lastSmoothDragLeash);
             SyncToggle(_resizeToggle, _activeCamera.ResizeWithGesture, ref _lastResize);
+            // Loading a settings file rewrites this under an open panel, the same way the drag
+            // numbers above are rewritten.
+            SyncToggle(_puckPreviewToggle, _activeCamera.puckLookAtPreview, ref _lastPuckPreview);
+            // The marker size has a second writer that is not this panel at all — the two-hand
+            // pinch on the puck itself — so the slider has to follow the camera rather than assume
+            // it set the value it is showing.
+            SyncSlider(_markerScaleSlider, _activeCamera.DetachedMarkerScale * 100f, ref _lastMarkerScale);
 
             // The prop carries its own Auto/Manual focus buttons, so this is a shared control like
             // the ones above — and it also decides whether the focus slider is on screen at all.

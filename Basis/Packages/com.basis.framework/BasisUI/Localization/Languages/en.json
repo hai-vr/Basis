@@ -351,6 +351,10 @@
       "value": "All Settings"
     },
     {
+      "key": "camera.readout.changedFrom",
+      "value": "Values in blue differ from {0}"
+    },
+    {
       "key": "camera.userMode.error.empty",
       "value": "Give the preset a name before saving it."
     },
@@ -1544,7 +1548,23 @@
     },
     {
       "key": "camera.detachedMarker.description",
-      "value": "What marks the camera when it leaves your hand — a grabbable puck, a lightweight wireframe, or nothing."
+      "value": "What marks the camera when it leaves your hand — a solid puck, a lightweight wireframe, or nothing. Either one can be taken hold of to fly the camera."
+    },
+    {
+      "key": "camera.detachedMarker.size",
+      "value": "Marker Size"
+    },
+    {
+      "key": "camera.detachedMarker.size.description",
+      "value": "How large the detached marker is drawn, as a share of its natural size. In VR you can also resize it by holding the marker and pulling both hands apart."
+    },
+    {
+      "key": "camera.puckPreview",
+      "value": "Puck Look-At Preview"
+    },
+    {
+      "key": "camera.puckPreview.description",
+      "value": "Show a screen of what the camera sees whenever it is out of your hand and turned back toward you. It goes again when the camera is turned away, and never appears in your photos or streams."
     },
     {
       "key": "camera.followTarget",
@@ -1636,7 +1656,15 @@
     },
     {
       "key": "camera.printPhoto.description",
-      "value": "Spawn each photo you take in front of you as a shared image card — the same one a file dragged onto the window makes. Everyone in the instance sees it, and anyone can grab, move, or delete it. PNG photos only."
+      "value": "Spawn each photo you take, and each GIF you record, in front of you as a shared image card — the same one a file dragged onto the window makes. Everyone in the instance sees it, and anyone can grab, move, or delete it. PNG photos and GIF clips only."
+    },
+    {
+      "key": "camera.printPhoto.resized.title",
+      "value": "Photo resized to share"
+    },
+    {
+      "key": "camera.printPhoto.resized.description",
+      "value": "Your photo was shot at <b>{0} × {1}</b>, which is larger than a shared image card can carry, so the card in front of you is a <b>{2} × {3}</b> copy of it.\n\nThe photo saved to your Photos folder was not touched — it is still the full-size original.\n\nThis notice appears once per resolution."
     },
     {
       "key": "camera.selfie",
@@ -11951,6 +11979,10 @@
       "value": "Click this hand's thumbstick for its options."
     },
     {
+      "key": "ui.resetSection.nochanges",
+      "value": "Everything in this section is already at its default."
+    },
+    {
       "key": "ui.openFolder",
       "value": "Open Folder"
     },
@@ -14565,6 +14597,14 @@
       "value": "Copies the subject's own facing, for over-the-shoulder shots."
     },
     {
+      "key": "camera.modifier.aimAlongTrack",
+      "value": "Aim Along Track"
+    },
+    {
+      "key": "camera.modifier.aimAlongTrack.description",
+      "value": "Points the camera down the dolly track, so the shot looks the way the move is travelling. Films nobody, so it needs no subject. Set Yaw Offset to 180 to look back the way it came."
+    },
+    {
       "key": "camera.modifier.hold",
       "value": "Hold Current Aim"
     },
@@ -14990,7 +15030,7 @@
     },
     {
       "key": "camera.detachedMarker.wireframe.tooltip",
-      "value": "An outline of the camera drawn where it is, without anything to grab."
+      "value": "An outline of the camera drawn where it is, with a knob out front you can take hold of to fly it by hand."
     },
     {
       "key": "camera.bindingMode.subjectYaw",
@@ -15178,7 +15218,7 @@
     },
     {
       "key": "camera.placeWaypointAtMe.description",
-      "value": "Drops a point in front of you and adds it to the end of the track."
+      "value": "Drops a point at eye height just in front of you, facing the way you are looking, and adds it to the end of the track."
     },
     {
       "key": "camera.waypoint",

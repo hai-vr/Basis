@@ -141,6 +141,44 @@ namespace Basis.Tests.Camera
             }
         }
 
+        [Test]
+        public void TheMarkerSize_StaysInsideWhatBothWaysOfSettingItOffer()
+        {
+            // The panel slider and the two-hand pinch are handed the same range — the pickup gets it
+            // as percentages of the natural size — so a value from either that landed outside it
+            // would be a size the other could not undo.
+            _rig.Camera.SetDetachedMarkerScale(50f);
+            Assert.That(_rig.Camera.DetachedMarkerScale,
+                Is.EqualTo(BasisHandHeldCamera.MaxDetachedMarkerScale).Within(1e-4f));
+
+            _rig.Camera.SetDetachedMarkerScale(0.001f);
+            Assert.That(_rig.Camera.DetachedMarkerScale,
+                Is.EqualTo(BasisHandHeldCamera.MinDetachedMarkerScale).Within(1e-4f));
+
+            _rig.Camera.SetDetachedMarkerScale(float.NaN);
+            Assert.That(_rig.Camera.DetachedMarkerScale, Is.EqualTo(1f).Within(1e-4f),
+                "A size that is not a number is a file saying nothing, which is the natural size — " +
+                "clamping it would silently leave the marker at a quarter instead.");
+        }
+
+        [Test]
+        public void AnEnlargedMarkerIsParkedFurtherOut_AndAShrunkOneKeepsItsDistance()
+        {
+            // The puck is parked out along the lens axis to keep it off the prop's own panel, where
+            // its grab box would take the pointer the buttons under it wanted.
+            float natural = BasisHandHeldCamera.FollowPuckParkDistance(1f);
+
+            Assert.That(BasisHandHeldCamera.FollowPuckParkDistance(BasisHandHeldCamera.MaxDetachedMarkerScale),
+                Is.EqualTo(natural * BasisHandHeldCamera.MaxDetachedMarkerScale).Within(1e-4f),
+                "A marker four times the size reaches four times as far back toward the operator, so " +
+                "the parking distance has to grow with it or it lands back on the panel.");
+
+            Assert.That(BasisHandHeldCamera.FollowPuckParkDistance(BasisHandHeldCamera.MinDetachedMarkerScale),
+                Is.EqualTo(natural).Within(1e-4f),
+                "Shrinking the marker must not pull it back onto the panel: what it is parked clear " +
+                "of is the panel and its buttons, and those are the same size whatever the marker does.");
+        }
+
         // ---------- Depth of field: style vs on/off vs focus mode ----------
 
         [Test]
