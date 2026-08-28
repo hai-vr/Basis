@@ -791,6 +791,14 @@
       "value": "Depth Of Field"
     },
     {
+      "key": "camera.depthOfField.enable",
+      "value": "Enable Depth Of Field"
+    },
+    {
+      "key": "camera.depthOfField.enable.description",
+      "value": "Blur everything that is not at the focus distance. This is the same switch as the one on the camera itself."
+    },
+    {
       "key": "camera.mode",
       "value": "Blur Type"
     },
@@ -1689,6 +1697,70 @@
     {
       "key": "camera.vrStabilization.description",
       "value": "Smooth out hand shake when holding the camera in VR."
+    },
+    {
+      "key": "camera.vrStabilization.position",
+      "value": "Stabilizer Lag"
+    },
+    {
+      "key": "camera.vrStabilization.position.description",
+      "value": "Seconds the stabilized lens takes to catch up with the camera body."
+    },
+    {
+      "key": "camera.vrStabilization.yaw",
+      "value": "Stabilizer Turn Lag"
+    },
+    {
+      "key": "camera.vrStabilization.yaw.description",
+      "value": "Seconds the stabilized lens takes to follow the camera turning left or right."
+    },
+    {
+      "key": "camera.vrStabilization.pitch",
+      "value": "Stabilizer Tilt Lag"
+    },
+    {
+      "key": "camera.vrStabilization.pitch.description",
+      "value": "Seconds it takes to follow the camera tilting up or down."
+    },
+    {
+      "key": "camera.vrStabilization.roll",
+      "value": "Stabilizer Roll Lag"
+    },
+    {
+      "key": "camera.vrStabilization.roll.description",
+      "value": "Seconds it takes to follow the camera rolling. Raise it above the others to hold the horizon through a turn."
+    },
+    {
+      "key": "camera.zoomStabilization",
+      "value": "Stabilize With Zoom"
+    },
+    {
+      "key": "camera.zoomStabilization.description",
+      "value": "Zooming in stabilizes harder and zooming out hands the camera back to you, the way a long lens magnifies a shake."
+    },
+    {
+      "key": "camera.zoomStabilization.response",
+      "value": "Zoom Response"
+    },
+    {
+      "key": "camera.zoomStabilization.response.description",
+      "value": "How strongly the zoom drives the stabilizer. 1 matches the lens, higher exaggerates it."
+    },
+    {
+      "key": "camera.zoomStabilization.min",
+      "value": "Widest Stabilization"
+    },
+    {
+      "key": "camera.zoomStabilization.min.description",
+      "value": "Least the stabilizer may be scaled to, at the wide end of the zoom."
+    },
+    {
+      "key": "camera.zoomStabilization.max",
+      "value": "Longest Stabilization"
+    },
+    {
+      "key": "camera.zoomStabilization.max.description",
+      "value": "Most the stabilizer may be scaled to, at the long end of the zoom."
     },
     {
       "key": "camera.smoothDrag",
@@ -14959,6 +15031,18 @@
     {
       "key": "camera.fixedPointAtMe.description",
       "value": "Parks the filmed point on you, for filming the spot you are standing in."
+    },
+    {
+      "key": "camera.lookAtPick",
+      "value": "Look At Point"
+    },
+    {
+      "key": "camera.lookAtPick.description",
+      "value": "Point at something in the world and the shot holds it. Aim with a controller and pull the trigger, or on desktop look at it and click. A marker shows where the aim lands. Useful once the camera is out on a dolly, where there is no way to aim it by hand."
+    },
+    {
+      "key": "camera.lookAtPick.cancel",
+      "value": "Stop Pointing"
     },
     {
       "key": "camera.composerBiasX",

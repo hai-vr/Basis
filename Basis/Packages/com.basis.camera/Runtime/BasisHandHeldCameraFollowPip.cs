@@ -219,6 +219,44 @@ public partial class BasisHandHeldCamera
         followPipInstance.transform.SetPositionAndRotation(pos + FollowPuckOffset(rot), rot);
     }
 
+    /// <summary>
+    /// The pose every remote's copy of this camera's puck should be placed at.
+    ///
+    /// <para>The marker and the networked camera are the same prefab, so the two have to agree on
+    /// where it is. The puck is parked out along the lens axis (see <see cref="FollowPuckLensOffset"/>),
+    /// and the raw camera pose the send used to carry drew everyone else's copy back at the lens —
+    /// a parking distance from where its owner is looking at it. The resize is what made that
+    /// visible rather than what introduced it: the distance grows with the marker, so one at
+    /// <see cref="MaxDetachedMarkerScale"/> misses by a metre.</para>
+    ///
+    /// <para>Only the puck moves. The wireframe is drawn at the camera and parks nothing but its
+    /// grab knob out there, and a camera in the hand or with the marker off has no marker at all —
+    /// in every one of those the lens is what a remote copy marks, and the pose passes through.</para>
+    /// </summary>
+    internal void GetNetworkedMarkerPose(out Vector3 position, out Quaternion rotation)
+    {
+        position = Vector3.zero;
+        rotation = Quaternion.identity;
+        if (captureCamera == null) return;
+
+        captureCamera.transform.GetPositionAndRotation(out position, out rotation);
+
+        if (detachedMarker != BasisCameraDetachedMarker.Puck || !IsDetachedFromHand) return;
+
+        // Its own transform rather than the offset re-applied: while the puck is held it is the
+        // master and the camera is what follows it, through a smoothing a recomputed pose would
+        // trail. Free, it is wherever UpdateFollowPuck just put it, which is the same answer.
+        if (followPipInstance != null)
+        {
+            followPipInstance.transform.GetPositionAndRotation(out position, out rotation);
+            return;
+        }
+
+        // Still loading: nothing to read, so aim at where the puck lands on the frame it arrives
+        // rather than letting the remote copy sit at the lens until then and jump.
+        position += FollowPuckOffset(rotation);
+    }
+
     private void SpawnFollowPip()
     {
         // Async load in flight, or the camera is gone: nothing to do this frame.
@@ -611,4 +649,13 @@ public partial class BasisHandHeldCamera
         BasisGizmoManager.DestroyGizmo(_gizmoKnobId);
         _gizmoCreated = false;
     }
+
+#if UNITY_INCLUDE_TESTS
+    /// <summary>
+    /// The pose handed to the network, so the marker the owner sees and the copy every remote draws
+    /// can be asserted to agree without a peer, a puck prefab or a frame.
+    /// </summary>
+    public void GetNetworkedMarkerPoseForTest(out Vector3 position, out Quaternion rotation)
+        => GetNetworkedMarkerPose(out position, out rotation);
+#endif
 }

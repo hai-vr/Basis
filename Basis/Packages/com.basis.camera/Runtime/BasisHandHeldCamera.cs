@@ -303,7 +303,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // Notify network that PIP camera was created
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
-            captureCamera.transform.GetPositionAndRotation(out Vector3 pipPos, out Quaternion pipRot);
+            GetNetworkedMarkerPose(out Vector3 pipPos, out Quaternion pipRot);
             BasisNetworkPIPCameraDriver.SendPIPState(true, pipPos, pipRot);
         }
     }
@@ -398,6 +398,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         DespawnFollowPip();
         DestroyDetachedGizmo();
         DespawnPuckPreview();
+        ShutdownLookAtPointer();
 
         DebugGizmos.Shutdown();
 
@@ -1565,12 +1566,17 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         UpdateFollowPip();
         // After the marker, so the puck and the screen parked past it are placed from one pose.
         UpdatePuckPreview();
+
+        // After everything that moves the camera, so the reticle is drawn against the pose the
+        // frame actually ended on rather than the one it started from.
+        TickLookAtPointer();
+
         DebugGizmos.Tick(this);
 
         // Send PIP camera position to network
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
-            captureCamera.transform.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
+            GetNetworkedMarkerPose(out Vector3 pos, out Quaternion rot);
             BasisNetworkPIPCameraDriver.SendPIPPosition(pos, rot);
         }
     }

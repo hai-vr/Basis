@@ -19,6 +19,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
         // Index 0 follows the subject's depth automatically; index 1 uses the Focus Distance slider.
         private static readonly string[] FocusModeKeys = { "camera.focusAuto", "camera.focusManual" };
+        private static readonly string[] DoFModeValues = { "Off", "Gaussian", "Bokeh" };
+        private static readonly string[] DoFModeKeys = { "ui.option.off", "camera.mode.gaussian", "camera.mode.bokeh" };
 
         // Ordered to match BasisCameraDetachedMarker (Off / Puck / Wireframe).
         private static readonly string[] DetachedMarkerKeys =
@@ -157,6 +159,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _bloomThresholdSlider;
         private PanelSlider _contrastSlider;
         private PanelSlider _saturationSlider;
+        private PanelToggle _dofEnabledToggle;
         private PanelDropdown _dofModeDropdown;
         private PanelSlider _apertureSlider;
         private PanelSlider _focusSlider;
@@ -241,6 +244,14 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelToggle _flyMomentumToggle;
         private PanelToggle _autoLevelToggle;
         private PanelToggle _vrStabToggle;
+        private PanelSlider _vrStabPositionSlider;
+        private PanelSlider _vrStabYawSlider;
+        private PanelSlider _vrStabPitchSlider;
+        private PanelSlider _vrStabRollSlider;
+        private PanelToggle _zoomStabToggle;
+        private PanelSlider _zoomStabResponseSlider;
+        private PanelSlider _zoomStabMinSlider;
+        private PanelSlider _zoomStabMaxSlider;
         private PanelToggle _smoothDragToggle;
         private PanelSlider _smoothDragPositionSlider;
         private PanelSlider _smoothDragRotationSlider;
@@ -294,6 +305,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private float _lastExposure = float.NaN;
         private float _lastAperture = float.NaN;
         private float _lastFocus = float.NaN;
+        private bool? _lastDofEnabled;
         private bool? _lastSelfie;
         private bool? _lastFly;
         private bool? _lastFlyOnMenu;
@@ -305,6 +317,14 @@ namespace Basis.BasisUI.HandHeldCamera
         private bool? _lastFlyMomentum;
         private bool? _lastAutoLevel;
         private bool? _lastVrStab;
+        private float _lastVrStabPosition = float.NaN;
+        private float _lastVrStabYaw = float.NaN;
+        private float _lastVrStabPitch = float.NaN;
+        private float _lastVrStabRoll = float.NaN;
+        private bool? _lastZoomStab;
+        private float _lastZoomStabResponse = float.NaN;
+        private float _lastZoomStabMin = float.NaN;
+        private float _lastZoomStabMax = float.NaN;
         private bool? _lastSmoothDrag;
         private float _lastSmoothDragPosition = float.NaN;
         private float _lastSmoothDragRotation = float.NaN;
@@ -740,6 +760,13 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyFastMultiplierSlider?.SetResetDefault(defaults.flyFastMultiplier);
             _flyTurnSpeedSlider?.SetResetDefault(defaults.flyTurnSpeed);
             _flyMouseSensitivitySlider?.SetResetDefault(defaults.flyMouseSensitivity);
+            _vrStabPositionSlider?.SetResetDefault(defaults.vrStabilizationPositionDamping);
+            _vrStabYawSlider?.SetResetDefault(defaults.vrStabilizationYawDamping);
+            _vrStabPitchSlider?.SetResetDefault(defaults.vrStabilizationPitchDamping);
+            _vrStabRollSlider?.SetResetDefault(defaults.vrStabilizationRollDamping);
+            _zoomStabResponseSlider?.SetResetDefault(defaults.zoomStabilizationResponse);
+            _zoomStabMinSlider?.SetResetDefault(defaults.zoomStabilizationMinScale);
+            _zoomStabMaxSlider?.SetResetDefault(defaults.zoomStabilizationMaxScale);
             _apertureSlider?.SetResetDefault(defaults.depthAperture);
             _focusSlider?.SetResetDefault(defaults.depthFocusDistance);
             _dofFocalLengthSlider?.SetResetDefault(defaults.dofFocalLength);
@@ -794,6 +821,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _rigWeightBounceSlider?.SetResetDefault(defaults.modifiers.rigWeight.bounce * 100f);
 
             AssignFilmResetDefaults(defaults);
+            AssignModifierResetDefaults(defaults);
         }
 
         private void PromptResetSettings()
@@ -892,6 +920,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _saturationSlider = null;
             _apertureSlider = null;
             _focusSlider = null;
+            _dofEnabledToggle = null;
             _dofModeDropdown = null;
             _dofFocalLengthSlider = null;
             _dofBladeCountSlider = null;
@@ -1001,6 +1030,14 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyMomentumToggle = null;
             _autoLevelToggle = null;
             _vrStabToggle = null;
+            _vrStabPositionSlider = null;
+            _vrStabYawSlider = null;
+            _vrStabPitchSlider = null;
+            _vrStabRollSlider = null;
+            _zoomStabToggle = null;
+            _zoomStabResponseSlider = null;
+            _zoomStabMinSlider = null;
+            _zoomStabMaxSlider = null;
             _smoothDragToggle = null;
             _smoothDragPositionSlider = null;
             _smoothDragRotationSlider = null;
@@ -1016,6 +1053,14 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastFlyMomentum = null;
             _lastAutoLevel = null;
             _lastVrStab = null;
+            _lastVrStabPosition = float.NaN;
+            _lastVrStabYaw = float.NaN;
+            _lastVrStabPitch = float.NaN;
+            _lastVrStabRoll = float.NaN;
+            _lastZoomStab = null;
+            _lastZoomStabResponse = float.NaN;
+            _lastZoomStabMin = float.NaN;
+            _lastZoomStabMax = float.NaN;
             _lastSmoothDrag = null;
             _lastSmoothDragPosition = float.NaN;
             _lastSmoothDragRotation = float.NaN;
@@ -1025,6 +1070,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastExposure = float.NaN;
             _lastAperture = float.NaN;
             _lastFocus = float.NaN;
+            _lastDofEnabled = null;
             _capture360Toggle = null;
             _printPhotoToggle = null;
             _photoStatus = null;
@@ -1252,14 +1298,22 @@ namespace Basis.BasisUI.HandHeldCamera
                 _dofSection, parent, BasisLocalization.Get("camera.depthOfField"), false);
             RectTransform content = _dofGroup.ContentParent;
 
+            // The same switch the camera prop carries on its own HUD, and the master for
+            // everything under it: with the effect off, none of the controls below do anything.
+            _dofEnabledToggle = PanelToggle.CreateNewEntry(content);
+            _dofEnabledToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.depthOfField.enable"));
+            _dofEnabledToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.depthOfField.enable.description"));
+            _dofEnabledToggle.OnValueChanged = SetDepthOfFieldEnabled;
+
             _dofModeDropdown = PanelDropdown.CreateNewEntry(content);
             _dofModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.mode"));
             _dofModeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.mode.description"));
-            _dofModeDropdown.AssignLocalizedEntries(new List<string> { "Off", "Gaussian", "Bokeh" }, new List<string> { "ui.option.off", "camera.mode.gaussian", "camera.mode.bokeh" });
+            _dofModeDropdown.AssignLocalizedEntries(new List<string>(DoFModeValues), new List<string>(DoFModeKeys));
             _dofModeDropdown.OnValueChanged = _ =>
             {
                 if (_activeCamera == null || _dofModeDropdown == null) return;
                 _activeCamera.HandHeld.SetDoFMode(_dofModeDropdown.Index);
+                SyncDoFEnabledToggle();
                 RefreshDoFModeVisibility();
             };
 
@@ -2043,6 +2097,21 @@ namespace Basis.BasisUI.HandHeldCamera
             clearGroup.Descriptor.SetTitle(BasisLocalization.Get("camera.groupClear"));
             clearGroup.OnClicked += () => _activeCamera?.TargetGroup.Clear();
 
+            // Its own row, above the two that only appear once Fixed Point is already chosen:
+            // this is how somebody gets to a fixed point rather than a setting on one. A camera out
+            // on a dolly is filming from somewhere the operator cannot reach, and this is the only
+            // control here that answers "film that" without them naming what "that" is first.
+            RectTransform lookAtRow = PanelElementDescriptor.BuildActionRow(content, "CameraLookAtPickRow");
+
+            _lookAtPickButton = PanelButton.CreateNew(lookAtRow);
+            _lookAtPickButton.Descriptor.SetTitle(BasisLocalization.Get("camera.lookAtPick"));
+            _lookAtPickButton.Descriptor.SetTooltip(BasisLocalization.Get("camera.lookAtPick.description"));
+            _lookAtPickButton.OnClicked += () =>
+            {
+                _activeCamera?.ToggleLookAtPointer();
+                RefreshLookAtPointer();
+            };
+
             _fixedPointRow = PanelElementDescriptor.BuildActionRow(content, "CameraFixedPointRow");
 
             PanelButton pointAtCamera = PanelButton.CreateNew(_fixedPointRow);
@@ -2147,7 +2216,82 @@ namespace Basis.BasisUI.HandHeldCamera
             _vrStabToggle.OnValueChanged = v =>
             {
                 if (_activeCamera != null) _activeCamera.useVRHandheldSmoothing = v;
+                RefreshStabilizationVisibility();
             };
+
+            _vrStabPositionSlider = PanelSlider.CreateNew(content);
+            _vrStabPositionSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.vrStabilization.position"),
+                BasisHandHeldCameraInteractable.MinStabilizationDamping,
+                BasisHandHeldCameraInteractable.MaxStabilizationDamping,
+                false, 2, ValueDisplayMode.Raw));
+            _vrStabPositionSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.vrStabilization.position.description"));
+            _vrStabPositionSlider.OnValueChanged = v => _activeCamera?.SetVRStabilizationPositionDamping(v);
+
+            // Three axes rather than one turn number: the shot a handheld camera is usually after is
+            // one that swings with you but does not tilt or tip while it does.
+            _vrStabYawSlider = PanelSlider.CreateNew(content);
+            _vrStabYawSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.vrStabilization.yaw"),
+                BasisHandHeldCameraInteractable.MinStabilizationDamping,
+                BasisHandHeldCameraInteractable.MaxStabilizationDamping,
+                false, 2, ValueDisplayMode.Raw));
+            _vrStabYawSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.vrStabilization.yaw.description"));
+            _vrStabYawSlider.OnValueChanged = v => _activeCamera?.SetVRStabilizationYawDamping(v);
+
+            _vrStabPitchSlider = PanelSlider.CreateNew(content);
+            _vrStabPitchSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.vrStabilization.pitch"),
+                BasisHandHeldCameraInteractable.MinStabilizationDamping,
+                BasisHandHeldCameraInteractable.MaxStabilizationDamping,
+                false, 2, ValueDisplayMode.Raw));
+            _vrStabPitchSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.vrStabilization.pitch.description"));
+            _vrStabPitchSlider.OnValueChanged = v => _activeCamera?.SetVRStabilizationPitchDamping(v);
+
+            _vrStabRollSlider = PanelSlider.CreateNew(content);
+            _vrStabRollSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.vrStabilization.roll"),
+                BasisHandHeldCameraInteractable.MinStabilizationDamping,
+                BasisHandHeldCameraInteractable.MaxStabilizationDamping,
+                false, 2, ValueDisplayMode.Raw));
+            _vrStabRollSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.vrStabilization.roll.description"));
+            _vrStabRollSlider.OnValueChanged = v => _activeCamera?.SetVRStabilizationRollDamping(v);
+
+            // Not gated on the VR toggle above and not hidden on desktop: it scales whichever of the
+            // two stabilizers is running, and the smooth drag is one the desktop camera has too.
+            _zoomStabToggle = PanelToggle.CreateNewEntry(content);
+            _zoomStabToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.zoomStabilization"));
+            _zoomStabToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.zoomStabilization.description"));
+            _zoomStabToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera != null) _activeCamera.zoomStabilization = v;
+                RefreshStabilizationVisibility();
+            };
+
+            _zoomStabResponseSlider = PanelSlider.CreateNew(content);
+            _zoomStabResponseSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.zoomStabilization.response"),
+                BasisHandHeldCameraInteractable.MinZoomStabilizationResponse,
+                BasisHandHeldCameraInteractable.MaxZoomStabilizationResponse,
+                false, 2, ValueDisplayMode.Raw));
+            _zoomStabResponseSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.zoomStabilization.response.description"));
+            _zoomStabResponseSlider.OnValueChanged = v => _activeCamera?.SetZoomStabilizationResponse(v);
+
+            _zoomStabMinSlider = PanelSlider.CreateNew(content);
+            _zoomStabMinSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.zoomStabilization.min"),
+                BasisHandHeldCameraInteractable.MinZoomStabilizationScale, 1f,
+                false, 2, ValueDisplayMode.Raw));
+            _zoomStabMinSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.zoomStabilization.min.description"));
+            _zoomStabMinSlider.OnValueChanged = v => _activeCamera?.SetZoomStabilizationMinScale(v);
+
+            _zoomStabMaxSlider = PanelSlider.CreateNew(content);
+            _zoomStabMaxSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.zoomStabilization.max"),
+                1f, BasisHandHeldCameraInteractable.MaxZoomStabilizationScale,
+                false, 1, ValueDisplayMode.Raw));
+            _zoomStabMaxSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.zoomStabilization.max.description"));
+            _zoomStabMaxSlider.OnValueChanged = v => _activeCamera?.SetZoomStabilizationMaxScale(v);
 
             _smoothDragToggle = PanelToggle.CreateNewEntry(content);
             _smoothDragToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.smoothDrag"));
@@ -2291,6 +2435,30 @@ namespace Basis.BasisUI.HandHeldCamera
             ForceLayoutRebuild(_handlingGroup);
         }
 
+        /// <summary>
+        /// The stabilizer's two damping numbers follow its own toggle, and the zoom link's three
+        /// follow theirs. The damping pair is VR-only because the stabilizer it shapes is; the zoom
+        /// link is not, since it also scales the smooth drag the desktop camera can run.
+        /// </summary>
+        private void RefreshStabilizationVisibility()
+        {
+            bool stabilizing = !BasisDeviceManagement.IsUserInDesktop() &&
+                _activeCamera != null && _activeCamera.useVRHandheldSmoothing;
+
+            _vrStabPositionSlider?.gameObject.SetActive(stabilizing);
+            _vrStabYawSlider?.gameObject.SetActive(stabilizing);
+            _vrStabPitchSlider?.gameObject.SetActive(stabilizing);
+            _vrStabRollSlider?.gameObject.SetActive(stabilizing);
+
+            bool zoomLinked = _activeCamera != null && _activeCamera.zoomStabilization;
+
+            _zoomStabResponseSlider?.gameObject.SetActive(zoomLinked);
+            _zoomStabMinSlider?.gameObject.SetActive(zoomLinked);
+            _zoomStabMaxSlider?.gameObject.SetActive(zoomLinked);
+            RefreshSearch();
+            ForceLayoutRebuild(_handlingGroup);
+        }
+
         private void RefreshPlatformVisibility()
         {
             bool desktop = BasisDeviceManagement.IsUserInDesktop();
@@ -2300,6 +2468,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyTurnSpeedSlider?.gameObject.SetActive(!desktop);
             _vrStabToggle?.gameObject.SetActive(!desktop);
             _resizeToggle?.gameObject.SetActive(!desktop);
+            RefreshStabilizationVisibility();
             RefreshSearch();
             ForceLayoutRebuild(_handlingGroup);
         }
@@ -2786,11 +2955,8 @@ namespace Basis.BasisUI.HandHeldCamera
                 _focusSlider?.SetValueWithoutNotify(metaData.depthOfField.focusDistance.value);
                 _dofFocalLengthSlider?.SetValueWithoutNotify(metaData.depthOfField.focalLength.value);
                 _dofBladeCountSlider?.SetValueWithoutNotify(metaData.depthOfField.bladeCount.value);
-                if (_dofModeDropdown != null)
-                {
-                    int mode = Mathf.Clamp(_activeCamera.HandHeld.DoFMode, 0, 2);
-                    _dofModeDropdown.SetValueWithoutNotify(new[] { "Off", "Gaussian", "Bokeh" }[mode]);
-                }
+                SyncDoFEnabledToggle();
+                SeedDoFModeDropdown();
                 RefreshDoFModeVisibility();
             }
 
@@ -2911,6 +3077,23 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyMomentumToggle?.SetValueWithoutNotify(_activeCamera.useMomentum);
             _autoLevelToggle?.SetValueWithoutNotify(_activeCamera.useAutoLeveling);
             _vrStabToggle?.SetValueWithoutNotify(_activeCamera.useVRHandheldSmoothing);
+            _lastVrStabPosition = _activeCamera.vrHandheldPositionDamping;
+            _vrStabPositionSlider?.SetValueWithoutNotify(_activeCamera.vrHandheldPositionDamping);
+            _lastVrStabYaw = _activeCamera.vrHandheldYawDamping;
+            _vrStabYawSlider?.SetValueWithoutNotify(_activeCamera.vrHandheldYawDamping);
+            _lastVrStabPitch = _activeCamera.vrHandheldPitchDamping;
+            _vrStabPitchSlider?.SetValueWithoutNotify(_activeCamera.vrHandheldPitchDamping);
+            _lastVrStabRoll = _activeCamera.vrHandheldRollDamping;
+            _vrStabRollSlider?.SetValueWithoutNotify(_activeCamera.vrHandheldRollDamping);
+            _lastZoomStab = _activeCamera.zoomStabilization;
+            _zoomStabToggle?.SetValueWithoutNotify(_activeCamera.zoomStabilization);
+            _lastZoomStabResponse = _activeCamera.zoomStabilizationResponse;
+            _zoomStabResponseSlider?.SetValueWithoutNotify(_activeCamera.zoomStabilizationResponse);
+            _lastZoomStabMin = _activeCamera.zoomStabilizationMinScale;
+            _zoomStabMinSlider?.SetValueWithoutNotify(_activeCamera.zoomStabilizationMinScale);
+            _lastZoomStabMax = _activeCamera.zoomStabilizationMaxScale;
+            _zoomStabMaxSlider?.SetValueWithoutNotify(_activeCamera.zoomStabilizationMaxScale);
+            RefreshStabilizationVisibility();
             _lastSmoothDrag = _activeCamera.useSmoothDrag;
             _smoothDragToggle?.SetValueWithoutNotify(_activeCamera.useSmoothDrag);
             _smoothDragPositionSlider?.SetValueWithoutNotify(_activeCamera.smoothDragPositionDamping);
@@ -3241,6 +3424,19 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 SyncSlider(_apertureSlider, _activeCamera.MetaData.depthOfField.aperture.value, ref _lastAperture);
                 SyncSlider(_focusSlider, _activeCamera.MetaData.depthOfField.focusDistance.value, ref _lastFocus);
+
+                // The prop carries the same switch, and the mode presets and a settings load write
+                // the effect straight. It carries the rest of the section on and off screen, so it
+                // is edge-gated like the stabilizer toggles rather than pushed through SyncToggle —
+                // and the style it promotes on the way on has to be re-read with it.
+                bool dofEnabled = _activeCamera.MetaData.depthOfField.active;
+                if (_lastDofEnabled != dofEnabled)
+                {
+                    _lastDofEnabled = dofEnabled;
+                    _dofEnabledToggle?.SetValueWithoutNotify(dofEnabled);
+                    SeedDoFModeDropdown();
+                    RefreshDoFModeVisibility();
+                }
             }
 
 
@@ -3257,7 +3453,25 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncSlider(_flyMouseSensitivitySlider, _activeCamera.mouseSensitivity, ref _lastFlyMouseSensitivity);
             SyncToggle(_flyMomentumToggle, _activeCamera.useMomentum, ref _lastFlyMomentum);
             SyncToggle(_autoLevelToggle, _activeCamera.useAutoLeveling, ref _lastAutoLevel);
-            SyncToggle(_vrStabToggle, _activeCamera.useVRHandheldSmoothing, ref _lastVrStab);
+            // The stabilizer toggles carry their sliders on and off screen, so they are edge-gated
+            // the way the drag toggle below is rather than pushed through SyncToggle.
+            bool vrStab = _activeCamera.useVRHandheldSmoothing;
+            bool zoomStab = _activeCamera.zoomStabilization;
+            if (_lastVrStab != vrStab || _lastZoomStab != zoomStab)
+            {
+                _lastVrStab = vrStab;
+                _lastZoomStab = zoomStab;
+                _vrStabToggle?.SetValueWithoutNotify(vrStab);
+                _zoomStabToggle?.SetValueWithoutNotify(zoomStab);
+                RefreshStabilizationVisibility();
+            }
+            SyncSlider(_vrStabPositionSlider, _activeCamera.vrHandheldPositionDamping, ref _lastVrStabPosition);
+            SyncSlider(_vrStabYawSlider, _activeCamera.vrHandheldYawDamping, ref _lastVrStabYaw);
+            SyncSlider(_vrStabPitchSlider, _activeCamera.vrHandheldPitchDamping, ref _lastVrStabPitch);
+            SyncSlider(_vrStabRollSlider, _activeCamera.vrHandheldRollDamping, ref _lastVrStabRoll);
+            SyncSlider(_zoomStabResponseSlider, _activeCamera.zoomStabilizationResponse, ref _lastZoomStabResponse);
+            SyncSlider(_zoomStabMinSlider, _activeCamera.zoomStabilizationMinScale, ref _lastZoomStabMin);
+            SyncSlider(_zoomStabMaxSlider, _activeCamera.zoomStabilizationMaxScale, ref _lastZoomStabMax);
 
             // Applying a saved mode or resetting the page rewrites these under an open panel, and
             // the drag numbers are only on screen while the toggle is on.
@@ -3406,19 +3620,63 @@ namespace Basis.BasisUI.HandHeldCamera
             if (_activeCamera == null) return;
 
             _activeCamera.HandHeld.SetFocusFollowsSubject(follows);
-            if (follows) _activeCamera.BasisDOFInteractionHandler?.SetDoFState(true);
+            if (follows)
+            {
+                _activeCamera.BasisDOFInteractionHandler?.SetDoFState(true);
+                SyncDoFEnabledToggle();
+                SeedDoFModeDropdown();
+            }
 
             _focusModeDropdown?.SetValueWithoutNotify(FocusModeKeys[follows ? 0 : 1]);
             RefreshDoFModeVisibility();
         }
 
+        /// <summary>
+        /// The panel half of the camera's own depth of field switch. It writes through the same
+        /// interaction handler the prop's toggle does, so the two surfaces can never disagree —
+        /// and that handler promotes a stored blur style of Off to Bokeh on the way on, which is
+        /// why the style dropdown is re-seeded afterwards rather than left showing Off.
+        /// </summary>
+        private void SetDepthOfFieldEnabled(bool enabled)
+        {
+            if (_activeCamera == null) return;
+
+            _activeCamera.BasisDOFInteractionHandler?.SetDoFState(enabled);
+            SyncDoFEnabledToggle();
+            SeedDoFModeDropdown();
+            RefreshDoFModeVisibility();
+        }
+
+        // The effect is the state, not the widget: a camera with no interaction handler never took
+        // the write, so the toggle is re-seeded from what actually happened rather than from the click.
+        private void SyncDoFEnabledToggle()
+        {
+            if (_activeCamera == null) return;
+            _lastDofEnabled = DepthOfFieldIsEnabled;
+            _dofEnabledToggle?.SetValueWithoutNotify(DepthOfFieldIsEnabled);
+        }
+
+        private bool DepthOfFieldIsEnabled =>
+            _activeCamera != null && _activeCamera.MetaData.depthOfField != null && _activeCamera.MetaData.depthOfField.active;
+
+        private void SeedDoFModeDropdown()
+        {
+            if (_activeCamera == null || _dofModeDropdown == null) return;
+            _dofModeDropdown.SetValueWithoutNotify(DoFModeValues[Mathf.Clamp(_activeCamera.HandHeld.DoFMode, 0, DoFModeValues.Length - 1)]);
+        }
+
         private void RefreshDoFModeVisibility()
         {
             if (_activeCamera == null) return;
+            bool enabled = DepthOfFieldIsEnabled;
             int mode = _activeCamera.HandHeld.DoFMode;
-            bool bokeh = mode == 2;
-            bool anyBlur = mode != 0;
+            bool bokeh = enabled && mode == 2;
+            bool anyBlur = enabled && mode != 0;
 
+            // With the effect off nothing below the switch changes the picture, so the section
+            // shrinks to the switch — the same thing the prop's HUD does with its own sliders.
+            _dofModeDropdown?.gameObject.SetActive(enabled);
+            _focusModeDropdown?.gameObject.SetActive(enabled);
             // Follow Subject only drives the focus while there is something to track; without that
             // the slider is the only way to focus, so it has to stay reachable.
             _focusSlider?.gameObject.SetActive(anyBlur && !_activeCamera.HandHeld.AutoFocusIsDriving);
@@ -3443,7 +3701,7 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             if (_focusSubjectNotice == null) return;
 
-            bool warn = _activeCamera != null && _activeCamera.AutoFocusHasNoSubject;
+            bool warn = _activeCamera != null && _activeCamera.AutoFocusHasNoSubject && DepthOfFieldIsEnabled;
             if (_lastFocusHasNoSubject == warn) return;
             _lastFocusHasNoSubject = warn;
 

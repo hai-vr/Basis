@@ -129,6 +129,16 @@ public partial class BasisHandHeldCameraUI
             smoothDragPositionDamping = 0.4f;
             smoothDragRotationDamping = 0.5f;
             smoothDragMaxDistance = 0.25f;
+
+            vrStabilizationPositionDamping = 0.2f;
+            vrStabilizationYawDamping = 0.9f;
+            vrStabilizationPitchDamping = 0.9f;
+            vrStabilizationRollDamping = 0.9f;
+            zoomStabilization = true;
+            zoomStabilizationResponse = 1f;
+            zoomStabilizationMinScale = 0.35f;
+            zoomStabilizationMaxScale = 4f;
+
             flySpeed = 2f;
             flyClimbSpeed = 2f;
             flyFastMultiplier = 3f;
@@ -374,6 +384,20 @@ public partial class BasisHandHeldCameraUI
         public bool capture360;
         public bool useAutoLeveling;
         public bool useVRHandheldSmoothing;
+        public float vrStabilizationPositionDamping;
+        public float vrStabilizationYawDamping;
+        public float vrStabilizationPitchDamping;
+        public float vrStabilizationRollDamping;
+
+        /// <summary>
+        /// Stabilization follows the zoom. On is the default and defaulted in the constructor rather
+        /// than migrated, so a file written before the lens drove it loads holding the shape the
+        /// camera ships with rather than the zero fill, which would be no link at all.
+        /// </summary>
+        public bool zoomStabilization;
+        public float zoomStabilizationResponse;
+        public float zoomStabilizationMinScale;
+        public float zoomStabilizationMaxScale;
 
         /// <summary>
         /// The held camera trails the hand instead of being locked to it. Off is the zero fill, so

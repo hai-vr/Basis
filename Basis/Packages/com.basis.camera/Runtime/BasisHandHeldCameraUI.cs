@@ -498,6 +498,11 @@ public partial class BasisHandHeldCameraUI
         if (DoFAutoSprite != null) DoFAutoSprite.SetActive(dofIsActive && useAuto);
         if (DoFManualSprite != null) DoFManualSprite.SetActive(dofIsActive && !useAuto);
 
+        // Every path that turns depth of field on or off ends here, so this is where the camera's
+        // own toggle is brought back in line with the effect — including the ones that never touch
+        // it, like the panel's blur-style dropdown and the mode presets.
+        if (HHC != null) HHC.BasisDOFInteractionHandler?.SyncToggleFromState();
+
         BasisDebug.Log($"[DepthMode] Switched to {(useAuto ? "Auto" : "Manual")}");
     }
 
@@ -773,6 +778,14 @@ public partial class BasisHandHeldCameraUI
             capture360 = HHC != null && HHC.capture360Enabled,
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
             useVRHandheldSmoothing = HHC != null && HHC.useVRHandheldSmoothing,
+            vrStabilizationPositionDamping = HHC != null ? HHC.vrHandheldPositionDamping : baseline.vrStabilizationPositionDamping,
+            vrStabilizationYawDamping = HHC != null ? HHC.vrHandheldYawDamping : baseline.vrStabilizationYawDamping,
+            vrStabilizationPitchDamping = HHC != null ? HHC.vrHandheldPitchDamping : baseline.vrStabilizationPitchDamping,
+            vrStabilizationRollDamping = HHC != null ? HHC.vrHandheldRollDamping : baseline.vrStabilizationRollDamping,
+            zoomStabilization = HHC == null || HHC.zoomStabilization,
+            zoomStabilizationResponse = HHC != null ? HHC.zoomStabilizationResponse : baseline.zoomStabilizationResponse,
+            zoomStabilizationMinScale = HHC != null ? HHC.zoomStabilizationMinScale : baseline.zoomStabilizationMinScale,
+            zoomStabilizationMaxScale = HHC != null ? HHC.zoomStabilizationMaxScale : baseline.zoomStabilizationMaxScale,
             useSmoothDrag = HHC != null && HHC.useSmoothDrag,
             smoothDragPositionDamping = HHC != null ? HHC.smoothDragPositionDamping : baseline.smoothDragPositionDamping,
             smoothDragRotationDamping = HHC != null ? HHC.smoothDragRotationDamping : baseline.smoothDragRotationDamping,
@@ -1229,6 +1242,14 @@ public partial class BasisHandHeldCameraUI
         HHC.capture360Enabled = settings.capture360;
         HHC.useAutoLeveling = settings.useAutoLeveling;
         HHC.useVRHandheldSmoothing = settings.useVRHandheldSmoothing;
+        HHC.SetVRStabilizationPositionDamping(settings.vrStabilizationPositionDamping);
+        HHC.SetVRStabilizationYawDamping(settings.vrStabilizationYawDamping);
+        HHC.SetVRStabilizationPitchDamping(settings.vrStabilizationPitchDamping);
+        HHC.SetVRStabilizationRollDamping(settings.vrStabilizationRollDamping);
+        HHC.zoomStabilization = settings.zoomStabilization;
+        HHC.SetZoomStabilizationResponse(settings.zoomStabilizationResponse);
+        HHC.SetZoomStabilizationMinScale(settings.zoomStabilizationMinScale);
+        HHC.SetZoomStabilizationMaxScale(settings.zoomStabilizationMaxScale);
         HHC.useSmoothDrag = settings.useSmoothDrag;
         HHC.SetSmoothDragPositionDamping(settings.smoothDragPositionDamping);
         HHC.SetSmoothDragRotationDamping(settings.smoothDragRotationDamping);
@@ -1296,6 +1317,8 @@ public partial class BasisHandHeldCameraUI
             if (DepthFocusDistanceSlider != null)
                 DepthFocusDistanceSlider.SetValueWithoutNotify(HHC.MetaData.depthOfField.focusDistance.value);
         }
+
+        HHC.BasisDOFInteractionHandler?.SyncToggleFromState();
 
         RefreshAllReadouts();
         RefreshAllToggleIndicators();

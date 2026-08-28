@@ -515,6 +515,29 @@ public abstract partial class BasisHandHeldCameraInteractable
         }
     }
 
+    /// <summary>
+    /// Puts the fixed point on a place that was picked rather than typed, and fits the slots that
+    /// make the shot hold it.
+    ///
+    /// <para>Picking a thing to film is an answer to "what is this shot about", so it carries the
+    /// subject slot with it — a point nothing reads is not a subject. The rotation slot is only
+    /// taken when what is fitted does not aim at a subject at all: Hold and Aim Along Track both
+    /// ignore one, and a dolly laid out with Aim Along Track is exactly the shot somebody is
+    /// standing in when they point at something. Compose, Match Subject and Look At Subject are
+    /// already aimed, and how they aim is a decision that was made on purpose.</para>
+    /// </summary>
+    public void SetFixedPointTo(Vector3 point)
+    {
+        InitializeModifiers();
+        modifiers.subject.fixedPoint = point;
+        SetSubjectModifier(BasisCameraSubjectModifier.FixedPoint);
+
+        if (!BasisCameraModifiers.NeedsSubject(modifiers.rotationModifier))
+        {
+            SetRotationModifier(BasisCameraRotationModifier.LookAtSubject);
+        }
+    }
+
     /// <summary>Parks the fixed point on the player, for filming where you are standing.</summary>
     public void SetFixedPointToPlayer()
     {

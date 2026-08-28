@@ -104,11 +104,124 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     [Header("VR Handheld Stabilization")]
     public bool useVRHandheldSmoothing = false;
 
-    [Range(1f, 30f)]
-    public float vrHandheldPositionSmoothing = 12f;
+    /// <summary>Seconds the capture camera takes to close the distance to the pose the prop holds.</summary>
+    [Range(MinStabilizationDamping, MaxStabilizationDamping)]
+    public float vrHandheldPositionDamping = 0.2f;
 
-    [Range(1f, 30f)]
-    public float vrHandheldRotationSmoothing = 14f;
+    /// <summary>Seconds it takes to follow the prop turning left or right.</summary>
+    [Range(MinStabilizationDamping, MaxStabilizationDamping)]
+    public float vrHandheldYawDamping = 0.9f;
+
+    /// <summary>Seconds it takes to follow the prop tilting up or down.</summary>
+    [Range(MinStabilizationDamping, MaxStabilizationDamping)]
+    public float vrHandheldPitchDamping = 0.9f;
+
+    /// <summary>Seconds it takes to follow the prop rolling. Raise it to hold a horizon through a turn.</summary>
+    [Range(MinStabilizationDamping, MaxStabilizationDamping)]
+    public float vrHandheldRollDamping = 0.9f;
+
+    /// <summary>
+    /// Stabilization tracks the lens. A long lens magnifies the same shake, so zooming in holds the
+    /// camera harder and zooming back out hands it to the operator again.
+    /// </summary>
+    public bool zoomStabilization = true;
+
+    /// <summary>Exponent on the focal-length ratio: 1 is the optical amount, higher exaggerates it.</summary>
+    [Range(MinZoomStabilizationResponse, MaxZoomStabilizationResponse)]
+    public float zoomStabilizationResponse = 1f;
+
+    /// <summary>Least the stabilization may be scaled to, at the wide end of the zoom.</summary>
+    [Range(MinZoomStabilizationScale, 1f)]
+    public float zoomStabilizationMinScale = 0.35f;
+
+    /// <summary>Most it may be scaled to, at the long end.</summary>
+    [Range(1f, MaxZoomStabilizationScale)]
+    public float zoomStabilizationMaxScale = 4f;
+
+    public const float MinStabilizationDamping = 0.02f;
+    public const float MaxStabilizationDamping = 2f;
+    public const float MinZoomStabilizationResponse = 0.25f;
+    public const float MaxZoomStabilizationResponse = 3f;
+    public const float MinZoomStabilizationScale = 0.1f;
+    public const float MaxZoomStabilizationScale = 8f;
+
+    /// <summary>The field of view the damping sliders read at, matching the camera's own default.</summary>
+    public const float StabilizationReferenceFov = 40f;
+
+    /// <summary>
+    /// Sets how long the lens takes to catch up with the prop, clamped back into the range the panel
+    /// promises — a settings file is text on disk and can name any number at all.
+    /// </summary>
+    public void SetVRStabilizationPositionDamping(float seconds)
+        => vrHandheldPositionDamping = Mathf.Clamp(seconds, MinStabilizationDamping, MaxStabilizationDamping);
+
+    /// <inheritdoc cref="SetVRStabilizationPositionDamping"/>
+    public void SetVRStabilizationYawDamping(float seconds)
+        => vrHandheldYawDamping = Mathf.Clamp(seconds, MinStabilizationDamping, MaxStabilizationDamping);
+
+    /// <inheritdoc cref="SetVRStabilizationPositionDamping"/>
+    public void SetVRStabilizationPitchDamping(float seconds)
+        => vrHandheldPitchDamping = Mathf.Clamp(seconds, MinStabilizationDamping, MaxStabilizationDamping);
+
+    /// <inheritdoc cref="SetVRStabilizationPositionDamping"/>
+    public void SetVRStabilizationRollDamping(float seconds)
+        => vrHandheldRollDamping = Mathf.Clamp(seconds, MinStabilizationDamping, MaxStabilizationDamping);
+
+    /// <inheritdoc cref="SetVRStabilizationPositionDamping"/>
+    public void SetZoomStabilizationResponse(float response)
+        => zoomStabilizationResponse = Mathf.Clamp(response, MinZoomStabilizationResponse, MaxZoomStabilizationResponse);
+
+    /// <inheritdoc cref="SetVRStabilizationPositionDamping"/>
+    public void SetZoomStabilizationMinScale(float scale)
+        => zoomStabilizationMinScale = Mathf.Clamp(scale, MinZoomStabilizationScale, 1f);
+
+    /// <inheritdoc cref="SetVRStabilizationPositionDamping"/>
+    public void SetZoomStabilizationMaxScale(float scale)
+        => zoomStabilizationMaxScale = Mathf.Clamp(scale, 1f, MaxZoomStabilizationScale);
+
+    /// <summary>
+    /// How far where the lens is stretches the damping times, 1 at <see cref="StabilizationReferenceFov"/>.
+    /// Both the stabilizer and the smooth drag are scaled by it, so the setting reads the same
+    /// whichever of the two is carrying the shot.
+    /// </summary>
+    public float ZoomStabilizationScale
+        => zoomStabilization && HHC != null && HHC.captureCamera != null
+            ? SolveZoomStabilizationScale(HHC.captureCamera.fieldOfView, zoomStabilizationResponse,
+                zoomStabilizationMinScale, zoomStabilizationMaxScale)
+            : 1f;
+
+    /// <summary>
+    /// Focal length is what magnifies a shake and it goes as the cotangent of the half angle, so a
+    /// 20° lens is shaken about twice as hard as the 40° the sliders were set at. Clamped either
+    /// side so neither end of the zoom can run the damping away from what was asked for.
+    /// </summary>
+    public static float SolveZoomStabilizationScale(float fieldOfView, float response, float minScale, float maxScale)
+    {
+        float half = Mathf.Tan(Mathf.Clamp(fieldOfView, 1f, 179f) * 0.5f * Mathf.Deg2Rad);
+        float reference = Mathf.Tan(StabilizationReferenceFov * 0.5f * Mathf.Deg2Rad);
+        float scale = Mathf.Pow(reference / Mathf.Max(1e-4f, half), Mathf.Max(0f, response));
+        return Mathf.Clamp(scale, Mathf.Min(minScale, maxScale), Mathf.Max(minScale, maxScale));
+    }
+
+    /// <summary>
+    /// One step of the rotational stabilizer. Each axis gets its own damp time in the camera's own
+    /// frame, so a shot can swing freely with a turn while the tilt and the horizon are still held.
+    ///
+    /// <para>Three equal times take the slerp instead. It is the same motion, and it avoids the
+    /// euler decomposition the per-axis path needs — which has nothing to split yaw from roll with
+    /// while the camera is pointed at the floor.</para>
+    /// </summary>
+    public static Quaternion SolveStabilizedRotation(Quaternion current, Quaternion target,
+        float pitchDamping, float yawDamping, float rollDamping, float deltaTime)
+    {
+        if (Mathf.Approximately(pitchDamping, yawDamping) && Mathf.Approximately(yawDamping, rollDamping))
+        {
+            return BasisCameraDamping.ApproachRotation(current, target, yawDamping, deltaTime);
+        }
+
+        return BasisCameraDamping.ApproachRotation(current, target,
+            new Vector3(pitchDamping, yawDamping, rollDamping), deltaTime);
+    }
 
     private Vector3 smoothedHandheldWorldPos;
     private Quaternion smoothedHandheldWorldRot = Quaternion.identity;
@@ -2062,9 +2175,10 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             return;
         }
 
+        float zoom = ZoomStabilizationScale;
         SolveSmoothDrag(
             ref smoothDragPosition, ref smoothDragRotation, targetPosition, targetRotation,
-            smoothDragPositionDamping, smoothDragRotationDamping,
+            smoothDragPositionDamping * zoom, smoothDragRotationDamping * zoom,
             smoothDragMaxDistance * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale,
             Time.deltaTime);
 
@@ -2138,16 +2252,12 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         }
 
         float dt = Time.deltaTime;
-        smoothedHandheldWorldPos = Vector3.Lerp(
-            smoothedHandheldWorldPos,
-            targetWorldPos,
-            vrHandheldPositionSmoothing * dt
-        );
-        smoothedHandheldWorldRot = Quaternion.Slerp(
-            smoothedHandheldWorldRot,
-            targetWorldRot,
-            vrHandheldRotationSmoothing * dt
-        );
+        float zoom = ZoomStabilizationScale;
+        smoothedHandheldWorldPos = BasisCameraDamping.Approach(
+            smoothedHandheldWorldPos, targetWorldPos, vrHandheldPositionDamping * zoom, dt);
+        smoothedHandheldWorldRot = SolveStabilizedRotation(
+            smoothedHandheldWorldRot, targetWorldRot,
+            vrHandheldPitchDamping * zoom, vrHandheldYawDamping * zoom, vrHandheldRollDamping * zoom, dt);
 
         cameraTransform.SetPositionAndRotation(smoothedHandheldWorldPos, smoothedHandheldWorldRot);
     }

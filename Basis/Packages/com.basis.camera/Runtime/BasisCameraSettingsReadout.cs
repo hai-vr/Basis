@@ -157,6 +157,14 @@ public static class BasisCameraSettingsReadout
         Row("camera.flyOnMenu", OnOff(settings.showFlyOnMainMenu));
         Row("camera.autoLevel", OnOff(settings.useAutoLeveling), BasisCameraPresetField.AutoLevel);
         Row("camera.vrStabilization", OnOff(settings.useVRHandheldSmoothing), BasisCameraPresetField.VrStabilisation);
+        Row("camera.vrStabilization.position", Number(settings.vrStabilizationPositionDamping) + " s");
+        Row("camera.vrStabilization.yaw", Number(settings.vrStabilizationYawDamping) + " s");
+        Row("camera.vrStabilization.pitch", Number(settings.vrStabilizationPitchDamping) + " s");
+        Row("camera.vrStabilization.roll", Number(settings.vrStabilizationRollDamping) + " s");
+        Row("camera.zoomStabilization", OnOff(settings.zoomStabilization));
+        Row("camera.zoomStabilization.response", Number(settings.zoomStabilizationResponse));
+        Row("camera.zoomStabilization.min", Number(settings.zoomStabilizationMinScale) + "x");
+        Row("camera.zoomStabilization.max", Number(settings.zoomStabilizationMaxScale) + "x");
         Row("camera.smoothDrag", OnOff(settings.useSmoothDrag));
         Row("camera.smoothDrag.position", Number(settings.smoothDragPositionDamping) + " s");
         Row("camera.smoothDrag.rotation", Number(settings.smoothDragRotationDamping) + " s");

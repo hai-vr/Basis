@@ -60,6 +60,8 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelDropdown _subjectDropdown;
         private RectTransform _groupRefreshRow;
         private RectTransform _fixedPointRow;
+        private PanelButton _lookAtPickButton;
+        private bool? _lastLookAtArmed;
         private BasisCameraSubjectModifier? _lastSubjectModifier;
 
         private PanelSectionToggle _positionSection;
@@ -124,7 +126,8 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _composerBiasXSlider;
         private PanelSlider _composerBiasYSlider;
         private PanelToggle _guidesToggle;
-        private bool _showGuides = true;
+        private const bool ShowGuidesDefault = true;
+        private bool _showGuides = ShowGuidesDefault;
 
         private PanelSectionToggle _modifierEffectsSection;
         private PanelElementDescriptor _modifierEffectsGroup;
@@ -1688,6 +1691,99 @@ namespace Basis.BasisUI.HandHeldCamera
             _activeCamera.RebuildTargetGroup();
         }
 
+        // ---- Reset defaults --------------------------------------------------------------------
+
+        /// <summary>
+        /// Where the options gesture returns each modifier control. Read off a default stack — the
+        /// same thing <see cref="BasisCameraModifierStack.ResetToDefaults"/> writes — rather than
+        /// written out by hand, so a reset lands exactly where a fresh camera starts.
+        ///
+        /// <para>These controls are callback-driven, with no settings binding to derive a default
+        /// from, so without an explicit one they count as having nothing to go back to. That took
+        /// them out of a section reset as well as their own gesture: pressing reset on the Position
+        /// or Advanced header walked straight past the dolly rows and left every one of them where
+        /// it was.</para>
+        /// </summary>
+        private void AssignModifierResetDefaults(BasisHandHeldCameraUI.CameraSettings defaults)
+        {
+            BasisCameraModifierStack stack = defaults.modifiers;
+
+            _positionDropdown?.SetResetDefault(BasisCameraModifiers.NameKey(stack.positionModifier));
+            _rotationDropdown?.SetResetDefault(BasisCameraModifiers.NameKey(stack.rotationModifier));
+
+            _bindingModeDropdown?.SetResetDefault(BindingModeKeys[(int)stack.follow.bindingMode]);
+            _placeDampXSlider?.SetResetDefault(stack.follow.damping.x);
+            _placeDampYSlider?.SetResetDefault(stack.follow.damping.y);
+            _placeDampZSlider?.SetResetDefault(stack.follow.damping.z);
+            _placeTeleportSlider?.SetResetDefault(stack.follow.teleportDistance);
+
+            _framingSizeSlider?.SetResetDefault(stack.framing.screenFraction);
+            _framingZoomToggle?.SetResetDefault(stack.framing.usesZoom);
+            _framingMinSlider?.SetResetDefault(stack.framing.minDistance);
+            _framingMaxSlider?.SetResetDefault(stack.framing.maxDistance);
+
+            _orbitFollowHeadingToggle?.SetResetDefault(stack.orbit.followSubjectHeading);
+            _orbitHeadingSlider?.SetResetDefault(stack.orbit.heading);
+            _orbitVerticalSlider?.SetResetDefault(stack.orbit.verticalAxis);
+            _orbitHeadingDampSlider?.SetResetDefault(stack.orbit.headingDamping);
+            _orbitTopHeightSlider?.SetResetDefault(stack.orbit.top.height);
+            _orbitTopRadiusSlider?.SetResetDefault(stack.orbit.top.radius);
+            _orbitMidHeightSlider?.SetResetDefault(stack.orbit.middle.height);
+            _orbitMidRadiusSlider?.SetResetDefault(stack.orbit.middle.radius);
+            _orbitBottomHeightSlider?.SetResetDefault(stack.orbit.bottom.height);
+            _orbitBottomRadiusSlider?.SetResetDefault(stack.orbit.bottom.radius);
+
+            _dollyModeDropdown?.SetResetDefault(DollyModeKeys[(int)stack.dolly.mode]);
+            _dollyPositionSlider?.SetResetDefault(stack.dolly.position);
+            _dollySpeedSlider?.SetResetDefault(stack.dolly.speed);
+            _dollyEaseInDropdown?.SetResetDefault(DollyEaseKeys[(int)stack.dolly.easeIn]);
+            _dollyEaseInPortionSlider?.SetResetDefault(stack.dolly.easeInPortion);
+            _dollyEaseOutDropdown?.SetResetDefault(DollyEaseKeys[(int)stack.dolly.easeOut]);
+            _dollyEaseOutPortionSlider?.SetResetDefault(stack.dolly.easeOutPortion);
+            _dollyDampSlider?.SetResetDefault(stack.dolly.damping);
+            _dollyOffsetXSlider?.SetResetDefault(stack.dolly.offset.x);
+            _dollyOffsetYSlider?.SetResetDefault(stack.dolly.offset.y);
+            _dollyOffsetZSlider?.SetResetDefault(stack.dolly.offset.z);
+
+            // The track editor's own options belong to the track, not the stack. The waypoint
+            // picker and the order slider are deliberately left out: they address the points that
+            // happen to be placed rather than carry a setting, so they have no default to return to.
+            _dollySyncDropdown?.SetResetDefault(DollySyncKeys[(int)stack.dolly.syncMode]);
+            _dollyLoopToggle?.SetResetDefault(BasisCameraDollyTrack.DefaultLooped);
+            _dollyVisibleToggle?.SetResetDefault(BasisCameraDollyTrack.DefaultVisible);
+            _dollyGridSnapToggle?.SetResetDefault(BasisCameraDollyTrack.DefaultGridSnap);
+            _dollyGridSizeSlider?.SetResetDefault(BasisCameraDollyTrack.DefaultGridSize);
+            _dollySpeedColorToggle?.SetResetDefault(BasisCameraDollyTrack.DefaultColorBySpeed);
+
+            _aimDampSlider?.SetResetDefault(stack.lookAt.damping.x);
+            _guidesToggle?.SetResetDefault(ShowGuidesDefault);
+            _screenXSlider?.SetResetDefault(stack.compose.composer.screenX);
+            _screenYSlider?.SetResetDefault(stack.compose.composer.screenY);
+            _deadZoneWidthSlider?.SetResetDefault(stack.compose.composer.deadZoneWidth);
+            _deadZoneHeightSlider?.SetResetDefault(stack.compose.composer.deadZoneHeight);
+            _softZoneWidthSlider?.SetResetDefault(stack.compose.composer.softZoneWidth);
+            _softZoneHeightSlider?.SetResetDefault(stack.compose.composer.softZoneHeight);
+            _composerDampHSlider?.SetResetDefault(stack.compose.composer.horizontalDamping);
+            _composerDampVSlider?.SetResetDefault(stack.compose.composer.verticalDamping);
+            _composerBiasXSlider?.SetResetDefault(stack.compose.composer.biasX);
+            _composerBiasYSlider?.SetResetDefault(stack.compose.composer.biasY);
+
+            _lookAheadTimeSlider?.SetResetDefault(stack.lookAhead.time);
+            _lookAheadLimitSlider?.SetResetDefault(stack.lookAhead.limit);
+
+            _occlusionPaddingSlider?.SetResetDefault(stack.occlusion.padding);
+            _occlusionMinSlider?.SetResetDefault(stack.occlusion.minDistance);
+            _occlusionReturnSlider?.SetResetDefault(stack.occlusion.returnDamping);
+            _occlusionRadiusSlider?.SetResetDefault(stack.occlusion.probeRadius);
+
+            _noiseProfileDropdown?.SetResetDefault(NoiseProfileKeys[(int)stack.shake.profile]);
+            _noiseAmplitudeSlider?.SetResetDefault(stack.shake.amplitudeGain);
+            _noiseFrequencySlider?.SetResetDefault(stack.shake.frequencyGain);
+
+            _lensFovSlider?.SetResetDefault(stack.lens.fov);
+            _lensDampSlider?.SetResetDefault(stack.lens.damping);
+        }
+
         // ---- Seeding and visibility --------------------------------------------------------------
 
         private void RefreshSlotChoices(BasisCameraModifierStack stack)
@@ -2042,6 +2138,24 @@ namespace Basis.BasisUI.HandHeldCamera
                 playing ? "camera.dollyPause" : "camera.dollyPlay"));
         }
 
+        /// <summary>
+        /// Re-labels the pointing button from the camera's own armed state. Polled rather than
+        /// pushed, because pointing ends by pulling a trigger out in the world — the panel is not
+        /// told, and a button still reading "Stop Pointing" after the point has landed is a
+        /// control that looks broken.
+        /// </summary>
+        private void RefreshLookAtPointer()
+        {
+            if (_activeCamera == null || _lookAtPickButton == null) return;
+
+            bool armed = _activeCamera.LookAtPointerArmed;
+            if (_lastLookAtArmed == armed) return;
+            _lastLookAtArmed = armed;
+
+            _lookAtPickButton.Descriptor.SetTitle(BasisLocalization.Get(
+                armed ? "camera.lookAtPick.cancel" : "camera.lookAtPick"));
+        }
+
         private void SetEffectRowActive(BasisCameraEffectModifier effect, bool active)
         {
             _effectSections.TryGetValue(effect, out PanelSectionToggle section);
@@ -2097,6 +2211,7 @@ namespace Basis.BasisUI.HandHeldCamera
             TickAnchorSection();
             SyncModifierSlots();
             RefreshDollyTransport();
+            RefreshLookAtPointer();
             RefreshEffectList();
             RefreshWaypointList();
             RefreshCompositionGuides();
@@ -2275,6 +2390,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _subjectDropdown = null;
             _groupRefreshRow = null;
             _fixedPointRow = null;
+            _lookAtPickButton = null;
+            _lastLookAtArmed = null;
             _lastSubjectModifier = null;
             _lastPositionModifier = null;
             _lastRotationModifier = null;
