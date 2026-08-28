@@ -32,6 +32,8 @@ public struct BasisGlobalIlluminationState
     public BasisGlobalIlluminationQuality Quality;
     public BasisGlobalIlluminationResolution Resolution;
     public BasisGlobalIlluminationFallback Fallback;
+    /// <summary>Ray traced only - screen space always reads whatever is already on screen. See BasisGlobalIlluminationSettings.respectBakedEmission (inverted: this is the player-facing "ignore" framing).</summary>
+    public bool IgnoreBakedEmission;
     public float Intensity;
     public float Saturation;
     public float Obscurance;
@@ -65,6 +67,7 @@ public struct BasisGlobalIlluminationState
             Quality = SMModuleGlobalIlluminationURP.ReadQuality(BasisSettingsDefaults.GlobalIlluminationQuality.DefaultValue.GetDefault()),
             Resolution = SMModuleGlobalIlluminationURP.ReadResolution(BasisSettingsDefaults.GlobalIlluminationResolution.DefaultValue.GetDefault()),
             Fallback = SMModuleGlobalIlluminationURP.ReadFallback(BasisSettingsDefaults.GlobalIlluminationFallback.DefaultValue.GetDefault()),
+            IgnoreBakedEmission = BasisSettingsDefaults.GlobalIlluminationIgnoreBakedEmission.DefaultValue.GetDefault(),
             Intensity = BasisSettingsDefaults.GlobalIlluminationIntensity.DefaultValue.GetDefault(),
             Saturation = BasisSettingsDefaults.GlobalIlluminationSaturation.DefaultValue.GetDefault(),
             Obscurance = BasisSettingsDefaults.GlobalIlluminationObscurance.DefaultValue.GetDefault(),
@@ -99,6 +102,7 @@ public struct BasisGlobalIlluminationState
             Quality = SMModuleGlobalIlluminationURP.ReadQuality(BasisSettingsDefaults.GlobalIlluminationQuality.RawValue),
             Resolution = SMModuleGlobalIlluminationURP.ReadResolution(BasisSettingsDefaults.GlobalIlluminationResolution.RawValue),
             Fallback = SMModuleGlobalIlluminationURP.ReadFallback(BasisSettingsDefaults.GlobalIlluminationFallback.RawValue),
+            IgnoreBakedEmission = BasisSettingsDefaults.GlobalIlluminationIgnoreBakedEmission.RawValue,
             Intensity = BasisSettingsDefaults.GlobalIlluminationIntensity.RawValue,
             Saturation = BasisSettingsDefaults.GlobalIlluminationSaturation.RawValue,
             Obscurance = BasisSettingsDefaults.GlobalIlluminationObscurance.RawValue,
@@ -152,6 +156,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     private static string K_GI_QUALITY => BasisSettingsDefaults.GlobalIlluminationQuality.BindingKey;
     private static string K_GI_RESOLUTION => BasisSettingsDefaults.GlobalIlluminationResolution.BindingKey;
     private static string K_GI_FALLBACK => BasisSettingsDefaults.GlobalIlluminationFallback.BindingKey;
+    private static string K_GI_IGNORE_BAKED_EMISSION => BasisSettingsDefaults.GlobalIlluminationIgnoreBakedEmission.BindingKey;
     private static string K_GI_INTENSITY => BasisSettingsDefaults.GlobalIlluminationIntensity.BindingKey;
     private static string K_GI_SATURATION => BasisSettingsDefaults.GlobalIlluminationSaturation.BindingKey;
     private static string K_GI_OBSCURANCE => BasisSettingsDefaults.GlobalIlluminationObscurance.BindingKey;
@@ -309,6 +314,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         else if (matchedSettingName == K_GI_QUALITY) { state.Quality = ReadQuality(optionValue); }
         else if (matchedSettingName == K_GI_RESOLUTION) { state.Resolution = ReadResolution(optionValue); }
         else if (matchedSettingName == K_GI_FALLBACK) { state.Fallback = ReadFallback(optionValue); }
+        else if (matchedSettingName == K_GI_IGNORE_BAKED_EMISSION) { state.IgnoreBakedEmission = optionValue == "true"; }
         else if (matchedSettingName == K_GI_TEMPORAL_FILTER) { state.TemporalFilter = optionValue == "true"; }
         else if (matchedSettingName == K_GI_WIDE_BLUR) { state.WideBlur = optionValue == "true"; }
         else if (matchedSettingName == K_GI_RAY_REUSE) { state.RayReuse = optionValue == "true"; }
@@ -602,6 +608,10 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         target.rayMaxSteps = CaptureRaySteps;
 
         target.fallback = state.Fallback;
+
+        // The player-facing toggle is framed as "ignore" (double up the bounce); the field it drives is
+        // framed as "respect" (do not double count). Same bit, opposite polarity.
+        target.respectBakedEmission = !state.IgnoreBakedEmission;
 
         // Clamped to the range the SLIDER advertises, which is narrower than the range the value itself
         // permits - Max Ray Length is the clearest case, 64 on the panel against a 128 ceiling on the

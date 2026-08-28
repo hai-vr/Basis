@@ -61,12 +61,16 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
     float visibility = 0.0;
     float distanceSum = 0.0;
 
+    // One tangent frame for the whole fan of rays; see BasisRtaoCosineHemisphere.
+    float3 tangent, bitangent;
+    BasisRtaoOrthonormalBasis(normalWS, tangent, bitangent);
+
     if (_BasisRtaoTrace.z > 0.0)
     {
         for (uint i = 0; i < rayCount; ++i)
         {
-            ray.direction = BasisRtaoCosineHemisphere(BasisRtaoHammersley(i, rayCount, jitter), normalWS);
-            UnifiedRT::Hit hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, 0xffffffff, ray, 0);
+            ray.direction = BasisRtaoCosineHemisphere(BasisRtaoHammersley(i, rayCount, jitter), normalWS, tangent, bitangent);
+            UnifiedRT::Hit hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, (uint)_BasisRtaoTraceMask, ray, 0);
             if (hit.IsValid())
             {
                 float normalized = saturate(hit.hitDistance / _BasisRtaoTrace.y);
@@ -84,8 +88,8 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
     {
         for (uint i = 0; i < rayCount; ++i)
         {
-            ray.direction = BasisRtaoCosineHemisphere(BasisRtaoHammersley(i, rayCount, jitter), normalWS);
-            bool occluded = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xffffffff, ray, 0);
+            ray.direction = BasisRtaoCosineHemisphere(BasisRtaoHammersley(i, rayCount, jitter), normalWS, tangent, bitangent);
+            bool occluded = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, (uint)_BasisRtaoTraceMask, ray, 0);
             visibility += occluded ? 0.0 : 1.0;
             distanceSum += occluded ? 0.0 : 1.0;
         }

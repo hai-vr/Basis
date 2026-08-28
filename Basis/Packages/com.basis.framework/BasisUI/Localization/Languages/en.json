@@ -7843,6 +7843,14 @@
       "value": "Reflection Probe"
     },
     {
+      "key": "settings.graphics.gi.ignoreBakedEmission",
+      "value": "Double Baked Emission"
+    },
+    {
+      "key": "settings.graphics.gi.ignoreBakedEmission.tooltip",
+      "value": "Ray traced only. A baked-emissive surface's light normally sits out of the bounce because it is already in the lightmap - counting it again would light the room twice from one lamp. Turn this on to count it anyway for a stronger bounce, at the cost of that correctness. Off by default."
+    },
+    {
       "key": "settings.graphics.gi.rayReuse",
       "value": "Reuse Off-Screen Rays"
     },
@@ -14806,7 +14814,7 @@
     },
     {
       "key": "camera.modifier.aimAlongTrack.description",
-      "value": "Points the camera down the dolly track, so the shot looks the way the move is travelling. Films nobody, so it needs no subject. Set Yaw Offset to 180 to look back the way it came."
+      "value": "Points the camera down the dolly track, so the shot looks the way the move is travelling. Films nobody, so it needs no subject. Set Pan Offset to 180 to look back the way it came."
     },
     {
       "key": "camera.modifier.hold",

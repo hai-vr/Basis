@@ -100,6 +100,65 @@ float3 BasisGIRtHitNormal(BasisGIRtInstance instance, UnifiedRT::Hit hit, float3
     return dot(normal, direction) > 0.0 ? -normal : normal;
 }
 
+/// How many capsule walls one ray may step out of before it gives up and takes the hit. Four covers the
+/// worst real overlap - hips, spine, chest and an arm crossing the body - without letting a degenerate
+/// case spin.
+#define BASISGI_RT_MAX_PROXY_ESCAPES 4u
+/// Far enough past the wall not to land back on it through floating point, small enough not to skip
+/// anything real standing immediately behind it.
+#define BASISGI_RT_PROXY_ESCAPE_EPSILON 0.01
+
+/// <summary>
+/// One ray, stepping out of any proxy capsule it began inside of.
+///
+/// Avatars are traced as capsules on their bones, but the depth buffer - and so the point every ray starts
+/// from - is the avatar's REAL surface. The spine bone sits towards the back of a torso, so a capsule of
+/// 0.115 x body height swallows the chest: a ray leaving the visible chest starts inside that capsule and
+/// hits it at almost zero distance, which reads as "this surface is completely enclosed". What you see is a
+/// hard edged dark patch in the shape of the capsule, and no ray start offset small enough to keep contact
+/// darkening honest is large enough to escape it - it takes about a third of a metre, which would lift the
+/// darkening off every corner in the world.
+///
+/// A ray that starts inside a closed shape leaves it through a BACK face, so that is the entire test. No
+/// distance to tune, and world geometry is left alone because only proxies are checked - a back face on a
+/// leaf card or a double sided wall is still real occlusion and is still counted.
+///
+/// EVERY trace against this structure has to come through here. It is declared above the first of them
+/// rather than next to the gather that happens to be the largest, because the one trace that skipped it -
+/// the light visibility ray, which was an any-hit and so could not tell which instance had stopped it -
+/// painted exactly the patch described above onto every lit avatar.
+/// </summary>
+UnifiedRT::Hit BasisGIRtTraceEscapingProxies(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::RayTracingAccelStruct accelStruct,
+    inout float3 origin, float3 direction, float tMax)
+{
+    UnifiedRT::Hit hit = UnifiedRT::Hit::Invalid();
+
+    UNITY_LOOP
+    for (uint attempt = 0u; attempt < BASISGI_RT_MAX_PROXY_ESCAPES; attempt++)
+    {
+        UnifiedRT::Ray ray;
+        ray.origin = origin;
+        ray.tMin = 0.0;
+        ray.direction = direction;
+        ray.tMax = tMax;
+
+        hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, (uint)_BasisGIRtTraceMask, ray, 0);
+        if (!hit.IsValid() || hit.isFrontFace) { return hit; }
+
+        BasisGIRtInstance instance = _BasisGIRtInstances[hit.instanceID];
+        if ((instance.geometry.z & BASISGI_RT_FLAG_PROXY) == 0u) { return hit; }
+
+        // Step just past the wall and try again. tMax comes down with the origin so the ray can never
+        // reach further in total than it was allowed to.
+        float advance = hit.hitDistance + BASISGI_RT_PROXY_ESCAPE_EPSILON;
+        origin += direction * advance;
+        tMax -= advance;
+        if (tMax <= 0.0) { return UnifiedRT::Hit::Invalid(); }
+    }
+
+    return hit;
+}
+
 /// <summary>
 /// What the real lights put on a hit, estimated by resampled importance sampling - the idea ReSTIR and
 /// RTXDI are built on.
@@ -186,12 +245,22 @@ float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::
         float visibility = 1.0;
         if (BASISGI_RT_SHADOW_RAYS > 0.5 && chosenShadow > 0.5)
         {
-            UnifiedRT::Ray shadowRay;
-            shadowRay.origin = OffsetRayOrigin(positionWS, normalWS, BASISGI_RT_NORMAL_BIAS);
-            shadowRay.direction = chosenDirection;
-            shadowRay.tMin = 0.0;
-            shadowRay.tMax = max(0.0, chosenDistance - BASISGI_RT_NORMAL_BIAS * 2.0);
-            visibility = UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, 0xffffffff, shadowRay, 0) ? 0.0 : 1.0;
+            // The same capsule escape the gather and the reflection make, and for the same reason: a point
+            // on an avatar's visible chest sits INSIDE that avatar's own torso capsule, so a ray towards a
+            // light leaves through the capsule wall and stops there. Every lit avatar wore the shape of its
+            // own proxy as a hard edged black patch, and only in the ray traced mode, because nothing else
+            // puts capsules in front of a body.
+            //
+            // This was an any-hit trace, which is the cheaper thing to want for visibility and the reason
+            // the bug lived here and nowhere else: any-hit answers whether SOMETHING was in the way and
+            // cannot say what, so there is no instance to test the proxy flag on and no hit distance to
+            // step past. Walking with closest-hit costs more per ray and is the only form that can tell a
+            // capsule the ray started inside from a wall that is genuinely between this point and the
+            // light. A proxy met FRONT face on is another body standing in the way and still shadows.
+            float3 shadowOrigin = OffsetRayOrigin(positionWS, normalWS, BASISGI_RT_NORMAL_BIAS);
+            float shadowReach = max(0.0, chosenDistance - BASISGI_RT_NORMAL_BIAS * 2.0);
+            UnifiedRT::Hit shadowHit = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, shadowOrigin, chosenDirection, shadowReach);
+            visibility = shadowHit.IsValid() ? 0.0 : 1.0;
         }
 
         total += chosenRadiance * ((weightSum / chosenWeight) * visibility);
@@ -213,60 +282,6 @@ float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::
 /// how much of that to keep from the roughness it does know. See BasisSampleTracedReflection in the forked
 /// URP's GlobalIllumination.hlsl.
 /// </summary>
-/// How many capsule walls one ray may step out of before it gives up and takes the hit. Four covers the
-/// worst real overlap - hips, spine, chest and an arm crossing the body - without letting a degenerate
-/// case spin.
-#define BASISGI_RT_MAX_PROXY_ESCAPES 4u
-/// Far enough past the wall not to land back on it through floating point, small enough not to skip
-/// anything real standing immediately behind it.
-#define BASISGI_RT_PROXY_ESCAPE_EPSILON 0.01
-
-/// <summary>
-/// One ray, stepping out of any proxy capsule it began inside of.
-///
-/// Avatars are traced as capsules on their bones, but the depth buffer - and so the point every ray starts
-/// from - is the avatar's REAL surface. The spine bone sits towards the back of a torso, so a capsule of
-/// 0.115 x body height swallows the chest: a ray leaving the visible chest starts inside that capsule and
-/// hits it at almost zero distance, which reads as "this surface is completely enclosed". What you see is a
-/// hard edged dark patch in the shape of the capsule, and no ray start offset small enough to keep contact
-/// darkening honest is large enough to escape it - it takes about a third of a metre, which would lift the
-/// darkening off every corner in the world.
-///
-/// A ray that starts inside a closed shape leaves it through a BACK face, so that is the entire test. No
-/// distance to tune, and world geometry is left alone because only proxies are checked - a back face on a
-/// leaf card or a double sided wall is still real occlusion and is still counted.
-/// </summary>
-UnifiedRT::Hit BasisGIRtTraceEscapingProxies(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::RayTracingAccelStruct accelStruct,
-    inout float3 origin, float3 direction, float tMax)
-{
-    UnifiedRT::Hit hit = UnifiedRT::Hit::Invalid();
-
-    UNITY_LOOP
-    for (uint attempt = 0u; attempt < BASISGI_RT_MAX_PROXY_ESCAPES; attempt++)
-    {
-        UnifiedRT::Ray ray;
-        ray.origin = origin;
-        ray.tMin = 0.0;
-        ray.direction = direction;
-        ray.tMax = tMax;
-
-        hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, 0xffffffff, ray, 0);
-        if (!hit.IsValid() || hit.isFrontFace) { return hit; }
-
-        BasisGIRtInstance instance = _BasisGIRtInstances[hit.instanceID];
-        if ((instance.geometry.z & BASISGI_RT_FLAG_PROXY) == 0u) { return hit; }
-
-        // Step just past the wall and try again. tMax comes down with the origin so the ray can never
-        // reach further in total than it was allowed to.
-        float advance = hit.hitDistance + BASISGI_RT_PROXY_ESCAPE_EPSILON;
-        origin += direction * advance;
-        tMax -= advance;
-        if (tMax <= 0.0) { return UnifiedRT::Hit::Invalid(); }
-    }
-
-    return hit;
-}
-
 float4 BasisGIRtTraceSpecular(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::RayTracingAccelStruct accelStruct,
     float3 positionWS, float3 normalWS, float originBias, float fade, uint seed)
 {

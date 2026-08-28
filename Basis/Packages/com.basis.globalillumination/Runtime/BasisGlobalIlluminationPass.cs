@@ -58,6 +58,8 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         public TextureHandle coarse;
         public Vector4 coarseTexelSize, coarseParams;
         public bool coarseValid;
+        public TextureHandle tracedDepth;
+        public bool tracedDepthValid;
     }
 
     private sealed class RayTraceData
@@ -88,6 +90,8 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     private static readonly int idCoarseDepth = Shader.PropertyToID("_BasisGICoarseDepth");
     private static readonly int idCoarseTexelSize = Shader.PropertyToID("_BasisGICoarseTexelSize");
     private static readonly int idCoarseParams = Shader.PropertyToID("_BasisGICoarseParams");
+    private static readonly int idTracedDepth = Shader.PropertyToID("_BasisGITracedDepth");
+    private static readonly int idTracedDepthValid = Shader.PropertyToID("_BasisGITracedDepthValid");
     private static readonly int idStats = Shader.PropertyToID("_BasisGIStats");
     private static readonly int idStatsValid = Shader.PropertyToID("_BasisGIStatsValid");
     private static readonly int idNormals = Shader.PropertyToID("_BasisGINormals");
@@ -165,6 +169,19 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     private bool loggedRayTracingFallback;
     private bool loggedComputeBackend;
 
+    /// <summary>
+    /// Per-camera snapshot of the traced-resolution linear depth buffer built below (see
+    /// RecordDepthPyramid), for any renderer feature that wants to reuse this screen-space depth reduction
+    /// instead of running its own - the volumetric fog is the first consumer. Plain statics rather than
+    /// making a third party read the shader global directly: URP records one camera's whole pass list
+    /// before moving to the next, so by the time a later pass on THIS camera reads these they are
+    /// guaranteed fresh, and SharedTracedDepthCamera lets a reader reject a value left over from a camera
+    /// this pass never ran on this frame - a check a shader global has no way to make.
+    /// </summary>
+    public static bool SharedTracedDepthValid;
+    public static TextureHandle SharedTracedDepth;
+    public static Camera SharedTracedDepthCamera;
+
     public BasisGlobalIlluminationPass(Material material)
     {
         this.material = material;
@@ -207,6 +224,17 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
 
     public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
     {
+        // Reset immediately, before any early-return below (including ray traced mode with the temporal
+        // filter off, which otherwise never touches this flag at all). A global outlives the camera and the
+        // frame that set it, so every path out of this method has to leave a fresh answer for a third party
+        // reading it - such as the volumetric fog, which runs later in the same camera's frame and has no
+        // way to tell "no GI this frame" from "stale handle from three frames ago, ray traced mode, or a
+        // camera GI never touched". Whichever pass actually builds the buffer overrides this again, through
+        // the command buffer, further down - see BindTracedDepth.
+        Shader.SetGlobalFloat(idTracedDepthValid, 0f);
+        SharedTracedDepthValid = false;
+        SharedTracedDepthCamera = null;
+
         if (material == null) { return; }
 
         UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
@@ -267,6 +295,10 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         // scene that cannot serve the trace falls back to the screen space gather rather than to nothing.
         bool rayTraced = settings.IsRayTraced() && PrepareRayTracing(settings, camera, frame);
 
+        // Declared out here because the temporal filter runs in both modes and wants it whenever the screen
+        // space gather built it. The ray traced mode reconstructs its own positions and never asks.
+        TextureHandle tracedDepth = TextureHandle.nullHandle;
+
         // The ray budget is resolved before anything reads it, because the denoiser is driven by how many
         // samples a pixel actually paid for: a ceiling applied further down would leave the filter
         // trusting a sample count that was never taken.
@@ -316,9 +348,14 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) => Execute(data, context));
             }
 
-            TextureHandle coarse = settings.hierarchicalMarch
-                ? RecordCoarseDepth(renderGraph, resourceData, descriptor, tracedWidth, tracedHeight, divisor)
-                : TextureHandle.nullHandle;
+            RecordDepthPyramid(renderGraph, resourceData, descriptor, tracedWidth, tracedHeight, divisor,
+                settings.hierarchicalMarch, out tracedDepth, out TextureHandle coarse);
+
+            // Published for the whole frame, not just this pass: BindTracedDepth below covers GI's own
+            // downstream stages, this covers everyone else's.
+            SharedTracedDepthValid = true;
+            SharedTracedDepth = tracedDepth;
+            SharedTracedDepthCamera = camera;
 
             using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass("Basis GI Trace", out PassData passData, samplerTrace))
             {
@@ -332,9 +369,12 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
                 passData.coarseValid = coarse.IsValid();
                 passData.coarseTexelSize = coarseTexelSize;
                 passData.coarseParams = new Vector4(0f, 0f, 0f, CoarseBlock);
+                passData.tracedDepth = tracedDepth;
+                passData.tracedDepthValid = true;
                 builder.SetRenderAttachment(traced, 0, AccessFlags.WriteAll);
                 builder.UseTexture(sceneColor);
                 builder.UseTexture(resourceData.cameraDepthTexture);
+                builder.UseTexture(tracedDepth);
                 if (coarse.IsValid()) { builder.UseTexture(coarse); }
                 if (normals.IsValid()) { builder.UseTexture(normals); }
                 builder.AllowGlobalStateModification(true);
@@ -357,6 +397,8 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
                 passData.historyValid = historyValid;
                 passData.motion = motion;
                 passData.previousViewProjection = previousViewProjection;
+                passData.tracedDepth = tracedDepth;
+                passData.tracedDepthValid = tracedDepth.IsValid();
                 previousViewProjection[0] = history.PreviousViewProjection[0];
                 previousViewProjection[1] = history.PreviousViewProjection[1];
                 builder.SetRenderAttachment(historyWrite, 0, AccessFlags.WriteAll);
@@ -365,6 +407,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
                 builder.UseTexture(historyRead);
                 builder.UseTexture(historyReadStats);
                 builder.UseTexture(resourceData.cameraDepthTexture);
+                if (tracedDepth.IsValid()) { builder.UseTexture(tracedDepth); }
                 if (motionValid) { builder.UseTexture(motion); }
                 builder.AllowGlobalStateModification(true);
                 builder.SetRenderFunc((PassData data, RasterGraphContext context) => Execute(data, context));
@@ -626,8 +669,16 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     }
 
     /// <summary>
-    /// Builds the coarse depth summary the hierarchical march skips through: one texel for every
-    /// <see cref="CoarseBlock"/> traced texels, carrying the closest and the furthest real surface beneath it.
+    /// Builds the two levels of linear depth the gather walks: one texel per TRACED texel, and one texel
+    /// per <see cref="CoarseBlock"/> of those. Both carry the same pair - the closest real surface beneath
+    /// the texel and the furthest - so the coarse level is a straight fold of the fine one.
+    ///
+    /// The fine level is the expensive thing this exists for. The march runs at traced resolution but used
+    /// to read the FULL resolution depth texture on every step, every binary refine step and every emitter
+    /// shadow step, linearising each tap by hand. At Half that is four times the texels it needs, walked at
+    /// a stride of about a traced texel, so most of every cache line fetched was for texels no step would
+    /// ever ask about. Reducing once, up front, into something the march can read texel for texel is the
+    /// whole optimisation; the coarse summary then folds out of it for free.
     ///
     /// Two passes, and the reason each reads a DIFFERENT texture is worth stating, because the obvious
     /// implementations of this are both wrong. Folding full resolution straight down to a block of sixty
@@ -636,14 +687,16 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     /// the level below the level it is writing - render graph rejects that outright as a resource used for
     /// input and output at once, and it is a real read-write hazard even where a validator lets it past.
     /// Two plain textures have neither problem and cost a few hundred kilobytes.
+    ///
+    /// The fine level is built whether or not the hierarchical march is on, because the plain march reads
+    /// it too. Only the coarse fold is the hierarchical march's own.
     /// </summary>
-    private TextureHandle RecordCoarseDepth(RenderGraph renderGraph, UniversalResourceData resourceData,
-        in RenderTextureDescriptor descriptor, int tracedWidth, int tracedHeight, int divisor)
+    private void RecordDepthPyramid(RenderGraph renderGraph, UniversalResourceData resourceData,
+        in RenderTextureDescriptor descriptor, int tracedWidth, int tracedHeight, int divisor, bool hierarchical,
+        out TextureHandle tracedDepth, out TextureHandle coarse)
     {
-        int seedWidth = Mathf.Max(1, (tracedWidth + 1) / 2);
-        int seedHeight = Mathf.Max(1, (tracedHeight + 1) / 2);
-        int coarseWidth = Mathf.Max(1, (seedWidth + 3) / 4);
-        int coarseHeight = Mathf.Max(1, (seedHeight + 3) / 4);
+        int coarseWidth = Mathf.Max(1, (tracedWidth + CoarseBlock - 1) / CoarseBlock);
+        int coarseHeight = Mathf.Max(1, (tracedHeight + CoarseBlock - 1) / CoarseBlock);
 
         RenderTextureDescriptor coarseDescriptor = descriptor;
         coarseDescriptor.msaaSamples = 1;
@@ -656,46 +709,53 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         // already sitting between it and a wrong answer.
         coarseDescriptor.graphicsFormat = GraphicsFormat.R16G16_SFloat;
 
-        coarseDescriptor.width = seedWidth;
-        coarseDescriptor.height = seedHeight;
-        TextureHandle seed = UniversalRenderer.CreateRenderGraphTexture(renderGraph, coarseDescriptor, "_BasisGICoarseSeed", false, FilterMode.Point, TextureWrapMode.Clamp);
+        coarseDescriptor.width = tracedWidth;
+        coarseDescriptor.height = tracedHeight;
+        tracedDepth = UniversalRenderer.CreateRenderGraphTexture(renderGraph, coarseDescriptor, "_BasisGITracedDepth", false, FilterMode.Point, TextureWrapMode.Clamp);
 
-        coarseDescriptor.width = coarseWidth;
-        coarseDescriptor.height = coarseHeight;
-        TextureHandle coarse = UniversalRenderer.CreateRenderGraphTexture(renderGraph, coarseDescriptor, "_BasisGICoarseDepth", false, FilterMode.Point, TextureWrapMode.Clamp);
-
-        coarseTexelSize = new Vector4(1f / coarseWidth, 1f / coarseHeight, coarseWidth, coarseHeight);
-
-        using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass("Basis GI Coarse Seed", out PassData passData, samplerCoarse))
+        using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass("Basis GI Traced Depth", out PassData passData, samplerCoarse))
         {
             passData.stage = Stage.Coarse;
             passData.material = material;
             passData.materialPass = PassCoarseSeed;
             passData.source = resourceData.cameraDepthTexture;
-            passData.coarseParams = new Vector4(2 * divisor, descriptor.width, descriptor.height, CoarseBlock);
+            // One traced texel folds exactly the block of full resolution texels it stands for, so at Full
+            // resolution the span is one and the pair this writes is the depth buffer's own value twice -
+            // which is what makes every test downstream reduce to the arithmetic it replaced.
+            passData.coarseParams = new Vector4(divisor, descriptor.width, descriptor.height, CoarseBlock);
             passData.coarseValid = false;
-            builder.SetRenderAttachment(seed, 0, AccessFlags.WriteAll);
+            builder.SetRenderAttachment(tracedDepth, 0, AccessFlags.WriteAll);
             builder.UseTexture(resourceData.cameraDepthTexture);
             builder.AllowGlobalStateModification(true);
             builder.SetRenderFunc((PassData data, RasterGraphContext context) => Execute(data, context));
         }
+
+        coarse = TextureHandle.nullHandle;
+        if (!hierarchical) { return; }
+
+        coarseDescriptor.width = coarseWidth;
+        coarseDescriptor.height = coarseHeight;
+        coarse = UniversalRenderer.CreateRenderGraphTexture(renderGraph, coarseDescriptor, "_BasisGICoarseDepth", false, FilterMode.Point, TextureWrapMode.Clamp);
+
+        coarseTexelSize = new Vector4(1f / coarseWidth, 1f / coarseHeight, coarseWidth, coarseHeight);
 
         using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass("Basis GI Coarse Reduce", out PassData passData, samplerCoarse))
         {
             passData.stage = Stage.Coarse;
             passData.material = material;
             passData.materialPass = PassCoarseReduce;
-            passData.source = seed;
-            passData.coarse = seed;
+            passData.source = tracedDepth;
+            passData.coarse = tracedDepth;
             passData.coarseValid = true;
-            passData.coarseParams = new Vector4(4, seedWidth, seedHeight, CoarseBlock);
+            // A minimum of minima is still the minimum underneath, and a maximum of maxima is still the
+            // maximum, so folding the fine level rather than the depth buffer leaves the coarse summary
+            // holding exactly what it held when it was built from full resolution directly.
+            passData.coarseParams = new Vector4(CoarseBlock, tracedWidth, tracedHeight, CoarseBlock);
             builder.SetRenderAttachment(coarse, 0, AccessFlags.WriteAll);
-            builder.UseTexture(seed);
+            builder.UseTexture(tracedDepth);
             builder.AllowGlobalStateModification(true);
             builder.SetRenderFunc((PassData data, RasterGraphContext context) => Execute(data, context));
         }
-
-        return coarse;
     }
 
     private TextureHandle RecordBlur(RenderGraph renderGraph, UniversalResourceData resourceData, TextureHandle source, TextureHandle target,
@@ -825,6 +885,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
                 break;
             case Stage.Trace:
                 cmd.SetGlobalTexture(idSceneColor, data.sceneColor);
+                BindTracedDepth(cmd, data);
                 if (data.coarseValid)
                 {
                     cmd.SetGlobalTexture(idCoarseDepth, data.coarse);
@@ -834,6 +895,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
                 if (data.normals.IsValid()) { cmd.SetGlobalTexture(idNormals, data.normals); }
                 break;
             case Stage.Temporal:
+                BindTracedDepth(cmd, data);
                 cmd.SetGlobalTexture(idIndirect, data.indirect);
                 cmd.SetGlobalTexture(idHistory, data.history);
                 cmd.SetGlobalTexture(idHistoryStats, data.historyStats);
@@ -856,6 +918,20 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         }
 
         Blitter.BlitTexture(cmd, data.source, new Vector4(1f, 1f, 0f, 0f), data.material, data.materialPass);
+    }
+
+    /// <summary>
+    /// Binds the traced depth buffer, and says so even when there is none.
+    ///
+    /// These are globals, and a global outlives the camera that set it. A screen space camera leaves the
+    /// flag standing at one, and a ray traced camera rendering afterwards would read it, believe a buffer
+    /// it never built was bound, and sample whatever texture was left in the slot. So every pass that reads
+    /// the flag writes it first, rather than only the passes that have something to put there.
+    /// </summary>
+    private static void BindTracedDepth(RasterCommandBuffer cmd, PassData data)
+    {
+        cmd.SetGlobalFloat(idTracedDepthValid, data.tracedDepthValid ? 1f : 0f);
+        if (data.tracedDepthValid) { cmd.SetGlobalTexture(idTracedDepth, data.tracedDepth); }
     }
 
     private static void SetSharedConstants(RasterCommandBuffer cmd, PassData data)

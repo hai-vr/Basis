@@ -55,6 +55,14 @@ TEXTURE2D_X(_BasisGIMotion);
 TEXTURE2D_X(_BasisGICoarseDepth);
 /// (1/width, 1/height, width, height) of the coarse buffer the march reads.
 float4 _BasisGICoarseTexelSize;
+/// The same pair of numbers as _BasisGICoarseDepth, one texel per TRACED texel rather than per block of
+/// them, and already linearised: the closest real surface under this texel in r and the furthest in g.
+/// This is what the march walks. Sky contributes to neither, so an empty texel reads the sky sentinel in
+/// r and zero in g - which is what lets every consumer drop its sky test, because a ray can never be in
+/// front of the sentinel.
+TEXTURE2D_X(_BasisGITracedDepth);
+/// Whether the buffer above was built for this camera. The ray traced mode does not need it.
+float _BasisGITracedDepthValid;
 /// x: how many source texels one destination texel folds, per side, while building.
 /// yz: the source texture's size, for clamping those taps.
 /// w: how many TRACED texels one finished coarse texel spans, which is the march's cell size.
@@ -113,15 +121,23 @@ float4x4 BasisGIPreviousViewProjection()
 #endif
 }
 
+/// <summary>
+/// Eye depth from a raw depth sample.
+///
+/// The orthographic form is behind a branch rather than lerped in. Both are cheap on their own, but this
+/// is the single most repeated line in the effect - every march step, every refine step, every filter tap -
+/// and the lerp form pays for the reciprocal AND the far/near interpolation on every one of them. The
+/// branch is on a uniform, so it is perfectly coherent across the whole draw and costs nothing to take.
+/// </summary>
 float BasisGILinearEyeDepth(float rawDepth)
 {
-    float perspective = LinearEyeDepth(rawDepth, _ZBufferParams);
+    UNITY_BRANCH
+    if (unity_OrthoParams.w < 0.5) { return LinearEyeDepth(rawDepth, _ZBufferParams); }
 #if UNITY_REVERSED_Z
-    float orthographic = lerp(_ProjectionParams.z, _ProjectionParams.y, rawDepth);
+    return lerp(_ProjectionParams.z, _ProjectionParams.y, rawDepth);
 #else
-    float orthographic = lerp(_ProjectionParams.y, _ProjectionParams.z, rawDepth);
+    return lerp(_ProjectionParams.y, _ProjectionParams.z, rawDepth);
 #endif
-    return lerp(perspective, orthographic, unity_OrthoParams.w);
 }
 
 float BasisGISampleRawDepth(float2 uv)
@@ -132,6 +148,30 @@ float BasisGISampleRawDepth(float2 uv)
 float BasisGISampleEyeDepth(float2 uv)
 {
     return BasisGILinearEyeDepth(BasisGISampleRawDepth(uv));
+}
+
+/// <summary>
+/// The closest and the furthest real surface under a traced texel, in linear eye depth.
+///
+/// This exists because the march runs at traced resolution and was reading FULL resolution depth on every
+/// step, every binary refine step and every emitter shadow step - a texture four times the size it needed
+/// at Half, point sampled at a stride of about a traced texel, so three quarters of every cache line it
+/// pulled in was for texels it would never look at. It then linearised each tap by hand.
+///
+/// Two channels rather than one because a traced texel spanning a silhouette holds two surfaces and a
+/// single number has to lie about one of them. Testing the crossing against the closest and the thickness
+/// against the furthest is the same test the coarse cells already run one level up, and at Full resolution,
+/// where the two channels are equal, it reduces to exactly the arithmetic it replaced.
+/// </summary>
+float2 BasisGISampleTracedDepth(float2 uv)
+{
+    return SAMPLE_TEXTURE2D_X_LOD(_BasisGITracedDepth, sampler_PointClamp, UnityStereoTransformScreenSpaceTex(uv), 0).rg;
+}
+
+/// <summary>Whether a traced depth texel saw any real surface at all.</summary>
+bool BasisGITracedIsSky(float2 depths)
+{
+    return depths.g <= 0.0;
 }
 
 bool BasisGIIsSky(float rawDepth)
@@ -188,12 +228,16 @@ float3 BasisGIReconstructNormal(float2 uv, float3 viewPosition, float rawDepth)
     float diffUp = abs(BasisGILinearEyeDepth(depthUp) - eye);
     float diffDown = abs(BasisGILinearEyeDepth(depthDown) - eye);
 
-    float3 horizontal = diffRight < diffLeft
-        ? BasisGIViewPosition(uvRight, depthRight) - viewPosition
-        : viewPosition - BasisGIViewPosition(uvLeft, depthLeft);
-    float3 vertical = diffUp < diffDown
-        ? BasisGIViewPosition(uvUp, depthUp) - viewPosition
-        : viewPosition - BasisGIViewPosition(uvDown, depthDown);
+    // Pick the side FIRST, then reconstruct it. A ternary between two BasisGIViewPosition calls looks
+    // like a choice but is not one: HLSL evaluates both arms, so four positions were being unprojected
+    // to answer a question about two. Each one is an inverse view projection and a divide followed by a
+    // world to view, and this runs for every shaded pixel and again for every ray hit under _BASISGI_HIT_NORMAL.
+    bool useRight = diffRight < diffLeft;
+    bool useUp = diffUp < diffDown;
+    float3 horizontalPosition = BasisGIViewPosition(useRight ? uvRight : uvLeft, useRight ? depthRight : depthLeft);
+    float3 verticalPosition = BasisGIViewPosition(useUp ? uvUp : uvDown, useUp ? depthUp : depthDown);
+    float3 horizontal = useRight ? horizontalPosition - viewPosition : viewPosition - horizontalPosition;
+    float3 vertical = useUp ? verticalPosition - viewPosition : viewPosition - verticalPosition;
 
     float3 viewNormal = normalize(cross(horizontal, vertical));
     float3 worldNormal = mul((float3x3)UNITY_MATRIX_I_V, viewNormal);
@@ -233,7 +277,10 @@ float3 BasisGICosineDirection(float2 sample, float3x3 basis)
     float radius = sqrt(sample.x);
     float angle = TWO_PI * sample.y;
     float3 local = float3(radius * cos(angle), radius * sin(angle), sqrt(max(0.0, 1.0 - sample.x)));
-    return normalize(mul(local, basis));
+    // Already unit: radius^2 + (1 - sample.x) is exactly one, and the basis is orthonormal, so the product
+    // is a rotation of a unit vector. The normalize was a dot, an rsqrt and three multiplies per ray spent
+    // renormalising something that was never off the sphere.
+    return mul(local, basis);
 }
 
 float3 BasisGIClampFirefly(float3 radiance)
@@ -331,7 +378,11 @@ struct BasisGIPlaneBasis
 {
     float3 gradient;
     float centre, scale;
+    /// Whether the affine form describes this camera at all - it does not fit an orthographic one.
     bool usable;
+    /// ...and additionally whether the statistics texture that carries the neighbours' depth exists yet.
+    /// A consumer reading depth from the depth texture only needs the first.
+    bool statsUsable;
 };
 
 BasisGIPlaneBasis BasisGIBuildPlaneBasis(float3 centrePosition, float3 centreNormal, float centreEye, float2 texelSize)
@@ -346,7 +397,8 @@ BasisGIPlaneBasis BasisGIBuildPlaneBasis(float3 centrePosition, float3 centreNor
                             atCentre);
     basis.centre = atCentre * centreEye;
     basis.scale = BasisGIPlaneTolerance(centreEye);
-    basis.usable = _BasisGIStatsValid >= 0.5 && unity_OrthoParams.w < 0.5;
+    basis.usable = unity_OrthoParams.w < 0.5;
+    basis.statsUsable = basis.usable && _BasisGIStatsValid >= 0.5;
     return basis;
 }
 

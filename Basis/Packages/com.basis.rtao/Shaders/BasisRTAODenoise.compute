@@ -239,8 +239,12 @@ void BasisRTAOBlur(uint3 id : SV_DispatchThreadID)
             continue;
 
         float4 tap = _BasisRtaoBlurSourceTex.Load(int4(tapCoord, id.z, 0));
-        float normalWeight = pow(saturate(dot(BasisRtaoDecodeNormal(tap.zw), centerNormal)), normalPower);
-        float weight = exp(-float(offset * offset) * rcpTwoSigmaSq - abs(tapDepth - centerDepth.x) * rcpDepthSigma) * normalWeight;
+        // pow is a log and an exp, and its result was then multiplied by another exp - so the normal gate
+        // is carried as an exponent alongside the other two and the whole weight resolves in one. Same
+        // number; a facing of exactly zero still yields exactly zero weight, by way of log(0).
+        float facing = max(saturate(dot(BasisRtaoDecodeNormal(tap.zw), centerNormal)), 1e-8);
+        float weight = exp(-float(offset * offset) * rcpTwoSigmaSq - abs(tapDepth - centerDepth.x) * rcpDepthSigma
+            + normalPower * log(facing));
 
         sumWeight += weight;
         sumVisibility += weight * tap.x;

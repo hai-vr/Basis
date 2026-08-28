@@ -69,13 +69,21 @@ void BasisRtaoOrthonormalBasis(float3 n, out float3 tangent, out float3 bitangen
 // stratification lives in world axes rather than the surface frame, so how evenly a handful of rays
 // cover the hemisphere depended on which way the surface happened to face, and the sphere point
 // landing near -normalWS collapsed the sum to nothing and fell back to firing straight up.
+// The frame overload. A pixel fires several rays off ONE surface, so the basis belongs outside the ray
+// loop: built per ray it repeated a sign select, a divide and six multiply-adds for a frame that could
+// not have changed between one ray and the next.
+float3 BasisRtaoCosineHemisphere(float2 u, float3 normalWS, float3 tangent, float3 bitangent)
+{
+    float radius = sqrt(saturate(u.x));
+    float phi = 6.2831853071795864 * u.y;
+    return tangent * (radius * cos(phi)) + bitangent * (radius * sin(phi)) + normalWS * sqrt(saturate(1.0 - u.x));
+}
+
 float3 BasisRtaoCosineHemisphere(float2 u, float3 normalWS)
 {
     float3 tangent, bitangent;
     BasisRtaoOrthonormalBasis(normalWS, tangent, bitangent);
-    float radius = sqrt(saturate(u.x));
-    float phi = 6.2831853071795864 * u.y;
-    return tangent * (radius * cos(phi)) + bitangent * (radius * sin(phi)) + normalWS * sqrt(saturate(1.0 - u.x));
+    return BasisRtaoCosineHemisphere(u, normalWS, tangent, bitangent);
 }
 
 // The per pixel start of the sample sequence, and how it advances between frames.

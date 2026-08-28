@@ -461,7 +461,8 @@ namespace Basis.Rendering.RTAO
                     MeshInstanceDesc desc = new MeshInstanceDesc(capsule, 0)
                     {
                         localToWorldMatrix = pose.MatrixAt(i),
-                        mask = 0xff,
+                        // A proxy capsule is always a person, never the room.
+                        mask = BasisTracedCategory.Avatar,
                         enableTriangleCulling = false,
                         opaqueGeometry = true
                     };
@@ -560,7 +561,9 @@ namespace Basis.Rendering.RTAO
                     MeshInstanceDesc desc = new MeshInstanceDesc(mesh, i)
                     {
                         localToWorldMatrix = matrix,
-                        mask = 0xff,
+                        // Which half of the room this instance belongs to, so a structure shared with global
+                        // illumination can be traced with only the half this effect asked for. See BasisTracedCategory.
+                        mask = category,
                         enableTriangleCulling = false,
                         opaqueGeometry = true
                     };

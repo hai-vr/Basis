@@ -18,7 +18,10 @@ float BasisGIThicknessAt(float eyeDepth)
     return BASISGI_THICKNESS * (1.0 + eyeDepth * 0.05);
 }
 
-BasisGIHit BasisGIMarch(float3 originWS, float3 directionWS, float rayLength, float noise, out bool leftScreen)
+/// startScreen is handed in rather than computed here. Every ray a pixel casts leaves the SAME point, so
+/// projecting that point is per pixel work that was being repeated per ray - a whole world to clip matrix
+/// multiply and a divide, times the ray count, for a value that never changed between them.
+BasisGIHit BasisGIMarch(float4 startScreen, float3 originWS, float3 directionWS, float rayLength, float noise, out bool leftScreen)
 {
     BasisGIHit hit;
     hit.valid = false;
@@ -26,7 +29,6 @@ BasisGIHit BasisGIMarch(float3 originWS, float3 directionWS, float rayLength, fl
     hit.distance = rayLength;
     leftScreen = false;
 
-    float4 startScreen = BasisGIWorldToScreen(originWS);
     float4 endScreen = BasisGIWorldToScreen(originWS + directionWS * rayLength);
 
     if (startScreen.w <= BASISGI_EPSILON) { return hit; }
@@ -61,13 +63,12 @@ BasisGIHit BasisGIMarch(float3 originWS, float3 directionWS, float rayLength, fl
         }
 
         float rayEye = 1.0 / max(BASISGI_EPSILON, lerp(invStartW, invEndW, t));
-        float rawDepth = BasisGISampleRawDepth(uv);
-        if (BasisGIIsSky(rawDepth)) { previousT = t; continue; }
+        // The same crossing-and-thickness test this always was, against a number reduced once up front
+        // rather than fetched from a four times larger texture and linearised again on every step.
+        // No sky test: sky carries the sentinel in r, and nothing can be in front of that.
+        float2 sceneDepth = BasisGISampleTracedDepth(uv);
 
-        float sceneEye = BasisGILinearEyeDepth(rawDepth);
-        float delta = rayEye - sceneEye;
-
-        if (delta > 0.0 && delta < BasisGIThicknessAt(sceneEye))
+        if (rayEye > sceneDepth.r && rayEye < sceneDepth.r + BasisGIThicknessAt(sceneDepth.r))
         {
             float low = previousT;
             float high = t;
@@ -77,9 +78,7 @@ BasisGIHit BasisGIMarch(float3 originWS, float3 directionWS, float rayLength, fl
                 float mid = (low + high) * 0.5;
                 float2 midUv = lerp(startScreen.xy, endScreen.xy, mid);
                 float midEye = 1.0 / max(BASISGI_EPSILON, lerp(invStartW, invEndW, mid));
-                float midRaw = BasisGISampleRawDepth(midUv);
-                float midScene = BasisGILinearEyeDepth(midRaw);
-                bool inside = !BasisGIIsSky(midRaw) && (midEye - midScene) > 0.0;
+                bool inside = midEye > BasisGISampleTracedDepth(midUv).r;
                 low = inside ? low : mid;
                 high = inside ? mid : high;
             }
@@ -157,11 +156,10 @@ BasisGIHit BasisGIFineSegment(float2 origin, float2 direction, float2 size, floa
         if (any(uv < 0.0) || any(uv > 1.0)) { return hit; }
 
         float rayEye = 1.0 / max(BASISGI_EPSILON, lerp(invStartW, invEndW, t));
-        float rawDepth = BasisGISampleRawDepth(uv);
-        if (BasisGIIsSky(rawDepth)) { previousT = t; inFront = true; continue; }
-
-        float sceneEye = BasisGILinearEyeDepth(rawDepth);
-        float delta = rayEye - sceneEye;
+        // Sky needs no branch of its own here either: the sentinel leaves the ray in front, which is
+        // exactly the state the explicit sky case used to set by hand before continuing.
+        float2 sceneDepth = BasisGISampleTracedDepth(uv);
+        float delta = rayEye - sceneDepth.r;
         bool crossed = inFront && delta > 0.0;
         inFront = delta <= 0.0;
 
@@ -177,7 +175,7 @@ BasisGIHit BasisGIFineSegment(float2 origin, float2 direction, float2 size, floa
         // already there, so the two were never comparable in absolute terms. Against a converged run of
         // this same estimator the march was right all along. Kept because a crossing test is the correct
         // formulation and it costs a bool, not because it fixed anything.
-        if (crossed && delta < BasisGIThicknessAt(sceneEye))
+        if (crossed && rayEye < sceneDepth.r + BasisGIThicknessAt(sceneDepth.r))
         {
             float low = previousT;
             float high = t;
@@ -187,8 +185,7 @@ BasisGIHit BasisGIFineSegment(float2 origin, float2 direction, float2 size, floa
                 float mid = (low + high) * 0.5;
                 float2 midUv = (origin + direction * mid) / size;
                 float midEye = 1.0 / max(BASISGI_EPSILON, lerp(invStartW, invEndW, mid));
-                float midRaw = BasisGISampleRawDepth(midUv);
-                bool inside = !BasisGIIsSky(midRaw) && (midEye - BasisGILinearEyeDepth(midRaw)) > 0.0;
+                bool inside = midEye > BasisGISampleTracedDepth(midUv).r;
                 low = inside ? low : mid;
                 high = inside ? mid : high;
             }
@@ -214,7 +211,7 @@ BasisGIHit BasisGIFineSegment(float2 origin, float2 direction, float2 size, floa
 /// by more than the thickness the crossing test would have accepted, it has passed clean through and out
 /// the far side. Everything else is a maybe, and a maybe is answered by looking properly.
 /// </summary>
-BasisGIHit BasisGIMarchHierarchical(float3 originWS, float3 directionWS, float rayLength, float noise, out bool leftScreen)
+BasisGIHit BasisGIMarchHierarchical(float4 startScreen, float3 originWS, float3 directionWS, float rayLength, float noise, out bool leftScreen)
 {
     BasisGIHit hit;
     hit.valid = false;
@@ -222,7 +219,6 @@ BasisGIHit BasisGIMarchHierarchical(float3 originWS, float3 directionWS, float r
     hit.distance = rayLength;
     leftScreen = false;
 
-    float4 startScreen = BasisGIWorldToScreen(originWS);
     float4 endScreen = BasisGIWorldToScreen(originWS + directionWS * rayLength);
     if (startScreen.w <= BASISGI_EPSILON) { return hit; }
     if (endScreen.w <= BASISGI_EPSILON)
@@ -353,16 +349,19 @@ float BasisGIEmitterVisibility(float3 originWS, float3 emitterWS, float noise)
         if (screen.w <= BASISGI_EPSILON) { continue; }
         if (any(screen.xy < 0.0) || any(screen.xy > 1.0)) { continue; }
 
-        float rawDepth = BasisGISampleRawDepth(screen.xy);
-        if (BasisGIIsSky(rawDepth)) { continue; }
+        float2 sceneDepth = BasisGISampleTracedDepth(screen.xy);
 
-        float sceneEye = BasisGILinearEyeDepth(rawDepth);
-        float sampleEye = -TransformWorldToView(samplePosition).z;
-        float delta = sampleEye - sceneEye;
+        // clip.w IS the eye depth under a perspective projection, and the projection a few lines up
+        // already produced it - so the world to view matrix multiply spent here per shadow step, per
+        // emitter, per pixel was recomputing a number this function was already holding.
+        float sampleEye;
+        UNITY_BRANCH
+        if (unity_OrthoParams.w < 0.5) { sampleEye = screen.w; }
+        else { sampleEye = -TransformWorldToView(samplePosition).z; }
 
         // A tap that found an occluder is evidence; taps that could not be taken are not evidence of the
         // opposite, so one hit shadows the emitter outright rather than being diluted by them.
-        if (delta > 0.0 && delta < BasisGIThicknessAt(sceneEye) * 4.0) { return 0.0; }
+        if (sampleEye > sceneDepth.r && sampleEye < sceneDepth.r + BasisGIThicknessAt(sceneDepth.r) * 4.0) { return 0.0; }
     }
     return 1.0;
 #else
@@ -427,6 +426,8 @@ float4 BasisGITrace(float2 uv, float2 positionSS)
 
     float noise = BasisGIInterleavedGradientNoise(positionSS, BASISGI_FRAME_INDEX);
     float3x3 basis = BasisGIOrthonormalBasis(normalWS);
+    // Every ray leaves this one point, so it is projected once here rather than once per ray in the march.
+    float4 startScreen = BasisGIWorldToScreen(originWS);
 
     int rayCount = (int)BASISGI_RAY_COUNT;
     float3 radianceSum = float3(0.0, 0.0, 0.0);
@@ -457,9 +458,9 @@ float4 BasisGITrace(float2 uv, float2 positionSS)
         float3 direction = BasisGICosineDirection(sample, basis);
         bool leftScreen;
 #if defined(_BASISGI_HIERARCHICAL_MARCH)
-        BasisGIHit hit = BasisGIMarchHierarchical(originWS, direction, BASISGI_MAX_RAY_LENGTH, noise, leftScreen);
+        BasisGIHit hit = BasisGIMarchHierarchical(startScreen, originWS, direction, BASISGI_MAX_RAY_LENGTH, noise, leftScreen);
 #else
-        BasisGIHit hit = BasisGIMarch(originWS, direction, BASISGI_MAX_RAY_LENGTH, noise, leftScreen);
+        BasisGIHit hit = BasisGIMarch(startScreen, originWS, direction, BASISGI_MAX_RAY_LENGTH, noise, leftScreen);
 #endif
 
         float3 radiance;

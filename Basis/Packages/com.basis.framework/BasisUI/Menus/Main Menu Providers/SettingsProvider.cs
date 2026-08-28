@@ -1925,6 +1925,13 @@ namespace Basis.BasisUI
                     new List<string> { "settings.graphics.gi.fallback.none", "settings.graphics.gi.fallback.sky", "settings.graphics.gi.fallback.probe" });
                 dropdownGiFallback.AssignBinding(BasisSettingsDefaults.GlobalIlluminationFallback);
 
+                // Ray traced only - screen space has no per-surface baked-emissive flag to check, it just
+                // reads whatever is already on screen.
+                PanelToggle toggleGiIgnoreBakedEmission = PanelToggle.CreateNewEntry(giAdvanced.ContentParent);
+                toggleGiIgnoreBakedEmission.AssignBinding(BasisSettingsDefaults.GlobalIlluminationIgnoreBakedEmission);
+                toggleGiIgnoreBakedEmission.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.ignoreBakedEmission"));
+                toggleGiIgnoreBakedEmission.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.ignoreBakedEmission.tooltip"));
+
                 PanelToggle toggleGiRayReuse = PanelToggle.CreateNewEntry(giAdvanced.ContentParent);
                 toggleGiRayReuse.AssignBinding(BasisSettingsDefaults.GlobalIlluminationRayReuse);
                 toggleGiRayReuse.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.rayReuse"));
@@ -2034,6 +2041,7 @@ namespace Basis.BasisUI
                     toggleGiTemporal.Descriptor.SetActive(val);
                     sliderGiTemporalResponse.Descriptor.SetActive(val && toggleGiTemporal.Value);
                     dropdownGiFallback.Descriptor.SetActive(val);
+                    toggleGiIgnoreBakedEmission.Descriptor.SetActive(rayTraced);
                     toggleGiRayReuse.Descriptor.SetActive(val && !rayTraced);
                     toggleGiEmitters.Descriptor.SetActive(val);
                     sliderGiEmitterIntensity.Descriptor.SetActive(val && toggleGiEmitters.Value);
@@ -3147,6 +3155,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GlobalIlluminationQuality.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationResolution.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationFallback.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationIgnoreBakedEmission.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationIntensity.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationSaturation.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationObscurance.ResetToDefault();

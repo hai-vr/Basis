@@ -79,6 +79,15 @@ public static class BasisAvatarProxy
     public const float HeadRadiusFactor = 0.075f;
 
     /// <summary>
+    /// How much of a capsule's half length is rounded tip rather than straight body.
+    ///
+    /// The whole capsule has to end ON its bone - see SharedCapsule for what happens when it does not - so
+    /// the rounding has to come out of the limb rather than be added past it. Small, because two limbs meet
+    /// at every joint and the gap between their two tapers is a hole in the occlusion.
+    /// </summary>
+    public const float CapFraction = 0.25f;
+
+    /// <summary>
     /// A limb resolved against one avatar: the two transforms to read each frame, and the radius already
     /// scaled to that avatar's size. Held as transforms rather than bone enums so a per-frame update is two
     /// position reads and no lookup.
@@ -308,6 +317,20 @@ public static class BasisAvatarProxy
     /// Authored as a unit: radius 1, ends at y = +/-1, so <see cref="MatrixFor"/> is a pure TRS. Eight
     /// sides and two hemisphere rings is about 150 triangles - the silhouette is what carries occlusion,
     /// and a rounder capsule would move the result by less than one texel of a half resolution gather.
+    ///
+    /// ⚠️ The +/-1 above is load bearing and this mesh used to break it. Both matrix builders scale Y by
+    /// the limb's HALF length, which places the ends on the two bones only if the mesh ends at +/-1. It was
+    /// authored as a full sphere sitting on each end of a unit cylinder, so it ended at +/-2 - and every
+    /// capsule in the room came out exactly TWICE the length of the bone it stood for, reaching a whole half
+    /// limb past each joint. A shin capsule ran from above the knee to twenty centimetres under the floor, a
+    /// thigh capsule up into the pelvis, and the legs of every avatar sat inside a solid overlapping column
+    /// of them. That is what the black patches around people's legs were: surfaces enclosed by their own
+    /// proxy, in both the ray traced gather and ambient occlusion.
+    ///
+    /// So the cap is a fraction of the half length rather than equal to it. The body stays a cylinder to
+    /// within <see cref="CapFraction"/> of each end and the tip rounds off exactly ON the bone. Adjacent
+    /// limbs share a joint, so keeping the cap short is what stops a lens shaped hole opening at every knee
+    /// and elbow where two tapers meet.
     /// </summary>
     public static Mesh SharedCapsule()
     {
@@ -340,10 +363,13 @@ public static class BasisAvatarProxy
                 float x = Mathf.Cos(angle);
                 float z = Mathf.Sin(angle);
 
-                Vector3 normal = new Vector3(x * radius, capHeight, z * radius).normalized;
-                // The cap centre sits at the end of the cylinder, so the sphere is offset rather than scaled.
-                vertices.Add(new Vector3(x * radius, capHeight + offset, z * radius));
-                normals.Add(normal);
+                // The cap is flattened onto the last CapFraction of the half length, so the pole lands on
+                // the bone at +/-1 instead of a full radius past it at +/-2.
+                vertices.Add(new Vector3(x * radius, offset * (1f - CapFraction) + capHeight * CapFraction, z * radius));
+                // Flattening Y takes normals through the inverse transpose, which divides the y component
+                // by the same fraction. The cylinder rows carry capHeight 0 and are untouched by it, which
+                // is right - a cylinder's side normal is horizontal however the ends are shaped.
+                normals.Add(new Vector3(x * radius, capHeight / CapFraction, z * radius).normalized);
             }
         }
 

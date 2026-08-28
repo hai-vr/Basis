@@ -99,6 +99,17 @@ BasisGINeighbourhood BasisGIGather(float2 uv, float3 centrePosition, float3 cent
 {
     float2 texel = _BasisGITracedTexelSize.xy;
     float planeScale = BasisGIPlaneTolerance(centreEye);
+    // The same affine plane form the spatial filter and the upsample already use, for the same reason:
+    // under perspective, how far a neighbour sits off the centre plane is a multiply-add on its uv offset
+    // and its eye depth. Unprojecting each of the eight neighbours to a world position first spent an
+    // inverse view projection and a divide apiece to arrive at the identical number. This form needs no
+    // statistics texture - the depth comes from the depth buffer either way - so it is usable on the very
+    // first frame, which is the frame this pass matters most on.
+    BasisGIPlaneBasis basis = BasisGIBuildPlaneBasis(centrePosition, centreNormal, centreEye, texel);
+    // Both halves of the fast path are uniform, so they are decided once and the loop below carries one
+    // branch rather than two. The traced depth buffer is exactly this pass's resolution and already
+    // linear, where the depth texture is four times the size at Half and has to be linearised per tap.
+    bool fast = basis.usable && _BasisGITracedDepthValid >= 0.5;
 
     float4 centre = BasisGILoadIndirect(uv);
     float4 weighted = centre;
@@ -114,11 +125,23 @@ BasisGINeighbourhood BasisGIGather(float2 uv, float3 centrePosition, float3 cent
         {
             if (x == 0 && y == 0) { continue; }
 
-            float2 sampleUv = uv + float2(x, y) * texel;
-            float sampleRaw = BasisGISampleRawDepth(sampleUv);
-            if (BasisGIIsSky(sampleRaw)) { continue; }
+            float2 uvOffset = float2(x, y) * texel;
+            float2 sampleUv = uv + uvOffset;
 
-            float plane = abs(dot(centreNormal, BasisGIWorldPosition(sampleUv, sampleRaw) - centrePosition));
+            float plane;
+            UNITY_BRANCH
+            if (fast)
+            {
+                float2 sampleDepth = BasisGISampleTracedDepth(sampleUv);
+                if (BasisGITracedIsSky(sampleDepth)) { continue; }
+                plane = BasisGIPlaneDistance(basis, uvOffset, sampleDepth.r);
+            }
+            else
+            {
+                float sampleRaw = BasisGISampleRawDepth(sampleUv);
+                if (BasisGIIsSky(sampleRaw)) { continue; }
+                plane = abs(dot(centreNormal, BasisGIWorldPosition(sampleUv, sampleRaw) - centrePosition));
+            }
             float weight = exp(-plane / planeScale);
 
             float4 neighbour = BasisGILoadIndirect(sampleUv);
@@ -270,10 +293,13 @@ float4 BasisGIBilateralBlur(float2 uv)
     float weightSum = 1.0;
     int count = (int)taps;
 
+    // The three gates multiply, so they are summed as exponents and resolved by ONE exp per tap rather
+    // than three exps multiplied together. Exactly the same number, a third of the transcendental
+    // traffic, on the tap-heaviest pass in the chain.
     UNITY_LOOP
     for (int offset = 1; offset <= count; offset++)
     {
-        float spatial = exp(-0.5 * ((float)offset * (float)offset) / max(BASISGI_EPSILON, taps * taps * 0.25));
+        float spatialExponent = 0.5 * ((float)offset * (float)offset) / max(BASISGI_EPSILON, taps * taps * 0.25);
 
         UNITY_UNROLL
         for (int side = 0; side < 2; side++)
@@ -291,7 +317,7 @@ float4 BasisGIBilateralBlur(float2 uv)
             bool onSurface;
 
             UNITY_BRANCH
-            if (basis.usable)
+            if (basis.statsUsable)
             {
                 onSurface = tapStats.x > 0.0;
                 plane = BasisGIPlaneDistance(basis, uvOffset, tapStats.x);
@@ -304,16 +330,15 @@ float4 BasisGIBilateralBlur(float2 uv)
             }
 
             if (!onSurface) { continue; }
-            float planeWeight = exp(-plane / basis.scale);
 
             float convergence = saturate(min(centreStats.y, tapStats.y) / BASISGI_BLUR_CONVERGED);
             float deviation = sqrt(max(centreStats.z, tapStats.z));
             float luminanceScale = BASISGI_BLUR_LUMINANCE * lerp(unresolved, deviation, convergence) + BASISGI_BLUR_LUMINANCE_FLOOR;
 
             float4 sampleValue = BasisGILoadIndirect(sampleUv);
-            float luminanceWeight = exp(-abs(Luminance(max(0.0, sampleValue.rgb)) - centreLuminance) / luminanceScale);
+            float luminanceExponent = abs(Luminance(max(0.0, sampleValue.rgb)) - centreLuminance) / luminanceScale;
 
-            float weight = spatial * planeWeight * luminanceWeight;
+            float weight = exp(-(spatialExponent + plane / basis.scale + luminanceExponent));
             total += sampleValue * weight;
             weightSum += weight;
         }

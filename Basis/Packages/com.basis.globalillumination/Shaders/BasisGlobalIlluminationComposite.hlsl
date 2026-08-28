@@ -42,7 +42,7 @@ float4 BasisGIUpsample(float2 uv, float centreRaw, float centreEye, bool isSky)
             float depthWeight;
 
             UNITY_BRANCH
-            if (basis.usable)
+            if (basis.statsUsable)
             {
                 float tapEye = BasisGIStats(sampleUv).x;
                 depthWeight = tapEye > 0.0 ? exp(-BasisGIPlaneDistance(basis, sampleUv - uv, tapEye) / basis.scale) : 0.0;

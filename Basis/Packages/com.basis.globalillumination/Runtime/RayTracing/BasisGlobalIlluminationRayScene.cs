@@ -379,7 +379,9 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
                 MeshInstanceDesc desc = new MeshInstanceDesc(mesh, index)
                 {
                     localToWorldMatrix = matrix,
-                    mask = 0xff,
+                    // Which half of the room this instance belongs to, so a borrower tracing only Avatars
+                    // or only World does not hit the half it did not ask for. See BasisTracedCategory.
+                    mask = entry.category,
                     instanceID = (uint)instanceId,
                     enableTriangleCulling = false,
                     opaqueGeometry = true
@@ -862,7 +864,8 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
                 MeshInstanceDesc desc = new MeshInstanceDesc(capsule, 0)
                 {
                     localToWorldMatrix = matrix,
-                    mask = 0xff,
+                    // A proxy capsule is always a person, never the room.
+                    mask = BasisTracedCategory.Avatar,
                     instanceID = (uint)instanceId,
                     enableTriangleCulling = false,
                     opaqueGeometry = true

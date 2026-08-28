@@ -53,7 +53,33 @@ namespace Basis.Tests.GlobalIllumination
             Bounds bounds = capsule.bounds;
             Assert.AreEqual(1f, bounds.extents.x, 0.01f, "radius must be 1 or the matrix scale is not the limb radius");
             Assert.AreEqual(1f, bounds.extents.z, 0.01f);
-            Assert.AreEqual(2f, bounds.extents.y, 0.01f, "ends must sit at +/-2 (a unit cylinder plus two unit caps)");
+            // Both matrix builders scale Y by the limb's HALF length, so a mesh that reaches past +/-1 puts
+            // the capsule's ends past the bones by the same proportion. At +/-2, which is what a sphere on
+            // each end of a unit cylinder gives, every capsule was twice the length of its own limb and the
+            // legs of every avatar sat in a solid column of overlapping proxy - the black patches people saw.
+            Assert.AreEqual(1f, bounds.extents.y, 0.01f, "ends must sit at +/-1, ON the two bones");
+        }
+
+        [Test]
+        public void ACapsuleEndsOnItsBonesRatherThanPastThem()
+        {
+            // The regression this exists for is not a number in a bounds struct, it is where the capsule
+            // lands in the room. Placed by the real matrix, the mesh's own extremes have to arrive on the
+            // two bones - not half a limb beyond them, which is what put a shin capsule under the floor and
+            // painted a black patch around every pair of legs.
+            Transform from = Bone("BasisGIProxyFrom", null, new Vector3(0f, 1f, 0f));
+            Transform to = Bone("BasisGIProxyTo", null, new Vector3(0f, 3f, 0f));
+            BasisAvatarProxy.ResolvedLimb limb =
+                new BasisAvatarProxy.ResolvedLimb(from, to, 0.25f, 0f);
+
+            Matrix4x4 matrix = BasisAvatarProxy.MatrixFor(limb);
+            Bounds local = BasisAvatarProxy.SharedCapsule().bounds;
+
+            float top = matrix.MultiplyPoint3x4(new Vector3(0f, local.max.y, 0f)).y;
+            float bottom = matrix.MultiplyPoint3x4(new Vector3(0f, local.min.y, 0f)).y;
+
+            Assert.AreEqual(3f, top, 0.01f, "the capsule reaches past the bone it ends on");
+            Assert.AreEqual(1f, bottom, 0.01f, "the capsule reaches past the bone it starts on");
         }
 
         [Test]
