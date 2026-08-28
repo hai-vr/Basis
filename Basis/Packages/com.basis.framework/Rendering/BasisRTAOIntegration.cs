@@ -161,6 +161,13 @@ namespace Basis.Scripts.Rendering
                 || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionIntensity.BindingKey
                 || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionRadius.BindingKey
                 || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionLayers.BindingKey
+                || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionNormalBias.BindingKey
+                || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionDistanceBias.BindingKey
+                || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionFalloff.BindingKey
+                || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionPower.BindingKey
+                || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionFadeStart.BindingKey
+                || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionFadeEnd.BindingKey
+                || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionSpecularRelief.BindingKey
                 || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionSkinnedMeshes.BindingKey
                 || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionDirectStrength.BindingKey
                 || lowered == BasisSettingsDefaults.RayTracedAmbientOcclusionDenoise.BindingKey
@@ -204,6 +211,27 @@ namespace Basis.Scripts.Rendering
             BasisRTAOFeature.HasSkinnedModeOverride = true;
             BasisRTAOFeature.SkinnedModeOverride = BasisRTAOSettingsMap.ReadSkinnedMode(BasisSettingsDefaults.RayTracedAmbientOcclusionSkinnedMeshes.RawValue);
 
+            BasisRTAOFeature.HasNormalBiasOverride = true;
+            BasisRTAOFeature.NormalBiasOverride = BasisSettingsDefaults.RayTracedAmbientOcclusionNormalBias.RawValue;
+
+            BasisRTAOFeature.HasDistanceBiasOverride = true;
+            BasisRTAOFeature.DistanceBiasOverride = BasisSettingsDefaults.RayTracedAmbientOcclusionDistanceBias.RawValue;
+
+            BasisRTAOFeature.HasFalloffOverride = true;
+            BasisRTAOFeature.FalloffOverride = BasisSettingsDefaults.RayTracedAmbientOcclusionFalloff.RawValue;
+
+            BasisRTAOFeature.HasPowerOverride = true;
+            BasisRTAOFeature.PowerOverride = BasisSettingsDefaults.RayTracedAmbientOcclusionPower.RawValue;
+
+            BasisRTAOFeature.HasFadeStartOverride = true;
+            BasisRTAOFeature.FadeStartOverride = BasisSettingsDefaults.RayTracedAmbientOcclusionFadeStart.RawValue;
+
+            BasisRTAOFeature.HasFadeEndOverride = true;
+            BasisRTAOFeature.FadeEndOverride = BasisSettingsDefaults.RayTracedAmbientOcclusionFadeEnd.RawValue;
+
+            BasisRTAOFeature.HasSpecularOcclusionOverride = true;
+            BasisRTAOFeature.SpecularOcclusionReliefOverride = BasisSettingsDefaults.RayTracedAmbientOcclusionSpecularRelief.RawValue;
+
             BasisRTAOFeature.AllowSecondaryCameras = BasisSettingsDefaults.RayTracedAmbientOcclusionOtherCameras.RawValue;
 
             BasisRTAOFeature.HasApplyModeOverride = true;
@@ -228,6 +256,13 @@ namespace Basis.Scripts.Rendering
             BasisRTAOFeature.HasDenoisePassesOverride = false;
             BasisRTAOFeature.HasLayerMaskOverride = false;
             BasisRTAOFeature.HasSkinnedModeOverride = false;
+            BasisRTAOFeature.HasNormalBiasOverride = false;
+            BasisRTAOFeature.HasDistanceBiasOverride = false;
+            BasisRTAOFeature.HasFalloffOverride = false;
+            BasisRTAOFeature.HasPowerOverride = false;
+            BasisRTAOFeature.HasFadeStartOverride = false;
+            BasisRTAOFeature.HasFadeEndOverride = false;
+            BasisRTAOFeature.HasSpecularOcclusionOverride = false;
             BasisRTAOFeature.HasApplyModeOverride = false;
             BasisRTAOFeature.HasDebugStageOverride = false;
             BasisRTAOFeature.HasDebugViewOverride = false;

@@ -45,6 +45,13 @@ public struct BasisGlobalIlluminationState
     public float EmitterIntensity;
     public bool ReflectionProbes;
     public bool Mirrors;
+    // The tracing internals. Constants until an artifact needed explaining; see BasisSettingsDefaults.
+    public float ObscuranceRadius;
+    public float FadeDistance;
+    public float NormalBias;
+    public float DistanceBias;
+    public float BounceThreshold;
+    public float FireflyClamp;
     public bool Capture;
 
     public static BasisGlobalIlluminationState FromDefaults()
@@ -71,6 +78,12 @@ public struct BasisGlobalIlluminationState
             EmitterIntensity = BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.DefaultValue.GetDefault(),
             ReflectionProbes = BasisSettingsDefaults.GlobalIlluminationReflectionProbes.DefaultValue.GetDefault(),
             Mirrors = BasisSettingsDefaults.GlobalIlluminationMirrors.DefaultValue.GetDefault(),
+            ObscuranceRadius = BasisSettingsDefaults.GlobalIlluminationObscuranceRadius.DefaultValue.GetDefault(),
+            FadeDistance = BasisSettingsDefaults.GlobalIlluminationFadeDistance.DefaultValue.GetDefault(),
+            NormalBias = BasisSettingsDefaults.GlobalIlluminationNormalBias.DefaultValue.GetDefault(),
+            DistanceBias = BasisSettingsDefaults.GlobalIlluminationDistanceBias.DefaultValue.GetDefault(),
+            BounceThreshold = BasisSettingsDefaults.GlobalIlluminationBounceThreshold.DefaultValue.GetDefault(),
+            FireflyClamp = BasisSettingsDefaults.GlobalIlluminationFireflyClamp.DefaultValue.GetDefault(),
             Capture = false
         };
     }
@@ -99,6 +112,12 @@ public struct BasisGlobalIlluminationState
             EmitterIntensity = BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.RawValue,
             ReflectionProbes = BasisSettingsDefaults.GlobalIlluminationReflectionProbes.RawValue,
             Mirrors = BasisSettingsDefaults.GlobalIlluminationMirrors.RawValue,
+            ObscuranceRadius = BasisSettingsDefaults.GlobalIlluminationObscuranceRadius.RawValue,
+            FadeDistance = BasisSettingsDefaults.GlobalIlluminationFadeDistance.RawValue,
+            NormalBias = BasisSettingsDefaults.GlobalIlluminationNormalBias.RawValue,
+            DistanceBias = BasisSettingsDefaults.GlobalIlluminationDistanceBias.RawValue,
+            BounceThreshold = BasisSettingsDefaults.GlobalIlluminationBounceThreshold.RawValue,
+            FireflyClamp = BasisSettingsDefaults.GlobalIlluminationFireflyClamp.RawValue,
             Capture = false
         };
     }
@@ -124,6 +143,12 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     private static string K_GI_MODE => BasisSettingsDefaults.GlobalIlluminationMode.BindingKey;
     private static string K_GI_SKINNED => BasisSettingsDefaults.GlobalIlluminationSkinnedMeshes.BindingKey;
     private static string K_GI_LAYERS => BasisSettingsDefaults.GlobalIlluminationLayers.BindingKey;
+    private static string K_GI_OBSCURANCE_RADIUS => BasisSettingsDefaults.GlobalIlluminationObscuranceRadius.BindingKey;
+    private static string K_GI_FADE_DISTANCE => BasisSettingsDefaults.GlobalIlluminationFadeDistance.BindingKey;
+    private static string K_GI_NORMAL_BIAS => BasisSettingsDefaults.GlobalIlluminationNormalBias.BindingKey;
+    private static string K_GI_DISTANCE_BIAS => BasisSettingsDefaults.GlobalIlluminationDistanceBias.BindingKey;
+    private static string K_GI_BOUNCE_THRESHOLD => BasisSettingsDefaults.GlobalIlluminationBounceThreshold.BindingKey;
+    private static string K_GI_FIREFLY_CLAMP => BasisSettingsDefaults.GlobalIlluminationFireflyClamp.BindingKey;
     private static string K_GI_QUALITY => BasisSettingsDefaults.GlobalIlluminationQuality.BindingKey;
     private static string K_GI_RESOLUTION => BasisSettingsDefaults.GlobalIlluminationResolution.BindingKey;
     private static string K_GI_FALLBACK => BasisSettingsDefaults.GlobalIlluminationFallback.BindingKey;
@@ -251,6 +276,36 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         else if (matchedSettingName == K_GI_MODE) { state.Mode = ReadMode(optionValue); }
         else if (matchedSettingName == K_GI_SKINNED) { state.SkinnedMeshes = ReadSkinnedMode(optionValue); }
         else if (matchedSettingName == K_GI_LAYERS) { state.Layers = optionValue; }
+        else if (matchedSettingName == K_GI_OBSCURANCE_RADIUS)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.ObscuranceRadius = value;
+        }
+        else if (matchedSettingName == K_GI_FADE_DISTANCE)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.FadeDistance = value;
+        }
+        else if (matchedSettingName == K_GI_NORMAL_BIAS)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.NormalBias = value;
+        }
+        else if (matchedSettingName == K_GI_DISTANCE_BIAS)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.DistanceBias = value;
+        }
+        else if (matchedSettingName == K_GI_BOUNCE_THRESHOLD)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.BounceThreshold = value;
+        }
+        else if (matchedSettingName == K_GI_FIREFLY_CLAMP)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.FireflyClamp = value;
+        }
         else if (matchedSettingName == K_GI_QUALITY) { state.Quality = ReadQuality(optionValue); }
         else if (matchedSettingName == K_GI_RESOLUTION) { state.Resolution = ReadResolution(optionValue); }
         else if (matchedSettingName == K_GI_FALLBACK) { state.Fallback = ReadFallback(optionValue); }
@@ -527,6 +582,15 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         target.mode = state.Mode;
         target.rayTracedSkinnedMeshes = state.SkinnedMeshes;
         target.rayTracedLayerMask = ReadLayers(state.Layers);
+
+        // The tracing internals. Clamp() below holds every one of them inside its documented range, so a
+        // hand edited settings file cannot hand the tracer a radius of zero or a bias of a metre.
+        target.obscuranceRadius = state.ObscuranceRadius;
+        target.fadeDistance = state.FadeDistance;
+        target.rayTracedNormalBias = state.NormalBias;
+        target.rayDistanceBias = state.DistanceBias;
+        target.rayBounceThreshold = state.BounceThreshold;
+        target.fireflyClamp = state.FireflyClamp;
 
         target.quality = state.Quality;
         target.resolution = state.Capture ? BasisGlobalIlluminationResolution.Full : state.Resolution;

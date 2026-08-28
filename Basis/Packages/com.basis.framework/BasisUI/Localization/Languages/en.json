@@ -7527,6 +7527,66 @@
       "value": "Whether mirrors and the handheld camera get their own ambient occlusion. On, a mirror shows the room the same way you see it and photos match the view. Off, only your own view is traced, which is the first thing to turn off when the frame gets tight since every extra camera costs its own pass."
     },
     {
+      "key": "settings.graphics.rtao.advanced",
+      "value": "Advanced"
+    },
+    {
+      "key": "settings.graphics.rtao.normalBias",
+      "value": "Ray Start Offset"
+    },
+    {
+      "key": "settings.graphics.rtao.normalBias.tooltip",
+      "value": "How far off its own surface a ray starts, in metres. Avatars are traced as capsules on their bones rather than as their real mesh, so a ray leaving the visible surface of a body can begin inside that body's capsule and come back reporting it is fully enclosed - a hard edged dark patch shaped like the capsule. Raise this until it clears. Too large and contact darkening lifts out of the corners it belongs in. Ray traced only."
+    },
+    {
+      "key": "settings.graphics.rtao.distanceBias",
+      "value": "Ray Start Offset Per Metre"
+    },
+    {
+      "key": "settings.graphics.rtao.distanceBias.tooltip",
+      "value": "Added to the offset above for every metre the surface is from the camera. The point a ray starts from is rebuilt from the depth buffer, whose error grows with distance, so raise this if self shadowing appears only far away. Ray traced only."
+    },
+    {
+      "key": "settings.graphics.rtao.falloff",
+      "value": "Occlusion Falloff"
+    },
+    {
+      "key": "settings.graphics.rtao.falloff.tooltip",
+      "value": "How quickly something stops darkening a surface as it gets further from it. Higher values keep the darkening tight to the contact point; lower values let a distant object shade a whole wall."
+    },
+    {
+      "key": "settings.graphics.rtao.power",
+      "value": "Occlusion Contrast"
+    },
+    {
+      "key": "settings.graphics.rtao.power.tooltip",
+      "value": "The curve on the result. Above one deepens the dark end and leaves the light end alone; below one flattens the whole thing out."
+    },
+    {
+      "key": "settings.graphics.rtao.fadeStart",
+      "value": "Fade Start"
+    },
+    {
+      "key": "settings.graphics.rtao.fadeStart.tooltip",
+      "value": "How far from the camera the occlusion begins fading out, in metres."
+    },
+    {
+      "key": "settings.graphics.rtao.fadeEnd",
+      "value": "Fade End"
+    },
+    {
+      "key": "settings.graphics.rtao.fadeEnd.tooltip",
+      "value": "Where it has gone entirely. Kept above Fade Start; the two are clamped apart so the fade always has a range to happen over."
+    },
+    {
+      "key": "settings.graphics.rtao.specularRelief",
+      "value": "Gloss Relief"
+    },
+    {
+      "key": "settings.graphics.rtao.specularRelief.tooltip",
+      "value": "How much of the occlusion is held back off glossy surfaces. Ambient occlusion is a statement about incoming light, and applying it to a mirror-like reflection reads as dirt on the surface rather than shadow near it."
+    },
+    {
       "key": "settings.graphics.rtao.layers",
       "value": "Occlusion From"
     },
@@ -7585,6 +7645,58 @@
     {
       "key": "settings.graphics.gi.mode.rayTraced",
       "value": "Ray Traced"
+    },
+    {
+      "key": "settings.graphics.gi.advanced",
+      "value": "Advanced"
+    },
+    {
+      "key": "settings.graphics.gi.obscuranceRadius",
+      "value": "Contact Darkening Radius"
+    },
+    {
+      "key": "settings.graphics.gi.obscuranceRadius.tooltip",
+      "value": "How far a surface can be from the thing above it and still be darkened by it. Short values darken only tight corners; long values reach across a room and cost nothing extra, because the distance is measured on rays that were traced anyway. If darkening stops at a hard edge a fixed distance out from every object, this is the distance."
+    },
+    {
+      "key": "settings.graphics.gi.fadeDistance",
+      "value": "Bounce Fade Distance"
+    },
+    {
+      "key": "settings.graphics.gi.fadeDistance.tooltip",
+      "value": "How far from the camera the bounce is still traced. Surfaces past this keep their direct light and nothing else, faded in smoothly so the boundary does not read as a line. Lowering it is a real saving in a large world."
+    },
+    {
+      "key": "settings.graphics.gi.normalBias",
+      "value": "Ray Start Offset"
+    },
+    {
+      "key": "settings.graphics.gi.normalBias.tooltip",
+      "value": "How far off its own surface a ray starts, in metres. Too small and a surface shadows itself in a mottled or banded pattern; too large and contact darkening lifts out of the corner it belongs in. Ray traced only."
+    },
+    {
+      "key": "settings.graphics.gi.distanceBias",
+      "value": "Ray Start Offset Per Metre"
+    },
+    {
+      "key": "settings.graphics.gi.distanceBias.tooltip",
+      "value": "Added to the offset above for every metre the surface is from the camera. The point a ray starts from is rebuilt from a half precision depth buffer whose error grows with distance, so without this a far surface starts its rays inside itself. Raise it if self shadowing appears only in the distance. Ray traced only."
+    },
+    {
+      "key": "settings.graphics.gi.bounceThreshold",
+      "value": "Bounce Cutoff"
+    },
+    {
+      "key": "settings.graphics.gi.bounceThreshold.tooltip",
+      "value": "How dim a light path may get before it stops being worth another bounce. Higher values end paths sooner, which is cheaper and slightly darker. Ray traced only."
+    },
+    {
+      "key": "settings.graphics.gi.fireflyClamp",
+      "value": "Sample Ceiling"
+    },
+    {
+      "key": "settings.graphics.gi.fireflyClamp.tooltip",
+      "value": "The most one sample may contribute. One ray landing on something very bright is what produces a lone sparkling pixel the filter then smears across its neighbours; this is the ceiling that stops it. Lower is more stable and slightly dimmer."
     },
     {
       "key": "settings.graphics.gi.layers",

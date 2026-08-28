@@ -380,6 +380,51 @@ namespace Basis.BasisUI
         // holds a handful of capsules instead of the whole room.
         public static BasisSettingsBinding<string> GlobalIlluminationLayers = new("globalilluminationlayers", new BasisPlatformDefault<string>("World And Avatars"));
 
+        // The tracing internals, exposed so a look problem can be found by moving the thing that causes it
+        // rather than by rebuilding. Every one of these was a constant in the shader or the pass until it
+        // was needed to explain an artifact; the defaults below are exactly the values they were fixed at.
+
+        /// <summary>
+        /// How far a surface can be from the thing above it and still be darkened by it. The obscurance
+        /// term is measured against this distance, so a hard edged band at exactly this radius - and no
+        /// darkening at all past it - is what it looks like when it is shorter than the room needs.
+        /// </summary>
+        public static BasisSettingsBinding<float> GlobalIlluminationObscuranceRadius = new("globalilluminationobscuranceradius", new BasisPlatformDefault<float>(0.5f));
+        public const float GI_OBSCURANCE_RADIUS_MIN = 0.05f;
+        public const float GI_OBSCURANCE_RADIUS_MAX = 4f;
+
+        /// <summary>Where the bounce stops being traced at all. Past this the surface keeps its direct light only.</summary>
+        public static BasisSettingsBinding<float> GlobalIlluminationFadeDistance = new("globalilluminationfadedistance", new BasisPlatformDefault<float>(120f));
+        public const float GI_FADE_DISTANCE_MIN = 1f;
+        public const float GI_FADE_DISTANCE_MAX = 512f;
+
+        /// <summary>
+        /// How far off its own surface a ray starts. Too small and a surface shadows itself in a mottled
+        /// band; too large and contact darkening lifts away from the corner it belongs in.
+        /// </summary>
+        public static BasisSettingsBinding<float> GlobalIlluminationNormalBias = new("globalilluminationnormalbias", new BasisPlatformDefault<float>(0.02f));
+        public const float GI_NORMAL_BIAS_MIN = 0f;
+        public const float GI_NORMAL_BIAS_MAX = 0.5f;
+
+        /// <summary>
+        /// Added to that offset per metre of view distance, because the position a ray starts from is
+        /// reconstructed from a half precision buffer whose error grows with distance.
+        /// </summary>
+        public static BasisSettingsBinding<float> GlobalIlluminationDistanceBias = new("globalilluminationdistancebias", new BasisPlatformDefault<float>(0.0015f));
+        public const float GI_DISTANCE_BIAS_MIN = 0f;
+        public const float GI_DISTANCE_BIAS_MAX = 0.02f;
+
+        /// <summary>How dim a path may get before it stops being worth another bounce.</summary>
+        public static BasisSettingsBinding<float> GlobalIlluminationBounceThreshold = new("globalilluminationbouncethreshold", new BasisPlatformDefault<float>(0.02f));
+        public const float GI_BOUNCE_THRESHOLD_MIN = 0.001f;
+        public const float GI_BOUNCE_THRESHOLD_MAX = 0.5f;
+
+        /// <summary>The ceiling one sample may contribute, which is what stops a single bright hit becoming a speckle.</summary>
+        public static BasisSettingsBinding<float> GlobalIlluminationFireflyClamp = new("globalilluminationfireflyclamp", new BasisPlatformDefault<float>(6f));
+        public const float GI_FIREFLY_CLAMP_MIN = 1f;
+        public const float GI_FIREFLY_CLAMP_MAX = 32f;
+
+
         // Ray traced ambient occlusion. Off by default because it is a real slice of the frame and it
         // needs a ray tracing GPU for the traced path.
         public static BasisSettingsBinding<bool> UseRayTracedAmbientOcclusion = new("useraytracedambientocclusion", new BasisPlatformDefault<bool>(false));
@@ -403,6 +448,45 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> RayTracedAmbientOcclusionLayers = new("raytracedambientocclusionlayers", new BasisPlatformDefault<string>("Avatars"));
 
         public static BasisSettingsBinding<string> RayTracedAmbientOcclusionSkinnedMeshes = new("raytracedambientocclusionskinnedmeshes", new BasisPlatformDefault<string>("Proxy"));
+
+        // The tracing internals, exposed so a look problem can be found by moving the thing that causes it.
+        // Every one was a fixed value on the renderer feature; the defaults below are what it was fixed at.
+
+        /// <summary>
+        /// How far off its own surface a ray starts. Avatars are traced as capsules rather than as their
+        /// real mesh, so a ray leaving the visible surface of a body can begin INSIDE that body's capsule
+        /// and report itself as fully occluded - a hard edged dark patch on the shape of the capsule. This
+        /// is the offset that decides whether it escapes.
+        /// </summary>
+        public static BasisSettingsBinding<float> RayTracedAmbientOcclusionNormalBias = new("raytracedambientocclusionnormalbias", new BasisPlatformDefault<float>(0.005f));
+        public const float RTAO_NORMAL_BIAS_MIN = 0f;
+        public const float RTAO_NORMAL_BIAS_MAX = 0.5f;
+
+        /// <summary>Added to that offset per metre of view distance, for the depth buffer's growing error.</summary>
+        public static BasisSettingsBinding<float> RayTracedAmbientOcclusionDistanceBias = new("raytracedambientocclusiondistancebias", new BasisPlatformDefault<float>(0.0005f));
+        public const float RTAO_DISTANCE_BIAS_MIN = 0f;
+        public const float RTAO_DISTANCE_BIAS_MAX = 0.02f;
+
+        /// <summary>How quickly a hit stops darkening as it gets further from the surface that cast the ray.</summary>
+        public static BasisSettingsBinding<float> RayTracedAmbientOcclusionFalloff = new("raytracedambientocclusionfalloff", new BasisPlatformDefault<float>(1f));
+        public const float RTAO_FALLOFF_MIN = 0f;
+        public const float RTAO_FALLOFF_MAX = 8f;
+
+        /// <summary>The contrast curve on the result. Above one deepens the dark end, below one flattens it.</summary>
+        public static BasisSettingsBinding<float> RayTracedAmbientOcclusionPower = new("raytracedambientocclusionpower", new BasisPlatformDefault<float>(1f));
+        public const float RTAO_POWER_MIN = 0.25f;
+        public const float RTAO_POWER_MAX = 4f;
+
+        /// <summary>Where the effect starts fading out with distance, and where it has gone entirely.</summary>
+        public static BasisSettingsBinding<float> RayTracedAmbientOcclusionFadeStart = new("raytracedambientocclusionfadestart", new BasisPlatformDefault<float>(40f));
+        public static BasisSettingsBinding<float> RayTracedAmbientOcclusionFadeEnd = new("raytracedambientocclusionfadeend", new BasisPlatformDefault<float>(60f));
+        public const float RTAO_FADE_MIN = 0f;
+        public const float RTAO_FADE_MAX = 256f;
+
+        /// <summary>How much of the occlusion is held back off glossy surfaces, where it reads as dirt.</summary>
+        public static BasisSettingsBinding<float> RayTracedAmbientOcclusionSpecularRelief = new("raytracedambientocclusionspecularrelief", new BasisPlatformDefault<float>(0f));
+        public const float RTAO_SPECULAR_RELIEF_MIN = 0f;
+        public const float RTAO_SPECULAR_RELIEF_MAX = 1f;
         // URP multiplies the whole indirect term by the occlusion but only lerps the direct term toward it by
         // this much, so in a scene carried by a bright directional light the effect reads far weaker than the
         // occlusion buffer looks. Raising this pulls the shaded image back toward the buffer.
@@ -2283,6 +2367,12 @@ namespace Basis.BasisUI
             GlobalIlluminationReflectionProbes.LoadBindingValue();
             GlobalIlluminationMirrors.LoadBindingValue();
             GlobalIlluminationLayers.LoadBindingValue();
+            GlobalIlluminationObscuranceRadius.LoadBindingValue();
+            GlobalIlluminationFadeDistance.LoadBindingValue();
+            GlobalIlluminationNormalBias.LoadBindingValue();
+            GlobalIlluminationDistanceBias.LoadBindingValue();
+            GlobalIlluminationBounceThreshold.LoadBindingValue();
+            GlobalIlluminationFireflyClamp.LoadBindingValue();
 
             UseRayTracedAmbientOcclusion.LoadBindingValue();
             RayTracedAmbientOcclusionMode.LoadBindingValue();
@@ -2291,6 +2381,13 @@ namespace Basis.BasisUI
             RayTracedAmbientOcclusionRadius.LoadBindingValue();
             RayTracedAmbientOcclusionLayers.LoadBindingValue();
             RayTracedAmbientOcclusionSkinnedMeshes.LoadBindingValue();
+            RayTracedAmbientOcclusionNormalBias.LoadBindingValue();
+            RayTracedAmbientOcclusionDistanceBias.LoadBindingValue();
+            RayTracedAmbientOcclusionFalloff.LoadBindingValue();
+            RayTracedAmbientOcclusionPower.LoadBindingValue();
+            RayTracedAmbientOcclusionFadeStart.LoadBindingValue();
+            RayTracedAmbientOcclusionFadeEnd.LoadBindingValue();
+            RayTracedAmbientOcclusionSpecularRelief.LoadBindingValue();
             RayTracedAmbientOcclusionDirectStrength.LoadBindingValue();
             RayTracedAmbientOcclusionDenoise.LoadBindingValue();
             RayTracedAmbientOcclusionOtherCameras.LoadBindingValue();

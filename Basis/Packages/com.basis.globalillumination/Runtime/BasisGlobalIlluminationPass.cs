@@ -21,8 +21,6 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     public const int PassRayPrepass = 0, PassRayResolve = 1;
     public const int MaxEmitters = 48;
     public const int HistoryMaxAge = 60;
-    public const float RayDistanceBias = 0.0015f;
-    public const float RayBounceThreshold = 0.02f;
     // An a-trous cascade: the same small kernel run again at double the stride each level, so a few
     // cheap passes reach as far as one enormous one would. Both modes use it - a screen space gather at
     // one or two rays per pixel is just as sparse as a traced one, and a fixed radius can only choose
@@ -528,8 +526,8 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
             data.reference = reference;
             data.size = new Vector4(tracedWidth, tracedHeight, 1f / tracedWidth, 1f / tracedHeight);
             data.trace = new Vector4(settings.maxRayLength, settings.obscuranceRadius, settings.obscuranceIntensity, settings.fadeDistance);
-            data.bias = new Vector4(settings.rayTracedNormalBias, RayDistanceBias, settings.emitterIntensity, settings.rayTracedLightIntensity);
-            data.options = new Vector4(settings.fireflyClamp, RayBounceThreshold, settings.rayTracedShadows ? 1f : 0f, 0f);
+            data.bias = new Vector4(settings.rayTracedNormalBias, settings.rayDistanceBias, settings.emitterIntensity, settings.rayTracedLightIntensity);
+            data.options = new Vector4(settings.fireflyClamp, settings.rayBounceThreshold, settings.rayTracedShadows ? 1f : 0f, 0f);
             data.sky = new Vector4(sky.Mip, sky.IsValid ? sky.Intensity : 0f, 0f, 0f);
             data.skyDecode = sky.Decode;
             data.specularParams = Vector4.zero;

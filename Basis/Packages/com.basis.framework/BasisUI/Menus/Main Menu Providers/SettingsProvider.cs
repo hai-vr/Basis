@@ -1845,8 +1845,19 @@ namespace Basis.BasisUI
                     BasisSettingsDefaults.GlobalIlluminationIntensity);
                 sliderGiIntensity.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.intensity.tooltip"));
 
-                PanelSlider sliderGiSaturation = PanelSlider.CreateEntryAndBind(
+
+                // The tracing internals live behind their own fold. They are the values that were fixed
+                // constants until an artifact needed explaining, and moving one is how you find out which
+                // of them is responsible - but none of them is a setting anybody should need to touch to
+                // get a good picture, so they do not sit in front of the people who do not.
+                PanelSectionToggle giAdvancedToggle = PanelSectionToggle.CreateNewEntry(giGroup.ContentParent);
+                PanelElementDescriptor giAdvanced = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                    giAdvancedToggle,
                     giGroup.ContentParent,
+                    BasisLocalization.Get("settings.graphics.gi.advanced"),
+                    showGroupTitle: false);
+                PanelSlider sliderGiSaturation = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
                     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.saturation"),
                         "",
                         BasisSettingsDefaults.GI_SATURATION_MIN,
@@ -1856,7 +1867,7 @@ namespace Basis.BasisUI
                 sliderGiSaturation.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.saturation.tooltip"));
 
                 PanelSlider sliderGiObscurance = PanelSlider.CreateEntryAndBind(
-                    giGroup.ContentParent,
+                    giAdvanced.ContentParent,
                     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.obscurance"),
                         "",
                         BasisSettingsDefaults.GI_OBSCURANCE_MIN,
@@ -1866,7 +1877,7 @@ namespace Basis.BasisUI
                 sliderGiObscurance.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.obscurance.tooltip"));
 
                 PanelSlider sliderGiRayLength = PanelSlider.CreateEntryAndBind(
-                    giGroup.ContentParent,
+                    giAdvanced.ContentParent,
                     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.rayLength"),
                         "",
                         BasisSettingsDefaults.GI_RAY_LENGTH_MIN,
@@ -1877,7 +1888,7 @@ namespace Basis.BasisUI
                 SettingsProviderBottleneckHints.Mark(sliderGiRayLength, BasisFrameCostSide.Gpu);
 
                 PanelSlider sliderGiSmoothing = PanelSlider.CreateEntryAndBind(
-                    giGroup.ContentParent,
+                    giAdvanced.ContentParent,
                     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.smoothing"),
                         "",
                         BasisSettingsDefaults.GI_SMOOTHING_MIN,
@@ -1886,18 +1897,18 @@ namespace Basis.BasisUI
                     BasisSettingsDefaults.GlobalIlluminationSmoothing);
                 sliderGiSmoothing.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.smoothing.tooltip"));
 
-                PanelToggle toggleGiWideBlur = PanelToggle.CreateNewEntry(giGroup.ContentParent);
+                PanelToggle toggleGiWideBlur = PanelToggle.CreateNewEntry(giAdvanced.ContentParent);
                 toggleGiWideBlur.AssignBinding(BasisSettingsDefaults.GlobalIlluminationWideBlur);
                 toggleGiWideBlur.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.wideBlur"));
                 toggleGiWideBlur.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.wideBlur.tooltip"));
 
-                PanelToggle toggleGiTemporal = PanelToggle.CreateNewEntry(giGroup.ContentParent);
+                PanelToggle toggleGiTemporal = PanelToggle.CreateNewEntry(giAdvanced.ContentParent);
                 toggleGiTemporal.AssignBinding(BasisSettingsDefaults.GlobalIlluminationTemporalFilter);
                 toggleGiTemporal.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.temporalFilter"));
                 toggleGiTemporal.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.temporalFilter.tooltip"));
 
                 PanelSlider sliderGiTemporalResponse = PanelSlider.CreateEntryAndBind(
-                    giGroup.ContentParent,
+                    giAdvanced.ContentParent,
                     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.temporalResponse"),
                         "",
                         BasisSettingsDefaults.GI_TEMPORAL_RESPONSE_MIN,
@@ -1906,7 +1917,7 @@ namespace Basis.BasisUI
                     BasisSettingsDefaults.GlobalIlluminationTemporalResponse);
                 sliderGiTemporalResponse.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.temporalResponse.tooltip"));
 
-                PanelDropdown dropdownGiFallback = PanelDropdown.CreateNewEntry(giGroup.ContentParent);
+                PanelDropdown dropdownGiFallback = PanelDropdown.CreateNewEntry(giAdvanced.ContentParent);
                 dropdownGiFallback.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.fallback"));
                 dropdownGiFallback.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.fallback.tooltip"));
                 dropdownGiFallback.AssignLocalizedEntries(
@@ -1914,18 +1925,18 @@ namespace Basis.BasisUI
                     new List<string> { "settings.graphics.gi.fallback.none", "settings.graphics.gi.fallback.sky", "settings.graphics.gi.fallback.probe" });
                 dropdownGiFallback.AssignBinding(BasisSettingsDefaults.GlobalIlluminationFallback);
 
-                PanelToggle toggleGiRayReuse = PanelToggle.CreateNewEntry(giGroup.ContentParent);
+                PanelToggle toggleGiRayReuse = PanelToggle.CreateNewEntry(giAdvanced.ContentParent);
                 toggleGiRayReuse.AssignBinding(BasisSettingsDefaults.GlobalIlluminationRayReuse);
                 toggleGiRayReuse.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.rayReuse"));
                 toggleGiRayReuse.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.rayReuse.tooltip"));
 
-                PanelToggle toggleGiEmitters = PanelToggle.CreateNewEntry(giGroup.ContentParent);
+                PanelToggle toggleGiEmitters = PanelToggle.CreateNewEntry(giAdvanced.ContentParent);
                 toggleGiEmitters.AssignBinding(BasisSettingsDefaults.GlobalIlluminationEmitters);
                 toggleGiEmitters.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.emitters"));
                 toggleGiEmitters.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.emitters.tooltip"));
 
                 PanelSlider sliderGiEmitterIntensity = PanelSlider.CreateEntryAndBind(
-                    giGroup.ContentParent,
+                    giAdvanced.ContentParent,
                     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.emitterIntensity"),
                         "",
                         BasisSettingsDefaults.GI_EMITTER_INTENSITY_MIN,
@@ -1934,11 +1945,74 @@ namespace Basis.BasisUI
                     BasisSettingsDefaults.GlobalIlluminationEmitterIntensity);
                 sliderGiEmitterIntensity.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.emitterIntensity.tooltip"));
 
-                PanelToggle toggleGiReflectionProbes = PanelToggle.CreateNewEntry(giGroup.ContentParent);
+                PanelToggle toggleGiReflectionProbes = PanelToggle.CreateNewEntry(giAdvanced.ContentParent);
                 toggleGiReflectionProbes.AssignBinding(BasisSettingsDefaults.GlobalIlluminationReflectionProbes);
                 toggleGiReflectionProbes.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.reflectionProbes"));
                 toggleGiReflectionProbes.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.reflectionProbes.tooltip"));
                 SettingsProviderBottleneckHints.Mark(toggleGiReflectionProbes, BasisFrameCostSide.Gpu);
+
+                PanelSlider sliderGiObscuranceRadius = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.obscuranceRadius"),
+                        "",
+                        BasisSettingsDefaults.GI_OBSCURANCE_RADIUS_MIN,
+                        BasisSettingsDefaults.GI_OBSCURANCE_RADIUS_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationObscuranceRadius);
+                sliderGiObscuranceRadius.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.obscuranceRadius.tooltip"));
+
+                PanelSlider sliderGiFadeDistance = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.fadeDistance"),
+                        "",
+                        BasisSettingsDefaults.GI_FADE_DISTANCE_MIN,
+                        BasisSettingsDefaults.GI_FADE_DISTANCE_MAX,
+                        false, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationFadeDistance);
+                sliderGiFadeDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.fadeDistance.tooltip"));
+
+                PanelSlider sliderGiNormalBias = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.normalBias"),
+                        "",
+                        BasisSettingsDefaults.GI_NORMAL_BIAS_MIN,
+                        BasisSettingsDefaults.GI_NORMAL_BIAS_MAX,
+                        false, 3, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationNormalBias);
+                sliderGiNormalBias.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.normalBias.tooltip"));
+
+                PanelSlider sliderGiDistanceBias = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.distanceBias"),
+                        "",
+                        BasisSettingsDefaults.GI_DISTANCE_BIAS_MIN,
+                        BasisSettingsDefaults.GI_DISTANCE_BIAS_MAX,
+                        false, 4, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationDistanceBias);
+                sliderGiDistanceBias.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.distanceBias.tooltip"));
+
+                PanelSlider sliderGiBounceThreshold = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.bounceThreshold"),
+                        "",
+                        BasisSettingsDefaults.GI_BOUNCE_THRESHOLD_MIN,
+                        BasisSettingsDefaults.GI_BOUNCE_THRESHOLD_MAX,
+                        false, 3, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationBounceThreshold);
+                sliderGiBounceThreshold.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.bounceThreshold.tooltip"));
+
+                PanelSlider sliderGiFireflyClamp = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.fireflyClamp"),
+                        "",
+                        BasisSettingsDefaults.GI_FIREFLY_CLAMP_MIN,
+                        BasisSettingsDefaults.GI_FIREFLY_CLAMP_MAX,
+                        false, 1, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationFireflyClamp);
+                sliderGiFireflyClamp.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.fireflyClamp.tooltip"));
+
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(giAdvancedToggle, giAdvanced, false,
+                    _ => descriptor.ForceRebuild());
 
                 void SetGiRowsActive(bool val)
                 {
@@ -1964,6 +2038,21 @@ namespace Basis.BasisUI
                     toggleGiEmitters.Descriptor.SetActive(val);
                     sliderGiEmitterIntensity.Descriptor.SetActive(val && toggleGiEmitters.Value);
                     toggleGiReflectionProbes.Descriptor.SetActive(val);
+
+                    // The fold itself goes with the effect, so turning global illumination off does not
+                    // leave a section header standing over nothing.
+                    giAdvancedToggle.Descriptor.SetActive(val);
+
+                    // Obscurance radius, fade distance and the firefly ceiling are read by both traces.
+                    sliderGiObscuranceRadius.Descriptor.SetActive(val);
+                    sliderGiFadeDistance.Descriptor.SetActive(val);
+                    sliderGiFireflyClamp.Descriptor.SetActive(val);
+
+                    // The ray origin offsets and the bounce cutoff only exist on the traced path - the
+                    // screen space march walks the depth buffer and has no ray origin to push off a surface.
+                    sliderGiNormalBias.Descriptor.SetActive(rayTraced);
+                    sliderGiDistanceBias.Descriptor.SetActive(rayTraced);
+                    sliderGiBounceThreshold.Descriptor.SetActive(rayTraced);
                 }
 
                 SetGiRowsActive(toggleGi.Value);
@@ -2058,7 +2147,19 @@ namespace Basis.BasisUI
                 sliderRtaoRadius.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.radius.tooltip"));
                 SettingsProviderBottleneckHints.Mark(sliderRtaoRadius, BasisFrameCostSide.Gpu);
 
-                PanelDropdown dropdownRtaoApply = PanelDropdown.CreateNewEntry(rtaoGroup.ContentParent);
+
+                // Same fold, same reason as global illumination: these were fixed values on the renderer
+                // feature, and moving one is how you find out which of them owns an artifact. The ray
+                // start offsets matter more here than they look - avatars are traced as capsules rather
+                // than as their real mesh, so a ray leaving a visible body surface can start inside that
+                // body's capsule and report itself fully occluded.
+                PanelSectionToggle rtaoAdvancedToggle = PanelSectionToggle.CreateNewEntry(rtaoGroup.ContentParent);
+                PanelElementDescriptor rtaoAdvanced = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                    rtaoAdvancedToggle,
+                    rtaoGroup.ContentParent,
+                    BasisLocalization.Get("settings.graphics.rtao.advanced"),
+                    showGroupTitle: false);
+                PanelDropdown dropdownRtaoApply = PanelDropdown.CreateNewEntry(rtaoAdvanced.ContentParent);
                 dropdownRtaoApply.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.rtao.apply"));
                 dropdownRtaoApply.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.apply.tooltip"));
                 dropdownRtaoApply.AssignLocalizedEntries(
@@ -2066,7 +2167,7 @@ namespace Basis.BasisUI
                     new List<string> { "settings.graphics.rtao.apply.lighting", "settings.graphics.rtao.apply.finalImage" });
                 dropdownRtaoApply.AssignBinding(BasisSettingsDefaults.RayTracedAmbientOcclusionApply);
 
-                PanelDropdown dropdownRtaoDenoise = PanelDropdown.CreateNewEntry(rtaoGroup.ContentParent);
+                PanelDropdown dropdownRtaoDenoise = PanelDropdown.CreateNewEntry(rtaoAdvanced.ContentParent);
                 dropdownRtaoDenoise.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.rtao.denoise"));
                 dropdownRtaoDenoise.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.denoise.tooltip"));
                 dropdownRtaoDenoise.AssignLocalizedEntries(
@@ -2076,7 +2177,7 @@ namespace Basis.BasisUI
                 SettingsProviderBottleneckHints.Mark(dropdownRtaoDenoise, BasisFrameCostSide.Gpu);
 
                 PanelSlider sliderRtaoDirect = PanelSlider.CreateEntryAndBind(
-                    rtaoGroup.ContentParent,
+                    rtaoAdvanced.ContentParent,
                     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.rtao.directStrength"),
                         "",
                         BasisSettingsDefaults.RTAO_DIRECT_STRENGTH_MIN,
@@ -2085,13 +2186,13 @@ namespace Basis.BasisUI
                     BasisSettingsDefaults.RayTracedAmbientOcclusionDirectStrength);
                 sliderRtaoDirect.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.directStrength.tooltip"));
 
-                PanelToggle toggleRtaoOtherCameras = PanelToggle.CreateNewEntry(rtaoGroup.ContentParent);
+                PanelToggle toggleRtaoOtherCameras = PanelToggle.CreateNewEntry(rtaoAdvanced.ContentParent);
                 toggleRtaoOtherCameras.AssignBinding(BasisSettingsDefaults.RayTracedAmbientOcclusionOtherCameras);
                 toggleRtaoOtherCameras.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.rtao.otherCameras"));
                 toggleRtaoOtherCameras.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.otherCameras.tooltip"));
                 SettingsProviderBottleneckHints.Mark(toggleRtaoOtherCameras, BasisFrameCostSide.Gpu);
 
-                PanelDropdown dropdownRtaoLayers = PanelDropdown.CreateNewEntry(rtaoGroup.ContentParent);
+                PanelDropdown dropdownRtaoLayers = PanelDropdown.CreateNewEntry(rtaoAdvanced.ContentParent);
                 dropdownRtaoLayers.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.rtao.layers"));
                 dropdownRtaoLayers.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.layers.tooltip"));
                 dropdownRtaoLayers.AssignLocalizedEntries(
@@ -2100,7 +2201,7 @@ namespace Basis.BasisUI
                 dropdownRtaoLayers.AssignBinding(BasisSettingsDefaults.RayTracedAmbientOcclusionLayers);
                 SettingsProviderBottleneckHints.Mark(dropdownRtaoLayers, BasisFrameCostSide.Gpu);
 
-                PanelDropdown dropdownRtaoSkinned = PanelDropdown.CreateNewEntry(rtaoGroup.ContentParent);
+                PanelDropdown dropdownRtaoSkinned = PanelDropdown.CreateNewEntry(rtaoAdvanced.ContentParent);
                 dropdownRtaoSkinned.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.rtao.skinned"));
                 dropdownRtaoSkinned.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.skinned.tooltip"));
                 dropdownRtaoSkinned.AssignLocalizedEntries(
@@ -2108,6 +2209,79 @@ namespace Basis.BasisUI
                     new List<string> { "settings.graphics.rtao.skinned.off", "settings.graphics.rtao.skinned.proxy" });
                 dropdownRtaoSkinned.AssignBinding(BasisSettingsDefaults.RayTracedAmbientOcclusionSkinnedMeshes);
                 SettingsProviderBottleneckHints.Mark(dropdownRtaoSkinned, BasisFrameCostSide.Cpu);
+
+                PanelSlider sliderRtaoNormalBias = PanelSlider.CreateEntryAndBind(
+                    rtaoAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.rtao.normalBias"),
+                        "",
+                        BasisSettingsDefaults.RTAO_NORMAL_BIAS_MIN,
+                        BasisSettingsDefaults.RTAO_NORMAL_BIAS_MAX,
+                        false, 3, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RayTracedAmbientOcclusionNormalBias);
+                sliderRtaoNormalBias.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.normalBias.tooltip"));
+
+                PanelSlider sliderRtaoDistanceBias = PanelSlider.CreateEntryAndBind(
+                    rtaoAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.rtao.distanceBias"),
+                        "",
+                        BasisSettingsDefaults.RTAO_DISTANCE_BIAS_MIN,
+                        BasisSettingsDefaults.RTAO_DISTANCE_BIAS_MAX,
+                        false, 4, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RayTracedAmbientOcclusionDistanceBias);
+                sliderRtaoDistanceBias.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.distanceBias.tooltip"));
+
+                PanelSlider sliderRtaoFalloff = PanelSlider.CreateEntryAndBind(
+                    rtaoAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.rtao.falloff"),
+                        "",
+                        BasisSettingsDefaults.RTAO_FALLOFF_MIN,
+                        BasisSettingsDefaults.RTAO_FALLOFF_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RayTracedAmbientOcclusionFalloff);
+                sliderRtaoFalloff.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.falloff.tooltip"));
+
+                PanelSlider sliderRtaoPower = PanelSlider.CreateEntryAndBind(
+                    rtaoAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.rtao.power"),
+                        "",
+                        BasisSettingsDefaults.RTAO_POWER_MIN,
+                        BasisSettingsDefaults.RTAO_POWER_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RayTracedAmbientOcclusionPower);
+                sliderRtaoPower.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.power.tooltip"));
+
+                PanelSlider sliderRtaoFadeStart = PanelSlider.CreateEntryAndBind(
+                    rtaoAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.rtao.fadeStart"),
+                        "",
+                        BasisSettingsDefaults.RTAO_FADE_MIN,
+                        BasisSettingsDefaults.RTAO_FADE_MAX,
+                        false, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RayTracedAmbientOcclusionFadeStart);
+                sliderRtaoFadeStart.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.fadeStart.tooltip"));
+
+                PanelSlider sliderRtaoFadeEnd = PanelSlider.CreateEntryAndBind(
+                    rtaoAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.rtao.fadeEnd"),
+                        "",
+                        BasisSettingsDefaults.RTAO_FADE_MIN,
+                        BasisSettingsDefaults.RTAO_FADE_MAX,
+                        false, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RayTracedAmbientOcclusionFadeEnd);
+                sliderRtaoFadeEnd.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.fadeEnd.tooltip"));
+
+                PanelSlider sliderRtaoSpecularRelief = PanelSlider.CreateEntryAndBind(
+                    rtaoAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.rtao.specularRelief"),
+                        "",
+                        BasisSettingsDefaults.RTAO_SPECULAR_RELIEF_MIN,
+                        BasisSettingsDefaults.RTAO_SPECULAR_RELIEF_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RayTracedAmbientOcclusionSpecularRelief);
+                sliderRtaoSpecularRelief.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.specularRelief.tooltip"));
+
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(rtaoAdvancedToggle, rtaoAdvanced, false,
+                    _ => descriptor.ForceRebuild());
 
                 void SetRtaoRowsActive(bool val)
                 {
@@ -2130,6 +2304,23 @@ namespace Basis.BasisUI
                     // dropdown alone - is what decides these.
                     dropdownRtaoLayers.Descriptor.SetActive(tracesGeometry);
                     dropdownRtaoSkinned.Descriptor.SetActive(tracesGeometry);
+
+                    // The fold goes with the effect, so switching occlusion off does not leave a section
+                    // header standing over nothing.
+                    rtaoAdvancedToggle.Descriptor.SetActive(val);
+
+                    // Falloff, contrast, the distance fade and the gloss relief shape the result whichever
+                    // way it was gathered, so they stay for the screen space estimator too.
+                    sliderRtaoFalloff.Descriptor.SetActive(val);
+                    sliderRtaoPower.Descriptor.SetActive(val);
+                    sliderRtaoFadeStart.Descriptor.SetActive(val);
+                    sliderRtaoFadeEnd.Descriptor.SetActive(val);
+                    sliderRtaoSpecularRelief.Descriptor.SetActive(val);
+
+                    // The ray start offsets only exist where there are rays. The screen space estimator
+                    // marches the depth buffer and has no origin to push off a surface.
+                    sliderRtaoNormalBias.Descriptor.SetActive(tracesGeometry);
+                    sliderRtaoDistanceBias.Descriptor.SetActive(tracesGeometry);
                 }
 
                 SetRtaoRowsActive(toggleRtao.Value);
@@ -2946,6 +3137,12 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.UseGlobalIllumination.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationMode.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationLayers.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationObscuranceRadius.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationFadeDistance.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationNormalBias.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationDistanceBias.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationBounceThreshold.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationFireflyClamp.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationSkinnedMeshes.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationQuality.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationResolution.ResetToDefault();
@@ -2968,6 +3165,13 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.RayTracedAmbientOcclusionIntensity.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionRadius.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionLayers.ResetToDefault();
+            BasisSettingsDefaults.RayTracedAmbientOcclusionNormalBias.ResetToDefault();
+            BasisSettingsDefaults.RayTracedAmbientOcclusionDistanceBias.ResetToDefault();
+            BasisSettingsDefaults.RayTracedAmbientOcclusionFalloff.ResetToDefault();
+            BasisSettingsDefaults.RayTracedAmbientOcclusionPower.ResetToDefault();
+            BasisSettingsDefaults.RayTracedAmbientOcclusionFadeStart.ResetToDefault();
+            BasisSettingsDefaults.RayTracedAmbientOcclusionFadeEnd.ResetToDefault();
+            BasisSettingsDefaults.RayTracedAmbientOcclusionSpecularRelief.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionSkinnedMeshes.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionDirectStrength.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionDenoise.ResetToDefault();

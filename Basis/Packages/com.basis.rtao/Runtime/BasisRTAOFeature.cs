@@ -46,6 +46,21 @@ namespace Basis.Rendering.RTAO
         public static float SpecularOcclusionReliefOverride;
         public static bool HasDenoisePassesOverride;
         public static int DenoisePassesOverride = 2;
+        // The tracing internals. Constants in everything but name until an artifact needed explaining -
+        // a ray that starts inside the geometry it was cast from shadows itself, and the offsets below are
+        // what decides whether it does. See the advanced section of the occlusion settings.
+        public static bool HasNormalBiasOverride;
+        public static float NormalBiasOverride = 0.005f;
+        public static bool HasDistanceBiasOverride;
+        public static float DistanceBiasOverride = 0.0005f;
+        public static bool HasFalloffOverride;
+        public static float FalloffOverride = 1f;
+        public static bool HasPowerOverride;
+        public static float PowerOverride = 1f;
+        public static bool HasFadeStartOverride;
+        public static float FadeStartOverride = 40f;
+        public static bool HasFadeEndOverride;
+        public static float FadeEndOverride = 60f;
         public static bool HasTracingModeOverride;
         public static BasisRTAOTracingMode TracingModeOverride = BasisRTAOTracingMode.Auto;
         public static bool HasLayerMaskOverride;
@@ -126,6 +141,18 @@ namespace Basis.Rendering.RTAO
                 resolved.specularOcclusionRelief = SpecularOcclusionReliefOverride;
             if (HasDenoisePassesOverride)
                 resolved.denoisePasses = DenoisePassesOverride;
+            if (HasNormalBiasOverride)
+                resolved.normalBias = NormalBiasOverride;
+            if (HasDistanceBiasOverride)
+                resolved.distanceBias = DistanceBiasOverride;
+            if (HasFalloffOverride)
+                resolved.distanceFalloff = FalloffOverride;
+            if (HasPowerOverride)
+                resolved.power = PowerOverride;
+            if (HasFadeStartOverride)
+                resolved.fadeStart = FadeStartOverride;
+            if (HasFadeEndOverride)
+                resolved.fadeEnd = FadeEndOverride;
 
             return resolved.Validated();
         }

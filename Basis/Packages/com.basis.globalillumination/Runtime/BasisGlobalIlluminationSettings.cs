@@ -90,6 +90,15 @@ public sealed class BasisGlobalIlluminationSettings
     public const int LightSamplesMax = 4;
     public const float RayTracedNormalBiasMin = 0f, RayTracedNormalBiasMax = 0.5f;
     public const float RescanIntervalMin = 0.1f, RescanIntervalMax = 30f;
+    /// <summary>
+    /// How far a surface may be from the thing above it and still be darkened by it. Named rather than
+    /// written into Clamp because it is the distance the obscurance term is measured against, and a hard
+    /// edged band at exactly this radius is what it looks like when it is set too short for the room.
+    /// </summary>
+    public const float ObscuranceRadiusMin = 0.05f, ObscuranceRadiusMax = 4f;
+    public const float FadeDistanceMin = 1f, FadeDistanceMax = 512f;
+    public const float RayDistanceBiasMin = 0f, RayDistanceBiasMax = 0.02f;
+    public const float BounceThresholdMin = 0.001f, BounceThresholdMax = 0.5f;
 
     /// <summary>
     /// What every camera renders with. One object, assigned in place by the settings module, read by the
@@ -182,6 +191,15 @@ public sealed class BasisGlobalIlluminationSettings
     public bool rayTracedShadowCastersOnly = false;
     public float rayTracedRescanInterval = 2f;
     public float rayTracedNormalBias = 0.02f;
+    /// <summary>
+    /// Added to the ray origin offset per metre of view distance. The position a ray starts from is
+    /// reconstructed from a half precision depth buffer, so its error grows with distance; without this a
+    /// far surface starts its rays inside itself and shadows itself.
+    /// </summary>
+    public float rayDistanceBias = 0.0015f;
+
+    /// <summary>How dim a path may get before it stops being worth another bounce.</summary>
+    public float rayBounceThreshold = 0.02f;
 
     /// <summary>
     /// Ray traced reflections. The gather is a single mirror ray per pixel, shaded at the hit with the same
@@ -253,9 +271,9 @@ public sealed class BasisGlobalIlluminationSettings
         intensity = Mathf.Clamp(intensity, IntensityMin, IntensityMax);
         saturation = Mathf.Clamp(saturation, SaturationMin, SaturationMax);
         obscuranceIntensity = Mathf.Clamp(obscuranceIntensity, ObscuranceMin, ObscuranceMax);
-        obscuranceRadius = Mathf.Clamp(obscuranceRadius, 0.05f, 4f);
+        obscuranceRadius = Mathf.Clamp(obscuranceRadius, ObscuranceRadiusMin, ObscuranceRadiusMax);
         maxRayLength = Mathf.Clamp(maxRayLength, RayLengthMin, RayLengthMax);
-        fadeDistance = Mathf.Max(1f, fadeDistance);
+        fadeDistance = Mathf.Clamp(fadeDistance, FadeDistanceMin, FadeDistanceMax);
         rayCount = Mathf.Clamp(rayCount, RayCountMin, RayCountMax);
         rayMaxSteps = Mathf.Clamp(rayMaxSteps, RayStepsMin, RayStepsMax);
         thickness = Mathf.Clamp(thickness, ThicknessMin, ThicknessMax);
@@ -269,6 +287,8 @@ public sealed class BasisGlobalIlluminationSettings
         rayTracedLightIntensity = Mathf.Clamp(rayTracedLightIntensity, LightIntensityMin, LightIntensityMax);
         rayTracedRescanInterval = Mathf.Clamp(rayTracedRescanInterval, RescanIntervalMin, RescanIntervalMax);
         rayTracedNormalBias = Mathf.Clamp(rayTracedNormalBias, RayTracedNormalBiasMin, RayTracedNormalBiasMax);
+        rayDistanceBias = Mathf.Clamp(rayDistanceBias, RayDistanceBiasMin, RayDistanceBiasMax);
+        rayBounceThreshold = Mathf.Clamp(rayBounceThreshold, BounceThresholdMin, BounceThresholdMax);
         specularIntensity = Mathf.Clamp(specularIntensity, IntensityMin, IntensityMax);
         specularMaxRoughness = Mathf.Clamp(specularMaxRoughness, SpecularRoughnessMin, SpecularRoughnessMax);
         specularRayLength = Mathf.Clamp(specularRayLength, RayLengthMin, SpecularRayLengthMax);
@@ -301,6 +321,7 @@ public sealed class BasisGlobalIlluminationSettings
         rayTracedLayerMask = other.rayTracedLayerMask;
         rayTracedShadowCastersOnly = other.rayTracedShadowCastersOnly;
         rayTracedRescanInterval = other.rayTracedRescanInterval; rayTracedNormalBias = other.rayTracedNormalBias;
+        rayDistanceBias = other.rayDistanceBias; rayBounceThreshold = other.rayBounceThreshold;
         specular = other.specular; specularIntensity = other.specularIntensity;
         specularMaxRoughness = other.specularMaxRoughness; specularRayLength = other.specularRayLength;
         specularFadeDistance = other.specularFadeDistance; specularBounces = other.specularBounces;

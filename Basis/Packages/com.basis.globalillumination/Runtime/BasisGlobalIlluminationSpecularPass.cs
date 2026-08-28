@@ -209,8 +209,8 @@ public sealed partial class BasisGlobalIlluminationPass
                 data.reference = reference;
                 data.size = new Vector4(tracedWidth, tracedHeight, 1f / tracedWidth, 1f / tracedHeight);
                 data.trace = new Vector4(settings.maxRayLength, settings.obscuranceRadius, settings.obscuranceIntensity, settings.fadeDistance);
-                data.bias = new Vector4(settings.rayTracedNormalBias, RayDistanceBias, settings.emitterIntensity, settings.rayTracedLightIntensity);
-                data.options = new Vector4(settings.fireflyClamp, RayBounceThreshold, settings.rayTracedShadows ? 1f : 0f, 0f);
+                data.bias = new Vector4(settings.rayTracedNormalBias, settings.rayDistanceBias, settings.emitterIntensity, settings.rayTracedLightIntensity);
+                data.options = new Vector4(settings.fireflyClamp, settings.rayBounceThreshold, settings.rayTracedShadows ? 1f : 0f, 0f);
                 data.specularParams = new Vector4(settings.specularRayLength, settings.specularIntensity,
                     settings.specularFadeDistance, specularBounces);
                 data.sky = new Vector4(sky.Mip, sky.IsValid ? sky.Intensity : 0f, 0f, 0f);
