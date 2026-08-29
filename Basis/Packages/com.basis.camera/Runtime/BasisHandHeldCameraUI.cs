@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Basis;
 using Basis.BasisUI;
+using Basis.Scripts.Rendering;
 using TMPro;
 using Basis.Cinematics;
 using UnityEngine;
@@ -914,10 +915,10 @@ public partial class BasisHandHeldCameraUI
         {
             settings.overrideRTAO = HHC.OverrideRTAO;
             BasisRTAOCaptureOverride rtao = HHC.RTAOOverride;
-            settings.rtaoMode = rtao.Mode == BasisRTAOSettingsMap.ModeRayTraced ? 1 : 0;
+            settings.rtaoMode = rtao.Mode == BasisRTAOIntegration.ModeRayTraced ? 1 : 0;
             settings.rtaoIntensity = rtao.Intensity;
             settings.rtaoRadius = rtao.Radius;
-            settings.rtaoApplyMode = rtao.ApplyMode == BasisRTAOSettingsMap.ApplyFinalImage ? 1 : 0;
+            settings.rtaoApplyMode = rtao.ApplyMode == BasisRTAOIntegration.ApplyFinalImage ? 1 : 0;
             settings.rtaoDenoisePasses = rtao.DenoisePasses;
             settings.rtaoDirectStrength = rtao.DirectStrength;
             settings.rtaoLayers = rtao.Layers switch { "World" => 1, "World And Avatars" => 2, _ => 0 };

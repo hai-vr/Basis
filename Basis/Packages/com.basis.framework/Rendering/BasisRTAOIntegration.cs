@@ -66,6 +66,16 @@ namespace Basis.Scripts.Rendering
         public static bool HardwareSupportsTracing => BasisRTAOFeature.IsSupported;
 
         /// <summary>
+        /// Canonical option strings, mirroring <see cref="BasisRTAOSettingsMap"/>'s own constants of the
+        /// same name - re-exported here so a caller outside com.basis.rtao (the camera panel's Mode /
+        /// Apply Mode override setters) never needs to name a <c>Basis.Rendering.RTAO</c> type itself.
+        /// </summary>
+        public const string ModeScreenSpace = BasisRTAOSettingsMap.ModeScreenSpace;
+        public const string ModeRayTraced = BasisRTAOSettingsMap.ModeRayTraced;
+        public const string ApplyLighting = BasisRTAOSettingsMap.ApplyLighting;
+        public const string ApplyFinalImage = BasisRTAOSettingsMap.ApplyFinalImage;
+
+        /// <summary>
         /// Forces the best occlusion quality for one photo capture, exactly like Global Illumination
         /// forces Full resolution for one - unconditionally, bypassing the graphics-quality-tier clamp
         /// <see cref="Apply"/> normally applies and the "Occlusion In Mirrors And Camera" toggle, since

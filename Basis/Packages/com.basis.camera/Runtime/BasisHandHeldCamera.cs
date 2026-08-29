@@ -1882,10 +1882,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     private BasisRTAOCaptureOverride rtaoOverride = new BasisRTAOCaptureOverride
     {
-        Mode = BasisRTAOSettingsMap.ModeScreenSpace,
+        Mode = BasisRTAOIntegration.ModeScreenSpace,
         Intensity = 1f,
         Radius = 0.02f,
-        ApplyMode = BasisRTAOSettingsMap.ApplyLighting,
+        ApplyMode = BasisRTAOIntegration.ApplyLighting,
         DenoisePasses = 2,
         DirectStrength = 0.5f,
         Layers = "Avatars",
@@ -1905,10 +1905,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public BasisRTAOCaptureOverride RTAOOverride => rtaoOverride;
 
     public void SetOverrideRTAO(bool enabled) => OverrideRTAO = enabled;
-    public void SetRTAOOverrideMode(int index) => rtaoOverride.Mode = index == 1 ? BasisRTAOSettingsMap.ModeRayTraced : BasisRTAOSettingsMap.ModeScreenSpace;
+    public void SetRTAOOverrideMode(int index) => rtaoOverride.Mode = index == 1 ? BasisRTAOIntegration.ModeRayTraced : BasisRTAOIntegration.ModeScreenSpace;
     public void SetRTAOOverrideIntensity(float value) => rtaoOverride.Intensity = value;
     public void SetRTAOOverrideRadius(float value) => rtaoOverride.Radius = value;
-    public void SetRTAOOverrideApplyMode(int index) => rtaoOverride.ApplyMode = index == 1 ? BasisRTAOSettingsMap.ApplyFinalImage : BasisRTAOSettingsMap.ApplyLighting;
+    public void SetRTAOOverrideApplyMode(int index) => rtaoOverride.ApplyMode = index == 1 ? BasisRTAOIntegration.ApplyFinalImage : BasisRTAOIntegration.ApplyLighting;
     public void SetRTAOOverrideDenoisePasses(int passes) => rtaoOverride.DenoisePasses = Mathf.Clamp(passes, 0, 3);
     public void SetRTAOOverrideDirectStrength(float value) => rtaoOverride.DirectStrength = value;
     public void SetRTAOOverrideLayers(int index) => rtaoOverride.Layers = index switch { 1 => "World", 2 => "World And Avatars", _ => "Avatars" };
