@@ -111,6 +111,8 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyJiggleCollisionCulling;
             BasisJiggleColliderLOD.ApplyFromSettings();
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisJiggleColliderLOD.ApplyFromSettings;
+            BasisJiggleSimulationLOD.ApplyFromSettings();
+            BasisSettingsSystem.OnSettingsFinishedChanges += BasisJiggleSimulationLOD.ApplyFromSettings;
             BasisAvatarSkinLOD.ApplyFromSettings();
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarSkinLOD.ApplyFromSettings;
             BasisAvatarShadowLOD.ApplyFromSettings();
@@ -2872,6 +2874,9 @@ namespace Basis.BasisUI
             // restart, so nothing above it looks like it needs one.
             BuildRendererSection(container, descriptor);
 
+            // DX12-only: no synchronous first-draw PSO cost to cache against on any other API.
+            BuildPsoCacheSection(container);
+
             // Every control this page carries now exists, so the bottleneck readout can find the
             // ones that move CPU or GPU cost and light them up while it is blaming that side.
             SettingsProviderBottleneckHints.Bind(descriptor);
@@ -3087,8 +3092,31 @@ namespace Basis.BasisUI
                 _ => descriptor.ForceRebuild());
         }
 
+        /// <summary>
+        /// On-disk PSO cache budget. DX12-only: D3D11 builds pipeline state lazily on its own
+        /// worker threads and never pays the synchronous first-draw cost this cache exists to
+        /// avoid, so the control would be dead weight on every other API this project ships.
+        /// See BasisGraphicsStatePrewarm.
+        /// </summary>
+        private static void BuildPsoCacheSection(RectTransform container)
+        {
+            if (SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Direct3D12)
+            {
+                return;
+            }
+
+            PanelSlider sliderPsoCache = PanelSlider.CreateEntryAndBind(
+                container,
+                PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("settings.graphics.psoCacheSize"),
+                    256, 51200, false, 0, ValueDisplayMode.MemorySize),
+                BasisSettingsDefaults.PsoCacheSizeMb);
+            sliderPsoCache.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.psoCacheSize.tooltip"));
+        }
+
         private static void ResetGraphicsDefaults()
         {
+            BasisSettingsDefaults.PsoCacheSizeMb.ResetToDefault();
             BasisPerformanceMode.SetLevel(BasisPerformanceLevel.Off);
             BasisSettingsDefaults.PerformanceModeAuto.ResetToDefault();
             BasisSettingsDefaults.PerformanceModeLevel.ResetToDefault();

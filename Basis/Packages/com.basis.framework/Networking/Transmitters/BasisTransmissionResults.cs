@@ -576,6 +576,7 @@ public partial class BasisTransmissionResults
         // Uses unsafe pointers to bypass NativeArray safety checks.
         float visemeRangeSq = SMModuleDistanceBasedReductions.HearingRange * 0.25f;
         bool jiggleColliderLodEnabled = BasisJiggleColliderLOD.Enabled;
+        bool jiggleSimulationLodEnabled = BasisJiggleSimulationLOD.Enabled;
         // Per-tick budget of avatar (re)loads admitted below; reset each tick. See
         // MaxAvatarReloadsPerTick for the count and MaxAvatarReloadMillisecondsPerTick for the
         // wall clock that actually bounds the spike.
@@ -786,6 +787,22 @@ public partial class BasisTransmissionResults
                         if (jiggleTier != jiggleDriver.RegisteredColliderTier)
                         {
                             jiggleDriver.ApplyColliderLOD(jiggleTier);
+                        }
+                    }
+                }
+
+                // Distance-based jiggle simulation pause: past the cutoff, unregister the remote's
+                // jiggle rigs from the global sim entirely (Verlet integrate + transform I/O), not
+                // just their colliders. See BasisJiggleSimulationLOD.
+                if (jiggleSimulationLodEnabled)
+                {
+                    var jiggleSimDriver = remote.RemoteAvatarDriver;
+                    if (jiggleSimDriver != null && jiggleSimDriver.JiggleRigs.Length > 0)
+                    {
+                        bool shouldSimulate = BasisJiggleSimulationLOD.ShouldSimulate(pDistanceSq[i], jiggleSimDriver.JiggleSimulating);
+                        if (shouldSimulate != jiggleSimDriver.JiggleSimulating)
+                        {
+                            jiggleSimDriver.SetJiggleSimulating(shouldSimulate);
                         }
                     }
                 }

@@ -640,6 +640,11 @@ namespace Basis.Scripts.Avatar
                     SetupRemoteAvatar(remotePlayer);
                     break;
             }
+
+            // Spreads this avatar's first-draw PSO creation (DX12/Vulkan/Metal) across a few
+            // frames instead of one hitch on the reveal frame. No-ops on backends that don't pay
+            // that cost. See BasisAvatarPsoReveal.
+            Basis.Scripts.Rendering.BasisAvatarPsoReveal.BeginStagedReveal(Player.BasisAvatar.Renders);
         }
 
         /// <summary>

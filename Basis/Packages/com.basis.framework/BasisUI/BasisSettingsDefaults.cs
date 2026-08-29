@@ -710,6 +710,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> EnableShaderBlocklist = new("enableshaderblocklist", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<string> ShaderBlocklistPatterns = new("shaderblocklistpatterns", new BasisPlatformDefault<string>(string.Empty));
         public static BasisSettingsBinding<bool> EnableGraphicsStatePrewarm = new("enablegraphicsstateprewarm_v2", new BasisPlatformDefault<bool> { windows = true, android = false, ios = false, linux = false, other = false });
+        public static BasisSettingsBinding<bool> EnableStagedAvatarReveal = new("enablestagedavatarreveal", new BasisPlatformDefault<bool> { windows = true, android = false, ios = false, linux = false, other = false });
+        // MB, not bytes — matches AvatarDownloadSize's convention for a PanelSlider.ValueDisplayMode.MemorySize binding.
+        public static BasisSettingsBinding<float> PsoCacheSizeMb = new("psocachesizemb", new BasisPlatformDefault<float>(10240f));
         public static BasisSettingsBinding<bool> ContentPoliceLogging = new("contentpolicelogging", new BasisPlatformDefault<bool>(false));
 
         /// <summary>
@@ -913,6 +916,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> JiggleColliderLodNearDistance = new("jigglecolliderlodneardistance", new BasisPlatformDefault<float>(25));
         public static BasisSettingsBinding<float> JiggleColliderLodMidDistance = new("jigglecolliderlodmiddistance", new BasisPlatformDefault<float>(50));
         public static BasisSettingsBinding<float> JiggleColliderLodFarDistance = new("jigglecolliderlodfardistance", new BasisPlatformDefault<float>(100));
+
+        // Distance-based pause of remote avatars' jiggle SIMULATION itself (Verlet integrate +
+        // transform I/O), not just colliders — see BasisJiggleSimulationLOD. Off by default:
+        // unlike the collider LOD above, this has never been run in a headset session; the
+        // maintainer should verify it looks right before flipping it on.
+        public static BasisSettingsBinding<bool> UseJiggleSimulationDistanceLod = new("usejigglesimulationdistancelod", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> JiggleSimulationLodDistance = new("jigglesimulationloddistance", new BasisPlatformDefault<float>(120));
 
         // Animators default on at 1 — extras are a common perf trap (every child
         // Animator ticks every frame). Excess Animators are trimmed, not blocked.
@@ -2485,6 +2495,12 @@ namespace Basis.BasisUI
             BasisGraphicsStatePrewarm.Enabled = EnableGraphicsStatePrewarm.RawValue;
             BasisGraphicsStateWarmPump.Apply(EnableGraphicsStatePrewarm.RawValue);
             EnableGraphicsStatePrewarm.OnChanged += value => { BasisGraphicsStatePrewarm.Enabled = value; BasisGraphicsStateWarmPump.Apply(value); };
+            EnableStagedAvatarReveal.LoadBindingValue();
+            Basis.Scripts.Rendering.BasisAvatarPsoReveal.Apply(EnableStagedAvatarReveal.RawValue);
+            EnableStagedAvatarReveal.OnChanged += Basis.Scripts.Rendering.BasisAvatarPsoReveal.Apply;
+            PsoCacheSizeMb.LoadBindingValue();
+            BasisGraphicsStatePrewarm.MaxCacheBytes = (long)(PsoCacheSizeMb.RawValue * 1024f * 1024f);
+            PsoCacheSizeMb.OnChanged += value => BasisGraphicsStatePrewarm.MaxCacheBytes = (long)(value * 1024f * 1024f);
             ContentPoliceLogging.LoadBindingValue();
             ContentPoliceControl.VerboseLogging = ContentPoliceLogging.RawValue;
             ContentPoliceLogging.OnChanged += value => ContentPoliceControl.VerboseLogging = value;
@@ -2570,6 +2586,8 @@ namespace Basis.BasisUI
             JiggleColliderLodNearDistance.LoadBindingValue();
             JiggleColliderLodMidDistance.LoadBindingValue();
             JiggleColliderLodFarDistance.LoadBindingValue();
+            UseJiggleSimulationDistanceLod.LoadBindingValue();
+            JiggleSimulationLodDistance.LoadBindingValue();
             UsePerfLimitAnimators.LoadBindingValue();
             MaxPerfAnimators.LoadBindingValue();
             UsePerfLimitBones.LoadBindingValue();

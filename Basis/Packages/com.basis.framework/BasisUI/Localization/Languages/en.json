@@ -12775,6 +12775,10 @@
       "value": "FSR"
     },
     {
+      "key": "settings.graphics.aa.fsr3",
+      "value": "FSR 3 (temporal)"
+    },
+    {
       "key": "settings.graphics.hdr.32bit",
       "value": "32bit"
     },
@@ -17859,6 +17863,14 @@
     {
       "key": "settings.graphics.renderer.title",
       "value": "Renderer"
+    },
+    {
+      "key": "settings.graphics.psoCacheSize",
+      "value": "PSO Cache Size"
+    },
+    {
+      "key": "settings.graphics.psoCacheSize.tooltip",
+      "value": "How much disk space to spend remembering pipeline state for shaders you've already drawn on DX12, so an avatar you've loaded before doesn't hitch again. Raising this trades disk space for fewer repeat hitches; the cache is trimmed automatically if it ever goes over."
     },
     {
       "key": "settings.graphics.renderer.description",
