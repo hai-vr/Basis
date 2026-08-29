@@ -9,6 +9,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
+using Basis.Scripts.Rendering;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -1234,7 +1235,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         ToggleToneMapping(CaptureTonemapping);
 
 #if BASIS_HAS_GI && !UNITY_ANDROID
-        SMModuleGlobalIlluminationURP.BeginCapture(captureCamera);
+        SMModuleGlobalIlluminationURP.BeginCapture(captureCamera, OverrideGlobalIllumination ? GlobalIlluminationOverride : (BasisGlobalIlluminationCaptureOverride?)null);
+#endif
+#if BASIS_HAS_RTAO && !UNITY_ANDROID
+        BasisRTAOIntegration.BeginCapture(captureCamera, OverrideRTAO ? RTAOOverride : (BasisRTAOCaptureOverride?)null);
 #endif
         try
         {
@@ -1244,6 +1248,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
 #if BASIS_HAS_GI && !UNITY_ANDROID
             SMModuleGlobalIlluminationURP.EndCapture();
+#endif
+#if BASIS_HAS_RTAO && !UNITY_ANDROID
+            BasisRTAOIntegration.EndCapture();
 #endif
         }
 
@@ -1794,6 +1801,126 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             ? (TonemappingMode)mode
             : TonemappingMode.ACES;
     }
+
+#if BASIS_HAS_GI && !UNITY_ANDROID
+    /// <summary>
+    /// The per-photo Global Illumination substitute this camera applies when
+    /// <see cref="OverrideGlobalIllumination"/> is on. Inert otherwise — like
+    /// <see cref="CaptureTonemapping"/>, there is nothing here to keep continuously previewed, so
+    /// it only ever reaches the renderer inside <see cref="TakeScreenshot"/>. Defaulted to match
+    /// the player's own live Global Illumination settings, so turning the override on for the
+    /// first time does not jar against what the live preview already looks like.
+    /// </summary>
+    private BasisGlobalIlluminationCaptureOverride giOverride = new BasisGlobalIlluminationCaptureOverride
+    {
+        Mode = SMModuleGlobalIlluminationURP.ModeOptions[0],
+        SkinnedMeshes = SMModuleGlobalIlluminationURP.SkinnedMeshesOptions[1],
+        Layers = SMModuleGlobalIlluminationURP.LayersOptions[2],
+        Quality = SMModuleGlobalIlluminationURP.QualityOptions[1],
+        Fallback = SMModuleGlobalIlluminationURP.FallbackOptions[2],
+        IgnoreBakedEmission = false,
+        Intensity = 1f,
+        Saturation = 1f,
+        Obscurance = 0.5f,
+        RayLength = 16f,
+        Smoothing = 1f,
+        WideBlur = true,
+        RayReuse = true,
+        Emitters = true,
+        EmitterIntensity = 3f,
+        Specular = false,
+        ObscuranceRadius = 0.5f,
+        FadeDistance = 120f,
+        NormalBias = 0.02f,
+        DistanceBias = 0.0015f,
+        BounceThreshold = 0.02f,
+        FireflyClamp = 6f,
+        ReflectionProbes = false,
+        Mirrors = true,
+    };
+
+    /// <summary>Whether <see cref="GlobalIlluminationOverride"/> substitutes into this camera's own captures. Off by default, so a fresh camera's photos match the player's live settings exactly.</summary>
+    public bool OverrideGlobalIllumination { get; private set; }
+
+    public BasisGlobalIlluminationCaptureOverride GlobalIlluminationOverride => giOverride;
+
+    public void SetOverrideGlobalIllumination(bool enabled) => OverrideGlobalIllumination = enabled;
+    public void SetGlobalIlluminationOverrideMode(int index) => giOverride.Mode = ClampedGiOption(SMModuleGlobalIlluminationURP.ModeOptions, index);
+    public void SetGlobalIlluminationOverrideSkinnedMeshes(int index) => giOverride.SkinnedMeshes = ClampedGiOption(SMModuleGlobalIlluminationURP.SkinnedMeshesOptions, index);
+    public void SetGlobalIlluminationOverrideLayers(int index) => giOverride.Layers = ClampedGiOption(SMModuleGlobalIlluminationURP.LayersOptions, index);
+    public void SetGlobalIlluminationOverrideQuality(int index) => giOverride.Quality = ClampedGiOption(SMModuleGlobalIlluminationURP.QualityOptions, index);
+    public void SetGlobalIlluminationOverrideFallback(int index) => giOverride.Fallback = ClampedGiOption(SMModuleGlobalIlluminationURP.FallbackOptions, index);
+    public void SetGlobalIlluminationOverrideIgnoreBakedEmission(bool value) => giOverride.IgnoreBakedEmission = value;
+    public void SetGlobalIlluminationOverrideIntensity(float value) => giOverride.Intensity = value;
+    public void SetGlobalIlluminationOverrideSaturation(float value) => giOverride.Saturation = value;
+    public void SetGlobalIlluminationOverrideObscurance(float value) => giOverride.Obscurance = value;
+    public void SetGlobalIlluminationOverrideRayLength(float value) => giOverride.RayLength = value;
+    public void SetGlobalIlluminationOverrideSmoothing(float value) => giOverride.Smoothing = value;
+    public void SetGlobalIlluminationOverrideWideBlur(bool value) => giOverride.WideBlur = value;
+    public void SetGlobalIlluminationOverrideRayReuse(bool value) => giOverride.RayReuse = value;
+    public void SetGlobalIlluminationOverrideEmitters(bool value) => giOverride.Emitters = value;
+    public void SetGlobalIlluminationOverrideEmitterIntensity(float value) => giOverride.EmitterIntensity = value;
+    public void SetGlobalIlluminationOverrideSpecular(bool value) => giOverride.Specular = value;
+    public void SetGlobalIlluminationOverrideObscuranceRadius(float value) => giOverride.ObscuranceRadius = value;
+    public void SetGlobalIlluminationOverrideFadeDistance(float value) => giOverride.FadeDistance = value;
+    public void SetGlobalIlluminationOverrideNormalBias(float value) => giOverride.NormalBias = value;
+    public void SetGlobalIlluminationOverrideDistanceBias(float value) => giOverride.DistanceBias = value;
+    public void SetGlobalIlluminationOverrideBounceThreshold(float value) => giOverride.BounceThreshold = value;
+    public void SetGlobalIlluminationOverrideFireflyClamp(float value) => giOverride.FireflyClamp = value;
+    public void SetGlobalIlluminationOverrideReflectionProbes(bool value) => giOverride.ReflectionProbes = value;
+    public void SetGlobalIlluminationOverrideMirrors(bool value) => giOverride.Mirrors = value;
+
+    private static string ClampedGiOption(string[] options, int index) => options[Mathf.Clamp(index, 0, options.Length - 1)];
+#endif
+
+#if BASIS_HAS_RTAO && !UNITY_ANDROID
+    /// <summary>
+    /// The per-photo ambient occlusion substitute this camera applies when
+    /// <see cref="OverrideRTAO"/> is on. Inert otherwise, and only ever reaches the renderer inside
+    /// <see cref="TakeScreenshot"/> - see <see cref="giOverride"/>, which this mirrors. Defaulted to
+    /// match the player's own live settings.
+    /// </summary>
+    private BasisRTAOCaptureOverride rtaoOverride = new BasisRTAOCaptureOverride
+    {
+        Mode = BasisRTAOSettingsMap.ModeScreenSpace,
+        Intensity = 1f,
+        Radius = 0.02f,
+        ApplyMode = BasisRTAOSettingsMap.ApplyLighting,
+        DenoisePasses = 2,
+        DirectStrength = 0.5f,
+        Layers = "Avatars",
+        SkinnedMeshes = "Proxy",
+        NormalBias = 0.005f,
+        DistanceBias = 0.0005f,
+        Falloff = 1f,
+        Power = 1f,
+        FadeStart = 40f,
+        FadeEnd = 60f,
+        SpecularRelief = 0f,
+    };
+
+    /// <summary>Whether <see cref="RTAOOverride"/> substitutes into this camera's own captures. Off by default, so a fresh camera's photos match the player's live settings exactly.</summary>
+    public bool OverrideRTAO { get; private set; }
+
+    public BasisRTAOCaptureOverride RTAOOverride => rtaoOverride;
+
+    public void SetOverrideRTAO(bool enabled) => OverrideRTAO = enabled;
+    public void SetRTAOOverrideMode(int index) => rtaoOverride.Mode = index == 1 ? BasisRTAOSettingsMap.ModeRayTraced : BasisRTAOSettingsMap.ModeScreenSpace;
+    public void SetRTAOOverrideIntensity(float value) => rtaoOverride.Intensity = value;
+    public void SetRTAOOverrideRadius(float value) => rtaoOverride.Radius = value;
+    public void SetRTAOOverrideApplyMode(int index) => rtaoOverride.ApplyMode = index == 1 ? BasisRTAOSettingsMap.ApplyFinalImage : BasisRTAOSettingsMap.ApplyLighting;
+    public void SetRTAOOverrideDenoisePasses(int passes) => rtaoOverride.DenoisePasses = Mathf.Clamp(passes, 0, 3);
+    public void SetRTAOOverrideDirectStrength(float value) => rtaoOverride.DirectStrength = value;
+    public void SetRTAOOverrideLayers(int index) => rtaoOverride.Layers = index switch { 1 => "World", 2 => "World And Avatars", _ => "Avatars" };
+    public void SetRTAOOverrideSkinnedMeshes(int index) => rtaoOverride.SkinnedMeshes = index == 1 ? "Proxy" : "Off";
+    public void SetRTAOOverrideNormalBias(float value) => rtaoOverride.NormalBias = value;
+    public void SetRTAOOverrideDistanceBias(float value) => rtaoOverride.DistanceBias = value;
+    public void SetRTAOOverrideFalloff(float value) => rtaoOverride.Falloff = value;
+    public void SetRTAOOverridePower(float value) => rtaoOverride.Power = value;
+    public void SetRTAOOverrideFadeStart(float value) => rtaoOverride.FadeStart = value;
+    public void SetRTAOOverrideFadeEnd(float value) => rtaoOverride.FadeEnd = value;
+    public void SetRTAOOverrideSpecularRelief(float value) => rtaoOverride.SpecularRelief = value;
+#endif
 
     /// <summary>Boot-mode swap handler.</summary>
     private new void OnBootModeChanged(string obj)

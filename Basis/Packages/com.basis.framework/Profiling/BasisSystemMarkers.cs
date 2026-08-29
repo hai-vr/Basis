@@ -35,3 +35,10 @@ internal static class BasisVisibilityMarkers
         Join = new BasisMarker(Group, "Join"),
         Apply = new BasisMarker(Group, "Apply");
 }
+internal static class BasisNamePlateMarkers
+{
+    const string Group = "BasisNamePlate";
+    public static readonly BasisMarker Rebuild = new BasisMarker(Group, "Rebuild"),
+        Topology = new BasisMarker(Group, "Topology"),
+        Finish = new BasisMarker(Group, "Finish");
+}

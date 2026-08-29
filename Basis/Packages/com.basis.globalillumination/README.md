@@ -59,6 +59,11 @@ The player's own camera always. Beyond that:
     genuinely shared: a light close to the handheld camera can take a slot from one that was only just
     making the cut for the player, which is the price of two viewpoints out of one list and far cheaper
     than a second structure per camera per frame.
+  - A capture can also carry a **per-photo override** of everything except resolution, ray budget and
+    the temporal filter (already forced above) - mode, quality, intensity, emitters, reflections and the
+    rest - set from the camera's own Settings panel, so a photographer can dial in a different look for
+    their shot without touching their live settings. Off by default; see
+    `BasisGlobalIlluminationCaptureOverride` and `SMModuleGlobalIlluminationURP.BeginCapture`.
 - **360 capture** suspends the effect outright. A screen space gather resolves differently on each of the
   six cube faces, so the seams would be visible along every edge.
 - **Reflection probes** are off by default; a realtime probe would pay for the effect once per face.

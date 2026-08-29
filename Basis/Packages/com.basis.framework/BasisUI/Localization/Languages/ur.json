@@ -4579,7 +4579,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "گردش Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "نام" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "منتخب اینکر کا نام تبدیل کرتا ہے۔ نام اس کے ہینڈل پر اور اینکر ڈراپ ڈاؤن میں دکھائی دیتا ہے۔" },
-    { "key": "settings.graphics.renderer.title", "value": "رینڈرر" },
+    { "key": "settings.graphics.renderer.title", "value": "گرافکس API" },
     { "key": "settings.graphics.renderer.description", "value": "یہ سیشن {0} کے ساتھ رینڈر ہو رہا ہے۔ صرف وہی گرافکس APIs درج ہیں جو یہ بلڈ فراہم کرتا ہے۔" },
     { "key": "settings.graphics.renderer.api", "value": "گرافکس API" },
     { "key": "settings.graphics.renderer.api.restart", "value": "گرافکس API (ری سٹارٹ درکار ہے)" },

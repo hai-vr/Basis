@@ -57,6 +57,17 @@ public sealed partial class BasisGlobalIlluminationPass
             samplerPublish.enableRecording = enabled;
         }
 
+        public static float GpuMsPrepass => samplerPrepass.gpuElapsedTime;
+        public static float GpuMsTrace => samplerTrace.gpuElapsedTime;
+        public static float GpuMsResolve => samplerResolve.gpuElapsedTime;
+        public static float GpuMsTemporal => samplerTemporal.gpuElapsedTime;
+        public static float GpuMsBlur => samplerBlur.gpuElapsedTime;
+        public static float GpuMsUpsample => samplerUpsample.gpuElapsedTime;
+        public static float GpuMsPublish => samplerPublish.gpuElapsedTime;
+
+        private static int invocationFrame = -1, invocationCount;
+        public static int InvocationsThisFrame => invocationFrame == Time.frameCount ? invocationCount : 0;
+
         // Reflections are deterministic per pixel - one mirror ray, no lobe to sample - so the only thing
         // the accumulation has to settle is the light resampling at the hit. It converges far faster than
         // the diffuse gather does, and letting history run as long there would smear a moving reflection
@@ -123,6 +134,9 @@ public sealed partial class BasisGlobalIlluminationPass
             Camera camera = cameraData.camera;
             int frame = Time.renderedFrameCount;
             if (!CanRender(settings, camera, frame)) { return; }
+
+            if (invocationFrame != Time.frameCount) { invocationFrame = Time.frameCount; invocationCount = 0; }
+            invocationCount++;
 
             BasisGlobalIlluminationRayTracer tracer = BasisGlobalIlluminationRayTracer.Instance;
             RenderTextureDescriptor descriptor = cameraData.cameraTargetDescriptor;

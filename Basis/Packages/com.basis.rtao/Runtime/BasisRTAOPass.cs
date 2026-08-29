@@ -129,6 +129,9 @@ namespace Basis.Rendering.RTAO
         public static float GpuMs => samplerAll.gpuElapsedTime;
         public static void SetProfilingEnabled(bool enabled) => samplerAll.enableRecording = enabled;
 
+        private static int invocationFrame = -1, invocationCount;
+        public static int InvocationsThisFrame => invocationFrame == Time.frameCount ? invocationCount : 0;
+
         public BasisRTAOPass()
         {
             profilingSampler = samplerAll;
@@ -381,6 +384,9 @@ namespace Basis.Rendering.RTAO
             int fullWidth = cameraDescriptor.width, fullHeight = cameraDescriptor.height;
             if (fullWidth <= 0 || fullHeight <= 0)
                 return;
+
+            if (invocationFrame != Time.frameCount) { invocationFrame = Time.frameCount; invocationCount = 0; }
+            invocationCount++;
 
             int viewCount = ViewCountOf(cameraData);
             Vector2Int traceSize = TraceResolution(fullWidth, fullHeight, settings.resolutionDivider);

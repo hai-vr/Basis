@@ -4579,7 +4579,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "旋转 Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "名称" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "重命名所选锚点。名称会显示在其手柄上及锚点下拉菜单中。" },
-    { "key": "settings.graphics.renderer.title", "value": "渲染器" },
+    { "key": "settings.graphics.renderer.title", "value": "图形 API" },
     { "key": "settings.graphics.renderer.description", "value": "本次会话正在使用 {0} 渲染。此处仅列出本构建版本支持的图形 API。" },
     { "key": "settings.graphics.renderer.api", "value": "图形 API" },
     { "key": "settings.graphics.renderer.api.restart", "value": "图形 API（需要重新启动）" },

@@ -142,6 +142,57 @@ public static class BasisCameraSettingsReadout
         if (settings.overrideVolumetricFog)
             Row("settings.graphics.fog.density", Number(settings.VolumetricFogVolumedensity));
 
+        Section("camera.section.globalIllumination");
+        Row("camera.gi.override", OnOff(settings.overrideGlobalIllumination));
+        if (settings.overrideGlobalIllumination)
+        {
+            Row("settings.graphics.gi.mode", GiModeLabel(settings.giMode));
+            Row("settings.graphics.gi.layers", GiLayersLabel(settings.giLayers));
+            Row("settings.graphics.gi.skinned", GiSkinnedMeshesLabel(settings.giSkinnedMeshes));
+            Row("settings.graphics.gi.quality", GiQualityLabel(settings.giQuality));
+            Row("settings.graphics.gi.fallback", GiFallbackLabel(settings.giFallback));
+            Row("settings.graphics.gi.ignoreBakedEmission", OnOff(settings.giIgnoreBakedEmission));
+            Row("settings.graphics.gi.intensity", Number(settings.giIntensity));
+            Row("settings.graphics.gi.saturation", Number(settings.giSaturation));
+            Row("settings.graphics.gi.obscurance", Number(settings.giObscurance));
+            Row("settings.graphics.gi.rayLength", Number(settings.giRayLength));
+            Row("settings.graphics.gi.smoothing", Number(settings.giSmoothing));
+            Row("settings.graphics.gi.wideBlur", OnOff(settings.giWideBlur));
+            Row("settings.graphics.gi.rayReuse", OnOff(settings.giRayReuse));
+            Row("settings.graphics.gi.emitters", OnOff(settings.giEmitters));
+            Row("settings.graphics.gi.emitterIntensity", Number(settings.giEmitterIntensity));
+            Row("settings.graphics.gi.specular", OnOff(settings.giSpecular));
+            Row("settings.graphics.gi.obscuranceRadius", Number(settings.giObscuranceRadius));
+            Row("settings.graphics.gi.fadeDistance", Number(settings.giFadeDistance));
+            Row("settings.graphics.gi.normalBias", Number(settings.giNormalBias));
+            Row("settings.graphics.gi.distanceBias", Number(settings.giDistanceBias));
+            Row("settings.graphics.gi.bounceThreshold", Number(settings.giBounceThreshold));
+            Row("settings.graphics.gi.fireflyClamp", Number(settings.giFireflyClamp));
+            Row("settings.graphics.gi.reflectionProbes", OnOff(settings.giReflectionProbes));
+            Row("camera.gi.mirrors", OnOff(settings.giMirrors));
+        }
+
+        Section("camera.section.rtao");
+        Row("camera.rtao.override", OnOff(settings.overrideRTAO));
+        if (settings.overrideRTAO)
+        {
+            Row("settings.graphics.rtao.mode", RtaoModeLabel(settings.rtaoMode));
+            Row("settings.graphics.rtao.intensity", Number(settings.rtaoIntensity));
+            Row("settings.graphics.rtao.radius", Number(settings.rtaoRadius));
+            Row("settings.graphics.rtao.apply", RtaoApplyModeLabel(settings.rtaoApplyMode));
+            Row("settings.graphics.rtao.denoise", RtaoDenoiseLabel(settings.rtaoDenoisePasses));
+            Row("settings.graphics.rtao.directStrength", Number(settings.rtaoDirectStrength));
+            Row("settings.graphics.rtao.layers", RtaoLayersLabel(settings.rtaoLayers));
+            Row("settings.graphics.rtao.skinned", RtaoSkinnedMeshesLabel(settings.rtaoSkinnedMeshes));
+            Row("settings.graphics.rtao.normalBias", Number(settings.rtaoNormalBias));
+            Row("settings.graphics.rtao.distanceBias", Number(settings.rtaoDistanceBias));
+            Row("settings.graphics.rtao.falloff", Number(settings.rtaoFalloff));
+            Row("settings.graphics.rtao.power", Number(settings.rtaoPower));
+            Row("settings.graphics.rtao.fadeStart", Number(settings.rtaoFadeStart));
+            Row("settings.graphics.rtao.fadeEnd", Number(settings.rtaoFadeEnd));
+            Row("settings.graphics.rtao.specularRelief", Number(settings.rtaoSpecularRelief));
+        }
+
         Section("camera.output");
         Row("camera.photoResolution", ResolutionLabel(metaData, settings.resolutionIndex));
         Row("camera.photoFormat", Preset(metaData?.formats, settings.formatIndex));
@@ -379,6 +430,73 @@ public static class BasisCameraSettingsReadout
             default: return BasisLocalization.Get("camera.detachedMarker.puck");
         }
     }
+
+    private static string GiModeLabel(int mode) =>
+        BasisLocalization.Get(mode == 1 ? "settings.graphics.gi.mode.rayTraced" : "settings.graphics.gi.mode.screenSpace");
+
+    private static string GiLayersLabel(int layers)
+    {
+        switch (layers)
+        {
+            case 0: return BasisLocalization.Get("settings.graphics.gi.layers.avatars");
+            case 1: return BasisLocalization.Get("settings.graphics.gi.layers.world");
+            default: return BasisLocalization.Get("settings.graphics.gi.layers.worldAndAvatars");
+        }
+    }
+
+    private static string GiSkinnedMeshesLabel(int mode) =>
+        BasisLocalization.Get(mode == 0 ? "settings.graphics.gi.skinned.off" : "settings.graphics.gi.skinned.proxy");
+
+    private static string GiQualityLabel(int quality)
+    {
+        switch (quality)
+        {
+            case 0: return BasisLocalization.Get("settings.graphics.quality.low");
+            case 2: return BasisLocalization.Get("settings.graphics.quality.high");
+            case 3: return BasisLocalization.Get("settings.graphics.quality.ultra");
+            default: return BasisLocalization.Get("settings.graphics.quality.medium");
+        }
+    }
+
+    private static string GiFallbackLabel(int fallback)
+    {
+        switch (fallback)
+        {
+            case 0: return BasisLocalization.Get("settings.graphics.gi.fallback.none");
+            case 1: return BasisLocalization.Get("settings.graphics.gi.fallback.sky");
+            default: return BasisLocalization.Get("settings.graphics.gi.fallback.probe");
+        }
+    }
+
+    private static string RtaoModeLabel(int mode) =>
+        BasisLocalization.Get(mode == 1 ? "settings.graphics.rtao.mode.rayTraced" : "settings.graphics.rtao.mode.screenSpace");
+
+    private static string RtaoApplyModeLabel(int mode) =>
+        BasisLocalization.Get(mode == 1 ? "settings.graphics.rtao.apply.finalImage" : "settings.graphics.rtao.apply.lighting");
+
+    private static string RtaoDenoiseLabel(int passes)
+    {
+        switch (passes)
+        {
+            case 0: return BasisLocalization.Get("ui.option.off");
+            case 1: return BasisLocalization.Get("settings.graphics.rtao.denoise.standard");
+            case 3: return BasisLocalization.Get("settings.graphics.rtao.denoise.maximum");
+            default: return BasisLocalization.Get("settings.graphics.rtao.denoise.high");
+        }
+    }
+
+    private static string RtaoLayersLabel(int layers)
+    {
+        switch (layers)
+        {
+            case 1: return BasisLocalization.Get("settings.graphics.rtao.layers.world");
+            case 2: return BasisLocalization.Get("settings.graphics.rtao.layers.worldAndAvatars");
+            default: return BasisLocalization.Get("settings.graphics.rtao.layers.avatars");
+        }
+    }
+
+    private static string RtaoSkinnedMeshesLabel(int mode) =>
+        BasisLocalization.Get(mode == 1 ? "settings.graphics.rtao.skinned.proxy" : "settings.graphics.rtao.skinned.off");
 
     private static string BackgroundModeLabel(int mode)
     {

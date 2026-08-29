@@ -4579,7 +4579,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "旋轉 Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "名稱" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "重新命名所選錨點。名稱會顯示在其手柄上及錨點下拉選單中。" },
-    { "key": "settings.graphics.renderer.title", "value": "算繪器" },
+    { "key": "settings.graphics.renderer.title", "value": "圖形 API" },
     { "key": "settings.graphics.renderer.description", "value": "目前工作階段使用 {0} 進行算繪。這裡僅列出此組建隨附的圖形 API。" },
     { "key": "settings.graphics.renderer.api", "value": "圖形 API" },
     { "key": "settings.graphics.renderer.api.restart", "value": "圖形 API（需要重新啟動）" },

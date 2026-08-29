@@ -4465,7 +4465,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "Rotação Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "Nome" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "Renomeia a âncora selecionada. O nome aparece na sua alça e no menu suspenso de âncoras." },
-    { "key": "settings.graphics.renderer.title", "value": "Renderizador" },
+    { "key": "settings.graphics.renderer.title", "value": "API Gráfica" },
     { "key": "settings.graphics.renderer.description", "value": "Esta sessão está renderizando com {0}. Só são listadas as APIs gráficas que esta versão inclui." },
     { "key": "settings.graphics.renderer.api", "value": "API Gráfica" },
     { "key": "settings.graphics.renderer.api.restart", "value": "API Gráfica (reinício necessário)" },

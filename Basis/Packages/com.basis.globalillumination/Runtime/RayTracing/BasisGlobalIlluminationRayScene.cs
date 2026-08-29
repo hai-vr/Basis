@@ -154,6 +154,11 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
         public int[] instanceIds;
         public MeshGeometry geometry;
         public bool seen;
+        /// <summary>
+        /// The renderer WriteProxyMaterials last read colour from, cached so the per frame block check below
+        /// does not re-walk the avatar's hierarchy for every avatar every frame.
+        /// </summary>
+        public Renderer representativeRenderer;
     }
 
     private readonly Dictionary<EntityId, ProxyEntry> proxies = new Dictionary<EntityId, ProxyEntry>();
@@ -247,6 +252,7 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
         else
         {
             RefreshBlockMaterials(settings);
+            if (settings.skinnedMode == BasisGlobalIlluminationRaySkinnedMode.Proxy) { RefreshProxyBlockMaterials(settings); }
         }
 
         UpdateTransforms();
@@ -325,6 +331,22 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
             Entry entry = pair.Value;
             if (entry.renderer == null || !entry.renderer.HasPropertyBlock()) { continue; }
             WriteMaterials(entry, settings);
+        }
+    }
+
+    /// <summary>
+    /// Proxy equivalent of RefreshBlockMaterials. An avatar's represented colour is normally only re-read on
+    /// the rescan timer (default 2s), which is far too slow for a MaterialPropertyBlock driven pulse -
+    /// AudioLink above all - so any proxy whose representative renderer actually carries a block gets re-read
+    /// every frame instead, same as a non-avatar renderer already does.
+    /// </summary>
+    private void RefreshProxyBlockMaterials(in BasisGlobalIlluminationRaySceneSettings settings)
+    {
+        foreach (KeyValuePair<EntityId, ProxyEntry> pair in proxies)
+        {
+            ProxyEntry entry = pair.Value;
+            if (entry.representativeRenderer == null || !entry.representativeRenderer.HasPropertyBlock()) { continue; }
+            ApplyProxyMaterials(entry, settings);
         }
     }
 
@@ -911,17 +933,37 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
     {
         if (entry.animator == null || entry.instanceIds == null) { return; }
 
-        Color albedo = Color.grey;
-        Color emission = Color.black;
+        entry.representativeRenderer = null;
         Renderer[] renderers = entry.animator.GetComponentsInChildren<Renderer>(false);
         for (int index = 0; index < renderers.Length; index++)
         {
             Renderer renderer = renderers[index];
-            if (renderer == null) { continue; }
-            Material material = renderer.sharedMaterial;
-            if (material == null) { continue; }
-            ReadSurface(material, settings, textures, out albedo, out emission);
+            if (renderer == null || renderer.sharedMaterial == null) { continue; }
+            entry.representativeRenderer = renderer;
             break;
+        }
+
+        ApplyProxyMaterials(entry, settings);
+    }
+
+    /// <summary>
+    /// Re-reads colour off the proxy's already-found representative renderer and pushes it to its capsules,
+    /// without walking the avatar's hierarchy again. Split out of WriteProxyMaterials so the per frame block
+    /// refresh below can call this alone - GetComponentsInChildren allocates a fresh array per avatar, which
+    /// is fine once per rescan but would be needless garbage every frame for a room full of AudioLink avatars.
+    /// </summary>
+    private void ApplyProxyMaterials(ProxyEntry entry, in BasisGlobalIlluminationRaySceneSettings settings)
+    {
+        Color albedo = Color.grey;
+        Color emission = Color.black;
+        Renderer renderer = entry.representativeRenderer;
+        Material material = renderer != null ? renderer.sharedMaterial : null;
+        if (material != null)
+        {
+            // Slot 0, matching sharedMaterial: picks up a block set for slot 0 specifically, and falls back
+            // to a whole-renderer block (see ResolveBlock) - either is how an accessory's AudioLink material
+            // actually drives its emission, and neither touches the shared material asset itself.
+            ReadSurface(material, renderer, 0, settings, textures, out albedo, out emission);
         }
 
         float scale = settings.avatarEmissionScale;

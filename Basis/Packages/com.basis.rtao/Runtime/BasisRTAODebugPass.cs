@@ -15,13 +15,17 @@ namespace Basis.Rendering.RTAO
         // Inserting the After Opaque pass shifted this; the debug view is the third pass on the shader.
         public const int ShaderPass = 2;
 
+        private static readonly ProfilingSampler samplerDebug = new ProfilingSampler("BasisRTAO Debug");
+        public static float GpuMs => samplerDebug.gpuElapsedTime;
+        public static void SetProfilingEnabled(bool enabled) => samplerDebug.enableRecording = enabled;
+
         private Material material;
         private BasisRTAODebugStage stage;
         private MaterialPropertyBlock block;
 
         public BasisRTAODebugPass()
         {
-            profilingSampler = new ProfilingSampler("BasisRTAO Debug");
+            profilingSampler = samplerDebug;
             renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
         }
 

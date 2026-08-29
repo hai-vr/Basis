@@ -369,7 +369,7 @@ namespace Basis.BasisUI
         // Emitters carry light from sources the trace cannot see: a sign or a strip light is under one
         // texel at traced resolution, and anything behind the camera is off screen entirely.
         public static BasisSettingsBinding<bool> GlobalIlluminationEmitters = new("globalilluminationemitters", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<float> GlobalIlluminationEmitterIntensity = new("globalilluminationemitterintensity", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> GlobalIlluminationEmitterIntensity = new("globalilluminationemitterintensity", new BasisPlatformDefault<float>(3f));
         public const float GI_EMITTER_INTENSITY_MIN = 0.1f;
         public const float GI_EMITTER_INTENSITY_MAX = 8f;
         // Off by default: a realtime reflection probe pays for the whole effect once per face.

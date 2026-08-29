@@ -2033,7 +2033,7 @@ namespace Basis.BasisUI
                 sliderGiFireflyClamp.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.fireflyClamp.tooltip"));
 
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(giAdvancedToggle, giAdvanced, false,
-                    _ => descriptor.ForceRebuild());
+                    _ => RebuildGiLayout());
 
                 void SetGiRowsActive(bool val)
                 {
@@ -2077,30 +2077,31 @@ namespace Basis.BasisUI
                     sliderGiBounceThreshold.Descriptor.SetActive(rayTraced);
                 }
 
+                // giAdvanced nests inside giGroup, so a row toggled inside the fold needs giGroup
+                // rebuilt too - rebuilding only the page root measures giGroup before it has resized.
+                void RebuildGiLayout() =>
+                    PanelElementDescriptor.RebuildLayoutChain(giGroup.ContentParent, container);
+
                 SetGiRowsActive(toggleGi.Value);
                 dropdownGiMode.OnValueChanged += (_) =>
                 {
                     SetGiRowsActive(toggleGi.Value);
-                    giGroup.ForceRebuild();
-                    descriptor.ForceRebuild();
+                    RebuildGiLayout();
                 };
                 toggleGiTemporal.OnValueChanged += (_) =>
                 {
                     SetGiRowsActive(toggleGi.Value);
-                    giGroup.ForceRebuild();
-                    descriptor.ForceRebuild();
+                    RebuildGiLayout();
                 };
                 toggleGiEmitters.OnValueChanged += (_) =>
                 {
                     SetGiRowsActive(toggleGi.Value);
-                    giGroup.ForceRebuild();
-                    descriptor.ForceRebuild();
+                    RebuildGiLayout();
                 };
                 toggleGi.OnValueChanged += (val) =>
                 {
                     SetGiRowsActive(val);
-                    giGroup.ForceRebuild();
-                    descriptor.ForceRebuild();
+                    RebuildGiLayout();
                 };
 
                 if (Application.platform == RuntimePlatform.Android)
@@ -2303,7 +2304,7 @@ namespace Basis.BasisUI
                 sliderRtaoSpecularRelief.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.specularRelief.tooltip"));
 
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(rtaoAdvancedToggle, rtaoAdvanced, false,
-                    _ => descriptor.ForceRebuild());
+                    _ => RebuildRtaoLayout());
 
                 void SetRtaoRowsActive(bool val)
                 {
@@ -2345,24 +2346,26 @@ namespace Basis.BasisUI
                     sliderRtaoDistanceBias.Descriptor.SetActive(tracesGeometry);
                 }
 
+                // rtaoAdvanced nests inside rtaoGroup, so a row toggled inside the fold needs rtaoGroup
+                // rebuilt too - rebuilding only the page root measures rtaoGroup before it has resized.
+                void RebuildRtaoLayout() =>
+                    PanelElementDescriptor.RebuildLayoutChain(rtaoGroup.ContentParent, container);
+
                 SetRtaoRowsActive(toggleRtao.Value);
                 dropdownRtaoApply.OnValueChanged += (_) =>
                 {
                     SetRtaoRowsActive(toggleRtao.Value);
-                    rtaoGroup.ForceRebuild();
-                    descriptor.ForceRebuild();
+                    RebuildRtaoLayout();
                 };
                 dropdownRtaoMode.OnValueChanged += (_) =>
                 {
                     SetRtaoRowsActive(toggleRtao.Value);
-                    rtaoGroup.ForceRebuild();
-                    descriptor.ForceRebuild();
+                    RebuildRtaoLayout();
                 };
                 toggleRtao.OnValueChanged += (val) =>
                 {
                     SetRtaoRowsActive(val);
-                    rtaoGroup.ForceRebuild();
-                    descriptor.ForceRebuild();
+                    RebuildRtaoLayout();
                 };
 
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(rtaoToggle, rtaoGroup, true,

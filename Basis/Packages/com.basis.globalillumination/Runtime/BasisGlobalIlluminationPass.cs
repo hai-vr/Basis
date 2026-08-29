@@ -168,6 +168,19 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         samplerRayResolve.enableRecording = enabled;
     }
 
+    public static float GpuMsRayPrepass => samplerRayPrepass.gpuElapsedTime;
+    public static float GpuMsRayTrace => samplerRayTrace.gpuElapsedTime;
+    public static float GpuMsRayResolve => samplerRayResolve.gpuElapsedTime;
+    public static float GpuMsCopyColor => samplerCopy.gpuElapsedTime;
+    public static float GpuMsCoarseDepth => samplerCoarse.gpuElapsedTime;
+    public static float GpuMsTrace => samplerTrace.gpuElapsedTime;
+    public static float GpuMsTemporal => samplerTemporal.gpuElapsedTime;
+    public static float GpuMsBlur => samplerBlur.gpuElapsedTime;
+    public static float GpuMsComposite => samplerComposite.gpuElapsedTime;
+
+    private static int invocationFrame = -1, invocationCount;
+    public static int InvocationsThisFrame => invocationFrame == Time.frameCount ? invocationCount : 0;
+
     private static readonly Vector4[] emitterSpheres = new Vector4[MaxEmitters];
     private static readonly Vector4[] emitterRadiance = new Vector4[MaxEmitters];
     private static readonly List<BasisGlobalIlluminationEmitter> emitterScratch = new List<BasisGlobalIlluminationEmitter>();
@@ -262,6 +275,9 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         // those are recorded by SpecularPass at a different point in the frame.
         if (!settings.DiffuseActive()) { return; }
         if (!resourceData.cameraColor.IsValid() || !resourceData.cameraDepthTexture.IsValid()) { return; }
+
+        if (invocationFrame != Time.frameCount) { invocationFrame = Time.frameCount; invocationCount = 0; }
+        invocationCount++;
 
         Camera camera = cameraData.camera;
         RenderTextureDescriptor descriptor = cameraData.cameraTargetDescriptor;

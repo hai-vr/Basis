@@ -45,6 +45,11 @@
             "name": "com.basis.globalillumination",
             "expression": "",
             "define": "BASIS_HAS_GI"
+        },
+        {
+            "name": "com.basis.rtao",
+            "expression": "",
+            "define": "BASIS_HAS_RTAO"
         }
     ],
     "noEngineReferences": false

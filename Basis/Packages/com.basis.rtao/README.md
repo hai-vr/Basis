@@ -272,6 +272,13 @@ where the frame counter never advances. The avatar bake budget spends itself aro
 History is keyed per camera, so each mirror carries its own accumulation buffers at its own resolution.
 That is the memory cost of the setting.
 
+The handheld camera also forces Ultra quality and "Occlusion In Mirrors And Camera" on, unconditionally,
+for the single frame it captures a still on - exactly like Global Illumination forces Full resolution for
+the same shot - and can carry a **per-photo override** of everything else (mode, intensity, radius, layers
+and the rest) set from the camera's own Settings panel, so a photographer can dial in a different look for
+their shot without touching their live settings. Off by default; see `BasisRTAOCaptureOverride` and
+`BasisRTAOIntegration.BeginCapture`.
+
 ### Renderers
 
 The feature ships on both `DesktopRenderer.asset` and `DirectToScreenRenderer.asset`. Both start with

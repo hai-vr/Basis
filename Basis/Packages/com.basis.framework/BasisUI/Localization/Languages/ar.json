@@ -4579,7 +4579,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "الدوران Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "الاسم" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "يعيد تسمية المرسى المحدد. يظهر الاسم على مقبضه وفي القائمة المنسدلة للمراسي." },
-    { "key": "settings.graphics.renderer.title", "value": "العارض" },
+    { "key": "settings.graphics.renderer.title", "value": "واجهة الرسومات البرمجية" },
     { "key": "settings.graphics.renderer.description", "value": "تعرض هذه الجلسة باستخدام {0}. لا تُدرَج إلا واجهات الرسومات البرمجية التي يشحنها هذا الإصدار." },
     { "key": "settings.graphics.renderer.api", "value": "واجهة الرسومات البرمجية" },
     { "key": "settings.graphics.renderer.api.restart", "value": "واجهة الرسومات البرمجية (يتطلب إعادة التشغيل)" },

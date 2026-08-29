@@ -2167,13 +2167,6 @@ namespace Basis.ImagePickup
             using var stream = new MemoryStream(buffer, false);
             using var reader = new BinaryReader(stream, Encoding.UTF8);
             byte opcode = reader.ReadByte();
-            if (opcode != OpChunk && opcode != OpAnimationChunk && opcode != OpServerCacheRequest)
-            {
-                BasisDebug.Log(
-                    $"Image pickup RX: opcode={opcode} from player {senderId} ({buffer.Length} bytes), my NetworkID={NetworkID}.",
-                    LogTag
-                );
-            }
             try
             {
                 switch (opcode)

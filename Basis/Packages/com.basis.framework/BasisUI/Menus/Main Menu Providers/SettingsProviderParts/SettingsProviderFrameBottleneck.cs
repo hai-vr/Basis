@@ -68,6 +68,11 @@ namespace Basis.BasisUI
             gpuField.SetTitle(BasisLocalization.Get("settings.graphics.bottleneck.gpu"));
             gpuField.SetDescription("...");
 
+            PanelButton captureButton = PanelButton.CreateNew(group.ContentParent);
+            captureButton.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.bottleneck.renderPassCapture"));
+            captureButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.bottleneck.renderPassCapture.tooltip"));
+            captureButton.OnClicked += () => BasisRenderProfileHistory.CaptureToDisk("settings-panel");
+
             group.IsolateAsCanvas();
 
             Attach(toggle, group, frameField, cpuField, gpuField);

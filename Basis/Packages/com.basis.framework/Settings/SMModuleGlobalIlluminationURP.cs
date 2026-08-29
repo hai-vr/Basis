@@ -130,6 +130,49 @@ public struct BasisGlobalIlluminationState
     }
 }
 
+/// <summary>
+/// A per-photo substitute for the "look" half of <see cref="BasisGlobalIlluminationState"/> — the
+/// fields a camera can reasonably want different from the player's live settings for one shot.
+/// Deliberately excludes Enabled/Capture (not per-camera concerns), Resolution (already forced
+/// Full during capture — see <see cref="SMModuleGlobalIlluminationURP.BeginCapture"/>), and
+/// TemporalFilter/TemporalResponse (temporal accumulation is already forced off during capture,
+/// so a value here would be inert).
+///
+/// Mode, SkinnedMeshes, Layers, Quality and Fallback are stored as the canonical option strings
+/// (<see cref="SMModuleGlobalIlluminationURP.ModeOptions"/> and its siblings) and resolved through
+/// the same <c>Read*</c> parsers the live settings use, rather than the enum types themselves —
+/// which means nothing that only ever assigns into this struct needs to name a
+/// BasisGlobalIllumination enum type, so com.basis.camera can keep using it without a new asmdef
+/// reference (it only ever calls Camera-typed static methods on this class today).
+/// </summary>
+public struct BasisGlobalIlluminationCaptureOverride
+{
+    public string Mode;
+    public string SkinnedMeshes;
+    public string Layers;
+    public string Quality;
+    public string Fallback;
+    public bool IgnoreBakedEmission;
+    public float Intensity;
+    public float Saturation;
+    public float Obscurance;
+    public float RayLength;
+    public float Smoothing;
+    public bool WideBlur;
+    public bool RayReuse;
+    public bool Emitters;
+    public float EmitterIntensity;
+    public bool Specular;
+    public float ObscuranceRadius;
+    public float FadeDistance;
+    public float NormalBias;
+    public float DistanceBias;
+    public float BounceThreshold;
+    public float FireflyClamp;
+    public bool ReflectionProbes;
+    public bool Mirrors;
+}
+
 public class SMModuleGlobalIlluminationURP : BasisSettingsBase
 {
     public const int CaptureRayCount = 8;
@@ -140,6 +183,20 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     private static SMModuleGlobalIlluminationURP instance;
 
     private BasisGlobalIlluminationState state = BasisGlobalIlluminationState.FromDefaults();
+
+    /// <summary>Set only for the duration of a photo capture — see <see cref="BeginCapture"/>.</summary>
+    private BasisGlobalIlluminationCaptureOverride? captureOverride;
+
+    /// <summary>Canonical option strings for <see cref="BasisGlobalIlluminationCaptureOverride.Mode"/>, index-matched to the live Mode dropdown. Parsed by <see cref="ReadMode"/>.</summary>
+    public static readonly string[] ModeOptions = { "Screen Space", "Ray Traced" };
+    /// <summary>See <see cref="ModeOptions"/>. Parsed by <see cref="ReadSkinnedMode"/>.</summary>
+    public static readonly string[] SkinnedMeshesOptions = { "Off", "Proxy" };
+    /// <summary>See <see cref="ModeOptions"/>. Parsed by <see cref="ReadLayers"/>.</summary>
+    public static readonly string[] LayersOptions = { "Avatars", "World", "World And Avatars" };
+    /// <summary>See <see cref="ModeOptions"/>. Parsed by <see cref="ReadQuality"/>.</summary>
+    public static readonly string[] QualityOptions = { "Low", "Medium", "High", "Ultra" };
+    /// <summary>See <see cref="ModeOptions"/>. Parsed by <see cref="ReadFallback"/>.</summary>
+    public static readonly string[] FallbackOptions = { "None", "Sky", "Reflection Probe" };
 
     /// <summary>What the effect is rendering with. The settings provider writes straight into this.</summary>
     public BasisGlobalIlluminationSettings GlobalIllumination => BasisGlobalIlluminationSettings.Current;
@@ -259,13 +316,20 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         }
     }
 
-    public static void BeginCapture(Camera camera)
+    /// <summary>
+    /// <paramref name="photoOverride"/>, when given, substitutes its fields into the effective
+    /// state for exactly the duration of this capture — see <see cref="ApplyOverride"/>, which is
+    /// where it is actually applied, so every caller of that method (not just this one) sees a
+    /// consistent picture for as long as the capture is open.
+    /// </summary>
+    public static void BeginCapture(Camera camera, BasisGlobalIlluminationCaptureOverride? photoOverride = null)
     {
         if (instance == null || instance.state.Capture || !instance.state.Enabled || !IsCameraRegistered(camera))
         {
             return;
         }
         instance.state.Capture = true;
+        instance.captureOverride = photoOverride;
         instance.ApplyOverride();
     }
 
@@ -276,6 +340,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
             return;
         }
         instance.state.Capture = false;
+        instance.captureOverride = null;
         instance.ApplyOverride();
     }
 
@@ -480,8 +545,37 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
 
     public void ApplyOverride()
     {
-        Apply(BasisGlobalIlluminationSettings.Current, state);
-        ApplyFeature();
+        BasisGlobalIlluminationState effective = state;
+        if (effective.Capture && captureOverride.HasValue)
+        {
+            BasisGlobalIlluminationCaptureOverride o = captureOverride.Value;
+            effective.Mode = ReadMode(o.Mode);
+            effective.SkinnedMeshes = ReadSkinnedMode(o.SkinnedMeshes);
+            effective.Layers = o.Layers;
+            effective.Quality = ReadQuality(o.Quality);
+            effective.Fallback = ReadFallback(o.Fallback);
+            effective.IgnoreBakedEmission = o.IgnoreBakedEmission;
+            effective.Intensity = o.Intensity;
+            effective.Saturation = o.Saturation;
+            effective.Obscurance = o.Obscurance;
+            effective.RayLength = o.RayLength;
+            effective.Smoothing = o.Smoothing;
+            effective.WideBlur = o.WideBlur;
+            effective.RayReuse = o.RayReuse;
+            effective.Emitters = o.Emitters;
+            effective.EmitterIntensity = o.EmitterIntensity;
+            effective.Specular = o.Specular;
+            effective.ObscuranceRadius = o.ObscuranceRadius;
+            effective.FadeDistance = o.FadeDistance;
+            effective.NormalBias = o.NormalBias;
+            effective.DistanceBias = o.DistanceBias;
+            effective.BounceThreshold = o.BounceThreshold;
+            effective.FireflyClamp = o.FireflyClamp;
+            effective.ReflectionProbes = o.ReflectionProbes;
+            effective.Mirrors = o.Mirrors;
+        }
+        Apply(BasisGlobalIlluminationSettings.Current, effective);
+        ApplyFeature(effective);
     }
 
 
@@ -491,11 +585,11 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     /// decides what the feature does once URP has already called into it, so a profile the player's volume
     /// never reaches can hold the effect on by itself.
     /// </summary>
-    public void ApplyFeature()
+    public void ApplyFeature(BasisGlobalIlluminationState effective)
     {
         BasisGlobalIlluminationFeature feature = FindFeature();
         RememberAuthoredFeatureValues(feature);
-        Apply(feature, state.Enabled, state.ReflectionProbes, state.Mirrors);
+        Apply(feature, effective.Enabled, effective.ReflectionProbes, effective.Mirrors);
     }
 
     // The feature is a sub-asset of the renderer, not a scene object, so writing to it in the editor

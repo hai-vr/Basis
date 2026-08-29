@@ -17,6 +17,9 @@ namespace Basis.Scripts.Rendering
         private const string PropRates = "_BasisVrsRates";
 
         private static readonly Vector4 Rates = new Vector4(Encode(0, 0), Encode(1, 1), Encode(2, 2), 0f);
+        private static readonly ProfilingSampler samplerVrs = new ProfilingSampler("BasisVariableRateShading");
+        public static float GpuMs => samplerVrs.gpuElapsedTime;
+        public static void SetProfilingEnabled(bool enabled) => samplerVrs.enableRecording = enabled;
 
         private readonly ComputeShader _buildShader;
         private readonly int _kernel;
@@ -29,7 +32,7 @@ namespace Basis.Scripts.Rendering
             _buildShader = buildShader;
             if (_buildShader != null)
                 _kernel = _buildShader.FindKernel("CSMain");
-            profilingSampler = new ProfilingSampler("BasisVariableRateShading");
+            profilingSampler = samplerVrs;
         }
 
         public void Configure(float gazeProjectDistance, bool yFlip)
@@ -100,7 +103,7 @@ namespace Basis.Scripts.Rendering
             };
             TextureHandle sri = UniversalRenderer.CreateRenderGraphTexture(renderGraph, sriDesc, "_BasisShadingRateImage", clear: false);
 
-            using (var builder = renderGraph.AddComputePass<BuildPassData>("BasisVRS Build", out BuildPassData data))
+            using (var builder = renderGraph.AddComputePass<BuildPassData>("BasisVRS Build", out BuildPassData data, samplerVrs))
             {
                 data.cs = _buildShader;
                 data.kernel = _kernel;

@@ -4579,7 +4579,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "回転 Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "名前" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "選択中のアンカーの名前を変更します。名前はハンドル上とアンカーのドロップダウンに表示されます。" },
-    { "key": "settings.graphics.renderer.title", "value": "レンダラー" },
+    { "key": "settings.graphics.renderer.title", "value": "グラフィックスAPI" },
     { "key": "settings.graphics.renderer.description", "value": "このセッションは {0} で描画しています。ここにはこのビルドに含まれるグラフィックスAPIのみが表示されます。" },
     { "key": "settings.graphics.renderer.api", "value": "グラフィックスAPI" },
     { "key": "settings.graphics.renderer.api.restart", "value": "グラフィックスAPI（再起動が必要）" },

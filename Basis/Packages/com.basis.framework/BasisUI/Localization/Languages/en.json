@@ -1139,6 +1139,46 @@
       "value": "Fog"
     },
     {
+      "key": "camera.section.globalIllumination",
+      "value": "Global Illumination"
+    },
+    {
+      "key": "camera.gi.override",
+      "value": "Override Global Illumination"
+    },
+    {
+      "key": "camera.gi.override.tooltip",
+      "value": "Substitute the settings below for your live Global Illumination while this camera takes a photo. Off, a capture uses whatever Global Illumination you have live, same as before this existed."
+    },
+    {
+      "key": "camera.gi.override.disabled",
+      "value": "Turn on Global Illumination in Graphics Settings first."
+    },
+    {
+      "key": "camera.gi.mirrors",
+      "value": "Mirrors"
+    },
+    {
+      "key": "camera.gi.mirrors.tooltip",
+      "value": "Whether mirrors in frame show the bounce during this camera's captures."
+    },
+    {
+      "key": "camera.section.rtao",
+      "value": "Ray Traced Ambient Occlusion"
+    },
+    {
+      "key": "camera.rtao.override",
+      "value": "Override Ambient Occlusion"
+    },
+    {
+      "key": "camera.rtao.override.tooltip",
+      "value": "Substitute the settings below for your live ambient occlusion while this camera takes a photo. Off, a capture uses whatever ambient occlusion you have live, same as before this existed."
+    },
+    {
+      "key": "camera.rtao.override.disabled",
+      "value": "Turn on Ray Traced Ambient Occlusion in Graphics Settings first."
+    },
+    {
       "key": "camera.bloomIntensity",
       "value": "Bloom Intensity"
     },
@@ -3201,6 +3241,14 @@
     {
       "key": "settings.perf.jiggleColliderLod.far.tooltip",
       "value": "Beyond this distance all of a remote avatar's jiggle colliders are removed."
+    },
+    {
+      "key": "settings.perf.jiggleSimulationLod.toggle.tooltip",
+      "value": "Stop simulating remote avatars' jiggle bones entirely beyond a distance, instead of just trimming their colliders, to save performance in crowded instances."
+    },
+    {
+      "key": "settings.perf.jiggleSimulationLod.slider.tooltip",
+      "value": "Maximum distance from a camera at which a remote avatar's jiggle bones keep simulating."
     },
     {
       "key": "settings.perf.cloth.toggle.tooltip",
@@ -7245,6 +7293,14 @@
     {
       "key": "settings.graphics.bottleneck.gpu.unavailable",
       "value": "Not reported by this graphics driver."
+    },
+    {
+      "key": "settings.graphics.bottleneck.renderPassCapture",
+      "value": "Export Render Pass Snapshot"
+    },
+    {
+      "key": "settings.graphics.bottleneck.renderPassCapture.tooltip",
+      "value": "Records the next 300 frames and writes a per-pass GPU/CPU timing breakdown to this device's ProfilerCaptures folder."
     },
     {
       "key": "settings.graphics.performanceBar.title",
@@ -12579,6 +12635,14 @@
       "value": "Remove Colliders Distance"
     },
     {
+      "key": "settings.perf.jiggleSimulationLod.toggle",
+      "value": "Pause Distant Jiggle Simulation"
+    },
+    {
+      "key": "settings.perf.jiggleSimulationLod.slider",
+      "value": "Max Jiggle Simulation Distance"
+    },
+    {
       "key": "settings.perf.cloth.toggle",
       "value": "Limit Unity Cloth"
     },
@@ -17870,7 +17934,7 @@
     },
     {
       "key": "settings.graphics.renderer.title",
-      "value": "Renderer"
+      "value": "Graphics API"
     },
     {
       "key": "settings.graphics.psoCacheSize",

@@ -4579,7 +4579,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "Поворот Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "Имя" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "Переименовывает выбранный якорь. Имя отображается на его рукоятке и в выпадающем списке якорей." },
-    { "key": "settings.graphics.renderer.title", "value": "Рендерер" },
+    { "key": "settings.graphics.renderer.title", "value": "Графический API" },
     { "key": "settings.graphics.renderer.description", "value": "Этот сеанс использует рендеринг через {0}. Перечислены только графические API, доступные в этой сборке." },
     { "key": "settings.graphics.renderer.api", "value": "Графический API" },
     { "key": "settings.graphics.renderer.api.restart", "value": "Графический API (требуется перезапуск)" },

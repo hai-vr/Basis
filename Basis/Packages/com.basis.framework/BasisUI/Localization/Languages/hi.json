@@ -4579,7 +4579,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "रोटेशन Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "नाम" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "चयनित एंकर का नाम बदलता है। नाम इसके हैंडल पर और एंकर ड्रॉपडाउन में दिखता है।" },
-    { "key": "settings.graphics.renderer.title", "value": "रेंडरर" },
+    { "key": "settings.graphics.renderer.title", "value": "ग्राफ़िक्स API" },
     { "key": "settings.graphics.renderer.description", "value": "यह सेशन {0} के साथ रेंडर हो रहा है। केवल वे ग्राफ़िक्स API सूचीबद्ध हैं जो यह बिल्ड शामिल करता है।" },
     { "key": "settings.graphics.renderer.api", "value": "ग्राफ़िक्स API" },
     { "key": "settings.graphics.renderer.api.restart", "value": "ग्राफ़िक्स API (पुनः आरंभ आवश्यक)" },

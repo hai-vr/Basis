@@ -4579,7 +4579,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "ঘূর্ণন Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "নাম" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "নির্বাচিত অ্যাঙ্করের নাম পরিবর্তন করে। নামটি এর হ্যান্ডেলে ও অ্যাঙ্কর ড্রপডাউনে দেখা যায়।" },
-    { "key": "settings.graphics.renderer.title", "value": "রেন্ডারার" },
+    { "key": "settings.graphics.renderer.title", "value": "গ্রাফিক্স API" },
     { "key": "settings.graphics.renderer.description", "value": "এই সেশনটি {0} দিয়ে রেন্ডার করা হচ্ছে। শুধুমাত্র এই বিল্ডে অন্তর্ভুক্ত গ্রাফিক্স API-গুলো তালিকাভুক্ত করা হয়েছে।" },
     { "key": "settings.graphics.renderer.api", "value": "গ্রাফিক্স API" },
     { "key": "settings.graphics.renderer.api.restart", "value": "গ্রাফিক্স API (রিস্টার্ট প্রয়োজন)" },

@@ -11,16 +11,20 @@ namespace Basis.Rendering.RTAO
     /// _ScreenSpaceOcclusionTexture, materials whose own occlusion map would otherwise clamp the result, and
     /// anything lit almost entirely by a direct light.
     /// </summary>
-    internal sealed class BasisRTAOAfterOpaquePass : ScriptableRenderPass
+    public sealed class BasisRTAOAfterOpaquePass : ScriptableRenderPass
     {
         public const int ShaderPass = 1;
+
+        private static readonly ProfilingSampler samplerAfterOpaque = new ProfilingSampler("BasisRTAO After Opaque");
+        public static float GpuMs => samplerAfterOpaque.gpuElapsedTime;
+        public static void SetProfilingEnabled(bool enabled) => samplerAfterOpaque.enableRecording = enabled;
 
         private Material material;
         private MaterialPropertyBlock block;
 
         public BasisRTAOAfterOpaquePass()
         {
-            profilingSampler = new ProfilingSampler("BasisRTAO After Opaque");
+            profilingSampler = samplerAfterOpaque;
             renderPassEvent = RenderPassEvent.AfterRenderingOpaques;
         }
 

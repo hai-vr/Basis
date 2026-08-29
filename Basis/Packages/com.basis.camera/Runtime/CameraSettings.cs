@@ -166,6 +166,56 @@ public partial class BasisHandHeldCameraUI
             streamQuality = BasisVideoOutputSettings.DefaultWebQuality;
             streamPort = BasisVideoOutputSettings.DefaultWebPort;
             streamSenderName = BasisVideoOutputSettings.DefaultSenderName;
+
+            // Global Illumination photo overrides. Off, but matching the live BasisSettingsDefaults
+            // GI defaults for every value field underneath — so turning the override on for the
+            // first time starts from what the player already sees live, not a jarring difference,
+            // and a camera that never touches these controls behaves exactly as before they existed.
+            overrideGlobalIllumination = false;
+            giMode = 0;               // Screen Space
+            giSkinnedMeshes = 1;      // Proxy
+            giLayers = 2;             // World And Avatars
+            giQuality = 1;            // Medium
+            giFallback = 2;           // Reflection Probe
+            giIgnoreBakedEmission = false;
+            giIntensity = 1f;
+            giSaturation = 1f;
+            giObscurance = 0.5f;
+            giRayLength = 16f;
+            giSmoothing = 1f;
+            giWideBlur = true;
+            giRayReuse = true;
+            giEmitters = true;
+            giEmitterIntensity = 3f;
+            giSpecular = false;
+            giObscuranceRadius = 0.5f;
+            giFadeDistance = 120f;
+            giNormalBias = 0.02f;
+            giDistanceBias = 0.0015f;
+            giBounceThreshold = 0.02f;
+            giFireflyClamp = 6f;
+            giReflectionProbes = false;
+            giMirrors = true;
+
+            // Ray Traced Ambient Occlusion photo overrides. Off, but matching the live
+            // BasisSettingsDefaults RTAO defaults underneath, for the same reason the Global
+            // Illumination ones do above.
+            overrideRTAO = false;
+            rtaoMode = 0;              // Screen Space
+            rtaoIntensity = 1f;
+            rtaoRadius = 0.02f;
+            rtaoApplyMode = 0;         // Lighting
+            rtaoDenoisePasses = 2;     // High
+            rtaoDirectStrength = 0.5f;
+            rtaoLayers = 0;            // Avatars
+            rtaoSkinnedMeshes = 1;     // Proxy
+            rtaoNormalBias = 0.005f;
+            rtaoDistanceBias = 0.0005f;
+            rtaoFalloff = 1f;
+            rtaoPower = 1f;
+            rtaoFadeStart = 40f;
+            rtaoFadeEnd = 60f;
+            rtaoSpecularRelief = 0f;
         }
 
         /// <summary>
@@ -478,5 +528,81 @@ public partial class BasisHandHeldCameraUI
         public Color backgroundCustomColor;
         public bool backgroundKeepsWorld;
 
+        /// <summary>
+        /// Whether this camera's photo captures substitute the 24 fields below for the player's own
+        /// live Global Illumination settings. Off by default, so an old file — and a fresh camera —
+        /// behaves exactly as it did before this existed: a capture uses whatever GI the player has
+        /// live, same as every other camera. Unconditional (no platform guard) like every other
+        /// field here, even though only a <c>BASIS_HAS_GI</c> build ever reads it, so the file still
+        /// round-trips on a platform that compiles GI out.
+        /// </summary>
+        public bool overrideGlobalIllumination;
+
+        /// <summary>Index into <c>SMModuleGlobalIlluminationURP.ModeOptions</c> (Screen Space / Ray Traced).</summary>
+        public int giMode;
+        /// <summary>Index into <c>SMModuleGlobalIlluminationURP.SkinnedMeshesOptions</c> (Off / Proxy). Ray traced only.</summary>
+        public int giSkinnedMeshes;
+        /// <summary>Index into <c>SMModuleGlobalIlluminationURP.LayersOptions</c> (Avatars / World / World And Avatars). Ray traced only.</summary>
+        public int giLayers;
+        /// <summary>Index into <c>SMModuleGlobalIlluminationURP.QualityOptions</c> (Low / Medium / High / Ultra).</summary>
+        public int giQuality;
+        /// <summary>Index into <c>SMModuleGlobalIlluminationURP.FallbackOptions</c> (None / Sky / Reflection Probe).</summary>
+        public int giFallback;
+        /// <summary>Ray traced only — lets a baked-emissive surface's light back into the gather.</summary>
+        public bool giIgnoreBakedEmission;
+        public float giIntensity;
+        public float giSaturation;
+        public float giObscurance;
+        public float giRayLength;
+        public float giSmoothing;
+        public bool giWideBlur;
+        /// <summary>Screen space only.</summary>
+        public bool giRayReuse;
+        public bool giEmitters;
+        public float giEmitterIntensity;
+        /// <summary>Ray traced reflections. Independent of <see cref="giMode"/> by design.</summary>
+        public bool giSpecular;
+        public float giObscuranceRadius;
+        public float giFadeDistance;
+        /// <summary>Ray traced only.</summary>
+        public float giNormalBias;
+        /// <summary>Ray traced only.</summary>
+        public float giDistanceBias;
+        /// <summary>Ray traced only.</summary>
+        public float giBounceThreshold;
+        public float giFireflyClamp;
+        public bool giReflectionProbes;
+        public bool giMirrors;
+
+        /// <summary>
+        /// Whether this camera's photo captures substitute the 15 fields below for the player's own
+        /// live Ray Traced Ambient Occlusion settings. Off by default, mirroring
+        /// <see cref="overrideGlobalIllumination"/> exactly - same reasoning, same shape.
+        /// </summary>
+        public bool overrideRTAO;
+
+        /// <summary>0 = Screen Space, 1 = Ray Traced.</summary>
+        public int rtaoMode;
+        public float rtaoIntensity;
+        public float rtaoRadius;
+        /// <summary>0 = Lighting, 1 = Final Image.</summary>
+        public int rtaoApplyMode;
+        /// <summary>0-3, matching <c>BasisRTAOSettingsMap.ReadDenoisePasses</c> (Off/Standard/High/Maximum).</summary>
+        public int rtaoDenoisePasses;
+        /// <summary>Only matters when <see cref="rtaoApplyMode"/> is Lighting.</summary>
+        public float rtaoDirectStrength;
+        /// <summary>0 = Avatars, 1 = World, 2 = World And Avatars. Ray traced only.</summary>
+        public int rtaoLayers;
+        /// <summary>0 = Off, 1 = Proxy. Ray traced only.</summary>
+        public int rtaoSkinnedMeshes;
+        /// <summary>Ray traced only.</summary>
+        public float rtaoNormalBias;
+        /// <summary>Ray traced only.</summary>
+        public float rtaoDistanceBias;
+        public float rtaoFalloff;
+        public float rtaoPower;
+        public float rtaoFadeStart;
+        public float rtaoFadeEnd;
+        public float rtaoSpecularRelief;
     }
 }

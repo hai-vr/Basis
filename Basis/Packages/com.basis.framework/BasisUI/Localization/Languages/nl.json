@@ -4579,7 +4579,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "Rotatie Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "Naam" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "Hernoemt het geselecteerde anker. De naam wordt getoond op het handvat en in de ankerdropdown." },
-    { "key": "settings.graphics.renderer.title", "value": "Renderer" },
+    { "key": "settings.graphics.renderer.title", "value": "Grafische API" },
     { "key": "settings.graphics.renderer.description", "value": "Deze sessie rendert met {0}. Alleen de grafische API's die deze build meelevert worden vermeld." },
     { "key": "settings.graphics.renderer.api", "value": "Grafische API" },
     { "key": "settings.graphics.renderer.api.restart", "value": "Grafische API (herstart vereist)" },

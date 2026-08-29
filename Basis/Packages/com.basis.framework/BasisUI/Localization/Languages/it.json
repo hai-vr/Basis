@@ -4579,7 +4579,7 @@
     { "key": "settings.developer.spawnAnchors.rotationZ", "value": "Rotazione Z" },
     { "key": "settings.developer.spawnAnchors.anchorName", "value": "Nome" },
     { "key": "settings.developer.spawnAnchors.anchorName.tooltip", "value": "Rinomina l'ancora selezionata. Il nome viene mostrato sulla sua maniglia e nel menu a tendina delle ancore." },
-    { "key": "settings.graphics.renderer.title", "value": "Renderer" },
+    { "key": "settings.graphics.renderer.title", "value": "API grafica" },
     { "key": "settings.graphics.renderer.description", "value": "Questa sessione sta eseguendo il rendering con {0}. Sono elencate solo le API grafiche incluse in questa build." },
     { "key": "settings.graphics.renderer.api", "value": "API grafica" },
     { "key": "settings.graphics.renderer.api.restart", "value": "API grafica (riavvio necessario)" },
