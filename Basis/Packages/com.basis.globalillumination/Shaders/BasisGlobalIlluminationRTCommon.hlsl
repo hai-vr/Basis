@@ -12,6 +12,10 @@
 /// BasisGlobalIlluminationRayInstance.FlagProxy and BasisGIRtTraceEscapingProxies below.
 /// </summary>
 #define BASISGI_RT_FLAG_PROXY 2u
+/// The instance MASK bit avatar proxy capsules carry. Must match BasisTracedCategory.AvatarProxy.
+/// Distinct from the flag above: the flag lives on the instance record and says what a hit WAS, the mask
+/// bit lives on the instance itself and decides what a ray may hit at all.
+#define BASISGI_RT_CATEGORY_AVATAR_PROXY 4u
 
 struct BasisGIRtInstance
 {

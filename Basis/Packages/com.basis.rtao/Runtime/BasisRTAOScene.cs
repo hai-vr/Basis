@@ -461,8 +461,9 @@ namespace Basis.Rendering.RTAO
                     MeshInstanceDesc desc = new MeshInstanceDesc(capsule, 0)
                     {
                         localToWorldMatrix = pose.MatrixAt(i),
-                        // A proxy capsule is always a person, never the room.
-                        mask = BasisTracedCategory.Avatar,
+                        // A proxy capsule is always a person, never the room - and a capsule rather than
+                        // geometry anybody drew, which is its own bit. See BasisTracedCategory.
+                        mask = BasisTracedCategory.AvatarProxy,
                         enableTriangleCulling = false,
                         opaqueGeometry = true
                     };

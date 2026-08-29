@@ -172,6 +172,34 @@ namespace Basis.Tests.GlobalIllumination
         }
 
         [Test]
+        public void TheMeasuredRadiusIsInscribedRatherThanBounding()
+        {
+            // The one property that stops mesh fitting re-creating the bug it exists to help with.
+            // A capsule is only safe while it sits INSIDE the surface the rays start from: a bounding
+            // fit swallows that surface and every ray is born occluded, which is what put black discs
+            // on people. A percentile below one takes the body rather than the hair, the skirt hem or
+            // the sword weighted to somebody's hips.
+            Assert.Greater(BasisAvatarProxy.FitRadiusPercentile, 0f);
+            Assert.Less(BasisAvatarProxy.FitRadiusPercentile, 1f,
+                "A percentile of one is the maximum, which is a bounding radius by another name.");
+
+            // And the measurement is never trusted absolutely: the plan is a poor estimate that is
+            // never absurd, so it is what bounds a good one taken from a mesh that might not be what
+            // it looks like.
+            Assert.Less(BasisAvatarProxy.FitMinScale, 1f);
+            Assert.Greater(BasisAvatarProxy.FitMaxScale, 1f);
+            Assert.Greater(BasisAvatarProxy.FitVertexBudget, 0);
+        }
+
+        [Test]
+        public void ARigWithNoToeBoneStillGetsAFoot()
+        {
+            // Toes are optional on a humanoid rig. Without this the feet added above would simply be
+            // absent on those avatars, which is the hole they were added to close.
+            Assert.Greater(BasisAvatarProxy.ToelessFootRadiusFactor, 0f);
+        }
+
+        [Test]
         public void TheBodyPlanCoversTheLimbsThatCarryOcclusion()
         {
             HashSet<HumanBodyBones> covered = new HashSet<HumanBodyBones>();
@@ -190,6 +218,9 @@ namespace Basis.Tests.GlobalIllumination
                 HumanBodyBones.LeftLowerArm, HumanBodyBones.RightLowerArm,
                 HumanBodyBones.LeftUpperLeg, HumanBodyBones.RightUpperLeg,
                 HumanBodyBones.LeftLowerLeg, HumanBodyBones.RightLowerLeg,
+                // The feet. Without them a body casts no contact shadow where it meets the floor,
+                // which is the one place a viewer looks for one.
+                HumanBodyBones.LeftToes, HumanBodyBones.RightToes,
             };
             for (int index = 0; index < required.Length; index++)
             {

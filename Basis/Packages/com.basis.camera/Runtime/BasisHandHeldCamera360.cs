@@ -108,29 +108,39 @@ public partial class BasisHandHeldCamera
         RenderTexture cubeLeft = NewCubeRT(faceSize);
         RenderTexture cubeRight = stereo ? NewCubeRT(faceSize) : null;
 
+        // Suspension is a global flag on a camera that outlives this method, so the resume has to be
+        // unconditional. Left as a plain pair, one throw out of RenderToCubemap or ConvertToEquirect and
+        // that camera renders no global illumination for the rest of the session - and nothing about the
+        // symptom would point back at a 360 capture that failed once, minutes earlier.
 #if BASIS_HAS_GI && !UNITY_ANDROID
         SMModuleGlobalIlluminationURP.SuspendCamera(captureCamera, true);
 #endif
         bool rendered;
-        if (stereo)
+        try
         {
-            rendered = captureCamera.RenderToCubemap(cubeLeft, 63, Camera.MonoOrStereoscopicEye.Left)
-                && captureCamera.RenderToCubemap(cubeRight, 63, Camera.MonoOrStereoscopicEye.Right);
-            if (rendered)
+            if (stereo)
             {
-                cubeLeft.ConvertToEquirect(equirect, Camera.MonoOrStereoscopicEye.Left);
-                cubeRight.ConvertToEquirect(equirect, Camera.MonoOrStereoscopicEye.Right);
+                rendered = captureCamera.RenderToCubemap(cubeLeft, 63, Camera.MonoOrStereoscopicEye.Left)
+                    && captureCamera.RenderToCubemap(cubeRight, 63, Camera.MonoOrStereoscopicEye.Right);
+                if (rendered)
+                {
+                    cubeLeft.ConvertToEquirect(equirect, Camera.MonoOrStereoscopicEye.Left);
+                    cubeRight.ConvertToEquirect(equirect, Camera.MonoOrStereoscopicEye.Right);
+                }
+            }
+            else
+            {
+                rendered = captureCamera.RenderToCubemap(cubeLeft, 63, Camera.MonoOrStereoscopicEye.Mono);
+                if (rendered)
+                    cubeLeft.ConvertToEquirect(equirect, Camera.MonoOrStereoscopicEye.Mono);
             }
         }
-        else
+        finally
         {
-            rendered = captureCamera.RenderToCubemap(cubeLeft, 63, Camera.MonoOrStereoscopicEye.Mono);
-            if (rendered)
-                cubeLeft.ConvertToEquirect(equirect, Camera.MonoOrStereoscopicEye.Mono);
-        }
 #if BASIS_HAS_GI && !UNITY_ANDROID
-        SMModuleGlobalIlluminationURP.SuspendCamera(captureCamera, false);
+            SMModuleGlobalIlluminationURP.SuspendCamera(captureCamera, false);
 #endif
+        }
 
         captureCamera.usePhysicalProperties = savedPhysical;
         captureCamera.targetTexture = savedTarget;

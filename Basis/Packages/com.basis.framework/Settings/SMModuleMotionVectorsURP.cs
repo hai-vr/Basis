@@ -3,8 +3,6 @@ using UnityEngine;
 
 public class SMModuleMotionVectorsURP : BasisSettingsBase
 {
-    public static bool SpaceWarpActive;
-
     public override void Awake()
     {
         base.Awake();
@@ -16,34 +14,23 @@ public class SMModuleMotionVectorsURP : BasisSettingsBase
     public override void ChangedSettings() { }
 
     /// <summary>
-    /// Motion vectors are an extra per-frame pass over every renderer, and in stereo it runs
-    /// per eye — so it is only worth paying for where something actually consumes
-    /// <c>_MotionVectorTexture</c>.
-    ///
-    /// <para><b>Android keeps them:</b> Application SpaceWarp reprojects from app-supplied
-    /// motion vectors, and <c>SpaceWarpFeature Android</c> is enabled in the OpenXR settings.</para>
-    ///
-    /// <para><b>Standalone does not.</b> There is no Standalone SpaceWarp feature — PCVR
-    /// reprojection (SteamVR Motion Smoothing, Oculus ASW over Link) runs in the compositor
-    /// from its own history and does not read app motion vectors. Basis has no TAA either
-    /// (<c>SMModuleAntialiasingURP</c> is MSAA-only), and the volumetric fog does no temporal
-    /// reprojection. Re-enable this if STP is ever added to the antialiasing dropdown — STP is
-    /// the one desktop consumer that would need them.</para>
+    /// Always on, every platform, unconditionally — maintainer call (2026-08-29): "should be on, no
+    /// exceptions." This used to be Android-only, itself gated on a static <c>SpaceWarpActive</c> bool
+    /// set once per <c>BasisOpenXRManagement.StartSDK()</c> from a single
+    /// <c>OpenXRRuntime.IsExtensionEnabled("XR_FB_space_warp")</c> query — timing-sensitive against the
+    /// OpenXR runtime, so motion vectors (and Android's SpaceWarp reprojection riding on them)
+    /// flickered on/off across sessions. Setting <c>Camera.depthTextureMode</c> does not itself make
+    /// URP schedule the per-renderer <c>MotionVectorRenderPass</c> — that pass is scheduled only when
+    /// something declares <c>ScriptableRenderPassInput.Motion</c> (Motion Blur's Camera And Objects
+    /// mode, Global Illumination's temporal filter, or XR's own compositor path on Android) — so this
+    /// flag being always-on elsewhere costs nothing extra by itself; it is the signal those and any
+    /// future/XR-compositor consumer read.
     /// </summary>
     public static void ApplyMotionVectors()
     {
-#if UNITY_ANDROID
         BasisLocalCameraDriver driver = BasisLocalCameraDriver.Instance;
         if (driver == null || driver.Camera == null) return;
 
-        DepthTextureMode current = driver.Camera.depthTextureMode;
-        DepthTextureMode mode = SpaceWarpActive
-            ? current | DepthTextureMode.MotionVectors
-            : current & ~DepthTextureMode.MotionVectors;
-        if (current != mode)
-        {
-            driver.Camera.depthTextureMode = mode;
-        }
-#endif
+        driver.Camera.depthTextureMode |= DepthTextureMode.MotionVectors;
     }
 }

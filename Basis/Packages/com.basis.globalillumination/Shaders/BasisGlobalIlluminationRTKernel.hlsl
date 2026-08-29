@@ -107,6 +107,29 @@ float3 BasisGIRtHitNormal(BasisGIRtInstance instance, UnifiedRT::Hit hit, float3
 /// Far enough past the wall not to land back on it through floating point, small enough not to skip
 /// anything real standing immediately behind it.
 #define BASISGI_RT_PROXY_ESCAPE_EPSILON 0.01
+/// How far from its origin a ray still counts a capsule as ITS OWN body rather than somebody else's.
+///
+/// The back face test below answers "did I start inside this", which is only the same question as "is this
+/// me" when the capsule encloses the surface. It does not: the fit is deliberately INSCRIBED, so a thigh
+/// capsule is about eight centimetres across inside a fourteen centimetre thigh and the rendered skin sits
+/// OUTSIDE its own proxy. A ray leaving that skin at a grazing angle re-enters its own capsule FRONT face,
+/// which reads as another body standing in the way - dark bands down the legs of every avatar, worst around
+/// the hips, where each thigh capsule is half buried in the pelvis one and the skin is outside them both.
+///
+/// Resizing cannot settle it. Inscribed leaves the surface outside and self-hitting; circumscribed would put
+/// it inside where the back face rule works, but a skirt or a coat then inflates a limb until it swallows the
+/// other leg. Shape cannot express the difference between my leg and yours, so distance stands in for it: a
+/// capsule axis is one limb thickness from the skin it belongs to and much further from anyone else's.
+///
+/// Twenty centimetres because the self hit window is short. A ray angled shallowly off the skin MISSES its
+/// own capsule - it is a thin rod, not a shell - so the strike only happens on rays leaving steeply, and the
+/// range works out at three to four centimetres for a thigh, two to three for a shin and seven to ten for a
+/// torso, which is the fat case. Twice the worst of those leaves room for avatars scaled above human size.
+///
+/// The cost is person-to-person contact shading closer than this: two avatars touching stop occluding each
+/// other THROUGH THEIR PROXIES, while the room still shadows them both normally. That is the one number to
+/// move if bodies in contact start looking detached.
+#define BASISGI_RT_PROXY_SELF_REACH 0.2
 
 /// <summary>
 /// One ray, stepping out of any proxy capsule it began inside of.
@@ -129,9 +152,13 @@ float3 BasisGIRtHitNormal(BasisGIRtInstance instance, UnifiedRT::Hit hit, float3
 /// painted exactly the patch described above onto every lit avatar.
 /// </summary>
 UnifiedRT::Hit BasisGIRtTraceEscapingProxies(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::RayTracingAccelStruct accelStruct,
-    inout float3 origin, float3 direction, float tMax)
+    inout float3 origin, float3 direction, float tMax, uint mask)
 {
     UnifiedRT::Hit hit = UnifiedRT::Hit::Invalid();
+
+    // Distance from where the ray really started, which is what the self test needs - hitDistance alone is
+    // measured from the last wall stepped past and would let a chain of escapes creep arbitrarily far.
+    float travelled = 0.0;
 
     UNITY_LOOP
     for (uint attempt = 0u; attempt < BASISGI_RT_MAX_PROXY_ESCAPES; attempt++)
@@ -142,8 +169,18 @@ UnifiedRT::Hit BasisGIRtTraceEscapingProxies(UnifiedRT::DispatchInfo dispatchInf
         ray.direction = direction;
         ray.tMax = tMax;
 
-        hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, (uint)_BasisGIRtTraceMask, ray, 0);
-        if (!hit.IsValid() || hit.isFrontFace) { return hit; }
+        hit = UnifiedRT::TraceRayClosestHit(dispatchInfo, accelStruct, mask, ray, 0);
+        if (!hit.IsValid()) { return hit; }
+
+        // Mine on either of two counts: I began inside it (back face), or it is near enough to have been the
+        // capsule under my own skin (front face within reach). Anything else is a body in the way.
+        //
+        // Tested before the instance is looked up, because a front face further off than the self reach
+        // occludes whatever it is made of and the proxy flag cannot change that answer. Written this way for
+        // the reader rather than for the compiler: dxc sinks the buffer load past the early out on its own,
+        // and the compute backend's DXIL is byte identical either way. It costs nothing and does not depend
+        // on the optimizer noticing.
+        if (hit.isFrontFace && (travelled + hit.hitDistance) >= BASISGI_RT_PROXY_SELF_REACH) { return hit; }
 
         BasisGIRtInstance instance = _BasisGIRtInstances[hit.instanceID];
         if ((instance.geometry.z & BASISGI_RT_FLAG_PROXY) == 0u) { return hit; }
@@ -152,6 +189,7 @@ UnifiedRT::Hit BasisGIRtTraceEscapingProxies(UnifiedRT::DispatchInfo dispatchInf
         // reach further in total than it was allowed to.
         float advance = hit.hitDistance + BASISGI_RT_PROXY_ESCAPE_EPSILON;
         origin += direction * advance;
+        travelled += advance;
         tMax -= advance;
         if (tMax <= 0.0) { return UnifiedRT::Hit::Invalid(); }
     }
@@ -245,22 +283,41 @@ float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::
         float visibility = 1.0;
         if (BASISGI_RT_SHADOW_RAYS > 0.5 && chosenShadow > 0.5)
         {
-            // The same capsule escape the gather and the reflection make, and for the same reason: a point
-            // on an avatar's visible chest sits INSIDE that avatar's own torso capsule, so a ray towards a
-            // light leaves through the capsule wall and stops there. Every lit avatar wore the shape of its
-            // own proxy as a hard edged black patch, and only in the ray traced mode, because nothing else
-            // puts capsules in front of a body.
+            // A point on an avatar's visible chest sits INSIDE that avatar's own torso capsule, so a ray
+            // towards a light leaves through the capsule wall and stops there - every lit avatar wearing the
+            // shape of its own proxy as a hard edged black patch. Stepping out of that is what the escape
+            // below is for.
             //
-            // This was an any-hit trace, which is the cheaper thing to want for visibility and the reason
-            // the bug lived here and nowhere else: any-hit answers whether SOMETHING was in the way and
-            // cannot say what, so there is no instance to test the proxy flag on and no hit distance to
-            // step past. Walking with closest-hit costs more per ray and is the only form that can tell a
-            // capsule the ray started inside from a wall that is genuinely between this point and the
-            // light. A proxy met FRONT face on is another body standing in the way and still shadows.
+            // But the room is not a capsule, and the room is nearly every shadow ray. So the two are traced
+            // separately: real geometry keeps the cheap ANY-HIT it always had, and only the handful of
+            // proxy capsules pay for a closest-hit walk - and only when the room did not already stop the
+            // ray. Routing every shadow ray through the walk, as this briefly did, multiplies the cost of
+            // the most numerous trace in the frame by up to four, and reflections feel it most because they
+            // shade a hit this way at every bounce.
+            //
+            // Inside the proxy-only trace every hit IS a capsule, so a back face there can only mean the ray
+            // started inside a body. A capsule met FRONT face on is somebody else in the way and shadows.
             float3 shadowOrigin = OffsetRayOrigin(positionWS, normalWS, BASISGI_RT_NORMAL_BIAS);
             float shadowReach = max(0.0, chosenDistance - BASISGI_RT_NORMAL_BIAS * 2.0);
-            UnifiedRT::Hit shadowHit = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, shadowOrigin, chosenDirection, shadowReach);
-            visibility = shadowHit.IsValid() ? 0.0 : 1.0;
+
+            uint shadowMask = (uint)_BasisGIRtTraceMask;
+            uint solidMask = shadowMask & ~BASISGI_RT_CATEGORY_AVATAR_PROXY;
+            uint proxyMask = shadowMask & BASISGI_RT_CATEGORY_AVATAR_PROXY;
+
+            UnifiedRT::Ray shadowRay;
+            shadowRay.origin = shadowOrigin;
+            shadowRay.tMin = 0.0;
+            shadowRay.direction = chosenDirection;
+            shadowRay.tMax = shadowReach;
+
+            bool blocked = solidMask != 0u
+                && UnifiedRT::TraceRayAnyHit(dispatchInfo, accelStruct, solidMask, shadowRay, 0);
+            if (!blocked && proxyMask != 0u)
+            {
+                float3 walk = shadowOrigin;
+                blocked = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, walk, chosenDirection, shadowReach, proxyMask).IsValid();
+            }
+            visibility = blocked ? 0.0 : 1.0;
         }
 
         total += chosenRadiance * ((weightSum / chosenWeight) * visibility);
@@ -308,7 +365,7 @@ float4 BasisGIRtTraceSpecular(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::R
 
         // A reflection off a body starts inside that body's own capsule exactly as the diffuse gather does,
         // and a mirror ray that hits it returns the inside of the avatar rather than the room.
-        UnifiedRT::Hit hit = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, origin, direction, reach);
+        UnifiedRT::Hit hit = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, origin, direction, reach, (uint)_BasisGIRtTraceMask);
         if (!hit.IsValid())
         {
             // A miss is the sky, and for a reflection the sky is a real answer rather than a gap in one -
@@ -436,7 +493,7 @@ void RayGenExecute(UnifiedRT::DispatchInfo dispatchInfo)
         for (uint bounce = 0; bounce < bounces; bounce++)
         {
             float3 startedAt = origin;
-            UnifiedRT::Hit hit = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, origin, direction, BASISGI_RT_RAY_LENGTH);
+            UnifiedRT::Hit hit = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, origin, direction, BASISGI_RT_RAY_LENGTH, (uint)_BasisGIRtTraceMask);
             if (!hit.IsValid())
             {
                 radiance += throughput * BasisGIRtSampleSky(direction);

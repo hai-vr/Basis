@@ -83,12 +83,27 @@ namespace Basis.Rendering.RTAO.Tests
         public void CategoriesFollowTheLayerAnObjectIsOn()
         {
             const int avatarMask = (1 << 6) | (1 << 7);
-            Assert.AreEqual(BasisTracedCategory.Avatar, BasisTracedCategory.For(6, avatarMask));
-            Assert.AreEqual(BasisTracedCategory.Avatar, BasisTracedCategory.For(7, avatarMask));
+            // AvatarMesh rather than the combined Avatar: For classifies renderers, and a renderer is never
+            // a proxy capsule. Returning the combined value would let real geometry into the proxy-only
+            // trace, where a back face is treated as a hull to step out of rather than as occlusion.
+            Assert.AreEqual(BasisTracedCategory.AvatarMesh, BasisTracedCategory.For(6, avatarMask));
+            Assert.AreEqual(BasisTracedCategory.AvatarMesh, BasisTracedCategory.For(7, avatarMask));
             Assert.AreEqual(BasisTracedCategory.World, BasisTracedCategory.For(0, avatarMask),
                 "Default is the room, not a person.");
             Assert.AreNotEqual(0, BasisTracedCategory.Avatar & BasisTracedCategory.All);
             Assert.AreNotEqual(0, BasisTracedCategory.World & BasisTracedCategory.All);
+
+            // The three the ambient occlusion kernel leans on. It splits one trace into real geometry and
+            // body proxies so it can step out of a capsule it started inside without stepping through the
+            // back of a wall, and that split is only sound while these hold.
+            Assert.AreEqual(0, BasisTracedCategory.For(6, avatarMask) & BasisTracedCategory.AvatarProxy,
+                "A renderer classified as a proxy would enter the proxy-only trace, where a back face is a hull to step out of rather than occlusion.");
+            Assert.AreEqual(0, BasisTracedCategory.For(0, avatarMask) & BasisTracedCategory.AvatarProxy,
+                "Room geometry classified as a proxy would let rays walk straight through the back of a wall.");
+            Assert.AreNotEqual(0, BasisTracedCategory.Avatar & BasisTracedCategory.AvatarProxy,
+                "Asking for avatars has to reach their capsules, or people stop occluding entirely - the capsules ARE the bodies.");
+            Assert.AreNotEqual(0, BasisTracedCategory.All & BasisTracedCategory.AvatarProxy,
+                "The widest set has to include the capsules too.");
         }
 
         [Test]

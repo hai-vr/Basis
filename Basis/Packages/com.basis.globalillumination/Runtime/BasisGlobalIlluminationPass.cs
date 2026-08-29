@@ -150,6 +150,24 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     private static readonly ProfilingSampler samplerBlur = new ProfilingSampler("Basis GI Blur");
     private static readonly ProfilingSampler samplerComposite = new ProfilingSampler("Basis GI Composite");
 
+    public static float GpuMs =>
+        samplerCopy.gpuElapsedTime + samplerCoarse.gpuElapsedTime + samplerTrace.gpuElapsedTime +
+        samplerTemporal.gpuElapsedTime + samplerBlur.gpuElapsedTime + samplerComposite.gpuElapsedTime +
+        samplerRayPrepass.gpuElapsedTime + samplerRayTrace.gpuElapsedTime + samplerRayResolve.gpuElapsedTime;
+
+    public static void SetProfilingEnabled(bool enabled)
+    {
+        samplerCopy.enableRecording = enabled;
+        samplerCoarse.enableRecording = enabled;
+        samplerTrace.enableRecording = enabled;
+        samplerTemporal.enableRecording = enabled;
+        samplerBlur.enableRecording = enabled;
+        samplerComposite.enableRecording = enabled;
+        samplerRayPrepass.enableRecording = enabled;
+        samplerRayTrace.enableRecording = enabled;
+        samplerRayResolve.enableRecording = enabled;
+    }
+
     private static readonly Vector4[] emitterSpheres = new Vector4[MaxEmitters];
     private static readonly Vector4[] emitterRadiance = new Vector4[MaxEmitters];
     private static readonly List<BasisGlobalIlluminationEmitter> emitterScratch = new List<BasisGlobalIlluminationEmitter>();

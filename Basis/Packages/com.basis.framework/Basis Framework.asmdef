@@ -28,6 +28,7 @@
         "BasisDebug",
         "BasisBundleManagement",
         "BasisProfiler",
+        "Unity.Profiling.Core",
         "BasisSettings",
         "com.cqf.urpvolumetricfog.runtime",
         "BasisGlobalIllumination",

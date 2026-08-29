@@ -23,6 +23,12 @@
     "defineConstraints": [
         "UNITY_INCLUDE_TESTS"
     ],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.basis.globalillumination",
+            "expression": "",
+            "define": "BASIS_HAS_GI"
+        }
+    ],
     "noEngineReferences": false
 }

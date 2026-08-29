@@ -1,6 +1,9 @@
 #ifndef BASIS_RTAO_COMMON_INCLUDED
 #define BASIS_RTAO_COMMON_INCLUDED
 
+/// The instance mask bit avatar proxy capsules carry. Must match BasisTracedCategory.AvatarProxy.
+#define BASIS_RTAO_CATEGORY_AVATAR_PROXY 4u
+
 float2 BasisRtaoOctWrap(float2 v)
 {
     return (1.0 - abs(v.yx)) * float2(v.x >= 0.0 ? 1.0 : -1.0, v.y >= 0.0 ? 1.0 : -1.0);

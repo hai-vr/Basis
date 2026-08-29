@@ -864,8 +864,9 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
                 MeshInstanceDesc desc = new MeshInstanceDesc(capsule, 0)
                 {
                     localToWorldMatrix = matrix,
-                    // A proxy capsule is always a person, never the room.
-                    mask = BasisTracedCategory.Avatar,
+                    // A proxy capsule is always a person, never the room - and a capsule rather than
+                    // geometry anybody drew, which is its own bit. See BasisTracedCategory.
+                    mask = BasisTracedCategory.AvatarProxy,
                     instanceID = (uint)instanceId,
                     enableTriangleCulling = false,
                     opaqueGeometry = true

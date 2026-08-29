@@ -1663,6 +1663,8 @@ namespace Basis.BasisUI
 
             SettingsProviderFrameBottleneck.BuildFrameBottleneckGroup(container);
 
+            SettingsProviderPerformanceBar.BuildPerformanceBarGroup(container);
+
             PanelSectionToggle qualityToggle = PanelSectionToggle.CreateNewEntry(container);
             PanelElementDescriptor qualityGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
                 qualityToggle,
@@ -3127,6 +3129,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.UseAvatarSkinLod.ResetToDefault();
             BasisSettingsDefaults.UseAvatarShadowLod.ResetToDefault();
             BasisSettingsDefaults.UseAvatarVisibilityCull.ResetToDefault();
+            BasisSettingsDefaults.ShowPerformanceBar.ResetToDefault();
             BasisSettingsDefaults.UseGpuOcclusionCulling.ResetToDefault();
             BasisGraphicsApiSelection.ResetToRunning();
             BasisSettingsDefaults.GlobalMeshLOD.ResetToDefault();
@@ -3584,6 +3587,11 @@ namespace Basis.BasisUI
             toggleJiggleVisuals.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.jiggleVisuals"));
             toggleJiggleVisuals.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.jiggleVisuals.tooltip"));
             toggleJiggleVisuals.AssignBinding(BasisSettingsDefaults.GizmoJiggleVisuals);
+
+            PanelToggle toggleAvatarProxy = PanelToggle.CreateNewEntry(container);
+            toggleAvatarProxy.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarProxy"));
+            toggleAvatarProxy.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarProxy.tooltip"));
+            toggleAvatarProxy.AssignBinding(BasisSettingsDefaults.GizmoAvatarProxy);
 
             PanelToggle toggleTrackerGizmos = PanelToggle.CreateNewEntry(container);
             toggleTrackerGizmos.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.trackerGizmos"));

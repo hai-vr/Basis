@@ -78,7 +78,7 @@ namespace Basis.Rendering.RTAO
         }
     }
 
-    internal sealed class BasisRTAOPass : ScriptableRenderPass, IDisposable
+    public sealed class BasisRTAOPass : ScriptableRenderPass, IDisposable
     {
         private const int TemporalKernelGroup = 8;
         // A fixed tap count spread over more pixels only gets noisier, so the search is capped - but the cap
@@ -125,9 +125,13 @@ namespace Basis.Rendering.RTAO
         public BasisRTAOHistory History => history;
         internal Material CompositeMaterial => compositeMaterial;
 
+        private static readonly ProfilingSampler samplerAll = new ProfilingSampler("BasisRTAO");
+        public static float GpuMs => samplerAll.gpuElapsedTime;
+        public static void SetProfilingEnabled(bool enabled) => samplerAll.enableRecording = enabled;
+
         public BasisRTAOPass()
         {
-            profilingSampler = new ProfilingSampler("BasisRTAO");
+            profilingSampler = samplerAll;
             renderPassEvent = RenderPassEvent.AfterRenderingPrePasses + 1;
         }
 

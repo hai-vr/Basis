@@ -78,14 +78,16 @@ namespace Basis.Tests.GlobalIllumination
             string source = ReadKernelWithoutComments();
             BodyOf(source, "UnifiedRT::Hit " + EscapeFunction, out int start, out int end);
 
-            MatchCollection traces = Regex.Matches(source, @"UnifiedRT::TraceRay\w*\s*\(");
+            // Closest-hit only. An any-hit is allowed outside the helper now, but only masked away from
+            // proxies - AnyHitRaysNeverSeeAvatarProxies is what holds that half up.
+            MatchCollection traces = Regex.Matches(source, @"UnifiedRT::TraceRayClosestHit\s*\(");
             Assert.Greater(traces.Count, 0,
-                "no traces found at all, so this test is reading the wrong file or the wrong syntax");
+                "no closest-hit traces found at all, so this test is reading the wrong file or the wrong syntax");
 
             foreach (Match trace in traces)
             {
                 Assert.IsTrue(trace.Index > start && trace.Index < end,
-                    "a ray is fired at the acceleration structure outside " + EscapeFunction + ", at character " +
+                    "a closest-hit ray is fired at the acceleration structure outside " + EscapeFunction + ", at character " +
                     trace.Index + ". Avatars are in that structure as capsules that swallow their own visible " +
                     "surface, so a ray starting on an avatar hits its own proxy at nearly zero distance and " +
                     "reads as fully enclosed. Route it through " + EscapeFunction + " like every other ray here.");
@@ -93,16 +95,23 @@ namespace Basis.Tests.GlobalIllumination
         }
 
         [Test]
-        public void NoRayIsAnAnyHit()
+        public void AnyHitRaysNeverSeeAvatarProxies()
         {
+            // An any-hit answers whether SOMETHING was in the way and returns a bool - no instance to test
+            // a proxy flag on, no distance to step past - so it cannot walk out of a capsule the ray began
+            // inside. It is still the right primitive for visibility against the ROOM, which is nearly every
+            // shadow ray and the reason routing them all through the closest-hit walk made reflections
+            // crawl. Safe only while the mask keeps capsules out of it.
             string source = ReadKernelWithoutComments();
 
-            Assert.IsFalse(source.Contains("TraceRayAnyHit"),
-                "an any-hit trace is back in the kernel. It is the cheaper primitive and it is the reason " +
-                "this bug existed: any-hit answers whether SOMETHING was in the way and returns a bool, so " +
-                "there is no instance to test the proxy flag on and no hit distance to step past - the " +
-                "capsule escape cannot be written against it at all. If a future trace genuinely runs " +
-                "against a structure with no avatar proxies in it, this test is the place to say so.");
+            MatchCollection anyHits = Regex.Matches(source, @"UnifiedRT::TraceRayAnyHit\s*\(\s*[^;]*?;");
+            foreach (Match anyHit in anyHits)
+            {
+                Assert.IsTrue(anyHit.Value.Contains("solidMask"),
+                    "an any-hit trace is not masked to solid geometry: " + anyHit.Value.Trim() + ". Given the whole " +
+                    "trace mask it would meet avatar capsules, and an any-hit cannot step out of the one it " +
+                    "started inside - which is a black patch on every lit avatar.");
+            }
         }
 
         [Test]
@@ -116,6 +125,55 @@ namespace Basis.Tests.GlobalIllumination
                 LightingFunction + " no longer walks its shadow ray out of avatar capsules. This is the " +
                 "exact call site that painted a hard edged black patch, shaped like the torso capsule, onto " +
                 "every directly lit avatar in ray traced mode.");
+        }
+
+        [Test]
+        public void TheEscapeAsksWhoseCapsuleItIsRatherThanOnlyWhetherItStartedInside()
+        {
+            string source = ReadKernelWithoutComments();
+            BodyOf(source, "UnifiedRT::Hit " + EscapeFunction, out int start, out int end);
+
+            string body = source.Substring(start, end - start);
+            Assert.IsTrue(body.Contains(SelfReachName),
+                "the escape decides on the back face alone again. A back face means \"I began inside this\", " +
+                "which is only the same question as \"this is me\" while the capsule encloses the surface - and " +
+                "the proxy fit is deliberately INSCRIBED, so a thigh capsule is about eight centimetres across " +
+                "inside a fourteen centimetre thigh and the rendered skin sits OUTSIDE its own proxy. A grazing " +
+                "ray then re-enters its own capsule FRONT face and reads as somebody else in the way. That is " +
+                "the dark banding down the legs of almost every avatar, worst at the hips, where each thigh " +
+                "capsule is half buried in the pelvis one and the skin is outside both of them.");
+        }
+
+        [Test]
+        public void BothTracersAgreeOnHowNearACapsuleHasToBeToBeYourOwn()
+        {
+            float gi = ReachFrom(KernelPath, SelfReachName);
+            float rtao = ReachFrom(RtaoKernelPath, RtaoSelfReachName);
+
+            Assert.AreEqual(gi, rtao, 1e-6f,
+                "global illumination and ambient occlusion disagree about which capsules belong to the surface " +
+                "being shaded (" + gi + " against " + rtao + "). They stand on the SAME capsules, so a body part " +
+                "that is your own to one tracer and a stranger to the other is lit one way and shaded another - " +
+                "which reads as banding that changes with the ambient occlusion setting rather than as a bug in " +
+                "either.");
+        }
+
+        private const string RtaoKernelPath = "Packages/com.basis.rtao/Shaders/BasisRTAOKernel.hlsl";
+        private const string SelfReachName = "BASISGI_RT_PROXY_SELF_REACH";
+        private const string RtaoSelfReachName = "BASIS_RTAO_PROXY_SELF_REACH";
+
+        /// <summary>Reads a <c>#define NAME value</c> out of a kernel, so the two can be compared as numbers.</summary>
+        private static float ReachFrom(string path, string name)
+        {
+            string full = Path.GetFullPath(path);
+            Assert.IsTrue(File.Exists(full), path + " is missing, so this test is guarding nothing.");
+
+            Match match = Regex.Match(File.ReadAllText(full),
+                @"#define\s+" + Regex.Escape(name) + @"\s+([0-9.]+)");
+            Assert.IsTrue(match.Success, path + " no longer defines " + name +
+                ", so nothing decides which capsules belong to the body being shaded.");
+
+            return float.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
         }
     }
 }

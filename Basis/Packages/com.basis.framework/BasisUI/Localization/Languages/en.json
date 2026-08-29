@@ -2171,6 +2171,10 @@
       "value": "Show debug visuals for jiggle physics on avatars."
     },
     {
+      "key": "settings.developer.avatarProxy.tooltip",
+      "value": "Draw the capsules that stand in for avatar bodies in the ray traced lighting."
+    },
+    {
       "key": "settings.developer.trackerGizmos.tooltip",
       "value": "Show markers at the position of each tracking device."
     },
@@ -7243,6 +7247,90 @@
       "value": "Not reported by this graphics driver."
     },
     {
+      "key": "settings.graphics.performanceBar.title",
+      "value": "Performance Breakdown"
+    },
+    {
+      "key": "settings.graphics.performanceBar.enable",
+      "value": "Show Performance Bar"
+    },
+    {
+      "key": "settings.graphics.performanceBar.enable.tooltip",
+      "value": "Breaks GPU and CPU frame cost down by section, so you can see what a setting like Global Illumination or RTAO is actually costing you. Only samples while this is on."
+    },
+    {
+      "key": "settings.graphics.performanceBar.gpu",
+      "value": "GPU"
+    },
+    {
+      "key": "settings.graphics.performanceBar.cpu",
+      "value": "CPU"
+    },
+    {
+      "key": "settings.graphics.performanceBar.measuring",
+      "value": "Measuring..."
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.shadows",
+      "value": "Shadows"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.opaque",
+      "value": "Opaque"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.gi",
+      "value": "Global Illumination"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.reflections",
+      "value": "Reflections"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.rtao",
+      "value": "Ambient Occlusion"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.transparent",
+      "value": "Transparent"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.other",
+      "value": "Other"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.eventDriver",
+      "value": "Event Driver"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.ik",
+      "value": "IK"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.movement",
+      "value": "Movement"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.avatarLoad",
+      "value": "Avatar Load"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.networking",
+      "value": "Networking"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.jiggle",
+      "value": "Jiggle Physics"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.voice",
+      "value": "Voice"
+    },
+    {
+      "key": "settings.graphics.performanceBar.segment.renderDispatch",
+      "value": "Render Dispatch"
+    },
+    {
       "key": "settings.graphics.rendering.title",
       "value": "Rendering"
     },
@@ -10493,6 +10581,10 @@
     {
       "key": "settings.developer.jiggleVisuals",
       "value": "Jiggle Visuals"
+    },
+    {
+      "key": "settings.developer.avatarProxy",
+      "value": "Avatar Proxy Capsules"
     },
     {
       "key": "settings.developer.jiggleVisuals.description",

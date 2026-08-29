@@ -19,6 +19,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
     public static bool UseTrackerGizmos = false;
     public static bool UseLinkedTrackerLines = false;
     public static bool UseEyeGazeGizmo = false;
+    public static bool UseAvatarProxyGizmo = false;
     public static bool UseIKColliders = false;
     public static bool UseHintOffsets = false;
     public static bool UseFootPlacement = false;
@@ -48,6 +49,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
     private static string K_TRACKER_GIZMOS => BasisSettingsDefaults.TrackerGizmos.BindingKey;                  // "trackergizmos"
     private static string K_LINKED_TRACKER_LINES => BasisSettingsDefaults.LinkedTrackerLines.BindingKey;      // "linkedtrackerlines"
     private static string K_GIZMO_EYE_GAZE => BasisSettingsDefaults.GizmoEyeGaze.BindingKey;                  // "gizmoeyegaze"
+    private static string K_GIZMO_AVATAR_PROXY => BasisSettingsDefaults.GizmoAvatarProxy.BindingKey;          // "gizmoavatarproxy"
     private static string K_GIZMO_IK_COLLIDERS => BasisSettingsDefaults.GizmoIKColliders.BindingKey;          // "gizmoikcolliders"
     private static string K_GIZMO_AUDIO_RANGES => BasisSettingsDefaults.GizmoAudioRanges.BindingKey;          // "gizmoaudioranges"
     private static string K_GIZMO_AUDIO_CONE => BasisSettingsDefaults.GizmoAudioListenerCone.BindingKey;      // "gizmoaudiolistenercone"
@@ -280,6 +282,14 @@ public class SMModuleDebugOptions : BasisSettingsBase
             return;
         }
 
+        if (matchedSettingName == K_GIZMO_AVATAR_PROXY)
+        {
+            bool.TryParse(optionValue, out UseAvatarProxyGizmo);
+            BasisAvatarProxyGizmo.SetEnabled(UseAvatarProxyGizmo);
+            RecomputeUseGizmos();
+            return;
+        }
+
         if (matchedSettingName == K_GIZMO_EYE_GAZE)
         {
             if (bool.TryParse(optionValue, out UseEyeGazeGizmo) && !UseEyeGazeGizmo)
@@ -485,6 +495,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
             UseTrackerGizmos ||
             UseLinkedTrackerLines ||
             UseEyeGazeGizmo ||
+            UseAvatarProxyGizmo ||
             UseIKColliders ||
             BasisIKSolveGizmoStages.Active ||
             BasisPointerRayGizmos.Show ||

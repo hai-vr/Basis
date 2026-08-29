@@ -41,6 +41,22 @@ public sealed partial class BasisGlobalIlluminationPass
         private static readonly ProfilingSampler samplerUpsample = new ProfilingSampler("Basis GI Specular Upsample");
         private static readonly ProfilingSampler samplerPublish = new ProfilingSampler("Basis GI Specular Publish");
 
+        public static float GpuMs =>
+            samplerPrepass.gpuElapsedTime + samplerTrace.gpuElapsedTime + samplerResolve.gpuElapsedTime +
+            samplerTemporal.gpuElapsedTime + samplerBlur.gpuElapsedTime + samplerUpsample.gpuElapsedTime +
+            samplerPublish.gpuElapsedTime;
+
+        public static void SetProfilingEnabled(bool enabled)
+        {
+            samplerPrepass.enableRecording = enabled;
+            samplerTrace.enableRecording = enabled;
+            samplerResolve.enableRecording = enabled;
+            samplerTemporal.enableRecording = enabled;
+            samplerBlur.enableRecording = enabled;
+            samplerUpsample.enableRecording = enabled;
+            samplerPublish.enableRecording = enabled;
+        }
+
         // Reflections are deterministic per pixel - one mirror ray, no lobe to sample - so the only thing
         // the accumulation has to settle is the light resampling at the hit. It converges far faster than
         // the diffuse gather does, and letting history run as long there would smear a moving reflection

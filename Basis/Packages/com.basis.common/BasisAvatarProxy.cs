@@ -73,7 +73,23 @@ public static class BasisAvatarProxy
         new Limb(HumanBodyBones.LeftLowerLeg, HumanBodyBones.LeftFoot, 0.046f),
         new Limb(HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, 0.058f),
         new Limb(HumanBodyBones.RightLowerLeg, HumanBodyBones.RightFoot, 0.046f),
+
+        // The feet. Ankle to toe, so a foot occludes the ground it is standing on - without these the plan
+        // stopped at the ankle and a body cast no contact shadow at all where it actually meets the floor,
+        // which is the one place everybody looks for one.
+        new Limb(HumanBodyBones.LeftFoot, HumanBodyBones.LeftToes, 0.048f),
+        new Limb(HumanBodyBones.RightFoot, HumanBodyBones.RightToes, 0.048f),
     };
+
+    /// <summary>
+    /// A foot on a rig with no toe bone, as a fraction of the reference height.
+    ///
+    /// Toes are optional on a humanoid avatar and plenty of rigs leave them unmapped, which would leave
+    /// those avatars with the hole this fixes. A ball on the ankle is a poor foot - it has no length and
+    /// points nowhere - but it is the only shape expressible from a single bone, since a capsule needs two
+    /// transforms to take its direction from and there is no second one to use.
+    /// </summary>
+    public const float ToelessFootRadiusFactor = 0.055f;
 
     /// <summary>The head is the one part with no child bone to reach towards, so it gets its own ball.</summary>
     public const float HeadRadiusFactor = 0.075f;
@@ -99,13 +115,27 @@ public static class BasisAvatarProxy
         public readonly float Radius;
         /// <summary>Extends the capsule past its end bone. Used for the head, which reaches past its joint.</summary>
         public readonly float Extend;
+        /// <summary>
+        /// What the body plan alone would have given this limb, before any measurement from the mesh.
+        ///
+        /// Kept so a debug view can show the two side by side. A fitted radius that has run away from the
+        /// plan is the shape of the bug this whole area keeps producing - a capsule wider than the surface
+        /// the rays leave from - and it is invisible unless you can see both numbers at once.
+        /// </summary>
+        public readonly float PlanRadius;
 
         public ResolvedLimb(Transform from, Transform to, float radius, float extend)
+            : this(from, to, radius, extend, radius)
+        {
+        }
+
+        public ResolvedLimb(Transform from, Transform to, float radius, float extend, float planRadius)
         {
             From = from;
             To = to;
             Radius = radius;
             Extend = extend;
+            PlanRadius = planRadius;
         }
 
         public bool IsValid => From != null && To != null;
@@ -155,6 +185,11 @@ public static class BasisAvatarProxy
             destination.Add(new ResolvedLimb(from, to, reference * limb.RadiusFactor, 0f));
         }
 
+        // A rig with no toe bone gets a ball on the ankle rather than nothing at all. See
+        // ToelessFootRadiusFactor for why it cannot be a capsule.
+        AddToelessFoot(animator, HumanBodyBones.LeftFoot, HumanBodyBones.LeftToes, reference, destination);
+        AddToelessFoot(animator, HumanBodyBones.RightFoot, HumanBodyBones.RightToes, reference, destination);
+
         // Your own head is not in your own trace, because in VR your camera is INSIDE it. Basis already
         // scales the local head bone to zero so the mesh does not render into your eyes
         // (BasisLocalAvatarDriver.ScaleHeadToZero); a capsule built from the bone POSITION ignores that
@@ -168,7 +203,165 @@ public static class BasisAvatarProxy
             destination.Add(new ResolvedLimb(neck, head, reference * HeadRadiusFactor, reference * HeadRadiusFactor));
         }
 
+        // Everything above is a body-shaped guess scaled by one number. Measure it against the avatar that
+        // is actually standing there, where the avatar will let us look.
+        FitRadiiToMesh(animator, destination);
+
         return destination.Count > 0;
+    }
+
+    /// <summary>Whether limb radii are measured from the avatar's own meshes. Off falls back to the plan alone.</summary>
+    public static bool FitToMesh = true;
+
+    /// <summary>How many vertices one avatar may be measured from. Sampled by stride, not by truncation.</summary>
+    public const int FitVertexBudget = 6000;
+
+    /// <summary>
+    /// Where a limb's radius sits in the spread of distances measured around it.
+    ///
+    /// NOT the maximum. A maximum is a bounding radius, and a bounding capsule swallows the surface the rays
+    /// start from - which is the whole reason bodies wore black patches. A hair strand, a skirt hem or a
+    /// sword weighted to the hips would each set it on their own. Around two thirds puts the capsule inside
+    /// the silhouette, which under-occludes slightly and never encloses the surface.
+    /// </summary>
+    public const float FitRadiusPercentile = 0.65f;
+
+    /// <summary>
+    /// How far a measured radius may depart from the body plan's own guess, as a multiplier.
+    ///
+    /// The measurement is the better number when it works and nonsense when the mesh is not what it looks
+    /// like - one enormous weight-painted prop, a mesh authored at a hundred times scale, a rig whose bones
+    /// do not sit inside their own geometry. The plan is a poor estimate that is never absurd, so it is what
+    /// bounds the good one.
+    /// </summary>
+    public const float FitMinScale = 0.45f, FitMaxScale = 1.6f;
+
+    private static readonly List<SkinnedMeshRenderer> fitRenderers = new List<SkinnedMeshRenderer>();
+    private static readonly List<List<float>> fitDistances = new List<List<float>>();
+
+    /// <summary>
+    /// Replaces each limb's radius with one measured from the avatar's own skinned meshes.
+    ///
+    /// The body plan is proportions: a radius is a fraction of hips-to-head, so every avatar of the same
+    /// height gets the same limbs however differently they are actually built. This measures instead - every
+    /// sampled vertex is given to the limb segment it sits nearest, and the limb takes a percentile of those
+    /// distances. A heavy boot gets a thicker foot and a thin wrist gets a thinner forearm, on the avatar
+    /// that is standing there rather than on an average of all of them.
+    ///
+    /// ⚠️ Silently does nothing when the meshes cannot be read, which is the common case for uploaded
+    /// avatars - Read/Write is off by default and the ray scene already treats unreadable geometry as
+    /// ordinary (see BasisGlobalIlluminationRayScene). Falling back to the plan is the point: this improves
+    /// the fit where it can and is never required for correctness.
+    ///
+    /// Runs once, at resolve, and is bounded by <see cref="FitVertexBudget"/> - a hundred thousand vertex
+    /// avatar is sampled by stride rather than read whole.
+    /// </summary>
+    private static void FitRadiiToMesh(Animator animator, List<ResolvedLimb> limbs)
+    {
+        if (!FitToMesh || limbs.Count == 0) { return; }
+
+        fitRenderers.Clear();
+        animator.GetComponentsInChildren(true, fitRenderers);
+        if (fitRenderers.Count == 0) { return; }
+
+        while (fitDistances.Count < limbs.Count) { fitDistances.Add(new List<float>()); }
+        for (int index = 0; index < limbs.Count; index++) { fitDistances[index].Clear(); }
+
+        bool measured = false;
+        for (int index = 0; index < fitRenderers.Count; index++)
+        {
+            measured |= Measure(fitRenderers[index], limbs);
+        }
+        if (!measured) { return; }
+
+        for (int index = 0; index < limbs.Count; index++)
+        {
+            List<float> distances = fitDistances[index];
+            // Two samples cannot describe a limb, and a limb nothing was weighted to is one the mesh has
+            // nothing to say about - the plan's guess stands in both cases.
+            if (distances.Count < 8) { continue; }
+
+            distances.Sort();
+            int slot = Mathf.Clamp(Mathf.RoundToInt((distances.Count - 1) * FitRadiusPercentile), 0, distances.Count - 1);
+
+            ResolvedLimb limb = limbs[index];
+            float fitted = Mathf.Clamp(distances[slot], limb.Radius * FitMinScale, limb.Radius * FitMaxScale);
+            limbs[index] = new ResolvedLimb(limb.From, limb.To, fitted, limb.Extend, limb.Radius);
+        }
+    }
+
+    /// <summary>
+    /// Gives every sampled vertex of one renderer to the limb it sits nearest, recording how far off that
+    /// limb's axis it was. Returns whether the renderer could be read at all.
+    /// </summary>
+    private static bool Measure(SkinnedMeshRenderer renderer, List<ResolvedLimb> limbs)
+    {
+        if (renderer == null) { return false; }
+        Mesh mesh = renderer.sharedMesh;
+        // Read/Write disabled is not an error and not rare - it is the default for an uploaded avatar.
+        if (mesh == null || !mesh.isReadable || mesh.vertexCount == 0) { return false; }
+
+        Transform[] bones = renderer.bones;
+        Matrix4x4[] bindposes = mesh.bindposes;
+        BoneWeight[] weights = mesh.boneWeights;
+        Vector3[] vertices = mesh.vertices;
+        // A skinned mesh with no usable bone table cannot be posed, and a vertex in the wrong place would
+        // measure the distance between two poses rather than the thickness of a limb.
+        if (bones == null || bones.Length == 0 || bindposes.Length != bones.Length || weights.Length != vertices.Length)
+        {
+            return false;
+        }
+
+        int stride = Mathf.Max(1, vertices.Length / FitVertexBudget);
+        for (int index = 0; index < vertices.Length; index += stride)
+        {
+            int bone = weights[index].boneIndex0;
+            if (bone < 0 || bone >= bones.Length) { continue; }
+            Transform boneTransform = bones[bone];
+            if (boneTransform == null) { continue; }
+
+            // One bone rather than the full four-way blend. This is measuring how thick a limb is, and the
+            // vertices that decide that sit in the middle of a limb where one bone already dominates; the
+            // ones a blend would move are at the joints, which is exactly where a capsule end is vague anyway.
+            Vector3 world = boneTransform.localToWorldMatrix.MultiplyPoint3x4(bindposes[bone].MultiplyPoint3x4(vertices[index]));
+
+            int nearest = -1;
+            float nearestDistance = float.MaxValue;
+            for (int limbIndex = 0; limbIndex < limbs.Count; limbIndex++)
+            {
+                ResolvedLimb limb = limbs[limbIndex];
+                if (!limb.IsValid) { continue; }
+                float distance = DistanceToSegment(world, limb.From.position, limb.To.position);
+                if (distance < nearestDistance) { nearestDistance = distance; nearest = limbIndex; }
+            }
+
+            if (nearest >= 0) { fitDistances[nearest].Add(nearestDistance); }
+        }
+
+        return true;
+    }
+
+    private static float DistanceToSegment(Vector3 point, Vector3 start, Vector3 end)
+    {
+        Vector3 axis = end - start;
+        float lengthSquared = axis.sqrMagnitude;
+        if (lengthSquared <= 1e-10f) { return Vector3.Distance(point, start); }
+        float t = Mathf.Clamp01(Vector3.Dot(point - start, axis) / lengthSquared);
+        return Vector3.Distance(point, start + axis * t);
+    }
+
+    /// <summary>
+    /// Covers a foot whose rig maps no toe bone, and does nothing when one is mapped - the body plan's own
+    /// ankle-to-toe limb has already covered that case and a second shape on top would only double the
+    /// occlusion there.
+    /// </summary>
+    private static void AddToelessFoot(Animator animator, HumanBodyBones footBone, HumanBodyBones toeBone,
+        float reference, List<ResolvedLimb> destination)
+    {
+        if (animator.GetBoneTransform(toeBone) != null) { return; }
+        Transform foot = animator.GetBoneTransform(footBone);
+        if (foot == null) { return; }
+        destination.Add(new ResolvedLimb(foot, foot, reference * ToelessFootRadiusFactor, 0f));
     }
 
     /// <summary>
@@ -308,6 +501,12 @@ public static class BasisAvatarProxy
 
     public static int PoseCount => poses.Count;
 
+    /// <summary>
+    /// The avatars that currently have a proxy, for debug drawing. Read only, and read only useful while
+    /// something is asking for poses - a tracer, or the debug view itself calling <see cref="PoseFor"/>.
+    /// </summary>
+    public static IReadOnlyDictionary<Animator, BasisAvatarProxyPose> Poses => poses;
+
     private static Mesh sharedCapsule;
 
     /// <summary>
@@ -332,12 +531,20 @@ public static class BasisAvatarProxy
     /// limbs share a joint, so keeping the cap short is what stops a lens shaped hole opening at every knee
     /// and elbow where two tapers meet.
     /// </summary>
+    /// <summary>Sides around the capsule, and hemisphere rings per cap. Public so anything drawing this
+    /// mesh reads the same numbers that built it rather than re-deriving them and quietly drifting.</summary>
+    public const int CapsuleSides = 8, CapsuleRings = 2;
+
+    /// <summary>Vertices per ring row. The row loop is inclusive, hence the +1 on both counts.</summary>
+    public static int CapsuleStride => CapsuleSides + 1;
+    public static int CapsuleRowCount => (CapsuleRings + 1) * 2 + 1;
+
     public static Mesh SharedCapsule()
     {
         if (sharedCapsule != null) { return sharedCapsule; }
 
-        const int sides = 8;
-        const int rings = 2;
+        const int sides = CapsuleSides;
+        const int rings = CapsuleRings;
 
         List<Vector3> vertices = new List<Vector3>();
         List<Vector3> normals = new List<Vector3>();

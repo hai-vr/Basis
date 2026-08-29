@@ -574,6 +574,12 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> GizmoSkeletonLines = new("gizmoskeletonlines_v2", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> GizmoCalibrationSpheres = new("gizmocalibrationspheres_v2", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> GizmoJiggleVisuals = new("gizmojigglevisuals_v2", new BasisPlatformDefault<bool>(false));
+        /// <summary>
+        /// The capsules that stand in for avatar bodies in the ray traced lighting. They are the one part
+        /// of that picture which does NOT match what is on screen, so being able to look at them is the
+        /// difference between diagnosing an artefact and guessing at it.
+        /// </summary>
+        public static BasisSettingsBinding<bool> GizmoAvatarProxy = new("gizmoavatarproxy", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> TrackerGizmos = new("trackergizmos", new BasisPlatformDefault<bool>(false));
 
@@ -970,6 +976,7 @@ namespace Basis.BasisUI
         // paying a full extra skinned draw per shadow cascade each.
         public static BasisSettingsBinding<bool> UseAvatarShadowLod = new("useavatarshadowlod", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> UseAvatarVisibilityCull = new("useavatarvisibilitycull", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> ShowPerformanceBar = new("showperformancebar", new BasisPlatformDefault<bool>(false));
 
         // URP's GPU Resident Drawer occlusion test, for world geometry (MeshRenderer only — avatars
         // are skinned and the drawer never sees them). Read at boot only: the drawer snapshots its
@@ -2417,6 +2424,7 @@ namespace Basis.BasisUI
             GizmoSkeletonLines.LoadBindingValue();
             GizmoCalibrationSpheres.LoadBindingValue();
             GizmoJiggleVisuals.LoadBindingValue();
+            GizmoAvatarProxy.LoadBindingValue();
             TrackerGizmos.LoadBindingValue();
             LinkedTrackerLines.LoadBindingValue();
             GizmoEyeGaze.LoadBindingValue();
@@ -2529,6 +2537,7 @@ namespace Basis.BasisUI
             UseAvatarSkinLod.LoadBindingValue();
             UseAvatarShadowLod.LoadBindingValue();
             UseAvatarVisibilityCull.LoadBindingValue();
+            ShowPerformanceBar.LoadBindingValue();
             UseGpuOcclusionCulling.LoadBindingValue();
             UseAvatarFarLod.LoadBindingValue();
             //AvatarFarLodDistance.LoadBindingValue();

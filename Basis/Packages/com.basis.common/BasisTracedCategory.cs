@@ -15,11 +15,31 @@
 /// </summary>
 public static class BasisTracedCategory
 {
-    /// <summary>The people in the room, including the rigid props, accessories and shells they carry.</summary>
-    public const byte Avatar = 1 << 0;
+    /// <summary>Rigid geometry standing on an avatar layer: the props, accessories and shells people carry.</summary>
+    public const byte AvatarMesh = 1 << 0;
 
     /// <summary>Everything else the trace is allowed to see.</summary>
     public const byte World = 1 << 1;
+
+    /// <summary>
+    /// The capsules that stand in for a body, as opposed to geometry anybody drew.
+    ///
+    /// Its own bit because a proxy is the one thing in the structure that does NOT match what is on screen.
+    /// Rays start from the depth buffer - the avatar's real rendered surface - and a surface sitting inside
+    /// its own capsule fires every ray into the inside of it and reads as fully enclosed. Global illumination
+    /// recognises that case by reading a flag off the instance it hit; ambient occlusion has no instance
+    /// buffer to read, so it separates the two by MASK instead and traces the capsules on their own. Inside
+    /// a proxy-only trace every hit is a proxy by construction, which is what lets the same back-face test
+    /// work there without an instance to check it against.
+    /// </summary>
+    public const byte AvatarProxy = 1 << 2;
+
+    /// <summary>
+    /// Everything that is a person. What a trace asks for when it wants avatars - both the capsules standing
+    /// in for bodies and the rigid things those bodies carry, which is what "Avatars" has always meant to
+    /// anyone choosing it.
+    /// </summary>
+    public const byte Avatar = AvatarMesh | AvatarProxy;
 
     /// <summary>Both halves - what a trace asks for when it wants the whole structure.</summary>
     public const byte All = Avatar | World;
@@ -32,6 +52,9 @@ public static class BasisTracedCategory
     /// </summary>
     public static byte For(int layer, int avatarLayerMask)
     {
-        return (avatarLayerMask & (1 << layer)) != 0 ? Avatar : World;
+        // AvatarMesh, never the combined Avatar: this classifies RENDERERS, and a renderer is never a proxy.
+        // Handing back the combined value would put real geometry inside the proxy-only trace, where the
+        // back-face rule would step straight through the inside of a double sided wall.
+        return (avatarLayerMask & (1 << layer)) != 0 ? AvatarMesh : World;
     }
 }

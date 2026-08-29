@@ -483,6 +483,18 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (captureCamera == null) return;
         if (CameraData == null) CameraData = captureCamera.GetUniversalAdditionalCameraData();
 
+        // Both of these are about the CAMERA, not about the volume, and they used to sit past the early
+        // return below - so a camera that found no post processing volume silently rendered no global
+        // illumination. Nothing connects the two: the allow-list only needs to know this camera is one of
+        // ours, and the bounce is not part of the post stack at all (it composites before transparents, off
+        // the depth buffer). The one thing that DID connect them was the renderer's own gate, which refuses
+        // any camera with post processing off - so leaving both behind a volume lookup meant one missing
+        // component turned the effect off twice over.
+        CameraData.renderPostProcessing = true;
+#if BASIS_HAS_GI && !UNITY_ANDROID
+        SMModuleGlobalIlluminationURP.RegisterCamera(captureCamera);
+#endif
+
         Volume volume = FindPostProcessingVolume();
         if (volume == null) return;
 
@@ -491,10 +503,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         CameraData.volumeLayerMask = 1 << volume.gameObject.layer;
         CameraData.volumeTrigger = volume.transform;
-        CameraData.renderPostProcessing = true;
-#if BASIS_HAS_GI && !UNITY_ANDROID
-        SMModuleGlobalIlluminationURP.RegisterCamera(captureCamera);
-#endif
     }
 
     private Volume FindPostProcessingVolume()

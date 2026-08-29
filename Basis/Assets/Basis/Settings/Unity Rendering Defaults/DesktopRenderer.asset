@@ -226,7 +226,7 @@ MonoBehaviour:
   m_ShadowTransparentReceive: 1
   m_RenderingMode: 2
   m_DepthPrimingMode: 2
-  m_CopyDepthMode: 1
+  m_CopyDepthMode: 0
   m_DepthAttachmentFormat: 0
   m_DepthTextureFormat: 0
   m_AccurateGbufferNormals: 0
@@ -270,7 +270,6 @@ MonoBehaviour:
   m_Active: 1
   m_Shader: {fileID: 4800000, guid: 03edcf40bafe4c3d8424f23fcf1d3ff1, type: 3}
   m_RayStagesShader: {fileID: 4800000, guid: d844523f25c598748831a41b5572ff82, type: 3}
-  m_LightmapMaskShader: {fileID: 4800000, guid: e263dbfe71341bd44842a48de3a574c1, type: 3}
   m_RayTraceShader: {fileID: 4807578003741378534, guid: 4d1b09960d174e54eb42461cb8005e17, type: 3}
   m_RayTraceCompute: {fileID: 7200000, guid: 3324c9bab86b6b44db2a1d4f0479c2ed, type: 3}
   m_RayTracingComputeFallback: 0
@@ -358,7 +357,6 @@ MonoBehaviour:
   m_Active: 1
   m_Shader: {fileID: 4800000, guid: 03edcf40bafe4c3d8424f23fcf1d3ff1, type: 3}
   m_RayStagesShader: {fileID: 4800000, guid: d844523f25c598748831a41b5572ff82, type: 3}
-  m_LightmapMaskShader: {fileID: 4800000, guid: e263dbfe71341bd44842a48de3a574c1, type: 3}
   m_RayTraceShader: {fileID: 4807578003741378534, guid: 4d1b09960d174e54eb42461cb8005e17, type: 3}
   m_RayTraceCompute: {fileID: 7200000, guid: 3324c9bab86b6b44db2a1d4f0479c2ed, type: 3}
   m_RayTracingComputeFallback: 0

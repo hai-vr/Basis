@@ -138,9 +138,9 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
             LeftHand = CreatePhysicalHandTracker("Left Hand OPENXR", "Left Hand OPENXR", BasisBoneTrackedRole.LeftHand);
             RightHand = CreatePhysicalHandTracker("Right Hand OPENXR", "Right Hand OPENXR", BasisBoneTrackedRole.RightHand);
             BasisOpenXRRefreshRate.Hook();
-            SMModuleMotionVectorsURP.SpaceWarpActive = OpenXRRuntime.IsExtensionEnabled("XR_FB_space_warp");
             SMModuleMotionVectorsURP.ApplyMotionVectors();
-            BasisDebug.Log($"SpaceWarp extension {(SMModuleMotionVectorsURP.SpaceWarpActive ? "present" : "absent")}; motion vectors {(SMModuleMotionVectorsURP.SpaceWarpActive ? "on" : "off")}", BasisDebug.LogTag.Device);
+            bool spaceWarpExtensionPresent = OpenXRRuntime.IsExtensionEnabled("XR_FB_space_warp");
+            BasisDebug.Log($"SpaceWarp extension {(spaceWarpExtensionPresent ? "present" : "absent")}; motion vectors always on", BasisDebug.LogTag.Device);
             BasisDebug.Log("SDK started successfully.");
             InputSystem.onDeviceChange += onDeviceChange;
             BasisDeviceManagement.OnDeviceManagementLoop += CheckTrackersPulse;
