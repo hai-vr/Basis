@@ -1663,9 +1663,13 @@ namespace Basis.BasisUI
 
             BuildPerformanceModeSection(container);
 
-            SettingsProviderFrameBottleneck.BuildFrameBottleneckGroup(container);
+            SettingsProviderFrameBottleneck.BuildFrameBottleneckGroup(container, descriptor);
 
-            SettingsProviderPerformanceBar.BuildPerformanceBarGroup(container);
+            SettingsProviderPerformanceBar.BuildPerformanceBarGroup(container, descriptor);
+
+            // Renderer (+ its DX12-only PSO cache control) moved up here, right under the
+            // performance breakdown, instead of sitting at the foot of the page.
+            BuildRendererSection(container, descriptor);
 
             PanelSectionToggle qualityToggle = PanelSectionToggle.CreateNewEntry(container);
             PanelElementDescriptor qualityGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
@@ -2870,13 +2874,6 @@ namespace Basis.BasisUI
             // merged here so users see all rendering / quality / cost controls together.
             SettingsProviderPerformanceLimits.BuildPerformanceLimitsContent(container, true);
 
-            // Last on the page: the one control here that cannot take effect at all without a
-            // restart, so nothing above it looks like it needs one.
-            BuildRendererSection(container, descriptor);
-
-            // DX12-only: no synchronous first-draw PSO cost to cache against on any other API.
-            BuildPsoCacheSection(container);
-
             // Every control this page carries now exists, so the bottleneck readout can find the
             // ones that move CPU or GPU cost and light them up while it is blaming that side.
             SettingsProviderBottleneckHints.Bind(descriptor);
@@ -3088,6 +3085,10 @@ namespace Basis.BasisUI
                 };
             }
 
+            // Nested inside the Renderer section, under the API dropdown: DX12-only, so it only
+            // ever appears alongside the API that actually needs it, not as its own page-level row.
+            BuildPsoCacheSection(group.ContentParent);
+
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(rendererToggle, group, false,
                 _ => descriptor.ForceRebuild());
         }
@@ -3158,6 +3159,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.UseAvatarShadowLod.ResetToDefault();
             BasisSettingsDefaults.UseAvatarVisibilityCull.ResetToDefault();
             BasisSettingsDefaults.ShowPerformanceBar.ResetToDefault();
+            BasisSettingsDefaults.PerformanceBarDetailed.ResetToDefault();
             BasisSettingsDefaults.UseGpuOcclusionCulling.ResetToDefault();
             BasisGraphicsApiSelection.ResetToRunning();
             BasisSettingsDefaults.GlobalMeshLOD.ResetToDefault();

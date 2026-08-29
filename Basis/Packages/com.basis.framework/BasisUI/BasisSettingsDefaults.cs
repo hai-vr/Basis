@@ -987,6 +987,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UseAvatarShadowLod = new("useavatarshadowlod", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> UseAvatarVisibilityCull = new("useavatarvisibilitycull", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> ShowPerformanceBar = new("showperformancebar", new BasisPlatformDefault<bool>(false));
+        // UI-formatting only (which legend the CPU field renders) — no LoadAll mirror needed, the
+        // settings panel reads RawValue directly each refresh.
+        public static BasisSettingsBinding<bool> PerformanceBarDetailed = new("performancebardetailed", new BasisPlatformDefault<bool>(false));
 
         // URP's GPU Resident Drawer occlusion test, for world geometry (MeshRenderer only — avatars
         // are skinned and the drawer never sees them). Read at boot only: the drawer snapshots its

@@ -7259,6 +7259,14 @@
       "value": "Breaks GPU and CPU frame cost down by section, so you can see what a setting like Global Illumination or RTAO is actually costing you. Only samples while this is on."
     },
     {
+      "key": "settings.graphics.performanceBar.detailed",
+      "value": "Detailed CPU Breakdown"
+    },
+    {
+      "key": "settings.graphics.performanceBar.detailed.tooltip",
+      "value": "Lists every individual system feeding the CPU bar's segments, sorted by cost, instead of just the section totals. GPU stays at section detail either way."
+    },
+    {
       "key": "settings.graphics.performanceBar.gpu",
       "value": "GPU"
     },

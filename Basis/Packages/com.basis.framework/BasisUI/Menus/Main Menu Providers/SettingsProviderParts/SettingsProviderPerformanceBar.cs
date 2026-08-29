@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using Basis.Scripts.Drivers;
 using UnityEngine;
@@ -39,19 +40,28 @@ namespace Basis.BasisUI
         private static int _tickCounter;
         private static bool _subscribed;
 
-        public static void BuildPerformanceBarGroup(RectTransform container)
+        public static void BuildPerformanceBarGroup(RectTransform container, PanelElementDescriptor descriptor)
         {
-            // Plain group, not a PanelSectionToggle-collapsible one: toggleShow IS the on/off switch,
-            // so it must stay visible on its own rather than being hidden behind a separate collapse
-            // control someone would have to open first just to find it.
+            PanelSectionToggle toggle = PanelSectionToggle.CreateNewEntry(container);
+            toggle.SetTitle(BasisLocalization.Get("settings.graphics.performanceBar.title"));
+
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, container);
-            group.SetTitle(BasisLocalization.Get("settings.graphics.performanceBar.title"));
+            group.SetTitle(string.Empty);
+            toggle.RegisterContentContainer(group);
 
             PanelToggle toggleShow = PanelToggle.CreateNewEntry(group.ContentParent);
             toggleShow.AssignBinding(BasisSettingsDefaults.ShowPerformanceBar);
             toggleShow.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.performanceBar.enable"));
             toggleShow.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.performanceBar.enable.tooltip"));
+
+            // CPU only: GPU's 6 named segments are already the full granularity this build tracks,
+            // but the CPU side collapses every BasisDriver/BasisEerie profiler marker into 9 coarse
+            // buckets, so there is real detail underneath worth exposing on demand.
+            PanelToggle toggleDetailed = PanelToggle.CreateNewEntry(group.ContentParent);
+            toggleDetailed.AssignBinding(BasisSettingsDefaults.PerformanceBarDetailed);
+            toggleDetailed.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.performanceBar.detailed"));
+            toggleDetailed.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.performanceBar.detailed.tooltip"));
 
             PanelElementDescriptor gpuField = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, group.ContentParent);
@@ -75,6 +85,9 @@ namespace Basis.BasisUI
             group.IsolateAsCanvas();
             Attach(group, gpuField, cpuField);
             group.OnInstanceReleased += () => Detach(group);
+
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(toggle, group, false,
+                _ => descriptor.ForceRebuild());
         }
 
         private static void ApplyVisible(PanelElementDescriptor gpuField, PanelElementDescriptor cpuField, bool visible)
@@ -123,7 +136,9 @@ namespace Basis.BasisUI
             _tickCounter = 0;
 
             _gpuField.SetDescription(FormatLegend(BasisPerformanceBarData.GpuMs, GpuLabels, BasisPerformanceBarView.GpuPalette));
-            _cpuField.SetDescription(FormatLegend(BasisPerformanceBarData.CpuMs, CpuLabels, BasisPerformanceBarView.CpuPalette));
+            _cpuField.SetDescription(BasisSettingsDefaults.PerformanceBarDetailed.RawValue
+                ? FormatDetailedCpuLegend()
+                : FormatLegend(BasisPerformanceBarData.CpuMs, CpuLabels, BasisPerformanceBarView.CpuPalette));
         }
 
         // Colors each segment's text with the same swatch its bar uses, so the legend and the bar
@@ -141,6 +156,46 @@ namespace Basis.BasisUI
                 sb.Append("</color>");
             }
             return sb.Length > 0 ? sb.ToString() : BasisLocalization.Get("settings.graphics.performanceBar.measuring");
+        }
+
+        // Reused across ticks so the sort has nothing to allocate every refresh.
+        private static readonly List<BasisPerformanceBarData.MarkerRow> _detailScratch = new List<BasisPerformanceBarData.MarkerRow>(64);
+
+        // One line per underlying profiler marker instead of one per coarse bucket — every marker
+        // Basis has classified, including ones reading 0.00ms right now, not just whichever
+        // currently cost something; sorted worst-first so the heaviest is still easy to spot. Raw
+        // marker names on purpose — this is the "show me exactly what" view, not the at-a-glance one.
+        private static string FormatDetailedCpuLegend()
+        {
+            IReadOnlyList<BasisPerformanceBarData.MarkerRow> rows = BasisPerformanceBarData.CpuRows;
+            if (rows.Count == 0)
+            {
+                return BasisLocalization.Get("settings.graphics.performanceBar.measuring");
+            }
+
+            _detailScratch.Clear();
+            for (int i = 0; i < rows.Count; i++)
+            {
+                _detailScratch.Add(rows[i]);
+            }
+            _detailScratch.Sort((a, b) => b.SmoothedMs.CompareTo(a.SmoothedMs));
+
+            Color[] palette = BasisPerformanceBarView.CpuPalette;
+            StringBuilder sb = new StringBuilder(512);
+            for (int i = 0; i < _detailScratch.Count; i++)
+            {
+                BasisPerformanceBarData.MarkerRow row = _detailScratch[i];
+                if (sb.Length > 0)
+                {
+                    sb.Append('\n');
+                }
+                int segment = (int)row.Segment;
+                Color color = segment < palette.Length ? palette[segment] : Color.gray;
+                sb.Append("<color=#").Append(ColorUtility.ToHtmlStringRGB(color)).Append('>');
+                sb.Append(row.Name).Append(' ').Append(row.SmoothedMs.ToString("F2")).Append("ms");
+                sb.Append("</color>");
+            }
+            return sb.ToString();
         }
     }
 }

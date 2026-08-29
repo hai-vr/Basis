@@ -21,6 +21,7 @@ namespace Basis.BasisUI
             BasisFrameBottleneckKind.NoGpuTimer
         };
 
+        private static PanelSectionToggle _toggle;
         private static PanelElementDescriptor _group;
         private static PanelElementDescriptor _frameField;
         private static PanelElementDescriptor _cpuField;
@@ -38,13 +39,19 @@ namespace Basis.BasisUI
         public static BasisFrameBottleneckKind Verdict =>
             _shownKind == UnsetKind ? BasisFrameBottleneckKind.Measuring : _shownKind;
 
-        public static void BuildFrameBottleneckGroup(RectTransform container)
+        public static void BuildFrameBottleneckGroup(RectTransform container, PanelElementDescriptor descriptor)
         {
+            // Collapsible so the page can stay short; the toggle's own header carries the live
+            // GPU/CPU-limited verdict, so the headline is visible even while collapsed.
+            PanelSectionToggle toggle = PanelSectionToggle.CreateNewEntry(container);
+            toggle.SetTitle(BasisLocalization.Get("settings.graphics.bottleneck.title"));
+
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, container);
-            group.SetTitle(BasisLocalization.Get("settings.graphics.bottleneck.title"));
+            group.SetTitle(string.Empty);
             group.SetDescription(BasisLocalization.Get("settings.graphics.bottleneck.measuring"));
             group.SetTooltip(BasisLocalization.Get("settings.graphics.bottleneck.tooltip"));
+            toggle.RegisterContentContainer(group);
 
             PanelElementDescriptor frameField = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, group.ContentParent);
@@ -63,16 +70,21 @@ namespace Basis.BasisUI
 
             group.IsolateAsCanvas();
 
-            Attach(group, frameField, cpuField, gpuField);
+            Attach(toggle, group, frameField, cpuField, gpuField);
             group.OnInstanceReleased += () => Detach(group);
+
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(toggle, group, false,
+                _ => descriptor.ForceRebuild());
         }
 
         private static void Attach(
+            PanelSectionToggle toggle,
             PanelElementDescriptor group,
             PanelElementDescriptor frameField,
             PanelElementDescriptor cpuField,
             PanelElementDescriptor gpuField)
         {
+            _toggle = toggle;
             _group = group;
             _frameField = frameField;
             _cpuField = cpuField;
@@ -111,6 +123,7 @@ namespace Basis.BasisUI
 
             Unsubscribe();
 
+            _toggle = null;
             _group = null;
             _frameField = null;
             _cpuField = null;
@@ -165,7 +178,7 @@ namespace Basis.BasisUI
             if (ShouldCommitVerdict(reading.Kind))
             {
                 _shownKind = reading.Kind;
-                _group.SetTitle(TitleFor(reading.Kind));
+                _toggle.SetTitle(TitleFor(reading.Kind));
                 _group.SetDescription(AdviceFor(reading.Kind));
                 ApplyTint(reading.Kind);
                 SettingsProviderBottleneckHints.Show(reading.Kind);
@@ -244,30 +257,29 @@ namespace Basis.BasisUI
             return true;
         }
 
+        // Title now lives on the always-visible toggle header, not this content group, so only the
+        // description (the multi-line advice text) needs a tallest-candidate freeze to stop the
+        // group resizing/jumping as the verdict changes.
         private static void FreezeGroupLayout()
         {
-            string title = _group.Title;
             string description = _group.Description;
 
-            _group.SetTitle(TallestOf(_group.HasTitle ? _group.TitleLabel : null, true));
-            _group.SetDescription(TallestOf(_group.HasDescription ? _group.DescriptionLabel : null, false));
+            _group.SetDescription(TallestAdvice(_group.HasDescription ? _group.DescriptionLabel : null));
 
             _group.FreezeLayoutSize();
 
-            _group.SetTitle(title);
             _group.SetDescription(description);
         }
 
-        private static string TallestOf(TextMeshProUGUI label, bool titles)
+        private static string TallestAdvice(TextMeshProUGUI label)
         {
-            string tallest = titles ? TitleFor(AllKinds[0]) : AdviceFor(AllKinds[0]);
+            string tallest = AdviceFor(AllKinds[0]);
             float width = label != null ? label.rectTransform.rect.width : 0f;
             float best = width > 0f ? label.GetPreferredValues(tallest, width, 0f).y : tallest.Length;
 
             for (int index = 1; index < AllKinds.Length; index++)
             {
-                BasisFrameBottleneckKind kind = AllKinds[index];
-                string candidate = titles ? TitleFor(kind) : AdviceFor(kind);
+                string candidate = AdviceFor(AllKinds[index]);
                 float height = width > 0f ? label.GetPreferredValues(candidate, width, 0f).y : candidate.Length;
                 if (height > best)
                 {

@@ -30,10 +30,12 @@ namespace Basis.Scripts.Drivers
             ProfilerRecorderOptions.StartImmediately |
             ProfilerRecorderOptions.SumAllSamplesInFrame;
 
-        private sealed class MarkerRow
+        public sealed class MarkerRow
         {
             public ProfilerRecorder Recorder;
             public BasisPerformanceCpuSegment Segment;
+            public string Name;
+            public float SmoothedMs;
         }
 
         private static readonly float[] gpuMs = new float[GpuSegmentCount];
@@ -49,6 +51,10 @@ namespace Basis.Scripts.Drivers
 
         public static float[] GpuMs => gpuMs;
         public static float[] CpuMs => cpuMs;
+        // Per-marker detail behind the 9 coarse buckets above — the "Detailed" performance-bar
+        // toggle reads this to show what is actually eating a segment's time instead of just the
+        // segment total. Exposed read-only; RescanCpuMarkers/DisposeCpuRecorders own the list.
+        public static IReadOnlyList<MarkerRow> CpuRows => cpuRows;
         public static float TargetMs { get; private set; }
         public static long Published { get; private set; }
 
@@ -167,8 +173,13 @@ namespace Basis.Scripts.Drivers
             for (int i = 0; i < cpuRows.Count; i++)
             {
                 MarkerRow row = cpuRows[i];
-                if (!row.Recorder.Valid || row.Recorder.Count == 0) continue;
+                if (!row.Recorder.Valid || row.Recorder.Count == 0)
+                {
+                    Accumulate(row, 0f);
+                    continue;
+                }
                 float ms = (float)(row.Recorder.GetSample(row.Recorder.Count - 1).Value * NsToMs);
+                Accumulate(row, ms);
                 switch (row.Segment)
                 {
                     case BasisPerformanceCpuSegment.EventDriver: eventDriver += ms; break;
@@ -215,6 +226,13 @@ namespace Basis.Scripts.Drivers
             target[index] = smoothed <= 0f && value <= 0f ? 0f : smoothed + (value - smoothed) * (float)Smoothing;
         }
 
+        // Same smoothing, per individual marker — feeds the detailed (per-marker) legend view.
+        private static void Accumulate(MarkerRow row, float value)
+        {
+            float smoothed = row.SmoothedMs;
+            row.SmoothedMs = smoothed <= 0f && value <= 0f ? 0f : smoothed + (value - smoothed) * (float)Smoothing;
+        }
+
         private static void RescanCpuMarkers()
         {
             handleScratch.Clear();
@@ -231,7 +249,7 @@ namespace Basis.Scripts.Drivers
                 if (segment == null) continue;
 
                 knownMarkers.Add(name);
-                cpuRows.Add(new MarkerRow { Recorder = CreateCpuRecorder(handle), Segment = segment.Value });
+                cpuRows.Add(new MarkerRow { Recorder = CreateCpuRecorder(handle), Segment = segment.Value, Name = name });
             }
         }
 
