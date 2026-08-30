@@ -42,6 +42,8 @@ namespace HVR.Vixxy
         internal float _previousValue;
         internal float _objectiveValue;
         internal float _actuatedValue;
+        private bool _isMeshVisibilityOverridingThis;
+        private float _clampedAddressValue;
 
         [NonSerialized] internal string Address;
         [NonSerialized] internal int AddressId;
@@ -55,6 +57,7 @@ namespace HVR.Vixxy
         [NonSerialized] internal float MinimumValue;
         [NonSerialized] internal float MaximumValue;
         [NonSerialized] internal List<HVRVixxyFilterBase> Filters;
+        [NonSerialized] internal HVRMeshVisibility MeshVisibilityNullable;
 
         [NonSerialized] internal bool Networked;
         [NonSerialized] internal HVRVixxyNetworkingType NetworkingType;
@@ -98,6 +101,12 @@ namespace HVR.Vixxy
 
             orchestrator = VixxySetup.EnsureInitialized(this, isWearer);
             _context = orchestrator.Context();
+            
+            MeshVisibilityNullable = GetComponent<HVRMeshVisibility>();
+            if (MeshVisibilityNullable != null)
+            {
+                MeshVisibilityNullable.OnMeshVisibilityChanged += WhenMeshVisibilityChanged;
+            }
 
             Address = CalculateAddress();
             AddressId = HVRAddress.AddressToId(Address);
@@ -168,6 +177,11 @@ namespace HVR.Vixxy
                 _variableStore.SubmitOrDefineDefaultValue(AddressId, defaultValue);
 
                 _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
+                if (MeshVisibilityNullable != null)
+                {
+                    orchestrator.RegisterMeshVisibility(MeshVisibilityNullable);
+                }
+                _clampedAddressValue = defaultValue;
                 _objectiveValue = defaultValue;
                 if (Filters.Count == 0)
                 {
@@ -177,6 +191,26 @@ namespace HVR.Vixxy
                 {
                     PrimeFilters();
                 }
+            }
+        }
+
+        private void WhenMeshVisibilityChanged(HVRVixxyMeshVisibilityEffect effect, float priorityValue)
+        {
+            if (effect == HVRVixxyMeshVisibilityEffect.OverrideValue)
+            {
+                _isMeshVisibilityOverridingThis = true;
+                if (Mathf.Approximately(priorityValue, _previousValue)) return;
+                ReevaluateObjectives(priorityValue);
+                Actuate();
+                orchestrator.PassMeshVisibilityOverride(_registeredActuator);
+            }
+            else
+            {
+                _isMeshVisibilityOverridingThis = false;
+                if (Mathf.Approximately(_clampedAddressValue, _previousValue)) return;
+                ReevaluateObjectives(_clampedAddressValue);
+                Actuate();
+                orchestrator.PassAddressUpdated(AddressId);
             }
         }
 
@@ -219,6 +253,11 @@ namespace HVR.Vixxy
             if (_registeredActuator != null && AlsoExecutesWhenDisabled)
             {
                 orchestrator.UnregisterActuator(_registeredActuator);
+            }
+
+            if (MeshVisibilityNullable != null)
+            {
+                MeshVisibilityNullable.OnMeshVisibilityChanged -= WhenMeshVisibilityChanged;
             }
         }
 
@@ -555,6 +594,10 @@ namespace HVR.Vixxy
             if (IsInitialized && _registeredActuator == null)
             {
                 _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
+                if (MeshVisibilityNullable != null)
+                {
+                    orchestrator.RegisterMeshVisibility(MeshVisibilityNullable);
+                }
             }
         }
 
@@ -578,17 +621,26 @@ namespace HVR.Vixxy
             if (value < MinimumValue) value = MinimumValue;
             else if (value > MaximumValue) value = MaximumValue;
 
+            _clampedAddressValue = value;
+
+            if (_isMeshVisibilityOverridingThis) return;
+            
             // This function can be called multiple times with the same value (e.g. values submitted by an external program).
             // Only proceed if there's a substantial change.
             if (Mathf.Approximately(value, _previousValue)) return;
+            ReevaluateObjectives(value);
+
+            orchestrator.PassAddressUpdated(AddressId);
+        }
+
+        private void ReevaluateObjectives(float value)
+        {
             _previousValue = value;
             _objectiveValue = value;
             if (Filters.Count == 0)
             {
                 _actuatedValue = _objectiveValue;
             }
-
-            orchestrator.PassAddressUpdated(AddressId);
         }
 
         public bool HasFilters()

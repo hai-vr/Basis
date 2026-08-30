@@ -61,5 +61,6 @@
         public const string AddLabel = "Add";
         public const string SampleValueFromSceneLabel = "Sample value from scene";
         public const string Measurements = "Measurements";
+        public const string MeshVisibility = "Mesh Visibility";
     }
 }

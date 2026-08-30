@@ -82,6 +82,7 @@ namespace HVR.Vixxy.Editor
 
                 EditorGUILayout.PropertyField(activationSp.FindPropertyRelative(nameof(HVRVixxyActivation.threshold)), GUIContent.none, GUILayout.Width(70));
 
+                if (componentSp.objectReferenceValue != null)
                 {
                     var allComponents = new [] { HVRVixxyLocalizationPhrase.TypeSelectionLabel }.Concat(((Component)(componentSp.objectReferenceValue)).gameObject
                             .GetComponents<Component>() // GetComponents may contain null values for unloadable MonoBehaviours
