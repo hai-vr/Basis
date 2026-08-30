@@ -5,6 +5,7 @@
 using Basis.BasisUI;
 using Basis.Rendering.RTAO;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
@@ -157,6 +158,25 @@ namespace Basis.Scripts.Rendering
 #endif
             BasisSettingsSystem.OnSettingChanged += OnSettingChanged;
             BasisSettingsSystem.OnSettingsFinishedChanges += Apply;
+
+            // Hardware RT support is a capability query into the engine's D3D12/Vulkan device, so on a
+            // Wine/Proton host what it reports is really reporting on VKD3D-Proton + the Linux driver
+            // underneath, not on Basis. Logged only there (BasisProtonDetection already skips this on
+            // native Windows) so a Linux/Proton run leaves a plain answer to "did it get hardware RT"
+            // instead of only showing up as whatever screen-space fallback or missing occlusion looks like.
+            if (BasisProtonDetection.IsWine)
+            {
+                string giStatus =
+#if BASIS_HAS_GI
+                    BasisGlobalIlluminationRayContext.HardwareSupported.ToString();
+#else
+                    "package not present";
+#endif
+                BasisDebug.Log(
+                    $"RTAO hardware ray tracing supported = {BasisRTAOFeature.IsSupported}, GI hardware ray tracing supported = {giStatus} " +
+                    $"(graphics API {BasisGraphicsApiSelection.CurrentDisplayName}, host Wine {BasisProtonDetection.WineVersion})",
+                    BasisDebug.LogTag.Rendering);
+            }
 
             // An avatar that is not in the acceleration structure casts no contact shadow, and avatars change
             // far more often than the scene rescan interval, so every lifecycle event forces a refresh.

@@ -1,128 +1,43 @@
-using System.Collections.Generic;
-using Basis.Scripts.Drivers;
 using UnityEngine;
 
 namespace Basis.Scripts.Rendering
 {
     /// <summary>
-    /// A freshly-installed avatar draws every one of its Renderers for the first time on the same
-    /// frame it becomes visible. On the explicit-PSO backends (D3D12/Vulkan/Metal,
-    /// <see cref="BasisGraphicsStatePrewarm"/>) that means every not-yet-traced shader/material
-    /// combination compiles its Pipeline State Object synchronously on that one frame, which is
-    /// what turns into a single large hitch. This spreads that same total cost across several
-    /// frames instead by holding the avatar's Renderers disabled and re-enabling a handful per
-    /// tick, skinned (body) renderers first so the avatar reads as "there" before accessories
-    /// fill in. It does not reduce the total PSO-creation cost, only how it is felt.
-    /// A renderer authored disabled (e.g. a hidden accessory) is restored to disabled, never
-    /// forced on.
+    /// Formerly staggered a freshly-installed avatar's Renderers back on a few per frame (skinned
+    /// "body" renderers first, plain "accessory" renderers after) to spread the explicit-PSO
+    /// backends' (D3D12/Vulkan/Metal) synchronous first-draw Pipeline State Object creation cost
+    /// across several frames instead of one hitch.
+    ///
+    /// <b>DISABLED 2026-08-30 — safety regression, not a perf tuning knob.</b> The reveal order was
+    /// a naive proxy ("skinned = body") with no way to know which renderer is clothing vs. skin for
+    /// arbitrary user-uploaded avatars, so for the several frames the queue took to drain, an
+    /// avatar's real body could sit fully visible and fully lit before its clothing renderers caught
+    /// up — reported by players as avatars reading as nude while loading. There is no hide-then-
+    /// reveal ORDERING that is safe for arbitrary UGC (flipping the order just moves the exposure
+    /// onto whichever content puts its covering geometry on the renderer type that goes last), so
+    /// <see cref="BeginStagedReveal"/> is now a no-op and the old queue/tick machinery was removed
+    /// with it. Do not re-enable this by hiding renderers again; a safe redesign would need to keep
+    /// 100% of the avatar's geometry visible at all times (e.g. warm PSOs by swapping each renderer
+    /// to a pre-warmed placeholder MATERIAL rather than toggling Renderer.enabled) before this comes
+    /// back.
     /// </summary>
     public static class BasisAvatarPsoReveal
     {
         public static bool Enabled = false;
-        public static int MaxRevealPerTick = 2;
-
-        private class Pending
-        {
-            public Renderer[] Renderers;
-            public bool[] OriginalEnabled;
-            public int Next;
-        }
-
-        private static readonly List<Pending> sQueue = new List<Pending>();
-        private static bool sRunning;
 
         public static void Apply(bool enabled)
         {
             Enabled = enabled;
-            UpdatePump();
         }
 
         /// <summary>
-        /// Queues a freshly-installed avatar's renderers for a staggered reveal. No-ops when
-        /// disabled or on a backend that never pays a synchronous PSO-creation cost.
+        /// Formerly queued a freshly-installed avatar's renderers for a staggered reveal.
+        /// Intentionally inert now — see the safety note on <see cref="BasisAvatarPsoReveal"/>.
+        /// Left as a no-op call site (rather than removed) so <see cref="BasisAvatarFactory"/>
+        /// doesn't need to change; nothing is hidden and nothing is queued.
         /// </summary>
         public static void BeginStagedReveal(Renderer[] renders)
         {
-            if (!Enabled || renders == null || renders.Length == 0 || !BasisGraphicsStatePrewarm.BackendBenefits())
-            {
-                return;
-            }
-
-            int total = renders.Length;
-            Renderer[] ordered = new Renderer[total];
-            int index = 0;
-            for (int i = 0; i < total; i++)
-            {
-                if (renders[i] is SkinnedMeshRenderer)
-                {
-                    ordered[index++] = renders[i];
-                }
-            }
-            for (int i = 0; i < total; i++)
-            {
-                if (!(renders[i] is SkinnedMeshRenderer))
-                {
-                    ordered[index++] = renders[i];
-                }
-            }
-
-            bool[] original = new bool[total];
-            for (int i = 0; i < total; i++)
-            {
-                Renderer renderer = ordered[i];
-                if (renderer != null)
-                {
-                    original[i] = renderer.enabled;
-                    renderer.enabled = false;
-                }
-            }
-
-            sQueue.Add(new Pending { Renderers = ordered, OriginalEnabled = original, Next = 0 });
-            UpdatePump();
-        }
-
-        private static void Tick()
-        {
-            int budget = MaxRevealPerTick;
-            for (int q = sQueue.Count - 1; q >= 0 && budget > 0; q--)
-            {
-                Pending pending = sQueue[q];
-                while (pending.Next < pending.Renderers.Length && budget > 0)
-                {
-                    int i = pending.Next++;
-                    Renderer renderer = pending.Renderers[i];
-                    if (renderer != null)
-                    {
-                        renderer.enabled = pending.OriginalEnabled[i];
-                        budget--;
-                    }
-                }
-                if (pending.Next >= pending.Renderers.Length)
-                {
-                    sQueue.RemoveAt(q);
-                }
-            }
-            UpdatePump();
-        }
-
-        private static void UpdatePump()
-        {
-            bool shouldRun = Enabled && sQueue.Count > 0;
-            if (shouldRun == sRunning)
-            {
-                return;
-            }
-            sRunning = shouldRun;
-            if (shouldRun)
-            {
-                BasisFrameClock.OnTick += Tick;
-                BasisFrameClock.AddRequest();
-            }
-            else
-            {
-                BasisFrameClock.OnTick -= Tick;
-                BasisFrameClock.RemoveRequest();
-            }
         }
     }
 }
