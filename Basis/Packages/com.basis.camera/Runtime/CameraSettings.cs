@@ -145,6 +145,14 @@ public partial class BasisHandHeldCameraUI
             flyTurnSpeed = 90f;
             flyMouseSensitivity = 0.5f;
             flyMomentum = true;
+            flyMovementFollowsPitch = true;
+
+            vrHandFlyMoveDeadzone = 0.02f;
+            vrHandFlyMoveReach = 0.25f;
+            vrHandFlyMoveSensitivity = 1f;
+            vrHandFlyTurnDeadzone = 4f;
+            vrHandFlyTurnReach = 45f;
+            vrHandFlyTurnSensitivity = 1f;
 
             gifDurationSeconds = 5f;
             gifFrameRate = 15;
@@ -471,10 +479,45 @@ public partial class BasisHandHeldCameraUI
         public bool flyMomentum;
 
         /// <summary>
+        /// On (the fixed behaviour), VR fly's forward/strafe follow wherever the lens is aimed,
+        /// pitch included. Off restores the earlier level-only glide. Defaulted in the constructor
+        /// rather than migrated, so a file written before this existed still gets the fix rather than
+        /// silently reverting to the old behaviour it never asked to keep.
+        /// </summary>
+        public bool flyMovementFollowsPitch;
+
+        /// <summary>
         /// On, the main menu's hotbar carries a fly switch, so flight can be armed and landed
         /// without opening this panel. Off is the zero fill, so an older file loads without it.
         /// </summary>
         public bool showFlyOnMainMenu;
+
+        /// <summary>
+        /// On, the left hand's own tracked position and rotation fly the camera directly while in
+        /// VR flight, in place of the left stick. Off is the zero fill, so an older file loads with
+        /// the stick still in charge.
+        /// </summary>
+        public bool vrLeftHandFlyEnabled;
+
+        /// <summary>
+        /// On, the right hand's own tracked rotation turns the camera while in VR flight, in place
+        /// of the right stick's yaw/pitch. Off is the zero fill, so an older file loads with the
+        /// stick still in charge.
+        /// </summary>
+        public bool vrRightHandFlyRotateEnabled;
+
+        /// <summary>
+        /// Shape of the hand-fly deadzone→reach response curve and its overall gain — see the
+        /// matching fields on <see cref="BasisHandHeldCameraInteractable"/>. All defaulted in the
+        /// constructor rather than migrated, so a file written before they existed still gets a
+        /// working curve instead of a zero-fill reach/sensitivity that would make hand-fly inert.
+        /// </summary>
+        public float vrHandFlyMoveDeadzone;
+        public float vrHandFlyMoveReach;
+        public float vrHandFlyMoveSensitivity;
+        public float vrHandFlyTurnDeadzone;
+        public float vrHandFlyTurnReach;
+        public float vrHandFlyTurnSensitivity;
         public bool resizeWithGesture;
 
         // GIF recording. Every default is set in the constructor, so an older file that lacks

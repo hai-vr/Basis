@@ -83,6 +83,98 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     [Range(0.25f, 8f)]
     public float vrFlyElevationSpeed = 2f;
 
+    /// <summary>
+    /// On, VR fly's forward/strafe follow wherever the lens is actually aimed, pitch included — point
+    /// the camera down and pushing forward dives it, matching how desktop's WASD has always flown
+    /// relative to the full look direction. Off restores the earlier level-glide behaviour: forward
+    /// always slides horizontally no matter how the lens is tipped, and only the separate elevation
+    /// axis climbs — the shot some dolly-style shots want. Strafe is unaffected either way: yaw and
+    /// pitch alone never tilt the right vector off horizontal, only roll does, and the operator never
+    /// rolls the camera on its own. See <see cref="FlyTranslationFrame"/>.
+    /// </summary>
+    public bool vrFlyMovementFollowsPitch = true;
+
+    public void SetVRFlyMovementFollowsPitch(bool enabled) => vrFlyMovementFollowsPitch = enabled;
+
+    [Header("VR Hand Tracked Fly")]
+    /// <summary>
+    /// While flying in VR, the left hand's own tracked position and rotation — offset from
+    /// wherever the hand was when tracking last engaged — steer the camera directly in place of
+    /// the left stick: move your hand away from that point and the camera flies that way through
+    /// the same accel/momentum the stick already uses; twist your hand and the camera turns.
+    /// Elevation rides the hand's own height rather than the right stick's, since a hand — unlike
+    /// a 2D stick — already has a vertical axis of its own to spend.
+    /// </summary>
+    public bool vrLeftHandFlyEnabled = false;
+
+    /// <summary>
+    /// While flying in VR, the right hand's own tracked rotation — offset from wherever it was
+    /// when tracking last engaged — turns the camera in place of the right stick's yaw/pitch.
+    /// Adds to whatever <see cref="vrLeftHandFlyEnabled"/> is already contributing rather than
+    /// replacing it, so both hands can steer the look at once; the right stick's elevation axis
+    /// is untouched.
+    /// </summary>
+    public bool vrRightHandFlyRotateEnabled = false;
+
+    /// <summary>Metres of hand offset below which hand-fly translation reports zero — filters hand tremor near neutral.</summary>
+    [Range(MinHandFlyMoveDeadzone, MaxHandFlyMoveDeadzone)]
+    public float vrHandFlyMoveDeadzone = 0.02f;
+
+    /// <summary>Metres a tracked hand must move from its neutral point for full-speed hand-fly translation.</summary>
+    [Range(MinHandFlyMoveReach, MaxHandFlyMoveReach)]
+    public float vrHandFlyMoveReach = 0.25f;
+
+    /// <summary>Overall gain on the hand-fly translation contribution, on top of the deadzone/reach curve.</summary>
+    [Range(MinHandFlySensitivity, MaxHandFlySensitivity)]
+    public float vrHandFlyMoveSensitivity = 1f;
+
+    /// <summary>Degrees of hand rotation below which hand-fly turning reports zero — filters wrist tremor near neutral.</summary>
+    [Range(MinHandFlyTurnDeadzone, MaxHandFlyTurnDeadzone)]
+    public float vrHandFlyTurnDeadzone = 4f;
+
+    /// <summary>Degrees a tracked hand must turn from its neutral orientation for full-rate hand-fly rotation.</summary>
+    [Range(MinHandFlyTurnReach, MaxHandFlyTurnReach)]
+    public float vrHandFlyTurnReach = 45f;
+
+    /// <summary>Overall gain on the hand-fly rotation contribution (both hands), on top of the deadzone/reach curve.</summary>
+    [Range(MinHandFlySensitivity, MaxHandFlySensitivity)]
+    public float vrHandFlyTurnSensitivity = 1f;
+
+    public const float MinHandFlyMoveDeadzone = 0f, MaxHandFlyMoveDeadzone = 0.15f;
+    public const float MinHandFlyMoveReach = 0.05f, MaxHandFlyMoveReach = 0.75f;
+    public const float MinHandFlyTurnDeadzone = 0f, MaxHandFlyTurnDeadzone = 20f;
+    public const float MinHandFlyTurnReach = 10f, MaxHandFlyTurnReach = 90f;
+    public const float MinHandFlySensitivity = 0.1f, MaxHandFlySensitivity = 2.5f;
+
+    public void SetVRLeftHandFlyEnabled(bool enabled)
+    {
+        if (vrLeftHandFlyEnabled == enabled) return;
+        vrLeftHandFlyEnabled = enabled;
+        leftHandFlyPrimed = false;
+    }
+
+    public void SetVRRightHandFlyRotateEnabled(bool enabled)
+    {
+        if (vrRightHandFlyRotateEnabled == enabled) return;
+        vrRightHandFlyRotateEnabled = enabled;
+        rightHandFlyRotatePrimed = false;
+    }
+
+    public void SetHandFlyMoveDeadzone(float metres) => vrHandFlyMoveDeadzone = Mathf.Clamp(metres, MinHandFlyMoveDeadzone, MaxHandFlyMoveDeadzone);
+    public void SetHandFlyMoveReach(float metres) => vrHandFlyMoveReach = Mathf.Clamp(metres, MinHandFlyMoveReach, MaxHandFlyMoveReach);
+    public void SetHandFlyMoveSensitivity(float multiplier) => vrHandFlyMoveSensitivity = Mathf.Clamp(multiplier, MinHandFlySensitivity, MaxHandFlySensitivity);
+    public void SetHandFlyTurnDeadzone(float degrees) => vrHandFlyTurnDeadzone = Mathf.Clamp(degrees, MinHandFlyTurnDeadzone, MaxHandFlyTurnDeadzone);
+    public void SetHandFlyTurnReach(float degrees) => vrHandFlyTurnReach = Mathf.Clamp(degrees, MinHandFlyTurnReach, MaxHandFlyTurnReach);
+    public void SetHandFlyTurnSensitivity(float multiplier) => vrHandFlyTurnSensitivity = Mathf.Clamp(multiplier, MinHandFlySensitivity, MaxHandFlySensitivity);
+
+    // Neutral pose each hand-fly toggle steers as a deflection from — see TryGetHandFlyPose.
+    private bool leftHandFlyPrimed;
+    private Vector3 leftHandFlyNeutralPos;
+    private Quaternion leftHandFlyNeutralRot = Quaternion.identity;
+    private bool rightHandFlyRotatePrimed;
+    private Vector3 rightHandFlyRotateNeutralPos;
+    private Quaternion rightHandFlyRotateNeutralRot = Quaternion.identity;
+
     [Header("Cinematic Controls")]
     /// <summary>Whether to use momentum/inertia for movement.</summary>
     public bool useMomentum = true;
@@ -406,6 +498,8 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         pendingYaw = 0f;
         pendingPitch = 0f;
+        leftHandFlyPrimed = false;
+        rightHandFlyRotatePrimed = false;
 
         if (BasisDeviceManagement.IsUserInDesktop())
         {
@@ -1964,6 +2058,11 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         if (isVRFlying)
         {
+            if (vrLeftHandFlyEnabled)
+            {
+                return HandleHandFlyMovementInput(out movement, out speedMultiplier);
+            }
+
             bool hasMove = TryGetFlyMoveInput(out BasisInputState moveState);
             Vector2 stick = hasMove ? moveState.Primary2DAxisDeadZoned : Vector2.zero;
 
@@ -2004,12 +2103,58 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         }
     }
 
+    /// <summary>
+    /// Left-hand-tracked substitute for the left stick: the hand's offset from its neutral point,
+    /// run through the same deadzone→reach smoothed response curve as <see cref="HandFlyRotationFraction"/>
+    /// (<see cref="vrHandFlyMoveDeadzone"/>/<see cref="vrHandFlyMoveReach"/>/<see cref="vrHandFlyMoveSensitivity"/>,
+    /// planar X/Z sharing one curve off their combined magnitude so diagonals aren't favoured, climb
+    /// independent), then fed through exactly the same <see cref="UpdateMovement"/>/<see cref="ApplyInertia"/>
+    /// pipeline the stick uses, so every speed/momentum slider tuned for the stick still applies.
+    /// Elevation rides the hand's own height rather than borrowing the right stick's Y axis, since a
+    /// hand — unlike a 2D stick — already has a real vertical axis to spend.
+    /// </summary>
+    private bool HandleHandFlyMovementInput(out Vector3 movement, out float speedMultiplier)
+    {
+        movement = Vector3.zero;
+        speedMultiplier = 1f;
+
+        if (!TryGetHandFlyPose(BasisBoneTrackedRole.LeftHand, ref leftHandFlyPrimed,
+                ref leftHandFlyNeutralPos, ref leftHandFlyNeutralRot, out Vector3 handPos, out _))
+        {
+            return false;
+        }
+
+        Vector3 raw = handPos - leftHandFlyNeutralPos;
+
+        Vector2 planarRaw = new Vector2(raw.x, raw.z);
+        float planarMagnitude = planarRaw.magnitude;
+        Vector2 planarDirection = planarMagnitude > 1e-5f ? planarRaw / planarMagnitude : Vector2.zero;
+        Vector2 planar = planarDirection * (HandFlyResponseCurve01(planarMagnitude, vrHandFlyMoveDeadzone, vrHandFlyMoveReach) * vrHandFlyMoveSensitivity);
+
+        float climb = HandFlyResponseFraction(raw.y, vrHandFlyMoveDeadzone, vrHandFlyMoveReach) * vrHandFlyMoveSensitivity;
+
+        // Pre-rotate into the fly frame so UpdateMovement's FlyTranslationFrame() multiply cancels
+        // back out to this exact world-space vector — a hand's offset has real spatial meaning,
+        // unlike a thumbstick's arbitrary X/Y, so it should not be re-aimed by wherever the flying
+        // camera itself happens to be looking. Whichever frame is active (pitch-following or level)
+        // applies identically here, same as it does to the stick.
+        Vector3 localXZ = Quaternion.Inverse(FlyTranslationFrame()) * new Vector3(planar.x, 0f, planar.y);
+        movement = new Vector3(localXZ.x, climb, localXZ.z);
+
+        if (movement.magnitude < 0.01f)
+            return false;
+
+        speedMultiplier = TryGetFlyMoveInput(out BasisInputState moveState) && moveState.GripButton
+            ? flyFastMultiplier : 1f;
+        return true;
+    }
+
     /// <summary>Converts input to world velocity and applies acceleration and momentum.</summary>
     private void UpdateMovement(Vector3 inputMovement, float speedMultiplier, float deltaTime)
     {
         if (isVRFlying)
         {
-            Vector3 planar = FlyYawFrame() * new Vector3(inputMovement.x, 0f, inputMovement.z);
+            Vector3 planar = FlyTranslationFrame() * new Vector3(inputMovement.x, 0f, inputMovement.z);
 
             targetVelocity = ((planar * flySpeed) + (Vector3.up * (inputMovement.y * vrFlyElevationSpeed)))
                 * speedMultiplier;
@@ -2029,10 +2174,31 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     }
 
     /// <summary>
-    /// The level frame the VR fly stick pushes against: the camera's own yaw, off the pose this
-    /// component publishes rather than the capture transform, which the pin only writes later.
+    /// The frame the VR fly stick (and hand-tracked movement) pushes forward/strafe against, off the
+    /// pose this component publishes rather than the capture transform, which the pin only writes
+    /// later. See <see cref="vrFlyMovementFollowsPitch"/> for the choice this makes.
     /// </summary>
-    private Quaternion FlyYawFrame()
+    private Quaternion FlyTranslationFrame()
+    {
+        if (!vrFlyMovementFollowsPitch)
+        {
+            return FlyLevelYawFrame();
+        }
+
+        // Heading + pitch, no roll: the exact recipe BasisCameraModifierSolver.Steer() uses to split
+        // a rotation, reused here rather than re-derived so both places agree on what "no roll" means
+        // and on how the near-vertical case is handled. Yaw(heading) * Pitch(pitch) reaches the same
+        // forward vector as smoothedRotation (heading/pitch were read off that same forward), with
+        // roll always zero by construction — so strafe (X) stays level and forward (Z) dives with the
+        // aim. Deliberately not a LookRotation rebuilt from the forward vector directly: that
+        // construction is exactly least stable where this fix matters most, close to straight down.
+        float heading = BasisCameraAnchorMath.YawDegrees(smoothedRotation);
+        float pitch = BasisCameraModifierSolver.PitchDegrees(smoothedRotation);
+        return BasisCameraDamping.Yaw(heading) * BasisCameraDamping.Pitch(pitch);
+    }
+
+    /// <summary>The pre-fix level-only frame: <see cref="smoothedRotation"/>'s heading, flattened to the horizon.</summary>
+    private Quaternion FlyLevelYawFrame()
     {
         Vector3 forward = smoothedRotation * Vector3.forward;
         forward.y = 0f;
@@ -2066,22 +2232,56 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         }
     }
 
-    /// <summary>Reads fly rotation input and outputs the delta if significant.</summary>
+    /// <summary>
+    /// Reads fly rotation input and outputs the delta if significant. In VR the right hand supplies
+    /// either the stick or (with <see cref="vrRightHandFlyRotateEnabled"/>) its own tracked
+    /// rotation — the two never mix, since resting a thumb near the stick edge while also twisting
+    /// the wrist would double up. The left hand's rotation, when <see cref="vrLeftHandFlyEnabled"/>
+    /// is on, always ADDS on top of that — see the header comment there — so both hands can steer
+    /// the look at once.
+    /// </summary>
     private bool HandleRotationInput(float deltaTime, out Vector2 rotationDelta)
     {
         rotationDelta = Vector2.zero;
 
         if (isVRFlying)
         {
-            if (!TryGetFlyTurnInput(out BasisInputState turnState))
+            Vector2 stickFraction = Vector2.zero;
+            bool any = false;
+
+            if (vrRightHandFlyRotateEnabled)
+            {
+                if (TryGetHandFlyPose(BasisBoneTrackedRole.RightHand, ref rightHandFlyRotatePrimed,
+                        ref rightHandFlyRotateNeutralPos, ref rightHandFlyRotateNeutralRot,
+                        out _, out Quaternion rightHandRot))
+                {
+                    stickFraction += HandFlyRotationFraction(rightHandFlyRotateNeutralRot, rightHandRot);
+                    any = true;
+                }
+            }
+            else if (TryGetFlyTurnInput(out BasisInputState turnState))
+            {
+                Vector2 stick = turnState.Primary2DAxisDeadZoned;
+                float pitchInput = turnState.Trigger >= FlyPitchTriggerThreshold ? stick.y : 0f;
+                if (Mathf.Abs(stick.x) >= 0.01f || Mathf.Abs(pitchInput) >= 0.01f)
+                {
+                    stickFraction += new Vector2(stick.x, pitchInput);
+                    any = true;
+                }
+            }
+
+            if (vrLeftHandFlyEnabled &&
+                TryGetHandFlyPose(BasisBoneTrackedRole.LeftHand, ref leftHandFlyPrimed,
+                    ref leftHandFlyNeutralPos, ref leftHandFlyNeutralRot, out _, out Quaternion leftHandRot))
+            {
+                stickFraction += HandFlyRotationFraction(leftHandFlyNeutralRot, leftHandRot);
+                any = true;
+            }
+
+            if (!any)
                 return false;
 
-            Vector2 stick = turnState.Primary2DAxisDeadZoned;
-            float pitchInput = turnState.Trigger >= FlyPitchTriggerThreshold ? stick.y : 0f;
-            if (Mathf.Abs(stick.x) < 0.01f && Mathf.Abs(pitchInput) < 0.01f)
-                return false;
-
-            rotationDelta = new Vector2(stick.x, pitchInput) * (vrFlyTurnSpeed * deltaTime);
+            rotationDelta = stickFraction * (vrFlyTurnSpeed * deltaTime);
             return true;
         }
 
@@ -2092,6 +2292,104 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             return false;
 
         rotationDelta = mouseInput * mouseSensitivity;
+        return true;
+    }
+
+    /// <summary>
+    /// A tracked hand's yaw/pitch swing since its neutral pose, as a stick-equivalent fraction —
+    /// each axis run through <see cref="HandFlyResponseFraction"/> against
+    /// <see cref="vrHandFlyTurnDeadzone"/>/<see cref="vrHandFlyTurnReach"/> and scaled by
+    /// <see cref="vrHandFlyTurnSensitivity"/>, so the result multiplies by
+    /// <see cref="vrFlyTurnSpeed"/> exactly like a real stick's fraction would. Shared by both
+    /// hands, so one pair of sliders shapes whichever of them is contributing.
+    /// </summary>
+    private Vector2 HandFlyRotationFraction(Quaternion neutral, Quaternion current)
+    {
+        Vector2 degrees = HandYawPitchOffsetDegrees(neutral, current);
+        return new Vector2(
+            HandFlyResponseFraction(degrees.x, vrHandFlyTurnDeadzone, vrHandFlyTurnReach) * vrHandFlyTurnSensitivity,
+            HandFlyResponseFraction(degrees.y, vrHandFlyTurnDeadzone, vrHandFlyTurnReach) * vrHandFlyTurnSensitivity);
+    }
+
+    /// <summary>
+    /// Maps an unsigned magnitude through a deadzone→reach response: 0 at or below
+    /// <paramref name="deadzone"/>, 1 at or beyond <paramref name="reach"/>, eased with
+    /// <see cref="Mathf.SmoothStep"/> between the two rather than a hard linear ramp — the point of
+    /// exposing a deadzone at all is so crossing it doesn't snap the response straight on.
+    /// </summary>
+    private static float HandFlyResponseCurve01(float magnitude, float deadzone, float reach)
+    {
+        float span = Mathf.Max(reach - deadzone, 0.0001f);
+        float t = Mathf.Clamp01((magnitude - deadzone) / span);
+        return Mathf.SmoothStep(0f, 1f, t);
+    }
+
+    /// <summary>Signed counterpart of <see cref="HandFlyResponseCurve01"/>: the curve applies to the magnitude, the sign of <paramref name="value"/> is preserved.</summary>
+    private static float HandFlyResponseFraction(float value, float deadzone, float reach)
+        => Mathf.Sign(value) * HandFlyResponseCurve01(Mathf.Abs(value), deadzone, reach);
+
+    /// <summary>
+    /// Signed yaw/pitch swing of <paramref name="current"/> relative to <paramref name="neutral"/>,
+    /// in degrees, matching the VR stick's own sign convention (x: right is positive, y: up is
+    /// positive). Built from forward-vector geometry rather than a Euler difference, which would
+    /// jump 180° the instant either pose tips past vertical — see <see cref="FlattenToYaw"/>.
+    /// </summary>
+    private static Vector2 HandYawPitchOffsetDegrees(Quaternion neutral, Quaternion current)
+    {
+        Vector3 neutralForward = neutral * Vector3.forward;
+        Vector3 currentForward = current * Vector3.forward;
+
+        Vector3 neutralFlat = new Vector3(neutralForward.x, 0f, neutralForward.z);
+        Vector3 currentFlat = new Vector3(currentForward.x, 0f, currentForward.z);
+
+        float yaw = neutralFlat.sqrMagnitude > 1e-6f && currentFlat.sqrMagnitude > 1e-6f
+            ? Vector3.SignedAngle(neutralFlat, currentFlat, Vector3.up)
+            : 0f;
+
+        float pitch = (Mathf.Asin(Mathf.Clamp(currentForward.y, -1f, 1f)) -
+                       Mathf.Asin(Mathf.Clamp(neutralForward.y, -1f, 1f))) * Mathf.Rad2Deg;
+
+        return new Vector2(yaw, pitch);
+    }
+
+    /// <summary>
+    /// A tracked hand's live world pose, priming <paramref name="neutralPos"/>/<paramref name="neutralRot"/>
+    /// from it the first time this is called while <paramref name="primed"/> is false — arming the
+    /// relevant toggle, or (re-)entering fly mode, clears it. Everything the hand-fly toggles do
+    /// reads as a deflection from that captured neutral, like a stick centred wherever the hand
+    /// happened to be, so there is no physical reach limit: bring the hand back through neutral and
+    /// go again, exactly like releasing and re-gripping a real stick. Answers false (leaving
+    /// <paramref name="primed"/> untouched) while the hand is pointing at UI or has no live tracker,
+    /// so the menu keeps the hand and a controller with stale/default data cannot prime a neutral
+    /// off it.
+    /// </summary>
+    private bool TryGetHandFlyPose(BasisBoneTrackedRole role, ref bool primed, ref Vector3 neutralPos,
+        ref Quaternion neutralRot, out Vector3 currentPos, out Quaternion currentRot)
+    {
+        currentPos = Vector3.zero;
+        currentRot = Quaternion.identity;
+
+        if (AnyHandPointingAtUI())
+            return false;
+
+        if (!Inputs.TryGetByRole(role, out BasisInputWrapper wrapper) ||
+            wrapper.Source == null || wrapper.BoneControl == null ||
+            wrapper.BoneControl.HasTracked != BasisHasTracked.HasTracker)
+        {
+            return false;
+        }
+
+        BasisCalibratedCoords pose = wrapper.BoneControl.OutgoingWorldData;
+        currentPos = pose.position;
+        currentRot = pose.rotation;
+
+        if (!primed)
+        {
+            neutralPos = currentPos;
+            neutralRot = currentRot;
+            primed = true;
+        }
+
         return true;
     }
 

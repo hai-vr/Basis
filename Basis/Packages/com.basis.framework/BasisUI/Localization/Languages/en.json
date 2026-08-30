@@ -1567,6 +1567,78 @@
       "value": "On, the flying camera coasts to a stop after you let go of WASD or the move stick. Off, it stops the instant you release. The same switch covers desktop and VR."
     },
     {
+      "key": "camera.flyMovementFollowsPitch",
+      "value": "Movement Follows Pitch"
+    },
+    {
+      "key": "camera.flyMovementFollowsPitch.description",
+      "value": "On (the fixed behaviour), the VR fly stick's forward and strafe follow wherever the lens is aimed, so pointing the camera down and pushing forward dives it - matching how desktop's WASD has always worked. Off goes back to the older behaviour: forward always slides level no matter how the lens is tipped, and only the separate elevation axis climbs."
+    },
+    {
+      "key": "camera.leftHandFly",
+      "value": "Left Hand Fly"
+    },
+    {
+      "key": "camera.leftHandFly.description",
+      "value": "While flying in VR, move and turn your left hand to fly the camera directly instead of using the left stick. Hold your hand away from where it started and the camera flies that way; bring it back to fly again, like releasing and re-gripping a stick."
+    },
+    {
+      "key": "camera.rightHandFlyRotate",
+      "value": "Right Hand Rotate"
+    },
+    {
+      "key": "camera.rightHandFlyRotate.description",
+      "value": "While flying in VR, turn your right hand to turn the camera instead of using the right stick's yaw and pitch. Works alongside Left Hand Fly, so both hands can steer the look at once."
+    },
+    {
+      "key": "camera.handFlyMoveDeadzone",
+      "value": "Hand Fly Move Deadzone"
+    },
+    {
+      "key": "camera.handFlyMoveDeadzone.description",
+      "value": "How far your hand has to move from where it started before Left Hand Fly responds at all. Filters out natural hand tremor near the centre."
+    },
+    {
+      "key": "camera.handFlyMoveReach",
+      "value": "Hand Fly Move Reach"
+    },
+    {
+      "key": "camera.handFlyMoveReach.description",
+      "value": "How far your hand has to move from where it started for Left Hand Fly to reach full speed. The response eases smoothly between the deadzone and this distance rather than snapping straight to full."
+    },
+    {
+      "key": "camera.handFlyMoveSensitivity",
+      "value": "Hand Fly Move Sensitivity"
+    },
+    {
+      "key": "camera.handFlyMoveSensitivity.description",
+      "value": "Overall strength of Left Hand Fly's movement, on top of the deadzone and reach above. Above 1 lets a smaller hand movement reach full speed; below 1 softens it."
+    },
+    {
+      "key": "camera.handFlyTurnDeadzone",
+      "value": "Hand Fly Turn Deadzone"
+    },
+    {
+      "key": "camera.handFlyTurnDeadzone.description",
+      "value": "How far your hand has to turn from where it started before hand-tracked rotation responds at all. Filters out natural wrist tremor near the centre. Shared by Left Hand Fly and Right Hand Rotate."
+    },
+    {
+      "key": "camera.handFlyTurnReach",
+      "value": "Hand Fly Turn Reach"
+    },
+    {
+      "key": "camera.handFlyTurnReach.description",
+      "value": "How far your hand has to turn from where it started for hand-tracked rotation to reach full rate. The response eases smoothly between the deadzone and this angle rather than snapping straight to full. Shared by Left Hand Fly and Right Hand Rotate."
+    },
+    {
+      "key": "camera.handFlyTurnSensitivity",
+      "value": "Hand Fly Turn Sensitivity"
+    },
+    {
+      "key": "camera.handFlyTurnSensitivity.description",
+      "value": "Overall strength of hand-tracked rotation, on top of the deadzone and reach above. Above 1 lets a smaller hand turn reach full rate; below 1 softens it. Shared by Left Hand Fly and Right Hand Rotate."
+    },
+    {
       "key": "camera.flyOnMenu",
       "value": "Show Fly Switch On Main Menu"
     },
@@ -7789,6 +7861,22 @@
     {
       "key": "settings.graphics.gi.enable.tooltip",
       "value": "Bounce light from everything on screen, avatars included, onto everything else. Expensive, especially in VR, so it is off by default. When off, worlds cannot switch it on for you."
+    },
+    {
+      "key": "settings.graphics.gi.preset",
+      "value": "GI Preset"
+    },
+    {
+      "key": "settings.graphics.gi.preset.tooltip",
+      "value": "Sets Intensity, Saturation and Emitter Intensity together. Natural is each at its own default; Unnatural pushes all three to the extreme end of their range for a stylised look."
+    },
+    {
+      "key": "settings.graphics.gi.preset.natural",
+      "value": "Natural"
+    },
+    {
+      "key": "settings.graphics.gi.preset.unnatural",
+      "value": "Unnatural"
     },
     {
       "key": "settings.graphics.gi.mode",

@@ -1857,6 +1857,14 @@ namespace Basis.BasisUI
                 toggleGi.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.enable.tooltip"));
                 SettingsProviderBottleneckHints.Mark(toggleGi, BasisFrameCostSide.Gpu);
 
+                PanelDropdown dropdownGiPreset = PanelDropdown.CreateNewEntry(giGroup.ContentParent);
+                dropdownGiPreset.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.preset"));
+                dropdownGiPreset.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.preset.tooltip"));
+                dropdownGiPreset.AssignLocalizedEntries(
+                    new List<string> { "Natural", "Unnatural" },
+                    new List<string> { "settings.graphics.gi.preset.natural", "settings.graphics.gi.preset.unnatural" });
+                dropdownGiPreset.AssignBinding(BasisSettingsDefaults.GlobalIlluminationPreset);
+
                 PanelDropdown dropdownGiMode = PanelDropdown.CreateNewEntry(giGroup.ContentParent);
                 dropdownGiMode.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.mode"));
                 dropdownGiMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.mode.tooltip"));
@@ -2094,9 +2102,30 @@ namespace Basis.BasisUI
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(giAdvancedToggle, giAdvanced, false,
                     _ => RebuildGiLayout());
 
+                // Snaps the three sliders below to a look rather than a value: Natural is each at its
+                // own default, Unnatural is each at the extreme end of its own range. Goes through
+                // SetValue rather than the binding directly, so the slider fill, its saved value and
+                // whatever else is listening all move together - the same path dragging the handle
+                // would take.
+                void ApplyGiPreset(string preset)
+                {
+                    bool unnatural = preset == "Unnatural";
+                    sliderGiIntensity.SetValue(unnatural
+                        ? BasisSettingsDefaults.GI_INTENSITY_MAX
+                        : BasisSettingsDefaults.GlobalIlluminationIntensity.DefaultValue.GetDefault());
+                    sliderGiSaturation.SetValue(unnatural
+                        ? BasisSettingsDefaults.GI_SATURATION_MAX
+                        : BasisSettingsDefaults.GlobalIlluminationSaturation.DefaultValue.GetDefault());
+                    sliderGiEmitterIntensity.SetValue(unnatural
+                        ? BasisSettingsDefaults.GI_EMITTER_INTENSITY_MAX
+                        : BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.DefaultValue.GetDefault());
+                }
+                dropdownGiPreset.OnValueChanged += ApplyGiPreset;
+
                 void SetGiRowsActive(bool val)
                 {
                     bool rayTraced = val && dropdownGiMode.Value == "Ray Traced";
+                    dropdownGiPreset.Descriptor.SetActive(val);
                     dropdownGiMode.Descriptor.SetActive(val);
                     // Both of these describe what goes into the acceleration structure, which only the ray
                     // traced path builds. On screen space the trace walks the depth buffer, so neither has
@@ -3260,6 +3289,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MotionBlurMode.ResetToDefault();
             BasisSettingsDefaults.UseGlobalIllumination.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationMode.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationPreset.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationLayers.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationObscuranceRadius.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationFadeDistance.ResetToDefault();

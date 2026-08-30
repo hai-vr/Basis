@@ -841,7 +841,16 @@ public partial class BasisHandHeldCameraUI
             flyTurnSpeed = HHC != null ? HHC.vrFlyTurnSpeed : baseline.flyTurnSpeed,
             flyMouseSensitivity = HHC != null ? HHC.mouseSensitivity : baseline.flyMouseSensitivity,
             flyMomentum = HHC == null || HHC.useMomentum,
+            flyMovementFollowsPitch = HHC == null || HHC.vrFlyMovementFollowsPitch,
             showFlyOnMainMenu = HHC != null && HHC.showFlyOnMainMenu,
+            vrLeftHandFlyEnabled = HHC != null && HHC.vrLeftHandFlyEnabled,
+            vrRightHandFlyRotateEnabled = HHC != null && HHC.vrRightHandFlyRotateEnabled,
+            vrHandFlyMoveDeadzone = HHC != null ? HHC.vrHandFlyMoveDeadzone : baseline.vrHandFlyMoveDeadzone,
+            vrHandFlyMoveReach = HHC != null ? HHC.vrHandFlyMoveReach : baseline.vrHandFlyMoveReach,
+            vrHandFlyMoveSensitivity = HHC != null ? HHC.vrHandFlyMoveSensitivity : baseline.vrHandFlyMoveSensitivity,
+            vrHandFlyTurnDeadzone = HHC != null ? HHC.vrHandFlyTurnDeadzone : baseline.vrHandFlyTurnDeadzone,
+            vrHandFlyTurnReach = HHC != null ? HHC.vrHandFlyTurnReach : baseline.vrHandFlyTurnReach,
+            vrHandFlyTurnSensitivity = HHC != null ? HHC.vrHandFlyTurnSensitivity : baseline.vrHandFlyTurnSensitivity,
             resizeWithGesture = HHC != null ? HHC.ResizeWithGesture : baseline.resizeWithGesture,
             printPhoto = HHC != null && HHC.printPhotoEnabled,
             gifDurationSeconds = HHC != null ? HHC.GifDurationSeconds : baseline.gifDurationSeconds,
@@ -1360,7 +1369,16 @@ public partial class BasisHandHeldCameraUI
         HHC.SetFlyTurnSpeed(settings.flyTurnSpeed);
         HHC.SetFlyMouseSensitivity(settings.flyMouseSensitivity);
         HHC.useMomentum = settings.flyMomentum;
+        HHC.SetVRFlyMovementFollowsPitch(settings.flyMovementFollowsPitch);
         HHC.SetShowFlyOnMainMenu(settings.showFlyOnMainMenu);
+        HHC.SetVRLeftHandFlyEnabled(settings.vrLeftHandFlyEnabled);
+        HHC.SetVRRightHandFlyRotateEnabled(settings.vrRightHandFlyRotateEnabled);
+        HHC.SetHandFlyMoveDeadzone(settings.vrHandFlyMoveDeadzone);
+        HHC.SetHandFlyMoveReach(settings.vrHandFlyMoveReach);
+        HHC.SetHandFlyMoveSensitivity(settings.vrHandFlyMoveSensitivity);
+        HHC.SetHandFlyTurnDeadzone(settings.vrHandFlyTurnDeadzone);
+        HHC.SetHandFlyTurnReach(settings.vrHandFlyTurnReach);
+        HHC.SetHandFlyTurnSensitivity(settings.vrHandFlyTurnSensitivity);
         HHC.SetResizeWithGesture(settings.resizeWithGesture);
         HHC.printPhotoEnabled = settings.printPhoto;
 

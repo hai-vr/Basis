@@ -242,6 +242,15 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _flyTurnSpeedSlider;
         private PanelSlider _flyMouseSensitivitySlider;
         private PanelToggle _flyMomentumToggle;
+        private PanelToggle _movementFollowsPitchToggle;
+        private PanelToggle _leftHandFlyToggle;
+        private PanelToggle _rightHandFlyRotateToggle;
+        private PanelSlider _handFlyMoveDeadzoneSlider;
+        private PanelSlider _handFlyMoveReachSlider;
+        private PanelSlider _handFlyMoveSensitivitySlider;
+        private PanelSlider _handFlyTurnDeadzoneSlider;
+        private PanelSlider _handFlyTurnReachSlider;
+        private PanelSlider _handFlyTurnSensitivitySlider;
         private PanelToggle _autoLevelToggle;
         private PanelToggle _vrStabToggle;
         private PanelSlider _vrStabPositionSlider;
@@ -315,6 +324,15 @@ namespace Basis.BasisUI.HandHeldCamera
         private float _lastFlyTurnSpeed = float.NaN;
         private float _lastFlyMouseSensitivity = float.NaN;
         private bool? _lastFlyMomentum;
+        private bool? _lastMovementFollowsPitch;
+        private bool? _lastLeftHandFly;
+        private bool? _lastRightHandFlyRotate;
+        private float _lastHandFlyMoveDeadzone = float.NaN;
+        private float _lastHandFlyMoveReach = float.NaN;
+        private float _lastHandFlyMoveSensitivity = float.NaN;
+        private float _lastHandFlyTurnDeadzone = float.NaN;
+        private float _lastHandFlyTurnReach = float.NaN;
+        private float _lastHandFlyTurnSensitivity = float.NaN;
         private bool? _lastAutoLevel;
         private bool? _lastVrStab;
         private float _lastVrStabPosition = float.NaN;
@@ -1116,6 +1134,15 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyTurnSpeedSlider = null;
             _flyMouseSensitivitySlider = null;
             _flyMomentumToggle = null;
+            _movementFollowsPitchToggle = null;
+            _leftHandFlyToggle = null;
+            _rightHandFlyRotateToggle = null;
+            _handFlyMoveDeadzoneSlider = null;
+            _handFlyMoveReachSlider = null;
+            _handFlyMoveSensitivitySlider = null;
+            _handFlyTurnDeadzoneSlider = null;
+            _handFlyTurnReachSlider = null;
+            _handFlyTurnSensitivitySlider = null;
             _autoLevelToggle = null;
             _vrStabToggle = null;
             _vrStabPositionSlider = null;
@@ -1139,6 +1166,15 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastFlyTurnSpeed = float.NaN;
             _lastFlyMouseSensitivity = float.NaN;
             _lastFlyMomentum = null;
+            _lastMovementFollowsPitch = null;
+            _lastLeftHandFly = null;
+            _lastRightHandFlyRotate = null;
+            _lastHandFlyMoveDeadzone = float.NaN;
+            _lastHandFlyMoveReach = float.NaN;
+            _lastHandFlyMoveSensitivity = float.NaN;
+            _lastHandFlyTurnDeadzone = float.NaN;
+            _lastHandFlyTurnReach = float.NaN;
+            _lastHandFlyTurnSensitivity = float.NaN;
             _lastAutoLevel = null;
             _lastVrStab = null;
             _lastVrStabPosition = float.NaN;
@@ -2290,6 +2326,91 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (_activeCamera != null) _activeCamera.useMomentum = v;
             };
 
+            // VR-only: desktop's WASD has always moved relative to the full look direction, so this
+            // is purely the VR stick catching up to that. Hidden on desktop by RefreshPlatformVisibility.
+            _movementFollowsPitchToggle = PanelToggle.CreateNewEntry(content);
+            _movementFollowsPitchToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.flyMovementFollowsPitch"));
+            _movementFollowsPitchToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.flyMovementFollowsPitch.description"));
+            _movementFollowsPitchToggle.OnValueChanged = v => _activeCamera?.SetVRFlyMovementFollowsPitch(v);
+
+            // VR-only: physically move/turn a hand to fly instead of the sticks. Hidden on desktop
+            // by RefreshPlatformVisibility, same as the stabilizer toggle just below.
+            _leftHandFlyToggle = PanelToggle.CreateNewEntry(content);
+            _leftHandFlyToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.leftHandFly"));
+            _leftHandFlyToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.leftHandFly.description"));
+            _leftHandFlyToggle.OnValueChanged = v =>
+            {
+                _activeCamera?.SetVRLeftHandFlyEnabled(v);
+                RefreshHandFlyVisibility();
+            };
+
+            _rightHandFlyRotateToggle = PanelToggle.CreateNewEntry(content);
+            _rightHandFlyRotateToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.rightHandFlyRotate"));
+            _rightHandFlyRotateToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.rightHandFlyRotate.description"));
+            _rightHandFlyRotateToggle.OnValueChanged = v =>
+            {
+                _activeCamera?.SetVRRightHandFlyRotateEnabled(v);
+                RefreshHandFlyVisibility();
+            };
+
+            // Move (Left Hand Fly only) and turn (either hand) each get their own deadzone/reach
+            // pair plus a gain, matching the deadzone→reach curve in HandFlyRotationFraction /
+            // HandleHandFlyMovementInput. Visibility follows the toggle(s) that actually use them,
+            // via RefreshHandFlyVisibility below.
+            _handFlyMoveDeadzoneSlider = PanelSlider.CreateNew(content);
+            _handFlyMoveDeadzoneSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.handFlyMoveDeadzone"),
+                BasisHandHeldCameraInteractable.MinHandFlyMoveDeadzone,
+                BasisHandHeldCameraInteractable.MaxHandFlyMoveDeadzone,
+                false, 3, ValueDisplayMode.Raw));
+            _handFlyMoveDeadzoneSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.handFlyMoveDeadzone.description"));
+            _handFlyMoveDeadzoneSlider.OnValueChanged = v => _activeCamera?.SetHandFlyMoveDeadzone(v);
+
+            _handFlyMoveReachSlider = PanelSlider.CreateNew(content);
+            _handFlyMoveReachSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.handFlyMoveReach"),
+                BasisHandHeldCameraInteractable.MinHandFlyMoveReach,
+                BasisHandHeldCameraInteractable.MaxHandFlyMoveReach,
+                false, 2, ValueDisplayMode.Raw));
+            _handFlyMoveReachSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.handFlyMoveReach.description"));
+            _handFlyMoveReachSlider.OnValueChanged = v => _activeCamera?.SetHandFlyMoveReach(v);
+
+            _handFlyMoveSensitivitySlider = PanelSlider.CreateNew(content);
+            _handFlyMoveSensitivitySlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.handFlyMoveSensitivity"),
+                BasisHandHeldCameraInteractable.MinHandFlySensitivity,
+                BasisHandHeldCameraInteractable.MaxHandFlySensitivity,
+                false, 2, ValueDisplayMode.Raw));
+            _handFlyMoveSensitivitySlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.handFlyMoveSensitivity.description"));
+            _handFlyMoveSensitivitySlider.OnValueChanged = v => _activeCamera?.SetHandFlyMoveSensitivity(v);
+
+            _handFlyTurnDeadzoneSlider = PanelSlider.CreateNew(content);
+            _handFlyTurnDeadzoneSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(
+                BasisLocalization.Get("camera.handFlyTurnDeadzone"),
+                BasisHandHeldCameraInteractable.MinHandFlyTurnDeadzone,
+                BasisHandHeldCameraInteractable.MaxHandFlyTurnDeadzone,
+                false, 1));
+            _handFlyTurnDeadzoneSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.handFlyTurnDeadzone.description"));
+            _handFlyTurnDeadzoneSlider.OnValueChanged = v => _activeCamera?.SetHandFlyTurnDeadzone(v);
+
+            _handFlyTurnReachSlider = PanelSlider.CreateNew(content);
+            _handFlyTurnReachSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(
+                BasisLocalization.Get("camera.handFlyTurnReach"),
+                BasisHandHeldCameraInteractable.MinHandFlyTurnReach,
+                BasisHandHeldCameraInteractable.MaxHandFlyTurnReach,
+                false, 1));
+            _handFlyTurnReachSlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.handFlyTurnReach.description"));
+            _handFlyTurnReachSlider.OnValueChanged = v => _activeCamera?.SetHandFlyTurnReach(v);
+
+            _handFlyTurnSensitivitySlider = PanelSlider.CreateNew(content);
+            _handFlyTurnSensitivitySlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.handFlyTurnSensitivity"),
+                BasisHandHeldCameraInteractable.MinHandFlySensitivity,
+                BasisHandHeldCameraInteractable.MaxHandFlySensitivity,
+                false, 2, ValueDisplayMode.Raw));
+            _handFlyTurnSensitivitySlider.Descriptor.SetTooltip(BasisLocalization.Get("camera.handFlyTurnSensitivity.description"));
+            _handFlyTurnSensitivitySlider.OnValueChanged = v => _activeCamera?.SetHandFlyTurnSensitivity(v);
+
             _autoLevelToggle = PanelToggle.CreateNewEntry(content);
             _autoLevelToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.autoLevel"));
             _autoLevelToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.autoLevel.description"));
@@ -2547,6 +2668,29 @@ namespace Basis.BasisUI.HandHeldCamera
             ForceLayoutRebuild(_handlingGroup);
         }
 
+        /// <summary>
+        /// The move sliders only mean anything with Left Hand Fly armed; the turn sliders are
+        /// shared by both hands, so they follow either one. Desktop hides all six regardless — hand
+        /// tracking is a VR concept — via the <c>!IsUserInDesktop()</c> term below rather than
+        /// leaving that to <see cref="RefreshPlatformVisibility"/> alone, so a toggle flipped while
+        /// already on desktop (from a settings file, say) can't leave them shown.
+        /// </summary>
+        private void RefreshHandFlyVisibility()
+        {
+            bool vr = !BasisDeviceManagement.IsUserInDesktop() && _activeCamera != null;
+            bool moveActive = vr && _activeCamera.vrLeftHandFlyEnabled;
+            bool turnActive = vr && (_activeCamera.vrLeftHandFlyEnabled || _activeCamera.vrRightHandFlyRotateEnabled);
+
+            _handFlyMoveDeadzoneSlider?.gameObject.SetActive(moveActive);
+            _handFlyMoveReachSlider?.gameObject.SetActive(moveActive);
+            _handFlyMoveSensitivitySlider?.gameObject.SetActive(moveActive);
+            _handFlyTurnDeadzoneSlider?.gameObject.SetActive(turnActive);
+            _handFlyTurnReachSlider?.gameObject.SetActive(turnActive);
+            _handFlyTurnSensitivitySlider?.gameObject.SetActive(turnActive);
+            RefreshSearch();
+            ForceLayoutRebuild(_handlingGroup);
+        }
+
         private void RefreshPlatformVisibility()
         {
             bool desktop = BasisDeviceManagement.IsUserInDesktop();
@@ -2555,8 +2699,12 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyClimbSpeedSlider?.gameObject.SetActive(!desktop);
             _flyTurnSpeedSlider?.gameObject.SetActive(!desktop);
             _vrStabToggle?.gameObject.SetActive(!desktop);
+            _movementFollowsPitchToggle?.gameObject.SetActive(!desktop);
+            _leftHandFlyToggle?.gameObject.SetActive(!desktop);
+            _rightHandFlyRotateToggle?.gameObject.SetActive(!desktop);
             _resizeToggle?.gameObject.SetActive(!desktop);
             RefreshStabilizationVisibility();
+            RefreshHandFlyVisibility();
             RefreshSearch();
             ForceLayoutRebuild(_handlingGroup);
         }
@@ -3176,6 +3324,25 @@ namespace Basis.BasisUI.HandHeldCamera
             _flyMouseSensitivitySlider?.SetValueWithoutNotify(_activeCamera.mouseSensitivity);
             _lastFlyMomentum = _activeCamera.useMomentum;
             _flyMomentumToggle?.SetValueWithoutNotify(_activeCamera.useMomentum);
+            _lastMovementFollowsPitch = _activeCamera.vrFlyMovementFollowsPitch;
+            _movementFollowsPitchToggle?.SetValueWithoutNotify(_activeCamera.vrFlyMovementFollowsPitch);
+            _lastLeftHandFly = _activeCamera.vrLeftHandFlyEnabled;
+            _leftHandFlyToggle?.SetValueWithoutNotify(_activeCamera.vrLeftHandFlyEnabled);
+            _lastRightHandFlyRotate = _activeCamera.vrRightHandFlyRotateEnabled;
+            _rightHandFlyRotateToggle?.SetValueWithoutNotify(_activeCamera.vrRightHandFlyRotateEnabled);
+            _lastHandFlyMoveDeadzone = _activeCamera.vrHandFlyMoveDeadzone;
+            _handFlyMoveDeadzoneSlider?.SetValueWithoutNotify(_activeCamera.vrHandFlyMoveDeadzone);
+            _lastHandFlyMoveReach = _activeCamera.vrHandFlyMoveReach;
+            _handFlyMoveReachSlider?.SetValueWithoutNotify(_activeCamera.vrHandFlyMoveReach);
+            _lastHandFlyMoveSensitivity = _activeCamera.vrHandFlyMoveSensitivity;
+            _handFlyMoveSensitivitySlider?.SetValueWithoutNotify(_activeCamera.vrHandFlyMoveSensitivity);
+            _lastHandFlyTurnDeadzone = _activeCamera.vrHandFlyTurnDeadzone;
+            _handFlyTurnDeadzoneSlider?.SetValueWithoutNotify(_activeCamera.vrHandFlyTurnDeadzone);
+            _lastHandFlyTurnReach = _activeCamera.vrHandFlyTurnReach;
+            _handFlyTurnReachSlider?.SetValueWithoutNotify(_activeCamera.vrHandFlyTurnReach);
+            _lastHandFlyTurnSensitivity = _activeCamera.vrHandFlyTurnSensitivity;
+            _handFlyTurnSensitivitySlider?.SetValueWithoutNotify(_activeCamera.vrHandFlyTurnSensitivity);
+            RefreshHandFlyVisibility();
             _autoLevelToggle?.SetValueWithoutNotify(_activeCamera.useAutoLeveling);
             _vrStabToggle?.SetValueWithoutNotify(_activeCamera.useVRHandheldSmoothing);
             _lastVrStabPosition = _activeCamera.vrHandheldPositionDamping;
@@ -3553,6 +3720,24 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncSlider(_flyTurnSpeedSlider, _activeCamera.vrFlyTurnSpeed, ref _lastFlyTurnSpeed);
             SyncSlider(_flyMouseSensitivitySlider, _activeCamera.mouseSensitivity, ref _lastFlyMouseSensitivity);
             SyncToggle(_flyMomentumToggle, _activeCamera.useMomentum, ref _lastFlyMomentum);
+            SyncToggle(_movementFollowsPitchToggle, _activeCamera.vrFlyMovementFollowsPitch, ref _lastMovementFollowsPitch);
+            // Left Hand Fly / Right Hand Rotate carry six sliders on and off screen between them, so
+            // the change is captured before SyncToggle overwrites the cache, the same shape as the
+            // vrStab/zoomStab edge-gate just below.
+            bool leftHandFlyChanged = _lastLeftHandFly != _activeCamera.vrLeftHandFlyEnabled;
+            bool rightHandFlyRotateChanged = _lastRightHandFlyRotate != _activeCamera.vrRightHandFlyRotateEnabled;
+            SyncToggle(_leftHandFlyToggle, _activeCamera.vrLeftHandFlyEnabled, ref _lastLeftHandFly);
+            SyncToggle(_rightHandFlyRotateToggle, _activeCamera.vrRightHandFlyRotateEnabled, ref _lastRightHandFlyRotate);
+            if (leftHandFlyChanged || rightHandFlyRotateChanged)
+            {
+                RefreshHandFlyVisibility();
+            }
+            SyncSlider(_handFlyMoveDeadzoneSlider, _activeCamera.vrHandFlyMoveDeadzone, ref _lastHandFlyMoveDeadzone);
+            SyncSlider(_handFlyMoveReachSlider, _activeCamera.vrHandFlyMoveReach, ref _lastHandFlyMoveReach);
+            SyncSlider(_handFlyMoveSensitivitySlider, _activeCamera.vrHandFlyMoveSensitivity, ref _lastHandFlyMoveSensitivity);
+            SyncSlider(_handFlyTurnDeadzoneSlider, _activeCamera.vrHandFlyTurnDeadzone, ref _lastHandFlyTurnDeadzone);
+            SyncSlider(_handFlyTurnReachSlider, _activeCamera.vrHandFlyTurnReach, ref _lastHandFlyTurnReach);
+            SyncSlider(_handFlyTurnSensitivitySlider, _activeCamera.vrHandFlyTurnSensitivity, ref _lastHandFlyTurnSensitivity);
             SyncToggle(_autoLevelToggle, _activeCamera.useAutoLeveling, ref _lastAutoLevel);
             // The stabilizer toggles carry their sliders on and off screen, so they are edge-gated
             // the way the drag toggle below is rather than pushed through SyncToggle.
