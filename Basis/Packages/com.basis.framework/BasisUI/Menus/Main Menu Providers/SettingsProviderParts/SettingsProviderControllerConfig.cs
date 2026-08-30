@@ -32,65 +32,80 @@ public static class SettingsProviderControllerConfig
             });
             dropdownDominantHand.AssignBinding(BasisSettingsDefaults.DominantHand);
 
-            PanelDropdown dropdownDesktopInputInVR = PanelDropdown.CreateNewEntry(group);
-            dropdownDesktopInputInVR.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.desktopInputInVR"));
-            dropdownDesktopInputInVR.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.desktopInputInVR.tooltip"));
-            dropdownDesktopInputInVR.AssignLocalizedEntries(
-                new List<string>
-                {
-                    BasisSettingsDefaults.DesktopInputInVR_Adaptive,
-                    BasisSettingsDefaults.DesktopInputInVR_AlwaysOn,
-                    BasisSettingsDefaults.DesktopInputInVR_Off,
-                },
-                new List<string>
-                {
-                    "settings.controls.desktopInputInVR.adaptive",
-                    "settings.controls.desktopInputInVR.alwaysOn",
-                    "settings.controls.desktopInputInVR.off",
-                });
-            dropdownDesktopInputInVR.AssignBinding(BasisSettingsDefaults.DesktopInputInVR);
-
-            PanelToggle toggleInvertMouse = PanelToggle.CreateNewEntry(group);
-            toggleInvertMouse.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.invertMouse"));
-            toggleInvertMouse.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.invertMouse.tooltip"));
-            toggleInvertMouse.AssignBinding(BasisSettingsDefaults.InvertMouse);
-
-            PanelSlider mousesensitivty = PanelSlider.CreateEntryAndBind(
-                group,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.mouseSensitivity"), 0, 2f, false, 2, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.mousesensitivty);
-            mousesensitivty.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.mouseSensitivity.tooltip"));
-
-            PanelSlider scrollSpeedSlider = PanelSlider.CreateEntryAndBind(
-                group,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.scrollSpeed"), 20, 300, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.ScrollSpeed);
-            scrollSpeedSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.scrollSpeed.tooltip"));
-
-            PanelToggle snapturntoggle = PanelToggle.CreateNewEntry(group);
-            snapturntoggle.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.snapTurn"));
-            snapturntoggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.snapTurn.tooltip"));
-            snapturntoggle.AssignBinding(BasisSettingsDefaults.usesnapturn);
-
-            sliderSnapTurnAngleRef = PanelSlider.CreateEntryAndBind(
-                group,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.snapTurnAngle"), 0, 120, true, 0, ValueDisplayMode.Degrees),
-                BasisSettingsDefaults.SnapTurnAngle);
-            sliderSnapTurnAngleRef.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.snapTurnAngle.tooltip"));
-
-            sliderSmoothTurnSpeedRef = PanelSlider.CreateEntryAndBind(
-                group,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.smoothTurnSpeed"), 50, 400, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.SmoothTurnSpeed);
-            sliderSmoothTurnSpeedRef.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.smoothTurnSpeed.tooltip"));
-
-            snapturntoggle.OnValueChanged += isOn =>
+            if (BasisDeviceManagement.IsCurrentModeVR())
             {
-                sliderSnapTurnAngleRef.Descriptor.SetActive(isOn);
-                sliderSmoothTurnSpeedRef.Descriptor.SetActive(!isOn);
-                group.ForceRebuild();
-            };
+                PanelDropdown dropdownDesktopInputInVR = PanelDropdown.CreateNewEntry(group);
+                dropdownDesktopInputInVR.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.desktopInputInVR"));
+                dropdownDesktopInputInVR.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.desktopInputInVR.tooltip"));
+                dropdownDesktopInputInVR.AssignLocalizedEntries(
+                    new List<string>
+                    {
+                        BasisSettingsDefaults.DesktopInputInVR_Adaptive,
+                        BasisSettingsDefaults.DesktopInputInVR_AlwaysOn,
+                        BasisSettingsDefaults.DesktopInputInVR_Off,
+                    },
+                    new List<string>
+                    {
+                        "settings.controls.desktopInputInVR.adaptive",
+                        "settings.controls.desktopInputInVR.alwaysOn",
+                        "settings.controls.desktopInputInVR.off",
+                    });
+                dropdownDesktopInputInVR.AssignBinding(BasisSettingsDefaults.DesktopInputInVR);
+            }
+
+            if (BasisDeviceManagement.IsUserInDesktop())
+            {
+                PanelToggle toggleInvertMouse = PanelToggle.CreateNewEntry(group);
+                toggleInvertMouse.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.invertMouse"));
+                toggleInvertMouse.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.invertMouse.tooltip"));
+                toggleInvertMouse.AssignBinding(BasisSettingsDefaults.InvertMouse);
+
+                PanelSlider mousesensitivty = PanelSlider.CreateEntryAndBind(
+                    group,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.mouseSensitivity"), 0, 2f, false, 2, ValueDisplayMode.Percentage),
+                    BasisSettingsDefaults.mousesensitivty);
+                mousesensitivty.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.mouseSensitivity.tooltip"));
+            }
+
+            if (BasisDeviceManagement.IsCurrentModeVR())
+            {
+                PanelSlider scrollSpeedSlider = PanelSlider.CreateEntryAndBind(
+                    group,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.scrollSpeed"), 20, 300, true, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.ScrollSpeed);
+                scrollSpeedSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.scrollSpeed.tooltip"));
+
+                PanelToggle snapturntoggle = PanelToggle.CreateNewEntry(group);
+                snapturntoggle.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.snapTurn"));
+                snapturntoggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.snapTurn.tooltip"));
+                snapturntoggle.AssignBinding(BasisSettingsDefaults.usesnapturn);
+
+                sliderSnapTurnAngleRef = PanelSlider.CreateEntryAndBind(
+                    group,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.snapTurnAngle"), 0, 120, true, 0, ValueDisplayMode.Degrees),
+                    BasisSettingsDefaults.SnapTurnAngle);
+                sliderSnapTurnAngleRef.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.snapTurnAngle.tooltip"));
+
+                sliderSmoothTurnSpeedRef = PanelSlider.CreateEntryAndBind(
+                    group,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.smoothTurnSpeed"), 50, 400, true, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.SmoothTurnSpeed);
+                sliderSmoothTurnSpeedRef.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.smoothTurnSpeed.tooltip"));
+
+                snapturntoggle.OnValueChanged += isOn =>
+                {
+                    sliderSnapTurnAngleRef.Descriptor.SetActive(isOn);
+                    sliderSmoothTurnSpeedRef.Descriptor.SetActive(!isOn);
+                    group.ForceRebuild();
+                };
+            }
         }, startExpanded: false);
+
+        // Everything from here through the Yaw/Pitch Comfort section below is VR-only: snap/smooth
+        // turn, VR finger touch, controller-trigger UI clicking, and thumbstick scroll/deadzone
+        // tuning have no desktop equivalent (desktop turns by mouse-look directly).
+        if (BasisDeviceManagement.IsCurrentModeVR())
+        {
 
         // Apply initial visibility AFTER CreateCollapsibleSection's SetContentActive pass,
         // which would otherwise re-activate both sliders when the section starts expanded.
@@ -312,9 +327,13 @@ public static class SettingsProviderControllerConfig
             verticalDeadZoneSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.lookYDeadZone.tooltip"));
             verticalDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
         });
+        }
 
-        // Keyboard Bindings & Remapping
-        SettingsProviderKeyboardBindings.BuildKeyboardBindingsUI(tab);
+        // Keyboard Bindings & Remapping (desktop peripheral; skipped in VR)
+        if (BasisDeviceManagement.IsUserInDesktop())
+        {
+            SettingsProviderKeyboardBindings.BuildKeyboardBindingsUI(tab);
+        }
 
         // Action Bindings
         SettingsProviderKeyboardBindings.CreateCollapsibleSection(

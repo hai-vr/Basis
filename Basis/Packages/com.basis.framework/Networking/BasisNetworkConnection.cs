@@ -121,6 +121,14 @@ namespace Basis.Scripts.Networking
             {
                 try
                 {
+                    if (isHostMode)
+                    {
+                        // The embedded server's own startup (socket bind, auth/config init) runs on
+                        // its own background task; without waiting for it here, this client's dial-in
+                        // to "localhost" can race ahead of the server actually listening and get
+                        // dropped before the connect handshake has anything to answer it.
+                        BasisNetworkServerRunner.serverTask.GetAwaiter().GetResult();
+                    }
                     var serverConfig = new Configuration
                     {
                         IPv4Address = ipString,

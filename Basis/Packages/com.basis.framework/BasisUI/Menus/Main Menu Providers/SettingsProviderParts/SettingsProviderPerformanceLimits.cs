@@ -52,6 +52,9 @@ public static class SettingsProviderPerformanceLimits
         {
             BasisAvatarPerformanceLimits.BypassAllLimits = on;
         };
+        // Backed by a plain static bool, not a settings binding — off is the only sane default
+        // for a "bypass all performance limits" switch.
+        bypassToggle.SetResetDefault(false);
 
         PanelSectionToggle geometryToggle = PanelSectionToggle.CreateNewEntry(contentParent);
         PanelElementDescriptor geometry = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(

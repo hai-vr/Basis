@@ -1372,7 +1372,7 @@ namespace Basis.BasisUI
             PanelButton detailsPanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, scrollablePage.Descriptor.ContentParent);
             detailsPanelButton.Descriptor.SetTitle(string.Format(BasisLocalization.Get("library.details"), item.Mode));
             detailsPanelButton.Descriptor.SetTooltip(BasisLocalization.Get("library.details.tooltip"));
-            detailsPanelButton.Descriptor.SetHeight(130);
+            detailsPanelButton.Descriptor.SetHeight(60);
             detailsPanelButton.Descriptor.SetWidth(400);
             detailsPanelButton.OnClicked += async () =>
             {
@@ -2547,6 +2547,51 @@ namespace Basis.BasisUI
             itemTextInfo.Descriptor.SetWidth(400);
 
             _pendingLoadRowInfo[pending.PendingId] = itemTextInfo.Descriptor;
+
+            // Same rule the spawned/failed rows use: a protected networked item is an admin's to remove.
+            bool canRemove = pending.SpawnMethod != BasisRuntimeSpawnRegistry.SpawnMethod.Network || !pending.isProtected || IsProtected;
+
+            BuildEntryActionButton(itemListPanel.TabButtonParent, new EntryActionButton
+            {
+                Style = ButtonStyles.CancelButton,
+                Icon = AddressableAssets.Sprites.Trash,
+                Tooltip = BasisLocalization.Get("library.instantiated.pending.cancel.tooltip"),
+                Disabled = !canRemove,
+                DisabledReason = canRemove ? null : BasisLocalization.Get("library.disabled.protected"),
+                OnClick = async () =>
+                {
+                    BasisDebug.Log($"CreatePendingListEntry() -> requested cancel of pending load = {pending.Url} of PendingId = {pending.PendingId} of SpawnMethod = {pending.SpawnMethod} and SpawnMode = {pending.SpawnMode}");
+
+                    bool result = await LibraryProviderDialogRemove.PromptUserForRemoval(panel, title, pending.SpawnMode.ToString());
+                    if (!result) return;
+
+                    switch (pending.SpawnMethod)
+                    {
+                        case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
+                            // Same as a failed/spawned networked row: ask the server and leave this row
+                            // alone locally — it clears when the unload broadcast echoes back, here and
+                            // on every other client still waiting on the same doomed/in-flight spawn.
+                            switch (pending.SpawnMode)
+                            {
+                                case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+                                    BasisNetworkSpawnItem.RequestSceneUnLoad(pending.LoadedNetID);
+                                    break;
+                                default:
+                                    BasisNetworkSpawnItem.RequestGameObjectUnLoad(pending.LoadedNetID);
+                                    break;
+                            }
+                            break;
+                        default:
+                            // Actually aborts the in-flight load via the PendingLoad's Cts. Also drops it
+                            // from the preload store so it doesn't come back if it was set to load on boot.
+                            _ = BasisPreloadContentStore.Remove(pending.Url);
+                            BasisRuntimeSpawnRegistry.RequestCancelPendingLoad(pending.PendingId);
+                            break;
+                    }
+
+                    await RefreshCurrentTab();
+                },
+            });
         }
 
         private static void OnFailedLoadsChanged() => UpdateInstantiatedTab();
@@ -3012,87 +3057,92 @@ namespace Basis.BasisUI
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
 
-            if (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded)
-            {
-                return;
-            }
+            // Embedded items are single-instance (LoadProp's embedded branch toggles the same one
+            // instance off on a second press — see "for the moment embedded items are one instance"
+            // there), so Select/Teleport/the external row-hook are skipped for them same as always.
+            // Remove is NOT skipped below: its switch already has a correct Embedded case, keyed by
+            // LoadedNetID, which is safe here only because that single-instance guarantee holds.
+            bool isEmbedded = itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
 
-            bool isScene = itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene;
-
-            BuildEntryActionButton(itemListPanel.TabButtonParent, new EntryActionButton
+            if (!isEmbedded)
             {
-                Style = ButtonStyles.AcceptButton,
-                Icon = AddressableAssets.Sprites.Select,
-                Tooltip = BasisLocalization.Get("library.instantiated.select.tooltip"),
-                Hidden = isScene,
-                OnClick = async () =>
+                bool isScene = itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene;
+
+                BuildEntryActionButton(itemListPanel.TabButtonParent, new EntryActionButton
                 {
-                    if (hasSelected)
+                    Style = ButtonStyles.AcceptButton,
+                    Icon = AddressableAssets.Sprites.Select,
+                    Tooltip = BasisLocalization.Get("library.instantiated.select.tooltip"),
+                    Hidden = isScene,
+                    OnClick = async () =>
                     {
-                        PlacementManager.RemoveSelectionSpawnInstanceID(itemKey);
-                        await RefreshCurrentTab();
-                    }
-                    else
-                    {
-                        // send the selection
-                        PlacementManager.SetActiveSelection(itemKey);
-                        // close the menu
-                        BasisMainMenu.Close();
-                    }
-                },
-            });
+                        if (hasSelected)
+                        {
+                            PlacementManager.RemoveSelectionSpawnInstanceID(itemKey);
+                            await RefreshCurrentTab();
+                        }
+                        else
+                        {
+                            // send the selection
+                            PlacementManager.SetActiveSelection(itemKey);
+                            // close the menu
+                            BasisMainMenu.Close();
+                        }
+                    },
+                });
 
-            if (OnInstanceRowCreated != null)
-            {
-                // Subscribers are external integrations; one throwing must not leave the
-                // row half-built or abort the rest of the tab rebuild.
-                foreach (Action<RectTransform, BasisRuntimeSpawnRegistry.SpawnInstance> subscriber in OnInstanceRowCreated.GetInvocationList())
+                if (OnInstanceRowCreated != null)
                 {
-                    try
+                    // Subscribers are external integrations; one throwing must not leave the
+                    // row half-built or abort the rest of the tab rebuild.
+                    foreach (Action<RectTransform, BasisRuntimeSpawnRegistry.SpawnInstance> subscriber in OnInstanceRowCreated.GetInvocationList())
                     {
-                        subscriber(itemListPanel.TabButtonParent, itemKey);
-                    }
-                    catch (Exception e)
-                    {
-                        BasisDebug.LogError($"OnInstanceRowCreated subscriber {subscriber.Method.DeclaringType?.FullName}.{subscriber.Method.Name} threw: {e}");
+                        try
+                        {
+                            subscriber(itemListPanel.TabButtonParent, itemKey);
+                        }
+                        catch (Exception e)
+                        {
+                            BasisDebug.LogError($"OnInstanceRowCreated subscriber {subscriber.Method.DeclaringType?.FullName}.{subscriber.Method.Name} threw: {e}");
+                        }
                     }
                 }
-            }
 
-            BuildEntryActionButton(itemListPanel.TabButtonParent, new EntryActionButton
-            {
-                Style = ButtonStyles.StandardButton,
-                Icon = AddressableAssets.Sprites.TeleportTo,
-                Tooltip = BasisLocalization.Get("library.instantiated.teleport.tooltip"),
-                Hidden = isScene,
-                OnClick = () =>
+                BuildEntryActionButton(itemListPanel.TabButtonParent, new EntryActionButton
                 {
-                    switch (itemKey.SpawnMode)
+                    Style = ButtonStyles.StandardButton,
+                    Icon = AddressableAssets.Sprites.TeleportTo,
+                    Tooltip = BasisLocalization.Get("library.instantiated.teleport.tooltip"),
+                    Hidden = isScene,
+                    OnClick = () =>
                     {
-                        case BasisRuntimeSpawnRegistry.SpawnMode.Avatar:
-                        case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
+                        switch (itemKey.SpawnMode)
+                        {
+                            case BasisRuntimeSpawnRegistry.SpawnMode.Avatar:
+                            case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
 
-                            // find the object in the BasisRuntimeSpawnRegistry
-                            if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(itemKey.LoadedNetID, out GameObject go) && go != null)
-                            {
-                                Vector3 offsetTarget = go.transform.position;
-
-                                if (itemKey.bundleConnector != null)
+                                // find the object in the BasisRuntimeSpawnRegistry
+                                if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(itemKey.LoadedNetID, out GameObject go) && go != null)
                                 {
-                                    offsetTarget.y = offsetTarget.y + itemKey.bundleConnector.Bounds.max.y;
+                                    Vector3 offsetTarget = go.transform.position;
+
+                                    if (itemKey.bundleConnector != null)
+                                    {
+                                        offsetTarget.y = offsetTarget.y + itemKey.bundleConnector.Bounds.max.y;
+                                    }
+
+                                    BasisLocalPlayer.Instance.Teleport( offsetTarget, Quaternion.identity, mode: BasisTeleportMode.WorldFeet );
                                 }
 
-                                BasisLocalPlayer.Instance.Teleport( offsetTarget, Quaternion.identity, mode: BasisTeleportMode.WorldFeet );
-                            }
-
-                        break;
-                        case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
-                            BasisDebug.LogWarning( "LibraryProvider.cs -> Teleport To Item button for scene is not implemented!" );
-                        break;
-                    }
-                    return Task.CompletedTask;
-                },
-            });
+                            break;
+                            case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+                                BasisDebug.LogWarning( "LibraryProvider.cs -> Teleport To Item button for scene is not implemented!" );
+                            break;
+                        }
+                        return Task.CompletedTask;
+                    },
+                });
+            }
 
             // Static / lock toggle — networked game objects only; applies for everyone (server-authoritative).
             // Cycles None -> Static (creator or moderator) -> Admin-locked (moderator only) -> None.

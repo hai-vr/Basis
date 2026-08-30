@@ -23,7 +23,6 @@ namespace Basis.BasisUI
 
         private static PanelSectionToggle _toggle;
         private static PanelElementDescriptor _group;
-        private static PanelElementDescriptor _frameField;
         private static PanelElementDescriptor _cpuField;
         private static PanelElementDescriptor _gpuField;
         private static BasisPanelTint.Handle _tint;
@@ -53,11 +52,6 @@ namespace Basis.BasisUI
             group.SetTooltip(BasisLocalization.Get("settings.graphics.bottleneck.tooltip"));
             toggle.RegisterContentContainer(group);
 
-            PanelElementDescriptor frameField = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, group.ContentParent);
-            frameField.SetTitle(BasisLocalization.Get("settings.graphics.bottleneck.frame"));
-            frameField.SetDescription("...");
-
             PanelElementDescriptor cpuField = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, group.ContentParent);
             cpuField.SetTitle(BasisLocalization.Get("settings.graphics.bottleneck.cpu"));
@@ -68,14 +62,20 @@ namespace Basis.BasisUI
             gpuField.SetTitle(BasisLocalization.Get("settings.graphics.bottleneck.gpu"));
             gpuField.SetDescription("...");
 
-            PanelButton captureButton = PanelButton.CreateNew(group.ContentParent);
-            captureButton.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.bottleneck.renderPassCapture"));
-            captureButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.bottleneck.renderPassCapture.tooltip"));
-            captureButton.OnClicked += () => BasisRenderProfileHistory.CaptureToDisk("settings-panel");
+            // Per-pass GPU/CPU timing rides Unity's Sampler/Recorder/ProfilerMarker APIs, which are
+            // stripped/disabled outside the Editor and Development Builds — a release build would
+            // export an all-zero snapshot. Debug.isDebugBuild covers exactly the builds this works in.
+            if (Debug.isDebugBuild)
+            {
+                PanelButton captureButton = PanelButton.CreateNew(group.ContentParent);
+                captureButton.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.bottleneck.renderPassCapture"));
+                captureButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.bottleneck.renderPassCapture.tooltip"));
+                captureButton.OnClicked += () => BasisRenderProfileHistory.CaptureToDisk("settings-panel");
+            }
 
             group.IsolateAsCanvas();
 
-            Attach(toggle, group, frameField, cpuField, gpuField);
+            Attach(toggle, group, cpuField, gpuField);
             group.OnInstanceReleased += () => Detach(group);
 
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(toggle, group, false,
@@ -85,17 +85,14 @@ namespace Basis.BasisUI
         private static void Attach(
             PanelSectionToggle toggle,
             PanelElementDescriptor group,
-            PanelElementDescriptor frameField,
             PanelElementDescriptor cpuField,
             PanelElementDescriptor gpuField)
         {
             _toggle = toggle;
             _group = group;
-            _frameField = frameField;
             _cpuField = cpuField;
             _gpuField = gpuField;
 
-            _frameField.DisableRichText();
             _cpuField.DisableRichText();
             _gpuField.DisableRichText();
 
@@ -130,7 +127,6 @@ namespace Basis.BasisUI
 
             _toggle = null;
             _group = null;
-            _frameField = null;
             _cpuField = null;
             _gpuField = null;
             _tint = null;
@@ -192,18 +188,10 @@ namespace Basis.BasisUI
             if (_shownKind == BasisFrameBottleneckKind.Measuring)
             {
                 string pending = BasisLocalization.Get("settings.graphics.bottleneck.pending");
-                _frameField.SetDescription(pending);
                 _cpuField.SetDescription(pending);
                 _gpuField.SetDescription(pending);
                 return;
             }
-
-            double fps = reading.FrameMs > 0.0 ? 1000.0 / reading.FrameMs : 0.0;
-            _frameField.SetDescription(reading.TargetMs > 0.0
-                ? BasisLocalization.Get("settings.graphics.bottleneck.frame.capped",
-                    reading.FrameMs, fps, 1000.0 / reading.TargetMs)
-                : BasisLocalization.Get("settings.graphics.bottleneck.frame.value",
-                    reading.FrameMs, fps));
 
             _cpuField.SetDescription(BasisLocalization.Get("settings.graphics.bottleneck.cpu.value",
                 reading.CpuBusyMs, reading.MainThreadMs, reading.RenderThreadMs, reading.PresentWaitMs));
@@ -223,7 +211,6 @@ namespace Basis.BasisUI
             }
 
             _layoutFrozen = true;
-            _frameField.FreezeLayoutSize(110f);
             _cpuField.FreezeLayoutSize(150f);
             _gpuField.FreezeLayoutSize(110f);
             FreezeGroupLayout();

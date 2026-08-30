@@ -6103,6 +6103,10 @@
       "value": "Remove this item. Networked items are removed for everyone; items set to load on startup stop loading."
     },
     {
+      "key": "library.instantiated.pending.cancel.tooltip",
+      "value": "Cancel this load. Networked items are removed for everyone; local items stop downloading."
+    },
+    {
       "key": "library.shareable.avatar",
       "value": "Shared Avatar"
     },
@@ -6393,6 +6397,14 @@
     {
       "key": "settings.developer.title",
       "value": "Developer & Debug"
+    },
+    {
+      "key": "settings.developer.showFrameTimeMs",
+      "value": "Show Frame Time (ms)"
+    },
+    {
+      "key": "settings.developer.showFrameTimeMs.tooltip",
+      "value": "Append the current frame time in milliseconds next to FPS in the Time/FPS line shown at the top of every menu panel."
     },
     {
       "key": "settings.tab.general",
@@ -7532,7 +7544,7 @@
     },
     {
       "key": "settings.graphics.rtao.title",
-      "value": "Ambient Occlusion (Avatars)"
+      "value": "Ambient Occlusion"
     },
     {
       "key": "settings.graphics.rtao.enable",
@@ -14315,6 +14327,26 @@
     {
       "key": "settings.performanceMode.auto",
       "value": "Follow Player Count"
+    },
+    {
+      "key": "settings.performanceMode.assist",
+      "value": "Performance Mode Assistance"
+    },
+    {
+      "key": "settings.performanceMode.assist.tooltip",
+      "value": "How Performance Mode responds to how full the instance gets."
+    },
+    {
+      "key": "settings.performanceMode.assist.off.tooltip",
+      "value": "Fully manual — Performance Mode only changes when you pick a level yourself."
+    },
+    {
+      "key": "settings.performanceMode.assist.both",
+      "value": "Follow Player Count + Suggest"
+    },
+    {
+      "key": "settings.performanceMode.assist.both.tooltip",
+      "value": "Switch levels automatically as the instance fills up, and still offer the busy-instance suggestion."
     },
     {
       "key": "settings.performanceMode.auto.tooltip",

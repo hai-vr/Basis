@@ -53,6 +53,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> ShowDeveloperTab = new("showdevelopertab", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<bool> ShowFrameTimeMs = new("showframetimems", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> CustomScale = new("customscale", new BasisPlatformDefault<bool>(false));
 
         // Key bumped to _v2: BasisSettingsSystem.LoadString persists a default the first time it is read, so
@@ -2631,6 +2633,7 @@ namespace Basis.BasisUI
             // UI
             RememberMenuState.LoadBindingValue();
             ShowDeveloperTab.LoadBindingValue();
+            ShowFrameTimeMs.LoadBindingValue();
             AvatarPreview.LoadBindingValue();
             AvatarPreviewMirror.LoadBindingValue();
             LimitHandHeldCameraRate.LoadBindingValue();
