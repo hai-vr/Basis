@@ -577,7 +577,7 @@ PlayerSettings:
   enableInternalProfiler: 0
   logObjCUncaughtExceptions: 1
   enableCrashReportAPI: 1
-  cameraUsageDescription: 
+  cameraUsageDescription: This application uses the camera for avatar tracking features.
   locationUsageDescription: 
   microphoneUsageDescription: This application uses the microphone for voice communication
     and audio features.
