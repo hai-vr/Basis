@@ -5,7 +5,6 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Receivers;
 using HVR.Basis.Comms;
-using HVR.Basis.Comms.HVRUtility;
 using UnityEngine;
 
 namespace HVR.Vixxy
@@ -33,6 +32,8 @@ namespace HVR.Vixxy
         private readonly Dictionary<GameObject, MaterialPropertyBlock> _objectToMaterialPropertyBlock = new();
         private readonly Dictionary<GameObject, Renderer> _objectToRenderer_mayContainNullObjects = new();
         private readonly HashSet<GameObject> _stagedBlocks = new(); // FIXME: We should really just be binding tuples into _objectToMaterialPropertyBlock
+        
+        private readonly HashSet<HVRMeshVisibility> _meshVisibilityComponents = new();
 
         private readonly HashSet<IHVRVixxyAggregator> _workAggregators = new();
 
@@ -90,6 +91,19 @@ namespace HVR.Vixxy
                         _actuatorsToUpdateThisTick.Add(actuator);
                     }
                 }
+            }
+            _anythingNeedsUpdating = true;
+        }
+
+        public void PassMeshVisibilityOverride(HVRActuatorRegistrationToken registeredActuator)
+        {
+            if (registeredActuator.registeredActuator.HasFilters())
+            {
+                _actuatorsWithFiltersToCheckThisTick.Add(registeredActuator.registeredActuator);
+            }
+            else
+            {
+                _actuatorsToUpdateThisTick.Add(registeredActuator.registeredActuator);
             }
             _anythingNeedsUpdating = true;
         }
@@ -171,6 +185,7 @@ namespace HVR.Vixxy
         }
 
         private readonly HashSet<IHVRVixxyActuator> L_actuatorsWithFiltersToCheckNextTick = new(); // is field due to PR guidelines
+
         /// Calculate aggregators and filters. This may be jobified in the future.
         public void Simulate()
         {
@@ -241,6 +256,22 @@ namespace HVR.Vixxy
                 foreach (var actuator in _actuatorsToUpdateThisTick)
                 {
                     actuator.Actuate();
+                }
+
+                if (_meshVisibilityComponents.Count > 0)
+                {
+                    var random = Random.Range(5, 10);
+                    var anythingChanged = true;
+                    while (anythingChanged && random > 0)
+                    {
+                        anythingChanged = false;
+                        foreach (var meshViz in _meshVisibilityComponents)
+                        {
+                            anythingChanged |= meshViz.Evaluate();
+                        }
+
+                        random--;
+                    }
                 }
 
                 _actuatorsToUpdateThisTick.Clear();
@@ -350,6 +381,12 @@ namespace HVR.Vixxy
                     _addressIdToAggregators.Remove(addressId);
                 }
             }
+        }
+
+        // TODO: There isn't a good way to signal that the mesh visibility is from a specific actuator.
+        internal void RegisterMeshVisibility(HVRMeshVisibility meshVisibility)
+        {
+            _meshVisibilityComponents.Add(meshVisibility);
         }
 
         /// Inform the orchestrator that the object will need a material property block assigned to it.

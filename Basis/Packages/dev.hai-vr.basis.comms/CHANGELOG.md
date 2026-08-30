@@ -1,6 +1,19 @@
 Changelog
 =====
 
+## 2025-08-30
+
+*Authored by Haï~*
+
+New additions:
+- Add Mesh Visibility component.
+  - A Mesh Visibility component can momentarily override the choice of a Control based on whether a Renderer is enabled and its GameObject is active in the hierarchy.
+  - If the object does not contain a Renderer, then the GameObject is used instead.
+- Mesh Visibility is evaluated up to a maximum of five times per frame, only after at least one Actuator has changed.
+
+Fixes:
+- Fix Vixxy Control editor should handle null toggles.
+
 ## 2025-05-21
 
 *Authored by Haï~*

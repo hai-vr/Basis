@@ -46,7 +46,8 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.transitionDuration)), new GUIContent(HVRVixxyLocalizationPhrase.TransitionDurationLabel));
             }
             EditorGUILayout.Separator();
-
+            
+            var dependsOnMeshVisibility = my.TryGetComponent<HVRMeshVisibility>(out var meshViz);
             if (!_editor.IsSystemAddress())
             {
                 var foundMenu = my.TryGetComponent<HVRVixxyMenuItem>(out var menu);
@@ -67,17 +68,32 @@ namespace HVR.Vixxy.Editor
                 }
                 EditorGUI.EndDisabledGroup();
 
-                var isControlNotDrivenByAnything = _outsideMenus.Count == 0 && !foundMenu && (!my.address.TryResolvePath(out var actualAddress) || HVRAddress.IsSystemAddressName(actualAddress));
-                if (isControlNotDrivenByAnything)
+                var isControlNotDrivenByAnAddress = _outsideMenus.Count == 0 && !foundMenu && (!my.address.TryResolvePath(out var actualAddress) || HVRAddress.IsSystemAddressName(actualAddress));
+                
+                var isControlNotDrivenByAnything = isControlNotDrivenByAnAddress && !dependsOnMeshVisibility;
+                if (isControlNotDrivenByAnAddress)
                 {
-                    EditorGUILayout.LabelField("What activates this control?", EditorStyles.boldLabel);
+                    EditorGUILayout.LabelField(dependsOnMeshVisibility ? "Should something else activate this control?" : "What activates this control?", EditorStyles.boldLabel);
                     LayoutSystemAddressSelector(null, "Select...");
-                    EditorGUILayout.HelpBox("This control is not activated by anything. Make sure you select one using the button above.", MessageType.Warning);
+                    if (isControlNotDrivenByAnything)
+                    {
+                        EditorGUILayout.HelpBox("This control is not activated by anything. Make sure you select one using the button above.", MessageType.Warning);
+                    }
                 }
-                else if (!isMenuDriven)
+                else if (!isMenuDriven && !dependsOnMeshVisibility)
                 {
                     EditorGUILayout.LabelField("This control is activated by an input.", EditorStyles.boldLabel);
                     LayoutExistingAddress();
+                }
+
+                if (!dependsOnMeshVisibility)
+                {
+                    if (GUILayout.Button(HVR_EditorHelpers.PlusSymbol + " " + "Add mesh visibility condition"))
+                    {
+                        var comp = Undo.AddComponent<HVRMeshVisibility>(my.gameObject);
+                        comp.priorities[0].output = 0f;
+                        ComponentUtility.MoveComponentUp(comp);
+                    }
                 }
             }
             else
@@ -85,6 +101,14 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField("This control is activated by a special input.", EditorStyles.boldLabel);
                 LayoutExistingAddress();
             }
+            if (dependsOnMeshVisibility)
+            {
+                EditorGUILayout.LabelField("This control depends on a mesh visibility condition.", EditorStyles.boldLabel);
+                EditorGUI.BeginDisabledGroup(true);
+                EditorGUILayout.ObjectField(meshViz, typeof(HVRMeshVisibility), true);
+                EditorGUI.EndDisabledGroup();
+            }
+            
             EditorGUILayout.Separator();
 
             return false;
@@ -199,6 +223,14 @@ namespace HVR.Vixxy.Editor
                             EditorGUIUtility.PingObject(comp.gameObject);
                         };
                     }
+                    else if (selected == VAddressSelection.MakeMeshVisibility)
+                    {
+                        if (!my.TryGetComponent<HVRMeshVisibility>(out _))
+                        {
+                            var comp = Undo.AddComponent<HVRMeshVisibility>(my.gameObject);
+                            ComponentUtility.MoveComponentUp(comp);
+                        }
+                    }
                     else
                     {
                         var prop = serializedObject.FindProperty(nameof(HVRVixxyControl.address));
@@ -253,6 +285,7 @@ namespace HVR.Vixxy.Editor
     {
         public const string MakeMenu = "make.menu";
         public const string MakeMenuNewGameObject = "make.menu_new_gameobject";
+        public const string MakeMeshVisibility = "make.mesh_visibility";
 
         private static readonly string[] Visemes = { "sil", "PP", "FF", "TH", "DD", "kk", "CH", "SS", "nn", "RR", "aa", "E", "ih", "oh", "ou", };
         private static readonly string[] FaceTracking = { "BrowDownLeft", "BrowDownRight", "BrowInnerUp", "BrowInnerUpLeft", "BrowInnerUpRight", "BrowLowererLeft", "BrowLowererRight", "BrowOuterUpLeft", "BrowOuterUpRight", "BrowPinchLeft", "BrowPinchRight", "CheekPuffSuck", "CheekPuffSuckLeft", "CheekPuffSuckRight", "CheekSquintLeft", "CheekSquintRight", "EyeLeftX", "EyeLidLeft", "EyeLidRight", "EyeRightX", "EyeSquintLeft", "EyeSquintRight", "EyeY", "JawClench", "JawMandibleRaise", "JawOpen", "JawX", "JawZ", "LipFunnel", "LipFunnelLowerLeft", "LipFunnelLowerRight", "LipFunnelUpperLeft", "LipFunnelUpperRight", "LipPucker", "LipPuckerLowerLeft", "LipPuckerLowerRight", "LipPuckerUpperLeft", "LipPuckerUpperRight", "LipSuckCornerLeft", "LipSuckCornerRight", "LipSuckLower", "LipSuckLowerLeft", "LipSuckLowerRight", "LipSuckUpper", "LipSuckUpperLeft", "LipSuckUpperRight", "MouthClosed", "MouthCornerPullLeft", "MouthCornerPullRight", "MouthCornerSlantLeft", "MouthCornerSlantRight", "MouthDimpleLeft", "MouthDimpleRight", "MouthFrownLeft", "MouthFrownRight", "MouthLowerDownLeft", "MouthLowerDownRight", "MouthLowerX", "MouthPressLeft", "MouthPressRight", "MouthRaiserLower", "MouthRaiserUpper", "MouthSmileLeft", "MouthSmileRight", "MouthStretchLeft", "MouthStretchRight", "MouthTightenerLeft", "MouthTightenerRight", "MouthUpperDeepenLeft", "MouthUpperDeepenRight", "MouthUpperUpLeft", "MouthUpperUpRight", "MouthUpperX", "NasalConstrictLeft", "NasalConstrictRight", "NasalDilationLeft", "NasalDilationRight", "NeckFlexLeft", "NeckFlexRight", "NoseSneerLeft", "NoseSneerRight", "SoftPalateClose", "ThroatSwallow", "TongueArchY", "TongueOut", "TongueRoll", "TongueShape", "TongueTwistLeft", "TongueTwistRight", "TongueX", "TongueY" };
@@ -274,6 +307,7 @@ namespace HVR.Vixxy.Editor
 
             root.AddChild(NewAdvancedDropdownItem(MakeMenu, HVRVixxyLocalizationPhrase.MenuItemLabel));
             root.AddChild(NewAdvancedDropdownItem(MakeMenuNewGameObject, HVRVixxyLocalizationPhrase.MenuItemNewGameObjectLabel));
+            root.AddChild(NewAdvancedDropdownItem(MakeMeshVisibility, HVRVixxyLocalizationPhrase.MeshVisibility));
             root.AddChild(CreateVisemeDropdown());
             root.AddChild(NewAdvancedDropdownItem(HVRAddress.System.User.VoiceGain.address, HVRVixxyLocalizationPhrase.VoiceGainLabel));
             root.AddChild(CreateFaceTrackingDropdown(HVRVixxyLocalizationPhrase.FaceTrackingLabel, FaceTracking));

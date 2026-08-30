@@ -173,3 +173,4 @@ MonoBehaviour:
   - HVR.Vixxy.HVRVixxyMenuItem
   - HVR.Vixxy.HVRVixxyAggregator
   - HVR.Basis.Comms.HVRMeasure
+  - HVR.Basis.Comms.HVRMeshVisibility
