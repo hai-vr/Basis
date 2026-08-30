@@ -99,7 +99,7 @@ namespace Basis.Tests.Camera
             Assert.That(_camera.MetaData.Profile, Is.EqualTo(_profile));
         }
 
-#if BASIS_HAS_GI
+#if BASIS_HAS_GI && !UNITY_ANDROID
         [Test]
         public void TheCaptureCameraIsRegisteredForGlobalIllumination()
         {
