@@ -18,11 +18,13 @@ public static class BasisJiggleSimulationLOD
 {
     public static bool Enabled;
 
-    private static float _cutoffSqr = 120f * 120f;
+    // internal: also read by BasisJiggleLodJob, which mirrors ShouldSimulate's math to run in
+    // parallel with the transmit tick's distance/reduce/cap/dampen chain (see that job's summary).
+    internal static float _cutoffSqr = 120f * 120f;
 
     // Matches the squared-hysteresis convention in BasisJiggleColliderLOD so a remote hovering on
     // the boundary doesn't flip its jiggle rigs on/off every distance-loop tick.
-    private const float HysteresisSqr = 1.1f * 1.1f;
+    internal const float HysteresisSqr = 1.1f * 1.1f;
 
     /// <summary>
     /// Pushes the current setting values into this module. Call once at startup and again on every

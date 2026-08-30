@@ -179,7 +179,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     public static float GpuMsComposite => samplerComposite.gpuElapsedTime;
 
     private static int invocationFrame = -1, invocationCount;
-    public static int InvocationsThisFrame => invocationFrame == Time.frameCount ? invocationCount : 0;
+    public static int InvocationsThisFrame => invocationCount;
 
     private static readonly Vector4[] emitterSpheres = new Vector4[MaxEmitters];
     private static readonly Vector4[] emitterRadiance = new Vector4[MaxEmitters];

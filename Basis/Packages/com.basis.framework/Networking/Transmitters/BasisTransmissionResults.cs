@@ -31,12 +31,14 @@ public partial class BasisTransmissionResults
     [System.NonSerialized] public BasisAvatarCapJob avatarCapJob;
     [System.NonSerialized] public BasisAudioCapJob audioCapJob;
     [System.NonSerialized] public BasisDirectionalDampenJob dampenJob;
+    [System.NonSerialized] public BasisJiggleLodJob jiggleLodJob;
 
     [System.NonSerialized] public JobHandle distanceJobHandle;
     [System.NonSerialized] public JobHandle reduceJobHandle;
     [System.NonSerialized] public JobHandle avatarCapJobHandle;
     [System.NonSerialized] public JobHandle audioCapJobHandle;
     [System.NonSerialized] public JobHandle dampenJobHandle;
+    [System.NonSerialized] public JobHandle jiggleLodJobHandle;
 
     // Timing / interval control
     public float intervalSeconds = 0.05f;
@@ -112,6 +114,20 @@ public partial class BasisTransmissionResults
     /// Scratch buffer for audio-cap sorting. Sized to capacity, reused each tick.
     /// </summary>
     private NativeArray<AudioCapEntry> audioCapEntries;
+
+    /// <summary>
+    /// Per-index mirror of RemoteAvatarDriver jiggle state, filled in the positions loop so
+    /// <see cref="BasisJiggleLodJob"/> (Burst) never touches managed objects. The job reads these
+    /// as "current" and writes <see cref="targetColliderTier"/>/<see cref="targetShouldSimulate"/>;
+    /// PostProcess applies them through the same live driver reference instead of calling
+    /// BasisJiggleColliderLOD.ComputeTier / BasisJiggleSimulationLOD.ShouldSimulate inline.
+    /// </summary>
+    private NativeArray<bool> hasJiggleCollidersState;
+    private NativeArray<BasisJiggleColliderTier> currentColliderTier;
+    private NativeArray<bool> hasJiggleRigsState;
+    private NativeArray<bool> currentlySimulatingState;
+    private NativeArray<BasisJiggleColliderTier> targetColliderTier;
+    private NativeArray<bool> targetShouldSimulate;
 
     // State
     public bool IndexChanged;
@@ -314,6 +330,10 @@ public partial class BasisTransmissionResults
             float3* pTargetForwards = (float3*)targetForwards.GetUnsafePtr();
             bool* pHasRealAvatar = (bool*)hasRealAvatarLoaded.GetUnsafePtr();
             bool* pHasActiveAudio = (bool*)hasActiveAudioSource.GetUnsafePtr();
+            bool* pHasJiggleColliders = (bool*)hasJiggleCollidersState.GetUnsafePtr();
+            BasisJiggleColliderTier* pCurrentColliderTier = (BasisJiggleColliderTier*)currentColliderTier.GetUnsafePtr();
+            bool* pHasJiggleRigs = (bool*)hasJiggleRigsState.GetUnsafePtr();
+            bool* pCurrentlySimulating = (bool*)currentlySimulatingState.GetUnsafePtr();
 
             float3 farAway = BasisLocalCameraDriver.Position + new Vector3(900, 900, 900);
 
@@ -335,6 +355,16 @@ public partial class BasisTransmissionResults
                 pTargetForwards[Index] = mouthForward;
                 pHasRealAvatar[Index] = remotePlayer.InAvatarRange && !remotePlayer.IsConsideredFallBackAvatar;
                 pHasActiveAudio[Index] = remote.AudioReceiverModule.HasAudioSource;
+
+                // Mirror for BasisJiggleLodJob: same driver instance PostProcess later applies
+                // any resulting tier/simulate change through, read once here (not twice, once per
+                // LOD feature) same as everything else this loop already mirrors.
+                var jiggleDriver = remotePlayer.RemoteAvatarDriver;
+                bool hasJiggleDriver = jiggleDriver != null;
+                pHasJiggleColliders[Index] = hasJiggleDriver && jiggleDriver.HasJiggleColliders;
+                pCurrentColliderTier[Index] = hasJiggleDriver ? jiggleDriver.RegisteredColliderTier : BasisJiggleColliderTier.Full;
+                pHasJiggleRigs[Index] = hasJiggleDriver && jiggleDriver.JiggleRigs.Length > 0;
+                pCurrentlySimulating[Index] = !hasJiggleDriver || jiggleDriver.JiggleSimulating;
             }
         }
         var CurrentHearingRange = SMModuleDistanceBasedReductions.HearingRange;
@@ -446,6 +476,22 @@ public partial class BasisTransmissionResults
         {
             dampenJobHandle = default;
         }
+
+        // Jiggle collider-tier / should-simulate decision, computed in parallel with
+        // reduce/avatarCap/audioCap/dampen instead of inline in CompleteTick's PostProcess loop.
+        // Reads distanceSq (a distanceJob output), so it depends on distanceJobHandle like the
+        // other three. Always scheduled: BasisJiggleLodJob.Execute is a cheap no-op copy-through
+        // for a receiver/feature that's off, so there's no enabled/disabled branch here to keep
+        // in sync with CompleteTick's own (separately, freshly read) flag check.
+        jiggleLodJob.ColliderLodEnabled = BasisJiggleColliderLOD.Enabled;
+        jiggleLodJob.NearSqr = BasisJiggleColliderLOD._nearSqr;
+        jiggleLodJob.MidSqr = BasisJiggleColliderLOD._midSqr;
+        jiggleLodJob.FarSqr = BasisJiggleColliderLOD._farSqr;
+        jiggleLodJob.ColliderHysteresisSqr = BasisJiggleColliderLOD.HysteresisSqr;
+        jiggleLodJob.SimulationLodEnabled = BasisJiggleSimulationLOD.Enabled;
+        jiggleLodJob.SimCutoffSqr = BasisJiggleSimulationLOD._cutoffSqr;
+        jiggleLodJob.SimHysteresisSqr = BasisJiggleSimulationLOD.HysteresisSqr;
+        jiggleLodJobHandle = jiggleLodJob.Schedule(receiverCount, 64, distanceJobHandle);
 
         // Kick the batch. Schedule() only queues into the pending batch — nothing reaches a
         // worker until something flushes it, and without this the first flush is the
@@ -604,6 +650,8 @@ public partial class BasisTransmissionResults
             bool* pMeshLodRange = (bool*)MeshLodRange.GetUnsafeReadOnlyPtr();
             short* pMeshLodLevel = (short*)MeshLodLevel.GetUnsafeReadOnlyPtr();
             short* pPoseLodLevel = (short*)PoseLodLevel.GetUnsafeReadOnlyPtr();
+            BasisJiggleColliderTier* pTargetColliderTier = (BasisJiggleColliderTier*)targetColliderTier.GetUnsafeReadOnlyPtr();
+            bool* pTargetShouldSimulate = (bool*)targetShouldSimulate.GetUnsafeReadOnlyPtr();
 
             for (int i = 0; i < receiverCount; i++)
             {
@@ -776,33 +824,39 @@ public partial class BasisTransmissionResults
                     remote.OnNamePlateActiveStateShouldRefresh?.Invoke();
                 }
 
-                // Distance-based jiggle collider reduction: trim a remote's arm/finger/foot
-                // colliders as it gets farther so distant crowds stop dominating the jiggle sim.
-                if (jiggleColliderLodEnabled)
+                // Distance-based jiggle collider/simulation reduction. The tier/should-simulate
+                // decision itself now runs ahead of this loop in BasisJiggleLodJob (Burst,
+                // parallel with distance/reduce/cap/dampen) — this just reads its precomputed
+                // result and, if it disagrees with the driver's live current state, applies it.
+                // Both gates still read remote.RemoteAvatarDriver, so fetch it once instead of
+                // twice when both LODs are enabled (the common case at crowd scale — collider
+                // trimming and sim pausing are normally turned on together).
+                if (jiggleColliderLodEnabled || jiggleSimulationLodEnabled)
                 {
                     var jiggleDriver = remote.RemoteAvatarDriver;
-                    if (jiggleDriver != null && jiggleDriver.HasJiggleColliders)
+                    if (jiggleDriver != null)
                     {
-                        var jiggleTier = BasisJiggleColliderLOD.ComputeTier(pDistanceSq[i], jiggleDriver.RegisteredColliderTier);
-                        if (jiggleTier != jiggleDriver.RegisteredColliderTier)
+                        // Trim a remote's arm/finger/foot colliders as it gets farther so distant
+                        // crowds stop dominating the jiggle sim.
+                        if (jiggleColliderLodEnabled && jiggleDriver.HasJiggleColliders)
                         {
-                            jiggleDriver.ApplyColliderLOD(jiggleTier);
+                            var jiggleTier = pTargetColliderTier[i];
+                            if (jiggleTier != jiggleDriver.RegisteredColliderTier)
+                            {
+                                jiggleDriver.ApplyColliderLOD(jiggleTier);
+                            }
                         }
-                    }
-                }
 
-                // Distance-based jiggle simulation pause: past the cutoff, unregister the remote's
-                // jiggle rigs from the global sim entirely (Verlet integrate + transform I/O), not
-                // just their colliders. See BasisJiggleSimulationLOD.
-                if (jiggleSimulationLodEnabled)
-                {
-                    var jiggleSimDriver = remote.RemoteAvatarDriver;
-                    if (jiggleSimDriver != null && jiggleSimDriver.JiggleRigs.Length > 0)
-                    {
-                        bool shouldSimulate = BasisJiggleSimulationLOD.ShouldSimulate(pDistanceSq[i], jiggleSimDriver.JiggleSimulating);
-                        if (shouldSimulate != jiggleSimDriver.JiggleSimulating)
+                        // Past the cutoff, unregister the remote's jiggle rigs from the global sim
+                        // entirely (Verlet integrate + transform I/O), not just their colliders.
+                        // See BasisJiggleSimulationLOD.
+                        if (jiggleSimulationLodEnabled && jiggleDriver.JiggleRigs.Length > 0)
                         {
-                            jiggleSimDriver.SetJiggleSimulating(shouldSimulate);
+                            bool shouldSimulate = pTargetShouldSimulate[i];
+                            if (shouldSimulate != jiggleDriver.JiggleSimulating)
+                            {
+                                jiggleDriver.SetJiggleSimulating(shouldSimulate);
+                            }
                         }
                     }
                 }
@@ -862,6 +916,7 @@ public partial class BasisTransmissionResults
     private void CompleteScheduledJobs(bool dampenEnabled)
     {
         JobHandle combined = JobHandle.CombineDependencies(reduceJobHandle, avatarCapJobHandle, audioCapJobHandle);
+        combined = JobHandle.CombineDependencies(combined, jiggleLodJobHandle);
         if (dampenEnabled)
         {
             combined = JobHandle.CombineDependencies(combined, dampenJobHandle);
@@ -1101,6 +1156,13 @@ public partial class BasisTransmissionResults
         hasActiveAudioSource = new NativeArray<bool>(newCap, Allocator.Persistent);
         audioCapEntries = new NativeArray<AudioCapEntry>(newCap, Allocator.Persistent);
 
+        hasJiggleCollidersState = new NativeArray<bool>(newCap, Allocator.Persistent);
+        currentColliderTier = new NativeArray<BasisJiggleColliderTier>(newCap, Allocator.Persistent);
+        hasJiggleRigsState = new NativeArray<bool>(newCap, Allocator.Persistent);
+        currentlySimulatingState = new NativeArray<bool>(newCap, Allocator.Persistent);
+        targetColliderTier = new NativeArray<BasisJiggleColliderTier>(newCap, Allocator.Persistent);
+        targetShouldSimulate = new NativeArray<bool>(newCap, Allocator.Persistent);
+
         if (!smallestD2.IsCreated) smallestD2 = new NativeArray<float>(1, Allocator.Persistent);
         if (!changeMask.IsCreated) changeMask = new NativeArray<int>(1, Allocator.Persistent);
 
@@ -1146,6 +1208,14 @@ public partial class BasisTransmissionResults
         dampenJob.Multipliers = directionalDampening;
         dampenJob.ConeShelfDb = coneShelfDb;
         dampenJob.DirectivityShelfDb = directivityShelfDb;
+
+        jiggleLodJob.distanceSq = distanceSq;
+        jiggleLodJob.HasJiggleColliders = hasJiggleCollidersState;
+        jiggleLodJob.CurrentColliderTier = currentColliderTier;
+        jiggleLodJob.HasJiggleRigs = hasJiggleRigsState;
+        jiggleLodJob.CurrentlySimulating = currentlySimulatingState;
+        jiggleLodJob.TargetColliderTier = targetColliderTier;
+        jiggleLodJob.TargetShouldSimulate = targetShouldSimulate;
 
         LengthOfArrays = -1; // will be set on next Simulate call
     }
@@ -1200,6 +1270,7 @@ public partial class BasisTransmissionResults
         if (!avatarCapJobHandle.IsCompleted) avatarCapJobHandle.Complete();
         if (!audioCapJobHandle.IsCompleted) audioCapJobHandle.Complete();
         if (!dampenJobHandle.IsCompleted) dampenJobHandle.Complete();
+        if (!jiggleLodJobHandle.IsCompleted) jiggleLodJobHandle.Complete();
 
         if (targetPositions.IsCreated) targetPositions.Dispose();
         if (distanceSq.IsCreated) distanceSq.Dispose();
@@ -1228,6 +1299,13 @@ public partial class BasisTransmissionResults
         if (directivityShelfDb.IsCreated) directivityShelfDb.Dispose();
         if (hasActiveAudioSource.IsCreated) hasActiveAudioSource.Dispose();
         if (audioCapEntries.IsCreated) audioCapEntries.Dispose();
+
+        if (hasJiggleCollidersState.IsCreated) hasJiggleCollidersState.Dispose();
+        if (currentColliderTier.IsCreated) currentColliderTier.Dispose();
+        if (hasJiggleRigsState.IsCreated) hasJiggleRigsState.Dispose();
+        if (currentlySimulatingState.IsCreated) currentlySimulatingState.Dispose();
+        if (targetColliderTier.IsCreated) targetColliderTier.Dispose();
+        if (targetShouldSimulate.IsCreated) targetShouldSimulate.Dispose();
 
         // Note: smallestD2/changeMask are 1-length arrays kept across reallocs; disposed in DeInitialize.
         capacity = 0;

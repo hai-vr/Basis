@@ -130,7 +130,7 @@ namespace Basis.Rendering.RTAO
         public static void SetProfilingEnabled(bool enabled) => samplerAll.enableRecording = enabled;
 
         private static int invocationFrame = -1, invocationCount;
-        public static int InvocationsThisFrame => invocationFrame == Time.frameCount ? invocationCount : 0;
+        public static int InvocationsThisFrame => invocationCount;
 
         public BasisRTAOPass()
         {

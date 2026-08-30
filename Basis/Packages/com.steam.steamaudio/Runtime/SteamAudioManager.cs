@@ -132,6 +132,32 @@ namespace SteamAudio
         DirectEffectParams[] mDirectOutBuf = null;
         int mSnapCount = 0;
         long mDirectFrameCounter = 0;
+
+        // Reflections/pathing worker snapshot: same shape as the direct pipeline's
+        // mSnap*/mDirectOutBuf above. Filled by the sliced input-staging loop below
+        // (never a native call there), consumed by RunSimulationInternal on
+        // mSimulationThread (SetInputs -> Run -> GetOutputs), then drained by the
+        // sliced output loop via SteamAudioSource.ApplyReflectionsOutputs. Indices
+        // are NOT compacted — they line up 1:1 with mSources[i] at stage time, with
+        // a null/Zero entry where a source was missing or not yet initialized.
+        IntPtr[] mReflSnapHandles = null;
+        SimulationInputs[] mReflSnapInputs = null;
+        SteamAudioSource[] mReflSnapSources = null;
+        SimulationOutputs[] mReflOutBuf = null;
+        int mReflSnapCount = 0;
+
+        // Persistent per-source config cache, dense and index-aligned with mSources
+        // (0..CurrentArraySource, no holes — swap-remove keeps it that way). Written
+        // rarely, by SteamAudioSource.RebuildCache via WriteSourceCore, keyed by each
+        // source's own ManagerSlot. AddSource/RemoveSource/RepairTransformArrayDesync
+        // all reindex sources and must keep these two arrays and every live source's
+        // ManagerSlot in lockstep whenever they do. mSourceHandleCache doubles as the
+        // per-slot "is this source actually usable" sentinel (IntPtr.Zero = skip),
+        // same convention as mSnapHandles/mReflSnapHandles.
+        NativeArray<SimulationInputsCore> mSourceCoreCache;
+        NativeArray<IntPtr> mSourceHandleCache;
+        NativeArray<bool> mSourceFarCache;
+        int mSourceCoreCapacity = 0;
         bool mShuttingDown = false;
         static readonly Queue<Source> sPendingSourceRelease = new Queue<Source>();
 
@@ -408,6 +434,7 @@ namespace SteamAudio
 #if STEAMAUDIO_ENABLED
             EnsureTransformArraysCreated();
             EnsureSourceCapacity(CurrentArraySource);
+            EnsureSourceCoreCapacity(CurrentArraySource);
             EnsureListenerCapacity(CurrentArrayListener);
 #endif
             mContext = new Context();
@@ -701,6 +728,7 @@ namespace SteamAudio
             EnsureTransformArraysCreated();
             RepairTransformArrayDesync();
             EnsureSourceCapacity(CurrentArraySource);
+            EnsureSourceCoreCapacity(CurrentArraySource);
             EnsureListenerCapacity(CurrentArrayListener);
 
             JobHandle sourcesHandle = default;
@@ -921,30 +949,77 @@ namespace SteamAudio
                     mDirectFrameCounter++;
                     int srcCount = CurrentArraySource;
                     EnsureDirectSnapshotCapacity(srcCount);
+                    EnsureSourceCoreCapacity(srcCount);
                     int snap = 0;
                     if (mSourceGathers.IsCreated && srcCount > 0)
                     {
-                        Vector3 listenerOrigin = sharedInputs.listener.origin;
-                        float farDistSq = DirectParamPushFarDistance * DirectParamPushFarDistance;
-                        GatheredData* pSrcGathers = (GatheredData*)mSourceGathers.GetUnsafeReadOnlyPtr();
+                        // The only genuinely per-frame numeric work (far-distance test)
+                        // runs as a job while the dirty-check pass below runs on the
+                        // main thread — real overlap, not just relocated work.
+                        var farJob = new BuildFarDistanceJob
+                        {
+                            Poses = mSourceGathers,
+                            Handles = mSourceHandleCache,
+                            OutFar = mSourceFarCache,
+                            ListenerOrigin = sharedInputs.listener.origin,
+                            FarDistanceSq = DirectParamPushFarDistance * DirectParamPushFarDistance,
+                        }.Schedule(srcCount, 32);
+
+                        // Refresh whichever sources are actually dirty. Cheap for the
+                        // overwhelming majority — EnsureManagerCacheFresh is one
+                        // inlined bool check; RebuildCache (the real field walk +
+                        // Unity-object touches) only runs for a source whose config
+                        // actually changed since it was last cached.
                         for (int i = 0; i < srcCount; i++)
                         {
                             SteamAudioSource src = mSources[i];
-                            if (src == null) continue;
+                            if (src == null)
+                            {
+                                mSourceHandleCache[i] = IntPtr.Zero;
+                                continue;
+                            }
+                            src.EnsureManagerCacheFresh(steamAudioListener);
+                        }
 
-                            IntPtr h = src.GetNativeSourceHandle();
+                        farJob.Complete();
+
+                        GatheredData* pSrcGathers = (GatheredData*)mSourceGathers.GetUnsafeReadOnlyPtr();
+                        for (int i = 0; i < srcCount; i++)
+                        {
+                            IntPtr h = mSourceHandleCache[i];
                             if (h == IntPtr.Zero) continue;
 
-                            GatheredData pos = pSrcGathers[i];
-                            if (!src.TryBuildInputsInto(SimulationFlags.Direct, pos.origin, pos.ahead, pos.up, pos.right, steamAudioListener, ref mSnapInputs[snap]))
-                                continue;
+                            SteamAudioSource src = mSources[i];
+                            if (src == null) continue;
 
-                            float dx = pos.origin.x - listenerOrigin.x;
-                            float dy = pos.origin.y - listenerOrigin.y;
-                            float dz = pos.origin.z - listenerOrigin.z;
+                            SimulationInputsCore core = mSourceCoreCache[i];
+                            SimulationInputs inputs = default;
+
+                            GatheredData pos = pSrcGathers[i];
+                            inputs.source.origin = pos.origin;
+                            inputs.source.ahead = pos.ahead;
+                            inputs.source.up = pos.up;
+                            inputs.source.right = pos.right;
+
+                            SteamAudioSource.CopyCoreFields(in core, ref inputs);
+
+                            // Same-value-for-every-source settings, read once here
+                            // instead of once per source (settings is the same
+                            // SteamAudioSettings.Singleton every SteamAudioSource
+                            // points to).
+                            inputs.hybridReverbTransitionTime = settings.hybridReverbTransitionTime;
+                            inputs.hybridReverbOverlapPercent = settings.hybridReverbOverlapPercent * 0.01f;
+                            inputs.visRadius = settings.bakingVisibilityRadius;
+                            inputs.visThreshold = settings.bakingVisibilityThreshold;
+                            inputs.visRange = settings.bakingVisibilityRange;
+                            inputs.pathingOrder = settings.bakingAmbisonicOrder;
+
+                            src.ResolveLiveFields(steamAudioListener, ref inputs);
+
+                            mSnapInputs[snap] = inputs;
                             mSnapSources[snap] = src;
                             mSnapHandles[snap] = h;
-                            mSnapFar[snap] = (dx * dx + dy * dy + dz * dz) > farDistSq;
+                            mSnapFar[snap] = mSourceFarCache[i];
                             snap++;
                         }
                     }
@@ -1020,16 +1095,20 @@ namespace SteamAudio
 
                 if (mReflOutputCursor >= 0)
                 {
-                    int end = Mathf.Min(mReflOutputCursor + slice, srcTotal);
+                    // Bounded by mReflSnapCount (frozen when the run that produced
+                    // mReflOutBuf was kicked), not the current-frame srcTotal —
+                    // draining is against last run's source list, which may already
+                    // differ in size from this frame's live count.
+                    int end = Mathf.Min(mReflOutputCursor + slice, mReflSnapCount);
                     for (int i = mReflOutputCursor; i < end; i++)
                     {
-                        SteamAudioSource src = mSources[i];
+                        SteamAudioSource src = mReflSnapSources[i];
                         if (src == null) continue;
 
-                        src.UpdateOutputs(SimulationFlags.Reflections | SimulationFlags.Pathing);
+                        src.ApplyReflectionsOutputs(in mReflOutBuf[i]);
                         src.ForceUpdate();
                     }
-                    mReflOutputCursor = end >= srcTotal ? -1 : end;
+                    mReflOutputCursor = end >= mReflSnapCount ? -1 : end;
                 }
                 else if (!mReflInputsStaged)
                 {
@@ -1039,22 +1118,48 @@ namespace SteamAudio
                     {
                         if (mSourceGathers.IsCreated && srcTotal > 0)
                         {
+                            // Builds only — no iplSourceSetInputs here. The native call
+                            // moves to RunSimulationInternal (mSimulationThread), mirroring
+                            // the direct pipeline: main thread stages a snapshot while the
+                            // worker is proven idle (ThreadState gate around this whole
+                            // block), the worker owns SetInputs -> Run -> GetOutputs.
+                            EnsureReflectionsSnapshotCapacity(srcTotal);
+
                             GatheredData* pSrcGathers2 = (GatheredData*)mSourceGathers.GetUnsafeReadOnlyPtr();
                             int end = Mathf.Min(mReflInputCursor + slice, srcTotal);
                             for (int i = mReflInputCursor; i < end; i++)
                             {
                                 SteamAudioSource src = mSources[i];
-                                if (src == null) continue;
+                                if (src == null)
+                                {
+                                    mReflSnapHandles[i] = IntPtr.Zero;
+                                    mReflSnapSources[i] = null;
+                                    continue;
+                                }
 
+                                IntPtr h = src.GetNativeSourceHandle();
                                 GatheredData pos = pSrcGathers2[i];
-                                src.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, pos.origin, pos.ahead, pos.up, pos.right, steamAudioListener);
+                                if (h == IntPtr.Zero || !src.TryBuildInputsInto(SimulationFlags.Reflections | SimulationFlags.Pathing, pos.origin, pos.ahead, pos.up, pos.right, steamAudioListener, ref mReflSnapInputs[i]))
+                                {
+                                    mReflSnapHandles[i] = IntPtr.Zero;
+                                    mReflSnapSources[i] = null;
+                                    continue;
+                                }
+
+                                mReflSnapHandles[i] = h;
+                                mReflSnapSources[i] = src;
                             }
                             mReflInputCursor = end;
-                            if (mReflInputCursor >= srcTotal) mReflInputsStaged = true;
+                            if (mReflInputCursor >= srcTotal)
+                            {
+                                mReflInputsStaged = true;
+                                mReflSnapCount = srcTotal;
+                            }
                         }
                         else
                         {
                             mReflInputsStaged = true;
+                            mReflSnapCount = 0;
                         }
                     }
                 }
@@ -1144,13 +1249,69 @@ namespace SteamAudio
                 return convertedPoint;
             }
         }
+
+        // The one genuinely per-frame, purely numeric piece of the direct-pipeline
+        // snapshot build: everything else per source is either a cached config value
+        // (mSourceCoreCache, refreshed only when dirty) or a live Unity-object touch
+        // that can't be parallelized anyway (SteamAudioSource.ResolveLiveFields).
+        // Reads only mSourceGathers (already fenced by the pose-gather job's own
+        // Complete()) and mSourceHandleCache (only ever written on the main thread,
+        // never concurrently with this job — see WriteSourceCore/AddSource/
+        // RemoveSource), so it can run fully off-thread with no managed touches.
+        [BurstCompile]
+        private struct BuildFarDistanceJob : IJobParallelFor
+        {
+            [ReadOnly] public NativeArray<GatheredData> Poses;
+            [ReadOnly] public NativeArray<IntPtr> Handles;
+            public NativeArray<bool> OutFar;
+            public Vector3 ListenerOrigin;
+            public float FarDistanceSq;
+
+            public void Execute(int index)
+            {
+                if (Handles[index] == IntPtr.Zero)
+                {
+                    OutFar[index] = false;
+                    return;
+                }
+
+                Vector3 origin = Poses[index].origin;
+                float dx = origin.x - ListenerOrigin.x;
+                float dy = origin.y - ListenerOrigin.y;
+                float dz = origin.z - ListenerOrigin.z;
+                OutFar[index] = (dx * dx + dy * dy + dz * dz) > FarDistanceSq;
+            }
+        }
         void RunSimulationInternal()
         {
             if (mSimulator == null)
                 return;
 
+            // Owns the whole reflections/pathing native cycle for the staged snapshot:
+            // iplSourceSetInputs -> Run -> iplSourceGetOutputs, same split as
+            // RunDirectSimulation. When called for SceneType.Custom this still runs
+            // synchronously on the main thread (see the call site in ApplyInstance),
+            // same as before — only the mSimulationThread path actually moves this
+            // off the main thread.
+            int n = mReflSnapCount;
+            for (int i = 0; i < n; i++)
+            {
+                IntPtr h = mReflSnapHandles[i];
+                if (h == IntPtr.Zero) continue;
+                API.iplSourceSetInputs(h, SimulationFlags.Reflections | SimulationFlags.Pathing, ref mReflSnapInputs[i]);
+            }
+
             mSimulator.RunReflections();
             mSimulator.RunPathing();
+
+            for (int i = 0; i < n; i++)
+            {
+                IntPtr h = mReflSnapHandles[i];
+                if (h == IntPtr.Zero) continue;
+                SimulationOutputs o = default;
+                API.iplSourceGetOutputs(h, SimulationFlags.Reflections | SimulationFlags.Pathing, ref o);
+                mReflOutBuf[i] = o;
+            }
 
             mSimulationCompleted = true;
         }
@@ -1340,6 +1501,7 @@ namespace SteamAudio
             // next ApplyInstance rebuilds against the fresh simulator/sources.
             Singleton.DrainPendingSourceReleases();
             Singleton.mSnapCount = 0;
+            Singleton.mReflSnapCount = 0;
 
             RemoveAllDynamicObjects(force: true);
             RemoveAllAdditiveScenes();
@@ -1495,6 +1657,53 @@ namespace SteamAudio
             mSourceCapacity = newCap;
         }
 
+        // Grows the persistent per-source config cache. Unlike EnsureSourceCapacity
+        // above, this PRESERVES existing slot contents across a grow: mSourceCoreCache
+        // is a real cache (refreshed only when a source's RebuildCache actually runs),
+        // not a per-frame scratch buffer like mSourceGathers, so losing a live slot's
+        // contents here would silently zero that source's occlusion/attenuation config
+        // until something happens to dirty it again.
+        private void EnsureSourceCoreCapacity(int required)
+        {
+            if (mSourceCoreCapacity >= required)
+                return;
+
+            int newCap = (mSourceCoreCapacity <= 0) ? 8 : mSourceCoreCapacity * 2;
+            if (newCap < required) newCap = required;
+
+            var newCore = new NativeArray<SimulationInputsCore>(newCap, Allocator.Persistent);
+            var newHandles = new NativeArray<IntPtr>(newCap, Allocator.Persistent);
+            var newFar = new NativeArray<bool>(newCap, Allocator.Persistent);
+
+            if (mSourceCoreCache.IsCreated)
+            {
+                NativeArray<SimulationInputsCore>.Copy(mSourceCoreCache, newCore, mSourceCoreCache.Length);
+                mSourceCoreCache.Dispose();
+            }
+            if (mSourceHandleCache.IsCreated)
+            {
+                NativeArray<IntPtr>.Copy(mSourceHandleCache, newHandles, mSourceHandleCache.Length);
+                mSourceHandleCache.Dispose();
+            }
+            if (mSourceFarCache.IsCreated) mSourceFarCache.Dispose();
+
+            mSourceCoreCache = newCore;
+            mSourceHandleCache = newHandles;
+            mSourceFarCache = newFar;
+            mSourceCoreCapacity = newCap;
+        }
+
+        // Bounds-checked write used by SteamAudioSource.RebuildCache to mirror its
+        // cache into the manager's NativeArray slot. Main-thread only. Safe relative
+        // to the direct-pipeline far-distance job: that job only reads mSourceGathers/
+        // mSourceHandleCache, never mSourceCoreCache, so it never races this write —
+        // see the scheduling order in ApplyInstance.
+        public void WriteSourceCore(int slot, in SimulationInputsCore core)
+        {
+            if (!mSourceCoreCache.IsCreated || slot < 0 || slot >= mSourceCoreCache.Length) return;
+            mSourceCoreCache[slot] = core;
+        }
+
         // Grows the worker snapshot buffers. Only called from the snapshot build in
         // ApplyInstance (worker proven idle by the preceding WaitOne), never from
         // AddSource, so a reallocation can never race the worker reading them.
@@ -1512,6 +1721,25 @@ namespace SteamAudio
             mSnapFar = new bool[newCap];
             mDirectOutBuf = new DirectEffectParams[newCap];
             mSnapCount = 0;
+        }
+
+        // Grows the reflections worker snapshot buffers. Only called from the input
+        // staging slice in ApplyInstance, which — like the direct snapshot build —
+        // only runs while mSimulationThread is proven idle (the ThreadState gate
+        // around the whole reflections block), so a reallocation can never race the
+        // worker reading them.
+        private void EnsureReflectionsSnapshotCapacity(int required)
+        {
+            if (mReflSnapHandles != null && mReflSnapHandles.Length >= required)
+                return;
+
+            int newCap = (mReflSnapHandles == null || mReflSnapHandles.Length == 0) ? 8 : mReflSnapHandles.Length * 2;
+            if (newCap < required) newCap = required;
+
+            mReflSnapHandles = new IntPtr[newCap];
+            mReflSnapInputs = new SimulationInputs[newCap];
+            mReflSnapSources = new SteamAudioSource[newCap];
+            mReflOutBuf = new SimulationOutputs[newCap];
         }
 
         // Frees native source handles queued by SteamAudioSource.OnDestroy. Must be
@@ -1589,12 +1817,23 @@ namespace SteamAudio
                     if (source != null)
                     {
                         mSources[live] = source;
+                        // Shift the config cache in lockstep and repoint this source's
+                        // slot to its new (possibly unchanged) index — this is the rare
+                        // path that can reorder every surviving source at once, unlike
+                        // RemoveSource's single swap.
+                        if (mSourceCoreCache.IsCreated)
+                        {
+                            mSourceCoreCache[live] = mSourceCoreCache[i];
+                            mSourceHandleCache[live] = mSourceHandleCache[i];
+                        }
+                        source.SetManagerSlot(live);
                         live++;
                     }
                 }
                 for (int i = live; i < CurrentArraySource; i++)
                 {
                     mSources[i] = null;
+                    if (mSourceHandleCache.IsCreated) mSourceHandleCache[i] = IntPtr.Zero;
                 }
                 CurrentArraySource = live;
                 mSourceSet.Clear();
@@ -1644,8 +1883,13 @@ namespace SteamAudio
 
             if (mListenerGathers.IsCreated) mListenerGathers.Dispose();
 
+            if (mSourceCoreCache.IsCreated) mSourceCoreCache.Dispose();
+            if (mSourceHandleCache.IsCreated) mSourceHandleCache.Dispose();
+            if (mSourceFarCache.IsCreated) mSourceFarCache.Dispose();
+
             mSourceCapacity = 0;
             mListenerCapacity = 0;
+            mSourceCoreCapacity = 0;
 
             // The registries must empty with the arrays: stale CurrentArray* counts after a
             // ShutDown would let the next ScheduleInstance dispatch over fresh empty arrays.
@@ -1677,6 +1921,15 @@ namespace SteamAudio
 
             // Ensure pose buffers can hold new count
             s.EnsureSourceCapacity(s.CurrentArraySource);
+
+            // Assign this source its stable manager slot and populate it immediately
+            // (native handle already exists by the time AddSource ever runs — see
+            // HeavyInit/OnEnable) so the direct-pipeline job never reads a zeroed slot
+            // for a frame before this source's own dirty cycle would have caught it.
+            s.EnsureSourceCoreCapacity(s.CurrentArraySource);
+            source.SetManagerSlot(count);
+            s.mSourceHandleCache[count] = source.GetNativeSourceHandle();
+            source.PushCurrentCoreToManager(GetSteamAudioListener());
         }
 
         public static void RemoveSource(SteamAudioSource source)
@@ -1698,14 +1951,28 @@ namespace SteamAudio
                 if (arr[i] == source)
                 {
                     int last = count - 1;
+                    SteamAudioSource moved = arr[last];
 
                     // swap-remove in managed array
-                    arr[i] = arr[last];
+                    arr[i] = moved;
                     arr[last] = null;
 
                     // swap-remove in TransformAccessArray (keeps indices aligned)
                     if (s.mSourceTransforms.isCreated)
                         s.mSourceTransforms.RemoveAtSwapBack(i);
+
+                    // Mirror the same swap-remove in the config cache, and repoint the
+                    // moved source's own slot to its new index. moved == source when
+                    // i == last (removing the tail entry) — nothing else to repoint then.
+                    if (s.mSourceCoreCache.IsCreated)
+                    {
+                        s.mSourceCoreCache[i] = s.mSourceCoreCache[last];
+                        s.mSourceHandleCache[i] = s.mSourceHandleCache[last];
+                        s.mSourceHandleCache[last] = IntPtr.Zero;
+                    }
+                    if (moved != null && moved != source)
+                        moved.SetManagerSlot(i);
+                    source.SetManagerSlot(-1);
 
                     s.CurrentArraySource--;
                     return;

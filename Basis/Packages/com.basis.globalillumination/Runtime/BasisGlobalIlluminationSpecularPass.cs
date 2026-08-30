@@ -66,7 +66,7 @@ public sealed partial class BasisGlobalIlluminationPass
         public static float GpuMsPublish => samplerPublish.gpuElapsedTime;
 
         private static int invocationFrame = -1, invocationCount;
-        public static int InvocationsThisFrame => invocationFrame == Time.frameCount ? invocationCount : 0;
+        public static int InvocationsThisFrame => invocationCount;
 
         // Reflections are deterministic per pixel - one mirror ray, no lobe to sample - so the only thing
         // the accumulation has to settle is the light resampling at the hit. It converges far faster than

@@ -208,6 +208,16 @@ UnifiedRT::Hit BasisGIRtTraceEscapingProxies(UnifiedRT::DispatchInfo dispatchInf
 /// those weights, and only those pay for a ray. Each survivor is scaled by how likely it was to be drawn,
 /// which leaves the estimate unbiased - the expected value is still the sum over every light - and makes
 /// the cost of a room with sixty lights the cost of a room with one.
+///
+/// Multiple light samples are multiple INDEPENDENT reservoirs, not multiple passes over the list. A
+/// light's weigh - toLight, attenuation, distance, contribution, radiance - depends on the hit and the
+/// light, never on which reservoir is drawing, so it is computed once per light and fed to every reservoir
+/// the same way; only the accept/reject draw differs per reservoir, off its own decorrelated seed stream.
+/// weightSum is exactly the same running total for every reservoir for the same reason - it sums the same
+/// per-light weights - so it is one shared scalar, not one per reservoir. Reservoir state is sized by
+/// BASISGI_RT_MAX_LIGHT_SAMPLES (4), never by the light count (64): the array holds one slot per sample,
+/// not one per light, which is what keeps this cheap instead of trading the redundant weighing for a
+/// register-pressure blowup.
 /// </summary>
 float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::RayTracingAccelStruct accelStruct,
     float3 positionWS, float3 normalWS, inout uint seed)
@@ -216,72 +226,97 @@ float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::
     if (count <= 0) { return float3(0.0, 0.0, 0.0); }
 
     int samples = clamp(_BasisGIRtLightSamples, 1, BASISGI_RT_MAX_LIGHT_SAMPLES);
+
+    float chosenWeight[BASISGI_RT_MAX_LIGHT_SAMPLES];
+    float3 chosenRadiance[BASISGI_RT_MAX_LIGHT_SAMPLES];
+    float3 chosenDirection[BASISGI_RT_MAX_LIGHT_SAMPLES];
+    float chosenDistance[BASISGI_RT_MAX_LIGHT_SAMPLES];
+    float chosenShadow[BASISGI_RT_MAX_LIGHT_SAMPLES];
+    uint reservoirSeed[BASISGI_RT_MAX_LIGHT_SAMPLES];
+
+    UNITY_LOOP
+    for (int reservoirIndex = 0; reservoirIndex < samples; reservoirIndex++)
+    {
+        chosenWeight[reservoirIndex] = 0.0;
+        chosenRadiance[reservoirIndex] = float3(0.0, 0.0, 0.0);
+        chosenDirection[reservoirIndex] = float3(0.0, 1.0, 0.0);
+        chosenDistance[reservoirIndex] = 0.0;
+        chosenShadow[reservoirIndex] = 0.0;
+        // Each reservoir's own stream, decorrelated from the others by starting at a different point in
+        // the hash space. Reusing one draw across every reservoir would make them all accept or reject the
+        // same light at the same time - every reservoir converging on the same choice - which collapses
+        // the noise reduction lightSamples is supposed to buy back down to one sample's worth of variance.
+        reservoirSeed[reservoirIndex] = BasisGIRtHash(seed + (uint)reservoirIndex * 0x85ebca6bu);
+    }
+
+    float weightSum = 0.0;
+
+    UNITY_LOOP
+    for (int index = 0; index < count; index++)
+    {
+        BasisGIRtLight light = _BasisGIRtLights[index];
+
+        float3 toLight;
+        float attenuation;
+        float distanceToLight;
+
+        if (light.direction.w < 0.5)
+        {
+            toLight = -normalize(light.direction.xyz);
+            attenuation = 1.0;
+            distanceToLight = BASISGI_RT_RAY_LENGTH * 4.0;
+        }
+        else
+        {
+            float3 delta = light.position.xyz - positionWS;
+            float radius = max(light.spot.w, 0.0);
+            float distanceSquared = max(dot(delta, delta), max(1e-4, radius * radius));
+            distanceToLight = sqrt(distanceSquared);
+            if (distanceToLight > light.position.w) { continue; }
+
+            toLight = delta * rcp(max(distanceToLight, 1e-4));
+            attenuation = BasisGIRtDistanceAttenuation(distanceSquared, light.spot.z);
+            if (light.direction.w > 1.5) { attenuation *= BasisGIRtSpotAttenuation(light, toLight); }
+        }
+
+        float contribution = saturate(dot(normalWS, toLight)) * attenuation;
+        if (contribution <= 1e-4) { continue; }
+
+        float3 radiance = light.color.rgb * contribution;
+        float weight = max(radiance.r, max(radiance.g, radiance.b));
+        if (weight <= 0.0) { continue; }
+
+        // A reservoir: each light replaces the one held with probability equal to its share of the
+        // weight seen so far, which leaves the holder drawn exactly in proportion to its own weight
+        // after one pass and needs no second look at the list. Run once per reservoir here instead of
+        // once per sample-pass over the whole light list - the weigh above already happened once for
+        // every reservoir sharing it.
+        weightSum += weight;
+
+        UNITY_LOOP
+        for (int sampleIndex = 0; sampleIndex < samples; sampleIndex++)
+        {
+            reservoirSeed[sampleIndex] = BasisGIRtHash(reservoirSeed[sampleIndex] + 0x9e3779b9u);
+            if (BasisGIRtUnitFloat(reservoirSeed[sampleIndex]) * weightSum <= weight)
+            {
+                chosenWeight[sampleIndex] = weight;
+                chosenRadiance[sampleIndex] = radiance;
+                chosenDirection[sampleIndex] = toLight;
+                chosenDistance[sampleIndex] = distanceToLight;
+                chosenShadow[sampleIndex] = light.color.w;
+            }
+        }
+    }
+
     float3 total = float3(0.0, 0.0, 0.0);
 
     UNITY_LOOP
-    for (int sampleIndex = 0; sampleIndex < samples; sampleIndex++)
+    for (int resultIndex = 0; resultIndex < samples; resultIndex++)
     {
-        float weightSum = 0.0;
-        float chosenWeight = 0.0;
-        float3 chosenRadiance = float3(0.0, 0.0, 0.0);
-        float3 chosenDirection = float3(0.0, 1.0, 0.0);
-        float chosenDistance = 0.0;
-        float chosenShadow = 0.0;
-
-        UNITY_LOOP
-        for (int index = 0; index < count; index++)
-        {
-            BasisGIRtLight light = _BasisGIRtLights[index];
-
-            float3 toLight;
-            float attenuation;
-            float distanceToLight;
-
-            if (light.direction.w < 0.5)
-            {
-                toLight = -normalize(light.direction.xyz);
-                attenuation = 1.0;
-                distanceToLight = BASISGI_RT_RAY_LENGTH * 4.0;
-            }
-            else
-            {
-                float3 delta = light.position.xyz - positionWS;
-                float radius = max(light.spot.w, 0.0);
-                float distanceSquared = max(dot(delta, delta), max(1e-4, radius * radius));
-                distanceToLight = sqrt(distanceSquared);
-                if (distanceToLight > light.position.w) { continue; }
-
-                toLight = delta * rcp(max(distanceToLight, 1e-4));
-                attenuation = BasisGIRtDistanceAttenuation(distanceSquared, light.spot.z);
-                if (light.direction.w > 1.5) { attenuation *= BasisGIRtSpotAttenuation(light, toLight); }
-            }
-
-            float contribution = saturate(dot(normalWS, toLight)) * attenuation;
-            if (contribution <= 1e-4) { continue; }
-
-            float3 radiance = light.color.rgb * contribution;
-            float weight = max(radiance.r, max(radiance.g, radiance.b));
-            if (weight <= 0.0) { continue; }
-
-            // A reservoir: each light replaces the one held with probability equal to its share of the
-            // weight seen so far, which leaves the holder drawn exactly in proportion to its own weight
-            // after one pass and needs no second look at the list.
-            weightSum += weight;
-            seed = BasisGIRtHash(seed + 0x9e3779b9u);
-            if (BasisGIRtUnitFloat(seed) * weightSum <= weight)
-            {
-                chosenWeight = weight;
-                chosenRadiance = radiance;
-                chosenDirection = toLight;
-                chosenDistance = distanceToLight;
-                chosenShadow = light.color.w;
-            }
-        }
-
-        if (chosenWeight <= 0.0) { continue; }
+        if (chosenWeight[resultIndex] <= 0.0) { continue; }
 
         float visibility = 1.0;
-        if (BASISGI_RT_SHADOW_RAYS > 0.5 && chosenShadow > 0.5)
+        if (BASISGI_RT_SHADOW_RAYS > 0.5 && chosenShadow[resultIndex] > 0.5)
         {
             // A point on an avatar's visible chest sits INSIDE that avatar's own torso capsule, so a ray
             // towards a light leaves through the capsule wall and stops there - every lit avatar wearing the
@@ -298,7 +333,7 @@ float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::
             // Inside the proxy-only trace every hit IS a capsule, so a back face there can only mean the ray
             // started inside a body. A capsule met FRONT face on is somebody else in the way and shadows.
             float3 shadowOrigin = OffsetRayOrigin(positionWS, normalWS, BASISGI_RT_NORMAL_BIAS);
-            float shadowReach = max(0.0, chosenDistance - BASISGI_RT_NORMAL_BIAS * 2.0);
+            float shadowReach = max(0.0, chosenDistance[resultIndex] - BASISGI_RT_NORMAL_BIAS * 2.0);
 
             uint shadowMask = (uint)_BasisGIRtTraceMask;
             uint solidMask = shadowMask & ~BASISGI_RT_CATEGORY_AVATAR_PROXY;
@@ -307,7 +342,7 @@ float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::
             UnifiedRT::Ray shadowRay;
             shadowRay.origin = shadowOrigin;
             shadowRay.tMin = 0.0;
-            shadowRay.direction = chosenDirection;
+            shadowRay.direction = chosenDirection[resultIndex];
             shadowRay.tMax = shadowReach;
 
             bool blocked = solidMask != 0u
@@ -315,12 +350,12 @@ float3 BasisGIRtDirectLighting(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::
             if (!blocked && proxyMask != 0u)
             {
                 float3 walk = shadowOrigin;
-                blocked = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, walk, chosenDirection, shadowReach, proxyMask).IsValid();
+                blocked = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, walk, chosenDirection[resultIndex], shadowReach, proxyMask).IsValid();
             }
             visibility = blocked ? 0.0 : 1.0;
         }
 
-        total += chosenRadiance * ((weightSum / chosenWeight) * visibility);
+        total += chosenRadiance[resultIndex] * ((weightSum / chosenWeight[resultIndex]) * visibility);
     }
 
     return total * (BASISGI_RT_LIGHT_INTENSITY / (float)samples);

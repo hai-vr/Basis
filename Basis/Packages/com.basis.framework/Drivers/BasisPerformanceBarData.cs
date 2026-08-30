@@ -254,12 +254,71 @@ namespace Basis.Scripts.Drivers
         }
 
         // Order matters: every subsystem-specific prefix is matched before the bare "BasisDriver."
-        // catch-all, so the driver's own dispatch markers (Update/LateUpdate/DeviceManagement/NamePlate/...)
+        // catch-all, so the driver's own dispatch markers (DeviceManagement.Kick/BTween/Constraints/...)
         // land in EventDriver without double counting a subsystem that gets its own segment. Sync rides
         // with Networking (same job, different marker group); LocalPlayer and LocoPose both describe the
         // per-frame avatar pose/movement/bone/animator dispatch, so they share Movement.
-        private static BasisPerformanceCpuSegment? ClassifyCpuMarker(string name)
+        //
+        // ProfilerRecorder time is INCLUSIVE of everything nested inside a marker's Begin/End span, so any
+        // marker that itself wraps other already-bucketed markers must be excluded here rather than
+        // classified — adding it too sums the same frame time twice. This turned out to be systemic across
+        // every registry whose group prefix reaches this function at all (BasisDriver.* and BasisEerie.*):
+        // whoever added a per-region marker plus a family of debug sub-stage markers under it never
+        // realized this classifier would sum both. Every entry below was confirmed against the actual call
+        // site, not inferred from name shape — see project_basis_perfbar_segment_doublecount for the full
+        // trail:
+        //   Update / FixedUpdate / LateUpdate / OnBeforeRender — entire per-phase body (every other
+        //                                                         segment's contribution combined).
+        //   LocalPlayer (bare)             — LocalPlayer.Simulate only.
+        //   LocalPlayer.Simulate           — LocoPoseSchedule/Movement/PlayspaceMover/VirtualData/
+        //                                     LateSimulateBones/VirtualSpine/BoneDriver/IKDestinations/
+        //                                     HandDriver/Animator (BasisLocalPlayer.Simulate()).
+        //   LocalPlayer.FinishSimulate     — LocalPlayer.AfterSimulateOnLate.
+        //   LocalPlayer.Movement           — Move.Size/Mode/Turn/Physics.
+        //   LocalPlayer.IKDestinations     — the 13 IKDest.* sub-stage markers.
+        //   LocalPlayer.LocoPoseSchedule   — LocoPose.Gate/GraphStep/Dispatch (BasisLocomotionPoseSystem.Schedule()).
+        //   LocalPlayer.PlayspaceMover     — Move.Physics (BasisLocalPlayspaceMover.Simulate() -> Apply(), the
+        //                                     third of the three MovePhysics call sites — walk mode and fly
+        //                                     mode are the other two, both already inside LocalPlayer.Movement).
+        //   DeviceManagement.Simulate      — DeviceManagement.Loop + .BaseTypes.
+        //   DeviceManagement.BaseTypes     — loops BaseTypes[i].Simulate() over every registered device-type
+        //                                     handler; the OpenVR one (BasisOpenVRManagment.Simulate()) fires
+        //                                     DeviceManagement.JoinInput/HMDPresence from inside that loop.
+        //   Avatar.Install                 — Install.UnregisterOld/DeleteLast/Harvest/PerfTrim (BasisAvatarFactory).
+        //   Avatar.Calibrate               — Calibrate.Tpose/DetectReferences/BoneData/BodyFit/Face/Renderers/
+        //                                     Jiggle/BoneJobRegister (BasisRemoteAvatarDriver.RemoteCalibration).
+        //   Avatar.Calibrate.BoneJobRegister — its own .SlotSeed/.Add children.
+        //   Network.AfterAvatarChanges     — the Network.Transmit*/TransmitFarLod* family — this is the
+        //                                     AfterAvatarChanges subscriber that actually sends the outgoing
+        //                                     avatar packet (BasisNetworkTransmitter.cs: "AfterAvatarChanges
+        //                                     += TransmissionResults.CompleteTick").
+        //   BasisEerie.Spine (Ik bucket, not a BasisDriver.* name) — Spine.HipsPlacement/ChainPrep/
+        //                                     SequentialIK/Lordosis (BasisEerieMovement.SolveSpinePass).
+        // Every one of the 8 marker registries in the codebase (EventDriver/LocalPlayer/System/Avatar/Network/
+        // Eerie/ImagePickup/OpenVR — the complete post-consolidation set per project_basis_profiler_marker_registries)
+        // was checked; ImagePickup's group isn't BasisDriver-prefixed so it can't reach this function at all.
+        // Two smaller same-bucket cases were traced but NOT excluded, left as a known residual rather than
+        // chased further: LocalPlayer.Move.Mode likely wraps the walk-mode Move.Physics instance (both already
+        // Movement), and BasisEerie's Shoulders/Legs/Arms/Toes/TrackerOverrides were confirmed to have no
+        // further children of their own (only Spine does) so no action was needed there.
+        private static readonly HashSet<string> InclusiveContainerMarkers = new HashSet<string>
         {
+            "BasisDriver.Update", "BasisDriver.FixedUpdate", "BasisDriver.LateUpdate", "BasisDriver.OnBeforeRender",
+            "BasisDriver.LocalPlayer", "BasisDriver.LocalPlayer.Simulate", "BasisDriver.LocalPlayer.FinishSimulate",
+            "BasisDriver.LocalPlayer.Movement", "BasisDriver.LocalPlayer.IKDestinations",
+            "BasisDriver.LocalPlayer.LocoPoseSchedule", "BasisDriver.LocalPlayer.PlayspaceMover",
+            "BasisDriver.DeviceManagement.Simulate",
+            "BasisDriver.DeviceManagement.BaseTypes",
+            "BasisDriver.Avatar.Install", "BasisDriver.Avatar.Calibrate", "BasisDriver.Avatar.Calibrate.BoneJobRegister",
+            "BasisDriver.Network.AfterAvatarChanges", "BasisEerie.Spine",
+        };
+
+        // internal (not private): BasisPerformanceCpuClassifyTests exercises this directly, same
+        // pattern as BasisFrameBottleneck.Classify — a regression test for the container-marker
+        // exclusion list is worth more than the extra encapsulation.
+        internal static BasisPerformanceCpuSegment? ClassifyCpuMarker(string name)
+        {
+            if (InclusiveContainerMarkers.Contains(name)) return null;
             if (name.StartsWith("BasisDriver.Network.", StringComparison.Ordinal)) return BasisPerformanceCpuSegment.Networking;
             if (name.StartsWith("BasisDriver.Sync.", StringComparison.Ordinal)) return BasisPerformanceCpuSegment.Networking;
             if (name.StartsWith("BasisDriver.Jiggle.", StringComparison.Ordinal)) return BasisPerformanceCpuSegment.Jiggle;

@@ -30,7 +30,20 @@ namespace Basis.Scripts.Drivers
             ProfilerRecorderOptions.WrapAroundWhenCapacityReached |
             ProfilerRecorderOptions.StartImmediately |
             ProfilerRecorderOptions.SumAllSamplesInFrame;
-        private static readonly string[] CpuMarkerPrefixesWanted = { "BasisVisibility.", "BasisNamePlate." };
+        private static readonly string[] AlwaysIncludeMarkerPrefixes = { "BasisVisibility.", "BasisNamePlate." };
+        private const int MaxDiscoveredMarkers = 500;
+        private const int TopMarkerReportCount = 25;
+        // Found by inspecting real captures, not derivable from the API: these enumerate as
+        // TimeNanoseconds stats but are wait/idle/cumulative counters, not per-frame work durations
+        // (e.g. "Idle" read 480ms average inside an ~8ms frame). MaxSaneMarkerMs alone doesn't catch
+        // the smaller ones (EngineJob ~9ms, WaitForTargetFPS ~3ms — both plausible-looking but still
+        // not real per-frame cost). This list is necessarily incomplete; expect to extend it as new
+        // ones turn up in future captures rather than treating it as exhaustive.
+        private static readonly string[] ExcludedMarkerNames =
+        {
+            "BeginJob", "EndJob", "ScheduleJob", "WaitForCompleted", "ScheduleAllocJob", "KickJobs",
+            "Idle", "Semaphore.WaitForSignal", "EngineJob", "WaitForTargetFPS",
+        };
 
         private struct Stat
         {
@@ -259,34 +272,73 @@ namespace Basis.Scripts.Drivers
         }
 
         /// <summary>
-        /// One-time scan for the marker names this capture wants (Visibility/NamePlate), reusing the
-        /// same ProfilerRecorderHandle.GetAvailable + name-filter approach BasisPerformanceBarData's
-        /// RescanCpuMarkers uses — but a single pass, since a capture is seconds long, not indefinite.
+        /// One-time unfiltered scan of every TimeNanoseconds stat in the process — the same breadth
+        /// BasisPerformanceBarData's RescanCpuMarkers uses, minus its indefinite-session rescan/backoff
+        /// (a capture is seconds long, one pass is enough). BasisPerformanceBarData's own 9 CPU segments
+        /// only classify a handful of known "BasisDriver."/"BasisEerie." prefixes and silently fold
+        /// everything else into its "Other" bucket — on a live capture "Other" was found to dwarf every
+        /// named segment combined and to be the only thing that actually scaled with avatar count, so
+        /// this exists to find out what is actually in there rather than staying blind to it. Includes
+        /// non-Basis engine stats (physics/animation/GC/etc.) deliberately — the answer might not be
+        /// Basis code at all.
         /// </summary>
         private static void DiscoverMarkerSeries(int capacity)
         {
-            markerSeries = new List<MarkerSeries>(8);
+            markerSeries = new List<MarkerSeries>(64);
             handleScratch.Clear();
             ProfilerRecorderHandle.GetAvailable(handleScratch);
-            for (int h = 0; h < handleScratch.Count; h++)
+            for (int h = 0; h < handleScratch.Count && markerSeries.Count < MaxDiscoveredMarkers; h++)
             {
                 ProfilerRecorderHandle handle = handleScratch[h];
                 ProfilerRecorderDescription desc = ProfilerRecorderHandle.GetDescription(handle);
                 if (desc.UnitType != ProfilerMarkerDataUnit.TimeNanoseconds) continue;
 
-                string name = desc.Name;
-                bool wanted = false;
-                for (int p = 0; p < CpuMarkerPrefixesWanted.Length; p++)
-                {
-                    if (name.StartsWith(CpuMarkerPrefixesWanted[p], StringComparison.Ordinal)) { wanted = true; break; }
-                }
-                if (!wanted) continue;
-
-                MarkerSeries series = new MarkerSeries(name, capacity);
+                MarkerSeries series = new MarkerSeries(desc.Name, capacity);
                 try { series.Recorder = new ProfilerRecorder(handle, 1, MarkerOptions); }
                 catch { continue; }
                 markerSeries.Add(series);
             }
+        }
+
+        /// <summary>Every always-include marker, plus the costliest others up to the report cap.</summary>
+        // A live sweep found Unity's own Job System counters (BeginJob/EndJob/ScheduleJob/...) enumerate
+        // as TimeNanoseconds stats but report a lifetime cumulative total, not a per-frame duration —
+        // hundreds of millions of "ms" once converted. SumAllSamplesInFrame does not fix this because
+        // the values were never per-frame samples to begin with. Genuine per-frame CPU cost is well
+        // under a frame budget; anything past this is provably not that, so it is excluded outright
+        // rather than merely deprioritized (leaving it eligible for the ranking would just mean it wins
+        // every time and the real top costs never surface).
+        private const float MaxSaneMarkerMs = 1000f;
+
+        private static List<MarkerSeries> SelectReportedMarkers()
+        {
+            List<MarkerSeries> always = new List<MarkerSeries>();
+            List<MarkerSeries> rest = new List<MarkerSeries>();
+            for (int i = 0; i < markerSeries.Count; i++)
+            {
+                MarkerSeries m = markerSeries[i];
+                bool forced = false;
+                for (int p = 0; p < AlwaysIncludeMarkerPrefixes.Length; p++)
+                {
+                    if (m.Name.StartsWith(AlwaysIncludeMarkerPrefixes[p], StringComparison.Ordinal)) { forced = true; break; }
+                }
+                if (!forced && Array.IndexOf(ExcludedMarkerNames, m.Name) >= 0) continue;
+                if (!forced && Compute(m.Values, m.Count).Avg > MaxSaneMarkerMs) continue;
+                (forced ? always : rest).Add(m);
+            }
+            rest.Sort((a, b) => Compute(b.Values, b.Count).Avg.CompareTo(Compute(a.Values, a.Count).Avg));
+            if (rest.Count > TopMarkerReportCount) rest.RemoveRange(TopMarkerReportCount, rest.Count - TopMarkerReportCount);
+            always.AddRange(rest);
+            return always;
+        }
+
+        private static string CategoryFor(string markerName)
+        {
+            for (int p = 0; p < AlwaysIncludeMarkerPrefixes.Length; p++)
+            {
+                if (markerName.StartsWith(AlwaysIncludeMarkerPrefixes[p], StringComparison.Ordinal)) return "Rendering";
+            }
+            return "Diagnostic";
         }
 
         private static void DisposeMarkers()
@@ -411,7 +463,8 @@ namespace Basis.Scripts.Drivers
             sb.Append("  ],\n");
 
             sb.Append("  \"cpuSegments\": [\n");
-            int totalCpu = cpuSeries.Count + markerSeries.Count;
+            List<MarkerSeries> reportedMarkers = SelectReportedMarkers();
+            int totalCpu = cpuSeries.Count + reportedMarkers.Count;
             int idx = 0;
             for (int i = 0; i < cpuSeries.Count; i++, idx++)
             {
@@ -421,10 +474,10 @@ namespace Basis.Scripts.Drivers
                 sb.Append("}");
                 sb.Append(idx == totalCpu - 1 ? "\n" : ",\n");
             }
-            for (int i = 0; i < markerSeries.Count; i++, idx++)
+            for (int i = 0; i < reportedMarkers.Count; i++, idx++)
             {
-                MarkerSeries m = markerSeries[i];
-                sb.Append("    {\"name\":\"").Append(EscapeJson(m.Name)).Append("\",\"category\":\"Rendering\",\"cpuMs\":");
+                MarkerSeries m = reportedMarkers[i];
+                sb.Append("    {\"name\":\"").Append(EscapeJson(m.Name)).Append("\",\"category\":\"").Append(CategoryFor(m.Name)).Append("\",\"cpuMs\":");
                 AppendStat(sb, Compute(m.Values, m.Count), ci);
                 sb.Append("}");
                 sb.Append(idx == totalCpu - 1 ? "\n" : ",\n");
@@ -485,9 +538,10 @@ namespace Basis.Scripts.Drivers
             {
                 AppendStatRow(sb, cpuSeries[i].Name, Compute(cpuSeries[i].Values, cpuSeries[i].Count), ci);
             }
-            for (int i = 0; i < markerSeries.Count; i++)
+            List<MarkerSeries> reportedMarkers = SelectReportedMarkers();
+            for (int i = 0; i < reportedMarkers.Count; i++)
             {
-                MarkerSeries m = markerSeries[i];
+                MarkerSeries m = reportedMarkers[i];
                 AppendStatRow(sb, m.Name, Compute(m.Values, m.Count), ci);
             }
             sb.AppendLine();
