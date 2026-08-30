@@ -741,6 +741,28 @@ namespace SteamAudio
                     PoseData = mSourceGathers,
                 };
                 sourcesHandle = job.ScheduleReadOnly(mSourceTransforms, 16);
+
+                // Scheduled here, not in ApplyInstance, so it runs the length of the
+                // whole Schedule→Apply window — everything else this frame does —
+                // instead of just however long the dirty-check pass in ApplyInstance
+                // takes. Depends only on the source gather: mCachedListenerPose above
+                // is already this frame's listener read, taken before any job touched
+                // a Transform, so there is nothing else to wait on. Completed in
+                // ApplyInstance right before the unpack loop needs mSourceFarCache;
+                // every early-return path that completes `combined` completes this
+                // too (CompletePendingGathers, and the direct calls in ApplyInstance),
+                // so it can never be left in flight across a frame boundary.
+                if (UseThreadedDirectPipeline)
+                {
+                    mFarDistanceHandle = new BuildFarDistanceJob
+                    {
+                        Poses = mSourceGathers,
+                        Handles = mSourceHandleCache,
+                        OutFar = mSourceFarCache,
+                        ListenerOrigin = mCachedListenerPoseValid ? mCachedListenerPose.origin : default,
+                        FarDistanceSq = DirectParamPushFarDistance * DirectParamPushFarDistance,
+                    }.Schedule(CurrentArraySource, 32, sourcesHandle);
+                }
             }
 
             if (CurrentArrayListener > 0 && mListenerTransforms.isCreated)
@@ -759,6 +781,10 @@ namespace SteamAudio
             combined = JobHandle.CombineDependencies(sourcesHandle, listenersHandle);
         }
         public JobHandle combined;
+        // Far-distance cadence job (see ScheduleInstance): scheduled well before
+        // ApplyInstance needs it so it overlaps the whole frame, not completed with
+        // `combined` above — completing it early would throw away that overlap.
+        JobHandle mFarDistanceHandle;
         PerspectiveCorrection mCachedPerspectiveCorrection;
         GatheredData mCachedListenerPose;
         bool mCachedListenerPoseValid;
@@ -768,8 +794,10 @@ namespace SteamAudio
             if (mAudioEngineState == null)
             {
                 // Schedule() ran regardless of engine state — never leave its
-                // gather job in flight across the frame boundary.
+                // gather job (or the far-distance job, also scheduled there) in
+                // flight across the frame boundary.
                 combined.Complete();
+                mFarDistanceHandle.Complete();
                 return;
             }
 
@@ -784,6 +812,7 @@ namespace SteamAudio
             if (mCurrentScene == null || mSimulator == null)
             {
                 combined.Complete();
+                mFarDistanceHandle.Complete();
                 return;
             }
 
@@ -816,8 +845,11 @@ namespace SteamAudio
                     {
                         // The pose gather must still be joined — left in flight it
                         // would stall the next main-thread Transform access on its
-                        // safety handle instead.
+                        // safety handle instead. Same for the far-distance job: the
+                        // worker-busy skip means the snapshot build (its consumer)
+                        // never runs this frame, so nothing else will complete it.
                         combined.Complete();
+                        mFarDistanceHandle.Complete();
                     }
                     return;
                 }
@@ -953,23 +985,14 @@ namespace SteamAudio
                     int snap = 0;
                     if (mSourceGathers.IsCreated && srcCount > 0)
                     {
-                        // The only genuinely per-frame numeric work (far-distance test)
-                        // runs as a job while the dirty-check pass below runs on the
-                        // main thread — real overlap, not just relocated work.
-                        var farJob = new BuildFarDistanceJob
-                        {
-                            Poses = mSourceGathers,
-                            Handles = mSourceHandleCache,
-                            OutFar = mSourceFarCache,
-                            ListenerOrigin = sharedInputs.listener.origin,
-                            FarDistanceSq = DirectParamPushFarDistance * DirectParamPushFarDistance,
-                        }.Schedule(srcCount, 32);
-
                         // Refresh whichever sources are actually dirty. Cheap for the
                         // overwhelming majority — EnsureManagerCacheFresh is one
                         // inlined bool check; RebuildCache (the real field walk +
                         // Unity-object touches) only runs for a source whose config
-                        // actually changed since it was last cached.
+                        // actually changed since it was last cached. The far-distance
+                        // job (scheduled back in ScheduleInstance, see mFarDistanceHandle)
+                        // has been running in the background for the whole frame up to
+                        // this point, so this loop overlaps it for free too.
                         for (int i = 0; i < srcCount; i++)
                         {
                             SteamAudioSource src = mSources[i];
@@ -981,7 +1004,9 @@ namespace SteamAudio
                             src.EnsureManagerCacheFresh(steamAudioListener);
                         }
 
-                        farJob.Complete();
+                        // Almost always already done by now — it's had since
+                        // ScheduleInstance, not just the loop above, to finish.
+                        mFarDistanceHandle.Complete();
 
                         GatheredData* pSrcGathers = (GatheredData*)mSourceGathers.GetUnsafeReadOnlyPtr();
                         for (int i = 0; i < srcCount; i++)
@@ -1028,6 +1053,12 @@ namespace SteamAudio
                 }
                 else if (mSourceGathers.IsCreated && CurrentArraySource > 0)
                 {
+                    // Safety net, not the normal path: UseThreadedDirectPipeline is
+                    // checked again at schedule time, so this only fires if the flag
+                    // was flipped off between ScheduleInstance and here — otherwise
+                    // mFarDistanceHandle is already default and this is a no-op.
+                    mFarDistanceHandle.Complete();
+
                     GatheredData* pSrcGathers = (GatheredData*)mSourceGathers.GetUnsafeReadOnlyPtr();
                     for (int i = 0; i < CurrentArraySource; i++)
                     {
@@ -1801,6 +1832,7 @@ namespace SteamAudio
         private void CompletePendingGathers()
         {
             combined.Complete();
+            mFarDistanceHandle.Complete();
         }
 
         // A source/listener destroyed without its OnDisable running (already-inactive object)
