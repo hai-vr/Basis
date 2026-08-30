@@ -2103,20 +2103,20 @@ namespace Basis.BasisUI
                     _ => RebuildGiLayout());
 
                 // Snaps the three sliders below to a look rather than a value: Natural is each at its
-                // own default, Unnatural is each at the extreme end of its own range. Goes through
-                // SetValue rather than the binding directly, so the slider fill, its saved value and
-                // whatever else is listening all move together - the same path dragging the handle
-                // would take.
+                // own default, Unnatural is each at the extreme end of its own range. ApplyDrivenValue
+                // rather than SetValue, because SetValue never touches the Slider component itself -
+                // only ApplyDrivenValue (via SetValueWithoutNotify) moves the handle and fill to match,
+                // the same way a thumbstick bind or a reset drives a control it does not own.
                 void ApplyGiPreset(string preset)
                 {
                     bool unnatural = preset == "Unnatural";
-                    sliderGiIntensity.SetValue(unnatural
+                    sliderGiIntensity.ApplyDrivenValue(unnatural
                         ? BasisSettingsDefaults.GI_INTENSITY_MAX
                         : BasisSettingsDefaults.GlobalIlluminationIntensity.DefaultValue.GetDefault());
-                    sliderGiSaturation.SetValue(unnatural
+                    sliderGiSaturation.ApplyDrivenValue(unnatural
                         ? BasisSettingsDefaults.GI_SATURATION_MAX
                         : BasisSettingsDefaults.GlobalIlluminationSaturation.DefaultValue.GetDefault());
-                    sliderGiEmitterIntensity.SetValue(unnatural
+                    sliderGiEmitterIntensity.ApplyDrivenValue(unnatural
                         ? BasisSettingsDefaults.GI_EMITTER_INTENSITY_MAX
                         : BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.DefaultValue.GetDefault());
                 }
