@@ -12395,6 +12395,10 @@
       "value": "Cancel"
     },
     {
+      "key": "ui.clear",
+      "value": "Clear"
+    },
+    {
       "key": "ui.validation.required",
       "value": "Required - this cannot be left empty."
     },
@@ -12529,6 +12533,42 @@
     {
       "key": "ui.textPreview.body",
       "value": "How this text displays with its formatting tags applied:"
+    },
+    {
+      "key": "ui.textPreview.details",
+      "value": "Details"
+    },
+    {
+      "key": "ui.textPreview.characters",
+      "value": "Characters"
+    },
+    {
+      "key": "ui.textPreview.formatting",
+      "value": "Formatting tags"
+    },
+    {
+      "key": "ui.textPreview.tag.bold",
+      "value": "bold"
+    },
+    {
+      "key": "ui.textPreview.tag.italic",
+      "value": "italic"
+    },
+    {
+      "key": "ui.textPreview.tag.color",
+      "value": "color"
+    },
+    {
+      "key": "ui.textPreview.tag.size",
+      "value": "size"
+    },
+    {
+      "key": "ui.textPreview.tag.strikethrough",
+      "value": "strikethrough"
+    },
+    {
+      "key": "ui.textPreview.tag.underline",
+      "value": "underline"
     },
     {
       "key": "ui.resetSection.nochanges",

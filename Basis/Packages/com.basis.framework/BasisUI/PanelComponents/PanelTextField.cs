@@ -103,25 +103,8 @@ namespace Basis.BasisUI
 
         public override void RequestReset()
         {
-            if (!HasPreviewText)
-            {
-                base.RequestReset();
-                return;
-            }
-
-            BasisMenuBase<BasisMainMenu> menu = BasisMenuBase<BasisMainMenu>.Instance;
-            if (menu == null || menu.Dialogue != null) return;
-
-            string title = Descriptor && !string.IsNullOrEmpty(Descriptor.Title) ? Descriptor.Title : BasisLocalization.Get("ui.textPreview.title");
-            string body = BasisLocalization.Get("ui.textPreview.body") + "\n\n" + _inputField.text;
-            menu.OpenDialogue(title, body, BasisLocalization.Get("ui.ok"), _ => { });
-
-            BasisMenuDialoguePanel dialogue = menu.Dialogue;
-            if (dialogue == null) return;
-            dialogue.CaptureOnClose = false;
-            dialogue.Descriptor.SetRichDescription(body);
-            dialogue.FitDescriptionToContent();
-            if (HasResetDefault) dialogue.EnableAlternate(BasisLocalization.Get("ui.reset"), ApplyResetToDefault);
+            if (HasPreviewText) BasisTextFieldPreview.Open(this, _inputField);
+            else base.RequestReset();
         }
 
 #if UNITY_EDITOR
