@@ -14,6 +14,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     public const int PassTrace = 0, PassTemporal = 1, PassBlur = 2, PassComposite = 3, PassDebug = 4, PassCopyColor = 5;
     public const int PassSpecularUpsample = 6;
     public const int PassCoarseSeed = 7, PassCoarseReduce = 8;
+    public const int PassLightmapMask = 9;
     // How many traced texels one texel of the finished coarse summary stands for. Eight is the point
     // where a cell is big enough that skipping one is worth the tap that decided it, and still small
     // enough that the fine walk inside a cell it cannot rule out is only eight steps long.
@@ -37,7 +38,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     // scaled, not ignored - so a player who wants a snappier bounce still gets one.
     public const float RayTemporalResponseScale = 0.35f;
 
-    private enum Stage { CopyColor, Trace, Temporal, Blur, Composite, RayPrepass, RayResolve, Coarse }
+    private enum Stage { CopyColor, Trace, Temporal, Blur, Composite, RayPrepass, RayResolve, Coarse, LightmapMask }
 
     private sealed class PassData
     {
@@ -60,6 +61,19 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         public bool coarseValid;
         public TextureHandle tracedDepth;
         public bool tracedDepthValid;
+        public TextureHandle lightmapMask;
+        public bool lightmapMaskValid;
+        public Vector4 lightmapParams;
+        public RendererListHandle lightmapRenderers;
+        // The reflection trace's hit distances, which turn the temporal stage into its specular flavour:
+        // virtual point reprojection instead of surface reprojection. Pooled-PassData rule as ever - every
+        // pass that runs Stage.Temporal writes both fields, valid or not.
+        public TextureHandle specularHitDistance;
+        public bool specularHitDistanceValid;
+        // Whether the depth seed writes the block's true (nearest, furthest) interval instead of one
+        // representative texel - the reflection pyramid's mode. Pool rule: written at every Stage.Coarse
+        // call site.
+        public bool coarseConservative;
     }
 
     private sealed class RayTraceData
@@ -92,9 +106,22 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     private static readonly int idCoarseParams = Shader.PropertyToID("_BasisGICoarseParams");
     private static readonly int idTracedDepth = Shader.PropertyToID("_BasisGITracedDepth");
     private static readonly int idTracedDepthValid = Shader.PropertyToID("_BasisGITracedDepthValid");
+    private static readonly int idSeedConservative = Shader.PropertyToID("_BasisGIDepthSeedConservative");
     private static readonly int idStats = Shader.PropertyToID("_BasisGIStats");
     private static readonly int idStatsValid = Shader.PropertyToID("_BasisGIStatsValid");
     private static readonly int idNormals = Shader.PropertyToID("_BasisGINormals");
+    private static readonly int idLightmapMask = Shader.PropertyToID("_BasisGILightmapMask");
+    private static readonly int idLightmapParams = Shader.PropertyToID("_BasisGILightmapParams");
+    private static readonly int idLightmapMaskForce = Shader.PropertyToID("_BasisGILightmapMaskForce");
+
+    /// <summary>
+    /// Test and diagnosis hook, negative in production. At zero or above the mask pass records even in an
+    /// unbaked scene and writes THIS value for everything it keeps, in place of the LIGHTMAP_ON split.
+    /// That severs the one link the render harness cannot exercise - whether the engine drives LIGHTMAP_ON
+    /// for a runtime-assigned lightmapIndex in edit mode - so the draw, the frontmost test, the sample
+    /// alignment and the composite's receive arithmetic stay provable end to end without it.
+    /// </summary>
+    public static float LightmapMaskForcedValue = -1f;
     private static readonly int idParams0 = Shader.PropertyToID("_BasisGIParams0");
     private static readonly int idParams1 = Shader.PropertyToID("_BasisGIParams1");
     private static readonly int idParams2 = Shader.PropertyToID("_BasisGIParams2");
@@ -144,6 +171,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     private static readonly ProfilingSampler samplerRayTrace = new ProfilingSampler("Basis GI Ray Trace");
     private static readonly ProfilingSampler samplerRayResolve = new ProfilingSampler("Basis GI Ray Resolve");
     private static readonly ProfilingSampler samplerCopy = new ProfilingSampler("Basis GI Copy Color");
+    private static readonly ProfilingSampler samplerLightmapMask = new ProfilingSampler("Basis GI Lightmap Mask");
     private static readonly ProfilingSampler samplerCoarse = new ProfilingSampler("Basis GI Coarse Depth");
     private static readonly ProfilingSampler samplerTrace = new ProfilingSampler("Basis GI Trace");
     private static readonly ProfilingSampler samplerTemporal = new ProfilingSampler("Basis GI Temporal");
@@ -151,13 +179,14 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     private static readonly ProfilingSampler samplerComposite = new ProfilingSampler("Basis GI Composite");
 
     public static float GpuMs =>
-        samplerCopy.gpuElapsedTime + samplerCoarse.gpuElapsedTime + samplerTrace.gpuElapsedTime +
+        samplerCopy.gpuElapsedTime + samplerLightmapMask.gpuElapsedTime + samplerCoarse.gpuElapsedTime + samplerTrace.gpuElapsedTime +
         samplerTemporal.gpuElapsedTime + samplerBlur.gpuElapsedTime + samplerComposite.gpuElapsedTime +
         samplerRayPrepass.gpuElapsedTime + samplerRayTrace.gpuElapsedTime + samplerRayResolve.gpuElapsedTime;
 
     public static void SetProfilingEnabled(bool enabled)
     {
         samplerCopy.enableRecording = enabled;
+        samplerLightmapMask.enableRecording = enabled;
         samplerCoarse.enableRecording = enabled;
         samplerTrace.enableRecording = enabled;
         samplerTemporal.enableRecording = enabled;
@@ -172,6 +201,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     public static float GpuMsRayTrace => samplerRayTrace.gpuElapsedTime;
     public static float GpuMsRayResolve => samplerRayResolve.gpuElapsedTime;
     public static float GpuMsCopyColor => samplerCopy.gpuElapsedTime;
+    public static float GpuMsLightmapMask => samplerLightmapMask.gpuElapsedTime;
     public static float GpuMsCoarseDepth => samplerCoarse.gpuElapsedTime;
     public static float GpuMsTrace => samplerTrace.gpuElapsedTime;
     public static float GpuMsTemporal => samplerTemporal.gpuElapsedTime;
@@ -329,6 +359,16 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         // scene that cannot serve the trace falls back to the screen space gather rather than to nothing.
         bool rayTraced = settings.IsRayTraced() && PrepareRayTracing(settings, camera, frame);
 
+        // Both modes share the composite, so both get the lightmap receive mask - it only exists at all in
+        // a scene that actually baked something. The keyword is set after the pass is recorded, from the
+        // handle rather than the intent: with the keyword on and no texture bound the sample reads zero,
+        // which is full suppression everywhere - exactly the fail-dangerous direction the mask's clear-to-
+        // one polarity exists to rule out.
+        TextureHandle lightmapMask = settings.lightmappedReceive < 1f && (SceneHasLightmaps() || LightmapMaskForcedValue >= 0f)
+            ? RecordLightmapMask(renderGraph, frameData, resourceData, cameraData, descriptor, tracedWidth, tracedHeight)
+            : TextureHandle.nullHandle;
+        CoreUtils.SetKeyword(material, "_BASISGI_LIGHTMAP_MASK", lightmapMask.IsValid());
+
         // Declared out here because the temporal filter runs in both modes and wants it whenever the screen
         // space gather built it. The ray traced mode reconstructs its own positions and never asks.
         TextureHandle tracedDepth = TextureHandle.nullHandle;
@@ -383,7 +423,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
             }
 
             RecordDepthPyramid(renderGraph, resourceData, descriptor, tracedWidth, tracedHeight, divisor,
-                settings.hierarchicalMarch, out tracedDepth, out TextureHandle coarse);
+                settings.hierarchicalMarch, false, out tracedDepth, out TextureHandle coarse);
 
             // Published for the whole frame, not just this pass: BindTracedDepth below covers GI's own
             // downstream stages, this covers everyone else's.
@@ -433,6 +473,10 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
                 passData.previousViewProjection = previousViewProjection;
                 passData.tracedDepth = tracedDepth;
                 passData.tracedDepthValid = tracedDepth.IsValid();
+                // Pooled PassData: the reflection temporal sets these, so this pass has to unset them or
+                // inherit a dead graph's handle and run the diffuse accumulation as a reflection.
+                passData.specularHitDistance = TextureHandle.nullHandle;
+                passData.specularHitDistanceValid = false;
                 previousViewProjection[0] = history.PreviousViewProjection[0];
                 previousViewProjection[1] = history.PreviousViewProjection[1];
                 builder.SetRenderAttachment(historyWrite, 0, AccessFlags.WriteAll);
@@ -479,10 +523,14 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
             // clear, but not when it is left set by whichever pass ran before it.
             passData.stats = historyWriteStats;
             passData.statsValid = statsValid;
+            passData.lightmapMask = lightmapMask;
+            passData.lightmapMaskValid = lightmapMask.IsValid();
+            passData.lightmapParams = new Vector4(settings.lightmappedReceive, 0f, 0f, 0f);
             builder.SetRenderAttachment(resourceData.cameraColor, 0, AccessFlags.ReadWrite);
             builder.UseTexture(denoiseSource);
             builder.UseTexture(historyWriteStats);
             builder.UseTexture(resourceData.cameraDepthTexture);
+            if (lightmapMask.IsValid()) { builder.UseTexture(lightmapMask); }
             if (normals.IsValid()) { builder.UseTexture(normals); }
             builder.AllowGlobalStateModification(true);
             builder.SetRenderFunc((PassData data, RasterGraphContext context) => Execute(data, context));
@@ -702,6 +750,112 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
         shader.Dispatch(cmd, scratch, (uint)data.width, (uint)data.height, (uint)data.viewCount);
     }
 
+    // LightmapSettings.lightmaps copies the array on every read, so the answer is kept for the frame in
+    // play mode. The editor re-reads every call: a render harness assigns lightmaps between renders inside
+    // one engine frame, and a frame-stamped cache there would hold the stale answer for the whole test.
+    private static int lightmapCheckFrame = -1;
+    private static bool lightmapCheckResult;
+
+    private static bool SceneHasLightmaps()
+    {
+        int frame = Time.frameCount;
+        if (!Application.isPlaying || lightmapCheckFrame != frame)
+        {
+            lightmapCheckFrame = frame;
+            LightmapData[] lightmaps = LightmapSettings.lightmaps;
+            lightmapCheckResult = lightmaps != null && lightmaps.Length > 0;
+        }
+        return lightmapCheckResult;
+    }
+
+    // Lazy rather than a field initializer: ShaderTagId calls Shader.TagToID, which Unity forbids while a
+    // ScriptableObject deserializes, and the renderer feature constructs this pass - see the identical
+    // trap documented on the old SSGI integration. Shader.PropertyToID in static fields is fine.
+    private static ShaderTagId[] lightmapMaskTags;
+
+    private static void EnsureLightmapMaskTags()
+    {
+        if (lightmapMaskTags != null) { return; }
+        // Every tag URP itself draws opaques with, plus the GBuffer tag, so a renderer qualifies if its
+        // OWN shader would have drawn at all - the override material is what actually runs. A shader
+        // matching none of these does not draw and its pixels stay at the cleared one, which is the old
+        // behaviour rather than a suppression.
+        lightmapMaskTags = new[]
+        {
+            new ShaderTagId("UniversalForward"),
+            new ShaderTagId("UniversalForwardOnly"),
+            new ShaderTagId("SRPDefaultUnlit"),
+            new ShaderTagId("UniversalGBuffer")
+        };
+    }
+
+    /// <summary>
+    /// One at every traced texel whose frontmost surface is dynamic, zero where it is lightmapped. The
+    /// composite multiplies bounce and obscurance onto the camera image, and a lightmapped surface already
+    /// carries both in its lightmap - re-applying them is double counting, which is why a carefully baked
+    /// world reads blown out and crushed the moment the effect is switched on.
+    ///
+    /// The opaque renderer list is redrawn at traced resolution with the mask pass as the override
+    /// material: LIGHTMAP_ON decides the value written, the camera's own culling decides the set, and a
+    /// hand depth test against the camera depth keeps everything but the frontmost surface quiet. The
+    /// target CLEARS TO ONE, and that polarity is the load-bearing decision - the first version of this
+    /// mask cleared to zero-means-lightmapped, and every way the pass could fail to draw (a
+    /// BatchRendererGroup refusing a variant, an empty list, a culled pass) collapsed to "global
+    /// illumination is gone". This way round every failure leaves the image exactly as it was.
+    /// </summary>
+    private TextureHandle RecordLightmapMask(RenderGraph renderGraph, ContextContainer frameData, UniversalResourceData resourceData,
+        UniversalCameraData cameraData, in RenderTextureDescriptor descriptor, int tracedWidth, int tracedHeight)
+    {
+        UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
+
+        TextureDesc maskDescriptor = new TextureDesc(tracedWidth, tracedHeight)
+        {
+            format = GraphicsFormat.R8_UNorm,
+            dimension = descriptor.dimension,
+            slices = Mathf.Max(1, descriptor.volumeDepth),
+            msaaSamples = MSAASamples.None,
+            clearBuffer = true,
+            clearColor = Color.white,
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp,
+            name = "_BasisGILightmapMask"
+        };
+        TextureHandle mask = renderGraph.CreateTexture(maskDescriptor);
+
+        EnsureLightmapMaskTags();
+        SortingSettings sorting = new SortingSettings(cameraData.camera) { criteria = SortingCriteria.CommonOpaque };
+        DrawingSettings drawing = new DrawingSettings(lightmapMaskTags[0], sorting)
+        {
+            overrideMaterial = material,
+            overrideMaterialPassIndex = PassLightmapMask,
+            // Lightmap binding is what drives LIGHTMAP_ON per draw, and that keyword is the whole payload.
+            perObjectData = PerObjectData.Lightmaps,
+            enableInstancing = true
+        };
+        for (int index = 1; index < lightmapMaskTags.Length; index++) { drawing.SetShaderPassName(index, lightmapMaskTags[index]); }
+        FilteringSettings filtering = new FilteringSettings(RenderQueueRange.opaque);
+        RendererListParams listParams = new RendererListParams(renderingData.cullResults, drawing, filtering);
+        RendererListHandle rendererList = renderGraph.CreateRendererList(listParams);
+
+        using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass("Basis GI Lightmap Mask", out PassData passData, samplerLightmapMask))
+        {
+            passData.stage = Stage.LightmapMask;
+            passData.material = material;
+            passData.lightmapRenderers = rendererList;
+            passData.tracedTexelSize = new Vector4(1f / tracedWidth, 1f / tracedHeight, tracedWidth, tracedHeight);
+            // Write, not WriteAll: the cleared one IS the mask for every pixel nothing draws to, so the
+            // clear must survive into the pass.
+            builder.SetRenderAttachment(mask, 0, AccessFlags.Write);
+            builder.UseRendererList(rendererList);
+            builder.UseTexture(resourceData.cameraDepthTexture);
+            builder.AllowPassCulling(false);
+            builder.AllowGlobalStateModification(true);
+            builder.SetRenderFunc((PassData data, RasterGraphContext context) => Execute(data, context));
+        }
+
+        return mask;
+    }
+
     /// <summary>
     /// Builds the two levels of linear depth the gather walks: one texel per TRACED texel, and one texel
     /// per <see cref="CoarseBlock"/> of those. Both carry the same pair - the closest real surface beneath
@@ -727,7 +881,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
     /// </summary>
     private void RecordDepthPyramid(RenderGraph renderGraph, UniversalResourceData resourceData,
         in RenderTextureDescriptor descriptor, int tracedWidth, int tracedHeight, int divisor, bool hierarchical,
-        out TextureHandle tracedDepth, out TextureHandle coarse)
+        bool conservative, out TextureHandle tracedDepth, out TextureHandle coarse)
     {
         int coarseWidth = Mathf.Max(1, (tracedWidth + CoarseBlock - 1) / CoarseBlock);
         int coarseHeight = Mathf.Max(1, (tracedHeight + CoarseBlock - 1) / CoarseBlock);
@@ -758,6 +912,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
             // which is what makes every test downstream reduce to the arithmetic it replaced.
             passData.coarseParams = new Vector4(divisor, descriptor.width, descriptor.height, CoarseBlock);
             passData.coarseValid = false;
+            passData.coarseConservative = conservative;
             builder.SetRenderAttachment(tracedDepth, 0, AccessFlags.WriteAll);
             builder.UseTexture(resourceData.cameraDepthTexture);
             builder.AllowGlobalStateModification(true);
@@ -785,6 +940,8 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
             // maximum, so folding the fine level rather than the depth buffer leaves the coarse summary
             // holding exactly what it held when it was built from full resolution directly.
             passData.coarseParams = new Vector4(CoarseBlock, tracedWidth, tracedHeight, CoarseBlock);
+            // The reduce does not read the flag, but the global it binds must not carry a dead value.
+            passData.coarseConservative = conservative;
             builder.SetRenderAttachment(coarse, 0, AccessFlags.WriteAll);
             builder.UseTexture(tracedDepth);
             builder.AllowGlobalStateModification(true);
@@ -904,6 +1061,13 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
             case Stage.CopyColor:
                 SetSharedConstants(cmd, data);
                 break;
+            case Stage.LightmapMask:
+                // Geometry, not a fullscreen blit. The texel size is bound here rather than inherited so
+                // this pass does not depend on which stage happened to run before it.
+                cmd.SetGlobalVector(idTracedTexelSize, data.tracedTexelSize);
+                cmd.SetGlobalFloat(idLightmapMaskForce, LightmapMaskForcedValue);
+                cmd.DrawRendererList(data.lightmapRenderers);
+                return;
             case Stage.RayPrepass:
                 SetSharedConstants(cmd, data);
                 cmd.SetGlobalVector(idRtReference, data.rayReference);
@@ -915,6 +1079,7 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
                 break;
             case Stage.Coarse:
                 cmd.SetGlobalVector(idCoarseParams, data.coarseParams);
+                cmd.SetGlobalFloat(idSeedConservative, data.coarseConservative ? 1f : 0f);
                 if (data.coarseValid) { cmd.SetGlobalTexture(idCoarseDepth, data.coarse); }
                 break;
             case Stage.Trace:
@@ -936,6 +1101,10 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
                 if (data.motion.IsValid()) { cmd.SetGlobalTexture(idMotion, data.motion); }
                 cmd.SetGlobalFloat(idHistoryValid, data.historyValid ? 1f : 0f);
                 cmd.SetGlobalMatrixArray(idPrevViewProjection, data.previousViewProjection);
+                // Written by every temporal, exactly like the traced depth flag: it is a global, and the
+                // diffuse temporal runs after the specular one left it standing at one.
+                cmd.SetGlobalFloat(idSpecHitDistanceValid, data.specularHitDistanceValid ? 1f : 0f);
+                if (data.specularHitDistanceValid) { cmd.SetGlobalTexture(idSpecHitDistance, data.specularHitDistance); }
                 break;
             case Stage.Blur:
                 cmd.SetGlobalTexture(idIndirect, data.indirect);
@@ -947,6 +1116,11 @@ public sealed partial class BasisGlobalIlluminationPass : ScriptableRenderPass
                 cmd.SetGlobalTexture(idIndirect, data.indirect);
                 cmd.SetGlobalTexture(idStats, data.stats);
                 cmd.SetGlobalFloat(idStatsValid, data.statsValid ? 1f : 0f);
+                if (data.lightmapMaskValid)
+                {
+                    cmd.SetGlobalTexture(idLightmapMask, data.lightmapMask);
+                    cmd.SetGlobalVector(idLightmapParams, data.lightmapParams);
+                }
                 if (data.normals.IsValid()) { cmd.SetGlobalTexture(idNormals, data.normals); }
                 break;
         }

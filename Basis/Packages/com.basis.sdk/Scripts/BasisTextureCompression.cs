@@ -119,10 +119,9 @@ public static class BasisTextureCompression
             return EnforceMaxSize(tex);
         }
 
-        bool flipRows = SystemInfo.graphicsUVStartsAtTop;
         int offsetX = (MaxSize - newW) / 2;
         int offsetY = (MaxSize - newH) / 2;
-        byte[] composed = await Task.Run(() => ComposeSquare(scaled, newW, newH, offsetX, offsetY, flipRows));
+        byte[] composed = await Task.Run(() => ComposeSquare(scaled, newW, newH, offsetX, offsetY));
 
         var result = new Texture2D(MaxSize, MaxSize, TextureFormat.RGBA32, false);
         result.LoadRawTextureData(composed);
@@ -130,14 +129,15 @@ public static class BasisTextureCompression
         return result;
     }
 
-    private static byte[] ComposeSquare(byte[] scaled, int newW, int newH, int offsetX, int offsetY, bool flipRows)
+    // Readback rows arrive bottom-up regardless of API (same as the photo/clip capture paths),
+    // which is already the row order LoadRawTextureData expects — no graphicsUVStartsAtTop flip.
+    private static byte[] ComposeSquare(byte[] scaled, int newW, int newH, int offsetX, int offsetY)
     {
         byte[] composed = new byte[MaxSize * MaxSize * 4];
         int srcStride = newW * 4;
         for (int row = 0; row < newH; row++)
         {
-            int srcRow = flipRows ? (newH - 1 - row) : row;
-            Buffer.BlockCopy(scaled, srcRow * srcStride, composed, ((offsetY + row) * MaxSize + offsetX) * 4, srcStride);
+            Buffer.BlockCopy(scaled, row * srcStride, composed, ((offsetY + row) * MaxSize + offsetX) * 4, srcStride);
         }
         return composed;
     }

@@ -1,15 +1,15 @@
 #ifndef BASIS_GLOBAL_ILLUMINATION_COMMON_INCLUDED
 #define BASIS_GLOBAL_ILLUMINATION_COMMON_INCLUDED
 
-#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+// The depth helpers live in their own header so the lightmap mask pass - which draws geometry and
+// therefore cannot include Blit.hlsl - can share them. See BasisGlobalIlluminationDepth.hlsl.
+#include "./BasisGlobalIlluminationDepth.hlsl"
 #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/ImageBasedLighting.hlsl"
 
 #define BASISGI_MAX_EMITTERS 48
-#define BASISGI_EPSILON 1e-5
 // How long a still pixel is allowed to keep accumulating, and how far a history sample may sit from the
 // neighbourhood mean before it is pulled back in.
 #define BASISGI_TEMPORAL_MAX_FRAMES 64.0
@@ -63,6 +63,24 @@ float4 _BasisGICoarseTexelSize;
 TEXTURE2D_X(_BasisGITracedDepth);
 /// Whether the buffer above was built for this camera. The ray traced mode does not need it.
 float _BasisGITracedDepthValid;
+/// How far beyond its surface each pixel's reflected image sits, in metres, written by the screen space
+/// reflection trace at traced resolution - the sky sentinel where the answer was not a found surface. The
+/// specular temporal filter reprojects by the virtual point this describes rather than by the surface,
+/// because a reflection moves with the parallax of the thing reflected, not of the mirror it sits on.
+TEXTURE2D_X(_BasisGISpecHitDistance);
+/// Whether the buffer above was written this frame. Zero for the diffuse accumulation and for the ray
+/// traced reflection backend, which reprojects by the surface as it always has.
+float _BasisGISpecHitDistanceValid;
+/// One where the frontmost surface is NOT lightmapped - avatars, props, anything dynamic - and zero where
+/// it is, at traced resolution. Cleared to one and only ever written down, so every way the mask pass can
+/// fail to draw leaves the effect exactly as it was without the mask. The first version of this pass had
+/// the opposite polarity and every failure read as "global illumination is gone"; see the pass in
+/// BasisGlobalIlluminationPass.RecordLightmapMask.
+TEXTURE2D_X(_BasisGILightmapMask);
+SAMPLER(sampler_BasisGILightmapMask);
+/// x: how much bounce a lightmapped surface still receives (its own bounce is already in its lightmap).
+/// One disables the whole path.
+float4 _BasisGILightmapParams;
 /// x: how many source texels one destination texel folds, per side, while building.
 /// yz: the source texture's size, for clamping those taps.
 /// w: how many TRACED texels one finished coarse texel spans, which is the march's cell size.
@@ -122,35 +140,6 @@ float4x4 BasisGIPreviousViewProjection()
 }
 
 /// <summary>
-/// Eye depth from a raw depth sample.
-///
-/// The orthographic form is behind a branch rather than lerped in. Both are cheap on their own, but this
-/// is the single most repeated line in the effect - every march step, every refine step, every filter tap -
-/// and the lerp form pays for the reciprocal AND the far/near interpolation on every one of them. The
-/// branch is on a uniform, so it is perfectly coherent across the whole draw and costs nothing to take.
-/// </summary>
-float BasisGILinearEyeDepth(float rawDepth)
-{
-    UNITY_BRANCH
-    if (unity_OrthoParams.w < 0.5) { return LinearEyeDepth(rawDepth, _ZBufferParams); }
-#if UNITY_REVERSED_Z
-    return lerp(_ProjectionParams.z, _ProjectionParams.y, rawDepth);
-#else
-    return lerp(_ProjectionParams.y, _ProjectionParams.z, rawDepth);
-#endif
-}
-
-float BasisGISampleRawDepth(float2 uv)
-{
-    return SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, sampler_PointClamp, UnityStereoTransformScreenSpaceTex(uv), 0).r;
-}
-
-float BasisGISampleEyeDepth(float2 uv)
-{
-    return BasisGILinearEyeDepth(BasisGISampleRawDepth(uv));
-}
-
-/// <summary>
 /// The closest and the furthest real surface under a traced texel, in linear eye depth.
 ///
 /// This exists because the march runs at traced resolution and was reading FULL resolution depth on every
@@ -172,15 +161,6 @@ float2 BasisGISampleTracedDepth(float2 uv)
 bool BasisGITracedIsSky(float2 depths)
 {
     return depths.g <= 0.0;
-}
-
-bool BasisGIIsSky(float rawDepth)
-{
-#if UNITY_REVERSED_Z
-    return rawDepth <= 0.0;
-#else
-    return rawDepth >= 1.0;
-#endif
 }
 
 float3 BasisGIWorldPosition(float2 uv, float rawDepth)

@@ -78,6 +78,11 @@ namespace Basis.Tests.Graphics
             AssertSliderRange(BasisSettingsDefaults.GI_SMOOTHING_MIN, BasisSettingsDefaults.GI_SMOOTHING_MAX, BasisSettingsDefaults.GlobalIlluminationSmoothing.DefaultValue.GetDefault());
             AssertSliderRange(BasisSettingsDefaults.GI_TEMPORAL_RESPONSE_MIN, BasisSettingsDefaults.GI_TEMPORAL_RESPONSE_MAX, BasisSettingsDefaults.GlobalIlluminationTemporalResponse.DefaultValue.GetDefault());
             AssertSliderRange(BasisSettingsDefaults.GI_EMITTER_INTENSITY_MIN, BasisSettingsDefaults.GI_EMITTER_INTENSITY_MAX, BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.DefaultValue.GetDefault());
+            AssertSliderRange(BasisSettingsDefaults.GI_LIGHTMAPPED_RECEIVE_MIN, BasisSettingsDefaults.GI_LIGHTMAPPED_RECEIVE_MAX, BasisSettingsDefaults.GlobalIlluminationLightmappedReceive.DefaultValue.GetDefault());
+            AssertSliderRange(BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MIN, BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MAX, BasisSettingsDefaults.GlobalIlluminationSpecularIntensity.DefaultValue.GetDefault());
+            AssertSliderRange(BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MIN, BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MAX, BasisSettingsDefaults.GlobalIlluminationSpecularMaxRoughness.DefaultValue.GetDefault());
+            AssertSliderRange(BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MIN, BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MAX, BasisSettingsDefaults.GlobalIlluminationSpecularRayLength.DefaultValue.GetDefault());
+            AssertSliderRange(BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MIN, BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MAX, BasisSettingsDefaults.GlobalIlluminationSpecularFadeDistance.DefaultValue.GetDefault());
         }
 
         private static void AssertSliderRange(float min, float max, float value)
@@ -108,6 +113,17 @@ namespace Basis.Tests.Graphics
             Assert.LessOrEqual(BasisSettingsDefaults.GI_TEMPORAL_RESPONSE_MAX, BasisGlobalIlluminationSettings.TemporalResponseMax);
             Assert.GreaterOrEqual(BasisSettingsDefaults.GI_EMITTER_INTENSITY_MIN, BasisGlobalIlluminationSettings.EmitterIntensityMin);
             Assert.LessOrEqual(BasisSettingsDefaults.GI_EMITTER_INTENSITY_MAX, BasisGlobalIlluminationSettings.EmitterIntensityMax);
+            Assert.GreaterOrEqual(BasisSettingsDefaults.GI_LIGHTMAPPED_RECEIVE_MIN, BasisGlobalIlluminationSettings.LightmappedReceiveMin);
+            Assert.LessOrEqual(BasisSettingsDefaults.GI_LIGHTMAPPED_RECEIVE_MAX, BasisGlobalIlluminationSettings.LightmappedReceiveMax);
+            Assert.GreaterOrEqual(BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MIN, BasisGlobalIlluminationSettings.IntensityMin);
+            Assert.LessOrEqual(BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MAX, BasisGlobalIlluminationSettings.IntensityMax);
+            Assert.GreaterOrEqual(BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MIN, BasisGlobalIlluminationSettings.SpecularRoughnessMin);
+            Assert.LessOrEqual(BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MAX, BasisGlobalIlluminationSettings.SpecularRoughnessMax);
+            Assert.GreaterOrEqual(BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MIN, BasisGlobalIlluminationSettings.RayLengthMin);
+            Assert.LessOrEqual(BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MAX, BasisGlobalIlluminationSettings.SpecularRayLengthMax);
+            // The volume clamps its fade distance to a floor of one and no ceiling, so only the floor
+            // constrains the slider from that side.
+            Assert.GreaterOrEqual(BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MIN, 1f);
         }
 
         // ----- dropdown parsing -----
@@ -215,6 +231,11 @@ namespace Basis.Tests.Graphics
             Assert.IsTrue(state.Emitters);
             Assert.IsFalse(state.ReflectionProbes);
             Assert.IsFalse(state.Capture);
+            Assert.IsFalse(state.Specular);
+            Assert.AreEqual(BasisSettingsDefaults.GlobalIlluminationSpecularIntensity.DefaultValue.GetDefault(), state.SpecularIntensity);
+            Assert.AreEqual(BasisSettingsDefaults.GlobalIlluminationSpecularMaxRoughness.DefaultValue.GetDefault(), state.SpecularMaxRoughness);
+            Assert.AreEqual(BasisSettingsDefaults.GlobalIlluminationSpecularRayLength.DefaultValue.GetDefault(), state.SpecularRayLength);
+            Assert.AreEqual(BasisSettingsDefaults.GlobalIlluminationSpecularFadeDistance.DefaultValue.GetDefault(), state.SpecularFadeDistance);
         }
 
         // ----- apply to the volume -----
@@ -237,6 +258,11 @@ namespace Basis.Tests.Graphics
                 state.Smoothing = 1.5f;
                 state.TemporalResponse = 0.4f;
                 state.EmitterIntensity = 2f;
+                state.Specular = true;
+                state.SpecularIntensity = 2f;
+                state.SpecularMaxRoughness = 0.8f;
+                state.SpecularRayLength = 128f;
+                state.SpecularFadeDistance = 120f;
                 SMModuleGlobalIlluminationURP.Apply(gi, state);
 
                 Assert.IsTrue(gi.enable);
@@ -250,6 +276,11 @@ namespace Basis.Tests.Graphics
                 Assert.AreEqual(1.5f, gi.smoothing, 0.0001f);
                 Assert.AreEqual(0.4f, gi.temporalResponse, 0.0001f);
                 Assert.AreEqual(2f, gi.emitterIntensity, 0.0001f);
+                Assert.IsTrue(gi.specular);
+                Assert.AreEqual(2f, gi.specularIntensity, 0.0001f);
+                Assert.AreEqual(0.8f, gi.specularMaxRoughness, 0.0001f);
+                Assert.AreEqual(128f, gi.specularRayLength, 0.0001f);
+                Assert.AreEqual(120f, gi.specularFadeDistance, 0.0001f);
 
             }
             finally
@@ -273,6 +304,10 @@ namespace Basis.Tests.Graphics
                 high.Smoothing = 999f;
                 high.TemporalResponse = 999f;
                 high.EmitterIntensity = 999f;
+                high.SpecularIntensity = 999f;
+                high.SpecularMaxRoughness = 999f;
+                high.SpecularRayLength = 999f;
+                high.SpecularFadeDistance = 99999f;
                 SMModuleGlobalIlluminationURP.Apply(gi, high);
 
                 Assert.AreEqual(BasisSettingsDefaults.GI_INTENSITY_MAX, gi.intensity, 0.0001f);
@@ -282,6 +317,10 @@ namespace Basis.Tests.Graphics
                 Assert.AreEqual(BasisSettingsDefaults.GI_SMOOTHING_MAX, gi.smoothing, 0.0001f);
                 Assert.AreEqual(BasisSettingsDefaults.GI_TEMPORAL_RESPONSE_MAX, gi.temporalResponse, 0.0001f);
                 Assert.AreEqual(BasisSettingsDefaults.GI_EMITTER_INTENSITY_MAX, gi.emitterIntensity, 0.0001f);
+                Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MAX, gi.specularIntensity, 0.0001f);
+                Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MAX, gi.specularMaxRoughness, 0.0001f);
+                Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MAX, gi.specularRayLength, 0.0001f);
+                Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MAX, gi.specularFadeDistance, 0.0001f);
 
                 BasisGlobalIlluminationState low = BasisGlobalIlluminationState.FromDefaults();
                 low.Enabled = true;
@@ -292,6 +331,10 @@ namespace Basis.Tests.Graphics
                 low.Smoothing = -5f;
                 low.TemporalResponse = -5f;
                 low.EmitterIntensity = -5f;
+                low.SpecularIntensity = -5f;
+                low.SpecularMaxRoughness = -5f;
+                low.SpecularRayLength = -5f;
+                low.SpecularFadeDistance = -5f;
                 SMModuleGlobalIlluminationURP.Apply(gi, low);
 
                 Assert.AreEqual(BasisSettingsDefaults.GI_INTENSITY_MIN, gi.intensity, 0.0001f);
@@ -301,6 +344,10 @@ namespace Basis.Tests.Graphics
                 Assert.AreEqual(BasisSettingsDefaults.GI_SMOOTHING_MIN, gi.smoothing, 0.0001f);
                 Assert.AreEqual(BasisSettingsDefaults.GI_TEMPORAL_RESPONSE_MIN, gi.temporalResponse, 0.0001f);
                 Assert.AreEqual(BasisSettingsDefaults.GI_EMITTER_INTENSITY_MIN, gi.emitterIntensity, 0.0001f);
+                Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MIN, gi.specularIntensity, 0.0001f);
+                Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MIN, gi.specularMaxRoughness, 0.0001f);
+                Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MIN, gi.specularRayLength, 0.0001f);
+                Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MIN, gi.specularFadeDistance, 0.0001f);
             }
             finally
             {
@@ -508,6 +555,21 @@ namespace Basis.Tests.Graphics
 
             module.ValidSettingsChange(BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.BindingKey, Invariant(BasisSettingsDefaults.GI_EMITTER_INTENSITY_MAX));
             Assert.AreEqual(BasisSettingsDefaults.GI_EMITTER_INTENSITY_MAX, module.GlobalIllumination.emitterIntensity, 0.0001f);
+
+            module.ValidSettingsChange(BasisSettingsDefaults.GlobalIlluminationLightmappedReceive.BindingKey, Invariant(BasisSettingsDefaults.GI_LIGHTMAPPED_RECEIVE_MIN));
+            Assert.AreEqual(BasisSettingsDefaults.GI_LIGHTMAPPED_RECEIVE_MIN, module.GlobalIllumination.lightmappedReceive, 0.0001f);
+
+            module.ValidSettingsChange(BasisSettingsDefaults.GlobalIlluminationSpecularIntensity.BindingKey, Invariant(BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MAX));
+            Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MAX, module.GlobalIllumination.specularIntensity, 0.0001f);
+
+            module.ValidSettingsChange(BasisSettingsDefaults.GlobalIlluminationSpecularMaxRoughness.BindingKey, Invariant(BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MAX));
+            Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MAX, module.GlobalIllumination.specularMaxRoughness, 0.0001f);
+
+            module.ValidSettingsChange(BasisSettingsDefaults.GlobalIlluminationSpecularRayLength.BindingKey, Invariant(BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MAX));
+            Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MAX, module.GlobalIllumination.specularRayLength, 0.0001f);
+
+            module.ValidSettingsChange(BasisSettingsDefaults.GlobalIlluminationSpecularFadeDistance.BindingKey, Invariant(BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MAX));
+            Assert.AreEqual(BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MAX, module.GlobalIllumination.specularFadeDistance, 0.0001f);
         }
 
         [Test]

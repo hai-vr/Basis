@@ -70,28 +70,45 @@ The player's own camera always. Beyond that:
 
 ## Lightmapped worlds
 
-⚠️ **Half handled.** Worth knowing before switching this on in a baked world.
+Both halves of the double-count are handled now.
 
-**Baked emission is handled.** An emissive quad used as an area light is how a baked world is usually lit,
-and its light was already written into the lightmap at bake time - the surface still renders bright because
-URP draws emission regardless of how it was baked. Reading that brightness and injecting it again lights the
+**Baked emission.** An emissive quad used as an area light is how a baked world is usually lit, and its
+light was already written into the lightmap at bake time - the surface still renders bright because URP
+draws emission regardless of how it was baked. Reading that brightness and injecting it again lights the
 room twice from one lamp. A surface that is **both** flagged `BakedEmissive` **and** on a renderer carrying a
-real lightmap is now skipped by the ray traced gather (`Respect Baked Emission`, on by default). Both halves
+real lightmap is skipped by the ray traced gather (`Respect Baked Emission`, on by default). Both halves
 are required: the flag alone would steal the light in a world nobody ever baked, and a lightmap index alone
 says nothing about whether the emission was baked.
 
-**Receiving is NOT handled.** The composite is `Blend DstColor Zero` emitting `obscurance + indirect`, so
-the frame becomes `sceneColor * (obscurance + indirect)`. On a lightmapped surface `sceneColor` already
-contains the baked bounce and the baked ambient occlusion, so the effect multiplies a second bounce onto
-light that has already bounced, and darkens creases that are already dark. In a carefully baked world that
-reads as blown out and crushed at the same time. Lowering Intensity is the only lever today.
+**Receiving.** The composite is `Blend DstColor Zero` emitting `obscurance + indirect`, so the frame becomes
+`sceneColor * (obscurance + indirect)`. On a lightmapped surface `sceneColor` already contains the baked
+bounce and the baked ambient occlusion, so the effect used to multiply a second bounce onto light that had
+already bounced, and darken creases that were already dark - a carefully baked world read blown out and
+crushed at the same time.
 
-Fixing it properly needs a per-pixel answer to "is this pixel lightmapped", which a fullscreen pass does not
-have. The shape it would take: a mask pass at traced resolution drawing only the renderers with no lightmap
-(`lightmapIndex < 0` - avatars and props, a few dozen draws rather than the whole world), depth tested,
-writing one; the effect then applies where the mask is set and stands back on baked static geometry, which
-already has its bounce. Dynamic objects keep full realtime GI, which is exactly what a lightmap does not
-cover for them.
+A **lightmap receive mask** answers "is this pixel lightmapped" per pixel: in a scene that has lightmaps at
+all, the opaque renderer list is redrawn at traced resolution with a near-empty override pass whose only
+output is `LIGHTMAP_ON ? 0 : 1`, depth tested by hand against the camera depth so only the frontmost
+surface speaks. The composite then scales what a pixel receives by `lerp(Baked Surface Receive, 1, mask)` -
+avatars, props and anything dynamic keep the full effect, and baked geometry keeps only the floor the
+setting allows (0.25 by default), because the bounce an avatar throws onto a wall is real light no bake ever
+saw. The gather is untouched: lightmapped surfaces still light the room, they just stop being relit by it.
+
+Two decisions in that pass are load-bearing and were both learned the hard way:
+
+- **The mask clears to ONE, and lightmapped surfaces write the zero.** The first version cleared to zero
+  meaning "lightmapped", so every way the pass could fail to draw - a BatchRendererGroup refusing a variant,
+  an empty renderer list, a culled pass, an unresolved depth texture - collapsed to "global illumination is
+  gone". This way round, every failure degrades to the old behaviour instead. The keyword follows the same
+  rule: it is set from the recorded texture handle, never from intent, because a bound keyword over an
+  unbound texture samples zero and suppresses everything.
+- **The pass has its own depth-only include.** `Blit.hlsl` cannot be included by a pass that draws geometry:
+  it defines its own `Vert`, and under `DOTS_INSTANCING_ON` its include order breaks EntityLighting's
+  lightmap array macros, which is what made the BatchRendererGroup skip the first version's draws entirely.
+  `BasisGlobalIlluminationDepth.hlsl` carries the depth helpers with `Core.hlsl` alone, and the pass takes
+  URP's `DOTS.hlsl` via `#include_with_pragmas` so the GPU Resident Drawer keeps drawing it.
+
+A world with no lightmaps never records the pass, and `Baked Surface Receive` at 1 disables it exactly.
 
 ## The march
 
@@ -283,10 +300,67 @@ for those, and content already built into asset bundles could never gain the pas
 
 ## Reflections
 
-`Reflections` turns on a ray traced specular gather. It is one mirror ray per pixel,
-shaded at the hit by the same lights and emissive surfaces the diffuse bounce uses, with the sky as
-the fallback for a miss. It needs the ray traced backend, but it is independent of `Mode`: reflections
-are worth having over a screen space diffuse gather.
+`Reflections` turns on a specular gather: one mirror ray per pixel. What a missed ray is worth is the
+`Fallback` setting's call, the same on both backends: under **Sky** a miss claims the bound
+environment with full confidence — the explicit "reflections read the sky" opt-in; under **Reflection
+Probe** (the default) a miss reports *no data*, and the lit shader keeps the reflection probes it
+already sampled for that surface — local, box projected, blended per object — which no fullscreen
+pass can see and no global environment guess should override. Every partial confidence the trace
+produces (screen edges, rays aimed back at the eye, budget coverage, thin slivers) blends toward
+those probes by the same alpha, so probes and traced reflections combine per pixel rather than
+switching. It follows `Mode` the way the diffuse gather does, and has the same two backends:
+
+- **Ray traced** — the ray walks the shared acceleration structure and is shaded at the hit by the
+  same lights and emissive surfaces the diffuse bounce uses. It reflects things that are off screen,
+  which no screen space method can.
+- **Screen space** — the same mirror ray walked through the depth buffer with the same hierarchical
+  march (and the same depth pyramid) the diffuse gather uses. The trace runs before the opaque draws,
+  so the current frame's colour does not exist yet when it needs one; a capture pass at the end of
+  each frame keeps the finished camera colour (after transparents, before post processing), and the
+  trace reads that, reprojecting each hit through the stored view projection. A ray that misses
+  geometry but points at sky the screen can see reads the rendered skybox out of that same capture —
+  the environment cubemap is the baked reflection environment, which a world is free to have never
+  baked while its skybox renders fine, and only the Sky fallback ever reads that cubemap for rays
+  whose sky is off screen (at mip zero: a mirror wants the environment as an image, not the diffuse
+  gather's irradiance mip). On the first frame, after a resize, or after a camera stops rendering
+  for a while there is no colour to read and every ray reports no data — which is the reflection
+  probe the shader had anyway. Ray Traced mode on a GPU without ray tracing falls back here, the
+  same direction the diffuse gather falls.
+
+  The trace also writes how far beyond its surface each pixel's reflection sits, and the specular
+  temporal filter reprojects history through that *virtual* point rather than through the surface: a
+  reflection moves with the parallax of the thing reflected, not of the mirror it sits on, and
+  surface reprojection smears every reflection by the difference whenever the camera translates —
+  which a head in a headset always does. Reflected sky carries the far sentinel and reprojects as
+  pure rotation, which is exact for it.
+
+  The trace is kept clean by a set of measures that were each found against a real artifact, looking
+  at real frames. The ray's origin is snapped to the centre of the nearest full resolution depth
+  texel before anything reads through it — at a reduced trace resolution the traced pixel centre
+  lands exactly on the corner between four full resolution texels, and a point sample decided by
+  sub-texel rounding on that knife edge handed every ray an arbitrary neighbour's surface, printing
+  evenly spaced lines across every reflective surface. The reflection's own depth pyramid seeds each
+  texel with the block's true (nearest, furthest) interval rather than the diffuse gather's unbiased
+  representative, and the march reads it as an interval: in front means before the nearest, a
+  crossing means past the furthest, in between is ambiguous and carried rather than guessed, and a
+  block that borders sky keeps the sentinel as its furthest so silhouette edges are uncrossable
+  rather than sometimes-hit. (The diffuse pyramid is unchanged, and with its channels equal the
+  interval tests reduce to the exact arithmetic it always ran.) A hit whose surface faces *with* the
+  ray, sits in the reflector's own plane with the reflector's own normal, or lands on a sky texel at
+  full resolution is a misreading, and the march restarts from just past it — up to twice — instead
+  of giving up; the restart distance converts the march's screen fraction to a world distance
+  perspective-correctly. Hits on one-or-two-texel slivers keep reduced confidence instead of
+  asserting a dashed thin reflection. The walk carries its refine bracket across coarse cells, lands
+  each cell's last sample exactly on the cell exit, and gets a cell ceiling sized for a mirror ray's
+  reach rather than a bounce's; where it still runs out of budget it reports how much of the ray it
+  actually observed, and the miss confidence scales by it — not enough data blends out rather than
+  cutting off. Rays aimed back at the eye fade their miss answers toward the reflection probe — what
+  they reflect is behind the camera, which no screen space method can see. The march jitter is
+  frozen per pixel rather than walked per frame: the mirror ray is deterministic, so the animation
+  bought no convergence and cost a per-frame sparkle. And when the renderer is already producing the
+  normals texture for the diffuse gather, the trace reflects about those normals instead of the
+  depth-reconstructed ones, which is what makes a normal mapped or smooth-shaded surface reflect
+  correctly off angle.
 
 **Why a mirror ray and not a roughness-shaped lobe.** Nothing at trace time knows the roughness of the
 surface the ray leaves — that is the same missing GBuffer as above. So the trace answers the one
@@ -303,9 +377,14 @@ dispatch.
 
 **What it cannot do.** The reflection direction comes from a normal reconstructed from depth, not from
 the surface's normal map, so a strongly normal-mapped surface reflects along its geometric normal.
-Transparents are excluded — they are drawn after the buffer is built and are not in the depth it was
-reconstructed from. The published buffer is full resolution so the bilateral upsample can keep
-reflections from bleeding across silhouettes, which costs one RGBA16F screen-sized target.
+Transparents are excluded from the trace — they are drawn after the buffer is built and are not in the
+depth it was reconstructed from (the screen space backend's *colour* does include them, one frame
+late). The screen space backend can only reflect what some previous frame actually saw: content behind
+the camera resolves to the sky or the probe, and a moving object's reflection runs one frame behind
+the object, which the reflection accumulation's short tail absorbs. The published buffer is full
+resolution so the bilateral upsample can keep reflections from bleeding across silhouettes, which
+costs one RGBA16F screen-sized target — and the screen space backend keeps one camera-sized colour
+target per camera on top of it.
 
 ## Setup
 

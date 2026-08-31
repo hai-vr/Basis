@@ -82,6 +82,19 @@ void BasisGIResolve(float2 uv, out float3 indirect, out float obscurance, out fl
         return;
     }
 
+#if defined(_BASISGI_LIGHTMAP_MASK)
+    // A lightmapped surface already holds its own bounce and its own baked occlusion, so the composite
+    // multiplying more of both onto it is double counting - the room reads blown out and crushed at once.
+    // The mask is one on dynamic surfaces and zero on lightmapped ones; the receive floor is what a
+    // lightmapped surface keeps, because the bounce an avatar throws onto a wall is real light no bake
+    // ever saw. The gather itself is untouched - lightmapped pixels still LIGHT the room, they just stop
+    // being relit by it.
+    float mask = SAMPLE_TEXTURE2D_X_LOD(_BasisGILightmapMask, sampler_BasisGILightmapMask, UnityStereoTransformScreenSpaceTex(uv), 0).r;
+    float receive = lerp(_BasisGILightmapParams.x, 1.0, mask);
+    indirect *= receive;
+    obscurance = lerp(1.0, obscurance, receive);
+#endif
+
     float luminance = Luminance(indirect);
     indirect = lerp(luminance.xxx, indirect, BASISGI_SATURATION);
     indirect = max(0.0, indirect) * _BasisGITint.rgb * BASISGI_INTENSITY;

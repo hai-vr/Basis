@@ -51,6 +51,8 @@ namespace Basis.BasisUI
         /// </summary>
         public virtual bool HasResetDefault => false;
 
+        public virtual bool HasPanelOptions => HasResetDefault;
+
         public virtual string BoundSettingKey => null;
 
         /// <summary>Asks to reset this control to its default. No-op unless the control supports it.</summary>
@@ -142,7 +144,7 @@ namespace Basis.BasisUI
                 string hint = BasisPanelJoystickBind.HintFor(this);
                 if (string.IsNullOrEmpty(hint))
                 {
-                    if (!HasResetDefault) return text;
+                    if (!HasPanelOptions) return text;
                     hint = BasisPanelResetGesture.HintText;
                 }
                 if (string.IsNullOrEmpty(hint)) return text;

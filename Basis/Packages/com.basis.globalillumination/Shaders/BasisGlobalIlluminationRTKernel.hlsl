@@ -403,11 +403,15 @@ float4 BasisGIRtTraceSpecular(UnifiedRT::DispatchInfo dispatchInfo, UnifiedRT::R
         UnifiedRT::Hit hit = BasisGIRtTraceEscapingProxies(dispatchInfo, accelStruct, origin, direction, reach, (uint)_BasisGIRtTraceMask);
         if (!hit.IsValid())
         {
-            // A miss is the sky, and for a reflection the sky is a real answer rather than a gap in one -
-            // but only when a sky is bound. Without one the pixel has nothing better to offer than the
-            // reflection probe the shader already has, so it says it has no data.
+            // A miss reads the sky as LIGHTING either way, but whether a primary miss may CLAIM it with
+            // confidence is the fallback setting's call, carried in _BasisGIRtSky.z: the Sky fallback
+            // asks for exactly that, and under Reflection Probe the pixel reports no data instead - the
+            // lit shader is already holding this surface's own probes, local and box projected, which
+            // this pass cannot see and a global environment claim should not override. The same rule the
+            // screen space backend answers with, so a miss is worth the same thing either side of a mode
+            // switch.
             radiance += throughput * BasisGIRtSampleSky(direction);
-            if (bounce == 0) { confidence = _BasisGIRtSky.y > 0.0 ? 1.0 : 0.0; }
+            if (bounce == 0) { confidence = (_BasisGIRtSky.y > 0.0 && _BasisGIRtSky.z > 0.5) ? 1.0 : 0.0; }
             break;
         }
 

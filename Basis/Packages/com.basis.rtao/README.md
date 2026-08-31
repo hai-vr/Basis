@@ -67,6 +67,16 @@ has no ray tracing path at all, so the package carries a screen space estimator 
 temporal, spatial and composite chain — one code path for the denoiser, the VR handling and the URP
 integration, with only the occlusion estimate changing.
 
+The estimator is **ground-truth ambient occlusion** (Jimenez et al. 2016): a few screen directions per
+pixel, a horizon search along each, and the closed-form cosine-weighted arc of hemisphere the horizons
+leave open. That answer is in the **same units as the traced path** — the cosine-weighted fraction of the
+hemisphere that is visible, so a flat plane reads one, the base of an infinite wall reads a half, and
+switching Occlusion Source changes what the effect can see rather than what its numbers mean. The slice
+set rotates per frame along the same stereo coherent R2 sequence the traced rays advance with, so the
+temporal filter integrates the directions one frame did not walk. **Distance Falloff** applies here the
+same way it does to a traced hit: an occluder found near the edge of the radius counts for less. The
+quality tier's ray count still sets the budget — more budget buys more directions first, then finer walks.
+
 | Occlusion Source | Backend | Sees |
 | --- | --- | --- |
 | Auto (default) | hardware ray tracing, or screen space where the GPU has none | the real scene, or the depth buffer |

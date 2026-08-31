@@ -229,6 +229,7 @@ public static class NetworkServer
     {
         var HasFileSupport = Configuration.HasFileSupport;
         BasisPlayerModeration.UseFileOnDisc = HasFileSupport;
+        BasisPlayerMuteManager.UseFileOnDisc = HasFileSupport;
         IAuthIdentity.HasFileSupport = HasFileSupport;
 
         Auth = new PasswordAuth(Configuration.Password ?? string.Empty);
@@ -259,6 +260,7 @@ public static class NetworkServer
     {
         BasisServerHandleEvents.SubscribeServerEvents();
         BasisPlayerModeration.LoadBannedPlayers();
+        BasisPlayerMuteManager.LoadMutedPlayers();
         BasisNetworkChat.LoadWordFilter(Configuration);
         BasisNetworkStackRegistry.RegisterIntroducerFactory(
             BasisNetworkStackRegistry.LiteNetLibId,

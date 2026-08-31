@@ -43,6 +43,8 @@ namespace Basis.IK
             public byte HipsFreeze, IsLocomoting;
             public float LenTotal, TChest, TSpine, StandingHipsLocalY, StandingHeadLocalY;
             public float3 EyePos, HipsAnchorOffsetLocal, HeadRestFromEyeLocal, YawPivotFromEyeLocal;
+            public float3 KnownEyeSwing;
+            public byte KnownEyeSwingValid;
             public byte PostureModel;
             public float HipsCompressionStrength, HipsMaxDropMeters, HipsRestDropY;
         }
@@ -118,7 +120,14 @@ namespace Basis.IK
                 float3 yawArm = feetSupported ? float3.zero : P.YawPivotFromEyeLocal * P.GazeSwingRemoval;
 
                 float3 leashEyePos = eyePosDevice + math.mul(headYawFromEye, yawArm);
-                if (P.GazeSwingRemoval > 0f)
+                if (P.KnownEyeSwingValid != 0)
+                {
+                    // Desktop: the eye's pitch swing is synthesized, so the exact applied offset is
+                    // known — subtract it rather than re-model it (the model's lever and backward
+                    // scale differ from the desktop synthesis, and the residual walks the pelvis).
+                    leashEyePos -= P.KnownEyeSwing;
+                }
+                else if (P.GazeSwingRemoval > 0f)
                 {
                     float3 gazeFwd = math.mul(eyeRot, new float3(0f, 0f, 1f));
                     float gazeHorizMag = math.sqrt(gazeFwd.x * gazeFwd.x + gazeFwd.z * gazeFwd.z);
@@ -412,6 +421,8 @@ namespace Basis.IK
                     hipsBase.y = standingHipsY - math.lerp(drop, softDrop, math.saturate(compressionStrength));
                 }
             }
+
+            hipsBase.y = math.min(hipsBase.y, headPos.y - 0.15f * lenTotal);
 
             result = new float3(desiredHipsXZ.x, hipsBase.y, desiredHipsXZ.z) + forwardBias;
         }

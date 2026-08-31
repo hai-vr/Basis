@@ -1,7 +1,6 @@
 #nullable enable
 
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
 using Identity = Basis.Contrib.Auth.Handles.Newtypes.Identity;
@@ -31,14 +30,14 @@ namespace Basis.Contrib.Auth.Handles.Dns
 
 			var handle = new DnsHandle() { DisplayName = "example.socialvr.net" };
 			var identity = new Identity("did:web:example.socialvr.net");
-			Debug.Assert(
+			Assert.True(
 				await dnsVerifier.HandlePointsToIdentity(
 					handle: handle,
 					identity: identity
 				),
 				"should match the known, did:web that have been set in socialvr.net's DNS record"
 			);
-			Debug.Assert(
+			Assert.True(
 				await verifier.HandlePointsToIdentity(
 					handle: handle,
 					identity: identity

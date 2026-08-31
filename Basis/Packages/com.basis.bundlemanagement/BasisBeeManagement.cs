@@ -55,19 +55,28 @@ public static class BasisBeeManagement
     /// <para>Returns true (keep using the cache) whenever no version was declared, which is the
     /// branch taken by every bundle and client that predates versioning — so this is a no-op for
     /// existing content.</para>
+    ///
+    /// <para>A mismatched requested tag alone is NOT proof the cache is stale — the claim can be
+    /// the stale side (see <see cref="HostConfirmsCachedCopyCurrentAsync"/>), so a mismatch asks
+    /// the host before anything is evicted.</para>
     /// </summary>
     /// <param name="evictStaleCache">
     /// Whether a stale entry should be deleted outright rather than merely bypassed. True for the
     /// full load, where eviction reclaims the previous UniqueVersion's files instead of leaving
     /// them for the LRU sweep. False for the connector-only load: its caller treats "no meta on
-    /// disc" as a corrupt item and REMOVES the library key, so deleting the entry there would turn
+    /// disc" as a corrupt item and REMOVES the user's library key, so deleting the entry there would turn
     /// a failed re-download into silent loss of the user's saved item. Bypassing still refreshes —
     /// the re-download rewrites the entry — it just leaves the old payload for the LRU sweep.
     /// </param>
-    private static bool CacheIsCurrentForRequestedVersion(BasisTrackedBundleWrapper wrapper, BasisBEEExtensionMeta metaInfo, string beeLocation, bool evictStaleCache)
+    private static async Task<bool> CacheIsCurrentForRequestedVersionAsync(BasisTrackedBundleWrapper wrapper, BasisBEEExtensionMeta metaInfo, string beeLocation, bool evictStaleCache, CancellationToken cancellationToken)
     {
         string requestedVersionTag = wrapper?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteVersionTag;
         if (BasisContentVersion.ShouldUseCache(metaInfo, requestedVersionTag, beeLocation))
+        {
+            return true;
+        }
+
+        if (await HostConfirmsCachedCopyCurrentAsync(metaInfo, beeLocation, cancellationToken))
         {
             return true;
         }
@@ -77,6 +86,60 @@ public static class BasisBeeManagement
             // Safe mid-load: the caller registered and incremented this wrapper before starting,
             // and UnloadAllForUrl skips bundles in use, so only idle copies of the old version go.
             BasisContentVersion.Invalidate(beeLocation);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A requested tag that fails to match the cache is a CLAIM, not a fact — usually a peer
+    /// echoing whatever validator their own download observed, however long ago. The claim itself
+    /// goes stale whenever the host's validator changes without the bytes changing (nginx ETags
+    /// embed file mtime, so re-uploading or syncing identical bytes mints a new tag), and the
+    /// wearer never notices because their warm loads never touch the network. Believing the claim
+    /// outright would evict a perfectly current cache and re-download the full bee on every load,
+    /// forever.
+    ///
+    /// <para>So before evicting, ask the HOST: one conditional request against the tag the cached
+    /// bytes were actually validated with. 304 (or a matching validator) proves the cache is
+    /// current and the claim merely outdated; only a host reporting different content costs a
+    /// re-download. An unreachable host also serves the cache — the download a mismatch would
+    /// trigger cannot succeed either, and a bare claim is not evidence enough to strand the user
+    /// content-less. Throttled upstream by TryBeginVersionRefresh, so a claim-flipping peer costs
+    /// one small request per url per window instead of a full download.</para>
+    /// </summary>
+    private static async Task<bool> HostConfirmsCachedCopyCurrentAsync(BasisBEEExtensionMeta metaInfo, string beeLocation, CancellationToken cancellationToken)
+    {
+        string cachedTag = metaInfo?.CachedVersionTag;
+        if (string.IsNullOrWhiteSpace(cachedTag))
+        {
+            // No baseline to verify against: the entry predates versioning, and an actively
+            // claimed version IS evidence of change there. One download settles it.
+            return false;
+        }
+
+        BeeResult<BasisIOManagement.BasisRemoteValidator> result;
+        try
+        {
+            result = await BasisIOManagement.FetchRemoteValidatorAsync(beeLocation, cachedTag.Trim(), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogWarning($"Version-claim check for {beeLocation} threw ({ex.Message}); serving the cached copy.", BasisDebug.LogTag.Event);
+            return true;
+        }
+
+        if (!result.IsSuccess)
+        {
+            BasisDebug.LogWarning($"Could not verify version claim for {beeLocation} ({result.Error}); serving the cached copy.", BasisDebug.LogTag.Event);
+            return true;
+        }
+
+        if (BasisContentVersion.HostConfirmsCache(cachedTag, result.Value))
+        {
+            BasisDebug.Log($"Host confirms the cached copy of {beeLocation} is current; the requested tag is an outdated claim. Serving cache.", BasisDebug.LogTag.Event);
+            await BasisContentVersion.MarkValidatedAsync(beeLocation, result.Value.NotModified ? cachedTag : result.Value.Tag);
+            return true;
         }
 
         return false;
@@ -108,7 +171,7 @@ public static class BasisBeeManagement
             shouldUseOnDiskMeta = false;
         }
 
-        if (shouldUseOnDiskMeta && !CacheIsCurrentForRequestedVersion(wrapper, MetaInfo, beeLocation, evictStaleCache: true))
+        if (shouldUseOnDiskMeta && !await CacheIsCurrentForRequestedVersionAsync(wrapper, MetaInfo, beeLocation, evictStaleCache: true, cancellationToken))
         {
             shouldUseOnDiskMeta = false;
         }
@@ -378,7 +441,7 @@ public static class BasisBeeManagement
         // Same static-url freshness gate as the full load. Library cards read the connector through
         // here, so without it a card would keep showing the previous name/thumbnail/date after the
         // bee behind its url was replaced.
-        bool useCachedConnector = IsMetaOnDisc && CacheIsCurrentForRequestedVersion(wrapper, MetaInfo, beeLocation, evictStaleCache: false);
+        bool useCachedConnector = IsMetaOnDisc && await CacheIsCurrentForRequestedVersionAsync(wrapper, MetaInfo, beeLocation, evictStaleCache: false, cancellationToken);
         (BasisBundleConnector Connector, string ErrorMessage) output;
         if (useCachedConnector)
         {

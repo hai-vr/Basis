@@ -130,6 +130,16 @@ public sealed class BasisGlobalIlluminationRayTracer : IDisposable
 
         Texture custom = RenderSettings.customReflectionTexture;
         bool useCustom = custom != null && custom.dimension == TextureDimension.Cube;
+        // Environment reflections switched off outright - Custom source, nothing assigned - resolves to
+        // the engine's black stand-in cube, and a black cube at full intensity is not "no answer", it is
+        // a confident black answer: on a specular miss it overrides the reflection probe the lit shader
+        // already had, and every mirror gains a black sky. No binding is the honest reading - intensity
+        // zero, which a miss reports as zero confidence, and the probe survives. (For the diffuse gather
+        // the two are identical: a black cube contributes nothing either way.)
+        if (!useCustom && RenderSettings.defaultReflectionMode == DefaultReflectionMode.Custom)
+        {
+            return new SkyBinding(null, Vector4.zero, 0f, 0f);
+        }
         Texture cube = useCustom ? custom : ReflectionProbe.defaultTexture;
         if (cube == null) { return new SkyBinding(null, Vector4.zero, 0f, 0f); }
 

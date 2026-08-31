@@ -33,6 +33,7 @@ public sealed class BasisGlobalIlluminationFeature : ScriptableRendererFeature
     private Material m_RayStagesMaterial;
     private BasisGlobalIlluminationPass m_Pass;
     private BasisGlobalIlluminationPass.SpecularPass m_SpecularPass;
+    private BasisGlobalIlluminationPass.SpecularColorCapturePass m_ColorCapturePass;
     private BasisGlobalIlluminationDebugView m_DebugView;
 
     public bool ReflectionProbes { get { return m_ReflectionProbes; } set { m_ReflectionProbes = value; } }
@@ -95,6 +96,7 @@ public sealed class BasisGlobalIlluminationFeature : ScriptableRendererFeature
         m_Pass.SetRayTracing(m_RayStagesMaterial, m_RayTraceShader, m_RayTraceCompute, m_RayTracingComputeFallback);
         m_Pass.DebugView = m_DebugView;
         m_SpecularPass = new BasisGlobalIlluminationPass.SpecularPass();
+        m_ColorCapturePass = new BasisGlobalIlluminationPass.SpecularColorCapturePass();
     }
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
@@ -107,18 +109,33 @@ public sealed class BasisGlobalIlluminationFeature : ScriptableRendererFeature
         BasisGlobalIlluminationSettings settings = BasisGlobalIlluminationSettings.Current;
         if (!settings.IsActive()) { return; }
 
+        // One answer for both passes: the reflection trace reflects about the same normals the diffuse
+        // gather bounces off, so a prepass the diffuse pass would ask for is read by the reflections too.
+        bool wantsNormals = m_NormalsPrepass && settings.normalSource == BasisGlobalIlluminationNormalSource.NormalsTexture;
+
         // Reflections have to be published before the opaque draws that consume them, so they are a separate
         // pass at a separate injection point rather than another stage of the one below. See SpecularPass.
         if (settings.SpecularActive() && m_SpecularPass != null)
         {
-            m_SpecularPass.Setup(m_Material, m_RayStagesMaterial, m_RayTraceShader, m_RayTraceCompute, m_RayTracingComputeFallback, RayTracingAvailable);
-            m_SpecularPass.ConfigureInput(ScriptableRenderPassInput.Depth);
+            m_SpecularPass.Setup(m_Material, m_RayStagesMaterial, m_RayTraceShader, m_RayTraceCompute, m_RayTracingComputeFallback, RayTracingAvailable, m_Pass);
+            m_SpecularPass.UseNormalsTexture = wantsNormals;
+            ScriptableRenderPassInput specularInputs = ScriptableRenderPassInput.Depth;
+            if (wantsNormals) { specularInputs |= ScriptableRenderPassInput.Normal; }
+            m_SpecularPass.ConfigureInput(specularInputs);
             renderer.EnqueuePass(m_SpecularPass);
+
+            // The screen space backend reads the previous frame's colour, so a pass at the other end of the
+            // frame has to have written it. The ray traced backend relights its hits instead and the copy
+            // would be a dead cost there, which is why this is enqueued per backend rather than always.
+            if (m_ColorCapturePass != null && BasisGlobalIlluminationPass.SpecularPass.ScreenSpaceReflections(settings, RayTracingAvailable))
+            {
+                m_ColorCapturePass.Setup(m_Material);
+                renderer.EnqueuePass(m_ColorCapturePass);
+            }
         }
 
         if (!settings.DiffuseActive()) { return; }
 
-        bool wantsNormals = m_NormalsPrepass && settings.normalSource == BasisGlobalIlluminationNormalSource.NormalsTexture;
         // Motion is asked for only when the temporal filter is going to reproject through it. URP renders
         // a whole extra pass to produce that texture, and a frame that will not read it should not pay for
         // one - whereas a frame that will read it must declare the need here, because a pass that is never
@@ -210,6 +227,7 @@ public sealed class BasisGlobalIlluminationFeature : ScriptableRendererFeature
         m_Pass?.Dispose();
         m_Pass = null;
         m_SpecularPass = null;
+        m_ColorCapturePass = null;
         CoreUtils.Destroy(m_Material);
         m_Material = null;
         CoreUtils.Destroy(m_RayStagesMaterial);

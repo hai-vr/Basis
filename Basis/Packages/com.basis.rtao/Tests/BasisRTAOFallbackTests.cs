@@ -107,7 +107,7 @@ namespace Basis.Rendering.RTAO.Tests
                 Assert.IsNotEmpty(BasisRTAOTracing.Describe(backend));
         }
 
-        private Vector4[] RunScreenSpace(System.Func<int, int, Vector4> positionOf, Vector3 normalWS, float radius, int samples, int slices = 1)
+        private Vector4[] RunScreenSpace(System.Func<int, int, Vector4> positionOf, Vector3 normalWS, float radius, int samples, int slices = 1, float falloff = 0f)
         {
             Texture2DArray position = harness.Track(new Texture2DArray(Width, Height, slices, TextureFormat.RGBAFloat, false, true));
             Texture2DArray normal = harness.Track(new Texture2DArray(Width, Height, slices, TextureFormat.RGBAFloat, false, true));
@@ -146,12 +146,18 @@ namespace Basis.Rendering.RTAO.Tests
             result.Create();
 
             Vector4 plane = new Vector4(0f, 0f, 1f, 5f);
+            // The fake geometry is authored directly in texel space - column x holds world x*0.05, row y
+            // world y*0.05 - so a texel step maps to the plain world axes.
+            Vector4 axisX = new Vector4(1f, 0f, 0f, 0f);
+            Vector4 axisY = new Vector4(0f, 1f, 0f, 0f);
             screenSpace.SetTexture(kernel, BasisRTAOShaderIds.PositionTex, position);
             screenSpace.SetTexture(kernel, BasisRTAOShaderIds.NormalTex, normal);
             screenSpace.SetTexture(kernel, BasisRTAOShaderIds.ResultTex, result);
             screenSpace.SetVectorArray(BasisRTAOShaderIds.ViewPlane, new[] { plane, plane });
+            screenSpace.SetVectorArray(BasisRTAOShaderIds.ScreenAxisX, new[] { axisX, axisX });
+            screenSpace.SetVectorArray(BasisRTAOShaderIds.ScreenAxisY, new[] { axisY, axisY });
             screenSpace.SetVector(BasisRTAOShaderIds.Reference, Vector4.zero);
-            screenSpace.SetVector(BasisRTAOShaderIds.Trace, new Vector4(samples, radius, 1f, 0f));
+            screenSpace.SetVector(BasisRTAOShaderIds.Trace, new Vector4(samples, radius, falloff, 0f));
             screenSpace.SetVector(BasisRTAOShaderIds.Bias, new Vector4(0.002f, 0.0015f, 0.01f, 0f));
             screenSpace.SetVector(BasisRTAOShaderIds.Size, new Vector4(Width, Height, 1f / Width, 1f / Height));
             screenSpace.SetVector(BasisRTAOShaderIds.ScreenParams, new Vector4(200f, 8f, 2f, 0f));
@@ -285,6 +291,58 @@ namespace Basis.Rendering.RTAO.Tests
                 Assert.AreEqual(result[i].x, result[i + Width * Height].x, 1e-3f,
                     $"texel {i} disagreed between eyes. The fallback shares the world hashed seed for exactly this reason.");
             }
+        }
+
+        [Test]
+        public void AWallBesideTheFloorReadsNearHalfVisibility()
+        {
+            // An infinite wall blocks exactly half of the hemisphere over the floor at its base, and the
+            // cosine-weighted visibility there is exactly one half - a value the horizon integration must
+            // land near and the old disc estimator never expressed. Columns 10+ hold points on a vertical
+            // wall at world x = 0.5, rising towards the camera as the columns go right.
+            Vector4[] result = RunScreenSpace((x, y) =>
+            {
+                if (x < 10) { return new Vector4(x * 0.05f, y * 0.05f, 5f, 1f); }
+                return new Vector4(0.5f, y * 0.05f, 5f - (x - 9.5f) * 0.7f, 1f);
+            }, Vector3.back, 4f, 24);
+
+            float mean = 0f;
+            int count = 0;
+            for (int y = 4; y < 12; y++)
+            {
+                for (int x = 6; x < 10; x++)
+                {
+                    mean += result[y * Width + x].x;
+                    count++;
+                }
+            }
+            mean /= count;
+
+            Assert.Greater(mean, 0.35f, $"The floor beside the wall read {mean:F3}; half the hemisphere is still open.");
+            Assert.Less(mean, 0.65f, $"The floor beside the wall read {mean:F3}; an infinite wall must cost about half the hemisphere.");
+        }
+
+        [Test]
+        public void DistanceFalloffSoftensWhatTheEdgeOfTheRadiusSees()
+        {
+            System.Func<int, int, Vector4> ledge = (x, y) => new Vector4(x * 0.05f, y * 0.05f, x >= Width / 2 ? 4.4f : 5f, 1f);
+            Vector4[] hard = RunScreenSpace(ledge, Vector3.back, 1f, 24, falloff: 0f);
+            Vector4[] soft = RunScreenSpace(ledge, Vector3.back, 1f, 24, falloff: 6f);
+
+            float hardEdge = 0f, softEdge = 0f;
+            int count = 0;
+            for (int y = 0; y < Height; y++)
+            {
+                for (int x = Width / 2 - 3; x < Width / 2; x++)
+                {
+                    hardEdge += hard[y * Width + x].x;
+                    softEdge += soft[y * Width + x].x;
+                    count++;
+                }
+            }
+
+            Assert.Greater(softEdge / count, hardEdge / count + 0.02f,
+                $"Falloff discounts occluders near the edge of the radius, so the ledge must darken less through it. Hard read {hardEdge / count:F3}, soft read {softEdge / count:F3}.");
         }
 
         [Test]

@@ -135,9 +135,17 @@ float2 BasisGILoadCoarse(float2 tracedPosition)
 /// This is the same crossing test and the same binary refine the plain march uses. The difference is only
 /// where it is spent: over a fraction of the ray rather than the whole of it, so the stride is about a
 /// texel instead of tens of them, and there is nothing thin enough to fall between two steps.
+///
+/// bracketFloor is the last position along the ray already tested against the depth buffer, carried by
+/// the caller ACROSS cells, and the sampling here lands its final step exactly on exitT. Between the two,
+/// a cell boundary stops being special: without them, each cell restarted its refine bracket at its own
+/// entry and left a jitter-sized sliver before it unsampled, so a crossing falling in that sliver either
+/// snapped its refined hit to the boundary - shearing the reflected image - or overshot the thickness
+/// test and was dropped. Both drew a line at EVERY cell boundary, evenly spaced across every reflective
+/// surface, at exactly the coarse block period.
 /// </summary>
 BasisGIHit BasisGIFineSegment(float2 origin, float2 direction, float2 size, float entryT, float exitT,
-    float invStartW, float invEndW, float rayLength, float noise, inout bool inFront)
+    float invStartW, float invEndW, float rayLength, float noise, inout bool inFront, inout float bracketFloor)
 {
     BasisGIHit hit;
     hit.valid = false;
@@ -145,12 +153,14 @@ BasisGIHit BasisGIFineSegment(float2 origin, float2 direction, float2 size, floa
     hit.distance = rayLength;
 
     float span = exitT - entryT;
-    float previousT = entryT;
+    float previousT = bracketFloor;
 
     UNITY_LOOP
     for (int step = 1; step <= BASISGI_FINE_STEPS; step++)
     {
-        float t = entryT + span * (((float)step - noise) / (float)BASISGI_FINE_STEPS);
+        // The denominator keeps the jitter while pinning the last step to exitT itself, so the walk hands
+        // the next cell a bracket that really ends where that cell begins.
+        float t = entryT + span * (((float)step - noise) / ((float)BASISGI_FINE_STEPS - noise));
         float2 position = origin + direction * t;
         float2 uv = position / size;
         if (any(uv < 0.0) || any(uv > 1.0)) { return hit; }
@@ -158,10 +168,20 @@ BasisGIHit BasisGIFineSegment(float2 origin, float2 direction, float2 size, floa
         float rayEye = 1.0 / max(BASISGI_EPSILON, lerp(invStartW, invEndW, t));
         // Sky needs no branch of its own here either: the sentinel leaves the ray in front, which is
         // exactly the state the explicit sky case used to set by hand before continuing.
+        //
+        // The pair is read as an INTERVAL: in front means before the nearest thing the texel holds,
+        // a crossing means past the furthest, and a ray BETWEEN the two is interleaved with the span -
+        // a grazing ray over its own floor, a silhouette's spread - which is not a crossing and not a
+        // reason to change the carried state. Answering the ambiguous band from a representative was a
+        // per-texel coin flip that landed in whole rows, and the evenly spaced lines it drew across
+        // every reflective surface vanished outright at Full resolution, where the flip has no room to
+        // exist. The diffuse pyramid keeps its two channels equal, so for it every test below is
+        // bit-for-bit the arithmetic it always ran.
         float2 sceneDepth = BasisGISampleTracedDepth(uv);
-        float delta = rayEye - sceneDepth.r;
-        bool crossed = inFront && delta > 0.0;
-        inFront = delta <= 0.0;
+        float thickness = BasisGIThicknessAt(sceneDepth.g);
+        bool crossed = inFront && rayEye > sceneDepth.g;
+        if (rayEye <= sceneDepth.r) { inFront = true; }
+        else if (rayEye > sceneDepth.g + thickness) { inFront = false; }
 
         // A CROSSING, not a proximity. Being within the thickness of a surface is not evidence of having
         // met it - the ray may have been behind that surface all along and merely passed close to its back.
@@ -175,7 +195,7 @@ BasisGIHit BasisGIFineSegment(float2 origin, float2 direction, float2 size, floa
         // already there, so the two were never comparable in absolute terms. Against a converged run of
         // this same estimator the march was right all along. Kept because a crossing test is the correct
         // formulation and it costs a bool, not because it fixed anything.
-        if (crossed && rayEye < sceneDepth.r + BasisGIThicknessAt(sceneDepth.r))
+        if (crossed && rayEye < sceneDepth.g + thickness)
         {
             float low = previousT;
             float high = t;
@@ -198,6 +218,7 @@ BasisGIHit BasisGIFineSegment(float2 origin, float2 direction, float2 size, floa
         previousT = t;
     }
 
+    bracketFloor = previousT;
     return hit;
 }
 
@@ -211,13 +232,32 @@ BasisGIHit BasisGIFineSegment(float2 origin, float2 direction, float2 size, floa
 /// by more than the thickness the crossing test would have accepted, it has passed clean through and out
 /// the far side. Everything else is a maybe, and a maybe is answered by looking properly.
 /// </summary>
-BasisGIHit BasisGIMarchHierarchical(float4 startScreen, float3 originWS, float3 directionWS, float rayLength, float noise, out bool leftScreen)
+/// startInFront is what the caller can honestly claim about the ray's first sample. A cosine ray leaves
+/// its surface steeply enough that it is in front of the depth buffer by its first test, and saying so
+/// lets a genuinely adjacent surface be hit at once. A mirror ray reflected off a floor seen at an angle
+/// hugs that floor for its first texels, and at a reduced trace resolution the representative depth under
+/// those texels can sit BEHIND the ray - an armed crossing state then declares a hit on the surface the
+/// ray just left, and every reflection becomes a reflection of its own floor. Passing false starts the
+/// state unarmed: nothing counts as a crossing until the ray has actually been observed in front once.
+///
+/// maxCells bounds the coarse walk, and it is a parameter because the two callers need different reach:
+/// the diffuse gather's bounce rays are a few metres and its ceiling was sized for them, but a mirror ray
+/// carries sixty-plus metres and can genuinely need to cross the whole screen - under the short ceiling it
+/// died a quarter of the way across, and every reflection ended on the same "reflections stop here" line.
+///
+/// observed is how much of the ray was actually tested against the depth buffer before the answer, as a
+/// fraction: one for a walk that ran to its end, left the screen having looked at everything on the way,
+/// or hit; less when the cell ceiling or the fine budget ran out first. A miss with observed below one is
+/// not evidence of sky - it is a ray the walk stopped looking at - and the reflection trace fades such an
+/// answer out by exactly this number rather than asserting a fallback along a hard budget boundary.
+BasisGIHit BasisGIMarchHierarchicalCore(bool startInFront, int maxCells, float4 startScreen, float3 originWS, float3 directionWS, float rayLength, float noise, out bool leftScreen, out float observed)
 {
     BasisGIHit hit;
     hit.valid = false;
     hit.uv = float2(0.0, 0.0);
     hit.distance = rayLength;
     leftScreen = false;
+    observed = 1.0;
 
     float4 endScreen = BasisGIWorldToScreen(originWS + directionWS * rayLength);
     if (startScreen.w <= BASISGI_EPSILON) { return hit; }
@@ -243,8 +283,12 @@ BasisGIHit BasisGIMarchHierarchical(float4 startScreen, float3 originWS, float3 
 
     // Whether the ray is currently in front of the depth buffer, carried across the WHOLE walk rather than
     // rebuilt inside each cell. This is what makes the test downstream a crossing test; see BasisGIFineSegment.
-    // The ray leaves a surface along its own normal, so it starts in front of it.
-    bool inFront = true;
+    bool inFront = startInFront;
+
+    // The last position along the ray already tested - or ruled out wholesale by a coarse skip - carried
+    // across cells so a crossing detected by a cell's first sample refines into the previous cell's tail
+    // instead of snapping to the boundary between them. See BasisGIFineSegment for the line this drew.
+    float bracketFloor = 0.0;
 
     // A ceiling on the fine walking one ray may pay for, in steps, across every cell it passes through.
     //
@@ -264,7 +308,7 @@ BasisGIHit BasisGIMarchHierarchical(float4 startScreen, float3 originWS, float3 
     int fineBudget = (int)max(BASISGI_RAY_STEPS * 4.0, 32.0);
 
     UNITY_LOOP
-    for (int cell = 0; cell < BASISGI_COARSE_MAX_CELLS; cell++)
+    for (int cell = 0; cell < maxCells; cell++)
     {
         if (t >= 1.0) { break; }
 
@@ -292,16 +336,20 @@ BasisGIHit BasisGIMarchHierarchical(float4 startScreen, float3 originWS, float3 
         if (inFrontOfEverything)
         {
             // Skipped because the ray stays nearer than anything in the block, so it leaves the block still
-            // in front. Skipping a cell must update the carried state exactly as walking it would have.
+            // in front. Skipping a cell must update the carried state exactly as walking it would have -
+            // and that includes the refine floor: a cell the ray crossed entirely in front of provably
+            // holds no crossing, so the floor may advance past it.
             inFront = true;
+            bracketFloor = exitT;
         }
         else if (behindEverything)
         {
             inFront = false;
+            bracketFloor = exitT;
         }
         else if (fineBudget > 0)
         {
-            BasisGIHit fine = BasisGIFineSegment(origin, direction, size, t, exitT, invStartW, invEndW, rayLength, noise, inFront);
+            BasisGIHit fine = BasisGIFineSegment(origin, direction, size, t, exitT, invStartW, invEndW, rayLength, noise, inFront, bracketFloor);
             if (fine.valid) { return fine; }
             fineBudget -= BASISGI_FINE_STEPS;
         }
@@ -309,14 +357,36 @@ BasisGIHit BasisGIMarchHierarchical(float4 startScreen, float3 originWS, float3 
         {
             // Out of budget. Keep crossing cells rather than ending the ray here: a ray that runs out still
             // has to be able to leave the screen and take the off screen fallback with it, and ending it
-            // early throws that away as well as the hit.
+            // early throws that away as well as the hit. From here on the walk is assuming rather than
+            // looking, and the observed fraction has to say so.
             inFront = false;
+            bracketFloor = exitT;
+            observed = min(observed, t);
         }
 
         t = exitT;
     }
 
+    // Ran out of cells with ray still to walk: everything past t was never looked at, and a miss reported
+    // from here must not carry the confidence of one that genuinely searched its whole path.
+    if (t < 1.0) { observed = min(observed, t); }
+
     return hit;
+}
+
+/// <summary>The march at the diffuse gather's own ceiling, exactly as it always ran - the bounce rays it
+/// walks are a few metres and never needed more.</summary>
+BasisGIHit BasisGIMarchHierarchicalFrom(bool startInFront, float4 startScreen, float3 originWS, float3 directionWS, float rayLength, float noise, out bool leftScreen)
+{
+    float observed;
+    return BasisGIMarchHierarchicalCore(startInFront, BASISGI_COARSE_MAX_CELLS, startScreen, originWS, directionWS, rayLength, noise, leftScreen, observed);
+}
+
+BasisGIHit BasisGIMarchHierarchical(float4 startScreen, float3 originWS, float3 directionWS, float rayLength, float noise, out bool leftScreen)
+{
+    // The cosine gather's original contract, unchanged: its ray leaves the surface along a lobe around the
+    // normal, so it genuinely starts in front - and saying so is what lets contact geometry be hit at once.
+    return BasisGIMarchHierarchicalFrom(true, startScreen, originWS, directionWS, rayLength, noise, leftScreen);
 }
 
 /// <summary>

@@ -45,6 +45,23 @@ float4 BasisGILoadHistory(float2 uv)
 /// better rather than a trade: where a renderer has no motion pass of its own URP has already written the
 /// camera's motion into those texels, so the fallback is the matrix result, arrived at by other means.
 /// </summary>
+/// <summary>The matrix half of the reprojection, callable on its own: where a world point was on screen
+/// last frame under the stored view projection, regardless of what the motion vector keyword says. The
+/// specular temporal reprojects a VIRTUAL point through this directly - motion vectors describe the
+/// surface's motion, which is exactly the thing a reflected image does not follow.</summary>
+bool BasisGIReprojectMatrix(float3 worldPosition, out float2 previousUv)
+{
+    float4 previousClip = mul(BasisGIPreviousViewProjection(), float4(worldPosition, 1.0));
+    if (previousClip.w <= BASISGI_EPSILON) { previousUv = float2(0.0, 0.0); return false; }
+
+    previousUv = previousClip.xy / previousClip.w * 0.5 + 0.5;
+#if UNITY_UV_STARTS_AT_TOP
+    previousUv.y = 1.0 - previousUv.y;
+#endif
+
+    return all(previousUv >= 0.0) && all(previousUv <= 1.0);
+}
+
 bool BasisGIReproject(float2 uv, float3 worldPosition, out float2 previousUv)
 {
 #if defined(_BASISGI_MOTION_VECTORS)
@@ -52,17 +69,10 @@ bool BasisGIReproject(float2 uv, float3 worldPosition, out float2 previousUv)
     // previous position is this pixel minus what the texel holds, and there is no second flip to apply.
     float2 motion = SAMPLE_TEXTURE2D_X_LOD(_BasisGIMotion, sampler_PointClamp, UnityStereoTransformScreenSpaceTex(uv), 0).xy;
     previousUv = uv - motion;
-#else
-    float4 previousClip = mul(BasisGIPreviousViewProjection(), float4(worldPosition, 1.0));
-    if (previousClip.w <= BASISGI_EPSILON) { previousUv = uv; return false; }
-
-    previousUv = previousClip.xy / previousClip.w * 0.5 + 0.5;
-    #if UNITY_UV_STARTS_AT_TOP
-    previousUv.y = 1.0 - previousUv.y;
-    #endif
-#endif
-
     return all(previousUv >= 0.0) && all(previousUv <= 1.0);
+#else
+    return BasisGIReprojectMatrix(worldPosition, previousUv);
+#endif
 }
 
 struct BasisGINeighbourhood
@@ -177,7 +187,13 @@ BasisGITemporalOutput BasisGITemporal(float2 uv)
     // spends most of its frame in.
     bool isSky = BasisGIIsSky(rawDepth);
     BasisGINeighbourhood hood = BasisGIGather(uv, worldPosition, planeNormal, eyeDepth);
-    float4 current = isSky ? BasisGILoadIndirect(uv) : hood.mean;
+    // The screen space reflection wrote how far beyond the surface each pixel's image sits; its presence
+    // is also what says "this accumulation is a reflection". A reflection is an image, not an estimate -
+    // its neighbours are other parts of the picture rather than independent samples of this pixel, so the
+    // mean that denoises the diffuse gather only blurs it. The neighbourhood still builds the clip box
+    // below, which is the job it can still do for an image.
+    bool specular = _BasisGISpecHitDistanceValid >= 0.5;
+    float4 current = (isSky || specular) ? BasisGILoadIndirect(uv) : hood.mean;
     float luminance = Luminance(max(0.0, current.rgb));
 
     output.indirect = current;
@@ -191,11 +207,38 @@ BasisGITemporalOutput BasisGITemporal(float2 uv)
     if (isSky || _BasisGIHistoryValid < 0.5) { return output; }
 
     float2 previousUv;
-    if (!BasisGIReproject(uv, worldPosition, previousUv)) { return output; }
+    bool onScreen;
+    UNITY_BRANCH
+    if (specular)
+    {
+        // What this pixel shows is not the surface: it is the reflected image, and that image sits at the
+        // hit's distance BEYOND the surface along the view ray. Reprojecting by the surface carries the
+        // camera's rotation correctly and its translation wrongly - the history lands where the surface
+        // went while the picture went somewhere else, and every step of head movement smears the
+        // reflection by the difference. The virtual point carries both. A reflected sky holds the far
+        // sentinel and lands on pure rotation, which is exact for it. Matrix path always: this pass never
+        // binds motion vectors, and they would describe the wrong motion if it did.
+        float hitDistance = SAMPLE_TEXTURE2D_X_LOD(_BasisGISpecHitDistance, sampler_PointClamp, UnityStereoTransformScreenSpaceTex(uv), 0).r;
+        // The eye this depth was rendered from - the inverse view's translation - rather than
+        // GetCameraPositionWS, which this include chain does not carry and which is not per eye anyway.
+        float3 viewRay = normalize(worldPosition - UNITY_MATRIX_I_V._m03_m13_m23);
+        onScreen = BasisGIReprojectMatrix(worldPosition + viewRay * hitDistance, previousUv);
+    }
+    else
+    {
+        onScreen = BasisGIReproject(uv, worldPosition, previousUv);
+    }
+    if (!onScreen) { return output; }
 
     float4 historyStats = BasisGILoadHistoryStats(previousUv);
-    float relativeDelta = abs(historyStats.r - eyeDepth) / max(eyeDepth, BASISGI_EPSILON);
-    if (historyStats.r <= 0.0 || relativeDelta > BASISGI_DEPTH_REJECTION) { return output; }
+    if (historyStats.r <= 0.0) { return output; }
+    // The depth gate asks "is this still the same surface" - the right question for an accumulation
+    // anchored to its surface, and the wrong one for a reflection, whose history was deliberately fetched
+    // from wherever the virtual image sat last frame: a different point of the mirror, at a different
+    // surface depth, holding exactly the history wanted. The clip box below is what rejects a stale
+    // reflection instead.
+    float relativeDelta = specular ? 0.0 : abs(historyStats.r - eyeDepth) / max(eyeDepth, BASISGI_EPSILON);
+    if (relativeDelta > BASISGI_DEPTH_REJECTION) { return output; }
 
     float4 history = BasisGILoadHistory(previousUv);
 

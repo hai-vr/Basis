@@ -19,6 +19,15 @@ public sealed class BasisGlobalIlluminationHistory
     public bool SpecularAllocated;
     public bool SpecularValid;
     public int SpecularWrite;
+    // The camera colour as it stood at the end of the previous frame, for the screen space reflection
+    // trace. The trace runs before the opaque draws - the opaque shaders are what consume its result - so
+    // the only colour in existence for it to read is the one the previous frame finished with, reprojected
+    // through the stored view projection. Full camera resolution, in the camera's own format: a reflection
+    // is a recognisable image, and a reduced copy would soften every reflection the trace produces.
+    public RTHandle PriorColor;
+    public bool PriorColorAllocated;
+    public int LastPriorColorFrame = -1;
+    public int PriorColorStride;
     public Matrix4x4[] PreviousSpecularViewProjection = new Matrix4x4[2] { Matrix4x4.identity, Matrix4x4.identity };
     // Reflections and the diffuse bounce are written by two passes at different points in the frame, and
     // either can be running without the other, so they cannot share a frame stamp or a buffer parity.
@@ -76,6 +85,15 @@ public sealed class BasisGlobalIlluminationHistory
     }
 
     /// <summary>
+    /// Whether the stored camera colour is recent enough for the reflection trace to reproject into. The
+    /// same cadence-aware window the accumulations use, because the same rate limited cameras write it.
+    /// </summary>
+    public bool PriorColorContiguous(int frame)
+    {
+        return PriorColorAllocated && LastPriorColorFrame >= 0 && frame - LastPriorColorFrame <= AllowedGap(PriorColorStride);
+    }
+
+    /// <summary>
     /// Stamps this render and records how far it was from the one before it.
     ///
     /// A SECOND render of the same camera inside one frame is not a cadence sample and is deliberately not
@@ -94,6 +112,34 @@ public sealed class BasisGlobalIlluminationHistory
     {
         if (LastSpecularFrame >= 0 && frame > LastSpecularFrame) { SpecularStride = Mathf.Clamp(frame - LastSpecularFrame, 0, MaxGap); }
         LastSpecularFrame = frame;
+    }
+
+    public void RecordPriorColorFrame(int frame)
+    {
+        if (LastPriorColorFrame >= 0 && frame > LastPriorColorFrame) { PriorColorStride = Mathf.Clamp(frame - LastPriorColorFrame, 0, MaxGap); }
+        LastPriorColorFrame = frame;
+    }
+
+    /// <summary>
+    /// The end-of-frame colour target the reflection trace reads next frame. Kept in the camera's own
+    /// descriptor - format included - so the capture is a plain resolve rather than a conversion. A resize
+    /// or a format change invalidates the stamp rather than the handle: the new target holds nothing until
+    /// the capture pass writes it, and a trace that read it before then would reflect an uninitialised
+    /// texture rather than a stale frame.
+    /// </summary>
+    public bool EnsurePriorColor(in RenderTextureDescriptor cameraDescriptor)
+    {
+        RenderTextureDescriptor descriptor = cameraDescriptor;
+        descriptor.msaaSamples = 1;
+        descriptor.depthStencilFormat = GraphicsFormat.None;
+        descriptor.depthBufferBits = 0;
+        descriptor.useMipMap = false;
+        descriptor.autoGenerateMips = false;
+
+        bool reallocated = RenderingUtils.ReAllocateHandleIfNeeded(ref PriorColor, in descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_BasisGIHistoryPriorColor");
+        PriorColorAllocated = true;
+        if (reallocated) { LastPriorColorFrame = -1; }
+        return reallocated;
     }
 
     public static int ComputeHash(Camera camera, XRPass xr)
@@ -122,15 +168,23 @@ public sealed class BasisGlobalIlluminationHistory
             // reflections with the diffuse gather switched off never moves LastFrame, and pruning it would
             // release the accumulation out from under a pass that is still using it every frame.
             BasisGlobalIlluminationHistory store = entry.Value;
-            int touched = Mathf.Max(store.LastFrame, store.LastSpecularFrame);
+            int specularTouched = Mathf.Max(store.LastSpecularFrame, store.LastPriorColorFrame);
+            int touched = Mathf.Max(store.LastFrame, specularTouched);
             if (touched >= 0 && frame - touched > maxAge) { pruneScratch.Add(entry.Key); continue; }
 
             // A camera that is still rendering but stopped asking for reflections - the volume switched off,
-            // the player walked out of it - hands those two targets back on the same timer, without taking
+            // the player walked out of it - hands those targets back on the same timer, without taking
             // the diffuse accumulation with them.
-            if (store.SpecularAllocated && store.LastSpecularFrame >= 0 && frame - store.LastSpecularFrame > maxAge)
+            if ((store.SpecularAllocated || store.PriorColorAllocated) && specularTouched >= 0 && frame - specularTouched > maxAge)
             {
                 store.ReleaseSpecular();
+            }
+            // The prior colour alone can also go stale while reflections stay on: a mode switch to ray
+            // traced keeps stamping the accumulation but stops capturing colour, and without this the one
+            // camera-sized target in the whole store would ride along unused for as long as the mode held.
+            else if (store.PriorColorAllocated && store.LastPriorColorFrame >= 0 && frame - store.LastPriorColorFrame > maxAge)
+            {
+                store.ReleasePriorColor();
             }
         }
         for (int index = 0; index < pruneScratch.Count; index++)
@@ -220,6 +274,16 @@ public sealed class BasisGlobalIlluminationHistory
         }
         SpecularAllocated = false;
         SpecularValid = false;
+        ReleasePriorColor();
+    }
+
+    internal void ReleasePriorColor()
+    {
+        PriorColor?.Release();
+        PriorColor = null;
+        PriorColorAllocated = false;
+        LastPriorColorFrame = -1;
+        PriorColorStride = 0;
     }
 
     public void Release()

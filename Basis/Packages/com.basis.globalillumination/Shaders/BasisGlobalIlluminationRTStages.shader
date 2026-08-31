@@ -150,6 +150,44 @@ Shader "Hidden/Basis/GlobalIlluminationRT"
             }
             ENDHLSL
         }
+
+        // Pass 2, appended rather than inserted: the pass indices are constants on the reflection pass and
+        // reordering them silently repoints the stages above. Not a ray tracing stage at all - this is the
+        // SCREEN SPACE reflection trace, and it lives in this shader because the reflection pass already
+        // owns this material and a trace that exists to run on GPUs without ray tracing should not require
+        // a second material to load. Target 3.5 like the main shader's own march, for the same reason.
+        Pass
+        {
+            Name "BasisGISSRTrace"
+            Blend Off
+
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #pragma target 3.5
+            #pragma multi_compile_local_fragment _ _BASISGI_FALLBACK_SKY _BASISGI_FALLBACK_PROBE
+            #pragma multi_compile_local_fragment _ _BASISGI_HIERARCHICAL_MARCH
+            #pragma multi_compile_local_fragment _ _BASISGI_NORMALS_TEXTURE
+
+            #include "./BasisGlobalIlluminationSSR.hlsl"
+
+            struct SSROutput
+            {
+                float4 traced : SV_Target0;
+                // How far beyond the surface the reflected image sits, for the temporal filter's virtual
+                // point reprojection; the sky sentinel where there is no found surface behind the answer.
+                float hitDistance : SV_Target1;
+            };
+
+            SSROutput Frag(Varyings input)
+            {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+                SSROutput output;
+                output.traced = BasisGISSRTrace(input.texcoord, input.positionCS.xy, output.hitDistance);
+                return output;
+            }
+            ENDHLSL
+        }
     }
 
     Fallback Off

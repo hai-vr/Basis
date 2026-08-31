@@ -87,6 +87,7 @@ Shader "Hidden/Basis/GlobalIllumination"
             #pragma fragment Frag
             #pragma target 3.5
             #pragma multi_compile_local_fragment _ _BASISGI_BILATERAL_UPSAMPLE
+            #pragma multi_compile_local_fragment _ _BASISGI_LIGHTMAP_MASK
 
             #include "./BasisGlobalIlluminationComposite.hlsl"
 
@@ -109,6 +110,7 @@ Shader "Hidden/Basis/GlobalIllumination"
             #pragma target 3.5
             #pragma multi_compile_local_fragment _ _BASISGI_NORMALS_TEXTURE
             #pragma multi_compile_local_fragment _ _BASISGI_BILATERAL_UPSAMPLE
+            #pragma multi_compile_local_fragment _ _BASISGI_LIGHTMAP_MASK
 
             #include "./BasisGlobalIlluminationComposite.hlsl"
 
@@ -191,12 +193,56 @@ Shader "Hidden/Basis/GlobalIllumination"
             /// of those invented crossings, where the uniform march it is measured against strides past most
             /// of them - which is why the error showed up in one and not the other. A representative texel is
             /// unbiased, and at Full resolution it is the identical texel the march used to read.
+            ///
+            /// The REFLECTION pyramid seeds differently, and the flag below is that choice. A mirror ray
+            /// grazes its own floor for dozens of texels, and against a representative the ray's relation to
+            /// the surface span under each texel is a coin flip that lands in whole rows - the evenly spaced
+            /// lines across every reflective surface came from exactly this, proven by their disappearing
+            /// entirely at Full resolution. So the specular pyramid carries the block's true (nearest,
+            /// furthest) interval, and the mirror march reads them as an interval: in front means before the
+            /// nearest, a crossing means past the furthest, and in between is AMBIGUOUS - carried, not
+            /// guessed. A block that borders sky keeps the sentinel as its furthest, which makes silhouette
+            /// edge texels uncrossable rather than sometimes-hit: at this resolution the depth buffer cannot
+            /// say row by row whether a ray clears an edge, and refusing to answer is what removes the alias.
+            /// The diffuse gather keeps the representative - its bias measurement above still stands - and
+            /// because its two channels stay equal, the interval tests degrade to the exact arithmetic the
+            /// march always ran.
+            float _BasisGIDepthSeedConservative;
+
             float2 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
                 int span = clamp((int)BASISGI_COARSE_SPAN, 1, 8);
                 int2 limit = int2(BASISGI_COARSE_SOURCE_SIZE) - 1;
+
+                UNITY_BRANCH
+                if (_BasisGIDepthSeedConservative > 0.5)
+                {
+                    int2 base = int2(input.positionCS.xy) * span;
+                    float nearest = BASISGI_SKY_DEPTH;
+                    float furthest = 0.0;
+                    bool bordersSky = false;
+
+                    UNITY_LOOP
+                    for (int y = 0; y < span; y++)
+                    {
+                        UNITY_LOOP
+                        for (int x = 0; x < span; x++)
+                        {
+                            float raw = LOAD_TEXTURE2D_X(_CameraDepthTexture, min(base + int2(x, y), limit)).r;
+                            if (BasisGIIsSky(raw)) { bordersSky = true; continue; }
+                            float eye = BasisGILinearEyeDepth(raw);
+                            nearest = min(nearest, eye);
+                            furthest = max(furthest, eye);
+                        }
+                    }
+
+                    if (nearest >= BASISGI_SKY_DEPTH) { return float2(BASISGI_SKY_DEPTH, 0.0); }
+                    if (bordersSky) { furthest = BASISGI_SKY_DEPTH; }
+                    return float2(nearest, furthest);
+                }
+
                 // Where a point sample at the centre of this traced texel lands: floor((i + 0.5) * span).
                 int2 coord = min(int2(input.positionCS.xy) * span + (span >> 1), limit);
 
@@ -248,6 +294,38 @@ Shader "Hidden/Basis/GlobalIllumination"
 
                 return float2(closest, furthest);
             }
+            ENDHLSL
+        }
+
+        // Pass 9, appended for the same reason pass 6 was. The one pass here that draws GEOMETRY rather
+        // than a fullscreen triangle: the opaque renderer list, redrawn at traced resolution with this as
+        // the override material, into a mask cleared to ONE. A lightmapped surface writes zero; everything
+        // else writes one over the one already there. The polarity is the load-bearing decision: the first
+        // version of this pass cleared to zero-means-lightmapped, and every way it could fail to draw - a
+        // BatchRendererGroup refusing a variant, an empty list, a culled pass - read as "global
+        // illumination is gone". This way round, every failure leaves the image exactly as it was before
+        // the mask existed.
+        //
+        // Blit.hlsl must NOT be included here: it defines its own Vert, and under DOTS_INSTANCING_ON its
+        // include order breaks EntityLighting's lightmap array macros. That is what the depth-only header
+        // exists for, and the DOTS include below is what keeps the BatchRendererGroup - the GPU Resident
+        // Drawer runs on desktop - drawing this pass at all.
+        Pass
+        {
+            Name "BasisGILightmapMask"
+            Blend Off
+            ColorMask R
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma vertex MaskVert
+            #pragma fragment MaskFrag
+            #pragma target 3.5
+            #pragma multi_compile _ LIGHTMAP_ON
+            #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
+
+            #include "./BasisGlobalIlluminationLightmapMask.hlsl"
             ENDHLSL
         }
     }

@@ -347,6 +347,15 @@ namespace Basis.BasisUI
         // the doubled light is simply the look being asked for. Screen space has no equivalent: it always
         // reads whatever is already on screen, baked-emissive or not, so this only applies to Ray Traced.
         public static BasisSettingsBinding<bool> GlobalIlluminationIgnoreBakedEmission = new("globalilluminationignorebakedemission", new BasisPlatformDefault<bool>(false));
+        // A lightmapped surface already carries its own bounce and its own ambient occlusion in the
+        // lightmap, so the composite re-applying both is double counting - the reason a carefully baked
+        // world reads blown out and crushed at once with the effect on. This is how much such a surface
+        // still receives; dynamic surfaces always receive in full, and 1 restores the old behaviour.
+        public static BasisSettingsBinding<float> GlobalIlluminationLightmappedReceive = new("globalilluminationlightmappedreceive", new BasisPlatformDefault<float>(0.25f));
+        // The bottom is not zero by the same rule as every other slider - and here the "off" of this
+        // setting is the TOP anyway: 1 restores the old un-masked behaviour.
+        public const float GI_LIGHTMAPPED_RECEIVE_MIN = 0.05f;
+        public const float GI_LIGHTMAPPED_RECEIVE_MAX = 1f;
         public static BasisSettingsBinding<float> GlobalIlluminationIntensity = new("globalilluminationintensity", new BasisPlatformDefault<float>(1f));
         public const float GI_INTENSITY_MIN = 0.1f;
         public const float GI_INTENSITY_MAX = 4f;
@@ -394,6 +403,27 @@ namespace Basis.BasisUI
         /// without reflections, and reflections are worth having over a screen space diffuse gather.
         /// </summary>
         public static BasisSettingsBinding<bool> GlobalIlluminationSpecular = new("globalilluminationspecular", new BasisPlatformDefault<bool>(false));
+        // The reflection's own look controls, shown while the toggle above is on. Defaults match the
+        // settings object's own, so a player who never touches them gets exactly what the toggle alone
+        // used to give.
+        public static BasisSettingsBinding<float> GlobalIlluminationSpecularIntensity = new("globalilluminationspecularintensity", new BasisPlatformDefault<float>(1f));
+        public const float GI_SPECULAR_INTENSITY_MIN = 0.1f;
+        public const float GI_SPECULAR_INTENSITY_MAX = 4f;
+        // Above this roughness the traced mirror stops standing in for the lobe and the surface keeps its
+        // reflection probe. 1 means every surface takes the trace; the floor of the range is the settings
+        // object's own, below which nothing reflects and the toggle would read as broken.
+        public static BasisSettingsBinding<float> GlobalIlluminationSpecularMaxRoughness = new("globalilluminationspecularmaxroughness", new BasisPlatformDefault<float>(0.5f));
+        public const float GI_SPECULAR_MAX_ROUGHNESS_MIN = 0.05f;
+        public const float GI_SPECULAR_MAX_ROUGHNESS_MAX = 1f;
+        // A reflection carries much further than a bounce - the far wall of a room is a bounce nobody can
+        // see and a reflection everybody can - so the mirror ray gets its own reach, panel-capped at 256
+        // against the field's own 512 ceiling the way the diffuse ray length is panel-capped.
+        public static BasisSettingsBinding<float> GlobalIlluminationSpecularRayLength = new("globalilluminationspecularraylength", new BasisPlatformDefault<float>(64f));
+        public const float GI_SPECULAR_RAY_LENGTH_MIN = 8f;
+        public const float GI_SPECULAR_RAY_LENGTH_MAX = 256f;
+        public static BasisSettingsBinding<float> GlobalIlluminationSpecularFadeDistance = new("globalilluminationspecularfadedistance", new BasisPlatformDefault<float>(80f));
+        public const float GI_SPECULAR_FADE_DISTANCE_MIN = 8f;
+        public const float GI_SPECULAR_FADE_DISTANCE_MAX = 256f;
         // Which layers the ray traced trace walks. World And Avatars is what it walked before this was a
         // choice; narrowing it to Avatars is the cheap option, because the acceleration structure then
         // holds a handful of capsules instead of the whole room.
@@ -1841,7 +1871,7 @@ namespace Basis.BasisUI
         // bone). Swinging that lever by the WHOLE gaze assumes a nod pivots at the neck bone; cervical extension
         // is short and a look-up is mostly thoracic arching, so the skull barely slides back and the estimated
         // neck walks forward and up instead, and the chest chord strung under it follows. Removing 0.65 leaves a
-        // 0.35 carry, matching DesktopHeadSwingBackward -- the same physiology measured from the eye end. 0 = the
+        // 0.35 carry -- the physiological look-up share. 0 = the
         // old rigid re-attachment (a true off switch). Look-down and pure yaw are untouched at any value.
         public static BasisSettingsBinding<float> FBIKNeckExtensionDamp = new("fbikneckextensiondamp", new BasisPlatformDefault<float>(0.65f));
         // Flexion is the look-DOWN half of the same lever. It was undamped, which left the neck estimate --
@@ -2030,8 +2060,8 @@ namespace Basis.BasisUI
         // sideways as "the hips jut out left and right", forward/back as a pelvis that wanders on a glance.
         //
         // This removes both halves, and it must remove both halves of each: the PITCH swing is modelled
-        // (DesktopHeadSwingBackward supplies the look-up share, so the VR and desktop halves of that model
-        // cannot drift apart), while the YAW arc is cancelled exactly -- the reference is carried back onto
+        // (VR only — desktop subtracts the exact swing BasisDesktopEye applied via KnownEyeSwing, so the
+        // add and remove sides cannot drift apart there), while the YAW arc is cancelled exactly -- the reference is carried back onto
         // the neck, the pivot the head actually turns about, and the pelvis's own anchor arm is re-measured
         // from that same pivot so the two cancel algebraically at any yaw. Both ends move together on this
         // one number, which is why it is one number. 1 = leash only real travel; 0 = the old behaviour.
@@ -2401,6 +2431,7 @@ namespace Basis.BasisUI
             GlobalIlluminationResolution.LoadBindingValue();
             GlobalIlluminationFallback.LoadBindingValue();
             GlobalIlluminationIgnoreBakedEmission.LoadBindingValue();
+            GlobalIlluminationLightmappedReceive.LoadBindingValue();
             GlobalIlluminationIntensity.LoadBindingValue();
             GlobalIlluminationSaturation.LoadBindingValue();
             GlobalIlluminationObscurance.LoadBindingValue();
@@ -2415,6 +2446,10 @@ namespace Basis.BasisUI
             GlobalIlluminationReflectionProbes.LoadBindingValue();
             GlobalIlluminationMirrors.LoadBindingValue();
             GlobalIlluminationSpecular.LoadBindingValue();
+            GlobalIlluminationSpecularIntensity.LoadBindingValue();
+            GlobalIlluminationSpecularMaxRoughness.LoadBindingValue();
+            GlobalIlluminationSpecularRayLength.LoadBindingValue();
+            GlobalIlluminationSpecularFadeDistance.LoadBindingValue();
             GlobalIlluminationLayers.LoadBindingValue();
             GlobalIlluminationObscuranceRadius.LoadBindingValue();
             GlobalIlluminationFadeDistance.LoadBindingValue();

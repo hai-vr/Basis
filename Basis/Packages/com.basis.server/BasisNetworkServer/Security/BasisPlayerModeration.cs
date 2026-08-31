@@ -380,7 +380,7 @@ namespace BasisNetworkServer.Security
 
                 case AdminRequestMode.GlobalToggleThirdPerson:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
-                        HandleGlobalToggle(peer, "Third-person camera", BasisGlobalLockManager.ToggleThirdPerson()));
+                        HandleGlobalFeatureToggle(peer, "The third-person camera", BasisGlobalLockManager.ToggleThirdPerson()));
                     break;
 
                 case AdminRequestMode.GlobalToggleAdditionalAvatarDataLock:
@@ -428,7 +428,7 @@ namespace BasisNetworkServer.Security
 
                 case AdminRequestMode.GlobalToggleCilbox:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
-                        HandleGlobalToggle(peer, "Avatar Cilbox code", BasisGlobalLockManager.ToggleCilbox()));
+                        HandleGlobalFeatureToggle(peer, "Avatar Cilbox code", BasisGlobalLockManager.ToggleCilbox()));
                     break;
 
                 case AdminRequestMode.GlobalToggleImages:
@@ -438,37 +438,37 @@ namespace BasisNetworkServer.Security
 
                 case AdminRequestMode.GlobalToggleEndEffectorIK:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
-                        HandleGlobalToggle(peer, "Remote end-effector IK", BasisGlobalLockManager.ToggleEndEffectorIK()));
+                        HandleGlobalFeatureToggle(peer, "Remote end-effector IK", BasisGlobalLockManager.ToggleEndEffectorIK()));
                     break;
 
                 case AdminRequestMode.GlobalToggleTextChat:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
-                        HandleGlobalToggle(peer, "Text chat", BasisGlobalLockManager.ToggleTextChat()));
+                        HandleGlobalFeatureToggle(peer, "Text chat", BasisGlobalLockManager.ToggleTextChat()));
                     break;
 
                 case AdminRequestMode.GlobalToggleVoiceChat:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
-                        HandleGlobalToggle(peer, "Voice chat", BasisGlobalLockManager.ToggleVoiceChat()));
+                        HandleGlobalFeatureToggle(peer, "Voice chat", BasisGlobalLockManager.ToggleVoiceChat()));
                     break;
 
                 case AdminRequestMode.GlobalToggleMediaPlayer:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
-                        HandleGlobalToggle(peer, "Media player", BasisGlobalLockManager.ToggleMediaPlayer()));
+                        HandleGlobalFeatureToggle(peer, "Media players", BasisGlobalLockManager.ToggleMediaPlayer()));
                     break;
 
                 case AdminRequestMode.GlobalToggleCameraCapture:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
-                        HandleGlobalToggle(peer, "Camera capture", BasisGlobalLockManager.ToggleCameraCapture()));
+                        HandleGlobalFeatureToggle(peer, "Camera capture", BasisGlobalLockManager.ToggleCameraCapture()));
                     break;
 
                 case AdminRequestMode.GlobalTogglePropGrabbing:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
-                        HandleGlobalToggle(peer, "Prop grabbing", BasisGlobalLockManager.TogglePropGrabbing()));
+                        HandleGlobalFeatureToggle(peer, "Prop grabbing", BasisGlobalLockManager.TogglePropGrabbing()));
                     break;
 
                 case AdminRequestMode.GlobalToggleSafeDisplayNames:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
-                        HandleGlobalToggle(peer, "Safe display names", BasisGlobalLockManager.ToggleSafeDisplayNames()));
+                        HandleGlobalProtectionToggle(peer, "Safe display names", BasisGlobalLockManager.ToggleSafeDisplayNames()));
                     break;
 
                 case AdminRequestMode.SetGlobalAvatarScaleLimits:
@@ -1327,6 +1327,7 @@ namespace BasisNetworkServer.Security
             NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.AdminChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
 
+            PersistGlobalLockState();
             BasisGlobalLockManager.BroadcastLockState();
         }
 
@@ -1334,6 +1335,28 @@ namespace BasisNetworkServer.Security
         {
             string state = nowLocked ? "DISABLED" : "ENABLED";
             HandleGlobalStateNotification(peer, $"{contentType} loading has been globally {state} by an admin.");
+        }
+
+        /// <summary>
+        /// Notification for locks over a live feature rather than content loading (chat, voice,
+        /// grabbing, ...). HandleGlobalToggle's "<c>X loading</c>" template reads as nonsense for
+        /// these — nothing is being loaded — so they get a plain "<c>X has been ... DISABLED</c>".
+        /// </summary>
+        private static void HandleGlobalFeatureToggle(NetPeer peer, string featureName, bool nowLocked)
+        {
+            string state = nowLocked ? "DISABLED" : "ENABLED";
+            HandleGlobalStateNotification(peer, $"{featureName} has been globally {state} by an admin.");
+        }
+
+        /// <summary>
+        /// Notification for a protection that is ENABLED when its flag is set — the opposite sense
+        /// to every lock above, so the shared templates would announce the exact inverse of what
+        /// the admin just did.
+        /// </summary>
+        private static void HandleGlobalProtectionToggle(NetPeer peer, string protectionName, bool nowEnforced)
+        {
+            string state = nowEnforced ? "ENABLED" : "DISABLED";
+            HandleGlobalStateNotification(peer, $"{protectionName} has been globally {state} by an admin.");
         }
 
         /// <summary>
@@ -1357,7 +1380,19 @@ namespace BasisNetworkServer.Security
             NetworkServer.ReturnWriter(writer);
 
             // Broadcast updated lock state so clients track it
+            PersistGlobalLockState();
             BasisGlobalLockManager.BroadcastLockState();
+        }
+
+        /// <summary>
+        /// Mirrors the live global lock state onto Configuration and writes config.xml. Every lock
+        /// seeds itself from config at boot, so a toggle that isn't persisted here silently reverts
+        /// on the next restart.
+        /// </summary>
+        private static void PersistGlobalLockState()
+        {
+            BasisGlobalLockManager.WriteToConfig(NetworkServer.Configuration);
+            SaveConfig();
         }
 
         private static void HandleHeadlessAudioSet(NetPeer peer, NetPacketReader reader)
@@ -1403,6 +1438,9 @@ namespace BasisNetworkServer.Security
                 BasisHeadlessConnectionPolicyManager.DisconnectConnectedHeadlessPeers();
             }
 
+            // Seeded from Configuration.DisallowHeadless at boot — persist or it reverts on restart.
+            NetworkServer.Configuration.DisallowHeadless = BasisHeadlessConnectionPolicyManager.HeadlessDisallowed;
+            SaveConfig();
             BasisHeadlessConnectionPolicyManager.BroadcastState();
         }
 
@@ -1438,6 +1476,7 @@ namespace BasisNetworkServer.Security
             BasisGlobalLockManager.SetCameraMetadataDisallowMask(mask);
             BNL.Log($"Camera photo-metadata disallow mask set to {mask}.");
             SendBackMessage(peer, $"Camera metadata policy updated (mask {mask}).");
+            PersistGlobalLockState();
             BasisGlobalLockManager.BroadcastLockState();
         }
 

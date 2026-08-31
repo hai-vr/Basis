@@ -97,6 +97,7 @@ public sealed class BasisGlobalIlluminationSettings
     /// </summary>
     public const float ObscuranceRadiusMin = 0.05f, ObscuranceRadiusMax = 4f;
     public const float FadeDistanceMin = 1f, FadeDistanceMax = 512f;
+    public const float LightmappedReceiveMin = 0f, LightmappedReceiveMax = 1f;
     public const float RayDistanceBiasMin = 0f, RayDistanceBiasMax = 0.02f;
     public const float BounceThresholdMin = 0.001f, BounceThresholdMax = 0.5f;
 
@@ -166,6 +167,20 @@ public sealed class BasisGlobalIlluminationSettings
     /// is what keeps this from stealing light in a world nobody ever baked.
     /// </summary>
     public bool respectBakedEmission = true;
+
+    /// <summary>
+    /// How much of the effect a LIGHTMAPPED surface still receives. Its own bounce and its own ambient
+    /// occlusion are already in its lightmap, so compositing more of both onto it is double counting - a
+    /// carefully baked world reads blown out and crushed at the same time. Dynamic surfaces - avatars,
+    /// props, anything with no lightmap - always receive in full; this floor is what the baked geometry
+    /// keeps, because the bounce an avatar throws onto a wall is real light no bake ever saw.
+    ///
+    /// One disables the whole path, mask pass included, and is exactly the behaviour before this existed.
+    /// The mask only renders at all in a scene that actually has lightmaps, so an unbaked world never pays
+    /// for it whatever this is set to. Applied at composite time in both modes; the gather still reads
+    /// lightmapped surfaces as light sources either way.
+    /// </summary>
+    public float lightmappedReceive = 0.25f;
 
     /// <summary>
     /// How much of an emissive surface's brightness is allowed into the bounce, split by what the surface
@@ -274,6 +289,7 @@ public sealed class BasisGlobalIlluminationSettings
         obscuranceRadius = Mathf.Clamp(obscuranceRadius, ObscuranceRadiusMin, ObscuranceRadiusMax);
         maxRayLength = Mathf.Clamp(maxRayLength, RayLengthMin, RayLengthMax);
         fadeDistance = Mathf.Clamp(fadeDistance, FadeDistanceMin, FadeDistanceMax);
+        lightmappedReceive = Mathf.Clamp(lightmappedReceive, LightmappedReceiveMin, LightmappedReceiveMax);
         rayCount = Mathf.Clamp(rayCount, RayCountMin, RayCountMax);
         rayMaxSteps = Mathf.Clamp(rayMaxSteps, RayStepsMin, RayStepsMax);
         thickness = Mathf.Clamp(thickness, ThicknessMin, ThicknessMax);
@@ -316,6 +332,7 @@ public sealed class BasisGlobalIlluminationSettings
         bounces = other.bounces; rayTracedLights = other.rayTracedLights;
         rayTracedLightIntensity = other.rayTracedLightIntensity; rayTracedShadows = other.rayTracedShadows;
         rayTracedEmissiveSurfaces = other.rayTracedEmissiveSurfaces; respectBakedEmission = other.respectBakedEmission;
+        lightmappedReceive = other.lightmappedReceive;
         emissionScale = other.emissionScale; avatarEmissionScale = other.avatarEmissionScale;
         rayTracedTextureAlbedo = other.rayTracedTextureAlbedo; rayTracedSkinnedMeshes = other.rayTracedSkinnedMeshes;
         rayTracedLayerMask = other.rayTracedLayerMask;

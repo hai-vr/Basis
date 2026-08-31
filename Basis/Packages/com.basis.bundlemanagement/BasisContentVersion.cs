@@ -106,6 +106,23 @@ public static class BasisContentVersion
     }
 
     /// <summary>
+    /// After a conditional request prompted by a version-claim mismatch: whether the host confirmed
+    /// the CACHED copy is still exactly what it serves, making the claim the stale side. True on an
+    /// explicit 304, or on a reported validator that matches the cached tag. False when the host
+    /// reports a different validator (genuinely new content) or publishes none at all — a host with
+    /// no validators is one where the tag scheme is a creator-stamped nonce, and a mismatched nonce
+    /// means "changed" by construction.
+    /// </summary>
+    public static bool HostConfirmsCache(string cachedTag, BasisIOManagement.BasisRemoteValidator validator)
+    {
+        if (validator.NotModified)
+        {
+            return true;
+        }
+        return validator.HasValue && TagsMatch(cachedTag, validator.Tag);
+    }
+
+    /// <summary>
     /// Whether the cached entry is acceptable for the requested version, ignoring throttling.
     /// </summary>
     public static bool CacheSatisfies(BasisBEEExtensionMeta meta, string requestedTag)
@@ -150,7 +167,7 @@ public static class BasisContentVersion
             return true;
         }
 
-        BasisDebug.Log($"Cached copy of {remoteUrl} is out of date (cached '{Normalize(meta?.CachedVersionTag)}', requested '{Normalize(requestedTag)}'); refreshing.", BasisDebug.LogTag.Event);
+        BasisDebug.Log($"Version claim for {remoteUrl} does not match the cache (cached '{Normalize(meta?.CachedVersionTag)}', requested '{Normalize(requestedTag)}').", BasisDebug.LogTag.Event);
         return false;
     }
 

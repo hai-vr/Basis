@@ -125,6 +125,12 @@ namespace Basis.Rendering.RTAO.Tests
             settings.resolutionDivider = 1;
             settings.radius = 1.5f;
             settings.intensity = 1f;
+            // Falloff off, so these scenes measure raw occlusion. The default of 1 discounts an occluder
+            // by how far into the radius it sits, and the box's top edge - the horizon that matters at the
+            // contact probe - sits past the fade start at this radius: modelled analytically, the contact
+            // deficit reads 0.20 with the fade off and 0.065 with it on, against a 0.05 assertion floor.
+            // Falloff has its own dedicated test in BasisRTAOFallbackTests.
+            settings.distanceFalloff = 0f;
             settings.temporalFrames = 4;
             settings.blurMaxRadius = 1;
             settings.blurMinRadius = 0;
@@ -455,6 +461,63 @@ namespace Basis.Rendering.RTAO.Tests
                 float sky = image.GetPixel(RenderWidth / 2, RenderHeight - 3).r;
                 Assert.Greater(sky, 0.95f,
                     $"The top of the frame is above the horizon, so it has no geometry and must resolve to full visibility. Got {sky:F3}.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(image);
+            }
+        }
+
+        // The GPU fallback tests bind hand-authored positions and unit screen axes, so they can never
+        // notice the REAL pass uploading axes that disagree with how the prepass lays its texels out.
+        // These two run the estimator through the actual URP frame: real depth, real matrices, real axes.
+        // An inverted vertical axis mirrors the slice plane, and the hemisphere clamp then eats most of an
+        // OPEN floor at a grazing view - which is why the open-ground floor here is the assertion that matters.
+        // Nearer to the cube than the traced ContactEdge: the estimator's few horizon steps per slice and
+        // the rotating slice set dilute a 35 cm contact over the denoise, so the pin goes where the signal
+        // is unambiguous. Still outside the cube's silhouette from this camera - verified by ray.
+        private static readonly Vector3 ScreenSpaceContactEdge = new Vector3(0.7f, 0.001f, 0f);
+
+        [Test]
+        public void ScreenSpaceContactRegionIsDarkerThanOpenGround()
+        {
+            BasisRTAOFeature.HasTracingModeOverride = true;
+            BasisRTAOFeature.TracingModeOverride = BasisRTAOTracingMode.ScreenSpace;
+
+            // The slice set rotates along the R2 sequence, so one warmup's worth of frames has not seen
+            // every direction yet; a second pass lets the temporal filter integrate the full set.
+            Object.DestroyImmediate(RenderAndReadback());
+            Texture2D image = RenderAndReadback();
+            try
+            {
+                float beside = SampleAt(image, ScreenSpaceContactEdge);
+                float open = SampleAt(image, OpenGround);
+
+                Assert.Less(beside, open,
+                    $"Screen space: ground beside the blocker read {beside:F3} and open ground read {open:F3}. The contact region has to be the darker of the two.");
+                Assert.Greater(open - beside, 0.05f,
+                    $"Screen space: the occlusion difference of {open - beside:F3} is too small to be anything but noise.");
+                Assert.Greater(open, 0.85f,
+                    $"Screen space: open ground read {open:F3}. A flat floor with nothing near it must stay close to fully visible; darkening here means the horizon walk is integrating a slice plane that does not match the walk direction.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(image);
+            }
+        }
+
+        [Test]
+        public void ScreenSpaceSkyStaysUnoccluded()
+        {
+            BasisRTAOFeature.HasTracingModeOverride = true;
+            BasisRTAOFeature.TracingModeOverride = BasisRTAOTracingMode.ScreenSpace;
+
+            Texture2D image = RenderAndReadback();
+            try
+            {
+                float sky = image.GetPixel(RenderWidth / 2, RenderHeight - 3).r;
+                Assert.Greater(sky, 0.95f,
+                    $"Screen space: the top of the frame has no geometry and must resolve to full visibility. Got {sky:F3}.");
             }
             finally
             {

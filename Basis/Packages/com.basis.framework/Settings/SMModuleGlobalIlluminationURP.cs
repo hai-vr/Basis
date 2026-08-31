@@ -34,6 +34,8 @@ public struct BasisGlobalIlluminationState
     public BasisGlobalIlluminationFallback Fallback;
     /// <summary>Ray traced only - screen space always reads whatever is already on screen. See BasisGlobalIlluminationSettings.respectBakedEmission (inverted: this is the player-facing "ignore" framing).</summary>
     public bool IgnoreBakedEmission;
+    /// <summary>How much of the effect a lightmapped surface still receives - its own bounce is already baked. See BasisGlobalIlluminationSettings.lightmappedReceive.</summary>
+    public float LightmappedReceive;
     public float Intensity;
     public float Saturation;
     public float Obscurance;
@@ -48,6 +50,10 @@ public struct BasisGlobalIlluminationState
     public bool ReflectionProbes;
     public bool Mirrors;
     public bool Specular;
+    public float SpecularIntensity;
+    public float SpecularMaxRoughness;
+    public float SpecularRayLength;
+    public float SpecularFadeDistance;
     // The tracing internals. Constants until an artifact needed explaining; see BasisSettingsDefaults.
     public float ObscuranceRadius;
     public float FadeDistance;
@@ -69,6 +75,7 @@ public struct BasisGlobalIlluminationState
             Resolution = SMModuleGlobalIlluminationURP.ReadResolution(BasisSettingsDefaults.GlobalIlluminationResolution.DefaultValue.GetDefault()),
             Fallback = SMModuleGlobalIlluminationURP.ReadFallback(BasisSettingsDefaults.GlobalIlluminationFallback.DefaultValue.GetDefault()),
             IgnoreBakedEmission = BasisSettingsDefaults.GlobalIlluminationIgnoreBakedEmission.DefaultValue.GetDefault(),
+            LightmappedReceive = BasisSettingsDefaults.GlobalIlluminationLightmappedReceive.DefaultValue.GetDefault(),
             Intensity = BasisSettingsDefaults.GlobalIlluminationIntensity.DefaultValue.GetDefault(),
             Saturation = BasisSettingsDefaults.GlobalIlluminationSaturation.DefaultValue.GetDefault(),
             Obscurance = BasisSettingsDefaults.GlobalIlluminationObscurance.DefaultValue.GetDefault(),
@@ -83,6 +90,10 @@ public struct BasisGlobalIlluminationState
             ReflectionProbes = BasisSettingsDefaults.GlobalIlluminationReflectionProbes.DefaultValue.GetDefault(),
             Mirrors = BasisSettingsDefaults.GlobalIlluminationMirrors.DefaultValue.GetDefault(),
             Specular = BasisSettingsDefaults.GlobalIlluminationSpecular.DefaultValue.GetDefault(),
+            SpecularIntensity = BasisSettingsDefaults.GlobalIlluminationSpecularIntensity.DefaultValue.GetDefault(),
+            SpecularMaxRoughness = BasisSettingsDefaults.GlobalIlluminationSpecularMaxRoughness.DefaultValue.GetDefault(),
+            SpecularRayLength = BasisSettingsDefaults.GlobalIlluminationSpecularRayLength.DefaultValue.GetDefault(),
+            SpecularFadeDistance = BasisSettingsDefaults.GlobalIlluminationSpecularFadeDistance.DefaultValue.GetDefault(),
             ObscuranceRadius = BasisSettingsDefaults.GlobalIlluminationObscuranceRadius.DefaultValue.GetDefault(),
             FadeDistance = BasisSettingsDefaults.GlobalIlluminationFadeDistance.DefaultValue.GetDefault(),
             NormalBias = BasisSettingsDefaults.GlobalIlluminationNormalBias.DefaultValue.GetDefault(),
@@ -105,6 +116,7 @@ public struct BasisGlobalIlluminationState
             Resolution = SMModuleGlobalIlluminationURP.ReadResolution(BasisSettingsDefaults.GlobalIlluminationResolution.RawValue),
             Fallback = SMModuleGlobalIlluminationURP.ReadFallback(BasisSettingsDefaults.GlobalIlluminationFallback.RawValue),
             IgnoreBakedEmission = BasisSettingsDefaults.GlobalIlluminationIgnoreBakedEmission.RawValue,
+            LightmappedReceive = BasisSettingsDefaults.GlobalIlluminationLightmappedReceive.RawValue,
             Intensity = BasisSettingsDefaults.GlobalIlluminationIntensity.RawValue,
             Saturation = BasisSettingsDefaults.GlobalIlluminationSaturation.RawValue,
             Obscurance = BasisSettingsDefaults.GlobalIlluminationObscurance.RawValue,
@@ -119,6 +131,10 @@ public struct BasisGlobalIlluminationState
             ReflectionProbes = BasisSettingsDefaults.GlobalIlluminationReflectionProbes.RawValue,
             Mirrors = BasisSettingsDefaults.GlobalIlluminationMirrors.RawValue,
             Specular = BasisSettingsDefaults.GlobalIlluminationSpecular.RawValue,
+            SpecularIntensity = BasisSettingsDefaults.GlobalIlluminationSpecularIntensity.RawValue,
+            SpecularMaxRoughness = BasisSettingsDefaults.GlobalIlluminationSpecularMaxRoughness.RawValue,
+            SpecularRayLength = BasisSettingsDefaults.GlobalIlluminationSpecularRayLength.RawValue,
+            SpecularFadeDistance = BasisSettingsDefaults.GlobalIlluminationSpecularFadeDistance.RawValue,
             ObscuranceRadius = BasisSettingsDefaults.GlobalIlluminationObscuranceRadius.RawValue,
             FadeDistance = BasisSettingsDefaults.GlobalIlluminationFadeDistance.RawValue,
             NormalBias = BasisSettingsDefaults.GlobalIlluminationNormalBias.RawValue,
@@ -217,6 +233,7 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     private static string K_GI_RESOLUTION => BasisSettingsDefaults.GlobalIlluminationResolution.BindingKey;
     private static string K_GI_FALLBACK => BasisSettingsDefaults.GlobalIlluminationFallback.BindingKey;
     private static string K_GI_IGNORE_BAKED_EMISSION => BasisSettingsDefaults.GlobalIlluminationIgnoreBakedEmission.BindingKey;
+    private static string K_GI_LIGHTMAPPED_RECEIVE => BasisSettingsDefaults.GlobalIlluminationLightmappedReceive.BindingKey;
     private static string K_GI_INTENSITY => BasisSettingsDefaults.GlobalIlluminationIntensity.BindingKey;
     private static string K_GI_SATURATION => BasisSettingsDefaults.GlobalIlluminationSaturation.BindingKey;
     private static string K_GI_OBSCURANCE => BasisSettingsDefaults.GlobalIlluminationObscurance.BindingKey;
@@ -231,6 +248,10 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
     private static string K_GI_REFLECTION_PROBES => BasisSettingsDefaults.GlobalIlluminationReflectionProbes.BindingKey;
     private static string K_GI_MIRRORS => BasisSettingsDefaults.GlobalIlluminationMirrors.BindingKey;
     private static string K_GI_SPECULAR => BasisSettingsDefaults.GlobalIlluminationSpecular.BindingKey;
+    private static string K_GI_SPECULAR_INTENSITY => BasisSettingsDefaults.GlobalIlluminationSpecularIntensity.BindingKey;
+    private static string K_GI_SPECULAR_MAX_ROUGHNESS => BasisSettingsDefaults.GlobalIlluminationSpecularMaxRoughness.BindingKey;
+    private static string K_GI_SPECULAR_RAY_LENGTH => BasisSettingsDefaults.GlobalIlluminationSpecularRayLength.BindingKey;
+    private static string K_GI_SPECULAR_FADE_DISTANCE => BasisSettingsDefaults.GlobalIlluminationSpecularFadeDistance.BindingKey;
     private static string K_GI_DEBUG_VIEW => BasisSettingsDefaults.DevGiDebugView.BindingKey;
 
     public override void Awake()
@@ -384,6 +405,11 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         else if (matchedSettingName == K_GI_RESOLUTION) { state.Resolution = ReadResolution(optionValue); }
         else if (matchedSettingName == K_GI_FALLBACK) { state.Fallback = ReadFallback(optionValue); }
         else if (matchedSettingName == K_GI_IGNORE_BAKED_EMISSION) { state.IgnoreBakedEmission = optionValue == "true"; }
+        else if (matchedSettingName == K_GI_LIGHTMAPPED_RECEIVE)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.LightmappedReceive = value;
+        }
         else if (matchedSettingName == K_GI_TEMPORAL_FILTER) { state.TemporalFilter = optionValue == "true"; }
         else if (matchedSettingName == K_GI_WIDE_BLUR) { state.WideBlur = optionValue == "true"; }
         else if (matchedSettingName == K_GI_RAY_REUSE) { state.RayReuse = optionValue == "true"; }
@@ -391,6 +417,26 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         else if (matchedSettingName == K_GI_REFLECTION_PROBES) { state.ReflectionProbes = optionValue == "true"; }
         else if (matchedSettingName == K_GI_MIRRORS) { state.Mirrors = optionValue == "true"; }
         else if (matchedSettingName == K_GI_SPECULAR) { state.Specular = optionValue == "true"; }
+        else if (matchedSettingName == K_GI_SPECULAR_INTENSITY)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.SpecularIntensity = value;
+        }
+        else if (matchedSettingName == K_GI_SPECULAR_MAX_ROUGHNESS)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.SpecularMaxRoughness = value;
+        }
+        else if (matchedSettingName == K_GI_SPECULAR_RAY_LENGTH)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.SpecularRayLength = value;
+        }
+        else if (matchedSettingName == K_GI_SPECULAR_FADE_DISTANCE)
+        {
+            if (!SliderReadOption(optionValue, out float value)) { return; }
+            state.SpecularFadeDistance = value;
+        }
         else if (matchedSettingName == K_GI_DEBUG_VIEW)
         {
             BasisGlobalIlluminationFeature feature = FindFeature();
@@ -690,8 +736,13 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
 
         // Independent of Mode by design (see BasisGlobalIlluminationSettings.specular) - a reflection is
         // worth having over a screen space diffuse gather, so this is not gated on target.IsRayTraced().
-        // The renderer feature is what falls a GPU with no ray tracing backend back to no reflections.
+        // Mode still decides the backend: Ray Traced walks the shared acceleration structure, Screen
+        // Space (and any GPU without ray tracing) walks the depth buffer against the previous frame.
         target.specular = state.Specular;
+        target.specularIntensity = Mathf.Clamp(state.SpecularIntensity, BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MIN, BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MAX);
+        target.specularMaxRoughness = Mathf.Clamp(state.SpecularMaxRoughness, BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MIN, BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MAX);
+        target.specularRayLength = Mathf.Clamp(state.SpecularRayLength, BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MIN, BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MAX);
+        target.specularFadeDistance = Mathf.Clamp(state.SpecularFadeDistance, BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MIN, BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MAX);
 
         // The tracing internals. Clamp() below holds every one of them inside its documented range, so a
         // hand edited settings file cannot hand the tracer a radius of zero or a bias of a metre.
@@ -716,6 +767,9 @@ public class SMModuleGlobalIlluminationURP : BasisSettingsBase
         // The player-facing toggle is framed as "ignore" (double up the bounce); the field it drives is
         // framed as "respect" (do not double count). Same bit, opposite polarity.
         target.respectBakedEmission = !state.IgnoreBakedEmission;
+
+        // The receiving half of the same double-count: how much of the effect a lightmapped surface keeps.
+        target.lightmappedReceive = Mathf.Clamp(state.LightmappedReceive, BasisSettingsDefaults.GI_LIGHTMAPPED_RECEIVE_MIN, BasisSettingsDefaults.GI_LIGHTMAPPED_RECEIVE_MAX);
 
         // Clamped to the range the SLIDER advertises, which is narrower than the range the value itself
         // permits - Max Ray Length is the clearest case, 64 on the panel against a 128 ceiling on the

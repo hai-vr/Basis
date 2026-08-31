@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -120,21 +119,21 @@ namespace Basis.Contrib.Auth.DecentralizedIds
 			var cfg = new Config { Rng = rng };
 			Server server = new(didAuth: new DidAuthentication(cfg));
 			ConnectionState conn = server.OnConnection(playerIp);
-			Debug.Assert(conn.RecvDid(playerDid));
+			Assert.True(conn.RecvDid(playerDid));
 			Challenge challenge = conn.SendChallenge();
 
 			// Client
 			var payloadToSign = new Payload(challenge.Nonce.V);
 			var sign_res = Ed25519.Sign(privKey, payloadToSign, out Signature? sig);
-			Debug.Assert(
+			Assert.True(
 				sign_res,
 				"signing with a valid privkey should always succeed"
 			);
-			Debug.Assert(
+			Assert.True(
 				sig is not null,
 				"signing with a valid privkey should always succeed"
 			);
-			Debug.Assert(
+			Assert.True(
 				Ed25519.Verify(pubKey, sig, payloadToSign),
 				"sanity check: verifying sig"
 			);
@@ -143,7 +142,7 @@ namespace Basis.Contrib.Auth.DecentralizedIds
 
 			// Server
 			var isAuthenticated = await conn.RecvChallengeResponse(response);
-			Debug.Assert(isAuthenticated, "the response should have been valid");
+			Assert.True(isAuthenticated, "the response should have been valid");
 
 			// Next we ban the player
 			server.Ban(playerIp);
@@ -153,7 +152,7 @@ namespace Basis.Contrib.Auth.DecentralizedIds
 				new IPAddress(new byte[] { 192, 168, 1, 1 })
 			);
 			// Connection terminated when DID matches ban list
-			Debug.Assert(!bannedConn.RecvDid(playerDid));
+			Assert.True(!bannedConn.RecvDid(playerDid));
 		}
 	}
 }

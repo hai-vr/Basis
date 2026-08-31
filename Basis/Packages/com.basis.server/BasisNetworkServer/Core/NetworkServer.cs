@@ -229,6 +229,7 @@ public static class NetworkServer
     {
         var HasFileSupport = Configuration.HasFileSupport;
         BasisPlayerModeration.UseFileOnDisc = HasFileSupport;
+        BasisPlayerMuteManager.UseFileOnDisc = HasFileSupport;
         IAuthIdentity.HasFileSupport = HasFileSupport;
 
         Auth = new PasswordAuth(Configuration.Password ?? string.Empty);
@@ -300,6 +301,16 @@ public static class NetworkServer
         {
             ipv4 = IPAddress.Any;
             ipv6 = IPAddress.IPv6Any;
+        }
+
+        // Read straight from the config rather than from the mirror in the reduction system, so
+        // this does not depend on InitializePulseSettings having run first. 0 is auto, which always
+        // derives more than one, so only an explicit 1 means "never add a socket".
+        if (Server is LNLNetManager lnlServer && lnlServer.manager != null)
+        {
+            lnlServer.manager.AllowSendSocketGrowth = Basis.Network.Core.BasisTransportConfigStore
+                .Get<Basis.Network.Core.LNLTransportConfig>(
+                    Basis.Network.Core.BasisNetworkStackRegistry.LiteNetLibId).MaxSendSockets != 1;
         }
 
         Server.Start(ipv4, ipv6, configuration.SetPort);

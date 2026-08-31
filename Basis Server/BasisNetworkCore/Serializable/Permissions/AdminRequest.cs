@@ -247,6 +247,24 @@ namespace BasisNetworkCore.Serializable
             // Payload: [int peerLimit], clamped server-side to 1..ushort.MaxValue.
             SetGlobalPeerLimit,
             GlobalGetPeerLimit, // server→client: current maximum player count. Payload: [int peerLimit]
+
+            // moderator: set one player's voice-mute state. While muted the server drops their
+            // normal and shout voice at the source. Keyed by UUID and persisted
+            // (muted_players.xml), so a rejoin stays muted until a moderator unmutes.
+            // Payload: [string uuid][bool muted]
+            SetVoiceMute,
+
+            // moderator: set one player's text-chat mute state. While muted the server drops
+            // their chat messages and typing state. Same persistence as SetVoiceMute; the two
+            // mutes are independent flags on one record.
+            // Payload: [string uuid][bool muted]
+            SetTextMute,
+
+            // server→target client: your current moderation mute state, sent on change and on
+            // join while muted. Enforcement is server-side; this exists so the composer can grey
+            // out and the mic can stop uploading a stream the server discards.
+            // Payload: [bool voiceMuted][bool textMuted]
+            MuteStateApply,
         }
     }
 }

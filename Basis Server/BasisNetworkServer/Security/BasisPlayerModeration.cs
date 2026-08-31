@@ -327,6 +327,16 @@ namespace BasisNetworkServer.Security
                         HandleFullQualityBroadcast(peer, reader));
                     break;
 
+                case AdminRequestMode.SetVoiceMute:
+                    Require(peer, PermNodes.ModerationMute, () =>
+                        SendBackMessage(peer, BasisPlayerMuteManager.Apply(reader.GetString(), voice: true, reader.GetBool())));
+                    break;
+
+                case AdminRequestMode.SetTextMute:
+                    Require(peer, PermNodes.ModerationMute, () =>
+                        SendBackMessage(peer, BasisPlayerMuteManager.Apply(reader.GetString(), voice: false, reader.GetBool())));
+                    break;
+
                 case AdminRequestMode.ForceAvatar:
                     Require(peer, PermNodes.ModerationForceAvatar, () =>
                         HandleForceAvatar(peer, reader));

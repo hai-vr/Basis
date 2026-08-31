@@ -24,7 +24,7 @@ namespace Basis
         public static async Task Main(string[] args)
         {
             ErrorHandlers.AttachGlobalHandlers();
-            ConfigManager.LoadOrCreateConfigXml("Config.xml");
+            ConfigManager.LoadOrCreateConfigXml("ClientSimConfig.xml");
             NetDebug.Logger = new BasisClientLogger();
 
             // Face-data test mode: BASIS_EMIT_FACE=1 attaches a synthetic AdditionalAvatarData to

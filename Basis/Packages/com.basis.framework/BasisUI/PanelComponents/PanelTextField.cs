@@ -89,6 +89,41 @@ namespace Basis.BasisUI
             return value.Length <= 60 ? value : value.Substring(0, 57) + "…";
         }
 
+        private bool HasPreviewText
+        {
+            get
+            {
+                if (_inputField == null || string.IsNullOrEmpty(_inputField.text)) return false;
+                TMP_InputField.ContentType contentType = _inputField.contentType;
+                return contentType != TMP_InputField.ContentType.Password && contentType != TMP_InputField.ContentType.Pin;
+            }
+        }
+
+        public override bool HasPanelOptions => HasPreviewText || HasResetDefault;
+
+        public override void RequestReset()
+        {
+            if (!HasPreviewText)
+            {
+                base.RequestReset();
+                return;
+            }
+
+            BasisMenuBase<BasisMainMenu> menu = BasisMenuBase<BasisMainMenu>.Instance;
+            if (menu == null || menu.Dialogue != null) return;
+
+            string title = Descriptor && !string.IsNullOrEmpty(Descriptor.Title) ? Descriptor.Title : BasisLocalization.Get("ui.textPreview.title");
+            string body = BasisLocalization.Get("ui.textPreview.body") + "\n\n" + _inputField.text;
+            menu.OpenDialogue(title, body, BasisLocalization.Get("ui.ok"), _ => { });
+
+            BasisMenuDialoguePanel dialogue = menu.Dialogue;
+            if (dialogue == null) return;
+            dialogue.CaptureOnClose = false;
+            dialogue.Descriptor.SetRichDescription(body);
+            dialogue.FitDescriptionToContent();
+            if (HasResetDefault) dialogue.EnableAlternate(BasisLocalization.Get("ui.reset"), ApplyResetToDefault);
+        }
+
 #if UNITY_EDITOR
         protected override void OnValidate()
         {

@@ -2007,6 +2007,18 @@ namespace Basis.BasisUI
                 toggleGiIgnoreBakedEmission.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.ignoreBakedEmission"));
                 toggleGiIgnoreBakedEmission.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.ignoreBakedEmission.tooltip"));
 
+                // Both modes: a lightmapped surface's own bounce and occlusion are already in its lightmap,
+                // and this is how much of the realtime effect it still receives on top.
+                PanelSlider sliderGiLightmappedReceive = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.lightmappedReceive"),
+                        "",
+                        BasisSettingsDefaults.GI_LIGHTMAPPED_RECEIVE_MIN,
+                        BasisSettingsDefaults.GI_LIGHTMAPPED_RECEIVE_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationLightmappedReceive);
+                sliderGiLightmappedReceive.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.lightmappedReceive.tooltip"));
+
                 PanelToggle toggleGiRayReuse = PanelToggle.CreateNewEntry(giAdvanced.ContentParent);
                 toggleGiRayReuse.AssignBinding(BasisSettingsDefaults.GlobalIlluminationRayReuse);
                 toggleGiRayReuse.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.rayReuse"));
@@ -2038,6 +2050,47 @@ namespace Basis.BasisUI
                 toggleGiSpecular.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.gi.specular"));
                 toggleGiSpecular.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.specular.tooltip"));
                 SettingsProviderBottleneckHints.Mark(toggleGiSpecular, BasisFrameCostSide.Gpu);
+
+                PanelSlider sliderGiSpecularIntensity = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.specularIntensity"),
+                        "",
+                        BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MIN,
+                        BasisSettingsDefaults.GI_SPECULAR_INTENSITY_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationSpecularIntensity);
+                sliderGiSpecularIntensity.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.specularIntensity.tooltip"));
+
+                PanelSlider sliderGiSpecularMaxRoughness = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.specularMaxRoughness"),
+                        "",
+                        BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MIN,
+                        BasisSettingsDefaults.GI_SPECULAR_MAX_ROUGHNESS_MAX,
+                        false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationSpecularMaxRoughness);
+                sliderGiSpecularMaxRoughness.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.specularMaxRoughness.tooltip"));
+
+                PanelSlider sliderGiSpecularRayLength = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.specularRayLength"),
+                        "",
+                        BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MIN,
+                        BasisSettingsDefaults.GI_SPECULAR_RAY_LENGTH_MAX,
+                        false, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationSpecularRayLength);
+                sliderGiSpecularRayLength.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.specularRayLength.tooltip"));
+                SettingsProviderBottleneckHints.Mark(sliderGiSpecularRayLength, BasisFrameCostSide.Gpu);
+
+                PanelSlider sliderGiSpecularFadeDistance = PanelSlider.CreateEntryAndBind(
+                    giAdvanced.ContentParent,
+                    new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.gi.specularFadeDistance"),
+                        "",
+                        BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MIN,
+                        BasisSettingsDefaults.GI_SPECULAR_FADE_DISTANCE_MAX,
+                        false, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.GlobalIlluminationSpecularFadeDistance);
+                sliderGiSpecularFadeDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gi.specularFadeDistance.tooltip"));
 
                 PanelSlider sliderGiObscuranceRadius = PanelSlider.CreateEntryAndBind(
                     giAdvanced.ContentParent,
@@ -2144,6 +2197,7 @@ namespace Basis.BasisUI
                     sliderGiTemporalResponse.Descriptor.SetActive(val && toggleGiTemporal.Value);
                     dropdownGiFallback.Descriptor.SetActive(val);
                     toggleGiIgnoreBakedEmission.Descriptor.SetActive(rayTraced);
+                    sliderGiLightmappedReceive.Descriptor.SetActive(val);
                     toggleGiRayReuse.Descriptor.SetActive(val && !rayTraced);
                     toggleGiEmitters.Descriptor.SetActive(val);
                     sliderGiEmitterIntensity.Descriptor.SetActive(val && toggleGiEmitters.Value);
@@ -2157,6 +2211,14 @@ namespace Basis.BasisUI
                     sliderGiObscuranceRadius.Descriptor.SetActive(val);
                     sliderGiFadeDistance.Descriptor.SetActive(val);
                     sliderGiFireflyClamp.Descriptor.SetActive(val);
+
+                    // The reflection controls follow their own toggle the way emitter intensity follows
+                    // its own - both backends read all four, so none of them is gated on the mode.
+                    bool specular = val && toggleGiSpecular.Value;
+                    sliderGiSpecularIntensity.Descriptor.SetActive(specular);
+                    sliderGiSpecularMaxRoughness.Descriptor.SetActive(specular);
+                    sliderGiSpecularRayLength.Descriptor.SetActive(specular);
+                    sliderGiSpecularFadeDistance.Descriptor.SetActive(specular);
 
                     // The ray origin offsets and the bounce cutoff only exist on the traced path - the
                     // screen space march walks the depth buffer and has no ray origin to push off a surface.
@@ -2182,6 +2244,11 @@ namespace Basis.BasisUI
                     RebuildGiLayout();
                 };
                 toggleGiEmitters.OnValueChanged += (_) =>
+                {
+                    SetGiRowsActive(toggleGi.Value);
+                    RebuildGiLayout();
+                };
+                toggleGiSpecular.OnValueChanged += (_) =>
                 {
                     SetGiRowsActive(toggleGi.Value);
                     RebuildGiLayout();
@@ -3302,6 +3369,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GlobalIlluminationResolution.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationFallback.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationIgnoreBakedEmission.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationLightmappedReceive.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationIntensity.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationSaturation.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationObscurance.ResetToDefault();
@@ -3315,6 +3383,10 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GlobalIlluminationEmitterIntensity.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationReflectionProbes.ResetToDefault();
             BasisSettingsDefaults.GlobalIlluminationSpecular.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationSpecularIntensity.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationSpecularMaxRoughness.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationSpecularRayLength.ResetToDefault();
+            BasisSettingsDefaults.GlobalIlluminationSpecularFadeDistance.ResetToDefault();
             BasisSettingsDefaults.UseRayTracedAmbientOcclusion.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionMode.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionQuality.ResetToDefault();

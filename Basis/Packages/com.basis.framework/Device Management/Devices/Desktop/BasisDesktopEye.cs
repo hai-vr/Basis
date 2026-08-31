@@ -14,6 +14,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         public static BasisDesktopEye Instance;
 
+        public static Vector3 AppliedSwingScaled;
+
         [Header("Rotation")]
 
         public float rotationPitch;
@@ -115,6 +117,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         public new void OnDestroy()
         {
+            AppliedSwingScaled = Vector3.zero;
             if (HasEyeEvents)
             {
                 BasisLocalPlayer.OnLocalAvatarChanged -= PlayerInitialized;
@@ -239,6 +242,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             // UnscaledDeviceCoord.y (see the note above), and a pitch-varying eye height would drive it straight
             // into the avatar-rescale loop. The forward carry is the piece that was missing and the piece that is
             // safe to add.
+            Vector3 appliedSwing = Vector3.zero;
             if (Basis.BasisUI.BasisSettingsDefaults.DesktopHeadSwingEnabled.RawValue &&
                 BasisLocalBoneDriver.NeckControl != null)
             {
@@ -248,6 +252,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                     Basis.BasisUI.BasisSettingsDefaults.DesktopHeadSwingBackward.RawValue,
                     out Vector3 swingOffset, out _);
                 eyeWorld += swingOffset;
+                appliedSwing = swingOffset;
             }
 
             // Output transforms
@@ -255,6 +260,10 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             UnscaledDeviceCoord.rotation = targetRot;
 
             float deviceScale = BasisHeightDriver.AppliedUpScale;
+            // The swing delta exactly as it lands in ScaledDeviceCoord below, so the virtual spine's
+            // stance leash can subtract the real thing instead of re-modelling it — gaze pitch must
+            // never read as travel, or the pelvis (and the feet under it) chase the camera carry.
+            AppliedSwingScaled = OffsetCoords.rotation * (appliedSwing * deviceScale);
             ScaledDeviceCoord.rotation = OffsetCoords.rotation * UnscaledDeviceCoord.rotation;
             ScaledDeviceCoord.position = OffsetCoords.position + (OffsetCoords.rotation * (UnscaledDeviceCoord.position * deviceScale));
 

@@ -1,19 +1,9 @@
-﻿using Basis.Network.Core;
-using Basis.Network.Core.Compression;
+using Basis.Network.Core;
 using BasisNetworkServer.BasisNetworking;
-using K4os.Compression.LZ4;
 using System;
 using System.Buffers;
-using System.Buffers.Binary;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using static SerializableBasis;
-using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 
 namespace BasisNetworkServer.BasisNetworkingReductionSystem
 {
@@ -132,7 +122,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // receiver, so an overloaded server did not degrade everyone slightly: it stopped
                 // sending a specific subset of people almost entirely, and they froze in place for
                 // everyone else. Rotating the start spreads that cost across the population.
-                int rotation = playerCount > 0 ? (int)((uint)_senderRotation % (uint)playerCount) : 0;
+                //
+                // Offset by the receiver as well as by the tick. A single global start meant every
+                // receiver was cutting the same senders on the same tick, so whoever lost the trim
+                // lost it for the whole server at once and visibly froze; staggering by id makes a
+                // trimmed sender late for one viewer and on time for the next.
+                int rotation = playerCount > 0 ? (int)(((uint)_senderRotation + (uint)id) % (uint)playerCount) : 0;
 
                 for (int step = 0; step < playerCount; step++)
                 {

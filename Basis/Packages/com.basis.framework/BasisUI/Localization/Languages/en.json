@@ -8131,6 +8131,14 @@
       "value": "Ray traced only. A baked-emissive surface's light normally sits out of the bounce because it is already in the lightmap - counting it again would light the room twice from one lamp. Turn this on to count it anyway for a stronger bounce, at the cost of that correctness. Off by default."
     },
     {
+      "key": "settings.graphics.gi.lightmappedReceive",
+      "value": "Baked Surface Receive"
+    },
+    {
+      "key": "settings.graphics.gi.lightmappedReceive.tooltip",
+      "value": "How much of the effect a lightmapped surface still receives. Its own bounce and its own ambient occlusion are already baked into the lightmap, so re-applying them makes a baked world read blown out and crushed at once. Avatars, props and anything dynamic always receive in full; 1 restores the old behaviour, and worlds without lightmaps are never affected."
+    },
+    {
       "key": "settings.graphics.gi.rayReuse",
       "value": "Reuse Off-Screen Rays"
     },
@@ -8164,11 +8172,43 @@
     },
     {
       "key": "settings.graphics.gi.specular",
-      "value": "Ray Traced Reflections"
+      "value": "Reflections"
     },
     {
       "key": "settings.graphics.gi.specular.tooltip",
-      "value": "Reflect the room in smooth surfaces with a traced mirror ray, in place of the static reflection probe. Needs the ray traced backend."
+      "value": "Reflect the room in smooth surfaces with a traced mirror ray, in place of the static reflection probe. Ray Traced mode reflects things that are off screen; Screen Space mode walks the depth buffer and runs on any GPU."
+    },
+    {
+      "key": "settings.graphics.gi.specularIntensity",
+      "value": "Reflection Intensity"
+    },
+    {
+      "key": "settings.graphics.gi.specularIntensity.tooltip",
+      "value": "How bright the traced reflection is. 1 matches the room; above it reflections read stronger than the surfaces they mirror."
+    },
+    {
+      "key": "settings.graphics.gi.specularMaxRoughness",
+      "value": "Reflection Max Roughness"
+    },
+    {
+      "key": "settings.graphics.gi.specularMaxRoughness.tooltip",
+      "value": "How rough a surface can be and still take the traced reflection. Rougher surfaces keep the reflection probe; raising this puts the trace on more surfaces."
+    },
+    {
+      "key": "settings.graphics.gi.specularRayLength",
+      "value": "Reflection Distance"
+    },
+    {
+      "key": "settings.graphics.gi.specularRayLength.tooltip",
+      "value": "How far the mirror ray reaches. A reflection carries much further than a bounce - the far wall of a room is a bounce nobody can see and a reflection everybody can."
+    },
+    {
+      "key": "settings.graphics.gi.specularFadeDistance",
+      "value": "Reflection Fade Distance"
+    },
+    {
+      "key": "settings.graphics.gi.specularFadeDistance.tooltip",
+      "value": "How far from the camera surfaces still trace reflections. Beyond it they keep the reflection probe, which is where the cost stops paying for itself."
     },
     {
       "key": "settings.graphics.gi.unsupported",
@@ -12483,6 +12523,14 @@
       "value": "Click this hand's thumbstick for its options."
     },
     {
+      "key": "ui.textPreview.title",
+      "value": "Preview"
+    },
+    {
+      "key": "ui.textPreview.body",
+      "value": "How this text displays with its formatting tags applied:"
+    },
+    {
       "key": "ui.resetSection.nochanges",
       "value": "Everything in this section is already at its default."
     },
@@ -13544,7 +13592,7 @@
     },
     {
       "key": "settings.bodyTracking.headSwing.backward.tooltip",
-      "value": "How much of that carry also applies when you move backwards."
+      "value": "How much of that carry applies when looking up. Lower it toward 0 to keep the camera still on a look-up instead of sliding it backwards."
     },
     {
       "key": "library.instantiated.assignTracker.tooltip",
