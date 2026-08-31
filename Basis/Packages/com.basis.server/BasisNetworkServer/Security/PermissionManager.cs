@@ -71,6 +71,8 @@ namespace BasisPermissions
         public const string ModerationForceAvatar = "basis.moderation.forceavatar";
         /// <summary>Override another player's jump height, movement speeds, gravity and character controller mode.</summary>
         public const string ModerationLocomotion = "basis.moderation.locomotion";
+        /// <summary>Mute/unmute another player's voice or text chat server-wide.</summary>
+        public const string ModerationMute = "basis.moderation.mute";
         /// <summary>Add/remove UUIDs on the server's allow-list (separate from ban management).</summary>
         public const string ModerationAllowlist = "basis.moderation.whitelist";
         public const string AdminLogs = "basis.admin.logs";
@@ -804,6 +806,7 @@ namespace BasisPermissions
                     adm.Nodes.Add(PermNodes.ModerationFullQualityBroadcast);
                     adm.Nodes.Add(PermNodes.ModerationForceAvatar);
                     adm.Nodes.Add(PermNodes.ModerationLocomotion);
+                    adm.Nodes.Add(PermNodes.ModerationMute);
                     adm.Nodes.Add(PermNodes.PermissionsView);
 
                     adm.Nodes.Add(PermNodes.ResourceLockBypassAvatar);

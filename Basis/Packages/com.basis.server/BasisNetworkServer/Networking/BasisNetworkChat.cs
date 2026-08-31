@@ -153,12 +153,14 @@ namespace BasisNetworkServer.BasisNetworking
         }
 
         /// <summary>
-        /// True when the global text-chat lock is on and this peer lacks basis.chat.lockbypass.
-        /// Shared by the chat and typing-state paths so a locked peer can't leak "is typing"
-        /// activity while their messages are being dropped.
+        /// True when this peer may not send text chat: the global text-chat lock is on and they
+        /// lack basis.chat.lockbypass, or a moderator text-muted them. Shared by the chat and
+        /// typing-state paths so a blocked peer can't leak "is typing" activity while their
+        /// messages are being dropped.
         /// </summary>
         public static bool IsChatBlockedFor(NetPeer peer)
         {
+            if (BasisPlayerMuteManager.IsTextMutedFor(peer)) return true;
             return BasisGlobalLockManager.TextChatLocked &&
                 !PermissionIntegration.HasValidRequirement(peer, PermNodes.ChatLockBypass);
         }
@@ -170,6 +172,7 @@ namespace BasisNetworkServer.BasisNetworking
         /// </summary>
         public static bool IsChatBlockedForUuid(string uuid)
         {
+            if (BasisPlayerMuteManager.IsTextMuted(uuid)) return true;
             return BasisGlobalLockManager.TextChatLocked &&
                 !PermissionIntegration.HasValidRequirement(uuid, PermNodes.ChatLockBypass);
         }

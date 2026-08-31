@@ -5467,6 +5467,22 @@
       "value": "Toggle non-spatialized broadcast voice for this player."
     },
     {
+      "key": "menu.individualPlayer.muteVoice",
+      "value": "Server Voice Mute"
+    },
+    {
+      "key": "menu.individualPlayer.muteVoice.tooltip",
+      "value": "Mute this player's voice for everyone. Enforced by the server and kept across rejoins until a moderator unmutes them."
+    },
+    {
+      "key": "menu.individualPlayer.muteText",
+      "value": "Server Text Mute"
+    },
+    {
+      "key": "menu.individualPlayer.muteText.tooltip",
+      "value": "Mute this player's text chat and typing for everyone. Enforced by the server and kept across rejoins until a moderator unmutes them."
+    },
+    {
       "key": "menu.individualPlayer.message",
       "value": "Message"
     },

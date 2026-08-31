@@ -259,6 +259,7 @@ public static class NetworkServer
     {
         BasisServerHandleEvents.SubscribeServerEvents();
         BasisPlayerModeration.LoadBannedPlayers();
+        BasisPlayerMuteManager.LoadMutedPlayers();
         BasisNetworkChat.LoadWordFilter(Configuration);
         BasisNetworkStackRegistry.RegisterIntroducerFactory(
             BasisNetworkStackRegistry.LiteNetLibId,

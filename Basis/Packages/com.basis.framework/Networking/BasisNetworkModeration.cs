@@ -486,6 +486,10 @@ public static class BasisNetworkModeration
                 HandleReductionSettings(reader);
                 break;
 
+            case AdminRequestMode.MuteStateApply:
+                HandleMuteStateApply(reader);
+                break;
+
             case AdminRequestMode.LogBundleBegin:
                 BasisLogBundleReceiver.Begin(reader);
                 break;
@@ -593,6 +597,75 @@ public static class BasisNetworkModeration
         SendAdminRequest(AdminRequestMode.SetFullQualityBroadcast,
             w => w.Put(playerId),
             w => w.Put(enable));
+    }
+
+    #endregion
+
+    #region Moderation Mute
+
+    /// <summary>
+    /// Server-pushed moderation mute on the LOCAL player's voice. The server drops the audio
+    /// regardless — this flag folds into <see cref="VoiceBlockedLocally"/> so the mic stops
+    /// uploading a stream the server discards.
+    /// </summary>
+    public static bool LocalPlayerVoiceMutedByModerator { get; private set; }
+
+    /// <summary>
+    /// Server-pushed moderation mute on the LOCAL player's text chat. Folds into
+    /// <see cref="BasisNetworkHandleChat.LockedByServer"/> so the composer greys out instead of
+    /// silently swallowing messages the server drops.
+    /// </summary>
+    public static bool LocalPlayerTextMutedByModerator { get; private set; }
+
+    /// <summary>Fired when the local player's moderation voice mute changes.</summary>
+    public static event Action<bool> OnLocalVoiceMutedByModeratorChanged;
+
+    /// <summary>Fired when the local player's moderation text mute changes.</summary>
+    public static event Action<bool> OnLocalTextMutedByModeratorChanged;
+
+    /// <summary>Moderator: mute or unmute a player's voice for the whole server. UUID-keyed and persisted server-side, so it survives a rejoin.</summary>
+    public static void SetVoiceMute(string uuid, bool muted)
+    {
+        if (!ValidateString(uuid, nameof(uuid))) return;
+        SendAdminRequest(AdminRequestMode.SetVoiceMute,
+            w => w.Put(uuid),
+            w => w.Put(muted));
+    }
+
+    /// <summary>Moderator: mute or unmute a player's text chat (messages and typing) for the whole server. UUID-keyed and persisted server-side, so it survives a rejoin.</summary>
+    public static void SetTextMute(string uuid, bool muted)
+    {
+        if (!ValidateString(uuid, nameof(uuid))) return;
+        SendAdminRequest(AdminRequestMode.SetTextMute,
+            w => w.Put(uuid),
+            w => w.Put(muted));
+    }
+
+    private static void HandleMuteStateApply(NetDataReader reader)
+    {
+        bool voiceMuted = reader.GetBool();
+        bool textMuted = reader.GetBool();
+
+        bool voiceChanged = voiceMuted != LocalPlayerVoiceMutedByModerator;
+        bool textChanged = textMuted != LocalPlayerTextMutedByModerator;
+        LocalPlayerVoiceMutedByModerator = voiceMuted;
+        LocalPlayerTextMutedByModerator = textMuted;
+
+        if (voiceChanged) OnLocalVoiceMutedByModeratorChanged?.Invoke(voiceMuted);
+        if (textChanged) OnLocalTextMutedByModeratorChanged?.Invoke(textMuted);
+
+        if (voiceChanged)
+        {
+            DisplayMessage(voiceMuted
+                ? "A moderator muted your voice - other players cannot hear you until you are unmuted."
+                : "A moderator unmuted your voice - other players can hear you again.");
+        }
+        if (textChanged)
+        {
+            DisplayMessage(textMuted
+                ? "A moderator muted your text chat - your messages will not be delivered until you are unmuted."
+                : "A moderator unmuted your text chat - your messages are delivered again.");
+        }
     }
 
     #endregion
@@ -1018,10 +1091,11 @@ public static class BasisNetworkModeration
 
     /// <summary>
     /// True when the local player must stop transmitting voice. The server drops it regardless —
-    /// this exists so a locked client doesn't keep encoding and uploading a discarded stream.
+    /// this exists so a locked or moderation-muted client doesn't keep encoding and uploading a
+    /// discarded stream.
     /// </summary>
     public static bool VoiceBlockedLocally =>
-        GlobalVoiceChatLocked && !LocalPlayerHasVoiceLockBypass();
+        (GlobalVoiceChatLocked && !LocalPlayerHasVoiceLockBypass()) || LocalPlayerVoiceMutedByModerator;
 
     /// <summary>
     /// True when the local player may not load media player URLs (outbound or inbound).
@@ -1259,6 +1333,10 @@ public static class BasisNetworkModeration
             GlobalUserRestrictionMode = BasisUserRestrictionMode.Normal;
             OnGlobalRestrictionModeChanged?.Invoke(GlobalUserRestrictionMode);
         }
+
+        // Moderation mutes are per-server state exactly like the locks above.
+        if (LocalPlayerVoiceMutedByModerator) { LocalPlayerVoiceMutedByModerator = false; OnLocalVoiceMutedByModeratorChanged?.Invoke(false); }
+        if (LocalPlayerTextMutedByModerator) { LocalPlayerTextMutedByModerator = false; OnLocalTextMutedByModeratorChanged?.Invoke(false); }
 
         if (contentLocksChanged)
         {

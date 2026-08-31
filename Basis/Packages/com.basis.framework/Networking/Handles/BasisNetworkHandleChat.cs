@@ -65,12 +65,14 @@ public static class BasisNetworkHandleChat
     }
 
     /// <summary>
-    /// True when the server's global text-chat lock is on and the local player lacks the bypass.
-    /// The server drops these messages regardless — this exists so the composer can grey out and
-    /// say why instead of swallowing the message silently.
+    /// True when the local player may not send text chat: the server's global text-chat lock is
+    /// on and they lack the bypass, or a moderator text-muted them. The server drops these
+    /// messages regardless — this exists so the composer can grey out and say why instead of
+    /// swallowing the message silently.
     /// </summary>
     public static bool LockedByServer =>
-        BasisNetworkModeration.GlobalTextChatLocked && !BasisNetworkModeration.LocalPlayerHasChatLockBypass();
+        (BasisNetworkModeration.GlobalTextChatLocked && !BasisNetworkModeration.LocalPlayerHasChatLockBypass())
+        || BasisNetworkModeration.LocalPlayerTextMutedByModerator;
 
     /// <summary>
     /// Sends a chat message to all connected players via the dedicated ChatChannel.

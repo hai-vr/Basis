@@ -1433,6 +1433,19 @@ namespace Basis.BasisUI
                         BasisNetworkModeration.EnableShoutMode(shoutPlayerId);
                 };
 
+                // Server-enforced mutes. The admin client doesn't track the target's current
+                // state, so like the full-quality toggle these start off and send the explicit
+                // state on change — the server's reply popup reports the authoritative result.
+                PanelToggle voiceMuteToggle = PanelToggle.CreateNewEntry(adminGroup.ContentParent);
+                voiceMuteToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.muteVoice"));
+                voiceMuteToggle.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.muteVoice.tooltip"));
+                voiceMuteToggle.OnValueChanged += muted => BasisNetworkModeration.SetVoiceMute(targetUUID, muted);
+
+                PanelToggle textMuteToggle = PanelToggle.CreateNewEntry(adminGroup.ContentParent);
+                textMuteToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.muteText"));
+                textMuteToggle.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.muteText.tooltip"));
+                textMuteToggle.OnValueChanged += muted => BasisNetworkModeration.SetTextMute(targetUUID, muted);
+
                 PanelTextField msgField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
                 msgField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.message"));
                 msgField.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.message.description"));

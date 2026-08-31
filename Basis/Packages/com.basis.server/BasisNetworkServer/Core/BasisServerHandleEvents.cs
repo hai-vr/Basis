@@ -733,6 +733,7 @@ namespace BasisServerHandle
                 BasisNetworkServer.Security.BasisPlayerModeration.SendReductionSettingsToPeer(newPeer);
                 BasisNetworkServer.Security.BasisPlayerModeration.SendImageBandwidthToPeer(newPeer);
                 BasisNetworkServer.Security.BasisPlayerModeration.SendPeerLimitToPeer(newPeer);
+                BasisNetworkServer.Security.BasisPlayerMuteManager.SendStateToPeerIfMuted(newPeer);
                 SendShoutStateToPeer(newPeer);
             }
             else
@@ -834,11 +835,13 @@ namespace BasisServerHandle
         }
 
         /// <summary>
-        /// True when the global voice lock is on and this peer lacks basis.voice.lockbypass.
-        /// Shared by the normal and shout voice paths.
+        /// True when this peer may not transmit voice: the global voice lock is on and they lack
+        /// basis.voice.lockbypass, or a moderator voice-muted them. Shared by the normal and
+        /// shout voice paths.
         /// </summary>
         public static bool IsVoiceBlockedFor(NetPeer peer)
         {
+            if (BasisNetworkServer.Security.BasisPlayerMuteManager.IsVoiceMutedFor(peer)) return true;
             return BasisNetworkServer.Security.BasisGlobalLockManager.VoiceChatLocked &&
                 !PermissionIntegration.HasValidRequirement(peer, PermNodes.VoiceLockBypass);
         }
@@ -849,6 +852,7 @@ namespace BasisServerHandle
         /// </summary>
         public static bool IsVoiceBlockedForUuid(string uuid)
         {
+            if (BasisNetworkServer.Security.BasisPlayerMuteManager.IsVoiceMuted(uuid)) return true;
             return BasisNetworkServer.Security.BasisGlobalLockManager.VoiceChatLocked &&
                 !PermissionIntegration.HasValidRequirement(uuid, PermNodes.VoiceLockBypass);
         }
