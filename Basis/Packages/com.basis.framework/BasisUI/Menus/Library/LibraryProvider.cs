@@ -196,7 +196,7 @@ namespace Basis.BasisUI
             string[] dateSortNames = Enum.GetNames(typeof(LibraryDateSortMode));
 
             dateSorting.Descriptor.SetSize(new Vector2(60, 80));
-            dateSorting.AssignEntries(dateSortNames.ToList(), null, EnumOptionTooltips(dateSortNames, "library.sort."));
+            dateSorting.AssignLocalizedEntries(dateSortNames.ToList(), EnumOptionKeys(dateSortNames, "library.sort."));
             dateSorting.SetValueWithoutNotify(_currentSort.ToString());
 
             // when sorting changes, update and refresh
@@ -216,7 +216,7 @@ namespace Basis.BasisUI
             string[] itemTypeNames = Enum.GetNames(typeof(LibraryItemTypeFilter));
 
             itemTypeSorting.Descriptor.SetSize(new Vector2(60, 80));
-            itemTypeSorting.AssignEntries(itemTypeNames.ToList(), null, EnumOptionTooltips(itemTypeNames, "library.filter."));
+            itemTypeSorting.AssignLocalizedEntries(itemTypeNames.ToList(), EnumOptionKeys(itemTypeNames, "library.filter."));
             itemTypeSorting.SetValueWithoutNotify(_currentItemTypeFilter.ToString());
 
             // when sorting changes, update and refresh
@@ -271,15 +271,21 @@ namespace Basis.BasisUI
         /// is the prefix plus the camelCased member, so LibraryItemTypeFilter.PlacedByMe reads from
         /// "library.filter.placedByMe.tooltip".
         /// </summary>
-        private static List<string> EnumOptionTooltips(string[] memberNames, string keyPrefix)
+        /// <summary>
+        /// Derives each enum member's display-label localization key (e.g. "GameObject" under
+        /// prefix "library.filter." becomes "library.filter.gameObject"). Passed straight to
+        /// <see cref="PanelDropdown.AssignLocalizedEntries(List{string}, List{string})"/>, which
+        /// resolves the label via this key and its tooltip via the same key + ".tooltip".
+        /// </summary>
+        private static List<string> EnumOptionKeys(string[] memberNames, string keyPrefix)
         {
-            List<string> tooltips = new List<string>(memberNames.Length);
+            List<string> keys = new List<string>(memberNames.Length);
             foreach (string member in memberNames)
             {
                 string camel = char.ToLowerInvariant(member[0]) + member.Substring(1);
-                tooltips.Add(BasisLocalization.Get(keyPrefix + camel + ".tooltip"));
+                keys.Add(keyPrefix + camel);
             }
-            return tooltips;
+            return keys;
         }
 
         #endregion
@@ -1822,16 +1828,18 @@ namespace Basis.BasisUI
             };
         }
 
-        private static void ApplyMetaDataToButton(PanelButton buttonPanel, CachedMetaData.CachedContent cachedMeta, string urlKey)
+        private static async void ApplyMetaDataToButton(PanelButton buttonPanel, CachedMetaData.CachedContent cachedMeta, string urlKey)
         {
-            Sprite iconSprite = CachedMetaData.CreateSpriteFromMetaData(cachedMeta);
-
-            buttonPanel.SetIcon(iconSprite, false);
-
             var desc = buttonPanel.Descriptor;
             desc.SetTitle(LibraryProviderStrUtil.TitleToCase(!string.IsNullOrEmpty(cachedMeta.Name) ? cachedMeta.Name : urlKey));
             desc.SetDescription(urlKey);
             desc.ForceRebuild();
+
+            Sprite iconSprite = cachedMeta.CachedSprite != null
+                ? cachedMeta.CachedSprite
+                : await CachedMetaData.CreateSpriteFromMetaDataAsync(cachedMeta, urlKey);
+            if (buttonPanel == null) return;
+            buttonPanel.SetIcon(iconSprite, false);
         }
 
         #endregion

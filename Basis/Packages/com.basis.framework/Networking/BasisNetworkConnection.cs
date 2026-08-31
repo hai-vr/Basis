@@ -1,6 +1,7 @@
 ﻿using Basis.BasisUI;
 using Basis.Network.Core;
 using Basis.Scripts.Avatar;
+using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
@@ -270,6 +271,14 @@ namespace Basis.Scripts.Networking
                 // Server-pushed global locks are process-wide statics: drop them with the
                 // connection or they stay in force offline and into whatever loads next.
                 BasisNetworkModeration.ResetGlobalLockState();
+                // The desktop fly toggle writes BaselineMode directly instead of going through
+                // the override stack, so RemoveAll above never touches it, and the driver
+                // survives the reconnect — without this a player stays flying into the next server.
+                if (BasisLocalPlayer.Instance != null)
+                {
+                    BasisLocalPlayer.Instance.LocalCharacterDriver.BaselineMode = BasisLocalCharacterDriver.Mode.Walk;
+                    BasisLocalPlayer.Instance.LocalCharacterDriver.SetMode(BasisLocalCharacterDriver.Mode.Walk);
+                }
                 await BasisNetworkLifeCycle.RebootManagement(true, peer, disconnectInfo);
                 BasisNetworkConnectionWatchdog.NotifyRebootComplete();
 #if UNITY_SERVER

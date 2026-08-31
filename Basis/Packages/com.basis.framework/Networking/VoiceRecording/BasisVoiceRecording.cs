@@ -44,6 +44,7 @@ namespace Basis.Scripts.Networking.VoiceRecording
         private static float _lastPromptTime = -999f;
 
         private static readonly float[] _tickScratch = new float[RemoteOpusSettings.MaxFrameSize * 4];
+        private static Capture[] _tickSnapshot = Array.Empty<Capture>();
 
         /// <summary>A recordee granted us consent (recorder side).</summary>
         public static event Action<ushort> OnConsentGranted;
@@ -252,11 +253,16 @@ namespace Basis.Scripts.Networking.VoiceRecording
             {
                 return;
             }
-            Capture[] snapshot = new Capture[_captures.Count];
-            _captures.Values.CopyTo(snapshot, 0);
-            for (int i = 0; i < snapshot.Length; i++)
+            int captureCount = _captures.Count;
+            if (_tickSnapshot.Length < captureCount)
             {
-                Capture cap = snapshot[i];
+                _tickSnapshot = new Capture[Math.Max(4, captureCount * 2)];
+            }
+            _captures.Values.CopyTo(_tickSnapshot, 0);
+            for (int i = 0; i < captureCount; i++)
+            {
+                Capture cap = _tickSnapshot[i];
+                _tickSnapshot[i] = null;
                 if (cap.Recording != null && cap.DecodedSink != null)
                 {
                     int n;

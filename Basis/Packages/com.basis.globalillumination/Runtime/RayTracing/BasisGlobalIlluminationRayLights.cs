@@ -48,6 +48,7 @@ public sealed class BasisGlobalIlluminationRayLights : IDisposable
 
     private readonly List<Light> scanned = new List<Light>();
     private readonly List<Light> candidates = new List<Light>();
+    private readonly List<float> scores = new List<float>();
     private readonly List<BasisGlobalIlluminationEmitter> emitterScratch = new List<BasisGlobalIlluminationEmitter>();
     private readonly BasisGlobalIlluminationRayLight[] data = new BasisGlobalIlluminationRayLight[MaxLights];
     private GraphicsBuffer buffer;
@@ -143,23 +144,31 @@ public sealed class BasisGlobalIlluminationRayLights : IDisposable
         int reserved = Mathf.Min(emitterCount, limit / 2);
         int lightLimit = Mathf.Max(0, limit - reserved);
 
+        scores.Clear();
+        for (int index = 0; index < candidates.Count; index++)
+        {
+            scores.Add(Score(candidates[index], viewers));
+        }
+
         int selected = Mathf.Min(candidates.Count, lightLimit);
         for (int slot = 0; slot < selected; slot++)
         {
             int best = slot;
-            float bestScore = Score(candidates[slot], viewers);
+            float bestScore = scores[slot];
             for (int candidate = slot + 1; candidate < candidates.Count; candidate++)
             {
-                float score = Score(candidates[candidate], viewers);
-                if (score > bestScore) { best = candidate; bestScore = score; }
+                if (scores[candidate] > bestScore) { best = candidate; bestScore = scores[candidate]; }
             }
             if (best == slot) { continue; }
             Light swap = candidates[slot];
             candidates[slot] = candidates[best];
             candidates[best] = swap;
+            float swapScore = scores[slot];
+            scores[slot] = scores[best];
+            scores[best] = swapScore;
         }
 
-        float boundary = BoundaryWeight(candidates, viewers, selected);
+        float boundary = BoundaryWeight(scores, selected);
         for (int slot = 0; slot < selected; slot++)
         {
             BasisGlobalIlluminationRayLight described = Describe(candidates[slot], settings);
@@ -198,6 +207,22 @@ public sealed class BasisGlobalIlluminationRayLights : IDisposable
         for (int index = selected; index < ranked.Count; index++)
         {
             dropped = Mathf.Max(dropped, Score(ranked[index], viewers));
+        }
+        return Mathf.Clamp01(1f - dropped / kept);
+    }
+
+    private static float BoundaryWeight(List<float> ranked, int selected)
+    {
+        if (selected <= 0 || ranked.Count <= selected) { return 1f; }
+
+        float kept = ranked[selected - 1];
+        if (float.IsInfinity(kept) || kept >= float.MaxValue) { return 1f; }
+        if (kept <= 0f) { return 0f; }
+
+        float dropped = 0f;
+        for (int index = selected; index < ranked.Count; index++)
+        {
+            dropped = Mathf.Max(dropped, ranked[index]);
         }
         return Mathf.Clamp01(1f - dropped / kept);
     }

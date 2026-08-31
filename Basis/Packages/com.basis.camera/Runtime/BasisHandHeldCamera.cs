@@ -14,6 +14,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -1619,17 +1620,47 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // the panel instead — a full disk or a locked file is a normal thing to hit.
         try
         {
-            byte[] imageData = captureFormat == "EXR"
-                ? screenshot.EncodeToEXR(Texture2D.EXRFlags.CompressZIP)
-                : screenshot.EncodeToPNG();
+            // Copied out before any await: the readback texture is pooled and the next shutter
+            // press overwrites it, so nothing past this line may touch the Texture2D.
+            int width = screenshot.width;
+            int height = screenshot.height;
+            var pixelFormat = screenshot.graphicsFormat;
+            bool exr = captureFormat == "EXR";
+            bool printable = printPhotoEnabled && !exr && screenshot.format == TextureFormat.RGBA32;
+            string format = captureFormat;
+            Unity.Collections.NativeArray<byte> raw = screenshot.GetRawTextureData<byte>();
+            byte[] pixels = new byte[raw.Length];
+            Unity.Collections.NativeArray<byte>.Copy(raw, pixels, raw.Length);
 
-            if (photoMetadata != null)
-                imageData = BasisHandHeldCameraPhotoMetadata.Embed(imageData, captureFormat, photoMetadata, screenshot.width, screenshot.height);
+            (byte[] imageData, BasisCameraPrintResize.PrintCopy print) = await Task.Run(() =>
+            {
+                byte[] encoded = exr
+                    ? ImageConversion.EncodeArrayToEXR(pixels, pixelFormat, (uint)width, (uint)height, 0, Texture2D.EXRFlags.CompressZIP)
+                    : ImageConversion.EncodeArrayToPNG(pixels, pixelFormat, (uint)width, (uint)height, 0);
 
-            // Before the write is awaited, while the readback texture is still the one that was
-            // just shot: a photo larger than the pickup service imports is fitted from those
-            // pixels rather than by reading the file back off disk to decode it again.
-            printCopy = BuildPrintCopy(screenshot, imageData.LongLength);
+                if (photoMetadata != null)
+                    encoded = BasisHandHeldCameraPhotoMetadata.Embed(encoded, format, photoMetadata, width, height);
+
+                // Caught on its own rather than under the save's handler: a resize that fails costs
+                // a card, and must never be the reason a photograph that encoded perfectly well is
+                // reported to the shooter as unsaved.
+                BasisCameraPrintResize.PrintCopy builtPrint = default;
+                if (printable)
+                {
+                    try
+                    {
+                        builtPrint = BasisCameraPrintResize.Build(pixels, width, height, encoded.LongLength);
+                    }
+                    catch (Exception e)
+                    {
+                        BasisDebug.LogWarning(
+                            $"Print Photo could not resize the shot to fit the image pickup limits: {e.GetType().Name}: {e.Message}",
+                            BasisDebug.LogTag.Camera);
+                    }
+                }
+                return (encoded, builtPrint);
+            });
+            printCopy = print;
 
             await File.WriteAllBytesAsync(path, imageData);
         }
@@ -1644,41 +1675,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     }
 
     /// <summary>
-    /// Fits a shot to the pickup service's import bounds while its pixels are still in hand, or
-    /// returns nothing when the shot already fits — which is every photo below the two largest
-    /// resolution presets, and the case that still spawns straight from the file on disk.
-    ///
-    /// <para>Caught on its own rather than under the save's handler: a resize that fails costs a
-    /// card, and must never be the reason a photograph that encoded perfectly well is reported
-    /// to the shooter as unsaved. Nothing produced here means the file is offered to the service
-    /// as it always was, rejection popup included.</para>
-    /// </summary>
-    private BasisCameraPrintResize.PrintCopy BuildPrintCopy(Texture2D picture, long encodedBytes)
-    {
-        if (!printPhotoEnabled) return default;
-        if (captureFormat == "EXR") return default;
-
-        try
-        {
-            return BasisCameraPrintResize.Build(picture, encodedBytes);
-        }
-        catch (Exception e)
-        {
-            BasisDebug.LogWarning(
-                $"Print Photo could not resize the shot to fit the image pickup limits: {e.GetType().Name}: {e.Message}",
-                BasisDebug.LogTag.Camera);
-            return default;
-        }
-    }
-
-    /// <summary>
     /// Hands a photo that just landed on disk to the image pickup service, spawning it in front
     /// of the player as the same shareable, replicated card a drag-and-dropped image file makes.
     /// PNG only: EXR is a float format the pickup pipeline cannot decode, so those saves stay on
     /// disk rather than raising a rejection popup for every shot.
     ///
     /// <para>A shot past what the service imports is shared as the resized copy
-    /// <see cref="BuildPrintCopy"/> made of it, and the shooter is told once that it happened.
+    /// <see cref="BasisCameraPrintResize.Build(byte[], int, int, long)"/> made of it, and the shooter is told once that it happened.
     /// The file on disk is untouched either way — it is still the full-size photograph.</para>
     /// </summary>
     private void PrintPhotoIfEnabled(string path, BasisCameraPrintResize.PrintCopy printCopy)

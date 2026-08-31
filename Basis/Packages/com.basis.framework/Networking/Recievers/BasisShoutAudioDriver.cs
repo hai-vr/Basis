@@ -268,6 +268,36 @@ namespace Basis.Scripts.Networking.Receivers
             }
         }
 
+        private static BasisAudioReceiver[] _computeSnapshot = System.Array.Empty<BasisAudioReceiver>();
+        private static int _computeCount;
+
+        public static void PublishComputeSnapshot()
+        {
+            int count = _entries.Count;
+            if (_computeSnapshot.Length < count)
+            {
+                _computeSnapshot = new BasisAudioReceiver[System.Math.Max(4, count * 2)];
+            }
+            int index = 0;
+            foreach (var kvp in _entries)
+            {
+                _computeSnapshot[index++] = kvp.Value.Receiver;
+            }
+            _computeCount = index;
+        }
+
+        public static void ComputeAll()
+        {
+            for (int index = 0; index < _computeCount; index++)
+            {
+                var receiver = _computeSnapshot[index];
+                if (!receiver.IsAudioActive || receiver.VoiceBuffer.DecodedFrameCount == 0)
+                {
+                    receiver.DrainAndDecodeThreadSafe();
+                }
+            }
+        }
+
         /// <summary>
         /// Must be called each frame to drain jitter buffers and decode audio.
         /// </summary>
@@ -275,12 +305,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
             foreach (var kvp in _entries)
             {
-                var receiver = kvp.Value.Receiver;
-                if (!receiver.IsAudioActive || receiver.VoiceBuffer.DecodedFrameCount == 0)
-                {
-                    receiver.DrainAndDecodeThreadSafe();
-                }
-                receiver.ApplyAudioState();
+                kvp.Value.Receiver.ApplyAudioState();
             }
         }
 

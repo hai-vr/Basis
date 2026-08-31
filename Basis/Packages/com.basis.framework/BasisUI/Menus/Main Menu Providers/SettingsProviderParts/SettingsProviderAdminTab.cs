@@ -883,11 +883,11 @@ namespace Basis.BasisUI
             PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(container);
             modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.type"));
             modeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.type.tooltip"));
-            modeDropdown.AssignEntries(new List<string>(DefaultLibraryModeNames), null, new List<string>
+            modeDropdown.AssignLocalizedEntries(new List<string>(DefaultLibraryModeNames), new List<string>
             {
-                BasisLocalization.Get("settings.admin.title.type.avatar.tooltip"),
-                BasisLocalization.Get("settings.admin.title.type.world.tooltip"),
-                BasisLocalization.Get("settings.admin.title.type.prop.tooltip")
+                "settings.admin.title.type.avatar",
+                "settings.admin.title.type.world",
+                "settings.admin.title.type.prop"
             });
             modeDropdown.SetValueWithoutNotify(DefaultLibraryModeNames[0]);
 
@@ -937,10 +937,11 @@ namespace Basis.BasisUI
                     modeDropdown.SetValueWithoutNotify(DefaultLibraryModeNames[mode]);
 
                 WithConfirm(
-                    "Add to server defaults?",
-                    $"Save this {DefaultLibraryModeNames[mode]} to the server's default library? It will appear in every connected player's library and persist across server restarts.",
-                    "Add",
-                    "Cancel",
+                    BasisLocalization.Get("settings.admin.confirm.addDefaultLibrary.title"),
+                    BasisLocalization.Get("settings.admin.confirm.addDefaultLibrary.body",
+                        BasisLocalization.Get("settings.admin.title.type." + DefaultLibraryModeNames[mode].ToLowerInvariant())),
+                    BasisLocalization.Get("settings.admin.confirm.addDefaultLibrary.confirm"),
+                    BasisLocalization.Get("ui.cancel"),
                     () => BasisNetworkModeration.AddDefaultLibraryItem(mode, url, password));
             };
 
@@ -959,10 +960,10 @@ namespace Basis.BasisUI
                 InputValidation.SplitUrlFragmentPassword(rawUrl, string.Empty, out string url, out _);
 
                 WithConfirm(
-                    "Remove from server defaults?",
-                    $"Drop every default-library entry matching '{url}'? The change is immediate and propagates to every connected player.",
-                    "Remove",
-                    "Cancel",
+                    BasisLocalization.Get("settings.admin.confirm.removeDefaultLibrary.title"),
+                    BasisLocalization.Get("settings.admin.confirm.removeDefaultLibrary.body", url),
+                    BasisLocalization.Get("settings.admin.confirm.removeDefaultLibrary.confirm"),
+                    BasisLocalization.Get("ui.cancel"),
                     () => BasisNetworkModeration.RemoveDefaultLibraryItem(url));
             };
 

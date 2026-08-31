@@ -58,29 +58,13 @@ public static class BasisNetworkGenericMessages
         _directHandlers.Remove(messageIndex);
     }
 
-    public static void HandleServerSceneDataMessage(NetPacketReader reader, DeliveryMethod deliveryMethod)
+    public static void DispatchServerSceneDataMessage(ServerSceneDataMessage serverSceneDataMessage, DeliveryMethod deliveryMethod, bool direct)
     {
-        var serverSceneDataMessage = new ServerSceneDataMessage();
-        serverSceneDataMessage.Deserialize(reader);
-
         ushort playerID = serverSceneDataMessage.playerIdMessage.playerID;
         var sceneDataMessage = serverSceneDataMessage.sceneDataMessage;
-        if (DispatchSceneData(playerID, sceneDataMessage.messageIndex, sceneDataMessage.payload, deliveryMethod, false))
+        if (DispatchSceneData(playerID, sceneDataMessage.messageIndex, sceneDataMessage.payload, deliveryMethod, direct))
         {
             serverSceneDataMessage.sceneDataMessage.Release();//dont need todo this but not doing it will create more gc then necessary
-        }
-    }
-
-    public static void HandleDirectServerSceneDataMessage(NetPacketReader reader, DeliveryMethod deliveryMethod)
-    {
-        var serverSceneDataMessage = new ServerSceneDataMessage();
-        serverSceneDataMessage.Deserialize(reader);
-
-        ushort playerID = serverSceneDataMessage.playerIdMessage.playerID;
-        var sceneDataMessage = serverSceneDataMessage.sceneDataMessage;
-        if (DispatchSceneData(playerID, sceneDataMessage.messageIndex, sceneDataMessage.payload, deliveryMethod, true))
-        {
-            serverSceneDataMessage.sceneDataMessage.Release();
         }
     }
 

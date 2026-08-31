@@ -1,29 +1,31 @@
 using System.Collections.Generic;
+using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Jobs;
 
 /// <summary>
 /// The per frame half of <see cref="BasisAvatarProxy"/>: every limb's matrix for the room, in one flat
 /// array that consumers index into rather than each keeping a copy.
 ///
-/// ⚠️ THIS RUNS ON THE MAIN THREAD, DELIBERATELY, AND A JOB VERSION CANNOT LIVE AT THIS CALL SITE.
-/// It was an IJobParallelForTransform gather plus a Burst IJobParallelFor, and it crashed the editor:
+/// ⚠️ A JOB VERSION CANNOT BE SCHEDULED FROM INSIDE THE RENDER PIPELINE. An earlier attempt scheduled
+/// the gather from RenderPipelineManager.beginFrameRendering and crashed the editor:
 ///
 ///     InvalidOperationException: The previously scheduled job ZBinningJob writes to the
 ///     NativeArray`1[System.UInt32] ZBinningJob.bins. You must call JobHandle.Complete() on the job
 ///     ZBinningJob, before you can write to it safely.
 ///
-/// ZBinningJob is URP's OWN light binning job. The poses are sampled from
-/// RenderPipelineManager.beginFrameRendering, which is the only point late enough that every pose write
-/// for the frame has landed and early enough that nothing has started drawing - but it sits inside URP's
-/// frame setup, with URP's jobs in flight. Scheduling and completing there is a sync point in the middle
-/// of somebody else's job graph, and the safety system is right to refuse it.
+/// ZBinningJob is URP's OWN light binning job — scheduling and completing there is a sync point in the
+/// middle of somebody else's job graph, and the safety system is right to refuse it.
 ///
-/// The work is small enough that this is not the tradeoff it sounds like: a dozen limbs per avatar, two
-/// transform reads and a basis construction each. What it is NOT is the old per frame SkinnedMeshRenderer
-/// bake, which is the cost the proxy exists to remove. If this ever does show up in a profile, the job
-/// version has to be scheduled from outside the render pipeline - a MonoBehaviour LateUpdate that
-/// schedules and a beginFrameRendering that only reads - not resurrected here.
+/// So the split is: <see cref="ScheduleBeforeRender"/> runs on Application.onBeforeRender at
+/// BeforeRenderOrder int.MaxValue — after Basis has run its IK on the default-order handler, before URP
+/// exists for the frame — and <see cref="Run"/> (beginFrameRendering) only joins and publishes. The poses
+/// are still one sample at one instant for every consumer; the sample just happens a hair earlier, at the
+/// last onBeforeRender slot instead of the first pipeline callback, with nothing writing bones in between.
+/// A destroyed bone is skipped by the transform job and keeps its last matrix until the next rebuild,
+/// exactly as the managed loop's null-skip did.
 /// </summary>
 public static class BasisAvatarProxyJobs
 {
@@ -31,6 +33,37 @@ public static class BasisAvatarProxyJobs
     private static float2[] shape;
     private static Matrix4x4[] matrices;
     private static int limbCount;
+
+    private static TransformAccessArray access;
+    private static NativeArray<Vector3> positions;
+    private static NativeArray<float2> shapeNative;
+    private static NativeArray<Matrix4x4> outMatrices;
+    private static JobHandle handle;
+    private static bool scheduled;
+    private static bool hooked;
+
+    private struct GatherJob : IJobParallelForTransform
+    {
+        public NativeArray<Vector3> Positions;
+
+        public void Execute(int index, TransformAccess transform)
+        {
+            Positions[index] = transform.position;
+        }
+    }
+
+    private struct BuildJob : IJobParallelFor
+    {
+        [ReadOnly] public NativeArray<Vector3> Positions;
+        [ReadOnly] public NativeArray<float2> Shape;
+        public NativeArray<Matrix4x4> Matrices;
+
+        public void Execute(int index)
+        {
+            float2 s = Shape[index];
+            Matrices[index] = Build(Positions[index * 2], Positions[index * 2 + 1], s.x, s.y);
+        }
+    }
 
     /// <summary>How many limbs the shared arrays currently hold. For tests and diagnostics.</summary>
     public static int LimbCount => limbCount;
@@ -53,6 +86,9 @@ public static class BasisAvatarProxyJobs
     /// </summary>
     public static void Rebuild(List<BasisAvatarProxy.ResolvedLimb> limbs)
     {
+        CompleteScheduled();
+        DisposeNative();
+
         limbCount = limbs != null ? limbs.Count : 0;
         if (limbCount == 0)
         {
@@ -76,12 +112,54 @@ public static class BasisAvatarProxyJobs
             shape[index] = new float2(limb.IsValid ? limb.Radius : 0f, limb.Extend);
             matrices[index] = Matrix4x4.identity;
         }
+
+        access = new TransformAccessArray(bones);
+        positions = new NativeArray<Vector3>(limbCount * 2, Allocator.Persistent);
+        shapeNative = new NativeArray<float2>(shape, Allocator.Persistent);
+        outMatrices = new NativeArray<Matrix4x4>(limbCount, Allocator.Persistent);
+        for (int index = 0; index < limbCount; index++) { outMatrices[index] = Matrix4x4.identity; }
+        EnsureHook();
     }
 
-    /// <summary>Reads every bone and rebuilds every matrix. One pass for the whole room.</summary>
+    private static void EnsureHook()
+    {
+        if (hooked) { return; }
+        hooked = true;
+        Application.onBeforeRender += ScheduleBeforeRender;
+    }
+
+    [BeforeRenderOrder(int.MaxValue)]
+    private static void ScheduleBeforeRender()
+    {
+        if (scheduled || limbCount == 0 || !access.isCreated) { return; }
+        JobHandle gather = new GatherJob { Positions = positions }.Schedule(access);
+        handle = new BuildJob { Positions = positions, Shape = shapeNative, Matrices = outMatrices }.Schedule(limbCount, 16, gather);
+        scheduled = true;
+        JobHandle.ScheduleBatchedJobs();
+    }
+
+    private static void CompleteScheduled()
+    {
+        if (!scheduled) { return; }
+        handle.Complete();
+        scheduled = false;
+    }
+
+    /// <summary>
+    /// Publishes this frame's matrices. Joins the pre-render job when one is in flight; falls back to the
+    /// managed read loop when it is not (the frame a layout rebuild landed on, or when nothing hooked yet).
+    /// </summary>
     public static void Run()
     {
         if (matrices == null || limbCount == 0) { return; }
+
+        if (scheduled)
+        {
+            handle.Complete();
+            scheduled = false;
+            outMatrices.CopyTo(matrices);
+            return;
+        }
 
         for (int index = 0; index < limbCount; index++)
         {
@@ -133,8 +211,18 @@ public static class BasisAvatarProxyJobs
         return matrix;
     }
 
+    private static void DisposeNative()
+    {
+        if (access.isCreated) { access.Dispose(); }
+        if (positions.IsCreated) { positions.Dispose(); }
+        if (shapeNative.IsCreated) { shapeNative.Dispose(); }
+        if (outMatrices.IsCreated) { outMatrices.Dispose(); }
+    }
+
     public static void Release()
     {
+        CompleteScheduled();
+        DisposeNative();
         bones = null;
         shape = null;
         matrices = null;

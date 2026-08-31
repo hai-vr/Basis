@@ -1602,7 +1602,7 @@ namespace Basis.BasisUI
 
         // ---------------- REMOTE PLAYER AUDIO ----------------
         // AudioSource
-        public static BasisSettingsBinding<float> RAMinDistance = new("ra_mindistance", new BasisPlatformDefault<float>(0.5f));
+        public static BasisSettingsBinding<float> RAMinDistance = new("ra_mindistance", new BasisPlatformDefault<float>(1.5f));
         public static BasisSettingsBinding<float> RASpread = new("ra_spread", new BasisPlatformDefault<float>(70f));
         // Per-source doppler scale. Whether any pitch shift actually happens is
         // decided globally by Doppler Factor in AudioManager.asset, which the project

@@ -11,7 +11,8 @@ namespace Basis.BasisUI.HandHeldCamera
 {
     public partial class BasisHandHeldCameraPanelProvider : BasisMenuActionProvider<BasisMainMenu>
     {
-        public const string StaticTitle = "Camera Settings";
+        public const string StaticTitleKey = "menu.provider.cameraSettings";
+        public static string StaticTitle => BasisLocalization.Get(StaticTitleKey);
 
         private static readonly int[] VideoResolutionWidths = { 1280, 1920, 2560, 3840 };
         private static readonly int[] VideoResolutionHeights = { 720, 1080, 1440, 2160 };

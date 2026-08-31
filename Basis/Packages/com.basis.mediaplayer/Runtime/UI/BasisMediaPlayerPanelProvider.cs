@@ -10,7 +10,8 @@ namespace Basis.BasisUI.MediaPlayer
     public class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMenu>
     {
         public const string Perm_Control = "basis.mediaplayer.control";
-        public const string StaticTitle = "Media Players";
+        public const string StaticTitleKey = "menu.provider.mediaPlayers";
+        public static string StaticTitle => BasisLocalization.Get(StaticTitleKey);
 
         private static BasisMediaPlayerPanelProvider _instance;
 

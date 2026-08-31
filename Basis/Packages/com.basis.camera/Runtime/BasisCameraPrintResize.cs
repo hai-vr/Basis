@@ -122,6 +122,26 @@ public static class BasisCameraPrintResize
         if (sourceWidth <= 0 || sourceHeight <= 0) return default;
         if (FitsPickupImport(sourceWidth, sourceHeight, encodedBytes)) return default;
 
+        // A view on the texture's own bytes rather than a copy of them: at 8K the copy alone
+        // would be a hundred and thirty megabytes, and nothing here writes to the source.
+        return BuildFromSource(photo.GetRawTextureData<byte>().AsReadOnlySpan(), sourceWidth, sourceHeight);
+    }
+
+    /// <summary>
+    /// As <see cref="Build(Texture2D, long)"/> from raw RGBA32 pixels, with no Unity API touched —
+    /// callable from a worker thread, which is where the camera's save path runs it.
+    /// </summary>
+    public static PrintCopy Build(byte[] photoRgba32, int sourceWidth, int sourceHeight, long encodedBytes)
+    {
+        if (photoRgba32 == null || sourceWidth <= 0 || sourceHeight <= 0) return default;
+        if (photoRgba32.LongLength < (long)sourceWidth * sourceHeight * 4) return default;
+        if (FitsPickupImport(sourceWidth, sourceHeight, encodedBytes)) return default;
+
+        return BuildFromSource(photoRgba32, sourceWidth, sourceHeight);
+    }
+
+    private static PrintCopy BuildFromSource(ReadOnlySpan<byte> source, int sourceWidth, int sourceHeight)
+    {
         int longestSide = Mathf.Max(sourceWidth, sourceHeight);
         int target = Mathf.Min(MaxPrintDimension, longestSide);
 
@@ -129,9 +149,6 @@ public static class BasisCameraPrintResize
         // size. Re-encoding it unchanged would fail the same way, so it starts one step down.
         if (target >= longestSide) target = ShrinkStep(target);
 
-        // A view on the texture's own bytes rather than a copy of them: at 8K the copy alone
-        // would be a hundred and thirty megabytes, and nothing here writes to the source.
-        ReadOnlySpan<byte> source = photo.GetRawTextureData<byte>().AsReadOnlySpan();
         PrintCopy copy = default;
 
         for (int attempt = 0; attempt < MaxShrinkAttempts; attempt++)

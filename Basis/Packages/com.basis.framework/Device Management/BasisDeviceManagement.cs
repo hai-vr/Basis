@@ -249,7 +249,10 @@ namespace Basis.Scripts.Device_Management
                 // defeat the HasSaveData("language") check.
                 Basis.BasisUI.BasisLocalization.Initialize();
                 Basis.BasisUI.BasisTMPFontFallbacks.RefreshJapanesePriority();
-                BasisSettingsDefaults.LoadAll();
+                using (BasisSettingsSystem.Batch())
+                {
+                    BasisSettingsDefaults.LoadAll();
+                }
                 // First thing after the settings land: a renderer swap can only happen by
                 // relaunching, so it has to be decided before anything is built to throw away.
                 Basis.Scripts.Rendering.BasisGraphicsApiSelection.ApplyStartupSetting();

@@ -162,6 +162,46 @@ namespace Basis.Tests.Camera
             }
         }
 
+        [Test]
+        public void TheArrayOverloadMatchesTheTextureOverloadByteForByte()
+        {
+            // The camera save path now runs the fit on a worker from raw pixels; the copy it makes
+            // must be exactly the one the texture path would have made.
+            Texture2D photo = MakePhoto(4200, 32);
+            try
+            {
+                byte[] raw = photo.GetRawTextureData();
+                BasisCameraPrintResize.PrintCopy fromTexture = BasisCameraPrintResize.Build(photo, SmallFile);
+                BasisCameraPrintResize.PrintCopy fromArray = BasisCameraPrintResize.Build(raw, 4200, 32, SmallFile);
+
+                Assert.That(fromArray.Exists, Is.EqualTo(fromTexture.Exists));
+                Assert.That(fromArray.Width, Is.EqualTo(fromTexture.Width));
+                Assert.That(fromArray.Height, Is.EqualTo(fromTexture.Height));
+                Assert.That(fromArray.SourceWidth, Is.EqualTo(fromTexture.SourceWidth));
+                Assert.That(fromArray.SourceHeight, Is.EqualTo(fromTexture.SourceHeight));
+                Assert.That(fromArray.Png, Is.EqualTo(fromTexture.Png));
+            }
+            finally
+            {
+                Object.DestroyImmediate(photo);
+            }
+        }
+
+        [Test]
+        public void TheArrayOverloadRefusesPixelDataSmallerThanTheClaimedSize()
+        {
+            BasisCameraPrintResize.PrintCopy copy = BasisCameraPrintResize.Build(new byte[16], 100, 100, 64L * 1024 * 1024);
+            Assert.That(copy.Exists, Is.False);
+        }
+
+        [Test]
+        public void TheArrayOverloadProducesNoCopyForAShotThatFits()
+        {
+            byte[] raw = new byte[64 * 48 * 4];
+            BasisCameraPrintResize.PrintCopy copy = BasisCameraPrintResize.Build(raw, 64, 48, SmallFile);
+            Assert.That(copy.Exists, Is.False);
+        }
+
         private static Texture2D MakePhoto(int width, int height)
         {
             var photo = new Texture2D(width, height, TextureFormat.RGBA32, false);

@@ -199,29 +199,6 @@ public partial class BasisHandHeldCamera
 
     private async void Process360AndSave(byte[] raw, int width, int height, bool exr, BasisHandHeldCameraPhotoMetadata.PhotoMetadata photoMetadata, int perEyeWidth, int fullHeight, bool stereo, float headingDegrees, float exposure, float contrast, float saturation)
     {
-        byte[] imageData;
-        Texture2D printSource = null;
-
-        if (exr)
-        {
-            var tex = new Texture2D(width, height, TextureFormat.RGBAFloat, false);
-            tex.LoadRawTextureData(raw);
-            tex.Apply(false);
-            imageData = tex.EncodeToEXR(Texture2D.EXRFlags.CompressZIP);
-            Destroy(tex);
-        }
-        else
-        {
-            byte[] rgba = await Task.Run(() => TonemapEquirectToRgba32(raw, width, height, exposure, contrast, saturation));
-            var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
-            tex.LoadRawTextureData(rgba);
-            tex.Apply(false);
-            imageData = tex.EncodeToPNG();
-            // Held past the encode rather than freed with it: an equirect is wider than anything
-            // the pickup service imports, so the print copy has to come off these pixels.
-            printSource = tex;
-        }
-
         if (photoMetadata != null)
         {
             photoMetadata.HasPano = true;
@@ -230,8 +207,49 @@ public partial class BasisHandHeldCamera
             photoMetadata.PanoFullHeight = fullHeight;
             photoMetadata.PanoPerEyeHeight = perEyeWidth / 2;
             photoMetadata.PanoHeadingDegrees = headingDegrees;
+        }
 
-            imageData = BasisHandHeldCameraPhotoMetadata.Embed(imageData, exr ? "EXR" : "PNG", photoMetadata, width, height);
+        byte[] imageData;
+        BasisCameraPrintResize.PrintCopy printCopy = default;
+        bool printable = printPhotoEnabled && !exr;
+
+        if (exr)
+        {
+            imageData = await Task.Run(() =>
+            {
+                byte[] encoded = ImageConversion.EncodeArrayToEXR(raw, UnityEngine.Experimental.Rendering.GraphicsFormat.R32G32B32A32_SFloat, (uint)width, (uint)height, 0, Texture2D.EXRFlags.CompressZIP);
+                if (photoMetadata != null)
+                    encoded = BasisHandHeldCameraPhotoMetadata.Embed(encoded, "EXR", photoMetadata, width, height);
+                return encoded;
+            });
+        }
+        else
+        {
+            (imageData, printCopy) = await Task.Run(() =>
+            {
+                byte[] rgba = TonemapEquirectToRgba32(raw, width, height, exposure, contrast, saturation);
+                byte[] encoded = ImageConversion.EncodeArrayToPNG(rgba, UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_SRGB, (uint)width, (uint)height, 0);
+                if (photoMetadata != null)
+                    encoded = BasisHandHeldCameraPhotoMetadata.Embed(encoded, "PNG", photoMetadata, width, height);
+
+                // An equirect is wider than anything the pickup service imports, so the print copy
+                // comes off the tonemapped pixels while they are still in hand.
+                BasisCameraPrintResize.PrintCopy builtPrint = default;
+                if (printable)
+                {
+                    try
+                    {
+                        builtPrint = BasisCameraPrintResize.Build(rgba, width, height, encoded.LongLength);
+                    }
+                    catch (Exception e)
+                    {
+                        BasisDebug.LogWarning(
+                            $"Print Photo could not resize the shot to fit the image pickup limits: {e.GetType().Name}: {e.Message}",
+                            BasisDebug.LogTag.Camera);
+                    }
+                }
+                return (encoded, builtPrint);
+            });
         }
 
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -239,9 +257,6 @@ public partial class BasisHandHeldCamera
         string layout = stereo ? "Stereo" : "Mono";
         string filename = $"Screenshot360_{layout}_{timestamp}_{width}x{height}.{extension}";
         string path = GetSavePath(filename);
-
-        BasisCameraPrintResize.PrintCopy printCopy = BuildPrintCopy(printSource, imageData.LongLength);
-        if (printSource != null) Destroy(printSource);
 
         // Same reasoning as the flat save path: this is async void, so a write that fails has to
         // be captured here or it never reaches the user.

@@ -288,10 +288,12 @@ public static class BasisNetworkEvents
                 Reader.Recycle();
                 return;
             }
+            var serverSceneDataMessage = new SerializableBasis.ServerSceneDataMessage();
+            serverSceneDataMessage.Deserialize(Reader);
+            Reader.Recycle();
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                BasisNetworkGenericMessages.HandleServerSceneDataMessage(Reader, deliveryMethod);
-                Reader.Recycle();
+                BasisNetworkGenericMessages.DispatchServerSceneDataMessage(serverSceneDataMessage, deliveryMethod, false);
             });
         });
 
@@ -316,10 +318,12 @@ public static class BasisNetworkEvents
                 Reader.Recycle();
                 return;
             }
+            var serverSceneDataMessage = new SerializableBasis.ServerSceneDataMessage();
+            serverSceneDataMessage.Deserialize(Reader);
+            Reader.Recycle();
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                BasisNetworkGenericMessages.HandleDirectServerSceneDataMessage(Reader, deliveryMethod);
-                Reader.Recycle();
+                BasisNetworkGenericMessages.DispatchServerSceneDataMessage(serverSceneDataMessage, deliveryMethod, true);
             });
         });
 

@@ -4063,6 +4063,18 @@
       "value": "Library"
     },
     {
+      "key": "menu.provider.mirror",
+      "value": "Mirror Settings"
+    },
+    {
+      "key": "menu.provider.cameraSettings",
+      "value": "Camera Settings"
+    },
+    {
+      "key": "menu.provider.mediaPlayers",
+      "value": "Media Players"
+    },
+    {
       "key": "menu.provider.shoutModeOff",
       "value": "Shout Mode Off"
     },
@@ -10668,7 +10680,7 @@
     },
     {
       "key": "settings.graphics.vrs.outer.tooltip",
-      "value": "Where the lowest shading rate (4x4) begins. Between the sharp center and this point renders at half rate (2x2); beyond it renders at quarter rate."
+      "value": "Where the periphery begins. Between the sharp center and this point renders at half rate (2x2); beyond it the rate steps down through a transition band to the lowest rate (4x4)."
     },
     {
       "key": "settings.developer.featureSections.title",
@@ -14257,6 +14269,30 @@
       "value": "Remove from Server Defaults"
     },
     {
+      "key": "settings.admin.confirm.addDefaultLibrary.title",
+      "value": "Add to server defaults?"
+    },
+    {
+      "key": "settings.admin.confirm.addDefaultLibrary.body",
+      "value": "Save this {0} to the server's default library? It will appear in every connected player's library and persist across server restarts."
+    },
+    {
+      "key": "settings.admin.confirm.addDefaultLibrary.confirm",
+      "value": "Add"
+    },
+    {
+      "key": "settings.admin.confirm.removeDefaultLibrary.title",
+      "value": "Remove from server defaults?"
+    },
+    {
+      "key": "settings.admin.confirm.removeDefaultLibrary.body",
+      "value": "Drop every default-library entry matching '{0}'? The change is immediate and propagates to every connected player."
+    },
+    {
+      "key": "settings.admin.confirm.removeDefaultLibrary.confirm",
+      "value": "Remove"
+    },
+    {
       "key": "settings.admin.title.remoteEndEffectorIK",
       "value": "Remote End Effector IK"
     },
@@ -14478,7 +14514,7 @@
     },
     {
       "key": "menu.individualPlayer.voiceRecording.policy.description",
-      "value": "What happens when this player asks to record your voice."
+      "value": "What happens when this player asks to record your voice, or a Cilbox script running for them asks to route your voice through a world object (e.g. a radio prop)."
     },
     {
       "key": "menu.individualPlayer.voiceRecording.policy.ask",
@@ -17277,6 +17313,14 @@
       "value": "Switch between VR and desktop on its own as the headset comes and goes."
     },
     {
+      "key": "settings.controls.dominantHand.right",
+      "value": "Right"
+    },
+    {
+      "key": "settings.controls.dominantHand.left",
+      "value": "Left"
+    },
+    {
       "key": "settings.controls.dominantHand.right.tooltip",
       "value": "Treat your right hand as the main interaction hand."
     },
@@ -17291,6 +17335,18 @@
     {
       "key": "settings.admin.opusFrameDuration.40.tooltip",
       "value": "Send voice in 40 ms packets. Less bandwidth and overhead, a little more delay."
+    },
+    {
+      "key": "settings.admin.title.type.avatar",
+      "value": "Avatar"
+    },
+    {
+      "key": "settings.admin.title.type.world",
+      "value": "World"
+    },
+    {
+      "key": "settings.admin.title.type.prop",
+      "value": "Prop"
     },
     {
       "key": "settings.admin.title.type.avatar.tooltip",
@@ -17334,15 +17390,15 @@
     },
     {
       "key": "menu.individualPlayer.voiceRecording.policy.ask.tooltip",
-      "value": "Prompt you each time this player asks to record you."
+      "value": "Prompt you each time this player, or a Cilbox script running for them, asks to record or route your voice."
     },
     {
       "key": "menu.individualPlayer.voiceRecording.policy.allow.tooltip",
-      "value": "Let this player record your voice without asking again."
+      "value": "Automatically approve this player's recording and Cilbox voice-routing requests without asking again."
     },
     {
       "key": "menu.individualPlayer.voiceRecording.policy.deny.tooltip",
-      "value": "Refuse this player's recording requests without asking again."
+      "value": "Automatically refuse this player's recording and Cilbox voice-routing requests without asking again."
     },
     {
       "key": "menu.individualPlayer.directConnection.policy.ask.tooltip",
@@ -17355,6 +17411,66 @@
     {
       "key": "menu.individualPlayer.directConnection.policy.decline.tooltip",
       "value": "Decline direct connection requests from this player automatically."
+    },
+    {
+      "key": "library.sort.name",
+      "value": "Name"
+    },
+    {
+      "key": "library.sort.dateOldestToNewest",
+      "value": "Oldest First"
+    },
+    {
+      "key": "library.sort.dateNewestToOldest",
+      "value": "Newest First"
+    },
+    {
+      "key": "library.filter.all",
+      "value": "All"
+    },
+    {
+      "key": "library.filter.embedded",
+      "value": "Embedded"
+    },
+    {
+      "key": "library.filter.local",
+      "value": "Local"
+    },
+    {
+      "key": "library.filter.networked",
+      "value": "Networked"
+    },
+    {
+      "key": "library.filter.gameObject",
+      "value": "Props"
+    },
+    {
+      "key": "library.filter.scene",
+      "value": "Worlds"
+    },
+    {
+      "key": "library.filter.avatar",
+      "value": "Avatars"
+    },
+    {
+      "key": "library.filter.adminOnly",
+      "value": "Admin Only"
+    },
+    {
+      "key": "library.filter.persistentOnly",
+      "value": "Persistent"
+    },
+    {
+      "key": "library.filter.notPersistent",
+      "value": "Temporary"
+    },
+    {
+      "key": "library.filter.placedByMe",
+      "value": "Placed By Me"
+    },
+    {
+      "key": "library.filter.notPlacedByMe",
+      "value": "Placed By Others"
     },
     {
       "key": "library.sort.name.tooltip",

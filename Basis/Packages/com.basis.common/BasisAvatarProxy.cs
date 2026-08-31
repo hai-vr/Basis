@@ -267,10 +267,22 @@ public static class BasisAvatarProxy
         while (fitDistances.Count < limbs.Count) { fitDistances.Add(new List<float>()); }
         for (int index = 0; index < limbs.Count; index++) { fitDistances[index].Clear(); }
 
+        // Read once, not once per sampled vertex per limb: the positions cannot move during this
+        // synchronous pass, and per-vertex transform reads were nearly all of this function's cost.
+        Vector3[] limbStarts = new Vector3[limbs.Count];
+        Vector3[] limbEnds = new Vector3[limbs.Count];
+        for (int index = 0; index < limbs.Count; index++)
+        {
+            ResolvedLimb limb = limbs[index];
+            if (!limb.IsValid) { continue; }
+            limbStarts[index] = limb.From.position;
+            limbEnds[index] = limb.To.position;
+        }
+
         bool measured = false;
         for (int index = 0; index < fitRenderers.Count; index++)
         {
-            measured |= Measure(fitRenderers[index], limbs);
+            measured |= Measure(fitRenderers[index], limbs, limbStarts, limbEnds);
         }
         if (!measured) { return; }
 
@@ -294,7 +306,7 @@ public static class BasisAvatarProxy
     /// Gives every sampled vertex of one renderer to the limb it sits nearest, recording how far off that
     /// limb's axis it was. Returns whether the renderer could be read at all.
     /// </summary>
-    private static bool Measure(SkinnedMeshRenderer renderer, List<ResolvedLimb> limbs)
+    private static bool Measure(SkinnedMeshRenderer renderer, List<ResolvedLimb> limbs, Vector3[] limbStarts, Vector3[] limbEnds)
     {
         if (renderer == null) { return false; }
         Mesh mesh = renderer.sharedMesh;
@@ -312,26 +324,35 @@ public static class BasisAvatarProxy
             return false;
         }
 
+        // One bone rather than the full four-way blend. This is measuring how thick a limb is, and the
+        // vertices that decide that sit in the middle of a limb where one bone already dominates; the
+        // ones a blend would move are at the joints, which is exactly where a capsule end is vague anyway.
+        // The bind-then-world composition is folded to one matrix per bone here, so the vertex loop below
+        // is pure math with no transform interop in it.
+        Matrix4x4[] boneMatrices = new Matrix4x4[bones.Length];
+        bool[] boneUsable = new bool[bones.Length];
+        for (int bone = 0; bone < bones.Length; bone++)
+        {
+            Transform boneTransform = bones[bone];
+            if (boneTransform == null) { continue; }
+            boneMatrices[bone] = boneTransform.localToWorldMatrix * bindposes[bone];
+            boneUsable[bone] = true;
+        }
+
         int stride = Mathf.Max(1, vertices.Length / FitVertexBudget);
         for (int index = 0; index < vertices.Length; index += stride)
         {
             int bone = weights[index].boneIndex0;
-            if (bone < 0 || bone >= bones.Length) { continue; }
-            Transform boneTransform = bones[bone];
-            if (boneTransform == null) { continue; }
+            if (bone < 0 || bone >= bones.Length || !boneUsable[bone]) { continue; }
 
-            // One bone rather than the full four-way blend. This is measuring how thick a limb is, and the
-            // vertices that decide that sit in the middle of a limb where one bone already dominates; the
-            // ones a blend would move are at the joints, which is exactly where a capsule end is vague anyway.
-            Vector3 world = boneTransform.localToWorldMatrix.MultiplyPoint3x4(bindposes[bone].MultiplyPoint3x4(vertices[index]));
+            Vector3 world = boneMatrices[bone].MultiplyPoint3x4(vertices[index]);
 
             int nearest = -1;
             float nearestDistance = float.MaxValue;
             for (int limbIndex = 0; limbIndex < limbs.Count; limbIndex++)
             {
-                ResolvedLimb limb = limbs[limbIndex];
-                if (!limb.IsValid) { continue; }
-                float distance = DistanceToSegment(world, limb.From.position, limb.To.position);
+                if (!limbs[limbIndex].IsValid) { continue; }
+                float distance = DistanceToSegment(world, limbStarts[limbIndex], limbEnds[limbIndex]);
                 if (distance < nearestDistance) { nearestDistance = distance; nearest = limbIndex; }
             }
 

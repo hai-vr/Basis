@@ -898,17 +898,43 @@ namespace Basis.ImagePickup
                     continue;
                 }
 
-                SpawnValidatedFile(
-                    queued.Label,
-                    queued.Data != null
-                        ? BasisImageSecurity.ValidateSourceBytes(queued.Data)
-                        : BasisImageSecurity.ValidateFile(queued.Path),
-                    queued.Position,
-                    queued.Rotation,
-                    Guid.NewGuid(),
-                    null
-                );
+                SpawnValidatedFileAsync(queued);
             }
+        }
+
+        /// <summary>
+        /// Runs one queued static-image import through the async validation pipeline — decode on
+        /// the main thread, downscale/re-encode/alpha scan on a worker — then spawns the card.
+        /// The admin lock is re-checked when the result lands, the same window the GIF path guards.
+        /// </summary>
+        private static async void SpawnValidatedFileAsync(QueuedFileSpawn queued)
+        {
+            BasisImageValidationResult result = queued.Data != null
+                ? await BasisImageSecurity.ValidateSourceBytesAsync(queued.Data)
+                : await BasisImageSecurity.ValidateFileAsync(queued.Path);
+
+            if (
+                BasisNetworkModeration.GlobalImagesLocked
+                && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass()
+            )
+            {
+                DisposeRejectedValidationResult(ref result);
+                string lockedReason = BasisLocalization.Get(
+                    "imagePickup.popup.reason.adminLockedDuringDecode"
+                );
+                BasisImagePickupRejectionPopup.Show(queued.Label, lockedReason);
+                BasisDebug.LogWarning($"Image pickup rejected: {lockedReason}", LogTag);
+                return;
+            }
+
+            SpawnValidatedFile(
+                queued.Label,
+                result,
+                queued.Position,
+                queued.Rotation,
+                Guid.NewGuid(),
+                null
+            );
         }
 
         /// <summary>
@@ -2400,13 +2426,13 @@ namespace Basis.ImagePickup
             );
         }
 
-        private static void FinalizeTransfer(InboundTransfer transfer)
+        private static async void FinalizeTransfer(InboundTransfer transfer)
         {
             _inbound.Remove(transfer.Id);
             ReleaseInboundTransferBytes(transfer.ReservedBytes);
             transfer.ReservedBytes = 0;
 
-            BasisImageValidationResult result = BasisImageSecurity.ValidateBytes(transfer.Buffer);
+            BasisImageValidationResult result = await BasisImageSecurity.ValidateBytesAsync(transfer.Buffer);
             if (!result.Ok)
             {
                 RemoveImage(transfer.Id);

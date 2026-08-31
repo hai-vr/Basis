@@ -187,7 +187,21 @@ namespace Basis.Scripts.Networking
         static readonly ManualResetEventSlim s_computeDone = new ManualResetEventSlim(true);
         static volatile bool s_computeInFlight;
         static volatile Exception s_computeException;
-        static void RunParallelCompute() => Parallel.For(0, s_parallelCount, s_parallelOptions, s_parallelComputeBody);
+        static void RunParallelCompute()
+        {
+            if (s_parallelCount <= 4)
+            {
+                for (int i = 0; i < s_parallelCount; i++)
+                {
+                    ParallelComputeBody(i);
+                }
+            }
+            else
+            {
+                Parallel.For(0, s_parallelCount, s_parallelOptions, s_parallelComputeBody);
+            }
+            Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.ComputeAll();
+        }
 
         static void ComputeThreadLoop()
         {
@@ -265,6 +279,7 @@ namespace Basis.Scripts.Networking
             }
 
             BasisNetworkPlayers.PublishReceiversSnapshot();
+            Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.PublishComputeSnapshot();
 
             UnscaledDeltaTime = Math.Max(UnscaledDeltaTime, 0f);
             if (!math.isfinite(UnscaledDeltaTime))
@@ -306,7 +321,7 @@ namespace Basis.Scripts.Networking
             s_parallelCount = receiverCount;
             s_computePending = true;
 
-            if (receiverCount > 4)
+            if (receiverCount > 0)
             {
                 s_parallelSnapshot = snapshot;
                 s_parallelDeltaTime = UnscaledDeltaTime;
@@ -314,15 +329,7 @@ namespace Basis.Scripts.Networking
             }
             else
             {
-                for (int i = 0; i < receiverCount; i++)
-                {
-                    var rec = snapshot[i];
-                    rec.ComputeData(UnscaledDeltaTime);
-                    if (rec.AudioReceiverModule.NeedsAudioStateApply)
-                    {
-                        s_decodedIndices[s_decodedCount++] = i;
-                    }
-                }
+                Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.ComputeAll();
             }
         }
 

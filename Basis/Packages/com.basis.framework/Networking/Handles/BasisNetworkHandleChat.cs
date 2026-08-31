@@ -25,7 +25,7 @@ public static class BasisNetworkHandleChat
     /// <summary>
     /// How long a chat message stays visible (in seconds) before auto-clearing.
     /// </summary>
-    public const float MessageDisplayDuration = 10f;
+    public const float MessageDisplayDuration = 11f;
 
 
     /// <summary>
@@ -35,6 +35,34 @@ public static class BasisNetworkHandleChat
     public static event Action<ushort, string> OnChatMessageReceived;
 
     private static readonly ThreadLocal<NetDataWriter> threadLocalWriter = new ThreadLocal<NetDataWriter>(() => new NetDataWriter());
+
+    [RuntimeInitializeOnLoadMethod]
+    private static void Init()
+    {
+        Basis.BasisUI.BasisSettingsDefaults.ChatDisabled.OnChanged -= HandleChatDisabledChanged;
+        Basis.BasisUI.BasisSettingsDefaults.ChatDisabled.OnChanged += HandleChatDisabledChanged;
+    }
+
+    /// <summary>
+    /// Flipping chat off clears every bubble and typing indicator already on screen —
+    /// the receive-side gates only stop new ones from appearing.
+    /// </summary>
+    private static void HandleChatDisabledChanged(bool disabled)
+    {
+        if (!disabled)
+        {
+            return;
+        }
+        foreach (var pair in BasisNetworkPlayers.Players)
+        {
+            if (pair.Value?.Player is BasisRemotePlayer remotePlayer)
+            {
+                remotePlayer.IsChatTyping = false;
+                remotePlayer.OnChatTypingStateChanged?.Invoke(false);
+                remotePlayer.OnChatMessageReceived?.Invoke(string.Empty);
+            }
+        }
+    }
 
     /// <summary>
     /// True when the server's global text-chat lock is on and the local player lacks the bypass.
@@ -195,7 +223,7 @@ public static class BasisNetworkHandleChat
         if (TryGetRemotePlayer(senderPlayerId, out BasisRemotePlayer remotePlayer))
         {
             var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
-            if (!settings.ChatVisible)
+            if (!settings.ChatVisible || remotePlayer.IsEffectivelyBlocked)
             {
                 return;
             }

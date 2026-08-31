@@ -33,12 +33,23 @@ public sealed class BasisGlobalIlluminationEmitter : MonoBehaviour
 
     public Vector3 WorldPosition => transform.position;
 
+    private Vector3 cachedRadiance;
+    private int radianceFrame = -1;
+
+    // Color.linear costs three pow() calls, and the rankers read Radiance once per emitter per pass
+    // per camera. Cached per frame: the first read after any Update-time change recomputes it.
     public Vector3 Radiance
     {
         get
         {
-            Color linear = Color.linear;
-            return new Vector3(linear.r, linear.g, linear.b) * Intensity;
+            int frame = Time.frameCount;
+            if (radianceFrame != frame)
+            {
+                radianceFrame = frame;
+                Color linear = Color.linear;
+                cachedRadiance = new Vector3(linear.r, linear.g, linear.b) * Intensity;
+            }
+            return cachedRadiance;
         }
     }
 
@@ -104,46 +115,55 @@ public sealed class BasisGlobalIlluminationEmitter : MonoBehaviour
     /// so that one alone is faded by how clearly it beat the best emitter that missed the cut: by the time
     /// the two swap places they are both contributing nothing and the swap is invisible.
     /// </summary>
+    private static readonly List<float> rankScores = new List<float>();
+
     public static Selection Rank(List<BasisGlobalIlluminationEmitter> destination, in BasisGlobalIlluminationRayViewers viewer, int limit)
     {
         PruneDestroyed();
         destination.Clear();
+        rankScores.Clear();
         for (int index = 0; index < Registered.Count; index++)
         {
             BasisGlobalIlluminationEmitter emitter = Registered[index];
-            if (emitter.Contributes) { destination.Add(emitter); }
+            if (emitter.Contributes)
+            {
+                destination.Add(emitter);
+                rankScores.Add(Score(emitter, viewer));
+            }
         }
 
         int selected = Mathf.Clamp(limit, 0, destination.Count);
         for (int slot = 0; slot < selected; slot++)
         {
             int best = slot;
-            float bestScore = Score(destination[slot], viewer);
+            float bestScore = rankScores[slot];
             for (int candidate = slot + 1; candidate < destination.Count; candidate++)
             {
-                float score = Score(destination[candidate], viewer);
-                if (score > bestScore) { best = candidate; bestScore = score; }
+                if (rankScores[candidate] > bestScore) { best = candidate; bestScore = rankScores[candidate]; }
             }
             if (best == slot) { continue; }
             BasisGlobalIlluminationEmitter swap = destination[slot];
             destination[slot] = destination[best];
             destination[best] = swap;
+            float swapScore = rankScores[slot];
+            rankScores[slot] = rankScores[best];
+            rankScores[best] = swapScore;
         }
 
-        return new Selection(selected, BoundaryWeight(destination, viewer, selected));
+        return new Selection(selected, BoundaryWeight(rankScores, selected));
     }
 
-    private static float BoundaryWeight(List<BasisGlobalIlluminationEmitter> ranked, in BasisGlobalIlluminationRayViewers viewer, int selected)
+    private static float BoundaryWeight(List<float> ranked, int selected)
     {
         if (selected <= 0 || ranked.Count <= selected) { return 1f; }
 
         float dropped = 0f;
         for (int index = selected; index < ranked.Count; index++)
         {
-            dropped = Mathf.Max(dropped, Score(ranked[index], viewer));
+            dropped = Mathf.Max(dropped, ranked[index]);
         }
 
-        float kept = Score(ranked[selected - 1], viewer);
+        float kept = ranked[selected - 1];
         if (kept <= 0f) { return 0f; }
         return Mathf.Clamp01(1f - dropped / kept);
     }

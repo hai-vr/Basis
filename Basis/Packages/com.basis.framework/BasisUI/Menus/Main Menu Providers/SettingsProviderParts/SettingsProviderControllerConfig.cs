@@ -25,11 +25,9 @@ public static class SettingsProviderControllerConfig
             PanelDropdown dropdownDominantHand = PanelDropdown.CreateNewEntry(group);
             dropdownDominantHand.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.dominantHand"));
             dropdownDominantHand.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.dominantHand.tooltip"));
-            dropdownDominantHand.AssignEntries(new List<string> { BasisDominantHand.Right, BasisDominantHand.Left }, null, new List<string>
-            {
-                BasisLocalization.Get("settings.controls.dominantHand.right.tooltip"),
-                BasisLocalization.Get("settings.controls.dominantHand.left.tooltip")
-            });
+            dropdownDominantHand.AssignLocalizedEntries(
+                new List<string> { BasisDominantHand.Right, BasisDominantHand.Left },
+                new List<string> { "settings.controls.dominantHand.right", "settings.controls.dominantHand.left" });
             dropdownDominantHand.AssignBinding(BasisSettingsDefaults.DominantHand);
 
             if (BasisDeviceManagement.IsCurrentModeVR())

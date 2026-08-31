@@ -18,6 +18,7 @@ MonoBehaviour:
   - https://dl.dropbox.com/*
   - https://dl.dropboxusercontent.com/*
   - https://*.github.io/*
+  - https://raw.githubusercontent.com/*
   - https://images4.imagebam.com/*
   - https://i.ibb.co/*
   - https://images2.imgbox.com/*

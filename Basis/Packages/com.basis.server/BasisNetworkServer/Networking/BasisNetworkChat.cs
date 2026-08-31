@@ -21,6 +21,18 @@ namespace BasisNetworkServer.BasisNetworking
         private static readonly string WordFilterFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Configuration.ConfigFolderName, "chat_word_filter.txt");
 
         /// <summary>
+        /// Every accepted message is an N-1 reliable fan-out, so cap the send rate well above
+        /// human typing (burst absorbs pastes and quick corrections) and drop the rest silently.
+        /// </summary>
+        private static readonly BasisPeerRateLimiter MessageLimiter = new BasisPeerRateLimiter(tokensPerSecond: 2f, tokenBurst: 6f);
+
+        /// <summary>
+        /// Typing state is edge-triggered by well-behaved clients; anything sustained beyond a
+        /// couple of transitions per second is a broadcast storm, not a person typing.
+        /// </summary>
+        public static readonly BasisPeerRateLimiter TypingLimiter = new BasisPeerRateLimiter(tokensPerSecond: 2f, tokenBurst: 8f);
+
+        /// <summary>
         /// Loads the word filter list from disk. Each line in the file is a blocked word/phrase.
         /// Creates an empty file if none exists.
         /// </summary>
@@ -168,6 +180,12 @@ namespace BasisNetworkServer.BasisNetworking
         /// </summary>
         public static void HandleChatMessage(NetPacketReader reader, NetPeer sender)
         {
+            if (!MessageLimiter.TryConsume(sender))
+            {
+                reader.Recycle();
+                return;
+            }
+
             if (IsChatBlockedFor(sender))
             {
                 // Dropped silently: clients already grey out their composer from the broadcast lock

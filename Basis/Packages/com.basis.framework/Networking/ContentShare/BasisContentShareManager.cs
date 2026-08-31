@@ -234,14 +234,16 @@ public static class BasisContentShareManager
 
         RemoveSphere(serverMsg.contentShareCleanupMessage.SphereNetID);
     }
+    private static readonly HashSet<string> PendingSpheres = new HashSet<string>();
+
     /// <summary>
     /// Creates a content sphere GameObject in the world.
     /// </summary>
-    private static void CreateSphere(ServerContentShareMessage serverMsg)
+    private static async void CreateSphere(ServerContentShareMessage serverMsg)
     {
         ContentShareMessage msg = serverMsg.contentShareMessage;
 
-        if (ActiveSpheres.ContainsKey(msg.SphereNetID))
+        if (ActiveSpheres.ContainsKey(msg.SphereNetID) || !PendingSpheres.Add(msg.SphereNetID))
         {
             BasisDebug.LogWarning($"Content sphere already exists locally: {msg.SphereNetID}");
             return;
@@ -266,9 +268,28 @@ public static class BasisContentShareManager
         }
         if (string.IsNullOrEmpty(orbKey))
         {
+            PendingSpheres.Remove(msg.SphereNetID);
             return;
         }
-        GameObject InSceneOrb = Addressables.InstantiateAsync(orbKey, BasisDeviceManagement.Instance.transform, false).WaitForCompletion();
+        GameObject InSceneOrb;
+        try
+        {
+            InSceneOrb = await Addressables.InstantiateAsync(orbKey, BasisDeviceManagement.Instance.transform, false).Task;
+        }
+        catch (System.Exception ex)
+        {
+            PendingSpheres.Remove(msg.SphereNetID);
+            BasisDebug.LogError($"Content sphere instantiate failed: {msg.SphereNetID} {ex}");
+            return;
+        }
+        if (!PendingSpheres.Remove(msg.SphereNetID))
+        {
+            if (InSceneOrb != null)
+            {
+                Addressables.ReleaseInstance(InSceneOrb);
+            }
+            return;
+        }
         if (InSceneOrb == null)
         {
             return;
@@ -322,6 +343,7 @@ public static class BasisContentShareManager
     /// </summary>
     private static void RemoveSphere(string sphereNetID)
     {
+        PendingSpheres.Remove(sphereNetID);
         if (ActiveSpheres.TryRemove(sphereNetID, out BasisContentSphere sphere))
         {
             if (sphere != null && sphere.gameObject != null)
@@ -348,6 +370,7 @@ public static class BasisContentShareManager
             BasisShareableRegistry.Unregister(kvp.Key);
         }
         ActiveSpheres.Clear();
+        PendingSpheres.Clear();
     }
 
     private static BasisShareableKind ToShareableKind(ContentShareType type)

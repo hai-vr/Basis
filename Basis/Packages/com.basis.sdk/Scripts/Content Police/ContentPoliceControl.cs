@@ -305,10 +305,10 @@ public static class ContentPoliceControl
                     // Any component off the approved list is removed, engine built-ins included.
                     if (component != null && !IsAlwaysApproved(component))
                     {
-                        string typeName = component.GetType().FullName;
-                        if (!PoliceCheck.ApprovedTypeNames.Contains(typeName))
+                        Type componentType = component.GetType();
+                        if (!PoliceCheck.IsTypeApproved(componentType))
                         {
-                            BasisDebug.LogErrorUnreported($"Component {typeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!", BasisDebug.LogTag.System);
+                            BasisDebug.LogErrorUnreported($"Component {componentType.FullName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!", BasisDebug.LogTag.System);
                             GameObject.DestroyImmediate(component);
                             kinds[Index] = BasisComponentKind.Removed;
                         }

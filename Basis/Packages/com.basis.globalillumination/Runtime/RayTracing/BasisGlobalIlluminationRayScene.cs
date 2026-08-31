@@ -88,6 +88,31 @@ public struct BasisGlobalIlluminationRayInstance
         normal1 = normalMatrix.GetRow(1);
         normal2 = normalMatrix.GetRow(2);
     }
+
+    /// <summary>
+    /// The same three rows for a matrix whose columns are orthogonal — every proxy capsule, built as an
+    /// orthonormal basis with per-axis scales — where the inverse-transpose is analytically each column
+    /// over its own squared length. Only the 3x3 is kept either way, so this matches
+    /// <see cref="SetNormalMatrix"/> exactly for that shape at a fraction of a general 4x4 inverse.
+    /// </summary>
+    public void SetNormalMatrixOrthogonal(in Matrix4x4 localToWorld)
+    {
+        Vector4 c0 = localToWorld.GetColumn(0);
+        Vector4 c1 = localToWorld.GetColumn(1);
+        Vector4 c2 = localToWorld.GetColumn(2);
+        float s0 = c0.x * c0.x + c0.y * c0.y + c0.z * c0.z;
+        float s1 = c1.x * c1.x + c1.y * c1.y + c1.z * c1.z;
+        float s2 = c2.x * c2.x + c2.y * c2.y + c2.z * c2.z;
+        if (s0 < 1e-12f || s1 < 1e-12f || s2 < 1e-12f)
+        {
+            SetNormalMatrix(localToWorld);
+            return;
+        }
+        float i0 = 1f / s0, i1 = 1f / s1, i2 = 1f / s2;
+        normal0 = new Vector4(c0.x * i0, c1.x * i1, c2.x * i2, 0f);
+        normal1 = new Vector4(c0.y * i0, c1.y * i1, c2.y * i2, 0f);
+        normal2 = new Vector4(c0.z * i0, c1.z * i1, c2.z * i2, 0f);
+    }
 }
 
 /// <summary>
@@ -913,7 +938,7 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
             instances[instanceId].vertexOffset = (uint)entry.geometry.normals.Offset;
             instances[instanceId].flags = BasisGlobalIlluminationRayInstance.FlagProxy
                 | (entry.geometry.hasNormals && indices.IsValid ? BasisGlobalIlluminationRayInstance.FlagHasNormals : 0u);
-            instances[instanceId].SetNormalMatrix(matrix);
+            instances[instanceId].SetNormalMatrixOrthogonal(matrix);
             MarkInstanceDirty(instanceId);
         }
 
@@ -1007,7 +1032,7 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
                 int instanceId = entry.instanceIds[index];
                 if (instanceId >= 0)
                 {
-                    instances[instanceId].SetNormalMatrix(matrix);
+                    instances[instanceId].SetNormalMatrixOrthogonal(matrix);
                     MarkInstanceDirty(instanceId);
                 }
             }
