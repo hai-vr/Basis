@@ -1871,7 +1871,7 @@ namespace Basis.BasisUI
         // bone). Swinging that lever by the WHOLE gaze assumes a nod pivots at the neck bone; cervical extension
         // is short and a look-up is mostly thoracic arching, so the skull barely slides back and the estimated
         // neck walks forward and up instead, and the chest chord strung under it follows. Removing 0.65 leaves a
-        // 0.35 carry -- the physiological look-up share. 0 = the
+        // 0.35 carry, matching DesktopHeadSwingBackward -- the same physiology measured from the eye end. 0 = the
         // old rigid re-attachment (a true off switch). Look-down and pure yaw are untouched at any value.
         public static BasisSettingsBinding<float> FBIKNeckExtensionDamp = new("fbikneckextensiondamp", new BasisPlatformDefault<float>(0.65f));
         // Flexion is the look-DOWN half of the same lever. It was undamped, which left the neck estimate --
@@ -2060,8 +2060,8 @@ namespace Basis.BasisUI
         // sideways as "the hips jut out left and right", forward/back as a pelvis that wanders on a glance.
         //
         // This removes both halves, and it must remove both halves of each: the PITCH swing is modelled
-        // (VR only — desktop subtracts the exact swing BasisDesktopEye applied via KnownEyeSwing, so the
-        // add and remove sides cannot drift apart there), while the YAW arc is cancelled exactly -- the reference is carried back onto
+        // (DesktopHeadSwingBackward supplies the look-up share, so the VR and desktop halves of that model
+        // cannot drift apart), while the YAW arc is cancelled exactly -- the reference is carried back onto
         // the neck, the pivot the head actually turns about, and the pelvis's own anchor arm is re-measured
         // from that same pivot so the two cancel algebraically at any yaw. Both ends move together on this
         // one number, which is why it is one number. 1 = leash only real travel; 0 = the old behaviour.
