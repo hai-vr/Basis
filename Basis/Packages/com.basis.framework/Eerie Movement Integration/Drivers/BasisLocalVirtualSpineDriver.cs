@@ -200,8 +200,6 @@ namespace Basis.IK
                 HeadRestFromEyeLocal = headFromEyeTposeXZ,
 
                 YawPivotFromEyeLocal = isVR ? yawPivotFromEyeTposeXZ : float3.zero,
-                KnownEyeSwing = isVR ? float3.zero : DesktopAppliedEyeSwing(),
-                KnownEyeSwingValid = (byte)(isVR ? 0 : 1),
                 PostureModel = (byte)(Basis.BasisUI.BasisSettingsDefaults.VSpinePostureModel.RawValue ? 1 : 0),
                 HipsCompressionStrength = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsCompressionStrength.RawValue,
                 HipsMaxDropMeters = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsMaxDropMeters.RawValue * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale,
@@ -224,10 +222,6 @@ namespace Basis.IK
                 SkipSpine = TrackerOwned(spine),
                 SkipHips = TrackerOwned(hips),
             }.Run();
-        }
-        private static float3 DesktopAppliedEyeSwing()
-        {
-            return Basis.Scripts.Device_Management.Devices.Desktop.BasisDesktopEye.Instance != null ? (float3)Basis.Scripts.Device_Management.Devices.Desktop.BasisDesktopEye.AppliedSwingScaled : float3.zero;
         }
         private static byte TrackerOwned(BasisLocalBoneControl c)
         {
