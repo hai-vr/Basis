@@ -30,13 +30,12 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// <param name="evt">The <c>RenderPassEvent</c> to use.</param>
         /// <param name="renderQueueRange">The <c>RenderQueueRange</c> to use for creating filtering settings that control what objects get rendered.</param>
         /// <param name="layerMask">The layer mask to use for creating filtering settings that control what objects get rendered.</param>
-        /// <param name="sampler">The ProfilingSampler to use in the profiler and frame debugger for this pass.</param>
         /// <seealso cref="RenderPassEvent"/>
         /// <seealso cref="RenderQueueRange"/>
         /// <seealso cref="LayerMask"/>
-        public DepthNormalOnlyPass(RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask, ProfilingSampler sampler = null)
+        public DepthNormalOnlyPass(RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask)
         {
-            profilingSampler = sampler ?? URPProfilingSamplers.DrawDepthNormalPrepass;
+            profilingSampler = ProfilingSampler.Get(URPProfileId.DrawDepthNormalPrepass);
             m_FilteringSettings = new FilteringSettings(renderQueueRange, layerMask);
             renderPassEvent = evt;
             shaderTagIds = k_DepthNormals;
@@ -84,8 +83,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             // Enable Rendering Layers
             if (passData.enableRenderingLayers)
                 cmd.SetKeyword(ShaderGlobalKeywords.WriteRenderingLayers, true);
-            if (passData.outputSmoothness)
-                cmd.SetKeyword(ShaderGlobalKeywords.WriteSmoothness, true);
 
             // Draw
             cmd.DrawRendererList(rendererList);
@@ -93,8 +90,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             // Clean up
             if (passData.enableRenderingLayers)
                 cmd.SetKeyword(ShaderGlobalKeywords.WriteRenderingLayers, false);
-            if (passData.outputSmoothness)
-                cmd.SetKeyword(ShaderGlobalKeywords.WriteSmoothness, false);
         }
 
         /// <inheritdoc/>
@@ -115,14 +110,14 @@ namespace UnityEngine.Rendering.Universal.Internal
         private class PassData
         {
             internal bool enableRenderingLayers;
-            internal bool outputSmoothness;
             internal RenderingLayerUtils.MaskSize maskSize;
             internal RendererListHandle rendererList;
         }
 
         private RendererListParams InitRendererListParams(UniversalRenderingData renderingData, UniversalCameraData cameraData, UniversalLightData lightData)
         {
-            var drawSettings = RenderingUtils.CreateDrawingSettings(this.shaderTagIds, renderingData, cameraData, lightData, GetSortingCriteria(cameraData));
+            var sortFlags = cameraData.defaultOpaqueSortFlags;
+            var drawSettings = RenderingUtils.CreateDrawingSettings(this.shaderTagIds, renderingData, cameraData, lightData, sortFlags);
             drawSettings.perObjectData = PerObjectData.None;
             return new RendererListParams(renderingData.cullResults, drawSettings, m_FilteringSettings);
         }
@@ -148,11 +143,6 @@ namespace UnityEngine.Rendering.Universal.Internal
                 builder.SetRenderAttachmentDepth(depthTexture, AccessFlags.ReadWrite);
 
                 passData.enableRenderingLayers = enableRenderingLayers;
-#if URP_SCREEN_SPACE_REFLECTION
-                passData.outputSmoothness = renderingData.writesSmoothnessToDepthNormalsAlpha;
-#else
-                passData.outputSmoothness = false;
-#endif
 
                 if (passData.enableRenderingLayers)
                 {
@@ -167,8 +157,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                 if (cameraData.xr.enabled)
                 {
                     builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering && cameraData.xrUniversal.canFoveateIntermediatePasses);
-                    // Multiview render regions are incompatible with the inner (foveal) pass in Quad View
-                    if (!cameraData.xr.isQuadViewInnerPass)
+                    // Apply MultiviewRenderRegionsCompatible flag only to the peripheral view in Quad Views
+                    if (cameraData.xr.multipassId == 0)
                     {
                         builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.MultiviewRenderRegionsCompatible);
                     }
@@ -201,8 +191,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                 if (setGlobalDepth)
                     builder.SetGlobalTextureAfterPass(depthTexture, s_CameraDepthTextureID);
 
-                // Required here because of RenderingLayerUtils.SetupProperties, and for setting keywords in ExecutePass
-                if (passData.enableRenderingLayers || passData.outputSmoothness)
+                // Required here because of RenderingLayerUtils.SetupProperties
+                if (passData.enableRenderingLayers)
                     builder.AllowGlobalStateModification(true);
 
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
@@ -212,16 +202,6 @@ namespace UnityEngine.Rendering.Universal.Internal
                     ExecutePass(context.cmd, data, data.rendererList);
                 });
             }
-        }
-
-        /// <summary>
-        /// Gets the sorting criteria to use for a given camera. Override to customize behavior.
-        /// </summary>
-        /// <param name="cameraData">The UniversalCameraData of the camera to get sorting criteria for.</param>
-        /// <returns>The sorting criteria to use.</returns>
-        protected virtual SortingCriteria GetSortingCriteria(UniversalCameraData cameraData)
-        {
-            return cameraData.defaultOpaqueSortFlags;
         }
     }
 }

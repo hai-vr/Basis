@@ -1,39 +1,31 @@
 using UnityEngine.Rendering.RenderGraphModule;
-using UnityEngine.Rendering.Universal.U2D.Profiler;
 using CommonResourceData = UnityEngine.Rendering.Universal.UniversalResourceData;
 
 namespace UnityEngine.Rendering.Universal
 {
     internal class DrawLight2DPass : ScriptableRenderPass
     {
+        static readonly string k_LightPass = "Light2D Pass";
+        static readonly string k_LightSRTPass = "Light2D SRT Pass";
+        static readonly string k_LightVolumetricPass = "Light2D Volumetric Pass";
+
+        private static readonly ProfilingSampler m_ProfilingSampler = new ProfilingSampler(k_LightPass);
+        private static readonly ProfilingSampler m_ProfilingSampleSRT = new ProfilingSampler(k_LightSRTPass);
+        private static readonly ProfilingSampler m_ProfilingSamplerVolume = new ProfilingSampler(k_LightVolumetricPass);
         internal static readonly int k_InverseHDREmulationScaleID = Shader.PropertyToID("_InverseHDREmulationScale");
         internal static readonly string k_NormalMapID = "_NormalMap";
         internal static readonly string k_ShadowMapID = "_ShadowTex";
+
         TextureHandle[] intermediateTexture = new TextureHandle[1];
 
         internal static MaterialPropertyBlock s_PropertyBlock = new MaterialPropertyBlock();
 
-#if UNITY_EDITOR
-        [RuntimeInitializeOnLoadMethod]
-        static void ResetStaticsOnLoad()
+        internal void Setup(RenderGraph renderGraph, ref Renderer2DData rendererData)
         {
-            s_PropertyBlock = new MaterialPropertyBlock();
-        }
-#endif
-
-        internal void Setup(RenderGraph renderGraph, ContextContainer frameData)
-        {
-            var renderingData = frameData.Get<Universal2DRenderingData>().renderingData;
-
-            foreach (var light in renderingData.lightCullResult.visibleLights)
+            foreach (var light in rendererData.lightCullResult.visibleLights)
             {
                 if (light.useCookieSprite && light.m_CookieSpriteTexture != null)
                     light.m_CookieSpriteTextureHandle = renderGraph.ImportTexture(light.m_CookieSpriteTexture);
-
-#if ENABLE_PROFILER && PROFILER_INSTALLED
-                if (Renderer2D.canProfilerCapture)
-                    ProfilerMarkers.s_LightMeshFrameData.Capture(light.gameObject, light.lightMesh);
-#endif
             }
         }
 
@@ -64,10 +56,6 @@ namespace UnityEngine.Rendering.Universal
             var indicesIndex = Renderer2D.supportsMRT ? lightTextureIndex : 0;
             if (!passData.isVolumetric)
                 RendererLighting.EnableBlendStyle(cmd, indicesIndex, true);
-
-            // Enable Rendering Layers
-            if (passData.useRenderingLayers)
-                cmd.EnableKeyword(ShaderGlobalKeywords.LightLayers);
 
             var lights = passData.layerBatch.lights;
 
@@ -124,23 +112,11 @@ namespace UnityEngine.Rendering.Universal
                 }
                 else
                 {
-#if ENABLE_PROFILER && PROFILER_INSTALLED
-                    if (Renderer2D.canProfilerCapture)
-                        ProfilerMarkers.s_U2DLightBatchCounterValue.Value++;
-#endif
                     cmd.DrawMesh(lightMesh, light.GetMatrix(), lightMaterial, 0, 0, s_PropertyBlock);
                 }
-#if ENABLE_PROFILER && PROFILER_INSTALLED
-                if (Renderer2D.canProfilerCapture)
-                    ProfilerMarkers.s_LightRenderFrameData.Capture(light.gameObject.GetEntityId());
-#endif
             }
+
             RendererLighting.EnableBlendStyle(cmd, indicesIndex, false);
-
-            // Disable Rendering Layers
-            if (passData.useRenderingLayers)
-                cmd.DisableKeyword(ShaderGlobalKeywords.LightLayers);
-
             cmd.EndSample(blendOpName);
         }
 
@@ -154,8 +130,6 @@ namespace UnityEngine.Rendering.Universal
             internal TextureHandle[] shadowTextures;
 
             internal int lightTextureIndex;
-            internal bool useRenderingLayers;
-            internal RenderingLayerUtils.MaskSize maskSize;
         }
 
         void InitializeRenderPass(IRasterRenderGraphBuilder builder, ContextContainer frameData, PassData passData, int batchIndex, bool isVolumetric = false)
@@ -186,11 +160,6 @@ namespace UnityEngine.Rendering.Universal
                     builder.UseTexture(light.m_CookieSpriteTextureHandle);
             }
 
-            if (rendererData.useRenderingLayers)
-                builder.UseTexture(universal2DResourceData.renderingLayersTexture);
-
-            passData.useRenderingLayers = rendererData.useRenderingLayers;
-            passData.maskSize = rendererData.renderingLayersMaskSize;
             passData.layerBatch = layerBatch;
             passData.rendererData = rendererData;
             passData.isVolumetric = isVolumetric;
@@ -216,12 +185,12 @@ namespace UnityEngine.Rendering.Universal
             // Render single RTs by for apis that don't support MRTs
             if (!isVolumetric && !Renderer2D.supportsMRT)
             {
-                var passName = ProfilerMarkers.s_LightSRTPass;
+                var passName = k_LightSRTPass;
                 LayerDebug.FormatPassName(layerBatch, ref passName);
 
                 for (var i = 0; i < layerBatch.activeBlendStylesIndices.Length; ++i)
                 {
-                    using (var builder = graph.AddRasterRenderPass<PassData>(passName, out var passData, LayerDebug.GetProfilingSampler(passName, ProfilerMarkers.s_ProfilingSampleSRT)))
+                    using (var builder = graph.AddRasterRenderPass<PassData>(passName, out var passData, LayerDebug.GetProfilingSampler(passName, m_ProfilingSampleSRT)))
                     {
                         InitializeRenderPass(builder, frameData, passData, batchIndex, isVolumetric);
 
@@ -233,8 +202,6 @@ namespace UnityEngine.Rendering.Universal
 
                         builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
                         {
-                            RenderingLayerUtils.SetupProperties(context.cmd, data.maskSize);
-
                             Execute(context.cmd, data, data.layerBatch, data.lightTextureIndex);
                         });
                     }
@@ -242,8 +209,8 @@ namespace UnityEngine.Rendering.Universal
             }
             else
             {
-                var passName = !isVolumetric ? ProfilerMarkers.s_LightPass : ProfilerMarkers.s_LightVolumetricPass;
-                var profilingSampler = !isVolumetric ? ProfilerMarkers.s_ProfilingSampler : ProfilerMarkers.s_ProfilingSamplerVolume;
+                var passName = !isVolumetric ? k_LightPass : k_LightVolumetricPass;
+                var profilingSampler = !isVolumetric ? m_ProfilingSampler : m_ProfilingSamplerVolume;
                 LayerDebug.FormatPassName(layerBatch, ref passName);
 
                 // Default Raster Pass with MRTs
@@ -255,11 +222,9 @@ namespace UnityEngine.Rendering.Universal
 
                     for (var i = 0; i < lightTextures.Length; i++)
                         builder.SetRenderAttachment(lightTextures[i], i);
-
+                   
                     builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
                     {
-                        RenderingLayerUtils.SetupProperties(context.cmd, data.maskSize);
-
                         for (var i = 0; i < data.layerBatch.activeBlendStylesIndices.Length; ++i)
                             Execute(context.cmd, data, data.layerBatch, i);
                     });

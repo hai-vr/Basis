@@ -571,9 +571,22 @@ void TransformNormalizedScreenUV(inout float2 uv)
     #endif
 }
 
-float2 GetNormalizedScreenSpaceUV(float2 positionCS)
+void TransformNormalizedScreenUVPreTransform(inout float2 uv)
 {
-    float2 normalizedScreenSpaceUV = positionCS.xy * (GetScaledScreenParams().zw - 1.0);
+    #if defined(UNITY_PRETRANSFORM_TO_DISPLAY_ORIENTATION)
+        if(UNITY_DISPLAY_ORIENTATION_PRETRANSFORM % 2 > 0)
+        {
+            uv = uv.yx;
+        }
+    #endif
+}
+
+float2 GetNormalizedScreenSpaceUV(float2 positionCS)
+{ 
+    float2 screenParamUV = GetScaledScreenParams().xy;
+    TransformNormalizedScreenUVPreTransform(screenParamUV);
+
+    float2 normalizedScreenSpaceUV = positionCS.xy * rcp(screenParamUV);
     TransformNormalizedScreenUV(normalizedScreenSpaceUV);
     return normalizedScreenSpaceUV;
 }
@@ -602,6 +615,17 @@ uint Select4(uint4 v, uint i)
         (((v.y & mask0) | (v.x & ~mask0)) & ~mask1);
 }
 
+#if SHADER_TARGET < 45 && !defined UNITY_COMPILER_DXC
+// Workaround is only technically required for GL Core <4.0 and GLES <3.1
+uint URP_FirstBitLow(uint m)
+{
+    // http://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightFloatCast
+    return (asuint((float)(m & asuint(-asint(m)))) >> 23) - 0x7F;
+}
+#define FIRST_BIT_LOW URP_FirstBitLow
+#else
+#define FIRST_BIT_LOW firstbitlow
+#endif
 
 #define UnityStereoTransformScreenSpaceTex(uv) uv
 

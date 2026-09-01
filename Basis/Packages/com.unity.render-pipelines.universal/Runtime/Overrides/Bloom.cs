@@ -163,7 +163,7 @@ namespace UnityEngine.Rendering.Universal
     /// <seealso cref="TextureParameter"/>
     [Serializable, VolumeComponentMenu("Post-processing/Bloom")]
     [SupportedOnRenderPipeline(typeof(UniversalRenderPipelineAsset))]
-    [URPHelpURL("urp/post-processing-bloom")]
+    [URPHelpURL("post-processing-bloom")]
     public sealed partial class Bloom : VolumeComponent, IPostProcessComponent
     {
         /// <summary>

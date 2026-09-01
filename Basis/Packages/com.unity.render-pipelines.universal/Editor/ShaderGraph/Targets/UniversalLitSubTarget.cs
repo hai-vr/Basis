@@ -384,8 +384,8 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
 
                 // Currently neither of these passes (selection/picking) can be last for the game view for
                 // UI shaders to render correctly. Verify [1352225] before changing this order.
-                result.passes.Add(PassVariant(CorePasses.SceneSelection(target), CorePragmas.Instanced));
-                result.passes.Add(PassVariant(CorePasses.ScenePicking(target), CorePragmas.Instanced));
+                result.passes.Add(PassVariant(CorePasses.SceneSelection(target), CorePragmas.Default));
+                result.passes.Add(PassVariant(CorePasses.ScenePicking(target), CorePragmas.Default));
                 result.passes.Add(PassVariant(LitPasses._2D(target), CorePragmas.Default));
 
                 return result;
@@ -659,7 +659,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                     renderStates = CoreRenderStates.DepthNormalsOnly(target),
                     pragmas = CorePragmas.Instanced,
                     defines = new DefineCollection(),
-                    keywords = new KeywordCollection { CoreKeywordDescriptors.WriteSmoothness, CoreKeywordDescriptors.GBufferNormalsOct },
+                    keywords = new KeywordCollection(),
                     includes = new IncludeCollection { CoreIncludes.DepthNormalsOnly },
 
                     // Custom Interpolator Support
@@ -699,7 +699,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                     renderStates = CoreRenderStates.DepthNormalsOnly(target),
                     pragmas = CorePragmas.Instanced,
                     defines = new DefineCollection(),
-                    keywords = new KeywordCollection { CoreKeywordDescriptors.WriteSmoothness, CoreKeywordDescriptors.GBufferNormalsOct },
+                    keywords = new KeywordCollection(),
                     includes = new IncludeCollection { CoreIncludes.DepthNormalsOnly },
 
                     // Custom Interpolator Support
@@ -848,7 +848,6 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
             public static readonly KeywordCollection Forward = new KeywordCollection
             {
                 { CoreKeywordDescriptors.ScreenSpaceAmbientOcclusion },
-                { CoreKeywordDescriptors.ScreenSpaceReflection },
                 { CoreKeywordDescriptors.ScreenSpaceIrradiance },
                 { CoreKeywordDescriptors.StaticLightmap },
                 { CoreKeywordDescriptors.DynamicLightmap },
@@ -875,7 +874,6 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
 
             public static readonly KeywordCollection GBuffer = new KeywordCollection
             {
-                { CoreKeywordDescriptors.ScreenSpaceReflection },
                 { CoreKeywordDescriptors.ScreenSpaceIrradiance },
                 { CoreKeywordDescriptors.StaticLightmap },
                 { CoreKeywordDescriptors.DynamicLightmap },

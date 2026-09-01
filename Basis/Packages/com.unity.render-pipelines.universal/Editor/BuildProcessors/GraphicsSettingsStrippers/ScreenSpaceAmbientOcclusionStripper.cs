@@ -1,37 +1,31 @@
-using UnityEditor.Rendering.Universal;
+﻿using UnityEditor.Rendering.Universal;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 namespace UnityEditor.Rendering
 {
-    class ScreenSpaceAmbientOcclusionBlueNoiseResourcesStripper : IRenderPipelineGraphicsSettingsStripper<ScreenSpaceAmbientOcclusionBlueNoiseResources>
+    class ScreenSpaceAmbientOcclusionDynamicResourcesStripper : IRenderPipelineGraphicsSettingsStripper<ScreenSpaceAmbientOcclusionDynamicResources>
     {
         public bool active => URPBuildData.instance.buildingPlayerForUniversalRenderPipeline;
 
-        static bool RequiresBlueNoiseResources(ScreenSpaceAmbientOcclusion occlusion)
-        {
-#if MODERN_SSAO
-            return true;
-#else
-            return occlusion.settings.AOMethod == ScreenSpaceAmbientOcclusionSettings.AOMethodOptions.BlueNoise;
-#endif
-        }
-
-        public bool CanRemoveSettings(ScreenSpaceAmbientOcclusionBlueNoiseResources resources)
+        public bool CanRemoveSettings(ScreenSpaceAmbientOcclusionDynamicResources resources)
         {
             if (GraphicsSettings.TryGetRenderPipelineSettings<URPShaderStrippingSetting>(out var urpShaderStrippingSettings) && !urpShaderStrippingSettings.stripUnusedVariants)
                 return false;
             
-            foreach (var rendererData in URPBuildData.instance.rendererDataList)
+            foreach (var urpAssetForBuild in URPBuildData.instance.renderPipelineAssets)
             {
-                if (rendererData is not UniversalRendererData)
-                    continue;
-
-                foreach (var rendererFeature in rendererData.rendererFeatures)
+                foreach (var rendererData in urpAssetForBuild.m_RendererDataList)
                 {
-                    if (rendererFeature is ScreenSpaceAmbientOcclusion { isActive: true } occlusion
-                        && RequiresBlueNoiseResources(occlusion))
-                        return false;
+                    if (rendererData is not UniversalRendererData) 
+                        continue;
+                    
+                    foreach (var rendererFeature in rendererData.rendererFeatures)
+                    {
+                        if (rendererFeature is ScreenSpaceAmbientOcclusion { isActive: true } occlusion
+                            && occlusion.settings.AOMethod == ScreenSpaceAmbientOcclusionSettings.AOMethodOptions.BlueNoise)
+                            return false;
+                    }
                 }
             }
 
@@ -39,24 +33,27 @@ namespace UnityEditor.Rendering
         }
     }
 
-    class ScreenSpaceAmbientOcclusionCoreResourcesStripper : IRenderPipelineGraphicsSettingsStripper<ScreenSpaceAmbientOcclusionCoreResources>
+    class ScreenSpaceAmbientOcclusionPersistentResourcesStripper : IRenderPipelineGraphicsSettingsStripper<ScreenSpaceAmbientOcclusionPersistentResources>
     {
         public bool active => URPBuildData.instance.buildingPlayerForUniversalRenderPipeline;
 
-        public bool CanRemoveSettings(ScreenSpaceAmbientOcclusionCoreResources resources)
+        public bool CanRemoveSettings(ScreenSpaceAmbientOcclusionPersistentResources resources)
         {
             if (GraphicsSettings.TryGetRenderPipelineSettings<URPShaderStrippingSetting>(out var urpShaderStrippingSettings) && !urpShaderStrippingSettings.stripUnusedVariants)
                 return false;
             
-            foreach (var rendererData in URPBuildData.instance.rendererDataList)
+            foreach (var urpAssetForBuild in URPBuildData.instance.renderPipelineAssets)
             {
-                if (rendererData is not UniversalRendererData)
-                    continue;
-
-                foreach (var rendererFeature in rendererData.rendererFeatures)
+                foreach (var rendererData in urpAssetForBuild.m_RendererDataList)
                 {
-                    if (rendererFeature is ScreenSpaceAmbientOcclusion { isActive: true })
-                        return false;
+                    if (rendererData is not UniversalRendererData)
+                        continue;
+                    
+                    foreach (var rendererFeature in rendererData.rendererFeatures)
+                    {
+                        if (rendererFeature is ScreenSpaceAmbientOcclusion { isActive: true })
+                            return false;
+                    }
                 }
             }
 

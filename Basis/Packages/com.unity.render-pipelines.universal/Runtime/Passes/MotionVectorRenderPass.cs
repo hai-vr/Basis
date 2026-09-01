@@ -23,7 +23,7 @@ namespace UnityEngine.Rendering.Universal
         internal MotionVectorRenderPass(RenderPassEvent evt, Material cameraMaterial, LayerMask opaqueLayerMask)
 
         {
-            profilingSampler = URPProfilingSamplers.DrawMotionVectors;
+            profilingSampler = ProfilingSampler.Get(URPProfileId.DrawMotionVectors);
             renderPassEvent = evt;
             m_CameraMaterial = cameraMaterial;
             m_FilteringSettings = new FilteringSettings(RenderQueueRange.opaque,opaqueLayerMask);
@@ -54,12 +54,15 @@ namespace UnityEngine.Rendering.Universal
             DrawObjectMotionVectors(cmd, passData.xr, ref rendererList);
         }
 
-        private static DrawingSettings GetDrawingSettings(Camera camera)
+        private static DrawingSettings GetDrawingSettings(Camera camera, bool supportsDynamicBatching)
         {
             var sortingSettings = new SortingSettings(camera) { criteria = SortingCriteria.CommonOpaque };
             var drawingSettings = new DrawingSettings(ShaderTagId.none, sortingSettings)
             {
                 perObjectData = PerObjectData.MotionVectors,
+#pragma warning disable 618
+                enableDynamicBatching = supportsDynamicBatching,
+#pragma warning restore 618
                 enableInstancing = true,
                 lodCrossFadeStencilMask = 0, // Disable stencil-based lod because depth copy before motion vector pass doesn't copy stencils.
             };
@@ -140,9 +143,9 @@ namespace UnityEngine.Rendering.Universal
             passData.cameraMaterial = m_CameraMaterial;
         }
 
-        private void InitRendererLists(ref PassData passData, ref CullingResults cullResults, RenderGraph renderGraph)
+        private void InitRendererLists(ref PassData passData, ref CullingResults cullResults, bool supportsDynamicBatching, RenderGraph renderGraph)
         {
-            var drawingSettings = GetDrawingSettings(passData.camera);
+            var drawingSettings = GetDrawingSettings(passData.camera, supportsDynamicBatching);
             var renderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
             RenderingUtils.CreateRendererListWithRenderStateBlock(renderGraph, ref cullResults, drawingSettings, m_FilteringSettings, renderStateBlock, ref passData.rendererListHdl);
         }
@@ -160,8 +163,8 @@ namespace UnityEngine.Rendering.Universal
                 if (cameraData.xr.enabled)
                 {
                     builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering && cameraData.xrUniversal.canFoveateIntermediatePasses);
-                    // Multiview render regions are incompatible with the inner (foveal) pass in Quad View
-                    if (!cameraData.xr.isQuadViewInnerPass)
+                    // Apply MultiviewRenderRegionsCompatible flag only to the peripheral view in Quad Views
+                    if (cameraData.xr.multipassId == 0)
                     {
                         builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.MultiviewRenderRegionsCompatible);
                     }
@@ -173,7 +176,9 @@ namespace UnityEngine.Rendering.Universal
                 passData.cameraDepth = cameraDepthTexture;
                 builder.UseTexture(cameraDepthTexture, AccessFlags.Read);
 
-                InitRendererLists(ref passData, ref renderingData.cullResults, renderGraph);
+#pragma warning disable 618
+                InitRendererLists(ref passData, ref renderingData.cullResults, renderingData.supportsDynamicBatching, renderGraph);
+#pragma warning restore 618
                 builder.UseRendererList(passData.rendererListHdl);
 
                 if (motionVectorColor.IsValid())

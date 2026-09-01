@@ -4,7 +4,6 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/ImageBasedLighting.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RealtimeLights.hlsl"
-#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SampleScreenSpaceReflection.hlsl"
 
 #define AMBIENT_PROBE_BUFFER 0
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/AmbientProbe.hlsl"
@@ -208,11 +207,7 @@ half3 SampleLightmap(float2 staticLightmapUV, half3 normalWS)
 }
 
 #if defined(_SCREEN_SPACE_IRRADIANCE)
-    #if !defined(_SURFACE_TYPE_TRANSPARENT)
-        #define SAMPLE_GI(irradianceTex, pos, normal) SampleScreenSpaceGI(pos)
-    #else
-        #define SAMPLE_GI(irradianceTex, pos, normal) EvaluateAmbientProbe(normal)
-    #endif
+#define SAMPLE_GI(irradianceTex, pos) SampleScreenSpaceGI(pos)
 #elif defined(LIGHTMAP_ON) && defined(DYNAMICLIGHTMAP_ON)
 #define SAMPLE_GI(staticLmName, dynamicLmName, shName, normalWSName) SampleLightmap(staticLmName, dynamicLmName, normalWSName)
 #elif defined(DYNAMICLIGHTMAP_ON)
@@ -220,11 +215,11 @@ half3 SampleLightmap(float2 staticLightmapUV, half3 normalWS)
 #elif defined(LIGHTMAP_ON)
 #define SAMPLE_GI(staticLmName, shName, normalWSName) SampleLightmap(staticLmName, 0, normalWSName)
 #elif defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2)
-    #ifdef USE_APV_PROBE_OCCLUSION
-        #define SAMPLE_GI(shName, absolutePositionWS, normalWS, viewDir, positionSS, vertexProbeOcclusion, probeOcclusion) SampleProbeVolumePixel(shName, absolutePositionWS, normalWS, viewDir, positionSS, vertexProbeOcclusion, probeOcclusion)
-    #else
-        #define SAMPLE_GI(shName, absolutePositionWS, normalWS, viewDir, positionSS, vertexProbeOcclusion, probeOcclusion) SampleProbeVolumePixel(shName, absolutePositionWS, normalWS, viewDir, positionSS)
-    #endif
+#ifdef USE_APV_PROBE_OCCLUSION
+    #define SAMPLE_GI(shName, absolutePositionWS, normalWS, viewDir, positionSS, vertexProbeOcclusion, probeOcclusion) SampleProbeVolumePixel(shName, absolutePositionWS, normalWS, viewDir, positionSS, vertexProbeOcclusion, probeOcclusion)
+#else
+    #define SAMPLE_GI(shName, absolutePositionWS, normalWS, viewDir, positionSS, vertexProbeOcclusion, probeOcclusion) SampleProbeVolumePixel(shName, absolutePositionWS, normalWS, viewDir, positionSS)
+#endif
 #else
 #define SAMPLE_GI(staticLmName, shName, normalWSName) SampleSHPixel(shName, normalWSName)
 #endif
@@ -377,7 +372,7 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
     if (weightProbe0 > 0.01f)
     {
         half3 reflectVector0 = reflectVector;
-        if (_REFLECTION_PROBE_BOX_PROJECTION)
+        if (_REFLECTION_PROBE_BOX_PROJECTION) 
         {
             #if defined(REFLECTION_PROBE_ROTATION)
             reflectVector0 = BoxProjectedCubemapDirection(unity_SpecCube0_Rotation, reflectVector, rotPosWS0, unity_SpecCube0_ProbePosition, unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
@@ -422,52 +417,37 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
 
 half3 GlossyEnvironmentReflection(half3 reflectVector, float3 positionWS, half perceptualRoughness, half occlusion, float2 normalizedScreenSpaceUV)
 {
-    half3 irradiance = 0;
-    #if defined(_SCREENSPACEREFLECTIONS_OFF)
-    half4 ssrColor = 0;
-    #else
-    half4 ssrColor = GetScreenSpaceReflection(normalizedScreenSpaceUV, positionWS, perceptualRoughness);
-    #endif
+    half3 irradiance;
 
-    // We skip sampling reflection probes if they would be overwritten by SSR anyways.
-    // This optimization causes a miscompilation when using FXC, and the rendering path
-    // is single pass stereo instancing, so disable it in that path.
-    #if !defined(STEREO_INSTANCING_ON) || defined(UNITY_COMPILER_DXC)
-    if (ssrColor.a < 1.0)
-    #endif
+#if !defined(_ENVIRONMENTREFLECTIONS_OFF)
+    if (_REFLECTION_PROBE_BLENDING)
     {
-        #if !defined(_ENVIRONMENTREFLECTIONS_OFF)
-        if (_REFLECTION_PROBE_BLENDING)
-        {
-            irradiance = CalculateIrradianceFromReflectionProbes(reflectVector, positionWS, perceptualRoughness, normalizedScreenSpaceUV);
-        }
-        else
-        {
-            if (_REFLECTION_PROBE_BOX_PROJECTION)
-            {
-                #if defined(REFLECTION_PROBE_ROTATION)
-                float3 probeCenterPosWS0 = unity_SpecCube0_BoxMin.xyz + (unity_SpecCube0_BoxMax.xyz - unity_SpecCube0_BoxMin.xyz) / 2;
-                float3 rotPosWS0 = RotateVectorByQuat(unity_SpecCube0_Rotation, positionWS - probeCenterPosWS0) + probeCenterPosWS0;
-                half3 rotReflectVector0 = RotateVectorByQuat(unity_SpecCube0_Rotation, reflectVector);
-                float4 inverseRotation0 = -unity_SpecCube0_Rotation;
-                inverseRotation0.w = -inverseRotation0.w;
-                reflectVector = BoxProjectedCubemapDirection(rotReflectVector0, rotPosWS0, unity_SpecCube0_ProbePosition, unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
-                reflectVector = RotateVectorByQuat(inverseRotation0, reflectVector);
-                #else
-                reflectVector = BoxProjectedCubemapDirection(reflectVector, positionWS, unity_SpecCube0_ProbePosition, unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
-                #endif
-            }
-            half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness);
-            half4 encodedIrradiance = half4(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, reflectVector, mip));
-
-            irradiance = DecodeHDREnvironment(encodedIrradiance, unity_SpecCube0_HDR);
-        }
-        #else // _ENVIRONMENTREFLECTIONS_OFF
-        irradiance = _GlossyEnvironmentColor.rgb;
-        #endif // !_ENVIRONMENTREFLECTIONS_OFF
+        irradiance = CalculateIrradianceFromReflectionProbes(reflectVector, positionWS, perceptualRoughness, normalizedScreenSpaceUV);
     }
+    else
+    {
+        if (_REFLECTION_PROBE_BOX_PROJECTION)
+        {
+            #if defined(REFLECTION_PROBE_ROTATION)
+            float3 probeCenterPosWS0 = unity_SpecCube0_BoxMin.xyz + (unity_SpecCube0_BoxMax.xyz - unity_SpecCube0_BoxMin.xyz) / 2;
+            float3 rotPosWS0 = RotateVectorByQuat(unity_SpecCube0_Rotation, positionWS - probeCenterPosWS0) + probeCenterPosWS0;
+            half3 rotReflectVector0 = RotateVectorByQuat(unity_SpecCube0_Rotation, reflectVector);
+            float4 inverseRotation0 = -unity_SpecCube0_Rotation;
+            inverseRotation0.w = -inverseRotation0.w;
+            reflectVector = BoxProjectedCubemapDirection(rotReflectVector0, rotPosWS0, unity_SpecCube0_ProbePosition, unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
+            reflectVector = RotateVectorByQuat(inverseRotation0, reflectVector);
+            #else
+            reflectVector = BoxProjectedCubemapDirection(reflectVector, positionWS, unity_SpecCube0_ProbePosition, unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
+            #endif
+        }
+        half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness);
+        half4 encodedIrradiance = half4(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, reflectVector, mip));
 
-    irradiance = lerp(irradiance.rgb, ssrColor.rgb, ssrColor.a);
+        irradiance = DecodeHDREnvironment(encodedIrradiance, unity_SpecCube0_HDR);
+    }
+#else // _ENVIRONMENTREFLECTIONS_OFF
+    irradiance = _GlossyEnvironmentColor.rgb;
+#endif // !_ENVIRONMENTREFLECTIONS_OFF
 
     return irradiance * occlusion;
 }
@@ -571,19 +551,8 @@ half3 GlobalIllumination(BRDFData brdfData, BRDFData brdfDataClearCoat, float cl
     half3 bakedGI, half occlusion, float3 positionWS,
     half3 normalWS, half3 viewDirectionWS, float2 normalizedScreenSpaceUV)
 {
-// Prevent calling 'reflect' from causing NdotV to be computed twice on Adreno GPUs
-#if (UNITY_PLATFORM_META_QUEST) // This is platform specific change targeting performance only
-    half NdotV = dot(normalWS, viewDirectionWS);
-    half NdotV2 = NdotV + NdotV;    // 2.0h * normalWS * NdotV was resulting in promotion to 32 bit precision
-    half3 reflectVector = normalWS * NdotV2 - viewDirectionWS;    // reflect(i,n) = i - 2 * n * dot(i n)
-                                                                  // reflect(-viewDirection, normalWS) = -viewDirection - 2 * normalWS * dot(-viewDirection, normalWS)
-                                                                  //                                   = -viewDirection + 2 * normalWS * dot(viewDirection, normalWS)
-                                                                  //                                   = 2 * normalWS * dot(viewDirection, normalWS) - viewDirection
-    half NoV = saturate(NdotV);
-#else
     half3 reflectVector = reflect(-viewDirectionWS, normalWS);
     half NoV = saturate(dot(normalWS, viewDirectionWS));
-#endif
     half fresnelTerm = Pow4(1.0 - NoV);
 
     // _AmbientOcclusionParam.y interpolates between this (1: the physically-motivated answer) and the old
@@ -643,19 +612,8 @@ half3 GlobalIllumination(BRDFData brdfData, BRDFData brdfDataClearCoat, float cl
     half3 bakedGI, half occlusion,
     half3 normalWS, half3 viewDirectionWS)
 {
-// Prevent calling 'reflect' from causing NdotV to be computed twice on Adreno GPUs
-#if (UNITY_PLATFORM_META_QUEST) // This is platform specific change targeting performance only
-    half NdotV = dot(normalWS, viewDirectionWS);
-    half NdotV2 = NdotV + NdotV;    // 2.0h * normalWS * NdotV was resulting in promotion to 32 bit precision
-    half3 reflectVector = normalWS * NdotV2 - viewDirectionWS;    // reflect(i,n) = i - 2 * n * dot(i n)
-                                                                  // reflect(-viewDirection, normalWS) = -viewDirection - 2 * normalWS * dot(-viewDirection, normalWS)
-                                                                  //                                   = -viewDirection + 2 * normalWS * dot(viewDirection, normalWS)
-                                                                  //                                   = 2 * normalWS * dot(viewDirection, normalWS) - viewDirection
-    half NoV = saturate(NdotV);
-#else
     half3 reflectVector = reflect(-viewDirectionWS, normalWS);
     half NoV = saturate(dot(normalWS, viewDirectionWS));
-#endif
     half fresnelTerm = Pow4(1.0 - NoV);
 
     // No screen UV reaches this overload, so there is nowhere to sample a traced reflection from - only

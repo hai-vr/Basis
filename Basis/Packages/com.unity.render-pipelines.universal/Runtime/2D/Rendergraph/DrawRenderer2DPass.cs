@@ -1,16 +1,20 @@
 using System.Collections.Generic;
 using UnityEngine.Rendering.RenderGraphModule;
-using UnityEngine.Rendering.Universal.U2D.Profiler;
 using CommonResourceData = UnityEngine.Rendering.Universal.UniversalResourceData;
 
 namespace UnityEngine.Rendering.Universal
 {
     internal class DrawRenderer2DPass : ScriptableRenderPass
     {
+        static readonly string k_RenderPass = "Renderer2D Pass";
+        static readonly string k_SetLightBlendTexture = "SetLightBlendTextures";
+
+        private static readonly ProfilingSampler m_ProfilingSampler = new ProfilingSampler(k_RenderPass);
+        private static readonly ProfilingSampler m_SetLightBlendTextureProfilingSampler = new ProfilingSampler(k_SetLightBlendTexture);
         private static readonly ShaderTagId k_CombinedRenderingPassName = new ShaderTagId("Universal2D");
         private static readonly ShaderTagId k_LegacyPassName = new ShaderTagId("SRPDefaultUnlit");
 
-        internal static readonly List<ShaderTagId> k_ShaderTags =
+        private static readonly List<ShaderTagId> k_ShaderTags =
             new List<ShaderTagId>() {k_LegacyPassName, k_CombinedRenderingPassName};
 
         private static readonly int k_HDREmulationScaleID = Shader.PropertyToID("_HDREmulationScale");
@@ -95,7 +99,7 @@ namespace UnityEngine.Rendering.Universal
             // Preset global light textures for first batch
             if (batchIndex == 0)
             {
-                using (var builder = graph.AddRasterRenderPass<SetGlobalPassData>(ProfilerMarkers.s_SetLightBlendTexture, out var passData, ProfilerMarkers.s_ProfilingSamplerSetLightBlendTexture))
+                using (var builder = graph.AddRasterRenderPass<SetGlobalPassData>(k_SetLightBlendTexture, out var passData, m_SetLightBlendTextureProfilingSampler))
                 {
                     if (layerBatch.lightStats.useLights && isLightingActive)
                     {
@@ -115,10 +119,10 @@ namespace UnityEngine.Rendering.Universal
             }
 
             // Renderer Pass
-            var passName = ProfilerMarkers.s_RenderPass;
+            var passName = k_RenderPass;
             LayerDebug.FormatPassName(layerBatch, ref passName);
 
-            using (var builder = graph.AddRasterRenderPass<PassData>(passName, out var passData, LayerDebug.GetProfilingSampler(passName, ProfilerMarkers.s_ProfilingSamplerRenderPass)))
+            using (var builder = graph.AddRasterRenderPass<PassData>(passName, out var passData, LayerDebug.GetProfilingSampler(passName, m_ProfilingSampler)))
             {
                 passData.lightBlendStyles = rendererData.lightBlendStyles;
                 passData.blendStyleIndices = layerBatch.activeBlendStylesIndices;
@@ -169,7 +173,7 @@ namespace UnityEngine.Rendering.Universal
 
                 builder.AllowGlobalStateModification(true);
 
-                // Post set global light textures for next renderer pass
+                // Post set global light textures for next renderer pass 
                 var nextBatch = batchIndex + 1;
                 if (nextBatch < universal2DResourceData.lightTextures.Length)
                     SetGlobalLightTextures(graph, builder, frameData, nextBatch, isLightingActive);

@@ -132,7 +132,7 @@ namespace UnityEngine.Rendering.Universal
             return renderingLayers;
         }
 
-        internal static MaskSize GetMaskSize(int bits)
+        static MaskSize GetMaskSize(int bits)
         {
             int bytes = (bits + 7) / 8;
             switch (bytes)

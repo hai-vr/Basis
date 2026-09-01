@@ -20,20 +20,10 @@ namespace UnityEngine.Rendering.Universal
 
         protected static int s_CurrentStaleResourceCount = 0;
         // Keep stale resources alive for 3 frames
-        protected const int k_StaleResourceLifetime = 3;
+        protected static int s_StaleResourceLifetime = 3;
         // Store max 32 rtHandles
         // 1080p * 32bpp * 32 = 265.4mb
-        const int k_StaleResourceMaxCapacityDefault = 32;
-        protected static int s_StaleResourceMaxCapacity = k_StaleResourceMaxCapacityDefault;
-
-#if UNITY_EDITOR
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
-        static void ResetStaticsOnLoad()
-        {
-            s_CurrentStaleResourceCount = 0;
-            s_StaleResourceMaxCapacity = k_StaleResourceMaxCapacityDefault;
-        }
-#endif
+        protected static int s_StaleResourceMaxCapacity = 32;
 
         /// <summary>
         /// Controls the resource pool's max stale resource capacity.
@@ -113,7 +103,7 @@ namespace UnityEngine.Rendering.Universal
             // We need to have a delay of a few frames before releasing resources for good.
             // Indeed, when having multiple off-screen cameras, they are rendered in a separate SRP render call and thus with a different frame index than main camera
             // This causes texture to be deallocated/reallocated every frame if the two cameras don't need the same buffers.
-            return (lastUsedFrameIndex + k_StaleResourceLifetime) < currentFrameIndex;
+            return (lastUsedFrameIndex + s_StaleResourceLifetime) < currentFrameIndex;
         }
 
         // Release resources that are not used in last couple frames.

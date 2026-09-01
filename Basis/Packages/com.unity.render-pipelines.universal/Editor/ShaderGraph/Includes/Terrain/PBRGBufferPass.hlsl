@@ -107,9 +107,7 @@ GBufferFragOutput frag(PackedVaryings packedInput)
     half4 color;
     Light mainLight = GetMainLight(inputData.shadowCoord, inputData.positionWS, inputData.shadowMask);
     MixRealtimeAndBakedGI(mainLight, inputData.normalWS, inputData.bakedGI, inputData.shadowMask);
-    color.rgb = GlobalIllumination(brdfData, (BRDFData)0, 0,
-                                        inputData.bakedGI, surfaceDescription.Occlusion, inputData.positionWS,
-                                        inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV);
+    color.rgb = GlobalIllumination(brdfData, inputData.bakedGI, surfaceDescription.Occlusion, inputData.positionWS, inputData.normalWS, inputData.viewDirectionWS);
     color.a = alpha;
     SplatmapFinalColor(color, inputData.fogCoord);
 

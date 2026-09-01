@@ -144,7 +144,7 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        internal static bool GetGlobalColor(int sortingLayerIndex, int blendStyleIndex, Camera cam, out Color color)
+        public static bool GetGlobalColor(int sortingLayerIndex, int blendStyleIndex, Camera cam, out Color color)
         {
             var foundGlobalColor = false;
             color = Color.black;

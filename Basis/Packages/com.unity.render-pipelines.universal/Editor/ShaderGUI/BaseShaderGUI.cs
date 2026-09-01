@@ -24,7 +24,7 @@ namespace UnityEditor
         /// Flags for the foldouts used in the base shader GUI.
         /// </summary>
         [Flags]
-        [URPHelpURL("urp/shaders-in-universalrp")]
+        [URPHelpURL("shaders-in-universalrp")]
         protected enum Expandable
         {
             /// <summary>
@@ -542,11 +542,7 @@ namespace UnityEditor
         ////////////////////////////////////
         #region DrawingFunctions
 
-        /// <summary>
-        /// Draws the Shader Graph properties for the given material.
-        /// </summary>
-        /// <param name="properties">The material properties to draw.</param>
-        public void DrawShaderGraphProperties(IEnumerable<MaterialProperty> properties)
+        internal void DrawShaderGraphProperties(Material material, IEnumerable<MaterialProperty> properties)
         {
             if (properties == null)
                 return;

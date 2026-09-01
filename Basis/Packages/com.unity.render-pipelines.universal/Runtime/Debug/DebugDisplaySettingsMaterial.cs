@@ -500,7 +500,7 @@ namespace UnityEngine.Rendering.Universal
         }
 
         [DisplayInfo(name = "Material", order = 2)]
-        [URPHelpURL("urp/features/rendering-debugger-reference", "material")]
+        [URPHelpURL("features/rendering-debugger-reference", "material")]
         internal class SettingsPanel : DebugDisplaySettingsPanel<DebugDisplaySettingsMaterial>
         {
             public SettingsPanel(DebugDisplaySettingsMaterial data)

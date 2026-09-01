@@ -5,8 +5,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine.Assertions;
 using UnityEngine.Experimental.GlobalIllumination;
 using UnityEngine.Experimental.Rendering;
-using UnityEngine.Rendering.RenderGraphModule;
-using static UnityEngine.Rendering.Universal.UniversalRenderPipeline.Profiling.Pipeline;
 using Lightmapping = UnityEngine.Experimental.GlobalIllumination.Lightmapping;
 
 namespace UnityEngine.Rendering.Universal
@@ -66,7 +64,7 @@ namespace UnityEngine.Rendering.Universal
     /// <summary>
     /// Enumeration that indicates what kind of upscaling filter is being used
     /// </summary>
-    ///
+    /// 
 #if ENABLE_UPSCALER_FRAMEWORK
     [Obsolete("ImageUpscalingFilter is no longer used #from(6000.3)")]
 #endif
@@ -145,7 +143,7 @@ namespace UnityEngine.Rendering.Universal
         /// True if the pipeline supports dynamic batching.
         /// This settings doesn't apply when drawing shadow casters. Dynamic batching is always disabled when drawing shadow casters.
         /// </summary>
-        [Obsolete("supportsDynamicBatching is obsolete.", true)]
+        [Obsolete("supportsDynamicBatching is deprecated and will be removed in a future release. #from(6000.5)", false)]
         public ref bool supportsDynamicBatching => ref frameData.Get<UniversalRenderingData>().supportsDynamicBatching;
 
         /// <summary>
@@ -860,9 +858,6 @@ namespace UnityEngine.Rendering.Universal
         public static readonly int hdrOutputGradingParams = Shader.PropertyToID("_HDROutputGradingParams");
         public static readonly int offscreenUIViewportParams = Shader.PropertyToID("_OffscreenUIViewportParams");
         public static readonly int screenSpaceIrradiance = Shader.PropertyToID("_ScreenSpaceIrradiance");
-#if URP_SCREEN_SPACE_REFLECTION
-        public static readonly int screenSpaceReflection = Shader.PropertyToID("_ScreenSpaceReflectionTexture");
-#endif
     }
 
     /// <summary>
@@ -908,136 +903,216 @@ namespace UnityEngine.Rendering.Universal
 
     internal static class ShaderGlobalKeywords
     {
-        public static readonly GlobalKeyword MainLightShadows = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadows);
-        public static readonly GlobalKeyword MainLightShadowCascades = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadowCascades);
-        public static readonly GlobalKeyword MainLightShadowScreen = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadowScreen);
-        public static readonly GlobalKeyword CastingPunctualLightShadow = GlobalKeyword.Create(ShaderKeywordStrings.CastingPunctualLightShadow);
-        public static readonly GlobalKeyword AdditionalLightsVertex = GlobalKeyword.Create(ShaderKeywordStrings.AdditionalLightsVertex);
-        public static readonly GlobalKeyword AdditionalLightsPixel = GlobalKeyword.Create(ShaderKeywordStrings.AdditionalLightsPixel);
-        public static readonly GlobalKeyword ClusterLightLoop = GlobalKeyword.Create(ShaderKeywordStrings.ClusterLightLoop);
-        public static readonly GlobalKeyword AdditionalLightShadows = GlobalKeyword.Create(ShaderKeywordStrings.AdditionalLightShadows);
-        public static readonly GlobalKeyword ReflectionProbeBoxProjection = GlobalKeyword.Create(ShaderKeywordStrings.ReflectionProbeBoxProjection);
-        public static readonly GlobalKeyword ReflectionProbeBlending = GlobalKeyword.Create(ShaderKeywordStrings.ReflectionProbeBlending);
-        public static readonly GlobalKeyword ReflectionProbeAtlas = GlobalKeyword.Create(ShaderKeywordStrings.ReflectionProbeAtlas);
-        public static readonly GlobalKeyword ReflectionProbeRotation = GlobalKeyword.Create(ShaderKeywordStrings.ReflectionProbeRotation);
-        public static readonly GlobalKeyword ScreenSpaceReflection = GlobalKeyword.Create(ShaderKeywordStrings.ScreenSpaceReflection);
-        public static readonly GlobalKeyword SoftShadows = GlobalKeyword.Create(ShaderKeywordStrings.SoftShadows);
-        public static readonly GlobalKeyword SoftShadowsLow = GlobalKeyword.Create(ShaderKeywordStrings.SoftShadowsLow);
-        public static readonly GlobalKeyword SoftShadowsMedium = GlobalKeyword.Create(ShaderKeywordStrings.SoftShadowsMedium);
-        public static readonly GlobalKeyword SoftShadowsHigh = GlobalKeyword.Create(ShaderKeywordStrings.SoftShadowsHigh);
-        public static readonly GlobalKeyword MixedLightingSubtractive = GlobalKeyword.Create(ShaderKeywordStrings.MixedLightingSubtractive); // Backward compatibility
-        public static readonly GlobalKeyword LightmapShadowMixing = GlobalKeyword.Create(ShaderKeywordStrings.LightmapShadowMixing);
-        public static readonly GlobalKeyword ShadowsShadowMask = GlobalKeyword.Create(ShaderKeywordStrings.ShadowsShadowMask);
-        public static readonly GlobalKeyword LightLayers = GlobalKeyword.Create(ShaderKeywordStrings.LightLayers);
-        public static readonly GlobalKeyword RenderPassEnabled = GlobalKeyword.Create(ShaderKeywordStrings.RenderPassEnabled);
-        public static readonly GlobalKeyword BillboardFaceCameraPos = GlobalKeyword.Create(ShaderKeywordStrings.BillboardFaceCameraPos);
-        public static readonly GlobalKeyword LightCookies = GlobalKeyword.Create(ShaderKeywordStrings.LightCookies);
-        public static readonly GlobalKeyword DepthNoMsaa = GlobalKeyword.Create(ShaderKeywordStrings.DepthNoMsaa);
-        public static readonly GlobalKeyword DepthMsaa2 = GlobalKeyword.Create(ShaderKeywordStrings.DepthMsaa2);
-        public static readonly GlobalKeyword DepthMsaa4 = GlobalKeyword.Create(ShaderKeywordStrings.DepthMsaa4);
-        public static readonly GlobalKeyword DepthMsaa8 = GlobalKeyword.Create(ShaderKeywordStrings.DepthMsaa8);
-        public static readonly GlobalKeyword DBufferMRT1 = GlobalKeyword.Create(ShaderKeywordStrings.DBufferMRT1);
-        public static readonly GlobalKeyword DBufferMRT2 = GlobalKeyword.Create(ShaderKeywordStrings.DBufferMRT2);
-        public static readonly GlobalKeyword DBufferMRT3 = GlobalKeyword.Create(ShaderKeywordStrings.DBufferMRT3);
-        public static readonly GlobalKeyword DecalNormalBlendLow = GlobalKeyword.Create(ShaderKeywordStrings.DecalNormalBlendLow);
-        public static readonly GlobalKeyword DecalNormalBlendMedium = GlobalKeyword.Create(ShaderKeywordStrings.DecalNormalBlendMedium);
-        public static readonly GlobalKeyword DecalNormalBlendHigh = GlobalKeyword.Create(ShaderKeywordStrings.DecalNormalBlendHigh);
-        public static readonly GlobalKeyword DecalLayers = GlobalKeyword.Create(ShaderKeywordStrings.DecalLayers);
-        public static readonly GlobalKeyword WriteRenderingLayers = GlobalKeyword.Create(ShaderKeywordStrings.WriteRenderingLayers);
-        public static readonly GlobalKeyword WriteSmoothness = GlobalKeyword.Create(ShaderKeywordStrings.WriteSmoothness);
-        public static readonly GlobalKeyword ScreenSpaceOcclusion = GlobalKeyword.Create(ShaderKeywordStrings.ScreenSpaceOcclusion);
-        public static readonly GlobalKeyword ScreenSpaceIrradiance = GlobalKeyword.Create(ShaderKeywordStrings.ScreenSpaceIrradiance);
-        public static readonly GlobalKeyword _SPOT = GlobalKeyword.Create(ShaderKeywordStrings._SPOT);
-        public static readonly GlobalKeyword _DIRECTIONAL = GlobalKeyword.Create(ShaderKeywordStrings._DIRECTIONAL);
-        public static readonly GlobalKeyword _POINT = GlobalKeyword.Create(ShaderKeywordStrings._POINT);
-        public static readonly GlobalKeyword _DEFERRED_STENCIL = GlobalKeyword.Create(ShaderKeywordStrings._DEFERRED_STENCIL);
-        public static readonly GlobalKeyword _DEFERRED_FIRST_LIGHT = GlobalKeyword.Create(ShaderKeywordStrings._DEFERRED_FIRST_LIGHT);
-        public static readonly GlobalKeyword _DEFERRED_MAIN_LIGHT = GlobalKeyword.Create(ShaderKeywordStrings._DEFERRED_MAIN_LIGHT);
-        public static readonly GlobalKeyword _GBUFFER_NORMALS_OCT = GlobalKeyword.Create(ShaderKeywordStrings._GBUFFER_NORMALS_OCT);
-        public static readonly GlobalKeyword _DEFERRED_MIXED_LIGHTING = GlobalKeyword.Create(ShaderKeywordStrings._DEFERRED_MIXED_LIGHTING);
-        public static readonly GlobalKeyword LIGHTMAP_ON = GlobalKeyword.Create(ShaderKeywordStrings.LIGHTMAP_ON);
-        public static readonly GlobalKeyword DYNAMICLIGHTMAP_ON = GlobalKeyword.Create(ShaderKeywordStrings.DYNAMICLIGHTMAP_ON);
-        public static readonly GlobalKeyword _ALPHATEST_ON = GlobalKeyword.Create(ShaderKeywordStrings._ALPHATEST_ON);
-        public static readonly GlobalKeyword DIRLIGHTMAP_COMBINED = GlobalKeyword.Create(ShaderKeywordStrings.DIRLIGHTMAP_COMBINED);
-        public static readonly GlobalKeyword _DETAIL_MULX2 = GlobalKeyword.Create(ShaderKeywordStrings._DETAIL_MULX2);
-        public static readonly GlobalKeyword _DETAIL_SCALED = GlobalKeyword.Create(ShaderKeywordStrings._DETAIL_SCALED);
-        public static readonly GlobalKeyword _CLEARCOAT = GlobalKeyword.Create(ShaderKeywordStrings._CLEARCOAT);
-        public static readonly GlobalKeyword _CLEARCOATMAP = GlobalKeyword.Create(ShaderKeywordStrings._CLEARCOATMAP);
-        public static readonly GlobalKeyword DEBUG_DISPLAY = GlobalKeyword.Create(ShaderKeywordStrings.DEBUG_DISPLAY);
-        public static readonly GlobalKeyword LOD_FADE_CROSSFADE = GlobalKeyword.Create(ShaderKeywordStrings.LOD_FADE_CROSSFADE);
-        public static readonly GlobalKeyword USE_UNITY_CROSSFADE = GlobalKeyword.Create(ShaderKeywordStrings.USE_UNITY_CROSSFADE);
-        public static readonly GlobalKeyword _EMISSION = GlobalKeyword.Create(ShaderKeywordStrings._EMISSION);
-        public static readonly GlobalKeyword _RECEIVE_SHADOWS_OFF = GlobalKeyword.Create(ShaderKeywordStrings._RECEIVE_SHADOWS_OFF);
-        public static readonly GlobalKeyword _SURFACE_TYPE_TRANSPARENT = GlobalKeyword.Create(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
-        public static readonly GlobalKeyword _ALPHAPREMULTIPLY_ON = GlobalKeyword.Create(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
-        public static readonly GlobalKeyword _ALPHAMODULATE_ON = GlobalKeyword.Create(ShaderKeywordStrings._ALPHAMODULATE_ON);
-        public static readonly GlobalKeyword _NORMALMAP = GlobalKeyword.Create(ShaderKeywordStrings._NORMALMAP);
-        public static readonly GlobalKeyword _ADD_PRECOMPUTED_VELOCITY = GlobalKeyword.Create(ShaderKeywordStrings._ADD_PRECOMPUTED_VELOCITY);
-        public static readonly GlobalKeyword EDITOR_VISUALIZATION = GlobalKeyword.Create(ShaderKeywordStrings.EDITOR_VISUALIZATION);
-        public static readonly GlobalKeyword FoveatedRenderingNonUniformRaster = GlobalKeyword.Create(ShaderKeywordStrings.FoveatedRenderingNonUniformRaster);
-        public static readonly GlobalKeyword DisableTexture2DXArray = GlobalKeyword.Create(ShaderKeywordStrings.DisableTexture2DXArray);
-        public static readonly GlobalKeyword BlitSingleSlice = GlobalKeyword.Create(ShaderKeywordStrings.BlitSingleSlice);
-        public static readonly GlobalKeyword XROcclusionMeshCombined = GlobalKeyword.Create(ShaderKeywordStrings.XROcclusionMeshCombined);
-        public static readonly GlobalKeyword SCREEN_COORD_OVERRIDE = GlobalKeyword.Create(ShaderKeywordStrings.SCREEN_COORD_OVERRIDE);
-        public static readonly GlobalKeyword DOWNSAMPLING_SIZE_2 = GlobalKeyword.Create(ShaderKeywordStrings.DOWNSAMPLING_SIZE_2);
-        public static readonly GlobalKeyword DOWNSAMPLING_SIZE_4 = GlobalKeyword.Create(ShaderKeywordStrings.DOWNSAMPLING_SIZE_4);
-        public static readonly GlobalKeyword DOWNSAMPLING_SIZE_8 = GlobalKeyword.Create(ShaderKeywordStrings.DOWNSAMPLING_SIZE_8);
-        public static readonly GlobalKeyword DOWNSAMPLING_SIZE_16 = GlobalKeyword.Create(ShaderKeywordStrings.DOWNSAMPLING_SIZE_16);
-        public static readonly GlobalKeyword EVALUATE_SH_MIXED = GlobalKeyword.Create(ShaderKeywordStrings.EVALUATE_SH_MIXED);
-        public static readonly GlobalKeyword EVALUATE_SH_VERTEX = GlobalKeyword.Create(ShaderKeywordStrings.EVALUATE_SH_VERTEX);
-        public static readonly GlobalKeyword ProbeVolumeL1 = GlobalKeyword.Create(ShaderKeywordStrings.ProbeVolumeL1);
-        public static readonly GlobalKeyword ProbeVolumeL2 = GlobalKeyword.Create(ShaderKeywordStrings.ProbeVolumeL2);
-        public static readonly GlobalKeyword LIGHTMAP_BICUBIC_SAMPLING = GlobalKeyword.Create(ShaderKeywordStrings.LIGHTMAP_BICUBIC_SAMPLING);
-        public static readonly GlobalKeyword _OUTPUT_DEPTH = GlobalKeyword.Create(ShaderKeywordStrings._OUTPUT_DEPTH);
-        public static readonly GlobalKeyword LinearToSRGBConversion = GlobalKeyword.Create(ShaderKeywordStrings.LinearToSRGBConversion);
-        public static readonly GlobalKeyword _ENABLE_ALPHA_OUTPUT = GlobalKeyword.Create(ShaderKeywordStrings._ENABLE_ALPHA_OUTPUT);
-        public static readonly GlobalKeyword ForwardPlus = GlobalKeyword.Create(ShaderKeywordStrings.ForwardPlus); // Backward compatibility. Deprecated in 6.1.
+        public static GlobalKeyword MainLightShadows;
+        public static GlobalKeyword MainLightShadowCascades;
+        public static GlobalKeyword MainLightShadowScreen;
+        public static GlobalKeyword CastingPunctualLightShadow;
+        public static GlobalKeyword AdditionalLightsVertex;
+        public static GlobalKeyword AdditionalLightsPixel;
+        public static GlobalKeyword ClusterLightLoop;
+        public static GlobalKeyword AdditionalLightShadows;
+        public static GlobalKeyword ReflectionProbeBoxProjection;
+        public static GlobalKeyword ReflectionProbeBlending;
+        public static GlobalKeyword ReflectionProbeAtlas;
+        public static GlobalKeyword ReflectionProbeRotation;
+        public static GlobalKeyword SoftShadows;
+        public static GlobalKeyword SoftShadowsLow;
+        public static GlobalKeyword SoftShadowsMedium;
+        public static GlobalKeyword SoftShadowsHigh;
+        public static GlobalKeyword MixedLightingSubtractive; // Backward compatibility
+        public static GlobalKeyword LightmapShadowMixing;
+        public static GlobalKeyword ShadowsShadowMask;
+        public static GlobalKeyword LightLayers;
+        public static GlobalKeyword RenderPassEnabled;
+        public static GlobalKeyword BillboardFaceCameraPos;
+        public static GlobalKeyword LightCookies;
+        public static GlobalKeyword DepthNoMsaa;
+        public static GlobalKeyword DepthMsaa2;
+        public static GlobalKeyword DepthMsaa4;
+        public static GlobalKeyword DepthMsaa8;
+        public static GlobalKeyword DBufferMRT1;
+        public static GlobalKeyword DBufferMRT2;
+        public static GlobalKeyword DBufferMRT3;
+        public static GlobalKeyword DecalNormalBlendLow;
+        public static GlobalKeyword DecalNormalBlendMedium;
+        public static GlobalKeyword DecalNormalBlendHigh;
+        public static GlobalKeyword DecalLayers;
+        public static GlobalKeyword WriteRenderingLayers;
+        public static GlobalKeyword ScreenSpaceOcclusion;
+        public static GlobalKeyword ScreenSpaceIrradiance;
+        public static GlobalKeyword _SPOT;
+        public static GlobalKeyword _DIRECTIONAL;
+        public static GlobalKeyword _POINT;
+        public static GlobalKeyword _DEFERRED_STENCIL;
+        public static GlobalKeyword _DEFERRED_FIRST_LIGHT;
+        public static GlobalKeyword _DEFERRED_MAIN_LIGHT;
+        public static GlobalKeyword _GBUFFER_NORMALS_OCT;
+        public static GlobalKeyword _DEFERRED_MIXED_LIGHTING;
+        public static GlobalKeyword LIGHTMAP_ON;
+        public static GlobalKeyword DYNAMICLIGHTMAP_ON;
+        public static GlobalKeyword _ALPHATEST_ON;
+        public static GlobalKeyword DIRLIGHTMAP_COMBINED;
+        public static GlobalKeyword _DETAIL_MULX2;
+        public static GlobalKeyword _DETAIL_SCALED;
+        public static GlobalKeyword _CLEARCOAT;
+        public static GlobalKeyword _CLEARCOATMAP;
+        public static GlobalKeyword DEBUG_DISPLAY;
+        public static GlobalKeyword LOD_FADE_CROSSFADE;
+        public static GlobalKeyword USE_UNITY_CROSSFADE;
+        public static GlobalKeyword _EMISSION;
+        public static GlobalKeyword _RECEIVE_SHADOWS_OFF;
+        public static GlobalKeyword _SURFACE_TYPE_TRANSPARENT;
+        public static GlobalKeyword _ALPHAPREMULTIPLY_ON;
+        public static GlobalKeyword _ALPHAMODULATE_ON;
+        public static GlobalKeyword _NORMALMAP;
+        public static GlobalKeyword _ADD_PRECOMPUTED_VELOCITY;
+        public static GlobalKeyword EDITOR_VISUALIZATION;
+        public static GlobalKeyword FoveatedRenderingNonUniformRaster;
+        public static GlobalKeyword DisableTexture2DXArray;
+        public static GlobalKeyword BlitSingleSlice;
+        public static GlobalKeyword XROcclusionMeshCombined;
+        public static GlobalKeyword SCREEN_COORD_OVERRIDE;
+        public static GlobalKeyword DOWNSAMPLING_SIZE_2;
+        public static GlobalKeyword DOWNSAMPLING_SIZE_4;
+        public static GlobalKeyword DOWNSAMPLING_SIZE_8;
+        public static GlobalKeyword DOWNSAMPLING_SIZE_16;
+        public static GlobalKeyword EVALUATE_SH_MIXED;
+        public static GlobalKeyword EVALUATE_SH_VERTEX;
+        public static GlobalKeyword ProbeVolumeL1;
+        public static GlobalKeyword ProbeVolumeL2;
+        public static GlobalKeyword LIGHTMAP_BICUBIC_SAMPLING;
+        public static GlobalKeyword _OUTPUT_DEPTH;
+        public static GlobalKeyword LinearToSRGBConversion;
+        public static GlobalKeyword _ENABLE_ALPHA_OUTPUT;
+        public static GlobalKeyword ForwardPlus; // Backward compatibility. Deprecated in 6.1.
 #if (UNITY_META_QUEST)
-        public static readonly GlobalKeyword META_QUEST_ORTHO_PROJ = GlobalKeyword.Create(ShaderKeywordStrings.META_QUEST_ORTHO_PROJ);
-        public static readonly GlobalKeyword META_QUEST_LIGHTUNROLL = GlobalKeyword.Create(ShaderKeywordStrings.META_QUEST_LIGHTUNROLL);
-        public static readonly GlobalKeyword META_QUEST_NO_SPOTLIGHTS_LIGHT_LOOP = GlobalKeyword.Create(ShaderKeywordStrings.META_QUEST_NO_SPOTLIGHTS_LIGHT_LOOP);
+        public static GlobalKeyword META_QUEST_ORTHO_PROJ;
+        public static GlobalKeyword META_QUEST_LIGHTUNROLL;
+        public static GlobalKeyword META_QUEST_NO_SPOTLIGHTS_LIGHT_LOOP;
 #endif
-        public static readonly GlobalKeyword APPLICATION_SPACE_WARP_MOTION_TRANSPARENT = GlobalKeyword.Create(ShaderKeywordStrings.APPLICATION_SPACE_WARP_MOTION_TRANSPARENT);
-        public static readonly GlobalKeyword DEPTH_AS_INPUT_ATTACHMENT = GlobalKeyword.Create(ShaderKeywordStrings.DEPTH_AS_INPUT_ATTACHMENT);
-        public static readonly GlobalKeyword DEPTH_AS_INPUT_ATTACHMENT_MSAA = GlobalKeyword.Create(ShaderKeywordStrings.DEPTH_AS_INPUT_ATTACHMENT_MSAA);
+        public static GlobalKeyword APPLICATION_SPACE_WARP_MOTION_TRANSPARENT;
 
         // TODO: Move following keywords to Local keywords?
         // https://docs.unity3d.com/ScriptReference/Rendering.LocalKeyword.html
-        //public static readonly GlobalKeyword TonemapACES;
-        //public static readonly GlobalKeyword TonemapNeutral;
-        //public static readonly GlobalKeyword UseFastSRGBLinearConversion;
-        //public static readonly GlobalKeyword SmaaLow;
-        //public static readonly GlobalKeyword SmaaMedium;
-        //public static readonly GlobalKeyword SmaaHigh;
-        //public static readonly GlobalKeyword PaniniGeneric;
-        //public static readonly GlobalKeyword PaniniUnitDistance;
-        //public static readonly GlobalKeyword HighQualitySampling;
-        //public static readonly GlobalKeyword BloomLQ;
-        //public static readonly GlobalKeyword BloomHQ;
-        //public static readonly GlobalKeyword BloomLQDirt;
-        //public static readonly GlobalKeyword BloomHQDirt;
-        //public static readonly GlobalKeyword UseRGBM;
-        //public static readonly GlobalKeyword Distortion;
-        //public static readonly GlobalKeyword ChromaticAberration;
-        //public static readonly GlobalKeyword HDRGrading;
-        //public static readonly GlobalKeyword FilmGrain;
-        //public static readonly GlobalKeyword Fxaa;
-        //public static readonly GlobalKeyword Dithering;
-        //public static readonly GlobalKeyword Rcas;
-        //public static readonly GlobalKeyword EasuRcasAndHDRInput;
-        //public static readonly GlobalKeyword Gamma20;
-        //public static readonly GlobalKeyword Gamma20AndHDRInput;
-        //public static readonly GlobalKeyword PointSampling;
-
-        // Explicit class constructor required to ensure static field initializers when calling InitializeShaderGlobalKeywords
-        static ShaderGlobalKeywords() { }
+        //public static GlobalKeyword TonemapACES;
+        //public static GlobalKeyword TonemapNeutral;
+        //public static GlobalKeyword UseFastSRGBLinearConversion;
+        //public static GlobalKeyword SmaaLow;
+        //public static GlobalKeyword SmaaMedium;
+        //public static GlobalKeyword SmaaHigh;
+        //public static GlobalKeyword PaniniGeneric;
+        //public static GlobalKeyword PaniniUnitDistance;
+        //public static GlobalKeyword HighQualitySampling;
+        //public static GlobalKeyword BloomLQ;
+        //public static GlobalKeyword BloomHQ;
+        //public static GlobalKeyword BloomLQDirt;
+        //public static GlobalKeyword BloomHQDirt;
+        //public static GlobalKeyword UseRGBM;
+        //public static GlobalKeyword Distortion;
+        //public static GlobalKeyword ChromaticAberration;
+        //public static GlobalKeyword HDRGrading;
+        //public static GlobalKeyword FilmGrain;
+        //public static GlobalKeyword Fxaa;
+        //public static GlobalKeyword Dithering;
+        //public static GlobalKeyword Rcas;
+        //public static GlobalKeyword EasuRcasAndHDRInput;
+        //public static GlobalKeyword Gamma20;
+        //public static GlobalKeyword Gamma20AndHDRInput;
+        //public static GlobalKeyword PointSampling;
 
         public static void InitializeShaderGlobalKeywords()
         {
-            // Keeping and calling this empty static function from pipeline creation ensures the static fields are
-            // initialized at that point, instead of happening on the first frame, potentially causing a hitch.
-        }
+            // Init all keywords upfront
+            ShaderGlobalKeywords.MainLightShadows = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadows);
+            ShaderGlobalKeywords.MainLightShadowCascades = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadowCascades);
+            ShaderGlobalKeywords.MainLightShadowScreen = GlobalKeyword.Create(ShaderKeywordStrings.MainLightShadowScreen);
+            ShaderGlobalKeywords.CastingPunctualLightShadow = GlobalKeyword.Create(ShaderKeywordStrings.CastingPunctualLightShadow);
+            ShaderGlobalKeywords.AdditionalLightsVertex = GlobalKeyword.Create(ShaderKeywordStrings.AdditionalLightsVertex);
+            ShaderGlobalKeywords.AdditionalLightsPixel = GlobalKeyword.Create(ShaderKeywordStrings.AdditionalLightsPixel);
+            ShaderGlobalKeywords.ClusterLightLoop = GlobalKeyword.Create(ShaderKeywordStrings.ClusterLightLoop);
+            ShaderGlobalKeywords.AdditionalLightShadows = GlobalKeyword.Create(ShaderKeywordStrings.AdditionalLightShadows);
+            ShaderGlobalKeywords.ReflectionProbeBoxProjection = GlobalKeyword.Create(ShaderKeywordStrings.ReflectionProbeBoxProjection);
+            ShaderGlobalKeywords.ReflectionProbeBlending = GlobalKeyword.Create(ShaderKeywordStrings.ReflectionProbeBlending);
+            ShaderGlobalKeywords.ReflectionProbeAtlas = GlobalKeyword.Create(ShaderKeywordStrings.ReflectionProbeAtlas);
+            ShaderGlobalKeywords.ReflectionProbeRotation = GlobalKeyword.Create(ShaderKeywordStrings.ReflectionProbeRotation);
+            ShaderGlobalKeywords.SoftShadows = GlobalKeyword.Create(ShaderKeywordStrings.SoftShadows);
+            ShaderGlobalKeywords.SoftShadowsLow = GlobalKeyword.Create(ShaderKeywordStrings.SoftShadowsLow);
+            ShaderGlobalKeywords.SoftShadowsMedium = GlobalKeyword.Create(ShaderKeywordStrings.SoftShadowsMedium);
+            ShaderGlobalKeywords.SoftShadowsHigh = GlobalKeyword.Create(ShaderKeywordStrings.SoftShadowsHigh);
+            ShaderGlobalKeywords.MixedLightingSubtractive = GlobalKeyword.Create(ShaderKeywordStrings.MixedLightingSubtractive);
+            ShaderGlobalKeywords.LightmapShadowMixing = GlobalKeyword.Create(ShaderKeywordStrings.LightmapShadowMixing);
+            ShaderGlobalKeywords.ShadowsShadowMask = GlobalKeyword.Create(ShaderKeywordStrings.ShadowsShadowMask);
+            ShaderGlobalKeywords.LightLayers = GlobalKeyword.Create(ShaderKeywordStrings.LightLayers);
+            ShaderGlobalKeywords.RenderPassEnabled = GlobalKeyword.Create(ShaderKeywordStrings.RenderPassEnabled);
+            ShaderGlobalKeywords.BillboardFaceCameraPos = GlobalKeyword.Create(ShaderKeywordStrings.BillboardFaceCameraPos);
+            ShaderGlobalKeywords.LightCookies = GlobalKeyword.Create(ShaderKeywordStrings.LightCookies);
+            ShaderGlobalKeywords.DepthNoMsaa = GlobalKeyword.Create(ShaderKeywordStrings.DepthNoMsaa);
+            ShaderGlobalKeywords.DepthMsaa2 = GlobalKeyword.Create(ShaderKeywordStrings.DepthMsaa2);
+            ShaderGlobalKeywords.DepthMsaa4 = GlobalKeyword.Create(ShaderKeywordStrings.DepthMsaa4);
+            ShaderGlobalKeywords.DepthMsaa8 = GlobalKeyword.Create(ShaderKeywordStrings.DepthMsaa8);
+            ShaderGlobalKeywords.DBufferMRT1 = GlobalKeyword.Create(ShaderKeywordStrings.DBufferMRT1);
+            ShaderGlobalKeywords.DBufferMRT2 = GlobalKeyword.Create(ShaderKeywordStrings.DBufferMRT2);
+            ShaderGlobalKeywords.DBufferMRT3 = GlobalKeyword.Create(ShaderKeywordStrings.DBufferMRT3);
+            ShaderGlobalKeywords.DecalNormalBlendLow = GlobalKeyword.Create(ShaderKeywordStrings.DecalNormalBlendLow);
+            ShaderGlobalKeywords.DecalNormalBlendMedium = GlobalKeyword.Create(ShaderKeywordStrings.DecalNormalBlendMedium);
+            ShaderGlobalKeywords.DecalNormalBlendHigh = GlobalKeyword.Create(ShaderKeywordStrings.DecalNormalBlendHigh);
+            ShaderGlobalKeywords.DecalLayers = GlobalKeyword.Create(ShaderKeywordStrings.DecalLayers);
+            ShaderGlobalKeywords.WriteRenderingLayers = GlobalKeyword.Create(ShaderKeywordStrings.WriteRenderingLayers);
+            ShaderGlobalKeywords.ScreenSpaceOcclusion = GlobalKeyword.Create(ShaderKeywordStrings.ScreenSpaceOcclusion);
+            ShaderGlobalKeywords.ScreenSpaceIrradiance = GlobalKeyword.Create(ShaderKeywordStrings.ScreenSpaceIrradiance);
+            ShaderGlobalKeywords._SPOT = GlobalKeyword.Create(ShaderKeywordStrings._SPOT);
+            ShaderGlobalKeywords._DIRECTIONAL = GlobalKeyword.Create(ShaderKeywordStrings._DIRECTIONAL);
+            ShaderGlobalKeywords._POINT = GlobalKeyword.Create(ShaderKeywordStrings._POINT);
+            ShaderGlobalKeywords._DEFERRED_STENCIL = GlobalKeyword.Create(ShaderKeywordStrings._DEFERRED_STENCIL);
+            ShaderGlobalKeywords._DEFERRED_FIRST_LIGHT = GlobalKeyword.Create(ShaderKeywordStrings._DEFERRED_FIRST_LIGHT);
+            ShaderGlobalKeywords._DEFERRED_MAIN_LIGHT = GlobalKeyword.Create(ShaderKeywordStrings._DEFERRED_MAIN_LIGHT);
+            ShaderGlobalKeywords._GBUFFER_NORMALS_OCT = GlobalKeyword.Create(ShaderKeywordStrings._GBUFFER_NORMALS_OCT);
+            ShaderGlobalKeywords._DEFERRED_MIXED_LIGHTING = GlobalKeyword.Create(ShaderKeywordStrings._DEFERRED_MIXED_LIGHTING);
+            ShaderGlobalKeywords.LIGHTMAP_ON = GlobalKeyword.Create(ShaderKeywordStrings.LIGHTMAP_ON);
+            ShaderGlobalKeywords.DYNAMICLIGHTMAP_ON = GlobalKeyword.Create(ShaderKeywordStrings.DYNAMICLIGHTMAP_ON);
+            ShaderGlobalKeywords._ALPHATEST_ON = GlobalKeyword.Create(ShaderKeywordStrings._ALPHATEST_ON);
+            ShaderGlobalKeywords.DIRLIGHTMAP_COMBINED = GlobalKeyword.Create(ShaderKeywordStrings.DIRLIGHTMAP_COMBINED);
+            ShaderGlobalKeywords._DETAIL_MULX2 = GlobalKeyword.Create(ShaderKeywordStrings._DETAIL_MULX2);
+            ShaderGlobalKeywords._DETAIL_SCALED = GlobalKeyword.Create(ShaderKeywordStrings._DETAIL_SCALED);
+            ShaderGlobalKeywords._CLEARCOAT = GlobalKeyword.Create(ShaderKeywordStrings._CLEARCOAT);
+            ShaderGlobalKeywords._CLEARCOATMAP = GlobalKeyword.Create(ShaderKeywordStrings._CLEARCOATMAP);
+            ShaderGlobalKeywords.DEBUG_DISPLAY = GlobalKeyword.Create(ShaderKeywordStrings.DEBUG_DISPLAY);
+            ShaderGlobalKeywords.LOD_FADE_CROSSFADE = GlobalKeyword.Create(ShaderKeywordStrings.LOD_FADE_CROSSFADE);
+            ShaderGlobalKeywords.USE_UNITY_CROSSFADE = GlobalKeyword.Create(ShaderKeywordStrings.USE_UNITY_CROSSFADE);
+            ShaderGlobalKeywords._EMISSION = GlobalKeyword.Create(ShaderKeywordStrings._EMISSION);
+            ShaderGlobalKeywords._RECEIVE_SHADOWS_OFF = GlobalKeyword.Create(ShaderKeywordStrings._RECEIVE_SHADOWS_OFF);
+            ShaderGlobalKeywords._SURFACE_TYPE_TRANSPARENT = GlobalKeyword.Create(ShaderKeywordStrings._SURFACE_TYPE_TRANSPARENT);
+            ShaderGlobalKeywords._ALPHAPREMULTIPLY_ON = GlobalKeyword.Create(ShaderKeywordStrings._ALPHAPREMULTIPLY_ON);
+            ShaderGlobalKeywords._ALPHAMODULATE_ON = GlobalKeyword.Create(ShaderKeywordStrings._ALPHAMODULATE_ON);
+            ShaderGlobalKeywords._NORMALMAP = GlobalKeyword.Create(ShaderKeywordStrings._NORMALMAP);
+            ShaderGlobalKeywords._ADD_PRECOMPUTED_VELOCITY = GlobalKeyword.Create(ShaderKeywordStrings._ADD_PRECOMPUTED_VELOCITY);
+            ShaderGlobalKeywords.EDITOR_VISUALIZATION = GlobalKeyword.Create(ShaderKeywordStrings.EDITOR_VISUALIZATION);
+            ShaderGlobalKeywords.FoveatedRenderingNonUniformRaster = GlobalKeyword.Create(ShaderKeywordStrings.FoveatedRenderingNonUniformRaster);
+            ShaderGlobalKeywords.DisableTexture2DXArray = GlobalKeyword.Create(ShaderKeywordStrings.DisableTexture2DXArray);
+            ShaderGlobalKeywords.BlitSingleSlice = GlobalKeyword.Create(ShaderKeywordStrings.BlitSingleSlice);
+            ShaderGlobalKeywords.XROcclusionMeshCombined = GlobalKeyword.Create(ShaderKeywordStrings.XROcclusionMeshCombined);
+            ShaderGlobalKeywords.SCREEN_COORD_OVERRIDE = GlobalKeyword.Create(ShaderKeywordStrings.SCREEN_COORD_OVERRIDE);
+            ShaderGlobalKeywords.DOWNSAMPLING_SIZE_2 = GlobalKeyword.Create(ShaderKeywordStrings.DOWNSAMPLING_SIZE_2);
+            ShaderGlobalKeywords.DOWNSAMPLING_SIZE_4 = GlobalKeyword.Create(ShaderKeywordStrings.DOWNSAMPLING_SIZE_4);
+            ShaderGlobalKeywords.DOWNSAMPLING_SIZE_8 = GlobalKeyword.Create(ShaderKeywordStrings.DOWNSAMPLING_SIZE_8);
+            ShaderGlobalKeywords.DOWNSAMPLING_SIZE_16 = GlobalKeyword.Create(ShaderKeywordStrings.DOWNSAMPLING_SIZE_16);
+            ShaderGlobalKeywords.EVALUATE_SH_MIXED = GlobalKeyword.Create(ShaderKeywordStrings.EVALUATE_SH_MIXED);
+            ShaderGlobalKeywords.EVALUATE_SH_VERTEX = GlobalKeyword.Create(ShaderKeywordStrings.EVALUATE_SH_VERTEX);
+            ShaderGlobalKeywords.ProbeVolumeL1 = GlobalKeyword.Create(ShaderKeywordStrings.ProbeVolumeL1);
+            ShaderGlobalKeywords.ProbeVolumeL2 = GlobalKeyword.Create(ShaderKeywordStrings.ProbeVolumeL2);
+            ShaderGlobalKeywords.LIGHTMAP_BICUBIC_SAMPLING = GlobalKeyword.Create(ShaderKeywordStrings.LIGHTMAP_BICUBIC_SAMPLING);
+            ShaderGlobalKeywords._OUTPUT_DEPTH = GlobalKeyword.Create(ShaderKeywordStrings._OUTPUT_DEPTH);
+            ShaderGlobalKeywords.LinearToSRGBConversion = GlobalKeyword.Create(ShaderKeywordStrings.LinearToSRGBConversion);
+            ShaderGlobalKeywords._ENABLE_ALPHA_OUTPUT = GlobalKeyword.Create(ShaderKeywordStrings._ENABLE_ALPHA_OUTPUT);
+            ShaderGlobalKeywords.ForwardPlus = GlobalKeyword.Create(ShaderKeywordStrings.ForwardPlus); // Backward compatibility. Deprecated in 6.1.
+#if (UNITY_META_QUEST)
+            ShaderGlobalKeywords.META_QUEST_ORTHO_PROJ = GlobalKeyword.Create(ShaderKeywordStrings.META_QUEST_ORTHO_PROJ);
+            ShaderGlobalKeywords.META_QUEST_LIGHTUNROLL = GlobalKeyword.Create(ShaderKeywordStrings.META_QUEST_LIGHTUNROLL);
+            ShaderGlobalKeywords.META_QUEST_NO_SPOTLIGHTS_LIGHT_LOOP = GlobalKeyword.Create(ShaderKeywordStrings.META_QUEST_NO_SPOTLIGHTS_LIGHT_LOOP);            
+#endif
+            ShaderGlobalKeywords.APPLICATION_SPACE_WARP_MOTION_TRANSPARENT = GlobalKeyword.Create(ShaderKeywordStrings.APPLICATION_SPACE_WARP_MOTION_TRANSPARENT);
 
+        }
     }
 
     /// <summary>
@@ -1080,9 +1155,6 @@ namespace UnityEngine.Rendering.Universal
 
         /// <summary> Keyword used for ReflectionProbe rotation. </summary>
         public const string ReflectionProbeRotation = "REFLECTION_PROBE_ROTATION";
-
-        /// <summary> Keyword used for Screen Space Reflection (SSR). </summary>
-        public const string ScreenSpaceReflection = "_SCREEN_SPACE_REFLECTION";
 
         /// <summary> Keyword used for soft shadows. </summary>
         public const string SoftShadows = "_SHADOWS_SOFT";
@@ -1158,9 +1230,6 @@ namespace UnityEngine.Rendering.Universal
 
         /// <summary> Keyword used for writing Rendering Layers. </summary>
         public const string WriteRenderingLayers = "_WRITE_RENDERING_LAYERS";
-
-        /// <summary> Keyword used for writing roughness to alpha channel of normals texture. </summary>
-        public const string WriteSmoothness = "_WRITE_SMOOTHNESS";
 
         /// <summary> Keyword used for low quality Subpixel Morphological Anti-aliasing (SMAA). </summary>
         public const string SmaaLow = "_SMAA_PRESET_LOW";
@@ -1394,30 +1463,23 @@ namespace UnityEngine.Rendering.Universal
 
         /// <summary> Keyword used for Multi Sampling Anti-Aliasing (MSAA) with 4 per pixel sample count. </summary>
         public const string Msaa4 = "_MSAA_4";
-
-        /// <summary> Keyword used for depth as input attachment. </summary>
-        public const string DEPTH_AS_INPUT_ATTACHMENT = "_DEPTH_AS_INPUT_ATTACHMENT";
-
-        /// <summary> Keyword used for depth as input attachment MSAA. </summary>
-        public const string DEPTH_AS_INPUT_ATTACHMENT_MSAA = "_DEPTH_AS_INPUT_ATTACHMENT_MSAA";
     }
 
     public sealed partial class UniversalRenderPipeline
     {
         // Holds light direction for directional lights or position for punctual lights.
         // When w is set to 1.0, it means it's a punctual light.
-        static readonly Vector4 k_DefaultLightPosition = new Vector4(0.0f, 0.0f, 1.0f, 0.0f);
-        static readonly Vector4 k_DefaultLightColor = Color.black;
+        static Vector4 k_DefaultLightPosition = new Vector4(0.0f, 0.0f, 1.0f, 0.0f);
+        static Vector4 k_DefaultLightColor = Color.black;
 
         // Default light attenuation is setup in a particular way that it causes
         // directional lights to return 1.0 for both distance and angle attenuation
-        static readonly Vector4 k_DefaultLightAttenuation = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
-        static readonly Vector4 k_DefaultLightSpotDirection = new Vector4(0.0f, 0.0f, 1.0f, 0.0f);
-        static readonly Vector4 k_DefaultLightsProbeChannel = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+        static Vector4 k_DefaultLightAttenuation = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
+        static Vector4 k_DefaultLightSpotDirection = new Vector4(0.0f, 0.0f, 1.0f, 0.0f);
+        static Vector4 k_DefaultLightsProbeChannel = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
 
-        // Note: No need to clear static lists on entering play mode as they are always cleared at the start of CreateShadowData()
-        static readonly List<Vector4> s_ShadowBiasData = new List<Vector4>();
-        static readonly List<int> s_ShadowResolutionData = new List<int>();
+        static List<Vector4> m_ShadowBiasData = new List<Vector4>();
+        static List<int> m_ShadowResolutionData = new List<int>();
 
         /// <summary>
         /// Checks if a camera is a game camera.
@@ -1504,124 +1566,63 @@ namespace UnityEngine.Rendering.Universal
                 return GraphicsFormat.R8G8B8A8_UNorm;
         }
 
-        // Populates cameraData.backbufferColor/backbufferDepth for screen and targetTexture paths.
-        // XR overrides these later in UpdateCameraData with the XR eye texture properties.
-        internal static void CreateBackbufferInfo(Camera camera, UniversalCameraData cameraData, bool needsAlpha)
-        {
-            var colorFormatProxy = MakeRenderTextureGraphicsFormat(cameraData.isHdrEnabled, cameraData.hdrColorBufferPrecision, needsAlpha);
-            var depthStencilFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.DepthStencil);
-
-            if (camera.targetTexture == null)
-            {
-                // Describe the real backbuffer's live MSAA. UpdateCameraData later overrides this
-                // with the XR eye texture properties when an XR pass is actually active.
-                cameraData.backbufferColor = new RenderTargetInfo
-                {
-                    width = Screen.width,
-                    height = Screen.height,
-                    volumeDepth = 1,
-                    msaaSamples = Screen.currentBackbufferMSAASamples,
-                    format = colorFormatProxy,
-                };
-                cameraData.backbufferDepth = cameraData.backbufferColor;
-                cameraData.backbufferDepth.format = depthStencilFormat;
-            }
-            else
-            {
-                cameraData.backbufferColor = new RenderTargetInfo
-                {
-                    width = camera.targetTexture.width,
-                    height = camera.targetTexture.height,
-                    volumeDepth = camera.targetTexture.volumeDepth,
-                    msaaSamples = SystemInfo.GetRenderTextureSupportedMSAASampleCount(camera.targetTexture.descriptor),
-                    format = camera.targetTexture.graphicsFormat,
-                };
-                cameraData.backbufferDepth = cameraData.backbufferColor;
-                cameraData.backbufferDepth.format = camera.targetTexture.depthStencilFormat;
-                if (cameraData.backbufferDepth.format == GraphicsFormat.None)
-                {
-                    cameraData.backbufferDepth.format = depthStencilFormat;
-                    Debug.LogWarning("In the render graph API, the output Render Texture must have a depth buffer. When you select a Render Texture in any camera's Output Texture property, the Depth Stencil Format property of the texture must be set to a value other than None.");
-                }
-            }
-        }
-        internal static int GetIntermediateTexturesMSAA(UniversalCameraData cameraData, ScriptableRenderer renderer)
-        {
-            bool rendererSupportsMSAA = renderer != null && renderer.supportedRenderingFeatures.msaa;
-            var camera = cameraData.camera;
-
-            int msaaSamples = 1;
-
-            if (rendererSupportsMSAA && camera.allowMSAA)
-            {
-                if (camera.targetTexture == null)
-                {  
-                    msaaSamples = asset.msaaSampleCount;                    
-                }
-                else
-                {
-                    msaaSamples = camera.targetTexture.antiAliasing;
-                }
-            }
-
-            // In tile-only mode the backbuffer and intermediates share a native render pass,
-            // so their MSAA counts must match the live backbuffer value.
-            // TODO: warn the user when this overrides camera.allowMSAA or asset.msaaSampleCount.
-            // TODO: deferred rendering doesn't support MSAA but will soon support tile-only mode.
-            // When multiple cameras share the same backbuffer with mixed renderers (forward + deferred),
-            // the deferred camera can't match backbuffer MSAA in tile-only mode. Needs a strategy for
-            // forcing intermediates or disabling backbuffer MSAA when deferred is in the mix.
-            bool tileOnlyMode = renderer is UniversalRenderer { useTileOnlyMode: true };
-            msaaSamples = (tileOnlyMode) ? cameraData.backbufferColor.msaaSamples : msaaSamples;
-
-            return msaaSamples;
-        }
-
-        // Creates the descriptor for URP's intermediate render textures (cameraColor, cameraDepth).
-        // Shares most properties with the backbuffer (format, depth format) but uses render-scaled
-        // dimensions and independently configured MSAA. Stored as cameraData.cameraTargetDescriptor
-        // for external users; internal code should use TextureDesc from renderGraph.GetDescriptor().
         internal static RenderTextureDescriptor CreateRenderTextureDescriptor(Camera camera, UniversalCameraData cameraData,
-            int msaaSamples)
+            bool isHdrEnabled, HDRColorBufferPrecision requestHDRColorBufferPrecision, int msaaSamples, bool needsAlpha)
         {
             RenderTextureDescriptor desc;
 
             if (camera.targetTexture == null)
             {
-                desc = new RenderTextureDescriptor(cameraData.scaledWidth, cameraData.scaledHeight);           
+                desc = new RenderTextureDescriptor(cameraData.scaledWidth, cameraData.scaledHeight);
+                desc.graphicsFormat = MakeRenderTextureGraphicsFormat(isHdrEnabled, requestHDRColorBufferPrecision, needsAlpha);
+                desc.depthBufferBits = (int)CoreUtils.GetDefaultDepthBufferBits();
+                desc.depthStencilFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.DepthStencil);
+                desc.msaaSamples = msaaSamples;
+                desc.sRGB = (QualitySettings.activeColorSpace == ColorSpace.Linear);
             }
             else
             {
-                // Note: the intermediate color buffer inherits the external texture's format instead of using the
-                // configured internal rendering format. This is incorrect but kept for backward compatibility.
-                // Ideally we'd use the internal format throughout and blit to the external texture at the end.
+                // Note: External texture replaces internal (intermediate) color buffer here, ignoring the configured internal rendering color buffer format.
+                // This is incorrect. We should use the internal rendering format throughout and blit the result to the external texture at the end (blit could be skipped if the formats match).
+                // However, this would lead to breaking changes in the URP asset as we would need to move the internal rendering format to the renderer asset.
+                // This way it could be selected separately for each target.
+                // Current workflow/workaround is to simply pick a suitable format for the external texture.
                 desc = camera.targetTexture.descriptor;
-                
+                desc.msaaSamples = msaaSamples;
+                // Note: This does not scale the underlying target size.
+                // Instead, it is the scaled viewport rect size which means the viewport offset into the target is always (0,0).
                 desc.width = cameraData.scaledWidth;
                 desc.height = cameraData.scaledHeight;
+
+                if (camera.cameraType == CameraType.SceneView && !isHdrEnabled)
+                {
+                    desc.graphicsFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
+                }
+                // SystemInfo.SupportsRenderTextureFormat(camera.targetTexture.descriptor.colorFormat)
+                // will assert on R8_SINT since it isn't a valid value of RenderTextureFormat.
+                // If this is fixed then we can implement debug statement to the user explaining why some
+                // RenderTextureFormats available resolves in a black render texture when no warning or error
+                // is given.
             }
 
-            desc.graphicsFormat = cameraData.backbufferColor.format;
-            if (camera.cameraType == CameraType.SceneView && !cameraData.isHdrEnabled)
-                desc.graphicsFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
-            desc.depthStencilFormat = cameraData.backbufferDepth.format;
-            desc.msaaSamples = msaaSamples;
             desc.enableRandomWrite = false;
             desc.bindMS = false;
             desc.useDynamicScale = camera.allowDynamicResolution;
 
-            // Check that the requested MSAA samples count is supported by the current platform. If it's not supported,
-            // replace the requested desc.msaaSamples value with the actual value the engine falls back to.
-            // NOTE: this uses a different validation path than backbuffer MSAA (per-format kUsageMSAANx flags
-            // vs hardware-level sample count support). In tile-only mode the caller sets msaaSamples to
-            // currentBackbufferMSAASamples, but this clamp could reduce it below the backbuffer value
-            // (e.g. Mali-G78 doesn't support 2x for RTs while the GPU handles 2x in tile memory).
+            // check that the requested MSAA samples count is supported by the current platform. If it's not supported,
+            // replace the requested desc.msaaSamples value with the actual value the engine falls back to
             desc.msaaSamples = SystemInfo.GetRenderTextureSupportedMSAASampleCount(desc);
+
+            // if the target platform doesn't support storing multisampled RTs and we are doing any offscreen passes, using a Load load action on the subsequent passes
+            // will result in loading Resolved data, which on some platforms is discarded, resulting in losing the results of the previous passes.
+            // As a workaround we disable MSAA to make sure that the results of previous passes are stored. (fix for Case 1247423).
+            if (!SystemInfo.supportsStoreAndResolveAction)
+                desc.msaaSamples = 1;
 
             return desc;
         }
 
-        private static readonly Lightmapping.RequestLightsDelegate s_LightsDelegate = (Light[] requests, NativeArray<LightDataGI> lightsOutput) =>
+        private static Lightmapping.RequestLightsDelegate lightsDelegate = (Light[] requests, NativeArray<LightDataGI> lightsOutput) =>
         {
             LightDataGI lightData = new LightDataGI();
 
@@ -1702,7 +1703,7 @@ namespace UnityEngine.Rendering.Universal
             }
 #else
             // If Enlighten realtime GI isn't active, we don't extract lights.
-            if (SupportedRenderingFeatures.active.enlighten == false || ((int)SupportedRenderingFeatures.active.lightmapBakeTypes & (int)LightmapBakeType.Realtime) == 0)
+            if (SupportedRenderingFeatures.active.enlighten == false || ((int)SupportedRenderingFeatures.active.lightmapBakeTypes | (int)LightmapBakeType.Realtime) == 0)
             {
                 for (int i = 0; i < requests.Length; i++)
                 {
@@ -1913,12 +1914,88 @@ namespace UnityEngine.Rendering.Universal
         }
     }
 
-    [System.Obsolete("Use URPProfilingSamplers static fields instead.")]
-    internal enum URPProfileId
+    // URP Profile Id
+    // - Scopes using this enum are automatically picked up by the performance testing framework.
+    // - You can use [HideInDebugUI] attribute to hide a given id from the Detailed Stats section of Rendering Debugger.
+    public enum URPProfileId
     {
+        // CPU
         UniversalRenderTotal,
+        UpdateVolumeFramework,
+        RenderCameraStack,
+
+        // GPU
+        AdditionalLightsShadow,
+        ColorGradingLUT,
+        CopyColor,
+        CopyDepth,
+        DrawDepthNormalPrepass,
+        DepthPrepass,
+        UpdateReflectionProbeAtlas,
+
+        // DrawObjectsPass
         DrawOpaqueObjects,
+        DrawTransparentObjects,
+        DrawScreenSpaceUI,
+
+        //Full Record Render Graph
         RecordRenderGraph,
+
+        // RenderObjectsPass
+        //RenderObjects,
+
+        LightCookies,
+
+        MainLightShadow,
+        ResolveShadows,
+        SSAO,
+
+        // PostProcessPass
+        StopNaNs,
+        SMAA,
+        GaussianDepthOfField,
+        BokehDepthOfField,
+        TemporalAA,
+        MotionBlur,
+        PaniniProjection,
+        UberPostProcess,
+        Bloom,
+        LensFlareDataDrivenComputeOcclusion,
+        LensFlareDataDriven,
+        LensFlareScreenSpace,
+        DrawMotionVectors,
+        DrawFullscreen,
+
+        // PostProcessPass RenderGraph
+        [HideInDebugUI] RG_SetupPostFX,
+        [HideInDebugUI] RG_StopNaNs,
+        [HideInDebugUI] RG_SMAAMaterialSetup,
+        [HideInDebugUI] RG_SMAAEdgeDetection,
+        [HideInDebugUI] RG_SMAABlendWeight,
+        [HideInDebugUI] RG_SMAANeighborhoodBlend,
+        [HideInDebugUI] RG_SetupDoF,
+        [HideInDebugUI] RG_DOFComputeCOC,
+        [HideInDebugUI] RG_DOFDownscalePrefilter,
+        [HideInDebugUI] RG_DOFBlurH,
+        [HideInDebugUI] RG_DOFBlurV,
+        [HideInDebugUI] RG_DOFBlurBokeh,
+        [HideInDebugUI] RG_DOFPostFilter,
+        [HideInDebugUI] RG_DOFComposite,
+        [HideInDebugUI] RG_TAA,
+        [HideInDebugUI] RG_TAACopyHistory,
+        [HideInDebugUI] RG_MotionBlur,
+        [HideInDebugUI] RG_BloomSetup,
+        [HideInDebugUI] RG_BloomPrefilter,
+        [HideInDebugUI] RG_BloomDownsample,
+        [HideInDebugUI] RG_BloomUpsample,
+        [HideInDebugUI] RG_UberPostSetupBloomPass,
+        [HideInDebugUI] RG_UberPost,
+        [HideInDebugUI] RG_FinalSetup,
+        [HideInDebugUI] RG_FinalFSRScale,
+        [HideInDebugUI] RG_FinalBlit,
+
+        BlitFinalToBackBuffer,
+        DrawSkybox
     }
 
     // Internal class to detect and cache runtime platform information.
@@ -1939,7 +2016,6 @@ namespace UnityEngine.Rendering.Universal
             public readonly bool isSwitch2;
             public readonly bool isRunningOnPowerVRGPU;
             public readonly bool hasRenderToR32F;
-            public readonly int maxSupportedShadowAtlasResolution;
 
             public PlatformDetectionCache()
             {
@@ -1956,11 +2032,6 @@ namespace UnityEngine.Rendering.Universal
                 isSwitch2 = Application.platform == RuntimePlatform.Switch2;
                 isRunningOnPowerVRGPU = SystemInfo.graphicsDeviceName.Contains("PowerVR");
                 hasRenderToR32F = SystemInfo.IsFormatSupported(GraphicsFormat.R32_SFloat, GraphicsFormatUsage.Render);
-
-                // Calculate and cache maximum shadow atlas resolution graphics device support
-                int maxTextureSize = SystemInfo.maxTextureSize;
-                int powerOfTwo = Mathf.ClosestPowerOfTwo(maxTextureSize);
-                maxSupportedShadowAtlasResolution = powerOfTwo > maxTextureSize ? powerOfTwo >> 1 : powerOfTwo;
             }
         }
 
@@ -1974,18 +2045,17 @@ namespace UnityEngine.Rendering.Universal
 #if ENABLE_VR && ENABLE_XR_MODULE
     #if PLATFORM_WINRT || PLATFORM_ANDROID
         // XR mobile platforms are not treated as dedicated mobile platforms in Core. Handle them specially here. (Quest and HL).
-        // Note: No need to clear static list on entering playmode, because it is always overwritten by SubsystemManager.GetSubsystems before usage
-        private static readonly List<XR.XRDisplaySubsystem> s_DisplaySubsystemList = new List<XR.XRDisplaySubsystem>();
+        private static List<XR.XRDisplaySubsystem> displaySubsystemList = new List<XR.XRDisplaySubsystem>();
         private static bool IsRunningXRMobile()
         {
             var platform = Application.platform;
             if (platform == RuntimePlatform.WSAPlayerX86 || platform == RuntimePlatform.WSAPlayerARM || platform == RuntimePlatform.WSAPlayerX64 || platform == RuntimePlatform.Android)
             {
                 XR.XRDisplaySubsystem display = null;
-                SubsystemManager.GetSubsystems(s_DisplaySubsystemList);
+                SubsystemManager.GetSubsystems(displaySubsystemList);
 
-                if (s_DisplaySubsystemList.Count > 0)
-                    display = s_DisplaySubsystemList[0];
+                if (displaySubsystemList.Count > 0)
+                    display = displaySubsystemList[0];
 
                 if (display != null)
                     return true;
@@ -2018,12 +2088,6 @@ namespace UnityEngine.Rendering.Universal
         /// If true, then the runtime device supports R32_SFloat render targets. Not guaranteed on GLES 3.1 or earlier.
         /// </summary>
         internal static bool hasRenderToR32F => platformCache.Value.hasRenderToR32F;
-
-        /// <summary>
-        /// The maximum shadow atlas resolution supported by the current graphics device.
-        /// Clamped to SystemInfo.maxTextureSize, if requested > SystemInfo.maxTextureSize).
-        /// </summary>
-        internal static int maxSupportedShadowAtlasResolution => platformCache.Value.maxSupportedShadowAtlasResolution;
 
         /// <summary>
         /// Gives the SH evaluation mode when set to automatically detect.

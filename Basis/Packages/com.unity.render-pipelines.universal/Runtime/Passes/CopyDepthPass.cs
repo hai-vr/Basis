@@ -40,7 +40,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// <seealso cref="RenderPassEvent"/>
         public CopyDepthPass(RenderPassEvent evt, Shader copyDepthShader, bool shouldClear = false, bool copyToDepth = false, bool copyResolvedDepth = false, string customPassName = null)
         {
-            profilingSampler = customPassName != null ? new ProfilingSampler(customPassName) : URPProfilingSamplers.CopyDepth;
+            profilingSampler = customPassName != null ? new ProfilingSampler(customPassName) : ProfilingSampler.Get(URPProfileId.CopyDepth);
             m_CopyDepthMaterial = copyDepthShader != null ? CoreUtils.CreateEngineMaterial(copyDepthShader) : null;
             renderPassEvent = evt;
             CopyToDepthXR = false;
@@ -191,8 +191,8 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                 if (cameraData.xr.enabled)
                 {
-                    // Multiview render regions are incompatible with the inner (foveal) pass in Quad View
-                    if (!cameraData.xr.isQuadViewInnerPass)
+                    // Apply MultiviewRenderRegionsCompatible flag only to the peripheral view in Quad Views
+                    if (cameraData.xr.multipassId == 0)
                     {
                         builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.MultiviewRenderRegionsCompatible);
                     }

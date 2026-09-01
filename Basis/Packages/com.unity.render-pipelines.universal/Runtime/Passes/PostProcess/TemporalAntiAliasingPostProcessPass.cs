@@ -10,7 +10,6 @@ namespace UnityEngine.Rendering.Universal
 
         Material m_Material;
         bool m_IsValid;
-        uint m_WarnCounter;
 
         public TemporalAntiAliasingPostProcessPass(Shader shader)
         {
@@ -19,8 +18,6 @@ namespace UnityEngine.Rendering.Universal
 
             m_Material = PostProcessUtils.LoadShader(shader, passName);
             m_IsValid = m_Material != null;
-
-            m_WarnCounter = 0;
         }
 
         public override void Dispose()
@@ -52,7 +49,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 // Warn users if TAA is disabled despite being requested
                 if (cameraData.IsTemporalAARequested())
-                    TemporalAA.ValidateAndWarn(cameraData, ref m_WarnCounter, false);
+                    TemporalAA.ValidateAndWarn(cameraData, false);
                 return;
             }
 

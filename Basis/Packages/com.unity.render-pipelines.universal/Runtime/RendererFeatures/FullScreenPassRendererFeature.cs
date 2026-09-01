@@ -9,7 +9,7 @@ namespace UnityEngine.Rendering.Universal
     /// <summary>
     /// This renderer feature lets you create single-pass full screen post processing effects without needing to write code.
     /// </summary>
-    [URPHelpURL("urp/renderer-features/renderer-feature-full-screen-pass")]
+    [URPHelpURL("renderer-features/renderer-feature-full-screen-pass")]
     public partial class FullScreenPassRendererFeature : ScriptableRendererFeature
     {
         /// <summary>
@@ -135,7 +135,7 @@ namespace UnityEngine.Rendering.Universal
             private bool m_FetchActiveColor;
             private bool m_BindDepthStencilAttachment;
 
-            private readonly MaterialPropertyBlock m_MaterialPropertyBlock = new MaterialPropertyBlock();
+            private static MaterialPropertyBlock s_SharedPropertyBlock = new MaterialPropertyBlock();
 
             public FullScreenRenderPass(string passName)
             {
@@ -150,16 +150,16 @@ namespace UnityEngine.Rendering.Universal
                 m_BindDepthStencilAttachment = bindDepthStencilAttachment;
             }
 
-            private static void ExecuteMainPass(RasterCommandBuffer cmd, MaterialPropertyBlock mbp, RTHandle sourceTexture, Material material, int passIndex, Vector4 blitScaleBias)
+            private static void ExecuteMainPass(RasterCommandBuffer cmd, RTHandle sourceTexture, Material material, int passIndex, Vector4 blitScaleBias)
             {
-                mbp.Clear();
+                s_SharedPropertyBlock.Clear();
                 if (sourceTexture != null)
-                    mbp.SetTexture(ShaderPropertyId.blitTexture, sourceTexture);
+                    s_SharedPropertyBlock.SetTexture(ShaderPropertyId.blitTexture, sourceTexture);
 
                 // We need to set the "_BlitScaleBias" uniform for user materials with shaders relying on core Blit.hlsl to work
-                mbp.SetVector(ShaderPropertyId.blitScaleBias, blitScaleBias);
+                s_SharedPropertyBlock.SetVector(ShaderPropertyId.blitScaleBias, blitScaleBias);
 
-                cmd.DrawProcedural(Matrix4x4.identity, material, passIndex, MeshTopology.Triangles, 3, 1, mbp);
+                cmd.DrawProcedural(Matrix4x4.identity, material, passIndex, MeshTopology.Triangles, 3, 1, s_SharedPropertyBlock);
             }
 
             public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -203,11 +203,10 @@ namespace UnityEngine.Rendering.Universal
                 using (var builder = renderGraph.AddRasterRenderPass<MainPassData>(passName, out var passData, profilingSampler))
                 {
                     passData.material = m_Material;
-                    passData.materialPropertyBlock = m_MaterialPropertyBlock;
                     passData.passIndex = m_PassIndex;
 
                     passData.source = source;
-                    passData.destination = destination;
+                    passData.destination = destination; 
 
                     if (passData.source.IsValid())
                         builder.UseTexture(passData.source, AccessFlags.Read);
@@ -256,14 +255,13 @@ namespace UnityEngine.Rendering.Universal
                     builder.SetRenderFunc(static (MainPassData data, RasterGraphContext rgContext) =>
                     {
                         Vector4 scaleBias = RenderingUtils.GetFinalBlitScaleBias(rgContext, in data.source, in data.destination);
-                        ExecuteMainPass(rgContext.cmd, data.materialPropertyBlock, data.source, data.material, data.passIndex, scaleBias);
+                        ExecuteMainPass(rgContext.cmd, data.source, data.material, data.passIndex, scaleBias);
                     });
                 }
             }
             private class MainPassData
             {
                 internal Material material;
-                internal MaterialPropertyBlock materialPropertyBlock;
                 internal int passIndex;
                 internal TextureHandle source;
                 internal TextureHandle destination;

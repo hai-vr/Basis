@@ -1,21 +1,32 @@
 using System;
 using System.Collections.Generic;
-using Unity.RenderPipelines.Core.Runtime.Shared;
+using System.Linq;
 
 namespace UnityEngine.Rendering.Universal
 {
     /// <summary>
     /// URP Rendering Debugger Display Stats.
     /// </summary>
-    class UniversalRenderPipelineDebugDisplayStats : DebugDisplayStats
+    class UniversalRenderPipelineDebugDisplayStats : DebugDisplayStats<URPProfileId>
     {
-        readonly List<ProfilingSampler> m_URPSamplers = GetProfilingSamplersToDisplay(typeof(URPProfilingSamplers));
+        private DebugFrameTiming m_DebugFrameTiming = new();
+
+        private List<URPProfileId> m_RecordedSamplers = new();
 
         /// <inheritdoc/>
         public override void EnableProfilingRecorders()
         {
-            AddAndEnableProfilingSamplers(m_URPSamplers);
-            base.EnableProfilingRecorders();
+            Debug.Assert(m_RecordedSamplers.Count == 0);
+            m_RecordedSamplers = GetProfilerIdsToDisplay();
+        }
+
+        /// <inheritdoc/>
+        public override void DisableProfilingRecorders()
+        {
+            foreach (var sampler in m_RecordedSamplers)
+                ProfilingSampler.Get(sampler).enableRecording = false;
+
+            m_RecordedSamplers.Clear();
         }
 
         /// <inheritdoc/>
@@ -30,11 +41,38 @@ namespace UnityEngine.Rendering.Universal
             });
 #endif
 
-           base.RegisterDebugUI(list);
+            m_DebugFrameTiming.RegisterDebugUI(list);
 
-           var detailedStats = DebugUIUtilities.GetFoldoutByName("Detailed Stats", list);
-           var detailedFoldout = detailedStats != null ? DebugUIUtilities.GetFoldoutByName("Profiling Scopes", detailedStats.children) : null;
-           detailedFoldout?.children.InsertRange(0,  BuildProfilingSamplerWidgetList(m_URPSamplers));
+            var detailedStatsFoldout = new DebugUI.Foldout
+            {
+                displayName = "Detailed Stats",
+                opened = false,
+                children =
+                {
+                    new DebugUI.BoolField
+                    {
+                        displayName = "Update every second with average",
+                        getter = () => averageProfilerTimingsOverASecond,
+                        setter = value => averageProfilerTimingsOverASecond = value
+                    },
+                    new DebugUI.BoolField
+                    {
+                        displayName = "Hide empty scopes",
+                        tooltip = "Hide profiling scopes where elapsed time in each category is zero",
+                        getter = () => hideEmptyScopes,
+                        setter = value => hideEmptyScopes = value
+                    }
+                }
+            };
+            detailedStatsFoldout.children.Add(BuildDetailedStatsList("Profiling Scopes", m_RecordedSamplers));
+            list.Add(detailedStatsFoldout);
+        }
+
+        /// <inheritdoc/>
+        public override void Update()
+        {
+            m_DebugFrameTiming.UpdateFrameTiming();
+            UpdateDetailedStats(m_RecordedSamplers);
         }
     }
 }

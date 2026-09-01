@@ -88,7 +88,7 @@ Shader "OnTileUberPost"
             inputColor = GetSRGBToLinear(inputColor);
         }
         #endif
-
+        
         // Remapped UV for screen-space effects in Quad View
         float2 uvRemapped = uv;
 #ifdef USING_STEREO_MATRICES

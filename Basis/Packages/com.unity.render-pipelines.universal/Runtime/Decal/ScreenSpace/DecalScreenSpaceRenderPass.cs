@@ -104,8 +104,8 @@ namespace UnityEngine.Rendering.Universal
 
                 if (cameraData.xr.enabled)
                 {
-                    // Multiview render regions are incompatible with the inner (foveal) pass in Quad View
-                    if (!cameraData.xr.isQuadViewInnerPass)
+                    // Apply MultiviewRenderRegionsCompatible flag only to the peripheral view in Quad Views
+                    if (cameraData.xr.multipassId == 0)
                     {
                         builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.MultiviewRenderRegionsCompatible);
                     }

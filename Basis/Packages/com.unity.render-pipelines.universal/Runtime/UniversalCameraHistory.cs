@@ -1,6 +1,5 @@
 using System;
 using Unity.Mathematics;
-using Unity.Scripting.LifecycleManagement;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -16,13 +15,9 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         const int k_ValidVersionCount = 2;  // current frame + previous frame
 
-        // Static s_TypeCount and TypeId<T>.value fields don't need to be reset when entering playmode.
-        // s_TypeCount is only incremented by the static initialization of TypeId<T>.value.
-        [NoAutoStaticsCleanup]
         private static uint s_TypeCount = 0;
         private static class TypeId<T>
         {
-            [NoAutoStaticsCleanup]
             public static uint value = s_TypeCount++;
         }
 

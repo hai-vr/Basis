@@ -39,13 +39,6 @@ namespace UnityEngine.Rendering.Universal
         private PassData m_PassData;
 
         /// <summary>
-        /// Indicates whether this pass should use depth as input attachment.
-        /// When enabled, depth is read from tile memory instead of texture sampling (DX12, Vulkan only).
-        /// Requires depth to be read-only (no depth writes).
-        /// </summary>
-        private bool m_DepthInputAttachment;
-
-        /// <summary>
         /// Sets the write and comparison function for depth.
         /// </summary>
         /// <param name="writeEnabled">Sets whether it should write to depth or not.</param>
@@ -65,18 +58,6 @@ namespace UnityEngine.Rendering.Universal
         {
             m_RenderStateBlock.mask |= RenderStateMask.Depth;
             m_RenderStateBlock.depthState = new DepthState(writeEnabled, function);
-        }
-
-        /// <summary>
-        /// Sets whether this pass should use depth as input attachment.
-        /// This enables subpass depth reading on supported platforms (DX12, Vulkan).
-        /// When enabled, depth will be set as read-only in the RenderGraph.
-        /// </summary>
-        /// <param name="enable">True to enable depth input attachment</param>
-        internal void SetDepthInputAttachment(bool enable)
-        {
-            // The shader stripping relies on knowing about the feature, not the pass. So this can't correctly work if the pass is not added by the RenderObject feature.
-            m_DepthInputAttachment = enable;
         }
 
         /// <summary>
@@ -118,6 +99,13 @@ namespace UnityEngine.Rendering.Universal
             Init(renderPassEvent, shaderTags, renderQueueType, layerMask, cameraSettings);
         }
 
+        internal RenderObjectsPass(URPProfileId profileId, RenderPassEvent renderPassEvent, string[] shaderTags, RenderQueueType renderQueueType, int layerMask,
+            RenderObjects.CustomCameraSettings cameraSettings)
+        {
+            profilingSampler = ProfilingSampler.Get(profileId);
+            Init(renderPassEvent, shaderTags, renderQueueType, layerMask, cameraSettings);
+        }
+
         internal void Init(RenderPassEvent renderPassEvent, string[] shaderTags, RenderQueueType renderQueueType, int layerMask, RenderObjects.CustomCameraSettings cameraSettings)
         {
             m_PassData = new PassData();
@@ -152,11 +140,6 @@ namespace UnityEngine.Rendering.Universal
         private static void ExecutePass(PassData passData, RasterCommandBuffer cmd, RendererList rendererList, bool isYFlipped)
         {
             Camera camera = passData.cameraData.camera;
-
-            if (passData.cameraData.xr.enabled && passData.isActiveTargetBackBuffer)
-            {
-                cmd.SetViewport(passData.cameraData.xr.GetViewport());
-            }
 
             // In case of camera stacking we need to take the viewport rect from base camera
             Rect pixelRect = passData.cameraData.pixelRect;
@@ -211,17 +194,13 @@ namespace UnityEngine.Rendering.Universal
 
             // Required for code sharing purpose between RG and non-RG.
             internal RendererList rendererList;
-
-            internal bool depthInputAttachment;
-            internal bool isActiveTargetBackBuffer;
         }
 
-        private void InitPassData(UniversalCameraData cameraData, ref PassData passData, bool isActiveTargetBackBuffer = false)
+        private void InitPassData(UniversalCameraData cameraData, ref PassData passData)
         {
             passData.cameraSettings = m_CameraSettings;
             passData.renderPassEvent = renderPassEvent;
             passData.cameraData = cameraData;
-            passData.isActiveTargetBackBuffer = isActiveTargetBackBuffer;
         }
 
         private void InitRendererLists(UniversalRenderingData renderingData, UniversalLightData lightData,
@@ -261,24 +240,13 @@ namespace UnityEngine.Rendering.Universal
             {
                 UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
 
-                InitPassData(cameraData, ref passData, resourceData.isActiveTargetBackBuffer);
+                InitPassData(cameraData, ref passData);
 
                 passData.color = resourceData.activeColorTexture;
                 builder.SetRenderAttachment(resourceData.activeColorTexture, 0, AccessFlags.Write);
-
-                // Configure depth attachment based on input attachment setting
-                if (m_DepthInputAttachment && SystemInfo.supportsDepthAttachmentAsInputAttachment)
-                {
-                    // Input attachment mode: depth is read-only, accessed from tile memory
-                    builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.DepthAttachmentAsInputAttachment);
-                    builder.SetInputAttachment(resourceData.activeDepthTexture, 0, AccessFlags.Read);
-                    passData.depthInputAttachment = true;
-                }
-                else if (cameraData.imageScalingMode != ImageScalingMode.Upscaling || passData.renderPassEvent != RenderPassEvent.AfterRenderingPostProcessing)
-                {
+                // TODO: Take into account user-specific settings to decide depth flag
+                if (cameraData.imageScalingMode != ImageScalingMode.Upscaling || passData.renderPassEvent != RenderPassEvent.AfterRenderingPostProcessing)
                     builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.ReadWrite);
-                    passData.depthInputAttachment = false;
-                }
 
                 TextureHandle mainShadowsTexture = resourceData.mainShadowsTexture;
                 TextureHandle additionalShadowsTexture = resourceData.additionalShadowsTexture;
@@ -315,10 +283,9 @@ namespace UnityEngine.Rendering.Universal
                 builder.AllowGlobalStateModification(true);
                 if (cameraData.xr.enabled)
                 {
-                    bool passSupportsFoveation = cameraData.xrUniversal.canFoveateIntermediatePasses || resourceData.isActiveTargetBackBuffer;
-                    builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering && passSupportsFoveation);
-                    // Multiview render regions are incompatible with the inner (foveal) pass in Quad View
-                    if (!cameraData.xr.isQuadViewInnerPass)
+                    builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering && cameraData.xrUniversal.canFoveateIntermediatePasses);
+                    // Apply MultiviewRenderRegionsCompatible flag only to the peripheral view in Quad Views
+                    if (cameraData.xr.multipassId == 0)
                     {
                         builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.MultiviewRenderRegionsCompatible);
                     }
@@ -327,32 +294,6 @@ namespace UnityEngine.Rendering.Universal
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext rgContext) =>
                 {
                     var isYFlipped = RenderingUtils.IsHandleYFlipped(rgContext, in data.color);
-
-                    // Set shader keywords for depth input attachment
-                    if (data.depthInputAttachment)
-                    {
-                        switch (data.cameraData.cameraTargetDescriptor.msaaSamples)
-                        {
-                            case 8:
-                            case 4:
-                            case 2:
-                                rgContext.cmd.SetKeyword(ShaderGlobalKeywords.DEPTH_AS_INPUT_ATTACHMENT, false);
-                                rgContext.cmd.SetKeyword(ShaderGlobalKeywords.DEPTH_AS_INPUT_ATTACHMENT_MSAA, true);
-                                break;
-                            // MSAA disabled
-                            default:
-                                rgContext.cmd.SetKeyword(ShaderGlobalKeywords.DEPTH_AS_INPUT_ATTACHMENT, true);
-                                rgContext.cmd.SetKeyword(ShaderGlobalKeywords.DEPTH_AS_INPUT_ATTACHMENT_MSAA, false);
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        // Ensure keywords are disabled
-                        rgContext.cmd.SetKeyword(ShaderGlobalKeywords.DEPTH_AS_INPUT_ATTACHMENT, false);
-                        rgContext.cmd.SetKeyword(ShaderGlobalKeywords.DEPTH_AS_INPUT_ATTACHMENT_MSAA, false);
-                    }
-
                     ExecutePass(data, rgContext.cmd, data.rendererListHdl, isYFlipped);
                 });
             }

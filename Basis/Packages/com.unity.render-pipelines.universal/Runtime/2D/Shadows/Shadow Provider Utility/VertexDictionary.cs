@@ -1,18 +1,11 @@
 using System.Collections.Generic;
-using Unity.Collections;
 using UnityEngine;
+using Unity.Collections;
+
 
 internal struct VertexDictionary
 {
     static Dictionary<Vector3, int> m_VertexDictionary = new Dictionary<Vector3, int>();
-
-#if UNITY_EDITOR
-    [RuntimeInitializeOnLoadMethod]
-    static void ResetStaticsOnLoad()
-    {
-        m_VertexDictionary.Clear();
-    }
-#endif
 
     public NativeArray<int> GetIndexRemap(NativeArray<Vector3> vertices, NativeArray<int> indices)
     {

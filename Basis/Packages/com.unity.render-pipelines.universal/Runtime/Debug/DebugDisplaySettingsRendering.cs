@@ -592,7 +592,7 @@ namespace UnityEngine.Rendering.Universal
         }
 
         [DisplayInfo(name = "Rendering", order = 1)]
-        [URPHelpURL("urp/features/rendering-debugger-reference", "rendering")]
+        [URPHelpURL("features/rendering-debugger-reference", "rendering")]
         internal class SettingsPanel : DebugDisplaySettingsPanel<DebugDisplaySettingsRendering>
         {
             public SettingsPanel(DebugDisplaySettingsRendering data)

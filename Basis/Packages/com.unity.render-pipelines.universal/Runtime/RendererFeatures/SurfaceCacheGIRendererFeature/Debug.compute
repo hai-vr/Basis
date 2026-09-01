@@ -1,4 +1,4 @@
-#pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal glcore ps5 switch2
+#pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal glcore ps5
 
 #pragma kernel Visualize
 
@@ -15,7 +15,7 @@ StructuredBuffer<uint> _PatchCellIndices;
 StructuredBuffer<PatchUtil::PatchGeometry> _PatchGeometries;
 RWStructuredBuffer<PatchUtil::PatchStatisticsSet> _PatchStatistics;
 StructuredBuffer<uint> _CellPatchIndices;
-StructuredBuffer<int3> _VolumeCascadeOffsets;
+StructuredBuffer<int3> _CascadeOffsets;
 
 RWTexture2D<float4> _Result;
 Texture2D<float> _ScreenDepths;
@@ -24,7 +24,7 @@ Texture2D<float3> _ScreenFlatNormals;
 
 uint _RingConfigOffset;
 uint _VolumeSpatialResolution;
-uint _VolumeCascadeCount;
+uint _CascadeCount;
 uint _ViewMode;
 uint _ShowSamplePosition;
 float4x4 _ClipToWorldTransform;
@@ -44,43 +44,26 @@ float3 IsActuallyInf(float3 val) {
 [numthreads(8,8,1)]
 void Visualize(uint2 threadIdx : SV_DispatchThreadID)
 {
-    const float3 green = float3(0, 1, 0);
-    const float3 red = float3(1, 0, 0);
-    const float3 pink = float3(1, 0, 1);
-    const float3 white = float3(1, 1, 1);
-    const float3 yellow = float3(1, 1, 0);
-
     uint2 screenSize;
     _ScreenDepths.GetDimensions(screenSize.x, screenSize.y);
 
     float3 output;
 
-    const float pixelPosYPercentage = float(threadIdx.y) / screenSize.y;
-    const float statusBarHeightPercentage = 0.05f;
-    if (pixelPosYPercentage < statusBarHeightPercentage)
+    const float statusBarHeight = 0.05f;
+    if (float(threadIdx.y) / screenSize.y < statusBarHeight)
     {
         const RingBuffer::Config ringConfig = RingBuffer::LoadConfig(_RingConfigBuffer, _RingConfigOffset);
         const uint patchIdx = float(threadIdx.x) / screenSize.x * patchCapacity;
         if (RingBuffer::IsPositionInUse(ringConfig, patchIdx))
         {
             if (_PatchCellIndices[patchIdx] == PatchUtil::invalidCellIndex)
-            {
-                output = red;
-            }
+                output = float3(1.0f, 0.0f, 0.0f);
             else
-            {
-                output = PatchUtil::GetRank(_PatchStatistics[patchIdx].counters) == 0 ? green : yellow;
-                if (pixelPosYPercentage < statusBarHeightPercentage * 0.5f)
-                {
-                    PatchUtil::PatchStatisticsSet stats = _PatchStatistics[patchIdx];
-                    const uint frameSinceLastAccess = PatchUtil::GetFramesSinceLastAccess(_FrameIdx, PatchUtil::GetLastAccessFrame(stats.counters));
-                    output *= 1.0f - float(frameSinceLastAccess) / float(PatchUtil::evictionThreshold);
-                }
-            }
+                output = float3(0.0f, 1.0f, 0.0f);
         }
         else
         {
-            output = white;
+            output = float3(1.0f, 1.0f, 1.0f);
         }
     }
     else
@@ -89,24 +72,21 @@ void Visualize(uint2 threadIdx : SV_DispatchThreadID)
         if (ndcDepth == invalidNdcDepth)
             return;
 
+        const float3 green = float3(0, 1, 0);
+        const float3 red = float3(1, 0, 0);
+        const float3 pink = float3(1, 0, 1);
+
         const float2 uv = (float2(threadIdx.xy) + 0.5f) / float2(screenSize);
         const float3 worldPos = ComputeWorldSpacePosition(uv, ndcDepth, _ClipToWorldTransform);
         const float3 worldShadedNormal = UnpackGBufferNormal(_ScreenShadedNormals[threadIdx.xy]);
         const float3 worldFlatNormal = _ScreenFlatNormals[threadIdx.xy];
 
-        PatchUtil::VolumeParamSet volumeParams;
-        volumeParams.targetPos = _VolumeTargetPos;
-        volumeParams.spatialResolution = _VolumeSpatialResolution;
-        volumeParams.voxelMinSize = _VolumeVoxelMinSize;
-        volumeParams.cascadeOffsets = _VolumeCascadeOffsets;
-        volumeParams.cascadeCount = _VolumeCascadeCount;
-
-        PatchUtil::VolumePositionResolution posResolution = PatchUtil::ResolveVolumePosition(worldPos, volumeParams);
+        PatchUtil::VolumePositionResolution posResolution = PatchUtil::ResolveVolumePosition(worldPos, _VolumeTargetPos, _VolumeSpatialResolution, _CascadeOffsets, _CascadeCount, _VolumeVoxelMinSize);
         output = float3(1.0f, 0.0f, 1.0f);
         if (posResolution.isValid())
         {
             const uint directionIdx = PatchUtil::GetDirectionIndex(worldFlatNormal, PatchUtil::volumeAngularResolution);
-            const uint3 positionStorageSpace = PatchUtil::ConvertVolumeSpaceToStorageSpace(posResolution.positionVolumeSpace, _VolumeSpatialResolution, _VolumeCascadeOffsets[posResolution.cascadeIdx]);
+            const uint3 positionStorageSpace = PatchUtil::ConvertVolumeSpaceToStorageSpace(posResolution.positionVolumeSpace, _VolumeSpatialResolution, _CascadeOffsets[posResolution.cascadeIdx]);
             const uint cellIdx = PatchUtil::GetCellIndex(posResolution.cascadeIdx, positionStorageSpace, directionIdx, _VolumeSpatialResolution, PatchUtil::volumeAngularResolution);
             const uint patchIdx = _CellPatchIndices[cellIdx];
             const bool hasPatch = (patchIdx != PatchUtil::invalidPatchIndex);
@@ -120,7 +100,7 @@ void Visualize(uint2 threadIdx : SV_DispatchThreadID)
                 PatchUtil::WriteLastFrameAccess(_PatchStatistics, patchIdx, _FrameIdx);
             }
 
-            if (_ShowSamplePosition == 1 && hasPatch && length(worldPos - patchPos) < 0.1f * PatchUtil::GetVoxelSize(_VolumeVoxelMinSize, posResolution.cascadeIdx))
+            if (_ShowSamplePosition == 1 && hasPatch && length(worldPos - patchPos) < 0.12f)
             {
                 output = 30.0f;
             }
@@ -187,7 +167,7 @@ void Visualize(uint2 threadIdx : SV_DispatchThreadID)
             {
                 if (hasPatch)
                 {
-                    const PatchUtil::PatchCounterSet counterSet = _PatchStatistics[patchIdx].counters;
+                    const PatchUtil::PatchCounterSet counterSet = _PatchStatistics[patchIdx].patchCounters;
                     const uint updateCount = PatchUtil::GetUpdateCount(counterSet);
                     const float s = float(updateCount) / PatchUtil::updateMax;
                     const float3 redGreenMix = lerp(red, green, s);

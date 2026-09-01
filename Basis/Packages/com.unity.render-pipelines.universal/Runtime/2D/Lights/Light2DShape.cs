@@ -16,8 +16,6 @@ namespace UnityEngine.Rendering.Universal
         int m_PreviousShapePathHash = -1;
         LightType m_PreviousLightType = LightType.Parametric;
 
-        internal const float k_MaxFalloffSize = 1000000f;
-
         /// <summary>
         /// The number of sides in the parametric shape.
         /// </summary>
@@ -39,12 +37,11 @@ namespace UnityEngine.Rendering.Universal
 
         /// <summary>
         /// The size of the fall-off area. Bigger value corresponds to bigger fall off size.
-        /// Possible values between 0 and 1000000.
         /// </summary>
         public float shapeLightFalloffSize
         {
             get { return m_ShapeLightFalloffSize; }
-            set { m_ShapeLightFalloffSize = Mathf.Clamp(value, 0, k_MaxFalloffSize); }
+            set { m_ShapeLightFalloffSize = Mathf.Max(0, value); }
         }
 
         /// <summary>

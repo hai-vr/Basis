@@ -31,13 +31,11 @@ namespace UnityEditor.Rendering.Universal
 
         static void UpdateSceneViewStates()
         {
-            var sceneViews = SceneView.sceneViews;
-            for (int i = 0; i < sceneViews.Count; i++)
+            foreach (SceneView sceneView in SceneView.sceneViews)
             {
-                var sceneView = (SceneView)sceneViews[i];
-
                 if (sceneViewHaveValidateFunction.Contains(sceneView))
                     continue;
+
 
                 sceneView.onValidateCameraMode += RejectDrawMode;
                 sceneViewHaveValidateFunction.Add(sceneView);

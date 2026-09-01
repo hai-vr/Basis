@@ -52,22 +52,11 @@ struct Light
 
 // Matches Unity Vanilla HINT_NICE_QUALITY attenuation
 // Attenuation smoothly decreases to light range.
-#if (UNITY_PLATFORM_META_QUEST) // This is platform specific change targeting performance only
-float DistanceAttenuation(float distanceSqr, half2 distanceAttenuation, float distRsqrt)
-#else
 float DistanceAttenuation(float distanceSqr, half2 distanceAttenuation)
-#endif
 {
     // We use a shared distance attenuation for additional directional and puctual lights
     // for directional lights attenuation will be 1
-#if (UNITY_PLATFORM_META_QUEST) // This is platform specific change targeting performance only
-    // distRsqrt is rsqrt(distanceSqr), already computed at the call site for light direction
-    // normalization. We reuse it here: distRsqrt² = rsqrt(d²)² = 1/d², avoiding a separate
-    // rcp(distanceSqr) call and saving one EFU (complex) instruction per light.
-    float lightAtten = distRsqrt * distRsqrt;
-#else
     float lightAtten = rcp(distanceSqr);
-#endif
     float2 distanceAttenuationFloat = float2(distanceAttenuation);
 
     // Use the smoothing factor also used in the Unity lightmapper.
@@ -175,23 +164,14 @@ Light GetAdditionalPerObjectLight(int perObjectLightIndex, float3 positionWS)
     float3 lightVector = lightPositionWS.xyz - positionWS * lightPositionWS.w;
     float distanceSqr = max(dot(lightVector, lightVector), HALF_MIN);
 
-#if (UNITY_PLATFORM_META_QUEST) // This is platform specific change targeting performance only
-    float distRsqrt = rsqrt(distanceSqr);
-    half3 lightDirection = half3(lightVector * distRsqrt);
-    float distAtten = DistanceAttenuation(distanceSqr, distanceAndSpotAttenuation.xy, distRsqrt);
-#else
     half3 lightDirection = half3(lightVector * rsqrt(distanceSqr));
-    float distAtten = DistanceAttenuation(distanceSqr, distanceAndSpotAttenuation.xy);
-#endif
-
+    // full-float precision required on some platforms
 #if (META_QUEST_NO_SPOTLIGHTS_LIGHT_LOOP)
-    // full-float precision required on some platforms
-    float attenuation = distAtten;
+    float attenuation = DistanceAttenuation(distanceSqr, distanceAndSpotAttenuation.xy);
 #else
-    // full-float precision required on some platforms
-    float attenuation = distAtten * AngleAttenuation(spotDirection.xyz, lightDirection, distanceAndSpotAttenuation.zw);
+    float attenuation = DistanceAttenuation(distanceSqr, distanceAndSpotAttenuation.xy) * AngleAttenuation(spotDirection.xyz, lightDirection, distanceAndSpotAttenuation.zw);
 #endif
-
+    
     Light light;
     light.direction = lightDirection;
     light.distanceAttenuation = attenuation;
@@ -215,7 +195,6 @@ uint GetPerObjectLightIndexOffset()
 // This abstract the underlying data implementation for storing lights/light indices
 int GetPerObjectLightIndex(uint index)
 {
-#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Structured Buffer Path                                                                   /
 //                                                                                          /
@@ -223,20 +202,32 @@ int GetPerObjectLightIndex(uint index)
 // Currently all non-mobile platforms take this path :(                                     /
 // There are limitation in mobile GPUs to use SSBO (performance / no vertex shader support) /
 /////////////////////////////////////////////////////////////////////////////////////////////
+#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
     uint offset = uint(unity_LightData.x);
     return _AdditionalLightsIndices[offset + index];
-#else
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 // UBO path                                                                                 /
 //                                                                                          /
-// We pack 8 x 16bit uint light indices into float4 unity_PackedLightIndices;               /
-// light index 0 is packed into lower 16 bits of unity_PackedLightIndices.x,                /
-// light index 1 is packed into high 16 bits of unity_PackedLightIndices.x and so on        /
+// We store 8 light indices in half4 unity_LightIndices[2];                                 /
+// Due to memory alignment unity doesn't support int[] or float[]                           /
+// Even trying to reinterpret cast the unity_LightIndices to float[] won't work             /
+// it will cast to float4[] and create extra register pressure. :(                          /
 /////////////////////////////////////////////////////////////////////////////////////////////
-    uint4 packed4 = asuint(unity_PackedLightIndices);
-    uint2 pair = index >= 4 ? packed4.zw : packed4.xy;
-    uint word = (index & 2) ? pair.y : pair.x;
-    return (word >> ((index & 1) << 4)) & 0xFFFF;    
+#else
+    // since index is uint shader compiler will implement
+    // div & mod as bitfield ops (shift and mask).
+
+    // TODO: Can we index a float4? Currently compiler is
+    // replacing unity_LightIndicesX[i] with a dp4 with identity matrix.
+    // u_xlat16_40 = dot(unity_LightIndices[int(u_xlatu13)], ImmCB_0_0_0[u_xlati1]);
+    // This increases both arithmetic and register pressure.
+    //
+    // NOTE: min16float4 bug workaround.
+    // Take the "vec4" part into float4 tmp variable in order to force float4 math.
+    // It appears indexing half4 as min16float4 on DX11 can fail. (dp4 {min16f})
+    float4 tmp = unity_LightIndices[index / 4];
+    return int(tmp[index % 4]);
 #endif
 }
 

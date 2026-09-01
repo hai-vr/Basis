@@ -136,7 +136,7 @@ namespace UnityEngine.Rendering.Universal
         internal bool HDRDebugViewIsActive(bool resolveFinalTarget)
         {
             // HDR debug views should only apply to the last camera in the stack
-            return m_HDRDebugViewMaterial != null && DebugDisplaySettings.lightingSettings.hdrDebugMode != HDRDebugMode.None && resolveFinalTarget;
+            return DebugDisplaySettings.lightingSettings.hdrDebugMode != HDRDebugMode.None && resolveFinalTarget;
         }
 
         internal bool WriteToDebugScreenTexture(bool resolveFinalTarget)
@@ -240,7 +240,7 @@ namespace UnityEngine.Rendering.Universal
             descriptor.graphicsFormat = GraphicsFormat.None;
         }
 
-        [Conditional("UNITY_ENABLE_CHECKS")]
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         internal void SetupShaderProperties(RasterCommandBuffer cmd, int passIndex = 0)
         {
             if (LightingSettings.lightingDebugMode == DebugLightingMode.ShadowCascades)
@@ -420,7 +420,7 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        [Conditional("UNITY_ENABLE_CHECKS")]
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         internal void UpdateShaderGlobalPropertiesForFinalValidationPass(CommandBuffer cmd, UniversalCameraData cameraData, bool isFinalPass)
         {
             UpdateShaderGlobalPropertiesForFinalValidationPass(CommandBufferHelpers.GetRasterCommandBuffer(cmd), InitDebugFinalValidationPassData(s_DebugFinalValidationPassData, cameraData, isFinalPass));
@@ -432,7 +432,7 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        [Conditional("UNITY_ENABLE_CHECKS")]
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         internal void UpdateShaderGlobalPropertiesForFinalValidationPass(RenderGraph renderGraph, UniversalCameraData cameraData, bool isFinalPass)
         {
             using (var builder = renderGraph.AddRasterRenderPass<DebugFinalValidationPassData>(nameof(UpdateShaderGlobalPropertiesForFinalValidationPass), out var passData, s_DebugFinalValidationSampler))
@@ -487,7 +487,7 @@ namespace UnityEngine.Rendering.Universal
             return passData;
         }
 
-        [Conditional("UNITY_ENABLE_CHECKS")]
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         static void Setup(RasterCommandBuffer cmd, DebugSetupPassData passData)
         {
             if (passData.isActiveForCamera)
@@ -532,13 +532,13 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        [Conditional("UNITY_ENABLE_CHECKS")]
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         internal void Setup(CommandBuffer cmd, bool isPreviewCamera)
         {
             Setup(CommandBufferHelpers.GetRasterCommandBuffer(cmd), InitDebugSetupPassData(s_DebugSetupPassData, isPreviewCamera));
         }
 
-        [Conditional("UNITY_ENABLE_CHECKS")]
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         internal void Setup(RenderGraph renderGraph, bool isPreviewCamera)
         {
             using (var builder = renderGraph.AddRasterRenderPass<DebugSetupPassData>(s_DebugSetupSampler.name, out var passData, s_DebugSetupSampler))
@@ -552,7 +552,7 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        [Conditional("UNITY_ENABLE_CHECKS")]
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         internal void Render(RenderGraph renderGraph, UniversalCameraData cameraData, in TextureHandle srcColor, in TextureHandle overlayTexture, in TextureHandle dstColor)
         {
             if (IsActiveForCamera(cameraData.isPreviewCamera) && HDRDebugViewIsActive(cameraData.resolveFinalTarget))

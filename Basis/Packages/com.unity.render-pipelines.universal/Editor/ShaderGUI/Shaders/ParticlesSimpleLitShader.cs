@@ -40,7 +40,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
 
         public override void DrawAdvancedOptions(Material material)
         {
-            SimpleLitGUI.Advanced(shadingModelProperties, materialEditor, material);
+            SimpleLitGUI.Advanced(shadingModelProperties);
 
             materialEditor.ShaderProperty(particleProps.flipbookMode, ParticleGUI.Styles.flipbookMode);
             ParticleGUI.FadingOptions(material, materialEditor, particleProps);

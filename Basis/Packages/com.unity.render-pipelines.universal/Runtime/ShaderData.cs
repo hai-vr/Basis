@@ -6,15 +6,6 @@ namespace UnityEngine.Rendering.Universal
     class ShaderData : IDisposable
     {
         static ShaderData m_Instance = null;
-
-#if UNITY_EDITOR
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
-        static void ResetStaticsOnLoad()
-        {
-            m_Instance = null;
-        }
-#endif
-
         ComputeBuffer m_LightDataBuffer = null;
         ComputeBuffer m_LightIndicesBuffer = null;
 

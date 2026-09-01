@@ -1,8 +1,9 @@
-#pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal glcore ps5 switch2
+#pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal glcore ps5
+
 #pragma kernel Allocate
 
-#define PATCH_UTIL_USE_RW_PATCH_IRRADIANCE_BUFFER
-#define PATCH_UTIL_USE_RW_CELL_PATCH_INDEX_BUFFER
+#define PATCH_UTIL_USE_RW_IRRADIANCE_BUFFER
+#define PATCH_UTIL_USE_RW_CELL_INDEX_BUFFER
 #define PATCH_UTIL_USE_RW_CELL_ALLOCATION_MARK_BUFFER
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -13,13 +14,14 @@
 
 RWStructuredBuffer<uint> _RingConfigBuffer;
 RWStructuredBuffer<PatchUtil::PatchGeometry> _PatchGeometries;
+RWStructuredBuffer<uint> _PatchCellIndices;
 RWStructuredBuffer<PatchUtil::PatchStatisticsSet> _PatchStatistics;
 RWStructuredBuffer<SphericalHarmonics::RGBL1> _PatchIrradiances0;
 RWStructuredBuffer<SphericalHarmonics::RGBL1> _PatchIrradiances1;
 RWStructuredBuffer<uint> _CellAllocationMarks;
 RWStructuredBuffer<uint> _CellPatchIndices;
-RWStructuredBuffer<uint> _PatchCellIndices;
-StructuredBuffer<int3> _VolumeCascadeOffsets;
+
+StructuredBuffer<int3> _CascadeOffsets;
 
 Texture2D<float> _CurrentFullResScreenDepths;
 Texture2D<float3> _CurrentFullResScreenFlatNormals;
@@ -33,7 +35,7 @@ Texture2D<float> _PreviousLowResScreenNdcDepths;
 uint _FrameIdx;
 uint _VolumeSpatialResolution;
 float _VolumeVoxelMinSize;
-uint _VolumeCascadeCount;
+uint _CascadeCount;
 uint _RingConfigOffset;
 float4x4 _CurrentClipToWorldTransform;
 float4x4 _PreviousClipToWorldTransform;
@@ -115,26 +117,18 @@ void Allocate(uint2 lowResPixelPos : SV_DispatchThreadID)
     const float3 sourceWorldPosition = ComputeWorldSpacePosition(sourceUvPos, ndcDepth, _CurrentClipToWorldTransform);
     const float3 sourceWorldFlatNormal = _CurrentFullResScreenFlatNormals[fullResPixelPos];
 
-    PatchUtil::VolumeParamSet volumeParams;
-    volumeParams.targetPos = _VolumeTargetPos;
-    volumeParams.spatialResolution = _VolumeSpatialResolution;
-    volumeParams.voxelMinSize = _VolumeVoxelMinSize;
-    volumeParams.cascadeOffsets = _VolumeCascadeOffsets;
-    volumeParams.cascadeCount = _VolumeCascadeCount;
-
-    PatchUtil::VolumePositionResolution patchPosResolution = PatchUtil::ResolveVolumePosition(sourceWorldPosition, volumeParams);
+    PatchUtil::VolumePositionResolution patchPosResolution = PatchUtil::ResolveVolumePosition(sourceWorldPosition, _VolumeTargetPos, _VolumeSpatialResolution, _CascadeOffsets, _CascadeCount, _VolumeVoxelMinSize);
 
     if (patchPosResolution.isValid())
     {
         const uint directionIdx = PatchUtil::GetDirectionIndex(sourceWorldFlatNormal, PatchUtil::volumeAngularResolution);
-        const uint3 positionStorageSpace = PatchUtil::ConvertVolumeSpaceToStorageSpace(patchPosResolution.positionVolumeSpace, _VolumeSpatialResolution, _VolumeCascadeOffsets[patchPosResolution.cascadeIdx]);
+        const uint3 positionStorageSpace = PatchUtil::ConvertVolumeSpaceToStorageSpace(patchPosResolution.positionVolumeSpace, _VolumeSpatialResolution, _CascadeOffsets[patchPosResolution.cascadeIdx]);
         const uint cellIdx = PatchUtil::GetCellIndex(patchPosResolution.cascadeIdx, positionStorageSpace, directionIdx, _VolumeSpatialResolution, PatchUtil::volumeAngularResolution);
 
         PatchUtil::PatchIndexResolutionResult resolutionResult = PatchUtil::ResolvePatchIndex(
             _RingConfigBuffer,
             _RingConfigOffset,
             _CellPatchIndices,
-            _PatchCellIndices,
             _CellAllocationMarks,
             cellIdx);
 
@@ -146,22 +140,15 @@ void Allocate(uint2 lowResPixelPos : SV_DispatchThreadID)
             _PatchGeometries[resolutionResult.patchIdx] = geo;
         }
 
-        if (resolutionResult.code == PatchUtil::patchIndexResolutionCodeLookup)
+        if (resolutionResult.code == PatchUtil::patchIndexResolutionCodeAllocationSuccess)
         {
-            // with this, we allow patches that were spawn from a hit bounce to, in turn, triger bounce allocation
-            // once they are seen again by the camera
-            PatchUtil::PatchStatisticsSet stats = _PatchStatistics[resolutionResult.patchIdx];
-            if (PatchUtil::GetRank(stats.counters) != 0)
-            {
-                PatchUtil::SetRank(stats.counters, 0);
-                _PatchStatistics[resolutionResult.patchIdx] = stats;
-            }
-        }
-        else if (resolutionResult.code == PatchUtil::patchIndexResolutionCodeAllocationSuccess)
-        {
-            uint patchUpdateCount = 0;
-            SphericalHarmonics::RGBL1 irradianceSeed = (SphericalHarmonics::RGBL1)0;
+            _PatchCellIndices[resolutionResult.patchIdx] = cellIdx;
 
+            PatchUtil::PatchCounterSet counterSet;
+            PatchUtil::Reset(counterSet);
+            PatchUtil::SetLastAccessFrame(counterSet, _FrameIdx);
+
+            SphericalHarmonics::RGBL1 irradianceSeed = (SphericalHarmonics::RGBL1)0;
             if (_FrameIdx != 0)
             {
                 if (_UseMotionVectorSeeding)
@@ -190,12 +177,12 @@ void Allocate(uint2 lowResPixelPos : SV_DispatchThreadID)
                                     seedLowResPixelPos);
 
                                 if (PatchUtil::IsValid(irradianceSeed))
-                                    patchUpdateCount = PatchUtil::updateMax / 2;
+                                    PatchUtil::SetUpdateCount(counterSet, PatchUtil::updateMax / 2);
                                 #ifdef SEED_DEBUGGING
                                 else
                                 {
                                     irradianceSeed = (SphericalHarmonics::RGBL1)0;
-                                    patchUpdateCount = PatchUtil::updateMax;
+                                    PatchUtil::SetUpdateCount(counterSet, PatchUtil::updateMax);
                                     irradianceSeed.l0 = float3(10, 0, 0);
                                 }
                                 #endif
@@ -203,7 +190,7 @@ void Allocate(uint2 lowResPixelPos : SV_DispatchThreadID)
                             #ifdef SEED_DEBUGGING
                             else
                             {
-                                patchUpdateCount = PatchUtil::updateMax;
+                                PatchUtil::SetUpdateCount(counterSet, PatchUtil::updateMax);
                                 irradianceSeed.l0 = float3(0, 0, 10);
                             }
                             #endif
@@ -220,13 +207,13 @@ void Allocate(uint2 lowResPixelPos : SV_DispatchThreadID)
                         lowResPixelPos);
 
                     if (PatchUtil::IsValid(irradianceSeed))
-                        patchUpdateCount = PatchUtil::updateMax / 2;
+                        PatchUtil::SetUpdateCount(counterSet, PatchUtil::updateMax / 2);
                 }
                 #ifdef SEED_DEBUGGING
                 // For debugging: Add color to unseeded patches.
                 if (PatchUtil::GetUpdateCount(counterSet) == 0)
                 {
-                    patchUpdateCount = PatchUtil::updateMax;
+                    PatchUtil::SetUpdateCount(counterSet, PatchUtil::updateMax);
                     irradianceSeed.l0 = float3(0, 10, 0);
                 }
                 #endif
@@ -234,8 +221,10 @@ void Allocate(uint2 lowResPixelPos : SV_DispatchThreadID)
 
             _PatchIrradiances0[resolutionResult.patchIdx] = irradianceSeed;
             _PatchIrradiances1[resolutionResult.patchIdx] = irradianceSeed;
-            PatchUtil::PatchStatisticsSet stats = PatchUtil::InitPatchStatistics(irradianceSeed.l0, _FrameIdx, 0);
-            PatchUtil::SetUpdateCount(stats.counters, patchUpdateCount);
+            PatchUtil::PatchStatisticsSet stats;
+            stats.mean = irradianceSeed.l0;
+            stats.variance = 0;
+            stats.patchCounters = counterSet;
             _PatchStatistics[resolutionResult.patchIdx] = stats;
         }
     }

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Accessibility;
@@ -40,7 +41,7 @@ namespace UnityEditor.Rendering.Universal
         private int shadowCount = 0;
 
         // Variables used for refresh view
-        static bool doRefresh;
+        private bool doRefresh;
         private SceneHandle cachedSceneHandle;
         private Vector3 cachedCamPos;
         private int totalLightCount;
@@ -56,53 +57,6 @@ namespace UnityEditor.Rendering.Universal
             }
         }
 
-        private static List<ShadowCaster2D> GetAllShadowCasters(HashSet<ShadowCasterGroup2D> shadowGroups)
-        {
-            var result = new List<ShadowCaster2D>();
-            foreach (var group in shadowGroups)
-            {
-                foreach (var caster in group.GetShadowCasters())
-                    result.Add(caster);
-            }
-            return result;
-        }
-
-        private static List<UnityEngine.Object> GetExcept(List<UnityEngine.Object> source, List<UnityEngine.Object> exclude)
-        {
-            var excludeSet = new HashSet<UnityEngine.Object>(exclude);
-            var result = new List<UnityEngine.Object>();
-            foreach (var item in source)
-            {
-                if (!excludeSet.Contains(item))
-                    result.Add(item);
-            }
-            return result;
-        }
-
-        private static void GetFirstAndLast(IEnumerable<int> source, out int first, out int last, out int count)
-        {
-            first = -1;
-            last = -1;
-            count = 0;
-            foreach (var item in source)
-            {
-                if (count == 0)
-                    first = item;
-                last = item;
-                count++;
-            }
-        }
-
-        private static bool ExistsWithName(List<ShadowCaster2D> list, string name)
-        {
-            foreach (var item in list)
-            {
-                if (item != null && item.name == name)
-                    return true;
-            }
-            return false;
-        }
-
         Renderer2DData renderer2DData
         {
             get
@@ -111,12 +65,6 @@ namespace UnityEditor.Rendering.Universal
                 var renderer = Camera.main?.GetUniversalAdditionalCameraData().scriptableRenderer as Renderer2D;
                 return renderer?.GetRenderer2DData();
             }
-        }
-
-        [RuntimeInitializeOnLoadMethod]
-        static void ResetStaticsOnLoad()
-        {
-            doRefresh = true;
         }
 
         private bool PopulateData()
@@ -149,7 +97,7 @@ namespace UnityEditor.Rendering.Universal
                 }
 
                 // Get the shadows
-                var visibleShadows = GetAllShadowCasters(lightCullResult.visibleShadows);
+                var visibleShadows = lightCullResult.visibleShadows.SelectMany(x => x.GetShadowCasters());
                 foreach (var shadowCaster in visibleShadows)
                 {
                     if (shadowCaster.IsShadowedLayer(batch.startLayerID))
@@ -194,7 +142,7 @@ namespace UnityEditor.Rendering.Universal
 
         private void ViewBatch(int index)
         {
-            if (index >= batchList.Count)
+            if (index >= batchList.Count())
                 return;
 
             var infoView = GetInfoView();
@@ -211,7 +159,7 @@ namespace UnityEditor.Rendering.Universal
             var lightLabel1 = infoView.Query<Label>("LightLabel1").First();
             lightLabel1.text = $"Lights in <b>Batch {batch1.batchId}:</b>";
 
-            if (batch1.Lights.Count == 0)
+            if (batch1.Lights.Count() == 0)
                 lightLabel1.text += "\n\nNo lights found.";
 
             var lightBubble1 = infoView.Query<VisualElement>("LightBubble1").First();
@@ -233,7 +181,7 @@ namespace UnityEditor.Rendering.Universal
             var shadowLabel1 = infoView.Query<Label>("ShadowLabel1").First();
             shadowLabel1.text = $"Shadow Casters in <b>Batch {batch1.batchId}:</b>";
 
-            if (batch1.Shadows.Count == 0)
+            if (batch1.Shadows.Count() == 0)
                 shadowLabel1.text += "\n\nNo shadow casters found.";
 
             var shadowBubble1 = infoView.Query<VisualElement>("ShadowBubble1").First();
@@ -275,10 +223,10 @@ namespace UnityEditor.Rendering.Universal
             }
 
             // Do batch comparisons
-            var lightSet1 = GetExcept(batch1.Lights, batch2.Lights);
-            var lightSet2 = GetExcept(batch2.Lights, batch1.Lights);
-            var shadowSet1 = GetExcept(batch1.Shadows, batch2.Shadows);
-            var shadowSet2 = GetExcept(batch2.Shadows, batch1.Shadows);
+            var lightSet1 = batch1.Lights.Except(batch2.Lights);
+            var lightSet2 = batch2.Lights.Except(batch1.Lights);
+            var shadowSet1 = batch1.Shadows.Except(batch2.Shadows);
+            var shadowSet2 = batch2.Shadows.Except(batch1.Shadows);
 
             // Change InfoTitle description when comparing batches
             var title = root.Query<Label>("InfoTitle").First();
@@ -291,7 +239,7 @@ namespace UnityEditor.Rendering.Universal
             var lightLabel1 = infoView.Query<Label>("LightLabel1").First();
             lightLabel1.text = $"Lights only in <b>Batch {batch1.batchId}:</b>";
 
-            if (lightSet1.Count == 0)
+            if (lightSet1.Count() == 0)
                 lightLabel1.text += "\n\nNo lights found.";
 
             var lightBubble1 = infoView.Query<VisualElement>("LightBubble1").First();
@@ -305,7 +253,7 @@ namespace UnityEditor.Rendering.Universal
             var lightLabel2 = infoView.Query<Label>("LightLabel2").First();
             lightLabel2.text = $"Lights only in <b>Batch {batch2.batchId}:</b>";
 
-            if (lightSet2.Count == 0)
+            if (lightSet2.Count() == 0)
                 lightLabel2.text += "\n\nNo lights found.";
 
             var lightBubble2 = infoView.Query<VisualElement>("LightBubble2").First();
@@ -320,7 +268,7 @@ namespace UnityEditor.Rendering.Universal
             var shadowLabel1 = infoView.Query<Label>("ShadowLabel1").First();
             shadowLabel1.text = $"Shadow Casters only in <b>Batch {batch1.batchId}:</b>";
 
-            if (shadowSet1.Count == 0)
+            if (shadowSet1.Count() == 0)
                 shadowLabel1.text += "\n\nNo shadow casters found.";
 
             var shadowBubble1 = infoView.Query<VisualElement>("ShadowBubble1").First();
@@ -334,7 +282,7 @@ namespace UnityEditor.Rendering.Universal
             var shadowLabel2 = infoView.Query<Label>("ShadowLabel2").First();
             shadowLabel2.text = $"Shadow Casters only in <b>Batch {batch2.batchId}:</b>";
 
-            if (shadowSet2.Count == 0)
+            if (shadowSet2.Count() == 0)
                 shadowLabel2.text += "\n\nNo shadow casters found.";
 
             var shadowBubble2 = infoView.Query<VisualElement>("ShadowBubble2").First();
@@ -345,8 +293,8 @@ namespace UnityEditor.Rendering.Universal
                     shadowBubble2.Add(MakePill(obj));
             }
 
-            lightCount = lightSet1.Count + lightSet2.Count;
-            shadowCount = shadowSet1.Count + shadowSet2.Count;
+            lightCount = lightSet1.Count() + lightSet2.Count();
+            shadowCount = shadowSet1.Count() + shadowSet2.Count();
         }
 
         // Create once, initialize
@@ -366,7 +314,7 @@ namespace UnityEditor.Rendering.Universal
 
             Action<VisualElement, int> bindItem = (e, i) =>
             {
-                if (i >= batchList.Count)
+                if (i >= batchList.Count())
                     return;
 
                 // This is required to make the child of the ListView vary in heights
@@ -408,19 +356,11 @@ namespace UnityEditor.Rendering.Universal
         private void OnEnable()
         {
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
-
-#if UNITY_EDITOR
-            SortingLayer.onLayerChanged += QueueRefresh;
-#endif
         }
 
         private void OnDisable()
         {
             EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
-
-#if UNITY_EDITOR
-            SortingLayer.onLayerChanged -= QueueRefresh;
-#endif
         }
 
         void OnPlayModeStateChanged(PlayModeStateChange playModeState)
@@ -443,9 +383,7 @@ namespace UnityEditor.Rendering.Universal
             if (batchListView == null)
                 return;
 
-            GetFirstAndLast(batchListView.selectedIndices, out var selFirst, out var selLast, out var selCount);
-
-            switch (selCount)
+            switch (batchListView.selectedIndices.Count())
             {
                 case 1:
                     selectedIndices.Clear();
@@ -455,8 +393,8 @@ namespace UnityEditor.Rendering.Universal
 
                 case 2:
                     selectedIndices.Clear();
-                    var firstIndex = selFirst;
-                    var secondIndex = selLast;
+                    var firstIndex = batchListView.selectedIndices.First();
+                    var secondIndex = batchListView.selectedIndices.Last();
 
                     if (secondIndex > firstIndex + 1 || secondIndex < firstIndex - 1)
                     {
@@ -475,15 +413,15 @@ namespace UnityEditor.Rendering.Universal
 
                 default:
                     // Account for multiple select either with shift or ctrl keys
-                    if (selCount > 2)
+                    if (batchListView.selectedIndices.Count() > 2)
                     {
                         if (selectedIndices.Count == 1)
                         {
-                            firstIndex = secondIndex = selectedIndices[0];
+                            firstIndex = secondIndex = selectedIndices.First();
 
-                            if (selFirst >= firstIndex)
+                            if (batchListView.selectedIndices.First() > firstIndex)
                                 secondIndex = firstIndex + 1;
-                            else if (selFirst < firstIndex)
+                            else if (batchListView.selectedIndices.First() < firstIndex)
                                 secondIndex = firstIndex - 1;
 
                             selectedIndices.Add(secondIndex);
@@ -530,20 +468,16 @@ namespace UnityEditor.Rendering.Universal
             bool isDirty = false;
 
             // Refresh if layers are added or removed
-            int batchLayerNameCount = 0;
-            foreach (var batch in batchList)
-                batchLayerNameCount += batch.LayerNames.Count;
-
-            isDirty |= Light2DManager.GetCachedSortingLayer().Length != batchLayerNameCount;
+            isDirty |= Light2DManager.GetCachedSortingLayer().Count() != batchList.Sum(x => x.LayerNames.Count());
             isDirty |= cachedSceneHandle != SceneManager.GetActiveScene().handle;
             isDirty |= cachedCamPos != Camera.main?.transform.position;
 
             if (lightCullResult.IsGameView())
             {
-                var visibleShadows = GetAllShadowCasters(lightCullResult.visibleShadows);
+                var visibleShadows = lightCullResult.visibleShadows.SelectMany(x => x.GetShadowCasters()).ToList();
 
-                isDirty |= totalLightCount != lightCullResult.visibleLights.Count;
-                isDirty |= totalShadowCount != visibleShadows.Count;
+                isDirty |= totalLightCount != lightCullResult.visibleLights.Count();
+                isDirty |= totalShadowCount != visibleShadows.Count();
 
                 // Account for name changes
                 if (!isDirty)
@@ -552,7 +486,7 @@ namespace UnityEditor.Rendering.Universal
                         isDirty |= !lightCullResult.visibleLights.Exists(x => x != null && x.name == cachedLightNames[i]);
 
                     for (int i = 0; i < totalShadowCount; ++i)
-                        isDirty |= !ExistsWithName(visibleShadows, cachedShadowCasterNames[i]);
+                        isDirty |= !visibleShadows.Exists(x => x != null && x.name == cachedShadowCasterNames[i]);
                 }
             }
 
@@ -568,10 +502,10 @@ namespace UnityEditor.Rendering.Universal
 
             if (lightCullResult != null)
             {
-                var visibleShadows = GetAllShadowCasters(lightCullResult.visibleShadows);
+                var visibleShadows = lightCullResult.visibleShadows.SelectMany(x => x.GetShadowCasters());
 
-                totalLightCount = lightCullResult.visibleLights.Count;
-                totalShadowCount = visibleShadows.Count;
+                totalLightCount = lightCullResult.visibleLights.Count();
+                totalShadowCount = visibleShadows.Count();
 
                 cachedLightNames = new string[totalLightCount];
                 cachedShadowCasterNames = new string[totalShadowCount];
@@ -585,7 +519,7 @@ namespace UnityEditor.Rendering.Universal
 
                 for (int i = 0; i < totalShadowCount; ++i)
                 {
-                    var shadowCaster = visibleShadows[i];
+                    var shadowCaster = visibleShadows.ElementAt(i);
                     if (shadowCaster != null)
                         cachedShadowCasterNames[i] = shadowCaster.name;
                 }
@@ -594,7 +528,7 @@ namespace UnityEditor.Rendering.Universal
             doRefresh = false;
         }
 
-        internal static void QueueRefresh()
+        public void QueueRefresh()
         {
             doRefresh = true;
         }

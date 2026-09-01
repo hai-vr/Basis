@@ -17,7 +17,7 @@ namespace UnityEditor.Rendering.Universal
 
         protected override VisualElement CreateAssetFieldUI()
         {
-            return DrawDefaultVolumeObjectField<UniversalRenderPipeline, UniversalRenderPipelineAsset, URPDefaultVolumeProfileSettings>();
+            return DrawDefaultVolumeObjectField<UniversalRenderPipeline, URPDefaultVolumeProfileSettings>();
         }
 
         public class URPDefaultVolumeProfileSettingsContextMenu : DefaultVolumeProfileSettingsContextMenu2<

@@ -14,9 +14,9 @@ namespace UnityEngine.Rendering.Universal
         public MotionBlurPostProcessPass(Shader shader)
         {
             this.renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing - 1;
-            this.profilingSampler = URPProfilingSamplers.MotionBlur;
+            this.profilingSampler = new ProfilingSampler("Blit Motion Blur");
 
-            m_Material = PostProcessUtils.LoadShader(shader, passName, logLevel: LogType.Log);
+            m_Material = PostProcessUtils.LoadShader(shader, passName);
             m_IsValid = m_Material != null;
         }
 

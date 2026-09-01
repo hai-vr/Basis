@@ -19,15 +19,6 @@ namespace UnityEngine.Rendering.Universal.Internal
         // DX10 uses SM 4.0. However URP shaders requires SM 4.5 or will use fallback to SM 2.0 shaders otherwise.
         // We will consider deferred renderer is not available when SM 2.0 shaders run.
         internal static bool IsDX10 { get; set; }
-
-#if UNITY_EDITOR
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
-        static void ResetStaticsOnLoad()
-        {
-            IsOpenGL = false;
-            IsDX10 = false;
-        }
-#endif
     }
 
     internal enum LightFlag
@@ -65,21 +56,21 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             public static readonly int _ScreenToWorld = Shader.PropertyToID("_ScreenToWorld");
 
-            public static readonly int _MainLightPosition = Shader.PropertyToID("_MainLightPosition");   // ForwardLights.LightConstantBuffer also refers to the same ShaderPropertyID - TODO: move this definition to a common location shared by other UniversalRP classes
-            public static readonly int _MainLightColor = Shader.PropertyToID("_MainLightColor");         // ForwardLights.LightConstantBuffer also refers to the same ShaderPropertyID - TODO: move this definition to a common location shared by other UniversalRP classes
-            public static readonly int _MainLightLayerMask = Shader.PropertyToID("_MainLightLayerMask"); // ForwardLights.LightConstantBuffer also refers to the same ShaderPropertyID - TODO: move this definition to a common location shared by other UniversalRP classes
-            public static readonly int _SpotLightScale = Shader.PropertyToID("_SpotLightScale");
-            public static readonly int _SpotLightBias = Shader.PropertyToID("_SpotLightBias");
-            public static readonly int _SpotLightGuard = Shader.PropertyToID("_SpotLightGuard");
-            public static readonly int _LightPosWS = Shader.PropertyToID("_LightPosWS");
-            public static readonly int _LightColor = Shader.PropertyToID("_LightColor");
-            public static readonly int _LightAttenuation = Shader.PropertyToID("_LightAttenuation");
-            public static readonly int _LightOcclusionProbInfo = Shader.PropertyToID("_LightOcclusionProbInfo");
-            public static readonly int _LightDirection = Shader.PropertyToID("_LightDirection");
-            public static readonly int _LightFlags = Shader.PropertyToID("_LightFlags");
-            public static readonly int _ShadowLightIndex = Shader.PropertyToID("_ShadowLightIndex");
-            public static readonly int _LightLayerMask = Shader.PropertyToID("_LightLayerMask");
-            public static readonly int _CookieLightIndex = Shader.PropertyToID("_CookieLightIndex");
+            public static int _MainLightPosition = Shader.PropertyToID("_MainLightPosition");   // ForwardLights.LightConstantBuffer also refers to the same ShaderPropertyID - TODO: move this definition to a common location shared by other UniversalRP classes
+            public static int _MainLightColor = Shader.PropertyToID("_MainLightColor");         // ForwardLights.LightConstantBuffer also refers to the same ShaderPropertyID - TODO: move this definition to a common location shared by other UniversalRP classes
+            public static int _MainLightLayerMask = Shader.PropertyToID("_MainLightLayerMask"); // ForwardLights.LightConstantBuffer also refers to the same ShaderPropertyID - TODO: move this definition to a common location shared by other UniversalRP classes
+            public static int _SpotLightScale = Shader.PropertyToID("_SpotLightScale");
+            public static int _SpotLightBias = Shader.PropertyToID("_SpotLightBias");
+            public static int _SpotLightGuard = Shader.PropertyToID("_SpotLightGuard");
+            public static int _LightPosWS = Shader.PropertyToID("_LightPosWS");
+            public static int _LightColor = Shader.PropertyToID("_LightColor");
+            public static int _LightAttenuation = Shader.PropertyToID("_LightAttenuation");
+            public static int _LightOcclusionProbInfo = Shader.PropertyToID("_LightOcclusionProbInfo");
+            public static int _LightDirection = Shader.PropertyToID("_LightDirection");
+            public static int _LightFlags = Shader.PropertyToID("_LightFlags");
+            public static int _ShadowLightIndex = Shader.PropertyToID("_ShadowLightIndex");
+            public static int _LightLayerMask = Shader.PropertyToID("_LightLayerMask");
+            public static int _CookieLightIndex = Shader.PropertyToID("_CookieLightIndex");
         }
 
         internal static readonly string[] k_GBufferNames = new string[]
@@ -285,8 +276,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             m_UseDeferredPlus = initParams.deferredPlus;
         }
 
-        static readonly ProfilingSampler s_SetupDeferredLights = new ProfilingSampler("Setup Deferred lights");
-
+        static ProfilingSampler s_SetupDeferredLights = new ProfilingSampler("Setup Deferred lights");
         private class SetupLightPassData
         {
             internal UniversalCameraData cameraData;
@@ -325,18 +315,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             Camera camera = cameraData.camera;
 
             // Support for dynamic resolution.
-            if (cameraData.xr.enabled)
-            {
-                // Must equal scaledCameraTargetWidth and scaledCameraTargetHeight set in ScriptableRenderer.SetPerCameraShaderVariables
-                // _ScreenToWorld (from here) and _ScaledScreenParams/_ScreenSize are both used per-pixel in the deferred pass so a mismatch corrupts world-pos reconstruction
-                this.RenderWidth = cameraData.pixelWidth;
-                this.RenderHeight = cameraData.pixelHeight;
-            }
-            else
-            {
-                this.RenderWidth = camera.allowDynamicResolution ? Mathf.CeilToInt(ScalableBufferManager.widthScaleFactor * cameraTargetSizeCopy.x) : cameraTargetSizeCopy.x;
-                this.RenderHeight = camera.allowDynamicResolution ? Mathf.CeilToInt(ScalableBufferManager.heightScaleFactor * cameraTargetSizeCopy.y) : cameraTargetSizeCopy.y;
-            }
+            this.RenderWidth = camera.allowDynamicResolution ? Mathf.CeilToInt(ScalableBufferManager.widthScaleFactor * cameraTargetSizeCopy.x) : cameraTargetSizeCopy.x;
+            this.RenderHeight = camera.allowDynamicResolution ? Mathf.CeilToInt(ScalableBufferManager.heightScaleFactor * cameraTargetSizeCopy.y) : cameraTargetSizeCopy.y;
 
             if (!m_UseDeferredPlus)
             {
@@ -476,7 +456,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             if (m_stencilVisLightOffsets.IsCreated)
                 m_stencilVisLightOffsets.Dispose();
 
-#if UNITY_ENABLE_CHECKS
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
             for (int i = 0; i < m_GbufferTextureHandles.Length; i++)
             {
                 m_GbufferTextureHandles[i] = TextureHandle.nullHandle;
@@ -806,7 +786,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             // Also separate shadow caster lights from non-shadow caster.
             int lastLightCookieIndex = -1;
             bool isFirstLight = true;
-            bool isFirstAdditionalLight = true;
             bool lastLightCookieKeywordState = false;
             bool lastShadowsKeywordState = false;
             bool lastSoftShadowsKeywordState = false;
@@ -840,8 +819,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                     int shadowLightIndex = hasAdditionalLightPass ? m_AdditionalLightsShadowCasterPass.GetShadowLightIndexFromLightIndex(visLightIndex) : -1;
                     hasDeferredShadows = light && light.shadows != LightShadows.None && shadowLightIndex >= 0;
                     cmd.SetGlobalInt(ShaderConstants._ShadowLightIndex, shadowLightIndex);
-                    SetLightCookiesKeyword(cmd, visLightIndex, hasLightCookieManager, isFirstAdditionalLight, ref lastLightCookieKeywordState, ref lastLightCookieIndex);
-                    isFirstAdditionalLight = false;
+                    SetLightCookiesKeyword(cmd, visLightIndex, hasLightCookieManager, isFirstLight, ref lastLightCookieKeywordState, ref lastLightCookieIndex);
                 }
 
                 // Update keywords states

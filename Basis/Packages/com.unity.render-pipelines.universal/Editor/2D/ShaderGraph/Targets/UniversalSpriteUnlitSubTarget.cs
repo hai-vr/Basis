@@ -110,6 +110,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
             {
                 var result = new PassDescriptor()
                 {
+
                     // Definition
                     displayName = "Sprite Unlit",
                     referenceName = "SHADERPASS_SPRITEUNLIT",
@@ -147,7 +148,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
 
                 return result;
             }
-        
+
             public static PassDescriptor Forward(UniversalTarget target)
             {
                 var result = new PassDescriptor

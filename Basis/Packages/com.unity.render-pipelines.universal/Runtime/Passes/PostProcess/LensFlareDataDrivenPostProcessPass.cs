@@ -10,11 +10,13 @@ namespace UnityEngine.Rendering.Universal
         bool m_IsValid;
 
         const string k_passNameOcclusion = "Blit Lens Flare Occlusion";
+        ProfilingSampler m_ProfilingSamplerOcclusion;
 
         public LensFlareDataDrivenPostProcessPass(Shader shader)
         {
             this.renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing - 1;
-            this.profilingSampler = URPProfilingSamplers.LensFlareDataDriven;
+            this.profilingSampler = new ProfilingSampler("Blit Lens Flares (Data Driven)");
+            m_ProfilingSamplerOcclusion = new ProfilingSampler(k_passNameOcclusion);
 
             m_Material = PostProcessUtils.LoadShader(shader, passName);
             m_IsValid = m_Material != null;
@@ -69,7 +71,7 @@ namespace UnityEngine.Rendering.Universal
 
         void LensFlareDataDrivenComputeOcclusion(RenderGraph renderGraph, UniversalResourceData resourceData, UniversalCameraData cameraData, in TextureDesc dstDesc, PaniniProjection paniniProjection)
         {
-            using (var builder = renderGraph.AddUnsafePass<LensFlarePassData>(k_passNameOcclusion, out var passData, URPProfilingSamplers.LensFlareDataDrivenComputeOcclusion))
+            using (var builder = renderGraph.AddUnsafePass<LensFlarePassData>(k_passNameOcclusion, out var passData, m_ProfilingSamplerOcclusion))
             {
                 TextureHandle occlusionHandle = renderGraph.ImportTexture(LensFlareCommonSRP.occlusionRT);
                 passData.destinationTexture = occlusionHandle;

@@ -15,7 +15,7 @@ namespace UnityEngine.Rendering.Universal
     /// </summary>
     public static class RenderingUtils
     {
-        static readonly ShaderTagId[] s_LegacyShaderPassNames =
+        static List<ShaderTagId> m_LegacyShaderPassNames = new List<ShaderTagId>
         {
             new ShaderTagId("Always"),
             new ShaderTagId("ForwardBase"),
@@ -25,7 +25,7 @@ namespace UnityEngine.Rendering.Universal
             new ShaderTagId("VertexLM"),
         };
 
-        static readonly AttachmentDescriptor s_EmptyAttachment = new AttachmentDescriptor(GraphicsFormat.None);
+        static AttachmentDescriptor s_EmptyAttachment = new AttachmentDescriptor(GraphicsFormat.None);
         internal static AttachmentDescriptor emptyAttachment
         {
             get
@@ -33,17 +33,6 @@ namespace UnityEngine.Rendering.Universal
                 return s_EmptyAttachment;
             }
         }
-
-#if UNITY_EDITOR
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
-        static void ResetStaticsOnLoad()
-        {
-            CoreUtils.Destroy(s_FullscreenMesh);
-            s_FullscreenMesh = null;
-            CoreUtils.Destroy(s_ErrorMaterial);
-            s_ErrorMaterial = null;
-        }
-#endif
 
         static Mesh s_FullscreenMesh = null;
 
@@ -99,19 +88,6 @@ namespace UnityEngine.Rendering.Universal
                 //return !Application.isMobilePlatform &&
                 //    (deviceType == GraphicsDeviceType.Metal || deviceType == GraphicsDeviceType.Vulkan ||
                 //     deviceType == GraphicsDeviceType.PlayStation4 || deviceType == GraphicsDeviceType.PlayStation5 || deviceType == GraphicsDeviceType.XboxOne);
-            }
-        }
-        
-        // Persistent CBUFFERs exist on C# side as Graphics/ComputeBuffer and are filled with SetData(), unlike transient CBUFFERs that have no real existence on C# side
-        internal static bool usePersistentConstantBuffer
-        {
-            get
-            {
-                // - On GLES3 non-WebGL, CBs are disabled (not even transient, see LIGHT_SHADOWS_NO_CBUFFER) due to Adreno perf issues with large CBs
-                // - On WebGL, CBs remains temporarily transient due to a graphics buffer bug
-                // - On WebGPU, CBs remains temporarily transient due to the current problematic need to explicitly bind CBUFFERs even when not used
-                // - Everywhere else we use the persistent CB path for optimal performance at shader setup on native engine side.
-                return SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES3 && SystemInfo.graphicsDeviceType != GraphicsDeviceType.WebGPU;
             }
         }
 
@@ -234,25 +210,25 @@ namespace UnityEngine.Rendering.Universal
 
         // This is used to render materials that contain built-in shader passes not compatible with URP.
         // It will render those legacy passes with error/pink shader.
-        [Conditional("UNITY_ENABLE_CHECKS")]
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         internal static void CreateRendererParamsObjectsWithError(ref CullingResults cullResults, Camera camera, FilteringSettings filterSettings, SortingCriteria sortFlags, ref RendererListParams param)
         {
             SortingSettings sortingSettings = new SortingSettings(camera) { criteria = sortFlags };
-            DrawingSettings errorSettings = new DrawingSettings(s_LegacyShaderPassNames[0], sortingSettings)
+            DrawingSettings errorSettings = new DrawingSettings(m_LegacyShaderPassNames[0], sortingSettings)
             {
                 perObjectData = PerObjectData.None,
                 overrideMaterial = errorMaterial,
                 overrideMaterialPassIndex = 0
             };
-            for (int i = 1; i < s_LegacyShaderPassNames.Length; ++i)
-                errorSettings.SetShaderPassName(i, s_LegacyShaderPassNames[i]);
-            
+            for (int i = 1; i < m_LegacyShaderPassNames.Count; ++i)
+                errorSettings.SetShaderPassName(i, m_LegacyShaderPassNames[i]);
+
             param = new RendererListParams(cullResults, errorSettings, filterSettings);
         }
 
         // This is used to render materials that contain built-in shader passes not compatible with URP.
         // It will render those legacy passes with error/pink shader.
-        [Conditional("UNITY_ENABLE_CHECKS")]
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         internal static void CreateRendererListObjectsWithError(RenderGraph renderGraph, ref CullingResults cullResults, Camera camera, FilteringSettings filterSettings, SortingCriteria sortFlags, ref RendererListHandle rl)
         {
             // TODO: When importing project, AssetPreviewUpdater::CreatePreviewForAsset will be called multiple times.
@@ -269,14 +245,14 @@ namespace UnityEngine.Rendering.Universal
             rl = renderGraph.CreateRendererList(param);
         }
 
-        [Conditional("UNITY_ENABLE_CHECKS")]
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         internal static void DrawRendererListObjectsWithError(RasterCommandBuffer cmd, ref RendererList rl)
         {
             cmd.DrawRendererList(rl);
         }
 
-        static readonly ShaderTagId[] s_ShaderTagValues = new ShaderTagId[1];
-        static readonly RenderStateBlock[] s_RenderStateBlocks = new RenderStateBlock[1];
+        static ShaderTagId[] s_ShaderTagValues = new ShaderTagId[1];
+        static RenderStateBlock[] s_RenderStateBlocks = new RenderStateBlock[1];
         // Create a RendererList using a RenderStateBlock override is quite common so we have this optimized utility function for it
         internal static void CreateRendererListWithRenderStateBlock(RenderGraph renderGraph, ref CullingResults cullResults, DrawingSettings ds, FilteringSettings fs, RenderStateBlock rsb, ref RendererListHandle rl)
         {
@@ -294,11 +270,11 @@ namespace UnityEngine.Rendering.Universal
         }
 
         // Caches render texture format support. SystemInfo.SupportsRenderTextureFormat allocates memory due to boxing.
-        static readonly Dictionary<RenderTextureFormat, bool> s_RenderTextureFormatSupport = new Dictionary<RenderTextureFormat, bool>();
+        static Dictionary<RenderTextureFormat, bool> m_RenderTextureFormatSupport = new Dictionary<RenderTextureFormat, bool>();
 
         internal static void ClearSystemInfoCache()
         {
-            s_RenderTextureFormatSupport.Clear();
+            m_RenderTextureFormatSupport.Clear();
         }
 
         /// <summary>
@@ -309,10 +285,10 @@ namespace UnityEngine.Rendering.Universal
         /// <returns>Returns true if the graphics card supports the given <c>RenderTextureFormat</c></returns>
         public static bool SupportsRenderTextureFormat(RenderTextureFormat format)
         {
-            if (!s_RenderTextureFormatSupport.TryGetValue(format, out var support))
+            if (!m_RenderTextureFormatSupport.TryGetValue(format, out var support))
             {
                 support = SystemInfo.SupportsRenderTextureFormat(format);
-                s_RenderTextureFormatSupport.Add(format, support);
+                m_RenderTextureFormatSupport.Add(format, support);
             }
 
             return support;
@@ -770,23 +746,19 @@ namespace UnityEngine.Rendering.Universal
             UniversalCameraData cameraData, UniversalLightData lightData, SortingCriteria sortingCriteria)
         {
             Camera camera = cameraData.camera;
-            CullingSplitMask mask = CullingSplitMask.DrawAll;
-
-            if (cameraData.xr.enabled)
-                mask = cameraData.xr.isQuadViewInnerPass ? CullingSplitMask.DrawSplitOnly : CullingSplitMask.DrawCullingOnly;
-
             SortingSettings sortingSettings = new SortingSettings(camera) { criteria = sortingCriteria };
             DrawingSettings settings = new DrawingSettings(shaderTagId, sortingSettings)
             {
                 perObjectData = renderingData.perObjectData,
                 mainLightIndex = lightData.mainLightIndex,
+#pragma warning disable 618
+                enableDynamicBatching = renderingData.supportsDynamicBatching,
+#pragma warning restore 618
 
                 // Disable instancing for preview cameras. This is consistent with the built-in forward renderer. Also fixes case 1127324.
                 enableInstancing = camera.cameraType != CameraType.Preview,
                 // stencil-based LOD doesn't support native render pass for now.
                 lodCrossFadeStencilMask = renderingData.stencilLodCrossFadeEnabled ? (int)UniversalRendererStencilRef.CrossFadeStencilRef_All : 0,
-
-                splitMask = mask
             };
             return settings;
         }

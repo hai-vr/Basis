@@ -28,11 +28,6 @@
             "name": "com.unity.2d.animation",
             "expression": "1.0.0",
             "define": "U2D_ANIMATION_INSTALLED"
-        },
-        {
-            "name": "com.unity.modules.terrain",
-            "expression": "1.0.0",
-            "define": "ENABLE_TERRAIN_MODULE"
         }
     ],
     "noEngineReferences": false

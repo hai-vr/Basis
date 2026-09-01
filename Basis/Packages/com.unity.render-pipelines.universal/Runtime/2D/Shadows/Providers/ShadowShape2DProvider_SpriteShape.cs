@@ -8,6 +8,10 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine.U2D;
 using Unity.Mathematics;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 namespace UnityEngine.Rendering.Universal
 {
     [Serializable]
@@ -89,7 +93,7 @@ namespace UnityEngine.Rendering.Universal
             UpdateShadows(spriteShapeController, persistantShadowShape);
         }
 
-        public override void OnBeforeRender(Camera camera, Component sourceComponent, Bounds worldCullingBounds, ShadowShape2D persistantShadowShape)
+        public override void OnBeforeRender(Component sourceComponent, Bounds worldCullingBounds, ShadowShape2D persistantShadowShape)
         {
             UpdateShadows((SpriteShapeController)sourceComponent, persistantShadowShape);
         }

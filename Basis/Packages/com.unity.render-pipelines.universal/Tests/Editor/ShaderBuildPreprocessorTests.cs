@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEditor;
@@ -29,7 +29,6 @@ namespace ShaderStrippingAndPrefiltering
             internal bool containsSurfaceCache;
 #endif
             internal bool everyRendererHasSSAO;
-            internal bool everyRendererHasSSR;
 
             internal ShaderFeatures defaultURPAssetFeatures
             {
@@ -99,11 +98,6 @@ namespace ShaderStrippingAndPrefiltering
                 ShaderBuildPreprocessor.GetEveryVolumeFeatures(ref volumeFeatures);
             }
 
-            internal void GetSupportedFeaturesFromVolumes(List<VolumeProfile> volumeProfiles, ref VolumeFeatures volumeFeatures)
-            {
-                ShaderBuildPreprocessor.GetSupportedFeaturesFromVolumes(volumeProfiles, ref volumeFeatures);
-            }
-
             internal void GetEveryShaderFeatureAndPrefilteringData(List<ShaderFeatures> rendererFeaturesList, ref UniversalRenderPipelineAsset.ShaderPrefilteringData spd)
             {
                 ShaderBuildPreprocessor.GetEveryShaderFeatureAndPrefilteringData(rendererFeaturesList, ref spd);
@@ -112,9 +106,9 @@ namespace ShaderStrippingAndPrefiltering
             internal ShaderFeatures GetSupportedShaderFeaturesFromAsset()
             {
 #if SURFACE_CACHE
-                return ShaderBuildPreprocessor.GetSupportedShaderFeaturesFromAsset(ref urpAsset, ref rendererShaderFeatures, ref ssaoRendererFeatures, stripUnusedVariants, out containsForwardRenderer, out containsSurfaceCache, out everyRendererHasSSAO, out everyRendererHasSSR);
+                return ShaderBuildPreprocessor.GetSupportedShaderFeaturesFromAsset(ref urpAsset, ref rendererShaderFeatures, ref ssaoRendererFeatures, stripUnusedVariants, out containsForwardRenderer, out containsSurfaceCache, out everyRendererHasSSAO);
 #else
-                return ShaderBuildPreprocessor.GetSupportedShaderFeaturesFromAsset(ref urpAsset, ref rendererShaderFeatures, ref ssaoRendererFeatures, stripUnusedVariants, out containsForwardRenderer, out everyRendererHasSSAO, out everyRendererHasSSR);
+                return ShaderBuildPreprocessor.GetSupportedShaderFeaturesFromAsset(ref urpAsset, ref rendererShaderFeatures, ref ssaoRendererFeatures, stripUnusedVariants, out containsForwardRenderer, out everyRendererHasSSAO);
 #endif
             }
 
@@ -725,168 +719,6 @@ namespace ShaderStrippingAndPrefiltering
             m_TestHelper.GetEveryVolumeFeatures(ref volumeFeatures);
             m_TestHelper.AssertVolumeFeatures(VolumeFeatures.All, volumeFeatures);
         }
-
-        void AssertVolumeFeaturesFromProfile(Action<VolumeProfile> setupProfile, VolumeFeatures expectedFeatures)
-        {
-            var profile = ScriptableObject.CreateInstance<VolumeProfile>();
-            bool prevStrip = ShaderBuildPreprocessor.s_StripUnusedPostProcessingVariants;
-            ShaderBuildPreprocessor.s_StripUnusedPostProcessingVariants = true;
-
-            try
-            {
-                setupProfile(profile);
-
-                VolumeFeatures volumeFeatures = VolumeFeatures.None;
-                m_TestHelper.GetSupportedFeaturesFromVolumes(new List<VolumeProfile> { profile }, ref volumeFeatures);
-                m_TestHelper.AssertVolumeFeatures(VolumeFeatures.Calculated | expectedFeatures, volumeFeatures);
-            }
-            finally
-            {
-                ShaderBuildPreprocessor.s_StripUnusedPostProcessingVariants = prevStrip;
-                Object.DestroyImmediate(profile);
-            }
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_FilmGrain()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var filmGrain = profile.Add<FilmGrain>(overrides: true);
-                filmGrain.intensity.Override(1f);
-                filmGrain.type.Override(FilmGrainLookup.Thin1);
-            }, VolumeFeatures.FilmGrain);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_ChromaticAberration()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var ca = profile.Add<ChromaticAberration>(overrides: true);
-                ca.intensity.Override(1f);
-            }, VolumeFeatures.ChromaticAberration);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_LensDistortion()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var ld = profile.Add<LensDistortion>(overrides: true);
-                ld.intensity.Override(1f);
-                ld.xMultiplier.Override(1f);
-            }, VolumeFeatures.LensDistortion);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_ToneMapping()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var tm = profile.Add<Tonemapping>(overrides: true);
-                tm.mode.Override(TonemappingMode.ACES);
-            }, VolumeFeatures.ToneMapping);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_DepthOfField()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var dof = profile.Add<DepthOfField>(overrides: true);
-                dof.mode.Override(DepthOfFieldMode.Bokeh);
-            }, VolumeFeatures.DepthOfField);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_CameraMotionBlur()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var mb = profile.Add<MotionBlur>(overrides: true);
-                mb.intensity.Override(1f);
-            }, VolumeFeatures.CameraMotionBlur);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_PaniniProjection()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var pp = profile.Add<PaniniProjection>(overrides: true);
-                pp.distance.Override(1f);
-            }, VolumeFeatures.PaniniProjection);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_BloomLQ()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var bloom = profile.Add<Bloom>(overrides: true);
-                bloom.intensity.Override(1f);
-                bloom.highQualityFiltering.Override(false);
-                bloom.dirtIntensity.Override(0f);
-            }, VolumeFeatures.BloomLQ);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_BloomLQDirt()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var bloom = profile.Add<Bloom>(overrides: true);
-                bloom.intensity.Override(1f);
-                bloom.highQualityFiltering.Override(false);
-                bloom.dirtIntensity.Override(1f);
-                bloom.dirtTexture.Override(Texture2D.whiteTexture);
-            }, VolumeFeatures.BloomLQDirt);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_BloomHQ()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var bloom = profile.Add<Bloom>(overrides: true);
-                bloom.intensity.Override(1f);
-                bloom.highQualityFiltering.Override(true);
-                bloom.dirtIntensity.Override(0f);
-            }, VolumeFeatures.BloomHQ);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_BloomHQDirt()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                var bloom = profile.Add<Bloom>(overrides: true);
-                bloom.intensity.Override(1f);
-                bloom.highQualityFiltering.Override(true);
-                bloom.dirtIntensity.Override(1f);
-                bloom.dirtTexture.Override(Texture2D.whiteTexture);
-            }, VolumeFeatures.BloomHQDirt);
-        }
-
-        [Test]
-        public void TestStripUnusedPostProcessingVariants_InactiveFeatures_AreNotReturned()
-        {
-            AssertVolumeFeaturesFromProfile(profile =>
-            {
-                // All volume components checked by GetSupportedFeaturesFromVolumes,
-                // added at their default values which should all be inactive.
-                profile.Add<LensDistortion>(overrides: true);
-                profile.Add<Bloom>(overrides: true);
-                profile.Add<Tonemapping>(overrides: true);
-                profile.Add<FilmGrain>(overrides: true);
-                profile.Add<DepthOfField>(overrides: true);
-                profile.Add<MotionBlur>(overrides: true);
-                profile.Add<PaniniProjection>(overrides: true);
-                profile.Add<ChromaticAberration>(overrides: true);
-            }, VolumeFeatures.None);
-        }
-
         [Test]
         public void TestStripUnusedVariants_ReturnsAll()
         {
@@ -981,7 +813,6 @@ namespace ShaderStrippingAndPrefiltering
 
             // Test with DepthNormal prepass enabled (Is enabled implicitly by SSAO f.ex)
             ScreenSpaceAmbientOcclusion ssaoFeature = ScriptableObject.CreateInstance<ScreenSpaceAmbientOcclusion>();
-#pragma warning disable CS0618 // Tests legacy renderer-feature settings path.
             ssaoFeature.settings = new ScreenSpaceAmbientOcclusionSettings()
             {
                 AOMethod = ScreenSpaceAmbientOcclusionSettings.AOMethodOptions.BlueNoise,
@@ -996,7 +827,6 @@ namespace ShaderStrippingAndPrefiltering
                 BlurQuality = ScreenSpaceAmbientOcclusionSettings.BlurQualityOptions.High,
                 Falloff = 100f,
             };
-#pragma warning restore CS0618
             ssaoFeature.SetActive(true);
             m_TestHelper.rendererFeatures.Add(ssaoFeature);
 
@@ -1004,15 +834,9 @@ namespace ShaderStrippingAndPrefiltering
             ((DecalRendererFeature)m_TestHelper.rendererFeatures[0]).settings.decalLayers = true;
             rendererRequirements = m_TestHelper.defaultRendererRequirements;
             actual = m_TestHelper.GetSupportedShaderFeaturesFromRendererFeatures(rendererRequirements);
-#if MODERN_SSAO
-            expected = ShaderFeatures.ScreenSpaceOcclusion | ShaderFeatures.ScreenSpaceOcclusionAfterOpaque | ShaderFeatures.DecalScreenSpace |
-                       ShaderFeatures.DecalNormalBlendLow | ShaderFeatures.DecalLayers |
-                       ShaderFeatures.OpaqueWriteRenderingLayers;
-#else
             expected = ShaderFeatures.ScreenSpaceOcclusion | ShaderFeatures.DecalScreenSpace |
                        ShaderFeatures.DecalNormalBlendLow | ShaderFeatures.DecalLayers |
                        ShaderFeatures.OpaqueWriteRenderingLayers;
-#endif
             m_TestHelper.AssertShaderFeaturesAndReset(expected, actual);
 
             m_TestHelper.rendererFeatures.Remove(ssaoFeature);
@@ -1038,7 +862,6 @@ namespace ShaderStrippingAndPrefiltering
         }
 
         // Screen Space Ambient Occlusion (SSAO)...
-#pragma warning disable CS0618 // Test exercises the legacy renderer-feature settings path.
         [Test]
         public void TestGetSupportedShaderFeaturesFromRendererFeatures_SSAO()
         {
@@ -1064,21 +887,13 @@ namespace ShaderStrippingAndPrefiltering
 
             RendererRequirements rendererRequirements = m_TestHelper.defaultRendererRequirements;
             ShaderFeatures actual = m_TestHelper.GetSupportedShaderFeaturesFromRendererFeatures(rendererRequirements);
-#if MODERN_SSAO
-            ShaderFeatures expected = ShaderFeatures.ScreenSpaceOcclusion | ShaderFeatures.ScreenSpaceOcclusionAfterOpaque;
-#else
             ShaderFeatures expected = ShaderFeatures.ScreenSpaceOcclusion;
-#endif
             m_TestHelper.AssertShaderFeaturesAndReset(expected, actual);
 
             ((ScreenSpaceAmbientOcclusion)m_TestHelper.rendererFeatures[0]).settings.AfterOpaque = true;
             rendererRequirements = m_TestHelper.defaultRendererRequirements;
             actual = m_TestHelper.GetSupportedShaderFeaturesFromRendererFeatures(rendererRequirements);
-#if MODERN_SSAO
-            expected = ShaderFeatures.ScreenSpaceOcclusion | ShaderFeatures.ScreenSpaceOcclusionAfterOpaque;
-#else
             expected = ShaderFeatures.ScreenSpaceOcclusionAfterOpaque;
-#endif
             m_TestHelper.AssertShaderFeaturesAndReset(expected, actual);
 
             // Disabled feature
@@ -1097,7 +912,6 @@ namespace ShaderStrippingAndPrefiltering
 
             Object.DestroyImmediate(ssaoFeature);
         }
-#pragma warning restore CS0618
 
 #if SURFACE_CACHE
         // Surface Cache Global Illumination...
@@ -1123,32 +937,6 @@ namespace ShaderStrippingAndPrefiltering
             m_TestHelper.AssertShaderFeaturesAndReset(expected, actual);
 
             Object.DestroyImmediate(surfaceCacheFeature);
-        }
-#endif
-
-#if URP_SCREEN_SPACE_REFLECTION
-        [Test]
-        public void TestGetSupportedShaderFeaturesFromRendererFeatures_ScreenSpaceReflection()
-        {
-            ScreenSpaceReflectionRendererFeature ssrFeature = ScriptableObject.CreateInstance<ScreenSpaceReflectionRendererFeature>();
-            m_TestHelper.rendererFeatures.Add(ssrFeature);
-
-            // Enabled feature
-            m_TestHelper.rendererFeatures[0].SetActive(true);
-
-            RendererRequirements rendererRequirements = m_TestHelper.defaultRendererRequirements;
-            ShaderFeatures actual = m_TestHelper.GetSupportedShaderFeaturesFromRendererFeatures(rendererRequirements);
-            ShaderFeatures expected = ShaderFeatures.ScreenSpaceReflection;
-            m_TestHelper.AssertShaderFeaturesAndReset(expected, actual);
-
-            // Disabled feature
-            m_TestHelper.rendererFeatures[0].SetActive(false);
-            rendererRequirements = m_TestHelper.defaultRendererRequirements;
-            actual = m_TestHelper.GetSupportedShaderFeaturesFromRendererFeatures(rendererRequirements);
-            expected = ShaderFeatures.None;
-            m_TestHelper.AssertShaderFeaturesAndReset(expected, actual);
-
-            Object.DestroyImmediate(ssrFeature);
         }
 #endif
 
@@ -1273,27 +1061,6 @@ namespace ShaderStrippingAndPrefiltering
             rendererRequirements.renderingMode = RenderingMode.Deferred;
             actual = m_TestHelper.GetSupportedShaderFeaturesFromRendererFeatures(rendererRequirements);
             expected = ShaderFeatures.DecalGBuffer | ShaderFeatures.DecalNormalBlendHigh;
-            m_TestHelper.AssertShaderFeaturesAndReset(expected, actual);
-        }
-
-
-        [Test]
-        public void TestGetSupportedShaderFeaturesFromRendererFeatures_RenderObject()
-        {
-            RenderObjects renderObjectFeature = ScriptableObject.CreateInstance<RenderObjects>();
-            renderObjectFeature.settings.depthInputAttachment = true;
-            m_TestHelper.rendererFeatures.Add(renderObjectFeature);
-
-            // Initial
-            RendererRequirements rendererRequirements = m_TestHelper.defaultRendererRequirements;
-            ShaderFeatures actual = m_TestHelper.GetSupportedShaderFeaturesFromRendererFeatures(rendererRequirements);
-            ShaderFeatures expected = ShaderFeatures.RenderObjectDepthInputAttachment;
-            m_TestHelper.AssertShaderFeaturesAndReset(expected, actual);
-
-            m_TestHelper.rendererFeatures[0].SetActive(false);
-            rendererRequirements = m_TestHelper.defaultRendererRequirements;
-            actual = m_TestHelper.GetSupportedShaderFeaturesFromRendererFeatures(rendererRequirements);
-            expected = ShaderFeatures.None;
             m_TestHelper.AssertShaderFeaturesAndReset(expected, actual);
         }
     }

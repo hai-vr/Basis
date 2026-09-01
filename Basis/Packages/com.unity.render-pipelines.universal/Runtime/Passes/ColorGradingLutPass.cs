@@ -115,7 +115,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             var lutBuilderHdr = passData.lutBuilderHdr;
             var allowColorGradingACESHDR = passData.allowColorGradingACESHDR;
 
-            using (new ProfilingScope(cmd, URPProfilingSamplers.ColorGradingLUT, passData.hdrGrading ? lutBuilderHdr : lutBuilderLdr))
+            using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.ColorGradingLUT)))
             {
                 // TODO: should these components be set instead?
 

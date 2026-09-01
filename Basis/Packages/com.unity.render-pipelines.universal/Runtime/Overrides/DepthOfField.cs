@@ -145,7 +145,7 @@ namespace UnityEngine.Rendering.Universal
     /// <seealso cref="ClampedIntParameter"/>
     [Serializable, VolumeComponentMenu("Post-processing/Depth Of Field")]
     [SupportedOnRenderPipeline(typeof(UniversalRenderPipelineAsset))]
-    [URPHelpURL("urp/depth-of-field-volume-override-reference")]
+    [URPHelpURL("post-processing-depth-of-field")]
     public sealed class DepthOfField : VolumeComponent, IPostProcessComponent
     {
         /// <summary>

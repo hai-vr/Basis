@@ -68,6 +68,9 @@ namespace UnityEngine.Rendering.Universal
             var drawingSettings = new DrawingSettings(k_MotionOnlyShaderTagId, sortingSettings)
             {
                 perObjectData = PerObjectData.MotionVectors,
+#pragma warning disable 618
+                enableDynamicBatching = false,
+#pragma warning restore 618
                 enableInstancing = true,
             };
             drawingSettings.SetShaderPassName(0, k_MotionOnlyShaderTagId);
@@ -213,8 +216,8 @@ namespace UnityEngine.Rendering.Universal
             {
                 builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering);
 
-                // Multiview render regions are incompatible with the inner (foveal) pass in Quad View
-                if (!cameraData.xr.isQuadViewInnerPass)
+                // Apply MultiviewRenderRegionsCompatible flag only to the peripheral view in Quad Views
+                if (cameraData.xr.multipassId == 0)
                 {
                     builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.MultiviewRenderRegionsCompatible);
                 }

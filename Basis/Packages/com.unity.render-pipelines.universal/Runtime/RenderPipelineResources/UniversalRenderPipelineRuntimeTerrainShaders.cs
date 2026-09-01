@@ -47,13 +47,12 @@ namespace UnityEngine.Rendering.Universal
         {
             get
             {
-#if ENABLE_TERRAIN_MODULE
+                // Check if the setting exists and is enabled
                 if (GraphicsSettings.TryGetRenderPipelineSettings<URPTerrainShaderSetting>(out var settings))
                 {
                     return settings.includeTerrainShaders;
                 }
-#endif
-                return false; // Default to not including if settings don't exist, or terrain module is disabled
+                return false; // Default to not including if settings don't exist
             }
         }
 

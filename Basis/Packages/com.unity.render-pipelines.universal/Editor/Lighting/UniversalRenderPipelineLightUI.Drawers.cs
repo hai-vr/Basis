@@ -15,7 +15,7 @@ namespace UnityEditor.Rendering.Universal
 
     internal partial class UniversalRenderPipelineLightUI
     {
-        [URPHelpURL("urp/light-component")]
+        [URPHelpURL("light-component")]
         enum Expandable
         {
             General = 1 << 0,
@@ -272,20 +272,12 @@ namespace UnityEditor.Rendering.Universal
             {
                 EditorGUI.BeginChangeCheck();
                 GUI.enabled = UniversalRenderPipeline.asset.useRenderingLayers;
-                EditorGUILayout.PropertyField(serializedLight.renderingLayers, Styles.RenderingLayers);
+                EditorGUILayout.PropertyField(serializedLight.renderingLayers, UniversalRenderPipeline.asset.useRenderingLayers ? Styles.RenderingLayers : Styles.RenderingLayersDisabled);
                 GUI.enabled = true;
                 if (EditorGUI.EndChangeCheck())
                 {
                     if (!serializedLight.customShadowLayers.boolValue)
                         SyncLightAndShadowLayers(serializedLight, serializedLight.renderingLayers);
-                }
-                if (!UniversalRenderPipeline.asset.useRenderingLayers)
-                {
-                    CoreEditorUtils.DrawFixMeBox(Styles.RenderingLayersHelpBox, () =>
-                    {
-                        UniversalRenderPipeline.asset.useRenderingLayers = true;
-                        EditorUtility.SetDirty(UniversalRenderPipeline.asset);
-                    });
                 }
             }
 
@@ -355,7 +347,7 @@ namespace UnityEditor.Rendering.Universal
 #if XR_MANAGEMENT_4_0_1_OR_NEWER
                         var buildTargetGroup = BuildPipeline.GetBuildTargetGroup(EditorUserBuildSettings.activeBuildTarget);
                         var buildTargetSettings = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(buildTargetGroup);
-                        if (buildTargetSettings != null && buildTargetSettings.Manager != null && buildTargetSettings.Manager.activeLoaders.Count > 0)
+                        if (buildTargetSettings != null && buildTargetSettings.AssignedSettings != null && buildTargetSettings.AssignedSettings.activeLoaders.Count > 0)
                         {
                             isQuest = buildTargetGroup == BuildTargetGroup.Android;
                         }

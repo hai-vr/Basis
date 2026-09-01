@@ -6,23 +6,30 @@ namespace UnityEngine.Rendering.Universal
     internal class LayerBatch
     {
 #if UNITY_EDITOR
-        internal int startIndex;
-        internal int endIndex;
+        public int startIndex;
+        public int endIndex;
 #endif
-        internal int startLayerID;
-        internal int endLayerValue;
-        internal SortingLayerRange layerRange;
-        internal LightStats lightStats;
-        internal bool useNormals;
+        public int startLayerID;
+        public int endLayerValue;
+        public SortingLayerRange layerRange;
+        public LightStats lightStats;
+        public bool useNormals;
 
-        internal List<Light2D> lights = new List<Light2D>();
-        internal List<int> shadowIndices = new List<int>();
-        internal List<ShadowCasterGroup2D> shadowCasters = new List<ShadowCasterGroup2D>();
+        public List<Light2D> lights;
+        public List<int> shadowIndices;
+        public List<ShadowCasterGroup2D> shadowCasters;
 
         internal int[] activeBlendStylesIndices;
 
+        public void InitRTIds(int index)
+        {
+            lights = new List<Light2D>();
+            shadowIndices = new List<int>();
+            shadowCasters = new List<ShadowCasterGroup2D>();
+        }
+
         // This range check uses SortingLayer.value.
-        internal bool IsValueWithinLayerRange(int value)
+       internal bool IsValueWithinLayerRange(int value)
         {
             return value >= layerRange.lowerBound && value <= layerRange.upperBound;
         }
@@ -31,14 +38,6 @@ namespace UnityEngine.Rendering.Universal
     internal static class LayerUtility
     {
         private static LayerBatch[] s_LayerBatches;
-
-#if UNITY_EDITOR
-        [RuntimeInitializeOnLoadMethod]
-        static void ResetStaticsOnLoad()
-        {
-            s_LayerBatches = null;
-        }
-#endif
 
         private static bool CanBatchLightsInLayer(int layerIndex1, int layerIndex2, SortingLayer[] sortingLayers, ILight2DCullResult lightCullResult)
         {
@@ -115,7 +114,10 @@ namespace UnityEngine.Rendering.Universal
             if (needInit)
             {
                 for (var i = 0; i < s_LayerBatches.Length; i++)
+                {
                     s_LayerBatches[i] = new LayerBatch();
+                    s_LayerBatches[i].InitRTIds(i);
+                }
             }
         }
 

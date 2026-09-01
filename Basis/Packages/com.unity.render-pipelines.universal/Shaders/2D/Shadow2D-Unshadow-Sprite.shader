@@ -33,18 +33,13 @@ Shader "Hidden/Shadow2DUnshadowSprite"
             #pragma vertex vert
             #pragma fragment frag
 
-            #pragma multi_compile _ SKINNED_SPRITE
-
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/2D/Include/Core2D.hlsl"
 
             struct Attributes
             {
-                float3 positionOS : POSITION;
-                float2 uv         : TEXCOORD0;
-                float4 color      : COLOR;
-                UNITY_SKINNED_VERTEX_INPUTS
+                float4 vertex   : POSITION;
+                float2 uv       : TEXCOORD0;
+                float4 color    : COLOR;
             };
 
             struct Varyings
@@ -62,9 +57,7 @@ Shader "Hidden/Shadow2DUnshadowSprite"
             Varyings vert(Attributes v)
             {
                 Varyings o;
-                UNITY_SKINNED_VERTEX_COMPUTE(v);
-                v.positionOS = UnityFlipSprite(v.positionOS, unity_SpriteProps.xy);
-                o.vertex = TransformObjectToHClip(v.positionOS);
+                o.vertex = TransformObjectToHClip(v.vertex.xyz);
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 o.color = _Color.a * v.color;
                 return o;
@@ -105,18 +98,13 @@ Shader "Hidden/Shadow2DUnshadowSprite"
             #pragma vertex vert
             #pragma fragment frag
 
-            #pragma multi_compile _ SKINNED_SPRITE
-
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/2D/Include/Core2D.hlsl"
 
             struct Attributes
             {
-                float3 positionOS : POSITION;
-                float2 uv         : TEXCOORD0;
-                float4 color      : COLOR;
-                UNITY_SKINNED_VERTEX_INPUTS
+                float4 vertex   : POSITION;
+                float2 uv       : TEXCOORD0;
+                float4 color    : COLOR;
             };
 
             struct Varyings
@@ -134,9 +122,7 @@ Shader "Hidden/Shadow2DUnshadowSprite"
             Varyings vert(Attributes v)
             {
                 Varyings o;
-                UNITY_SKINNED_VERTEX_COMPUTE(v);
-                v.positionOS = UnityFlipSprite(v.positionOS, unity_SpriteProps.xy);
-                o.vertex = TransformObjectToHClip(v.positionOS);
+                o.vertex = TransformObjectToHClip(v.vertex.xyz);
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 o.color = _Color.a * v.color;
                 return o;

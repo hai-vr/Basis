@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using UnityEditorInternal;
 using UnityEngine.Rendering.Universal;
 
 namespace UnityEditor.Rendering.Universal
@@ -131,8 +132,10 @@ namespace UnityEditor.Rendering.Universal
                     }
                 }
 
-                // Force all Inspector windows to repaint so the Light Type dropdown updates
-                InspectorWindow.RepaintAllInspectors();
+                // Force all editor views to repaint so the Light Type dropdown updates.
+                // (Trunk uses InspectorWindow.RepaintAllInspectors() but that type is not
+                // accessible from the URP editor assembly on 6000.5/staging.)
+                InternalEditorUtility.RepaintAllViews();
             }
 
             EditorGUI.EndProperty();

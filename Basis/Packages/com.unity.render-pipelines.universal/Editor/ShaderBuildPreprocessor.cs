@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -73,14 +73,10 @@ namespace UnityEditor.Rendering.Universal
         StencilLODCrossFade = (1L << 50),
         DeferredPlus = (1L << 51),
         ReflectionProbeAtlas = (1L << 52),
-        PointSamplingUpsampling = (1L << 53),
+        PointSamplingUpsampling = (1L << 54),
 #if SURFACE_CACHE
-        SurfaceCache = (1L << 54),
+        SurfaceCache = (1L << 55),
 #endif
-#if URP_SCREEN_SPACE_REFLECTION
-        ScreenSpaceReflection = (1L << 55),
-#endif
-        RenderObjectDepthInputAttachment = (1L << 56),
         All = ~0
     }
 
@@ -115,7 +111,7 @@ namespace UnityEditor.Rendering.Universal
 
         public UpdateShaderPrefilteringDataBeforeBuild()
         {
-            ShaderBuildPreprocessor.GatherShaderFeatures();
+            ShaderBuildPreprocessor.GatherShaderFeatures(Debug.isDebugBuild);
         }
 
 		public void OnProcessShader(Shader shader, ShaderSnippetData snippetData, IList<ShaderCompilerData> compilerDataList){}
@@ -125,7 +121,7 @@ namespace UnityEditor.Rendering.Universal
     /// Preprocess Build class used to determine the shader features used in the project.
     /// Also called when building Asset Bundles.
     /// </summary>
-    class ShaderBuildPreprocessor : IPreprocessBuildWithContext, IPostprocessBuildWithContext
+    class ShaderBuildPreprocessor : IPreprocessBuildWithReport, IPostprocessBuildWithReport
     {
         // Public
         public int callbackOrder => 0;
@@ -138,21 +134,6 @@ namespace UnityEditor.Rendering.Universal
         public static bool s_Strip2DPasses;
         public static bool s_UseSoftShadowQualityLevelKeywords;
         public static bool s_StripXRVariants;
-        public static bool s_Strip2DUnusedVariants;
-        // Cached scene-scan result for Hidden/Light2D shader_feature combos. Populated once per
-        // build (in GatherShaderFeatures) when s_Strip2DUnusedVariants is true; null otherwise.
-        public static string[] s_Light2DAnalyzedCombos;
-
-        // Per-URP-asset Light2D prefiltering decisions. Populated by ApplyLight2DPrefiltering as
-        // each asset is processed during GatherShaderFeatures. ShaderScriptableStripper reads this
-        // to decide whether to keep or strip a given Hidden/Light2D variant: keep when any asset
-        // says KeepAll, or when any StripUnused asset's combo list contains the variant's combo.
-        internal struct Light2DAssetPrefilteringEntry
-        {
-            public UniversalRenderPipelineAsset.Light2DPrefilteringMode mode;
-            public string[] combos;
-        }
-        public static List<Light2DAssetPrefilteringEntry> s_Light2DPrefilteringPerAsset = new();
 
         public static List<ShaderFeatures> supportedFeaturesList
         {
@@ -160,7 +141,7 @@ namespace UnityEditor.Rendering.Universal
             {
                 // This can happen for example when building AssetBundles.
                 if (s_SupportedFeaturesList.Count == 0)
-                    GatherShaderFeatures();
+                    GatherShaderFeatures(Debug.isDebugBuild);
 
                 return s_SupportedFeaturesList;
             }
@@ -183,7 +164,6 @@ namespace UnityEditor.Rendering.Universal
         private static bool s_UseSHPerVertexForSHAuto;
         private static VolumeFeatures s_VolumeFeatures;
         private static List<ShaderFeatures> s_SupportedFeaturesList = new();
-        private static bool s_UseDiagnosticChecks;
 
         // Helper class to detect XR build targets at build time.
         internal sealed class PlatformBuildTimeDetect
@@ -202,7 +182,7 @@ namespace UnityEditor.Rendering.Universal
 
 #if XR_MANAGEMENT_4_0_1_OR_NEWER
                 var buildTargetSettings = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(buildTargetGroup);
-                if (buildTargetSettings != null && buildTargetSettings.Manager != null && buildTargetSettings.Manager.activeLoaders.Count > 0)
+                if (buildTargetSettings != null && buildTargetSettings.AssignedSettings != null && buildTargetSettings.AssignedSettings.activeLoaders.Count > 0)
                 {
                     isStandaloneXR = buildTargetGroup == BuildTargetGroup.Standalone;
                     isQuest = buildTargetGroup == BuildTargetGroup.Android;
@@ -248,7 +228,7 @@ namespace UnityEditor.Rendering.Universal
         }
 
         // Called before the build is started...
-        public void OnPreprocessBuild(BuildCallbackContext ctx)
+        public void OnPreprocessBuild(BuildReport report)
         {
 #if PROFILE_BUILD
             Profiler.enableBinaryLog = true;
@@ -256,27 +236,13 @@ namespace UnityEditor.Rendering.Universal
             Profiler.enabled = true;
 #endif
 
-            s_UseDiagnosticChecks = PlayerSettings.GetManagedCodeVariant(GetNamedBuildTarget(ctx.Report)) <= ManagedCodeVariant.Checked;
-            GatherShaderFeatures();
-        }
-
-        static NamedBuildTarget GetNamedBuildTarget(BuildReport report)
-        {
-            var platformGroup = report.summary.platformGroup;
-            if (platformGroup == BuildTargetGroup.Standalone &&
-                report.summary.GetSubtarget<StandaloneBuildSubtarget>() == StandaloneBuildSubtarget.Server)
-            {
-                return NamedBuildTarget.Server;
-            }
-            return NamedBuildTarget.FromBuildTargetGroup(platformGroup);
+            bool isDevelopmentBuild = (report.summary.options & BuildOptions.Development) != 0;
+            GatherShaderFeatures(isDevelopmentBuild);
         }
 
         // Called after the build has finished...
-        public void OnPostprocessBuild(BuildCallbackContext ctx)
+        public void OnPostprocessBuild(BuildReport report)
         {
-            // Build is done, editor always uses diagnostic checks
-            s_UseDiagnosticChecks = true;
-
             PlatformBuildTimeDetect.ClearInstance();
 #if PROFILE_BUILD
             Profiler.enabled = false;
@@ -285,16 +251,10 @@ namespace UnityEditor.Rendering.Universal
 
         // Gathers all the shader features and updates the prefiltering
         // settings for all URP Assets in the quality settings
-        internal static void GatherShaderFeatures()
+        internal static void GatherShaderFeatures(bool isDevelopmentBuild)
         {
             s_SupportedFeaturesList.Clear();
-            s_Light2DPrefilteringPerAsset.Clear();
-            GetGlobalAndPlatformSettings();
-
-            // Run the Light2D scene scan once per build, before per-asset prefiltering is computed.
-            // Skipped when 2D variant stripping is off — every asset's Light2D mode is KeepAll in
-            // that case and the scan would be wasted work.
-            s_Light2DAnalyzedCombos = s_Strip2DUnusedVariants ? Light2DPrefilteringAnalysis.AnalyzeBuildScenes() : null;
+            GetGlobalAndPlatformSettings(isDevelopmentBuild);
 
             // If stripping of unused volume features is disabled, the s_VolumeFeatures
             // variable is set to include every keyword used by volumes shaders.
@@ -313,55 +273,11 @@ namespace UnityEditor.Rendering.Universal
                 GetEveryShaderFeatureAndUpdateURPAssets(s_SupportedFeaturesList);
         }
 
-        // Computes the Light2D prefiltering mode + kept-combo list for a given URP asset and
-        // writes them into the supplied ShaderPrefilteringData. Mode depends on the global
-        // strip2DUnusedVariants setting and whether this asset has any Renderer2DData.
-        private static void ApplyLight2DPrefiltering(UniversalRenderPipelineAsset urpAsset, ref ShaderPrefilteringData spd)
-        {
-            if (!s_Strip2DUnusedVariants)
-            {
-                spd.light2DPrefilteringMode = UniversalRenderPipelineAsset.Light2DPrefilteringMode.KeepAll;
-                spd.light2DKeptVariantCombos = null;
-                return;
-            }
-
-            bool hasRenderer2DData = false;
-            ScriptableRendererData[] rendererDataArray = urpAsset.m_RendererDataList;
-            if (rendererDataArray != null)
-            {
-                for (int i = 0; i < rendererDataArray.Length; i++)
-                {
-                    if (rendererDataArray[i] is Renderer2DData)
-                    {
-                        hasRenderer2DData = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!hasRenderer2DData)
-            {
-                spd.light2DPrefilteringMode = UniversalRenderPipelineAsset.Light2DPrefilteringMode.StripAll;
-                spd.light2DKeptVariantCombos = null;
-            }
-            else
-            {
-                spd.light2DPrefilteringMode = UniversalRenderPipelineAsset.Light2DPrefilteringMode.StripUnused;
-                spd.light2DKeptVariantCombos = s_Light2DAnalyzedCombos ?? System.Array.Empty<string>();
-            }
-
-            s_Light2DPrefilteringPerAsset.Add(new Light2DAssetPrefilteringEntry
-            {
-                mode = spd.light2DPrefilteringMode,
-                combos = spd.light2DKeptVariantCombos,
-            });
-        }
-
         // Retrieves the global and platform settings used in the project...
-        private static void GetGlobalAndPlatformSettings()
+        private static void GetGlobalAndPlatformSettings(bool isDevelopmentBuild)
         {
             if (GraphicsSettings.TryGetRenderPipelineSettings<ShaderStrippingSetting>(out var shaderStrippingSettings))
-                s_StripDebugDisplayShaders = !s_UseDiagnosticChecks || shaderStrippingSettings.stripRuntimeDebugShaders;
+                s_StripDebugDisplayShaders = !isDevelopmentBuild || shaderStrippingSettings.stripRuntimeDebugShaders;
             else
                 s_StripDebugDisplayShaders = true;
 
@@ -370,7 +286,6 @@ namespace UnityEditor.Rendering.Universal
                 s_StripUnusedPostProcessingVariants = urpShaderStrippingSettings.stripUnusedPostProcessingVariants;
                 s_StripUnusedVariants               = urpShaderStrippingSettings.stripUnusedVariants;
                 s_StripScreenCoordOverrideVariants  = urpShaderStrippingSettings.stripScreenCoordOverrideVariants;
-                s_Strip2DUnusedVariants             = urpShaderStrippingSettings.strip2DUnusedVariants;
             }
 
             if (GraphicsSettings.TryGetRenderPipelineSettings<LightmapSamplingSettings>(out var lightmapSamplingSettings))
@@ -414,40 +329,31 @@ namespace UnityEditor.Rendering.Universal
             volumeFeatures = VolumeFeatures.All;
         }
 
-        // Checks each Volume Profile Asset for used features
+        // Checks each Volume Profile Assets for used features...
         private static void GetSupportedFeaturesFromVolumes(ref VolumeFeatures volumeFeatures)
-        {
-            List<VolumeProfile> volumeProfiles = new();
-            string[] guids = AssetDatabase.FindAssets("t:VolumeProfile");
-            for (int i = 0; i < guids.Length; i++)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
-                // We only care what is in assets folder
-                if (!path.StartsWith("Assets"))
-                    continue;
-
-                VolumeProfile asset = AssetDatabase.LoadAssetAtPath<VolumeProfile>(path);
-                if (asset != null)
-                    volumeProfiles.Add(asset);
-            }
-            GetSupportedFeaturesFromVolumes(volumeProfiles, ref volumeFeatures);
-        }
-
-        internal static void GetSupportedFeaturesFromVolumes(List<VolumeProfile> volumeProfiles, ref VolumeFeatures volumeFeatures)
         {
             if (!s_StripUnusedPostProcessingVariants)
                 return;
 
             volumeFeatures = VolumeFeatures.Calculated;
-            foreach (VolumeProfile asset in volumeProfiles)
+            string[] guids = AssetDatabase.FindAssets("t:VolumeProfile");
+            foreach (string guid in guids)
             {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+
+                // We only care what is in assets folder
+                if (!path.StartsWith("Assets"))
+                    continue;
+
+                VolumeProfile asset = AssetDatabase.LoadAssetAtPath<VolumeProfile>(path);
                 if (asset == null)
                     continue;
 
-                if (asset.TryGet<LensDistortion>(out var lensDistortion) && lensDistortion.IsActive())
+                if (asset.Has<LensDistortion>())
                     volumeFeatures |= VolumeFeatures.LensDistortion;
 
-                if (asset.TryGet<Bloom>(out var bloom) && bloom.IsActive())
+                Bloom bloom;
+                if (asset.TryGet<Bloom>(out bloom))
                 {
                     //strip unused bloom variants. #pragma multi_compile_local_fragment _ _BLOOM_LQ _BLOOM_HQ _BLOOM_LQ_DIRT _BLOOM_HQ_DIRT
                     if (bloom.highQualityFiltering.value)
@@ -466,17 +372,17 @@ namespace UnityEditor.Rendering.Universal
                     }
                 }
 
-                if (asset.TryGet<Tonemapping>(out var toneMapping) && toneMapping.IsActive())
+                if (asset.Has<Tonemapping>())
                     volumeFeatures |= VolumeFeatures.ToneMapping;
-                if (asset.TryGet<FilmGrain>(out var filmGrain) && filmGrain.IsActive())
+                if (asset.Has<FilmGrain>())
                     volumeFeatures |= VolumeFeatures.FilmGrain;
-                if (asset.TryGet<DepthOfField>(out var depthOfField) && depthOfField.IsActive())
+                if (asset.Has<DepthOfField>())
                     volumeFeatures |= VolumeFeatures.DepthOfField;
-                if (asset.TryGet<MotionBlur>(out var motionBlur) && motionBlur.IsActive())
+                if (asset.Has<MotionBlur>())
                     volumeFeatures |= VolumeFeatures.CameraMotionBlur;
-                if (asset.TryGet<PaniniProjection>(out var paniniProjection) && paniniProjection.IsActive())
+                if (asset.Has<PaniniProjection>())
                     volumeFeatures |= VolumeFeatures.PaniniProjection;
-                if (asset.TryGet<ChromaticAberration>(out var chromaticAberration) && chromaticAberration.IsActive())
+                if (asset.Has<ChromaticAberration>())
                     volumeFeatures |= VolumeFeatures.ChromaticAberration;
             }
         }
@@ -512,9 +418,6 @@ namespace UnityEditor.Rendering.Universal
                     UniversalRenderPipelineAsset urpAsset = urpAssets[urpAssetIndex];
                     if (urpAsset == null)
                         continue;
-
-                    // Light2D prefiltering is computed per asset (Renderer2DData presence varies).
-                    ApplyLight2DPrefiltering(urpAsset, ref spd);
 
                     // Update the Prefiltering settings for this URP asset
                     urpAsset.UpdateShaderKeywordPrefiltering(ref spd);
@@ -562,8 +465,7 @@ namespace UnityEditor.Rendering.Universal
 #if SURFACE_CACHE
                     out bool containsSurfaceCache,
 #endif
-                    out bool everyRendererHasSSAO,
-                    out bool everyRendererHasSSR
+                    out bool everyRendererHasSSAO
                 );
 
 #if SURFACE_CACHE
@@ -576,7 +478,6 @@ namespace UnityEditor.Rendering.Universal
                     ref urpAssetShaderFeatures,
                     containsForwardRenderer,
                     everyRendererHasSSAO,
-                    everyRendererHasSSR,
                     s_StripXRVariants,
                     !PlayerSettings.allowHDRDisplaySupport || !urpAsset.supportsHDR,
                     s_StripDebugDisplayShaders,
@@ -589,9 +490,6 @@ namespace UnityEditor.Rendering.Universal
                     s_StripUnusedVariants,
                     ref ssaoRendererFeatures
                     );
-
-                // Light2D prefiltering is computed per asset (Renderer2DData presence varies).
-                ApplyLight2DPrefiltering(urpAsset, ref spd);
 
                 // Update the Prefiltering settings for this URP asset
                 urpAsset.UpdateShaderKeywordPrefiltering(ref spd);
@@ -615,8 +513,7 @@ namespace UnityEditor.Rendering.Universal
 #if SURFACE_CACHE
             out bool containsSurfaceCache,
 #endif
-            out bool everyRendererHasSSAO,
-            out bool everyRendererHasSSR)
+            out bool everyRendererHasSSAO)
         {
             ShaderFeatures urpAssetShaderFeatures = ShaderFeatures.MainLight;
 
@@ -693,11 +590,7 @@ namespace UnityEditor.Rendering.Universal
             if(urpAsset.allowPostProcessAlphaOutput)
                 urpAssetShaderFeatures |= ShaderFeatures.AlphaOutput;
 
-#if ENABLE_UPSCALER_FRAMEWORK
-            if (urpAsset.upscalerName == UniversalRenderPipeline.k_UpscalerName_Point)
-#else
             if (urpAsset.upscalingFilter == UpscalingFilterSelection.Point)
-#endif
                 urpAssetShaderFeatures |= ShaderFeatures.PointSamplingUpsampling;
 
             // Check each renderer & renderer feature
@@ -711,8 +604,7 @@ namespace UnityEditor.Rendering.Universal
 #if SURFACE_CACHE
                 out containsSurfaceCache,
 #endif
-                out everyRendererHasSSAO,
-                out everyRendererHasSSR);
+                out everyRendererHasSSAO);
 
             return urpAssetShaderFeatures;
         }
@@ -728,8 +620,7 @@ namespace UnityEditor.Rendering.Universal
 #if SURFACE_CACHE
             out bool containsSurfaceCache,
 #endif
-            out bool everyRendererHasSSAO,
-            out bool everyRendererHasSSR)
+            out bool everyRendererHasSSAO)
         {
             // Sanity check
             if (rendererFeaturesList == null)
@@ -745,7 +636,6 @@ namespace UnityEditor.Rendering.Universal
             containsSurfaceCache = false;
 #endif
             everyRendererHasSSAO = true;
-            everyRendererHasSSR = true;
             ScriptableRendererData[] rendererDataArray = urpAsset.m_RendererDataList;
             for (int rendererIndex = 0; rendererIndex < rendererDataArray.Length; ++rendererIndex)
             {
@@ -767,10 +657,6 @@ namespace UnityEditor.Rendering.Universal
 
                 // Check to see if it's possible to remove the OFF variant for SSAO
                 everyRendererHasSSAO &= IsFeatureEnabled(rendererShaderFeatures, ShaderFeatures.ScreenSpaceOcclusion);
-
-#if URP_SCREEN_SPACE_REFLECTION
-                everyRendererHasSSR &= IsFeatureEnabled(rendererShaderFeatures, ShaderFeatures.ScreenSpaceReflection);
-#endif
 
                 // Check for completely removing 2D passes
                 s_Strip2DPasses &= rendererData is not Renderer2DData;
@@ -970,22 +856,14 @@ namespace UnityEditor.Rendering.Universal
                 ScreenSpaceAmbientOcclusion ssaoFeature = rendererFeature as ScreenSpaceAmbientOcclusion;
                 if (ssaoFeature != null)
                 {
-#pragma warning disable CS0618 // ScreenSpaceAmbientOcclusion.settings is obsolete
                     ScreenSpaceAmbientOcclusionSettings ssaoSettings = ssaoFeature.settings;
-#pragma warning restore CS0618
                     ssaoRendererFeatures.Add(ssaoSettings);
 
-                    // MODERN_SSAO lets the volume switch between before/after opaque at runtime,
-                    // so the build must conservatively keep both keyword paths when SSAO is enabled.
-#if MODERN_SSAO
-                    shaderFeatures |= ShaderFeatures.ScreenSpaceOcclusion | ShaderFeatures.ScreenSpaceOcclusionAfterOpaque;
-#else
                     // The feature is active (Tested a few lines above) so check for AfterOpaque
                     if (ssaoSettings.AfterOpaque)
                         shaderFeatures |= ShaderFeatures.ScreenSpaceOcclusionAfterOpaque;
                     else
                         shaderFeatures |= ShaderFeatures.ScreenSpaceOcclusion;
-#endif
 
                     // Otherwise the keyword will not be used
                     continue;
@@ -997,17 +875,6 @@ namespace UnityEditor.Rendering.Universal
                 if(surfaceCacheFeature != null)
                 {
                     shaderFeatures |= ShaderFeatures.SurfaceCache;
-                    continue;
-                }
-#endif
-
-#if URP_SCREEN_SPACE_REFLECTION
-                // Screen Space Reflection (SSR)...
-                // Removing the OFF variant requires every renderer to use SSR. That is checked later.
-                ScreenSpaceReflectionRendererFeature ssrFeature = rendererFeature as ScreenSpaceReflectionRendererFeature;
-                if (ssrFeature != null)
-                {
-                    shaderFeatures |= ShaderFeatures.ScreenSpaceReflection;
                     continue;
                 }
 #endif
@@ -1035,20 +902,6 @@ namespace UnityEditor.Rendering.Universal
 
                     if (decal.requiresDecalLayers)
                         shaderFeatures |= ShaderFeatures.DecalLayers;
-                }
-
-                // Render Object Feature
-                RenderObjects renderObject = rendererFeature as RenderObjects;
-                if (renderObject != null && rendererRequirements.isUniversalRenderer)
-                {
-                    // We don't add disabled renderer features if "Strip Unused Variants" is enabled.
-                    if (!renderObject.isActive)
-                        continue;
-
-                    RenderObjects.RenderObjectsSettings renderObjectSettings = renderObject.settings;
-
-                    if (renderObjectSettings.depthInputAttachment)
-                        shaderFeatures |= ShaderFeatures.RenderObjectDepthInputAttachment;
                 }
             }
 
@@ -1127,7 +980,6 @@ namespace UnityEditor.Rendering.Universal
             ref ShaderFeatures shaderFeatures,
             bool isAssetUsingForward,
             bool everyRendererHasSSAO,
-            bool everyRendererHasSSR,
             bool stripXR,
             bool stripHDR,
             bool stripDebug,
@@ -1144,12 +996,6 @@ namespace UnityEditor.Rendering.Universal
             bool isAssetUsingForwardPlus = IsFeatureEnabled(shaderFeatures, ShaderFeatures.ForwardPlus);
             bool isAssetUsingDeferredPlus = IsFeatureEnabled(shaderFeatures, ShaderFeatures.DeferredPlus);
             bool isAssetUsingDeferred = IsFeatureEnabled(shaderFeatures, ShaderFeatures.DeferredShading);
-            bool usesScreenSpaceOcclusion = IsFeatureEnabled(shaderFeatures, ShaderFeatures.ScreenSpaceOcclusion);
-            bool hasRuntimeConfigurableSSAO = false;
-#if MODERN_SSAO
-            hasRuntimeConfigurableSSAO = ssaoRendererFeatures.Count > 0;
-            usesScreenSpaceOcclusion |= hasRuntimeConfigurableSSAO;
-#endif
 
             ShaderPrefilteringData spd = new();
             spd.stripXRKeywords = stripXR;
@@ -1169,11 +1015,6 @@ namespace UnityEditor.Rendering.Universal
             spd.stripScreenSpaceIrradiance = stripScreenSpaceIrradiance;
 #else
             spd.stripScreenSpaceIrradiance = true;
-#endif
-#if URP_SCREEN_SPACE_REFLECTION
-            spd.stripWriteSmoothness = !IsFeatureEnabled(shaderFeatures, ShaderFeatures.ScreenSpaceReflection);
-#else
-            spd.stripWriteSmoothness = true;
 #endif
 
             // Rendering Modes
@@ -1267,28 +1108,15 @@ namespace UnityEditor.Rendering.Universal
 
             // Screen Space Ambient Occlusion
             spd.screenSpaceOcclusionPrefilteringMode = PrefilteringMode.Remove;
-            if (usesScreenSpaceOcclusion)
+            if (IsFeatureEnabled(shaderFeatures, ShaderFeatures.ScreenSpaceOcclusion))
             {
                 // Remove the SSAO's OFF variant if Global Settings allow it and every renderer uses it.
-                if (stripUnusedVariants && everyRendererHasSSAO && !hasRuntimeConfigurableSSAO)
+                if (stripUnusedVariants && everyRendererHasSSAO)
                     spd.screenSpaceOcclusionPrefilteringMode = PrefilteringMode.SelectOnly;
                 // Otherwise we keep both
                 else
                     spd.screenSpaceOcclusionPrefilteringMode = PrefilteringMode.Select;
             }
-
-            spd.screenSpaceReflectionPrefilteringMode = PrefilteringMode.Remove;
-#if URP_SCREEN_SPACE_REFLECTION
-            if (IsFeatureEnabled(shaderFeatures, ShaderFeatures.ScreenSpaceReflection))
-            {
-                // Remove the SSR's OFF variant if Global Settings allow it and every renderer uses it.
-                if (stripUnusedVariants && everyRendererHasSSR)
-                    spd.screenSpaceReflectionPrefilteringMode = PrefilteringMode.SelectOnly;
-                // Otherwise we keep both
-                else
-                    spd.screenSpaceReflectionPrefilteringMode = PrefilteringMode.Select;
-            }
-#endif
 
             // SSAO shader keywords
             spd.stripSSAODepthNormals      = true;
@@ -1300,36 +1128,19 @@ namespace UnityEditor.Rendering.Universal
             spd.stripSSAOSampleCountLow    = true;
             spd.stripSSAOSampleCountMedium = true;
             spd.stripSSAOSampleCountHigh   = true;
-#if MODERN_SSAO
-            if (hasRuntimeConfigurableSSAO)
+            for (int i = 0; i < ssaoRendererFeatures.Count; i++)
             {
-                spd.stripSSAODepthNormals      = false;
-                spd.stripSSAOSourceDepthLow    = false;
-                spd.stripSSAOSourceDepthMedium = false;
-                spd.stripSSAOSourceDepthHigh   = false;
-                spd.stripSSAOBlueNoise         = false;
-                spd.stripSSAOInterleaved       = false;
-                spd.stripSSAOSampleCountLow    = false;
-                spd.stripSSAOSampleCountMedium = false;
-                spd.stripSSAOSampleCountHigh   = false;
-            }
-            else
-#endif
-            {
-                for (int i = 0; i < ssaoRendererFeatures.Count; i++)
-                {
-                    ScreenSpaceAmbientOcclusionSettings ssaoSettings = ssaoRendererFeatures[i];
-                    bool isUsingDepthNormals = ssaoSettings.Source == ScreenSpaceAmbientOcclusionSettings.DepthSource.DepthNormals;
-                    spd.stripSSAODepthNormals      &= !isUsingDepthNormals;
-                    spd.stripSSAOSourceDepthLow    &= isUsingDepthNormals || ssaoSettings.NormalSamples != ScreenSpaceAmbientOcclusionSettings.NormalQuality.Low;
-                    spd.stripSSAOSourceDepthMedium &= isUsingDepthNormals || ssaoSettings.NormalSamples != ScreenSpaceAmbientOcclusionSettings.NormalQuality.Medium;
-                    spd.stripSSAOSourceDepthHigh   &= isUsingDepthNormals || ssaoSettings.NormalSamples != ScreenSpaceAmbientOcclusionSettings.NormalQuality.High;
-                    spd.stripSSAOBlueNoise         &= ssaoSettings.AOMethod != ScreenSpaceAmbientOcclusionSettings.AOMethodOptions.BlueNoise;
-                    spd.stripSSAOInterleaved       &= ssaoSettings.AOMethod != ScreenSpaceAmbientOcclusionSettings.AOMethodOptions.InterleavedGradient;
-                    spd.stripSSAOSampleCountLow    &= ssaoSettings.Samples != ScreenSpaceAmbientOcclusionSettings.AOSampleOption.Low;
-                    spd.stripSSAOSampleCountMedium &= ssaoSettings.Samples != ScreenSpaceAmbientOcclusionSettings.AOSampleOption.Medium;
-                    spd.stripSSAOSampleCountHigh   &= ssaoSettings.Samples != ScreenSpaceAmbientOcclusionSettings.AOSampleOption.High;
-                }
+                ScreenSpaceAmbientOcclusionSettings ssaoSettings = ssaoRendererFeatures[i];
+                bool isUsingDepthNormals = ssaoSettings.Source == ScreenSpaceAmbientOcclusionSettings.DepthSource.DepthNormals;
+                spd.stripSSAODepthNormals      &= !isUsingDepthNormals;
+                spd.stripSSAOSourceDepthLow    &= isUsingDepthNormals || ssaoSettings.NormalSamples != ScreenSpaceAmbientOcclusionSettings.NormalQuality.Low;
+                spd.stripSSAOSourceDepthMedium &= isUsingDepthNormals || ssaoSettings.NormalSamples != ScreenSpaceAmbientOcclusionSettings.NormalQuality.Medium;
+                spd.stripSSAOSourceDepthHigh   &= isUsingDepthNormals || ssaoSettings.NormalSamples != ScreenSpaceAmbientOcclusionSettings.NormalQuality.High;
+                spd.stripSSAOBlueNoise         &= ssaoSettings.AOMethod != ScreenSpaceAmbientOcclusionSettings.AOMethodOptions.BlueNoise;
+                spd.stripSSAOInterleaved       &= ssaoSettings.AOMethod != ScreenSpaceAmbientOcclusionSettings.AOMethodOptions.InterleavedGradient;
+                spd.stripSSAOSampleCountLow    &= ssaoSettings.Samples != ScreenSpaceAmbientOcclusionSettings.AOSampleOption.Low;
+                spd.stripSSAOSampleCountMedium &= ssaoSettings.Samples != ScreenSpaceAmbientOcclusionSettings.AOSampleOption.Medium;
+                spd.stripSSAOSampleCountHigh   &= ssaoSettings.Samples != ScreenSpaceAmbientOcclusionSettings.AOSampleOption.High;
             }
 
             // Upscaling

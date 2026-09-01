@@ -1,7 +1,7 @@
+using UnityEngine.Experimental.Rendering;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine.Rendering.Universal.U2D.Profiler;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -60,6 +60,8 @@ namespace UnityEngine.Rendering.Universal
     // identified from the Blue Channel of the Vertex Colors (Solely used for this purpose). This can batch a maximum of kLightMod meshes in best-case scenario. Simple but no optizations have been added yet
     internal class LightBatch
     {
+
+        static readonly ProfilingSampler profilingDrawBatched = new ProfilingSampler("Light2D Batcher");
         static readonly int k_BufferOffset = Shader.PropertyToID("_BatchBufferOffset");
         static int sBatchIndexCounter = 0; // For LightMesh asset conditioning to facilitate batching.
 
@@ -80,14 +82,6 @@ namespace UnityEngine.Rendering.Universal
         private int maxIndex = 0;
         private int batchCount = 0;
         private int activeCount = 0;
-
-#if UNITY_EDITOR
-        [RuntimeInitializeOnLoadMethod]
-        static void ResetStaticsOnLoad()
-        {
-            sBatchIndexCounter = 0;
-        }
-#endif
 
         internal NativeArray<PerLight2D> nativeBuffer
         {
@@ -156,15 +150,15 @@ namespace UnityEngine.Rendering.Universal
         {
 #if UNITY_EDITOR
             if (!kRegisterCallback)
-                UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += Release;
+                UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += OnAssemblyReload;
             kRegisterCallback = true;
 #endif
         }
 
-        internal void Release()
+        void OnAssemblyReload()
         {
             for (int i = 0; i < LightBuffer.kCount; ++i)
-                lightBuffer[i]?.Release();
+                lightBuffer[activeCount].Release();
         }
 
         void ResetInternals()
@@ -239,7 +233,7 @@ namespace UnityEngine.Rendering.Universal
         {
             if (batchCount > 0)
             {
-                using (new ProfilingScope(cmd, ProfilerMarkers.s_ProfilingDrawBatched))
+                using (new ProfilingScope(cmd, profilingDrawBatched))
                 {
                     SetBuffer();
                     cmd.SetGlobalInt(k_BufferOffset, lightCount);
@@ -248,10 +242,6 @@ namespace UnityEngine.Rendering.Universal
 
                 lightCount = lightCount + maxIndex + 1;
             }
-#if ENABLE_PROFILER && PROFILER_INSTALLED
-            if (Renderer2D.canProfilerCapture)
-                ProfilerMarkers.s_U2DLightBatchCounterValue.Value++;
-#endif
             for (int i = 0; i < batchCount; ++i)
                 lightMeshes[i] = null;
             ResetInternals();

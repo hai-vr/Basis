@@ -1,5 +1,4 @@
 using System;
-using Unity.Profiling.LowLevel;
 using UnityEngine.Rendering.RenderGraphModule;
 using System.Runtime.CompilerServices; // AggressiveInlining
 
@@ -20,11 +19,16 @@ namespace UnityEngine.Rendering.Universal
 
         const string k_passNameEdgeDetection = "Blit SMAA Edge Detection";
         const string k_passNameBlendWeights = "Blit SMAA Blend Weights";
+        ProfilingSampler m_ProfilingSamplerEdgeDetection;
+        ProfilingSampler m_ProfilingSamplerBlendWeights;
 
         public SmaaPostProcessPass(Shader shader, Texture2D smaaAreaTexture, Texture2D smaaSearchTexture)
         {
             this.renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing - 1;
-            this.profilingSampler = URPProfilingSamplers.SMAANeighborhoodBlend;
+            this.profilingSampler = new ProfilingSampler("Blit SMAA Neighborhood Blending");
+
+            m_ProfilingSamplerEdgeDetection = new ProfilingSampler(k_passNameEdgeDetection);
+            m_ProfilingSamplerBlendWeights = new ProfilingSampler(k_passNameBlendWeights);
 
             m_Material = PostProcessUtils.LoadShader(shader, passName);
             m_IsValid = m_Material != null;
@@ -95,7 +99,7 @@ namespace UnityEngine.Rendering.Universal
             blendTextureDesc.format = Experimental.Rendering.GraphicsFormat.R8G8B8A8_UNorm;
             var blendTexture = PostProcessUtils.CreateCompatibleTexture(renderGraph, blendTextureDesc, "_BlendTexture", true, FilterMode.Point);
 
-            using (var builder = renderGraph.AddRasterRenderPass<SMAASetupPassData>(k_passNameEdgeDetection, out var passData, URPProfilingSamplers.SMAAEdgeDetection))
+            using (var builder = renderGraph.AddRasterRenderPass<SMAASetupPassData>(k_passNameEdgeDetection, out var passData, m_ProfilingSamplerEdgeDetection))
             {
                 // Material setup
                 const int kStencilBit = 64;
@@ -132,7 +136,7 @@ namespace UnityEngine.Rendering.Universal
                 });
             }
 
-            using (var builder = renderGraph.AddRasterRenderPass<SMAAPassData>(k_passNameBlendWeights, out var passData, URPProfilingSamplers.SMAABlendWeight))
+            using (var builder = renderGraph.AddRasterRenderPass<SMAAPassData>(k_passNameBlendWeights, out var passData, m_ProfilingSamplerBlendWeights))
             {
                 builder.SetRenderAttachment(blendTexture, 0, AccessFlags.Write);
                 builder.SetRenderAttachmentDepth(edgeTextureStencil, AccessFlags.Read);
@@ -179,7 +183,7 @@ namespace UnityEngine.Rendering.Universal
 
         static void SetupMaterial(SMAASetupPassData data)
         {
-            using (new ProfilingScope(URPProfilingSamplers.SMAAMaterialSetup))
+            using (new ProfilingScope(ProfilingSampler.Get(URPProfileId.RG_SMAAMaterialSetup)))
             {
                 // Common for all passes
                 data.material.SetVector(ShaderConstants._Metrics, data.metrics);

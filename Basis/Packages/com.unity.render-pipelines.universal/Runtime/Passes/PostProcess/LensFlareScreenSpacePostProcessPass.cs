@@ -17,7 +17,7 @@ namespace UnityEngine.Rendering.Universal
         public LensFlareScreenSpacePostProcessPass(Shader shader)
         {
             this.renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing - 1;
-            this.profilingSampler = URPProfilingSamplers.LensFlareScreenSpace;
+            this.profilingSampler = new ProfilingSampler("Blit Lens Flares (Screen Space)");
 
             m_Material = PostProcessUtils.LoadShader(shader, passName);
             m_IsValid = m_Material != null;

@@ -266,8 +266,8 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
 
                 // Currently neither of these passes (selection/picking) can be last for the game view for
                 // UI shaders to render correctly. Verify [1352225] before changing this order.
-                result.passes.Add(PassVariant(CorePasses.SceneSelection(target), CorePragmas.Instanced));
-                result.passes.Add(PassVariant(CorePasses.ScenePicking(target), CorePragmas.Instanced));
+                result.passes.Add(PassVariant(CorePasses.SceneSelection(target), CorePragmas.Default));
+                result.passes.Add(PassVariant(CorePasses.ScenePicking(target), CorePragmas.Default));
 
                 return result;
             }

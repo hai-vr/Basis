@@ -1,6 +1,5 @@
 using System;
 using Unity.Collections;
-using Unity.Scripting.LifecycleManagement;
 using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.Universal.Internal
@@ -21,16 +20,8 @@ namespace UnityEngine.Rendering.Universal.Internal
 
         DeferredLights m_DeferredLights;
 
-        static readonly ShaderTagId[] s_ShaderTagValues = {
-            s_ShaderTagLit,
-            s_ShaderTagSimpleLit,
-            s_ShaderTagUnlit,
-            s_ShaderTagComplexLit,
-            s_ShaderTagBakedLit,
-            new ShaderTagId() // Special catch all case for materials where UniversalMaterialType is not defined or the tag value doesn't match anything we know.
-        };
-
-        RenderStateBlock[] m_RenderStateBlocks;
+        static ShaderTagId[] s_ShaderTagValues;
+        static RenderStateBlock[] s_RenderStateBlocks;
 
         FilteringSettings m_FilteringSettings;
         RenderStateBlock m_RenderStateBlock;
@@ -48,7 +39,17 @@ namespace UnityEngine.Rendering.Universal.Internal
             m_RenderStateBlock.stencilReference = stencilReference;
             m_RenderStateBlock.mask = RenderStateMask.Stencil;
 
-            m_RenderStateBlocks = new RenderStateBlock[]
+            s_ShaderTagValues ??= new ShaderTagId[]
+            {
+                s_ShaderTagLit,
+                s_ShaderTagSimpleLit,
+                s_ShaderTagUnlit,
+                s_ShaderTagComplexLit,
+                s_ShaderTagBakedLit,
+                new ShaderTagId() // Special catch all case for materials where UniversalMaterialType is not defined or the tag value doesn't match anything we know.
+            };
+
+            s_RenderStateBlocks ??= new RenderStateBlock[]
             {
                 DeferredLights.OverwriteStencil(m_RenderStateBlock, (int)StencilUsage.MaterialMask, (int)StencilUsage.MaterialLit),
                 DeferredLights.OverwriteStencil(m_RenderStateBlock, (int)StencilUsage.MaterialMask, (int)StencilUsage.MaterialSimpleLit),
@@ -72,15 +73,6 @@ namespace UnityEngine.Rendering.Universal.Internal
                 cmd.SetGlobalTexture(ShaderPropertyId.screenSpaceIrradiance, data.screenSpaceIrradianceHdl);
             }
 
-#if URP_SCREEN_SPACE_REFLECTION
-            bool useSSR = data.screenSpaceReflectionHdl.IsValid();
-            cmd.SetKeyword(ShaderGlobalKeywords.ScreenSpaceReflection, useSSR);
-            if (useSSR)
-            {
-                cmd.SetGlobalTexture(ShaderPropertyId.screenSpaceReflection, data.screenSpaceReflectionHdl);
-            }
-#endif
-
             cmd.DrawRendererList(rendererList);
 
             // Render objects that did not match any shader pass with error shader
@@ -101,9 +93,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             internal RendererListHandle objectsWithErrorRendererListHdl;
 
             internal TextureHandle screenSpaceIrradianceHdl;
-#if URP_SCREEN_SPACE_REFLECTION
-            internal TextureHandle screenSpaceReflectionHdl;
-#endif
         }
 
         private void InitRendererLists( ref PassData passData, ScriptableRenderContext context, RenderGraph renderGraph, UniversalRenderingData renderingData, UniversalCameraData cameraData, UniversalLightData lightData, uint batchLayerMask = uint.MaxValue)
@@ -122,7 +111,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 #endif
 
             NativeArray<ShaderTagId> tagValues = new NativeArray<ShaderTagId>(s_ShaderTagValues, Allocator.Temp);
-            NativeArray<RenderStateBlock> stateBlocks = new NativeArray<RenderStateBlock>(m_RenderStateBlocks, Allocator.Temp);
+            NativeArray<RenderStateBlock> stateBlocks = new NativeArray<RenderStateBlock>(s_RenderStateBlocks, Allocator.Temp);
             var param = new RendererListParams(renderingData.cullResults, drawingSettings, filterSettings)
             {
                 tagValues = tagValues,
@@ -162,19 +151,6 @@ namespace UnityEngine.Rendering.Universal.Internal
                 passData.screenSpaceIrradianceHdl = irradianceTexture;
                 builder.UseTexture(irradianceTexture, AccessFlags.Read);
             }
-
-#if URP_SCREEN_SPACE_REFLECTION
-            TextureHandle ssrTexture = resourceData.ssrTexture;
-            if (ssrTexture.IsValid())
-            {
-                passData.screenSpaceReflectionHdl = ssrTexture;
-                builder.UseTexture(ssrTexture, AccessFlags.Read);
-            }
-            else
-            {
-                passData.screenSpaceReflectionHdl = TextureHandle.nullHandle;
-            }
-#endif
 
             RenderGraphUtils.UseDBufferIfValid(builder, resourceData);
 

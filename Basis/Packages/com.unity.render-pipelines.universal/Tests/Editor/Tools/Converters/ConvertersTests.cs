@@ -9,6 +9,36 @@ namespace UnityEditor.Rendering.Universal.Tools
     [Category("Graphics Tools")]
     class ConverterTests
     {
+        [Serializable]
+        class BatchModeConverter : RenderPipelineConverter
+        {
+            public static bool s_Initialize = false;
+            public static bool s_Run = false;
+
+            public override void OnInitialize(InitializeConverterContext context, Action callback)
+            {
+                s_Initialize = true;
+                context.AddAssetToConvert(new ConverterItemDescriptor { name = "Dummy", info = "Some placeholder info." });
+                callback?.Invoke();
+            }
+
+            public override void OnRun(ref RunItemContext context)
+            {
+                s_Run = true;
+            }
+        }
+
+        [Test]
+        public void BatchModeRuns()
+        {
+            BatchModeConverter.s_Initialize = false;
+            BatchModeConverter.s_Run = false;
+            bool ok = Converters.RunInBatchMode(new List<Type>() { typeof(BatchModeConverter) });
+            Assert.IsTrue(BatchModeConverter.s_Initialize);
+            Assert.IsTrue(BatchModeConverter.s_Run);
+            Assert.IsTrue(ok);
+        }
+
         class NotAConverterType
         {
 
@@ -54,7 +84,9 @@ namespace UnityEditor.Rendering.Universal.Tools
                 new List<string>
                 {
                     "RenderSettings",
+#if PPV2_EXISTS
                     "PPv2"
+#endif
                 },
                 false,
                 new List<Type>
@@ -78,7 +110,9 @@ namespace UnityEditor.Rendering.Universal.Tools
                 false,
                  new List<Type>
                  {
+#if PPV2_EXISTS
                     typeof(PPv2Converter),
+#endif
                     typeof(BuiltInToURP3DRenderSettingsConverter),
                     typeof(AnimationClipConverter),
                     typeof(BuiltInToURP3DMaterialUpgrader),
@@ -103,6 +137,7 @@ namespace UnityEditor.Rendering.Universal.Tools
                 false,
                 new List<Type>
                 {
+                    typeof(BuiltInAndURP3DTo2DMaterialUpgrader),
                     typeof(ParametricToFreeformLightUpgrader)
                 }
             ).SetName("UpgradeURP2DAssets - When Using Exclusive filter with no converters. The filter returns everything");
@@ -219,7 +254,7 @@ namespace UnityEditor.Rendering.Universal.Tools
                 ConverterFilter.Exclusive,
                 new List<Type>
                 {
-                    typeof(URP3DToURP2DReadonlyMaterialConverter),
+                    typeof(BuiltInAndURP3DTo2DMaterialUpgrader),
                     typeof(ParametricToFreeformLightUpgrader)
                 }
             ).SetName("UpgradeURP2DAssets - When Using Exclusive filter with no converters. The filter returns everything");

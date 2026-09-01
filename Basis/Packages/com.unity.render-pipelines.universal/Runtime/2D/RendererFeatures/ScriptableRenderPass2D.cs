@@ -1,3 +1,4 @@
+
 using System;
 
 namespace UnityEngine.Rendering.Universal
@@ -84,16 +85,9 @@ namespace UnityEngine.Rendering.Universal
         // We cache the values in this array at construction time to avoid runtime allocations, which we would cause if we accessed valuesInternal directly.
         public static int[] values;
 
-#if UNITY_EDITOR
-        [RuntimeInitializeOnLoadMethod()]
-        static void ResetStaticsOnLoad()
-        {
-        }
-#endif
-
         static RenderPassEvents2DEnumValues()
         {
-            Array valuesInternal = Enum.GetValues(typeof(RenderPassEvent2D));
+            System.Array valuesInternal = Enum.GetValues(typeof(RenderPassEvent2D));
 
             values = new int[valuesInternal.Length];
 
