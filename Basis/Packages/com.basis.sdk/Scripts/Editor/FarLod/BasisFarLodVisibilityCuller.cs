@@ -82,7 +82,9 @@ public static class BasisFarLodVisibilityCuller
             // pool instead, chunked to bound the command/hit buffers. Two phases keep most of
             // the serial early-break: the straight-out ray settles the bulk of the visible
             // surface for one ray each, and only the survivors pay for the remaining fan.
-            // Escape semantics flip from !Physics.Raycast to colliderEntityId == 0.
+            // Escape semantics flip from !Physics.Raycast to colliderEntityId == EntityId.None.
+            // A miss writes the zero id, but the implicit int conversion means comparing against
+            // the literal 0 is NEVER true, which reads every ray as a hit and culls the whole mesh.
             Vector3[] triOrigin = new Vector3[triangleCount];
             Vector3[] triTangent = new Vector3[triangleCount];
             Vector3[] triBitangent = new Vector3[triangleCount];
@@ -141,7 +143,7 @@ public static class BasisFarLodVisibilityCuller
                     for (int c = 0; c < count; c++)
                     {
                         int t = chunkStart + c;
-                        if (!triDegenerate[t] && hits[c].colliderEntityId == 0)
+                        if (!triDegenerate[t] && hits[c].colliderEntityId == EntityId.None)
                         {
                             MarkVisible(t);
                         }
@@ -183,7 +185,7 @@ public static class BasisFarLodVisibilityCuller
                             int baseIndex = c * raysPerTriangle;
                             for (int r = 0; r < raysPerTriangle; r++)
                             {
-                                if (hits[baseIndex + r].colliderEntityId == 0)
+                                if (hits[baseIndex + r].colliderEntityId == EntityId.None)
                                 {
                                     MarkVisible(pending[chunkStart + c]);
                                     break;
@@ -218,6 +220,15 @@ public static class BasisFarLodVisibilityCuller
                 {
                     removed++;
                 }
+            }
+
+            // Nothing survived: the exterior of a mesh is visible by construction, so this is a
+            // broken occlusion probe, not a fully hidden avatar. Fail open on the whole mesh
+            // rather than hand the rest of the pipeline an empty soup.
+            if (kept.Count == 0)
+            {
+                Debug.LogWarning($"[FarAvatar] Visibility cull found no exterior surface across {triangleCount} triangles and was discarded. Check that the bake collider is reachable on layer {OcclusionLayer}.");
+                return 0;
             }
 
             if (removed > 0)

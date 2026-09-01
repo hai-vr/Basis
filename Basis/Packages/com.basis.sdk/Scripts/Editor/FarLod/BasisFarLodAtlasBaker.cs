@@ -975,7 +975,7 @@ public static class BasisFarLodAtlasBaker
                 for (int r = 0; r < AoRayCount; r++)
                 {
                     RaycastHit hit = hits[baseIndex + r];
-                    if (hit.colliderEntityId != 0)
+                    if (hit.colliderEntityId != EntityId.None)
                     {
                         occluded++;
                         if (hit.distance < buriedDistance)
