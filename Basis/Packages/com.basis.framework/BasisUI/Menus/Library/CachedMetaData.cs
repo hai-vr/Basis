@@ -255,6 +255,13 @@ namespace Basis.BasisUI
             var urlKey = item.Url ?? string.Empty;
             if (ContainsMetaData(urlKey)) return;
 
+            if (!item.EmbeddedSettings.IsEmbedded && string.IsNullOrEmpty(item.Pass))
+            {
+                BasisDebug.LogError($"Item '{urlKey}' has no unlock password so it can never load. Removing from library.");
+                await BasisDataStoreItemKeys.RemoveKey(item);
+                return;
+            }
+
             try
             {
                 CachedContent cached = null;
