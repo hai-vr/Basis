@@ -12,7 +12,7 @@ using Unity.Mathematics;
 /// Remote network driver that:
 /// 1) Interpolates prev->target pose (pos/scale/rot) per remote player
 /// 2) 1€-filters pose position + rotation per player
-/// 3) Interpolates bone rotation deltas (nlerp) and 1€-filters them per bone
+/// 3) Interpolates bone rotation deltas (Catmull-Rom) with an adaptive low-pass per bone
 /// 4) Computes scaled body position for the avatar root
 ///
 /// Replaces muscle-based interpolation with per-bone quaternion delta interpolation.
@@ -557,8 +557,7 @@ public static class BasisRemoteNetworkDriver
             OutputBones = _outBoneRotations,
             FilterMinCutoffHz = BoneFilterMinCutoffHz,
             HeadFilterMinCutoffHz = HeadBoneFilterMinCutoffHz,
-            FilterBeta = BoneFilterBeta,
-            BoneCountPerAvatar = BoneCount
+            FilterBeta = BoneFilterBeta
         }.Schedule(num * BoneCount, 128);
 
         oneEuroJob = JobHandle.CombineDependencies(boneInterpJob, scaledBodyJob);
@@ -1239,7 +1238,7 @@ public static class BasisRemoteNetworkDriver
             quaternion targetHipsRot = TargetHipsRotDelta[index];
             if (math.dot(prevHipsRot.value, targetHipsRot.value) < 0f)
                 targetHipsRot.value = -targetHipsRot.value;
-            OutputHipsRotDelta[index] = math.normalize(math.nlerp(prevHipsRot, targetHipsRot, t));
+            OutputHipsRotDelta[index] = math.normalize(new quaternion(math.lerp(prevHipsRot.value, targetHipsRot.value, t)));
 
             const float scaleEpsSq = 1e-10f;
             bool changed = math.lengthsq(outScale - LastAppliedScales[index]) > scaleEpsSq;
@@ -1252,8 +1251,11 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>
-    /// Per-bone quaternion interpolation via nlerp. Replaces the old muscle lerp job.
+    /// Per-bone Catmull-Rom interpolation + motion-adaptive low-pass.
     /// Handles all players×bones in a single flat array for maximum parallelism.
+    /// A bone whose four control points are bit-identical (untracked fingers, held
+    /// joints) collapses to a point spline; once the filter state has settled onto
+    /// that point the whole item is a few compares and a return.
     /// </summary>
     [BurstCompile]
     public struct InterpolateBoneRotationsJob : IJobParallelFor
@@ -1271,15 +1273,13 @@ public static class BasisRemoteNetworkDriver
         public float FilterMinCutoffHz;
         public float HeadFilterMinCutoffHz;
         public float FilterBeta;
-        public int BoneCountPerAvatar;
 
         // BONE_WRITE_ORDER slot 4 = Head — gets the heavier still-cutoff (end-of-chain shimmer, no anchor).
         const int HeadSlot = 4;
 
         public void Execute(int index)
         {
-            int playerIndex = index / BoneCountPerAvatar;
-            int boneSlot = index - playerIndex * BoneCountPerAvatar;
+            int playerIndex = index / BoneCount;
             quaternion prevFilt = OutputBones[index];
             bool unseeded = math.lengthsq(prevFilt.value) < 0.5f;   // zero sentinel = first tick
 
@@ -1289,15 +1289,29 @@ public static class BasisRemoteNetworkDriver
                 return;                                                    // else hold last filtered value
             }
 
-            float t = math.clamp((float)InterpolationTimes[playerIndex], 0f, 1f);
-            quaternion raw = BasisRemoteInterpolationCore.Rotation(
-                P0Bones[index], PreviousBones[index], TargetBones[index], P3Bones[index], t);
+            quaternion p1 = PreviousBones[index], p2 = TargetBones[index];
+            bool4 eq = (p1.value == p2.value) & (P0Bones[index].value == p1.value) & (P3Bones[index].value == p2.value);
+            bool still = math.all(eq);
+            // Settled still bone (untracked fingers most frames): output already holds this exact value.
+            if (still & math.all(prevFilt.value == p1.value)) return;
+
+            quaternion raw;
+            if (still)
+            {
+                raw = p1;   // all four control points identical — the spline is that point for every t
+            }
+            else
+            {
+                float t = math.clamp((float)InterpolationTimes[playerIndex], 0f, 1f);
+                raw = BasisRemoteInterpolationCore.Rotation(P0Bones[index], p1, p2, P3Bones[index], t);
+            }
 
             // Motion-adaptive one-pole toward the cubic output — heavy when the joint is still
             // (hides quant shimmer), opens on real motion (no lag). Seeds on the first tick.
+            int boneSlot = index - playerIndex * BoneCount;
             float minCutoff = (boneSlot == HeadSlot) ? HeadFilterMinCutoffHz : FilterMinCutoffHz;
             if (unseeded || minCutoff <= 0f) { OutputBones[index] = raw; return; }
-            float cutoff = BasisRemoteInterpolationCore.AdaptiveCutoff(PreviousBones[index], TargetBones[index], minCutoff, FilterBeta);
+            float cutoff = BasisRemoteInterpolationCore.AdaptiveCutoff(p1, p2, minCutoff, FilterBeta);
             float alpha = BasisRemoteInterpolationCore.OnePoleAlpha(cutoff, (float)math.max(DeltaTimeSeconds[playerIndex], 1e-4));
             OutputBones[index] = BasisRemoteInterpolationCore.LowPassStep(prevFilt, raw, alpha);
         }

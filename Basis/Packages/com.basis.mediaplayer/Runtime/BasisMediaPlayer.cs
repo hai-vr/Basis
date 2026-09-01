@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -936,25 +938,47 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         bool isBgra = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11
                    || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D12;
 
+        var mainContext = SynchronizationContext.Current;
         AsyncGPUReadback.Request(tex, 0, request =>
         {
             if (request.hasError) { onComplete?.Invoke(null, new Exception("AsyncGPUReadback failed.")); return; }
+            byte[] bytes;
             try
             {
                 var data = request.GetData<byte>();
-                byte[] bytes = new byte[data.Length];
+                bytes = new byte[data.Length];
                 data.CopyTo(bytes);
-                if (isBgra) SwizzleBgraToRgba(bytes);
-                if (FlipVerticallyForScreenshot) FlipRowsRgba32(bytes, w, h);
-                var managed = new Texture2D(w, h, TextureFormat.RGBA32, false, false);
-                managed.LoadRawTextureData(bytes);
-                byte[] png = managed.EncodeToPNG();
-                UnityEngine.Object.Destroy(managed);
-                File.WriteAllBytes(fullPath, png);
-                if (VerboseLogging) BasisDebug.Log($"BasisMediaPlayer wrote screenshot {fullPath} ({png.Length} bytes).", BasisDebug.LogTag.Video);
-                onComplete?.Invoke(fullPath, null);
             }
-            catch (Exception ex) { onComplete?.Invoke(null, ex); }
+            catch (Exception ex) { onComplete?.Invoke(null, ex); return; }
+            bool flip = FlipVerticallyForScreenshot;
+            bool verbose = VerboseLogging;
+            // Swizzle, flip, PNG encode, and disk write are all thread-safe —
+            // ImageConversion.EncodeArrayToPNG is the same worker-side encode the
+            // camera package uses. Only the copy above needs the readback callback.
+            Task.Run(() =>
+            {
+                string resultPath = null;
+                Exception resultError = null;
+                try
+                {
+                    if (isBgra) SwizzleBgraToRgba(bytes);
+                    if (flip) FlipRowsRgba32(bytes, w, h);
+                    byte[] png = ImageConversion.EncodeArrayToPNG(bytes, UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_SRGB, (uint)w, (uint)h, 0);
+                    File.WriteAllBytes(fullPath, png);
+                    if (verbose) BasisDebug.Log($"BasisMediaPlayer wrote screenshot {fullPath} ({png.Length} bytes).", BasisDebug.LogTag.Video);
+                    resultPath = fullPath;
+                }
+                catch (Exception ex) { resultError = ex; }
+                if (onComplete == null) return;
+                if (mainContext != null)
+                {
+                    mainContext.Post(_ => onComplete(resultPath, resultError), null);
+                }
+                else
+                {
+                    onComplete(resultPath, resultError);
+                }
+            });
         });
     }
 

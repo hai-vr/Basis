@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Unity.Collections;
+using Unity.Jobs;
 using UnityEngine;
+using UnityEngine.Jobs;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.UnifiedRayTracing;
 
@@ -222,6 +225,72 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
     {
         this.context = context;
         accelStruct = context.CreateAccelerationStructure();
+        Application.onBeforeRender += ScheduleTransformGather;
+    }
+
+    // The per-frame world-entry matrix sweep, as a transform job instead of one
+    // main-thread localToWorldMatrix read per dynamic entry inside render-graph
+    // recording. Scheduling has to happen at onBeforeRender — see the ZBinning
+    // note on BasisAvatarProxyJobs for why a job must never be SCHEDULED from
+    // inside the render pipeline. UpdateTransforms only joins and compares.
+    private struct GatherWorldMatricesJob : IJobParallelForTransform
+    {
+        public NativeArray<Matrix4x4> Matrices;
+
+        public void Execute(int index, TransformAccess transform)
+        {
+            Matrices[index] = transform.localToWorldMatrix;
+        }
+    }
+
+    private readonly List<Entry> dynamicEntries = new List<Entry>();
+    private TransformAccessArray dynamicAccess;
+    private NativeArray<Matrix4x4> dynamicMatrices;
+    private JobHandle dynamicHandle;
+    private bool dynamicScheduled;
+    private bool dynamicListDirty = true;
+
+    [BeforeRenderOrder(int.MaxValue)]
+    private void ScheduleTransformGather()
+    {
+        // A gather the pass never reaped (the frame skipped Refresh — GI off, no
+        // camera) is retired here so it cannot pin the transforms indefinitely.
+        CompleteTransformGather();
+        if (dynamicListDirty || !dynamicAccess.isCreated || dynamicEntries.Count == 0) { return; }
+        dynamicHandle = new GatherWorldMatricesJob { Matrices = dynamicMatrices }.Schedule(dynamicAccess);
+        dynamicScheduled = true;
+        JobHandle.ScheduleBatchedJobs();
+    }
+
+    private void CompleteTransformGather()
+    {
+        if (!dynamicScheduled) { return; }
+        dynamicHandle.Complete();
+        dynamicScheduled = false;
+    }
+
+    // Rebuilt only when the dynamic set changed (an add, a remove, a dispose), never
+    // per frame. A frame whose set changed falls back to the managed dictionary walk,
+    // so stale gathered data is never applied to a removed entry's freed instances.
+    private void RebuildDynamicList()
+    {
+        CompleteTransformGather();
+        dynamicEntries.Clear();
+        foreach (KeyValuePair<EntityId, Entry> pair in entries)
+        {
+            Entry entry = pair.Value;
+            if (entry.isStatic || entry.transform == null) { continue; }
+            dynamicEntries.Add(entry);
+        }
+        if (dynamicAccess.isCreated) { dynamicAccess.Dispose(); }
+        if (dynamicMatrices.IsCreated) { dynamicMatrices.Dispose(); }
+        dynamicListDirty = false;
+        int count = dynamicEntries.Count;
+        if (count == 0) { return; }
+        Transform[] transforms = new Transform[count];
+        for (int index = 0; index < count; index++) { transforms[index] = dynamicEntries[index].transform; }
+        dynamicAccess = new TransformAccessArray(transforms);
+        dynamicMatrices = new NativeArray<Matrix4x4>(count, Allocator.Persistent);
     }
 
     public void MarkDirty()
@@ -403,6 +472,7 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
         entries[renderer.GetEntityId()] = entry;
         WriteMaterials(entry, settings);
         structureDirty = true;
+        if (!entry.isStatic) { dynamicListDirty = true; }
     }
 
     private bool AddInstances(Entry entry, Mesh mesh, in Matrix4x4 matrix)
@@ -784,6 +854,7 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
         ReleaseGeometry(entry);
         entries.Remove(id);
         structureDirty = true;
+        if (!entry.isStatic) { dynamicListDirty = true; }
     }
 
     private void ReleaseGeometry(Entry entry)
@@ -817,24 +888,47 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
 
     private void UpdateTransforms()
     {
+        if (dynamicListDirty)
+        {
+            RebuildDynamicList();
+        }
+        else if (dynamicScheduled)
+        {
+            dynamicHandle.Complete();
+            dynamicScheduled = false;
+            int count = dynamicEntries.Count;
+            for (int index = 0; index < count; index++)
+            {
+                Entry entry = dynamicEntries[index];
+                if (entry.transform == null) { continue; }
+                ApplyEntryMatrix(entry, dynamicMatrices[index]);
+            }
+            return;
+        }
+
+        // The set changed this frame, or no gather was in flight yet — read on the
+        // main thread exactly as before.
         foreach (KeyValuePair<EntityId, Entry> pair in entries)
         {
             Entry entry = pair.Value;
             if (entry.isStatic || entry.transform == null) { continue; }
-
-            Matrix4x4 matrix = entry.transform.localToWorldMatrix;
-            if (matrix == entry.matrix) { continue; }
-
-            entry.matrix = matrix;
-            for (int index = 0; index < entry.handles.Length; index++)
-            {
-                if (entry.handles[index] < 0) { continue; }
-                accelStruct.UpdateInstanceTransform(entry.handles[index], matrix);
-                instances[entry.instanceIds[index]].SetNormalMatrix(matrix);
-                MarkInstanceDirty(entry.instanceIds[index]);
-            }
-            structureDirty = true;
+            ApplyEntryMatrix(entry, entry.transform.localToWorldMatrix);
         }
+    }
+
+    private void ApplyEntryMatrix(Entry entry, in Matrix4x4 matrix)
+    {
+        if (matrix == entry.matrix) { return; }
+
+        entry.matrix = matrix;
+        for (int index = 0; index < entry.handles.Length; index++)
+        {
+            if (entry.handles[index] < 0) { continue; }
+            accelStruct.UpdateInstanceTransform(entry.handles[index], matrix);
+            instances[entry.instanceIds[index]].SetNormalMatrix(matrix);
+            MarkInstanceDirty(entry.instanceIds[index]);
+        }
+        structureDirty = true;
     }
 
     /// <summary>
@@ -1120,6 +1214,13 @@ public sealed class BasisGlobalIlluminationRayScene : IDisposable
 
     public void Dispose()
     {
+        Application.onBeforeRender -= ScheduleTransformGather;
+        CompleteTransformGather();
+        if (dynamicAccess.isCreated) { dynamicAccess.Dispose(); }
+        if (dynamicMatrices.IsCreated) { dynamicMatrices.Dispose(); }
+        dynamicEntries.Clear();
+        dynamicListDirty = true;
+
         // No mesh is owned here any more: entries share the renderer's own mesh through the cache and the
         // proxies share one capsule, so there is nothing of this scene's to destroy on the way out.
         entries.Clear();

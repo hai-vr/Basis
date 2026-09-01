@@ -187,8 +187,6 @@ public static partial class BasisEncryptionWrapper
                     $"Encrypted data too short. Length={encryptedData.Length}, minimum={minLen}.");
             }
 
-            int bufferSize = CalculateBufferSize(encryptedData.Length);
-
             // Defensive copy — the caller's buffer may be pooled/reused by concurrent downloads.
             // Without this, another async download completing between our awaits can overwrite the
             // ciphertext mid-decryption, causing PKCS7 padding failures under load.
@@ -221,42 +219,45 @@ public static partial class BasisEncryptionWrapper
 
             using var cryptoStream = new CryptoStream(msInput, aes.CreateDecryptor(), CryptoStreamMode.Read);
 
-            using var msOutput = new PooledMemoryStream();
+            // CBC + PKCS7 plaintext is always shorter than the ciphertext, so decrypt
+            // straight into one upper-bound buffer and trim once at the end. The old
+            // rented-chunk -> pooled-stream -> ToArray path copied the payload an
+            // extra time and churned the LOH growing the stream under large sections.
+            int cipherLength = encryptedData.Length - SaltSize - IvSize;
+            byte[] plain = new byte[cipherLength];
+            int totalRead = 0;
+            float lastReportedProgress = 0;
 
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
-            try
+            while (totalRead < cipherLength)
             {
-                long totalRead = 0;
-                long estimatedSize = Math.Max(1, encryptedData.Length - SaltSize - IvSize);
+                ct.ThrowIfCancellationRequested();
 
-                float lastReportedProgress = 0;
+                int bytesRead = await cryptoStream.ReadAsync(plain.AsMemory(totalRead, cipherLength - totalRead), ct);
+                if (bytesRead <= 0) break;
 
-                while (true)
+                totalRead += bytesRead;
+
+                float progress = (float)totalRead / cipherLength * 90f + 5f;
+                if (progress - lastReportedProgress >= 1f)
                 {
-                    ct.ThrowIfCancellationRequested();
-
-                    int bytesRead = await cryptoStream.ReadAsync(buffer.AsMemory(0, bufferSize), ct);
-                    if (bytesRead <= 0) break;
-
-                    await msOutput.WriteAsync(buffer.AsMemory(0, bytesRead), ct);
-
-                    totalRead += bytesRead;
-
-                    float progress = (float)totalRead / estimatedSize * 90f + 5f;
-                    if (progress - lastReportedProgress >= 1f)
-                    {
-                        reportProgress?.ReportProgress(UniqueID, progress, ProgressReadingData);
-                        lastReportedProgress = progress;
-                    }
+                    reportProgress?.ReportProgress(UniqueID, progress, ProgressReadingData);
+                    lastReportedProgress = progress;
                 }
             }
-            finally
+
+            byte[] result;
+            if (totalRead == plain.Length)
             {
-                ArrayPool<byte>.Shared.Return(buffer);
+                result = plain;
+            }
+            else
+            {
+                result = new byte[totalRead];
+                Buffer.BlockCopy(plain, 0, result, 0, totalRead);
             }
 
             reportProgress?.ReportProgress(UniqueID, 100, ProgressDecryptionComplete);
-            return BasisDecryptResult.Ok(msOutput.ToArray());
+            return BasisDecryptResult.Ok(result);
         }
         catch (Exception ex)
         {

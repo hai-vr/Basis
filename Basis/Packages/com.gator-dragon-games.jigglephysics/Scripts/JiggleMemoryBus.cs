@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -1322,10 +1323,49 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         }
     }
 
+    // Runs at the fenced drain inside JiggleJobs.Simulate, so every array below is
+    // safely writable. The per-point math is Burst-compiled via ApplyTeleportsJob.Run
+    // — hot while vehicles carry seated players, which queues teleports every frame.
     public void ApplyPendingTeleports() {
         if (pendingTeleports.Count == 0) return;
-        foreach (var kvp in pendingTeleports) {
-            ApplyTeleport(kvp.Key, kvp.Value);
+        if (transformCount == 0) {
+            pendingTeleports.Clear();
+            return;
+        }
+        // TempJob, not Temp: IJobParallelFor.Run still goes through the schedule
+        // machinery, which refuses Temp containers.
+        var teleports = new NativeArray<JiggleRigidTeleport>(pendingTeleports.Count, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+        var ranges = new NativeArray<int2>(pendingTeleports.Count, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+        try {
+            int jobCount = 0;
+            foreach (var kvp in pendingTeleports) {
+                if (!rootIDToTreeIndex.TryGetValue(kvp.Key, out var treeIndex)) continue;
+                var tree = jiggleTreeStructs[treeIndex];
+                int start = (int)tree.transformIndexOffset;
+                int end = start + (int)tree.pointCount;
+                if (end > transformCount) continue;
+                teleports[jobCount] = kvp.Value;
+                ranges[jobCount] = new int2(start, end);
+                jobCount++;
+                tree.TransformRigid(kvp.Value.rotation, kvp.Value.translation);
+            }
+            if (jobCount > 0) {
+                new ApplyTeleportsJob {
+                    teleports = teleports,
+                    ranges = ranges,
+                    inputPosesPrevious = inputPosesPrevious,
+                    inputPosesCurrent = inputPosesCurrent,
+                    simulateInputPoses = simulateInputPoses,
+                    interpolationOutputPoses = interpolationOutputPoses,
+                    rootOutputPositions = rootOutputPositions,
+                    simulationOutputPoseData = simulationOutputPoseData,
+                    interpolationCurrentPoseData = interpolationCurrentPoseData,
+                    interpolationPreviousPoseData = interpolationPreviousPoseData,
+                }.Run(jobCount);
+            }
+        } finally {
+            teleports.Dispose();
+            ranges.Dispose();
         }
         pendingTeleports.Clear();
     }
@@ -1355,61 +1395,69 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         pendingGrabConstraintsDirty = false;
     }
 
-    private void ApplyTeleport(int rootID, JiggleRigidTeleport teleport) {
-        if (transformCount == 0) return;
-        if (!rootIDToTreeIndex.TryGetValue(rootID, out var treeIndex)) return;
+    [BurstCompile]
+    private struct ApplyTeleportsJob : IJobParallelFor {
+        [ReadOnly] public NativeArray<JiggleRigidTeleport> teleports;
+        [ReadOnly] public NativeArray<int2> ranges;
+        // Tree point ranges are disjoint, so per-tree parallel writes never alias.
+        [NativeDisableParallelForRestriction] public NativeArray<JiggleTransform> inputPosesPrevious;
+        [NativeDisableParallelForRestriction] public NativeArray<JiggleTransform> inputPosesCurrent;
+        [NativeDisableParallelForRestriction] public NativeArray<JiggleTransform> simulateInputPoses;
+        [NativeDisableParallelForRestriction] public NativeArray<JiggleTransform> interpolationOutputPoses;
+        [NativeDisableParallelForRestriction] public NativeArray<float3> rootOutputPositions;
+        [NativeDisableParallelForRestriction] public NativeArray<PoseData> simulationOutputPoseData;
+        [NativeDisableParallelForRestriction] public NativeArray<PoseData> interpolationCurrentPoseData;
+        [NativeDisableParallelForRestriction] public NativeArray<PoseData> interpolationPreviousPoseData;
 
-        var tree = jiggleTreeStructs[treeIndex];
-        int start = (int)tree.transformIndexOffset;
-        int end = start + (int)tree.pointCount;
-        if (end > transformCount) return;
+        public void Execute(int index) {
+            var teleport = teleports[index];
+            int start = ranges[index].x;
+            int end = ranges[index].y;
+            for (int i = start; i < end; i++) {
+                var inputPrev = inputPosesPrevious[i];
+                inputPrev.position = teleport.Apply(inputPrev.position);
+                inputPrev.rotation = teleport.Apply(inputPrev.rotation);
+                inputPosesPrevious[i] = inputPrev;
 
-        for (int i = start; i < end; i++) {
-            var inputPrev = inputPosesPrevious[i];
-            inputPrev.position = teleport.Apply(inputPrev.position);
-            inputPrev.rotation = teleport.Apply(inputPrev.rotation);
-            inputPosesPrevious[i] = inputPrev;
+                var inputCurr = inputPosesCurrent[i];
+                inputCurr.position = teleport.Apply(inputCurr.position);
+                inputCurr.rotation = teleport.Apply(inputCurr.rotation);
+                inputPosesCurrent[i] = inputCurr;
 
-            var inputCurr = inputPosesCurrent[i];
-            inputCurr.position = teleport.Apply(inputCurr.position);
-            inputCurr.rotation = teleport.Apply(inputCurr.rotation);
-            inputPosesCurrent[i] = inputCurr;
+                var simInput = simulateInputPoses[i];
+                simInput.position = teleport.Apply(simInput.position);
+                simInput.rotation = teleport.Apply(simInput.rotation);
+                simulateInputPoses[i] = simInput;
 
-            var simInput = simulateInputPoses[i];
-            simInput.position = teleport.Apply(simInput.position);
-            simInput.rotation = teleport.Apply(simInput.rotation);
-            simulateInputPoses[i] = simInput;
+                var interpOut = interpolationOutputPoses[i];
+                interpOut.position = teleport.Apply(interpOut.position);
+                interpOut.rotation = teleport.Apply(interpOut.rotation);
+                interpolationOutputPoses[i] = interpOut;
 
-            var interpOut = interpolationOutputPoses[i];
-            interpOut.position = teleport.Apply(interpOut.position);
-            interpOut.rotation = teleport.Apply(interpOut.rotation);
-            interpolationOutputPoses[i] = interpOut;
+                rootOutputPositions[i] = teleport.Apply(rootOutputPositions[i]);
 
-            rootOutputPositions[i] = teleport.Apply(rootOutputPositions[i]);
+                var simPose = simulationOutputPoseData[i];
+                simPose.pose.position = teleport.Apply(simPose.pose.position);
+                simPose.pose.rotation = teleport.Apply(simPose.pose.rotation);
+                simPose.rootPosition = teleport.Apply(simPose.rootPosition);
+                simPose.rootOffset = teleport.ApplyDirection(simPose.rootOffset);
+                simulationOutputPoseData[i] = simPose;
 
-            var simPose = simulationOutputPoseData[i];
-            simPose.pose.position = teleport.Apply(simPose.pose.position);
-            simPose.pose.rotation = teleport.Apply(simPose.pose.rotation);
-            simPose.rootPosition = teleport.Apply(simPose.rootPosition);
-            simPose.rootOffset = teleport.ApplyDirection(simPose.rootOffset);
-            simulationOutputPoseData[i] = simPose;
+                var interpCurr = interpolationCurrentPoseData[i];
+                interpCurr.pose.position = teleport.Apply(interpCurr.pose.position);
+                interpCurr.pose.rotation = teleport.Apply(interpCurr.pose.rotation);
+                interpCurr.rootPosition = teleport.Apply(interpCurr.rootPosition);
+                interpCurr.rootOffset = teleport.ApplyDirection(interpCurr.rootOffset);
+                interpolationCurrentPoseData[i] = interpCurr;
 
-            var interpCurr = interpolationCurrentPoseData[i];
-            interpCurr.pose.position = teleport.Apply(interpCurr.pose.position);
-            interpCurr.pose.rotation = teleport.Apply(interpCurr.pose.rotation);
-            interpCurr.rootPosition = teleport.Apply(interpCurr.rootPosition);
-            interpCurr.rootOffset = teleport.ApplyDirection(interpCurr.rootOffset);
-            interpolationCurrentPoseData[i] = interpCurr;
-
-            var interpPrev = interpolationPreviousPoseData[i];
-            interpPrev.pose.position = teleport.Apply(interpPrev.pose.position);
-            interpPrev.pose.rotation = teleport.Apply(interpPrev.pose.rotation);
-            interpPrev.rootPosition = teleport.Apply(interpPrev.rootPosition);
-            interpPrev.rootOffset = teleport.ApplyDirection(interpPrev.rootOffset);
-            interpolationPreviousPoseData[i] = interpPrev;
+                var interpPrev = interpolationPreviousPoseData[i];
+                interpPrev.pose.position = teleport.Apply(interpPrev.pose.position);
+                interpPrev.pose.rotation = teleport.Apply(interpPrev.pose.rotation);
+                interpPrev.rootPosition = teleport.Apply(interpPrev.rootPosition);
+                interpPrev.rootOffset = teleport.ApplyDirection(interpPrev.rootOffset);
+                interpolationPreviousPoseData[i] = interpPrev;
+            }
         }
-
-        tree.TransformRigid(teleport.rotation, teleport.translation);
     }
 
     /// <summary>

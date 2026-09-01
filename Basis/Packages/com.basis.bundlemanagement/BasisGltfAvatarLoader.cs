@@ -21,7 +21,7 @@ public static class BasisGltfAvatarLoader
             return false;
         }
 
-        BasisGenericAvatarData avatarData = BasisGenericAvatarData.FromJson(generated.GenericAvatarDataJson);
+        BasisGenericAvatarData avatarData = await Task.Run(() => BasisGenericAvatarData.FromJson(generated.GenericAvatarDataJson));
         if (avatarData == null)
         {
             BasisDebug.LogError("Generic (glTF) load: section carries no BasisGenericAvatarData; cannot rebuild a humanoid avatar.");
@@ -45,9 +45,13 @@ public static class BasisGltfAvatarLoader
         int glbLength = BasisGenericBlendshapeSidecar.GetGlbLength(sectionBytes);
         if (glbLength > 0 && glbLength < sectionBytes.Length)
         {
-            blendshapeSidecar = BasisGenericBlendshapeSidecar.TryParse(sectionBytes, glbLength);
-            glbBytes = new byte[glbLength];
-            Buffer.BlockCopy(sectionBytes, 0, glbBytes, 0, glbLength);
+            (blendshapeSidecar, glbBytes) = await Task.Run(() =>
+            {
+                BasisGenericBlendshapeSidecar sidecar = BasisGenericBlendshapeSidecar.TryParse(sectionBytes, glbLength);
+                byte[] glb = new byte[glbLength];
+                Buffer.BlockCopy(sectionBytes, 0, glb, 0, glbLength);
+                return (sidecar, glb);
+            });
         }
 
         GltfImport gltf = new GltfImport();

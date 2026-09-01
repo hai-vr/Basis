@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
+using Unity.Jobs;
 using UnityEngine;
+using UnityEngine.Jobs;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.UnifiedRayTracing;
 
@@ -182,6 +185,8 @@ namespace Basis.Rendering.RTAO
             // Remembered rather than re-derived: ResetStructure re-registers every entry against a cleared
             // structure, and the renderer it came from may already be gone by then.
             public byte category;
+            // Slot in the pre-render matrix gather, -1 while not part of it.
+            public int gatherIndex = -1;
         }
 
         private readonly BasisRTAOContext context;
@@ -231,6 +236,76 @@ namespace Basis.Rendering.RTAO
         {
             this.context = context;
             accelStruct = context.CreateAccelerationStructure();
+            Application.onBeforeRender += ScheduleTransformGather;
+        }
+
+        // The dynamic entries' localToWorldMatrix reads as one transform job scheduled
+        // at onBeforeRender, mirroring BasisGlobalIlluminationRayScene — a job must
+        // never be SCHEDULED from inside the render pipeline (see the ZBinning note on
+        // BasisAvatarProxyJobs). UpdateTransforms only joins and compares; the dead
+        // sweep it also does stays a main-thread walk.
+        private struct GatherWorldMatricesJob : IJobParallelForTransform
+        {
+            public NativeArray<Matrix4x4> Matrices;
+
+            public void Execute(int index, TransformAccess transform)
+            {
+                Matrices[index] = transform.localToWorldMatrix;
+            }
+        }
+
+        private readonly List<Entry> dynamicEntries = new List<Entry>();
+        private TransformAccessArray dynamicAccess;
+        private NativeArray<Matrix4x4> dynamicMatrices;
+        private JobHandle dynamicHandle;
+        private bool dynamicScheduled;
+        private bool dynamicListDirty = true;
+
+        [BeforeRenderOrder(int.MaxValue)]
+        private void ScheduleTransformGather()
+        {
+            CompleteTransformGather();
+            if (dynamicListDirty || !dynamicAccess.isCreated || dynamicEntries.Count == 0)
+                return;
+            dynamicHandle = new GatherWorldMatricesJob { Matrices = dynamicMatrices }.Schedule(dynamicAccess);
+            dynamicScheduled = true;
+            JobHandle.ScheduleBatchedJobs();
+        }
+
+        private void CompleteTransformGather()
+        {
+            if (!dynamicScheduled)
+                return;
+            dynamicHandle.Complete();
+            dynamicScheduled = false;
+        }
+
+        private void RebuildDynamicList()
+        {
+            CompleteTransformGather();
+            dynamicEntries.Clear();
+            foreach (KeyValuePair<EntityId, Entry> pair in entries)
+            {
+                Entry entry = pair.Value;
+                entry.gatherIndex = -1;
+                if (entry.isStatic || entry.transform == null)
+                    continue;
+                entry.gatherIndex = dynamicEntries.Count;
+                dynamicEntries.Add(entry);
+            }
+            if (dynamicAccess.isCreated)
+                dynamicAccess.Dispose();
+            if (dynamicMatrices.IsCreated)
+                dynamicMatrices.Dispose();
+            dynamicListDirty = false;
+            int count = dynamicEntries.Count;
+            if (count == 0)
+                return;
+            Transform[] transforms = new Transform[count];
+            for (int index = 0; index < count; index++)
+                transforms[index] = dynamicEntries[index].transform;
+            dynamicAccess = new TransformAccessArray(transforms);
+            dynamicMatrices = new NativeArray<Matrix4x4>(count, Allocator.Persistent);
         }
 
         public void MarkDirty()
@@ -380,6 +455,8 @@ namespace Basis.Rendering.RTAO
 
             entries[entry.id] = entry;
             structureDirty = true;
+            if (!entry.isStatic)
+                dynamicListDirty = true;
         }
 
         /// <summary>
@@ -713,6 +790,8 @@ namespace Basis.Rendering.RTAO
             ReleaseInstances(entry);
             entries.Remove(id);
             structureDirty = true;
+            if (!entry.isStatic)
+                dynamicListDirty = true;
         }
 
         // Dead entries are swept here rather than only on the rescan: a renderer is destroyed the moment
@@ -720,6 +799,16 @@ namespace Basis.Rendering.RTAO
         // old body was standing.
         private void UpdateTransforms()
         {
+            if (dynamicListDirty)
+                RebuildDynamicList();
+            bool gathered = false;
+            if (dynamicScheduled)
+            {
+                dynamicHandle.Complete();
+                dynamicScheduled = false;
+                gathered = true;
+            }
+
             pendingRemoval.Clear();
             foreach (KeyValuePair<EntityId, Entry> pair in entries)
             {
@@ -732,7 +821,9 @@ namespace Basis.Rendering.RTAO
                 if (entry.isStatic)
                     continue;
 
-                Matrix4x4 matrix = entry.transform.localToWorldMatrix;
+                Matrix4x4 matrix = gathered && entry.gatherIndex >= 0
+                    ? dynamicMatrices[entry.gatherIndex]
+                    : entry.transform.localToWorldMatrix;
                 if (matrix == entry.matrix)
                     continue;
 
@@ -763,6 +854,15 @@ namespace Basis.Rendering.RTAO
 
         public void Dispose()
         {
+            Application.onBeforeRender -= ScheduleTransformGather;
+            CompleteTransformGather();
+            if (dynamicAccess.isCreated)
+                dynamicAccess.Dispose();
+            if (dynamicMatrices.IsCreated)
+                dynamicMatrices.Dispose();
+            dynamicEntries.Clear();
+            dynamicListDirty = true;
+
             // Proxies first, while there is still a structure to release them from. Nothing here owns a
             // mesh - an entry registers the renderer's own shared mesh and the proxies share one capsule -
             // so once the instances are back there is nothing else for a torn down scene to destroy.

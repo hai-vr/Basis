@@ -133,10 +133,14 @@ public class BasisContentSphere : BasisInteractableObject
 
                 // Blend 50% type color with 50% texture
                 Color[] pixels = texture.GetPixels();
-                for (int i = 0; i < pixels.Length; i++)
+                await Task.Run(() =>
                 {
-                    pixels[i] = Color.Lerp(typeColor, pixels[i], 0.5f);
-                }
+                    for (int i = 0; i < pixels.Length; i++)
+                    {
+                        pixels[i] = Color.Lerp(typeColor, pixels[i], 0.5f);
+                    }
+                });
+                if (cancellationToken.IsCancellationRequested || this == null || texture == null) return;
                 texture.SetPixels(pixels);
                 texture.Apply();
 
