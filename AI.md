@@ -26,7 +26,7 @@ These run locally and upload nothing.
 
 ## AI-assisted contributions
 
-AI-assisted contributions are permitted, and the same requirements [CONTRIBUTING.md](./CONTRIBUTING.md) apply. There are, however, some additional considerations to keep in mind for AI use.
+AI-assisted contributions are permitted, and the same requirements as [CONTRIBUTING.md](./CONTRIBUTING.md) apply. There are, however, some additional considerations to keep in mind for AI use.
 
 - **You are the author.** Understand what you submit well enough to explain and defend it in review. "The AI wrote it" is not an answer to a review question.
 - **Code within your limits.** Don't submit code that you couldn't have written by hand given enough time. AI should automate the time consuming tasks but please don't use it as a replacement for understanding what's going on in your code. You need to be firmly at the wheel.
