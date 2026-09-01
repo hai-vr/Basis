@@ -1199,9 +1199,11 @@ public static class BasisGizmoManager
 
         bool drawSolid = SolidSphereMaterial != null;
 
-        // Which layers are in play. One entry unless something called SetGizmoLayer, and a
-        // chunk cannot straddle two layers, so each gets its own pass over the slots.
+        // Bucket drawable slot indices per layer in ONE walk. One bucket unless
+        // something called SetGizmoLayer, and a chunk cannot straddle two layers,
+        // so each bucket then renders its own indices without re-walking the slots.
         _sphereLayerScratch.Clear();
+        int bucketsUsed = 0;
         for (int i = 0; i < _sphereHighWater; i++)
         {
             ref SphereSlot s = ref _spheres[i];
@@ -1210,20 +1212,31 @@ public static class BasisGizmoManager
                 continue;
             }
             int layer = ResolveLayer(s.Layer);
-            if (!_sphereLayerScratch.Contains(layer))
+            int bucket = _sphereLayerScratch.IndexOf(layer);
+            if (bucket < 0)
             {
+                bucket = bucketsUsed;
+                if (_sphereLayerBuckets.Count == bucket)
+                {
+                    _sphereLayerBuckets.Add(new List<int>());
+                }
+                _sphereLayerBuckets[bucket].Clear();
                 _sphereLayerScratch.Add(layer);
+                bucketsUsed++;
             }
+            _sphereLayerBuckets[bucket].Add(i);
         }
 
         // The chunk counter keeps running across layers: each chunk owns a MaterialPropertyBlock
         // that has to survive until the frame renders, so two draws must never share one.
         int chunk = 0;
-        for (int Index = 0; Index < _sphereLayerScratch.Count; Index++)
+        for (int Index = 0; Index < bucketsUsed; Index++)
         {
-            RenderSphereLayer(_sphereLayerScratch[Index], drawSolid, viewer, maxDistSq, ref chunk);
+            RenderSphereLayer(_sphereLayerScratch[Index], _sphereLayerBuckets[Index], ref chunk);
         }
     }
+
+    private static readonly List<List<int>> _sphereLayerBuckets = new List<List<int>>();
 
     private static bool IsSphereDrawable(ref SphereSlot s, bool drawSolid, Vector3 viewer, float maxDistSq)
     {
@@ -1238,17 +1251,14 @@ public static class BasisGizmoManager
         return maxDistSq >= float.PositiveInfinity || (s.Position - viewer).sqrMagnitude <= maxDistSq;
     }
 
-    private static void RenderSphereLayer(int layer, bool drawSolid, Vector3 viewer, float maxDistSq, ref int chunk)
+    private static void RenderSphereLayer(int layer, List<int> slotIndices, ref int chunk)
     {
         int n = 0;
         int solidCount = 0;
-        for (int i = 0; i < _sphereHighWater; i++)
+        int indexCount = slotIndices.Count;
+        for (int Index = 0; Index < indexCount; Index++)
         {
-            ref SphereSlot s = ref _spheres[i];
-            if (!IsSphereDrawable(ref s, drawSolid, viewer, maxDistSq) || ResolveLayer(s.Layer) != layer)
-            {
-                continue;
-            }
+            ref SphereSlot s = ref _spheres[slotIndices[Index]];
 
             Matrix4x4 m;
             if (s.HasRotation)
@@ -1328,9 +1338,12 @@ public static class BasisGizmoManager
             return;
         }
 
-        // Segment tally per layer. One entry unless something called SetGizmoLayer.
+        // Segment tally per layer, bucketing the drawable slots in the same walk so
+        // each layer renders its own list instead of re-walking the whole dictionary.
+        // One entry unless something called SetGizmoLayer.
         _lineSegmentsByLayer.Clear();
         _lineLayerOrder.Clear();
+        int bucketsUsed = 0;
         foreach (KeyValuePair<int, LineSlot> kvp in _linesByID)
         {
             LineSlot slot = kvp.Value;
@@ -1343,18 +1356,28 @@ public static class BasisGizmoManager
             if (_lineSegmentsByLayer.TryGetValue(layer, out int running))
             {
                 _lineSegmentsByLayer[layer] = running + segments;
+                _lineLayerBuckets[_lineLayerOrder.IndexOf(layer)].Add(slot);
                 continue;
             }
             _lineSegmentsByLayer.Add(layer, segments);
+            if (_lineLayerBuckets.Count == bucketsUsed)
+            {
+                _lineLayerBuckets.Add(new List<LineSlot>());
+            }
+            _lineLayerBuckets[bucketsUsed].Clear();
+            _lineLayerBuckets[bucketsUsed].Add(slot);
             _lineLayerOrder.Add(layer);
+            bucketsUsed++;
         }
 
         for (int Index = 0; Index < _lineLayerOrder.Count; Index++)
         {
             int layer = _lineLayerOrder[Index];
-            RenderLineLayer(layer, _lineSegmentsByLayer[layer], viewer, maxDistSq);
+            RenderLineLayer(layer, _lineSegmentsByLayer[layer], _lineLayerBuckets[Index]);
         }
     }
+
+    private static readonly List<List<LineSlot>> _lineLayerBuckets = new List<List<LineSlot>>();
 
     private static bool IsLineDrawable(LineSlot slot, Vector3 viewer, float maxDistSq)
     {
@@ -1365,7 +1388,7 @@ public static class BasisGizmoManager
         return maxDistSq >= float.PositiveInfinity || (slot.Points[0] - viewer).sqrMagnitude <= maxDistSq;
     }
 
-    private static void RenderLineLayer(int layer, int totalSegments, Vector3 viewer, float maxDistSq)
+    private static void RenderLineLayer(int layer, int totalSegments, List<LineSlot> slots)
     {
         if (totalSegments == 0)
         {
@@ -1381,13 +1404,10 @@ public static class BasisGizmoManager
         float maxHalfWidth = 0f;
         Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
         Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
-        foreach (KeyValuePair<int, LineSlot> kvp in _linesByID)
+        int slotCount = slots.Count;
+        for (int slotIndex = 0; slotIndex < slotCount; slotIndex++)
         {
-            LineSlot slot = kvp.Value;
-            if (!IsLineDrawable(slot, viewer, maxDistSq) || ResolveLayer(slot.Layer) != layer)
-            {
-                continue;
-            }
+            LineSlot slot = slots[slotIndex];
 
             int count = slot.Count;
             int segments = count - 1 + (slot.Loop ? 1 : 0);

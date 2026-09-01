@@ -389,7 +389,7 @@ public class PermissionManagerTests
         Assert.Contains("*", m.GetAllAllowedRules(admin));
 
         Assert.True(m.TryGetGroup("moderator", out var modGroup));
-        Assert.Equal(22, modGroup.Nodes.Count);
+        Assert.Equal(23, modGroup.Nodes.Count);
         Assert.Contains("default", modGroup.Parents);
 
         Assert.True(m.TryGetGroup("admin", out var adminGroup));

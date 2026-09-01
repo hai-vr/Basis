@@ -638,6 +638,10 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </remarks>
         public async void ReloadAvatar()
         {
+            if (IsDestroyed)
+            {
+                return;
+            }
             if (AlwaysRequestedAvatar != null)
             {
                 await CreateAvatar(AlwaysRequestedMode, AlwaysRequestedAvatar);
@@ -865,7 +869,11 @@ namespace Basis.Scripts.BasisSdk.Players
             // correct state for these, but the check reads it as drift) and ReloadAvatar
             // recurses forever, hanging Unity. Applies to: block, global load failure,
             // performance block, and the user hiding the avatar via the per-player menu.
-            if (IsEffectivelyBlocked || HasFailedAvatarLoadGlobally || IsBlockedByPerformance || !BasisPlayerSettingsData.AvatarVisible)
+            // Destroyed is terminal too: a disconnect mid-download cancels the load
+            // (swallowed as an OCE, so no failure latch) and every later LoadAvatarRemote
+            // early-outs synchronously — the mismatch tail then mutually recursed with
+            // ReloadAvatar with no yield until the stack overflowed (2026-09-02 dump).
+            if (IsDestroyed || IsEffectivelyBlocked || HasFailedAvatarLoadGlobally || IsBlockedByPerformance || !BasisPlayerSettingsData.AvatarVisible)
             {
                 return;
             }

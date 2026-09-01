@@ -62,7 +62,7 @@ internal sealed class BasisSidecarSubtitleEngine
             }
         }
 
-        BasisCaptionCue[] parsed = ParseTrack(track.Format, payload);
+        BasisCaptionCue[] parsed = await Task.Run(() => ParseTrack(track.Format, payload));
         if (loadGeneration != generation) return false;
         if (parsed == null || parsed.Length == 0) return false;
         cues = parsed;

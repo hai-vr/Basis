@@ -13003,6 +13003,34 @@
       "value": "Moderator"
     },
     {
+      "key": "settings.moderator.refresh",
+      "value": "Refresh"
+    },
+    {
+      "key": "settings.moderator.autoRefresh",
+      "value": "Auto Refresh"
+    },
+    {
+      "key": "settings.moderator.byUuid",
+      "value": "By UUID"
+    },
+    {
+      "key": "settings.moderator.byUuid.tooltip",
+      "value": "Open moderation actions for a typed UUID, even for a player who is offline."
+    },
+    {
+      "key": "settings.moderator.everyone",
+      "value": "Everyone"
+    },
+    {
+      "key": "settings.moderator.everyone.tooltip",
+      "value": "Actions that affect every player in the instance."
+    },
+    {
+      "key": "settings.moderator.header.description",
+      "value": "Click a player to open moderation actions."
+    },
+    {
       "key": "ui.option.on",
       "value": "On"
     },

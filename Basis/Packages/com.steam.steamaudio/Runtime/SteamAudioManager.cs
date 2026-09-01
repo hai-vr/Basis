@@ -94,7 +94,6 @@ namespace SteamAudio
         private int mSourceCapacity;
         private int mListenerCapacity;
 
-        RaycastHit[] mRayHits = new RaycastHit[1];
         IntPtr mMaterialBuffer = IntPtr.Zero;
         Thread mSimulationThread = null;
         EventWaitHandle mSimulationThreadWaitHandle = null;
@@ -1224,13 +1223,24 @@ namespace SteamAudio
 
             // Kick the workers only after every SetInputs above is written, so a
             // run never reads inputs the main thread is still mutating. Direct
-            // runs every frame; reflections only on its cadence.
-            mDirectWakeHandle.Set();
+            // runs every frame; reflections only on its cadence. Custom scenes
+            // trace through Unity Physics, which is main-thread only, so both
+            // sims run inline there; the done-signal keeps the reap handshake
+            // identical either way.
+            if (settings.sceneType == SceneType.Custom)
+            {
+                RunDirectOnce();
+                mDirectDoneHandle.Set();
+            }
+            else
+            {
+                mDirectWakeHandle.Set();
+            }
             mDirectInFlight = true;
 
             if (runReflectionsThisFrame)
             {
-                if (SteamAudioSettings.Singleton.sceneType == SceneType.Custom)
+                if (settings.sceneType == SceneType.Custom)
                 {
                     RunSimulationInternal();
                 }
@@ -1360,6 +1370,38 @@ namespace SteamAudio
             }
         }
 
+        void RunDirectOnce()
+        {
+            if (mSimulator == null)
+                return;
+
+            if (UseThreadedDirectPipeline)
+            {
+                int n = mSnapCount;
+                for (int i = 0; i < n; i++)
+                {
+                    IntPtr h = mSnapHandles[i];
+                    if (h == IntPtr.Zero) continue;
+                    API.iplSourceSetInputs(h, SimulationFlags.Direct, ref mSnapInputs[i]);
+                }
+
+                mSimulator.RunDirect();
+
+                for (int i = 0; i < n; i++)
+                {
+                    IntPtr h = mSnapHandles[i];
+                    if (h == IntPtr.Zero) continue;
+                    SimulationOutputs o = default;
+                    API.iplSourceGetOutputs(h, SimulationFlags.Direct, ref o);
+                    mDirectOutBuf[i] = o.direct;
+                }
+            }
+            else
+            {
+                mSimulator.RunDirect();
+            }
+        }
+
         void RunDirectSimulation()
         {
             while (!mStopDirectThread)
@@ -1373,34 +1415,7 @@ namespace SteamAudio
                 // so the main thread's reap (WaitOne) can never hang.
                 try
                 {
-                    if (mSimulator != null)
-                    {
-                        if (UseThreadedDirectPipeline)
-                        {
-                            int n = mSnapCount;
-                            for (int i = 0; i < n; i++)
-                            {
-                                IntPtr h = mSnapHandles[i];
-                                if (h == IntPtr.Zero) continue;
-                                API.iplSourceSetInputs(h, SimulationFlags.Direct, ref mSnapInputs[i]);
-                            }
-
-                            mSimulator.RunDirect();
-
-                            for (int i = 0; i < n; i++)
-                            {
-                                IntPtr h = mSnapHandles[i];
-                                if (h == IntPtr.Zero) continue;
-                                SimulationOutputs o = default;
-                                API.iplSourceGetOutputs(h, SimulationFlags.Direct, ref o);
-                                mDirectOutBuf[i] = o.direct;
-                            }
-                        }
-                        else
-                        {
-                            mSimulator.RunDirect();
-                        }
-                    }
+                    RunDirectOnce();
                 }
                 finally
                 {
@@ -2696,12 +2711,11 @@ namespace SteamAudio
             hit.triangleIndex = 0;
             hit.materialIndex = 0;
 
-            var numHits = Physics.RaycastNonAlloc(origin, direction, Singleton.mRayHits, maxDistance, layerMask);
-            if (numHits > 0)
+            if (Physics.Raycast(origin, direction, out RaycastHit rayHit, maxDistance, layerMask))
             {
-                hit.distance = Singleton.mRayHits[0].distance;
-                hit.normal = Common.ConvertVector(Singleton.mRayHits[0].normal);
-                hit.material = GetMaterialBufferForTransform(Singleton.mRayHits[0].collider.transform);
+                hit.distance = rayHit.distance;
+                hit.normal = Common.ConvertVector(rayHit.normal);
+                hit.material = GetMaterialBufferForTransform(rayHit.collider.transform);
             }
             else
             {
@@ -2721,9 +2735,7 @@ namespace SteamAudio
 
             var layerMask = SteamAudioSettings.Singleton.layerMask;
 
-            var numHits = Physics.RaycastNonAlloc(origin, direction, Singleton.mRayHits, maxDistance, layerMask);
-
-            occluded = (byte)((numHits > 0) ? 1 : 0);
+            occluded = (byte)(Physics.Raycast(origin, direction, maxDistance, layerMask) ? 1 : 0);
         }
 
         // This method is called as soon as scripts are loaded, which happens whenever play mode is started

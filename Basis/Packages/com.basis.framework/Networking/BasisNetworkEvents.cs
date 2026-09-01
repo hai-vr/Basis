@@ -422,17 +422,23 @@ public static class BasisNetworkEvents
                 Reader.Recycle();
                 return;
             }
-            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            // Decompress + deserialize on the receive thread (same shape as the
+            // ServerSideSyncPlayer channel above); only the publish, which raises
+            // main-thread UI events, hops to the frame thread.
+            try
             {
-                try
+                if (TryDecodeServerLibrary(Reader, out ServerLibraryMessage libraryMessage))
                 {
-                    HandleServerLibraryReceive(Reader);
+                    BasisDeviceManagement.EnqueueOnMainThread(() =>
+                    {
+                        BasisServerProvidedItems.SetFromServer(libraryMessage.Items);
+                    });
                 }
-                finally
-                {
-                    Reader.Recycle();
-                }
-            });
+            }
+            finally
+            {
+                Reader.Recycle();
+            }
         });
 
         BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.AdminChannel, (peer, Reader, channel, deliveryMethod) =>
@@ -598,6 +604,7 @@ public static class BasisNetworkEvents
                 Reader.Recycle();
                 return;
             }
+            try
             {
                 BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Events, Reader.AvailableBytes);
                 byte eventType = Reader.GetByte();
@@ -718,6 +725,14 @@ public static class BasisNetworkEvents
                         break;
                 }
             }
+            catch (Exception ex)
+            {
+                BNL.LogError($"Malformed EventsChannel message from peer {peer.Id}: {ex.Message}");
+                if (Reader.IsNull == false)
+                {
+                    Reader.Recycle();
+                }
+            }
         });
 
         BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.RegistryControlChannel, (peer, Reader, channel, deliveryMethod) =>
@@ -797,19 +812,21 @@ public static class BasisNetworkEvents
         }
         BasisDebug.Log("Completed");
     }
-    // Reused on the main thread (every ServerLibraryChannel receive enqueues onto
-    // it) — keeps the per-join NetDataReader allocation out of GC. Library messages
-    // arrive sequentially, so a single instance is enough.
+    // Reused on the LiteNetLib receive thread (every ServerLibraryChannel receive
+    // decodes on it) — keeps the per-join NetDataReader allocation out of GC.
+    // Library messages arrive sequentially on that one thread, so a single
+    // instance is enough.
     private static NetDataReader _libraryPayloadReader;
 
-    private static void HandleServerLibraryReceive(NetPacketReader reader)
+    private static bool TryDecodeServerLibrary(NetPacketReader reader, out ServerLibraryMessage libraryMessage)
     {
+        libraryMessage = default;
         // Wire format from BasisNetworkServerLibrary:
         //   [u16 rawLen][u16 compressedLen][bytes payload]
         // compressedLen == 0 means the payload is the raw message bytes.
         ushort rawLen = reader.GetUShort();
         ushort compressedLen = reader.GetUShort();
-        if (rawLen == 0) return;
+        if (rawLen == 0) return false;
 
         byte[] payload = ArrayPool<byte>.Shared.Rent(rawLen);
         try
@@ -831,7 +848,7 @@ public static class BasisNetworkEvents
                     {
                         BasisDebug.LogError(
                             $"Server library decompression mismatch: expected {rawLen} bytes, got {decoded}");
-                        return;
+                        return false;
                     }
                 }
                 finally
@@ -842,11 +859,11 @@ public static class BasisNetworkEvents
 
             NetDataReader payloadReader = _libraryPayloadReader ??= new NetDataReader();
             payloadReader.SetSource(payload, 0, rawLen);
-            ServerLibraryMessage libraryMessage = new ServerLibraryMessage();
+            libraryMessage = new ServerLibraryMessage();
             libraryMessage.Deserialize(payloadReader);
             // Items array becomes BasisServerProvidedItems' source of truth — fine
             // to release the byte buffer once Deserialize has copied strings out.
-            BasisServerProvidedItems.SetFromServer(libraryMessage.Items);
+            return true;
         }
         finally
         {

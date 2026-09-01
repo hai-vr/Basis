@@ -147,6 +147,8 @@ public static partial class SerializableBasis
             if (!reader.TryGetByte(out LinkedAvatarIndex))
             {
                 BNL.LogError("Missing LinkedAvatarIndex!");
+                AdditionalAvatarDataSize = 0;
+                AdditionalAvatarDatas = null;
                 return;
             }
 
