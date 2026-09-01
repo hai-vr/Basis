@@ -26,13 +26,13 @@ These run locally and upload nothing.
 
 ## AI-assisted contributions
 
-AI-assisted contributions are permitted, and the same requirements [CONTRIBUTING.md](./CONTRIBUTING.md) apply. There are, however, some additional considerations to keep in mind for AI use.
+AI-assisted contributions are permitted, and the same requirements as [CONTRIBUTING.md](./CONTRIBUTING.md) apply. There are, however, some additional considerations to keep in mind for AI use.
 
 - **You are the author.** Understand what you submit well enough to explain and defend it in review. "The AI wrote it" is not an answer to a review question.
 - **Code within your limits.** Don't submit code that you couldn't have written by hand given enough time. AI should automate the time consuming tasks but please don't use it as a replacement for understanding what's going on in your code. You need to be firmly at the wheel.
 - **Review your own output before asking us to.** Don't open a PR whose contents you haven't read yourself; unreviewed AI output is easy to spot and wastes reviewer time.
 - **Don't submit AI generated documentation.** Many projects use agentic frameworks like "superpowers" and similar and produce large amounts of AI generated markdown files to help maintain history and context. However in practice this creates a large amount of context bloat for the agent, and also tends to get stale and out of sync with the code. If your PR includes a markdown file, be sure that you wrote it yourself and took the time to understand it. No one wants to read a wall of AI generated text.
 - **Keep reports real.** Using AI to write up a bug report or feature request is fine, but logs, reproduction steps, and observed behaviour must be genuine, never invented or "reconstructed".
-- **No AI Generated Assets** Don't submit AI-generated art, images, video, audio, or 3D assets. Pay an artist for their time or use existing free assets. Like always, assets that are included in the Basis codebase must be permissively licensed (such as CC-BY or CC-0).
+- **No AI Generated Assets.** Don't submit AI-generated art, images, video, audio, or 3D assets. Pay an artist for their time or use existing free assets. Like always, assets that are included in the Basis codebase must be permissively licensed (such as CC-BY or CC-0).
 
 If a substantial part of a PR is AI-generated, a brief mention under **Notes** in the PR template is appreciated. It's not required, and it won't count against you.
