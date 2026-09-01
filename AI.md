@@ -6,7 +6,7 @@ Basis is developed with help from AI tools, and we'd rather say so plainly than 
 
 AI coding assistants (LLM-based tools such as Claude Code) are used in Basis development for code only: implementation, refactoring, tests, debugging, and developer docs. AI is not used for creative content: the art, imagery, audio, and 3D assets in Basis are made by humans.
 
-As a concrete example, AI was used to wrote many of the automated tests in Basis. Without AI assistance, a human alone would have taken months; with AI assistance, far more of the codebase is covered by tests than would have otherwise been practical.
+As a concrete example, AI was used to write many of the automated tests in Basis. Without AI assistance, a human alone would have taken months; with AI assistance, far more of the codebase is covered by tests than would have otherwise been practical.
 
 Unmoved by that assistance is the human element of direction, review, and responsibility. Changes land because contributors and maintainers decide they should, review them, and stand behind them, and the quality bar is the same for every change regardless of how it was written. We don't tag individual commits or files as AI-assisted; this document is the project-level disclosure instead.
 
@@ -31,7 +31,7 @@ A subtle point that may be missed: although we stand in principle against the au
 AI-assisted contributions are permitted, and the same requirements as [CONTRIBUTING.md](./CONTRIBUTING.md) apply. There are, however, some additional considerations to keep in mind for AI use.
 
 - **You are the author.** Understand what you submit well enough to explain and defend it in review. "The AI wrote it" is not an answer to a review question.
-- **Code within your limits.** You may be tempted to submit code that you couldn't have written by hand given enough time. Do not use AI as a crutch to replace your understanding of what your code is doing. You need to be firmly at the wheel.
+- **Code within your limits.** Submitting code that you couldn't have written by hand given enough time is an easy, but dangerous shortcut. Do not use AI as a crutch to replace your understanding of what your code is doing. You need to be firmly at the wheel.
 - **Review your own output before asking us to.** Don't open a PR whose contents you haven't read yourself; unreviewed AI output is easy to spot and wastes reviewer time.
 - **Documentation also requires maintenance.** Submitting an intense amount of prose subjects the project to an intense amount of pressure to review, correct, and maintain it. In practice, this requires a lot of human oversight to prevent it from becoming stale, in addition to any tokens spent to create it, and context bloat from ingesting it. Contributing documentation must be done in a way that is intelligible to humans, and maintainable on a reasonable scale. Endless walls of AI-generated text are not a net positive for the project.
 - **Keep reports real.** Using AI to write up a bug report or feature request is fine, but logs, reproduction steps, and observed behaviour must be genuine, never invented or "reconstructed".
