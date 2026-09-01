@@ -15,6 +15,8 @@ Shader "Universal Render Pipeline/Simple Lit"
         _SmoothnessSource("Smoothness Source", Float) = 0.0
         _SpecularHighlights("Specular Highlights", Float) = 1.0
 
+        [ToggleOff] _ScreenSpaceReflectionsContributeTransparent("Screen Space Reflections Contribute Transparent", Float) = 1.0
+
         [HideInInspector] _BumpScale("Scale", Float) = 1.0
         [NoScaleOffset] _BumpMap("Normal Map", 2D) = "bump" {}
 
@@ -352,6 +354,7 @@ Shader "Universal Render Pipeline/Simple Lit"
             #pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local _ALPHATEST_ON
             #pragma shader_feature_local_fragment _GLOSSINESS_FROM_BASE_ALPHA
+            #pragma shader_feature_local_fragment _SCREENSPACEREFLECTIONSCONTRIBUTETRANSPARENT_OFF
 
             // -------------------------------------
             // Unity defined keywords
@@ -359,6 +362,7 @@ Shader "Universal Render Pipeline/Simple Lit"
 
             // Universal Pipeline keywords
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
 
             //--------------------------------------
             // GPU Instancing

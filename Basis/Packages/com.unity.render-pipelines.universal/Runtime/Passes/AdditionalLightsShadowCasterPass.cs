@@ -24,6 +24,19 @@ namespace UnityEngine.Rendering.Universal.Internal
         private bool m_IssuedMessageAboutRemovedShadowSlices;
         private static bool m_IssuedMessageAboutPointLightHardShadowResolutionTooSmall;
         private static bool m_IssuedMessageAboutPointLightSoftShadowResolutionTooSmall;
+
+#if UNITY_EDITOR
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
+        static void ResetStaticsOnLoad()
+        {
+            m_IssuedMessageAboutPointLightHardShadowResolutionTooSmall = false;
+            m_IssuedMessageAboutPointLightSoftShadowResolutionTooSmall = false;
+            s_EmptyAdditionalShadowFadeParams = default;
+            s_EmptyAdditionalLightIndexToShadowParams = new[] { c_DefaultShadowParams };
+            isAdditionalShadowParamsDirty = false;
+        }
+#endif
+
         private readonly bool m_UseStructuredBuffer;
         private float m_MaxShadowDistanceSq;
         private float m_CascadeBorder;
@@ -322,6 +335,30 @@ namespace UnityEngine.Rendering.Universal.Internal
             return Setup(universalRenderingData, cameraData, lightData, shadowData);
         }
 
+
+        internal TextureHandle GetOrCreateShadowMapTexture(RenderGraph renderGraph, UniversalShadowData shadowData)
+        {
+            // When shadow caching is supported (e.g. 2-pass QuadViews XR), use a persistent RTHandle
+            // imported into the render graph so the texture survives between XR passes.
+            // When caching is not supported, create a transient render graph texture.
+#if ENABLE_VR && ENABLE_XR_MODULE
+            if (shadowData.supportShadowMapCaching)
+            {
+                RenderingUtils.ReAllocateHandleIfNeeded(ref m_AdditionalLightsShadowmapHandle,
+                               m_AdditionalLightShadowDescriptor,
+                               ShadowUtils.m_ForceShadowPointSampling ? FilterMode.Point : FilterMode.Bilinear,
+                               TextureWrapMode.Repeat, 1, 0, k_AdditionalLightShadowMapTextureName);
+
+                ImportResourceParams importParams = new ImportResourceParams();
+                importParams.clearOnFirstUse = !shadowData.useCachedShadowMap;
+                importParams.clearColor = Color.black;
+                importParams.discardOnLastUse = shadowData.useCachedShadowMap;
+                return renderGraph.ImportTexture(m_AdditionalLightsShadowmapHandle, importParams);
+            }
+#endif
+            return UniversalRenderer.CreateRenderGraphTexture(renderGraph, m_AdditionalLightShadowDescriptor, k_AdditionalLightShadowMapTextureName, true, ShadowUtils.m_ForceShadowPointSampling ? FilterMode.Point : FilterMode.Bilinear);
+        }
+
         /// <summary>
         /// Sets up the pass.
         /// </summary>
@@ -348,6 +385,12 @@ namespace UnityEngine.Rendering.Universal.Internal
             if (!shadowData.supportsAdditionalLightShadows || (cameraData.camera.targetTexture != null && cameraData.camera.targetTexture.format == RenderTextureFormat.Depth))
                 return SetupForEmptyRendering(cameraData.renderer.stripShadowsOffVariants, shadowsEnabled, lightData, shadowData);
 
+            // Skip the shadow map setup below if using the cached shadow map
+#if ENABLE_VR && ENABLE_XR_MODULE
+            if (shadowData.useCachedShadowMap)
+                return true;
+#endif
+
             Clear();
 
             renderTargetWidth = shadowData.additionalLightsShadowmapWidth;
@@ -357,8 +400,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             ref AdditionalLightsShadowAtlasLayout atlasLayout = ref shadowData.shadowAtlasLayout;
 
             // Check changes in the shadow requests and shadow atlas configuration - compute shadow request/configuration hash
-            // Should only be done in the editor or development builds as computing the hash has a cost that's clearly visible when profiling.
-            #if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // Should only be done in the Editor or in the Debug or Checked managed code variant as computing the hash has a cost that's clearly visible when profiling.
+            #if UNITY_ENABLE_CHECKS
             if (!cameraData.isPreviewCamera)
             {
                 ulong newShadowRequestHash = ComputeShadowRequestHash(lightData, shadowData);
@@ -774,7 +817,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             bool additionalLightHasSoftShadows = false;
 
-            using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.AdditionalLightsShadow)))
+            using (new ProfilingScope(cmd, URPProfilingSamplers.AdditionalLightsShadow))
             {
                 bool anyShadowSliceRenderer = false;
                 int shadowSlicesCount = m_ShadowSliceToAdditionalLightIndex.Count;
@@ -826,18 +869,23 @@ namespace UnityEngine.Rendering.Universal.Internal
                                                data.lightData.mainLightIndex != -1 &&
                                                visibleLights[data.lightData.mainLightIndex].light.shadows == LightShadows.Soft;
 
-                // If the OFF variant has been stripped, the additional light shadows keyword must always be enabled
-                bool hasOffVariant = !data.stripShadowsOffVariants;
-                data.shadowData.isKeywordAdditionalLightShadowsEnabled = !hasOffVariant || anyShadowSliceRenderer;
-                cmd.SetKeyword(ShaderGlobalKeywords.AdditionalLightShadows, data.shadowData.isKeywordAdditionalLightShadowsEnabled);
-
-                bool softShadows = data.shadowData.supportsSoftShadows && (mainLightHasSoftShadows || additionalLightHasSoftShadows);
-                data.shadowData.isKeywordSoftShadowsEnabled = softShadows;
-                ShadowUtils.SetSoftShadowQualityShaderKeywords(cmd, data.shadowData);
-
-                if (anyShadowSliceRenderer)
-                    SetupAdditionalLightsShadowReceiverConstants(cmd, data.allocatedShadowAtlasSize, data.useStructuredBuffer, softShadows);
+                SetShadowGlobalKeywordsAndConstants(cmd, ref data, data.allocatedShadowAtlasSize, data.useStructuredBuffer, additionalLightHasSoftShadows, anyShadowSliceRenderer, mainLightHasSoftShadows);
             }
+        }
+
+        private void SetShadowGlobalKeywordsAndConstants(RasterCommandBuffer cmd, ref PassData data, Vector2Int allocatedShadowAtlasSize, bool useStructuredBuffer, bool additionalLightHasSoftShadows, bool anyShadowSliceRenderer, bool mainLightHasSoftShadows)
+        {
+            // If the OFF variant has been stripped, the additional light shadows keyword must always be enabled
+            bool hasOffVariant = !data.stripShadowsOffVariants;
+            data.shadowData.isKeywordAdditionalLightShadowsEnabled = !hasOffVariant || anyShadowSliceRenderer;
+            cmd.SetKeyword(ShaderGlobalKeywords.AdditionalLightShadows, data.shadowData.isKeywordAdditionalLightShadowsEnabled);
+
+            bool softShadows = data.shadowData.supportsSoftShadows && (mainLightHasSoftShadows || additionalLightHasSoftShadows);
+            data.shadowData.isKeywordSoftShadowsEnabled = softShadows;
+            ShadowUtils.SetSoftShadowQualityShaderKeywords(cmd, data.shadowData);
+
+            if (anyShadowSliceRenderer)
+                SetupAdditionalLightsShadowReceiverConstants(cmd, data.allocatedShadowAtlasSize, data.useStructuredBuffer, softShadows);
         }
 
         // Set constant buffer data that will be used during the lighting/shadowing pass
@@ -911,6 +959,76 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
         }
 
+
+#if ENABLE_VR && ENABLE_XR_MODULE
+        internal TextureHandle FetchShadowMapAndSetParameters(RenderGraph graph, ContextContainer frameData)
+        {
+            UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
+            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+            UniversalLightData lightData = frameData.Get<UniversalLightData>();
+            UniversalShadowData shadowData = frameData.Get<UniversalShadowData>();
+
+            using (var builder = graph.AddRasterRenderPass<PassData>(passName, out var passData, profilingSampler))
+            {
+                InitPassData(ref passData, cameraData, lightData, shadowData);
+
+                TextureHandle shadowTexture;
+                if (!m_CreateEmptyShadowmap)
+                {
+                    shadowTexture = GetOrCreateShadowMapTexture(graph, shadowData);
+                }
+                else
+                {
+                    shadowTexture = graph.defaultResources.defaultShadowTexture;
+                }
+
+                TextureDesc descriptor = shadowTexture.GetDescriptor(graph);
+                passData.allocatedShadowAtlasSize = new Vector2Int(descriptor.width, descriptor.height);
+
+                builder.AllowGlobalStateModification(true);
+
+                if (shadowTexture.IsValid())
+                    builder.SetGlobalTextureAfterPass(shadowTexture, AdditionalShadowsConstantBuffer._AdditionalLightsShadowmapID);
+
+                builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
+                {
+                    RasterCommandBuffer rasterCommandBuffer = context.cmd;
+                    NativeArray<VisibleLight> visibleLights = data.lightData.visibleLights;
+
+                    bool additionalLightHasSoftShadows = false;
+                    bool anyShadowSliceRenderer = false;
+
+                    for (int globalShadowSliceIndex = 0; globalShadowSliceIndex < data.pass.m_ShadowSliceToAdditionalLightIndex.Count; ++globalShadowSliceIndex)
+                    {
+                        int additionalLightIndex = data.pass.m_ShadowSliceToAdditionalLightIndex[globalShadowSliceIndex];
+                        int visibleLightIndex = data.pass.m_AdditionalLightIndexToVisibleLightIndex[additionalLightIndex];
+                        ref VisibleLight shadowLight = ref visibleLights.UnsafeElementAt(visibleLightIndex);
+                        additionalLightHasSoftShadows |= shadowLight.light.shadows == LightShadows.Soft;
+                        anyShadowSliceRenderer = true;
+                    }
+
+                    // We share soft shadow settings for main light and additional lights to save keywords.
+                    // So we check here if pipeline supports soft shadows and either main light or any additional light has soft shadows
+                    // to enable the keyword.
+                    bool mainLightHasSoftShadows = data.shadowData.supportsMainLightShadows &&
+                                                   data.lightData.mainLightIndex != -1 &&
+                                                   visibleLights[data.lightData.mainLightIndex].light.shadows == LightShadows.Soft;
+
+                    data.pass.SetShadowGlobalKeywordsAndConstants(rasterCommandBuffer, ref data, data.allocatedShadowAtlasSize, data.useStructuredBuffer, additionalLightHasSoftShadows, anyShadowSliceRenderer, mainLightHasSoftShadows);
+
+                    if (data.emptyShadowmap)
+                    {
+                        if (data.setKeywordForEmptyShadowmap)
+                            rasterCommandBuffer.EnableKeyword(ShaderGlobalKeywords.AdditionalLightShadows);
+                        SetShadowParamsForEmptyShadowmap(rasterCommandBuffer);
+                    }
+                });
+
+                return shadowTexture;
+            }
+        }
+#endif
+
         internal TextureHandle Render(RenderGraph graph, ContextContainer frameData)
         {
             UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
@@ -931,7 +1049,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                         builder.UseRendererList(passData.shadowRendererListsHdl[globalShadowSliceIndex]);
                     }
 
-                    shadowTexture = UniversalRenderer.CreateRenderGraphTexture(graph, m_AdditionalLightShadowDescriptor, k_AdditionalLightShadowMapTextureName, true,  ShadowUtils.m_ForceShadowPointSampling ? FilterMode.Point : FilterMode.Bilinear);
+                    shadowTexture = GetOrCreateShadowMapTexture(graph, shadowData);
                     builder.SetRenderAttachmentDepth(shadowTexture, AccessFlags.ReadWrite);
                 }
                 else

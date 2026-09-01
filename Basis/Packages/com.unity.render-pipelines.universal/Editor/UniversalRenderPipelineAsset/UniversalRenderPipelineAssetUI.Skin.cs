@@ -28,7 +28,7 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent srpBatcher = EditorGUIUtility.TrTextContent("SRP Batcher", "If enabled, the render pipeline uses the SRP batcher.");
             public static GUIContent storeActionsOptimizationText = EditorGUIUtility.TrTextContent("Store Actions", "Sets the store actions policy on tile based GPUs. Affects render targets memory usage and will impact performance.");
             public static GUIContent dynamicBatching = EditorGUIUtility.TrTextContent("Dynamic Batching", "If enabled, the render pipeline will batch drawcalls with few triangles together by copying their vertex buffers into a shared buffer on a per-frame basis.");
-            public static readonly string warningDynamicBatching = "Dynamic Batching is deprecated and will be removed in a future release. Use SRP Batcher or GPU Instancing instead.";
+            public static GUIContent warningDynamicBatching = EditorGUIUtility.TrTextContent("Dynamic Batching has been removed due to limited performance benefits on modern hardware. This option no longer has any effect. Use SRP Batcher or GPU Instancing instead.");
 
             // Quality
             public static GUIContent hdrText = EditorGUIUtility.TrTextContent("HDR", "Controls the global HDR settings.");
@@ -42,6 +42,15 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent lodCrossFadeDitheringTypeText = EditorGUIUtility.TrTextContent("LOD Cross Fade Dithering Type", "Controls the LOD Cross Fade Dithering Type that will be used to draw Renderer LOD when LODGroup has CrossFade Fade Mode selected.");
             public static GUIContent shEvalModeText = EditorGUIUtility.TrTextContent("SH Evaluation Mode", "Defines the Spherical Harmonic (SH) lighting evaluation type (per vertex, per pixel, or mixed).");
             public static readonly string stpMobilePlatformWarning = "STP is selected for use on a mobile platform. STP is only supported on modern compute-capable hardware and its performance overhead may make it impractical on lower-end devices.";
+#if ENABLE_UPSCALER_FRAMEWORK
+            public static readonly string renderScaleQualityModeInfo = "Render Scale is controlled by the active upscaler's quality mode. Set the upscaler's Resolution Mode to Custom Scaling to drive the render resolution from Render Scale.";
+            // {0} = min scale, {1} = max scale (Render Scale values, e.g. 0.50).
+            public static readonly string renderScaleUpscalerClampWarning = "Render Scale is outside the active upscaler's supported range [{0:0.00}..{1:0.00}] for the current quality mode. It will be clamped to that range at runtime (the upscaler may fail to evaluate otherwise).";
+            public static readonly string renderScaleUpscalerNoRangeInfo = "The active upscaler's current quality mode has no dynamic resolution range, so Custom Scaling has no effect: the render resolution is fixed at the recommended size and Render Scale is ignored.";
+            // {0} = recommended min scale (Render Scale value, e.g. 0.33).
+            public static readonly string renderScaleUpscalerRecommendedInfo = "Render Scale is below the active upscaler's recommended minimum of {0:0.00} for the current quality mode. The upscaler still runs (Render Scale is not clamped), but image quality may degrade at this scale.";
+            public static readonly string renderScaleSupersamplingInfo = "Render Scale is above 1.0, so the image is rendered larger than the display and downsampled (supersampling). Upscaling is inactive at this Render Scale.";
+#endif
 
             // Main light
             public static GUIContent mainLightRenderingModeText = EditorGUIUtility.TrTextContent("Main Light", "Main light is the brightest directional light.");
@@ -125,6 +134,11 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent gpuResidentDrawerMode = EditorGUIUtility.TrTextContent("GPU Resident Drawer", "Enables draw submission through the GPU Resident Drawer, which can improve CPU performance.");
             public static GUIContent smallMeshScreenPercentage = EditorGUIUtility.TrTextContent("Small-Mesh Screen-Percentage", "Default minimum screen percentage (0-20%) gpu-driven Renderers can cover before getting culled. If a Renderer is part of a LODGroup, this will be ignored.");
             public static GUIContent gpuResidentDrawerEnableOcclusionCullingInCameras = EditorGUIUtility.TrTextContent("GPU Occlusion Culling", "Enables GPU occlusion culling in Game and SceneView cameras.");
+            public static string shadowSmallMeshPctToolTip = "Default per-cascade minimum screen percentage (0-50%) gpu-driven Renderers can cover before getting shadows culled. If a Renderer is part of a LODGroup, this will be ignored.";
+            public static readonly GUIContent shadowSmallMeshPct1 = EditorGUIUtility.TrTextContent("Cascade 1 Small-Mesh Screen-Percentage", shadowSmallMeshPctToolTip);
+            public static readonly GUIContent shadowSmallMeshPct2 = EditorGUIUtility.TrTextContent("Cascade 2 Small-Mesh Screen-Percentage", shadowSmallMeshPctToolTip);
+            public static readonly GUIContent shadowSmallMeshPct3 = EditorGUIUtility.TrTextContent("Cascade 3 Small-Mesh Screen-Percentage", shadowSmallMeshPctToolTip);
+            public static readonly GUIContent shadowSmallMeshPct4 = EditorGUIUtility.TrTextContent("Cascade 4 Small-Mesh Screen-Percentage", shadowSmallMeshPctToolTip);
 
             // Adaptive performance settings
             public static GUIContent useAdaptivePerformance = EditorGUIUtility.TrTextContent("Use adaptive performance", "Allows Adaptive Performance to adjust rendering quality during runtime");
@@ -142,6 +156,8 @@ namespace UnityEditor.Rendering.Universal
                 EditorGUIUtility.TrTextContent("Some Graphics API(s) in the Player Graphics APIs list are incompatible with Light Layers.  Switching to these Graphics APIs at runtime can cause issues: ");
             public static GUIContent rendererUnsupportedAPIMessage =
                 EditorGUIUtility.TrTextContent("Some Renderer(s) in the Renderer List are incompatible with the Player Graphics APIs list.  Switching to these renderers at runtime can cause issues.\n\n");
+            public static GUIContent webGL2GpuResidentDrawerErrorMessage =
+                EditorGUIUtility.TrTextContent("GPU Resident Drawer is not supported with the WebGL2 Graphics API.");
             public static GUIContent brgShaderStrippingErrorMessage =
                 EditorGUIUtility.TrTextContent("\"BatchRendererGroup Variants\" setting must be \"Keep All\". To fix, modify Graphics settings and set \"BatchRendererGroup Variants\" to \"Keep All\".");
             public static GUIContent staticBatchingInfoMessage =

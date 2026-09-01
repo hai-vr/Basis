@@ -327,6 +327,18 @@ namespace UnityEngine.Rendering.Universal
         }
         private TextureHandle _irradianceTexture;
 
+#if URP_SCREEN_SPACE_REFLECTION
+        /// <summary>
+        /// Screen Space reflection texture.
+        /// </summary>
+        internal TextureHandle ssrTexture
+        {
+            get => CheckAndGetTextureHandle(ref _ssrTexture);
+            set => CheckAndSetTextureHandle(ref _ssrTexture, value);
+        }
+        private TextureHandle _ssrTexture;
+#endif
+
         /// <summary>
         /// STP debug visualization written to by the STP upscaler.
         /// </summary>
@@ -370,6 +382,9 @@ namespace UnityEngine.Rendering.Universal
             _dBufferDepth = TextureHandle.nullHandle;
             _ssaoTexture = TextureHandle.nullHandle;
             _irradianceTexture = TextureHandle.nullHandle;
+#if URP_SCREEN_SPACE_REFLECTION
+            _ssrTexture = TextureHandle.nullHandle;
+#endif
             _stpDebugView = TextureHandle.nullHandle;
             _destinationCameraColor = TextureHandle.nullHandle;
 

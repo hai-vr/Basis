@@ -16,6 +16,14 @@ namespace UnityEngine.Rendering.Universal
             SelectOnly                  // Selects the keyword and removes others
         }
 
+        // How the Hidden/Light2D shader's multi_compile_local variants should be filtered for this URP asset.
+        internal enum Light2DPrefilteringMode
+        {
+            KeepAll,        // strip2DUnusedVariants is off: ship all 64 combos.
+            StripAll,       // strip2DUnusedVariants is on and this asset has no Renderer2DData: shader is unreachable, strip every variant.
+            StripUnused,    // strip2DUnusedVariants is on and Light2Ds were found in build scenes: keep only the analyzed combos.
+        }
+
         internal enum PrefilteringModeMainLightShadows
         {
             Remove,                     // Removes the keyword
@@ -104,6 +112,16 @@ namespace UnityEngine.Rendering.Universal
         [ShaderKeywordFilter.SelectIf(PrefilteringMode.SelectOnly, keywordNames: ShaderKeywordStrings.ScreenSpaceOcclusion)]
         [SerializeField] private PrefilteringMode m_PrefilteringModeScreenSpaceOcclusion = PrefilteringMode.Select;
 
+        // Screen Space Reflection
+        [ShaderKeywordFilter.RemoveIf(PrefilteringMode.Remove,     keywordNames: ShaderKeywordStrings.ScreenSpaceReflection)]
+        [ShaderKeywordFilter.SelectIf(PrefilteringMode.Select,     keywordNames: new [] {"", ShaderKeywordStrings.ScreenSpaceReflection})]
+        [ShaderKeywordFilter.SelectIf(PrefilteringMode.SelectOnly, keywordNames: ShaderKeywordStrings.ScreenSpaceReflection)]
+        [SerializeField] private PrefilteringMode m_PrefilteringModeScreenSpaceReflection = PrefilteringMode.Select;
+
+        // Keyword used by the DepthNormalOnly pass to write smoothness into alpha channel for screen space reflections.
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.WriteSmoothness)]
+        [SerializeField] private bool m_PrefilterWriteSmoothness = true;
+
         // Rendering Debugger
         [ShaderKeywordFilter.RemoveIf(true, keywordNames:ShaderKeywordStrings.DEBUG_DISPLAY)]
         [SerializeField] private bool m_PrefilterDebugKeywords = false;
@@ -125,23 +143,23 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] private bool m_PrefilterAlphaOutput = false;
 
         // Screen Space Ambient Occlusion (SSAO) specific keywords
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusion.k_SourceDepthNormalsKeyword)]
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusionKeywords.k_SourceDepthNormalsKeyword)]
         [SerializeField] private bool m_PrefilterSSAODepthNormals = false;
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusion.k_SourceDepthLowKeyword)]
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusionKeywords.k_SourceDepthLowKeyword)]
         [SerializeField] private bool m_PrefilterSSAOSourceDepthLow = false;
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusion.k_SourceDepthMediumKeyword)]
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusionKeywords.k_SourceDepthMediumKeyword)]
         [SerializeField] private bool m_PrefilterSSAOSourceDepthMedium = false;
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusion.k_SourceDepthHighKeyword)]
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusionKeywords.k_SourceDepthHighKeyword)]
         [SerializeField] private bool m_PrefilterSSAOSourceDepthHigh = false;
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusion.k_AOInterleavedGradientKeyword)]
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusionKeywords.k_AOInterleavedGradientKeyword)]
         [SerializeField] private bool m_PrefilterSSAOInterleaved = false;
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusion.k_AOBlueNoiseKeyword)]
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusionKeywords.k_AOBlueNoiseKeyword)]
         [SerializeField] private bool m_PrefilterSSAOBlueNoise = false;
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusion.k_SampleCountLowKeyword)]
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusionKeywords.k_SampleCountLowKeyword)]
         [SerializeField] private bool m_PrefilterSSAOSampleCountLow = false;
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusion.k_SampleCountMediumKeyword)]
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusionKeywords.k_SampleCountMediumKeyword)]
         [SerializeField] private bool m_PrefilterSSAOSampleCountMedium = false;
-        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusion.k_SampleCountHighKeyword)]
+        [ShaderKeywordFilter.RemoveIf(true, keywordNames: ScreenSpaceAmbientOcclusionKeywords.k_SampleCountHighKeyword)]
         [SerializeField] private bool m_PrefilterSSAOSampleCountHigh = false;
 
         // Decals
@@ -213,6 +231,16 @@ namespace UnityEngine.Rendering.Universal
         [ShaderKeywordFilter.RemoveIf(true, keywordNames: ShaderKeywordStrings.PointSampling)]
         [SerializeField] private bool m_PrefilterPointSamplingUpsampling = false;
 
+        // Hidden/Light2D variant prefiltering. The 6-keyword combo space (USE_NORMAL_MAP,
+        // USE_SHADOW_MAP, USE_ADDITIVE_BLENDING, USE_VOLUMETRIC, USE_POINT_LIGHT_COOKIES,
+        // LIGHT_QUALITY_FAST) is too dynamic to express with declarative ShaderKeywordFilter
+        // attributes; ShaderScriptableStripper reads these fields and trims variants programmatically.
+        [SerializeField] private Light2DPrefilteringMode m_Light2DPrefilteringMode = Light2DPrefilteringMode.KeepAll;
+        [SerializeField] private string[] m_Light2DKeptVariantCombos = null;
+
+        internal Light2DPrefilteringMode light2DPrefilteringMode => m_Light2DPrefilteringMode;
+        internal string[] light2DKeptVariantCombos => m_Light2DKeptVariantCombos;
+
         /// <summary>
         /// Data used for Shader Prefiltering. Gathered after going through the URP Assets,
         /// Renderers and Renderer Features in OnPreprocessBuild() inside ShaderPreprocessor.cs.
@@ -225,6 +253,7 @@ namespace UnityEngine.Rendering.Universal
             public PrefilteringModeAdditionalLights additionalLightsPrefilteringMode;
             public PrefilteringMode additionalLightsShadowsPrefilteringMode;
             public PrefilteringMode screenSpaceOcclusionPrefilteringMode;
+            public PrefilteringMode screenSpaceReflectionPrefilteringMode;
             public bool useLegacyLightmaps;
 
             public bool stripXRKeywords;
@@ -261,6 +290,13 @@ namespace UnityEngine.Rendering.Universal
 
             public bool stripScreenSpaceIrradiance;
 
+            // Keyword used by the DepthNormalOnly pass to write smoothness into alpha channel for screen space reflections.
+            public bool stripWriteSmoothness;
+
+            // Hidden/Light2D variant filtering. See Light2DPrefilteringMode.
+            public Light2DPrefilteringMode light2DPrefilteringMode;
+            public string[] light2DKeptVariantCombos;
+
             public static ShaderPrefilteringData GetDefault()
             {
                 return new ShaderPrefilteringData()
@@ -271,6 +307,9 @@ namespace UnityEngine.Rendering.Universal
                     additionalLightsPrefilteringMode = PrefilteringModeAdditionalLights.SelectAll,
                     additionalLightsShadowsPrefilteringMode = PrefilteringMode.Select,
                     screenSpaceOcclusionPrefilteringMode = PrefilteringMode.Select,
+                    screenSpaceReflectionPrefilteringMode = PrefilteringMode.Select,
+                    light2DPrefilteringMode = Light2DPrefilteringMode.KeepAll,
+                    light2DKeptVariantCombos = null,
                 };
             }
         }
@@ -287,6 +326,7 @@ namespace UnityEngine.Rendering.Universal
             m_PrefilteringModeAdditionalLight        = prefilteringData.additionalLightsPrefilteringMode;
             m_PrefilteringModeAdditionalLightShadows = prefilteringData.additionalLightsShadowsPrefilteringMode;
             m_PrefilteringModeScreenSpaceOcclusion   = prefilteringData.screenSpaceOcclusionPrefilteringMode;
+            m_PrefilteringModeScreenSpaceReflection  = prefilteringData.screenSpaceReflectionPrefilteringMode;
             m_PrefilterUseLegacyLightmaps            = prefilteringData.useLegacyLightmaps;
 
             m_PrefilterXRKeywords                    = prefilteringData.stripXRKeywords;
@@ -324,6 +364,11 @@ namespace UnityEngine.Rendering.Universal
             m_PrefilterPointSamplingUpsampling       = prefilteringData.stripPointSamplingUpsampling;
 
             m_PrefilterScreenSpaceIrradiance         = prefilteringData.stripScreenSpaceIrradiance;
+
+            m_PrefilterWriteSmoothness               = prefilteringData.stripWriteSmoothness;
+
+            m_Light2DPrefilteringMode                = prefilteringData.light2DPrefilteringMode;
+            m_Light2DKeptVariantCombos               = prefilteringData.light2DKeptVariantCombos;
         }
     }
 }

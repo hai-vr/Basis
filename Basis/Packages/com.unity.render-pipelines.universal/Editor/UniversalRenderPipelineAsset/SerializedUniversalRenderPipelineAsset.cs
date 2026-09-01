@@ -71,6 +71,7 @@ namespace UnityEditor.Rendering.Universal
         public SerializedProperty conservativeEnclosingSphereProp { get; }
 
         public SerializedProperty srpBatcher { get; }
+        // Deprecated: Retained for serialized data compatibility and will be removed in a future release.
         public SerializedProperty supportsDynamicBatching { get; }
         public SerializedProperty mixedLightingSupportedProp { get; }
         public SerializedProperty useRenderingLayers { get; }
@@ -88,6 +89,8 @@ namespace UnityEditor.Rendering.Universal
 
         public SerializedProperty gpuResidentDrawerMode { get; }
         public SerializedProperty smallMeshScreenPercentage { get; }
+
+        public SerializedProperty shadowSmallMeshScreenPercentages { get; }
         public SerializedProperty gpuResidentDrawerEnableOcclusionCullingInCameras { get; }
 
 #if ENABLE_ADAPTIVE_PERFORMANCE
@@ -189,6 +192,7 @@ namespace UnityEditor.Rendering.Universal
 
             gpuResidentDrawerMode = serializedObject.FindProperty("m_GPUResidentDrawerMode");
             smallMeshScreenPercentage = serializedObject.FindProperty("m_SmallMeshScreenPercentage");
+            shadowSmallMeshScreenPercentages = serializedObject.FindProperty("m_ShadowSmallMeshScreenPercentages");
             gpuResidentDrawerEnableOcclusionCullingInCameras = serializedObject.FindProperty("m_GPUResidentDrawerEnableOcclusionCullingInCameras");
 
 #if ENABLE_ADAPTIVE_PERFORMANCE

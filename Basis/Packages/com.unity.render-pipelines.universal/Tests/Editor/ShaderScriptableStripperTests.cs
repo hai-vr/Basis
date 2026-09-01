@@ -785,6 +785,7 @@ namespace ShaderStrippingAndPrefiltering
             TestStripUnusedFeatures_ReflectionProbes(shader);
             TestStripUnusedFeatures_AdditionalLights(shader);
             TestStripUnusedFeatures_ScreenSpaceOcclusion(shader);
+            TestStripUnusedFeatures_ScreenSpaceReflection(shader);
             TestStripUnusedFeatures_DecalsDbuffer(shader);
             TestStripUnusedFeatures_DecalsNormalBlend(shader);
             TestStripUnusedFeatures_DecalLayers(shader);
@@ -1643,6 +1644,53 @@ namespace ShaderStrippingAndPrefiltering
             TestHelper.s_EnabledKeywords = new List<string>() { ShaderKeywordStrings.ScreenSpaceOcclusion };
             TestHelper.s_PassKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceOcclusion};
             helper.IsFalse(helper.stripper.StripUnusedFeatures_ScreenSpaceOcclusion(ref helper.data, ref helper.featureStripTool));
+        }
+
+        public void TestStripUnusedFeatures_ScreenSpaceReflection(Shader shader)
+        {
+            TestHelper helper;
+
+            // None
+            helper = new TestHelper(shader, ShaderFeatures.None);
+            TestHelper.s_PassKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection, ShaderKeywordStrings.WriteSmoothness};
+            helper.IsFalse(helper.stripper.StripUnusedFeatures_ScreenSpaceReflection(ref helper.data, ref helper.featureStripTool));
+
+            helper = new TestHelper(shader, ShaderFeatures.None);
+            TestHelper.s_EnabledKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection, ShaderKeywordStrings.WriteSmoothness};
+            TestHelper.s_PassKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection};
+            helper.AreEqual(shader != null, helper.stripper.StripUnusedFeatures_ScreenSpaceReflection(ref helper.data, ref helper.featureStripTool));
+
+            helper = new TestHelper(shader, ShaderFeatures.None);
+            TestHelper.s_EnabledKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection, ShaderKeywordStrings.WriteSmoothness};
+            TestHelper.s_PassKeywords = new List<string>() {ShaderKeywordStrings.WriteSmoothness};
+            helper.AreEqual(shader != null, helper.stripper.StripUnusedFeatures_ScreenSpaceReflection(ref helper.data, ref helper.featureStripTool));
+
+            helper = new TestHelper(shader, ShaderFeatures.None);
+            TestHelper.s_EnabledKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection, ShaderKeywordStrings.WriteSmoothness};
+            TestHelper.s_PassKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection, ShaderKeywordStrings.WriteSmoothness};
+            helper.AreEqual(shader != null, helper.stripper.StripUnusedFeatures_ScreenSpaceReflection(ref helper.data, ref helper.featureStripTool));
+
+#if URP_SCREEN_SPACE_REFLECTION
+            // ScreenSpaceReflection
+            helper = new TestHelper(shader, ShaderFeatures.ScreenSpaceReflection);
+            TestHelper.s_PassKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection, ShaderKeywordStrings.WriteSmoothness};
+            helper.AreEqual(shader != null, helper.stripper.StripUnusedFeatures_ScreenSpaceReflection(ref helper.data, ref helper.featureStripTool));
+
+            helper = new TestHelper(shader, ShaderFeatures.ScreenSpaceReflection);
+            TestHelper.s_EnabledKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection, ShaderKeywordStrings.WriteSmoothness};
+            TestHelper.s_PassKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection};
+            helper.IsFalse(helper.stripper.StripUnusedFeatures_ScreenSpaceReflection(ref helper.data, ref helper.featureStripTool));
+
+            helper = new TestHelper(shader, ShaderFeatures.ScreenSpaceReflection);
+            TestHelper.s_EnabledKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection, ShaderKeywordStrings.WriteSmoothness};
+            TestHelper.s_PassKeywords = new List<string>() {ShaderKeywordStrings.WriteSmoothness};
+            helper.IsFalse(helper.stripper.StripUnusedFeatures_ScreenSpaceReflection(ref helper.data, ref helper.featureStripTool));
+
+            helper = new TestHelper(shader, ShaderFeatures.ScreenSpaceReflection);
+            TestHelper.s_EnabledKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection, ShaderKeywordStrings.WriteSmoothness};
+            TestHelper.s_PassKeywords = new List<string>() {ShaderKeywordStrings.ScreenSpaceReflection, ShaderKeywordStrings.WriteSmoothness};
+            helper.IsFalse(helper.stripper.StripUnusedFeatures_ScreenSpaceReflection(ref helper.data, ref helper.featureStripTool));
+#endif
         }
 
         public void TestStripUnusedFeatures_DecalsDbuffer(Shader shader)

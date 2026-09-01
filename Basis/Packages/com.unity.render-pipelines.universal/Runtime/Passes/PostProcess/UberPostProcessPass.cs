@@ -28,7 +28,7 @@ namespace UnityEngine.Rendering.Universal
         public UberPostProcessPass(Shader shader, Texture2D[] filmGrainTextures)
         {
             this.renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing - 1;
-            this.profilingSampler = new ProfilingSampler("Blit Post Processing");
+            this.profilingSampler = URPProfilingSamplers.UberPostProcess;
 
             m_Material = PostProcessUtils.LoadShader(shader, passName);
             m_IsValid = m_Material != null;
@@ -120,9 +120,20 @@ namespace UnityEngine.Rendering.Universal
             var bloomTexture = resourceData.bloom;
 
             TextureHandle destinationTexture;
+            AccessFlags destinationAccessFlag = AccessFlags.Write;
             if (resourceData.isActiveTargetBackBuffer)
             {
                 destinationTexture = resourceData.backBufferColor;
+
+                // Full-screen blit to backbuffer with no alpha will overwrite every pixel, so use flag
+                // WriteAll for the compiler to set load op DontCare later and skip the color load
+                if (cameraData.isDefaultViewport && !cameraData.isAlphaOutputEnabled)
+                    destinationAccessFlag = AccessFlags.WriteAll;
+
+#if ENABLE_VR && ENABLE_XR_MODULE
+                if (cameraData.xr.enabled && cameraData.xr.hasValidVisibleMesh) // Not a full-screen blit
+                    destinationAccessFlag = AccessFlags.Write;
+#endif
             }
             else
             {
@@ -148,8 +159,8 @@ namespace UnityEngine.Rendering.Universal
                     passSupportsFoveation &= !Experimental.Rendering.XRSystem.foveatedRenderingCaps.HasFlag(FoveatedRenderingCaps.NonUniformRaster);
                     builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering && passSupportsFoveation);
 
-                    // Apply MultiviewRenderRegionsCompatible flag only to the peripheral view in Quad Views
-                    if (cameraData.xr.multipassId == 0)
+                    // Multiview render regions are incompatible with the inner (foveal) pass in Quad View
+                    if (!cameraData.xr.isQuadViewInnerPass)
                     {
                         builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.MultiviewRenderRegionsCompatible);
                     }
@@ -157,7 +168,7 @@ namespace UnityEngine.Rendering.Universal
 #endif
                 builder.AllowGlobalStateModification(true);
                 passData.destinationTexture = destinationTexture;
-                builder.SetRenderAttachment(destinationTexture, 0, AccessFlags.Write);
+                builder.SetRenderAttachment(destinationTexture, 0, destinationAccessFlag);
                 passData.sourceTexture = sourceTexture;
                 builder.UseTexture(sourceTexture, AccessFlags.Read);
 
@@ -395,7 +406,7 @@ namespace UnityEngine.Rendering.Universal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static void CalcBloomParams(Bloom bloom, in TextureDesc srcDesc, out Vector4 bloomParams, out bool highQualityFiltering, out Texture dirtTexture, out Vector4 dirtScaleOffset, out float dirtIntensity)
             {
-                using (new ProfilingScope(ProfilingSampler.Get(URPProfileId.RG_UberPostSetupBloomPass)))
+                using (new ProfilingScope(URPProfilingSamplers.UberPostSetupBloomPass))
                 {
                     // Setup bloom on uber
                     var tint = bloom.tint.value.linear;
@@ -412,7 +423,8 @@ namespace UnityEngine.Rendering.Universal
                     float dirtRatio = dirtTexture.width / (float)dirtTexture.height;
                     float screenRatio = srcDesc.width / (float)srcDesc.height;
                     dirtScaleOffset = new Vector4(1f, 1f, 0f, 0f);
-                    dirtIntensity = bloom.dirtIntensity.value;
+                    // Must match _DIRT variant stripping in ShaderBuildPreprocessor.
+                    dirtIntensity = bloom.dirtTexture.value == null ? 0f : bloom.dirtIntensity.value;
 
                     if (dirtRatio > screenRatio)
                     {
@@ -535,7 +547,7 @@ namespace UnityEngine.Rendering.Universal
                     Vector2 center = vignetteParams2;
                     var xrLayout = XRSystem.currentLayout;
 
-                    if (xrLayout != null && xrPass.viewCount > 1 && xrPass.multipassId == 1 && xrPass.isLastCameraPass)
+                    if (xrPass.isQuadViewInnerPass)
                     {
                         // Second pass (inner views): Reuse the cached peripheral vignette center
                         // This ensures vignette is calculated in the outer UV space after remapping
@@ -580,7 +592,7 @@ namespace UnityEngine.Rendering.Universal
                     // center since the version of the shader that is not single-pass will use the value in _Vignette_Params2
                     center = xrPass.ApplyXRViewCenterOffset(center);
                 }
-                if (xrPass != null && xrPass.singlePassEnabled && xrPass.viewCount > 1 && xrPass.multipassId == 1 && xrPass.isLastCameraPass)
+                if (xrPass != null && xrPass.isQuadViewInnerPass)
                 {
                     // In quad view we need to also apply the aspect ratio correction to the vignette as the UV remapping will cause it to be stretched/squashed if not corrected
                     aspectRatio *= xrPass.uvScales.y / xrPass.uvScales.x;
@@ -634,9 +646,18 @@ namespace UnityEngine.Rendering.Universal
             // NOTE: Procedural FilmGrain can be done using the custom texture with RenderTexture. No need to import it into the RenderGraph.
             const float k_FilmGrainIntensityScale = 4f;
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            static public void CalcFilmGrainParams(FilmGrain filmGrain, Texture2D[] filmGrainTextures, out Texture grainTexture, out Vector2 grainParams)
+            internal static void CalcFilmGrainParams(FilmGrain filmGrain, Texture2D[] filmGrainTextures, out Texture grainTexture, out Vector2 grainParams)
             {
-                grainTexture = (filmGrain.type.value == FilmGrainLookup.Custom) ? filmGrain.texture.value : filmGrainTextures[(int)filmGrain.type.value];
+                if (filmGrain.type.value == FilmGrainLookup.Custom)
+                {
+                    grainTexture = filmGrain.texture.value;
+                }
+                else
+                {
+                    grainTexture = (filmGrainTextures != null && (int)filmGrain.type.value < filmGrainTextures.Length)
+                        ? filmGrainTextures[(int)filmGrain.type.value]
+                        : null;
+                }
                 grainParams = new Vector2(filmGrain.intensity.value * k_FilmGrainIntensityScale, filmGrain.response.value);
             }
         }

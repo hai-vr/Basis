@@ -48,7 +48,7 @@ UNITY_DOTS_INSTANCING_END(BuiltinPropertyMetadata)
 
 // Not supported by BatchRendererGroup. Just define them as constants.
 // ------------------------------------------------------------------------------
-static const float2x4 unity_LightIndices = float2x4(0,0,0,0, 0,0,0,0);
+static const float4 unity_PackedLightIndices = float4(0,0,0,0);
 
 static const float4 unity_SpecCube0_BoxMax = float4(1,1,1,1);
 static const float4 unity_SpecCube0_BoxMin = float4(0,0,0,0);

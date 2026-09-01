@@ -123,6 +123,8 @@ namespace UnityEditor.Rendering.Universal
         Shader m_XROcclusionMeshShader = Shader.Find("Hidden/Universal Render Pipeline/XR/XROcclusionMesh");
         Shader m_XRMirrorViewShader = Shader.Find("Hidden/Universal Render Pipeline/XR/XRMirrorView");
         Shader m_XRMotionVectorShader = Shader.Find("Hidden/Universal Render Pipeline/XR/XRMotionVector");
+        Shader m_Light2DShader = Shader.Find("Hidden/Light2D");
+        Shader m_RenderingLayerMask2DShader = Shader.Find("Hidden/2D/RenderingLayerMask");
 
         // Pass names
         public static readonly string kPassNameUniversal2D = "Universal2D";
@@ -160,6 +162,8 @@ namespace UnityEditor.Rendering.Universal
         LocalKeyword m_GbufferNormalsOct;
         LocalKeyword m_ScreenSpaceOcclusion;
         LocalKeyword m_ScreenSpaceIrradiance;
+        LocalKeyword m_ScreenSpaceReflection;
+        LocalKeyword m_WriteSmoothness;
         LocalKeyword m_UseFastSRGBLinearConversion;
         LocalKeyword m_LightLayers;
         LocalKeyword m_DecalLayers;
@@ -198,6 +202,8 @@ namespace UnityEditor.Rendering.Universal
         LocalKeyword m_Instancing;
         LocalKeyword m_DotsInstancing;
         LocalKeyword m_ProceduralInstancing;
+        LocalKeyword m_DepthAsInputAttachment;
+        LocalKeyword m_DepthAsInputAttachmentMSAA;
         LocalKeyword m_PointSampling;
 
         private LocalKeyword TryGetLocalKeyword(Shader shader, string name)
@@ -232,6 +238,8 @@ namespace UnityEditor.Rendering.Universal
             m_GbufferNormalsOct = TryGetLocalKeyword(shader, ShaderKeywordStrings._GBUFFER_NORMALS_OCT);
             m_ScreenSpaceOcclusion = TryGetLocalKeyword(shader, ShaderKeywordStrings.ScreenSpaceOcclusion);
             m_ScreenSpaceIrradiance = TryGetLocalKeyword(shader, ShaderKeywordStrings.ScreenSpaceIrradiance);
+            m_ScreenSpaceReflection = TryGetLocalKeyword(shader, ShaderKeywordStrings.ScreenSpaceReflection);
+            m_WriteSmoothness = TryGetLocalKeyword(shader, ShaderKeywordStrings.WriteSmoothness);
             m_UseFastSRGBLinearConversion = TryGetLocalKeyword(shader, ShaderKeywordStrings.UseFastSRGBLinearConversion);
             m_LightLayers = TryGetLocalKeyword(shader, ShaderKeywordStrings.LightLayers);
             m_DecalLayers = TryGetLocalKeyword(shader, ShaderKeywordStrings.DecalLayers);
@@ -249,6 +257,8 @@ namespace UnityEditor.Rendering.Universal
             m_EditorVisualization = TryGetLocalKeyword(shader, ShaderKeywordStrings.EDITOR_VISUALIZATION);
             m_LODFadeCrossFade = TryGetLocalKeyword(shader, ShaderKeywordStrings.LOD_FADE_CROSSFADE);
             m_LightCookies = TryGetLocalKeyword(shader, ShaderKeywordStrings.LightCookies);
+            m_DepthAsInputAttachment = TryGetLocalKeyword(shader, ShaderKeywordStrings.DEPTH_AS_INPUT_ATTACHMENT);
+            m_DepthAsInputAttachmentMSAA = TryGetLocalKeyword(shader, ShaderKeywordStrings.DEPTH_AS_INPUT_ATTACHMENT_MSAA);
 
             m_ScreenCoordOverride = TryGetLocalKeyword(shader, ShaderKeywordStrings.SCREEN_COORD_OVERRIDE);
             m_LightmapBicubicSampling = TryGetLocalKeyword(shader, ShaderKeywordStrings.LIGHTMAP_BICUBIC_SAMPLING);
@@ -669,6 +679,22 @@ namespace UnityEditor.Rendering.Universal
             return false;
         }
 
+        internal bool StripUnusedFeatures_ScreenSpaceReflection(ref IShaderScriptableStrippingData strippingData, ref ShaderStripTool<ShaderFeatures> stripTool)
+        {
+#if URP_SCREEN_SPACE_REFLECTION
+            // Screen Space Reflection
+            if (stripTool.StripMultiCompile(m_ScreenSpaceReflection, ShaderFeatures.ScreenSpaceReflection))
+                return true;
+
+            if (stripTool.StripMultiCompile(m_WriteSmoothness, ShaderFeatures.ScreenSpaceReflection))
+                return true;
+
+            return false;
+#else
+            return strippingData.IsKeywordEnabled(m_ScreenSpaceReflection) || strippingData.IsKeywordEnabled(m_WriteSmoothness);
+#endif
+        }
+
         internal bool StripUnusedFeatures_DecalsDbuffer(ref IShaderScriptableStrippingData strippingData, ref ShaderStripTool<ShaderFeatures> stripTool)
         {
             // DBuffer
@@ -730,6 +756,15 @@ namespace UnityEditor.Rendering.Universal
             {
                 if (strippingData.passName == kPassNameDepthNormals)
                 {
+#if URP_SCREEN_SPACE_REFLECTION
+                    // If SSR is enabled, always keep the variant with WriteRenderingLayers disabled. We need this for the SSR transparent depthnormal pass.
+                    if (strippingData.IsShaderFeatureEnabled(ShaderFeatures.ScreenSpaceReflection))
+                    {
+                        if (stripTool.StripMultiCompileKeepOffVariant(m_WriteRenderingLayers, ShaderFeatures.DepthNormalPassRenderingLayers))
+                            return true;
+                    }
+                    else
+#endif
                     if (stripTool.StripMultiCompile(m_WriteRenderingLayers, ShaderFeatures.DepthNormalPassRenderingLayers))
                         return true;
                 }
@@ -804,6 +839,20 @@ namespace UnityEditor.Rendering.Universal
             return strippingData.stripUnusedXRVariants;
         }
 
+        internal bool StripUnusedFeatures_RenderObjectDepthInputAttachment(ref IShaderScriptableStrippingData strippingData)
+        {
+            if (!strippingData.IsShaderFeatureEnabled(ShaderFeatures.RenderObjectDepthInputAttachment))
+            {
+                if (strippingData.IsKeywordEnabled(m_DepthAsInputAttachment))
+                    return true;
+
+                if (strippingData.IsKeywordEnabled(m_DepthAsInputAttachmentMSAA))
+                    return true;
+            }
+
+            return false;
+        }
+        
         internal bool StripUnusedFeatures_CrossFadeLod(ref IShaderScriptableStrippingData strippingData)
         {
             if (!strippingData.IsKeywordEnabled(m_LODFadeCrossFade))
@@ -828,6 +877,14 @@ namespace UnityEditor.Rendering.Universal
                 return false;
 
             return stripTool.StripMultiCompile(m_PointSampling, ShaderFeatures.PointSamplingUpsampling);
+        }
+
+        internal bool StripUnusedFeatures_RenderingLayerMask2D(ref IShaderScriptableStrippingData strippingData)
+        {
+            if (strippingData.shader != m_RenderingLayerMask2DShader)
+                return false;
+
+            return !strippingData.IsShaderFeatureEnabled(ShaderFeatures.LightLayers);
         }
 
         internal bool StripUnusedFeatures(ref IShaderScriptableStrippingData strippingData)
@@ -907,6 +964,9 @@ namespace UnityEditor.Rendering.Universal
             if (StripUnusedFeatures_ScreenSpaceOcclusion(ref strippingData, ref stripTool))
                 return true;
 
+            if (StripUnusedFeatures_ScreenSpaceReflection(ref strippingData, ref stripTool))
+                return true;
+
             if (StripUnusedFeatures_DecalsDbuffer(ref strippingData, ref stripTool))
                 return true;
 
@@ -940,7 +1000,13 @@ namespace UnityEditor.Rendering.Universal
             if (StripUnusedFeatures_XRMotionVector(ref strippingData))
                 return true;
 
+            if (StripUnusedFeatures_RenderObjectDepthInputAttachment(ref strippingData))
+                return true;
+
             if (StripUnusedFeatures_PointSamplingUpsampling(ref strippingData, ref stripTool))
+                return true;
+
+            if (StripUnusedFeatures_RenderingLayerMask2D(ref strippingData))
                 return true;
 
             return false;
@@ -1070,16 +1136,22 @@ namespace UnityEditor.Rendering.Universal
 
         internal bool StripUnusedPass_Meta(ref IShaderScriptableStrippingData strippingData)
         {
-            // Meta pass is needed in the player for Enlighten Precomputed Realtime GI albedo and emission.
+            // Meta pass is needed for Enlighten and Surface Cache realtime GI systems.
             if (strippingData.passType == PassType.Meta)
             {
-                if (SupportedRenderingFeatures.active.enlighten == false
-                    || ((int)SupportedRenderingFeatures.active.lightmapBakeTypes | (int)LightmapBakeType.Realtime) == 0
 #if SURFACE_CACHE
-                    || !strippingData.IsShaderFeatureEnabled(ShaderFeatures.SurfaceCache)
+                // Keep Meta pass for Surface Cache feature
+                if (strippingData.IsShaderFeatureEnabled(ShaderFeatures.SurfaceCache))
+                    return false;
 #endif
-                   )
-                    return true;
+                // Keep Meta pass for Enlighten realtime GI
+                if (SupportedRenderingFeatures.active.enlighten
+                    && ((int)SupportedRenderingFeatures.active.lightmapBakeTypes & (int)LightmapBakeType.Realtime) != 0
+                    )
+                    return false;
+
+                // Remove Meta pass by default
+                return true;
             }
             return false;
         }
@@ -1225,6 +1297,38 @@ namespace UnityEditor.Rendering.Universal
             return false;
         }
 
+        // Hidden/Light2D variant stripping. Independent of stripUnusedVariants — runs whenever
+        // strip2DUnusedVariants is enabled. OR-semantics across URP assets: keep the variant if
+        // ANY asset says KeepAll or includes its combo in the analyzed kept-combo list. Only
+        // strip when every asset says StripAll OR the variant's combo is not in any StripUnused
+        // asset's combos.
+        internal bool CanRemoveLight2DVariant(Shader shader, ShaderCompilerData variantData)
+        {
+            if (m_Light2DShader == null || shader != m_Light2DShader)
+                return false;
+
+            var entries = ShaderBuildPreprocessor.s_Light2DPrefilteringPerAsset;
+            if (entries == null || entries.Count == 0)
+                return false;
+
+            string combo = null;
+            foreach (var entry in entries)
+            {
+                if (entry.mode == UniversalRenderPipelineAsset.Light2DPrefilteringMode.KeepAll)
+                    return false;
+
+                if (entry.mode == UniversalRenderPipelineAsset.Light2DPrefilteringMode.StripUnused)
+                {
+                    // Lazy-build combo string the first time a StripUnused asset is seen.
+                    combo ??= Light2DPrefilteringAnalysis.BuildComboString(variantData.shaderKeywordSet, shader);
+                    if (entry.combos != null && System.Array.IndexOf(entry.combos, combo) >= 0)
+                        return false;
+                }
+                // StripAll → contributes a "strip" vote; fall through to next entry.
+            }
+            return true;
+        }
+
 
         /*********************************************************
                             Main Callbacks
@@ -1232,6 +1336,12 @@ namespace UnityEditor.Rendering.Universal
 
         public bool CanRemoveVariant([DisallowNull] Shader shader, ShaderSnippetData passData, ShaderCompilerData variantData)
         {
+            // Light2D variant stripping is per-URP-asset (Renderer2DData presence varies per
+            // asset, scene-analyzed combos are project-wide), so it's evaluated outside the
+            // per-renderer-feature supportedFeaturesList iteration below.
+            if (CanRemoveLight2DVariant(shader, variantData))
+                return true;
+
             IShaderScriptableStrippingData strippingData = new StrippingData()
             {
                 volumeFeatures = ShaderBuildPreprocessor.volumeFeatures,
@@ -1290,6 +1400,9 @@ namespace UnityEditor.Rendering.Universal
         {
             if (shader != null)
                 InitializeLocalShaderKeywords(shader);
+
+            // Set SupportedRenderingFeatures for the shader
+            UniversalRenderPipeline.SetSupportedRenderingFeatures(UniversalRenderPipeline.asset);
         }
 
         public void AfterShaderStripping(Shader shader)

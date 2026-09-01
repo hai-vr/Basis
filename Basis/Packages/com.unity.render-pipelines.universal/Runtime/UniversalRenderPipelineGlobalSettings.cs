@@ -17,7 +17,7 @@ namespace UnityEngine.Rendering.Universal
     /// Global settings are unique per Render Pipeline type. In URP, Global Settings contain:
     /// - light layer names
     /// </summary>
-    [URPHelpURL("urp-global-settings")]
+    [URPHelpURL("urp/urp-global-settings")]
     [DisplayInfo(name = "URP Global Settings Asset", order = CoreUtils.Sections.section4 + 2)]
     [SupportedOnRenderPipeline(typeof(UniversalRenderPipelineAsset))]
     [DisplayName("URP")]
@@ -30,7 +30,7 @@ namespace UnityEngine.Rendering.Universal
 
         internal bool IsAtLastVersion() => k_LastVersion == m_AssetVersion;
 
-        internal const int k_LastVersion = 10;
+        internal const int k_LastVersion = 11;
 
 #pragma warning disable CS0414
         [SerializeField][FormerlySerializedAs("k_AssetVersion")]
@@ -155,9 +155,68 @@ namespace UnityEngine.Rendering.Universal
                 asset.m_AssetVersion = 10;
             }
 
+            if (asset.m_AssetVersion < 11)
+            {
+                MigrateFilmGrainTextures();
+                asset.m_AssetVersion = 11;
+            }
+
             // If the asset version has changed, means that a migration step has been executed
             if (assetVersionBeforeUpgrade != asset.m_AssetVersion)
                 EditorUtility.SetDirty(asset);
+        }
+
+        static void MigrateFilmGrainTextures()
+        {
+            // Film Grain textures have been moved from PostProcessData reference to Global Settings to allow stripping
+            // the textures when unused. This migration step logs a user warning if they had customized the film grain
+            // textures, and removes the deprecated texture references from PostProcessData.
+
+            GraphicsSettings.TryGetRenderPipelineSettings<UniversalRenderPipelineFilmGrainResources>(out var filmGrainResources);
+            var ppDataGuids = AssetDatabase.FindAssets("t:PostProcessData");
+            foreach (var ppDataGuid in ppDataGuids)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(ppDataGuid);
+                if (!path.StartsWith("Assets"))
+                    continue; // We only care about mutable assets inside Assets
+
+                var postProcessData = AssetDatabase.LoadAssetAtPath<PostProcessData>(path);
+                ClearObsoleteFilmGrainTexturesAndLogWarnings(postProcessData, filmGrainResources);
+                EditorUtility.SetDirty(postProcessData);
+            }
+        }
+
+        internal static void ClearObsoleteFilmGrainTexturesAndLogWarnings(PostProcessData postProcessData, UniversalRenderPipelineFilmGrainResources filmGrainResources)
+        {
+#pragma warning disable 618
+            var oldFilmGrainTextureArray = postProcessData.textures?.filmGrainTex;
+            if (oldFilmGrainTextureArray != null && filmGrainResources != null)
+            {
+                List<string> unusedOldFilmGrainTexturePaths = new();
+                foreach (var oldTex in oldFilmGrainTextureArray)
+                {
+                    if (oldTex != null && Array.IndexOf(filmGrainResources.textures, oldTex) == -1)
+                    {
+                        var oldPath = AssetDatabase.GetAssetPath(oldTex);
+                        if (!string.IsNullOrEmpty(oldPath))
+                            unusedOldFilmGrainTexturePaths.Add(oldPath);
+                    }
+                }
+
+                if (unusedOldFilmGrainTexturePaths.Count > 0)
+                {
+                    Debug.LogWarning("Film Grain texture list has been moved from PostProcessData to URP " +
+                                     "Graphics Settings, and it can no longer be edited. Use " +
+                                     "`FilmGrain.type = FilmGrainLookup.Custom` instead. As a consequence, " +
+                                     "following custom film grain textures are no longer referenced:\n" +
+                                     $"{string.Join("\n", unusedOldFilmGrainTexturePaths)}.");
+                }
+            }
+
+            // Clear the references so they are no longer referenced in the deprecated field.
+            if (postProcessData.textures != null)
+                postProcessData.textures.filmGrainTex = null;
+#pragma warning restore 618
         }
 
         public static void MigrateToRenderPipelineGraphicsSettings(UniversalRenderPipelineGlobalSettings data)

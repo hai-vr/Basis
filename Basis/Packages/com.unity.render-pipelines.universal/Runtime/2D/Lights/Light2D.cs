@@ -4,7 +4,6 @@ using UnityEngine.Scripting.APIUpdating;
 using UnityEngine.U2D;
 using UnityEngine.Rendering.RenderGraphModule;
 using System.Collections.Generic;
-using UnityEditor;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -173,6 +172,8 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] bool m_ShadowVolumeIntensityEnabled = false;
         [Range(0, 1)]
         [SerializeField] float m_ShadowVolumeIntensity = 0.75f;
+
+        [SerializeField] RenderingLayerMask m_RenderingLayersMask = RenderingLayerMask.defaultRenderingLayerMask;
 
         Mesh m_Mesh;
 
@@ -377,6 +378,18 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+        /// <summary>
+        /// Gets or sets the rendering layer mask for the light.
+        /// </summary>
+        public RenderingLayerMask renderingLayerMask
+        {
+            get { return m_RenderingLayersMask; }
+            set
+            {
+                m_RenderingLayersMask = value;
+            }
+        }
+
         bool IsValidLayer(string name)
         {
             // Have this check as SortingLayer.NameToID returns 0 (default layer) if layer is not found
@@ -515,7 +528,7 @@ namespace UnityEngine.Rendering.Universal
             else
                 return kEmptyBounds;
         }
-        
+
         internal void UpdateCookieSpriteTexture()
         {
             m_CookieSpriteTexture?.Release();
@@ -727,7 +740,7 @@ namespace UnityEngine.Rendering.Universal
             {
 #if UNITY_EDITOR
                 m_SelectionSources.selectedHashCode = (int)m_LightType;
-#endif 
+#endif
             }
 
             if (m_ComponentVersion < ComponentVersions.Version_4)

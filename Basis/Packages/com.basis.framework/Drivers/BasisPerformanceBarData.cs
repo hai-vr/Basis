@@ -107,14 +107,16 @@ namespace Basis.Scripts.Drivers
 #if BASIS_HAS_RTAO && !UNITY_ANDROID
             BasisRTAOPass.SetProfilingEnabled(enabled);
 #endif
-            SetSamplerRecording(URPProfileId.DrawOpaqueObjects, enabled);
-            SetSamplerRecording(URPProfileId.DrawTransparentObjects, enabled);
-            SetSamplerRecording(URPProfileId.RecordRenderGraph, enabled);
+            SetSamplerRecording(URPProfilingSamplers.DrawOpaqueObjects, enabled);
+            SetSamplerRecording(URPProfilingSamplers.DrawTransparentObjects, enabled);
+            SetSamplerRecording(URPProfilingSamplers.RecordRenderGraph, enabled);
         }
 
-        private static void SetSamplerRecording(URPProfileId id, bool enabled)
+        // URP 17.6 replaced the profile-id enum with the URPProfilingSamplers static fields the passes
+        // now record into, so the old ProfilingSampler.Get(enum) lookup no longer finds them. The
+        // embedded URP fork makes that class public; these are the same instances URP scopes with.
+        private static void SetSamplerRecording(ProfilingSampler sampler, bool enabled)
         {
-            ProfilingSampler sampler = ProfilingSampler.Get(id);
             if (sampler != null) sampler.enableRecording = enabled;
         }
 
@@ -145,8 +147,8 @@ namespace Basis.Scripts.Drivers
         private static void SampleGpu(BasisFrameBottleneckReading reading)
         {
             float shadows = MainLightShadowCasterPass.GpuMs + AdditionalLightsShadowCasterPass.GpuMs;
-            float opaque = SamplerGpuMs(URPProfileId.DrawOpaqueObjects);
-            float transparent = SamplerGpuMs(URPProfileId.DrawTransparentObjects);
+            float opaque = SamplerGpuMs(URPProfilingSamplers.DrawOpaqueObjects);
+            float transparent = SamplerGpuMs(URPProfilingSamplers.DrawTransparentObjects);
             float gi = 0f, reflections = 0f, rtao = 0f;
 #if BASIS_HAS_GI && !UNITY_ANDROID
             gi = BasisGlobalIlluminationPass.GpuMs;
@@ -191,7 +193,7 @@ namespace Basis.Scripts.Drivers
                     case BasisPerformanceCpuSegment.Voice: voice += ms; break;
                 }
             }
-            float renderDispatch = SamplerCpuMs(URPProfileId.RecordRenderGraph);
+            float renderDispatch = SamplerCpuMs(URPProfilingSamplers.RecordRenderGraph);
             float named = eventDriver + ik + movement + avatarLoad + networking + jiggle + voice + renderDispatch;
             float other = Mathf.Max(0f, (float)reading.CpuBusyMs - named);
 
@@ -206,15 +208,13 @@ namespace Basis.Scripts.Drivers
             Accumulate(cpuMs, (int)BasisPerformanceCpuSegment.Other, other);
         }
 
-        private static float SamplerGpuMs(URPProfileId id)
+        private static float SamplerGpuMs(ProfilingSampler sampler)
         {
-            ProfilingSampler sampler = ProfilingSampler.Get(id);
             return sampler != null ? sampler.gpuElapsedTime : 0f;
         }
 
-        private static float SamplerCpuMs(URPProfileId id)
+        private static float SamplerCpuMs(ProfilingSampler sampler)
         {
-            ProfilingSampler sampler = ProfilingSampler.Get(id);
             return sampler != null ? sampler.cpuElapsedTime : 0f;
         }
 

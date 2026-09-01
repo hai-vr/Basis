@@ -74,7 +74,7 @@ TEXTURE2D(_MetallicTex);   SAMPLER(sampler_MetallicTex);
 #endif
 
 #ifdef UNITY_INSTANCING_ENABLED
-TEXTURE2D(_TerrainHeightmapTexture);
+TYPED_TEXTURE2D(float4, _TerrainHeightmapTexture);
 TEXTURE2D(_TerrainNormalmapTexture);
 SAMPLER(sampler_TerrainNormalmapTexture);
 #endif

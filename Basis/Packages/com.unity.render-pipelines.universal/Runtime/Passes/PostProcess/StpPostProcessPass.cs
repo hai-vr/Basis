@@ -12,6 +12,7 @@ namespace UnityEngine.Rendering.Universal
         public const string k_UpscaledColorTargetName = "CameraColorUpscaledSTP";
         Texture2D[] m_BlueNoise16LTex;
         bool m_IsValid;
+        uint m_WarnCounter;
 
         public StpPostProcessPass(Texture2D[] blueNoise16LTex)
         {
@@ -20,6 +21,8 @@ namespace UnityEngine.Rendering.Universal
             m_BlueNoise16LTex = blueNoise16LTex;
 
             m_IsValid = m_BlueNoise16LTex != null && m_BlueNoise16LTex.Length > 0;
+
+            m_WarnCounter = 0;
         }
 
         public override void Dispose()
@@ -52,7 +55,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 // Warn users if TAA and STP are disabled despite being requested
                 if (cameraData.IsTemporalAARequested())
-                    TemporalAA.ValidateAndWarn(cameraData, isSTPRequested);
+                    TemporalAA.ValidateAndWarn(cameraData, ref m_WarnCounter, isSTPRequested);
                 return;
             }
 

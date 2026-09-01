@@ -105,7 +105,7 @@ namespace UnityEngine.Rendering.Universal
     /// Class containing resources needed for the <c>UniversalRenderer</c>.
     /// </summary>
     [Serializable, ReloadGroup, ExcludeFromPreset]
-    [URPHelpURL("urp-universal-renderer")]
+    [URPHelpURL("urp/urp-universal-renderer")]
     public partial class UniversalRendererData : ScriptableRendererData, ISerializationCallbackReceiver
     {
 #if UNITY_EDITOR
@@ -153,7 +153,7 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField]
         bool m_AccurateGbufferNormals = false;
 
-        [SerializeField] IntermediateTextureMode m_IntermediateTextureMode = IntermediateTextureMode.Always;
+        [SerializeField] IntermediateTextureMode m_IntermediateTextureMode = IntermediateTextureMode.Auto;
         [SerializeField] bool m_TileOnlyMode = false;
 
         /// <inheritdoc/>

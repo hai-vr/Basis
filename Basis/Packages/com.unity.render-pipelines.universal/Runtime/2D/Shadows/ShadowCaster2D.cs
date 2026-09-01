@@ -1,12 +1,10 @@
 using System;
 using UnityEngine;
 using UnityEngine.Scripting.APIUpdating;
-using UnityEngine.U2D;
 using Unity.Collections;
 
 #if UNITY_EDITOR
 using UnityEditor;
-using UnityEditor.Rendering.Universal;
 using UnityEditor.EditorTools;
 #endif
 
@@ -101,6 +99,7 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] internal int m_PreviousEdgeProcessing;
         [SerializeField] internal int m_PreviousShadowCastingSource;
         [SerializeField] internal Component m_PreviousShadowShape2DSource = null;
+        [SerializeField] internal int m_PreviousShadowShape2DProviderHash;
 
 #if UNITY_EDITOR
         [SerializeReference] internal Shadow2DProviderSources m_SelectionSources = new Shadow2DProviderSources();
@@ -109,6 +108,16 @@ namespace UnityEngine.Rendering.Universal
         internal ShadowCasterGroup2D m_ShadowCasterGroup = null;
         internal ShadowCasterGroup2D m_PreviousShadowCasterGroup = null;
 
+        internal bool isTransformable
+        {
+            get
+            {
+                if (m_ShadowMesh != null)
+                    return m_ShadowMesh.isTransformable;
+                else
+                    return true;  // This is the old default
+            }
+        }
 
         internal bool m_ForceShadowMeshRebuild;
 
@@ -277,6 +286,10 @@ namespace UnityEngine.Rendering.Universal
 
         internal bool IsLit(Light2D light)
         {
+            // Global lights do not cast shadows
+            if (light.lightType == Light2D.LightType.Global)
+                return false;
+
             // Oddly adding and subtracting vectors is expensive here because of the new structures created...
             Vector3 deltaPos;
             deltaPos.x = light.boundingSphere.position.x - boundingSphere.position.x;
@@ -380,12 +393,8 @@ namespace UnityEngine.Rendering.Universal
 
             if (m_ShadowMesh == null)
             {
-                ShadowMesh2D newShadowMesh = new ShadowMesh2D();
-                SetShadowShape(newShadowMesh);
-                m_ShadowMesh = newShadowMesh;
+                m_ShadowMesh = new ShadowMesh2D();
             }
-
-
 #if USING_PHYSICS2D_MODULE
             else
             {
@@ -394,6 +403,18 @@ namespace UnityEngine.Rendering.Universal
                     bounds = collider.bounds;
             }
 #endif
+
+            if (m_ShadowMesh.trimEdge == ShadowMesh2D.k_TrimEdgeUninitialized)
+                SetShadowShape(m_ShadowMesh);
+        }
+
+        internal void EnsureMeshInitialized()
+        {
+            if (m_ShadowMesh == null)
+                m_ShadowMesh = new ShadowMesh2D();
+
+            if (m_ShadowMesh.trimEdge == ShadowMesh2D.k_TrimEdgeUninitialized)
+                SetShadowShape(m_ShadowMesh);
         }
 
         /// <summary>
@@ -439,6 +460,8 @@ namespace UnityEngine.Rendering.Universal
             bool rebuildMesh = LightUtility.CheckForChange((int)m_ShadowCastingSource, ref m_PreviousShadowCastingSource);
             rebuildMesh |= LightUtility.CheckForChange((int)edgeProcessing, ref m_PreviousEdgeProcessing);
             rebuildMesh |= edgeProcessing != EdgeProcessing.None && LightUtility.CheckForChange(trimEdge, ref m_PreviousTrimEdge);
+            int providerHash = m_ShadowShape2DProvider != null ? m_ShadowShape2DProvider.TypeIdentifierHash : 0;
+            rebuildMesh |= LightUtility.CheckForChange(providerHash, ref m_PreviousShadowShape2DProviderHash);
             rebuildMesh |= m_ForceShadowMeshRebuild;
 
             if (m_ShadowCastingSource == ShadowCastingSources.ShapeEditor)
@@ -486,7 +509,7 @@ namespace UnityEngine.Rendering.Universal
 
 
 #if UNITY_EDITOR
-        internal void DrawPreviewOutline(Transform t, float trimionDistance)
+        internal void DrawPreviewOutline(Matrix4x4 previewMat, float trimionDistance)
         {
             Vector3[] vertices = mesh.vertices;
             int[] triangles = mesh.triangles;
@@ -511,14 +534,9 @@ namespace UnityEngine.Rendering.Universal
                 Vector3 trimPt1 = new Vector3(pt1.x + trimionDistance * tan1.x, pt1.y + trimionDistance * tan1.y, 0);
                 Vector3 trimPt2 = new Vector3(pt2.x + trimionDistance * tan2.x, pt2.y + trimionDistance * tan2.y, 0);
 
-                bool flipX, flipY;
-                m_ShadowMesh.GetFlip(out flipX, out flipY);
-                Vector3 scale = new Vector3(t.lossyScale.x * (flipX ? -1 : 1), t.lossyScale.y * (flipY ? -1 : 1), 1);
-                Matrix4x4 mat = Matrix4x4.TRS(t.position, t.rotation, scale);
-
-                trimPt0 = mat.MultiplyPoint(trimPt0);
-                trimPt1 = mat.MultiplyPoint(trimPt1);
-                trimPt2 = mat.MultiplyPoint(trimPt2);
+                trimPt0 = previewMat.MultiplyPoint(trimPt0);
+                trimPt1 = previewMat.MultiplyPoint(trimPt1);
+                trimPt2 = previewMat.MultiplyPoint(trimPt2);
 
                 if (pt0.z == 0 && pt1.z == 0)
                     Handles.DrawAAPolyLine(4, new Vector3[] { trimPt0, trimPt1 });
@@ -533,10 +551,20 @@ namespace UnityEngine.Rendering.Universal
         {
             if (m_ShadowMesh != null && mesh != null && m_ShadowCastingSource != ShadowCastingSources.None && enabled)
             {
+
+                Matrix4x4 outlineMat = Matrix4x4.identity;
+                if (isTransformable)
+                {
+                    bool flipX, flipY;
+                    m_ShadowMesh.GetFlip(out flipX, out flipY);
+                    Vector3 scale = new Vector3(transform.lossyScale.x * (flipX ? -1 : 1), transform.lossyScale.y * (flipY ? -1 : 1), 1);
+                    outlineMat = Matrix4x4.TRS(transform.position, transform.rotation, scale);
+                }
+                
                 if (edgeProcessing == EdgeProcessing.None)
-                    DrawPreviewOutline(transform, trimEdge);
+                    DrawPreviewOutline(outlineMat, trimEdge);
                 else
-                    DrawPreviewOutline(transform, 0);
+                    DrawPreviewOutline(outlineMat, 0);
             }
         }
 
@@ -548,6 +576,7 @@ namespace UnityEngine.Rendering.Universal
             m_PreviousShadowCasterGroup = null;
             m_PreviousShadowCastingSource = -1;
             m_PreviousShadowShape2DSource = null;
+            m_PreviousShadowShape2DProviderHash = 0;
             m_PreviousTrimEdge = 0;
             m_PreviousEdgeProcessing = -1;
             m_ForceShadowMeshRebuild = true;

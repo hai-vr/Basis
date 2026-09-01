@@ -88,6 +88,7 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent shadowsSettingsFoldout = EditorGUIUtility.TrTextContent("Shadows", "Options used for shadows");
             public static GUIContent volumetricSettingsFoldout = EditorGUIUtility.TrTextContent("Volumetric", "Options used for volumetric lighting");
             public static GUIContent normalMapsSettingsFoldout = EditorGUIUtility.TrTextContent("Normal Maps", "Options used for normal maps");
+            public static GUIContent filteringSettingsFoldout = EditorGUIUtility.TrTextContent("Filtering", "Options to filter the light");
 
             public static GUIContent generalLightType = EditorGUIUtility.TrTextContent("Light Type", "Select the light type. \n\nGlobal Light: For ambient light. \nSpot Light: For a spot light / point light. \nFreeform Light: For a custom shape light. \nSprite Light: For a custom light cookie using Sprites.");
 
@@ -172,13 +173,14 @@ namespace UnityEditor.Rendering.Universal
         SerializedProperty m_ShapeLightSprite;
 
         SerializedProperty m_SelectionSources;
-        
+        SerializedProperty m_RenderingLayersMask;
 
         SavedBool m_BlendingSettingsFoldout;
         SavedBool m_ProviderFoldout;
         SavedBool m_ShadowsSettingsFoldout;
         SavedBool m_VolumetricSettingsFoldout;
         SavedBool m_NormalMapsSettingsFoldout;
+        SavedBool m_FilteringSettingsFoldout;
 
         int[] m_BlendStyleIndices;
         GUIContent[] m_BlendStyleNames;
@@ -214,6 +216,7 @@ namespace UnityEditor.Rendering.Universal
             m_ShadowsSettingsFoldout = new SavedBool($"{target.GetType()}.2DURPShadowsSettingsFoldout", false);
             m_VolumetricSettingsFoldout = new SavedBool($"{target.GetType()}.2DURPVolumetricSettingsFoldout", false);
             m_NormalMapsSettingsFoldout = new SavedBool($"{target.GetType()}.2DURPNormalMapsSettingsFoldout", false);
+            m_FilteringSettingsFoldout = new SavedBool($"{target.GetType()}.2DURPFilteringSettingsFoldout", false);
             m_ProviderFoldout = new SavedBool($"{target.GetType()}.2DURPLight2DProviderFoldout", false);
 
 
@@ -247,6 +250,7 @@ namespace UnityEditor.Rendering.Universal
             m_ShapeLightSprite = serializedObject.FindProperty("m_LightCookieSprite");
 
             m_SelectionSources = serializedObject.FindProperty("m_SelectionSources");
+            m_RenderingLayersMask = serializedObject.FindProperty("m_RenderingLayersMask");
 
             
             m_AnyBlendStyleEnabled = false;
@@ -302,6 +306,34 @@ namespace UnityEditor.Rendering.Universal
                 foreach (Light2D light in m_ModifiedLights)
                 {
                     SendModifiedAnalytics(m_Analytics, light);
+                }
+            }
+        }
+
+        void DrawFilteringContent()
+        {
+            CoreEditorUtils.DrawSplitter(false);
+            bool foldoutState = CoreEditorUtils.DrawHeaderFoldout(Styles.filteringSettingsFoldout, m_FilteringSettingsFoldout.value);
+            if (foldoutState != m_FilteringSettingsFoldout.value)
+                m_FilteringSettingsFoldout.value = foldoutState;
+
+            if (m_FilteringSettingsFoldout.value)
+            {
+                m_SortingLayerDropDown.OnTargetSortingLayers(serializedObject, targets, Styles.generalSortingLayerPrefixLabel, AnalyticsTrackChanges);
+
+                if (m_LightType.intValue != (int)Light2D.LightType.Global)
+                {
+                    GUI.enabled = UniversalRenderPipeline.asset.useRenderingLayers;
+                    EditorGUILayout.PropertyField(m_RenderingLayersMask, UniversalRenderPipelineLightUI.Styles.RenderingLayers);
+                    GUI.enabled = true;
+                    if (!UniversalRenderPipeline.asset.useRenderingLayers)
+                    {
+                        CoreEditorUtils.DrawFixMeBox(UniversalRenderPipelineLightUI.Styles.RenderingLayersHelpBox, "Enable", () =>
+                        {
+                            UniversalRenderPipeline.asset.useRenderingLayers = true;
+                            EditorUtility.SetDirty(UniversalRenderPipeline.asset);
+                        });
+                    }
                 }
             }
         }
@@ -588,7 +620,7 @@ namespace UnityEditor.Rendering.Universal
             EditorGUILayout.PropertyField(m_LightColor, Styles.generalLightColor);
             EditorGUILayout.PropertyField(m_LightIntensity, Styles.generalLightIntensity);
 
-            m_SortingLayerDropDown.OnTargetSortingLayers(serializedObject, targets, Styles.generalSortingLayerPrefixLabel, AnalyticsTrackChanges);
+            DrawFilteringContent();
 
             serializedObject.ApplyModifiedProperties();
             
@@ -599,7 +631,6 @@ namespace UnityEditor.Rendering.Universal
                 Light2D light = (Light2D)target;
                 LightUtility.CheckForExistingGlobalLight(light.gameObject);
             }
-
 
             return meshChanged;
         }
@@ -644,10 +675,9 @@ namespace UnityEditor.Rendering.Universal
 
             if (m_ProviderFoldout.value)
             {
-
                 EditorGUILayout.PropertyField(m_ShapeLightFalloffSize, Styles.generalFalloffSize);
-                if (m_ShapeLightFalloffSize.floatValue < 0)
-                    m_ShapeLightFalloffSize.floatValue = 0;
+                if (m_ShapeLightFalloffSize.floatValue < 0 || m_ShapeLightFalloffSize.floatValue > Light2D.k_MaxFalloffSize)
+                    m_ShapeLightFalloffSize.floatValue = Mathf.Clamp(m_ShapeLightFalloffSize.floatValue, 0, Light2D.k_MaxFalloffSize);
 
                 EditorGUILayout.Slider(m_FalloffIntensity, 0, 1, Styles.generalFalloffIntensity);
 

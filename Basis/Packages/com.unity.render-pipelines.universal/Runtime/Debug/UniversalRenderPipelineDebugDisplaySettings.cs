@@ -32,7 +32,7 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// Display stats.
         /// </summary>
-        internal DebugDisplaySettingsStats<URPProfileId> displayStats { get; private set; }
+        internal DebugDisplaySettingsStats displayStats { get; private set; }
 
         /// <summary>
         /// GPU Resident Drawer Rendering Debugger settings and statistics.
@@ -92,7 +92,7 @@ namespace UnityEngine.Rendering.Universal
         {
             base.Reset();
 
-            displayStats = Add(new DebugDisplaySettingsStats<URPProfileId>(new UniversalRenderPipelineDebugDisplayStats()));
+            displayStats = Add(new DebugDisplaySettingsStats(new UniversalRenderPipelineDebugDisplayStats()));
             materialSettings = Add(DebugDisplaySerializer.GetOrCreate<DebugDisplaySettingsMaterial>());
             lightingSettings = Add(DebugDisplaySerializer.GetOrCreate<DebugDisplaySettingsLighting>());
             renderingSettings = Add(DebugDisplaySerializer.GetOrCreate<DebugDisplaySettingsRendering>());

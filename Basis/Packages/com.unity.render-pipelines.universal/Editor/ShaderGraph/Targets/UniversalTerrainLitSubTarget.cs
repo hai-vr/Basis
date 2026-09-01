@@ -64,7 +64,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 context.AddCustomEditorForRenderPipeline(typeof(ShaderGraphTerrainLitGUI).FullName, universalRPType);
 
             // terrain shaders are always opaque, so these values are hardcoded to not inherit from the Universal Target
-            var renderTypeOpaque = RenderType.Opaque.ToString();
+            var renderTypeOpaque = UnityEditor.ShaderGraph.RenderType.Opaque.ToString();
             var renderQueue = target.alphaClip?RenderQueue.AlphaTest.ToString():RenderQueue.Geometry.ToString();
 
             context.AddSubShader(PostProcessSubShader(TerrainSubShaders.LitComputeDotsSubShader(target, renderTypeOpaque, renderQueue, blendModePreserveSpecular)));
@@ -1056,7 +1056,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                     renderStates = CoreRenderStates.DepthNormalsOnly(target),
                     pragmas = TerrainCorePragmas.Instanced,
                     defines = new DefineCollection(),
-                    keywords = new KeywordCollection() { TerrainSubShaders.AlphaTestOn, },
+                    keywords = new KeywordCollection() { TerrainSubShaders.AlphaTestOn, CoreKeywordDescriptors.WriteSmoothness, CoreKeywordDescriptors.GBufferNormalsOct },
                     includes = TerrainCoreIncludes.DepthNormalsOnly,
 
                     // Custom Interpolator Support
@@ -1502,6 +1502,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
             public static readonly KeywordCollection Forward = new KeywordCollection
             {
                 { ScreenSpaceAmbientOcclusion },
+                { CoreKeywordDescriptors.ScreenSpaceReflection },
                 { CoreKeywordDescriptors.StaticLightmap },
                 { CoreKeywordDescriptors.DynamicLightmap },
                 { CoreKeywordDescriptors.DirectionalLightmapCombined },
@@ -1533,6 +1534,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 { CoreKeywordDescriptors.GBufferNormalsOct },
                 { CoreKeywordDescriptors.LightLayers },
                 { CoreKeywordDescriptors.RenderPassEnabled },
+                { CoreKeywordDescriptors.ScreenSpaceReflection },
                 { CoreKeywordDescriptors.DebugDisplay },
             };
         }

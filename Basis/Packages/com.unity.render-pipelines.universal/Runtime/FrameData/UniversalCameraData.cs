@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine.Experimental.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -127,6 +128,10 @@ namespace UnityEngine.Rendering.Universal
             return GL.GetGPUProjectionMatrix(GetProjectionMatrix(viewIndex), renderIntoTexture);
         }
 
+        // The jitter matrix is Matrix4x4.Translate(offsetX, offsetY, 0), so the offsets sit in column 3.
+        // Jitter values are in NDC space (-1 to 1).
+        internal Vector2 jitter => new Vector2(m_JitterMatrix.m03, m_JitterMatrix.m13);
+
         /// <summary>
         /// The camera component.
         /// </summary>
@@ -145,6 +150,14 @@ namespace UnityEngine.Rendering.Universal
         /// The min dimension is 1.
         /// </summary>
         public int scaledHeight;
+
+#if ENABLE_UPSCALER_FRAMEWORK
+        // The hardware dynamic resolution (ScalableBufferManager) scale captured once per camera at setup, so upscaler
+        // passes read a stable per-camera value instead of the live, global, mid-frame-mutable SBM factors (which other
+        // passes could change between the camera color being aliased and the upscaler reading it). Vector2.one when the
+        // camera does not use hardware dynamic resolution.
+        internal Vector2 hardwareDynamicResolutionScale;
+#endif
 
         // NOTE: This is internal instead of private to allow ref return in the old CameraData compatibility property.
         // We can make this private when it is removed.
@@ -175,6 +188,8 @@ namespace UnityEngine.Rendering.Universal
         /// Render texture settings used to create intermediate camera textures for rendering.
         /// </summary>
         public RenderTextureDescriptor cameraTargetDescriptor;
+        internal RenderTargetInfo backbufferColor;
+        internal RenderTargetInfo backbufferDepth;
         internal Rect pixelRect;
         internal bool useScreenCoordOverride;
         internal Vector4 screenSizeOverride;
@@ -596,6 +611,10 @@ namespace UnityEngine.Rendering.Universal
         // TAA settings.
         internal TemporalAA.Settings taaSettings;
 
+        // Sub-pixel jitter applied to the projection matrix this frame.
+        // Computed once during camera setup, read by upscalers during post-process.
+        internal Vector2 subpixelJitter;
+
         // Post-process history reset has been triggered for this camera.
         internal bool resetHistory
         {
@@ -627,6 +646,8 @@ namespace UnityEngine.Rendering.Universal
             renderType = CameraRenderType.Base;
             targetTexture = null;
             cameraTargetDescriptor = default;
+            backbufferColor = default;
+            backbufferDepth = default;
             pixelRect = default;
             useScreenCoordOverride = false;
             screenSizeOverride = default;
@@ -638,6 +659,7 @@ namespace UnityEngine.Rendering.Universal
             imageScalingMode = ImageScalingMode.None;
 #if ENABLE_UPSCALER_FRAMEWORK
             resolvedUpscalerHash = -1;
+            hardwareDynamicResolutionScale = Vector2.one;
 #else
             upscalingFilter = ImageUpscalingFilter.Point;
 #endif
@@ -674,6 +696,7 @@ namespace UnityEngine.Rendering.Universal
             taaHistory = null;
             stpHistory = null;
             taaSettings = default;
+            subpixelJitter = default;
             baseCamera = null;
             isLastBaseCamera = false;
             stackAnyPostProcessingEnabled = false;

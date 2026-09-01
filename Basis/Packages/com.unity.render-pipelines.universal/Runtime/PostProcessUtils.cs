@@ -14,8 +14,9 @@ namespace UnityEngine.Rendering.Universal
         /// </summary>
         /// <param name="shader">Shader used for the material</param>
         /// <param name="passName">Pass name for error messages.</param>
-        /// <returns>A new Material instance using the provided shader. Null if the shader is not supported.</returns>
-        internal static Material LoadShader(Shader shader, string passName = "")
+        /// <param name="logLevel">LogType for the message if the shader is not supported.</param>
+        /// <returns>A new Material instance using the provided shader. Null if the shader is not supported or it's missing.</returns>
+        internal static Material LoadShader(Shader shader, string passName = "", LogType logLevel = LogType.Warning)
         {
             if (shader == null)
             {
@@ -24,7 +25,7 @@ namespace UnityEngine.Rendering.Universal
             }
             else if (!shader.isSupported)
             {
-                Debug.LogWarning($"Shader '{shader.name}' is not supported (in '{passName}'). PostProcessing render passes will not execute.");
+                Debug.unityLogger.Log(logLevel, $"Shader '{shader.name}' is not supported or has been stripped from the build (in '{passName}'). PostProcessing render passes will not execute.");
                 return null;
             }
 
@@ -34,6 +35,7 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// Creates a texture compatible with post-processing effects.
         /// </summary>
+
         /// <param name="renderGraph">RenderGraph that creates the texture.</param>
         /// <param name="source">Source texture for the texture descriptor.</param>
         /// <param name="name">Texture name.</param>
@@ -167,7 +169,7 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="settings">The Film Grain settings. </param>
         /// <param name="camera">The camera using the dithering effect.</param>
         /// <param name="material">The material used with the dithering effect.</param>
-        [System.Obsolete("This method is obsolete. Use ConfigureFilmGrain override that takes camera pixel width and height instead. #from(2021.1)")]
+        [System.Obsolete("This method is obsolete. Film Grain shader parameters are configured internally by the render passes. #from(2021.1)")]
         public static void ConfigureFilmGrain(PostProcessData data, FilmGrain settings, Camera camera, Material material)
         {
             ConfigureFilmGrain(data, settings, camera.pixelWidth, camera.pixelHeight, material);
@@ -176,20 +178,24 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// Configures the Film grain shader parameters.
         /// </summary>
-        /// <param name="data">The <c>PostProcessData</c> resources to use.</param>
+        /// <param name="data">The <c>PostProcessData</c> resources to use (unused).</param>
         /// <param name="settings">The Film Grain settings. </param>
         /// <param name="cameraPixelWidth">The camera pixel width.</param>
         /// <param name="cameraPixelHeight">The camera pixel height.</param>
         /// <param name="material">The material used with the dithering effect.</param>
+        [System.Obsolete("This method is obsolete. Film Grain shader parameters are configured internally by the render passes. #from(6000.6)")]
         public static void ConfigureFilmGrain(PostProcessData data, FilmGrain settings, int cameraPixelWidth, int cameraPixelHeight, Material material)
         {
-            var texture = settings.texture.value;
-
+            Texture2D[] filmGrainTextures = null;
             if (settings.type.value != FilmGrainLookup.Custom)
-                texture = data.textures.filmGrainTex[(int)settings.type.value];
+            {
+                GraphicsSettings.TryGetRenderPipelineSettings<UniversalRenderPipelineFilmGrainResources>(out var filmGrainResources);
+                filmGrainTextures = filmGrainResources?.textures;
+            }
 
+            UberPostProcessPass.FilmGrainParams.CalcFilmGrainParams(settings, filmGrainTextures, out Texture texture, out Vector2 grainParams);
             var tilingParams = CalcNoiseTextureTilingParams(texture, cameraPixelWidth, cameraPixelHeight, GetRandomOffset2D());
-            ConfigureFilmGrainMaterial(material, texture, new Vector2(settings.intensity.value * 4f, settings.response.value), tilingParams);
+            ConfigureFilmGrainMaterial(material, texture, grainParams, tilingParams);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -221,9 +221,9 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
             get
             {
                 if (surfaceType == SurfaceType.Transparent)
-                    return $"{RenderType.Transparent}";
+                    return $"{UnityEditor.ShaderGraph.RenderType.Transparent}";
                 else
-                    return $"{RenderType.Opaque}";
+                    return $"{UnityEditor.ShaderGraph.RenderType.Opaque}";
             }
         }
 
@@ -1421,6 +1421,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
 
         public static readonly BlockFieldDescriptor[] FragmentDepthNormals = new BlockFieldDescriptor[]
         {
+            BlockFields.SurfaceDescription.Smoothness,
             BlockFields.SurfaceDescription.NormalOS,
             BlockFields.SurfaceDescription.NormalTS,
             BlockFields.SurfaceDescription.NormalWS,
@@ -1727,6 +1728,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
         public static readonly PragmaCollection Forward = new PragmaCollection
         {
             { Pragma.Target(ShaderModel.Target20) },
+            { Pragma.TargetForKeyword(ShaderModel.Target45, ShaderKeywordStrings.DEPTH_AS_INPUT_ATTACHMENT_MSAA) },
             { Pragma.MultiCompileInstancing },
             { Pragma.InstancingOptions(InstancingOptions.RenderingLayer) },
             { Pragma.Vertex("vert") },
@@ -2408,6 +2410,25 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
             definition = KeywordDefinition.MultiCompile,
             scope = KeywordScope.Global,
             stages = KeywordShaderStage.Fragment,
+        };
+
+        public static readonly KeywordDescriptor ScreenSpaceReflection = new KeywordDescriptor()
+        {
+            displayName = "Screen Space Reflection",
+            referenceName = "_SCREEN_SPACE_REFLECTION",
+            type = KeywordType.Boolean,
+            definition = KeywordDefinition.MultiCompile,
+            scope = KeywordScope.Global,
+            stages = KeywordShaderStage.Fragment,
+        };
+
+        public static readonly KeywordDescriptor WriteSmoothness = new KeywordDescriptor()
+        {
+            displayName = "Write Smoothness",
+            referenceName = "_WRITE_SMOOTHNESS",
+            type = KeywordType.Boolean,
+            definition = KeywordDefinition.MultiCompile,
+            scope = KeywordScope.Global,
         };
 
         public static readonly KeywordDescriptor UseLegacyLightmaps = new KeywordDescriptor()

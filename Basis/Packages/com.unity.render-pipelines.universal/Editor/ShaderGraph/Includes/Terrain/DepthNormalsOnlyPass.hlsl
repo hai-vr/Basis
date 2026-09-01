@@ -27,11 +27,24 @@ void frag(PackedVaryings packedInput,
     half alpha = AlphaDiscard(surfaceDescription.Alpha, surfaceDescription.AlphaClipThreshold);
 #endif
 
-    half3 normalWS = GetTerrainNormalWS(unpacked, surfaceDescription);
 #ifdef _WRITE_RENDERING_LAYERS
     outRenderingLayers = EncodeMeshRenderingLayer();
 #endif
+
+    half3 normalWS = GetTerrainNormalWS(unpacked, surfaceDescription);
+#if defined(_GBUFFER_NORMALS_OCT)
+    normalWS = normalize(normalWS);
+    float2 octNormalWS = PackNormalOctQuadEncode(normalWS);           // values between [-1, +1], must use fp32 on some platforms
+    float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);   // values between [ 0,  1]
+    half3 packedNormalWS = PackFloat2To888(remappedOctNormalWS);      // values between [ 0,  1]
+    color = half4(packedNormalWS, 0.0);
+#else
     color = half4(NormalizeNormalPerPixel(normalWS), 0.0);
+#endif
+
+#if defined(_WRITE_SMOOTHNESS)
+    color.a = surfaceDescription.Smoothness;
+#endif
 }
 
 #endif

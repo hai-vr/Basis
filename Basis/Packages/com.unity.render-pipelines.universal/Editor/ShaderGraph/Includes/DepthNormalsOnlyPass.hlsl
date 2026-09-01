@@ -57,6 +57,10 @@ void frag(
         outNormalWS = half4(NormalizeNormalPerPixel(normalWS), 0.0);
     #endif
 
+    #if defined(_WRITE_SMOOTHNESS)
+        outNormalWS.a = surfaceDescription.Smoothness;
+    #endif
+
     #ifdef _WRITE_RENDERING_LAYERS
         outRenderingLayers = EncodeMeshRenderingLayer();
     #endif

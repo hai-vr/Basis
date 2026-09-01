@@ -1,19 +1,21 @@
 #if SURFACE_CACHE
 
 using System;
-using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.PathTracing.Core;
-using UnityEngine.Rendering.LiveGI;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.UnifiedRayTracing;
-using InstanceHandle = UnityEngine.PathTracing.Core.Handle<UnityEngine.Rendering.SurfaceCacheWorld.Instance>;
-using LightHandle = UnityEngine.PathTracing.Core.Handle<UnityEngine.Rendering.SurfaceCacheWorld.Light>;
-using MaterialHandle = UnityEngine.PathTracing.Core.Handle<UnityEngine.PathTracing.Core.MaterialPool.MaterialDescriptor>;
 
 namespace UnityEngine.Rendering.Universal
 {
+    internal struct SurfaceCacheScreenFilteringParameterSet
+    {
+        public uint LookupSampleCount;
+        public float UpsamplingKernelSize;
+        public uint UpsamplingSampleCount;
+    }
+
     [Serializable]
     [SupportedOnRenderPipeline]
     [Categorization.CategoryInfo(Name = "R: Surface Cache URP Integration", Order = 1000), HideInInspector]
@@ -94,6 +96,13 @@ namespace UnityEngine.Rendering.Universal
             FlatNormal
         }
 
+        public static readonly string k_StaticBatchingErrorMesssage = "Surface Cache GI cannot run because it is incompatible with Static Batching. You can disable the option in the Player Settings.";
+
+        private const uint DEFAULT_DEFRAG_COUNT = 2; // Default value for how many patches to defragment per frame.
+        private const float DEFAULT_VOLUME_SIZE = 128.0f; // Default value for the size of the volume in world units.
+        private const uint DEFAULT_VOLUME_RESOLUTION = 32; // Default value for the voxel resolution of the volume.
+        private const uint DEFAULT_VOLUME_CASCADE_COUNT = 4; // Default value for the number of cascades in the volume.
+
         // URP currently cannot render motion vectors properly in Scene View, so we disable it.
         // https://jira.unity3d.com/browse/SRP-743
         // When this is fixed, we probably want to enable this always.
@@ -151,9 +160,9 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _VolumeTargetPos = Shader.PropertyToID("_VolumeTargetPos");
             public static readonly int _FullResPixelOffset = Shader.PropertyToID("_FullResPixelOffset");
             public static readonly int _LowResScreenSize = Shader.PropertyToID("_LowResScreenSize");
-            public static readonly int _CascadeCount = Shader.PropertyToID("_CascadeCount");
+            public static readonly int _VolumeCascadeCount = Shader.PropertyToID("_VolumeCascadeCount");
             public static readonly int _VolumeVoxelMinSize = Shader.PropertyToID("_VolumeVoxelMinSize");
-            public static readonly int _CascadeOffsets = Shader.PropertyToID("_CascadeOffsets");
+            public static readonly int _VolumeCascadeOffsets = Shader.PropertyToID("_VolumeCascadeOffsets");
             public static readonly int _PatchCellIndices = Shader.PropertyToID("_PatchCellIndices");
         }
 
@@ -164,6 +173,8 @@ namespace UnityEngine.Rendering.Universal
                 internal SurfaceCacheWorld World;
                 internal uint EnvCubemapResolution;
                 internal Light Sun;
+                internal Matrix4x4 RestoreViewMatrix;
+                internal Matrix4x4 RestoreProjectionMatrix;
             }
 
             private class DebugPassData
@@ -295,10 +306,10 @@ namespace UnityEngine.Rendering.Universal
             private RTHandle _lowResScreenNdcDepths;
             private GraphicsBuffer _worldUpdateScratch;
 
-            private readonly SceneUpdatesTracker _sceneTracker;
-            private readonly WorldAdapter _worldAdapter;
+            private readonly SurfaceCacheWorldAdapter _worldAdapter;
+            private readonly InternalBridge.ObjectDispatcher _objDispatcher;
+
             private readonly SurfaceCacheWorld _world;
-            private readonly Material _fallbackMaterial;
 
             private readonly ComputeShader _screenResolveLookupShader;
             private readonly ComputeShader _screenResolveUpsamplingShader;
@@ -321,23 +332,30 @@ namespace UnityEngine.Rendering.Universal
             private uint3 _flatNormalResolutionKernelGroupSize;
 
             private uint _frameIdx;
-            private bool _cascadeMovement;
 
             // Debug
             private readonly bool _debugEnabled;
             private readonly DebugViewMode_ _debugViewMode;
             private readonly bool _debugShowSamplePosition;
 
-            // Screen Filtering
-            private readonly uint _lookupSampleCount;
-            private readonly float _upsamplingKernelSize;
-            private readonly uint _upsamplingSampleCount;
-
             private SurfaceCache _cache;
 
             private Matrix4x4 _prevClipToWorldTransform = Matrix4x4.identity;
 
-            readonly private uint _environmentCubemapResolution = 32;
+            private readonly uint _environmentCubemapResolution = 32;
+            private const int k_UpscaleFactor = 4;
+
+            // Defaults, used as fallback when no volume override is active.
+            private const uint DEFAULT_ESTIMATION_SAMPLE_COUNT = 2;
+            private const float DEFAULT_TEMPORAL_SMOOTHING = 0.8f;
+            private const uint DEFAULT_SPATIAL_FILTER_SAMPLE_COUNT = 4;
+            private const float DEFAULT_SPATIAL_FILTER_RADIUS = 1.0f;
+            private const uint DEFAULT_LOOKUP_SAMPLE_COUNT = 6;
+            private const float DEFAULT_UPSAMPLING_KERNEL_SIZE = 5.0f;
+            private const uint DEFAULT_UPSAMPLING_SAMPLE_COUNT = 2;
+
+            // Stored for runtime cache recreation when resolution or cascade count changes
+            private readonly Rendering.SurfaceCacheResourceSet _coreResources;
 
             public SurfaceCachePass(
                 RayTracingContext rtContext,
@@ -352,14 +370,7 @@ namespace UnityEngine.Rendering.Universal
                 bool debugEnabled,
                 DebugViewMode_ debugViewMode,
                 bool debugShowSamplePosition,
-                uint lookupSampleCount,
-                float upsamplingKernelSize,
-                uint upsamplingSampleCount,
-                uint defragCount,
-                SurfaceCacheVolumeParameterSet volParams,
-                SurfaceCacheEstimationParameterSet estimationParams,
-                SurfaceCachePatchFilteringParameterSet patchFilteringParams,
-                bool cascadeMovement)
+                SurfaceCacheVolumeParameterSet volParams)
             {
                 Debug.Assert(volParams.CascadeCount != 0);
                 Debug.Assert(volParams.CascadeCount <= SurfaceCache.CascadeMax);
@@ -377,8 +388,6 @@ namespace UnityEngine.Rendering.Universal
                 _debugKernel = _debugShader.FindKernel("Visualize");
                 _flatNormalResolutionKernel = _flatNormalResolutionShader.FindKernel("ResolveFlatNormals");
 
-                _cascadeMovement = cascadeMovement;
-
                 _screenResolveLookupShader.GetKernelThreadGroupSizes(_screenResolveLookupKernel, out _screenResolveLookupKernelGroupSize.x, out _screenResolveLookupKernelGroupSize.y, out _screenResolveLookupKernelGroupSize.z);
                 _screenResolveUpsamplingShader.GetKernelThreadGroupSizes(_screenResolveUpsamplingKernel, out _screenResolveUpsamplingKernelGroupSize.x, out _screenResolveUpsamplingKernelGroupSize.y, out _screenResolveUpsamplingKernelGroupSize.z);
                 _patchAllocationShader.GetKernelThreadGroupSizes(_patchAllocationKernel, out _patchAllocationKernelGroupSize.x, out _patchAllocationKernelGroupSize.y, out _patchAllocationKernelGroupSize.z);
@@ -391,18 +400,16 @@ namespace UnityEngine.Rendering.Universal
                 _debugViewMode = debugViewMode;
                 _debugShowSamplePosition = debugShowSamplePosition;
 
-                _upsamplingKernelSize = upsamplingKernelSize;
-                _upsamplingSampleCount = upsamplingSampleCount;
-                _lookupSampleCount = lookupSampleCount;
+                _coreResources = resourceSet;
 
-                _cache = new SurfaceCache(resourceSet, defragCount, volParams, estimationParams, patchFilteringParams);
-                _sceneTracker = new SceneUpdatesTracker();
+                _cache = new SurfaceCache(resourceSet, volParams);
+                _cache.SetEmissiveTriangleIntensityMultiplier(k_EmissiveTriangleIntensityMultiplier);
 
                 _world = new SurfaceCacheWorld();
                 _world.Init(_rtContext, worldResources);
 
-                _fallbackMaterial = fallbackMaterial;
-                _worldAdapter = new WorldAdapter(_world, _fallbackMaterial);
+                _objDispatcher = new();
+                _worldAdapter = new SurfaceCacheWorldAdapter(_objDispatcher, _world, fallbackMaterial);
             }
 
             public void Dispose()
@@ -414,14 +421,91 @@ namespace UnityEngine.Rendering.Universal
                 _lowResScreenIrradiancesL11?.Release();
                 _lowResScreenIrradiancesL12?.Release();
                 _lowResScreenNdcDepths?.Release();
-                _sceneTracker.Dispose();
                 _cache.Dispose();
+                _worldAdapter.CleanUp(_world);
+                _objDispatcher.Dispose();
                 _world.Dispose();
-                _worldAdapter.Dispose();
                 _worldUpdateScratch?.Dispose();
             }
 
-            const int k_UpscaleFactor = 4;
+            // Historically, GI systems in Unity have, for historical reasons, 1) multiplied punctual light intensity
+            // inputs with PI, and 2) divided all GI output with PI. To match this, Surface Cache for now does
+            // something mathematically equivalent: It divides environment light and triangle emission by PI.
+            // Ideally, we'd get rid of this behavior across all Unity GI systems in the future.
+            // Note that this is distinct from the separate issue that URP is generally off by PI in its output.
+            private const bool k_ConformToUnityGIFormat = true;
+
+            private const float k_EmissiveTriangleIntensityMultiplier = k_ConformToUnityGIFormat ? 1.0f / Mathf.PI : 1.0f;
+
+            private static VolumeParameterSet GetVolumeParametersOrDefaults(SurfaceCacheGIVolumeOverride volume)
+            {
+                if (volume != null)
+                {
+                    // Use volume parameters
+                    return new VolumeParameterSet
+                    {
+                        EstimationParams = new SurfaceCacheEstimationParameterSet
+                        {
+                            MultiBounce = volume.multiBounce.value,
+                            BouncePatchAllocation = volume.bouncePatchAllocation.value,
+                            SampleCount = (uint)volume.sampleCount.value,
+                        },
+                        PatchFilteringParams = new SurfaceCachePatchFilteringParameterSet
+                        {
+                            TemporalSmoothing = volume.temporalSmoothing.value,
+                            SpatialFilterEnabled = volume.spatialFilterEnabled.value,
+                            SpatialFilterSampleCount = (uint)volume.spatialSampleCount.value,
+                            SpatialFilterRadius = volume.spatialRadius.value,
+                            TemporalPostFilterEnabled = volume.temporalPostFilter.value
+                        },
+                        ScreenFilteringParams = new SurfaceCacheScreenFilteringParameterSet
+                        {
+                            LookupSampleCount = (uint)volume.lookupSampleCount.value,
+                            UpsamplingKernelSize = volume.upsamplingKernelSize.value,
+                            UpsamplingSampleCount = (uint)volume.upsamplingSampleCount.value,
+                        },
+                        CascadeMovement = volume.cascadeMovement.value,
+                        VolumeSize = volume.volumeSize.value,
+                        VolumeResolution = (uint)volume.volumeResolution.value,
+                        VolumeCascadeCount = (uint)volume.volumeCascadeCount.value,
+                        DefragCount = (uint)volume.defragCount.value,
+                        RenderingLayerMask = volume.renderingLayerMask.value
+                    };
+                }
+                else
+                {
+                    // Fallback to defaults.
+                    return new VolumeParameterSet
+                    {
+                        EstimationParams = new SurfaceCacheEstimationParameterSet
+                        {
+                            MultiBounce = true,
+                            BouncePatchAllocation = false,
+                            SampleCount = DEFAULT_ESTIMATION_SAMPLE_COUNT,
+                        },
+                        PatchFilteringParams = new SurfaceCachePatchFilteringParameterSet
+                        {
+                            TemporalSmoothing = DEFAULT_TEMPORAL_SMOOTHING,
+                            SpatialFilterEnabled = true,
+                            SpatialFilterSampleCount = DEFAULT_SPATIAL_FILTER_SAMPLE_COUNT,
+                            SpatialFilterRadius = DEFAULT_SPATIAL_FILTER_RADIUS,
+                            TemporalPostFilterEnabled = true
+                        },
+                        ScreenFilteringParams = new SurfaceCacheScreenFilteringParameterSet
+                        {
+                            LookupSampleCount = DEFAULT_LOOKUP_SAMPLE_COUNT,
+                            UpsamplingKernelSize = DEFAULT_UPSAMPLING_KERNEL_SIZE,
+                            UpsamplingSampleCount = DEFAULT_UPSAMPLING_SAMPLE_COUNT,
+                        },
+                        CascadeMovement = true,
+                        VolumeSize = DEFAULT_VOLUME_SIZE,
+                        VolumeResolution = DEFAULT_VOLUME_RESOLUTION,
+                        VolumeCascadeCount = DEFAULT_VOLUME_CASCADE_COUNT,
+                        DefragCount = DEFAULT_DEFRAG_COUNT,
+                        RenderingLayerMask = 0xFFFFFFFF
+                    };
+                }
+            }
 
             public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
             {
@@ -441,6 +525,35 @@ namespace UnityEngine.Rendering.Universal
                 // This avoids applying surface cache to e.g. preview cameras.
                 if (cameraData.cameraType != CameraType.Game && cameraData.cameraType != CameraType.SceneView)
                     return;
+
+                // Get volume parameters that can change per-frame.
+                var stack = VolumeManager.instance.stack;
+                var volume = stack.GetComponent<SurfaceCacheGIVolumeOverride>();
+                var volumeParams = GetVolumeParametersOrDefaults(volume);
+
+                // Detect structural changes that require buffer reallocation.
+                if (volumeParams.VolumeResolution != _cache.Volume.SpatialResolution || volumeParams.VolumeCascadeCount != _cache.Volume.CascadeCount)
+                {
+                    uint newResolution = volumeParams.VolumeResolution;
+                    uint newCascadeCount = volumeParams.VolumeCascadeCount;
+                    Debug.Assert(newCascadeCount != 0 && newCascadeCount <= SurfaceCache.CascadeMax);
+
+                    _cache.Dispose();
+                    var newVolParams = new SurfaceCacheVolumeParameterSet
+                    {
+                        Resolution = newResolution,
+                        Size = volumeParams.VolumeSize,
+                        CascadeCount = newCascadeCount
+                    };
+                    _cache = new SurfaceCache(_coreResources, newVolParams);
+                    _cache.SetEmissiveTriangleIntensityMultiplier(k_EmissiveTriangleIntensityMultiplier);
+                    _frameIdx = 0;
+                }
+
+                _cache.SetEstimationParams(volumeParams.EstimationParams);
+                _cache.SetPatchFilteringParams(volumeParams.PatchFilteringParams);
+                _cache.SetVolumeSize(volumeParams.VolumeSize);
+                _cache.SetDefragCount(volumeParams.DefragCount);
 
                 bool useMotionVectorPatchSeeding = UseMotionVectorPatchSeeding(cameraData.cameraType);
 
@@ -469,7 +582,7 @@ namespace UnityEngine.Rendering.Universal
                     _lowResScreenNdcDepths = RTHandles.Alloc(lowResWidth, lowResHeight, 1, DepthBits.None, GraphicsFormat.R16_UNorm, FilterMode.Point, TextureWrapMode.Clamp, TextureDimension.Tex2D, true, name: "_lowResScreenNdcDepths");
                 }
 
-                if (_cascadeMovement || _frameIdx == 0)
+                if (volumeParams.CascadeMovement || _frameIdx == 0)
                 {
                     _cache.Volume.TargetPos = cameraData.camera.transform.position;
                 }
@@ -558,44 +671,29 @@ namespace UnityEngine.Rendering.Universal
                     builder.SetRenderFunc((PatchAllocationPassData data, ComputeGraphContext cgContext) => AllocatePatches(data, cgContext));
                 }
 
+                // RenderSettings.ambientIntensity is used directly as a linear value for Surface Cache, which is not currently
+                // the case for the standard ambient probe lighting, which is assumed to be in gamma space and then converted to
+                // linear space. We will make this more coherent for the ambient probe in the future.
+                // Similarly, the ambient colors are all defined in sRGB space and must be converted to linear.
+                _worldAdapter.Update(
+                    _objDispatcher,
+                    RenderSettings.ambientMode,
+                    RenderSettings.skybox,
+                    RenderSettings.ambientSkyColor.linear,
+                    RenderSettings.ambientEquatorColor.linear,
+                    RenderSettings.ambientGroundColor.linear,
+                    RenderSettings.ambientIntensity,
+                    k_ConformToUnityGIFormat,
+                    volumeParams.RenderingLayerMask,
+                    _world);
+
                 using (var builder = renderGraph.AddUnsafePass("Surface Cache World Update", out WorldUpdatePassData passData))
                 {
-                    const bool filterBakedLights = true;
-                    var changes = _sceneTracker.GetChanges(filterBakedLights);
-
-                    _worldAdapter.UpdateMaterials(_world, changes.addedMaterials, changes.removedMaterials, changes.changedMaterials);
-                    _worldAdapter.UpdateMeshRenderers(
-                        _world,
-                        changes.addedMeshRenderers,
-                        changes.changedMeshRenderers,
-                        changes.removedMeshRenderers,
-                        _fallbackMaterial);
-                    _worldAdapter.UpdateTerrains(
-                        _world,
-                        changes.addedTerrains,
-                        changes.changedTerrains,
-                        changes.removedTerrains,
-                        _fallbackMaterial);
-
-                    const bool multiplyPunctualLightIntensityByPI = false;
-                    _worldAdapter.UpdateLights(_world, changes.addedLights, changes.removedLights, changes.changedLights, multiplyPunctualLightIntensityByPI);
-
-                    if (RenderSettings.ambientMode == AmbientMode.Skybox)
-                    {
-                        _world.SetEnvironmentMode(CubemapRender.Mode.Material);
-                        _world.SetEnvironmentMaterial(RenderSettings.skybox);
-                    }
-                    else if (RenderSettings.ambientMode == AmbientMode.Flat)
-                    {
-                        _world.SetEnvironmentMode(CubemapRender.Mode.Color);
-                        _world.SetEnvironmentColor(RenderSettings.ambientSkyColor);
-                    }
-
                     passData.World = _world;
                     passData.EnvCubemapResolution = _environmentCubemapResolution;
                     passData.Sun = RenderSettings.sun;
-
-
+                    passData.RestoreProjectionMatrix = cameraData.GetProjectionMatrix();
+                    passData.RestoreViewMatrix = worldToViewTransform;
 
                     builder.AllowGlobalStateModification(true);
                     builder.SetRenderFunc((WorldUpdatePassData data, UnsafeGraphContext graphCtx) => UpdateWorld(data, graphCtx, ref _worldUpdateScratch));
@@ -625,7 +723,7 @@ namespace UnityEngine.Rendering.Universal
                     data.VolumeSpatialResolution = _cache.Volume.SpatialResolution;
                     data.VolumeVoxelMinSize = _cache.Volume.VoxelMinSize;
                     data.VolumeCascadeCount = _cache.Volume.CascadeCount;
-                    data.SampleCount = _lookupSampleCount;
+                    data.SampleCount = volumeParams.ScreenFilteringParams.LookupSampleCount;
                     data.FrameIndex = _frameIdx;
 
                     builder.UseBuffer(cellAllocationMarkHandle, AccessFlags.Read);
@@ -695,8 +793,8 @@ namespace UnityEngine.Rendering.Universal
                         data.LowResScreenIrradiancesL11 = lowResScreenIrradiancesL11Handle;
                         data.LowResScreenIrradiancesL12 = lowResScreenIrradiancesL12Handle;
                         data.FullResIrradiances = fullResScreenIrradiancesHandle;
-                        data.FilterRadius = _upsamplingKernelSize;
-                        data.SampleCount = _upsamplingSampleCount;
+                        data.FilterRadius = volumeParams.ScreenFilteringParams.UpsamplingKernelSize;
+                        data.SampleCount = volumeParams.ScreenFilteringParams.UpsamplingSampleCount;
 
                         builder.UseTexture(data.FullResIrradiances, AccessFlags.Write);
                         builder.UseTexture(resourceData.cameraDepthTexture, AccessFlags.Read);
@@ -721,7 +819,11 @@ namespace UnityEngine.Rendering.Universal
             static void UpdateWorld(WorldUpdatePassData data, UnsafeGraphContext graphCtx, ref GraphicsBuffer scratch)
             {
                 var cmd = CommandBufferHelpers.GetNativeCommandBuffer(graphCtx.cmd);
-                data.World.Commit(cmd, ref scratch, data.EnvCubemapResolution, data.Sun);
+                data.World.Commit(cmd, ref scratch, data.EnvCubemapResolution, data.Sun, out bool viewAndProjectionMatricesChanged);
+                if (viewAndProjectionMatricesChanged)
+                {
+                    cmd.SetViewProjectionMatrices(data.RestoreViewMatrix, data.RestoreProjectionMatrix);
+                }
             }
 
             static void LookupScreenIrradiance(ScreenIrradianceLookupPassData data, ComputeGraphContext cgContext)
@@ -738,10 +840,10 @@ namespace UnityEngine.Rendering.Universal
                 cmd.SetComputeTextureParam(shader, kernelIndex, ShaderIDs._ScreenFlatNormals, data.FullResFlatNormals);
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._CellPatchIndices, data.CellPatchIndices);
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._PatchIrradiances, data.PatchIrradiances);
-                cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._CascadeOffsets, data.CascadeOffsets);
+                cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._VolumeCascadeOffsets, data.CascadeOffsets);
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._PatchStatistics, data.PatchStatistics);
                 cmd.SetComputeIntParam(shader, ShaderIDs._VolumeSpatialResolution, (int)data.VolumeSpatialResolution);
-                cmd.SetComputeIntParam(shader, ShaderIDs._CascadeCount, (int)data.VolumeCascadeCount);
+                cmd.SetComputeIntParam(shader, ShaderIDs._VolumeCascadeCount, (int)data.VolumeCascadeCount);
                 cmd.SetComputeIntParam(shader, ShaderIDs._SampleCount, (int)data.SampleCount);
                 cmd.SetComputeIntParam(shader, ShaderIDs._FrameIdx, (int)data.FrameIndex);
                 cmd.SetComputeFloatParam(shader, ShaderIDs._VolumeVoxelMinSize, data.VolumeVoxelMinSize);
@@ -808,10 +910,10 @@ namespace UnityEngine.Rendering.Universal
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._PatchGeometries, data.PatchGeometries);
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._PatchCellIndices, data.PatchCellIndices);
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._PatchStatistics, data.PatchStatistics);
-                cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._CascadeOffsets, data.CascadeOffsets);
+                cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._VolumeCascadeOffsets, data.CascadeOffsets);
                 cmd.SetComputeIntParam(shader, ShaderIDs._FrameIdx, (int)data.FrameIdx);
                 cmd.SetComputeIntParam(shader, ShaderIDs._VolumeSpatialResolution, (int)data.VolumeSpatialResolution);
-                cmd.SetComputeIntParam(shader, ShaderIDs._CascadeCount, (int)data.VolumeCascadeCount);
+                cmd.SetComputeIntParam(shader, ShaderIDs._VolumeCascadeCount, (int)data.VolumeCascadeCount);
                 cmd.SetComputeIntParam(shader, ShaderIDs._RingConfigOffset, (int)data.RingConfigOffset);
                 cmd.SetComputeIntParams(shader, ShaderIDs._FullResPixelOffset, (int)data.FullResPixelOffset.x, (int)data.FullResPixelOffset.y);
                 cmd.SetComputeIntParams(shader, ShaderIDs._LowResScreenSize, (int)data.LowResScreenSize.x, (int)data.LowResScreenSize.y);
@@ -838,12 +940,12 @@ namespace UnityEngine.Rendering.Universal
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._RingConfigBuffer, data.RingConfigBuffer);
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._PatchIrradiances, data.PatchIrradiances);
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._PatchGeometries, data.PatchGeometries);
-                cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._CascadeOffsets, data.CascadeOffsets);
+                cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._VolumeCascadeOffsets, data.CascadeOffsets);
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._PatchCellIndices, data.PatchCellIndices);
                 cmd.SetComputeBufferParam(shader, kernelIndex, ShaderIDs._PatchStatistics, data.PatchStatistics);
 
                 cmd.SetComputeIntParam(shader, ShaderIDs._VolumeSpatialResolution, (int)data.VolumeSpatialResolution);
-                cmd.SetComputeIntParam(shader, ShaderIDs._CascadeCount, (int)data.VolumeCascadeCount);
+                cmd.SetComputeIntParam(shader, ShaderIDs._VolumeCascadeCount, (int)data.VolumeCascadeCount);
                 cmd.SetComputeIntParam(shader, ShaderIDs._ViewMode, (int)data.ViewMode);
                 cmd.SetComputeIntParam(shader, ShaderIDs._FrameIdx, (int)data.FrameIndex);
                 cmd.SetComputeIntParam(shader, ShaderIDs._ShowSamplePosition, data.ShowSamplePosition ? 1 : 0);
@@ -861,369 +963,15 @@ namespace UnityEngine.Rendering.Universal
             private static uint2 DivUp(uint2 x, uint2 y) => (x + y - 1) / y;
         }
 
-        class WorldAdapter : IDisposable
-        {
-            // This dictionary maps from Unity EntityID for MeshRenderer or Terrain, to corresponding InstanceHandle for accessing World.
-            private readonly Dictionary<EntityId, InstanceHandle> _entityIDToWorldInstanceHandles = new();
-
-            // Same as above but for Lights
-            private readonly Dictionary<EntityId, LightHandle> _entityIDToWorldLightHandles = new();
-
-            // Same as above but for Materials
-            private Dictionary<EntityId, MaterialHandle> _entityIDToWorldMaterialHandles = new();
-
-            // We also keep track of associated material descriptors, so we can free temporary temporary textures when a material is removed
-            private Dictionary<EntityId, MaterialPool.MaterialDescriptor> _entityIDToWorldMaterialDescriptors = new();
-
-            private MaterialPool.MaterialDescriptor _fallbackMaterialDescriptor;
-            private MaterialHandle _fallbackMaterialHandle;
-
-            public WorldAdapter(SurfaceCacheWorld world, Material fallbackMaterial)
-            {
-                _fallbackMaterialDescriptor = MaterialPool.ConvertUnityMaterialToMaterialDescriptor(fallbackMaterial);
-                _fallbackMaterialHandle = world.AddMaterial(in _fallbackMaterialDescriptor, UVChannel.UV0);
-                _entityIDToWorldMaterialHandles.Add(fallbackMaterial.GetEntityId(), _fallbackMaterialHandle);
-                _entityIDToWorldMaterialDescriptors.Add(fallbackMaterial.GetEntityId(), _fallbackMaterialDescriptor);
-            }
-
-            public void UpdateMaterials(SurfaceCacheWorld world, List<Material> addedMaterials, List<EntityId> removedMaterials, List<Material> changedMaterials)
-            {
-                UpdateMaterials(world, _entityIDToWorldMaterialHandles, _entityIDToWorldMaterialDescriptors, addedMaterials, removedMaterials, changedMaterials);
-            }
-
-            private static void UpdateMaterials(SurfaceCacheWorld world, Dictionary<EntityId, MaterialHandle> entityIDToHandle, Dictionary<EntityId, MaterialPool.MaterialDescriptor> entityIDToDescriptor, List<Material> addedMaterials, List<EntityId> removedMaterials, List<Material> changedMaterials)
-            {
-                static void DeleteTemporaryTextures(ref MaterialPool.MaterialDescriptor desc)
-                {
-                    CoreUtils.Destroy(desc.Albedo);
-                    CoreUtils.Destroy(desc.Emission);
-                    CoreUtils.Destroy(desc.Transmission);
-                }
-
-                foreach (var entityID in removedMaterials)
-                {
-                    // Clean up temporary textures in the descriptor
-                    Debug.Assert(entityIDToDescriptor.ContainsKey(entityID));
-                    var descriptor = entityIDToDescriptor[entityID];
-                    DeleteTemporaryTextures(ref descriptor);
-                    entityIDToDescriptor.Remove(entityID);
-
-                    // Remove the material from the world
-                    Debug.Assert(entityIDToHandle.ContainsKey(entityID));
-                    world.RemoveMaterial(entityIDToHandle[entityID]);
-                    entityIDToHandle.Remove(entityID);
-                }
-
-                foreach (var material in addedMaterials)
-                {
-                    // Add material to the world
-                    var descriptor = MaterialPool.ConvertUnityMaterialToMaterialDescriptor(material);
-                    var handle = world.AddMaterial(in descriptor, UVChannel.UV0);
-                    entityIDToHandle.Add(material.GetEntityId(), handle);
-
-                    // Keep track of the descriptor
-                    entityIDToDescriptor.Add(material.GetEntityId(), descriptor);
-                }
-
-                foreach (var material in changedMaterials)
-                {
-                    // Clean up temporary textures in the old descriptor
-                    Debug.Assert(entityIDToDescriptor.ContainsKey(material.GetEntityId()));
-                    var oldDescriptor = entityIDToDescriptor[material.GetEntityId()];
-                    DeleteTemporaryTextures(ref oldDescriptor);
-
-                    // Update the material in the world using the new descriptor
-                    Debug.Assert(entityIDToHandle.ContainsKey(material.GetEntityId()));
-                    var newDescriptor = MaterialPool.ConvertUnityMaterialToMaterialDescriptor(material);
-                    world.UpdateMaterial(entityIDToHandle[material.GetEntityId()], in newDescriptor, UVChannel.UV0);
-                    entityIDToDescriptor[material.GetEntityId()] = newDescriptor;
-                }
-            }
-
-            internal void UpdateLights(SurfaceCacheWorld world, List<Light> addedLights, List<EntityId> removedLights,
-                List<Light> changedLights, bool multiplyPunctualLightIntensityByPI)
-            {
-                UpdateLights(world, _entityIDToWorldLightHandles, addedLights, removedLights, changedLights, multiplyPunctualLightIntensityByPI);
-            }
-
-            private static void UpdateLights(
-                SurfaceCacheWorld world,
-                Dictionary<EntityId, LightHandle> entityIDToHandle, List<Light> addedLights, List<EntityId> removedLights,
-                List<Light> changedLights,
-                bool multiplyPunctualLightIntensityByPI)
-            {
-                // Remove deleted lights
-                LightHandle[] handlesToRemove = new LightHandle[removedLights.Count];
-                for (int i = 0; i < removedLights.Count; i++)
-                {
-                    var lightEntityID = removedLights[i];
-                    handlesToRemove[i] = entityIDToHandle[lightEntityID];
-                    entityIDToHandle.Remove(lightEntityID);
-                }
-                world.RemoveLights(handlesToRemove);
-
-                // Add new lights
-                var lightDescriptors = ConvertUnityLightsToLightDescriptors(addedLights.ToArray(), multiplyPunctualLightIntensityByPI);
-                LightHandle[] addedHandles = world.AddLights(lightDescriptors);
-                for (int i = 0; i < addedLights.Count; ++i)
-                    entityIDToHandle.Add(addedLights[i].GetEntityId(), addedHandles[i]);
-
-                // Update changed lights
-                LightHandle[] handlesToUpdate = new LightHandle[changedLights.Count];
-                for (int i = 0; i < changedLights.Count; i++)
-                    handlesToUpdate[i] = entityIDToHandle[changedLights[i].GetEntityId()];
-
-                world.UpdateLights(handlesToUpdate, ConvertUnityLightsToLightDescriptors(changedLights.ToArray(), multiplyPunctualLightIntensityByPI));
-            }
-
-            internal void UpdateMeshRenderers(
-                SurfaceCacheWorld world,
-                List<MeshRenderer> addedMeshRenderers,
-                List<MeshRendererInstanceChanges> changedMeshRenderers,
-                List<EntityId> removedMeshRenderers,
-                Material fallbackMaterial)
-            {
-                UpdateMeshRenderers(world, _entityIDToWorldInstanceHandles, _entityIDToWorldMaterialHandles, addedMeshRenderers, changedMeshRenderers, removedMeshRenderers, fallbackMaterial);
-            }
-
-            internal void UpdateTerrains(
-                SurfaceCacheWorld world,
-                List<Terrain> addedTerrains,
-                List<TerrainInstanceChanges> changedTerrains,
-                List<EntityId> removedTerrains,
-                Material fallbackMaterial)
-            {
-                UpdateTerrains(world, _entityIDToWorldInstanceHandles, _entityIDToWorldMaterialHandles, addedTerrains, changedTerrains, removedTerrains, fallbackMaterial);
-            }
-
-            private static void UpdateMeshRenderers(
-                SurfaceCacheWorld world,
-                Dictionary<EntityId, InstanceHandle> entityIDToInstanceHandle,
-                Dictionary<EntityId, MaterialHandle> entityIDToMaterialHandle,
-                List<MeshRenderer> addedMeshRenderers,
-                List<MeshRendererInstanceChanges> changedMeshRenderers,
-                List<EntityId> removedMeshRenderers,
-                Material fallbackMaterial)
-            {
-                foreach (var meshRendererEntityID in removedMeshRenderers)
-                {
-                    if (entityIDToInstanceHandle.TryGetValue(meshRendererEntityID, out var instanceHandle))
-                    {
-                        world.RemoveInstance(instanceHandle);
-                        entityIDToInstanceHandle.Remove(meshRendererEntityID);
-                    }
-                }
-
-                foreach (var meshRenderer in addedMeshRenderers)
-                {
-                    Debug.Assert(!meshRenderer.isPartOfStaticBatch);
-
-                    var mesh = meshRenderer.GetComponent<MeshFilter>().sharedMesh;
-
-                    if (mesh == null || mesh.vertexCount == 0)
-                        continue;
-
-                    var localToWorldMatrix = meshRenderer.transform.localToWorldMatrix;
-
-                    var materials = Util.GetMaterials(meshRenderer);
-                    var materialHandles = new MaterialHandle[materials.Length];
-                    for (int i = 0; i < materials.Length; i++)
-                    {
-                        var matEntityId = materials[i] == null ? fallbackMaterial.GetEntityId() : materials[i].GetEntityId();
-                        materialHandles[i] = entityIDToMaterialHandle[matEntityId];
-                    }
-                    uint[] masks = new uint[materials.Length];
-                    for (int i = 0; i < masks.Length; i++)
-                    {
-                        masks[i] = materials[i] != null ? 1u : 0u;
-                    }
-
-                    InstanceHandle instance = world.AddInstance(mesh, materialHandles, masks, in localToWorldMatrix);
-                    var entityID = meshRenderer.GetEntityId();
-                    Debug.Assert(!entityIDToInstanceHandle.ContainsKey(entityID));
-                    entityIDToInstanceHandle.Add(entityID, instance);
-                }
-
-                foreach (var meshRendererUpdate in changedMeshRenderers)
-                {
-                    var meshRenderer = meshRendererUpdate.instance;
-                    var gameObject = meshRenderer.gameObject;
-
-                    Debug.Assert(entityIDToInstanceHandle.ContainsKey(meshRenderer.GetEntityId()));
-                    var instanceHandle = entityIDToInstanceHandle[meshRenderer.GetEntityId()];
-
-                    if ((meshRendererUpdate.changes & ModifiedProperties.Transform) != 0)
-                    {
-                        world.UpdateInstanceTransform(instanceHandle, gameObject.transform.localToWorldMatrix);
-                    }
-
-                    if ((meshRendererUpdate.changes & ModifiedProperties.Material) != 0)
-                    {
-                        var materials = Util.GetMaterials(meshRenderer);
-                        var materialHandles = new MaterialHandle[materials.Length];
-                        for (int i = 0; i < materials.Length; i++)
-                        {
-                            var matEntityId = materials[i] == null ? fallbackMaterial.GetEntityId() : materials[i].GetEntityId();
-                            materialHandles[i] = entityIDToMaterialHandle[matEntityId];
-                        }
-
-                        world.UpdateInstanceMaterials(instanceHandle, materialHandles);
-
-                        uint[] masks = new uint[materials.Length];
-                        for (int i = 0; i < masks.Length; i++)
-                        {
-                            masks[i] = materials[i] != null ? 1u : 0u;
-                        }
-
-                        world.UpdateInstanceMask(instanceHandle, masks);
-                    }
-                }
-            }
-
-            private void UpdateTerrains(
-                SurfaceCacheWorld world,
-                Dictionary<EntityId, InstanceHandle> entityIDToInstanceHandle,
-                Dictionary<EntityId, MaterialHandle> entityIDToMaterialHandle,
-                List<Terrain> addedTerrains,
-                List<TerrainInstanceChanges> changedTerrains,
-                List<EntityId> removedTerrains,
-                Material fallbackMaterial)
-            {
-                foreach (var terrainEntityID in removedTerrains)
-                {
-                    if (entityIDToInstanceHandle.TryGetValue(terrainEntityID, out var instanceHandle))
-                    {
-                        world.RemoveInstance(instanceHandle);
-                        entityIDToInstanceHandle.Remove(terrainEntityID);
-                    }
-                }
-
-                foreach (var terrain in addedTerrains)
-                {
-                    var localToWorldMatrix = terrain.transform.localToWorldMatrix;
-
-                    var material = terrain.splatBaseMaterial;
-                    var matEntityId = material == null ? fallbackMaterial.GetEntityId() : material.GetEntityId();
-                    var materialHandle = entityIDToMaterialHandle[matEntityId];
-                    uint mask =  1u;
-
-                    InstanceHandle instance = world.AddInstance(terrain, materialHandle, mask, in localToWorldMatrix);
-                    var entityID = terrain.GetEntityId();
-                    Debug.Assert(!entityIDToInstanceHandle.ContainsKey(entityID));
-                    entityIDToInstanceHandle.Add(entityID, instance);
-                }
-
-                foreach (var terrainUpdate in changedTerrains)
-                {
-                    var terrain = terrainUpdate.instance;
-                    var gameObject = terrain.gameObject;
-
-                    Debug.Assert(entityIDToInstanceHandle.ContainsKey(terrain.GetEntityId()));
-                    var instanceHandle = entityIDToInstanceHandle[terrain.GetEntityId()];
-
-                    if ((terrainUpdate.changes & ModifiedProperties.Transform) != 0)
-                    {
-                        world.UpdateInstanceTransform(instanceHandle, gameObject.transform.localToWorldMatrix);
-                    }
-
-                    if ((terrainUpdate.changes & ModifiedProperties.Material) != 0)
-                    {
-                        var material = terrain.splatBaseMaterial;
-
-                        var matEntityId = material == null ? fallbackMaterial.GetEntityId() : material.GetEntityId();
-                        var materialHandle = entityIDToMaterialHandle[matEntityId];
-
-                        world.UpdateInstanceMaterials(instanceHandle, new MaterialHandle[] { materialHandle });
-
-                        var mask = material != null ? 1u : 0u;
-
-                        world.UpdateInstanceMask(instanceHandle, new uint[] { mask } );
-                    }
-                }
-            }
-
-            public void Dispose()
-            {
-                CoreUtils.Destroy(_fallbackMaterialDescriptor.Albedo);
-                CoreUtils.Destroy(_fallbackMaterialDescriptor.Emission);
-                CoreUtils.Destroy(_fallbackMaterialDescriptor.Transmission);
-            }
-
-            internal static SurfaceCacheWorld.LightDescriptor[] ConvertUnityLightsToLightDescriptors(Light[] lights, bool multiplyPunctualLightIntensityByPI)
-            {
-                var descriptors = new SurfaceCacheWorld.LightDescriptor[lights.Length];
-                for (int i = 0; i < lights.Length; i++)
-                {
-                    Light light = lights[i];
-                    ref SurfaceCacheWorld.LightDescriptor descriptor = ref descriptors[i];
-                    descriptor.Type = light.type;
-                    descriptor.LinearLightColor = Util.GetLinearLightColor(light) * light.bounceIntensity;
-                    if (multiplyPunctualLightIntensityByPI && Util.IsPunctualLightType(light.type))
-                        descriptor.LinearLightColor *= Mathf.PI;
-                    descriptor.Transform = light.transform.localToWorldMatrix;
-                    descriptor.ColorTemperature = light.colorTemperature;
-                    descriptor.SpotAngle = light.spotAngle;
-                    descriptor.InnerSpotAngle = light.innerSpotAngle;
-                    descriptor.Range = light.range;
-                }
-                return descriptors;
-            }
-        }
-
         private SurfaceCachePass _pass;
         private RayTracingContext _rtContext;
         [SerializeField] private ParameterSet _parameterSet = new ParameterSet();
 
-        [Serializable]
-        class EstimationParameterSet
-        {
-            public uint SampleCount = 2;
-        }
-
-        [Serializable]
-        class PatchFilteringParameterSet
-        {
-            public float TemporalSmoothing = 0.8f;
-            public bool SpatialFilterEnabled = true;
-            public uint SpatialFilterSampleCount = 4;
-            public float SpatialFilterRadius = 1.0f;
-            public bool TemporalPostFilterEnabled = true;
-        }
-
-        [Serializable]
-        class ScreenFilteringParameterSet
-        {
-            public uint LookupSampleCount = 8;
-            public float UpsamplingKernelSize = 5.0f;
-            public uint UpsamplingSampleCount = 3;
-        }
-
-        [Serializable]
-        class VolumeParameterSet
-        {
-            public uint Resolution = 32;
-            public float Size = 128.0f;
-            public uint CascadeCount = 4;
-            public bool Movement = true;
-        }
-
-        [Serializable]
-        class AdvancedParameterSet
-        {
-            public uint DefragCount = 2;
-        }
-
+        // Main parameter set containing advanced and debug settings.
         [Serializable]
         class ParameterSet
         {
-            public bool MultiBounce = true;
-
-            public EstimationParameterSet EstimationParams = new EstimationParameterSet();
-            public PatchFilteringParameterSet PatchFilteringParams = new PatchFilteringParameterSet();
-            public ScreenFilteringParameterSet ScreenFilteringParams = new ScreenFilteringParameterSet();
-            public VolumeParameterSet VolumeParams = new VolumeParameterSet();
-            public AdvancedParameterSet AdvancedParams = new AdvancedParameterSet();
-
+            // Debug settings (will be moved to rendering debugger in the future)
             public bool DebugEnabled = false;
             public DebugViewMode_ DebugViewMode = DebugViewMode_.CellIndex;
             public bool DebugShowSamplePosition = false;
@@ -1237,92 +985,152 @@ namespace UnityEngine.Rendering.Universal
             _rtContext = null;
         }
 
+        // Parameters extracted from Volume override each frame
+        private struct VolumeParameterSet
+        {
+            public SurfaceCacheEstimationParameterSet EstimationParams;
+            public SurfaceCachePatchFilteringParameterSet PatchFilteringParams;
+            public SurfaceCacheScreenFilteringParameterSet ScreenFilteringParams;
+            public bool CascadeMovement;
+            public float VolumeSize;
+            public uint VolumeResolution;
+            public uint VolumeCascadeCount;
+            public uint DefragCount;
+            public uint RenderingLayerMask;
+        }
+
+        bool ResourcesCreated()
+        {
+            return _pass != null;
+        }
+
         public override void Create()
         {
             ClearResources();
 
-            if (isActive)
-            {
-                var rtBackend = RayTracingBackend.Compute;
+            if (!isActive)
+                return;
 
-                {
-                    var resources = new RayTracingResources();
 #if UNITY_EDITOR
-                    resources.Load();
-#else
-                    resources.LoadFromRenderPipelineResources();
+            if (CheckStaticBatchingStatus())
+                return;
 #endif
-                    _rtContext = new RayTracingContext(rtBackend, resources);
-                }
 
-                var universalRenderPipelineResources = GraphicsSettings.GetRenderPipelineSettings<SurfaceCacheRenderPipelineResourceSet>();
-                Debug.Assert(universalRenderPipelineResources != null);
+            var rtBackend = SystemInfo.supportsRayTracing
+                ? RayTracingBackend.Hardware
+                : RayTracingBackend.Compute;
 
-                var worldResources = new WorldResourceSet();
-                var worldLoadResult = worldResources.LoadFromRenderPipelineResources();
-                Debug.Assert(worldLoadResult);
-
-                var coreResources = new Rendering.SurfaceCacheResourceSet((uint)SystemInfo.computeSubGroupSize);
-                var coreResourceLoadResult = coreResources.LoadFromRenderPipelineResources(_rtContext);
-                Debug.Assert(coreResourceLoadResult);
-
-                var volParams = new SurfaceCacheVolumeParameterSet
-                {
-                    Resolution = _parameterSet.VolumeParams.Resolution,
-                    Size = _parameterSet.VolumeParams.Size,
-                    CascadeCount = _parameterSet.VolumeParams.CascadeCount
-                };
-
-                var estimationParams = new SurfaceCacheEstimationParameterSet
-                {
-                    MultiBounce = _parameterSet.MultiBounce,
-                    SampleCount = _parameterSet.EstimationParams.SampleCount,
-                };
-
-                var patchFilteringParams = new SurfaceCachePatchFilteringParameterSet
-                {
-                    TemporalSmoothing = _parameterSet.PatchFilteringParams.TemporalSmoothing,
-                    SpatialFilterEnabled = _parameterSet.PatchFilteringParams.SpatialFilterEnabled,
-                    SpatialFilterSampleCount = _parameterSet.PatchFilteringParams.SpatialFilterSampleCount,
-                    SpatialFilterRadius = _parameterSet.PatchFilteringParams.SpatialFilterRadius,
-                    TemporalPostFilterEnabled = _parameterSet.PatchFilteringParams.TemporalPostFilterEnabled
-                };
-
-                _pass = new SurfaceCachePass(
-                    _rtContext,
-                    coreResources,
-                    worldResources,
-                    universalRenderPipelineResources.allocationShader,
-                    universalRenderPipelineResources.screenResolveLookupShader,
-                    universalRenderPipelineResources.screenResolveUpsamplingShader,
-                    universalRenderPipelineResources.debugShader,
-                    universalRenderPipelineResources.flatNormalResolutionShader,
-                    universalRenderPipelineResources.fallbackMaterial,
-                    _parameterSet.DebugEnabled,
-                    _parameterSet.DebugViewMode,
-                    _parameterSet.DebugShowSamplePosition,
-                    _parameterSet.ScreenFilteringParams.LookupSampleCount,
-                    _parameterSet.ScreenFilteringParams.UpsamplingKernelSize,
-                    _parameterSet.ScreenFilteringParams.UpsamplingSampleCount,
-                    _parameterSet.AdvancedParams.DefragCount,
-                    volParams,
-                    estimationParams,
-                    patchFilteringParams,
-                    _parameterSet.VolumeParams.Movement);
-
-                _pass.renderPassEvent = RenderPassEvent.AfterRenderingPrePasses + 1;
+            {
+                var resources = new RayTracingResources();
+#if UNITY_EDITOR
+                resources.Load();
+#else
+                resources.LoadFromRenderPipelineResources();
+#endif
+                _rtContext = new RayTracingContext(rtBackend, resources);
             }
+
+            var universalRenderPipelineResources = GraphicsSettings.GetRenderPipelineSettings<SurfaceCacheRenderPipelineResourceSet>();
+            Debug.Assert(universalRenderPipelineResources != null);
+
+            var worldResources = new WorldResourceSet();
+            var worldLoadResult = worldResources.LoadFromRenderPipelineResources();
+            Debug.Assert(worldLoadResult);
+
+            var coreRpResources = GraphicsSettings.GetRenderPipelineSettings<Rendering.SurfaceCacheRenderPipelineResourceSet>();
+            Debug.Assert(coreRpResources != null);
+
+            var coreResources = new Rendering.SurfaceCacheResourceSet((uint)SystemInfo.computeSubGroupSize);
+
+            Object punctualLightSamplingUnifiedObj;
+            Object estimationUnifiedObj;
+            if (_rtContext.BackendType == RayTracingBackend.Compute)
+            {
+                punctualLightSamplingUnifiedObj = coreRpResources.punctualLightSamplingComputeShader;
+                estimationUnifiedObj = coreRpResources.estimationComputeShader;
+            }
+            else
+            {
+                punctualLightSamplingUnifiedObj = coreRpResources.punctualLightSamplingRayTracingShader;
+                estimationUnifiedObj = coreRpResources.estimationRayTracingShader;
+            }
+            IRayTracingShader punctualLightSamplingShader = _rtContext.CreateRayTracingShader(punctualLightSamplingUnifiedObj);
+            IRayTracingShader estimationShader = _rtContext.CreateRayTracingShader(estimationUnifiedObj);
+
+            coreResources.Load(
+                coreRpResources.scrollingShader,
+                coreRpResources.evictionShader,
+                coreRpResources.patchAllocationShader,
+                coreRpResources.spatialFilteringShader,
+                coreRpResources.temporalFilteringShader,
+                coreRpResources.defragShader,
+                punctualLightSamplingShader,
+                estimationShader);
+
+            // Use defaults for initial volume configuration; runtime values come from the Volume override per-frame
+            var volParams = new SurfaceCacheVolumeParameterSet
+            {
+                Resolution = DEFAULT_VOLUME_RESOLUTION,
+                Size = DEFAULT_VOLUME_SIZE,
+                CascadeCount = DEFAULT_VOLUME_CASCADE_COUNT
+            };
+
+            _pass = new SurfaceCachePass(
+                _rtContext,
+                coreResources,
+                worldResources,
+                universalRenderPipelineResources.allocationShader,
+                universalRenderPipelineResources.screenResolveLookupShader,
+                universalRenderPipelineResources.screenResolveUpsamplingShader,
+                universalRenderPipelineResources.debugShader,
+                universalRenderPipelineResources.flatNormalResolutionShader,
+                universalRenderPipelineResources.fallbackMaterial,
+                _parameterSet.DebugEnabled,
+                _parameterSet.DebugViewMode,
+                _parameterSet.DebugShowSamplePosition,
+                volParams);
+
+            _pass.renderPassEvent = RenderPassEvent.AfterRenderingPrePasses + 1;
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
-            ScriptableRenderPassInput inputs = ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Normal;
-            if (UseMotionVectorPatchSeeding(renderingData.cameraData.cameraType))
+#if UNITY_EDITOR
+            if (CheckStaticBatchingStatus())
+                return;
+#endif
+
+            var cameraType = renderingData.cameraData.cameraType;
+            if (cameraType != CameraType.Game && cameraType != CameraType.SceneView)
+                return;
+
+            var surfaceCacheOverride = VolumeManager.instance.stack.GetComponent<SurfaceCacheGIVolumeOverride>();
+            bool enabled = surfaceCacheOverride == null || surfaceCacheOverride.enabled.value;
+
+            if (!enabled)
             {
-                inputs |= ScriptableRenderPassInput.Motion;
+                if (ResourcesCreated())
+                    ClearResources();
             }
-            _pass.ConfigureInput(inputs);
-            renderer.EnqueuePass(_pass);
+            else
+            {
+                // Resources may be absent here after being released while disabled, or after static
+                // batching was disabled following feature creation.
+                if (!ResourcesCreated())
+                    Create();
+
+                // Create() leaves _pass null when the feature is inactive.
+                if (!ResourcesCreated())
+                    return;
+
+                ScriptableRenderPassInput inputs = ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Normal;
+                if (UseMotionVectorPatchSeeding(renderingData.cameraData.cameraType))
+                {
+                    inputs |= ScriptableRenderPassInput.Motion;
+                }
+                _pass.ConfigureInput(inputs);
+                renderer.EnqueuePass(_pass);
+            }
         }
 
         protected override void Dispose(bool disposing)
@@ -1330,6 +1138,20 @@ namespace UnityEngine.Rendering.Universal
             ClearResources();
             base.Dispose(disposing);
         }
+
+#if UNITY_EDITOR
+        bool _staticBatchingEnabled;
+        bool CheckStaticBatchingStatus()
+        {
+            bool previousStatus = _staticBatchingEnabled;
+            _staticBatchingEnabled = UnityEditor.PlayerSettings.GetStaticBatchingForPlatform(UnityEditor.EditorUserBuildSettings.activeBuildTarget);
+
+            if (_staticBatchingEnabled && _staticBatchingEnabled != previousStatus)
+                Debug.LogError(k_StaticBatchingErrorMesssage);
+
+            return _staticBatchingEnabled;
+        }
+#endif
     }
 }
 

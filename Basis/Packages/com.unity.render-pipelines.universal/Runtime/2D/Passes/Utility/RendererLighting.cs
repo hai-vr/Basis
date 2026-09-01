@@ -1,15 +1,10 @@
-using System.Collections.Generic;
 using UnityEngine.Experimental.Rendering;
-using Unity.Collections;
-using System;
 using Unity.Mathematics;
 
 namespace UnityEngine.Rendering.Universal
 {
     internal static class RendererLighting
     {
-        private static readonly ProfilingSampler m_ProfilingSampler = new ProfilingSampler("Draw Normals");
-        private static readonly ShaderTagId k_NormalsRenderingPassName = new ShaderTagId("NormalsRendering");
         public static readonly Color k_NormalClearColor = new Color(0.5f, 0.5f, 0.5f, 1.0f);
         private static readonly string k_UsePointLightCookiesKeyword = "USE_POINT_LIGHT_COOKIES";
         private static readonly string k_LightQualityFastKeyword = "LIGHT_QUALITY_FAST";
@@ -74,9 +69,21 @@ namespace UnityEngine.Rendering.Universal
         private static readonly int k_L2DVolumeOpacity = Shader.PropertyToID("L2DVolumeOpacity");
         private static readonly int k_L2DShadowIntensity = Shader.PropertyToID("L2DShadowIntensity");
         private static readonly int k_L2DLightType = Shader.PropertyToID("L2DLightType");
+        private static readonly int k_L2DLightRenderingLayer = Shader.PropertyToID("L2DLightRenderingLayer");
 
         // Light Batcher.
         internal static LightBatch lightBatch = new LightBatch();
+
+#if UNITY_EDITOR
+        [RuntimeInitializeOnLoadMethod]
+        static void ResetStaticsOnLoad()
+        {
+            s_HasSetupRenderTextureFormatToUse = false;
+            s_RenderTextureFormatToUse = GraphicsFormat.R8G8B8A8_UNorm;
+            lightBatch.Release();
+            lightBatch = new LightBatch();
+        }
+#endif
 
         internal static GraphicsFormat GetRenderTextureFormat()
         {
@@ -215,6 +222,7 @@ namespace UnityEngine.Rendering.Universal
                 cmd.SetGlobalColor(k_L2DColor, color);
                 cmd.SetGlobalFloat(k_L2DVolumeOpacity, volumeIntensity);
                 cmd.SetGlobalInt(k_L2DLightType, (int)light.lightType);
+                cmd.SetGlobalInt(k_L2DLightRenderingLayer, (int)light.renderingLayerMask.value);
                 cmd.SetGlobalFloat(k_L2DShadowIntensity, hasShadows ? (isVolumetric ? (1 - light.shadowVolumeIntensity) : (1 - light.shadowIntensity)) : 1);
             }
 

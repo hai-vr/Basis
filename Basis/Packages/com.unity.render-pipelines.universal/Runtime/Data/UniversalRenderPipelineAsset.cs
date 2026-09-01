@@ -5,12 +5,14 @@ using UnityEditor.ProjectWindowCallback;
 using System.IO;
 using ShaderKeywordFilter = UnityEditor.ShaderKeywordFilter;
 #endif
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Numerics;
 using UnityEngine.Serialization;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Assertions;
-using System.Collections.Generic;
+using Unity.Mathematics;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -324,7 +326,7 @@ namespace UnityEngine.Rendering.Universal
     /// <summary>
     /// Defines the upscaling filter selected by the user the universal render pipeline asset.
     /// </summary>
-    /// 
+    ///
 #if ENABLE_UPSCALER_FRAMEWORK
     [Obsolete("UpscalingFilterSelection is obsolete. #from(6000.3)", false)]
 #endif
@@ -412,9 +414,10 @@ namespace UnityEngine.Rendering.Universal
     /// <see cref="RenderPipelineAsset"/>
     /// <see cref="UniversalRenderPipeline"/>
     [ExcludeFromPreset]
-    [URPHelpURL("universalrp-asset")]
+    [URPHelpURL("urp/universalrp-asset")]
     [Icon("UnityEngine/Rendering/RenderPipelineAsset Icon")]
 #if UNITY_EDITOR
+    [DocumentationInfo.Source(DocumentationInfo.Location.Manual)]
     [ShaderKeywordFilter.ApplyRulesIfTagsEqual("RenderPipeline", "UniversalPipeline")]
 #endif
     public partial class UniversalRenderPipelineAsset : RenderPipelineAsset<UniversalRenderPipeline>, ISerializationCallbackReceiver, IProbeVolumeEnabledRenderPipeline, IGPUResidentRenderPipeline, IRenderGraphEnabledRenderPipeline, ISTPEnabledRenderPipeline
@@ -425,7 +428,7 @@ namespace UnityEngine.Rendering.Universal
 
         private const int k_LastVersion = 13;
         // Default values set when a new UniversalRenderPipeline asset is created
-        [SerializeField] int k_AssetVersion = k_LastVersion;
+        [SerializeField] internal int k_AssetVersion = k_LastVersion;
         [SerializeField] int k_AssetPreviousVersion = k_LastVersion;
 
         // Deprecated settings for upgrading sakes
@@ -551,6 +554,7 @@ namespace UnityEngine.Rendering.Universal
 
         // Advanced settings
         [SerializeField] bool m_UseSRPBatcher = true;
+        // Deprecated: Retained for serialized data compatibility and will be removed in a future release.
         [SerializeField] bool m_SupportsDynamicBatching = false;
 #if UNITY_EDITOR
         // multi_compile _ LIGHTMAP_SHADOW_MIXING
@@ -593,6 +597,8 @@ namespace UnityEngine.Rendering.Universal
         private GPUResidentDrawerMode m_GPUResidentDrawerMode = GPUResidentDrawerMode.Disabled;
         [SerializeField] float m_SmallMeshScreenPercentage = 0.0f;
 
+        [SerializeField] private Vector4 m_ShadowSmallMeshScreenPercentages = Vector4.zero;
+
         [SerializeField] bool m_GPUResidentDrawerEnableOcclusionCullingInCameras;
 
         GPUResidentDrawerSettings IGPUResidentRenderPipeline.gpuResidentDrawerSettings => new()
@@ -602,6 +608,7 @@ namespace UnityEngine.Rendering.Universal
             supportDitheringCrossFade = m_EnableLODCrossFade,
             allowInEditMode = true,
             smallMeshScreenPercentage = m_SmallMeshScreenPercentage,
+            shadowSmallMeshScreenPercentages = m_ShadowSmallMeshScreenPercentages,
 #if UNITY_EDITOR
             pickingShader = Shader.Find("Hidden/Universal Render Pipeline/BRGPicking"),
 #endif
@@ -952,7 +959,7 @@ namespace UnityEngine.Rendering.Universal
 
                 index = m_DefaultRendererIndex; //out of range index fallback on default
             }
-            
+
             result = m_RendererDataList[index];
             return result != null;
         }
@@ -981,7 +988,7 @@ namespace UnityEngine.Rendering.Universal
         }
 
 #endif
-        private static GraphicsFormat[][] s_LightCookieFormatList = new GraphicsFormat[][]
+        private static readonly GraphicsFormat[][] k_LightCookieFormatList = new GraphicsFormat[][]
         {
             /* Grayscale Low */ new GraphicsFormat[] {GraphicsFormat.R8_UNorm},
             /* Grayscale High*/ new GraphicsFormat[] {GraphicsFormat.R16_UNorm},
@@ -995,7 +1002,7 @@ namespace UnityEngine.Rendering.Universal
             get
             {
                 GraphicsFormat result = GraphicsFormat.None;
-                foreach (var format in s_LightCookieFormatList[(int)m_AdditionalLightsCookieFormat])
+                foreach (var format in k_LightCookieFormatList[(int)m_AdditionalLightsCookieFormat])
                 {
                     if (SystemInfo.IsFormatSupported(format, GraphicsFormatUsage.Render))
                     {
@@ -1563,7 +1570,7 @@ namespace UnityEngine.Rendering.Universal
         /// Specifies if this <c>UniversalRenderPipelineAsset</c> should use dynamic batching.
         /// </summary>
         /// <see href="https://docs.unity3d.com/Manual/DrawCallBatching.html"/>
-        [Obsolete("supportsDynamicBatching is deprecated and will be removed in a future release. #from(6000.5)", false)]
+        [Obsolete("supportsDynamicBatching is obsolete.", true)]
         public bool supportsDynamicBatching
         {
             get => m_SupportsDynamicBatching;
@@ -1590,7 +1597,11 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// Returns true if the Render Pipeline Asset supports rendering layers for lights, false otherwise.
         /// </summary>
-        public bool useRenderingLayers => m_SupportsLightLayers;
+        public bool useRenderingLayers
+        {
+            get => m_SupportsLightLayers;
+            internal set => m_SupportsLightLayers = value;
+        }
 
         /// <summary>
         /// Returns the selected update mode for volumes.
@@ -1788,6 +1799,22 @@ namespace UnityEngine.Rendering.Universal
                     return;
 
                 m_SmallMeshScreenPercentage = Mathf.Clamp(value, 0.0f, 20.0f);
+                OnValidate();
+            }
+        }
+
+        /// <summary>
+        /// Default per-cascade minimum screen percentage (0-50%) gpu-driven Renderers can cover before getting shadows in cascades are culled.
+        /// </summary>
+        public Vector4 shadowSmallMeshScreenPercentages
+        {
+            get => m_ShadowSmallMeshScreenPercentages;
+            set
+            {
+                if ((value - m_ShadowSmallMeshScreenPercentages).sqrMagnitude < float.Epsilon * float.Epsilon)
+                    return;
+
+                m_ShadowSmallMeshScreenPercentages = math.clamp(value, 0.0f, 50.0f);
                 OnValidate();
             }
         }

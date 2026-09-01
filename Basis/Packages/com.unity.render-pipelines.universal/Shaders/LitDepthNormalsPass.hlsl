@@ -18,7 +18,7 @@
 #define REQUIRES_WORLD_SPACE_TANGENT_INTERPOLATOR
 #endif
 
-#if defined(_ALPHATEST_ON) || defined(_PARALLAXMAP) || defined(_NORMALMAP) || defined(_DETAIL)
+#if defined(_ALPHATEST_ON) || defined(_PARALLAXMAP) || defined(_NORMALMAP) || defined(_DETAIL) || defined(_WRITE_SMOOTHNESS)
 #define REQUIRES_UV_INTERPOLATOR
 #endif
 
@@ -99,12 +99,30 @@ void DepthNormalsFragment(
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
+    #if defined(_PARALLAXMAP)
+        #if defined(REQUIRES_TANGENT_SPACE_VIEW_DIR_INTERPOLATOR)
+            half3 viewDirTS = input.viewDirTS;
+        #else
+            half3 viewDirTS = GetViewDirectionTangentSpace(input.tangentWS, input.normalWS, input.viewDirWS);
+        #endif
+        ApplyPerPixelDisplacement(viewDirTS, input.uv);
+    #endif
+
+    #if defined(_ALPHATEST_ON) || defined(_WRITE_SMOOTHNESS)
+        float alpha = SampleAlbedoAlpha(input.uv, TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap)).a;
+    #endif
+
     #if defined(_ALPHATEST_ON)
-        Alpha(SampleAlbedoAlpha(input.uv, TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap)).a, _BaseColor, _Cutoff);
+        Alpha(alpha, _BaseColor, _Cutoff);
     #endif
 
     #if defined(LOD_FADE_CROSSFADE)
         LODFadeCrossFade(input.positionCS);
+    #endif
+
+    #if _SCREENSPACEREFLECTIONSCONTRIBUTETRANSPARENT_OFF_KEYWORD_DECLARED
+        if (_SCREENSPACEREFLECTIONSCONTRIBUTETRANSPARENT_OFF)
+            discard;
     #endif
 
     #if defined(_GBUFFER_NORMALS_OCT)
@@ -114,15 +132,6 @@ void DepthNormalsFragment(
         half3 packedNormalWS = PackFloat2To888(remappedOctNormalWS);      // values between [ 0,  1]
         outNormalWS = half4(packedNormalWS, 0.0);
     #else
-        #if defined(_PARALLAXMAP)
-            #if defined(REQUIRES_TANGENT_SPACE_VIEW_DIR_INTERPOLATOR)
-                half3 viewDirTS = input.viewDirTS;
-            #else
-                half3 viewDirTS = GetViewDirectionTangentSpace(input.tangentWS, input.normalWS, input.viewDirWS);
-            #endif
-            ApplyPerPixelDisplacement(viewDirTS, input.uv);
-        #endif
-
         #if defined(_NORMALMAP) || defined(_DETAIL)
             float sgn = input.tangentWS.w;      // should be either +1 or -1
             float3 bitangent = sgn * cross(input.normalWS.xyz, input.tangentWS.xyz);
@@ -140,6 +149,10 @@ void DepthNormalsFragment(
         #endif
 
         outNormalWS = half4(NormalizeNormalPerPixel(normalWS), 0.0);
+    #endif
+
+    #if defined(_WRITE_SMOOTHNESS) && !defined(_SCREENSPACEREFLECTIONS_OFF)
+        outNormalWS.a = SampleMetallicSpecGloss(input.uv, alpha).a;
     #endif
 
     #ifdef _WRITE_RENDERING_LAYERS

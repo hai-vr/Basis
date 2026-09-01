@@ -1,4 +1,4 @@
-#pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal glcore ps5
+#pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal glcore ps5 switch2
 
 #pragma kernel Lookup
 
@@ -20,10 +20,10 @@ RWStructuredBuffer<PatchUtil::PatchStatisticsSet> _PatchStatistics;
 
 StructuredBuffer<SphericalHarmonics::RGBL1> _PatchIrradiances;
 StructuredBuffer<uint> _CellPatchIndices;
-StructuredBuffer<int3> _CascadeOffsets;
+StructuredBuffer<int3> _VolumeCascadeOffsets;
 
 uint _VolumeSpatialResolution;
-uint _CascadeCount;
+uint _VolumeCascadeCount;
 uint _SampleCount;
 float _VolumeVoxelMinSize;
 float4x4 _ClipToWorldTransform;
@@ -58,14 +58,21 @@ void Lookup(uint2 lowResPixelPos : SV_DispatchThreadID)
     QrngKronecker2D rng;
     rng.Init(lowResPixelPos, 0);
 
-    const int cascadeResolution = PatchUtil::ResolveCascadeIndex(_VolumeTargetPos, worldPos, _VolumeSpatialResolution, _CascadeCount, _VolumeVoxelMinSize);
-    const uint cascadeIdx = cascadeResolution == -1 ? _CascadeCount - 1 : cascadeResolution;
+    PatchUtil::VolumeParamSet volumeParams;
+    volumeParams.targetPos = _VolumeTargetPos;
+    volumeParams.spatialResolution = _VolumeSpatialResolution;
+    volumeParams.voxelMinSize = _VolumeVoxelMinSize;
+    volumeParams.cascadeOffsets = _VolumeCascadeOffsets;
+    volumeParams.cascadeCount = _VolumeCascadeCount;
+
+    const int cascadeResolution = PatchUtil::ResolveCascadeIndex(_VolumeTargetPos, worldPos, _VolumeSpatialResolution, _VolumeCascadeCount, _VolumeVoxelMinSize);
+    const uint cascadeIdx = cascadeResolution == -1 ? _VolumeCascadeCount - 1 : cascadeResolution;
     const float voxelSize = PatchUtil::GetVoxelSize(_VolumeVoxelMinSize, cascadeIdx);
 
     SphericalHarmonics::RGBL1 irradianceSum = (SphericalHarmonics::RGBL1)0;
     float weightSum = 0.0f;
     {
-        uint patchIdx = PatchUtil::FindPatchIndexAndUpdateLastAccess(_VolumeTargetPos, _CellPatchIndices, _VolumeSpatialResolution, _CascadeOffsets, _PatchStatistics, _CascadeCount, _VolumeVoxelMinSize, worldPos, worldNormal, _FrameIdx);
+        uint patchIdx = PatchUtil::FindPatchIndexAndUpdateLastAccess(volumeParams, _CellPatchIndices, _PatchStatistics, worldPos, worldNormal, _FrameIdx);
         if (patchIdx != PatchUtil::invalidPatchIndex)
         {
             const float weight = 0.01f;
@@ -85,13 +92,17 @@ void Lookup(uint2 lowResPixelPos : SV_DispatchThreadID)
         const float3 localJitteredDirection = SampleConeUniform(jitter.x, jitter.y, cosSpread);
         const float3 jitteredWorldDir = mul(orthoBasis, localJitteredDirection);
 
-        uint patchIdx = PatchUtil::FindPatchIndexAndUpdateLastAccess(_VolumeTargetPos, _CellPatchIndices, _VolumeSpatialResolution, _CascadeOffsets, _PatchStatistics, _CascadeCount, _VolumeVoxelMinSize, jitteredWorldPos, jitteredWorldDir, _FrameIdx);
+        uint patchIdx = PatchUtil::FindPatchIndex(volumeParams, _CellPatchIndices, jitteredWorldPos, jitteredWorldDir);
         if (patchIdx != PatchUtil::invalidPatchIndex)
         {
-            SphericalHarmonics::AddMut(irradianceSum, _PatchIrradiances[patchIdx]);
-            weightSum += 1.0f;
+            // Separating this into two if statements because certain shader compilers evaluate both conditions if we just put them together with an AND.
+            if (PatchUtil::GetRank(_PatchStatistics[patchIdx].counters) == 0)  // rank used to exclude patches that are not visible from the camera
+            {
+                PatchUtil::WriteLastFrameAccess(_PatchStatistics, patchIdx, _FrameIdx);
+                SphericalHarmonics::AddMut(irradianceSum, _PatchIrradiances[patchIdx]);
+                weightSum += 1.0f;
+            }
         }
-
         rng.NextSample();
     }
 

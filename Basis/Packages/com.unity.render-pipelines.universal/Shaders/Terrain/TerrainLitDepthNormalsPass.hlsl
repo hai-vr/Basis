@@ -97,9 +97,31 @@ void DepthNormalOnlyFragment(
         half3 normalWS = IN.normal;
     #endif
 
-    normalWS = NormalizeNormalPerPixel(normalWS);
+    #if defined(_GBUFFER_NORMALS_OCT)
+    normalWS = normalize(normalWS);
+    float2 octNormalWS = PackNormalOctQuadEncode(normalWS);           // values between [-1, +1], must use fp32 on some platforms
+    float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);   // values between [ 0,  1]
+    half3 packedNormalWS = PackFloat2To888(remappedOctNormalWS);      // values between [ 0,  1]
+    outNormalWS = half4(packedNormalWS, 0.0);
+    #else
+    outNormalWS = half4(NormalizeNormalPerPixel(normalWS), 0.0);
+    #endif
 
-    outNormalWS = half4(normalWS, 0.0);
+    #if defined(_WRITE_SMOOTHNESS)
+        half4 hasMask = half4(_LayerHasMask0, _LayerHasMask1, _LayerHasMask2, _LayerHasMask3);
+        half4 masks[4];
+        ComputeMasks(masks, hasMask, IN.uvSplat01, IN.uvSplat23);
+
+        half weight;
+        half4 mixedDiffuse;
+        half4 defaultSmoothness;
+        SplatmapMix(IN.uvMainAndLM, IN.uvSplat01, IN.uvSplat23, splatControl, weight, mixedDiffuse, defaultSmoothness, normalTS);
+        half4 maskSmoothness = half4(masks[0].a, masks[1].a, masks[2].a, masks[3].a);
+        defaultSmoothness = lerp(defaultSmoothness, maskSmoothness, hasMask);
+        half smoothness = dot(splatControl, defaultSmoothness);
+
+        outNormalWS.a = smoothness;
+    #endif
 
     #ifdef _WRITE_RENDERING_LAYERS
     outRenderingLayers = EncodeMeshRenderingLayer();

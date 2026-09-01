@@ -124,7 +124,7 @@ void InitializeBakedGIData(Varyings IN, inout InputData inputData)
     #endif
 
 #if defined(_SCREEN_SPACE_IRRADIANCE)
-    inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, inputData.positionCS.xy);
+    inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, inputData.positionCS.xy, inputData.normalWS);
 #elif defined(DYNAMICLIGHTMAP_ON)
     inputData.bakedGI = SAMPLE_GI(IN.uvMainAndLM.zw, IN.dynamicLightmapUV, SH, inputData.normalWS);
     inputData.shadowMask = SAMPLE_SHADOWMASK(IN.uvMainAndLM.zw);
@@ -370,7 +370,7 @@ Varyings SplatmapVert(Attributes v)
     return o;
 }
 
-void ComputeMasks(out half4 masks[4], half4 hasMask, Varyings IN)
+void ComputeMasks(out half4 masks[4], half4 hasMask, float4 uvSplat01, float4 uvSplat23)
 {
     masks[0] = 0.5h;
     masks[1] = 0.5h;
@@ -378,10 +378,10 @@ void ComputeMasks(out half4 masks[4], half4 hasMask, Varyings IN)
     masks[3] = 0.5h;
 
 #ifdef _MASKMAP
-    masks[0] = lerp(masks[0], SAMPLE_TEXTURE2D(_Mask0, sampler_Mask0, IN.uvSplat01.xy), hasMask.x);
-    masks[1] = lerp(masks[1], SAMPLE_TEXTURE2D(_Mask1, sampler_Mask0, IN.uvSplat01.zw), hasMask.y);
-    masks[2] = lerp(masks[2], SAMPLE_TEXTURE2D(_Mask2, sampler_Mask0, IN.uvSplat23.xy), hasMask.z);
-    masks[3] = lerp(masks[3], SAMPLE_TEXTURE2D(_Mask3, sampler_Mask0, IN.uvSplat23.zw), hasMask.w);
+    masks[0] = lerp(masks[0], SAMPLE_TEXTURE2D(_Mask0, sampler_Mask0, uvSplat01.xy), hasMask.x);
+    masks[1] = lerp(masks[1], SAMPLE_TEXTURE2D(_Mask1, sampler_Mask0, uvSplat01.zw), hasMask.y);
+    masks[2] = lerp(masks[2], SAMPLE_TEXTURE2D(_Mask2, sampler_Mask0, uvSplat23.xy), hasMask.z);
+    masks[3] = lerp(masks[3], SAMPLE_TEXTURE2D(_Mask3, sampler_Mask0, uvSplat23.zw), hasMask.w);
 #endif
 
     masks[0] *= _MaskMapRemapScale0.rgba;
@@ -423,7 +423,7 @@ void SplatmapFragment(
 
     half4 hasMask = half4(_LayerHasMask0, _LayerHasMask1, _LayerHasMask2, _LayerHasMask3);
     half4 masks[4];
-    ComputeMasks(masks, hasMask, IN);
+    ComputeMasks(masks, hasMask, IN.uvSplat01, IN.uvSplat23);
 
     float2 splatUV = (IN.uvMainAndLM.xy * (_Control_TexelSize.zw - 1.0f) + 0.5f) * _Control_TexelSize.xy;
     half4 splatControl = SAMPLE_TEXTURE2D(_Control, sampler_Control, splatUV);

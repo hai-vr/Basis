@@ -47,7 +47,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// <seealso cref="RenderPassEvent"/>
         public FinalBlitPass(RenderPassEvent evt, Material blitMaterial, Material blitHDRMaterial)
         {
-            profilingSampler = ProfilingSampler.Get(URPProfileId.BlitFinalToBackBuffer);
+            profilingSampler = URPProfilingSamplers.BlitFinalToBackBuffer;
             renderPassEvent = evt;
 
             // Find sampler passes by name
@@ -162,23 +162,19 @@ namespace UnityEngine.Rendering.Universal.Internal
                 builder.UseTexture(sourceTexture, AccessFlags.Read);
                 passData.destination = destinationTexture;
 
-                // Default flag for non-XR common case
-                AccessFlags targetAccessFlag = AccessFlags.Write;
+                // The access flag can be set to WriteAll if there is a full screen blit and no alpha blending,
+                // so engine will set loadOperation to DontCare down to the pipe.
+                AccessFlags targetAccessFlag = cameraData.isDefaultViewport && !outputsAlpha ? AccessFlags.WriteAll : AccessFlags.Write;
+
 #if ENABLE_VR && ENABLE_XR_MODULE
                 // This is a screen-space pass, make sure foveated rendering is disabled for non-uniform renders
                 bool passSupportsFoveation = !XRSystem.foveatedRenderingCaps.HasFlag(FoveatedRenderingCaps.NonUniformRaster);
                 builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering && passSupportsFoveation);
-                // Apply MultiviewRenderRegionsCompatible flag only to the peripheral view in Quad Views
-                if (cameraData.xr.multipassId == 0)
+                // Multiview render regions are incompatible with the inner (foveal) pass in Quad View
+                if (!cameraData.xr.isQuadViewInnerPass)
                 {
                     builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.MultiviewRenderRegionsCompatible);
                 }
-
-                // Optimization: In XR, we don't have split screen use case.
-                // The access flag can be set to WriteAll if there is a full screen blit and no alpha blending,
-                // so engine will set loadOperation to DontCare down to the pipe.
-                if (cameraData.xr.enabled && cameraData.isDefaultViewport && !outputsAlpha)
-                    targetAccessFlag =  AccessFlags.WriteAll;
 #endif
                 builder.SetRenderAttachment(passData.destination, 0, targetAccessFlag);
 

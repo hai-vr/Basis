@@ -11,8 +11,13 @@ float4 _CameraNormalsTexture_TexelSize;
 
 float3 SampleSceneNormals(float2 uv, SAMPLER(samplerParam))
 {
-    uv = ClampAndScaleUVForBilinear(UnityStereoTransformScreenSpaceTex(uv), _CameraNormalsTexture_TexelSize.xy);
-    float3 normal = SAMPLE_TEXTURE2D_X(_CameraNormalsTexture, samplerParam, uv).xyz;
+    uv = UnityStereoTransformScreenSpaceTex(uv);
+    #if defined(UNITY_PRETRANSFORM_TO_DISPLAY_ORIENTATION)
+    uv = RemovePretransformRotation(uv, GetScaledScreenParams());
+    #endif
+    uv = ClampAndScaleUVForBilinear(uv, _CameraNormalsTexture_TexelSize.xy);
+    // The camera normals texture has no mipmaps, so read an explicit LOD 0 to avoid an unnecessary gradient instruction.
+    float3 normal = SAMPLE_TEXTURE2D_X_LOD(_CameraNormalsTexture, samplerParam, uv, 0).xyz;
 
     #if defined(_GBUFFER_NORMALS_OCT)
     float2 remappedOctNormalWS = Unpack888ToFloat2(normal); // values between [ 0,  1]

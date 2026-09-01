@@ -23,6 +23,13 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// </summary>
         public bool m_ShouldTransparentsReceiveShadows;
 
+#if URP_SCREEN_SPACE_REFLECTION
+        /// <summary>
+        /// Used to indicate whether transparent objects should receive screen space reflections or not.
+        /// </summary>
+        public bool shouldTransparentsReceiveSSR { get; set; }
+#endif
+
         static readonly int s_DrawObjectPassDataPropID = Shader.PropertyToID("_DrawObjectPassData");
 
         /// <summary>
@@ -67,11 +74,11 @@ namespace UnityEngine.Rendering.Universal.Internal
         {
         }
 
-        internal DrawObjectsPass(URPProfileId profileId, bool opaque, RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask, StencilState stencilState, int stencilReference)
+        internal DrawObjectsPass(ProfilingSampler sampler, bool opaque, RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask, StencilState stencilState, int stencilReference)
         {
             Init(opaque, evt, renderQueueRange, layerMask, stencilState, stencilReference);
 
-            profilingSampler = ProfilingSampler.Get(profileId);
+            profilingSampler = sampler;
         }
 
         internal void Init(bool opaque, RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask, StencilState stencilState, int stencilReference, ShaderTagId[] shaderTagIds = null)
@@ -86,6 +93,9 @@ namespace UnityEngine.Rendering.Universal.Internal
             m_RenderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
             m_IsOpaque = opaque;
             m_ShouldTransparentsReceiveShadows = false;
+#if URP_SCREEN_SPACE_REFLECTION
+            shouldTransparentsReceiveSSR = false;
+#endif
 
             if (stencilState.enabled)
             {
@@ -151,10 +161,16 @@ namespace UnityEngine.Rendering.Universal.Internal
             internal TextureHandle albedoHdl;
             internal TextureHandle depthHdl;
             internal TextureHandle screenSpaceIrradianceHdl;
+#if URP_SCREEN_SPACE_REFLECTION
+            internal TextureHandle screenSpaceReflectionHdl;
+#endif
 
             internal UniversalCameraData cameraData;
             internal bool isOpaque;
             internal bool shouldTransparentsReceiveShadows;
+#if URP_SCREEN_SPACE_REFLECTION
+            internal bool shouldTransparentsReceiveSSR;
+#endif
             internal uint batchLayerMask;
             internal bool isActiveTargetBackBuffer;
             internal RendererListHandle rendererListHdl;
@@ -175,6 +191,9 @@ namespace UnityEngine.Rendering.Universal.Internal
             passData.cameraData = cameraData;
             passData.isOpaque = m_IsOpaque;
             passData.shouldTransparentsReceiveShadows = m_ShouldTransparentsReceiveShadows;
+#if URP_SCREEN_SPACE_REFLECTION
+            passData.shouldTransparentsReceiveSSR = shouldTransparentsReceiveSSR;
+#endif
             passData.batchLayerMask = batchLayerMask;
             passData.isActiveTargetBackBuffer = isActiveTargetBackBuffer;
         }
@@ -261,6 +280,19 @@ namespace UnityEngine.Rendering.Universal.Internal
                     builder.UseTexture(irradianceTexture, AccessFlags.Read);
                 }
 
+#if URP_SCREEN_SPACE_REFLECTION
+                TextureHandle ssrTexture = resourceData.ssrTexture;
+                if (ssrTexture.IsValid())
+                {
+                    passData.screenSpaceReflectionHdl = ssrTexture;
+                    builder.UseTexture(ssrTexture, AccessFlags.Read);
+                }
+                else
+                {
+                    passData.screenSpaceReflectionHdl = TextureHandle.nullHandle;
+                }
+#endif
+
                 RenderGraphUtils.UseDBufferIfValid(builder, resourceData);
 
                 InitRendererLists(renderingData, cameraData, lightData, ref passData, renderGraph, disableZWrite);
@@ -281,8 +313,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                 {
                     bool passSupportsFoveation = cameraData.xrUniversal.canFoveateIntermediatePasses || resourceData.isActiveTargetBackBuffer;
                     builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering && passSupportsFoveation);
-                    // Apply MultiviewRenderRegionsCompatible flag only to the peripheral view in Quad Views
-                    if (cameraData.xr.multipassId == 0)
+                    // Multiview render regions are incompatible with the inner (foveal) pass in Quad View
+                    if (!cameraData.xr.isQuadViewInnerPass)
                     {
                         builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.MultiviewRenderRegionsCompatible);
                     }
@@ -325,6 +357,15 @@ namespace UnityEngine.Rendering.Universal.Internal
                         context.cmd.SetGlobalTexture(ShaderPropertyId.screenSpaceIrradiance, data.screenSpaceIrradianceHdl);
                     }
 
+#if URP_SCREEN_SPACE_REFLECTION
+                    bool useSSR = data.screenSpaceReflectionHdl.IsValid() && (data.isOpaque || data.shouldTransparentsReceiveSSR);
+                    context.cmd.SetKeyword(ShaderGlobalKeywords.ScreenSpaceReflection, useSSR);
+                    if (useSSR)
+                    {
+                        context.cmd.SetGlobalTexture(ShaderPropertyId.screenSpaceReflection, data.screenSpaceReflectionHdl);
+                    }
+#endif
+
                     ExecutePass(context.cmd, data, data.rendererListHdl, data.objectsWithErrorRendererListHdl, yFlip);
                 });
             }
@@ -339,16 +380,16 @@ namespace UnityEngine.Rendering.Universal.Internal
         /// <summary>
         /// Creates a new <c>DrawObjectsWithRenderingLayersPass</c> instance.
         /// </summary>
-        /// <param name="profilerTag">The profiler tag used with the pass.</param>
+        /// <param name="sampler">The profiling sampler used with the pass.</param>
         /// <param name="opaque">Marks whether the objects are opaque or transparent.</param>
         /// <param name="evt">The <c>RenderPassEvent</c> to use.</param>
         /// <param name="renderQueueRange">The <c>RenderQueueRange</c> to use for creating filtering settings that control what objects get rendered.</param>
         /// <param name="layerMask">The layer mask to use for creating filtering settings that control what objects get rendered.</param>
         /// <param name="stencilState">The stencil settings to use with this poss.</param>
         /// <param name="stencilReference">The stencil reference value to use with this pass.</param>
-        public DrawObjectsWithRenderingLayersPass(URPProfileId profilerTag, bool opaque, RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask, StencilState stencilState,
+        internal DrawObjectsWithRenderingLayersPass(ProfilingSampler sampler, bool opaque, RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask, StencilState stencilState,
             int stencilReference) :
-            base(profilerTag, opaque, evt, renderQueueRange, layerMask, stencilState, stencilReference)
+            base(sampler, opaque, evt, renderQueueRange, layerMask, stencilState, stencilReference)
         {
         }
 
@@ -371,7 +412,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
                 UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
                 UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
-                UniversalLightData lightData = frameData.Get<UniversalLightData>();                
+                UniversalLightData lightData = frameData.Get<UniversalLightData>();
 
                 InitPassData(cameraData, ref passData.basePassData, batchLayerMask);
 
@@ -421,8 +462,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                 {
                     bool passSupportsFoveation = cameraData.xrUniversal.canFoveateIntermediatePasses || resourceData.isActiveTargetBackBuffer;
                     builder.EnableFoveatedRasterization(cameraData.xr.supportsFoveatedRendering && passSupportsFoveation);
-                    // Apply MultiviewRenderRegionsCompatible flag only to the peripheral view in Quad Views
-                    if (cameraData.xr.multipassId == 0)
+                    // Multiview render regions are incompatible with the inner (foveal) pass in Quad View
+                    if (!cameraData.xr.isQuadViewInnerPass)
                     {
                         builder.SetExtendedFeatureFlags(ExtendedFeatureFlags.MultiviewRenderRegionsCompatible);
                     }

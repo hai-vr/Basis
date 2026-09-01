@@ -57,6 +57,18 @@ namespace UnityEngine.Rendering.Universal
         static Func<ShadowResolutionRequest, ShadowResolutionRequest, int> s_CompareShadowResolutionRequest;
         static ShadowResolutionRequest[] s_SortedShadowResolutionRequests;
 
+#if UNITY_EDITOR
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
+        static void ResetStaticsOnLoad()
+        {
+            s_UnusedAtlasSquareAreas = new List<RectInt>();
+            s_ShadowResolutionRequests = new List<ShadowResolutionRequest>();
+            s_VisibleLightIndexToCameraSquareDistance = null; // sized to numberOfVisibleLights at runtime
+            s_CompareShadowResolutionRequest = CreateCompareShadowResolutionRequesPredicate();
+            s_SortedShadowResolutionRequests = null; // sized to totalShadowResolutionRequestsCount at runtime
+        }
+#endif
+
         NativeArray<ShadowResolutionRequest> m_SortedShadowResolutionRequests;
         NativeArray<int> m_VisibleLightIndexToSortedShadowResolutionRequestsFirstSliceIndex; // for each visible light, store the index of its first shadow slice in m_SortedShadowResolutionRequests (for quicker access)
         int m_TotalShadowSlicesCount;

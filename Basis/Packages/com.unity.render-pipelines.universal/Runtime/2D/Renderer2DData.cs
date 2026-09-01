@@ -15,7 +15,7 @@ namespace UnityEngine.Rendering.Universal
     /// </summary>
     [Serializable, ReloadGroup, ExcludeFromPreset]
     [MovedFrom(true, "UnityEngine.Experimental.Rendering.Universal", "Unity.RenderPipelines.Universal.Runtime")]
-    [HelpURL("https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@latest/index.html?subfolder=/manual/2DRendererData-overview.html")]
+    [URPHelpURL("urp/2DRendererData-overview")]
     public partial class Renderer2DData : ScriptableRendererData
     {
         internal enum Renderer2DDefaultMaterialType
@@ -84,6 +84,8 @@ namespace UnityEngine.Rendering.Universal
         internal int cameraSortingLayerTextureBound => m_CameraSortingLayersTextureBound;
         internal Downsampling cameraSortingLayerDownsamplingMethod => m_CameraSortingLayerDownsamplingMethod;
         internal LayerMask layerMask => m_LayerMask;
+        internal bool useRenderingLayers { get { return UniversalRenderPipeline.asset.useRenderingLayers; } }
+        internal RenderingLayerUtils.MaskSize renderingLayersMaskSize { get; set; }
 
         /// <summary>
         /// Creates the instance of the Renderer2D.
@@ -112,6 +114,8 @@ namespace UnityEngine.Rendering.Universal
 
             CoreUtils.Destroy(spriteSelfShadowMaterial);
             CoreUtils.Destroy(spriteUnshadowMaterial);
+            CoreUtils.Destroy(spriteSelfShadowMaterialSkinned);
+            CoreUtils.Destroy(spriteUnshadowMaterialSkinned);
             CoreUtils.Destroy(geometrySelfShadowMaterial);
             CoreUtils.Destroy(geometryUnshadowMaterial);
             CoreUtils.Destroy(projectedShadowMaterial);
@@ -130,14 +134,32 @@ namespace UnityEngine.Rendering.Universal
 
             spriteSelfShadowMaterial = null;
             spriteUnshadowMaterial = null;
+            spriteSelfShadowMaterialSkinned = null;
+            spriteUnshadowMaterialSkinned = null;
             projectedShadowMaterial = null;
             projectedUnshadowMaterial = null;
         }
 
         // transient data
         internal Dictionary<uint, Material> lightMaterials { get; } = new Dictionary<uint, Material>();
+
+        /// <summary>
+        /// Clears the cached light materials, forcing them to be recreated.
+        /// Called when shader variants or settings change.
+        /// </summary>
+        internal void ClearLightMaterialCache()
+        {
+            foreach (var mat in lightMaterials.Values)
+            {
+                if (mat != null)
+                    CoreUtils.Destroy(mat);
+            }
+            lightMaterials.Clear();
+        }
         internal Material spriteSelfShadowMaterial { get; set; }
         internal Material spriteUnshadowMaterial { get; set; }
+        internal Material spriteSelfShadowMaterialSkinned { get; set; }
+        internal Material spriteUnshadowMaterialSkinned { get; set; }
         internal Material geometrySelfShadowMaterial { get; set; }
         internal Material geometryUnshadowMaterial { get; set; }
         internal Material projectedShadowMaterial { get; set; }

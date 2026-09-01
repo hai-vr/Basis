@@ -67,7 +67,7 @@ namespace UnityEditor
         // material main surface inputs
         public override void DrawSurfaceInputs(Material material)
         {
-            DrawShaderGraphProperties(material, properties);
+            DrawShaderGraphProperties(properties);
         }
 
         public override void DrawAdvancedOptions(Material material)

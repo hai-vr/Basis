@@ -35,6 +35,26 @@ float shadergraph_LWSampleSceneDepth(float2 uv)
 #endif
 }
 
+#if defined(_DEPTH_AS_INPUT_ATTACHMENT)
+    float shadergraph_LWFetchSceneDepth(float2 fragCoord)
+    {
+        #if defined(REQUIRE_DEPTH_TEXTURE)
+            return FetchSceneDepth(fragCoord);
+        #else
+            return 0;
+        #endif
+    }
+#elif defined(_DEPTH_AS_INPUT_ATTACHMENT_MSAA)
+    float shadergraph_LWFetchSceneDepth(float2 fragCoord)
+    {
+    #if defined(REQUIRE_DEPTH_TEXTURE)
+        return FetchSceneDepth(fragCoord, 0);
+    #else
+        return 0;
+    #endif
+    }
+#endif
+
 float3 shadergraph_LWSampleSceneColor(float2 uv)
 {
 #if defined(REQUIRE_OPAQUE_TEXTURE)
