@@ -34,8 +34,8 @@ namespace Basis.Rendering.RTAO.Tests
         public void SetUp()
         {
             BasisRTAOGpuHarness.SkipUnlessComputeIsAvailable();
-            if (BasisRTAOTracing.Resolve(BasisRTAOTracingMode.RayTracedOnly) == BasisRTAOBackend.None)
-                Assert.Ignore("No RTAO backend is available on this device.");
+            if (!BasisRTAOTracing.IsRayTraced(BasisRTAOTracing.Resolve(BasisRTAOTracingMode.RayTracedOnly)))
+                Assert.Ignore("No ray tracing backend is available on this device; Ray Traced now degrades to the screen space estimator, which this test is not about.");
 
             LogAssert.ignoreFailingMessages = true;
 

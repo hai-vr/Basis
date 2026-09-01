@@ -55,10 +55,13 @@ namespace Basis.Rendering.RTAO.Tests
         }
 
         [Test]
-        public void RayTracedOnlyRefusesToFallBack()
+        public void RayTracedDegradesToTheEstimatorWithoutHardware()
         {
             Assert.AreEqual(BasisRTAOBackend.Hardware, BasisRTAOTracing.Resolve(BasisRTAOTracingMode.RayTracedOnly, true, true));
-            Assert.AreEqual(BasisRTAOBackend.None, BasisRTAOTracing.Resolve(BasisRTAOTracingMode.RayTracedOnly, false, true));
+            Assert.AreEqual(BasisRTAOBackend.ScreenSpace, BasisRTAOTracing.Resolve(BasisRTAOTracingMode.RayTracedOnly, false, true),
+                "A 'Ray Traced' saved on a DXR machine must not mean no occlusion at all on Direct3D11: the" +
+                " None gate in AddRenderPasses is silent and the menu hides the mode row on such a device," +
+                " so nothing else can rescue the effect there.");
         }
 
         [Test]

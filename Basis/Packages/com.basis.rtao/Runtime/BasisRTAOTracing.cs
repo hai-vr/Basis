@@ -90,7 +90,13 @@ namespace Basis.Rendering.RTAO
             switch (mode)
             {
                 case BasisRTAOTracingMode.RayTracedOnly:
-                    return hardwareSupported ? BasisRTAOBackend.Hardware : BasisRTAOBackend.None;
+                    // Without hardware ray tracing this degrades to the screen space estimator rather
+                    // than to nothing. A "Ray Traced" saved on a Direct3D12 machine used to resolve to
+                    // None here on Direct3D11 - the API the estimator exists for - and the None gate in
+                    // AddRenderPasses is silent, while the settings menu hides the mode row on such a
+                    // device, so the effect was off with no diagnostic and no way back from the UI.
+                    // ReportBackendOnce is what tells the player the degrade happened.
+                    return hardwareSupported ? BasisRTAOBackend.Hardware : BasisRTAOBackend.ScreenSpace;
                 case BasisRTAOTracingMode.ComputeBvh:
                     return BasisRTAOBackend.ComputeBvh;
                 // Screen space, and the 0 an asset written before Auto was removed still holds.
