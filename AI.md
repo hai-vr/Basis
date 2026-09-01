@@ -14,7 +14,7 @@ Unmoved by that assistance is the human element of direction, review, and respon
 
 **Basis does not embed generative AI.** The client and server do not invoke LLMs or other generative AI services, and Basis does not send user data (voice, motion, text, or anything else) to AI services or collect it to train AI models.
 
-That's a commitment about the future, not just a description of today: **we will never include generative image or video AI in Basis.**
+This is true today as well as a future-facing commitment: **we will never include generative image or video AI in Basis.**
 
 Basis does ship small machine-learning models for classic signal-processing jobs, running entirely on your device, although these are very different from LLMs or generative AI.
 
@@ -34,7 +34,7 @@ AI-assisted contributions are permitted, and the same requirements as [CONTRIBUT
 - **Code within your limits.** Submitting code that you couldn't have written by hand given enough time is an easy, but dangerous shortcut. Do not use AI as a crutch to replace your understanding of what your code is doing. You need to be firmly at the wheel.
 - **Review your own output before asking us to.** Don't open a PR whose contents you haven't read yourself; unreviewed AI output is easy to spot and wastes reviewer time.
 - **Documentation also requires maintenance.** Submitting an intense amount of prose subjects the project to an intense amount of pressure to review, correct, and maintain it. In practice, this requires a lot of human oversight to prevent it from becoming stale, in addition to any tokens spent to create it, and context bloat from ingesting it. Contributing documentation must be done in a way that is intelligible to humans, and maintainable on a reasonable scale. Endless walls of AI-generated text are not a net positive for the project.
-- **Keep reports real.** Using AI to write up a bug report or feature request is fine, but logs, reproduction steps, and observed behaviour must be genuine, never invented or "reconstructed".
+- **Keep reports real**. Whoever publishes a bug report must own and vouch for its quality and authenticity: AI may be used to write up bug reports or feature requests, but logs, reproduction steps, and observed behavior must be genuine, never invented or "reconstructed".
 - **No AI-generated Assets.** Don't submit AI-generated art, images, video, audio, or 3D assets. Pay an artist for their time or use existing free assets. Assets that are included in the Basis repository must be permissively licensed and unencumbered by NC or ND clauses.
 
 If a substantial part of a PR is AI-generated, a brief mention under **Notes** in the PR template is appreciated. It's not required, and it won't count against you.
