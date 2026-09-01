@@ -48,6 +48,7 @@ public static class BasisAvatarProxyJobs
 
         public void Execute(int index, TransformAccess transform)
         {
+            if (!transform.isValid) { return; }
             Positions[index] = transform.position;
         }
     }
@@ -102,19 +103,25 @@ public static class BasisAvatarProxyJobs
         shape = new float2[limbCount];
         matrices = new Matrix4x4[limbCount];
 
+        bool everyBoneAlive = true;
         for (int index = 0; index < limbCount; index++)
         {
             BasisAvatarProxy.ResolvedLimb limb = limbs[index];
             // A null here would desynchronise every index after it, so a dead bone keeps its slot and is
             // caught by the radius being zero instead.
-            bones[index * 2] = limb.From;
-            bones[index * 2 + 1] = limb.To != null ? limb.To : limb.From;
+            Transform from = limb.From != null ? limb.From : limb.To;
+            bones[index * 2] = from;
+            bones[index * 2 + 1] = limb.To != null ? limb.To : from;
             shape[index] = new float2(limb.IsValid ? limb.Radius : 0f, limb.Extend);
             matrices[index] = Matrix4x4.identity;
+            if (from == null) { everyBoneAlive = false; }
         }
+
+        if (!everyBoneAlive) { return; }
 
         access = new TransformAccessArray(bones);
         positions = new NativeArray<Vector3>(limbCount * 2, Allocator.Persistent);
+        for (int index = 0; index < limbCount * 2; index++) { positions[index] = bones[index].position; }
         shapeNative = new NativeArray<float2>(shape, Allocator.Persistent);
         outMatrices = new NativeArray<Matrix4x4>(limbCount, Allocator.Persistent);
         for (int index = 0; index < limbCount; index++) { outMatrices[index] = Matrix4x4.identity; }

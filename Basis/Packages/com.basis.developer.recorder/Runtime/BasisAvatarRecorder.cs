@@ -61,14 +61,21 @@ public static class BasisAvatarRecorder
         _isRecording = false;
         writeRunning = false;
         writeSignal?.Set();
-        try { writeThread?.Join(2000); } catch { }
+        try { writeThread?.Join(); } catch { }
         writeThread = null;
 
-        while (pendingFrames.TryDequeue(out byte[] frame))
+        try
         {
-            filestream?.Write(frame, 0, BytesPerFrame);
+            while (pendingFrames.TryDequeue(out byte[] frame))
+            {
+                filestream?.Write(frame, 0, BytesPerFrame);
+            }
+            filestream?.Flush();
         }
-        filestream?.Flush();
+        catch (Exception ex)
+        {
+            BasisDebug.LogError($"BasisAvatarRecorder: final flush failed: {ex.Message}", BasisDebug.LogTag.Device);
+        }
         filestream?.Dispose();
         filestream = null;
         writeSignal?.Dispose();
@@ -106,7 +113,7 @@ public static class BasisAvatarRecorder
         float[] muscles,
         float scale)
     {
-        if (!_isRecording || filestream == null)
+        if (!_isRecording || !writeRunning || filestream == null)
         {
             BasisDebug.LogError("BasisAvatarRecorder.StoreData called while not recording (Missing Writer)!");
             return;
@@ -159,6 +166,7 @@ public static class BasisAvatarRecorder
             catch (Exception ex)
             {
                 BasisDebug.LogError($"BasisAvatarRecorder: write failed: {ex.Message}", BasisDebug.LogTag.Device);
+                writeRunning = false;
                 return;
             }
         }

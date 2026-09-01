@@ -250,10 +250,36 @@ public static class BasisRemoteNetworkDriver
         _initialized = false;
     }
 
-    public static unsafe void BeginWrite()
+    public static void BeginWrite()
     {
         if (!_initialized) return;
         EnsureInitialized(math.clamp(BasisNetworkPlayers.LargestNetworkReceiverID + 1, 0, FixedCapacity));
+        PublishWritePointers();
+    }
+
+    /// <summary>
+    /// Caches a raw pointer to each input buffer.
+    ///
+    /// Also called from AllocateAll — before Initialize() flips _initialized — and paired with
+    /// ClearPointers() in DisposeAll, so the invariant every pointer accessor below relies on
+    /// holds: <c>_initialized</c> implies the pointers are live. These used to be published only
+    /// here, on a per-frame call. Anything that reached SetFrameInputs / SetFrameTiming /
+    /// SetSkipMuscles / ResetPoseFilter / WriteEffectorInputs / ClearEffectorMask or an output
+    /// getter between Initialize() and that frame's BeginWrite — a calibration callback landing on
+    /// a join frame, or any frame where BeginNetworkCompute returned early while
+    /// SimulateNetworkApply still ran — dereferenced IntPtr.Zero. All of those guard on
+    /// _initialized and the index only, so nothing caught it: the store is a raw pointer write the
+    /// job safety system never sees.
+    ///
+    /// Safe to publish at allocation because the capacity is FixedCapacity and the arrays are never
+    /// reallocated for the life of the driver; only Shutdown() frees them, and that clears these.
+    ///
+    /// Split from <see cref="PublishReadPointers"/> deliberately: the output buffers are written by
+    /// oneEuroJob, so taking a read handle on them here — before Apply() fences it — is what the
+    /// safety system exists to reject.
+    /// </summary>
+    static unsafe void PublishWritePointers()
+    {
         _ptrInterpolationTimes = (IntPtr)_interpolationTimes.GetUnsafePtr();
         _ptrDeltaTimes = (IntPtr)_deltaTimes.GetUnsafePtr();
         _ptrHumanScales = (IntPtr)_humanScales.GetUnsafePtr();
@@ -279,6 +305,42 @@ public static class BasisRemoteNetworkDriver
         _ptrEffMask = (IntPtr)_effMask.GetUnsafePtr();
         _ptrEffOffset = (IntPtr)_effOffset.GetUnsafePtr();
         _ptrEffTipRot = (IntPtr)_effTipRot.GetUnsafePtr();
+    }
+
+    /// <summary>
+    /// Caches a raw pointer to each interpolation output. Callers must have fenced oneEuroJob
+    /// first (BeginRead does, via Apply); see <see cref="PublishWritePointers"/> for why the two
+    /// sets are separate and for the lifetime invariant they share.
+    /// </summary>
+    static unsafe void PublishReadPointers()
+    {
+        _ptrScaleChange = (IntPtr)_HasScaleChange.GetUnsafeReadOnlyPtr();
+        _ptrFilteredRotations = (IntPtr)_filteredRotations.GetUnsafeReadOnlyPtr();
+        _ptrFilteredPositions = (IntPtr)_filteredPositions.GetUnsafeReadOnlyPtr();
+        _ptrScaledBodyPositions = (IntPtr)_scaledBodyPositions.GetUnsafeReadOnlyPtr();
+        _ptrFilteredBoneRotations = (IntPtr)_outBoneRotations.GetUnsafeReadOnlyPtr();
+        _ptrOutScales = (IntPtr)_outScales.GetUnsafeReadOnlyPtr();
+        _ptrSkipBones = (IntPtr)_skipBones.GetUnsafePtr();
+    }
+
+    /// <summary>
+    /// Drops every cached pointer so a post-Shutdown call can't reach freed memory. Pairs with
+    /// the publish pair; the accessors still gate on _initialized, this is the second belt.
+    /// </summary>
+    static void ClearPointers()
+    {
+        _ptrInterpolationTimes = _ptrDeltaTimes = _ptrHumanScales = IntPtr.Zero;
+        _ptrP0Positions = _ptrPrevPositions = _ptrTargetPositions = _ptrP3Positions = IntPtr.Zero;
+        _ptrPrevScales = _ptrTargetScales = IntPtr.Zero;
+        _ptrP0Rotations = _ptrPrevRotations = _ptrTargetRotations = _ptrP3Rotations = IntPtr.Zero;
+        _ptrP0BoneRotations = _ptrPrevBoneRotations = IntPtr.Zero;
+        _ptrTargetBoneRotations = _ptrP3BoneRotations = IntPtr.Zero;
+        _ptrPrevHipsDelta = _ptrTargetHipsDelta = IntPtr.Zero;
+        _ptrPrevHipsRotDelta = _ptrTargetHipsRotDelta = IntPtr.Zero;
+        _ptrPoseFilterSeeded = _ptrSkipBones = IntPtr.Zero;
+        _ptrEffMask = _ptrEffOffset = _ptrEffTipRot = IntPtr.Zero;
+        _ptrScaleChange = _ptrFilteredRotations = _ptrFilteredPositions = IntPtr.Zero;
+        _ptrScaledBodyPositions = _ptrFilteredBoneRotations = _ptrOutScales = IntPtr.Zero;
     }
 
     /// <summary>
@@ -455,6 +517,12 @@ public static class BasisRemoteNetworkDriver
         ((quaternion*)(void*)_ptrPrevHipsRotDelta)[index] = prevHipsRotDelta;
         ((quaternion*)(void*)_ptrTargetHipsRotDelta)[index] = targetHipsRotDelta;
 
+        // The four copies below read BoneCount quaternions straight off each source's buffer
+        // pointer, so a caller handing over a default (uncreated) or short array would memcpy from
+        // null / past the end. Length is 0 on an uncreated NativeArray, so this covers both.
+        if (p0BoneRots.Length < BoneCount || prevBoneRots.Length < BoneCount
+            || targetBoneRots.Length < BoneCount || p3BoneRots.Length < BoneCount) return;
+
         int bytes = BoneCount * UnsafeUtility.SizeOf<quaternion>();
         int baseOffset = index * BoneCount;
         UnsafeUtility.MemCpy((quaternion*)(void*)_ptrP0BoneRotations + baseOffset, (quaternion*)p0BoneRots.GetUnsafeReadOnlyPtr(), bytes);
@@ -571,16 +639,16 @@ public static class BasisRemoteNetworkDriver
         oneEuroJob.Complete();
     }
 
-    public static unsafe void BeginRead()
+    /// <summary>
+    /// Refreshes the output pointers for the frame's read phase. Correctness no longer depends on
+    /// it — <see cref="PublishReadPointers"/> also runs at allocation and the buffers never move —
+    /// so a getter reached before this is safe; it stays as the read-phase marker and as cover for
+    /// any future path that does reallocate. Callers fence oneEuroJob first (Apply).
+    /// </summary>
+    public static void BeginRead()
     {
         if (!_initialized) return;
-        _ptrScaleChange = (IntPtr)_HasScaleChange.GetUnsafeReadOnlyPtr();
-        _ptrFilteredRotations = (IntPtr)_filteredRotations.GetUnsafeReadOnlyPtr();
-        _ptrFilteredPositions = (IntPtr)_filteredPositions.GetUnsafeReadOnlyPtr();
-        _ptrScaledBodyPositions = (IntPtr)_scaledBodyPositions.GetUnsafeReadOnlyPtr();
-        _ptrFilteredBoneRotations = (IntPtr)_outBoneRotations.GetUnsafeReadOnlyPtr();
-        _ptrOutScales = (IntPtr)_outScales.GetUnsafeReadOnlyPtr();
-        _ptrSkipBones = (IntPtr)_skipBones.GetUnsafePtr();
+        PublishReadPointers();
     }
 
     /// <summary>Base pointer to the per-player skip flags (valid after BeginRead); null if uninitialized.</summary>
@@ -1165,6 +1233,10 @@ public static class BasisRemoteNetworkDriver
         _effMask = new NativeArray<byte>(capacity, _allocator, NativeArrayOptions.ClearMemory);
         _effOffset = new NativeArray<float3>(capacity * 4, _allocator, NativeArrayOptions.ClearMemory);
         _effTipRot = new NativeArray<quaternion>(capacity * 4, _allocator, NativeArrayOptions.ClearMemory);
+
+        // Nothing is scheduled yet at allocation, so both sets are legal to take here.
+        PublishWritePointers();
+        PublishReadPointers();
     }
 
     static void DisposeAll()
@@ -1186,6 +1258,8 @@ public static class BasisRemoteNetworkDriver
         D(ref _p0BoneRotations); D(ref _prevBoneRotations);
         D(ref _targetBoneRotations); D(ref _p3BoneRotations); D(ref _outBoneRotations);
         D(ref _effMask); D(ref _effOffset); D(ref _effTipRot);
+
+        ClearPointers();
     }
 
     // ─── JOBS ───

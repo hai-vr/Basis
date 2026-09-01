@@ -604,6 +604,7 @@ public static class BasisNetworkEvents
                 Reader.Recycle();
                 return;
             }
+            try
             {
                 BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Events, Reader.AvailableBytes);
                 byte eventType = Reader.GetByte();
@@ -722,6 +723,14 @@ public static class BasisNetworkEvents
                         BNL.LogError($"Unknown EventsChannel event type: {eventType}");
                         Reader.Recycle();
                         break;
+                }
+            }
+            catch (Exception ex)
+            {
+                BNL.LogError($"Malformed EventsChannel message from peer {peer.Id}: {ex.Message}");
+                if (Reader.IsNull == false)
+                {
+                    Reader.Recycle();
                 }
             }
         });
