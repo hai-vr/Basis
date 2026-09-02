@@ -478,7 +478,7 @@ namespace BasisServerHandle
                         BNL.Log($"Peer removed: {id}");
                     if (BasisSavedState.GetLastPlayerMetaData(peer, out ClientMetaDataMessage meta))
                     {
-                        BNL.Log($"[EVENT] User left: {meta.playerDisplayName} ({meta.playerUUID})");
+                        BNL.Log($"[EVENT] User left: {meta.playerDisplayName} ({meta.playerUUID}) [{peer.Address}]");
                     }
                     }
                     else if (slotHeldByAnother)
@@ -778,7 +778,7 @@ namespace BasisServerHandle
                     JoinBroadcast.RegisterPeer(newPeer.Id, JoinBroadcast.NextSeq());
                     NetworkServer.RebuildPeerSnapshot();
                     joinSnapshot = NetworkServer.PeerSnapshot;
-                    BNL.Log($"[EVENT] User joined: {ReadyMessage.playerMetaDataMessage.playerDisplayName} ({UUID})");
+                    BNL.Log($"[EVENT] User joined: {ReadyMessage.playerMetaDataMessage.playerDisplayName} ({UUID}) [{newPeer.Address}]");
                 }
             }
 
