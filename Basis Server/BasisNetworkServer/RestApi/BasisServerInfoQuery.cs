@@ -99,6 +99,8 @@ namespace BasisServerHandle
                 // Layer 3 — global response-rate cap.
                 if (!TryConsumeGlobalToken())
                     return;
+                
+                BNL.Log($"[EVENT] ServerInfoQuery received [{remoteEndPoint.Address}]");
 
                 Configuration cfg = NetworkServer.Configuration;
                 int online = NetworkServer.AuthenticatedPeers.Count;
