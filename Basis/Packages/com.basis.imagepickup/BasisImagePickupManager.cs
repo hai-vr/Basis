@@ -564,8 +564,8 @@ namespace Basis.ImagePickup
             NetworkID = resolution.Id;
             HasNetworkID = true;
             BasisNetworkGenericMessages.RegisterDirectHandler(NetworkID, OnDirectNetworkMessage);
-            // BasisNetworkLifeCycle nulls the whole delegate on teardown, so re-arm per join rather than
-            // once in Initialize — the same pattern BasisServerProvidedItems uses.
+            // Armed per join rather than once in Initialize so the leave handler only exists while there is a
+            // connection to leave — the same pattern BasisServerProvidedItems uses. The -= keeps that idempotent.
             BasisNetworkPlayer.OnLocalPlayerLeft -= HandleLocalPlayerLeft;
             BasisNetworkPlayer.OnLocalPlayerLeft += HandleLocalPlayerLeft;
             BasisDebug.Log($"Image pickup manager ready (network id {NetworkID}).", LogTag);
@@ -2167,10 +2167,9 @@ namespace Basis.ImagePickup
             if (player == null)
                 return;
 
-            // BasisNetworkLifeCycle.Destroy nulls OnLocalPlayerJoined wholesale and Initialize subscribes to it
-            // once per process, so from the second server onwards that delegate no longer reaches us. This one
-            // survives the teardown and is raised for the local player too, so arming here is what makes a
-            // second connection work at all.
+            // HandleLocalPlayerJoined is the ordinary way in, but it runs off events a connection that dropped
+            // hard never raises. OnPlayerJoined is raised for the local player too, so checking here confirms the
+            // id we hold was issued by the server we are actually on and re-resolves it when it was not.
             EnsureNetworkIdentity();
 
             if (_owned.Count == 0)

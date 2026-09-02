@@ -122,8 +122,8 @@ namespace Basis.Cinematics
 
         /// <summary>
         /// Resolving the shared identifier needs a live connection, so it waits for the local player
-        /// to be approved rather than running at load. The handler is re-armed per join because the
-        /// network lifecycle nulls the delegate on teardown.
+        /// to be approved rather than running at load. The subscription made in <see cref="Initialize"/>
+        /// survives a server switch, so every join lands here.
         /// </summary>
         private static async void HandleLocalPlayerJoined(BasisNetworkPlayer networkPlayer, BasisLocalPlayer localPlayer)
         {
@@ -182,12 +182,11 @@ namespace Basis.Cinematics
         /// Confirms the id we hold was issued by the connection we are actually on, and resolves a new one if
         /// it was not.
         ///
-        /// <see cref="HandleLocalPlayerLeft"/> is the ordinary place the id is released, but BasisNetworkLifeCycle
-        /// nulls OnLocalPlayerJoined on teardown while this service subscribes it once at load, so from the
-        /// second server onwards nothing would re-arm it. OnPlayerJoined survives that teardown and is raised
-        /// for the local player too. BasisNetworkIdResolver.KnownIdMap is emptied on every teardown and refilled
-        /// by the server on join, so an id it does not confirm came from a room we have already left - which
-        /// also covers a connection that died before its leave event could be raised.
+        /// <see cref="HandleLocalPlayerLeft"/> is the ordinary place the id is released, and it runs off a leave
+        /// event a connection that dropped hard never raises. OnPlayerJoined is raised for the local player too,
+        /// so checking here catches that case on the way into the next room.
+        /// BasisNetworkIdResolver.KnownIdMap is emptied on every teardown and refilled by the server on join, so
+        /// an id it does not confirm came from a room we have already left.
         /// </summary>
         private static void EnsureNetworkIdentity()
         {
