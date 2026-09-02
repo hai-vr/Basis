@@ -443,7 +443,7 @@ namespace BasisServerHandle
                     BNL.Log($"Peer removed: {id}");
                     if (BasisSavedState.GetLastPlayerMetaData(peer, out ClientMetaDataMessage meta))
                     {
-                        BNL.Log($"[EVENT] User left: {meta.playerDisplayName} ({meta.playerUUID})");
+                        BNL.Log($"[EVENT] User left: {meta.playerDisplayName} ({meta.playerUUID}) [{peer.Address}]");
                     }
                 }
                 else
@@ -692,7 +692,7 @@ namespace BasisServerHandle
                 // "only records newer than my own join" rule below has a value to compare against.
                 JoinBroadcast.RegisterPeer(newPeer.Id, JoinBroadcast.NextSeq());
                 BNL.Log($"Peer connected: {newPeer.Id}");
-                BNL.Log($"[EVENT] User joined: {ReadyMessage.playerMetaDataMessage.playerDisplayName} ({UUID})");
+                BNL.Log($"[EVENT] User joined: {ReadyMessage.playerMetaDataMessage.playerDisplayName} ({UUID}) [{newPeer.Address}]");
                 //never ever assume the UUID provided by the user is good always recalc on the server.
                 //this means that as long as they pass auth but locally have a bad UUID that only they locally are effected.
                 //there is no way to force a user locally to be a certain UUID, that's not how the internet works.
