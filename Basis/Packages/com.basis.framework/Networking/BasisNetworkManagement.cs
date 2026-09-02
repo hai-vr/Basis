@@ -453,7 +453,7 @@ namespace Basis.Scripts.Networking
                 if (poseLodEnabled && remote.PoseSkipCounter > 0 && !receiver.HasOverriddenDestination)
                 {
                     remote.PoseSkipCounter--;
-                    if (skipPtr != null && receiver.playerId < BasisRemoteNetworkDriver.FixedCapacity) skipPtr[receiver.playerId] = 1;
+                    if (skipPtr != null && receiver.playerId < BasisRemoteNetworkDriver.Capacity) skipPtr[receiver.playerId] = 1;
                     if (endEffectorIK) BasisRemoteNetworkDriver.ClearEffectorMask(receiver.playerId);
 #if UNITY_EDITOR
                     _skipped++;
@@ -473,7 +473,7 @@ namespace Basis.Scripts.Networking
                     int lod = math.clamp(remote.CurrentLodLevel, 0, 3);
                     remote.PoseSkipCounter = SMModuleDistanceBasedReductions.PoseSkipByLod[lod];
                 }
-                if (skipPtr != null && receiver.playerId < BasisRemoteNetworkDriver.FixedCapacity) skipPtr[receiver.playerId] = 0;
+                if (skipPtr != null && receiver.playerId < BasisRemoteNetworkDriver.Capacity) skipPtr[receiver.playerId] = 0;
                 if (endEffectorIK) receiver.WriteEffectorJobInputs();
             }
             // The loop above is the last writer of the filtered hips overrides this job reads, so

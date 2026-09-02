@@ -256,7 +256,11 @@ public static class BasisNetworkGenericMessages
             {
                 RemoteAvatarDataMessage output = SADM.avatarDataMessage;
 
-                if (player.NetworkBehaviours.Length > output.messageIndex)
+                // Null between NotifyNetworkBehavioursTerminated and the GetComponentsInChildren that
+                // refills it: BasisAvatar is assigned by the factory well before AvatarLoadComplete
+                // runs, and the install is budgeted across frames, so every first load and every
+                // avatar swap has a window where the avatar is live and this array is not.
+                if (player.NetworkBehaviours != null && player.NetworkBehaviours.Length > output.messageIndex)
                 {
                     bool isDifferentAvatar = output.AvatarLinkIndex != player.LastLinkedAvatarIndex;
 

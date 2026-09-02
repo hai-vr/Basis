@@ -320,6 +320,7 @@ public static class BasisNetworkModeration
     /// </summary>
     public static void RequestAllLogs()
     {
+        BasisLogBundleReceiver.ArmForLocalRequest();
         SendAdminRequest(AdminRequestMode.RequestAllLogs);
     }
 
@@ -2032,18 +2033,29 @@ public static class BasisNetworkModeration
             return;
         }
 
+        BasisDataStoreItemKeys.EmbeddedSettings embedded = embeddedSource switch
+        {
+            1 => BasisDataStoreItemKeys.EmbeddedSettings.BEEUrl,
+            2 => BasisDataStoreItemKeys.EmbeddedSettings.Addressable,
+            _ => BasisDataStoreItemKeys.EmbeddedSettings.Default,
+        };
+
+        // An addressable names content already inside this build, so there is no url to vet.
+        // Everything else is fetched from the url as written, and that must be http(s).
+        bool isAddressable = embedded.IsEmbedded && embedded.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable;
+        if (!isAddressable && !Basis.Scripts.Common.BasisUrlSecurity.IsHttpUrlAllowed(url, out string urlReason))
+        {
+            BasisDebug.LogError($"Refusing forced avatar url: {urlReason}", BasisDebug.LogTag.Networking);
+            return;
+        }
+
         BasisDataStoreItemKeys.ItemKey item = new BasisDataStoreItemKeys.ItemKey
         {
             Mode = BundledContentHolder.Mode.Avatar,
             PlacementType = BundledContentHolder.PlacementType.SpawnAtRaycast,
             Url = url,
             Pass = password ?? string.Empty,
-            EmbeddedSettings = embeddedSource switch
-            {
-                1 => BasisDataStoreItemKeys.EmbeddedSettings.BEEUrl,
-                2 => BasisDataStoreItemKeys.EmbeddedSettings.Addressable,
-                _ => BasisDataStoreItemKeys.EmbeddedSettings.Default,
-            },
+            EmbeddedSettings = embedded,
             PinnedSettings = BasisDataStoreItemKeys.PinnedSettings.Default,
         };
 
