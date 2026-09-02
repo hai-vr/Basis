@@ -379,6 +379,23 @@ namespace Basis.Network.Server.Generic
                 SeedAlreadyHeldLocked(entry, recipients, recipientsSize);
                 Images[id] = entry;
                 System.Threading.Interlocked.Add(ref _totalBytes, cost);
+
+                if (NetworkServer.AuthenticatedPeers.TryGetValue(senderId, out var peer))
+                {
+                    string ip = peer.Address.ToString();
+                    if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string did))
+                    {
+                        BNL.Log($"[EVENT] Created a picture ({did}) [{ip}]");
+                    }
+                    else
+                    {
+                        BNL.Log($"[EVENT] Created a picture (???) [{ip}]");
+                    }
+                }
+                else
+                {
+                    BNL.Log($"[EVENT] Created a picture (???) [???]");
+                }
             }
         }
 
@@ -705,6 +722,24 @@ namespace Basis.Network.Server.Generic
                 {
                     return false;
                 }
+
+                if (NetworkServer.AuthenticatedPeers.TryGetValue(requesterId, out var peer))
+                {
+                    string ip = peer.Address.ToString();
+                    if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string did))
+                    {
+                        BNL.Log($"[EVENT] Deleted a picture ({did}) [{ip}]");
+                    }
+                    else
+                    {
+                        BNL.Log($"[EVENT] Deleted a picture (???) [{ip}]");
+                    }
+                }
+                else
+                {
+                    BNL.Log($"[EVENT] Deleted a picture (???) [???]");
+                }
+
                 return DropLocked(id);
             }
         }
@@ -926,6 +961,11 @@ namespace Basis.Network.Server.Generic
 
             bool includeAnimation = !IsGifBlockedFor(peer);
 
+            string ip = peer.Address.ToString();
+            string did = "";
+            bool hasDid = NetworkServer.AuthIdentity.NetIDToUUID(peer, out did);
+            did = hasDid ? did : "???";
+
             // Flatten in the order the room was built, so the pump can meter the stream without
             // knowing anything about images. Ordering matters on the wire: a chunk before its spawn
             // header is discarded by the receiver.
@@ -938,6 +978,9 @@ namespace Basis.Network.Server.Generic
                 {
                     return;
                 }
+
+                BNL.Log($"[EVENT] Requested a picture ({did}) [{ip}]");
+
                 if (!entry.StillComplete || entry.OwnerId == requesterId)
                 {
                     return;
@@ -946,6 +989,9 @@ namespace Basis.Network.Server.Generic
                 {
                     return;
                 }
+
+                BNL.Log($"[EVENT] Sent a picture ({did}) [{ip}]");
+
                 entry.Offered.Add(requesterId);
 
                 queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, BuildSpawn(entry)));
