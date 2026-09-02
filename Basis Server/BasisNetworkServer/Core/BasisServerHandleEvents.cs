@@ -437,13 +437,18 @@ namespace BasisServerHandle
                 }
                 int id = peer.Id;
 
+                var hasLastPlayerMetaData = BasisSavedState.GetLastPlayerMetaData(peer, out ClientMetaDataMessage meta);
                 if (CleanupPeerSubsystems(peer, id))
                 {
                     NetworkServer.RebuildPeerSnapshot();
                     BNL.Log($"Peer removed: {id}");
-                    if (BasisSavedState.GetLastPlayerMetaData(peer, out ClientMetaDataMessage meta))
+                    if (hasLastPlayerMetaData)
                     {
                         BNL.Log($"[EVENT] User left: {meta.playerDisplayName} ({meta.playerUUID}) [{peer.Address}]");
+                    }
+                    else
+                    {
+                        BNL.Log($"[EVENT] User left: unknown (???) [{peer.Address}]");
                     }
                 }
                 else
