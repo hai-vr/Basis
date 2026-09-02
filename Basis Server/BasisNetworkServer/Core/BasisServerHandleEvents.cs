@@ -467,6 +467,7 @@ namespace BasisServerHandle
                 }
                 int id = peer.Id;
 
+                var hasLastPlayerMetaData = BasisSavedState.GetLastPlayerMetaData(peer, out ClientMetaDataMessage meta);
                 lock (_joinLock)
                 {
                     bool slotHeldByAnother = NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer holder) && !Equals(holder, peer);
@@ -475,9 +476,13 @@ namespace BasisServerHandle
                     {
                         NetworkServer.RebuildPeerSnapshot();
                         BNL.Log($"Peer removed: {id}");
-                    if (BasisSavedState.GetLastPlayerMetaData(peer, out ClientMetaDataMessage meta))
+                    if (hasLastPlayerMetaData)
                     {
                         BNL.Log($"[EVENT] User left: {meta.playerDisplayName} ({meta.playerUUID}) [{peer.Address}]");
+                    }
+                    else
+                    {
+                        BNL.Log($"[EVENT] User left: unknown (???) [{peer.Address}]");
                     }
                     }
                     else if (slotHeldByAnother)
