@@ -1,8 +1,10 @@
 using Basis.Network.Core;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
+using static BasisPermissions.PermissionManager;
 
 namespace BasisServerHandle
 {
@@ -106,7 +108,28 @@ namespace BasisServerHandle
                 int online = NetworkServer.AuthenticatedPeers.Count;
                 int max = cfg != null ? cfg.PeerLimit : 0;
                 string serverName = cfg?.ServerName ?? string.Empty;
-                string motd = cfg?.ServerMotd ?? string.Empty;
+
+                string motd;
+                var peers = NetworkServer.PeerSnapshot;
+                if (peers.Length > 0)
+                {
+                    List<string> names = new List<string>(peers.Length);
+                    foreach (var peer in peers)
+                    {
+                        if (NetworkServer.AuthIdentity != null &&
+                            NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) &&
+                            PermissionIntegration.TryGetPlayerMeta(uuid, out var meta))
+                        {
+                            names.Add(BasisDisplayNameSanitizer.StripTags(meta.playerDisplayName));
+                        }
+                    }
+
+                    motd = $"Users: {string.Join(", ", names)}";
+                }
+                else
+                {
+                    motd = cfg?.ServerMotd ?? string.Empty;
+                }
 
                 NetDataWriter writer = NetworkServer.RentWriter();
                 try
