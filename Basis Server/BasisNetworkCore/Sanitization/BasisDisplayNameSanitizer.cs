@@ -49,6 +49,52 @@ namespace Basis.Network.Core
             return builder.ToString().Trim();
         }
 
+        public static string StripTags(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return string.Empty;
+
+            StringBuilder builder = new StringBuilder(input.Length);
+            bool inTag = false;
+            foreach (char c in input)
+            {
+                if (c == '<')
+                {
+                    inTag = true;
+                    continue;
+                }
+                if (c == '>')
+                {
+                    inTag = false;
+                    continue;
+                }
+                if (!inTag)
+                {
+                    builder.Append(c);
+                }
+            }
+
+            string result = builder.ToString();
+            StringBuilder finalBuilder = new StringBuilder(result.Length);
+            bool lastWasSpace = false;
+            foreach (char c in result)
+            {
+                if (char.IsWhiteSpace(c))
+                {
+                    if (!lastWasSpace)
+                    {
+                        finalBuilder.Append(' ');
+                        lastWasSpace = true;
+                    }
+                }
+                else
+                {
+                    finalBuilder.Append(c);
+                    lastWasSpace = false;
+                }
+            }
+            return finalBuilder.ToString().Trim();
+        }
+
         public static bool IsValid(string displayName)
         {
             return !string.IsNullOrEmpty(Sanitize(displayName));
