@@ -199,6 +199,19 @@ public static class BasisNetworkResourceManagement
             if (UshortNetworkDatabase.TryAdd(LocalLoadResource.LoadedNetID, LocalLoadResource))
             {
                 NoteResourceAdded(LocalLoadResource.UUIDOfCreator);
+
+                string ip = "???";
+                string did = LocalLoadResource.UUIDOfCreator ?? "???";
+                foreach (var peer in NetworkServer.AuthenticatedPeers.Values)
+                {
+                    if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) && uuid == did)
+                    {
+                        ip = peer.Address.ToString();
+                        break;
+                    }
+                }
+                BNL.Log($"[EVENT] Created a prop ({did}) [{ip}]");
+
                 BNL.Log("Adding Object " + LocalLoadResource.LoadedNetID);
                 NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.LoadResourceChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
             }
@@ -224,6 +237,8 @@ public static class BasisNetworkResourceManagement
             return false;
         }
         NoteResourceRemoved(removedResource.UUIDOfCreator);
+
+        BNL.Log($"[EVENT] Deleted a prop ({removedResource.UUIDOfCreator ?? "???"}) [server]");
 
         NetDataWriter writer = NetworkServer.RentWriter();
         unLoadResource.Serialize(writer);
@@ -266,6 +281,16 @@ public static class BasisNetworkResourceManagement
             return;
         }
         NoteResourceRemoved(resource.UUIDOfCreator);
+
+        string ip = peer.Address.ToString();
+        if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string did))
+        {
+            BNL.Log($"[EVENT] Deleted a prop ({did}) [{ip}]");
+        }
+        else
+        {
+            BNL.Log($"[EVENT] Deleted a prop (???) [{ip}]");
+        }
 
         NetDataWriter writer = NetworkServer.RentWriter();
         unLoadResource.Serialize(writer);
