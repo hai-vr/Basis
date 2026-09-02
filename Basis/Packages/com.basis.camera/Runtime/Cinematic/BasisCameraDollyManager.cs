@@ -38,6 +38,15 @@ namespace Basis.Cinematics
         public static bool HasNetworkID { get; private set; }
         public static ushort NetworkID { get; private set; }
 
+        /// <summary>
+        /// Bumped every time this client leaves an instance. The id resolve is asynchronous, so a reply still
+        /// in flight when the connection went away would otherwise arm the next server with the previous
+        /// server's id. <see cref="_identityResolveGeneration"/> doubles as the in-flight token, so joins
+        /// arriving before the first answer do not each start their own resolve.
+        /// </summary>
+        private static int _connectionGeneration;
+        private static int _identityResolveGeneration = -1;
+
         private static bool _initialized;
 
         /// <summary>The local track being shared, or null while nothing is.</summary>
@@ -118,18 +127,24 @@ namespace Basis.Cinematics
         /// </summary>
         private static async void HandleLocalPlayerJoined(BasisNetworkPlayer networkPlayer, BasisLocalPlayer localPlayer)
         {
-            if (HasNetworkID) return;
             if (!BasisNetworkConnection.LocalPlayerIsConnected)
             {
                 BasisDebug.LogError("Dolly manager cannot start; the local player is not connected.", LogTag);
                 return;
             }
 
+            int generation = _connectionGeneration;
+            if (HasNetworkID || _identityResolveGeneration == generation) return;
+            _identityResolveGeneration = generation;
+
             BasisIdResolutionResult resolution = await BasisNetworkIdResolver.ResolveAsync(FixedNetworkIdentifier);
-            if (!_initialized || HasNetworkID) return;
+            // The id belongs to whichever connection answered. If that connection is gone the answer is the
+            // previous server's index, and arming with it leaves us listening on nothing.
+            if (!_initialized || HasNetworkID || generation != _connectionGeneration) return;
 
             if (!resolution.Success)
             {
+                _identityResolveGeneration = -1;
                 BasisDebug.LogError(
                     $"Dolly manager could not resolve the network identifier '{FixedNetworkIdentifier}'.", LogTag);
                 return;
@@ -150,6 +165,8 @@ namespace Basis.Cinematics
 
         private static void HandleLocalPlayerLeft(BasisNetworkPlayer networkPlayer, BasisLocalPlayer localPlayer)
         {
+            _connectionGeneration++;
+            _identityResolveGeneration = -1;
             if (HasNetworkID)
             {
                 BasisNetworkGenericMessages.UnregisterDirectHandler(NetworkID);
@@ -159,6 +176,34 @@ namespace Basis.Cinematics
             _lastSentCount = -1;
 
             ClearAllMirrors();
+        }
+
+        /// <summary>
+        /// Confirms the id we hold was issued by the connection we are actually on, and resolves a new one if
+        /// it was not.
+        ///
+        /// <see cref="HandleLocalPlayerLeft"/> is the ordinary place the id is released, but BasisNetworkLifeCycle
+        /// nulls OnLocalPlayerJoined on teardown while this service subscribes it once at load, so from the
+        /// second server onwards nothing would re-arm it. OnPlayerJoined survives that teardown and is raised
+        /// for the local player too. BasisNetworkIdResolver.KnownIdMap is emptied on every teardown and refilled
+        /// by the server on join, so an id it does not confirm came from a room we have already left - which
+        /// also covers a connection that died before its leave event could be raised.
+        /// </summary>
+        private static void EnsureNetworkIdentity()
+        {
+            if (!BasisNetworkConnection.LocalPlayerIsConnected) return;
+
+            if (HasNetworkID)
+            {
+                if (BasisNetworkIdResolver.KnownIdMap.TryGetValue(FixedNetworkIdentifier, out ushort issued)
+                    && issued == NetworkID)
+                {
+                    return;
+                }
+                HandleLocalPlayerLeft(null, null);
+            }
+
+            HandleLocalPlayerJoined(null, null);
         }
 
         // ---- The local track --------------------------------------------------------------
@@ -409,6 +454,10 @@ namespace Basis.Cinematics
 
         private static void HandlePlayerJoined(BasisNetworkPlayer player)
         {
+            // The only join signal that survives a network teardown, so this is where a second connection
+            // gets its identity back.
+            EnsureNetworkIdentity();
+
             if (!HasNetworkID || _local == null || player == null) return;
             if (_local.SyncMode == BasisCameraDollySync.LocalOnly) return;
 

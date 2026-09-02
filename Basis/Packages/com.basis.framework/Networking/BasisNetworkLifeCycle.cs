@@ -95,6 +95,7 @@ public static class BasisNetworkLifeCycle
             BasisContentShareManager.Reset();//remove content spheres
             BasisNetworkIdResolver.KnownIdMap.Clear();
             BasisNetworkIdResolver.PendingResolutions.Clear();
+            BasisNetworkGenericMessages.ReleaseConnectionRegistrations();//message indices belong to the connection that assigned them
             BasisNetworkManagement.Transmitter = null;
             BasisNetworkConnection.NetworkClient?.Disconnect();//disconnect the local client last.
             BasisNetworkConnection.LocalPlayerIsConnected = false;
@@ -144,6 +145,7 @@ public static class BasisNetworkLifeCycle
         BasisContentShareManager.Reset();//remove content spheres
         BasisNetworkIdResolver.KnownIdMap.Clear();
         BasisNetworkIdResolver.PendingResolutions.Clear();
+        BasisNetworkGenericMessages.ReleaseConnectionRegistrations();//message indices belong to the connection that assigned them
         BasisAudioRemoteSource.DeInitialize();//release memory for audio gameobject
         BasisNetworkManagement.Transmitter = null;
         // Clear delegates / events
