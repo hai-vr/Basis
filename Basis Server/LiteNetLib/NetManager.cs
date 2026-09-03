@@ -1246,6 +1246,10 @@ namespace LiteNetLib
 
         private int GetNextPeerId()
         {
+            if (_lastPeerId < 60_000)
+            {
+                return _lastPeerId++;
+            }
             return _peerIds.TryDequeue(out int id) ? id : _lastPeerId++;
         }
 
