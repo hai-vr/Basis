@@ -40,7 +40,7 @@ namespace Basis.Tests.Performance
             public NativeArray<short> PrevMeshLod;
             public NativeArray<float> DistanceSq, PerIndexMinD2;
             public NativeArray<short> MeshLod, PoseLod;
-            public NativeArray<bool> Mic, Hearing, Avatar, MeshLodChanged;
+            public NativeArray<bool> Mic, Hearing, Avatar, MeshLodChanged, Shouting;
             public NativeArray<int> PerIndexMask;
             public readonly int Count;
 
@@ -60,6 +60,7 @@ namespace Basis.Tests.Performance
                 Hearing = new NativeArray<bool>(Count, Allocator.Temp);
                 Avatar = new NativeArray<bool>(Count, Allocator.Temp);
                 MeshLodChanged = new NativeArray<bool>(Count, Allocator.Temp);
+                Shouting = new NativeArray<bool>(Count, Allocator.Temp);
                 PerIndexMask = new NativeArray<int>(Count, Allocator.Temp);
             }
 
@@ -70,6 +71,8 @@ namespace Basis.Tests.Performance
                     SquaredVoiceDistance = rangeSq,
                     SquaredHearingDistance = rangeSq,
                     SquaredAvatarDistance = rangeSq,
+                    ShoutRangeMultiplierSquared = 1f,
+                    RemoteIsShouting = Shouting,
                     HysteresisPercent = Hysteresis,
                     ReductionMultiplier = reductionMultiplier,
                     UseEyeGaze = false,
@@ -125,6 +128,7 @@ namespace Basis.Tests.Performance
                 Hearing.Dispose();
                 Avatar.Dispose();
                 MeshLodChanged.Dispose();
+                Shouting.Dispose();
                 PerIndexMask.Dispose();
             }
         }

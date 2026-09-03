@@ -20,14 +20,14 @@ namespace Basis.Scripts.Networking
         private static readonly HashSet<ushort> privateMembers = new HashSet<ushort>();
         private static ushort thisPersonTarget;
         private static bool hasThisPersonTarget;
-        private static BasisTalkMode pendingShoutExitMode;
-        private static bool hasPendingShoutExitMode;
+        private static BasisTalkMode pendingAnnounceExitMode;
+        private static bool hasPendingAnnounceExitMode;
 
         [RuntimeInitializeOnLoadMethod]
         private static void Init()
         {
-            BasisNetworkModeration.OnShoutModeChanged -= HandleShoutModeChanged;
-            BasisNetworkModeration.OnShoutModeChanged += HandleShoutModeChanged;
+            BasisNetworkModeration.OnAnnounceModeChanged -= HandleAnnounceModeChanged;
+            BasisNetworkModeration.OnAnnounceModeChanged += HandleAnnounceModeChanged;
             BasisNetworkPlayer.OnRemotePlayerJoined -= HandleRemotePlayerJoined;
             BasisNetworkPlayer.OnRemotePlayerJoined += HandleRemotePlayerJoined;
             BasisNetworkPlayer.OnRemotePlayerLeft -= HandleRemotePlayerLeft;
@@ -36,31 +36,45 @@ namespace Basis.Scripts.Networking
             BasisP2PManager.OnSessionStateChanged += HandleP2PSessionChanged;
             BasisNetworkManagement.OnlocalPermissionsChanged -= HandlePermissionsChanged;
             BasisNetworkManagement.OnlocalPermissionsChanged += HandlePermissionsChanged;
-            BasisSettingsDefaults.ShoutShowOnMenuBar.OnChanged -= HandleShoutMenuBarPrefChanged;
-            BasisSettingsDefaults.ShoutShowOnMenuBar.OnChanged += HandleShoutMenuBarPrefChanged;
+            BasisSettingsDefaults.AnnounceShowOnMenuBar.OnChanged -= HandleAnnounceMenuBarPrefChanged;
+            BasisSettingsDefaults.AnnounceShowOnMenuBar.OnChanged += HandleAnnounceMenuBarPrefChanged;
             BasisSettingsDefaults.TalkToNoOne.OnChanged -= HandleTalkToNoOnePrefChanged;
             BasisSettingsDefaults.TalkToNoOne.OnChanged += HandleTalkToNoOnePrefChanged;
+            BasisSettingsDefaults.ShoutMode.OnChanged -= HandleShoutPrefChanged;
+            BasisSettingsDefaults.ShoutMode.OnChanged += HandleShoutPrefChanged;
 #if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.OnPausedAction -= HandleLocalMuteChanged;
             BasisLocalMicrophoneDriver.OnPausedAction += HandleLocalMuteChanged;
 #endif
         }
 
-        public static bool LocalCanShout()
+        public static bool LocalCanAnnounce()
         {
             return BasisNetworkManagement.LocalPermissions != null &&
                    BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsView);
         }
 
-        public static bool ShoutAvailableOnMenuBar()
+        public static bool AnnounceAvailableOnMenuBar()
         {
-            return LocalCanShout() && BasisSettingsDefaults.ShoutShowOnMenuBar.RawValue;
+            return LocalCanAnnounce() && BasisSettingsDefaults.AnnounceShowOnMenuBar.RawValue;
         }
 
         public static bool TalkToNoOneAvailable()
         {
             return BasisSettingsDefaults.TalkToNoOne.RawValue;
         }
+
+        public static bool ShoutAvailable()
+        {
+            return BasisSettingsDefaults.ShoutMode.RawValue;
+        }
+
+        /// <summary>
+        /// True while the local player's voice should carry <see cref="BasisShout.RangeMultiplier"/>
+        /// times as far as their microphone range. Read by the transmit tick when it decides who
+        /// goes on the voice recipient list.
+        /// </summary>
+        public static bool LocalIsShouting => CurrentMode == BasisTalkMode.Shout;
 
         private static int localOnlyHolds;
 
@@ -94,22 +108,24 @@ namespace Basis.Scripts.Networking
         private static readonly BasisTalkMode[] CycleOrder =
         {
             BasisTalkMode.Normal,
+            BasisTalkMode.Shout,
             BasisTalkMode.Private,
             BasisTalkMode.ThisPerson,
             BasisTalkMode.Direct,
-            BasisTalkMode.Shout,
+            BasisTalkMode.Announce,
             BasisTalkMode.NoOne,
         };
 
         /// <summary>
         /// True only when there is a reason to expose the mic-mode button: we're already
-        /// in a non-normal mode, shout is enabled on the menu bar, talk-to-no-one is opted
-        /// into, have a private set, a marked person, or at least one P2P-connected peer.
+        /// in a non-normal mode, shout or announce is enabled on the menu bar, talk-to-no-one is
+        /// opted into, have a private set, a marked person, or at least one P2P-connected peer.
         /// </summary>
         public static bool ShouldShowModeButton()
         {
             if (CurrentMode != BasisTalkMode.Normal) return true;
-            if (ShoutAvailableOnMenuBar()) return true;
+            if (AnnounceAvailableOnMenuBar()) return true;
+            if (ShoutAvailable()) return true;
             if (TalkToNoOneAvailable()) return true;
             if (privateMembers.Count > 0) return true;
             if (hasThisPersonTarget) return true;
@@ -124,7 +140,8 @@ namespace Basis.Scripts.Networking
                 case BasisTalkMode.Private: return privateMembers.Count > 0;
                 case BasisTalkMode.ThisPerson: return hasThisPersonTarget;
                 case BasisTalkMode.Direct: return BasisP2PManager.GetConnectedSessionCount() > 0;
-                case BasisTalkMode.Shout: return ShoutAvailableOnMenuBar();
+                case BasisTalkMode.Announce: return AnnounceAvailableOnMenuBar();
+                case BasisTalkMode.Shout: return ShoutAvailable();
                 case BasisTalkMode.NoOne: return TalkToNoOneAvailable();
                 default: return false;
             }
@@ -148,20 +165,20 @@ namespace Basis.Scripts.Networking
 
         public static void SetMode(BasisTalkMode mode)
         {
-            if (mode == BasisTalkMode.Shout)
+            if (mode == BasisTalkMode.Announce)
             {
-                if (LocalCanShout() && BasisNetworkPlayer.LocalPlayer != null)
+                if (LocalCanAnnounce() && BasisNetworkPlayer.LocalPlayer != null)
                 {
-                    BasisNetworkModeration.EnableShoutMode(BasisNetworkPlayer.LocalPlayer.playerId);
+                    BasisNetworkModeration.EnableAnnounceMode(BasisNetworkPlayer.LocalPlayer.playerId);
                 }
                 return;
             }
 
-            if (CurrentMode == BasisTalkMode.Shout && BasisNetworkPlayer.LocalPlayer != null)
+            if (CurrentMode == BasisTalkMode.Announce && BasisNetworkPlayer.LocalPlayer != null)
             {
-                pendingShoutExitMode = mode;
-                hasPendingShoutExitMode = true;
-                BasisNetworkModeration.DisableShoutMode(BasisNetworkPlayer.LocalPlayer.playerId);
+                pendingAnnounceExitMode = mode;
+                hasPendingAnnounceExitMode = true;
+                BasisNetworkModeration.DisableAnnounceMode(BasisNetworkPlayer.LocalPlayer.playerId);
                 return;
             }
 
@@ -297,19 +314,19 @@ namespace Basis.Scripts.Networking
             }
         }
 
-        private static void HandleShoutModeChanged(ushort playerId, bool enabled)
+        private static void HandleAnnounceModeChanged(ushort playerId, bool enabled)
         {
             if (BasisNetworkPlayer.LocalPlayer == null || playerId != BasisNetworkPlayer.LocalPlayer.playerId) return;
 
             if (enabled)
             {
-                hasPendingShoutExitMode = false;
-                ApplyMode(BasisTalkMode.Shout);
+                hasPendingAnnounceExitMode = false;
+                ApplyMode(BasisTalkMode.Announce);
             }
-            else if (CurrentMode == BasisTalkMode.Shout)
+            else if (CurrentMode == BasisTalkMode.Announce)
             {
-                BasisTalkMode target = hasPendingShoutExitMode ? pendingShoutExitMode : BasisTalkMode.Normal;
-                hasPendingShoutExitMode = false;
+                BasisTalkMode target = hasPendingAnnounceExitMode ? pendingAnnounceExitMode : BasisTalkMode.Normal;
+                hasPendingAnnounceExitMode = false;
                 ApplyMode(target);
             }
         }
@@ -360,7 +377,7 @@ namespace Basis.Scripts.Networking
             OnLocalTalkModeChanged?.Invoke();
         }
 
-        private static void HandleShoutMenuBarPrefChanged(bool _)
+        private static void HandleAnnounceMenuBarPrefChanged(bool _)
         {
             OnLocalTalkModeChanged?.Invoke();
         }
@@ -368,6 +385,16 @@ namespace Basis.Scripts.Networking
         private static void HandleTalkToNoOnePrefChanged(bool enabled)
         {
             if (!enabled && CurrentMode == BasisTalkMode.NoOne)
+            {
+                SetMode(BasisTalkMode.Normal);
+                return;
+            }
+            OnLocalTalkModeChanged?.Invoke();
+        }
+
+        private static void HandleShoutPrefChanged(bool enabled)
+        {
+            if (!enabled && CurrentMode == BasisTalkMode.Shout)
             {
                 SetMode(BasisTalkMode.Normal);
                 return;

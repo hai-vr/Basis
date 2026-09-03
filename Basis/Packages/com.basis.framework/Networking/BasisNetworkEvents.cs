@@ -63,14 +63,14 @@ public static class BasisNetworkEvents
 
     private static void RegisterCoreHandlers()
     {
-        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ShoutVoiceChannel, async (peer, Reader, channel, deliveryMethod) =>
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.AnnounceVoiceChannel, async (peer, Reader, channel, deliveryMethod) =>
         {
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ShoutVoice, Reader.AvailableBytes);
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AnnounceVoice, Reader.AvailableBytes);
 #if UNITY_SERVER
             Reader.Recycle(true);
 #else
             //released inside
-            await BasisNetworkHandleVoice.HandleShoutAudioUpdate(Reader);
+            await BasisNetworkHandleVoice.HandleAnnounceAudioUpdate(Reader);
 #endif
         });
 

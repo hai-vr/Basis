@@ -88,7 +88,7 @@ public static class BasisNetworkLifeCycle
 #endif
             BasisAvatarLoadThread.Flush();//drop join packets decoded for the connection going away
             BasisNetworkPlayers.ClearAllRegistries();//remove players
-            Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources
+            Basis.Scripts.Networking.Receivers.BasisAnnounceAudioDriver.DeInitialize();//remove announce audio sources
             Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.DeInitialize();//remove voice recordings
             await BasisNetworkSpawnItem.Reset();//remove items
             BasisNetworkPreloadManager.Reset();//remove preloaded resources
@@ -138,7 +138,7 @@ public static class BasisNetworkLifeCycle
         BasisRemoteNetworkDriver.Shutdown();//complete in-flight jobs before disposing anything
         BasisAvatarLoadThread.Flush();//drop join packets decoded for the connection going away
         BasisNetworkPlayers.ClearAllRegistries();//remove players
-        Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources
+        Basis.Scripts.Networking.Receivers.BasisAnnounceAudioDriver.DeInitialize();//remove announce audio sources
         Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.DeInitialize();//remove voice recordings
         await BasisNetworkSpawnItem.Reset();//remove items
         BasisNetworkPreloadManager.Reset();//remove preloaded resources

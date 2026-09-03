@@ -15,7 +15,7 @@ namespace Basis.BasisUI
 {
     /// <summary>
     /// Per-user moderation tab — player list, kicks/bans/IP-bans/unbans,
-    /// teleports, direct messages, broadcast, and shout-mode toggles.
+    /// teleports, direct messages, broadcast, and announce-mode toggles.
     /// Server config and other persistent admin tools live on the Admin tab.
     /// </summary>
     public static class SettingsProviderModeratorTab
@@ -613,7 +613,7 @@ namespace Basis.BasisUI
 
                     if (_cards.TryGetValue(player.playerId, out PlayerCard existing))
                     {
-                        // Shout mode changes without a join or leave, and the Refresh tile is
+                        // Announce mode changes without a join or leave, and the Refresh tile is
                         // how a moderator picks that up — SetTitle no-ops when nothing moved.
                         existing.Player = player;
                         ApplyCardTitle(existing);
@@ -718,10 +718,10 @@ namespace Basis.BasisUI
                 if (string.IsNullOrEmpty(name)) name = BasisLocalization.Get("ui.unknown");
                 if (card.IsLocal) name = BasisLocalization.Get("menu.players.you", name);
 
-                bool isShouting = card.IsLocal
-                    ? BasisNetworkModeration.LocalPlayerInShoutMode
-                    : BasisShoutAudioDriver.IsInShoutMode(player.playerId);
-                card.Button.Descriptor.SetTitle(isShouting ? name + " [SHOUT]" : name);
+                bool isAnnouncing = card.IsLocal
+                    ? BasisNetworkModeration.LocalPlayerInAnnounceMode
+                    : BasisAnnounceAudioDriver.IsInAnnounceMode(player.playerId);
+                card.Button.Descriptor.SetTitle(isAnnouncing ? name + " [ANNOUNCE]" : name);
             }
 
             private static string BuildCardTooltip(PlayerCard card)
@@ -733,10 +733,10 @@ namespace Basis.BasisUI
                 string platform = UserListProvider.GetPlatformLabel(p != null ? p.PlayerPlatform : string.Empty);
                 string uuid = p != null ? p.UUID : string.Empty;
 
-                bool isShouting = card.IsLocal
-                    ? BasisNetworkModeration.LocalPlayerInShoutMode
-                    : BasisShoutAudioDriver.IsInShoutMode(player.playerId);
-                return isShouting ? platform + " • " + uuid + " • [SHOUT]" : platform + " • " + uuid;
+                bool isAnnouncing = card.IsLocal
+                    ? BasisNetworkModeration.LocalPlayerInAnnounceMode
+                    : BasisAnnounceAudioDriver.IsInAnnounceMode(player.playerId);
+                return isAnnouncing ? platform + " • " + uuid + " • [ANNOUNCE]" : platform + " • " + uuid;
             }
 
             private void ReleaseCard(ushort playerId)
@@ -1044,16 +1044,16 @@ namespace Basis.BasisUI
                         BasisNetworkModeration.SendMessage(target.playerId, Reason());
                 });
 
-                RectTransform shoutRow = PanelElementDescriptor.BuildActionRow(content, "ShoutRow");
-                RowButton(shoutRow, "menu.individualPlayer.shout.enable", "settings.admin.confirm.shoutEnable", () =>
+                RectTransform announceRow = PanelElementDescriptor.BuildActionRow(content, "AnnounceRow");
+                RowButton(announceRow, "menu.individualPlayer.announce.enable", "settings.admin.confirm.announceEnable", () =>
                 {
                     if (TryResolveTarget(out BasisNetworkPlayer target))
-                        BasisNetworkModeration.EnableShoutMode(target.playerId);
+                        BasisNetworkModeration.EnableAnnounceMode(target.playerId);
                 });
-                RowButton(shoutRow, "menu.individualPlayer.shout.disable", "settings.admin.confirm.shoutDisable", () =>
+                RowButton(announceRow, "menu.individualPlayer.announce.disable", "settings.admin.confirm.announceDisable", () =>
                 {
                     if (TryResolveTarget(out BasisNetworkPlayer target))
-                        BasisNetworkModeration.DisableShoutMode(target.playerId);
+                        BasisNetworkModeration.DisableAnnounceMode(target.playerId);
                 });
 
                 RectTransform qualityRow = PanelElementDescriptor.BuildActionRow(content, "QualityRow");

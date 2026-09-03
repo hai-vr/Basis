@@ -1300,6 +1300,11 @@ namespace Basis.BasisUI
                 toggleTalkToNoOne.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.talkToNoOne"));
                 toggleTalkToNoOne.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.talkToNoOne.tooltip"));
                 toggleTalkToNoOne.AssignBinding(BasisSettingsDefaults.TalkToNoOne);
+
+                PanelToggle toggleShoutMode = PanelToggle.CreateNewEntry(advancedContent);
+                toggleShoutMode.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.shoutMode"));
+                toggleShoutMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.shoutMode.tooltip"));
+                toggleShoutMode.AssignBinding(BasisSettingsDefaults.ShoutMode);
             }, false, _ => RebuildFrom(advancedContent));
 
             void LimitThresholdChanged(float v)
@@ -1565,6 +1570,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MicrophoneMode.ResetToDefault();
             BasisSettingsDefaults.MicMuteBehavior.ResetToDefault();
             BasisSettingsDefaults.TalkToNoOne.ResetToDefault();
+            BasisSettingsDefaults.ShoutMode.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIcon.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIconLevelRing.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIconOffsetX.ResetToDefault();

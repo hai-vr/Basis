@@ -28,7 +28,7 @@ namespace Basis.BasisUI
             public Action Highlight;
             public Action TalkModes;
             public Action DirectConnection;
-            public Action Shout;
+            public Action Announce;
             public Action EyeHeight;
         }
 
@@ -386,28 +386,28 @@ namespace Basis.BasisUI
                 sync.AvatarVisible?.Invoke(await ToggleAvatarVisible(player));
             };
 
-            // ---- Shout mode (admin only, same gate the Admin tab uses) ----
-            if (hasNetTarget && BasisTalkModeManager.LocalCanShout())
+            // ---- Announce mode (admin only, same gate the Admin tab uses) ----
+            if (hasNetTarget && BasisTalkModeManager.LocalCanAnnounce())
             {
-                PanelButton shoutBtn = NewAction("menu.individualPlayer.shout.description");
-                void PaintShout()
+                PanelButton announceBtn = NewAction("menu.individualPlayer.announce.description");
+                void PaintAnnounce()
                 {
-                    if (shoutBtn == null || shoutBtn.Descriptor == null) return;
-                    shoutBtn.Descriptor.SetTitle(BasisLocalization.Get(
-                        BasisShoutAudioDriver.IsInShoutMode(netPlayerId)
-                            ? "menu.individualPlayer.shout.disable"
-                            : "menu.individualPlayer.shout.enable"));
+                    if (announceBtn == null || announceBtn.Descriptor == null) return;
+                    announceBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                        BasisAnnounceAudioDriver.IsInAnnounceMode(netPlayerId)
+                            ? "menu.individualPlayer.announce.disable"
+                            : "menu.individualPlayer.announce.enable"));
                 }
-                PaintShout();
-                sync.Shout += PaintShout;
-                // No repaint here — shout is a server round trip, so RunAction repaints from
-                // BasisNetworkModeration.OnShoutModeChanged once the change actually lands.
-                shoutBtn.OnClicked += () =>
+                PaintAnnounce();
+                sync.Announce += PaintAnnounce;
+                // No repaint here — announce is a server round trip, so RunAction repaints from
+                // BasisNetworkModeration.OnAnnounceModeChanged once the change actually lands.
+                announceBtn.OnClicked += () =>
                 {
-                    if (BasisShoutAudioDriver.IsInShoutMode(netPlayerId))
-                        BasisNetworkModeration.DisableShoutMode(netPlayerId);
+                    if (BasisAnnounceAudioDriver.IsInAnnounceMode(netPlayerId))
+                        BasisNetworkModeration.DisableAnnounceMode(netPlayerId);
                     else
-                        BasisNetworkModeration.EnableShoutMode(netPlayerId);
+                        BasisNetworkModeration.EnableAnnounceMode(netPlayerId);
                 };
             }
 

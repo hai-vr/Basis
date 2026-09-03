@@ -1408,29 +1408,29 @@ namespace Basis.BasisUI
                         BasisNetworkModeration.TeleportHere(np.playerId);
                 };
 
-                PanelButton shoutBtn = PanelButton.CreateNew(adminGroup.ContentParent);
-                shoutBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.shout.description"));
-                bool hasShoutTarget = BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer shoutNp);
-                ushort shoutPlayerId = hasShoutTarget ? shoutNp.playerId : (ushort)0;
+                PanelButton announceBtn = PanelButton.CreateNew(adminGroup.ContentParent);
+                announceBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.announce.description"));
+                bool hasAnnounceTarget = BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer announceNp);
+                ushort announcePlayerId = hasAnnounceTarget ? announceNp.playerId : (ushort)0;
 
-                void PaintDetailShout()
+                void PaintDetailAnnounce()
                 {
-                    if (shoutBtn == null || shoutBtn.Descriptor == null) return;
-                    shoutBtn.Descriptor.SetTitle(BasisLocalization.Get(
-                        hasShoutTarget && BasisShoutAudioDriver.IsInShoutMode(shoutPlayerId)
-                            ? "menu.individualPlayer.shout.disable"
-                            : "menu.individualPlayer.shout.enable"));
+                    if (announceBtn == null || announceBtn.Descriptor == null) return;
+                    announceBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                        hasAnnounceTarget && BasisAnnounceAudioDriver.IsInAnnounceMode(announcePlayerId)
+                            ? "menu.individualPlayer.announce.disable"
+                            : "menu.individualPlayer.announce.enable"));
                 }
-                PaintDetailShout();
-                sync.Shout += PaintDetailShout;
+                PaintDetailAnnounce();
+                sync.Announce += PaintDetailAnnounce;
 
-                shoutBtn.OnClicked += () =>
+                announceBtn.OnClicked += () =>
                 {
-                    if (!hasShoutTarget) return;
-                    if (BasisShoutAudioDriver.IsInShoutMode(shoutPlayerId))
-                        BasisNetworkModeration.DisableShoutMode(shoutPlayerId);
+                    if (!hasAnnounceTarget) return;
+                    if (BasisAnnounceAudioDriver.IsInAnnounceMode(announcePlayerId))
+                        BasisNetworkModeration.DisableAnnounceMode(announcePlayerId);
                     else
-                        BasisNetworkModeration.EnableShoutMode(shoutPlayerId);
+                        BasisNetworkModeration.EnableAnnounceMode(announcePlayerId);
                 };
 
                 // Server-enforced mutes. The admin client doesn't track the target's current
@@ -1606,7 +1606,7 @@ namespace Basis.BasisUI
                     PermNodes.ModerationMessage,
                     PermNodes.ModerationMessageAll,
                     PermNodes.ModerationTeleport,
-                    PermNodes.ModerationShout,
+                    PermNodes.ModerationAnnounce,
                     PermNodes.ModerationForceAvatar,
                     PermNodes.ModerationLocomotion,
                     PermNodes.PlayerModeration,
@@ -1940,14 +1940,14 @@ namespace Basis.BasisUI
 
             AddPage(debugTabKey, debugPage);
 
-            // Shout is a server round trip, so the button cannot repaint from its own click —
+            // Announce is a server round trip, so the button cannot repaint from its own click —
             // the local driver still reports the old state at that point. Wait for the change
             // to come back instead, and drop the subscription once the panel is gone.
-            Action<ushort, bool> shoutHandler = null;
-            shoutHandler = (changedId, _) =>
+            Action<ushort, bool> announceHandler = null;
+            announceHandler = (changedId, _) =>
             {
-                if (!BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer shoutTarget)
-                    || changedId != shoutTarget.playerId)
+                if (!BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer announceTarget)
+                    || changedId != announceTarget.playerId)
                 {
                     return;
                 }
@@ -1955,13 +1955,13 @@ namespace Basis.BasisUI
                 {
                     if (panel == null || panel.Descriptor == null)
                     {
-                        BasisNetworkModeration.OnShoutModeChanged -= shoutHandler;
+                        BasisNetworkModeration.OnAnnounceModeChanged -= announceHandler;
                         return;
                     }
-                    sync.Shout?.Invoke();
+                    sync.Announce?.Invoke();
                 });
             };
-            BasisNetworkModeration.OnShoutModeChanged += shoutHandler;
+            BasisNetworkModeration.OnAnnounceModeChanged += announceHandler;
 
             panel.Descriptor.ForceRebuild();
             panel.Descriptor.ForceRebuild();

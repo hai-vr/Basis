@@ -55,17 +55,17 @@ namespace Basis.BasisUI
 
             AdminTabController controller = tab.gameObject.AddComponent<AdminTabController>();
 
-            // --- Menu-bar shout (local opt-in; off by default) ---
-            PanelSectionToggle shoutToggle = PanelSectionToggle.CreateNewEntry(container);
-            shoutToggle.SetTitle(BasisLocalization.Get("settings.admin.title.shout"));
-            int shoutStart = container.childCount;
+            // --- Menu-bar announce (local opt-in; off by default) ---
+            PanelSectionToggle announceToggle = PanelSectionToggle.CreateNewEntry(container);
+            announceToggle.SetTitle(BasisLocalization.Get("settings.admin.title.announce"));
+            int announceStart = container.childCount;
 
-            PanelToggle shoutOnMenuBarToggle = PanelToggle.CreateNewEntry(container);
-            shoutOnMenuBarToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.showShoutOnMenuBar"));
-            shoutOnMenuBarToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.showShoutOnMenuBar.tooltip"));
-            shoutOnMenuBarToggle.AssignBinding(BasisSettingsDefaults.ShoutShowOnMenuBar);
+            PanelToggle announceOnMenuBarToggle = PanelToggle.CreateNewEntry(container);
+            announceOnMenuBarToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.showAnnounceOnMenuBar"));
+            announceOnMenuBarToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.showAnnounceOnMenuBar.tooltip"));
+            announceOnMenuBarToggle.AssignBinding(BasisSettingsDefaults.AnnounceShowOnMenuBar);
 
-            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(shoutToggle, container, shoutStart, false, _ => descriptor.ForceRebuild());
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(announceToggle, container, announceStart, false, _ => descriptor.ForceRebuild());
 
             // --- Global lock group ---
             PanelSectionToggle lockToggle = PanelSectionToggle.CreateNewEntry(container);

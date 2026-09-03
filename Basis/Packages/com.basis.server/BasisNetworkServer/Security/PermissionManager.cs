@@ -62,7 +62,7 @@ namespace BasisPermissions
         public const string ModerationMessage = "basis.moderation.message";
         public const string ModerationMessageAll = "basis.moderation.messageall";
         public const string ModerationTeleport = "basis.moderation.teleport";
-        public const string ModerationShout = "basis.moderation.shout";
+        public const string ModerationAnnounce = "basis.moderation.announce";
         public const string ModerationGlobalLock = "basis.moderation.globallock";
         public const string ModerationHeadlessAudio = "basis.moderation.headlessaudio";
         public const string ModerationOpusBitrate = "basis.moderation.opusbitrate";
@@ -880,7 +880,7 @@ namespace BasisPermissions
                     adm.Nodes.Add(PermNodes.ModerationMessage);
                     adm.Nodes.Add(PermNodes.ModerationMessageAll);
                     adm.Nodes.Add(PermNodes.ModerationTeleport);
-                    adm.Nodes.Add(PermNodes.ModerationShout);
+                    adm.Nodes.Add(PermNodes.ModerationAnnounce);
                     adm.Nodes.Add(PermNodes.ModerationGlobalLock);
                     adm.Nodes.Add(PermNodes.ModerationHeadlessAudio);
                     adm.Nodes.Add(PermNodes.ModerationOpusBitrate);
@@ -937,6 +937,23 @@ namespace BasisPermissions
             //     </User>
             //   </Users>
             // </Permissions>
+
+            /// <summary>
+            /// Node names are stored verbatim in permissions.xml, so renaming one orphans every
+            /// grant an operator already wrote. Rewrite retired spellings on the way in — a
+            /// negated node ("-basis.moderation.shout") has to migrate too, or a deny silently
+            /// stops denying, which is the dangerous direction.
+            /// </summary>
+            private static string MigrateLegacyNode(string node)
+            {
+                const string legacy = "basis.moderation.shout";
+                if (node.Equals(legacy, StringComparison.OrdinalIgnoreCase))
+                    return PermNodes.ModerationAnnounce;
+                if (node.Length == legacy.Length + 1 && node[0] == '-'
+                    && node.AsSpan(1).Equals(legacy.AsSpan(), StringComparison.OrdinalIgnoreCase))
+                    return "-" + PermNodes.ModerationAnnounce;
+                return node;
+            }
 
             public static PermissionStore Load(string path)
             {
@@ -1020,7 +1037,7 @@ namespace BasisPermissions
                                     if (string.IsNullOrWhiteSpace(node))
                                         break;
 
-                                    node = node.Trim();
+                                    node = MigrateLegacyNode(node.Trim());
 
                                     if (inGroups && currentGroupDef != null)
                                         currentGroupDef.Nodes.Add(node);

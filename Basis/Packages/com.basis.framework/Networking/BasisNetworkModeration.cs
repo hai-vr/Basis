@@ -422,9 +422,9 @@ public static class BasisNetworkModeration
                 HandlePermissionQueryResult(reader);
                 break;
 
-            case AdminRequestMode.EnableShoutMode:
-            case AdminRequestMode.DisableShoutMode:
-                HandleShoutModeChanged(reader, mode == AdminRequestMode.EnableShoutMode);
+            case AdminRequestMode.EnableAnnounceMode:
+            case AdminRequestMode.DisableAnnounceMode:
+                HandleAnnounceModeChanged(reader, mode == AdminRequestMode.EnableAnnounceMode);
                 break;
 
             case AdminRequestMode.GlobalGetLockState:
@@ -513,56 +513,56 @@ public static class BasisNetworkModeration
         }
     }
 
-    #region Shout Mode
+    #region Announce Mode
 
     /// <summary>
-    /// Fired when a player's shout mode state changes.
+    /// Fired when a player's announce mode state changes.
     /// </summary>
-    public static event Action<ushort, bool> OnShoutModeChanged;
+    public static event Action<ushort, bool> OnAnnounceModeChanged;
 
     /// <summary>
-    /// True if the local player is currently in shout mode.
+    /// True if the local player is currently in announce mode.
     /// </summary>
-    public static bool LocalPlayerInShoutMode => Basis.Scripts.Networking.Transmitters.BasisAudioTransmission.IsInShoutMode;
+    public static bool LocalPlayerInAnnounceMode => Basis.Scripts.Networking.Transmitters.BasisAudioTransmission.IsInAnnounceMode;
 
-    private static void HandleShoutModeChanged(NetDataReader reader, bool enabled)
+    private static void HandleAnnounceModeChanged(NetDataReader reader, bool enabled)
     {
         ushort targetPlayerId = reader.GetUShort();
         ushort initiatorPlayerId = reader.AvailableBytes >= 2 ? reader.GetUShort() : targetPlayerId;
         string state = enabled ? "enabled" : "disabled";
-        BasisDebug.Log($"Shout mode {state} for player {targetPlayerId}", BasisDebug.LogTag.Networking);
+        BasisDebug.Log($"Announce mode {state} for player {targetPlayerId}", BasisDebug.LogTag.Networking);
 
         // Check if this is the local player
         bool isLocalPlayer = BasisNetworkPlayer.LocalPlayer != null && targetPlayerId == BasisNetworkPlayer.LocalPlayer.playerId;
         if (isLocalPlayer)
         {
             // Set the local transmission channel
-            Basis.Scripts.Networking.Transmitters.BasisAudioTransmission.IsInShoutMode = enabled;
-            BasisDebug.Log($"Local player shout mode {state}", BasisDebug.LogTag.Networking);
+            Basis.Scripts.Networking.Transmitters.BasisAudioTransmission.IsInAnnounceMode = enabled;
+            BasisDebug.Log($"Local player announce mode {state}", BasisDebug.LogTag.Networking);
 
             bool forcedByOther = initiatorPlayerId != targetPlayerId;
-            if (forcedByOther && !BasisTalkModeManager.LocalCanShout())
+            if (forcedByOther && !BasisTalkModeManager.LocalCanAnnounce())
             {
                 string initiatorName = ResolveDisplayName(initiatorPlayerId);
                 DisplayMessage(enabled
-                    ? $"{initiatorName} enabled shout mode for you - your voice is now broadcast to everyone."
-                    : $"{initiatorName} disabled shout mode for you - your voice is back to normal.");
+                    ? $"{initiatorName} enabled announce mode for you - your voice is now broadcast to everyone."
+                    : $"{initiatorName} disabled announce mode for you - your voice is back to normal.");
             }
         }
         else
         {
-            // For remote players, manage the global shout audio source
+            // For remote players, manage the global announce audio source
             if (enabled)
             {
-                BasisShoutAudioDriver.EnableShoutMode(targetPlayerId);
+                BasisAnnounceAudioDriver.EnableAnnounceMode(targetPlayerId);
             }
             else
             {
-                BasisShoutAudioDriver.DisableShoutMode(targetPlayerId);
+                BasisAnnounceAudioDriver.DisableAnnounceMode(targetPlayerId);
             }
         }
 
-        OnShoutModeChanged?.Invoke(targetPlayerId, enabled);
+        OnAnnounceModeChanged?.Invoke(targetPlayerId, enabled);
     }
 
     private static string ResolveDisplayName(ushort playerId)
@@ -576,20 +576,20 @@ public static class BasisNetworkModeration
     }
 
     /// <summary>
-    /// Admin: Enable shout mode for a player (non-spatialized broadcast voice).
+    /// Admin: Enable announce mode for a player (non-spatialized broadcast voice).
     /// </summary>
-    public static void EnableShoutMode(ushort playerId)
+    public static void EnableAnnounceMode(ushort playerId)
     {
-        SendAdminRequest(AdminRequestMode.EnableShoutMode,
+        SendAdminRequest(AdminRequestMode.EnableAnnounceMode,
             w => w.Put(playerId));
     }
 
     /// <summary>
-    /// Admin: Disable shout mode for a player.
+    /// Admin: Disable announce mode for a player.
     /// </summary>
-    public static void DisableShoutMode(ushort playerId)
+    public static void DisableAnnounceMode(ushort playerId)
     {
-        SendAdminRequest(AdminRequestMode.DisableShoutMode,
+        SendAdminRequest(AdminRequestMode.DisableAnnounceMode,
             w => w.Put(playerId));
     }
 
@@ -1528,7 +1528,7 @@ public static class BasisNetworkModeration
     }
 
     /// <summary>
-    /// Admin: toggle the global voice lock. While set the server drops normal and shout voice from
+    /// Admin: toggle the global voice lock. While set the server drops normal and announce voice from
     /// peers without basis.voice.lockbypass, and those clients stop transmitting.
     /// </summary>
     public static void GlobalToggleVoiceChat()
