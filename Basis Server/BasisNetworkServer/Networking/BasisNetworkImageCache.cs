@@ -3,6 +3,7 @@ using BasisNetworkCore;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using BasisNetworkServer.Networking;
 using static SerializableBasis;
 
 namespace Basis.Network.Server.Generic
@@ -348,22 +349,7 @@ namespace Basis.Network.Server.Generic
                 Images[id] = entry;
                 System.Threading.Interlocked.Add(ref _totalBytes, cost);
 
-                if (NetworkServer.AuthenticatedPeers.TryGetValue(senderId, out var peer))
-                {
-                    string ip = peer.Address.ToString();
-                    if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string did))
-                    {
-                        BNL.Log($"[EVENT] Created a picture ({did}) [{ip}]");
-                    }
-                    else
-                    {
-                        BNL.Log($"[EVENT] Created a picture (???) [{ip}]");
-                    }
-                }
-                else
-                {
-                    BNL.Log($"[EVENT] Created a picture (???) [???]");
-                }
+                HVREventLog.PreLog("Created a picture", senderId);
             }
         }
 
@@ -685,22 +671,7 @@ namespace Basis.Network.Server.Generic
                     return false;
                 }
 
-                if (NetworkServer.AuthenticatedPeers.TryGetValue(requesterId, out var peer))
-                {
-                    string ip = peer.Address.ToString();
-                    if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string did))
-                    {
-                        BNL.Log($"[EVENT] Deleted a picture ({did}) [{ip}]");
-                    }
-                    else
-                    {
-                        BNL.Log($"[EVENT] Deleted a picture (???) [{ip}]");
-                    }
-                }
-                else
-                {
-                    BNL.Log($"[EVENT] Deleted a picture (???) [???]");
-                }
+                HVREventLog.PreLog("Deleted a picture", requesterId);
 
                 return DropLocked(id);
             }
