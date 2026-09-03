@@ -1,5 +1,6 @@
 ﻿using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using System.Collections.Generic;
@@ -150,7 +151,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             EnsureAssetsLoaded();
 
-            SelectedNamePlateMaterial = BasisDeviceManagement.IsMobileHardware()
+            SelectedNamePlateMaterial = BasisGpuDetection.IsMobileGpu
                 ? OpaqueNamePlateMaterial
                 : TransParentNamePlateMaterial;
 
