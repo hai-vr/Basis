@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using BasisNetworkServer.Networking;
 using static BasisPermissions.PermissionManager;
 using static SerializableBasis;
 
@@ -207,6 +208,8 @@ namespace BasisNetworkServer.BasisNetworking
             if (chatMessage.payload != null && chatMessage.payloadSize > 0)
             {
                 string text = Encoding.UTF8.GetString(chatMessage.payload, 0, chatMessage.payloadSize);
+                
+                HVREventLog.PreLog($"Chat: {text}", sender);
 
                 // Apply word filter
                 text = FilterMessage(text);
