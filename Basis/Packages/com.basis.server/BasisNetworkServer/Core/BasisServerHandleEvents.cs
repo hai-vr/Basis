@@ -735,6 +735,7 @@ namespace BasisServerHandle
                 BasisNetworkServer.Security.BasisPlayerModeration.SendPeerLimitToPeer(newPeer);
                 BasisNetworkServer.Security.BasisPlayerMuteManager.SendStateToPeerIfMuted(newPeer);
                 SendAnnounceStateToPeer(newPeer);
+                SendShoutStateToPeer(newPeer);
             }
             else
             {
@@ -974,6 +975,48 @@ namespace BasisServerHandle
             {
                 writer.Reset();
                 new AdminRequest().Serialize(writer, AdminRequestMode.EnableAnnounceMode);
+                writer.Put((ushort)peerId);
+                writer.Put((ushort)peerId);
+                BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.AdminChannel, writer.Length);
+                newPeer.Send(writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            }
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        /// <summary>
+        /// Broadcasts an admin-granted shout mode state change to all clients via the AdminChannel.
+        /// </summary>
+        public static void BroadcastShoutModeState(ushort targetPlayerId, bool enabled, ushort initiatorPlayerId)
+        {
+            var writer = NetworkServer.RentWriter();
+            AdminRequestMode mode = enabled ? AdminRequestMode.EnableShoutMode : AdminRequestMode.DisableShoutMode;
+            new AdminRequest().Serialize(writer, mode);
+            writer.Put(targetPlayerId);
+            writer.Put(initiatorPlayerId);
+
+            NetPeer[] peers = NetworkServer.PeerSnapshot;
+            foreach (var client in peers)
+            {
+                BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.AdminChannel, writer.Length);
+                client.Send(writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            }
+
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        /// <summary>
+        /// Sends current admin-granted shout mode states to a newly connected peer.
+        /// </summary>
+        public static void SendShoutStateToPeer(NetPeer newPeer)
+        {
+            int[] shoutPlayers = BasisSavedState.GetAllShoutModePlayers();
+            if (shoutPlayers.Length == 0) return;
+
+            var writer = NetworkServer.RentWriter();
+            foreach (int peerId in shoutPlayers)
+            {
+                writer.Reset();
+                new AdminRequest().Serialize(writer, AdminRequestMode.EnableShoutMode);
                 writer.Put((ushort)peerId);
                 writer.Put((ushort)peerId);
                 BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.AdminChannel, writer.Length);

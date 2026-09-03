@@ -1122,7 +1122,7 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> TalkToNoOne = new("talktonoone", new BasisPlatformDefault<bool>(false));
 
-        public static BasisSettingsBinding<bool> ShoutMode = new("shoutmode", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> ShoutMode = new("shoutmode", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> UseAutomaticGain = new("automaticgainenabled", new BasisPlatformDefault<bool>
         {

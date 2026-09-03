@@ -342,9 +342,15 @@ namespace BasisNetworkServer.Security
                     });
                     break;
 
+                case AdminRequestMode.EnableAnnounceMode:
+                case AdminRequestMode.DisableAnnounceMode:
+                    Require(peer, PermNodes.ModerationAnnounce, () =>
+                        HandleAnnounceMode(peer, reader, mode == AdminRequestMode.EnableAnnounceMode));
+                    break;
+
                 case AdminRequestMode.EnableShoutMode:
                 case AdminRequestMode.DisableShoutMode:
-                    Require(peer, PermNodes.ModerationShout, () =>
+                    Require(peer, PermNodes.ModerationAnnounce, () =>
                         HandleShoutMode(peer, reader, mode == AdminRequestMode.EnableShoutMode));
                     break;
 
@@ -940,6 +946,13 @@ namespace BasisNetworkServer.Security
 
             NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
+        }
+
+        private static void HandleAnnounceMode(NetPeer peer, NetPacketReader reader, bool enable)
+        {
+            ushort id = reader.GetUShort();
+            Basis.Network.Server.Generic.BasisSavedState.SetAnnounceMode(id, enable);
+            BasisServerHandle.BasisServerHandleEvents.BroadcastAnnounceModeState(id, enable, (ushort)peer.Id);
         }
 
         private static void HandleShoutMode(NetPeer peer, NetPacketReader reader, bool enable)

@@ -23,6 +23,15 @@ namespace Basis.Scripts.Networking
         private static BasisTalkMode pendingAnnounceExitMode;
         private static bool hasPendingAnnounceExitMode;
 
+        /// <summary>
+        /// True while an admin put us in shout, as opposed to us picking it ourselves. A held
+        /// shout can only be left through the server, which re-checks the permission — otherwise
+        /// the target cycles straight back out of a mode a moderator just put them in.
+        /// </summary>
+        private static bool adminShoutHeld;
+        private static BasisTalkMode pendingShoutExitMode;
+        private static bool hasPendingShoutExitMode;
+
         [RuntimeInitializeOnLoadMethod]
         private static void Init()
         {
@@ -64,9 +73,49 @@ namespace Basis.Scripts.Networking
             return BasisSettingsDefaults.TalkToNoOne.RawValue;
         }
 
+        /// <summary>
+        /// Shout's opt-in toggle lives on the Admin tab, which is itself gated on
+        /// <see cref="PermNodes.PermissionsView"/>. Check the permission here too rather than
+        /// trusting the UI to be the only way in: a persisted pref outlives the permission that
+        /// let someone set it, and a revoked admin would otherwise keep shouting.
+        /// </summary>
+        public static bool LocalCanShout()
+        {
+            return BasisNetworkManagement.LocalPermissions != null &&
+                   BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsView);
+        }
+
         public static bool ShoutAvailable()
         {
-            return BasisSettingsDefaults.ShoutMode.RawValue;
+            // An admin-granted shout is available whether or not we opted into the menu-bar
+            // toggle, so the mode we are actually in never reads as unavailable.
+            return adminShoutHeld || (LocalCanShout() && BasisSettingsDefaults.ShoutMode.RawValue);
+        }
+
+        /// <summary>
+        /// Server told us an admin granted or revoked shout for the local player. Enter or leave
+        /// the mode, and hold it so <see cref="SetMode"/> routes any attempt to leave back through
+        /// the server rather than applying locally.
+        /// </summary>
+        public static void OnAdminShoutChanged(bool enabled)
+        {
+            adminShoutHeld = enabled;
+            if (enabled)
+            {
+                hasPendingShoutExitMode = false;
+                if (CurrentMode != BasisTalkMode.Shout) ApplyMode(BasisTalkMode.Shout);
+                else OnLocalTalkModeChanged?.Invoke();
+                return;
+            }
+
+            if (CurrentMode == BasisTalkMode.Shout)
+            {
+                BasisTalkMode target = hasPendingShoutExitMode ? pendingShoutExitMode : BasisTalkMode.Normal;
+                hasPendingShoutExitMode = false;
+                ApplyMode(target);
+                return;
+            }
+            OnLocalTalkModeChanged?.Invoke();
         }
 
         /// <summary>
@@ -170,6 +219,22 @@ namespace Basis.Scripts.Networking
                 if (LocalCanAnnounce() && BasisNetworkPlayer.LocalPlayer != null)
                 {
                     BasisNetworkModeration.EnableAnnounceMode(BasisNetworkPlayer.LocalPlayer.playerId);
+                }
+                return;
+            }
+
+            // A held shout is the server's to release, exactly as announce is. Asking rather than
+            // applying means a non-admin target is refused by the same permission check that put
+            // them here, while an admin's own request comes straight back and lands. The local
+            // mode is left alone either way — dropping the hold because LocalPlayer happened to
+            // be null would hand the target a way out that never reached the server at all.
+            if (adminShoutHeld && CurrentMode == BasisTalkMode.Shout && mode != BasisTalkMode.Shout)
+            {
+                pendingShoutExitMode = mode;
+                hasPendingShoutExitMode = true;
+                if (BasisNetworkPlayer.LocalPlayer != null)
+                {
+                    BasisNetworkModeration.DisableShoutMode(BasisNetworkPlayer.LocalPlayer.playerId);
                 }
                 return;
             }

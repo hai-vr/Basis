@@ -422,6 +422,11 @@ public static class BasisNetworkModeration
                 HandlePermissionQueryResult(reader);
                 break;
 
+            case AdminRequestMode.EnableShoutMode:
+            case AdminRequestMode.DisableShoutMode:
+                HandleShoutModeChanged(reader, mode == AdminRequestMode.EnableShoutMode);
+                break;
+
             case AdminRequestMode.EnableAnnounceMode:
             case AdminRequestMode.DisableAnnounceMode:
                 HandleAnnounceModeChanged(reader, mode == AdminRequestMode.EnableAnnounceMode);
@@ -564,6 +569,82 @@ public static class BasisNetworkModeration
 
         OnAnnounceModeChanged?.Invoke(targetPlayerId, enabled);
     }
+
+    #endregion
+
+    #region Shout Mode
+
+    /// <summary>
+    /// Fired when an admin grants or revokes shout mode for a player.
+    /// </summary>
+    public static event Action<ushort, bool> OnShoutModeChanged;
+
+    private static readonly HashSet<ushort> adminShoutPlayers = new HashSet<ushort>();
+
+    /// <summary>
+    /// True if an admin currently has this player in shout mode. This is the GRANT, not the
+    /// mode: a player who picked shout from their own menu bar is not in here. The audio
+    /// widening keys off <see cref="BasisRemotePlayer.TalkMode"/> either way; this only drives
+    /// the admin UI's enable/disable label.
+    /// </summary>
+    public static bool IsInShoutMode(ushort playerId) => adminShoutPlayers.Contains(playerId);
+
+    /// <summary>True if an admin currently has the local player in shout mode.</summary>
+    public static bool LocalPlayerInShoutMode =>
+        BasisNetworkPlayer.LocalPlayer != null && adminShoutPlayers.Contains(BasisNetworkPlayer.LocalPlayer.playerId);
+
+    private static void HandleShoutModeChanged(NetDataReader reader, bool enabled)
+    {
+        ushort targetPlayerId = reader.GetUShort();
+        ushort initiatorPlayerId = reader.AvailableBytes >= 2 ? reader.GetUShort() : targetPlayerId;
+        string state = enabled ? "enabled" : "disabled";
+        BasisDebug.Log($"Shout mode {state} for player {targetPlayerId}", BasisDebug.LogTag.Networking);
+
+        if (enabled) adminShoutPlayers.Add(targetPlayerId);
+        else adminShoutPlayers.Remove(targetPlayerId);
+
+        // Only the target acts on this. Unlike announce there is no second audio path to build
+        // for a remote shouter: the target enters the mode, its ordinary talk-mode broadcast
+        // reaches every client, and each listener's own transmit tick widens from there.
+        bool isLocalPlayer = BasisNetworkPlayer.LocalPlayer != null && targetPlayerId == BasisNetworkPlayer.LocalPlayer.playerId;
+        if (isLocalPlayer)
+        {
+            BasisTalkModeManager.OnAdminShoutChanged(enabled);
+
+            bool forcedByOther = initiatorPlayerId != targetPlayerId;
+            if (forcedByOther && !BasisTalkModeManager.LocalCanShout())
+            {
+                string initiatorName = ResolveDisplayName(initiatorPlayerId);
+                DisplayMessage(enabled
+                    ? $"{initiatorName} put you in shout mode - your voice now carries twice as far."
+                    : $"{initiatorName} took you out of shout mode - your voice is back to normal.");
+            }
+        }
+
+        OnShoutModeChanged?.Invoke(targetPlayerId, enabled);
+    }
+
+    /// <summary>
+    /// Admin: put a player into shout mode (double range, louder, still spatialized).
+    /// </summary>
+    public static void EnableShoutMode(ushort playerId)
+    {
+        SendAdminRequest(AdminRequestMode.EnableShoutMode,
+            w => w.Put(playerId));
+    }
+
+    /// <summary>
+    /// Admin: take a player back out of shout mode.
+    /// </summary>
+    public static void DisableShoutMode(ushort playerId)
+    {
+        SendAdminRequest(AdminRequestMode.DisableShoutMode,
+            w => w.Put(playerId));
+    }
+
+    #endregion
+
+    #region Announce Mode (continued)
 
     private static string ResolveDisplayName(ushort playerId)
     {

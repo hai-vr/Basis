@@ -348,6 +348,12 @@ namespace BasisNetworkServer.Security
                         HandleAnnounceMode(peer, reader, mode == AdminRequestMode.EnableAnnounceMode));
                     break;
 
+                case AdminRequestMode.EnableShoutMode:
+                case AdminRequestMode.DisableShoutMode:
+                    Require(peer, PermNodes.ModerationAnnounce, () =>
+                        HandleShoutMode(peer, reader, mode == AdminRequestMode.EnableShoutMode));
+                    break;
+
                 case AdminRequestMode.SetFullQualityBroadcast:
                     Require(peer, PermNodes.ModerationFullQualityBroadcast, () =>
                         HandleFullQualityBroadcast(peer, reader));
@@ -947,6 +953,13 @@ namespace BasisNetworkServer.Security
             ushort id = reader.GetUShort();
             Basis.Network.Server.Generic.BasisSavedState.SetAnnounceMode(id, enable);
             BasisServerHandle.BasisServerHandleEvents.BroadcastAnnounceModeState(id, enable, (ushort)peer.Id);
+        }
+
+        private static void HandleShoutMode(NetPeer peer, NetPacketReader reader, bool enable)
+        {
+            ushort id = reader.GetUShort();
+            Basis.Network.Server.Generic.BasisSavedState.SetShoutMode(id, enable);
+            BasisServerHandle.BasisServerHandleEvents.BroadcastShoutModeState(id, enable, (ushort)peer.Id);
         }
 
         private static void HandleFullQualityBroadcast(NetPeer peer, NetPacketReader reader)

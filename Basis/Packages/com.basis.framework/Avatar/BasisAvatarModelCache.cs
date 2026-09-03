@@ -372,7 +372,7 @@ public static class BasisAvatarModelCache
     public static int Count => _cache.Count;
 
     /// <summary>
-    /// Clears all cached data. Called on domain reload.
+    /// Clears all cached data. Called when play mode starts, and in the Editor when it ends.
     /// </summary>
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     public static void Clear()
@@ -394,6 +394,23 @@ public static class BasisAvatarModelCache
         _retiredCells.Clear();
         _cache.Clear();
     }
+
+#if UNITY_EDITOR
+    [UnityEditor.InitializeOnLoadMethod]
+    private static void HookEditorPlayModeClear()
+    {
+        UnityEditor.EditorApplication.playModeStateChanged -= OnEditorPlayModeStateChanged;
+        UnityEditor.EditorApplication.playModeStateChanged += OnEditorPlayModeStateChanged;
+    }
+
+    private static void OnEditorPlayModeStateChanged(UnityEditor.PlayModeStateChange change)
+    {
+        if (change == UnityEditor.PlayModeStateChange.EnteredEditMode)
+        {
+            Clear();
+        }
+    }
+#endif
 
     // ────────────────────────────────────────────────────────────
     //  T-pose hierarchy replay — see TposeHierarchyData

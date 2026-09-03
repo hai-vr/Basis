@@ -1,31 +1,53 @@
 using Basis.BasisUI;
 using Basis.Scripts.Networking;
+using BasisPermissions;
 using NUnit.Framework;
 
 /// <summary>
 /// Shout is the proximity loud mode: twice the microphone range, a broadband boost, and still on
 /// the ordinary spatialized voice path. It is the counterpart to Announce, which leaves the world
 /// entirely and is heard by everyone at the same level — so the two must not be confused for each
-/// other anywhere in the mode machinery, and shout must never take the announce permission path.
+/// other anywhere in the mode machinery. Both are opted into from the Admin tab and both are
+/// therefore gated on the same permission that tab is.
 /// </summary>
 public class BasisShoutModeTests
 {
     private bool _previousShout;
+    private bool _previousAnnounce;
     private bool _previousNoOne;
+    private bool _hadPermission;
 
     [SetUp]
     public void SetUp()
     {
         _previousShout = BasisSettingsDefaults.ShoutMode.RawValue;
+        _previousAnnounce = BasisSettingsDefaults.AnnounceShowOnMenuBar.RawValue;
         _previousNoOne = BasisSettingsDefaults.TalkToNoOne.RawValue;
+        _hadPermission = BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsView);
     }
 
     [TearDown]
     public void TearDown()
     {
+        BasisTalkModeManager.OnAdminShoutChanged(false);
         BasisTalkModeManager.SetMode(BasisTalkMode.Normal);
         BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(_previousShout);
+        BasisSettingsDefaults.AnnounceShowOnMenuBar.SetValueWithoutNotify(_previousAnnounce);
         BasisSettingsDefaults.TalkToNoOne.SetValueWithoutNotify(_previousNoOne);
+        SetPermission(_hadPermission);
+    }
+
+    private static void SetPermission(bool granted)
+    {
+        if (granted) BasisNetworkManagement.LocalPermissions.Add(PermNodes.PermissionsView);
+        else BasisNetworkManagement.LocalPermissions.Remove(PermNodes.PermissionsView);
+    }
+
+    /// <summary>Shout opted into, and the admin rights that opt-in is only reachable through.</summary>
+    private static void EnableShout()
+    {
+        SetPermission(true);
+        BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(true);
     }
 
     [Test]
@@ -50,6 +72,8 @@ public class BasisShoutModeTests
     [Test]
     public void ModeIsOfferedOnlyWhenEnabled()
     {
+        SetPermission(true);
+
         BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(false);
         Assert.IsFalse(BasisTalkModeManager.ModeAvailable(BasisTalkMode.Shout));
 
@@ -57,10 +81,27 @@ public class BasisShoutModeTests
         Assert.IsTrue(BasisTalkModeManager.ModeAvailable(BasisTalkMode.Shout));
     }
 
+    /// <summary>
+    /// The toggle is persisted per machine but the permission is not — losing admin has to take
+    /// shout away with it, otherwise the stored pref keeps a demoted admin shouting forever.
+    /// </summary>
+    [Test]
+    public void TheToggleAloneIsNotEnoughWithoutThePermission()
+    {
+        BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(true);
+
+        SetPermission(false);
+        Assert.IsFalse(BasisTalkModeManager.ShoutAvailable());
+        Assert.IsFalse(BasisTalkModeManager.ModeAvailable(BasisTalkMode.Shout));
+
+        SetPermission(true);
+        Assert.IsTrue(BasisTalkModeManager.ShoutAvailable());
+    }
+
     [Test]
     public void CycleReachesShoutWhenEnabled()
     {
-        BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(true);
+        EnableShout();
         BasisTalkModeManager.SetMode(BasisTalkMode.Normal);
 
         for (int Step = 0; Step < 8 && BasisTalkModeManager.CurrentMode != BasisTalkMode.Shout; Step++)
@@ -74,6 +115,7 @@ public class BasisShoutModeTests
     [Test]
     public void CycleSkipsShoutWhenDisabled()
     {
+        SetPermission(true);
         BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(false);
         BasisTalkModeManager.SetMode(BasisTalkMode.Normal);
 
@@ -92,7 +134,7 @@ public class BasisShoutModeTests
     [Test]
     public void ShoutAppliesLocallyWithoutAServerRoundTrip()
     {
-        BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(true);
+        EnableShout();
         BasisTalkModeManager.SetMode(BasisTalkMode.Shout);
 
         Assert.AreEqual(BasisTalkMode.Shout, BasisTalkModeManager.CurrentMode);
@@ -102,7 +144,7 @@ public class BasisShoutModeTests
     [Test]
     public void ShoutStillTransmitsAndReachesEveryoneInRange()
     {
-        BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(true);
+        EnableShout();
         BasisTalkModeManager.SetMode(BasisTalkMode.Shout);
 
         // Not a private mode: the recipient list comes from microphone range, not a member set,
@@ -120,7 +162,7 @@ public class BasisShoutModeTests
     [Test]
     public void CycleLeavesShoutOnceTheSettingIsOff()
     {
-        BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(true);
+        EnableShout();
         BasisTalkModeManager.SetMode(BasisTalkMode.Shout);
         Assert.AreEqual(BasisTalkMode.Shout, BasisTalkModeManager.CurrentMode);
 
@@ -131,10 +173,69 @@ public class BasisShoutModeTests
         Assert.IsFalse(BasisTalkModeManager.LocalIsShouting);
     }
 
+    /// <summary>
+    /// An admin can put someone into shout from the player menu. The grant arrives as a server
+    /// broadcast, so the target enters the mode without having opted into the menu-bar toggle and
+    /// without holding the permission themselves — the whole point of it being a grant.
+    /// </summary>
+    [Test]
+    public void AnAdminGrantPutsYouInShoutWithoutTheToggleOrThePermission()
+    {
+        SetPermission(false);
+        BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(false);
+        BasisTalkModeManager.SetMode(BasisTalkMode.Normal);
+
+        BasisTalkModeManager.OnAdminShoutChanged(true);
+
+        Assert.AreEqual(BasisTalkMode.Shout, BasisTalkModeManager.CurrentMode);
+        Assert.IsTrue(BasisTalkModeManager.LocalIsShouting);
+        Assert.IsTrue(BasisTalkModeManager.ShoutAvailable(), "the mode we are in must never read as unavailable.");
+    }
+
+    [Test]
+    public void RevokingAnAdminGrantReturnsToNormal()
+    {
+        SetPermission(false);
+        BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(false);
+        BasisTalkModeManager.OnAdminShoutChanged(true);
+        Assert.AreEqual(BasisTalkMode.Shout, BasisTalkModeManager.CurrentMode);
+
+        BasisTalkModeManager.OnAdminShoutChanged(false);
+
+        Assert.AreEqual(BasisTalkMode.Normal, BasisTalkModeManager.CurrentMode);
+        Assert.IsFalse(BasisTalkModeManager.LocalIsShouting);
+        Assert.IsFalse(BasisTalkModeManager.ShoutAvailable(), "with the grant gone and no toggle, shout is unavailable again.");
+    }
+
+    /// <summary>
+    /// A held shout is the server's to release. Cycling must not walk out of it locally, or a
+    /// moderator's grant lasts exactly as long as it takes the target to press the mode button.
+    /// </summary>
+    [Test]
+    public void CycleCannotWalkOutOfAnAdminHeldShout()
+    {
+        SetPermission(false);
+        BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(false);
+        BasisSettingsDefaults.TalkToNoOne.SetValueWithoutNotify(true);
+        BasisTalkModeManager.OnAdminShoutChanged(true);
+
+        for (int Step = 0; Step < 8; Step++)
+        {
+            BasisTalkModeManager.CycleMode();
+            Assert.AreEqual(BasisTalkMode.Shout, BasisTalkModeManager.CurrentMode,
+                "a held shout only ends when the server says so.");
+        }
+
+        BasisTalkModeManager.OnAdminShoutChanged(false);
+        Assert.AreEqual(BasisTalkMode.Normal, BasisTalkModeManager.CurrentMode);
+    }
+
     [Test]
     public void ShoutAloneIsEnoughToShowTheModeButton()
     {
+        SetPermission(true);
         BasisSettingsDefaults.TalkToNoOne.SetValueWithoutNotify(false);
+        BasisSettingsDefaults.AnnounceShowOnMenuBar.SetValueWithoutNotify(false);
         BasisTalkModeManager.SetMode(BasisTalkMode.Normal);
 
         BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(false);

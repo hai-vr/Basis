@@ -5471,6 +5471,26 @@
       "value": "Toggle non-spatialized broadcast voice for this player."
     },
     {
+      "key": "menu.individualPlayer.shout.description",
+      "value": "Toggle shout mode for this player - double range and louder, still spatial."
+    },
+    {
+      "key": "menu.individualPlayer.shout.enable",
+      "value": "Enable Shout Mode"
+    },
+    {
+      "key": "menu.individualPlayer.shout.enable.tooltip",
+      "value": "Let this player's voice carry twice as far and louder, while staying spatial."
+    },
+    {
+      "key": "menu.individualPlayer.shout.disable",
+      "value": "Disable Shout Mode"
+    },
+    {
+      "key": "menu.individualPlayer.shout.disable.tooltip",
+      "value": "Return this player's voice to its normal range and level."
+    },
+    {
       "key": "menu.individualPlayer.muteVoice",
       "value": "Server Voice Mute"
     },
@@ -7139,11 +7159,11 @@
       "value": "Adds a \"No One\" step to the mic mode button next to mute. Your microphone stays on so your avatar’s mouth keeps moving, but nobody hears you."
     },
     {
-      "key": "settings.microphone.shoutMode",
-      "value": "Shout Mode"
+      "key": "settings.admin.title.showShoutOnMenuBar",
+      "value": "Show Shout On Menu Bar"
     },
     {
-      "key": "settings.microphone.shoutMode.tooltip",
+      "key": "settings.admin.title.showShoutOnMenuBar.tooltip",
       "value": "Adds Shout to the mic-mode button. Shout carries your voice twice as far and louder, and stays fully spatial, so people still hear where you are."
     },
     {
@@ -14253,6 +14273,10 @@
       "value": "Announce"
     },
     {
+      "key": "settings.admin.title.audioModes",
+      "value": "Audio Modes"
+    },
+    {
       "key": "settings.admin.title.showAnnounceOnMenuBar",
       "value": "Show Announce On Menu Bar"
     },
@@ -16479,6 +16503,30 @@
     {
       "key": "settings.admin.confirm.announceEnable.title",
       "value": "Enable announce mode?"
+    },
+    {
+      "key": "settings.admin.confirm.shoutEnable.title",
+      "value": "Enable shout mode?"
+    },
+    {
+      "key": "settings.admin.confirm.shoutEnable.body",
+      "value": "Give this player double voice range and more level, with the audio still spatial?"
+    },
+    {
+      "key": "settings.admin.confirm.shoutEnable.confirm",
+      "value": "Enable"
+    },
+    {
+      "key": "settings.admin.confirm.shoutDisable.title",
+      "value": "Disable shout mode?"
+    },
+    {
+      "key": "settings.admin.confirm.shoutDisable.body",
+      "value": "Return this player's voice to its normal range and level?"
+    },
+    {
+      "key": "settings.admin.confirm.shoutDisable.confirm",
+      "value": "Disable"
     },
     {
       "key": "settings.admin.confirm.teleportAll.body",

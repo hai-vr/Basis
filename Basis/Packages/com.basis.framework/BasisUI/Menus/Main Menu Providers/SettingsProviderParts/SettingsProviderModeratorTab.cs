@@ -1056,6 +1056,18 @@ namespace Basis.BasisUI
                         BasisNetworkModeration.DisableAnnounceMode(target.playerId);
                 });
 
+                RectTransform shoutRow = PanelElementDescriptor.BuildActionRow(content, "ShoutRow");
+                RowButton(shoutRow, "menu.individualPlayer.shout.enable", "settings.admin.confirm.shoutEnable", () =>
+                {
+                    if (TryResolveTarget(out BasisNetworkPlayer target))
+                        BasisNetworkModeration.EnableShoutMode(target.playerId);
+                });
+                RowButton(shoutRow, "menu.individualPlayer.shout.disable", "settings.admin.confirm.shoutDisable", () =>
+                {
+                    if (TryResolveTarget(out BasisNetworkPlayer target))
+                        BasisNetworkModeration.DisableShoutMode(target.playerId);
+                });
+
                 RectTransform qualityRow = PanelElementDescriptor.BuildActionRow(content, "QualityRow");
                 RowButton(qualityRow, "menu.individualPlayer.fullquality.enable", "settings.admin.confirm.fullQualityEnable", () =>
                 {

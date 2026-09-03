@@ -281,6 +281,15 @@ namespace BasisNetworkCore.Serializable
             // Payload: [ushort targetPlayerId][byte AdminPermissionQueryKind][string value]
             //          [bool held][bool targetFound]
             QueryPermissionResult,
+
+            // admin: put a player into shout mode - twice their microphone range and a level
+            // boost, still fully spatialized. Unlike announce this carries no separate voice
+            // channel: the target client enters the mode and its ordinary talk-mode broadcast
+            // is what widens every listener. Appended at the end of the enum so no existing
+            // value renumbers.
+            // Payload: [ushort targetPlayerId]
+            EnableShoutMode,
+            DisableShoutMode,   // admin: take a player back out of shout mode
         }
 
         /// <summary>

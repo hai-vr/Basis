@@ -1433,6 +1433,29 @@ namespace Basis.BasisUI
                         BasisNetworkModeration.EnableAnnounceMode(announcePlayerId);
                 };
 
+                PanelButton shoutBtn = PanelButton.CreateNew(adminGroup.ContentParent);
+                shoutBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.shout.description"));
+
+                void PaintDetailShout()
+                {
+                    if (shoutBtn == null || shoutBtn.Descriptor == null) return;
+                    shoutBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                        hasAnnounceTarget && BasisNetworkModeration.IsInShoutMode(announcePlayerId)
+                            ? "menu.individualPlayer.shout.disable"
+                            : "menu.individualPlayer.shout.enable"));
+                }
+                PaintDetailShout();
+                sync.Shout += PaintDetailShout;
+
+                shoutBtn.OnClicked += () =>
+                {
+                    if (!hasAnnounceTarget) return;
+                    if (BasisNetworkModeration.IsInShoutMode(announcePlayerId))
+                        BasisNetworkModeration.DisableShoutMode(announcePlayerId);
+                    else
+                        BasisNetworkModeration.EnableShoutMode(announcePlayerId);
+                };
+
                 // Server-enforced mutes. The admin client doesn't track the target's current
                 // state, so like the full-quality toggle these start off and send the explicit
                 // state on change — the server's reply popup reports the authoritative result.
@@ -1962,6 +1985,26 @@ namespace Basis.BasisUI
                 });
             };
             BasisNetworkModeration.OnAnnounceModeChanged += announceHandler;
+
+            Action<ushort, bool> shoutHandler = null;
+            shoutHandler = (changedId, _) =>
+            {
+                if (!BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer shoutTarget)
+                    || changedId != shoutTarget.playerId)
+                {
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    if (panel == null || panel.Descriptor == null)
+                    {
+                        BasisNetworkModeration.OnShoutModeChanged -= shoutHandler;
+                        return;
+                    }
+                    sync.Shout?.Invoke();
+                });
+            };
+            BasisNetworkModeration.OnShoutModeChanged += shoutHandler;
 
             panel.Descriptor.ForceRebuild();
             panel.Descriptor.ForceRebuild();

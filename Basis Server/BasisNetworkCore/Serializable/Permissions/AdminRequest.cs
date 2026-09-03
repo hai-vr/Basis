@@ -53,8 +53,8 @@ namespace BasisNetworkCore.Serializable
             DeleteGroup,        // admin: delete a permission group
             SetGroupParent,     // admin: add/remove a parent group from a group
 
-            EnableShoutMode,    // admin: enable shout mode for a player (non-spatialized broadcast voice)
-            DisableShoutMode,   // admin: disable shout mode for a player
+            EnableAnnounceMode,    // admin: enable announce mode for a player (non-spatialized broadcast voice)
+            DisableAnnounceMode,   // admin: disable announce mode for a player
 
             GlobalToggleAvatars, // admin: toggle global avatar loading lock
             GlobalToggleProps,   // admin: toggle global prop loading lock
@@ -169,7 +169,7 @@ namespace BasisNetworkCore.Serializable
             // past it. State is appended as the trailing bool in GlobalGetLockState.
             GlobalToggleTextChat,
 
-            // admin: toggle the global voice lock. While set the server drops normal and shout voice
+            // admin: toggle the global voice lock. While set the server drops normal and announce voice
             // from peers without basis.voice.lockbypass, so a modified client can't talk past it.
             // State is appended as a trailing bool in GlobalGetLockState.
             GlobalToggleVoiceChat,
@@ -249,7 +249,7 @@ namespace BasisNetworkCore.Serializable
             GlobalGetPeerLimit, // server→client: current maximum player count. Payload: [int peerLimit]
 
             // moderator: set one player's voice-mute state. While muted the server drops their
-            // normal and shout voice at the source. Keyed by UUID and persisted
+            // normal and announce voice at the source. Keyed by UUID and persisted
             // (muted_players.xml), so a rejoin stays muted until a moderator unmutes.
             // Payload: [string uuid][bool muted]
             SetVoiceMute,
@@ -281,6 +281,15 @@ namespace BasisNetworkCore.Serializable
             // Payload: [ushort targetPlayerId][byte AdminPermissionQueryKind][string value]
             //          [bool held][bool targetFound]
             QueryPermissionResult,
+
+            // admin: put a player into shout mode - twice their microphone range and a level
+            // boost, still fully spatialized. Unlike announce this carries no separate voice
+            // channel: the target client enters the mode and its ordinary talk-mode broadcast
+            // is what widens every listener. Appended at the end of the enum so no existing
+            // value renumbers.
+            // Payload: [ushort targetPlayerId]
+            EnableShoutMode,
+            DisableShoutMode,   // admin: take a player back out of shout mode
         }
 
         /// <summary>

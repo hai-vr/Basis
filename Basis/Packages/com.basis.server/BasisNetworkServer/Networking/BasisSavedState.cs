@@ -14,6 +14,7 @@ namespace Basis.Network.Server.Generic
         private static readonly ConcurrentDictionary<int, ClientMetaDataMessage> playerMetaDataMessages = new();
         private static readonly ConcurrentDictionary<int, List<NetPeer>> resolvedVoicePeers = new();
         private static readonly ConcurrentDictionary<int, bool> announceModeStates = new();
+        private static readonly ConcurrentDictionary<int, bool> shoutModeStates = new();
 
         /// <summary>
         /// Removes all state data for a specific player and purges them
@@ -25,6 +26,7 @@ namespace Basis.Network.Server.Generic
             playerMetaDataMessages.TryRemove(id, out _);
             resolvedVoicePeers.TryRemove(id, out _);
             announceModeStates.TryRemove(id, out _);
+            shoutModeStates.TryRemove(id, out _);
 
             // Purge the disconnected peer from all other players' cached lists
             // so voice packets aren't sent to a dead peer until the next recipient update.
@@ -183,6 +185,37 @@ namespace Basis.Network.Server.Generic
         public static int[] GetAllAnnounceModePlayers()
         {
             return announceModeStates.Keys.ToArray();
+        }
+
+        /// <summary>
+        /// Sets admin-granted shout mode state for a player.
+        /// </summary>
+        public static void SetShoutMode(int peerId, bool enabled)
+        {
+            if (enabled)
+            {
+                shoutModeStates[peerId] = true;
+            }
+            else
+            {
+                shoutModeStates.TryRemove(peerId, out _);
+            }
+        }
+
+        /// <summary>
+        /// Returns true if an admin currently has the player in shout mode.
+        /// </summary>
+        public static bool IsInShoutMode(int peerId)
+        {
+            return shoutModeStates.TryGetValue(peerId, out _);
+        }
+
+        /// <summary>
+        /// Returns all player IDs an admin currently has in shout mode.
+        /// </summary>
+        public static int[] GetAllShoutModePlayers()
+        {
+            return shoutModeStates.Keys.ToArray();
         }
     }
 }

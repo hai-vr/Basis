@@ -209,7 +209,7 @@ public class PermissionManagerTests
         Assert.Equal("basis.moderation.message", PermNodes.ModerationMessage);
         Assert.Equal("basis.moderation.messageall", PermNodes.ModerationMessageAll);
         Assert.Equal("basis.moderation.teleport", PermNodes.ModerationTeleport);
-        Assert.Equal("basis.moderation.shout", PermNodes.ModerationShout);
+        Assert.Equal("basis.moderation.announce", PermNodes.ModerationAnnounce);
         Assert.Equal("basis.moderation.globallock", PermNodes.ModerationGlobalLock);
         Assert.Equal("basis.moderation.headlessaudio", PermNodes.ModerationHeadlessAudio);
         Assert.Equal("basis.moderation.opusbitrate", PermNodes.ModerationOpusBitrate);
@@ -249,7 +249,7 @@ public class PermissionManagerTests
         "basis.moderation.message",
         "basis.moderation.messageall",
         "basis.moderation.teleport",
-        "basis.moderation.shout",
+        "basis.moderation.announce",
         "basis.permissions.view",
         "basis.permissions.edit",
         "basis.moderation.headlessaudio",

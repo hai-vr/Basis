@@ -29,6 +29,7 @@ namespace Basis.BasisUI
             public Action TalkModes;
             public Action DirectConnection;
             public Action Announce;
+            public Action Shout;
             public Action EyeHeight;
         }
 
@@ -408,6 +409,31 @@ namespace Basis.BasisUI
                         BasisNetworkModeration.DisableAnnounceMode(netPlayerId);
                     else
                         BasisNetworkModeration.EnableAnnounceMode(netPlayerId);
+                };
+            }
+
+            // ---- Shout mode (admin only, same gate the Admin tab uses) ----
+            if (hasNetTarget && BasisTalkModeManager.LocalCanShout())
+            {
+                PanelButton shoutBtn = NewAction("menu.individualPlayer.shout.description");
+                void PaintShout()
+                {
+                    if (shoutBtn == null || shoutBtn.Descriptor == null) return;
+                    shoutBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                        BasisNetworkModeration.IsInShoutMode(netPlayerId)
+                            ? "menu.individualPlayer.shout.disable"
+                            : "menu.individualPlayer.shout.enable"));
+                }
+                PaintShout();
+                sync.Shout += PaintShout;
+                // Same server round trip as announce, so the repaint comes from
+                // BasisNetworkModeration.OnShoutModeChanged once the grant lands.
+                shoutBtn.OnClicked += () =>
+                {
+                    if (BasisNetworkModeration.IsInShoutMode(netPlayerId))
+                        BasisNetworkModeration.DisableShoutMode(netPlayerId);
+                    else
+                        BasisNetworkModeration.EnableShoutMode(netPlayerId);
                 };
             }
 
