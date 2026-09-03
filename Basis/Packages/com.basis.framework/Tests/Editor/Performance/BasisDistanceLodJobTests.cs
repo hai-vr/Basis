@@ -30,7 +30,7 @@ namespace Basis.Tests.Performance
             public NativeArray<short> PrevMeshLod;
             public NativeArray<float> DistanceSq, PerIndexMinD2;
             public NativeArray<short> MeshLod, PoseLod;
-            public NativeArray<bool> Mic, Hearing, Avatar, MeshLodChanged;
+            public NativeArray<bool> Mic, Hearing, Avatar, MeshLodChanged, Shouting;
             public NativeArray<int> PerIndexMask;
             public readonly int Count;
 
@@ -50,6 +50,7 @@ namespace Basis.Tests.Performance
                 Hearing = new NativeArray<bool>(Count, Allocator.Temp);
                 Avatar = new NativeArray<bool>(Count, Allocator.Temp);
                 MeshLodChanged = new NativeArray<bool>(Count, Allocator.Temp);
+                Shouting = new NativeArray<bool>(Count, Allocator.Temp);
                 PerIndexMask = new NativeArray<int>(Count, Allocator.Temp);
             }
 
@@ -62,13 +63,16 @@ namespace Basis.Tests.Performance
                 float3 gazeForward = default,
                 float cosHalfCone = 1f,
                 float gazeBoost = 1f,
-                float3 reference = default)
+                float3 reference = default,
+                float shoutRangeMultiplierSquared = 1f)
             {
                 BasisDistanceJobParallel job = new BasisDistanceJobParallel
                 {
                     SquaredVoiceDistance = voiceSq,
                     SquaredHearingDistance = hearingSq,
                     SquaredAvatarDistance = avatarSq,
+                    ShoutRangeMultiplierSquared = shoutRangeMultiplierSquared,
+                    RemoteIsShouting = Shouting,
                     HysteresisPercent = Hysteresis,
                     ReductionMultiplier = reductionMultiplier,
                     UseEyeGaze = useEyeGaze,
@@ -112,6 +116,7 @@ namespace Basis.Tests.Performance
                 Hearing.Dispose();
                 Avatar.Dispose();
                 MeshLodChanged.Dispose();
+                Shouting.Dispose();
                 PerIndexMask.Dispose();
             }
         }
@@ -187,6 +192,38 @@ namespace Basis.Tests.Performance
             Assert.That(h.Mic[0], Is.False);
             Assert.That(h.Hearing[0], Is.True);
             Assert.That(h.Avatar[0], Is.False);
+        }
+
+        // ── shout ─────────────────────────────────────────────────────────────
+
+        [Test]
+        public void AShouterIsHeardBeyondTheOrdinaryHearingRange()
+        {
+            // 30 m out with a 25 m hearing range: silent normally, audible when shouting,
+            // because shout multiplies the hearing test for that remote alone.
+            using Harness h = new Harness(Ahead(30f));
+
+            h.Run(voiceSq: 25f * 25f, hearingSq: 25f * 25f, avatarSq: 25f * 25f);
+            Assert.That(h.Hearing[0], Is.False);
+
+            h.Shouting[0] = true;
+            h.Run(voiceSq: 25f * 25f, hearingSq: 25f * 25f, avatarSq: 25f * 25f, shoutRangeMultiplierSquared: 4f);
+            Assert.That(h.Hearing[0], Is.True);
+        }
+
+        [Test]
+        public void ShoutWidensHearingOnlyForTheShouter()
+        {
+            // Two players at the same distance, one shouting: the widening must not leak
+            // into the shared range, and must not touch the avatar or microphone gates.
+            using Harness h = new Harness(Ahead(30f), Ahead(30f));
+            h.Shouting[1] = true;
+            h.Run(voiceSq: 25f * 25f, hearingSq: 25f * 25f, avatarSq: 25f * 25f, shoutRangeMultiplierSquared: 4f);
+
+            Assert.That(h.Hearing[0], Is.False, "a non-shouter at the same distance must stay out of range.");
+            Assert.That(h.Hearing[1], Is.True);
+            Assert.That(h.Avatar[1], Is.False, "shout carries voice, not draw distance.");
+            Assert.That(h.Mic[1], Is.False, "the shouter's own microphone range is the talker's business, not the listener's.");
         }
 
         // ── change mask ───────────────────────────────────────────────────────
