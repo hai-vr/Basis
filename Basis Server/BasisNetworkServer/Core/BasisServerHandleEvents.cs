@@ -17,6 +17,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using BasisNetworkServer.Networking;
 using static Basis.Network.Core.Serializable.SerializableBasis;
 using static BasisNetworkCore.Serializable.SerializableBasis;
 using static BasisPermissions.PermissionManager;
@@ -478,11 +479,11 @@ namespace BasisServerHandle
                         BNL.Log($"Peer removed: {id}");
                     if (hasLastPlayerMetaData)
                     {
-                        BNL.Log($"[EVENT] User left: {meta.playerDisplayName} ({meta.playerUUID}) [{peer.Address}]");
+                        HVREventLog.PreLog($"User left: {meta.playerDisplayName}", peer);
                     }
                     else
                     {
-                        BNL.Log($"[EVENT] User left: unknown (???) [{peer.Address}]");
+                        HVREventLog.PreLog("User left: unknown", peer);
                     }
                     }
                     else if (slotHeldByAnother)
@@ -771,7 +772,7 @@ namespace BasisServerHandle
                     JoinBroadcast.RegisterPeer(newPeer.Id, JoinBroadcast.NextSeq());
                     NetworkServer.RebuildPeerSnapshot();
                     joinSnapshot = NetworkServer.PeerSnapshot;
-                    BNL.Log($"[EVENT] User joined: {ReadyMessage.playerMetaDataMessage.playerDisplayName} ({UUID}) [{newPeer.Address}]");
+                    HVREventLog.PreLog($"User joined: {ReadyMessage.playerMetaDataMessage.playerDisplayName}", newPeer);
                 }
             }
 
