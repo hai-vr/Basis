@@ -208,8 +208,14 @@ namespace BasisNetworkServer.BasisNetworking
             if (chatMessage.payload != null && chatMessage.payloadSize > 0)
             {
                 string text = Encoding.UTF8.GetString(chatMessage.payload, 0, chatMessage.payloadSize);
-                
-                HVREventLog.PreLog($"Chat: {text}", sender);
+
+                {
+                    // We just want to log the chat for the purpose of debugging network issues (sometimes chat text isn't received by some clients).
+                    // Only keep the first 3 characters so that we don't pollute the server logs with private information.
+                    var loggingChat = text;
+                    if (loggingChat.Length > 3) loggingChat = $"{loggingChat.Substring(0, 3)}... ({text.Length} characters)";
+                    HVREventLog.PreLog($"Chat: {loggingChat}", sender);
+                }
 
                 // Apply word filter
                 text = FilterMessage(text);
