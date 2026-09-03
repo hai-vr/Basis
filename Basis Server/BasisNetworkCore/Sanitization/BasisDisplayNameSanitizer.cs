@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
@@ -11,6 +12,8 @@ namespace Basis.Network.Core
     /// </summary>
     public static class BasisDisplayNameSanitizer
     {
+        private const int LimitedUsernameLength = 16;
+
         private static readonly char[] InvisibleGlyphs =
         {
             (char)0x115F,
@@ -20,6 +23,8 @@ namespace Basis.Network.Core
             (char)0x2800,
             (char)0x180E,
         };
+
+        private static readonly Dictionary<string, string> StrippedNames = new();
 
         public static string Sanitize(string displayName)
         {
@@ -48,14 +53,15 @@ namespace Basis.Network.Core
 
             return builder.ToString().Trim();
         }
-
-        public static string StripTags(string input)
+        
+        public static string LimitUsername(string username)
         {
-            if (string.IsNullOrEmpty(input)) return string.Empty;
+            if (StrippedNames.TryGetValue(username, out string output)) return output;
+            if (string.IsNullOrEmpty(username)) return string.Empty;
 
-            StringBuilder builder = new StringBuilder(input.Length);
+            StringBuilder builder = new StringBuilder(username.Length);
             bool inTag = false;
-            foreach (char c in input)
+            foreach (char c in username)
             {
                 if (c == '<')
                 {
@@ -92,7 +98,14 @@ namespace Basis.Network.Core
                     lastWasSpace = false;
                 }
             }
-            return finalBuilder.ToString().Trim();
+
+            var strippedName = finalBuilder.ToString().Trim();
+            if (strippedName.Length > LimitedUsernameLength)
+            {
+                strippedName = $"{strippedName.Substring(0, LimitedUsernameLength - 3)}...";
+            }
+            StrippedNames[username] = strippedName;
+            return strippedName;
         }
 
         public static bool IsValid(string displayName)
