@@ -120,7 +120,7 @@ namespace BasisServerHandle
                             NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) &&
                             PermissionIntegration.TryGetPlayerMeta(uuid, out var meta))
                         {
-                            names.Add(BasisDisplayNameSanitizer.StripTags(meta.playerDisplayName));
+                            names.Add(BasisDisplayNameSanitizer.LimitUsername(meta.playerDisplayName));
                         }
                     }
 
