@@ -29,8 +29,6 @@ namespace Basis.Scripts.Networking
         /// the target cycles straight back out of a mode a moderator just put them in.
         /// </summary>
         private static bool adminShoutHeld;
-        private static BasisTalkMode pendingShoutExitMode;
-        private static bool hasPendingShoutExitMode;
 
         [RuntimeInitializeOnLoadMethod]
         private static void Init()
@@ -102,17 +100,19 @@ namespace Basis.Scripts.Networking
             adminShoutHeld = enabled;
             if (enabled)
             {
-                hasPendingShoutExitMode = false;
                 if (CurrentMode != BasisTalkMode.Shout) ApplyMode(BasisTalkMode.Shout);
                 else OnLocalTalkModeChanged?.Invoke();
                 return;
             }
 
+            // Always Normal, never a mode the target asked for while held. Announce carries a
+            // pending exit because its request is answered at once; a held shout's release can be
+            // refused and then sit unanswered until a moderator lifts it minutes later, and
+            // landing the player in whatever they last poked back then is a surprise, not a
+            // courtesy.
             if (CurrentMode == BasisTalkMode.Shout)
             {
-                BasisTalkMode target = hasPendingShoutExitMode ? pendingShoutExitMode : BasisTalkMode.Normal;
-                hasPendingShoutExitMode = false;
-                ApplyMode(target);
+                ApplyMode(BasisTalkMode.Normal);
                 return;
             }
             OnLocalTalkModeChanged?.Invoke();
@@ -230,8 +230,6 @@ namespace Basis.Scripts.Networking
             // be null would hand the target a way out that never reached the server at all.
             if (adminShoutHeld && CurrentMode == BasisTalkMode.Shout && mode != BasisTalkMode.Shout)
             {
-                pendingShoutExitMode = mode;
-                hasPendingShoutExitMode = true;
                 if (BasisNetworkPlayer.LocalPlayer != null)
                 {
                     BasisNetworkModeration.DisableShoutMode(BasisNetworkPlayer.LocalPlayer.playerId);
