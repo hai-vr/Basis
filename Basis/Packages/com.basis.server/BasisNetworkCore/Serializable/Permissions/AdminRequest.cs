@@ -265,6 +265,34 @@ namespace BasisNetworkCore.Serializable
             // out and the mic can stop uploading a stream the server discards.
             // Payload: [bool voiceMuted][bool textMuted]
             MuteStateApply,
+
+            // Ask whether ONE player currently in this instance holds one permission node, or
+            // belongs to one permission group. Deliberately not gated: GetPermissions hands over
+            // the whole table and needs basis.permissions.view, while this answers a single
+            // yes/no about someone already visible in the room, which is what a staff nameplate
+            // or a moderator-only door needs. Bounded to connected players so it cannot be used
+            // to walk the store, and rate limited per peer so it cannot be used to enumerate one
+            // at speed. Requests that name an absent player answer false with TargetFound clear.
+            // Payload: [ushort targetPlayerId][byte AdminPermissionQueryKind][string value]
+            QueryPermission,
+
+            // server→client: the answer to a QueryPermission. Echoes the request so a caller can
+            // match a reply to what it asked without the protocol carrying a request id.
+            // Payload: [ushort targetPlayerId][byte AdminPermissionQueryKind][string value]
+            //          [bool held][bool targetFound]
+            QueryPermissionResult,
+        }
+
+        /// <summary>
+        /// What a <see cref="AdminRequestMode.QueryPermission"/> is asking about.
+        /// </summary>
+        public enum AdminPermissionQueryKind : byte
+        {
+            /// <summary>A permission node, e.g. basis.moderation.kick. Wildcards resolve normally.</summary>
+            Node,
+
+            /// <summary>A permission group ("role"), matched through parent-group inheritance.</summary>
+            Group,
         }
     }
 }

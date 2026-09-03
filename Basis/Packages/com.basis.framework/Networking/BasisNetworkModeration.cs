@@ -418,6 +418,10 @@ public static class BasisNetworkModeration
                 HandlePermissionsResponse(reader);
                 break;
 
+            case AdminRequestMode.QueryPermissionResult:
+                HandlePermissionQueryResult(reader);
+                break;
+
             case AdminRequestMode.EnableShoutMode:
             case AdminRequestMode.DisableShoutMode:
                 HandleShoutModeChanged(reader, mode == AdminRequestMode.EnableShoutMode);
@@ -754,6 +758,86 @@ public static class BasisNetworkModeration
     public static void RequestPermissions()
     {
         SendAdminRequest(AdminRequestMode.GetPermissions);
+    }
+
+    /// <summary>
+    /// One server answer to <see cref="QueryPermissionNode"/> or <see cref="QueryPermissionGroup"/>.
+    /// The request is echoed back in full, so a caller matches a reply by comparing what it asked
+    /// rather than by tracking a request id — which also means one reply satisfies every caller
+    /// that happened to ask the same question.
+    /// </summary>
+    public struct PermissionQueryResult
+    {
+        /// <summary>Player the question was about.</summary>
+        public ushort PlayerId;
+
+        /// <summary>Whether <see cref="Value"/> named a permission node or a group.</summary>
+        public AdminPermissionQueryKind Kind;
+
+        /// <summary>The node or group name that was asked about.</summary>
+        public string Value;
+
+        /// <summary>The answer. Always false when <see cref="PlayerFound"/> is false.</summary>
+        public bool Held;
+
+        /// <summary>False when that player was not connected by the time the server looked.</summary>
+        public bool PlayerFound;
+    }
+
+    /// <summary>
+    /// Fired for every permission query answered by the server.
+    /// </summary>
+    public static event Action<PermissionQueryResult> OnPermissionQueryResult;
+
+    /// <summary>
+    /// Ask the server whether one player currently in this instance holds a permission node.
+    /// Any user may ask — unlike <see cref="RequestPermissions"/>, this returns one yes/no about
+    /// one player rather than the whole table. The answer arrives on
+    /// <see cref="OnPermissionQueryResult"/>; the server rate limits per peer and silently drops
+    /// what is over budget, so a query is not guaranteed an answer. For the local player read
+    /// <see cref="BasisNetworkManagement.LocalPermissions"/> directly instead — it is already here.
+    /// </summary>
+    public static void QueryPermissionNode(ushort playerId, string node)
+    {
+        if (ValidateString(node, nameof(node)))
+        {
+            SendPermissionQuery(playerId, AdminPermissionQueryKind.Node, node);
+        }
+    }
+
+    /// <summary>
+    /// Ask the server whether one player currently in this instance belongs to a permission group
+    /// ("role"), counting groups inherited through a parent chain. Same delivery and limits as
+    /// <see cref="QueryPermissionNode"/>.
+    /// </summary>
+    public static void QueryPermissionGroup(ushort playerId, string group)
+    {
+        if (ValidateString(group, nameof(group)))
+        {
+            SendPermissionQuery(playerId, AdminPermissionQueryKind.Group, group);
+        }
+    }
+
+    private static void SendPermissionQuery(ushort playerId, AdminPermissionQueryKind kind, string value)
+    {
+        SendAdminRequest(AdminRequestMode.QueryPermission,
+            w => w.Put(playerId),
+            w => w.Put((byte)kind),
+            w => w.Put(value));
+    }
+
+    private static void HandlePermissionQueryResult(NetDataReader reader)
+    {
+        PermissionQueryResult result = new PermissionQueryResult
+        {
+            PlayerId = reader.GetUShort(),
+            Kind = (AdminPermissionQueryKind)reader.GetByte(),
+            Value = reader.GetString(),
+            Held = reader.GetBool(),
+            PlayerFound = reader.GetBool(),
+        };
+
+        OnPermissionQueryResult?.Invoke(result);
     }
 
     /// <summary>
