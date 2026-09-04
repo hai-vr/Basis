@@ -304,9 +304,12 @@ namespace Cilbox
 				typeof(global::BasisPickupSyncNetworking),
 				new HashSet<string>()
 			},
+#if BASIS_HAS_EXAMPLES
 			// BasisInteractableButton: only the setter a prop needs to wire its own "pressed" handler.
 			// ButtonUp, both getters and TriggerButtonDown/Up are withheld until a script actually
 			// needs them - get_ButtonDown/Up would hand back another script's live delegate.
+			// Lives in com.basis.examples, which headless builds strip; the string whitelist entries
+			// above stay unconditional and are simply unmatchable when the package is absent.
 			{
 				typeof(Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton),
 				new HashSet<string>
@@ -314,6 +317,7 @@ namespace Cilbox
 					"set_ButtonDown",
 				}
 			},
+#endif
 		};
 
 		protected override HashSet<string> ExtraWhiteListType => extraWhiteListType;
