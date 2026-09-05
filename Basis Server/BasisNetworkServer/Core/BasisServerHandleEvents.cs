@@ -438,11 +438,11 @@ namespace BasisServerHandle
                 }
                 int id = peer.Id;
 
+                HVREventLog.PreLog("User left", peer);
                 if (CleanupPeerSubsystems(peer, id))
                 {
                     NetworkServer.RebuildPeerSnapshot();
                     BNL.Log($"Peer removed: {id}");
-                    HVREventLog.PreLog("User left", peer);
                 }
                 else
                 {
