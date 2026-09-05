@@ -51,7 +51,7 @@ namespace Basis.Tests.IK
         struct Toggles
         {
             public string Name;
-            public bool ChestSpringOff, LordosisOff, ChestTargetOff, RomOff, PreBendOff, PostureModelOff, CounterbalanceOff, CrouchOffsetOff, OldChestYPin, VsChestAsTarget;
+            public bool ChestSpringOff, LordosisOff, ChestTargetOff, RomOff, PreBendOff, PostureModelOff, CounterbalanceOff, CrouchOffsetOff, OldChestYPin, VsChestAsTarget, KeepHeadBudget;
             public float TrackingLiftY;
         }
         struct Sample
@@ -150,7 +150,7 @@ namespace Basis.Tests.IK
                 thoracicBendStiffen = 0.3f, spineTautBandFrac = 0.015f, bendTwistCoupling = 0.15f,
                 anatDifferentialStiffness = true, anatShoulderSlide = true, anatCervicalLordosis = true, anatPelvicTwistRouting = true,
                 spineAnatomicalRom = true, chestIkTarget = true,
-                chestIkWeight = 0.5f, chestIkIterations = 8, chestIkHeadRestoreSweeps = 2, chestPosPullMaxDeg = 20f, chestPullMaxDist = 0.5f, chestFollowChestShare = 0.6f,
+                chestIkWeight = 0.5f, chestIkIterations = 8, chestIkHeadRestoreSweeps = 2, chestPosPullMaxDeg = 20f, chestPullMaxDist = 0.5f, chestFollowChestShare = 0.6f, chestHeadBudget = BasisEerieMovementSetup.ChestHeadBudgetMeters,
                 chestArmSwingFactor = 0.3f, chestArmSwingMaxDeg = 15f,
                 lordosisPitchGainDeg = 8f, lordosisBaseDeg = 5f, lordosisNeckShare = 0.65f, lordosisMaxHeadPitchDeg = 80f,
                 lordosisExtremeStartDeg = 50f, lordosisExtremeFullDeg = 80f, lordosisExtremeRollForwardMaxDeg = 10f, lordosisExtremeRollBackwardMaxDeg = 4f,
@@ -223,6 +223,7 @@ namespace Basis.Tests.IK
             if (tg.CounterbalanceOff) rig.Job.trunkCounterbalance = 0f;
             if (tg.CrouchOffsetOff) rig.Job.moveBodyBackWhenCrouching = 0f;
             if (tg.OldChestYPin || tg.VsChestAsTarget) rig.Job.chestRestAlong = 0f;
+            if ((tg.OldChestYPin || tg.VsChestAsTarget) && !tg.KeepHeadBudget) rig.Job.chestHeadBudget = 10f;
             var samples = new List<Sample>();
             var states = new NativeArray<BasisBoneSimState>(vsCount, Allocator.Temp);
             var solve = new NativeArray<BasisVirtualSpineCore.SpineSolveState>(1, Allocator.Temp);
@@ -429,6 +430,7 @@ namespace Basis.Tests.IK
             {
                 new Toggles { Name = "production (chord chest)" },
                 new Toggles { Name = "old T-pose chest Y pin", OldChestYPin = true },
+                new Toggles { Name = "old pin + 5 mm head budget", OldChestYPin = true, KeepHeadBudget = true },
                 new Toggles { Name = "VS chord chest as target", VsChestAsTarget = true },
                 new Toggles { Name = "chest spring off", ChestSpringOff = true },
                 new Toggles { Name = "lordosis off", LordosisOff = true },
@@ -459,7 +461,7 @@ namespace Basis.Tests.IK
                         {
                             Assert.AreEqual(0, flips, $"{rigName} / {tg.Name} / {w}: a chain bone stepped more than {FlipStepDeg} deg in one frame.");
                         }
-                        if (rigName == "straight rest" && tg.OldChestYPin && w == "jump +35cm")
+                        if (rigName == "straight rest" && tg.OldChestYPin && !tg.KeepHeadBudget && w == "jump +35cm")
                         {
                             Assert.Greater(flips, 0, "premise: the old T-pose height pin no longer flips the straight rig on a jump, so the toggle is not reproducing the fault.");
                         }

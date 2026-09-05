@@ -164,7 +164,7 @@ namespace Basis.Tests.IK
                 spineSquishBoost = 0.5f, spineGazeFollow = 0.25f, neckGazeFollow = 0.3f, neckGazeFollowMaxDeg = 18f,
                 neckExtensionDamp = 0.65f, neckFlexionDamp = 0.5f,
                 spineTautBandFrac = 0.015f, bendTwistCoupling = 0.15f,
-                chestIkWeight = 0.5f, chestIkIterations = 8, chestIkHeadRestoreSweeps = 2, chestPosPullMaxDeg = 20f, chestPullMaxDist = 0.5f,
+                chestIkWeight = 0.5f, chestIkIterations = 8, chestIkHeadRestoreSweeps = 2, chestPosPullMaxDeg = 20f, chestPullMaxDist = 0.5f, chestHeadBudget = BasisEerieMovementSetup.ChestHeadBudgetMeters,
                 hipHingeStartDeg = 40f, hipHingeMaxAddDeg = 52f,
                 moveBodyBackWhenCrouching = 1f, trunkCounterbalance = 0.38f, trunkCounterbalanceMaxSpineFrac = 0.45f,
                 standingHeadHeight = rest.Head.y,

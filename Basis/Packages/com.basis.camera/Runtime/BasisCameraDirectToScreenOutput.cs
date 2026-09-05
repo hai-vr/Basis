@@ -87,7 +87,6 @@ public sealed class BasisCameraDirectToScreenOutput : MonoBehaviour
         screenCamera.orthographicSize = 1f;
         screenCamera.nearClipPlane = 0.01f;
         screenCamera.farClipPlane = 1f;
-        screenCamera.stereoTargetEye = StereoTargetEyeMask.None;
 
         // HDR as the main camera has it, so a float feed (an EXR capture frame) keeps its range on
         // the way to the window and an HDR display gets URP's own encoding in the final blit; no

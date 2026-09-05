@@ -710,18 +710,18 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         /// <summary>
         /// When true the SteamVR action-state update (UpdateActionState + button/axis/skeleton
         /// reads — the bulk of the per-frame input cost) runs on a worker thread, kicked from
-        /// <see cref="SimulateKick"/> and joined in <see cref="Simulate"/> so it overlaps the
-        /// comms/network-apply work between the two. OpenVR interfaces are thread-safe, the
-        /// update path reads main-thread state only via SteamVR_Input.CaptureMainThreadState,
-        /// and no Basis code touches action state between kick and join (readers are the eye
-        /// driver before the kick, and device polls after the join).
+        /// <see cref="SimulateKick"/> in the driver's Update and joined in <see cref="SimulateJoin"/>
+        /// at the top of LateUpdate, so it overlaps the engine's Update and animation phases.
+        /// OpenVR interfaces are thread-safe, the update path reads main-thread state only via
+        /// SteamVR_Input.CaptureMainThreadState, and no Basis code touches action state between
+        /// kick and join (the eye driver and the device polls both run after the join).
         /// </summary>
         public static bool ThreadedInputUpdate = true;
         private System.Threading.Thread inputThread;
         private readonly System.Threading.SemaphoreSlim inputKick = new System.Threading.SemaphoreSlim(0);
         private readonly System.Threading.ManualResetEventSlim inputDone = new System.Threading.ManualResetEventSlim(true);
         private volatile bool inputThreadRun;
-        private bool inputKicked;
+        private bool inputKicked, inputJoined;
 
         public override void SimulateKick()
         {
@@ -734,7 +734,21 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             inputDone.Wait();
             inputDone.Reset();
             inputKicked = true;
+            inputJoined = false;
             inputKick.Release();
+        }
+
+        public override void SimulateJoin()
+        {
+            if (!inputKicked || inputJoined)
+            {
+                return;
+            }
+            using (BasisOpenVRMarkers.JoinInput.Auto())
+            {
+                inputDone.Wait();
+            }
+            inputJoined = true;
         }
 
         private void EnsureInputThread()
@@ -816,13 +830,10 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             {
                 if (inputKicked)
                 {
-                    // The main-thread half is independent of action state, so it fills the
+                    // The main-thread half is independent of action state, so it fills any
                     // remaining wait instead of running after the join.
                     SteamVR_Render.SimulatePosesAndEvents();
-                    using (BasisOpenVRMarkers.JoinInput.Auto())
-                    {
-                        inputDone.Wait();
-                    }
+                    SimulateJoin();
                     inputKicked = false;
                 }
                 else

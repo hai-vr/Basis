@@ -182,9 +182,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
         [BurstCompile]
         private void PollSystem()
         {
-#if UNITY_EDITOR // just remove when you're profiling this
-            UnityEngine.Profiling.Profiler.BeginSample("Interactable System");
-#endif
             if (InteractInputs == null)
             {
                 return;
@@ -195,6 +192,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 return;
             }
+#if UNITY_EDITOR // just remove when you're profiling this
+            UnityEngine.Profiling.Profiler.BeginSample("Interactable System");
+#endif
 
             for (int index = 0; index < interactInputsCount; index++)
             {
