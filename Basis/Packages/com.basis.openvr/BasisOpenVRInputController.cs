@@ -20,6 +20,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         public Vector3[] BonePositions;      // local positions relative to skeleton root (meters)
         public Quaternion[] BoneRotations;   // local rotations relative to skeleton root
         public BasisOpenVRWristLatch WristLatch;
+        private bool skeletonEstimated, skeletonLevelKnown;
 
         // Device pose (controller) from compositor
         public TrackedDevicePose_t devicePose = new TrackedDevicePose_t();
@@ -47,6 +48,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             inputSource = SteamVR_Input_Sources;
             Device = device;
             WristLatch.Reset();
+            skeletonLevelKnown = false;
             TrackingHardware = BasisTrackingHardware.Lighthouse;
 
             InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole,true);
@@ -207,7 +209,12 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             int idxWrist = SteamVR_Skeleton_JointIndexes.wrist;
             if (skeletonAction.GetActive())
             {
-                bool hold = SteamVR_Actions._default.ThumbTouch.GetState(inputSource) || !BasisOpenVRWristLatch.Settled(BonePositions[idxWrist], BoneRotations[idxWrist], skeletonAction.lastBonePositions[idxWrist], skeletonAction.lastBoneRotations[idxWrist]);
+                if (!skeletonLevelKnown)
+                {
+                    skeletonEstimated = skeletonAction.GetSkeletalTrackingLevel() == EVRSkeletalTrackingLevel.VRSkeletalTracking_Estimated;
+                    skeletonLevelKnown = true;
+                }
+                bool hold = skeletonEstimated && (SteamVR_Actions._default.ThumbTouch.GetState(inputSource) || !BasisOpenVRWristLatch.Settled(BonePositions[idxWrist], BoneRotations[idxWrist], skeletonAction.lastBonePositions[idxWrist], skeletonAction.lastBoneRotations[idxWrist]));
                 WristLatch.Update(hold, BonePositions[idxWrist], BoneRotations[idxWrist]);
             }
             Vector3 wristLocalPos = WristLatch.Latched ? WristLatch.Position : Vector3.zero;
