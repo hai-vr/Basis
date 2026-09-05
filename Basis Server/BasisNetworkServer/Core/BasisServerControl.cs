@@ -74,7 +74,7 @@ namespace Basis.Network.Server
                     BasisNetworkResourceManagement.PredownloadResource(resource);
                     break;
                 default:
-                    BasisNetworkResourceManagement.LoadResource(resource);
+                    BasisNetworkResourceManagement.LoadResource(resource, null);
                     break;
             }
             BNL.Log($"[Control] Load world: {p.Url} strategy={p.Strategy} netId={resource.LoadedNetID}");

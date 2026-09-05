@@ -438,19 +438,11 @@ namespace BasisServerHandle
                 }
                 int id = peer.Id;
 
-                var hasLastPlayerMetaData = BasisSavedState.GetLastPlayerMetaData(peer, out ClientMetaDataMessage meta);
                 if (CleanupPeerSubsystems(peer, id))
                 {
                     NetworkServer.RebuildPeerSnapshot();
                     BNL.Log($"Peer removed: {id}");
-                    if (hasLastPlayerMetaData)
-                    {
-                        HVREventLog.PreLog($"User left: {meta.playerDisplayName}", peer);
-                    }
-                    else
-                    {
-                        HVREventLog.PreLog("User left: unknown", peer);
-                    }
+                    HVREventLog.PreLog("User left", peer);
                 }
                 else
                 {
@@ -1522,7 +1514,7 @@ namespace BasisServerHandle
             switch (LocalLoadResource.LoadStrategy)
             {
                 case 0:
-                    BasisNetworkResourceManagement.LoadResource(LocalLoadResource);
+                    BasisNetworkResourceManagement.LoadResource(LocalLoadResource, Peer);
                     break;
                 case 2: // Synchronized
                     BasisNetworkPreloadResourceManagement.StartSynchronizedLoad(LocalLoadResource);
@@ -1532,7 +1524,7 @@ namespace BasisServerHandle
                     break;
                 default:
                     BNL.LogError("Falling Back to Resource Load, Unsupported Load Strategy");
-                    BasisNetworkResourceManagement.LoadResource(LocalLoadResource);
+                    BasisNetworkResourceManagement.LoadResource(LocalLoadResource, Peer);
                     break;
             }
         }

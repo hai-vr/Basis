@@ -3,6 +3,7 @@ using BasisPermissions;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using BasisNetworkServer.Networking;
 using static BasisPermissions.PermissionManager;
 using static SerializableBasis;
 
@@ -185,7 +186,7 @@ public static class BasisNetworkResourceManagement
         NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.LoadResourceChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
         NetworkServer.ReturnWriter(Writer);
     }
-    public static void LoadResource(LocalLoadResource LocalLoadResource)
+    public static void LoadResource(LocalLoadResource LocalLoadResource, NetPeer peerNullable)
     {
         if (!CanCreatorLoadMore(LocalLoadResource.UUIDOfCreator))
         {
@@ -200,17 +201,14 @@ public static class BasisNetworkResourceManagement
             {
                 NoteResourceAdded(LocalLoadResource.UUIDOfCreator);
 
-                string ip = "???";
-                string did = LocalLoadResource.UUIDOfCreator ?? "???";
-                foreach (var peer in NetworkServer.AuthenticatedPeers.Values)
+                if (peerNullable != null)
                 {
-                    if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) && uuid == did)
-                    {
-                        ip = peer.Address.ToString();
-                        break;
-                    }
+                    HVREventLog.PreLog("Created a prop", peerNullable);
                 }
-                BNL.Log($"[EVENT] Created a prop ({did}) [{ip}]");
+                else
+                {
+                    HVREventLog.ServerLog("Created a prop");
+                }
 
                 BNL.Log("Adding Object " + LocalLoadResource.LoadedNetID);
                 NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.LoadResourceChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
@@ -282,15 +280,7 @@ public static class BasisNetworkResourceManagement
         }
         NoteResourceRemoved(resource.UUIDOfCreator);
 
-        string ip = peer.Address.ToString();
-        if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string did))
-        {
-            BNL.Log($"[EVENT] Deleted a prop ({did}) [{ip}]");
-        }
-        else
-        {
-            BNL.Log($"[EVENT] Deleted a prop (???) [{ip}]");
-        }
+        HVREventLog.PreLog("Deleted a prop", peer);
 
         NetDataWriter writer = NetworkServer.RentWriter();
         unLoadResource.Serialize(writer);
