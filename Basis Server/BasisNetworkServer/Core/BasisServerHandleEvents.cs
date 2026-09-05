@@ -474,6 +474,7 @@ namespace BasisServerHandle
                     bool removed = CleanupPeerSubsystems(peer, id);
 
                     HVREventLog.PreLog("User left", peer);
+                HVREventLog.Rec_UserLeft(peer);
                     if (removed)
                     {
                         NetworkServer.RebuildPeerSnapshot();
@@ -777,6 +778,7 @@ namespace BasisServerHandle
                     NetworkServer.RebuildPeerSnapshot();
                     joinSnapshot = NetworkServer.PeerSnapshot;
                     HVREventLog.PreLog($"User joined: {ReadyMessage.playerMetaDataMessage.playerDisplayName}", newPeer);
+                    HVREventLog.Rec_UserJoined(newPeer);
                 }
             }
 
