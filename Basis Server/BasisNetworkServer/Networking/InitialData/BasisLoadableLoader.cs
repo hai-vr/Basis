@@ -40,7 +40,7 @@ namespace BasisNetworking.InitialData
                         LLR.LoadedNetID = GenerateUniqueID();
                         BNL.Log($"No Network Id Assigned Generated to be {LLR.LoadedNetID}");
                     }
-                    BasisNetworkResourceManagement.LoadResource(LLR);
+                    BasisNetworkResourceManagement.LoadResource(LLR, null);
 
                 }
             }
