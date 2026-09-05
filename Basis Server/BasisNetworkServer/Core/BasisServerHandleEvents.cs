@@ -473,11 +473,11 @@ namespace BasisServerHandle
                     bool slotHeldByAnother = NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer holder) && !Equals(holder, peer);
                     bool removed = CleanupPeerSubsystems(peer, id);
 
+                    HVREventLog.PreLog("User left", peer);
                     if (removed)
                     {
                         NetworkServer.RebuildPeerSnapshot();
                         BNL.Log($"Peer removed: {id}");
-                        HVREventLog.PreLog("User left", peer);
                     }
                     else if (slotHeldByAnother)
                     {
