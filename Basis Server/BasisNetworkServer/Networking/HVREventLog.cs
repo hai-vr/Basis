@@ -2,6 +2,7 @@
 using System.IO;
 using System.Text.Json;
 using Basis.Network.Core;
+using Basis.Network.Server.Generic;
 using BasisPermissions;
 
 namespace BasisNetworkServer.Networking;
@@ -23,7 +24,7 @@ public static class HVREventLog
     {
         if (NetworkServer.AuthIdentity != null &&
             NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) &&
-            PermissionManager.PermissionIntegration.TryGetPlayerMeta(uuid, out var meta))
+            (PermissionManager.PermissionIntegration.TryGetPlayerMeta(uuid, out var meta)) || BasisSavedState.GetLastPlayerMetaData(peer, out meta))
         {
             return BasisDisplayNameSanitizer.LimitUsername(meta.playerDisplayName);
         }
@@ -86,7 +87,7 @@ public static class HVREventLog
             string fullName = "???";
             string simplifiedName = "???";
 
-            if (did != "???" && PermissionManager.PermissionIntegration.TryGetPlayerMeta(did, out var meta))
+            if (did != "???" && (PermissionManager.PermissionIntegration.TryGetPlayerMeta(did, out var meta) || BasisSavedState.GetLastPlayerMetaData(peer, out meta)))
             {
                 fullName = meta.playerDisplayName;
                 simplifiedName = BasisDisplayNameSanitizer.LimitUsername(fullName);
