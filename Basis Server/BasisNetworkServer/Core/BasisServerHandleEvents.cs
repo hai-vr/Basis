@@ -473,6 +473,7 @@ namespace BasisServerHandle
                     bool slotHeldByAnother = NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer holder) && !Equals(holder, peer);
 
                     HVREventLog.PreLog("User left", peer);
+                HVREventLog.Rec_UserLeft(peer);
                     if (CleanupPeerSubsystems(peer, id))
                     {
                         NetworkServer.RebuildPeerSnapshot();
@@ -765,6 +766,7 @@ namespace BasisServerHandle
                     NetworkServer.RebuildPeerSnapshot();
                     joinSnapshot = NetworkServer.PeerSnapshot;
                     HVREventLog.PreLog($"User joined: {ReadyMessage.playerMetaDataMessage.playerDisplayName}", newPeer);
+                    HVREventLog.Rec_UserJoined(newPeer);
                 }
             }
 
