@@ -950,7 +950,7 @@ namespace Basis.Network.Server.Generic
                     return;
                 }
 
-                BNL.Log($"[EVENT] Requested a picture ({did}) [{ip}]");
+                HVREventLog.PreLog("Requested a picture", peer);
 
                 if (!entry.StillComplete || entry.OwnerId == requesterId)
                 {
@@ -960,8 +960,6 @@ namespace Basis.Network.Server.Generic
                 {
                     return;
                 }
-
-                BNL.Log($"[EVENT] Sent a picture ({did}) [{ip}]");
 
                 entry.Offered.Add(requesterId);
 
