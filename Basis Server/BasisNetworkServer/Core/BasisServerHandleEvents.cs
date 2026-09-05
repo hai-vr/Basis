@@ -439,6 +439,7 @@ namespace BasisServerHandle
                 int id = peer.Id;
 
                 HVREventLog.PreLog("User left", peer);
+                HVREventLog.Rec_UserLeft(peer);
                 if (CleanupPeerSubsystems(peer, id))
                 {
                     NetworkServer.RebuildPeerSnapshot();
@@ -698,6 +699,7 @@ namespace BasisServerHandle
                 ReadyMessage.playerMetaDataMessage.playerUUID = UUID;
                 PermissionIntegration.StorePlayerMeta(UUID, ReadyMessage.playerMetaDataMessage);
                 HVREventLog.PreLog($"User joined: {ReadyMessage.playerMetaDataMessage.playerDisplayName}", newPeer);
+                HVREventLog.Rec_UserJoined(newPeer);
 
                Configuration Config = NetworkServer.Configuration;
                 //lets dump to the local client there data after the server has had its way
