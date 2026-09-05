@@ -59,6 +59,11 @@
       "type": "boolean"
     },
     {
+      "name": "/actions/default/in/ThumbTouch",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
       "name": "/actions/default/in/Grip",
       "type": "boolean"
     },

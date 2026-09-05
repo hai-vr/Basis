@@ -240,7 +240,7 @@ namespace Basis.Network.Server.Ownership
             }
         }
         /// <summary>
-        /// Removes all ownership of a specific player and notifies all clients.
+        /// Hands a departing player's objects to the longest-connected remaining peer (drops them when nobody remains) and notifies all clients.
         /// </summary>
         public static void RemovePlayerOwnership(int playerId)
         {
@@ -260,25 +260,71 @@ namespace Basis.Network.Server.Ownership
                 {
                     return;
                 }
+                bool migrate = TrySelectSuccessor(playerId, out ushort successor, out List<NetPeer> recipients);
                 OwnershipTransferMessage ownershipTransferMessage = new OwnershipTransferMessage();
                 NetDataWriter Writer = NetworkServer.RentWriter();
-                NetPeer[] peers = NetworkServer.PeerSnapshot;
+                int handled = 0;
                 foreach (string OwnershipId in objectsToRemove)
                 {
-                    if (ownershipByObjectId.TryRemove(OwnershipId, out ushort OwnerID))
+                    if (migrate)
                     {
-                        Writer.Reset();
-                        ownershipTransferMessage.playerIdMessage = new SerializableBasis.PlayerIdMessage();
-                        ownershipTransferMessage.playerIdMessage.playerID = OwnerID;
-                        ownershipTransferMessage.ownershipID = OwnershipId;
-
-                        ownershipTransferMessage.Serialize(Writer);
-                        NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.RemoveCurrentOwnerRequestChannel, peers, DeliveryMethod.ReliableOrdered);
+                        if (!ownershipByObjectId.TryUpdate(OwnershipId, successor, (ushort)playerId))
+                        {
+                            continue;
+                        }
                     }
+                    else if (!ownershipByObjectId.TryRemove(OwnershipId, out _))
+                    {
+                        continue;
+                    }
+                    handled++;
+                    if (recipients.Count == 0)
+                    {
+                        continue;
+                    }
+                    Writer.Reset();
+                    ownershipTransferMessage.playerIdMessage = new SerializableBasis.PlayerIdMessage();
+                    ownershipTransferMessage.playerIdMessage.playerID = migrate ? successor : (ushort)playerId;
+                    ownershipTransferMessage.ownershipID = OwnershipId;
+                    ownershipTransferMessage.Serialize(Writer);
+                    NetworkServer.BroadcastMessageToClients(Writer, migrate ? BasisNetworkCommons.ChangeCurrentOwnerRequestChannel : BasisNetworkCommons.RemoveCurrentOwnerRequestChannel, ref recipients, DeliveryMethod.ReliableOrdered);
                 }
                 NetworkServer.ReturnWriter(Writer);
-                BNL.Log($"Player {playerId}'s ownership removed from {objectsToRemove.Count} objects.");
+                if (migrate)
+                {
+                    BNL.Log($"Player {playerId}'s ownership of {handled} objects migrated to player {successor}.");
+                }
+                else
+                {
+                    BNL.Log($"Player {playerId}'s ownership removed from {handled} objects.");
+                }
             }
+        }
+        public static bool TrySelectSuccessor(int departingId, out ushort successor, out List<NetPeer> recipients)
+        {
+            successor = 0;
+            recipients = new List<NetPeer>();
+            bool found = false;
+            long bestSeq = long.MaxValue;
+            int bestId = int.MaxValue;
+            foreach (KeyValuePair<int, NetPeer> entry in NetworkServer.AuthenticatedPeers)
+            {
+                int id = entry.Key;
+                if (id == departingId || entry.Value == null || id < 0 || id > ushort.MaxValue)
+                {
+                    continue;
+                }
+                recipients.Add(entry.Value);
+                long seq = BasisServerHandle.BasisServerHandleEvents.JoinBroadcast.TryGetSeq(id, out long s) ? s : long.MaxValue;
+                if (!found || seq < bestSeq || (seq == bestSeq && id < bestId))
+                {
+                    found = true;
+                    bestSeq = seq;
+                    bestId = id;
+                    successor = (ushort)id;
+                }
+            }
+            return found;
         }
     }
 }

@@ -9,12 +9,12 @@ using Unity.Mathematics;
 using UnityEngine;
 namespace Basis.Tests.IK
 {
-    // Diagnostic probe for "the head can become disconnected and flip around". Runs the headset-only pipeline
-    // the way production wires it: real virtual-spine job (BasisLocalVirtualSpineDriver.Simulate mirrored field
-    // for field) -> rig-driver target fill -> real SolveSpine + ApplyCervicalLordosis with the shipped defaults
-    // (path-sum minHeadSpineHeight, lordosis on, anatomical ROM on, chest IK target on). Synthetic head motion,
-    // 90 Hz. Reports, per scenario and lock mode, how far the solved head bone sits from the HMD target and
-    // whether any chain bone flips between frames. Asserts only finiteness: it is a measurement, not a gate.
+    // Probe for "the head can become disconnected and flip around". Runs the headset-only pipeline the way
+    // production wires it: real virtual-spine job (BasisLocalVirtualSpineDriver.Simulate mirrored field for field)
+    // -> rig-driver target fill -> BasisEeriePlanner.Frame with no chest tracker -> real SolveSpine +
+    // ApplyCervicalLordosis with the shipped defaults (path-sum minHeadSpineHeight, lordosis on, anatomical ROM on,
+    // chest IK toggle on but gated off by the missing tracker). Synthetic head motion, 90 Hz. Gates: the solved
+    // head bone stays on the HMD target and no chain bone flips between frames.
     public sealed class BasisSpineHeadDetachProbeTests
     {
         const int vsHead = 0, vsNeck = 1, vsChest = 2, vsSpine = 3, vsHips = 4, vsCount = 5;
@@ -51,7 +51,7 @@ namespace Basis.Tests.IK
         struct Toggles
         {
             public string Name;
-            public bool ChestSpringOff, LordosisOff, ChestTargetOff, RomOff, PreBendOff, PostureModelOff, CounterbalanceOff, CrouchOffsetOff, OldChestYPin, VsChestAsTarget, KeepHeadBudget;
+            public bool ChestSpringOff, LordosisOff, RomOff, PreBendOff, PostureModelOff, CounterbalanceOff, CrouchOffsetOff;
             public float TrackingLiftY;
         }
         struct Sample
@@ -157,7 +157,6 @@ namespace Basis.Tests.IK
                 lordosisExtremeHipsHorizontalMax = 0.025f, lordosisExtremeChestHorizontalMax = 0.04f, lordosisExtremeHipsHorizontalLookUp = 0.025f, lordosisExtremeChestHorizontalLookUp = 0.010f,
                 lordosisExtremeHipsDownMax = 0.015f, lordosisExtremeChestDownMax = 0.025f, lordosisExtremeHipsDownLookUp = 0.0005f, lordosisExtremeChestDownLookUp = 0.001f,
                 tposeHeadToNeckLocal = Quaternion.Inverse(rig.Bones[5].rotation) * (rest.Neck - rest.Head),
-                chestRestAlong = RestGeometry(rest).along.chest, chestRestPerp = RestGeometry(rest).perp.chest, restChordDirHips = math.normalizesafe((float3)(rest.Neck - rest.Hips)),
                 tposeLengthNeckToHips = rest.Neck - rest.Hips,
                 tposeBakeScale = 1f, tposeArmFitScale = 1f, tposeTorsoFitScale = 1f,
                 standingHeadHeight = rest.Head.y,
@@ -217,13 +216,10 @@ namespace Basis.Tests.IK
         {
             if (tg.ChestSpringOff) rig.Job.chestSpringHz = 0f;
             if (tg.LordosisOff) rig.Job.anatCervicalLordosis = false;
-            if (tg.ChestTargetOff) rig.Job.chestIkTarget = false;
             if (tg.RomOff) rig.Job.spineAnatomicalRom = false;
             if (tg.PreBendOff) { rig.Job.spineBendPitch = rig.Job.spineBendYaw = rig.Job.spineBendRoll = rig.Job.upperChestBendPitch = rig.Job.upperChestBendYaw = rig.Job.upperChestBendRoll = 0f; }
             if (tg.CounterbalanceOff) rig.Job.trunkCounterbalance = 0f;
             if (tg.CrouchOffsetOff) rig.Job.moveBodyBackWhenCrouching = 0f;
-            if (tg.OldChestYPin || tg.VsChestAsTarget) rig.Job.chestRestAlong = 0f;
-            if ((tg.OldChestYPin || tg.VsChestAsTarget) && !tg.KeepHeadBudget) rig.Job.chestHeadBudget = 10f;
             var samples = new List<Sample>();
             var states = new NativeArray<BasisBoneSimState>(vsCount, Allocator.Temp);
             var solve = new NativeArray<BasisVirtualSpineCore.SpineSolveState>(1, Allocator.Temp);
@@ -247,13 +243,6 @@ namespace Basis.Tests.IK
                         IdxHead = vsHead, IdxNeck = vsNeck, IdxChest = vsChest, IdxSpine = vsSpine, IdxHips = vsHips,
                         SkipHips = (byte)(hipsTracked ? 1 : 0),
                     }.Execute();
-                    if (tg.OldChestYPin)
-                    {
-                        // The pre-fix law: chest/spine controls at their T-pose height regardless of where the head is.
-                        BasisBoneSimState c = states[vsChest], sp = states[vsSpine];
-                        c.OutgoingPosition.y = rig.Rest.Chest.y + tg.TrackingLiftY; c.OutgoingWorldPosition = c.OutgoingPosition; states[vsChest] = c;
-                        sp.OutgoingPosition.y = rig.Rest.Spine.y + tg.TrackingLiftY; sp.OutgoingWorldPosition = sp.OutgoingPosition; states[vsSpine] = sp;
-                    }
                     var facts = new BasisEerieFrameFacts { deltaTime = Dt, moving = moving, upright = true, hipsTracked = hipsTracked };
                     BasisEeriePlanner.Frame(ref rig.Job, in facts);
                     Vector3 headPos = states[vsHead].OutgoingPosition;
@@ -380,61 +369,52 @@ namespace Basis.Tests.IK
             }
             TestContext.WriteLine(report.ToString());
         }
-        static readonly string[] ChainNames = { "head", "neck", "upperChest", "chest", "spine", "hips" };
         [Test]
-        public void HeadAboveRest_TheChordChest_KeepsTheHeadOnTheHmd_AndNeverFlips()
+        public void HeadAboveRest_WithoutAChestTracker_TheHeadStaysOnTheHmd_AndNeverFlips()
         {
             // A tracked head sitting a fixed distance above the avatar's rest head is exactly what a scale/eye-height
             // mismatch produces (avatar too small for the player, seated mode while standing, arm-span mode with a
-            // bent-arm span). The old T-pose height pin put the chest target below the lumbar joint past one vertebra
-            // of rise and the chest IK folded the spine: 27 cm head error and 90 deg/frame flips, standing still.
+            // bent-arm span). The headset-only chest IK target used to fold the spine here: its target was the virtual
+            // spine's T-pose-height chest control, which sat below the lumbar joint past one vertebra of rise (27 cm head
+            // error, 90 deg/frame flips, standing still). The chest target now needs a chest tracker, so with the toggle
+            // on and no tracker the plan must leave it off and the sweep must be quiet.
             const float HeadErrCeiling = 0.05f;
             var report = new StringBuilder();
             foreach ((string rigName, Rest rest) in new[] { ("curved rest", CurvedRest()), ("straight rest", StraightRest()) })
             {
-                report.AppendLine($"=== steady head height sweep {rigName} LockHead (chest T-pose y {rest.Chest.y * 100f:F1} cm, spine T-pose y {rest.Spine.y * 100f:F1} cm, spacing {(rest.Chest.y - rest.Spine.y) * 100f:F1} cm)");
-                report.AppendLine($"{"head vs rest",-14} | {"solver chord chest: err/flips/step",-36} | {"old T-pose Y pin",-36} | {"VS chord chest as target",-36} | {"chest IK target off",-36} | {"solver chest + playspace lift",-36} | {"pinned chest - spine bone y cm",-30}");
-                int pinFlips = 0;
+                report.AppendLine($"=== steady head height sweep {rigName} LockHead (chest T-pose y {rest.Chest.y * 100f:F1} cm, spine T-pose y {rest.Spine.y * 100f:F1} cm)");
+                report.AppendLine($"{"head vs rest",-14} | {"production: err cm/flips/step",-36} | {"with playspace lift",-36}");
                 for (int cm = -30; cm <= 60; cm += 5)
                 {
                     float off = cm * 0.01f;
                     Vector3 eye = rest.Eye + new Vector3(0f, off, 0f);
                     Scenario s = new Scenario { Name = "steady", Seconds = 3f, Motion = (float t, out Vector3 pp, out Quaternion rr, out bool mm) => { pp = eye; rr = Quaternion.identity; mm = false; } };
                     var cells = new List<string>();
-                    List<Sample> chord = null;
-                    foreach (Toggles tg in new[] { new Toggles { Name = "production" }, new Toggles { Name = "old pin", OldChestYPin = true }, new Toggles { Name = "vs chest", VsChestAsTarget = true }, new Toggles { Name = "chest off", ChestTargetOff = true }, new Toggles { Name = "lift", TrackingLiftY = off } })
+                    List<Sample> production = null;
+                    foreach (Toggles tg in new[] { new Toggles { Name = "production" }, new Toggles { Name = "lift", TrackingLiftY = off } })
                     {
                         using Rig rig = BuildRig(rest, BasisIKLockMode.LockHead);
                         List<Sample> samples = Run(rig, s, new System.Random(1234), 0.0003f, tg);
-                        if (chord == null) chord = samples;
-                        if (tg.OldChestYPin) pinFlips += samples.Count(x => x.MaxStep > FlipStepDeg);
+                        Assert.IsFalse(rig.Job.plan.chestTarget, $"{rigName}: no chest tracker, yet the plan enabled the chest IK target.");
+                        if (production == null) production = samples;
                         cells.Add($"{samples.Max(x => x.HeadErr) * 100f,7:F2} / {samples.Count(x => x.MaxStep > FlipStepDeg),3} / {samples.Max(x => x.MaxStep),6:F1}");
                     }
-                    float pinnedChestMinusSpineBone = (rest.Chest.y - (rest.Spine.y + off)) * 100f;
-                    report.AppendLine($"{cm,+12} cm | {cells[0],-36} | {cells[1],-36} | {cells[2],-36} | {cells[3],-36} | {cells[4],-36} | {pinnedChestMinusSpineBone,8:F1}");
-                    Assert.AreEqual(0, chord.Count(x => x.MaxStep > FlipStepDeg), $"{rigName}: head {cm:+0;-0} cm from rest, standing still: a chain bone stepped more than {FlipStepDeg} deg in one frame (the chest target is folding the spine).");
-                    Assert.Less(chord.Max(x => x.HeadErr), HeadErrCeiling, $"{rigName}: head {cm:+0;-0} cm from rest, standing still: the head bone sits {chord.Max(x => x.HeadErr) * 100f:F1} cm off the HMD.");
-                }
-                if (rigName == "straight rest")
-                {
-                    Assert.Greater(pinFlips, 0, "premise: the old T-pose height pin no longer flips the straight rig anywhere in the sweep, so this gate is not exercising the fault it guards.");
+                    report.AppendLine($"{cm,+12} cm | {cells[0],-36} | {cells[1],-36}");
+                    Assert.AreEqual(0, production.Count(x => x.MaxStep > FlipStepDeg), $"{rigName}: head {cm:+0;-0} cm from rest, standing still: a chain bone stepped more than {FlipStepDeg} deg in one frame.");
+                    Assert.Less(production.Max(x => x.HeadErr), HeadErrCeiling, $"{rigName}: head {cm:+0;-0} cm from rest, standing still: the head bone sits {production.Max(x => x.HeadErr) * 100f:F1} cm off the HMD.");
                 }
                 report.AppendLine();
             }
             TestContext.WriteLine(report.ToString());
         }
         [Test]
-        public void FeatureIsolation_TheChestTargetPlacementAlone_DecidesTheFlip()
+        public void FeatureIsolation_NoSingleFeatureToggle_FlipsTheChain()
         {
             Toggles[] toggles =
             {
-                new Toggles { Name = "production (chord chest)" },
-                new Toggles { Name = "old T-pose chest Y pin", OldChestYPin = true },
-                new Toggles { Name = "old pin + 5 mm head budget", OldChestYPin = true, KeepHeadBudget = true },
-                new Toggles { Name = "VS chord chest as target", VsChestAsTarget = true },
+                new Toggles { Name = "production" },
                 new Toggles { Name = "chest spring off", ChestSpringOff = true },
                 new Toggles { Name = "lordosis off", LordosisOff = true },
-                new Toggles { Name = "chest IK target off", ChestTargetOff = true },
                 new Toggles { Name = "anatomical ROM off", RomOff = true },
                 new Toggles { Name = "pre-bend off", PreBendOff = true },
                 new Toggles { Name = "vspine posture model off", PostureModelOff = true },
@@ -457,13 +437,9 @@ namespace Basis.Tests.IK
                         List<Sample> samples = Run(rig, s, new System.Random(1234), 0.0003f, tg);
                         int flips = samples.Count(x => x.MaxStep > FlipStepDeg);
                         cells.Add($"{samples.Max(x => x.HeadErr) * 100f,6:F2} /{flips,4} /{samples.Max(x => x.MaxStep),6:F1}");
-                        if (!tg.OldChestYPin && !tg.VsChestAsTarget && !tg.RomOff)
+                        if (!tg.RomOff)
                         {
                             Assert.AreEqual(0, flips, $"{rigName} / {tg.Name} / {w}: a chain bone stepped more than {FlipStepDeg} deg in one frame.");
-                        }
-                        if (rigName == "straight rest" && tg.OldChestYPin && !tg.KeepHeadBudget && w == "jump +35cm")
-                        {
-                            Assert.Greater(flips, 0, "premise: the old T-pose height pin no longer flips the straight rig on a jump, so the toggle is not reproducing the fault.");
                         }
                     }
                     report.AppendLine($"{tg.Name,-30} | " + string.Join(" | ", cells));

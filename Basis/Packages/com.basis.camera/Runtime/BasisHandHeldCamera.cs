@@ -1225,6 +1225,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         SetResolution(captureWidth, captureHeight, AntialiasingQuality.High, Format);
         yield return new WaitForEndOfFrame();
 
+        bool headWasNormal = BasisLocalAvatarDriver.IsNormalHead;
         BasisLocalAvatarDriver.ScaleHeadToNormal();
         ToggleToneMapping(CaptureTonemapping);
 
@@ -1246,6 +1247,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 #if BASIS_HAS_RTAO && !UNITY_ANDROID
             BasisRTAOIntegration.EndCapture();
 #endif
+            if (!headWasNormal) BasisLocalAvatarDriver.ScaleHeadToZero();
         }
 
         BasisHandHeldCameraPhotoMetadata.PhotoMetadata photoMetadata = BasisHandHeldCameraPhotoMetadata.CollectMetadata(captureCamera, transform);
@@ -1760,13 +1762,12 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     }
 
     /// <summary>
-    /// Restores tonemapping, hides local head mesh, and returns preview RT settings after capture.
+    /// Restores tonemapping and returns preview RT settings after capture.
     /// </summary>
     public void SetNormalAfterCapture()
     {
         captureInFlight = false;
         ToggleToneMapping(PreviewTonemapping);
-        BasisLocalAvatarDriver.ScaleHeadToZero();
         ApplyPreviewResolution();
     }
 

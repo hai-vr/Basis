@@ -7,6 +7,27 @@ public class BasisProgressReport
     public event ProgressReportState OnProgressReport;
     public const float MaxValue = 100f;
     public const float MinValue = 0f;
+    private readonly BasisProgressReport parent;
+    private readonly string parentKey;
+    private readonly float rangeStart;
+    private readonly float rangeEnd;
+
+    public BasisProgressReport()
+    {
+    }
+
+    private BasisProgressReport(BasisProgressReport parent, string parentKey, float rangeStart, float rangeEnd)
+    {
+        this.parent = parent;
+        this.parentKey = parentKey;
+        this.rangeStart = rangeStart;
+        this.rangeEnd = rangeEnd;
+    }
+
+    public BasisProgressReport Stage(string key, float rangeStart, float rangeEnd)
+    {
+        return new BasisProgressReport(this, key, Math.Clamp(rangeStart, MinValue, MaxValue), Math.Clamp(rangeEnd, MinValue, MaxValue));
+    }
 
     /// <summary>
     /// Reports the current progress along with an event description.
@@ -18,6 +39,11 @@ public class BasisProgressReport
     public void ReportProgress(string UniqueID, float progress, string eventDescription)
     {
         progress = Math.Clamp(progress, MinValue, MaxValue); // Ensuring progress is within bounds
+        if (parent != null)
+        {
+            parent.ReportProgress(parentKey, rangeStart + (rangeEnd - rangeStart) * (progress / MaxValue), eventDescription);
+            return;
+        }
 
         // BasisDebug.LogError("Current Progress is " + progress);
         OnProgressReport?.Invoke(UniqueID, progress, eventDescription);

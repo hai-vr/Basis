@@ -141,7 +141,7 @@ public static class BasisBundleLoadAsset
             asyncLoad.allowSceneActivation = true;
             while (!asyncLoad.isDone)
             {
-                progressCallback.ReportProgress(UniqueID, 50 + asyncLoad.progress * 50, $"Activating scene {sceneName}");
+                progressCallback.ReportProgress(UniqueID, Mathf.Min(asyncLoad.progress, 0.99f) * 100, $"Activating scene {sceneName}");
                 await Task.Yield();
             }
 

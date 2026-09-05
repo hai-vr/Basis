@@ -232,6 +232,25 @@ public static class BasisLoadHandler
     }
     public static async Task<Scene> LoadSceneBundle(bool makeActiveScene, BasisLoadableBundle loadableBundle, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
+        if (report == null)
+        {
+            report = new BasisProgressReport();
+        }
+        string progressKey = BasisGenerateUniqueID.GenerateUniqueID();
+        BasisProgressReport fetch = report.Stage(progressKey, 0, 75);
+        BasisProgressReport activate = report.Stage(progressKey, 75, 100);
+        report.ReportProgress(progressKey, 0, "Preparing scene");
+        try
+        {
+            return await LoadSceneBundleStaged(makeActiveScene, loadableBundle, fetch, activate, cancellationToken, MaxDownloadSizeInMB);
+        }
+        finally
+        {
+            report.ReportProgress(progressKey, 100, "Scene ready");
+        }
+    }
+    private static async Task<Scene> LoadSceneBundleStaged(bool makeActiveScene, BasisLoadableBundle loadableBundle, BasisProgressReport fetch, BasisProgressReport activate, CancellationToken cancellationToken, long MaxDownloadSizeInMB)
+    {
         await EnsureInitializationComplete();
 
         string Key = GetBundleKey(loadableBundle);
@@ -265,7 +284,7 @@ public static class BasisLoadHandler
             {
                 if (wrapper.AssetBundle == null)
                 {
-                    await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
+                    await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, fetch, cancellationToken, MaxDownloadSizeInMB);
                 }
                 else
                 {
@@ -278,7 +297,7 @@ public static class BasisLoadHandler
                     return new Scene();
                 }
                 BasisDebug.Log($"Bundle Loaded, Loading Scene", BasisDebug.LogTag.Networking);
-                return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, report);
+                return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, activate);
             }
             finally
             {
@@ -288,10 +307,10 @@ public static class BasisLoadHandler
             }
         }
 
-        return await HandleFirstSceneLoad(loadableBundle, makeActiveScene, report, cancellationToken, MaxDownloadSizeInMB);
+        return await HandleFirstSceneLoad(loadableBundle, makeActiveScene, fetch, activate, cancellationToken, MaxDownloadSizeInMB);
     }
 
-    private static async Task<Scene> HandleFirstSceneLoad(BasisLoadableBundle loadableBundle, bool makeActiveScene, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
+    private static async Task<Scene> HandleFirstSceneLoad(BasisLoadableBundle loadableBundle, bool makeActiveScene, BasisProgressReport fetch, BasisProgressReport activate, CancellationToken cancellationToken, long MaxDownloadSizeInMB)
     {
         string Key = GetBundleKey(loadableBundle);
         BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper { AssetBundle = null, LoadableBundle = loadableBundle, RegisteredKey = Key };
@@ -310,8 +329,8 @@ public static class BasisLoadHandler
 
         try
         {
-            await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
-            return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, report);
+            await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, fetch, cancellationToken, MaxDownloadSizeInMB);
+            return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, activate);
         }
         catch
         {

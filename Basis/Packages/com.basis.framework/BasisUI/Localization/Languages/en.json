@@ -9368,7 +9368,7 @@
     },
     {
       "key": "settings.bodyTracking.anat.chestIkTarget.description",
-      "value": "Places the chest at its own target instead of leaving it wherever the head solve happens to put it, so the torso follows your real chest (or a chest tracker) more faithfully. The head stays exactly on the headset."
+      "value": "With a chest tracker, pulls the chest bone onto the tracker's position instead of leaving it wherever the head solve happens to put it. The head keeps priority and stays on the headset. Does nothing without a chest tracker."
     },
     {
       "key": "settings.bodyTracking.anat.legSwivelSmoothing.title",

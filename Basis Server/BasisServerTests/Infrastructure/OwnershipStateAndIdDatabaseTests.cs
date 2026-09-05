@@ -165,8 +165,8 @@ public class BasisNetworkOwnershipTests
 
         BasisNetworkOwnership.RemovePlayerOwnership(victim);
 
-        Assert.False(BasisNetworkOwnership.DoesObjectExistInDatabase("own:rpo:a"));
-        Assert.False(BasisNetworkOwnership.DoesObjectExistInDatabase("own:rpo:b"));
+        Assert.False(BasisNetworkOwnership.GetOwnershipInformation("own:rpo:a", out ushort a) && a == victim);
+        Assert.False(BasisNetworkOwnership.GetOwnershipInformation("own:rpo:b", out ushort b) && b == victim);
         Assert.True(BasisNetworkOwnership.GetOwnershipInformation("own:rpo:c", out ushort owner));
         Assert.Equal(bystander, owner);
     }
@@ -176,6 +176,102 @@ public class BasisNetworkOwnershipTests
     {
         BasisNetworkOwnership.RemovePlayerOwnership(64000);
         Assert.False(BasisNetworkOwnership.DoesObjectExistInDatabase("own:rpo:none"));
+    }
+
+    private static OwnershipTransferMessage DecodeOwnership(byte[] payload)
+    {
+        var message = new OwnershipTransferMessage();
+        message.Deserialize(NetPacketReader.Create(payload, 0, payload.Length, static () => { }));
+        return message;
+    }
+
+    [Fact]
+    public void RemovePlayerOwnership_WithRemainingPeers_MigratesToLongestConnectedPeerAndBroadcastsTheChange()
+    {
+        var victim = new FakeNetPeer(41010, "127.0.0.1");
+        var oldest = new FakeNetPeer(41011, "127.0.0.1");
+        var newer = new FakeNetPeer(41012, "127.0.0.1");
+        NetworkServer.AuthenticatedPeers[victim.Id] = victim;
+        NetworkServer.AuthenticatedPeers[oldest.Id] = oldest;
+        NetworkServer.AuthenticatedPeers[newer.Id] = newer;
+        BasisServerHandle.BasisServerHandleEvents.JoinBroadcast.RegisterPeer(victim.Id, -3);
+        BasisServerHandle.BasisServerHandleEvents.JoinBroadcast.RegisterPeer(oldest.Id, -2);
+        BasisServerHandle.BasisServerHandleEvents.JoinBroadcast.RegisterPeer(newer.Id, -1);
+        try
+        {
+            Assert.True(BasisNetworkOwnership.AddOwnership("own:migrate:a", (ushort)victim.Id));
+            Assert.True(BasisNetworkOwnership.AddOwnership("own:migrate:b", (ushort)victim.Id));
+            Assert.True(BasisNetworkOwnership.AddOwnership("own:migrate:c", (ushort)newer.Id));
+
+            BasisNetworkOwnership.RemovePlayerOwnership(victim.Id);
+
+            Assert.True(BasisNetworkOwnership.GetOwnershipInformation("own:migrate:a", out ushort a));
+            Assert.Equal((ushort)oldest.Id, a);
+            Assert.True(BasisNetworkOwnership.GetOwnershipInformation("own:migrate:b", out ushort b));
+            Assert.Equal((ushort)oldest.Id, b);
+            Assert.True(BasisNetworkOwnership.GetOwnershipInformation("own:migrate:c", out ushort c));
+            Assert.Equal((ushort)newer.Id, c);
+
+            Assert.Empty(victim.Sent);
+            foreach (var remaining in new[] { oldest, newer })
+            {
+                var changes = remaining.Sent.Where(s => s.Channel == BasisNetworkCommons.ChangeCurrentOwnerRequestChannel).ToList();
+                Assert.Equal(2, changes.Count);
+                Assert.DoesNotContain(remaining.Sent, s => s.Channel == BasisNetworkCommons.RemoveCurrentOwnerRequestChannel);
+                var decoded = changes.Select(s => DecodeOwnership(s.Data)).ToList();
+                Assert.All(decoded, m => Assert.Equal((ushort)oldest.Id, m.playerIdMessage.playerID));
+                Assert.Equal(new[] { "own:migrate:a", "own:migrate:b" }, decoded.Select(m => m.ownershipID).OrderBy(k => k).ToArray());
+            }
+        }
+        finally
+        {
+            foreach (var peer in new[] { victim, oldest, newer })
+            {
+                NetworkServer.AuthenticatedPeers.TryRemove(new KeyValuePair<int, NetPeer>(peer.Id, peer));
+                BasisServerHandle.BasisServerHandleEvents.JoinBroadcast.UnregisterPeer(peer.Id);
+            }
+            BasisNetworkOwnership.RemoveObject("own:migrate:a");
+            BasisNetworkOwnership.RemoveObject("own:migrate:b");
+            BasisNetworkOwnership.RemoveObject("own:migrate:c");
+        }
+    }
+
+    [Fact]
+    public void TrySelectSuccessor_SkipsTheDepartingPeer_PrefersEarliestJoin_ThenLowestId()
+    {
+        var departing = new OwnershipFakeNetPeer(41020);
+        var earliest = new OwnershipFakeNetPeer(41023);
+        var tiedHigh = new OwnershipFakeNetPeer(41022);
+        var tiedLow = new OwnershipFakeNetPeer(41021);
+        NetworkServer.AuthenticatedPeers[departing.Id] = departing;
+        NetworkServer.AuthenticatedPeers[earliest.Id] = earliest;
+        NetworkServer.AuthenticatedPeers[tiedHigh.Id] = tiedHigh;
+        NetworkServer.AuthenticatedPeers[tiedLow.Id] = tiedLow;
+        BasisServerHandle.BasisServerHandleEvents.JoinBroadcast.RegisterPeer(departing.Id, -10);
+        BasisServerHandle.BasisServerHandleEvents.JoinBroadcast.RegisterPeer(earliest.Id, -9);
+        BasisServerHandle.BasisServerHandleEvents.JoinBroadcast.RegisterPeer(tiedHigh.Id, -8);
+        BasisServerHandle.BasisServerHandleEvents.JoinBroadcast.RegisterPeer(tiedLow.Id, -8);
+        try
+        {
+            Assert.True(BasisNetworkOwnership.TrySelectSuccessor(departing.Id, out ushort successor, out var recipients));
+            Assert.Equal((ushort)earliest.Id, successor);
+            Assert.DoesNotContain(departing, recipients);
+            Assert.Contains(earliest, recipients);
+            Assert.Contains(tiedHigh, recipients);
+            Assert.Contains(tiedLow, recipients);
+
+            NetworkServer.AuthenticatedPeers.TryRemove(earliest.Id, out _);
+            Assert.True(BasisNetworkOwnership.TrySelectSuccessor(departing.Id, out successor, out _));
+            Assert.Equal((ushort)tiedLow.Id, successor);
+        }
+        finally
+        {
+            foreach (var peer in new[] { departing, earliest, tiedHigh, tiedLow })
+            {
+                NetworkServer.AuthenticatedPeers.TryRemove(new KeyValuePair<int, NetPeer>(peer.Id, peer));
+                BasisServerHandle.BasisServerHandleEvents.JoinBroadcast.UnregisterPeer(peer.Id);
+            }
+        }
     }
 
     [Fact]

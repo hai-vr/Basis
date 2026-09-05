@@ -19,6 +19,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         // Raw skeleton (local-to-skeleton) data from SteamVR
         public Vector3[] BonePositions;      // local positions relative to skeleton root (meters)
         public Quaternion[] BoneRotations;   // local rotations relative to skeleton root
+        public BasisOpenVRWristLatch WristLatch;
 
         // Device pose (controller) from compositor
         public TrackedDevicePose_t devicePose = new TrackedDevicePose_t();
@@ -45,6 +46,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             inputSource = SteamVR_Input_Sources;
             Device = device;
+            WristLatch.Reset();
             TrackingHardware = BasisTrackingHardware.Lighthouse;
 
             InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole,true);
@@ -203,8 +205,13 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             // Wrist data from skeleton
             int idxWrist = SteamVR_Skeleton_JointIndexes.wrist;
-            Vector3 wristLocalPos = BonePositions[idxWrist];       // meters, local to skeleton root
-            Quaternion wristLocalRot = BoneRotations[idxWrist];
+            if (skeletonAction.GetActive())
+            {
+                bool hold = SteamVR_Actions._default.ThumbTouch.GetState(inputSource) || !BasisOpenVRWristLatch.Settled(BonePositions[idxWrist], BoneRotations[idxWrist], skeletonAction.lastBonePositions[idxWrist], skeletonAction.lastBoneRotations[idxWrist]);
+                WristLatch.Update(hold, BonePositions[idxWrist], BoneRotations[idxWrist]);
+            }
+            Vector3 wristLocalPos = WristLatch.Latched ? WristLatch.Position : Vector3.zero;
+            Quaternion wristLocalRot = WristLatch.Latched ? WristLatch.Rotation : Quaternion.identity;
 
             // Rotation offset (per hand)
             Quaternion rotOffset = Quaternion.Euler(isLeft ? leftHandToIKRotationOffset : rightHandToIKRotationOffset);

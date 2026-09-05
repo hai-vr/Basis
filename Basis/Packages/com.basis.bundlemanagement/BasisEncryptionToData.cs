@@ -21,9 +21,13 @@ public static class BasisEncryptionToData
         {
             VP = Password
         };
+        if (progressCallback == null)
+        {
+            progressCallback = new BasisProgressReport();
+        }
         string UniqueID = BasisGenerateUniqueID.GenerateUniqueID();
         // Decrypt the file asynchronously
-        var decrypted = await DecryptSection(UniqueID, BasisPassword, Section, progressCallback);
+        var decrypted = await DecryptSection(UniqueID, BasisPassword, Section, progressCallback.Stage(UniqueID, 0, 60));
 
         if (!decrypted.Success || decrypted.Data == null || decrypted.Data.Length == 0)
         {
@@ -43,29 +47,13 @@ public static class BasisEncryptionToData
             BasisDebug.LogError($"LoadFromMemoryAsync threw: {ex}");
             return null;
         }
-        // Track the last reported progress
-        int lastReportedProgress = -1;
-
-        // Periodically check the progress of AssetBundleCreateRequest and report progress
         while (!assetBundleCreateRequest.isDone)
         {
-            // Convert the progress to a percentage (0-100)
-            int progress = Mathf.RoundToInt(assetBundleCreateRequest.progress * 100);
-
-            // Report progress only if it has changed
-            if (progress > lastReportedProgress)
-            {
-                lastReportedProgress = progress;
-
-                // Call the progress callback with the current progress
-                progressCallback.ReportProgress(UniqueID.ToString(), progress, "loading bundle");
-            }
-
-            // Wait a short period before checking again to avoid busy waiting
-            await Task.Delay(50); // Adjust delay as needed (e.g., 50ms)
+            progressCallback.ReportProgress(UniqueID, 60 + Mathf.Min(assetBundleCreateRequest.progress, 0.99f) * 40, "Loading bundle");
+            await Task.Delay(50);
         }
 
-        progressCallback?.ReportProgress(UniqueID, 100, "loading bundle");
+        progressCallback.ReportProgress(UniqueID, 100, "Loading bundle");
         await assetBundleCreateRequest;
 
         // req.assetBundle can still be null if CRC fails or bytes aren’t a bundle.

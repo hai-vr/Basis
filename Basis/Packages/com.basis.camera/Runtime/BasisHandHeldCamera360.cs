@@ -64,6 +64,7 @@ public partial class BasisHandHeldCamera
 
         yield return new WaitForEndOfFrame();
 
+        bool headWasNormal = BasisLocalAvatarDriver.IsNormalHead;
         BasisLocalAvatarDriver.ScaleHeadToNormal();
 
         float headingDegrees = captureCamera.transform.eulerAngles.y;
@@ -140,6 +141,7 @@ public partial class BasisHandHeldCamera
 #if BASIS_HAS_GI && !UNITY_ANDROID
             SMModuleGlobalIlluminationURP.SuspendCamera(captureCamera, false);
 #endif
+            if (!headWasNormal) BasisLocalAvatarDriver.ScaleHeadToZero();
         }
 
         captureCamera.usePhysicalProperties = savedPhysical;
@@ -160,7 +162,6 @@ public partial class BasisHandHeldCamera
         {
             BasisDebug.LogError("[HandHeldCamera] RenderToCubemap failed; 360 capture aborted.");
             ReleaseRT(equirect);
-            BasisLocalAvatarDriver.ScaleHeadToZero();
             yield break;
         }
 
@@ -175,13 +176,11 @@ public partial class BasisHandHeldCamera
             {
                 BasisDebug.LogError("360 GPU Readback failed.");
                 ReleaseRT(readbackRT);
-                BasisLocalAvatarDriver.ScaleHeadToZero();
                 return;
             }
 
             byte[] raw = request.GetData<byte>().ToArray();
             ReleaseRT(readbackRT);
-            BasisLocalAvatarDriver.ScaleHeadToZero();
 
             bool anyNonZero = false;
             for (int i = 0; i < raw.Length; i += 3988)

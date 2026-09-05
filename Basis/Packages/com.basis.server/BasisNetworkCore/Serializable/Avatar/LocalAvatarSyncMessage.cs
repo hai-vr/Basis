@@ -174,9 +174,9 @@ public static partial class SerializableBasis
             if (!TryGetExpectedPayloadLength(DataQualityLevel, out ushort expected))
             {
                 BNL.LogError($"Serialize invalid quality={Quality} (DataQualityLevel={DataQualityLevel})");
-                writer.Put(DataQualityLevel);
-                writer.Put((byte)0);
-                return;
+                DataQualityLevel = (byte)BitQuality.High;
+                TryGetExpectedPayloadLength(DataQualityLevel, out expected);
+                array = new byte[expected];
             }
 
             writer.Put(DataQualityLevel);
@@ -184,8 +184,7 @@ public static partial class SerializableBasis
             if (array == null)
             {
                 BNL.LogError("array was null!!");
-                writer.Put((byte)0);
-                return;
+                array = new byte[expected];
             }
 
             if (array.Length != expected)

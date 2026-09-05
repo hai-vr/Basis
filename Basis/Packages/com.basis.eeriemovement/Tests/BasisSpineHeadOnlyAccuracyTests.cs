@@ -129,8 +129,6 @@ namespace Basis.Tests.IK
             rest.Head = clip.Get(restFrame, BasisMocapJoint.Head).Position;
             rest.Gaze = GazeFrame(rest.Neck, rest.Head, PelvisForward(clip, restFrame, Vector3.forward));
             rig.Rest = rest;
-            float3 jobChord = rest.Neck - rest.Hips;
-            BasisLocalVirtualSpineDriver.RestOffsetFromChord(rest.Chest, rest.Hips, jobChord, math.lengthsq(jobChord), out float jobChestAlong, out float3 jobChestPerp);
 
             rig.Job = new BasisEerieMovement
             {
@@ -155,7 +153,6 @@ namespace Basis.Tests.IK
                 anatPelvicTwistRouting = true,
                 tposeHeadToNeckLocal = Quaternion.Inverse(rest.Gaze) * (Vector3)(rest.Neck - rest.Head),
                 tposeLengthNeckToHips = rest.Neck - rest.Hips,
-                chestRestAlong = jobChestAlong, chestRestPerp = jobChestPerp, restChordDirHips = math.normalizesafe(rest.Neck - rest.Hips),
                 spineMaxIterations = 20, spineTolerance = 0.001f, spineCCDRelax = 1.0f,
                 spineTwistKeep = 0.25f, spineNeckTwistKeep = 0.9f, neckMaxConeDeg = 45f, maxChestDeltaDeg = 90f,
                 spineBendPitch = 0.45f, spineBendYaw = 0.10f, spineBendRoll = 0.35f,

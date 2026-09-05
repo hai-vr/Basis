@@ -325,22 +325,6 @@ namespace Basis.Scripts.Drivers
                 job.tposeLengthNeckToHips = headToHips;
             }
 
-            job.chestRestAlong = 0f;
-            job.chestRestPerp = Vector3.zero;
-            job.restChordDirHips = Vector3.up;
-            if (Mapping.Hips != null && Mapping.neck != null && Mapping.chest != null)
-            {
-                Quaternion hipsInv = Quaternion.Inverse(Mapping.Hips.rotation);
-                Vector3 chord = hipsInv * (Mapping.neck.position - Mapping.Hips.position), chest = hipsInv * (Mapping.chest.position - Mapping.Hips.position);
-                float chordSq = chord.sqrMagnitude;
-                if (chordSq > 1e-8f)
-                {
-                    job.chestRestAlong = Vector3.Dot(chest, chord) / chordSq;
-                    job.chestRestPerp = chest - chord * job.chestRestAlong;
-                    job.restChordDirHips = chord / Mathf.Sqrt(chordSq);
-                }
-            }
-
             job.tposeBakeScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
         }
     }

@@ -134,6 +134,23 @@ namespace Basis.Tests.IK
             Assert.That(job.plan.leftLeg.hintRoll, Is.False, "roll data without a knee tracker is never applied");
         }
         [Test]
+        public void Frame_ChestTarget_NeedsAChestTrackerAndAChestJoint()
+        {
+            var job = new BasisEerieMovement { chestIkTarget = true };
+            job.plan.hasChestJoint = true;
+            BasisEeriePlanner.Frame(ref job, default);
+            Assert.That(job.plan.chestTarget, Is.False, "without a chest tracker there is no measured chest to place the bone against");
+            BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { chestTracked = true });
+            Assert.That(job.plan.chestTarget, Is.True);
+            job.chestIkTarget = false;
+            BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { chestTracked = true });
+            Assert.That(job.plan.chestTarget, Is.False, "the setting still turns it off");
+            job.chestIkTarget = true;
+            job.plan.hasChestJoint = false;
+            BasisEeriePlanner.Frame(ref job, new BasisEerieFrameFacts { chestTracked = true });
+            Assert.That(job.plan.chestTarget, Is.False, "no chest joint in the chain, nothing to pull");
+        }
+        [Test]
         public void Frame_ZeroOffsetsAndUpBecomeIdentityAndUnit()
         {
             var job = new BasisEerieMovement { playerUp = new Vector3(0f, 3f, 0f) };

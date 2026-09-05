@@ -34,6 +34,9 @@
             },
             "click": {
               "output": "/actions/default/in/joystickclick"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -47,6 +50,9 @@
             },
             "click": {
               "output": "/actions/default/in/joystickclick"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -57,6 +63,9 @@
           "inputs": {
             "click": {
               "output": "/actions/default/in/b-button"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -87,6 +96,9 @@
           "inputs": {
             "click": {
               "output": "/actions/default/in/a_button"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -100,6 +112,9 @@
             },
             "click": {
               "output": "/actions/default/in/joystickclick"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -110,6 +125,9 @@
           "inputs": {
             "click": {
               "output": "/actions/default/in/a_button"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -120,6 +138,9 @@
           "inputs": {
             "click": {
               "output": "/actions/default/in/b-button"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -133,6 +154,9 @@
             },
             "click": {
               "output": "/actions/default/in/joystickclick"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -143,6 +167,9 @@
           "inputs": {
             "click": {
               "output": "/actions/default/in/a_button"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -153,6 +180,9 @@
           "inputs": {
             "click": {
               "output": "/actions/default/in/a_button"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -163,6 +193,9 @@
           "inputs": {
             "click": {
               "output": "/actions/default/in/b-button"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -173,6 +206,9 @@
           "inputs": {
             "click": {
               "output": "/actions/default/in/b-button"
+            },
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         },
@@ -253,6 +289,26 @@
           "inputs": {
             "click": {
               "output": "/actions/default/in/system"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/left/input/thumbrest",
+          "mode": "button",
+          "parameters": {},
+          "inputs": {
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/thumbrest",
+          "mode": "button",
+          "parameters": {},
+          "inputs": {
+            "touch": {
+              "output": "/actions/default/in/thumbtouch"
             }
           }
         }

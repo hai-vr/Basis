@@ -121,6 +121,14 @@ namespace Valve.VR
             }
         }
         
+        public virtual SteamVR_Action_Boolean ThumbTouch
+        {
+            get
+            {
+                return SteamVR_Actions.default_ThumbTouch;
+            }
+        }
+        
         public virtual SteamVR_Action_Boolean Grip
         {
             get

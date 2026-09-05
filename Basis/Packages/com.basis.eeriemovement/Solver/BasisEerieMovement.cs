@@ -44,8 +44,6 @@ namespace Basis.IK
         public float tposeBakeScale;
         public float tposeArmFitScale, tposeTorsoFitScale;
         public Vector3 tposeLengthNeckToHips, tposeHeadToNeckLocal, tposeLeftShoulderLocalDir;
-        public Vector3 chestRestPerp, restChordDirHips;
-        public float chestRestAlong;
         public Vector3 tposeRightShoulderLocalDir;
         public Quaternion tposeLeftShoulderRot, tposeRightShoulderRot, tposeChestRot;
         public float tposeShoulderToHandLeft, tposeShoulderToHandRight, tposeClavicleLenLeft, tposeClavicleLenRight;
@@ -229,7 +227,6 @@ namespace Basis.IK
             tposeShoulderToElbowRight *= k;
             tposeHeadToNeckLocal *= k;
             tposeLengthNeckToHips *= k;
-            chestRestPerp *= k;
 
             tposeBakeScale = newScale;
         }
@@ -252,7 +249,6 @@ namespace Basis.IK
                 tposeHeadToNeckLocal *= kt;
                 tposeLengthNeckToHips *= kt;
                 minHeadSpineHeight *= kt;
-                chestRestPerp *= kt;
             }
             tposeArmFitScale = armScale;
             tposeTorsoFitScale = torsoScale;
