@@ -16,7 +16,12 @@ public static class HVREventLog
 
         return "???";
     }
-    
+
+    public static void ServerLog(string message)
+    {
+        PreLog(message, -1, "???", "???", "???");
+    }
+
     public static void PreLog(string message, ushort senderId)
     {
         if (NetworkServer.AuthenticatedPeers.TryGetValue(senderId, out var peer))
