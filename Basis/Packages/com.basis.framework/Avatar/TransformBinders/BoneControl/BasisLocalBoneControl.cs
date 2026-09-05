@@ -59,7 +59,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         // a live Owner and its old Index, and every accessor below indexes the store by raw pointer
         // — no bounds check in any build. The capacity test is one compare next to two null tests
         // already on this path.
-        private unsafe bool HasStore => Owner != null && Owner.simInputPtr != null && Owner.simStatePtr != null
+        internal unsafe bool HasStore => Owner != null && Owner.simInputPtr != null && Owner.simStatePtr != null
             && (uint)Index < (uint)Owner.nativeCapacity;
 
         public unsafe BasisCalibratedCoords IncomingData

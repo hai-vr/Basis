@@ -125,6 +125,10 @@ namespace Basis.IK
                 Quaternion headRot = targetRotationHead;
 
                 BasisEerieMarkers.SpineChainPrep.Begin();
+                if (plan.chestTarget && chestRestAlong > 0f)
+                {
+                    targetPositionChestRaw = ChestTargetFromChord(headPos, headRot);
+                }
                 DistributeSpineBend(headPos);
                 if (plan.armSwingChestFollow) ApplyArmSwingChestFollow();
                 GuardSpineChain();
@@ -133,6 +137,23 @@ namespace Basis.IK
                 SolveSequentialSpineIK(headPos, headRot);
                 BasisEerieMarkers.SpineSequentialIK.End();
             }
+        }
+        // No chest tracker: the chest target is the avatar's own rest chest carried by the torso the solve just placed --
+        // its authored fraction of the hips->neck chord plus its authored offset from that chord, swung from the rest chord
+        // direction to the current one. Built from the hips bone as written this frame and the neck the pinned head implies,
+        // so it always lies on the chain's own chord (a target taken from the virtual spine's chest control sat on a
+        // different pelvis and, pinned to the T-pose height, dropped below the lumbar whenever the head rode above rest).
+        Vector3 ChestTargetFromChord(Vector3 headTargetPos, Quaternion headTargetRot)
+        {
+            Vector3 hipsPos = poseStream.GetPosition(handleHips), neckPos = headTargetPos + (headTargetRot * offsetRotationHead) * tposeHeadToNeckLocal;
+            Quaternion hipsRot = poseStream.GetRotation(handleHips);
+            Vector3 chord = neckPos - hipsPos, restDir = hipsRot * restChordDirHips;
+            if (chord.sqrMagnitude < sqrEpsilon || restDir.sqrMagnitude < sqrEpsilon)
+            {
+                return targetPositionChestRaw;
+            }
+            Quaternion swing = BasisQuaternionExt.FromToRotation(restDir, chord);
+            return hipsPos + chord * chestRestAlong + swing * (hipsRot * chestRestPerp);
         }
         void ResetSpineChainToRest()
         {

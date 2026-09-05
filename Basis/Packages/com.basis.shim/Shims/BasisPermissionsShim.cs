@@ -164,7 +164,7 @@ namespace Basis.Shims
 			if( callback == null ) return;
 
 			if( player == null || player.IsDestroyed ||
-				string.IsNullOrEmpty( value ) || value.Length > MaxValueLength )
+				string.IsNullOrWhiteSpace( value ) || value.Length > MaxValueLength )
 			{
 				callback( false );
 				return;
@@ -178,8 +178,7 @@ namespace Basis.Shims
 				return;
 			}
 
-			ushort playerId = player.GetPlayerId();
-			if( playerId == 0 )
+			if( !player.TryGetPlayerId( out ushort playerId ) )
 			{
 				callback( false );
 				return;

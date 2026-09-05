@@ -170,6 +170,7 @@ namespace Basis.EventDriver
         {
             try
             {
+                BasisOpenLipSyncContext.StopWorker();
                 BasisOpenLipSyncDriver.Shutdown();
                 Basis.Scripts.Networking.Sync.BasisSyncDriver.OnDestroy();
                 Application.onBeforeRender -= OnBeforeRender;

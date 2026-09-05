@@ -129,6 +129,8 @@ namespace Basis.Tests.IK
             rest.Head = clip.Get(restFrame, BasisMocapJoint.Head).Position;
             rest.Gaze = GazeFrame(rest.Neck, rest.Head, PelvisForward(clip, restFrame, Vector3.forward));
             rig.Rest = rest;
+            float3 jobChord = rest.Neck - rest.Hips;
+            BasisLocalVirtualSpineDriver.RestOffsetFromChord(rest.Chest, rest.Hips, jobChord, math.lengthsq(jobChord), out float jobChestAlong, out float3 jobChestPerp);
 
             rig.Job = new BasisEerieMovement
             {
@@ -153,6 +155,7 @@ namespace Basis.Tests.IK
                 anatPelvicTwistRouting = true,
                 tposeHeadToNeckLocal = Quaternion.Inverse(rest.Gaze) * (Vector3)(rest.Neck - rest.Head),
                 tposeLengthNeckToHips = rest.Neck - rest.Hips,
+                chestRestAlong = jobChestAlong, chestRestPerp = jobChestPerp, restChordDirHips = math.normalizesafe(rest.Neck - rest.Hips),
                 spineMaxIterations = 20, spineTolerance = 0.001f, spineCCDRelax = 1.0f,
                 spineTwistKeep = 0.25f, spineNeckTwistKeep = 0.9f, neckMaxConeDeg = 45f, maxChestDeltaDeg = 90f,
                 spineBendPitch = 0.45f, spineBendYaw = 0.10f, spineBendRoll = 0.35f,
@@ -174,6 +177,10 @@ namespace Basis.Tests.IK
         {
             float neckChest = math.distance(rest.Neck, rest.Chest), chestSpine = math.distance(rest.Chest, rest.Spine);
             float lenTotal = math.max(1e-4f, neckChest + chestSpine + math.distance(rest.Spine, rest.Hips)), restDrop = rest.Neck.y - rest.Hips.y;
+            float3 restChord = rest.Neck - rest.Hips;
+            float restChordLenSq = math.lengthsq(restChord);
+            BasisLocalVirtualSpineDriver.RestOffsetFromChord(rest.Chest, rest.Hips, restChord, restChordLenSq, out float chestAlong, out float3 chestPerp);
+            BasisLocalVirtualSpineDriver.RestOffsetFromChord(rest.Spine, rest.Hips, restChord, restChordLenSq, out float spineAlong, out float3 spinePerp);
             return new BasisVirtualSpineCore.SpineSolveParams
             {
                 Dt = dt, Scale = 1f, TrackingLiftY = 0f, ParentMatrix = float4x4.identity, ParentRotation = quaternion.identity, EyeRot = eyeRot,
@@ -191,6 +198,7 @@ namespace Basis.Tests.IK
                 EyePos = eyePos, HipsAnchorOffsetLocal = new float3(rest.Hips.x - rest.Head.x, 0f, rest.Hips.z - rest.Head.z),
                 HeadRestFromEyeLocal = float3.zero, YawPivotFromEyeLocal = new float3(rest.Neck.x - rest.Head.x, 0f, rest.Neck.z - rest.Head.z),
                 PostureModel = 1, HipsCompressionStrength = 0.85f, HipsMaxDropMeters = 0.3f, HipsRestDropY = authoredDrop ? restDrop : 0f,
+                RestChordDir = math.normalizesafe(rest.Neck - rest.Hips), ChestRestAlong = chestAlong, ChestRestPerp = chestPerp, SpineRestAlong = spineAlong, SpineRestPerp = spinePerp,
             };
         }
         static void RunClip(Rig rig, BasisMotionClip clip, in Law law, List<float> pelvisErrors, List<float> spineErrors)

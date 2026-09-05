@@ -1616,7 +1616,7 @@ if (Test_Mode)
                     balls_P[id].y = (-(balls_P[id].y - floor) * K_BOUNCE_FACTOR) + floor;
                     if (V.y > 0.2 && !hitWall)
                     {
-                        balls[id].GetComponent<AudioSource>().PlayOneShot(bounceSounds[UnityEngine.Random.Range(0, bounceSounds.Length - 1)], Mathf.Clamp01(V.y));
+                        balls[id].GetComponent<AudioSource>().PlayOneShot(bounceSounds[UnityEngine.Random.Range(0, bounceSounds.Length)], Mathf.Clamp01(V.y));
                     }
                 }
                 if (balls_transitioningBounds[id])

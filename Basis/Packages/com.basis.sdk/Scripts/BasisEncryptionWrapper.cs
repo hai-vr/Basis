@@ -70,7 +70,7 @@ public static partial class BasisEncryptionWrapper
     }
 
     // Threshold to decide when to offload encryption to a separate thread
-    private const long LargeFileThreshold = 10L * 1024L * 1024L; // 25 MB
+    private const long LargeFileThreshold = 10L * 1024L * 1024L; // 10 MB
 
     public static Task EncryptFileAsync(string UniqueID, BasisPassword password, string inputPath, string outputPath, BasisProgressReport reportProgress)
     {
@@ -522,18 +522,5 @@ public static partial class BasisEncryptionWrapper
         reportProgress?.ReportProgress(UniqueID, 100, ProgressEncryptionComplete);
 
         return msOut.ToArray();
-    }
-
-    // Custom MemoryStream that minimizes allocations by exposing the internal buffer directly.
-    // Only use when safe, here for efficiency in DecryptFromBytesInternalAsync.
-    private sealed class PooledMemoryStream : MemoryStream
-    {
-        public PooledMemoryStream() : base() { }
-
-        public override byte[] ToArray()
-        {
-            // Avoids copying if possible (internal buffer might be larger than Length)
-            return base.GetBuffer().AsSpan(0, (int)Length).ToArray();
-        }
     }
 }

@@ -603,6 +603,11 @@ public static class BasisNetworkModeration
         if (enabled) adminShoutPlayers.Add(targetPlayerId);
         else adminShoutPlayers.Remove(targetPlayerId);
 
+        BasisNetworkPlayer.OnRemotePlayerLeft -= ForgetShoutGrant;
+        BasisNetworkPlayer.OnRemotePlayerLeft += ForgetShoutGrant;
+        BasisNetworkPlayer.OnLocalPlayerLeft -= ForgetAllShoutGrants;
+        BasisNetworkPlayer.OnLocalPlayerLeft += ForgetAllShoutGrants;
+
         // Only the target acts on this. Unlike announce there is no second audio path to build
         // for a remote shouter: the target enters the mode, its ordinary talk-mode broadcast
         // reaches every client, and each listener's own transmit tick widens from there.
@@ -622,6 +627,16 @@ public static class BasisNetworkModeration
         }
 
         OnShoutModeChanged?.Invoke(targetPlayerId, enabled);
+    }
+
+    private static void ForgetShoutGrant(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
+    {
+        if (networkPlayer != null) adminShoutPlayers.Remove(networkPlayer.playerId);
+    }
+
+    private static void ForgetAllShoutGrants(BasisNetworkPlayer networkPlayer, BasisLocalPlayer localPlayer)
+    {
+        adminShoutPlayers.Clear();
     }
 
     /// <summary>

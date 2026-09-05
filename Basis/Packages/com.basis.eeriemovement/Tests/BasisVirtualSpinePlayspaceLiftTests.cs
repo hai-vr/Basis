@@ -133,10 +133,11 @@ namespace Basis.Tests.IK
             float hipsError = Mathf.Abs((baseline.HipsPos.y + drag) - broken.HipsPos.y);
             Assert.Greater(hipsError, 0.15f, $"the un-lifted law only misplaced the hips by {hipsError * 100f:F1} cm on a {-drag * 100f:F0} cm " + "downward drag -- the phantom-squat misread this suite guards against is no longer " + "reproducible, so the equivariance gate is not being exercised.");
 
+            // The chest rides the neck->hips chord now (no T-pose height pin), so unplumbed it can only inherit the
+            // pelvis misread above, never the whole drag.
             float chestError = Mathf.Abs((baseline.ChestPos.y + drag) - broken.ChestPos.y);
-            Assert.AreEqual(-drag, chestError, 0.01f,
-                "the un-lifted chest pin should miss by exactly the drag (it is pinned to the floor-relative "
-                + "T-pose Y); if it no longer does, the chest gate above is not measuring the pin.");
+            Assert.LessOrEqual(chestError, hipsError + 0.01f, $"the chord-placed chest missed by {chestError * 100f:F1} cm, more than the pelvis it hangs between ({hipsError * 100f:F1} cm).");
+            Assert.Less(chestError, -drag * 0.5f, $"the chest missed by {chestError * 100f:F1} cm on a {-drag * 100f:F0} cm drag -- that is the old T-pose height pin, not the chord.");
         }
         [Test]
         public void ARealCrouch_ReadsTheSame_WithOrWithoutASpaceDrag()

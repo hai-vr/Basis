@@ -187,18 +187,6 @@ namespace Basis.Tests.IK
             Assert.That(maxLag, Is.LessThan(15f), $"deliberate-swing tracking lag {maxLag:0.0} deg too high.");
         }
         [Test]
-        public void Characterize_PrintTables()
-        {
-            var rows = new List<(float ext, float raw, float smooth)>();
-            foreach (float ext in new[] { 0.90f, 0.94f, 0.96f, 0.97f, 0.98f, 0.99f, 0.995f })
-            {
-                Drive(ext, Jitter, 270, out float rawP2P, out float smoothP2P, out _);
-                rows.Add((ext, rawP2P, smoothP2P));
-            }
-            LogRows("knee swivel under ±4deg standing yaw jitter, per standing extension", rows);
-            Assert.Pass("see table");
-        }
-        [Test]
         public void AllOutputs_StayFinite()
         {
             foreach (float ext in new[] { 0.90f, 0.97f, 0.999f })

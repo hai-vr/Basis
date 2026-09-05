@@ -64,26 +64,6 @@ namespace Basis.Tests.IK
             Assert.That(nearLock.Gain, Is.GreaterThan(horiz.Gain * 3f), $"vertical-bob gain {nearLock.Gain:0.00} should dwarf horizontal-sway gain {horiz.Gain:0.00} at the same amplitude.");
         }
         [Test]
-        public void Characterize_PrintAllSweepTables()
-        {
-            // The sweep centerpiece: full tables for all three idle motions across the standing-extension
-            // range so the over-extension knee gain is visible at a glance. No behavioural assertion -- this
-            // is the measurement; the Repro_* tests below assert the natural target.
-            var exts = new[] { 0.85f, 0.90f, 0.94f, 0.97f, 0.99f, 0.995f, 0.999f };
-            foreach (var (axis, amp, label) in new[]
-            {
-                (SwayAxis.Horizontal, 0.02f, "horizontal fwd/back +-2cm (4cm p2p)"),
-                (SwayAxis.Vertical,   0.01f, "vertical hip bob +-1cm (2cm p2p)"),
-                (SwayAxis.Arc,        0.02f, "pendulum arc about the foot +-2cm"),
-            })
-            {
-                var rows = new List<SwayMetrics>();
-                foreach (float ext in exts) rows.Add(Measure(ext, axis, amp));
-                LogTable(label, rows);
-            }
-            Assert.Pass("see attached sweep tables");
-        }
-        [Test]
         public void AllOutputs_StayFinite_AcrossTheFullSweep()
         {
             // Through every standing extension (incl. past max reach) and idle amplitude nothing may go

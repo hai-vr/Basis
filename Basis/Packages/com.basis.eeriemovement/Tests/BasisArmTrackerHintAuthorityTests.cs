@@ -438,49 +438,5 @@ namespace Basis.Tests.IK
                 Assert.Fail("A TRACKER COMMANDED THE ELBOW ABOVE THE SHOULDER AND THE SOLVER OBEYED:\n" + offenders + "\nBasisElbowAnatomyCore is documented to guard the OUTCOME precisely so that a " + "mis-strapped elbow tracker cannot do this. On the tracker path it is the ONLY guard left " + "standing -- no fade, no stabilizer, no rate limit, no filter -- so if it does not hold " +"here, nothing does.");
             }
         }
-        // ════════════════════════════════════════════════════════════════════════════════════════════
-        // 5. INSTRUMENTATION -- the numbers, printed, so a claim about this path can be checked.
-        // ════════════════════════════════════════════════════════════════════════════════════════════
-        [Test]
-        public void Instrument_WhatTheSolverGrantsATracker()
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine();
-            sb.AppendLine("  ══ WHAT BasisArmSolveCore GRANTS A TRACKER (HintIsTracker = true) ══");
-            sb.AppendLine($"  arm {k_ArmLen:F2} m, pole epsilon = {poleEpsFrac:F4} * armLen = {poleEpsFrac * k_ArmLen * 1000f:F1} mm");
-            sb.AppendLine();
-            sb.AppendLine("  standOff  reach     elbowR    poleR     fade    applied   elbow off pole   swivel gain");
-            sb.AppendLine("  --------  ------    ------    ------    ----    -------   --------------   -----------");
-
-            foreach (float standOff in standOffs)
-            {
-                foreach (float reach in reaches)
-                {
-                    Vector3 target = shoulder + reachDir * (reach * k_ArmLen);
-                    ElbowCircle(target, out _, out float elbowR);
-                    Vector3 puck = StrappedTracker(target, commandedSwivel, standOff, 0.05f);
-                    Vector3 animElbow = ElbowOnCircle(target, commandedSwivel + 180f);
-
-                    BasisArmSolveCore.Solve(TrackerInput(animElbow, target, puck), out BasisArmSolveResult r);
-
-                    float got = SwivelDeg(r.HandSolved, r.ElbowSolved), off = DeltaDeg(got, commandedSwivel);
-
-                    // d(elbow swivel) / d(tracker displacement perpendicular to the pole), deg per mm.
-                    // This IS the noise amplification, measured rather than argued.
-                    SwingBasis(target, out Vector3 axis, out Vector3 u, out Vector3 v);
-                    float t = commandedSwivel * Mathf.Deg2Rad;
-                    Vector3 tangent = -u * Mathf.Sin(t) + v * Mathf.Cos(t);   // perpendicular to the pole, in-plane
-                    Vector3 nudged = puck + tangent * 0.001f;                 // 1 mm sideways on the puck
-                    BasisArmSolveCore.Solve(TrackerInput(animElbow, target, nudged), out BasisArmSolveResult rn);
-                    float gain = DeltaDeg(SwivelDeg(rn.HandSolved, rn.ElbowSolved), got);
-
-                    sb.AppendLine($"  {standOff * 100f,5:F0} cm  {reach,6:P1}   {elbowR * 1000f,6:F1}mm  {r.HintProjMag * 1000f,6:F1}mm  " + $"{r.HintFade,5:F2}   {(r.HintApplied ? "  yes  " : "  NO   "),-7}   {off,10:F1} deg   {gain,7:F2} deg/mm");
-                }
-                sb.AppendLine();
-            }
-
-            TestContext.WriteLine(sb.ToString());
-            Assert.Pass();
-        }
     }
 }

@@ -100,6 +100,8 @@ namespace Basis.Scripts.Networking
             adminShoutHeld = enabled;
             if (enabled)
             {
+                BasisNetworkPlayer.OnLocalPlayerLeft -= HandleLocalPlayerLeft;
+                BasisNetworkPlayer.OnLocalPlayerLeft += HandleLocalPlayerLeft;
                 if (CurrentMode != BasisTalkMode.Shout) ApplyMode(BasisTalkMode.Shout);
                 else OnLocalTalkModeChanged?.Invoke();
                 return;
@@ -116,6 +118,14 @@ namespace Basis.Scripts.Networking
                 return;
             }
             OnLocalTalkModeChanged?.Invoke();
+        }
+
+        private static void HandleLocalPlayerLeft(BasisNetworkPlayer networkPlayer, BasisLocalPlayer localPlayer)
+        {
+            if (!adminShoutHeld) return;
+            adminShoutHeld = false;
+            if (CurrentMode == BasisTalkMode.Shout) ApplyMode(BasisTalkMode.Normal);
+            else OnLocalTalkModeChanged?.Invoke();
         }
 
         /// <summary>

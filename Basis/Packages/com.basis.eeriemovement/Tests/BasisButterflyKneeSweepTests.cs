@@ -179,18 +179,6 @@ namespace Basis.Tests.IK
                 Assert.That(r.HintWeight, Is.InRange(0f, 1f), "hint weight left [0,1].");
             }
         }
-        [Test]
-        public void Characterize_PrintAllSweepTables()
-        {
-            foreach (float dist in new[] { DeepFoldDist, 0.55f, ExtendedDist })
-            {
-                var rows = new List<Row>();
-                foreach (float tilt in new[] { 0f, 15f, 30f, 45f, 55f, 70f, 90f })
-                    rows.Add(Eval(supine: 1f, tilt: tilt, dist: dist, maxOpen: DefaultMax, strength: 1f, isLeft: false));
-                LogTable($"supine sweep @ hip->foot {dist:0.00}m (reach {dist / MaxReach:0.00})", rows);
-            }
-            Assert.Pass("see attached sweep tables");
-        }
         // ----------------------------------------------------------------- harness
         static Row Eval(float supine, float tilt, float dist, float maxOpen, float strength, bool isLeft)
         {
