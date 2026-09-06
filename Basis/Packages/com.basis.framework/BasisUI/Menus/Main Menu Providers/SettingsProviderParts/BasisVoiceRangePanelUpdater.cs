@@ -102,7 +102,7 @@ namespace Basis.BasisUI
                 {
                     float d2 = math.lengthsq(mouth - head);
                     meters = math.sqrt(d2);
-                    inHearing = d2 < (remote.TalkMode == BasisTalkMode.Shout ? shoutHearingSq : hearingSq);
+                    inHearing = d2 < (remote.IsShouting ? shoutHearingSq : hearingSq);
                     inMic = d2 < micSq;
                 }
 

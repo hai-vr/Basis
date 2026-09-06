@@ -45,6 +45,7 @@ namespace Basis.Scripts.UI.UI_Panels
 
         private static readonly List<LoadingOperationData> loadingOperations = new List<LoadingOperationData>();
         private static bool hudSuppressed;
+        private static bool displaySuppressed;
 
         private static bool IsRoutedElsewhere => hudSuppressed && OnDisplayChanged != null;
 
@@ -111,6 +112,29 @@ namespace Basis.Scripts.UI.UI_Panels
             else if (HasDisplay)
             {
                 ProcessQueue();
+            }
+        }
+
+        public static void SetDisplaySuppressed(bool suppressed)
+        {
+            if (displaySuppressed == suppressed)
+            {
+                return;
+            }
+            displaySuppressed = suppressed;
+
+            if (suppressed)
+            {
+                DestroyHud();
+                SetDisplayState(string.Empty, 0f, false);
+            }
+            else
+            {
+                ProcessPendingReports();
+                if (!HasDisplay)
+                {
+                    ProcessQueue();
+                }
             }
         }
 
@@ -196,7 +220,7 @@ namespace Basis.Scripts.UI.UI_Panels
         private static void ProcessQueue()
         {
             LoadingOperationData operation = GetDisplayedOperation();
-            if (operation == null)
+            if (operation == null || displaySuppressed)
             {
                 return;
             }

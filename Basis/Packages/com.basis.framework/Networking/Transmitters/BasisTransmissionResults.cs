@@ -374,7 +374,7 @@ public partial class BasisTransmissionResults
                 pTargetForwards[Index] = mouthForward;
                 pHasRealAvatar[Index] = remotePlayer.InAvatarRange && !remotePlayer.IsConsideredFallBackAvatar;
                 pHasActiveAudio[Index] = remote.AudioReceiverModule.HasAudioSource;
-                pRemoteIsShouting[Index] = remotePlayer.TalkMode == BasisTalkMode.Shout;
+                pRemoteIsShouting[Index] = remotePlayer.IsShouting;
 
                 // Mirror for BasisJiggleLodJob: same driver instance PostProcess later applies
                 // any resulting tier/simulate change through, read once here (not twice, once per

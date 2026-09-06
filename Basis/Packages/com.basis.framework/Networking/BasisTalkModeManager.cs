@@ -93,7 +93,8 @@ namespace Basis.Scripts.Networking
         /// <summary>
         /// Server told us an admin granted or revoked shout for the local player. Enter or leave
         /// the mode, and hold it so <see cref="SetMode"/> routes any attempt to leave back through
-        /// the server rather than applying locally.
+        /// the server rather than applying locally. An announce in progress keeps precedence;
+        /// the held shout lands when it ends.
         /// </summary>
         public static void OnAdminShoutChanged(bool enabled)
         {
@@ -102,7 +103,7 @@ namespace Basis.Scripts.Networking
             {
                 BasisNetworkPlayer.OnLocalPlayerLeft -= HandleLocalPlayerLeft;
                 BasisNetworkPlayer.OnLocalPlayerLeft += HandleLocalPlayerLeft;
-                if (CurrentMode != BasisTalkMode.Shout) ApplyMode(BasisTalkMode.Shout);
+                if (CurrentMode != BasisTalkMode.Shout && CurrentMode != BasisTalkMode.Announce) ApplyMode(BasisTalkMode.Shout);
                 else OnLocalTalkModeChanged?.Invoke();
                 return;
             }
@@ -398,7 +399,7 @@ namespace Basis.Scripts.Networking
             }
             else if (CurrentMode == BasisTalkMode.Announce)
             {
-                BasisTalkMode target = hasPendingAnnounceExitMode ? pendingAnnounceExitMode : BasisTalkMode.Normal;
+                BasisTalkMode target = adminShoutHeld ? BasisTalkMode.Shout : hasPendingAnnounceExitMode ? pendingAnnounceExitMode : BasisTalkMode.Normal;
                 hasPendingAnnounceExitMode = false;
                 ApplyMode(target);
             }

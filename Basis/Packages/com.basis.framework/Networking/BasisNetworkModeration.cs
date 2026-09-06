@@ -583,9 +583,9 @@ public static class BasisNetworkModeration
 
     /// <summary>
     /// True if an admin currently has this player in shout mode. This is the GRANT, not the
-    /// mode: a player who picked shout from their own menu bar is not in here. The audio
-    /// widening keys off <see cref="BasisRemotePlayer.TalkMode"/> either way; this only drives
-    /// the admin UI's enable/disable label.
+    /// mode: a player who picked shout from their own menu bar is not in here. Every client
+    /// applies it to the remote player directly (<see cref="BasisRemotePlayer.SetAdminShoutHeld"/>),
+    /// so the widening does not wait on the target's own talk-mode broadcast.
     /// </summary>
     public static bool IsInShoutMode(ushort playerId) => adminShoutPlayers.Contains(playerId);
 
@@ -607,10 +607,12 @@ public static class BasisNetworkModeration
         BasisNetworkPlayer.OnRemotePlayerLeft += ForgetShoutGrant;
         BasisNetworkPlayer.OnLocalPlayerLeft -= ForgetAllShoutGrants;
         BasisNetworkPlayer.OnLocalPlayerLeft += ForgetAllShoutGrants;
+        BasisNetworkPlayer.OnRemotePlayerJoined -= SeedShoutGrant;
+        BasisNetworkPlayer.OnRemotePlayerJoined += SeedShoutGrant;
 
-        // Only the target acts on this. Unlike announce there is no second audio path to build
-        // for a remote shouter: the target enters the mode, its ordinary talk-mode broadcast
-        // reaches every client, and each listener's own transmit tick widens from there.
+        // The target enters the mode and broadcasts it; every other client also applies the
+        // grant to the remote player directly, the way the announce driver does, so the
+        // widening and the nameplate do not wait on that broadcast.
         bool isLocalPlayer = BasisNetworkPlayer.LocalPlayer != null && targetPlayerId == BasisNetworkPlayer.LocalPlayer.playerId;
         if (isLocalPlayer)
         {
@@ -625,8 +627,17 @@ public static class BasisNetworkModeration
                     : $"{initiatorName} took you out of shout mode - your voice is back to normal.");
             }
         }
+        else if (BasisNetworkPlayers.RemotePlayers.TryGetValue(targetPlayerId, out BasisRemotePlayer remote) && remote != null)
+        {
+            remote.SetAdminShoutHeld(enabled);
+        }
 
         OnShoutModeChanged?.Invoke(targetPlayerId, enabled);
+    }
+
+    private static void SeedShoutGrant(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
+    {
+        if (networkPlayer != null && remotePlayer != null && adminShoutPlayers.Contains(networkPlayer.playerId)) remotePlayer.SetAdminShoutHeld(true);
     }
 
     private static void ForgetShoutGrant(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)

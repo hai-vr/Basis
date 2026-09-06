@@ -257,6 +257,23 @@ namespace Basis.Scripts.BasisSdk.Players
             OnTalkModeChanged?.Invoke();
         }
 
+        public bool AdminShoutHeld;
+
+        public bool IsShouting => TalkMode == BasisTalkMode.Shout || AdminShoutHeld;
+
+        public void SetAdminShoutHeld(bool held)
+        {
+            AdminShoutHeld = held;
+            if (held)
+            {
+                if (TalkMode != BasisTalkMode.Announce) SetTalkMode(BasisTalkMode.Shout);
+            }
+            else if (TalkMode == BasisTalkMode.Shout)
+            {
+                SetTalkMode(BasisTalkMode.Normal);
+            }
+        }
+
         /// <summary>
         /// Whether this player has muted their own microphone. Driven from the network
         /// by <see cref="BasisTalkModeManager"/> and shown on the nameplate.

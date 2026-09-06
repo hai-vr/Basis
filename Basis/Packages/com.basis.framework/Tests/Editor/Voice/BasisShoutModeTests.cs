@@ -1,7 +1,10 @@
 using Basis.BasisUI;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
+using Basis.Scripts.Networking.Transmitters;
 using BasisPermissions;
 using NUnit.Framework;
+using System.Reflection;
 
 /// <summary>
 /// Shout is the proximity loud mode: twice the microphone range, a broadband boost, and still on
@@ -244,5 +247,84 @@ public class BasisShoutModeTests
         BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(true);
         Assert.IsTrue(BasisTalkModeManager.ShouldShowModeButton());
         Assert.IsFalse(withoutShout, "Nothing else should have been offering the button in this state.");
+    }
+
+    [Test]
+    public void AnAdminGrantSeedsARemoteBeforeItsOwnBroadcastArrives()
+    {
+        BasisRemotePlayer remote = new BasisRemotePlayer();
+
+        remote.SetAdminShoutHeld(true);
+        Assert.AreEqual(BasisTalkMode.Shout, remote.TalkMode);
+        Assert.IsTrue(remote.IsShouting);
+
+        remote.SetAdminShoutHeld(false);
+        Assert.AreEqual(BasisTalkMode.Normal, remote.TalkMode);
+        Assert.IsFalse(remote.IsShouting);
+    }
+
+    [Test]
+    public void TheGrantWidensARemoteThatNeverEnteredTheMode()
+    {
+        BasisRemotePlayer remote = new BasisRemotePlayer();
+        remote.SetAdminShoutHeld(true);
+
+        remote.SetTalkMode(BasisTalkMode.Normal);
+        Assert.IsTrue(remote.IsShouting, "the grant is authoritative on the listener, as an announce grant is.");
+
+        remote.SetAdminShoutHeld(false);
+        Assert.IsFalse(remote.IsShouting);
+    }
+
+    [Test]
+    public void AnAnnouncingRemoteKeepsAnnounceUntilItEnds()
+    {
+        BasisRemotePlayer remote = new BasisRemotePlayer();
+        remote.SetTalkMode(BasisTalkMode.Announce);
+
+        remote.SetAdminShoutHeld(true);
+        Assert.AreEqual(BasisTalkMode.Announce, remote.TalkMode);
+        Assert.IsTrue(remote.IsShouting);
+
+        remote.SetTalkMode(BasisTalkMode.Shout);
+        remote.SetAdminShoutHeld(false);
+        Assert.AreEqual(BasisTalkMode.Normal, remote.TalkMode);
+        Assert.IsFalse(remote.IsShouting);
+    }
+
+    [Test]
+    public void AGrantWhileAnnouncingLandsWhenTheAnnounceEnds()
+    {
+        BasisNetworkTransmitter previous = BasisNetworkManagement.Transmitter;
+        BasisNetworkManagement.Transmitter = new BasisNetworkTransmitter(7);
+        try
+        {
+            SetPermission(false);
+            BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(false);
+            AnnounceChanged(7, true);
+            Assert.AreEqual(BasisTalkMode.Announce, BasisTalkModeManager.CurrentMode);
+
+            BasisTalkModeManager.OnAdminShoutChanged(true);
+            Assert.AreEqual(BasisTalkMode.Announce, BasisTalkModeManager.CurrentMode, "announce keeps precedence while it lasts.");
+            Assert.IsTrue(BasisTalkModeManager.ShoutAvailable());
+
+            AnnounceChanged(7, false);
+            Assert.AreEqual(BasisTalkMode.Shout, BasisTalkModeManager.CurrentMode);
+            Assert.IsTrue(BasisTalkModeManager.LocalIsShouting);
+
+            BasisTalkModeManager.OnAdminShoutChanged(false);
+            Assert.AreEqual(BasisTalkMode.Normal, BasisTalkModeManager.CurrentMode);
+        }
+        finally
+        {
+            BasisNetworkManagement.Transmitter = previous;
+        }
+    }
+
+    private static void AnnounceChanged(ushort playerId, bool enabled)
+    {
+        MethodInfo handler = typeof(BasisTalkModeManager).GetMethod("HandleAnnounceModeChanged", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.IsNotNull(handler);
+        handler.Invoke(null, new object[] { playerId, enabled });
     }
 }

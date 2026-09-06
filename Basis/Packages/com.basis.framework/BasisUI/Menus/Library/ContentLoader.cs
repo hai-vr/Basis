@@ -119,6 +119,7 @@ namespace Basis.BasisUI
 
             BasisProgressReport report = new BasisProgressReport();
             report.OnProgressReport += ForwardProgress;
+            report.OnProgressReport += BasisUILoadingBar.ProgressReport;
             using CancellationTokenSource cts = new CancellationTokenSource();
             BasisRuntimeSpawnRegistry.PendingLoad pending = BasisRuntimeSpawnRegistry.BeginPendingLoad(
                 item.Url,
@@ -185,6 +186,7 @@ namespace Basis.BasisUI
             {
                 report.OnProgressReport -= ForwardPendingProgress;
                 report.OnProgressReport -= ForwardProgress;
+                report.OnProgressReport -= BasisUILoadingBar.ProgressReport;
                 BasisRuntimeSpawnRegistry.EndPendingLoad(pending.PendingId);
             }
         }
@@ -585,6 +587,7 @@ namespace Basis.BasisUI
 
                             BasisProgressReport report = new BasisProgressReport();
                             report.OnProgressReport += ForwardProgress;
+                            report.OnProgressReport += BasisUILoadingBar.ProgressReport;
                             using CancellationTokenSource cts = new CancellationTokenSource();
                             BasisRuntimeSpawnRegistry.PendingLoad pending = BasisRuntimeSpawnRegistry.BeginPendingLoad(
                                 item.Url,
@@ -646,6 +649,7 @@ namespace Basis.BasisUI
                             {
                                 report.OnProgressReport -= ForwardPendingProgress;
                                 report.OnProgressReport -= ForwardProgress;
+                                report.OnProgressReport -= BasisUILoadingBar.ProgressReport;
                                 BasisRuntimeSpawnRegistry.EndPendingLoad(pending.PendingId);
                             }
                         }
