@@ -27,7 +27,7 @@ public static class BasisEncryptionToData
         }
         string UniqueID = BasisGenerateUniqueID.GenerateUniqueID();
         // Decrypt the file asynchronously
-        var decrypted = await DecryptSection(UniqueID, BasisPassword, Section, progressCallback.Stage(UniqueID, 0, 60));
+        var decrypted = await DecryptSection(UniqueID, BasisPassword, Section, progressCallback.Stage(UniqueID, 0, 20));
 
         if (!decrypted.Success || decrypted.Data == null || decrypted.Data.Length == 0)
         {
@@ -49,7 +49,7 @@ public static class BasisEncryptionToData
         }
         while (!assetBundleCreateRequest.isDone)
         {
-            progressCallback.ReportProgress(UniqueID, 60 + Mathf.Min(assetBundleCreateRequest.progress, 0.99f) * 40, "Loading bundle");
+            progressCallback.ReportProgress(UniqueID, 20 + Mathf.Min(assetBundleCreateRequest.progress, 0.99f) * 80, "Loading bundle");
             await Task.Delay(50);
         }
 

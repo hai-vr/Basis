@@ -198,8 +198,8 @@ public static class BasisBeeManagement
         }
 
         (BasisBundleGenerated, BasisBundleSection, string) output;
-        BasisProgressReport DownloadStage() => report.Stage(key, 0, 55);
-        BasisProgressReport BuildStage() => report.Stage(key, shouldUseOnDiskMeta && !didForceRedownload ? 5 : 55, 100);
+        BasisProgressReport DownloadStage() => report.Stage(key, 0, 50);
+        BasisProgressReport BuildStage() => report.Stage(key, shouldUseOnDiskMeta && !didForceRedownload ? 5 : 50, 100);
         if (shouldUseOnDiskMeta)
         {
             output = await BasisBundleManagement.LocalLoadBundleConnector(wrapper, MetaInfo.StoredLocal, report.Stage(key, 0, 5), cancellationToken);

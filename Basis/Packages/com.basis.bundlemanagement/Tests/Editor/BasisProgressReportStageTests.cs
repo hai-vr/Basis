@@ -31,27 +31,50 @@ public class BasisProgressReportStageTests
     }
 
     [Test]
-    public void NonFinalStageCompletionStaysBelowMaxValue()
+    public void ConsecutiveStagesPileIntoOneRisingValue()
+    {
+        BasisProgressReport root = new BasisProgressReport();
+        List<(string Key, float Progress, string Info)> seen = Capture(root);
+        BasisProgressReport download = root.Stage("world", 0, 50);
+        BasisProgressReport build = root.Stage("world", 50, 100);
+
+        download.ReportProgress("section", 50, "Downloading data...");
+        download.ReportProgress("section", 100, "Downloading Complete");
+        build.ReportProgress("bundle", 0, "Loading bundle");
+        build.ReportProgress("bundle", 50, "Loading bundle");
+
+        Assert.AreEqual(25f, seen[0].Progress);
+        Assert.AreEqual(50f, seen[1].Progress);
+        Assert.AreEqual(50f, seen[2].Progress);
+        Assert.AreEqual(75f, seen[3].Progress);
+    }
+
+    [Test]
+    public void StageCompletionNeverReachesMaxValue()
     {
         BasisProgressReport root = new BasisProgressReport();
         List<(string Key, float Progress, string Info)> seen = Capture(root);
 
         root.Stage("world", 0, 75).ReportProgress("inner", 100, "stage done");
+        root.Stage("world", 75, 100).ReportProgress("inner", 100, "last stage done");
 
-        Assert.AreEqual(1, seen.Count);
         Assert.AreEqual(75f, seen[0].Progress);
-        Assert.Less(seen[0].Progress, BasisProgressReport.MaxValue);
+        Assert.AreEqual(BasisProgressReport.StageCeiling, seen[1].Progress);
+        Assert.Less(seen[1].Progress, BasisProgressReport.MaxValue);
     }
 
     [Test]
-    public void FinalStageCompletionIsExactlyMaxValue()
+    public void OnlyTheOwnerReachesMaxValue()
     {
         BasisProgressReport root = new BasisProgressReport();
         List<(string Key, float Progress, string Info)> seen = Capture(root);
 
-        root.Stage("world", 75, 100).ReportProgress("inner", 100, "scene ready");
+        root.Stage("world", 0, 100).ReportProgress("inner", 100, "last step");
+        root.ReportProgress("world", 100, "done");
 
-        Assert.AreEqual(BasisProgressReport.MaxValue, seen[0].Progress);
+        Assert.Less(seen[0].Progress, BasisProgressReport.MaxValue);
+        Assert.AreEqual(BasisProgressReport.MaxValue, seen[1].Progress);
+        Assert.AreEqual("world", seen[1].Key);
     }
 
     [Test]
