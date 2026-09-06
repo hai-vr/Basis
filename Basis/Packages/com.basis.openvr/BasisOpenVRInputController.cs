@@ -19,8 +19,12 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         // Raw skeleton (local-to-skeleton) data from SteamVR
         public Vector3[] BonePositions;      // local positions relative to skeleton root (meters)
         public Quaternion[] BoneRotations;   // local rotations relative to skeleton root
-        public BasisOpenVRWristLatch WristLatch;
-        private bool skeletonEstimated, skeletonLevelKnown;
+        public const int WristAnchorPollFrames = 120;
+        private static readonly VRBoneTransform_t[] referenceBones = new VRBoneTransform_t[SteamVR_Action_Skeleton.numBones];
+        private Vector3 wristAnchorPosition;
+        private Quaternion wristAnchorRotation;
+        private bool wristAnchored;
+        private int nextWristAnchorPoll;
 
         // Device pose (controller) from compositor
         public TrackedDevicePose_t devicePose = new TrackedDevicePose_t();
@@ -47,8 +51,8 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             inputSource = SteamVR_Input_Sources;
             Device = device;
-            WristLatch.Reset();
-            skeletonLevelKnown = false;
+            wristAnchored = false;
+            nextWristAnchorPoll = 0;
             TrackingHardware = BasisTrackingHardware.Lighthouse;
 
             InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole,true);
@@ -207,18 +211,14 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             // Wrist data from skeleton
             int idxWrist = SteamVR_Skeleton_JointIndexes.wrist;
-            if (skeletonAction.GetActive())
+            bool skeletonActive = skeletonAction.GetActive();
+            if (skeletonActive && Time.frameCount >= nextWristAnchorPoll)
             {
-                if (!skeletonLevelKnown)
-                {
-                    skeletonEstimated = skeletonAction.GetSkeletalTrackingLevel() == EVRSkeletalTrackingLevel.VRSkeletalTracking_Estimated;
-                    skeletonLevelKnown = true;
-                }
-                bool hold = skeletonEstimated && (SteamVR_Actions._default.ThumbTouch.GetState(inputSource) || !BasisOpenVRWristLatch.Settled(BonePositions[idxWrist], BoneRotations[idxWrist], skeletonAction.lastBonePositions[idxWrist], skeletonAction.lastBoneRotations[idxWrist]));
-                WristLatch.Update(hold, BonePositions[idxWrist], BoneRotations[idxWrist]);
+                nextWristAnchorPoll = Time.frameCount + WristAnchorPollFrames;
+                RefreshWristAnchor(skeletonAction);
             }
-            Vector3 wristLocalPos = WristLatch.Latched ? WristLatch.Position : Vector3.zero;
-            Quaternion wristLocalRot = WristLatch.Latched ? WristLatch.Rotation : Quaternion.identity;
+            Vector3 wristLocalPos = wristAnchored ? wristAnchorPosition : skeletonActive ? BonePositions[idxWrist] : Vector3.zero;
+            Quaternion wristLocalRot = wristAnchored ? wristAnchorRotation : skeletonActive ? BoneRotations[idxWrist] : Quaternion.identity;
 
             // Rotation offset (per hand)
             Quaternion rotOffset = Quaternion.Euler(isLeft ? leftHandToIKRotationOffset : rightHandToIKRotationOffset);
@@ -267,6 +267,23 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 HandFinal.rotation,
                 ActiveRaycastOffset
             );
+        }
+
+        private void RefreshWristAnchor(SteamVR_Action_Skeleton skeletonAction)
+        {
+            if (skeletonAction.GetSkeletalTrackingLevel() != EVRSkeletalTrackingLevel.VRSkeletalTracking_Estimated)
+            {
+                wristAnchored = false;
+                return;
+            }
+            if (wristAnchored || Valve.VR.OpenVR.Input.GetSkeletalReferenceTransforms(skeletonAction.handle, EVRSkeletalTransformSpace.Parent, EVRSkeletalReferencePose.OpenHand, referenceBones) != EVRInputError.None)
+            {
+                return;
+            }
+            VRBoneTransform_t wrist = referenceBones[SteamVR_Skeleton_JointIndexes.wrist];
+            wristAnchorPosition = new Vector3(-wrist.position.v0, wrist.position.v1, wrist.position.v2);
+            wristAnchorRotation = new Quaternion(wrist.orientation.x, -wrist.orientation.y, -wrist.orientation.z, wrist.orientation.w);
+            wristAnchored = true;
         }
 
         private BasisOpenVRRenderModel _runtimeModel;
