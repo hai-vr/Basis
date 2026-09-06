@@ -2251,9 +2251,11 @@ if (Test_Mode)
     Vector3 k_pQ = new Vector3(); // corner pocket + cushion inside
     Vector3 k_pR = new Vector3(); // corner pocket + cushion
     Vector3 k_pT = new Vector3();
+#if HT8B_DRAW_REGIONS
     Vector3 k_pS = new Vector3();
     Vector3 k_pU = new Vector3();
     Vector3 k_pV = new Vector3();
+#endif
 
     Vector3 k_vA_vD = new Vector3();
     Vector3 k_vA_vD_normal = new Vector3();

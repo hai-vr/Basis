@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using Basis.Scripts.Networking;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
@@ -372,13 +373,19 @@ public static class BasisAvatarModelCache
     public static int Count => _cache.Count;
 
     /// <summary>
-    /// Clears all cached data. Called when play mode starts, and in the Editor when it ends.
+    /// Clears all cached data and frees the native buffers. Runs when play mode starts, when the
+    /// application quits (in the Editor: when play mode stops), before every assembly reload in
+    /// the Editor, and once the Editor is back in edit mode. The reload hook is what a script edit
+    /// during play needs: the domain goes away without ever leaving play mode, and the statics
+    /// holding <see cref="HandPoseGridData.SharedCells"/> die with it while the Persistent memory
+    /// does not.
     /// </summary>
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     public static void Clear()
     {
-        // The one point where freeing is safe: nothing is wearing an avatar and no compute is in
-        // flight, so no grid can still be viewing these. Every other eviction path only retires.
+        // Freeing is only safe once nothing samples the cells. The async network pass reads them
+        // from a worker thread and is joined at the next Update, so a teardown that lands between
+        // frames can find it still in flight.
+        BasisNetworkManagement.JoinPendingCompute();
         foreach (KeyValuePair<EntityId, Entry> pair in _cache)
         {
             RetireNative(pair.Value);
@@ -395,12 +402,30 @@ public static class BasisAvatarModelCache
         _cache.Clear();
     }
 
-#if UNITY_EDITOR
-    [UnityEditor.InitializeOnLoadMethod]
-    private static void HookEditorPlayModeClear()
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ClearOnPlayStart()
     {
+        Clear();
+        HookTeardown();
+    }
+
+    private static void HookTeardown()
+    {
+        Application.quitting -= Clear;
+        Application.quitting += Clear;
+#if UNITY_EDITOR
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= Clear;
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += Clear;
         UnityEditor.EditorApplication.playModeStateChanged -= OnEditorPlayModeStateChanged;
         UnityEditor.EditorApplication.playModeStateChanged += OnEditorPlayModeStateChanged;
+#endif
+    }
+
+#if UNITY_EDITOR
+    [UnityEditor.InitializeOnLoadMethod]
+    private static void HookEditorTeardown()
+    {
+        HookTeardown();
     }
 
     private static void OnEditorPlayModeStateChanged(UnityEditor.PlayModeStateChange change)

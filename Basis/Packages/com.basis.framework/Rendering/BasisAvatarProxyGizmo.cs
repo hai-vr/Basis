@@ -142,7 +142,7 @@ public sealed class BasisAvatarProxyGizmo : MonoBehaviour
     private void Rescan()
     {
         humanoids.Clear();
-        Animator[] found = FindObjectsByType<Animator>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        Animator[] found = FindObjectsByType<Animator>(FindObjectsInactive.Exclude);
         for (int index = 0; index < found.Length; index++)
         {
             if (found[index] != null && found[index].isHuman) { humanoids.Add(found[index]); }

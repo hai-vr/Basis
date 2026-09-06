@@ -206,7 +206,7 @@ namespace BasisPermissions
 
         // Save debounce to avoid writing on every tiny change
         private readonly object _saveGate = new object();
-        private Timer? _saveTimer;
+        private Timer _saveTimer;
         private volatile bool _dirty = false;
 
         // Tune this
@@ -229,7 +229,7 @@ namespace BasisPermissions
         }
 
         public string GetXmlPath() => _xmlPath;
-        public void LoadFromXml(string? pathOverride = null)
+        public void LoadFromXml(string pathOverride = null)
         {
             string path = pathOverride ?? _xmlPath;
             PermissionStore loaded = PermissionXml.Load(path);
@@ -245,7 +245,7 @@ namespace BasisPermissions
             finally { _lock.ExitWriteLock(); }
         }
 
-        public void SaveToXml(string? pathOverride = null)
+        public void SaveToXml(string pathOverride = null)
         {
             string path = pathOverride ?? _xmlPath;
             PermissionStore snapshot = Snapshot();
@@ -972,8 +972,8 @@ namespace BasisPermissions
                 using var fs = File.OpenRead(path);
                 using var xr = XmlReader.Create(fs, settings);
 
-                PermissionGroup? currentGroupDef = null;
-                PermissionUser? currentUser = null;
+                PermissionGroup currentGroupDef = null;
+                PermissionUser currentUser = null;
 
                 // Context flags
                 bool inGroups = false;
@@ -1081,7 +1081,7 @@ namespace BasisPermissions
 
             public static void Save(string path, PermissionStore store)
             {
-                string? dir = Path.GetDirectoryName(path);
+                string dir = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(dir))
                     Directory.CreateDirectory(dir);
 
