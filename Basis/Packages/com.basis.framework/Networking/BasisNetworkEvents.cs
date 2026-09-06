@@ -542,11 +542,14 @@ public static class BasisNetworkEvents
             BasisLocalPlayer.Instance.UUID = SMDM.ClientMetaDataMessage.playerUUID;
             BasisLocalPlayer.Instance.DisplayName = SMDM.ClientMetaDataMessage.playerDisplayName;
             BasisNetworkManagement.ServerMetaDataMessage = SMDM;
-#if UNITY_SERVER
-            BasisVerticalSyncModule.ApplyHeadlessFrameRate();
-#endif
             BasisNetworkManagement.LocalPermissions = SMDM.GetPermissions();
-            BasisNetworkManagement.OnlocalPermissionsChanged?.Invoke();
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+#if UNITY_SERVER
+                BasisVerticalSyncModule.ApplyHeadlessFrameRate();
+#endif
+                BasisNetworkManagement.OnlocalPermissionsChanged?.Invoke();
+            });
             if (BasisNetworkConnection.LocalPlayerIsConnected == false)
             {
                 BasisNetworkConnection.SetupLocalPlayer(peer);
