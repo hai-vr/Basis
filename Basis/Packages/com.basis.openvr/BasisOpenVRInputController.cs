@@ -20,6 +20,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         public Vector3[] BonePositions;      // local positions relative to skeleton root (meters)
         public Quaternion[] BoneRotations;   // local rotations relative to skeleton root
         public const int WristAnchorPollFrames = 120;
+        public const string OculusTouchControllerType = "oculus_touch";
         private static readonly VRBoneTransform_t[] referenceBones = new VRBoneTransform_t[SteamVR_Action_Skeleton.numBones];
         private Vector3 wristAnchorPosition;
         private Quaternion wristAnchorRotation;
@@ -86,16 +87,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             }
 
             // Poll input state here so InputUpdate() sees fresh data after LastUpdatePlayerControl()
-            CurrentInputState.GripButton = SteamVR_Actions._default.Grip.GetState(inputSource);
-            CurrentInputState.SystemOrMenuButton = SteamVR_Actions._default.System.GetState(inputSource);
-            CurrentInputState.PrimaryButtonGetState = SteamVR_Actions._default.A_Button.GetState(inputSource);
-            CurrentInputState.SecondaryButtonGetState = SteamVR_Actions._default.B_Button.GetState(inputSource);
-            CurrentInputState.Primary2DAxisClick = SteamVR_Actions._default.JoyStickClick.GetState(inputSource);
-            CurrentInputState.Primary2DAxisRaw = SteamVR_Actions._default.Joystick.GetAxis(inputSource);
-            CurrentInputState.Trigger = SteamVR_Actions._default.Trigger.GetAxis(inputSource);
-            CurrentInputState.SecondaryTrigger = SteamVR_Actions._default.HandTrigger.GetAxis(inputSource);
-            CurrentInputState.Secondary2DAxisRaw = SteamVR_Actions._default.TrackPad.GetAxis(inputSource);
-            CurrentInputState.Secondary2DAxisClick = SteamVR_Actions._default.TrackPadTouched.GetState(inputSource);
+            PollButtons();
             PollPose();
         }
         public override void RenderPollData()
@@ -107,6 +99,14 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             }
 
             // Buttons / axes
+            PollButtons();
+
+            PollPose();
+
+            UpdateInputEvents();
+        }
+        private void PollButtons()
+        {
             CurrentInputState.GripButton = SteamVR_Actions._default.Grip.GetState(inputSource);
             CurrentInputState.SystemOrMenuButton = SteamVR_Actions._default.System.GetState(inputSource);
             CurrentInputState.PrimaryButtonGetState = SteamVR_Actions._default.A_Button.GetState(inputSource);
@@ -117,10 +117,12 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             CurrentInputState.SecondaryTrigger = SteamVR_Actions._default.HandTrigger.GetAxis(inputSource);
             CurrentInputState.Secondary2DAxisRaw = SteamVR_Actions._default.TrackPad.GetAxis(inputSource);
             CurrentInputState.Secondary2DAxisClick = SteamVR_Actions._default.TrackPadTouched.GetState(inputSource);
-
-            PollPose();
-
-            UpdateInputEvents();
+            CurrentInputState.PrimaryButtonTouch = SteamVR_Actions._default.A_Touch.GetState(inputSource);
+            CurrentInputState.SecondaryButtonTouch = SteamVR_Actions._default.B_Touch.GetState(inputSource);
+            CurrentInputState.Primary2DAxisTouch = SteamVR_Actions._default.JoystickTouch.GetState(inputSource);
+            CurrentInputState.Secondary2DAxisTouch = SteamVR_Actions._default.TrackPadTouched.GetState(inputSource);
+            CurrentInputState.TriggerTouch = SteamVR_Actions._default.TriggerTouch.GetState(inputSource);
+            CurrentInputState.ThumbrestTouch = SteamVR_Actions._default.ThumbrestTouch.GetState(inputSource);
         }
         private void PollPose()
         {
@@ -271,7 +273,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
         private void RefreshWristAnchor(SteamVR_Action_Skeleton skeletonAction)
         {
-            if (skeletonAction.GetSkeletalTrackingLevel() != EVRSkeletalTrackingLevel.VRSkeletalTracking_Estimated)
+            if (DeviceControllerType != OculusTouchControllerType || skeletonAction.GetSkeletalTrackingLevel() != EVRSkeletalTrackingLevel.VRSkeletalTracking_Estimated)
             {
                 wristAnchored = false;
                 return;
