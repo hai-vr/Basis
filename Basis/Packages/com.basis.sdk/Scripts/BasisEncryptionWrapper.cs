@@ -14,6 +14,7 @@ public static partial class BasisEncryptionWrapper
     private const int SaltSize = 16;
     private const int KeySize = 32;
     private const int IvSize = 16;
+    private const int DecryptChunkSize = 64 * 1024;
     public const int IterationSize = 10000;
     /// <summary>
     /// Largest single-dimension byte[] the runtime will allocate (0x7FFFFFC7), and therefore the
@@ -369,7 +370,7 @@ public static partial class BasisEncryptionWrapper
         {
             ct.ThrowIfCancellationRequested();
 
-            int bytesRead = await cryptoStream.ReadAsync(plain.AsMemory(totalRead, cipherLength - totalRead), ct);
+            int bytesRead = await cryptoStream.ReadAsync(plain.AsMemory(totalRead, Math.Min(DecryptChunkSize, cipherLength - totalRead)), ct);
             if (bytesRead <= 0) break;
 
             totalRead += bytesRead;
