@@ -16,13 +16,16 @@ namespace Basis.Network.Server.Ownership
         {
             NetDataWriter Writer = NetworkServer.RentWriter();
             OwnershipTransferMessage ownershipTransferMessage = new OwnershipTransferMessage();
-            foreach (KeyValuePair<string, ushort> Ownership in ownershipByObjectId)
+            lock (LockObject)
             {
-                ownershipTransferMessage.playerIdMessage.playerID = Ownership.Value;
-                ownershipTransferMessage.ownershipID = Ownership.Key;
-                ownershipTransferMessage.Serialize(Writer);
-                NetworkServer.TrySend(Peer, Writer, BasisNetworkCommons.GetCurrentOwnerRequestChannel, DeliveryMethod.ReliableOrdered);
-                Writer.Reset();
+                foreach (KeyValuePair<string, ushort> Ownership in ownershipByObjectId)
+                {
+                    ownershipTransferMessage.playerIdMessage.playerID = Ownership.Value;
+                    ownershipTransferMessage.ownershipID = Ownership.Key;
+                    ownershipTransferMessage.Serialize(Writer);
+                    NetworkServer.TrySend(Peer, Writer, BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, DeliveryMethod.ReliableOrdered);
+                    Writer.Reset();
+                }
             }
             NetworkServer.ReturnWriter(Writer);
         }
@@ -34,12 +37,15 @@ namespace Basis.Network.Server.Ownership
             //if we are not aware of this ownershipID lets only give back to that client that its been assigned to them
             //the goal here is to make it so ownership understanding has to be requested.
             //once a ownership has been requested there good for life or when a ownership switch happens.
-            NetworkRequestNewOrExisting(ownershipTransferMessage, (ushort)Peer.Id, out ushort currentOwner);
             NetDataWriter Writer = NetworkServer.RentWriter();
-            ownershipTransferMessage.playerIdMessage.playerID = currentOwner;
-            ownershipTransferMessage.Serialize(Writer);
-            BNL.Log("OwnershipResponse " + currentOwner + " for " + ownershipTransferMessage.playerIdMessage.playerID);
-            NetworkServer.TrySend(Peer, Writer, BasisNetworkCommons.GetCurrentOwnerRequestChannel, DeliveryMethod.ReliableOrdered);
+            lock (LockObject)
+            {
+                NetworkRequestNewOrExisting(ownershipTransferMessage, (ushort)Peer.Id, out ushort currentOwner);
+                ownershipTransferMessage.playerIdMessage.playerID = currentOwner;
+                ownershipTransferMessage.Serialize(Writer);
+                BNL.Log("OwnershipResponse " + currentOwner + " for " + ownershipTransferMessage.ownershipID);
+                NetworkServer.TrySend(Peer, Writer, BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, DeliveryMethod.ReliableOrdered);
+            }
             NetworkServer.ReturnWriter(Writer);
         }
         /// <summary>
@@ -98,22 +104,22 @@ namespace Basis.Network.Server.Ownership
             ushort ClientId = (ushort)Peer.Id;
             NetDataWriter Writer = NetworkServer.RentWriter();
             //all clients need to know about a ownership switch
-            if (SwitchOwnership(ownershipTransferMessage.ownershipID, ClientId))
+            lock (LockObject)
             {
-                ownershipTransferMessage.playerIdMessage.playerID = ClientId;
+                if (SwitchOwnership(ownershipTransferMessage.ownershipID, ClientId))
+                {
+                    ownershipTransferMessage.playerIdMessage.playerID = ClientId;
+                }
+                else
+                {
+                    //if we are not aware of this ownershipID lets only give back to that client that its been assigned to them
+                    //the goal here is to make it so ownership understanding has to be requested.
+                    //once a ownership has been requested there good for life or when a ownership switch happens.
+                    NetworkRequestNewOrExisting(ownershipTransferMessage, ClientId, out ushort currentOwner);
+                    ownershipTransferMessage.playerIdMessage.playerID = currentOwner;
+                }
                 ownershipTransferMessage.Serialize(Writer);
-
-                BNL.Log("OwnershipResponse " + ownershipTransferMessage.ownershipID + " for " + ownershipTransferMessage.playerIdMessage);
-                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
-            }
-            else
-            {
-                //if we are not aware of this ownershipID lets only give back to that client that its been assigned to them
-                //the goal here is to make it so ownership understanding has to be requested.
-                //once a ownership has been requested there good for life or when a ownership switch happens.
-                NetworkRequestNewOrExisting(ownershipTransferMessage, ClientId, out ushort currentOwner);
-                ownershipTransferMessage.playerIdMessage.playerID = currentOwner;
-                ownershipTransferMessage.Serialize(Writer);
+                BNL.Log("OwnershipResponse " + ownershipTransferMessage.ownershipID + " for " + ownershipTransferMessage.playerIdMessage.playerID);
                 NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
             }
             NetworkServer.ReturnWriter(Writer);
@@ -195,9 +201,7 @@ namespace Basis.Network.Server.Ownership
                 }
                 else
                 {
-                    AddOwnership(objectId, newOwnerId);
-                    return true;
-                    //BNL.LogError($"Ownership failed to switch ObjectId " + objectId + " is not in dictionary");
+                    return AddOwnership(objectId, newOwnerId);
                 }
 
                 BNL.LogError($"Object with ID {objectId} does not exist or ownership change failed.");
