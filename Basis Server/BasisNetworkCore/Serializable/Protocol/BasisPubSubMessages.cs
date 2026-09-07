@@ -30,15 +30,22 @@ public static partial class SerializableBasis
     public struct PubSubUnsubscribeRequest
     {
         public string ChannelName;
+        public Guid RequestID;
 
         public void Serialize(NetDataWriter writer)
         {
             writer.Put(ChannelName);
+            writer.Put(RequestID);
         }
 
         public bool Deserialize(NetDataReader reader)
         {
-            return reader.TryGetString(out ChannelName);
+            if (reader.TryGetString(out ChannelName) && reader.AvailableBytes >= 16)
+            {
+                RequestID = reader.GetGuid();
+                return true;
+            }
+            return false;
         }
     }
 

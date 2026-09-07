@@ -24,8 +24,8 @@ namespace Basis.Network.Server.Messaging
         {
             public readonly string Name;
             public readonly IPubSubDataProvider Provider;
-            public readonly ConcurrentDictionary<int, int> SubscriberCounts = new();
-            public readonly HashSet<int> UniqueSubscribers = new();
+            
+            public readonly ConcurrentDictionary<int, HashSet<Guid>> PeerToSubscriptionsDict = new();
             public readonly object Lock = new object();
 
             public ChannelState(string name, IPubSubDataProvider provider)
@@ -83,8 +83,8 @@ namespace Basis.Network.Server.Messaging
             List<byte[]> initialStateMessages = null;
             lock (channel.Lock)
             {
-                channel.SubscriberCounts.AddOrUpdate(peer.Id, 1, (_, count) => count + 1);
-                channel.UniqueSubscribers.Add(peer.Id);
+                var peerToSubscription = channel.PeerToSubscriptionsDict.GetOrAdd(peer.Id, _ => new HashSet<Guid>());
+                peerToSubscription.Add(request.RequestID);
                 initialStateMessages = channel.Provider.GetInitialState();
             }
 
@@ -109,16 +109,12 @@ namespace Basis.Network.Server.Messaging
 
             lock (channel.Lock)
             {
-                if (channel.SubscriberCounts.TryGetValue(peer.Id, out int count))
+                if (channel.PeerToSubscriptionsDict.TryGetValue(peer.Id, out var peerToSubscription))
                 {
-                    if (count > 1)
+                    peerToSubscription.Remove(request.RequestID);
+                    if (peerToSubscription.Count == 0)
                     {
-                        channel.SubscriberCounts[peer.Id] = count - 1;
-                    }
-                    else
-                    {
-                        channel.SubscriberCounts.TryRemove(peer.Id, out _);
-                        channel.UniqueSubscribers.Remove(peer.Id);
+                        channel.PeerToSubscriptionsDict.TryRemove(peer.Id, out _);
                     }
                 }
             }
@@ -134,7 +130,7 @@ namespace Basis.Network.Server.Messaging
             int[] targets;
             lock (channel.Lock)
             {
-                targets = channel.UniqueSubscribers.ToArray();
+                targets = channel.PeerToSubscriptionsDict.Keys.ToArray();
             }
 
             if (targets.Length == 0) return;
@@ -146,7 +142,7 @@ namespace Basis.Network.Server.Messaging
             };
 
             NetDataWriter writer = NetworkServer.RentWriter();
-            writer.Put(BasisNetworkCommons.PubSub_Update);
+            writer.Put(BasisNetworkCommons.PubSub_Message);
             update.Serialize(writer);
 
             foreach (var peerId in targets)
@@ -166,8 +162,7 @@ namespace Basis.Network.Server.Messaging
             {
                 lock (channel.Lock)
                 {
-                    channel.SubscriberCounts.TryRemove(peerId, out _);
-                    channel.UniqueSubscribers.Remove(peerId);
+                    channel.PeerToSubscriptionsDict.TryRemove(peerId, out _);
                 }
             }
         }
