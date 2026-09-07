@@ -1,24 +1,32 @@
-﻿using Basis.Network.Core;
+﻿using System;
+using Basis.Network.Core;
 
 public static partial class SerializableBasis
 {
-    [System.Serializable]
+    [Serializable]
     public struct PubSubSubscribeRequest
     {
         public string ChannelName;
+        public Guid RequestID;
 
         public void Serialize(NetDataWriter writer)
         {
             writer.Put(ChannelName);
+            writer.Put(RequestID);
         }
 
         public bool Deserialize(NetDataReader reader)
         {
-            return reader.TryGetString(out ChannelName);
+            if (reader.TryGetString(out ChannelName) && reader.AvailableBytes >= 16)
+            {
+                RequestID = reader.GetGuid();
+                return true;
+            }
+            return false;
         }
     }
 
-    [System.Serializable]
+    [Serializable]
     public struct PubSubUnsubscribeRequest
     {
         public string ChannelName;
@@ -34,7 +42,7 @@ public static partial class SerializableBasis
         }
     }
 
-    [System.Serializable]
+    [Serializable]
     public struct PubSubMessage
     {
         public string ChannelName;
@@ -49,6 +57,31 @@ public static partial class SerializableBasis
         public bool Deserialize(NetDataReader reader)
         {
             return reader.TryGetString(out ChannelName) && reader.TryGetBytesWithLength(out Data);
+        }
+    }
+
+    [Serializable]
+    public struct PubSubInitialState
+    {
+        public string ChannelName;
+        public byte[] Data;
+        public Guid RequestID;
+
+        public void Serialize(NetDataWriter writer)
+        {
+            writer.Put(ChannelName);
+            writer.PutBytesWithLength(Data);
+            writer.Put(RequestID);
+        }
+
+        public bool Deserialize(NetDataReader reader)
+        {
+            if (reader.TryGetString(out ChannelName) && reader.TryGetBytesWithLength(out Data) && reader.AvailableBytes >= 16)
+            {
+                RequestID = reader.GetGuid();
+                return true;
+            }
+            return false;
         }
     }
 }
