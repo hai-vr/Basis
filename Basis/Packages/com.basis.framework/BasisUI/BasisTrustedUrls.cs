@@ -11,6 +11,7 @@ namespace Basis.BasisUI
     public static class BasisTrustedUrls
     {
         private const string DefaultsAddress = "BasisDefaultTrustedUrls";
+        private static readonly string[] BuiltInSchemes = { "https://", "rtsp://", "rtspt://", "rtmp://" };
 
         private const string FileName = "trustedUrls.json";
         private const string LegacyFileName = "trustedVideoUrls.json";
@@ -80,7 +81,7 @@ namespace Basis.BasisUI
             foreach (string url in defaults.Urls)
             {
                 if (string.IsNullOrEmpty(url)) continue;
-                if (!url.StartsWith("https://") && !url.StartsWith("rtsp://")) continue;
+                if (!Array.Exists(BuiltInSchemes, s => url.StartsWith(s, StringComparison.Ordinal))) continue;
                 _builtInUrls.Add(url);
             }
         }

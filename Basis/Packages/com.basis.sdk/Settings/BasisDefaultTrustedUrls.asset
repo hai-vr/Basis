@@ -31,3 +31,7 @@ MonoBehaviour:
   - https://*.vrcdn.live/*
   - rtsp://*.vrcdn.cloud/*
   - rtsp://*.vrcdn.live/*
+  - rtspt://*.vrcdn.cloud/*
+  - rtspt://*.vrcdn.live/*
+  - rtmp://*.vrcdn.cloud/*
+  - rtmp://*.vrcdn.live/*
