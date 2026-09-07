@@ -6,9 +6,9 @@ using Basis.Scripts.Networking;
 namespace Basis.Shims
 {
     /// <summary>
-    /// Provides access to the PubSub channel of the currently connected server.<br/>
+    /// Provides access to the custom data CustomServerData channel of the currently connected server.<br/>
     /// <br/>
-    /// The PubSub channel is meant for the server to provide custom live data to props
+    /// The custom server data channels are meant for the server to provide custom live data to props
     /// or other content that requests it, such as a list of players who recently joined the server,
     /// weather forecasts, integration with Discord, etc.<br/>
     /// <br/>
@@ -16,10 +16,10 @@ namespace Basis.Shims
     /// <br/>
     /// You should call UnsubscribeAll() in your OnDestroy() method.
     /// <br/>
-    /// The PubSub channel is NOT designed for props or other content to communicate with each other:
+    /// The custom server data channels are NOT designed for props or other content to communicate with each other:
     /// the clients cannot publish messages to the channels; only the server can send messages to the clients.
     /// </summary>
-    public class BasisPubSubShim
+    public class BasisCustomServerDataSubscriberShim
     {
         private readonly Dictionary<string, Guid> _subscriptions = new();
         private bool _isHooked;
@@ -30,12 +30,12 @@ namespace Basis.Shims
         public event InitialStateReceivedDelegate InitialStateReceived;
         public event MessageReceivedDelegate MessageReceived;
         
-        ~BasisPubSubShim()
+        ~BasisCustomServerDataSubscriberShim()
         {
-            BasisNetworkHandlePubSub.OnPubSubMessageReceived -= OnPubSubMessageReceived;
+            BasisNetworkHandleCustomServerData.OnCustomServerDataMessageReceived -= OnCustomServerDataMessageReceived;
         }
         
-        private void OnPubSubMessageReceived(byte[] buffer, DeliveryMethod deliveryMethod)
+        private void OnCustomServerDataMessageReceived(byte[] buffer, DeliveryMethod deliveryMethod)
         {
             try
             {
@@ -44,9 +44,9 @@ namespace Basis.Shims
                 var reader = new NetDataReader(buffer);
                 if (!reader.TryGetByte(out byte subType)) return;
 
-                if (subType == BasisNetworkCommons.PubSub_Message)
+                if (subType == BasisNetworkCommons.CustomServerData_Message)
                 {
-                    var msg = new SerializableBasis.PubSubMessage();
+                    var msg = new SerializableBasis.CustomServerDataMessage();
                     if (msg.Deserialize(reader))
                     {
                         if (_subscriptions.ContainsKey(msg.ChannelName))
@@ -55,9 +55,9 @@ namespace Basis.Shims
                         }
                     }
                 }
-                else if (subType == BasisNetworkCommons.PubSub_Initial)
+                else if (subType == BasisNetworkCommons.CustomServerData_InitialState)
                 {
-                    var initialState = new SerializableBasis.PubSubInitialState();
+                    var initialState = new SerializableBasis.CustomServerDataInitialState();
                     if (initialState.Deserialize(reader))
                     {
                         if (_subscriptions.ContainsKey(initialState.ChannelName))
@@ -69,13 +69,13 @@ namespace Basis.Shims
             }
             catch (Exception e)
             {
-                BasisDebug.LogError($"[BasisPubSubShim] Error while processing PubSub message, this exception will not be re-thrown: {e}");
+                BasisDebug.LogError($"[BasisCustomServerDataShim] Error while processing CustomServerData message, this exception will not be re-thrown: {e}");
                 // Do not throw the exception, as we want to avoid Cilbox props disrupting the network message processing.
             }
         }
 
         /// <summary>
-        /// Subscribes to a PubSub channel.<br/>
+        /// Subscribes to a CustomServerData channel.<br/>
         /// <br/>
         /// Channels can only be subscribed to once per instance of the shim.<br/>
         /// When subscribing, the InitialStateReceived will trigger if that channel provides an initial state.<br/>
@@ -83,7 +83,7 @@ namespace Basis.Shims
         /// - Each prop may receive a different initial state, depending on when that prop subscribes.<br/>
         /// - Non-initial state messages are sent from the server to the user once, and then dispatched to all the shims that require it.
         /// </summary>
-        /// <param name="channelName">Name of the PubSub channel</param>
+        /// <param name="channelName">Name of the CustomServerData channel</param>
         public void Subscribe(string channelName)
         {
             if (string.IsNullOrEmpty(channelName)) return;
@@ -92,27 +92,27 @@ namespace Basis.Shims
             if (!_isHooked)
             {
                 _isHooked = true;
-                BasisNetworkHandlePubSub.OnPubSubMessageReceived += OnPubSubMessageReceived; 
+                BasisNetworkHandleCustomServerData.OnCustomServerDataMessageReceived += OnCustomServerDataMessageReceived; 
             }
 
             Guid requestID = Guid.NewGuid();
             _subscriptions[channelName] = requestID;
 
-            var request = new SerializableBasis.PubSubSubscribeRequest
+            var request = new SerializableBasis.CustomServerDataSubscribeRequest
             {
                 ChannelName = channelName,
                 RequestID = requestID
             };
 
             NetDataWriter writer = new NetDataWriter();
-            writer.Put(BasisNetworkCommons.PubSub_Subscribe);
+            writer.Put(BasisNetworkCommons.CustomServerData_Subscribe);
             request.Serialize(writer);
 
-            BasisNetworkConnection.LocalPlayerPeer?.Send(writer, BasisNetworkCommons.PubSubChannel, DeliveryMethod.ReliableOrdered);
+            BasisNetworkConnection.LocalPlayerPeer?.Send(writer, BasisNetworkCommons.CustomServerDataChannel, DeliveryMethod.ReliableOrdered);
         }
 
         /// <summary>
-        /// Unsubscribes from a PubSub channel.
+        /// Unsubscribes from a CustomServerData channel.
         /// </summary>
         /// <param name="channelName"></param>
         public void Unsubscribe(string channelName)
@@ -120,28 +120,28 @@ namespace Basis.Shims
             if (string.IsNullOrEmpty(channelName)) return;
             if (!_subscriptions.TryGetValue(channelName, out Guid requestID)) return;
 
-            var request = new SerializableBasis.PubSubUnsubscribeRequest
+            var request = new SerializableBasis.CustomServerDataUnsubscribeRequest
             {
                 ChannelName = channelName,
                 RequestID = requestID
             };
 
             NetDataWriter writer = new NetDataWriter();
-            writer.Put(BasisNetworkCommons.PubSub_Unsubscribe);
+            writer.Put(BasisNetworkCommons.CustomServerData_Unsubscribe);
             request.Serialize(writer);
 
-            BasisNetworkConnection.LocalPlayerPeer?.Send(writer, BasisNetworkCommons.PubSubChannel, DeliveryMethod.ReliableOrdered);
+            BasisNetworkConnection.LocalPlayerPeer?.Send(writer, BasisNetworkCommons.CustomServerDataChannel, DeliveryMethod.ReliableOrdered);
             _subscriptions.Remove(channelName);
             
             if (_subscriptions.Count == 0)
             {
-                BasisNetworkHandlePubSub.OnPubSubMessageReceived -= OnPubSubMessageReceived;
+                BasisNetworkHandleCustomServerData.OnCustomServerDataMessageReceived -= OnCustomServerDataMessageReceived;
                 _isHooked = false;
             }
         }
 
         /// <summary>
-        /// Unsubscribes from all PubSub channels.
+        /// Unsubscribes from all CustomServerData channels.
         /// </summary>
         public void UnsubscribeAll()
         {
@@ -151,7 +151,7 @@ namespace Basis.Shims
                 Unsubscribe(channel);
             }
 
-            BasisNetworkHandlePubSub.OnPubSubMessageReceived -= OnPubSubMessageReceived;
+            BasisNetworkHandleCustomServerData.OnCustomServerDataMessageReceived -= OnCustomServerDataMessageReceived;
             _isHooked = false;
         }
     }
