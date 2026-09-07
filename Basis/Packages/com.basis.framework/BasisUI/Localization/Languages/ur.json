@@ -435,6 +435,8 @@
     { "key": "camera.selfie.description", "value": "کیمرے کو اپنی طرف موڑتا ہے اور پیش منظر کو آئینہ کر دیتا ہے۔" },
     { "key": "camera.autoLevel", "value": "افق آٹو لیول" },
     { "key": "camera.autoLevel.description", "value": "کیمرہ اڑاتے وقت افق کو ہموار رکھتا ہے۔" },
+    { "key": "camera.rollControl", "value": "کیمرہ رول" },
+    { "key": "camera.rollControl.description", "value": "آن ہونے پر، پک پکڑے ہوئے کیمرہ اُس کے ساتھ رول کرتا ہے، تاکہ آپ شاٹ کو جھکا سکیں یا پورٹریٹ فریم کے لیے کیمرہ ایک طرف موڑ سکیں۔ آف ہونے پر، پک چاہے جتنا گھمائیں، تصویر سیدھی رہتی ہے۔" },
     { "key": "camera.vrStabilization", "value": "VR اسٹیبلائزیشن" },
     { "key": "camera.vrStabilization.description", "value": "VR میں کیمرہ پکڑتے وقت ہاتھ کی لرزش کو ہموار کرتا ہے۔" },
     { "key": "camera.vrStabilization.position", "value": "اسٹیبلائزر تاخیر" },
@@ -1855,6 +1857,8 @@
     { "key": "settings.admin.unsavedSuffix", "value": "(غیر محفوظ)" },
     { "key": "settings.admin.title.voiceAudioLimits", "value": "وائس اور آڈیو کی حدود" },
     { "key": "settings.admin.title.avatarLimits", "value": "اوتار کی حدود" },
+    { "key": "settings.admin.title.locomotionPolicy", "value": "انسٹینس لوکوموشن" },
+    { "key": "settings.admin.title.locomotionPolicy.description", "value": "حرکت کی وہ قدریں جن کے مطابق اس انسٹینس کا ہر کھلاڑی چلتا ہے۔ یہ سرور پر محفوظ کی جاتی ہیں اور شمولیت کے وقت ہر کھلاڑی کو بھیجی جاتی ہیں، اس لیے بعد میں آنے والے کھلاڑیوں کو بھی یہ مل جاتی ہیں۔ کسی فیلڈ کو بند چھوڑ دیں تاکہ کھلاڑی اپنی قدر برقرار رکھ سکیں۔ کسی ایک کھلاڑی پر ماڈریٹر کا اوور رائیڈ اب بھی اس پر غالب رہتا ہے۔" },
     { "key": "settings.admin.opusFrameDuration", "value": "Opus فریم دورانیہ" },
     { "key": "settings.admin.opusFrameDuration.tooltip", "value": "ہر کلائنٹ ایک وائس پیکٹ میں کتنا آڈیو پیک کرتا ہے۔" },
     { "key": "settings.admin.opusFrameDuration.description", "value": "لمبے فریم پیکٹ اوور ہیڈ اور بینڈوڈتھ کم کرتے ہیں، مگر ہر وائس اسٹریم میں اتنی ہی تاخیر بڑھا دیتے ہیں۔ صرف 20 ms اور 40 ms معاون ہیں۔" },
@@ -1895,6 +1899,8 @@
     { "key": "settings.admin.locomotion.walkSpeed", "value": "چلنے کی رفتار (میٹر/سیکنڈ)" },
     { "key": "settings.admin.locomotion.runSpeed.override", "value": "دوڑنے کی رفتار اوور رائیڈ کریں" },
     { "key": "settings.admin.locomotion.runSpeed", "value": "دوڑنے کی رفتار (میٹر/سیکنڈ)" },
+    { "key": "settings.admin.locomotion.gravity.override", "value": "کشش ثقل اوور رائیڈ کریں" },
+    { "key": "settings.admin.locomotion.gravity", "value": "کشش ثقل کی شدت (میٹر/سیکنڈ²)" },
     { "key": "settings.admin.locomotion.mode", "value": "حرکت کا موڈ" },
     { "key": "settings.admin.locomotion.mode.none", "value": "غیر تبدیل شدہ چھوڑیں" },
     { "key": "settings.admin.locomotion.mode.walk", "value": "چلنا" },
@@ -3635,7 +3641,8 @@
     { "key": "mediaPlayer.subtitles", "value": "سب ٹائٹلز" },
     { "key": "mediaPlayer.textOpacity", "value": "ٹیکسٹ کی دھندلاہٹ" },
     { "key": "mediaPlayer.backgroundOpacity", "value": "پس منظر کی دھندلاہٹ" },
-    { "key": "mediaPlayer.resync", "value": "ری سنک" },
+    { "key": "mediaPlayer.resyncLocal", "value": "مقامی ری سنک" },
+    { "key": "mediaPlayer.resyncEveryone", "value": "سب کو ری سنک کریں" },
     { "key": "mediaPlayer.advanced", "value": "اعلیٰ" },
     { "key": "mediaPlayer.admin", "value": "ایڈمن" },
     { "key": "mediaPlayer.admin.description", "value": "نیٹ ورک سنک شدہ پالیسی۔ صرف basis.mediaplayer.control اجازت والے کلائنٹس کو نظر آتی ہے۔" },
@@ -4633,6 +4640,8 @@
     { "key": "settings.graphics.renderer.restart.title", "value": "ری اسٹارٹ درکار ہے" },
     { "key": "settings.graphics.renderer.restart.prompt", "value": "گرافکس API کا انتخاب Basis کے شروع ہوتے وقت ہوتا ہے۔ کیا ابھی ری اسٹارٹ اور دوبارہ کنیکٹ کر کے {0} کے ساتھ رینڈر کریں؟" },
     { "key": "settings.graphics.renderer.restart.now", "value": "ابھی ری اسٹارٹ کریں" },
-    { "key": "settings.graphics.renderer.restart.later", "value": "بعد میں" }
+    { "key": "settings.graphics.renderer.restart.later", "value": "بعد میں" },
+    { "key": "settings.controls.questControllerFix", "value": "Quest کنٹرولر درستگی" },
+    { "key": "settings.controls.questControllerFix.tooltip", "value": "آن ہونے پر، SteamVR کے ذریعے Quest Touch کنٹرولرز پر اوتار کا ہاتھ ایک مستقل کلائی پر جما رہتا ہے، اس لیے اسٹک یا بٹنوں پر انگوٹھا رکھنے سے ہاتھ اور لیزر اب نہیں جھکتے۔ انگلیوں کی حالت اب بھی ٹچ سینسرز کی پیروی کرتی ہے۔ صرف SteamVR موڈ میں Quest کنٹرولرز پر اثر کرتا ہے۔" }
   ]
 }

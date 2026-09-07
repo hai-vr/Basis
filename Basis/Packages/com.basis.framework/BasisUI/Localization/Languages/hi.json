@@ -435,6 +435,8 @@
     { "key": "camera.selfie.description", "value": "कैमरे को अपनी ओर घुमाता है और पूर्वावलोकन को मिरर करता है।" },
     { "key": "camera.autoLevel", "value": "क्षितिज ऑटो लेवल" },
     { "key": "camera.autoLevel.description", "value": "कैमरा उड़ाते समय क्षितिज को समतल रखता है।" },
+    { "key": "camera.rollControl", "value": "कैमरा रोल" },
+    { "key": "camera.rollControl.description", "value": "चालू होने पर, पक पकड़े रहते हुए कैमरा उसके साथ रोल करता है, जिससे आप शॉट को झुका सकते हैं या पोर्ट्रेट फ़्रेम के लिए कैमरा बगल में घुमा सकते हैं। बंद होने पर, पक चाहे जितना मोड़ें, तस्वीर समतल रहती है।" },
     { "key": "camera.vrStabilization", "value": "VR स्थिरीकरण" },
     { "key": "camera.vrStabilization.description", "value": "VR में कैमरा पकड़ते समय हाथ के कंपन को सहज करता है।" },
     { "key": "camera.vrStabilization.position", "value": "स्थिरीकरण लैग" },
@@ -1855,6 +1857,8 @@
     { "key": "settings.admin.unsavedSuffix", "value": "(असहेजा)" },
     { "key": "settings.admin.title.voiceAudioLimits", "value": "वॉइस और ऑडियो सीमाएँ" },
     { "key": "settings.admin.title.avatarLimits", "value": "अवतार सीमाएँ" },
+    { "key": "settings.admin.title.locomotionPolicy", "value": "इंस्टेंस लोकोमोशन" },
+    { "key": "settings.admin.title.locomotionPolicy.description", "value": "वे मूवमेंट वैल्यू जिनके साथ इस इंस्टेंस का हर खिलाड़ी चलता है। ये सर्वर पर सेव की जाती हैं और जॉइन करने पर हर खिलाड़ी को भेजी जाती हैं, इसलिए बाद में आने वाले खिलाड़ियों को भी ये मिलती हैं। किसी फ़ील्ड को ऑफ़ छोड़ने पर खिलाड़ी अपनी खुद की वैल्यू बनाए रख सकते हैं। किसी एक खिलाड़ी पर मॉडरेटर ओवरराइड फिर भी इस पर भारी पड़ता है।" },
     { "key": "settings.admin.opusFrameDuration", "value": "Opus फ़्रेम अवधि" },
     { "key": "settings.admin.opusFrameDuration.tooltip", "value": "हर क्लाइंट एक वॉइस पैकेट में कितना ऑडियो पैक करता है।" },
     { "key": "settings.admin.opusFrameDuration.description", "value": "लंबे फ़्रेम पैकेट ओवरहेड और बैंडविड्थ घटाते हैं, पर हर वॉइस स्ट्रीम में उतनी ही लेटेंसी जोड़ देते हैं। केवल 20 ms और 40 ms समर्थित हैं।" },
@@ -1895,6 +1899,8 @@
     { "key": "settings.admin.locomotion.walkSpeed", "value": "वॉक स्पीड (m/s)" },
     { "key": "settings.admin.locomotion.runSpeed.override", "value": "रन स्पीड ओवरराइड करें" },
     { "key": "settings.admin.locomotion.runSpeed", "value": "रन स्पीड (m/s)" },
+    { "key": "settings.admin.locomotion.gravity.override", "value": "ग्रेविटी ओवरराइड करें" },
+    { "key": "settings.admin.locomotion.gravity", "value": "ग्रेविटी स्ट्रेंथ (m/s²)" },
     { "key": "settings.admin.locomotion.mode", "value": "मूवमेंट मोड" },
     { "key": "settings.admin.locomotion.mode.none", "value": "अपरिवर्तित छोड़ें" },
     { "key": "settings.admin.locomotion.mode.walk", "value": "वॉक" },
@@ -3635,7 +3641,8 @@
     { "key": "mediaPlayer.subtitles", "value": "उपशीर्षक" },
     { "key": "mediaPlayer.textOpacity", "value": "टेक्स्ट अपारदर्शिता" },
     { "key": "mediaPlayer.backgroundOpacity", "value": "पृष्ठभूमि अपारदर्शिता" },
-    { "key": "mediaPlayer.resync", "value": "रीसिंक" },
+    { "key": "mediaPlayer.resyncLocal", "value": "स्थानीय रीसिंक" },
+    { "key": "mediaPlayer.resyncEveryone", "value": "सभी को रीसिंक करें" },
     { "key": "mediaPlayer.advanced", "value": "उन्नत" },
     { "key": "mediaPlayer.admin", "value": "एडमिन" },
     { "key": "mediaPlayer.admin.description", "value": "नेटवर्क-सिंक की गई नीति। केवल basis.mediaplayer.control अनुमति वाले क्लाइंट्स को दिखती है।" },
@@ -4633,6 +4640,8 @@
     { "key": "settings.graphics.renderer.restart.title", "value": "पुनः आरंभ आवश्यक" },
     { "key": "settings.graphics.renderer.restart.prompt", "value": "Basis शुरू होते समय ग्राफ़िक्स API चुना जाता है। {0} के साथ रेंडर करने के लिए अभी पुनः आरंभ करें और फिर से कनेक्ट करें?" },
     { "key": "settings.graphics.renderer.restart.now", "value": "अभी पुनः आरंभ करें" },
-    { "key": "settings.graphics.renderer.restart.later", "value": "बाद में" }
+    { "key": "settings.graphics.renderer.restart.later", "value": "बाद में" },
+    { "key": "settings.controls.questControllerFix", "value": "Quest कंट्रोलर सुधार" },
+    { "key": "settings.controls.questControllerFix.tooltip", "value": "चालू होने पर, SteamVR के माध्यम से Quest Touch कंट्रोलर पर अवतार का हाथ एक स्थिर कलाई पर टिका रहता है, इसलिए स्टिक या बटनों पर अंगूठा रखने से हाथ और लेज़र अब नहीं झुकते। उंगलियों की मुद्राएँ अभी भी टच सेंसर का पालन करती हैं। केवल SteamVR मोड में Quest कंट्रोलर पर लागू होता है।" }
   ]
 }

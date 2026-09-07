@@ -435,6 +435,8 @@
     { "key": "camera.selfie.description", "value": "Поворачивает камеру к вам и зеркалит предпросмотр." },
     { "key": "camera.autoLevel", "value": "Автовыравнивание горизонта" },
     { "key": "camera.autoLevel.description", "value": "Удерживает горизонт ровным при полёте камеры." },
+    { "key": "camera.rollControl", "value": "Крен камеры" },
+    { "key": "camera.rollControl.description", "value": "Включено — камера кренится вместе с шайбой, пока вы её держите: можно наклонить кадр или повернуть камеру набок для вертикального снимка. Выключено — картинка остаётся ровной, как бы вы ни поворачивали шайбу." },
     { "key": "camera.vrStabilization", "value": "Стабилизация VR" },
     { "key": "camera.vrStabilization.description", "value": "Сглаживает дрожание руки при удержании камеры в VR." },
     { "key": "camera.vrStabilization.position", "value": "Задержка стабилизатора" },
@@ -1855,6 +1857,8 @@
     { "key": "settings.admin.unsavedSuffix", "value": "(не сохранено)" },
     { "key": "settings.admin.title.voiceAudioLimits", "value": "Ограничения голоса и звука" },
     { "key": "settings.admin.title.avatarLimits", "value": "Ограничения аватаров" },
+    { "key": "settings.admin.title.locomotionPolicy", "value": "Передвижение инстанса" },
+    { "key": "settings.admin.title.locomotionPolicy.description", "value": "Значения передвижения, которые действуют для каждого игрока в этом инстансе. Сохраняются на сервере и отправляются каждому игроку при входе, поэтому присоединившиеся позже тоже их получат. Оставьте поле выключенным, чтобы игроки сохраняли своё значение. Переопределение модератором для отдельного игрока всё равно имеет приоритет над этим." },
     { "key": "settings.admin.opusFrameDuration", "value": "Длительность кадра Opus" },
     { "key": "settings.admin.opusFrameDuration.tooltip", "value": "Сколько звука каждый клиент помещает в один голосовой пакет." },
     { "key": "settings.admin.opusFrameDuration.description", "value": "Более длинные кадры снижают накладные расходы на пакеты и трафик, но добавляют ровно столько же задержки каждому голосовому потоку. Поддерживаются только 20 ms и 40 ms." },
@@ -1895,6 +1899,8 @@
     { "key": "settings.admin.locomotion.walkSpeed", "value": "Скорость ходьбы (м/с)" },
     { "key": "settings.admin.locomotion.runSpeed.override", "value": "Переопределить скорость бега" },
     { "key": "settings.admin.locomotion.runSpeed", "value": "Скорость бега (м/с)" },
+    { "key": "settings.admin.locomotion.gravity.override", "value": "Переопределить гравитацию" },
+    { "key": "settings.admin.locomotion.gravity", "value": "Сила гравитации (м/с²)" },
     { "key": "settings.admin.locomotion.mode", "value": "Режим передвижения" },
     { "key": "settings.admin.locomotion.mode.none", "value": "Не изменять" },
     { "key": "settings.admin.locomotion.mode.walk", "value": "Ходьба" },
@@ -3635,7 +3641,8 @@
     { "key": "mediaPlayer.subtitles", "value": "Субтитры" },
     { "key": "mediaPlayer.textOpacity", "value": "Непрозрачность текста" },
     { "key": "mediaPlayer.backgroundOpacity", "value": "Непрозрачность фона" },
-    { "key": "mediaPlayer.resync", "value": "Пересинхронизировать" },
+    { "key": "mediaPlayer.resyncLocal", "value": "Пересинхронизировать локально" },
+    { "key": "mediaPlayer.resyncEveryone", "value": "Пересинхронизировать всех" },
     { "key": "mediaPlayer.advanced", "value": "Дополнительно" },
     { "key": "mediaPlayer.admin", "value": "Администрирование" },
     { "key": "mediaPlayer.admin.description", "value": "Политика, синхронизируемая по сети. Видна только клиентам с разрешением basis.mediaplayer.control." },
@@ -4633,6 +4640,8 @@
     { "key": "settings.graphics.renderer.restart.title", "value": "Требуется перезапуск" },
     { "key": "settings.graphics.renderer.restart.prompt", "value": "Графический API выбирается при запуске Basis. Перезапустить и переподключиться сейчас, чтобы использовать {0}?" },
     { "key": "settings.graphics.renderer.restart.now", "value": "Перезапустить сейчас" },
-    { "key": "settings.graphics.renderer.restart.later", "value": "Позже" }
+    { "key": "settings.graphics.renderer.restart.later", "value": "Позже" },
+    { "key": "settings.controls.questControllerFix", "value": "Исправление контроллеров Quest" },
+    { "key": "settings.controls.questControllerFix.tooltip", "value": "Включено: рука аватара на контроллерах Quest Touch через SteamVR привязана к фиксированному запястью, поэтому палец на стике или кнопках больше не наклоняет руку и луч. Позы пальцев по-прежнему следуют сенсорам касания. Влияет только на контроллеры Quest в режиме SteamVR." }
   ]
 }

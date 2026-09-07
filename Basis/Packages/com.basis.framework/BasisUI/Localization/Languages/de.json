@@ -435,6 +435,8 @@
     { "key": "camera.selfie.description", "value": "Dreht die Kamera zu dir und spiegelt die Vorschau." },
     { "key": "camera.autoLevel", "value": "Horizont automatisch ausrichten" },
     { "key": "camera.autoLevel.description", "value": "Hält den Horizont waagerecht, während du die Kamera fliegst." },
+    { "key": "camera.rollControl", "value": "Kamera rollen" },
+    { "key": "camera.rollControl.description", "value": "An: Die Kamera rollt mit dem Puck, während du ihn hältst – du kannst die Aufnahme neigen oder die Kamera für ein Hochformat auf die Seite drehen. Aus: Das Bild bleibt waagerecht, egal wie du den Puck drehst." },
     { "key": "camera.vrStabilization", "value": "VR-Stabilisierung" },
     { "key": "camera.vrStabilization.description", "value": "Glättet das Zittern der Hand, wenn du die Kamera in VR hältst." },
     { "key": "camera.vrStabilization.position", "value": "Stabilisator-Verzögerung" },
@@ -1855,6 +1857,8 @@
     { "key": "settings.admin.unsavedSuffix", "value": "(ungespeichert)" },
     { "key": "settings.admin.title.voiceAudioLimits", "value": "Sprach- und Audiogrenzen" },
     { "key": "settings.admin.title.avatarLimits", "value": "Avatar-Grenzen" },
+    { "key": "settings.admin.title.locomotionPolicy", "value": "Instanzbewegung" },
+    { "key": "settings.admin.title.locomotionPolicy.description", "value": "Bewegungswerte, die jeder Spieler in dieser Instanz verwendet. Sie werden auf dem Server gespeichert und beim Beitritt an jeden Spieler gesendet, sodass sie auch später beitretende Spieler erhalten. Lassen Sie ein Feld deaktiviert, damit Spieler ihren eigenen Wert behalten können. Ein Moderator-Override für einen einzelnen Spieler hat weiterhin Vorrang vor dieser Einstellung." },
     { "key": "settings.admin.opusFrameDuration", "value": "Opus-Framedauer" },
     { "key": "settings.admin.opusFrameDuration.tooltip", "value": "Wie viel Audio jeder Client in ein Sprachpaket packt." },
     { "key": "settings.admin.opusFrameDuration.description", "value": "Längere Frames senken Paket-Overhead und Bandbreite, erhöhen aber die Latenz jedes Sprachstreams um genau diesen Betrag. Unterstützt werden nur 20 ms und 40 ms." },
@@ -1895,6 +1899,8 @@
     { "key": "settings.admin.locomotion.walkSpeed", "value": "Gehgeschwindigkeit (m/s)" },
     { "key": "settings.admin.locomotion.runSpeed.override", "value": "Laufgeschwindigkeit überschreiben" },
     { "key": "settings.admin.locomotion.runSpeed", "value": "Laufgeschwindigkeit (m/s)" },
+    { "key": "settings.admin.locomotion.gravity.override", "value": "Schwerkraft überschreiben" },
+    { "key": "settings.admin.locomotion.gravity", "value": "Schwerkraftstärke (m/s²)" },
     { "key": "settings.admin.locomotion.mode", "value": "Bewegungsmodus" },
     { "key": "settings.admin.locomotion.mode.none", "value": "Unverändert lassen" },
     { "key": "settings.admin.locomotion.mode.walk", "value": "Gehen" },
@@ -3635,7 +3641,8 @@
     { "key": "mediaPlayer.subtitles", "value": "Untertitel" },
     { "key": "mediaPlayer.textOpacity", "value": "Textdeckkraft" },
     { "key": "mediaPlayer.backgroundOpacity", "value": "Hintergrunddeckkraft" },
-    { "key": "mediaPlayer.resync", "value": "Neu synchronisieren" },
+    { "key": "mediaPlayer.resyncLocal", "value": "Lokal neu synchronisieren" },
+    { "key": "mediaPlayer.resyncEveryone", "value": "Alle neu synchronisieren" },
     { "key": "mediaPlayer.advanced", "value": "Erweitert" },
     { "key": "mediaPlayer.admin", "value": "Admin" },
     { "key": "mediaPlayer.admin.description", "value": "Netzwerksynchronisierte Richtlinie. Nur für Clients mit der Berechtigung basis.mediaplayer.control sichtbar." },
@@ -4633,6 +4640,8 @@
     { "key": "settings.graphics.renderer.restart.title", "value": "Neustart erforderlich" },
     { "key": "settings.graphics.renderer.restart.prompt", "value": "Die Grafik-API wird beim Start von Basis festgelegt. Jetzt neu starten und neu verbinden, um mit {0} zu rendern?" },
     { "key": "settings.graphics.renderer.restart.now", "value": "Jetzt neu starten" },
-    { "key": "settings.graphics.renderer.restart.later", "value": "Später" }
+    { "key": "settings.graphics.renderer.restart.later", "value": "Später" },
+    { "key": "settings.controls.questControllerFix", "value": "Quest-Controller-Korrektur" },
+    { "key": "settings.controls.questControllerFix.tooltip", "value": "An: Die Avatarhand wird bei Quest-Touch-Controllern über SteamVR an einem festen Handgelenk verankert, sodass ein Daumen auf dem Stick oder den Tasten Hand und Laser nicht mehr kippt. Die Fingerposen folgen weiterhin den Berührungssensoren. Betrifft nur Quest-Controller im SteamVR-Modus." }
   ]
 }

@@ -435,6 +435,8 @@
     { "key": "camera.selfie.description", "value": "カメラを自分の方に向け、プレビューを左右反転します。" },
     { "key": "camera.autoLevel", "value": "水平を自動補正" },
     { "key": "camera.autoLevel.description", "value": "カメラを飛ばしている間、水平線を保ちます。" },
+    { "key": "camera.rollControl", "value": "カメラのロール" },
+    { "key": "camera.rollControl.description", "value": "オンにすると、パックを持っている間、カメラがパックと一緒に傾きます。ショットを斜めにしたり、縦構図のためにカメラを横に倒したりできます。オフでは、パックをどうひねっても画は水平のままです。" },
     { "key": "camera.vrStabilization", "value": "VR 手ぶれ補正" },
     { "key": "camera.vrStabilization.description", "value": "VR でカメラを持つときの手ぶれを滑らかにします。" },
     { "key": "camera.vrStabilization.position", "value": "補正の遅延" },
@@ -1855,6 +1857,8 @@
     { "key": "settings.admin.unsavedSuffix", "value": "（未保存）" },
     { "key": "settings.admin.title.voiceAudioLimits", "value": "音声・オーディオの上限" },
     { "key": "settings.admin.title.avatarLimits", "value": "アバターの上限" },
+    { "key": "settings.admin.title.locomotionPolicy", "value": "インスタンス移動" },
+    { "key": "settings.admin.title.locomotionPolicy.description", "value": "このインスタンス内のすべてのプレイヤーが使用する移動の値です。サーバーに保存され、参加時に各プレイヤーへ送信されるため、後から参加するプレイヤーにも適用されます。項目をオフのままにすると、プレイヤーは自分の値を維持できます。1人のプレイヤーに対するモデレーターの上書きは、これより優先されます。" },
     { "key": "settings.admin.opusFrameDuration", "value": "Opus フレーム長" },
     { "key": "settings.admin.opusFrameDuration.tooltip", "value": "各クライアントが 1 つの音声パケットにまとめる音声の長さです。" },
     { "key": "settings.admin.opusFrameDuration.description", "value": "フレームを長くするとパケットのオーバーヘッドと帯域が減りますが、その分だけすべての音声ストリームに遅延が加わります。対応しているのは 20 ms と 40 ms のみです。" },
@@ -1895,6 +1899,8 @@
     { "key": "settings.admin.locomotion.walkSpeed", "value": "歩行速度（m/s）" },
     { "key": "settings.admin.locomotion.runSpeed.override", "value": "走行速度を上書き" },
     { "key": "settings.admin.locomotion.runSpeed", "value": "走行速度（m/s）" },
+    { "key": "settings.admin.locomotion.gravity.override", "value": "重力を上書き" },
+    { "key": "settings.admin.locomotion.gravity", "value": "重力強度（m/s²）" },
     { "key": "settings.admin.locomotion.mode", "value": "移動モード" },
     { "key": "settings.admin.locomotion.mode.none", "value": "変更しない" },
     { "key": "settings.admin.locomotion.mode.walk", "value": "歩行" },
@@ -3635,7 +3641,8 @@
     { "key": "mediaPlayer.subtitles", "value": "字幕" },
     { "key": "mediaPlayer.textOpacity", "value": "文字の不透明度" },
     { "key": "mediaPlayer.backgroundOpacity", "value": "背景の不透明度" },
-    { "key": "mediaPlayer.resync", "value": "再同期" },
+    { "key": "mediaPlayer.resyncLocal", "value": "ローカル再同期" },
+    { "key": "mediaPlayer.resyncEveryone", "value": "全員を再同期" },
     { "key": "mediaPlayer.advanced", "value": "詳細設定" },
     { "key": "mediaPlayer.admin", "value": "管理者" },
     { "key": "mediaPlayer.admin.description", "value": "ネットワーク同期されるポリシーです。basis.mediaplayer.control 権限を持つクライアントにのみ表示されます。" },
@@ -4633,6 +4640,8 @@
     { "key": "settings.graphics.renderer.restart.title", "value": "再起動が必要です" },
     { "key": "settings.graphics.renderer.restart.prompt", "value": "グラフィックスAPIはBasisの起動時に選択されます。今すぐ再起動して再接続し、{0} で描画しますか？" },
     { "key": "settings.graphics.renderer.restart.now", "value": "今すぐ再起動" },
-    { "key": "settings.graphics.renderer.restart.later", "value": "後で" }
+    { "key": "settings.graphics.renderer.restart.later", "value": "後で" },
+    { "key": "settings.controls.questControllerFix", "value": "Questコントローラー修正" },
+    { "key": "settings.controls.questControllerFix.tooltip", "value": "オンにすると、SteamVR経由のQuest Touchコントローラーでアバターの手が固定された手首に固定され、親指をスティックやボタンに置いても手とレーザーが傾かなくなります。指のポーズは引き続きタッチセンサーに従います。SteamVRモードのQuestコントローラーのみに影響します。" }
   ]
 }

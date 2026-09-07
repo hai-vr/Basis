@@ -276,6 +276,7 @@ public static class BasisCameraSettingsReadout
         Row("camera.detachedMarker", DetachedMarkerLabel(settings.detachedMarker));
         Row("camera.detachedMarker.size", Number(settings.detachedMarkerScale * 100f) + "%");
         Row("camera.puckPreview", OnOff(settings.puckLookAtPreview));
+        Row("camera.rollControl", OnOff(settings.cameraRoll));
 
         Section("camera.background");
         Row("camera.backgroundMode", BackgroundModeLabel(settings.backgroundMode));

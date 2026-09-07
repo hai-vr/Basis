@@ -435,6 +435,8 @@
     { "key": "camera.selfie.description", "value": "Draait de camera naar je toe en spiegelt het voorbeeld." },
     { "key": "camera.autoLevel", "value": "Horizon Automatisch Waterpas" },
     { "key": "camera.autoLevel.description", "value": "Houdt de horizon waterpas terwijl je met de camera vliegt." },
+    { "key": "camera.rollControl", "value": "Camera rollen" },
+    { "key": "camera.rollControl.description", "value": "Aan: de camera rolt mee met de puck terwijl je hem vasthoudt, zodat je het beeld kunt kantelen of de camera op zijn kant kunt zetten voor een staand kader. Uit: het beeld blijft waterpas, hoe je de puck ook draait." },
     { "key": "camera.vrStabilization", "value": "VR-stabilisatie" },
     { "key": "camera.vrStabilization.description", "value": "Vlakt handtrilling af wanneer je de camera in VR vasthoudt." },
     { "key": "camera.vrStabilization.position", "value": "Stabilisatorvertraging" },
@@ -1855,6 +1857,8 @@
     { "key": "settings.admin.unsavedSuffix", "value": "(niet opgeslagen)" },
     { "key": "settings.admin.title.voiceAudioLimits", "value": "Spraak- en audiolimieten" },
     { "key": "settings.admin.title.avatarLimits", "value": "Avatarlimieten" },
+    { "key": "settings.admin.title.locomotionPolicy", "value": "Instantiebeweging" },
+    { "key": "settings.admin.title.locomotionPolicy.description", "value": "Bewegingswaarden waarmee elke speler in deze instantie beweegt. Ze worden opgeslagen op de server en naar elke speler gestuurd zodra die zich aansluit, zodat wie later arriveert ze ook krijgt. Laat een veld uitgeschakeld zodat spelers hun eigen waarde behouden. Een moderator-override op één speler heeft nog steeds voorrang hierop." },
     { "key": "settings.admin.opusFrameDuration", "value": "Opus-frameduur" },
     { "key": "settings.admin.opusFrameDuration.tooltip", "value": "Hoeveel audio elke client in één spraakpakket stopt." },
     { "key": "settings.admin.opusFrameDuration.description", "value": "Langere frames verlagen de pakketoverhead en bandbreedte, maar voegen evenveel latentie toe aan elke spraakstroom. Alleen 20 ms en 40 ms worden ondersteund." },
@@ -1895,6 +1899,8 @@
     { "key": "settings.admin.locomotion.walkSpeed", "value": "Loopsnelheid (m/s)" },
     { "key": "settings.admin.locomotion.runSpeed.override", "value": "Rensnelheid Overschrijven" },
     { "key": "settings.admin.locomotion.runSpeed", "value": "Rensnelheid (m/s)" },
+    { "key": "settings.admin.locomotion.gravity.override", "value": "Zwaartekracht Overschrijven" },
+    { "key": "settings.admin.locomotion.gravity", "value": "Zwaartekrachtsterkte (m/s²)" },
     { "key": "settings.admin.locomotion.mode", "value": "Bewegingsmodus" },
     { "key": "settings.admin.locomotion.mode.none", "value": "Ongewijzigd Laten" },
     { "key": "settings.admin.locomotion.mode.walk", "value": "Lopen" },
@@ -3635,7 +3641,8 @@
     { "key": "mediaPlayer.subtitles", "value": "Ondertitels" },
     { "key": "mediaPlayer.textOpacity", "value": "Tekstdekking" },
     { "key": "mediaPlayer.backgroundOpacity", "value": "Achtergronddekking" },
-    { "key": "mediaPlayer.resync", "value": "Opnieuw synchroniseren" },
+    { "key": "mediaPlayer.resyncLocal", "value": "Lokaal opnieuw synchroniseren" },
+    { "key": "mediaPlayer.resyncEveryone", "value": "Iedereen opnieuw synchroniseren" },
     { "key": "mediaPlayer.advanced", "value": "Geavanceerd" },
     { "key": "mediaPlayer.admin", "value": "Beheer" },
     { "key": "mediaPlayer.admin.description", "value": "Netwerkgesynchroniseerd beleid. Alleen zichtbaar voor clients met de rechten basis.mediaplayer.control." },
@@ -4633,6 +4640,8 @@
     { "key": "settings.graphics.renderer.restart.title", "value": "Herstart Vereist" },
     { "key": "settings.graphics.renderer.restart.prompt", "value": "De grafische API wordt gekozen wanneer Basis start. Nu herstarten en opnieuw verbinden om te renderen met {0}?" },
     { "key": "settings.graphics.renderer.restart.now", "value": "Nu Herstarten" },
-    { "key": "settings.graphics.renderer.restart.later", "value": "Later" }
+    { "key": "settings.graphics.renderer.restart.later", "value": "Later" },
+    { "key": "settings.controls.questControllerFix", "value": "Quest-controllercorrectie" },
+    { "key": "settings.controls.questControllerFix.tooltip", "value": "Aan: de avatarhand op Quest Touch-controllers via SteamVR wordt aan een vaste pols verankerd, zodat een duim op de stick of knoppen de hand en laser niet meer kantelt. Vingerposes volgen nog steeds de aanraaksensoren. Geldt alleen voor Quest-controllers in SteamVR-modus." }
   ]
 }

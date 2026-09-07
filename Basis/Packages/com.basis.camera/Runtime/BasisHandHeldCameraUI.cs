@@ -822,6 +822,7 @@ public partial class BasisHandHeldCameraUI
             puckLookAtPreview = HHC != null && HHC.puckLookAtPreview,
             capture360 = HHC != null && HHC.capture360Enabled,
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
+            cameraRoll = HHC != null && HHC.cameraRollEnabled,
             useVRHandheldSmoothing = HHC != null && HHC.useVRHandheldSmoothing,
             vrStabilizationPositionDamping = HHC != null ? HHC.vrHandheldPositionDamping : baseline.vrStabilizationPositionDamping,
             vrStabilizationYawDamping = HHC != null ? HHC.vrHandheldYawDamping : baseline.vrStabilizationYawDamping,
@@ -1350,6 +1351,7 @@ public partial class BasisHandHeldCameraUI
         HHC.SetPuckLookAtPreview(settings.puckLookAtPreview);
         HHC.capture360Enabled = settings.capture360;
         HHC.useAutoLeveling = settings.useAutoLeveling;
+        HHC.SetCameraRollEnabled(settings.cameraRoll);
         HHC.useVRHandheldSmoothing = settings.useVRHandheldSmoothing;
         HHC.SetVRStabilizationPositionDamping(settings.vrStabilizationPositionDamping);
         HHC.SetVRStabilizationYawDamping(settings.vrStabilizationYawDamping);

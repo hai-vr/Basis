@@ -911,6 +911,11 @@ namespace Basis.Scripts.UI.NamePlate
                 }
             });
         }
+        public override bool PointerClaimedByUI(BasisInput input)
+        {
+            BasisUIRaycast raycast = input.BasisUIRaycast;
+            return raycast != null && (raycast.HadRaycastUITarget || raycast.HadUISurface);
+        }
         public override bool CanHover(BasisInput input)
         {
             if (BasisRemoteNamePlateDriver.NamePlateHoverMenuOnly && BasisMainMenu.Instance == null)
@@ -919,6 +924,7 @@ namespace Basis.Scripts.UI.NamePlate
             }
 
             return InteractableEnabled &&
+                !PointerClaimedByUI(input) &&
                 Inputs.IsInputAdded(input) &&
                 input.TryGetRole(out BasisBoneTrackedRole role) &&
                 Inputs.TryGetByRole(role, out BasisInputWrapper found) &&
@@ -928,6 +934,7 @@ namespace Basis.Scripts.UI.NamePlate
         public override bool CanInteract(BasisInput input)
         {
             return InteractableEnabled &&
+                !PointerClaimedByUI(input) &&
                 Inputs.IsInputAdded(input) &&
                 input.TryGetRole(out BasisBoneTrackedRole role) &&
                 Inputs.TryGetByRole(role, out BasisInputWrapper found) &&

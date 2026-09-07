@@ -606,6 +606,34 @@ namespace Basis.Tests.Camera
             Assert.That(loaded.flyMomentum, Is.True);
         }
 
+        [Test]
+        public void TheRollSwitch_ReachesTheCameraBothWays()
+        {
+            BasisHandHeldCameraUI.CameraSettings settings = BasisCameraSettingsRig.DistinctiveSettings();
+
+            settings.cameraRoll = true;
+            _rig.UI.ApplySettingsForTest(settings);
+            Assert.That(_rig.Camera.cameraRollEnabled, Is.True,
+                "Camera Roll has to reach the camera, or the grip's roll is never let through to the shot.");
+
+            settings.cameraRoll = false;
+            _rig.UI.ApplySettingsForTest(settings);
+            Assert.That(_rig.Camera.cameraRollEnabled, Is.False);
+        }
+
+        [Test]
+        public void AFileWrittenBeforeRollExisted_LoadsWithTheCameraLevel()
+        {
+            // Off is the zero fill, so a file that has never heard of the switch needs no migration
+            // to load as the level camera it was saved as.
+            var loaded = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(
+                "{\"settingsVersion\":12,\"flySpeed\":3.0}");
+
+            Assert.That(loaded.flySpeed, Is.EqualTo(3f).Within(1e-4f),
+                "the file this is standing in for has to actually have been read");
+            Assert.That(loaded.cameraRoll, Is.False, "Off is the zero fill, so the shot loads level.");
+        }
+
         // ---------- helpers ----------
 
         private static IEnumerable<FieldInfo> SettingsFields() =>

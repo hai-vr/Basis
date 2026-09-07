@@ -435,6 +435,8 @@
     { "key": "camera.selfie.description", "value": "Tourne la caméra vers vous et inverse l'aperçu." },
     { "key": "camera.autoLevel", "value": "Horizon à niveau auto" },
     { "key": "camera.autoLevel.description", "value": "Maintient l'horizon à niveau pendant que vous pilotez la caméra." },
+    { "key": "camera.rollControl", "value": "Roulis de la caméra" },
+    { "key": "camera.rollControl.description", "value": "Activé, la caméra roule avec le palet pendant que vous le tenez : vous pouvez incliner la prise ou tourner la caméra sur le côté pour un cadrage portrait. Désactivé, l'image reste de niveau quelle que soit la torsion du palet." },
     { "key": "camera.vrStabilization", "value": "Stabilisation VR" },
     { "key": "camera.vrStabilization.description", "value": "Lisse les tremblements de la main lorsque vous tenez la caméra en VR." },
     { "key": "camera.vrStabilization.position", "value": "Latence du stabilisateur" },
@@ -1855,6 +1857,8 @@
     { "key": "settings.admin.unsavedSuffix", "value": "(non enregistré)" },
     { "key": "settings.admin.title.voiceAudioLimits", "value": "Limites voix et audio" },
     { "key": "settings.admin.title.avatarLimits", "value": "Limites des avatars" },
+    { "key": "settings.admin.title.locomotionPolicy", "value": "Déplacement de l'instance" },
+    { "key": "settings.admin.title.locomotionPolicy.description", "value": "Valeurs de déplacement qui s'appliquent à tous les joueurs de cette instance. Elles sont enregistrées sur le serveur et envoyées à chaque joueur lors de sa connexion, de sorte que toute personne arrivant plus tard les reçoit également. Laisser un champ désactivé permet aux joueurs de conserver leur propre valeur. Un forçage par un modérateur sur un joueur donné l'emporte toujours sur ceci." },
     { "key": "settings.admin.opusFrameDuration", "value": "Durée de trame Opus" },
     { "key": "settings.admin.opusFrameDuration.tooltip", "value": "La quantité d'audio que chaque client place dans un paquet vocal." },
     { "key": "settings.admin.opusFrameDuration.description", "value": "Des trames plus longues réduisent la surcharge des paquets et la bande passante, mais ajoutent autant de latence à chaque flux vocal. Seules 20 ms et 40 ms sont prises en charge." },
@@ -1895,6 +1899,8 @@
     { "key": "settings.admin.locomotion.walkSpeed", "value": "Vitesse de marche (m/s)" },
     { "key": "settings.admin.locomotion.runSpeed.override", "value": "Forcer la vitesse de course" },
     { "key": "settings.admin.locomotion.runSpeed", "value": "Vitesse de course (m/s)" },
+    { "key": "settings.admin.locomotion.gravity.override", "value": "Forcer la gravité" },
+    { "key": "settings.admin.locomotion.gravity", "value": "Intensité de gravité (m/s²)" },
     { "key": "settings.admin.locomotion.mode", "value": "Mode de déplacement" },
     { "key": "settings.admin.locomotion.mode.none", "value": "Laisser inchangé" },
     { "key": "settings.admin.locomotion.mode.walk", "value": "Marche" },
@@ -3635,7 +3641,8 @@
     { "key": "mediaPlayer.subtitles", "value": "Sous-titres" },
     { "key": "mediaPlayer.textOpacity", "value": "Opacité du texte" },
     { "key": "mediaPlayer.backgroundOpacity", "value": "Opacité de l'arrière-plan" },
-    { "key": "mediaPlayer.resync", "value": "Resynchroniser" },
+    { "key": "mediaPlayer.resyncLocal", "value": "Resynchroniser localement" },
+    { "key": "mediaPlayer.resyncEveryone", "value": "Resynchroniser tout le monde" },
     { "key": "mediaPlayer.advanced", "value": "Avancé" },
     { "key": "mediaPlayer.admin", "value": "Administration" },
     { "key": "mediaPlayer.admin.description", "value": "Politique synchronisée sur le réseau. Visible uniquement par les clients disposant de l'autorisation basis.mediaplayer.control." },
@@ -4633,6 +4640,8 @@
     { "key": "settings.graphics.renderer.restart.title", "value": "Redémarrage requis" },
     { "key": "settings.graphics.renderer.restart.prompt", "value": "L'API graphique est choisie au démarrage de Basis. Redémarrer et se reconnecter maintenant pour effectuer le rendu avec {0} ?" },
     { "key": "settings.graphics.renderer.restart.now", "value": "Redémarrer maintenant" },
-    { "key": "settings.graphics.renderer.restart.later", "value": "Plus tard" }
+    { "key": "settings.graphics.renderer.restart.later", "value": "Plus tard" },
+    { "key": "settings.controls.questControllerFix", "value": "Correction des manettes Quest" },
+    { "key": "settings.controls.questControllerFix.tooltip", "value": "Activé, la main de l'avatar sur les manettes Quest Touch via SteamVR est ancrée à un poignet fixe, donc poser le pouce sur le joystick ou les boutons n'incline plus la main ni le laser. Les poses des doigts suivent toujours les capteurs tactiles. Concerne uniquement les manettes Quest en mode SteamVR." }
   ]
 }

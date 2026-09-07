@@ -435,6 +435,8 @@
     { "key": "camera.selfie.description", "value": "将相机转向你并镜像预览画面。" },
     { "key": "camera.autoLevel", "value": "自动校平地平线" },
     { "key": "camera.autoLevel.description", "value": "在飞行相机时保持地平线水平。" },
+    { "key": "camera.rollControl", "value": "相机滚转" },
+    { "key": "camera.rollControl.description", "value": "开启后，手持圆盘时相机会随它一起滚转，可以倾斜画面或把相机侧过来拍竖幅。关闭时，无论怎样扭转圆盘，画面都保持水平。" },
     { "key": "camera.vrStabilization", "value": "VR 防抖" },
     { "key": "camera.vrStabilization.description", "value": "在 VR 中手持相机时平滑手部抖动。" },
     { "key": "camera.vrStabilization.position", "value": "防抖滞后" },
@@ -1855,6 +1857,8 @@
     { "key": "settings.admin.unsavedSuffix", "value": "（未保存）" },
     { "key": "settings.admin.title.voiceAudioLimits", "value": "语音与音频限制" },
     { "key": "settings.admin.title.avatarLimits", "value": "虚拟形象限制" },
+    { "key": "settings.admin.title.locomotionPolicy", "value": "实例移动方式" },
+    { "key": "settings.admin.title.locomotionPolicy.description", "value": "本实例中每位玩家所遵循的移动数值。这些数值会保存在服务器上，并在每位玩家加入时发送给对方，因此之后才加入的人也同样会收到。把某个选项保持关闭，玩家就能保留自己的数值。版主对某位玩家设置的覆盖仍会优先于此。" },
     { "key": "settings.admin.opusFrameDuration", "value": "Opus 帧长" },
     { "key": "settings.admin.opusFrameDuration.tooltip", "value": "每个客户端在一个语音数据包中打包多少音频。" },
     { "key": "settings.admin.opusFrameDuration.description", "value": "更长的帧可减少数据包开销和带宽，但会给每条语音流增加同等的延迟。仅支持 20 ms 和 40 ms。" },
@@ -1895,6 +1899,8 @@
     { "key": "settings.admin.locomotion.walkSpeed", "value": "行走速度（米/秒）" },
     { "key": "settings.admin.locomotion.runSpeed.override", "value": "覆盖奔跑速度" },
     { "key": "settings.admin.locomotion.runSpeed", "value": "奔跑速度（米/秒）" },
+    { "key": "settings.admin.locomotion.gravity.override", "value": "覆盖重力" },
+    { "key": "settings.admin.locomotion.gravity", "value": "重力强度（米/秒²）" },
     { "key": "settings.admin.locomotion.mode", "value": "移动模式" },
     { "key": "settings.admin.locomotion.mode.none", "value": "保持不变" },
     { "key": "settings.admin.locomotion.mode.walk", "value": "行走" },
@@ -3635,7 +3641,8 @@
     { "key": "mediaPlayer.subtitles", "value": "字幕" },
     { "key": "mediaPlayer.textOpacity", "value": "文字不透明度" },
     { "key": "mediaPlayer.backgroundOpacity", "value": "背景不透明度" },
-    { "key": "mediaPlayer.resync", "value": "重新同步" },
+    { "key": "mediaPlayer.resyncLocal", "value": "本地重新同步" },
+    { "key": "mediaPlayer.resyncEveryone", "value": "全员重新同步" },
     { "key": "mediaPlayer.advanced", "value": "高级" },
     { "key": "mediaPlayer.admin", "value": "管理" },
     { "key": "mediaPlayer.admin.description", "value": "网络同步的策略。仅对拥有 basis.mediaplayer.control 权限的客户端可见。" },
@@ -4633,6 +4640,8 @@
     { "key": "settings.graphics.renderer.restart.title", "value": "需要重新启动" },
     { "key": "settings.graphics.renderer.restart.prompt", "value": "图形 API 在 Basis 启动时确定。是否立即重启并重新连接，以使用 {0} 进行渲染？" },
     { "key": "settings.graphics.renderer.restart.now", "value": "立即重启" },
-    { "key": "settings.graphics.renderer.restart.later", "value": "稍后" }
+    { "key": "settings.graphics.renderer.restart.later", "value": "稍后" },
+    { "key": "settings.controls.questControllerFix", "value": "Quest 手柄修正" },
+    { "key": "settings.controls.questControllerFix.tooltip", "value": "开启后，通过 SteamVR 使用 Quest Touch 手柄时，虚拟形象的手会固定在一个不变的手腕位置，拇指放在摇杆或按键上时不再使手和激光倾斜。手指姿势仍然跟随触摸传感器。仅影响 SteamVR 模式下的 Quest 手柄。" }
   ]
 }

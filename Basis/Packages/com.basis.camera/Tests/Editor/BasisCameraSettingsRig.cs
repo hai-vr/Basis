@@ -241,6 +241,7 @@ namespace Basis.Tests.Camera
                 anchorFollowsBody = true,
                 capture360 = true,
                 useAutoLeveling = true,
+                cameraRoll = true,
                 useVRHandheldSmoothing = true,
                 vrStabilizationPositionDamping = 0.55f,
                 vrStabilizationYawDamping = 1.25f,

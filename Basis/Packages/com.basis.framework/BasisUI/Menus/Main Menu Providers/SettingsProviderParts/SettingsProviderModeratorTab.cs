@@ -53,6 +53,8 @@ namespace Basis.BasisUI
         private const float DefaultLocomotionJumpHeight = 1.0f;
         private const float DefaultLocomotionWalkSpeed = 2.5f;
         private const float DefaultLocomotionRunSpeed = 4.0f;
+        /// <summary>Shown as a downward pull, so the slider is positive and the payload negates it.</summary>
+        internal const float DefaultLocomotionGravity = 9.81f;
 
         private static readonly Vector2 CardSize = new Vector2(300f, 100f);
         private const float CardIconStripWidth = 68f;
@@ -84,7 +86,8 @@ namespace Basis.BasisUI
             bool overrideJump, float jumpHeight,
             bool overrideWalk, float walkSpeed,
             bool overrideRun, float runSpeed,
-            int modeIndex)
+            int modeIndex,
+            bool overrideGravity, float gravity)
         {
             BasisLocomotionValues values = default;
 
@@ -102,6 +105,13 @@ namespace Basis.BasisUI
             {
                 values.Fields |= BasisLocomotionField.RunSpeed;
                 values.RunSpeed = runSpeed;
+            }
+            if (overrideGravity)
+            {
+                values.Fields |= BasisLocomotionField.Gravity;
+                // The slider reads as a downward pull, so it is positive on screen and negated here.
+                // A positive gravity would make the client's sqrt(-2gh) jump imaginary.
+                values.Gravity = -Mathf.Abs(gravity);
             }
             if (modeIndex > 0)
             {
@@ -316,8 +326,8 @@ namespace Basis.BasisUI
 
         private sealed class LocomotionControls
         {
-            public PanelToggle JumpToggle, WalkToggle, RunToggle;
-            public PanelSlider JumpSlider, WalkSlider, RunSlider;
+            public PanelToggle JumpToggle, WalkToggle, RunToggle, GravityToggle;
+            public PanelSlider JumpSlider, WalkSlider, RunSlider, GravitySlider;
             public PanelDropdown ModeDropdown;
             public List<string> ModeEntries;
 
@@ -326,6 +336,7 @@ namespace Basis.BasisUI
                 JumpSlider.Descriptor.SetActive(JumpToggle.Value);
                 WalkSlider.Descriptor.SetActive(WalkToggle.Value);
                 RunSlider.Descriptor.SetActive(RunToggle.Value);
+                GravitySlider.Descriptor.SetActive(GravityToggle.Value);
             }
 
             public BasisLocomotionValues BuildValues()
@@ -334,7 +345,8 @@ namespace Basis.BasisUI
                     JumpToggle.Value, JumpSlider.Value,
                     WalkToggle.Value, WalkSlider.Value,
                     RunToggle.Value, RunSlider.Value,
-                    ModeEntries.IndexOf(ModeDropdown.Value));
+                    ModeEntries.IndexOf(ModeDropdown.Value),
+                    GravityToggle.Value, GravitySlider.Value);
             }
         }
 
@@ -363,6 +375,13 @@ namespace Basis.BasisUI
                 BasisLocalization.Get("settings.admin.locomotion.runSpeed"), 0f, 20f, false, 2, ValueDisplayMode.Raw));
             controls.RunSlider.SetValueWithoutNotify(DefaultLocomotionRunSpeed);
 
+            controls.GravityToggle = PanelToggle.CreateNew(content);
+            controls.GravityToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.gravity.override"));
+            controls.GravitySlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, content);
+            controls.GravitySlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("settings.admin.locomotion.gravity"), 0f, 50f, false, 2, ValueDisplayMode.Raw));
+            controls.GravitySlider.SetValueWithoutNotify(DefaultLocomotionGravity);
+
             controls.ModeEntries = BuildLocomotionModeEntries();
             controls.ModeDropdown = PanelDropdown.CreateNewEntry(content);
             controls.ModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.mode"));
@@ -373,6 +392,7 @@ namespace Basis.BasisUI
             controls.JumpToggle.OnValueChanged += _ => { controls.ApplySliderVisibility(); rebuildLayout(); };
             controls.WalkToggle.OnValueChanged += _ => { controls.ApplySliderVisibility(); rebuildLayout(); };
             controls.RunToggle.OnValueChanged += _ => { controls.ApplySliderVisibility(); rebuildLayout(); };
+            controls.GravityToggle.OnValueChanged += _ => { controls.ApplySliderVisibility(); rebuildLayout(); };
 
             return controls;
         }

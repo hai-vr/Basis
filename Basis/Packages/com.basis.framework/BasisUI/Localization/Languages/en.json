@@ -1803,6 +1803,14 @@
       "value": "Keep the horizon level while flying the camera."
     },
     {
+      "key": "camera.rollControl",
+      "value": "Camera Roll"
+    },
+    {
+      "key": "camera.rollControl.description",
+      "value": "On, the camera rolls with the puck while you hold it, so you can tilt the shot or turn the camera on its side for a portrait frame. Off, the picture stays level however you twist the puck."
+    },
+    {
       "key": "camera.vrStabilization",
       "value": "VR Stabilization"
     },
@@ -11335,8 +11343,12 @@
       "value": "Background Opacity"
     },
     {
-      "key": "mediaPlayer.resync",
-      "value": "Resync"
+      "key": "mediaPlayer.resyncLocal",
+      "value": "Local Resync"
+    },
+    {
+      "key": "mediaPlayer.resyncEveryone",
+      "value": "Resync Everyone"
     },
     {
       "key": "mediaPlayer.advanced",
@@ -16089,6 +16101,14 @@
       "value": "Avatar Limits"
     },
     {
+      "key": "settings.admin.title.locomotionPolicy",
+      "value": "Instance Locomotion"
+    },
+    {
+      "key": "settings.admin.title.locomotionPolicy.description",
+      "value": "Movement values every player in this instance runs with. Saved to the server and sent to each player as they join, so anyone arriving later gets them too. Leave a field switched off to let players keep their own value. A moderator override on one player still wins over this."
+    },
+    {
       "key": "settings.admin.opusFrameDuration",
       "value": "Opus Frame Duration"
     },
@@ -16247,6 +16267,14 @@
     {
       "key": "settings.admin.locomotion.runSpeed",
       "value": "Run Speed (m/s)"
+    },
+    {
+      "key": "settings.admin.locomotion.gravity.override",
+      "value": "Override Gravity"
+    },
+    {
+      "key": "settings.admin.locomotion.gravity",
+      "value": "Gravity Strength (m/s²)"
     },
     {
       "key": "settings.admin.locomotion.mode",
@@ -18435,6 +18463,14 @@
     {
       "key": "settings.graphics.renderer.restart.later",
       "value": "Later"
+    },
+    {
+      "key": "settings.controls.questControllerFix",
+      "value": "Quest Controller Fix"
+    },
+    {
+      "key": "settings.controls.questControllerFix.tooltip",
+      "value": "On, the avatar hand on Quest Touch controllers over SteamVR is anchored to a fixed wrist, so resting a thumb on the stick or face buttons no longer tilts the hand and laser. Finger poses still follow the touch sensors. Only affects Quest controllers in SteamVR mode."
     }
   ]
 }

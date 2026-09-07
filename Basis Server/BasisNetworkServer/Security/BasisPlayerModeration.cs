@@ -507,6 +507,14 @@ namespace BasisNetworkServer.Security
                         HandleAvatarScaleLimitsSet(peer, reader));
                     break;
 
+                // The persisted instance-wide policy, not the one-shot fan-out above: it rewrites
+                // config.xml and governs every future joiner, so it takes the same node every other
+                // persisted SetGlobal* takes rather than the moderator-level locomotion node.
+                case AdminRequestMode.SetGlobalLocomotionPolicy:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleLocomotionPolicySet(peer, reader));
+                    break;
+
                 case AdminRequestMode.SetGlobalResourceLimits:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleResourceLimitsSet(peer, reader));
@@ -1198,6 +1206,25 @@ namespace BasisNetworkServer.Security
             SaveConfig();
             BasisAvatarScaleLimitManager.BroadcastState();
             SendBackMessage(peer, $"Avatar scale limits set: {NetworkServer.Configuration.MinAvatarEyeHeightMeters} m .. {NetworkServer.Configuration.MaxAvatarEyeHeightMeters} m.");
+        }
+
+        private static void HandleLocomotionPolicySet(NetPeer peer, NetPacketReader reader)
+        {
+            byte fields = reader.GetByte();
+            float jumpHeight = reader.GetFloat();
+            float walkSpeed = reader.GetFloat();
+            float runSpeed = reader.GetFloat();
+            float gravity = reader.GetFloat();
+            byte mode = reader.GetByte();
+
+            BasisLocomotionPolicyManager.SetPolicy(fields, jumpHeight, walkSpeed, runSpeed, gravity, mode);
+            BasisLocomotionPolicyManager.WriteToConfig(NetworkServer.Configuration);
+            SaveConfig();
+            BasisLocomotionPolicyManager.BroadcastState();
+
+            SendBackMessage(peer, BasisLocomotionPolicyManager.Fields == 0
+                ? "Locomotion policy cleared; players keep their own movement values."
+                : $"Locomotion policy set for the instance (fields {BasisLocomotionPolicyManager.Fields}); it applies to everyone here and to every player who joins.");
         }
 
         private static void HandleResourceLimitsSet(NetPeer peer, NetPacketReader reader)

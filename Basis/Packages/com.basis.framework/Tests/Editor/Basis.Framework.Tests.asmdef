@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "Basis Framework",
+        "Unity.InputSystem",
         "BasisSDK",
         "BasisCommon",
         "BasisGizmos",

@@ -435,6 +435,8 @@
     { "key": "camera.selfie.description", "value": "أدر الكاميرا لتواجهك واعكس المعاينة." },
     { "key": "camera.autoLevel", "value": "استواء الأفق تلقائيًا" },
     { "key": "camera.autoLevel.description", "value": "حافظ على استواء الأفق أثناء تحليق الكاميرا." },
+    { "key": "camera.rollControl", "value": "دوران الكاميرا حول المحور" },
+    { "key": "camera.rollControl.description", "value": "عند التفعيل تدور الكاميرا مع القرص أثناء إمساكك به، فيمكنك إمالة اللقطة أو قلب الكاميرا على جانبها لإطار عمودي. عند التعطيل تبقى الصورة مستوية مهما لففت القرص." },
     { "key": "camera.vrStabilization", "value": "تثبيت VR" },
     { "key": "camera.vrStabilization.description", "value": "نعّم اهتزاز اليد عند حمل الكاميرا في VR." },
     { "key": "camera.vrStabilization.position", "value": "تأخر المثبّت" },
@@ -1855,6 +1857,8 @@
     { "key": "settings.admin.unsavedSuffix", "value": "(غير محفوظ)" },
     { "key": "settings.admin.title.voiceAudioLimits", "value": "حدود الصوت والصوتيات" },
     { "key": "settings.admin.title.avatarLimits", "value": "حدود الأفاتارات" },
+    { "key": "settings.admin.title.locomotionPolicy", "value": "حركة المثيل" },
+    { "key": "settings.admin.title.locomotionPolicy.description", "value": "قيم الحركة التي يعمل بها كل لاعب في هذا المثيل. تحفظ على الخادم وترسل إلى كل لاعب عند انضمامه، بحيث يحصل عليها أيضا كل من ينضم لاحقا. اترك الحقل معطلا للسماح للاعبين بالاحتفاظ بقيمتهم الخاصة. يظل تجاوز المراقب على لاعب واحد أقوى من هذا الإعداد." },
     { "key": "settings.admin.opusFrameDuration", "value": "مدة إطار Opus" },
     { "key": "settings.admin.opusFrameDuration.tooltip", "value": "مقدار الصوت الذي يحزمه كل عميل في حزمة صوتية واحدة." },
     { "key": "settings.admin.opusFrameDuration.description", "value": "الإطارات الأطول تقلّل حِمل الحزم واستهلاك النطاق، لكنها تضيف القدر نفسه من زمن الاستجابة إلى كل تدفق صوتي. المدعوم فقط 20 ms و40 ms." },
@@ -1895,6 +1899,8 @@
     { "key": "settings.admin.locomotion.walkSpeed", "value": "سرعة المشي (م/ث)" },
     { "key": "settings.admin.locomotion.runSpeed.override", "value": "تجاوز سرعة الجري" },
     { "key": "settings.admin.locomotion.runSpeed", "value": "سرعة الجري (م/ث)" },
+    { "key": "settings.admin.locomotion.gravity.override", "value": "تجاوز الجاذبية" },
+    { "key": "settings.admin.locomotion.gravity", "value": "قوة الجاذبية (م/ث²)" },
     { "key": "settings.admin.locomotion.mode", "value": "وضع الحركة" },
     { "key": "settings.admin.locomotion.mode.none", "value": "ترك بلا تغيير" },
     { "key": "settings.admin.locomotion.mode.walk", "value": "مشي" },
@@ -3635,7 +3641,8 @@
     { "key": "mediaPlayer.subtitles", "value": "الترجمات" },
     { "key": "mediaPlayer.textOpacity", "value": "عتامة النص" },
     { "key": "mediaPlayer.backgroundOpacity", "value": "عتامة الخلفية" },
-    { "key": "mediaPlayer.resync", "value": "إعادة المزامنة" },
+    { "key": "mediaPlayer.resyncLocal", "value": "إعادة مزامنة محلية" },
+    { "key": "mediaPlayer.resyncEveryone", "value": "إعادة مزامنة الجميع" },
     { "key": "mediaPlayer.advanced", "value": "متقدم" },
     { "key": "mediaPlayer.admin", "value": "الإدارة" },
     { "key": "mediaPlayer.admin.description", "value": "سياسة متزامنة عبر الشبكة. مرئية فقط للعملاء الذين لديهم صلاحية basis.mediaplayer.control." },
@@ -4633,6 +4640,8 @@
     { "key": "settings.graphics.renderer.restart.title", "value": "يتطلب إعادة التشغيل" },
     { "key": "settings.graphics.renderer.restart.prompt", "value": "تُختار واجهة الرسومات البرمجية عند بدء تشغيل Basis. هل تريد إعادة التشغيل وإعادة الاتصال الآن للعرض باستخدام {0}؟" },
     { "key": "settings.graphics.renderer.restart.now", "value": "إعادة التشغيل الآن" },
-    { "key": "settings.graphics.renderer.restart.later", "value": "لاحقًا" }
+    { "key": "settings.graphics.renderer.restart.later", "value": "لاحقًا" },
+    { "key": "settings.controls.questControllerFix", "value": "إصلاح وحدات تحكم Quest" },
+    { "key": "settings.controls.questControllerFix.tooltip", "value": "عند التفعيل، تُثبَّت يد الأفاتار على وحدات تحكم Quest Touch عبر SteamVR عند معصم ثابت، فلا يؤدي وضع الإبهام على العصا أو الأزرار إلى إمالة اليد والليزر بعد الآن. تبقى أوضاع الأصابع تتبع مستشعرات اللمس. يؤثر فقط على وحدات تحكم Quest في وضع SteamVR." }
   ]
 }

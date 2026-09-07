@@ -246,6 +246,13 @@ public partial class BasisHandHeldCamera
         if (followPipInstance != null)
         {
             followPipInstance.transform.GetPositionAndRotation(out position, out rotation);
+
+            // What this pose stands in for is the camera, and a held grip whose roll is not being
+            // let through leaves the two disagreeing: the puck is banked in the hand and the shot
+            // is not. Levelled to match, so a remote copy is banked the way the picture is. Only
+            // while it is held — free of a hand the puck already carries the camera's own
+            // rotation, whatever that is, and levelling would be the disagreement instead.
+            if (followPipGrabbed) rotation = ApplyGripRoll(rotation, cameraRollEnabled);
             return;
         }
 

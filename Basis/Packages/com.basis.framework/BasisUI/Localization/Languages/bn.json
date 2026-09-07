@@ -435,6 +435,8 @@
     { "key": "camera.selfie.description", "value": "ক্যামেরাটি আপনার দিকে ঘোরায় ও প্রিভিউ মিরর করে।" },
     { "key": "camera.autoLevel", "value": "দিগন্ত অটো লেভেল" },
     { "key": "camera.autoLevel.description", "value": "ক্যামেরা ওড়ানোর সময় দিগন্ত সমতল রাখে।" },
+    { "key": "camera.rollControl", "value": "ক্যামেরা রোল" },
+    { "key": "camera.rollControl.description", "value": "চালু থাকলে পাক ধরে রাখার সময় ক্যামেরা তার সঙ্গে রোল করে, তাই শট কাত করা বা পোর্ট্রেট ফ্রেমের জন্য ক্যামেরা পাশে ঘোরানো যায়। বন্ধ থাকলে পাক যতই মোচড়ান, ছবি সমতল থাকে।" },
     { "key": "camera.vrStabilization", "value": "VR স্টেবিলাইজেশন" },
     { "key": "camera.vrStabilization.description", "value": "VR-তে ক্যামেরা ধরে থাকার সময় হাতের কাঁপুনি মসৃণ করে।" },
     { "key": "camera.vrStabilization.position", "value": "স্টেবিলাইজেশন ল্যাগ" },
@@ -1855,6 +1857,8 @@
     { "key": "settings.admin.unsavedSuffix", "value": "(অসংরক্ষিত)" },
     { "key": "settings.admin.title.voiceAudioLimits", "value": "ভয়েস ও অডিও সীমা" },
     { "key": "settings.admin.title.avatarLimits", "value": "অবতার সীমা" },
+    { "key": "settings.admin.title.locomotionPolicy", "value": "ইনস্ট্যান্স চলাচল" },
+    { "key": "settings.admin.title.locomotionPolicy.description", "value": "এই ইনস্ট্যান্সের প্রতিটি খেলোয়াড় যেসব চলাচল-মান নিয়ে চলে। এগুলো সার্ভারে সংরক্ষিত হয় এবং প্রতিটি খেলোয়াড় যোগ দেওয়ার সময় তার কাছে পাঠানো হয়, ফলে পরে যোগ দেওয়া খেলোয়াড়রাও এগুলো পায়। কোনো ফিল্ড বন্ধ রাখলে খেলোয়াড়রা নিজেদের মান বজায় রাখতে পারবে। একজন খেলোয়াড়ের ওপর মডারেটরের ওভাররাইড তখনও এর ওপর অগ্রাধিকার পাবে।" },
     { "key": "settings.admin.opusFrameDuration", "value": "Opus ফ্রেম সময়কাল" },
     { "key": "settings.admin.opusFrameDuration.tooltip", "value": "প্রতিটি ক্লায়েন্ট একটি ভয়েস প্যাকেটে কতটুকু অডিও ভরে।" },
     { "key": "settings.admin.opusFrameDuration.description", "value": "লম্বা ফ্রেম প্যাকেট ওভারহেড ও ব্যান্ডউইথ কমায়, তবে প্রতিটি ভয়েস স্ট্রিমে ঠিক ততটাই লেটেন্সি যোগ করে। কেবল 20 ms ও 40 ms সমর্থিত।" },
@@ -1895,6 +1899,8 @@
     { "key": "settings.admin.locomotion.walkSpeed", "value": "হাঁটার গতি (মি/সে)" },
     { "key": "settings.admin.locomotion.runSpeed.override", "value": "দৌড়ানোর গতি ওভাররাইড করুন" },
     { "key": "settings.admin.locomotion.runSpeed", "value": "দৌড়ানোর গতি (মি/সে)" },
+    { "key": "settings.admin.locomotion.gravity.override", "value": "মাধ্যাকর্ষণ ওভাররাইড করুন" },
+    { "key": "settings.admin.locomotion.gravity", "value": "মাধ্যাকর্ষণ শক্তি (মি/সে²)" },
     { "key": "settings.admin.locomotion.mode", "value": "মুভমেন্ট মোড" },
     { "key": "settings.admin.locomotion.mode.none", "value": "অপরিবর্তিত রাখুন" },
     { "key": "settings.admin.locomotion.mode.walk", "value": "হাঁটা" },
@@ -3635,7 +3641,8 @@
     { "key": "mediaPlayer.subtitles", "value": "সাবটাইটেল" },
     { "key": "mediaPlayer.textOpacity", "value": "টেক্সট অস্বচ্ছতা" },
     { "key": "mediaPlayer.backgroundOpacity", "value": "পটভূমির অস্বচ্ছতা" },
-    { "key": "mediaPlayer.resync", "value": "রিসিঙ্ক" },
+    { "key": "mediaPlayer.resyncLocal", "value": "স্থানীয় রিসিঙ্ক" },
+    { "key": "mediaPlayer.resyncEveryone", "value": "সবাইকে রিসিঙ্ক করুন" },
     { "key": "mediaPlayer.advanced", "value": "উন্নত" },
     { "key": "mediaPlayer.admin", "value": "অ্যাডমিন" },
     { "key": "mediaPlayer.admin.description", "value": "নেটওয়ার্ক-সিঙ্ক করা নীতি। শুধু basis.mediaplayer.control অনুমতিধারী ক্লায়েন্টদের কাছে দৃশ্যমান।" },
@@ -4633,6 +4640,8 @@
     { "key": "settings.graphics.renderer.restart.title", "value": "রিস্টার্ট প্রয়োজন" },
     { "key": "settings.graphics.renderer.restart.prompt", "value": "Basis চালু হওয়ার সময় গ্রাফিক্স API বেছে নেওয়া হয়। {0} দিয়ে রেন্ডার করতে এখনই রিস্টার্ট করে পুনরায় সংযুক্ত হবেন?" },
     { "key": "settings.graphics.renderer.restart.now", "value": "এখনই রিস্টার্ট করুন" },
-    { "key": "settings.graphics.renderer.restart.later", "value": "পরে" }
+    { "key": "settings.graphics.renderer.restart.later", "value": "পরে" },
+    { "key": "settings.controls.questControllerFix", "value": "Quest কন্ট্রোলার সংশোধন" },
+    { "key": "settings.controls.questControllerFix.tooltip", "value": "চালু থাকলে, SteamVR-এর মাধ্যমে Quest Touch কন্ট্রোলারে অবতারের হাত একটি স্থির কব্জিতে আটকে থাকে, তাই স্টিক বা বোতামে বুড়ো আঙুল রাখলে হাত ও লেজার আর হেলে যায় না। আঙুলের ভঙ্গি এখনও টাচ সেন্সর অনুসরণ করে। শুধুমাত্র SteamVR মোডে Quest কন্ট্রোলারে প্রভাব ফেলে।" }
   ]
 }

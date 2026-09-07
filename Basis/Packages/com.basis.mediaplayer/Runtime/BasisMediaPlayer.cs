@@ -558,10 +558,26 @@ public sealed class BasisMediaPlayer : MonoBehaviour
     // already-resolved or direct sources, e.g. the resolver's own output).
     public void LoadUrl(string url)
     {
+        if (!TryPrepareUrl(ref url)) return;
+        if (!BasisTrustedUrls.IsTrusted(url))
+        {
+            RequestUrlApproval(url);
+            return;
+        }
+        BeginUrlLoad(url);
+    }
+
+    internal void LoadApprovedUrl(string url)
+    {
+        if (TryPrepareUrl(ref url)) BeginUrlLoad(url);
+    }
+
+    private bool TryPrepareUrl(ref string url)
+    {
         if (string.IsNullOrWhiteSpace(url))
         {
             BasisDebug.LogWarning("BasisMediaPlayer.LoadUrl called with empty URL.", BasisDebug.LogTag.Video);
-            return;
+            return false;
         }
         // Refused up front so a locked client doesn't hand a page URL to the resolver. The synced
         // FullState path only routes page URLs through here — a directly-playable URL goes straight
@@ -569,23 +585,13 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         if (BasisNetworkModeration.MediaPlayerBlockedLocally)
         {
             BasisDebug.LogWarning("BasisMediaPlayer.LoadUrl blocked: media players are locked by an admin.", BasisDebug.LogTag.Video);
-            return;
+            return false;
         }
         // Default a missing scheme (https, or http for a local/IP host) so a bare
         // "www.example.com/…" routes and loads as an absolute URL instead of being
         // mis-read as a direct/transport source.
         url = BasisMediaUrlRouter.NormalizeUrl(url);
-
-        // LoadUrl is always a user-consent boundary, regardless of where the
-        // player lives. Remembered/trusted URLs may pass immediately; every
-        // other URL uses the standard prompt before any resolver/network work.
-        if (!BasisTrustedUrls.IsTrusted(url))
-        {
-            RequestUrlApproval(url);
-            return;
-        }
-
-        LoadApprovedUrl(url);
+        return true;
     }
 
     private void RequestUrlApproval(string url)
@@ -672,7 +678,7 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         urlApprovalRequestId++;
     }
 
-    private void LoadApprovedUrl(string url)
+    private void BeginUrlLoad(string url)
     {
         ClearPendingUrlApproval();
         LastErrorMessage = null;

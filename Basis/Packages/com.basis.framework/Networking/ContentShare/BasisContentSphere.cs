@@ -52,6 +52,7 @@ public class BasisContentSphere : BasisInteractableObject
         CreatorUUID = creatorUUID;
         CreatorDisplayName = creatorDisplayName;
         InteractRange = 2f;
+        _restPosition = transform.position;
 
         // Server shares carry a connection string in ContentURL — there's no
         // bundle to introspect, so skip the metadata fetch and just show the

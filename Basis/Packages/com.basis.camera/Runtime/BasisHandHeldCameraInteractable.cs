@@ -189,6 +189,18 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
     /// <summary>Strength of the auto-leveling force.</summary>
     public float autoLevelStrength = 2f;
 
+    /// <summary>
+    /// Whether the detached camera rolls with the grip that is flying it — the puck, or the knob on
+    /// the wireframe. Off, the default, twisting the grip aims the camera without tilting the
+    /// picture: the horizon is put back flat every frame, which is the whole of what this does. On,
+    /// the grip's roll goes through, which is how the camera is turned on its side for a portrait
+    /// frame. Only the selfie-stick grip reads it. The fly controls have no roll axis on either
+    /// platform, and a camera in the hand rolls with that hand as it always has.
+    /// </summary>
+    public bool cameraRollEnabled = false;
+
+    public void SetCameraRollEnabled(bool enabled) => cameraRollEnabled = enabled;
+
     /// <summary>Extra damping applied to cinematic motion.</summary>
     [Range(0.1f, 0.9f)]
     public float cinematicDamping = 0.8f;
@@ -1999,7 +2011,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         // to it. Releasing falls straight back through to the stack / fly below on the next frame.
         if (HHC != null && HHC.TryGetFollowPipPose(out Vector3 pipPos, out Quaternion pipRot))
         {
-            SeedPose(pipPos, pipRot);
+            SeedPose(pipPos, ApplyGripRoll(pipRot, cameraRollEnabled));
             return;
         }
 
@@ -2406,6 +2418,59 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         return Quaternion.Euler(NormalizeAngle(targetEuler.x), NormalizeAngle(targetEuler.y), roll);
     }
+
+    /// <summary>
+    /// The same aim with its horizon flat: the rotation pointing exactly where
+    /// <paramref name="rotation"/> points, with no roll about that aim.
+    ///
+    /// <para>Rebuilt from the aim as heading then pitch, with no third turn — which is what "no
+    /// roll" is, and makes the right axis horizontal by construction. Deliberately not a roll angle
+    /// read off a yaw/pitch decomposition and turned back out: that decomposition carries a
+    /// near-vertical fallback tuned for an anchor that rolls freely (see
+    /// <see cref="BasisCameraAnchorMath.YawDegrees"/>), and borrowing it here left a steeply aimed
+    /// shot as much as eight degrees off level — exact out to about 80° of pitch and drifting from
+    /// there. The heading is taken off the aim directly instead, which is exact wherever there is a
+    /// horizon at all. It is also the recipe <see cref="FlyTranslationFrame"/> already builds its
+    /// frame with, and it reaches for nothing outside managed code.</para>
+    ///
+    /// <para>Straight up or down is the aim with no horizon: the flattened forward has no direction
+    /// left to take a heading from. Inside that hair the aim is handed back as it came — there is
+    /// no level to put it at, and nothing in frame that would show one.</para>
+    /// </summary>
+    public static Quaternion LevelHorizon(Quaternion rotation)
+    {
+        Vector3 forward = rotation * Vector3.forward;
+        Vector3 flattened = new Vector3(forward.x, 0f, forward.z);
+
+        if (flattened.sqrMagnitude < VerticalAimEpsilon)
+        {
+            return rotation;
+        }
+
+        float heading = Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
+        float pitch = Mathf.Asin(Mathf.Clamp(-forward.y, -1f, 1f)) * Mathf.Rad2Deg;
+        return BasisCameraDamping.Yaw(heading) * BasisCameraDamping.Pitch(pitch);
+    }
+
+    /// <summary>Square of the flattened aim below which it is straight up or down and has no horizon: within about 0.06°.</summary>
+    private const float VerticalAimEpsilon = 1e-6f;
+
+    /// <summary>
+    /// What the grip flying the camera is allowed to hand it: the grip's own rotation while
+    /// <paramref name="rollEnabled"/>, otherwise that aim with the horizon put back flat.
+    ///
+    /// <para>Levelling never moves the aim, so the parking offset
+    /// <see cref="BasisHandHeldCamera.TryGetFollowPipPose"/> has already taken off the grip's
+    /// position is the same distance along the same axis either way — which is what lets this be
+    /// applied to the rotation alone, after the fact.</para>
+    ///
+    /// <para>The grip itself is left alone: the puck stays wherever the hand has turned it, and
+    /// only the shot is levelled. It is levelled outright rather than eased the way
+    /// <see cref="useAutoLeveling"/> does it — the camera is re-seeded from the grip every frame,
+    /// so there is nothing to converge from.</para>
+    /// </summary>
+    public static Quaternion ApplyGripRoll(Quaternion gripRotation, bool rollEnabled)
+        => rollEnabled ? gripRotation : LevelHorizon(gripRotation);
 
     /// <summary>Normalizes an angle to the range [-180, 180].</summary>
     private float NormalizeAngle(float angle)

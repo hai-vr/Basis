@@ -195,7 +195,13 @@ public static class BasisContentShareManager
         writer.Put(BasisNetworkCommons.ContentShareSub_Cleanup);
         msg.Serialize(writer);
 
-        BasisNetworkConnection.LocalPlayerPeer?.Send(
+        if (BasisNetworkConnection.LocalPlayerPeer == null)
+        {
+            BasisDebug.LogWarning($"Content sphere removal requested while disconnected: {sphereNetID}", BasisDebug.LogTag.Networking);
+            return;
+        }
+        BasisDebug.Log($"Requesting content sphere removal: {sphereNetID}", BasisDebug.LogTag.Networking);
+        BasisNetworkConnection.LocalPlayerPeer.Send(
             writer,
             BasisNetworkCommons.ContentShareChannel,
             DeliveryMethod.ReliableOrdered
@@ -271,7 +277,7 @@ public static class BasisContentShareManager
         GameObject InSceneOrb;
         try
         {
-            InSceneOrb = await Addressables.InstantiateAsync(orbKey, BasisDeviceManagement.Instance.transform, false).Task;
+            InSceneOrb = await Addressables.InstantiateAsync(orbKey, position, Quaternion.identity, BasisDeviceManagement.Instance.transform).Task;
         }
         catch (System.Exception ex)
         {
@@ -345,15 +351,28 @@ public static class BasisContentShareManager
     private static void RemoveSphere(string sphereNetID)
     {
         PendingSpheres.Remove(sphereNetID);
-        if (ActiveSpheres.TryRemove(sphereNetID, out BasisContentSphere sphere))
+        if (!ActiveSpheres.TryRemove(sphereNetID, out BasisContentSphere sphere))
         {
-            if (sphere != null && sphere.gameObject != null)
-            {
-                Addressables.ReleaseInstance(sphere.gameObject);
-            }
-            BasisDebug.Log($"Content sphere removed: {sphereNetID}", BasisDebug.LogTag.Networking);
-            OnSphereRemoved?.Invoke(sphereNetID);
-            BasisShareableRegistry.Unregister(sphereNetID);
+            BasisDebug.Log($"Content sphere cleanup for a sphere not present locally: {sphereNetID}", BasisDebug.LogTag.Networking);
+            return;
+        }
+        ReleaseOrb(sphere);
+        BasisDebug.Log($"Content sphere removed: {sphereNetID}", BasisDebug.LogTag.Networking);
+        OnSphereRemoved?.Invoke(sphereNetID);
+        BasisShareableRegistry.Unregister(sphereNetID);
+    }
+
+    private static void ReleaseOrb(BasisContentSphere sphere)
+    {
+        if (sphere == null || sphere.gameObject == null)
+        {
+            return;
+        }
+        GameObject orb = sphere.gameObject;
+        if (!Addressables.ReleaseInstance(orb))
+        {
+            BasisDebug.LogWarning($"Content sphere {sphere.SphereNetID} was not an addressable instance; destroying it directly.", BasisDebug.LogTag.Networking);
+            GameObject.Destroy(orb);
         }
     }
 
@@ -364,10 +383,7 @@ public static class BasisContentShareManager
     {
         foreach (var kvp in ActiveSpheres)
         {
-            if (kvp.Value != null && kvp.Value.gameObject != null)
-            {
-                Addressables.ReleaseInstance(kvp.Value.gameObject);
-            }
+            ReleaseOrb(kvp.Value);
             BasisShareableRegistry.Unregister(kvp.Key);
         }
         ActiveSpheres.Clear();

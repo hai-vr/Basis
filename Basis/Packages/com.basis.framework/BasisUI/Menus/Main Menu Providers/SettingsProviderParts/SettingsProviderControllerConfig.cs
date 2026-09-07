@@ -49,6 +49,11 @@ public static class SettingsProviderControllerConfig
                         "settings.controls.desktopInputInVR.off",
                     });
                 dropdownDesktopInputInVR.AssignBinding(BasisSettingsDefaults.DesktopInputInVR);
+
+                PanelToggle toggleQuestControllerFix = PanelToggle.CreateNewEntry(group);
+                toggleQuestControllerFix.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.questControllerFix"));
+                toggleQuestControllerFix.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.questControllerFix.tooltip"));
+                toggleQuestControllerFix.AssignBinding(BasisSettingsDefaults.QuestControllerFix);
             }
 
             if (BasisDeviceManagement.IsUserInDesktop())
@@ -451,6 +456,7 @@ public static class SettingsProviderControllerConfig
         BasisSettingsDefaults.RotationSnapDegrees.ResetToDefault();
         BasisSettingsDefaults.DominantHand.ResetToDefault();
         BasisSettingsDefaults.DesktopInputInVR.ResetToDefault();
+        BasisSettingsDefaults.QuestControllerFix.ResetToDefault();
         BasisSettingsDefaults.InvertMouse.ResetToDefault();
         BasisSettingsDefaults.mousesensitivty.ResetToDefault();
         BasisSettingsDefaults.usesnapturn.ResetToDefault();

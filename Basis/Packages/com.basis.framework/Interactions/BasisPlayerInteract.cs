@@ -766,7 +766,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private static bool HoverStillValid(BasisInteractableObject obj, BasisInput input)
         {
             if (!obj.InteractableEnabled) return false;
-            if (input.BasisUIRaycast.HadRaycastUITarget) return false;
+            if (obj.PointerClaimedByUI(input)) return false;
             if (!obj.Inputs.IsInputAdded(input)) return false;
             if (!input.TryGetRole(out BasisBoneTrackedRole role)) return false;
             if (!obj.Inputs.TryGetByRole(role, out BasisInputWrapper wrapper)) return false;

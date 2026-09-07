@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management.Devices.OpenVR.Structs;
@@ -219,8 +220,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 nextWristAnchorPoll = Time.frameCount + WristAnchorPollFrames;
                 RefreshWristAnchor(skeletonAction);
             }
-            Vector3 wristLocalPos = wristAnchored ? wristAnchorPosition : skeletonActive ? BonePositions[idxWrist] : Vector3.zero;
-            Quaternion wristLocalRot = wristAnchored ? wristAnchorRotation : skeletonActive ? BoneRotations[idxWrist] : Quaternion.identity;
+            bool useWristAnchor = wristAnchored && BasisSettingsDefaults.QuestControllerFix.RawValue;
+            Vector3 wristLocalPos = useWristAnchor ? wristAnchorPosition : skeletonActive ? BonePositions[idxWrist] : Vector3.zero;
+            Quaternion wristLocalRot = useWristAnchor ? wristAnchorRotation : skeletonActive ? BoneRotations[idxWrist] : Quaternion.identity;
 
             // Rotation offset (per hand)
             Quaternion rotOffset = Quaternion.Euler(isLeft ? leftHandToIKRotationOffset : rightHandToIKRotationOffset);

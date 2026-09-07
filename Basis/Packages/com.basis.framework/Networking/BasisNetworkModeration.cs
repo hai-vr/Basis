@@ -492,6 +492,10 @@ public static class BasisNetworkModeration
                 HandlePeerLimit(reader);
                 break;
 
+            case AdminRequestMode.GlobalGetLocomotionPolicy:
+                HandleLocomotionPolicy(reader);
+                break;
+
             case AdminRequestMode.GlobalGetReductionSettings:
                 HandleReductionSettings(reader);
                 break;
@@ -1530,6 +1534,18 @@ public static class BasisNetworkModeration
         if (LocalPlayerVoiceMutedByModerator) { LocalPlayerVoiceMutedByModerator = false; OnLocalVoiceMutedByModeratorChanged?.Invoke(false); }
         if (LocalPlayerTextMutedByModerator) { LocalPlayerTextMutedByModerator = false; OnLocalTextMutedByModeratorChanged?.Invoke(false); }
 
+        // The override stack itself is emptied by the disconnect path; this is the cached copy the
+        // admin panel reads, which would otherwise show the last server's policy on the next one.
+        BasisLocomotionValues policy = ServerLocomotionPolicy;
+        BasisLocomotionValues policyDefault = DefaultLocomotionPolicy;
+        if (policy.Fields != policyDefault.Fields || policy.JumpHeight != policyDefault.JumpHeight ||
+            policy.WalkSpeed != policyDefault.WalkSpeed || policy.RunSpeed != policyDefault.RunSpeed ||
+            policy.Gravity != policyDefault.Gravity || policy.Mode != policyDefault.Mode)
+        {
+            ServerLocomotionPolicy = policyDefault;
+            OnLocomotionPolicyChanged?.Invoke(policyDefault);
+        }
+
         if (contentLocksChanged)
         {
             OnGlobalLockStateChanged?.Invoke(false, false, false, false);
@@ -2101,6 +2117,99 @@ public static class BasisNetworkModeration
         BasisLocomotionOverrides.Set(BasisLocomotionOverrides.AdminKey, BasisLocomotionOverrides.AdminPriority, values);
         BasisDebug.Log($"Locomotion override applied by player {initiatorId} ({applied})", BasisDebug.LogTag.Networking);
         OnLocomotionOverrideChanged?.Invoke(values);
+    }
+
+    /// <summary>
+    /// The instance-wide locomotion policy this server dictates. Unlike a moderator's one-shot
+    /// override this arrives on join too, so it is the state of the room rather than an event, and
+    /// the admin panel edits the live policy instead of a stale copy. No fields set means the
+    /// server dictates nothing.
+    /// </summary>
+    /// <summary>
+    /// What the policy reads as before any server has spoken. The numbers match the driver's own
+    /// authored values, so the admin panel opens on sensible sliders rather than on a row of zeros
+    /// that would freeze the instance if someone ticked a field and hit Apply.
+    /// </summary>
+    public static readonly BasisLocomotionValues DefaultLocomotionPolicy = new BasisLocomotionValues
+    {
+        Fields = BasisLocomotionField.None,
+        JumpHeight = 1f,
+        WalkSpeed = 2.5f,
+        RunSpeed = 4f,
+        Gravity = -9.81f,
+        Mode = BasisLocalCharacterDriver.Mode.Walk,
+    };
+
+    public static BasisLocomotionValues ServerLocomotionPolicy { get; private set; } = DefaultLocomotionPolicy;
+
+    /// <summary>Fired when the server pushes a new instance-wide locomotion policy.</summary>
+    public static event Action<BasisLocomotionValues> OnLocomotionPolicyChanged;
+
+    private static void HandleLocomotionPolicy(NetDataReader reader)
+    {
+        byte fields = reader.GetByte();
+        float jumpHeight = reader.GetFloat();
+        float walkSpeed = reader.GetFloat();
+        float runSpeed = reader.GetFloat();
+        float gravity = reader.GetFloat();
+        byte movementMode = reader.GetByte();
+
+        if (movementMode > (byte)BasisLocalCharacterDriver.Mode.NoClip)
+        {
+            movementMode = (byte)BasisLocalCharacterDriver.Mode.Walk;
+        }
+
+        // Every value travels even when its bit is clear, so the admin panel can show the stored
+        // policy with its toggles off instead of falling back to invented numbers.
+        BasisLocomotionValues values = new BasisLocomotionValues
+        {
+            Fields = (BasisLocomotionField)fields & BasisLocomotionField.All,
+            JumpHeight = jumpHeight,
+            WalkSpeed = walkSpeed,
+            RunSpeed = runSpeed,
+            Gravity = gravity,
+            Mode = (BasisLocalCharacterDriver.Mode)movementMode,
+        };
+        ServerLocomotionPolicy = values;
+
+        // Remove before Set: a Set under a live key merges fields, so without this a policy that
+        // drops a field would leave the old value of it still claimed.
+        BasisLocomotionOverrides.Remove(BasisLocomotionOverrides.ServerPolicyKey);
+        if (values.Fields == BasisLocomotionField.None)
+        {
+            BasisDebug.Log("Server locomotion policy cleared", BasisDebug.LogTag.Networking);
+        }
+        else
+        {
+            BasisLocomotionOverrides.Set(BasisLocomotionOverrides.ServerPolicyKey, BasisLocomotionOverrides.ServerPolicyPriority, values);
+            BasisDebug.Log($"Server locomotion policy applied ({values.Fields})", BasisDebug.LogTag.Networking);
+        }
+
+        OnLocomotionPolicyChanged?.Invoke(values);
+    }
+
+    /// <summary>
+    /// Admin: set the instance-wide locomotion policy — jump height, walk/run speed, gravity and
+    /// movement mode for everyone in this instance. Persisted to config.xml and pushed to every
+    /// client on join, so unlike <see cref="SetLocomotionOverrideAll(BasisLocomotionValues)"/> it
+    /// governs players who arrive later as well. No fields set clears it.
+    /// </summary>
+    public static void SetGlobalLocomotionPolicy(BasisLocomotionValues values)
+    {
+        SendAdminRequest(
+            AdminRequestMode.SetGlobalLocomotionPolicy,
+            w => w.Put((byte)values.Fields),
+            w => w.Put(values.JumpHeight),
+            w => w.Put(values.WalkSpeed),
+            w => w.Put(values.RunSpeed),
+            w => w.Put(values.Gravity),
+            w => w.Put((byte)values.Mode));
+    }
+
+    /// <summary>Drop the instance-wide locomotion policy, returning everyone to their own values.</summary>
+    public static void ClearGlobalLocomotionPolicy()
+    {
+        SetGlobalLocomotionPolicy(default);
     }
 
     private static void HandleUserOpusBitrateOverride(NetDataReader reader)

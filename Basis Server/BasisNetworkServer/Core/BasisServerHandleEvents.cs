@@ -822,6 +822,7 @@ namespace BasisServerHandle
                 BasisNetworkServer.Security.BasisCrashReportStateManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisAudioRangeLimitManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisAvatarScaleLimitManager.SendStateToPeer(newPeer);
+                BasisNetworkServer.Security.BasisLocomotionPolicyManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisResourceLimitManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisPlayerModeration.SendReductionSettingsToPeer(newPeer);
                 BasisNetworkServer.Security.BasisPlayerModeration.SendImageBandwidthToPeer(newPeer);

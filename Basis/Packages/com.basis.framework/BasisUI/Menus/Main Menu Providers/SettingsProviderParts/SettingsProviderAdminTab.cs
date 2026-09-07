@@ -1,4 +1,5 @@
-﻿using Basis.Scripts.Drivers;
+﻿using Basis.Scripts.BasisCharacterController;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using BasisNetworkCore.Security;
 using System;
@@ -349,6 +350,133 @@ namespace Basis.BasisUI
             controller.MinAvatarHeightSlider = minAvatarHeightSlider;
             controller.MaxAvatarHeightSlider = maxAvatarHeightSlider;
             controller.DirtySections.Add(avatarLimitsDirty);
+
+            // --- Locomotion policy (instance-wide movement; persisted to config.xml) ---
+            // The moderator tab's "everyone" button is a one-shot fan-out to whoever is connected;
+            // this is the standing rule, so it also reaches whoever joins next.
+            PanelSectionDirtyState locomotionDirty = new PanelSectionDirtyState();
+            PanelSectionToggle locomotionToggle = PanelSectionToggle.CreateNewEntry(container);
+            locomotionToggle.SetTitle(BasisLocalization.Get("settings.admin.title.locomotionPolicy"));
+            int locomotionStart = container.childCount;
+
+            PanelElementDescriptor locomotionInfo = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, container);
+            locomotionInfo.SetDescription(BasisLocalization.Get("settings.admin.title.locomotionPolicy.description"));
+
+            BasisLocomotionValues policy = BasisNetworkModeration.ServerLocomotionPolicy;
+
+            PanelToggle policyJumpToggle = PanelToggle.CreateNewEntry(container);
+            policyJumpToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.jumpHeight.override"));
+            policyJumpToggle.SetValueWithoutNotify(policy.Has(BasisLocomotionField.JumpHeight));
+
+            PanelSlider policyJumpSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
+            policyJumpSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("settings.admin.locomotion.jumpHeight"), 0f, 5f, false, 2, ValueDisplayMode.Meters));
+            policyJumpSlider.SetValueWithoutNotify(policy.JumpHeight);
+
+            PanelToggle policyWalkToggle = PanelToggle.CreateNewEntry(container);
+            policyWalkToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.walkSpeed.override"));
+            policyWalkToggle.SetValueWithoutNotify(policy.Has(BasisLocomotionField.WalkSpeed));
+
+            PanelSlider policyWalkSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
+            policyWalkSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("settings.admin.locomotion.walkSpeed"), 0f, 15f, false, 2, ValueDisplayMode.Raw));
+            policyWalkSlider.SetValueWithoutNotify(policy.WalkSpeed);
+
+            PanelToggle policyRunToggle = PanelToggle.CreateNewEntry(container);
+            policyRunToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.runSpeed.override"));
+            policyRunToggle.SetValueWithoutNotify(policy.Has(BasisLocomotionField.RunSpeed));
+
+            PanelSlider policyRunSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
+            policyRunSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("settings.admin.locomotion.runSpeed"), 0f, 20f, false, 2, ValueDisplayMode.Raw));
+            policyRunSlider.SetValueWithoutNotify(policy.RunSpeed);
+
+            PanelToggle policyGravityToggle = PanelToggle.CreateNewEntry(container);
+            policyGravityToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.gravity.override"));
+            policyGravityToggle.SetValueWithoutNotify(policy.Has(BasisLocomotionField.Gravity));
+
+            PanelSlider policyGravitySlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
+            policyGravitySlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("settings.admin.locomotion.gravity"), 0f, 50f, false, 2, ValueDisplayMode.Raw));
+            policyGravitySlider.SetValueWithoutNotify(Mathf.Abs(policy.Gravity));
+
+            List<string> policyModeEntries = SettingsProviderModeratorTab.BuildLocomotionModeEntries();
+            PanelDropdown policyModeDropdown = PanelDropdown.CreateNewEntry(container);
+            policyModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.locomotion.mode"));
+            policyModeDropdown.AssignEntries(policyModeEntries);
+            policyModeDropdown.SetValueWithoutNotify(policyModeEntries[PolicyModeIndex(policy)]);
+
+            void ApplyPolicySliderVisibility()
+            {
+                policyJumpSlider.Descriptor.SetActive(policyJumpToggle.Value);
+                policyWalkSlider.Descriptor.SetActive(policyWalkToggle.Value);
+                policyRunSlider.Descriptor.SetActive(policyRunToggle.Value);
+                policyGravitySlider.Descriptor.SetActive(policyGravityToggle.Value);
+            }
+
+            ApplyPolicySliderVisibility();
+            policyJumpToggle.OnValueChanged += _ => { ApplyPolicySliderVisibility(); descriptor.ForceRebuild(); };
+            policyWalkToggle.OnValueChanged += _ => { ApplyPolicySliderVisibility(); descriptor.ForceRebuild(); };
+            policyRunToggle.OnValueChanged += _ => { ApplyPolicySliderVisibility(); descriptor.ForceRebuild(); };
+            policyGravityToggle.OnValueChanged += _ => { ApplyPolicySliderVisibility(); descriptor.ForceRebuild(); };
+
+            void ApplyLocomotionPolicy()
+            {
+                BasisNetworkModeration.SetGlobalLocomotionPolicy(
+                    SettingsProviderModeratorTab.ComposeLocomotionValues(
+                        policyJumpToggle.Value, policyJumpSlider.Value,
+                        policyWalkToggle.Value, policyWalkSlider.Value,
+                        policyRunToggle.Value, policyRunSlider.Value,
+                        policyModeEntries.IndexOf(policyModeDropdown.Value),
+                        policyGravityToggle.Value, policyGravitySlider.Value));
+            }
+
+            PanelButton locomotionApply = MakeApplyButton(container, locomotionDirty);
+            locomotionApply.OnClicked += ApplyLocomotionPolicy;
+
+            PanelElementDescriptor locomotionBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
+                locomotionToggle, container, locomotionStart, false, visible =>
+                {
+                    // Expanding re-activates every hidden child, so the per-field visibility has to
+                    // be re-applied or a cleared field comes back with its slider showing.
+                    if (visible) ApplyPolicySliderVisibility();
+                    descriptor.ForceRebuild();
+                });
+
+            locomotionDirty.Attach(locomotionToggle, locomotionBox);
+            locomotionDirty.WatchToggle(policyJumpToggle, () => BasisNetworkModeration.ServerLocomotionPolicy.Has(BasisLocomotionField.JumpHeight));
+            locomotionDirty.WatchToggle(policyWalkToggle, () => BasisNetworkModeration.ServerLocomotionPolicy.Has(BasisLocomotionField.WalkSpeed));
+            locomotionDirty.WatchToggle(policyRunToggle, () => BasisNetworkModeration.ServerLocomotionPolicy.Has(BasisLocomotionField.RunSpeed));
+            locomotionDirty.WatchToggle(policyGravityToggle, () => BasisNetworkModeration.ServerLocomotionPolicy.Has(BasisLocomotionField.Gravity));
+            // A field whose toggle is off leaves its slider parked on the last shown value, which is
+            // not a pending edit — compare it only while the server is actually dictating that field.
+            locomotionDirty.WatchSlider(policyJumpSlider, () => BasisNetworkModeration.ServerLocomotionPolicy.Has(BasisLocomotionField.JumpHeight)
+                ? BasisNetworkModeration.ServerLocomotionPolicy.JumpHeight
+                : policyJumpSlider.Value);
+            locomotionDirty.WatchSlider(policyWalkSlider, () => BasisNetworkModeration.ServerLocomotionPolicy.Has(BasisLocomotionField.WalkSpeed)
+                ? BasisNetworkModeration.ServerLocomotionPolicy.WalkSpeed
+                : policyWalkSlider.Value);
+            locomotionDirty.WatchSlider(policyRunSlider, () => BasisNetworkModeration.ServerLocomotionPolicy.Has(BasisLocomotionField.RunSpeed)
+                ? BasisNetworkModeration.ServerLocomotionPolicy.RunSpeed
+                : policyRunSlider.Value);
+            locomotionDirty.WatchSlider(policyGravitySlider, () => BasisNetworkModeration.ServerLocomotionPolicy.Has(BasisLocomotionField.Gravity)
+                ? Mathf.Abs(BasisNetworkModeration.ServerLocomotionPolicy.Gravity)
+                : policyGravitySlider.Value);
+            locomotionDirty.WatchDropdown(policyModeDropdown, () => policyModeEntries[PolicyModeIndex(BasisNetworkModeration.ServerLocomotionPolicy)]);
+
+            controller.PolicyJumpToggle = policyJumpToggle;
+            controller.PolicyJumpSlider = policyJumpSlider;
+            controller.PolicyWalkToggle = policyWalkToggle;
+            controller.PolicyWalkSlider = policyWalkSlider;
+            controller.PolicyRunToggle = policyRunToggle;
+            controller.PolicyRunSlider = policyRunSlider;
+            controller.PolicyGravityToggle = policyGravityToggle;
+            controller.PolicyGravitySlider = policyGravitySlider;
+            controller.PolicyModeDropdown = policyModeDropdown;
+            controller.PolicyModeEntries = policyModeEntries;
+            controller.ApplyPolicySliderVisibility = ApplyPolicySliderVisibility;
+            controller.DirtySections.Add(locomotionDirty);
 
             // --- Resource limits (per-player DoS caps; persisted to config.xml) ---
             PanelSectionDirtyState resourceDirty = new PanelSectionDirtyState();
@@ -814,6 +942,19 @@ namespace Basis.BasisUI
         /// section's controls, so Apply sits at the bottom — you reach it having read the section.
         /// The caller wires <see cref="PanelButton.OnClicked"/> once the controls it reads exist.
         /// </summary>
+        /// <summary>
+        /// Movement-mode picker index for a policy: 0 ("Leave Unchanged") when the policy does not
+        /// claim the mode, otherwise the mode itself offset past that first entry.
+        /// </summary>
+        private static int PolicyModeIndex(BasisLocomotionValues policy)
+        {
+            if (!policy.Has(BasisLocomotionField.Mode)) return 0;
+            int mode = (int)policy.Mode;
+            // The picker is built from the mode enum, so an out-of-range value could only come from
+            // a server speaking a newer protocol. Fall back rather than index past the list.
+            return mode >= 0 && mode <= (int)BasisLocalCharacterDriver.Mode.NoClip ? mode + 1 : 0;
+        }
+
         private static PanelButton MakeApplyButton(RectTransform container, PanelSectionDirtyState dirty)
         {
             PanelButton button = PanelButton.CreateNew(container);
@@ -1039,6 +1180,17 @@ namespace Basis.BasisUI
             public PanelToggle EndEffectorIKToggle;
             public PanelSlider MinAvatarHeightSlider;
             public PanelSlider MaxAvatarHeightSlider;
+            public PanelToggle PolicyJumpToggle;
+            public PanelSlider PolicyJumpSlider;
+            public PanelToggle PolicyWalkToggle;
+            public PanelSlider PolicyWalkSlider;
+            public PanelToggle PolicyRunToggle;
+            public PanelSlider PolicyRunSlider;
+            public PanelToggle PolicyGravityToggle;
+            public PanelSlider PolicyGravitySlider;
+            public PanelDropdown PolicyModeDropdown;
+            public List<string> PolicyModeEntries;
+            public Action ApplyPolicySliderVisibility;
             public PanelTextField MaxContentSpheresField;
             public PanelTextField ReductionIntervalField;
             public PanelTextField ReductionBaseMultiplierField;
@@ -1129,6 +1281,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalEndEffectorIKDisabledChanged += OnGlobalEndEffectorIKDisabledChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged += OnAvatarScaleLimitsChanged;
+                BasisNetworkModeration.OnLocomotionPolicyChanged -= OnLocomotionPolicyChanged;
+                BasisNetworkModeration.OnLocomotionPolicyChanged += OnLocomotionPolicyChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged += OnResourceLimitsChanged;
                 BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
@@ -1167,6 +1321,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalSafeDisplayNamesForcedChanged -= OnGlobalSafeDisplayNamesForcedChanged;
                 BasisNetworkModeration.OnGlobalEndEffectorIKDisabledChanged -= OnGlobalEndEffectorIKDisabledChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
+                BasisNetworkModeration.OnLocomotionPolicyChanged -= OnLocomotionPolicyChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
                 BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
                 BasisNetworkModeration.OnImageBandwidthChanged -= OnImageBandwidthChanged;
@@ -1199,6 +1354,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalSafeDisplayNamesForcedChanged -= OnGlobalSafeDisplayNamesForcedChanged;
                 BasisNetworkModeration.OnGlobalEndEffectorIKDisabledChanged -= OnGlobalEndEffectorIKDisabledChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
+                BasisNetworkModeration.OnLocomotionPolicyChanged -= OnLocomotionPolicyChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
                 BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
                 BasisNetworkModeration.OnImageBandwidthChanged -= OnImageBandwidthChanged;
@@ -1339,6 +1495,27 @@ namespace Basis.BasisUI
             {
                 if (MinAvatarHeightSlider != null) MinAvatarHeightSlider.SetValueWithoutNotify(minMeters);
                 if (MaxAvatarHeightSlider != null) MaxAvatarHeightSlider.SetValueWithoutNotify(maxMeters);
+                ReevaluateDirty();
+            }
+
+            private void OnLocomotionPolicyChanged(BasisLocomotionValues policy)
+            {
+                // Every value travels even when its bit is clear, so a field the server stopped
+                // dictating keeps the number it was last set to rather than jumping to a default.
+                if (PolicyJumpToggle != null) PolicyJumpToggle.SetValueWithoutNotify(policy.Has(BasisLocomotionField.JumpHeight));
+                if (PolicyWalkToggle != null) PolicyWalkToggle.SetValueWithoutNotify(policy.Has(BasisLocomotionField.WalkSpeed));
+                if (PolicyRunToggle != null) PolicyRunToggle.SetValueWithoutNotify(policy.Has(BasisLocomotionField.RunSpeed));
+                if (PolicyGravityToggle != null) PolicyGravityToggle.SetValueWithoutNotify(policy.Has(BasisLocomotionField.Gravity));
+                if (PolicyJumpSlider != null) PolicyJumpSlider.SetValueWithoutNotify(policy.JumpHeight);
+                if (PolicyWalkSlider != null) PolicyWalkSlider.SetValueWithoutNotify(policy.WalkSpeed);
+                if (PolicyRunSlider != null) PolicyRunSlider.SetValueWithoutNotify(policy.RunSpeed);
+                if (PolicyGravitySlider != null) PolicyGravitySlider.SetValueWithoutNotify(Mathf.Abs(policy.Gravity));
+                if (PolicyModeDropdown != null && PolicyModeEntries != null)
+                {
+                    PolicyModeDropdown.SetValueWithoutNotify(PolicyModeEntries[PolicyModeIndex(policy)]);
+                }
+
+                ApplyPolicySliderVisibility?.Invoke();
                 ReevaluateDirty();
             }
 

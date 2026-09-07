@@ -603,7 +603,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
 
             // Did we hit UI?
-            if (input.BasisUIRaycast.HadRaycastUITarget)
+            if (PointerClaimedByUI(input))
             {
             //    BasisDebug.Log("UI Raycast target was hit", BasisDebug.LogTag.System);
                 return false;
@@ -748,6 +748,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public virtual bool IsInfluencable(BasisInput input)
         {
             return InteractableEnabled && (CanHover(input) || CanInteract(input));
+        }
+
+        public virtual bool PointerClaimedByUI(BasisInput input)
+        {
+            return input.BasisUIRaycast != null && input.BasisUIRaycast.HadRaycastUITarget;
         }
 
         /// <summary>

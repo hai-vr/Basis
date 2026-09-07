@@ -97,6 +97,7 @@ public static class NetworkServer
         BasisNetworkServer.Security.BasisCrashReportStateManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisAudioRangeLimitManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisAvatarScaleLimitManager.InitializeFromConfig(configuration);
+        BasisNetworkServer.Security.BasisLocomotionPolicyManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisResourceLimitManager.InitializeFromConfig(configuration);
         SetupServer(configuration);
         SubscribeEvents(Configuration);
@@ -213,6 +214,7 @@ public static class NetworkServer
         BasisNetworkServer.Security.BasisCrashReportStateManager.InitializeFromConfig(Configuration);
         BasisNetworkServer.Security.BasisAudioRangeLimitManager.InitializeFromConfig(Configuration);
         BasisNetworkServer.Security.BasisAvatarScaleLimitManager.InitializeFromConfig(Configuration);
+        BasisNetworkServer.Security.BasisLocomotionPolicyManager.InitializeFromConfig(Configuration);
         BasisNetworkServer.Security.BasisResourceLimitManager.InitializeFromConfig(Configuration);
 
         if (Server == null) return;
@@ -222,6 +224,7 @@ public static class NetworkServer
         BasisNetworkServer.Security.BasisCrashReportStateManager.BroadcastState();
         BasisNetworkServer.Security.BasisAudioRangeLimitManager.BroadcastState();
         BasisNetworkServer.Security.BasisAvatarScaleLimitManager.BroadcastState();
+        BasisNetworkServer.Security.BasisLocomotionPolicyManager.BroadcastState();
         BasisNetworkServer.Security.BasisResourceLimitManager.BroadcastState();
     }
 

@@ -252,6 +252,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _handFlyTurnDeadzoneSlider;
         private PanelSlider _handFlyTurnReachSlider;
         private PanelSlider _handFlyTurnSensitivitySlider;
+        private PanelToggle _rollToggle;
         private PanelToggle _autoLevelToggle;
         private PanelToggle _vrStabToggle;
         private PanelSlider _vrStabPositionSlider;
@@ -334,6 +335,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private float _lastHandFlyTurnDeadzone = float.NaN;
         private float _lastHandFlyTurnReach = float.NaN;
         private float _lastHandFlyTurnSensitivity = float.NaN;
+        private bool? _lastCameraRoll;
         private bool? _lastAutoLevel;
         private bool? _lastVrStab;
         private float _lastVrStabPosition = float.NaN;
@@ -1144,6 +1146,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _handFlyTurnDeadzoneSlider = null;
             _handFlyTurnReachSlider = null;
             _handFlyTurnSensitivitySlider = null;
+            _rollToggle = null;
             _autoLevelToggle = null;
             _vrStabToggle = null;
             _vrStabPositionSlider = null;
@@ -1176,6 +1179,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastHandFlyTurnDeadzone = float.NaN;
             _lastHandFlyTurnReach = float.NaN;
             _lastHandFlyTurnSensitivity = float.NaN;
+            _lastCameraRoll = null;
             _lastAutoLevel = null;
             _lastVrStab = null;
             _lastVrStabPosition = float.NaN;
@@ -2146,6 +2150,13 @@ namespace Basis.BasisUI.HandHeldCamera
             _puckPreviewToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.puckPreview.description"));
             _puckPreviewToggle.OnValueChanged = v => _activeCamera?.SetPuckLookAtPreview(v);
 
+            // With the marker, because it is the marker's grab handle that carries the roll: take
+            // hold of the puck with this on and twisting your wrist tips the shot with it.
+            _rollToggle = PanelToggle.CreateNewEntry(content);
+            _rollToggle.Descriptor.SetTitle(BasisLocalization.Get("camera.rollControl"));
+            _rollToggle.Descriptor.SetTooltip(BasisLocalization.Get("camera.rollControl.description"));
+            _rollToggle.OnValueChanged = v => _activeCamera?.SetCameraRollEnabled(v);
+
             _followTargetDropdown = PanelDropdown.CreateNewEntry(content);
             _followTargetDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.followTarget"));
             _followTargetDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.followTarget.description"));
@@ -2626,6 +2637,9 @@ namespace Basis.BasisUI.HandHeldCamera
             bool marked = _activeCamera != null && _activeCamera.detachedMarker != BasisCameraDetachedMarker.Off;
 
             _markerScaleSlider?.gameObject.SetActive(marked);
+            // No marker is no grab handle, and a desktop grab is made by a head that cannot roll —
+            // so the switch is shown where there is actually a wrist to turn the grip with.
+            _rollToggle?.gameObject.SetActive(marked && !BasisDeviceManagement.IsUserInDesktop());
             RefreshSearch();
             ForceLayoutRebuild(_followGroup);
         }
@@ -2706,6 +2720,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _resizeToggle?.gameObject.SetActive(!desktop);
             RefreshStabilizationVisibility();
             RefreshHandFlyVisibility();
+            // Carries the grip's roll switch, which is VR-only for the same reason the ones above are.
+            RefreshDetachedMarkerVisibility();
             RefreshSearch();
             ForceLayoutRebuild(_handlingGroup);
         }
@@ -3386,6 +3402,8 @@ namespace Basis.BasisUI.HandHeldCamera
             RefreshDetachedMarkerVisibility();
             _lastPuckPreview = _activeCamera.puckLookAtPreview;
             _puckPreviewToggle?.SetValueWithoutNotify(_activeCamera.puckLookAtPreview);
+            _lastCameraRoll = _activeCamera.cameraRollEnabled;
+            _rollToggle?.SetValueWithoutNotify(_activeCamera.cameraRollEnabled);
             // Each camera holds its own follow target, and the roster has not changed just because
             // the selected camera has — so drop the cached list to force the rebuild. Without it
             // the dropdown kept showing the previous camera's target, and picking the name already
@@ -3776,6 +3794,7 @@ namespace Basis.BasisUI.HandHeldCamera
             // Loading a settings file rewrites this under an open panel, the same way the drag
             // numbers above are rewritten.
             SyncToggle(_puckPreviewToggle, _activeCamera.puckLookAtPreview, ref _lastPuckPreview);
+            SyncToggle(_rollToggle, _activeCamera.cameraRollEnabled, ref _lastCameraRoll);
             // The marker size has a second writer that is not this panel at all — the two-hand
             // pinch on the puck itself — so the slider has to follow the camera rather than assume
             // it set the value it is showing.

@@ -441,6 +441,15 @@ public partial class BasisHandHeldCameraUI
         // Capture-mode toggles.
         public bool capture360;
         public bool useAutoLeveling;
+
+        /// <summary>
+        /// Whether the detached camera rolls with the grip flying it. Off is the zero fill and the
+        /// intended default — a shot that stays level however the puck is turned — so a file from
+        /// before this existed loads that way and no version bump is owed, even though the grip
+        /// used to roll the camera freely.
+        /// </summary>
+        public bool cameraRoll;
+
         public bool useVRHandheldSmoothing;
         public float vrStabilizationPositionDamping;
         public float vrStabilizationYawDamping;
