@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using Basis.Network.Core;
 using Basis.Scripts.Networking;
-using static BasisNetworkCore.Serializable.SerializableBasis;
-using static Basis.Network.Core.BasisNetworkCommons;
 
 namespace Basis.Shims
 {
@@ -46,9 +44,9 @@ namespace Basis.Shims
                 var reader = new NetDataReader(buffer);
                 if (!reader.TryGetByte(out byte subType)) return;
 
-                if (subType == PubSub_Message)
+                if (subType == BasisNetworkCommons.PubSub_Message)
                 {
-                    var msg = new PubSubMessage();
+                    var msg = new SerializableBasis.PubSubMessage();
                     if (msg.Deserialize(reader))
                     {
                         if (_subscriptions.ContainsKey(msg.ChannelName))
@@ -57,9 +55,9 @@ namespace Basis.Shims
                         }
                     }
                 }
-                else if (subType == PubSub_Initial)
+                else if (subType == BasisNetworkCommons.PubSub_Initial)
                 {
-                    var initialState = new PubSubInitialState();
+                    var initialState = new SerializableBasis.PubSubInitialState();
                     if (initialState.Deserialize(reader))
                     {
                         if (_subscriptions.ContainsKey(initialState.ChannelName))
@@ -100,17 +98,17 @@ namespace Basis.Shims
             Guid requestID = Guid.NewGuid();
             _subscriptions[channelName] = requestID;
 
-            var request = new PubSubSubscribeRequest
+            var request = new SerializableBasis.PubSubSubscribeRequest
             {
                 ChannelName = channelName,
                 RequestID = requestID
             };
 
             NetDataWriter writer = new NetDataWriter();
-            writer.Put(PubSub_Subscribe);
+            writer.Put(BasisNetworkCommons.PubSub_Subscribe);
             request.Serialize(writer);
 
-            SendToServer(writer.CopyData(), PubSubChannel, DeliveryMethod.ReliableOrdered);
+            SendToServer(writer.CopyData(), BasisNetworkCommons.PubSubChannel, DeliveryMethod.ReliableOrdered);
         }
 
         /// <summary>
@@ -122,17 +120,17 @@ namespace Basis.Shims
             if (string.IsNullOrEmpty(channelName)) return;
             if (!_subscriptions.TryGetValue(channelName, out Guid requestID)) return;
 
-            var request = new PubSubUnsubscribeRequest
+            var request = new SerializableBasis.PubSubUnsubscribeRequest
             {
                 ChannelName = channelName,
                 RequestID = requestID
             };
 
             NetDataWriter writer = new NetDataWriter();
-            writer.Put(PubSub_Unsubscribe);
+            writer.Put(BasisNetworkCommons.PubSub_Unsubscribe);
             request.Serialize(writer);
 
-            SendToServer(writer.CopyData(), PubSubChannel, DeliveryMethod.ReliableOrdered);
+            SendToServer(writer.CopyData(), BasisNetworkCommons.PubSubChannel, DeliveryMethod.ReliableOrdered);
             _subscriptions.Remove(channelName);
             
             if (_subscriptions.Count == 0)
