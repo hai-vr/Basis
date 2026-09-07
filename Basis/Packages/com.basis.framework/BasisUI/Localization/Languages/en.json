@@ -771,6 +771,82 @@
       "value": "Stop Recording"
     },
     {
+      "key": "camera.photogrammetry",
+      "value": "Photogrammetry"
+    },
+    {
+      "key": "camera.photogrammetry.record",
+      "value": "Start Session"
+    },
+    {
+      "key": "camera.photogrammetry.stopUnlimited",
+      "value": "Stop Session"
+    },
+    {
+      "key": "camera.photogrammetry.saving",
+      "value": "Saving..."
+    },
+    {
+      "key": "camera.photogrammetry.status",
+      "value": "Status"
+    },
+    {
+      "key": "camera.photogrammetry.status.idle",
+      "value": "Not recording. Tip: turn off Depth of Field and Motion Blur first for cleaner reconstructions."
+    },
+    {
+      "key": "camera.photogrammetry.status.recording",
+      "value": "Session active: {0} photos captured so far."
+    },
+    {
+      "key": "camera.photogrammetry.status.saving",
+      "value": "Saving... {0} of {1} photos written."
+    },
+    {
+      "key": "camera.photogrammetry.status.saved",
+      "value": "Last photo saved: {0}"
+    },
+    {
+      "key": "camera.photogrammetry.status.failed",
+      "value": "Last session failed: {0}"
+    },
+    {
+      "key": "camera.photogrammetry.status.blocked",
+      "value": "Camera capture is locked by an admin."
+    },
+    {
+      "key": "camera.photogrammetry.distance",
+      "value": "Distance Trigger"
+    },
+    {
+      "key": "camera.photogrammetry.distance.description",
+      "value": "Takes a photo whenever the camera has moved at least this far since the last one."
+    },
+    {
+      "key": "camera.photogrammetry.angle",
+      "value": "Angle Trigger"
+    },
+    {
+      "key": "camera.photogrammetry.angle.description",
+      "value": "Takes a photo whenever the camera has turned at least this far since the last one."
+    },
+    {
+      "key": "camera.photogrammetry.resolution",
+      "value": "Resolution"
+    },
+    {
+      "key": "camera.photogrammetry.resolution.description",
+      "value": "Size of each captured photo. Lower keeps the session fast and the dataset small."
+    },
+    {
+      "key": "camera.photogrammetry.captureNow",
+      "value": "Capture Now"
+    },
+    {
+      "key": "camera.photogrammetry.captureNow.description",
+      "value": "Takes one photo immediately, ignoring the movement thresholds."
+    },
+    {
       "key": "camera.lens",
       "value": "Lens"
     },
@@ -2245,6 +2321,10 @@
     {
       "key": "settings.chat.textSize.tooltip",
       "value": "How large chat text appears above players."
+    },
+    {
+      "key": "settings.chat.duration.tooltip",
+      "value": "How long a chat message stays visible above a player's head, in seconds, before it disappears."
     },
     {
       "key": "settings.chat.camera.photoMetadata.tooltip",
@@ -8381,6 +8461,10 @@
     {
       "key": "settings.chat.textSize",
       "value": "Chat Text Size"
+    },
+    {
+      "key": "settings.chat.duration",
+      "value": "Chat Message Duration"
     },
     {
       "key": "settings.chat.raycast.title",

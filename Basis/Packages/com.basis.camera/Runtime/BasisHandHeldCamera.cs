@@ -389,6 +389,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         StopVideoOutput();
         ShutdownGifRecorder();
         ShutdownVideoRecorder();
+        ShutdownPhotogrammetry();
         SetAudioListener(false);
         DespawnFollowPip();
         DestroyDetachedGizmo();
@@ -1571,6 +1572,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         TickVideoOutput();
         TickGifRecorder();
         TickVideoRecorder();
+        TickPhotogrammetry();
         UpdateOnPropUIVisibility();
         TickFocusRack();
         UpdateAutoFocus();
@@ -1973,7 +1975,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// freezes on whatever frame the prop was last on screen for.
     /// </summary>
     private bool HasOffPropFeedConsumer =>
-        IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || panelPreviewActive
+        IsAnyVideoOutputActive || IsGifRecording || IsVideoRecording || IsPhotogrammetryActive || panelPreviewActive
         || IsPuckPreviewVisible || IsDirectToScreenPresenting;
 
     /// <summary>

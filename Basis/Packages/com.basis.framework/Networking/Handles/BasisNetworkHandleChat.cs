@@ -24,8 +24,9 @@ public static class BasisNetworkHandleChat
 
     /// <summary>
     /// How long a chat message stays visible (in seconds) before auto-clearing.
+    /// User-configurable via Settings > Chat > Chat Message Duration.
     /// </summary>
-    public const float MessageDisplayDuration = 11f;
+    public static float MessageDisplayDuration => Basis.BasisUI.BasisSettingsDefaults.ChatMessageDuration.RawValue;
 
 
     /// <summary>

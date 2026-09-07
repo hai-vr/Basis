@@ -707,6 +707,13 @@ namespace Basis.BasisUI
                         remotePlayer.IsEffectivelyBlocked ? 0f : value);
                 }
 
+                // remotePlayer is the shared "who are we editing" context, not a capture - it can
+                // have gone null (target left) between this panel opening and the slider firing.
+                if (remotePlayer == null)
+                {
+                    BasisDebug.LogWarning("Individual player volume change dropped: remotePlayer is null (target likely left before the slider fired).");
+                    return;
+                }
                 var s = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
                 s.VolumeLevel = value;
                 await BasisPlayerSettingsManager.SetPlayerSettings(s);
@@ -727,6 +734,11 @@ namespace Basis.BasisUI
 
             normalizeToggle.OnValueChanged += async enabled =>
             {
+                if (remotePlayer == null)
+                {
+                    BasisDebug.LogWarning("Individual player normalize-loudness change dropped: remotePlayer is null (target likely left before the toggle fired).");
+                    return;
+                }
                 var s = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
                 s.NormalizeLoudness = enabled;
                 await BasisPlayerSettingsManager.SetPlayerSettings(s);

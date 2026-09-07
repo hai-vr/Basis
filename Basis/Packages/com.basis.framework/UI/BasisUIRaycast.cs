@@ -81,7 +81,7 @@ namespace Basis.Scripts.UI
         private const int CanvasCacheRevalidateFrames = 30;
         public bool IgnoreReversedGraphics = true;
         public Vector3 highlightQuadInitialSize;
-        public static float DesktopReticleScreenHeightFraction = 0.05f;
+        public static float DesktopReticleScreenHeightFraction = 0.025f;
         private Transform highlightQuadTransform;
         private float highlightQuadUnitHeight = 1f;
         public bool HasOnPlayersHeightChanged = false;

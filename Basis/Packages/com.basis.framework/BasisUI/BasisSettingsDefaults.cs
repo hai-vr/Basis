@@ -1245,6 +1245,14 @@ namespace Basis.BasisUI
         /// </summary>
         public static BasisSettingsBinding<bool> ChatDisabled = new("chatdisabled", new BasisPlatformDefault<bool>(false));
 
+        /// <summary>
+        /// How long a chat message bubble stays visible above a player's nameplate (in seconds)
+        /// before it auto-clears. Drives <see cref="BasisNetworkHandleChat.MessageDisplayDuration"/>.
+        /// </summary>
+        public static BasisSettingsBinding<float> ChatMessageDuration = new("chat_duration", new BasisPlatformDefault<float>(11f));
+        public const float CHAT_MESSAGE_DURATION_MIN = 3f;
+        public const float CHAT_MESSAGE_DURATION_MAX = 60f;
+
         // Commented out 2026-08-04: never referenced anywhere — leftover scaffolding.
         //public static BasisSettingsBinding<bool> FalseBinding = new("falsebinding", new BasisPlatformDefault<bool>(false));
 
@@ -2678,6 +2686,7 @@ namespace Basis.BasisUI
 
             // Chat
             ChatDisabled.LoadBindingValue();
+            ChatMessageDuration.LoadBindingValue();
 
             // UI
             RememberMenuState.LoadBindingValue();

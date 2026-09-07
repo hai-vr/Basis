@@ -865,6 +865,9 @@ public partial class BasisHandHeldCameraUI
             videoQuality = HHC != null ? HHC.VideoRecordingQuality : baseline.videoQuality,
             videoTimeLimit = HHC == null || HHC.VideoRecordingTimeLimit,
             videoContinuousClips = HHC != null && HHC.VideoContinuousClips,
+            photogrammetryDistanceMeters = HHC != null ? HHC.PhotogrammetryDistanceMeters : baseline.photogrammetryDistanceMeters,
+            photogrammetryAngleDegrees = HHC != null ? HHC.PhotogrammetryAngleDegrees : baseline.photogrammetryAngleDegrees,
+            photogrammetryWidth = HHC != null ? HHC.PhotogrammetryWidth : baseline.photogrammetryWidth,
             streamTransport = HHC != null ? (int)HHC.VideoTransport : baseline.streamTransport,
             streamWidth = HHC != null ? HHC.VideoOutputSettings.Width : baseline.streamWidth,
             streamHeight = HHC != null ? HHC.VideoOutputSettings.Height : baseline.streamHeight,
@@ -1397,6 +1400,9 @@ public partial class BasisHandHeldCameraUI
         HHC.SetVideoRecordingQuality(settings.videoQuality);
         HHC.VideoRecordingTimeLimit = settings.videoTimeLimit;
         HHC.VideoContinuousClips = settings.videoContinuousClips;
+        HHC.SetPhotogrammetryDistance(settings.photogrammetryDistanceMeters);
+        HHC.SetPhotogrammetryAngle(settings.photogrammetryAngleDegrees);
+        HHC.SetPhotogrammetryWidth(settings.photogrammetryWidth);
         HHC.ApplyStreamSettings((BasisVideoTransport)settings.streamTransport, settings.streamWidth, settings.streamHeight, settings.streamFrameRate, settings.streamQuality, settings.streamPort, settings.streamSenderName);
 
         // After the body, which this defers to: a file that names a film body and asks for the

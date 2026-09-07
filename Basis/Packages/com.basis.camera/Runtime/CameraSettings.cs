@@ -167,6 +167,10 @@ public partial class BasisHandHeldCameraUI
             videoTimeLimit = true;
             videoContinuousClips = false;
 
+            photogrammetryDistanceMeters = 0.3f;
+            photogrammetryAngleDegrees = 15f;
+            photogrammetryWidth = 1280;
+
             streamTransport = (int)(BasisHandHeldCamera.IsVideoOutputSupported ? BasisVideoTransport.Platform : BasisVideoTransport.Web);
             streamWidth = BasisVideoOutputSettings.DefaultWidth;
             streamHeight = BasisVideoOutputSettings.DefaultHeight;
@@ -552,6 +556,12 @@ public partial class BasisHandHeldCameraUI
         /// older file loads as the single-clip recording it was written as.
         /// </summary>
         public bool videoContinuousClips;
+
+        // Photogrammetry capture: a still every time the camera moves or turns past these
+        // thresholds, at this width. Defaulted the same way as the GIF/video fields above.
+        public float photogrammetryDistanceMeters;
+        public float photogrammetryAngleDegrees;
+        public int photogrammetryWidth;
 
         public int streamTransport;
         public int streamWidth;

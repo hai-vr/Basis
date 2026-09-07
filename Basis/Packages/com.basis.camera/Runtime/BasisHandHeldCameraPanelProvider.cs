@@ -512,6 +512,9 @@ namespace Basis.BasisUI.HandHeldCamera
                 BuildGifGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_gifSection, _gifGroup, false, OnSectionExpanded);
 
+                BuildPhotogrammetryGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_photogrammetrySection, _photogrammetryGroup, false, OnSectionExpanded);
+
                 BuildPerformanceGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_performanceSection, _performanceGroup, false, OnSectionExpanded);
             });
@@ -929,6 +932,7 @@ namespace Basis.BasisUI.HandHeldCamera
             ClearModeReferences();
             ClearGifReferences();
             ClearVideoReferences();
+            ClearPhotogrammetryReferences();
             _panel = null;
             _tabGroup = null;
             _navColumn = null;
@@ -3176,6 +3180,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SeedModifierCameraControls();
             SeedGifControls();
             SeedVideoControls();
+            SeedPhotogrammetryControls();
 
             // The bound camera changed, so the cached labels describe someone else's last shot.
             _lastPhotoStatusText = null;
@@ -3686,6 +3691,7 @@ namespace Basis.BasisUI.HandHeldCamera
             TickModifierSections();
             TickGifSection();
             TickVideoSection();
+            TickPhotogrammetrySection();
             TickRenderRateLock();
             TickPhotoStatus();
             TickBodySection();
