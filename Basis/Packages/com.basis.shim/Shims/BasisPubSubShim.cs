@@ -108,7 +108,7 @@ namespace Basis.Shims
             writer.Put(BasisNetworkCommons.PubSub_Subscribe);
             request.Serialize(writer);
 
-            SendToServer(writer.CopyData(), BasisNetworkCommons.PubSubChannel, DeliveryMethod.ReliableOrdered);
+            BasisNetworkConnection.LocalPlayerPeer?.Send(writer, BasisNetworkCommons.PubSubChannel, DeliveryMethod.ReliableOrdered);
         }
 
         /// <summary>
@@ -130,7 +130,7 @@ namespace Basis.Shims
             writer.Put(BasisNetworkCommons.PubSub_Unsubscribe);
             request.Serialize(writer);
 
-            SendToServer(writer.CopyData(), BasisNetworkCommons.PubSubChannel, DeliveryMethod.ReliableOrdered);
+            BasisNetworkConnection.LocalPlayerPeer?.Send(writer, BasisNetworkCommons.PubSubChannel, DeliveryMethod.ReliableOrdered);
             _subscriptions.Remove(channelName);
             
             if (_subscriptions.Count == 0)
@@ -153,11 +153,6 @@ namespace Basis.Shims
 
             BasisNetworkHandlePubSub.OnPubSubMessageReceived -= OnPubSubMessageReceived;
             _isHooked = false;
-        }
-
-        private void SendToServer(byte[] data, byte channel, DeliveryMethod deliveryMethod)
-        {
-            BasisNetworkConnection.LocalPlayerPeer?.Send(data, channel, deliveryMethod);
         }
     }
 }
