@@ -1253,6 +1253,18 @@ namespace Basis.Network.Core
         /// <summary>Unreliable plugin payloads. Frame: [messageId:2][payload].</summary>
         public const byte PluginUnreliableChannel = 63;
 
+        // ── Pub/Sub channel ──────────────────────────────────────────────────
+        /// <summary>Pub/Sub channel.</summary>
+        public const byte PubSubChannel = 64;
+        /// <summary>Client subscribes to a PubSub channel.</summary>
+        public const byte PubSub_Subscribe = 1;
+        /// <summary>Client unsubscribes from a PubSub channel.</summary>
+        public const byte PubSub_Unsubscribe = 2;
+        /// <summary>Server sends a PubSub message to the Client.</summary>
+        public const byte PubSub_Update = 3;
+        /// <summary>Server sends a PubSub initial to the Client.</summary>
+        public const byte PubSub_Initial = 4;
+
         /// <summary>RegistryControlChannel sub-type: server to client full descriptor manifest.</summary>
         public const byte RegistrySub_Supply = 0;
         /// <summary>RegistryControlChannel sub-type: client to server list of message ids it can handle.</summary>

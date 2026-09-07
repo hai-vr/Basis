@@ -17,6 +17,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Basis.Network.Server.Messaging;
 using BasisNetworkServer.Networking;
 using static Basis.Network.Core.Serializable.SerializableBasis;
 using static BasisNetworkCore.Serializable.SerializableBasis;
@@ -409,6 +410,7 @@ namespace BasisServerHandle
             BasisNetworkPIPCamera.RemovePlayer(id);
             BasisNetworkContentShare.RemovePlayerSpheres(id);
             BasisNetworkImageCache.RemovePlayerImages(id);
+            BasisNetworkHandlePubSub.RemovePlayerSubscriptions(id);
             // Drops this peer's egress bucket and any replay still queued for it. Without this a
             // recycled player id would inherit the previous holder's spent budget.
             BasisImageBandwidthGovernor.RemovePeer(id);
