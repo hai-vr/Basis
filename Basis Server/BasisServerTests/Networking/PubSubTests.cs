@@ -1,5 +1,5 @@
 ﻿using Basis.Network.Core;
-using Basis.Network.Server.Messaging;
+using BasisNetworkServer;
 using Xunit;
 using static SerializableBasis;
 

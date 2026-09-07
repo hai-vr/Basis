@@ -4,7 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Basis.Network.Server.Messaging
+namespace BasisNetworkServer
 {
     public interface IPubSubDataProvider
     {
