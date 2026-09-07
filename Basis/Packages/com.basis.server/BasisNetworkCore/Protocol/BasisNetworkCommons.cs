@@ -1084,17 +1084,17 @@ namespace Basis.Network.Core
         /// <summary>Developer hook — data only delivered to the server</summary>
         public const byte ServerBoundChannel = 31;
         
-        // ── Pub/Sub channel ──────────────────────────────────────────────────
-        /// <summary>Pub/Sub channel.</summary>
-        public const byte PubSubChannel = 32;
+        // ── Custom Server Data Pub/Sub channel ──────────────────────────────────────────────────
+        /// <summary>Custom Server Data Pub/Sub channel.</summary>
+        public const byte CustomServerDataChannel = 32;
         /// <summary>Client subscribes to a PubSub channel.</summary>
-        public const byte PubSub_Subscribe = 1;
+        public const byte CustomServerData_Subscribe = 1;
         /// <summary>Client unsubscribes from a PubSub channel.</summary>
-        public const byte PubSub_Unsubscribe = 2;
+        public const byte CustomServerData_Unsubscribe = 2;
         /// <summary>Server sends a PubSub message to the Client.</summary>
-        public const byte PubSub_Message = 3;
+        public const byte CustomServerData_Message = 3;
         /// <summary>Server sends a PubSub initial state to the Client.</summary>
-        public const byte PubSub_Initial = 4;
+        public const byte CustomServerData_InitialState = 4;
 
         // ── Admin ────────────────────────────────────────────────────────────
         // Channel 33 is free (32 and 33 previously held the removed server-side database).

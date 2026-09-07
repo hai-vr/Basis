@@ -4,7 +4,7 @@ using Basis.Network.Core;
 public static partial class SerializableBasis
 {
     [Serializable]
-    public struct PubSubSubscribeRequest
+    public struct CustomServerDataSubscribeRequest
     {
         public string ChannelName;
         public Guid RequestID;
@@ -28,7 +28,7 @@ public static partial class SerializableBasis
     }
 
     [Serializable]
-    public struct PubSubUnsubscribeRequest
+    public struct CustomServerDataUnsubscribeRequest
     {
         public string ChannelName;
         public Guid RequestID;
@@ -52,7 +52,7 @@ public static partial class SerializableBasis
     }
 
     [Serializable]
-    public struct PubSubMessage
+    public struct CustomServerDataMessage
     {
         public string ChannelName;
         public byte[] Data;
@@ -70,7 +70,7 @@ public static partial class SerializableBasis
     }
 
     [Serializable]
-    public struct PubSubInitialState
+    public struct CustomServerDataInitialState
     {
         public string ChannelName;
         public byte[] Data;
