@@ -1261,7 +1261,7 @@ namespace Basis.Network.Core
         /// <summary>Client unsubscribes from a PubSub channel.</summary>
         public const byte PubSub_Unsubscribe = 2;
         /// <summary>Server sends a PubSub message to the Client.</summary>
-        public const byte PubSub_Update = 3;
+        public const byte PubSub_Message = 3;
         /// <summary>Server sends a PubSub initial state to the Client.</summary>
         public const byte PubSub_Initial = 4;
 
