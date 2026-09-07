@@ -714,15 +714,15 @@ namespace LiteNetLib
         public bool AllowPeerAddressChange = false;
 
         /// <summary>
-        /// QoS channel count per message type (value must be between 1 and 65 channels)
+        /// QoS channel count per message type (value must be between 1 and 64 channels)
         /// </summary>
         public byte ChannelsCount
         {
             get => _channelsCount;
             set
             {
-                if (value < 1 || value > 65)
-                    throw new ArgumentException("Channels count must be between 1 and 65");
+                if (value < 1 || value > 64)
+                    throw new ArgumentException("Channels count must be between 1 and 64");
                 _channelsCount = value;
             }
         }
