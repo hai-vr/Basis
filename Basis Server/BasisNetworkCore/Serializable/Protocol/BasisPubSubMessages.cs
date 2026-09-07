@@ -1,8 +1,10 @@
 ﻿using System;
 using Basis.Network.Core;
 
-public static partial class SerializableBasis
+namespace BasisNetworkCore.Serializable
 {
+    public static partial class SerializableBasis
+    {
     [Serializable]
     public struct PubSubSubscribeRequest
     {
@@ -91,4 +93,5 @@ public static partial class SerializableBasis
             return false;
         }
     }
+}
 }
