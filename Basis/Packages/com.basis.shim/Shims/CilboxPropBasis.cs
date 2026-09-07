@@ -175,6 +175,12 @@ namespace Cilbox
 			{ typeof(Basis.Shims.BasisPermissionEventShim), new HashSet<string>{
 				nameof(Basis.Shims.BasisPermissionEventShim.Rebind),
 				} },
+			// PubSub channels
+			{ typeof(Basis.Shims.BasisPubSubShim), new HashSet<string>{
+				nameof(Basis.Shims.BasisPubSubShim.Subscribe),
+				nameof(Basis.Shims.BasisPubSubShim.Unsubscribe),
+				nameof(Basis.Shims.BasisPubSubShim.UnsubscribeAll),
+				} },
 			{ typeof(UnityEngine.Rendering.AsyncGPUReadback), new HashSet<string>{ "Request" } },
 			{ typeof(BitConverter), new HashSet<string>{
 				"GetBytes", "ToBoolean", "ToChar", "ToDouble", "ToInt16", "ToInt32",
