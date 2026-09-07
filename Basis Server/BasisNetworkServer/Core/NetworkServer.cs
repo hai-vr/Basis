@@ -135,6 +135,7 @@ public static class NetworkServer
 
         BasisNetworkUdpDropMonitor.Start();
         BasisServerMemoryReclaim.Start();
+        BasisNetworkServer.BasisNetworking.HelloWorldPubSub.Start();
         BasisNetworkContentShare.StartExpiry();
 
         BNL.Log("Server Worker Threads Booted");
@@ -156,6 +157,7 @@ public static class NetworkServer
         }
         BasisNetworkUdpDropMonitor.Stop();
         BasisServerMemoryReclaim.Stop();
+        BasisNetworkServer.BasisNetworking.HelloWorldPubSub.Stop();
         BasisNetworkContentShare.StopExpiry();
         BasisNetworkServer.Storage.BasisServerStorage.Stop();
         // StartServer builds a fresh AuthIdentity; without this the old one stays subscribed to
