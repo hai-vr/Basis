@@ -937,7 +937,7 @@ namespace Basis.Network.Core
         /// when adding a new message we need to increase this
         /// will function up to 65
         /// </summary>
-        public const byte TotalChannels = 65;
+        public const byte TotalChannels = 64;
 
         // ── Avatar send-interval byte ────────────────────────────────────────
         // The per-receiver interval byte in avatar keyframe/delta frames encodes the send
@@ -1083,9 +1083,21 @@ namespace Basis.Network.Core
         // ── Server-bound ─────────────────────────────────────────────────────
         /// <summary>Developer hook — data only delivered to the server</summary>
         public const byte ServerBoundChannel = 31;
+        
+        // ── Pub/Sub channel ──────────────────────────────────────────────────
+        /// <summary>Pub/Sub channel.</summary>
+        public const byte PubSubChannel = 32;
+        /// <summary>Client subscribes to a PubSub channel.</summary>
+        public const byte PubSub_Subscribe = 1;
+        /// <summary>Client unsubscribes from a PubSub channel.</summary>
+        public const byte PubSub_Unsubscribe = 2;
+        /// <summary>Server sends a PubSub message to the Client.</summary>
+        public const byte PubSub_Message = 3;
+        /// <summary>Server sends a PubSub initial state to the Client.</summary>
+        public const byte PubSub_Initial = 4;
 
         // ── Admin ────────────────────────────────────────────────────────────
-        // Channels 32 & 33 are free (held the removed server-side database).
+        // Channel 33 is free (32 and 33 previously held the removed server-side database).
         /// <summary>Admin messages from client</summary>
         public const byte AdminChannel = 34;
 
@@ -1252,18 +1264,6 @@ namespace Basis.Network.Core
         public const byte PluginSequencedChannel = 62;
         /// <summary>Unreliable plugin payloads. Frame: [messageId:2][payload].</summary>
         public const byte PluginUnreliableChannel = 63;
-
-        // ── Pub/Sub channel ──────────────────────────────────────────────────
-        /// <summary>Pub/Sub channel.</summary>
-        public const byte PubSubChannel = 64;
-        /// <summary>Client subscribes to a PubSub channel.</summary>
-        public const byte PubSub_Subscribe = 1;
-        /// <summary>Client unsubscribes from a PubSub channel.</summary>
-        public const byte PubSub_Unsubscribe = 2;
-        /// <summary>Server sends a PubSub message to the Client.</summary>
-        public const byte PubSub_Message = 3;
-        /// <summary>Server sends a PubSub initial state to the Client.</summary>
-        public const byte PubSub_Initial = 4;
 
         /// <summary>RegistryControlChannel sub-type: server to client full descriptor manifest.</summary>
         public const byte RegistrySub_Supply = 0;
