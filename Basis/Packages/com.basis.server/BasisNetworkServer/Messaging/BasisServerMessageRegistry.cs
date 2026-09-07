@@ -375,8 +375,8 @@ public static class BasisServerMessageRegistry
         RegisterCore(BasisNetworkCommons.P2PChannel, (peer, reader, channel, dm) =>
             BasisServerP2PBroker.HandleP2PMessage(reader, peer)); // reads sub-type byte, routes, recycles inside
 
-        RegisterCore(BasisNetworkCommons.PubSubChannel, (peer, reader, channel, dm) =>
-            BasisNetworkHandlePubSub.HandleEvent(peer, reader)); // recycles inside
+        RegisterCore(BasisNetworkCommons.CustomServerDataChannel, (peer, reader, channel, dm) =>
+            BasisNetworkHandleCustomServerData.HandleEvent(peer, reader)); // recycles inside
 
         RegisterCore(BasisNetworkCommons.RegistryControlChannel, (peer, reader, channel, dm) =>
         {
