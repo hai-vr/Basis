@@ -935,9 +935,9 @@ namespace Basis.Network.Core
 
         /// <summary>
         /// when adding a new message we need to increase this
-        /// will function up to 64
+        /// will function up to 65
         /// </summary>
-        public const byte TotalChannels = 64;
+        public const byte TotalChannels = 65;
 
         // ── Avatar send-interval byte ────────────────────────────────────────
         // The per-receiver interval byte in avatar keyframe/delta frames encodes the send
