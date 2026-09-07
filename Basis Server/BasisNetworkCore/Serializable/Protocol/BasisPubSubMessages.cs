@@ -1,10 +1,8 @@
 ﻿using System;
 using Basis.Network.Core;
 
-namespace BasisNetworkCore.Serializable
+public static partial class SerializableBasis
 {
-    public static partial class SerializableBasis
-    {
     [Serializable]
     public struct PubSubSubscribeRequest
     {
@@ -24,6 +22,7 @@ namespace BasisNetworkCore.Serializable
                 RequestID = reader.GetGuid();
                 return true;
             }
+
             return false;
         }
     }
@@ -47,6 +46,7 @@ namespace BasisNetworkCore.Serializable
                 RequestID = reader.GetGuid();
                 return true;
             }
+
             return false;
         }
     }
@@ -90,8 +90,8 @@ namespace BasisNetworkCore.Serializable
                 RequestID = reader.GetGuid();
                 return true;
             }
+
             return false;
         }
     }
-}
 }
