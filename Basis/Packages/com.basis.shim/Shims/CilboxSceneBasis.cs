@@ -315,12 +315,6 @@ namespace Cilbox
 			{ typeof(Basis.Shims.BasisPermissionEventShim), new HashSet<string>{
 				nameof(Basis.Shims.BasisPermissionEventShim.Rebind),
 				} },
-			// PubSub channels
-			{ typeof(Basis.Shims.BasisPubSubShim), new HashSet<string>{
-				nameof(Basis.Shims.BasisPubSubShim.Subscribe),
-				nameof(Basis.Shims.BasisPubSubShim.Unsubscribe),
-				nameof(Basis.Shims.BasisPubSubShim.UnsubscribeAll),
-			} },
 			{ typeof(Basis.Scripts.BasisSdk.Interactions.BasisSeat), new HashSet<string>{
 				$"get_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.OccupantRotationRangeDegrees)}",
 				$"set_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.OccupantRotationRangeDegrees)}",
