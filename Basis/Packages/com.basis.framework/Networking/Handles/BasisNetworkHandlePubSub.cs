@@ -9,6 +9,8 @@ namespace Basis.Scripts.Networking
 
         public static void HandleMessage(NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
+            if (OnPubSubMessageReceived == null) return;
+            
             try
             {
                 byte[] data = reader.GetRemainingBytes();
