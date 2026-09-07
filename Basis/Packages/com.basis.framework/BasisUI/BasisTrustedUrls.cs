@@ -80,7 +80,7 @@ namespace Basis.BasisUI
             foreach (string url in defaults.Urls)
             {
                 if (string.IsNullOrEmpty(url)) continue;
-                if (!url.StartsWith("https://")) continue;
+                if (!url.StartsWith("https://") && !url.StartsWith("rtsp://")) continue;
                 _builtInUrls.Add(url);
             }
         }

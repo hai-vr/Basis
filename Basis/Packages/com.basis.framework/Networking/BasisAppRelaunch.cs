@@ -61,9 +61,41 @@ namespace Basis.Scripts.Networking
             return value;
         }
 
+        private const string HostReconnectArg = "--host-reconnect";
+
+        public static bool ConsumeHostReconnectRequested()
+        {
+            bool requested = false;
+            try
+            {
+                string[] args = System.Environment.GetCommandLineArgs();
+                if (args != null)
+                {
+                    foreach (string arg in args)
+                    {
+                        if (string.Equals(arg, HostReconnectArg, System.StringComparison.OrdinalIgnoreCase))
+                        {
+                            requested = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            catch { }
+#if UNITY_EDITOR
+            if (SessionState.GetBool(EditorHostModeKey, false))
+            {
+                requested = true;
+                SessionState.SetBool(EditorHostModeKey, false);
+            }
+#endif
+            return requested;
+        }
+
 #if UNITY_EDITOR
         private const string EditorModeKey = "Basis.RebootReconnect.Mode";
         private const string EditorConnectionKey = "Basis.RebootReconnect.Connection";
+        private const string EditorHostModeKey = "Basis.RebootReconnect.HostMode";
         private const string EditorPendingPlayKey = "Basis.RebootReconnect.PendingPlay";
 
         private static bool EditorRebootAndReconnect()
@@ -72,9 +104,11 @@ namespace Basis.Scripts.Networking
             if (IsRestorableMode(mode)) SessionState.SetString(EditorModeKey, mode);
             else SessionState.EraseString(EditorModeKey);
 
-            string connection = BasisNetworkConnection.LocalPlayerIsConnected ? BuildConnectionValue() : string.Empty;
+            bool wasConnected = BasisNetworkConnection.LocalPlayerIsConnected;
+            string connection = wasConnected ? BuildConnectionValue() : string.Empty;
             if (!string.IsNullOrEmpty(connection)) SessionState.SetString(EditorConnectionKey, connection);
             else SessionState.EraseString(EditorConnectionKey);
+            SessionState.SetBool(EditorHostModeKey, wasConnected && BasisNetworkManagement.IsHostMode);
 
             SessionState.SetBool(EditorPendingPlayKey, true);
             EditorApplication.playModeStateChanged += ResumeOnExitedPlayMode;
@@ -231,7 +265,11 @@ namespace Basis.Scripts.Networking
             if (BasisNetworkConnection.LocalPlayerIsConnected)
             {
                 string connection = BuildConnectionValue();
-                if (!string.IsNullOrEmpty(connection)) Append(builder, "--connection=" + connection);
+                if (!string.IsNullOrEmpty(connection))
+                {
+                    Append(builder, "--connection=" + connection);
+                    if (BasisNetworkManagement.IsHostMode) Append(builder, HostReconnectArg);
+                }
             }
 
             return builder.ToString();
