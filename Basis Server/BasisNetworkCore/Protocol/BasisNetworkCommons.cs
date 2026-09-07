@@ -1262,7 +1262,7 @@ namespace Basis.Network.Core
         public const byte PubSub_Unsubscribe = 2;
         /// <summary>Server sends a PubSub message to the Client.</summary>
         public const byte PubSub_Update = 3;
-        /// <summary>Server sends a PubSub initial to the Client.</summary>
+        /// <summary>Server sends a PubSub initial state to the Client.</summary>
         public const byte PubSub_Initial = 4;
 
         /// <summary>RegistryControlChannel sub-type: server to client full descriptor manifest.</summary>

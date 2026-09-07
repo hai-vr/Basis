@@ -10,9 +10,9 @@ namespace Basis.Network.Server.Messaging
     {
         /// <summary>
         /// Generates an initial state message for a new subscriber.
-        /// If it returns null, no initial state will be sent.
+        /// If it returns an empty list, no initial state will be sent.
         /// </summary>
-        byte[] GetInitialState();
+        List<byte[]> GetInitialState();
     }
 
     /// <summary>
@@ -80,20 +80,21 @@ namespace Basis.Network.Server.Messaging
                 return;
             }
 
-            byte[] initialState = null;
+            List<byte[]> initialStateMessages = null;
             lock (channel.Lock)
             {
                 channel.SubscriberCounts.AddOrUpdate(peer.Id, 1, (_, count) => count + 1);
                 channel.UniqueSubscribers.Add(peer.Id);
-                initialState = channel.Provider.GetInitialState();
+                initialStateMessages = channel.Provider.GetInitialState();
             }
 
-            if (initialState != null)
+            foreach (byte[] initialState in initialStateMessages)
             {
-                var initial = new SerializableBasis.PubSubMessage
+                var initial = new SerializableBasis.PubSubInitialState
                 {
                     ChannelName = request.ChannelName,
-                    Data = initialState
+                    Data = initialState,
+                    RequestID = request.RequestID
                 };
                 SendMessageToSpecificPeer(peer, BasisNetworkCommons.PubSub_Initial, initial);
             }
@@ -171,7 +172,7 @@ namespace Basis.Network.Server.Messaging
             }
         }
 
-        private static void SendMessageToSpecificPeer(NetPeer peer, byte subType, SerializableBasis.PubSubMessage message)
+        private static void SendMessageToSpecificPeer(NetPeer peer, byte subType, SerializableBasis.PubSubInitialState message)
         {
             NetDataWriter writer = NetworkServer.RentWriter();
             writer.Put(subType);

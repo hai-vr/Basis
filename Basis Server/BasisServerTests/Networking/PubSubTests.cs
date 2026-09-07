@@ -8,20 +8,20 @@ public class PubSubTests
     private class TestDataProvider : IPubSubDataProvider
     {
         public byte[] InitialState;
-        public byte[] GetInitialState() => InitialState;
+        public List<byte[]> GetInitialState() => new() { InitialState };
     }
 
     [Fact]
     public void RegisterChannel_SucceedsAndCanReRegister()
     {
-        var provider = new TestDataProvider();
+        TestDataProvider provider = new TestDataProvider();
         string channelName = "test.channel.reg";
         
         // We can't easily check existence anymore via API, but we can verify registration doesn't throw
         BasisNetworkHandlePubSub.RegisterChannel(channelName, provider);
         
         // Duplicate should still throw
-        Assert.Throws<System.InvalidOperationException>(() => BasisNetworkHandlePubSub.RegisterChannel(channelName, provider));
+        Assert.Throws<InvalidOperationException>(() => BasisNetworkHandlePubSub.RegisterChannel(channelName, provider));
         
         BasisNetworkHandlePubSub.UnregisterChannel(channelName);
         
@@ -33,11 +33,11 @@ public class PubSubTests
     [Fact]
     public void RegisterChannel_DuplicateName_ThrowsInvalidOperationException()
     {
-        var provider = new TestDataProvider();
+        TestDataProvider provider = new TestDataProvider();
         string channelName = "test.channel.dup";
         BasisNetworkHandlePubSub.RegisterChannel(channelName, provider);
         
-        Assert.Throws<System.InvalidOperationException>(() => BasisNetworkHandlePubSub.RegisterChannel(channelName, provider));
+        Assert.Throws<InvalidOperationException>(() => BasisNetworkHandlePubSub.RegisterChannel(channelName, provider));
         
         BasisNetworkHandlePubSub.UnregisterChannel(channelName);
     }
