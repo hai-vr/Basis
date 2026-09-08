@@ -6,18 +6,18 @@ public static partial class SerializableBasis
     [Serializable]
     public struct CustomServerDataSubscribeRequest
     {
-        public string ChannelName;
+        public string ChannelPattern;
         public Guid RequestID;
 
         public void Serialize(NetDataWriter writer)
         {
-            writer.Put(ChannelName);
+            writer.Put(ChannelPattern);
             writer.Put(RequestID);
         }
 
         public bool Deserialize(NetDataReader reader)
         {
-            if (reader.TryGetString(out ChannelName) && reader.AvailableBytes >= 16)
+            if (reader.TryGetString(out ChannelPattern) && reader.AvailableBytes >= 16)
             {
                 RequestID = reader.GetGuid();
                 return true;
@@ -30,18 +30,18 @@ public static partial class SerializableBasis
     [Serializable]
     public struct CustomServerDataUnsubscribeRequest
     {
-        public string ChannelName;
+        public string ChannelPattern;
         public Guid RequestID;
 
         public void Serialize(NetDataWriter writer)
         {
-            writer.Put(ChannelName);
+            writer.Put(ChannelPattern);
             writer.Put(RequestID);
         }
 
         public bool Deserialize(NetDataReader reader)
         {
-            if (reader.TryGetString(out ChannelName) && reader.AvailableBytes >= 16)
+            if (reader.TryGetString(out ChannelPattern) && reader.AvailableBytes >= 16)
             {
                 RequestID = reader.GetGuid();
                 return true;

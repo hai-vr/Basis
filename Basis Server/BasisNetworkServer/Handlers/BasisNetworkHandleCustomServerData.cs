@@ -21,6 +21,15 @@ namespace BasisNetworkServer
     /// </summary>
     public static class BasisNetworkHandleCustomServerData
     {
+        private static Dictionary<Guid, ChannelRegistration> _requestToEffectiveChannels = new();
+
+        private class ChannelRegistration
+        {
+            public Guid RequestId;
+            public string ChannelPattern;
+            public HashSet<string> ResolvedChannelNames;
+        }
+
         private sealed class ChannelState
         {
             public readonly ushort Id;
@@ -79,9 +88,164 @@ namespace BasisNetworkServer
 
         public static void HandleSubscribeRequest(NetPeer peer, SerializableBasis.CustomServerDataSubscribeRequest request)
         {
-            if (!Channels.TryGetValue(request.ChannelName, out var channel))
+            if (_requestToEffectiveChannels.ContainsKey(request.RequestID))
             {
-                BNL.LogWarning($"Peer {peer.Id} tried to subscribe to non-existent channel: {request.ChannelName}");
+                BNL.LogWarning($"Peer {peer.Id} tried to subscribe to channel {request.ChannelPattern} with request ID {request.RequestID} that is already used. It will be ignored");
+                return;
+            }
+            
+            var channelNames = Match(request.ChannelPattern);
+            if (channelNames.Count == 0)
+            {
+                BNL.LogWarning($"Peer {peer.Id} tried to subscribe to a channel, but there were no matches: {request.ChannelPattern}");
+                return;
+            }
+            
+            foreach (var channelName in channelNames)
+            {
+                ProcessSubscribeToChannel(peer, channelName, request.RequestID);
+            }
+
+            _requestToEffectiveChannels.Add(request.RequestID, new ChannelRegistration
+            {
+                RequestId = request.RequestID,
+                ChannelPattern = request.ChannelPattern,
+                ResolvedChannelNames = channelNames,
+            });
+        }
+
+        private static HashSet<string> Match(string channelPattern)
+        {
+            var result = new HashSet<string>();
+            
+            var isSpecialPattern = channelPattern.StartsWith("/") && (channelPattern.Contains("#") || channelPattern.Contains("*") || channelPattern.Contains("+"));
+            if (!isSpecialPattern)
+            {
+                if (Channels.TryGetValue(channelPattern, out var channelName))
+                {
+                    result.Add(channelName.Name);
+                }
+            }
+            else
+            {
+                var patternSegments = channelPattern.Split('/');
+                if (patternSegments.Length <= 1 || (patternSegments.Length == 2 && string.IsNullOrEmpty(patternSegments[0])))
+                {
+                    return result;
+                }
+                
+                foreach (var channel in Channels.Values)
+                {
+                    if (MqttLikeMatch(channel.Name, channelPattern))
+                    {
+                        result.Add(channel.Name);
+                    }
+                }
+            }
+            
+            return result;
+        }
+
+        private static bool MqttLikeMatch(string channelName, string channelPattern)
+        {
+            // Split both the channel name and pattern into segments
+            var nameSegments = channelName.Split('/');
+            var patternSegments = channelPattern.Split('/');
+
+            // Track positions in both arrays
+            int nameIndex = 0;
+            int patternIndex = 0;
+
+            while (nameIndex < nameSegments.Length && patternIndex < patternSegments.Length)
+            {
+                string patternSegment = patternSegments[patternIndex];
+
+                // '#' matches zero or more segments (multi-level wildcard)
+                if (patternSegment == "#")
+                {
+                    // '#' must be the last segment in the pattern
+                    return patternIndex == patternSegments.Length - 1;
+                }
+
+                // '+' matches exactly one segment (single-level wildcard)
+                if (patternSegment == "+")
+                {
+                    nameIndex++;
+                    patternIndex++;
+                    continue;
+                }
+
+                // '*' matches any characters within a single segment
+                if (patternSegment.Contains("*"))
+                {
+                    if (!WildcardMatch(nameSegments[nameIndex], patternSegment))
+                    {
+                        return false;
+                    }
+                    nameIndex++;
+                    patternIndex++;
+                    continue;
+                }
+
+                // Exact match required
+                if (nameSegments[nameIndex] != patternSegment)
+                {
+                    return false;
+                }
+
+                nameIndex++;
+                patternIndex++;
+            }
+
+            // Both must be fully consumed for a match
+            return nameIndex == nameSegments.Length && patternIndex == patternSegments.Length;
+        }
+
+        private static bool WildcardMatch(string text, string pattern)
+        {
+            int textIndex = 0;
+            int patternIndex = 0;
+            int starIndex = -1;
+            int matchIndex = 0;
+
+            while (textIndex < text.Length)
+            {
+                if (patternIndex < pattern.Length && pattern[patternIndex] == '*')
+                {
+                    starIndex = patternIndex;
+                    matchIndex = textIndex;
+                    patternIndex++;
+                }
+                else if (patternIndex < pattern.Length && pattern[patternIndex] == text[textIndex])
+                {
+                    textIndex++;
+                    patternIndex++;
+                }
+                else if (starIndex != -1)
+                {
+                    patternIndex = starIndex + 1;
+                    matchIndex++;
+                    textIndex = matchIndex;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            while (patternIndex < pattern.Length && pattern[patternIndex] == '*')
+            {
+                patternIndex++;
+            }
+
+            return patternIndex == pattern.Length;
+        }
+
+        private static void ProcessSubscribeToChannel(NetPeer peer, string channelName, Guid requestId)
+        {
+            if (!Channels.TryGetValue(channelName, out var channel))
+            {
+                BNL.LogWarning($"Peer {peer.Id} tried to subscribe to non-existent channel: {channelName}");
                 return;
             }
 
@@ -96,7 +260,7 @@ namespace BasisNetworkServer
             lock (channel.Lock)
             {
                 var peerToSubscription = channel.PeerToSubscriptionsDict.GetOrAdd(peer.Id, _ => new HashSet<Guid>());
-                peerToSubscription.Add(request.RequestID);
+                peerToSubscription.Add(requestId);
                 initialStateMessages = channel.Publisher.GetInitialState();
             }
 
@@ -106,7 +270,7 @@ namespace BasisNetworkServer
                 {
                     ChannelId = channel.Id,
                     Data = initialState,
-                    RequestID = request.RequestID
+                    RequestID = requestId
                 };
                 SendInitialStateToSpecificPeer(peer, initial);
             }
@@ -114,19 +278,32 @@ namespace BasisNetworkServer
 
         public static void HandleUnsubscribeRequest(NetPeer peer, SerializableBasis.CustomServerDataUnsubscribeRequest request)
         {
-            if (!Channels.TryGetValue(request.ChannelName, out var channel))
+            if (!_requestToEffectiveChannels.TryGetValue(request.RequestID, out var registration))
             {
                 return;
             }
-
-            lock (channel.Lock)
+            if (registration.ChannelPattern != request.ChannelPattern)
             {
-                if (channel.PeerToSubscriptionsDict.TryGetValue(peer.Id, out var peerToSubscription))
+                BNL.LogWarning($"Peer {peer.Id} tried to unsubscribe from channel pattern {request.ChannelPattern}, but request ID {request.RequestID} was not used to subscribe to that channel pattern.");
+                return;
+            }
+            
+            foreach (string channelName in registration.ResolvedChannelNames)
+            {
+                if (Channels.TryGetValue(channelName, out var channel))
                 {
-                    peerToSubscription.Remove(request.RequestID);
-                    if (peerToSubscription.Count == 0)
+                    lock (channel.Lock)
                     {
-                        channel.PeerToSubscriptionsDict.TryRemove(peer.Id, out _);
+                        _requestToEffectiveChannels.Remove(request.RequestID);
+                
+                        if (channel.PeerToSubscriptionsDict.TryGetValue(peer.Id, out var peerToSubscription))
+                        {
+                            peerToSubscription.Remove(request.RequestID);
+                            if (peerToSubscription.Count == 0)
+                            {
+                                channel.PeerToSubscriptionsDict.TryRemove(peer.Id, out _);
+                            }
+                        }
                     }
                 }
             }

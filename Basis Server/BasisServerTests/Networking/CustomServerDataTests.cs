@@ -58,7 +58,7 @@ public class CustomServerDataTests
         var requestId = Guid.NewGuid();
         var request = new CustomServerDataSubscribeRequest
         {
-            ChannelName = channelName,
+            ChannelPattern = channelName,
             RequestID = requestId
         };
 
@@ -105,8 +105,8 @@ public class CustomServerDataTests
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
 
-        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelName = channelName, RequestID = id1 });
-        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelName = channelName, RequestID = id2 });
+        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelPattern = channelName, RequestID = id1 });
+        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelPattern = channelName, RequestID = id2 });
 
         // Both subscribed, verify publish reaches peer
         byte[] updateData = new byte[] { 42 };
@@ -117,7 +117,7 @@ public class CustomServerDataTests
         peer.Sent.Clear();
 
         // Unsubscribe one
-        BasisNetworkHandleCustomServerData.HandleUnsubscribeRequest(peer, new CustomServerDataUnsubscribeRequest { ChannelName = channelName, RequestID = id1 });
+        BasisNetworkHandleCustomServerData.HandleUnsubscribeRequest(peer, new CustomServerDataUnsubscribeRequest { ChannelPattern = channelName, RequestID = id1 });
 
         // Still one subscription left, should still receive updates
         BasisNetworkHandleCustomServerData.Publish(channelName, updateData);
@@ -125,11 +125,132 @@ public class CustomServerDataTests
         peer.Sent.Clear();
 
         // Unsubscribe second
-        BasisNetworkHandleCustomServerData.HandleUnsubscribeRequest(peer, new CustomServerDataUnsubscribeRequest { ChannelName = channelName, RequestID = id2 });
+        BasisNetworkHandleCustomServerData.HandleUnsubscribeRequest(peer, new CustomServerDataUnsubscribeRequest { ChannelPattern = channelName, RequestID = id2 });
 
         // No more subscriptions, should not receive updates
         BasisNetworkHandleCustomServerData.Publish(channelName, updateData);
         Assert.Empty(peer.Sent.Where(s => s.Data[0] == BasisNetworkCommons.CustomServerData_Message));
+
+        BasisNetworkHandleCustomServerData.UnregisterChannel(channelName);
+    }
+
+    [Fact]
+    public void MqttMatch_MultiLevelWildcard()
+    {
+        using var scope = new ServerStaticsScope();
+        var provider = new TestDataPublisher();
+        BasisNetworkHandleCustomServerData.RegisterChannel("/a/b/c", provider);
+        BasisNetworkHandleCustomServerData.RegisterChannel("/a/d/e", provider);
+        BasisNetworkHandleCustomServerData.RegisterChannel("/other", provider);
+
+        var peer = new FakeNetPeer(1, "127.0.0.1");
+        NetworkServer.AuthenticatedPeers[1] = peer;
+        NetworkServer.RebuildPeerSnapshot();
+
+        var requestId = Guid.NewGuid();
+        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelPattern = "/a/#", RequestID = requestId });
+
+        // Should match /a/b/c and /a/d/e
+        byte[] data = new byte[] { 1 };
+        BasisNetworkHandleCustomServerData.Publish("/a/b/c", data);
+        BasisNetworkHandleCustomServerData.Publish("/a/d/e", data);
+        BasisNetworkHandleCustomServerData.Publish("/other", data);
+
+        var messages = peer.Sent.Where(s => s.Data[0] == BasisNetworkCommons.CustomServerData_Message).ToList();
+        Assert.Equal(2, messages.Count);
+
+        // Unsubscribe using pattern
+        BasisNetworkHandleCustomServerData.HandleUnsubscribeRequest(peer, new CustomServerDataUnsubscribeRequest { ChannelPattern = "/a/#", RequestID = requestId });
+        peer.Sent.Clear();
+
+        BasisNetworkHandleCustomServerData.Publish("/a/b/c", data);
+        Assert.Empty(peer.Sent.Where(s => s.Data[0] == BasisNetworkCommons.CustomServerData_Message));
+
+        BasisNetworkHandleCustomServerData.UnregisterChannel("/a/b/c");
+        BasisNetworkHandleCustomServerData.UnregisterChannel("/a/d/e");
+        BasisNetworkHandleCustomServerData.UnregisterChannel("/other");
+    }
+
+    [Fact]
+    public void MqttMatch_SingleLevelWildcard()
+    {
+        using var scope = new ServerStaticsScope();
+        var provider = new TestDataPublisher();
+        BasisNetworkHandleCustomServerData.RegisterChannel("/a/b/c", provider);
+        BasisNetworkHandleCustomServerData.RegisterChannel("/a/d/c", provider);
+        BasisNetworkHandleCustomServerData.RegisterChannel("/a/b/d", provider);
+
+        var peer = new FakeNetPeer(1, "127.0.0.1");
+        NetworkServer.AuthenticatedPeers[1] = peer;
+        NetworkServer.RebuildPeerSnapshot();
+
+        var requestId = Guid.NewGuid();
+        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelPattern = "/a/+/c", RequestID = requestId });
+
+        byte[] data = new byte[] { 1 };
+        BasisNetworkHandleCustomServerData.Publish("/a/b/c", data);
+        BasisNetworkHandleCustomServerData.Publish("/a/d/c", data);
+        BasisNetworkHandleCustomServerData.Publish("/a/b/d", data);
+
+        var messages = peer.Sent.Where(s => s.Data[0] == BasisNetworkCommons.CustomServerData_Message).ToList();
+        Assert.Equal(2, messages.Count);
+
+        BasisNetworkHandleCustomServerData.UnregisterChannel("/a/b/c");
+        BasisNetworkHandleCustomServerData.UnregisterChannel("/a/d/c");
+        BasisNetworkHandleCustomServerData.UnregisterChannel("/a/b/d");
+    }
+
+    [Fact]
+    public void MqttMatch_WildcardWithinSegment()
+    {
+        using var scope = new ServerStaticsScope();
+        var provider = new TestDataPublisher();
+        BasisNetworkHandleCustomServerData.RegisterChannel("/a/foo-bar/c", provider);
+        BasisNetworkHandleCustomServerData.RegisterChannel("/a/baz-bar/c", provider);
+        BasisNetworkHandleCustomServerData.RegisterChannel("/a/foo-qux/c", provider);
+
+        var peer = new FakeNetPeer(1, "127.0.0.1");
+        NetworkServer.AuthenticatedPeers[1] = peer;
+        NetworkServer.RebuildPeerSnapshot();
+
+        var requestId = Guid.NewGuid();
+        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelPattern = "/a/*-bar/c", RequestID = requestId });
+
+        byte[] data = new byte[] { 1 };
+        BasisNetworkHandleCustomServerData.Publish("/a/foo-bar/c", data);
+        BasisNetworkHandleCustomServerData.Publish("/a/baz-bar/c", data);
+        BasisNetworkHandleCustomServerData.Publish("/a/foo-qux/c", data);
+
+        var messages = peer.Sent.Where(s => s.Data[0] == BasisNetworkCommons.CustomServerData_Message).ToList();
+        Assert.Equal(2, messages.Count);
+
+        BasisNetworkHandleCustomServerData.UnregisterChannel("/a/foo-bar/c");
+        BasisNetworkHandleCustomServerData.UnregisterChannel("/a/baz-bar/c");
+        BasisNetworkHandleCustomServerData.UnregisterChannel("/a/foo-qux/c");
+    }
+
+    [Fact]
+    public void Unsubscribe_RequiresOriginalPattern()
+    {
+        using var scope = new ServerStaticsScope();
+        string channelName = "/a/b/c";
+        var provider = new TestDataPublisher();
+        BasisNetworkHandleCustomServerData.RegisterChannel(channelName, provider);
+
+        var peer = new FakeNetPeer(1, "127.0.0.1");
+        NetworkServer.AuthenticatedPeers[1] = peer;
+        NetworkServer.RebuildPeerSnapshot();
+
+        var requestId = Guid.NewGuid();
+        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelPattern = "/a/#", RequestID = requestId });
+
+        // Try to unsubscribe from the individual channel instead of the pattern
+        BasisNetworkHandleCustomServerData.HandleUnsubscribeRequest(peer, new CustomServerDataUnsubscribeRequest { ChannelPattern = channelName, RequestID = requestId });
+
+        // Should still be subscribed because pattern didn't match
+        byte[] data = new byte[] { 1 };
+        BasisNetworkHandleCustomServerData.Publish(channelName, data);
+        Assert.Single(peer.Sent.Where(s => s.Data[0] == BasisNetworkCommons.CustomServerData_Message));
 
         BasisNetworkHandleCustomServerData.UnregisterChannel(channelName);
     }
@@ -147,8 +268,8 @@ public class CustomServerDataTests
         NetworkServer.AuthenticatedPeers[1] = peer;
         NetworkServer.RebuildPeerSnapshot();
 
-        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelName = chan1, RequestID = Guid.NewGuid() });
-        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelName = chan2, RequestID = Guid.NewGuid() });
+        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelPattern = chan1, RequestID = Guid.NewGuid() });
+        BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, new CustomServerDataSubscribeRequest { ChannelPattern = chan2, RequestID = Guid.NewGuid() });
 
         BasisNetworkHandleCustomServerData.RemovePlayerSubscriptions(peer.Id);
 
