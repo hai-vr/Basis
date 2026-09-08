@@ -22,6 +22,7 @@ namespace Basis.Shims
     public class BasisCustomServerDataSubscriberShim
     {
         private readonly Dictionary<string, Guid> _subscriptions = new();
+        private readonly Dictionary<ushort, string> _idToChannel = new();
         private bool _isHooked;
 
         public delegate void InitialStateReceivedDelegate(string channelName, byte[] data);
@@ -44,14 +45,22 @@ namespace Basis.Shims
                 var reader = new NetDataReader(buffer);
                 if (!reader.TryGetByte(out byte subType)) return;
 
-                if (subType == BasisNetworkCommons.CustomServerData_Message)
+                if (subType == BasisNetworkCommons.CustomServerData_ProvideChannelId)
+                {
+                    var provideId = new SerializableBasis.CustomServerDataProvideChannelId();
+                    if (provideId.Deserialize(reader))
+                    {
+                        _idToChannel[provideId.ChannelId] = provideId.ChannelName;
+                    }
+                }
+                else if (subType == BasisNetworkCommons.CustomServerData_Message)
                 {
                     var msg = new SerializableBasis.CustomServerDataMessage();
                     if (msg.Deserialize(reader))
                     {
-                        if (_subscriptions.ContainsKey(msg.ChannelName))
+                        if (_idToChannel.TryGetValue(msg.ChannelId, out string channelName) && _subscriptions.ContainsKey(channelName))
                         {
-                            MessageReceived?.Invoke(msg.ChannelName, msg.Data);
+                            MessageReceived?.Invoke(channelName, msg.Data);
                         }
                     }
                 }
@@ -60,9 +69,9 @@ namespace Basis.Shims
                     var initialState = new SerializableBasis.CustomServerDataInitialState();
                     if (initialState.Deserialize(reader))
                     {
-                        if (_subscriptions.ContainsKey(initialState.ChannelName))
+                        if (_idToChannel.TryGetValue(initialState.ChannelId, out string channelName) && _subscriptions.ContainsKey(channelName))
                         {
-                            InitialStateReceived?.Invoke(initialState.ChannelName, initialState.Data);
+                            InitialStateReceived?.Invoke(channelName, initialState.Data);
                         }
                     }
                 }

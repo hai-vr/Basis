@@ -1095,6 +1095,8 @@ namespace Basis.Network.Core
         public const byte CustomServerData_Message = 3;
         /// <summary>Server sends a PubSub initial state to the Client.</summary>
         public const byte CustomServerData_InitialState = 4;
+        /// <summary>Server sends a mapping of channel name to ushort ID to the Client.</summary>
+        public const byte CustomServerData_ProvideChannelId = 5;
 
         // ── Admin ────────────────────────────────────────────────────────────
         // Channel 33 is free (32 and 33 previously held the removed server-side database).
