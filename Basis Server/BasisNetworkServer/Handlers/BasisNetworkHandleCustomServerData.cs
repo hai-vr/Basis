@@ -252,7 +252,8 @@ namespace BasisNetworkServer
             var provideId = new SerializableBasis.CustomServerDataProvideChannelId
             {
                 ChannelName = channel.Name,
-                ChannelId = channel.Id
+                ChannelId = channel.Id,
+                RequestID = requestId
             };
             SendProvideIdToSpecificPeer(peer, provideId);
 

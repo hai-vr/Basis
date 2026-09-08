@@ -72,6 +72,7 @@ public class CustomServerDataTests
         var provideIdResponse = new CustomServerDataProvideChannelId();
         Assert.True(provideIdResponse.Deserialize(provideIdReader));
         Assert.Equal(channelName, provideIdResponse.ChannelName);
+        Assert.Equal(requestId, provideIdResponse.RequestID);
         ushort assignedId = provideIdResponse.ChannelId;
 
         // Verify initial state sent
