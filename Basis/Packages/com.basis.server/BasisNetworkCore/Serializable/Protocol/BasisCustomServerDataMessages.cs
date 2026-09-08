@@ -52,40 +52,58 @@ public static partial class SerializableBasis
     }
 
     [Serializable]
-    public struct CustomServerDataMessage
+    public struct CustomServerDataProvideChannelId
     {
         public string ChannelName;
-        public byte[] Data;
+        public ushort ChannelId;
 
         public void Serialize(NetDataWriter writer)
         {
             writer.Put(ChannelName);
+            writer.Put(ChannelId);
+        }
+
+        public bool Deserialize(NetDataReader reader)
+        {
+            return reader.TryGetString(out ChannelName) && reader.TryGetUShort(out ChannelId);
+        }
+    }
+
+    [Serializable]
+    public struct CustomServerDataMessage
+    {
+        public ushort ChannelId;
+        public byte[] Data;
+
+        public void Serialize(NetDataWriter writer)
+        {
+            writer.Put(ChannelId);
             writer.PutBytesWithLength(Data);
         }
 
         public bool Deserialize(NetDataReader reader)
         {
-            return reader.TryGetString(out ChannelName) && reader.TryGetBytesWithLength(out Data);
+            return reader.TryGetUShort(out ChannelId) && reader.TryGetBytesWithLength(out Data);
         }
     }
 
     [Serializable]
     public struct CustomServerDataInitialState
     {
-        public string ChannelName;
+        public ushort ChannelId;
         public byte[] Data;
         public Guid RequestID;
 
         public void Serialize(NetDataWriter writer)
         {
-            writer.Put(ChannelName);
+            writer.Put(ChannelId);
             writer.PutBytesWithLength(Data);
             writer.Put(RequestID);
         }
 
         public bool Deserialize(NetDataReader reader)
         {
-            if (reader.TryGetString(out ChannelName) && reader.TryGetBytesWithLength(out Data) && reader.AvailableBytes >= 16)
+            if (reader.TryGetUShort(out ChannelId) && reader.TryGetBytesWithLength(out Data) && reader.AvailableBytes >= 16)
             {
                 RequestID = reader.GetGuid();
                 return true;

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace BasisNetworkServer
 {
@@ -22,20 +23,23 @@ namespace BasisNetworkServer
     {
         private sealed class ChannelState
         {
+            public readonly ushort Id;
             public readonly string Name;
             public readonly IBasisCustomServerDataPublisher Publisher;
             
             public readonly ConcurrentDictionary<int, HashSet<Guid>> PeerToSubscriptionsDict = new();
             public readonly object Lock = new object();
 
-            public ChannelState(string name, IBasisCustomServerDataPublisher publisher)
+            public ChannelState(ushort id, string name, IBasisCustomServerDataPublisher publisher)
             {
+                Id = id;
                 Name = name;
                 Publisher = publisher;
             }
         }
 
         private static readonly ConcurrentDictionary<string, ChannelState> Channels = new();
+        private static int _nextChannelId = 1;
         
         public static void HandleEvent(NetPeer peer, NetPacketReader reader)
         {
@@ -61,7 +65,8 @@ namespace BasisNetworkServer
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("Channel name cannot be empty", nameof(name));
             if (publisher == null) throw new ArgumentNullException(nameof(publisher));
 
-            if (!Channels.TryAdd(name, new ChannelState(name, publisher)))
+            ushort id = (ushort)Interlocked.Increment(ref _nextChannelId);
+            if (!Channels.TryAdd(name, new ChannelState(id, name, publisher)))
             {
                 throw new InvalidOperationException($"Channel '{name}' is already registered.");
             }
@@ -80,6 +85,13 @@ namespace BasisNetworkServer
                 return;
             }
 
+            var provideId = new SerializableBasis.CustomServerDataProvideChannelId
+            {
+                ChannelName = channel.Name,
+                ChannelId = channel.Id
+            };
+            SendProvideIdToSpecificPeer(peer, provideId);
+
             List<byte[]> initialStateMessages = null;
             lock (channel.Lock)
             {
@@ -92,11 +104,11 @@ namespace BasisNetworkServer
             {
                 var initial = new SerializableBasis.CustomServerDataInitialState
                 {
-                    ChannelName = request.ChannelName,
+                    ChannelId = channel.Id,
                     Data = initialState,
                     RequestID = request.RequestID
                 };
-                SendMessageToSpecificPeer(peer, BasisNetworkCommons.CustomServerData_InitialState, initial);
+                SendInitialStateToSpecificPeer(peer, initial);
             }
         }
 
@@ -137,7 +149,7 @@ namespace BasisNetworkServer
 
             var update = new SerializableBasis.CustomServerDataMessage
             {
-                ChannelName = channelName,
+                ChannelId = channel.Id,
                 Data = data
             };
 
@@ -167,13 +179,20 @@ namespace BasisNetworkServer
             }
         }
 
-        private static void SendMessageToSpecificPeer(NetPeer peer, byte subType, SerializableBasis.CustomServerDataInitialState message)
+        private static void SendProvideIdToSpecificPeer(NetPeer peer, SerializableBasis.CustomServerDataProvideChannelId message)
         {
             NetDataWriter writer = NetworkServer.RentWriter();
-            writer.Put(subType);
-            
+            writer.Put(BasisNetworkCommons.CustomServerData_ProvideChannelId);
             message.Serialize(writer);
-            
+            peer.Send(writer, BasisNetworkCommons.CustomServerDataChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        private static void SendInitialStateToSpecificPeer(NetPeer peer, SerializableBasis.CustomServerDataInitialState message)
+        {
+            NetDataWriter writer = NetworkServer.RentWriter();
+            writer.Put(BasisNetworkCommons.CustomServerData_InitialState);
+            message.Serialize(writer);
             peer.Send(writer, BasisNetworkCommons.CustomServerDataChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
