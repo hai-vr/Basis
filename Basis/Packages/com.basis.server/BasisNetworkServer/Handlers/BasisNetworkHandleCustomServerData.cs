@@ -3,10 +3,11 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace BasisNetworkServer
 {
-    public interface IPubSubDataProvider
+    public interface IBasisCustomServerDataPublisher
     {
         /// <summary>
         /// Generates an initial state message for a new subscriber.
@@ -16,52 +17,56 @@ namespace BasisNetworkServer
     }
 
     /// <summary>
-    /// Provides a PubSub service typically for use by props, so that they may arbitrary live information from modified servers.
+    /// Provides a custom server data PubSub service typically for use by props, so that they may arbitrary live information from modified servers.
     /// </summary>
-    public static class BasisNetworkHandlePubSub
+    public static class BasisNetworkHandleCustomServerData
     {
         private sealed class ChannelState
         {
+            public readonly ushort Id;
             public readonly string Name;
-            public readonly IPubSubDataProvider Provider;
+            public readonly IBasisCustomServerDataPublisher Publisher;
             
             public readonly ConcurrentDictionary<int, HashSet<Guid>> PeerToSubscriptionsDict = new();
             public readonly object Lock = new object();
 
-            public ChannelState(string name, IPubSubDataProvider provider)
+            public ChannelState(ushort id, string name, IBasisCustomServerDataPublisher publisher)
             {
+                Id = id;
                 Name = name;
-                Provider = provider;
+                Publisher = publisher;
             }
         }
 
         private static readonly ConcurrentDictionary<string, ChannelState> Channels = new();
+        private static int _nextChannelId = 1;
         
         public static void HandleEvent(NetPeer peer, NetPacketReader reader)
         {
             if (!reader.TryGetByte(out byte sub)) { reader.Recycle(); return; }
 
-            if (sub == BasisNetworkCommons.PubSub_Subscribe)
+            if (sub == BasisNetworkCommons.CustomServerData_Subscribe)
             {
-                var req = new SerializableBasis.PubSubSubscribeRequest();
+                var req = new SerializableBasis.CustomServerDataSubscribeRequest();
                 if (req.Deserialize(reader))
                     HandleSubscribeRequest(peer, req);
             }
-            else if (sub == BasisNetworkCommons.PubSub_Unsubscribe)
+            else if (sub == BasisNetworkCommons.CustomServerData_Unsubscribe)
             {
-                var req = new SerializableBasis.PubSubUnsubscribeRequest();
+                var req = new SerializableBasis.CustomServerDataUnsubscribeRequest();
                 if (req.Deserialize(reader))
                     HandleUnsubscribeRequest(peer, req);
             }
             reader.Recycle();
         }
 
-        public static void RegisterChannel(string name, IPubSubDataProvider provider)
+        public static void RegisterChannel(string name, IBasisCustomServerDataPublisher publisher)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("Channel name cannot be empty", nameof(name));
-            if (provider == null) throw new ArgumentNullException(nameof(provider));
+            if (publisher == null) throw new ArgumentNullException(nameof(publisher));
 
-            if (!Channels.TryAdd(name, new ChannelState(name, provider)))
+            ushort id = (ushort)Interlocked.Increment(ref _nextChannelId);
+            if (!Channels.TryAdd(name, new ChannelState(id, name, publisher)))
             {
                 throw new InvalidOperationException($"Channel '{name}' is already registered.");
             }
@@ -72,7 +77,7 @@ namespace BasisNetworkServer
             return Channels.TryRemove(name, out _);
         }
 
-        public static void HandleSubscribeRequest(NetPeer peer, SerializableBasis.PubSubSubscribeRequest request)
+        public static void HandleSubscribeRequest(NetPeer peer, SerializableBasis.CustomServerDataSubscribeRequest request)
         {
             if (!Channels.TryGetValue(request.ChannelName, out var channel))
             {
@@ -80,27 +85,35 @@ namespace BasisNetworkServer
                 return;
             }
 
+            // Send ProvideChannelId first
+            var provideId = new SerializableBasis.CustomServerDataProvideChannelId
+            {
+                ChannelName = channel.Name,
+                ChannelId = channel.Id
+            };
+            SendProvideIdToSpecificPeer(peer, provideId);
+
             List<byte[]> initialStateMessages = null;
             lock (channel.Lock)
             {
                 var peerToSubscription = channel.PeerToSubscriptionsDict.GetOrAdd(peer.Id, _ => new HashSet<Guid>());
                 peerToSubscription.Add(request.RequestID);
-                initialStateMessages = channel.Provider.GetInitialState();
+                initialStateMessages = channel.Publisher.GetInitialState();
             }
 
             foreach (byte[] initialState in initialStateMessages)
             {
-                var initial = new SerializableBasis.PubSubInitialState
+                var initial = new SerializableBasis.CustomServerDataInitialState
                 {
-                    ChannelName = request.ChannelName,
+                    ChannelId = channel.Id,
                     Data = initialState,
                     RequestID = request.RequestID
                 };
-                SendMessageToSpecificPeer(peer, BasisNetworkCommons.PubSub_Initial, initial);
+                SendInitialStateToSpecificPeer(peer, initial);
             }
         }
 
-        public static void HandleUnsubscribeRequest(NetPeer peer, SerializableBasis.PubSubUnsubscribeRequest request)
+        public static void HandleUnsubscribeRequest(NetPeer peer, SerializableBasis.CustomServerDataUnsubscribeRequest request)
         {
             if (!Channels.TryGetValue(request.ChannelName, out var channel))
             {
@@ -135,21 +148,21 @@ namespace BasisNetworkServer
 
             if (targets.Length == 0) return;
 
-            var update = new SerializableBasis.PubSubMessage
+            var update = new SerializableBasis.CustomServerDataMessage
             {
-                ChannelName = channelName,
+                ChannelId = channel.Id,
                 Data = data
             };
 
             NetDataWriter writer = NetworkServer.RentWriter();
-            writer.Put(BasisNetworkCommons.PubSub_Message);
+            writer.Put(BasisNetworkCommons.CustomServerData_Message);
             update.Serialize(writer);
 
             foreach (var peerId in targets)
             {
                 if (NetworkServer.AuthenticatedPeers.TryGetValue(peerId, out var peer))
                 {
-                    peer.Send(writer, BasisNetworkCommons.PubSubChannel, DeliveryMethod.ReliableOrdered);
+                    peer.Send(writer, BasisNetworkCommons.CustomServerDataChannel, DeliveryMethod.ReliableOrdered);
                 }
             }
 
@@ -167,14 +180,21 @@ namespace BasisNetworkServer
             }
         }
 
-        private static void SendMessageToSpecificPeer(NetPeer peer, byte subType, SerializableBasis.PubSubInitialState message)
+        private static void SendProvideIdToSpecificPeer(NetPeer peer, SerializableBasis.CustomServerDataProvideChannelId message)
         {
             NetDataWriter writer = NetworkServer.RentWriter();
-            writer.Put(subType);
-            
+            writer.Put(BasisNetworkCommons.CustomServerData_ProvideChannelId);
             message.Serialize(writer);
-            
-            peer.Send(writer, BasisNetworkCommons.PubSubChannel, DeliveryMethod.ReliableOrdered);
+            peer.Send(writer, BasisNetworkCommons.CustomServerDataChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        private static void SendInitialStateToSpecificPeer(NetPeer peer, SerializableBasis.CustomServerDataInitialState message)
+        {
+            NetDataWriter writer = NetworkServer.RentWriter();
+            writer.Put(BasisNetworkCommons.CustomServerData_InitialState);
+            message.Serialize(writer);
+            peer.Send(writer, BasisNetworkCommons.CustomServerDataChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
     }

@@ -64,8 +64,18 @@ public class CustomServerDataTests
 
         BasisNetworkHandleCustomServerData.HandleSubscribeRequest(peer, request);
 
+        // Verify ProvideChannelId sent first
+        var provideIdMessage = peer.Sent.FirstOrDefault(s => s.Data[0] == BasisNetworkCommons.CustomServerData_ProvideChannelId);
+        Assert.NotNull(provideIdMessage);
+        var provideIdReader = new NetDataReader(provideIdMessage.Data);
+        Assert.Equal(BasisNetworkCommons.CustomServerData_ProvideChannelId, provideIdReader.GetByte());
+        var provideIdResponse = new CustomServerDataProvideChannelId();
+        Assert.True(provideIdResponse.Deserialize(provideIdReader));
+        Assert.Equal(channelName, provideIdResponse.ChannelName);
+        ushort assignedId = provideIdResponse.ChannelId;
+
         // Verify initial state sent
-        var sentMessage = peer.Sent.FirstOrDefault(s => s.Channel == BasisNetworkCommons.CustomServerDataChannel);
+        var sentMessage = peer.Sent.FirstOrDefault(s => s.Data[0] == BasisNetworkCommons.CustomServerData_InitialState);
         Assert.NotNull(sentMessage);
 
         var reader = new NetDataReader(sentMessage.Data);
@@ -73,7 +83,7 @@ public class CustomServerDataTests
         
         var response = new CustomServerDataInitialState();
         Assert.True(response.Deserialize(reader));
-        Assert.Equal(channelName, response.ChannelName);
+        Assert.Equal(assignedId, response.ChannelId);
         Assert.Equal(initialState, response.Data);
         Assert.Equal(requestId, response.RequestID);
 
