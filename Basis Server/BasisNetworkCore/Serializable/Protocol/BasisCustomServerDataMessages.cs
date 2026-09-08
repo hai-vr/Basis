@@ -56,16 +56,24 @@ public static partial class SerializableBasis
     {
         public string ChannelName;
         public ushort ChannelId;
+        public Guid RequestID;
 
         public void Serialize(NetDataWriter writer)
         {
             writer.Put(ChannelName);
             writer.Put(ChannelId);
+            writer.Put(RequestID);
         }
 
         public bool Deserialize(NetDataReader reader)
         {
-            return reader.TryGetString(out ChannelName) && reader.TryGetUShort(out ChannelId);
+            if (reader.TryGetString(out ChannelName) && reader.TryGetUShort(out ChannelId) && reader.AvailableBytes >= 16)
+            {
+                RequestID = reader.GetGuid();
+                return true;
+            }
+
+            return false;
         }
     }
 
