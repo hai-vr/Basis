@@ -1095,6 +1095,8 @@ namespace Basis.Network.Core
         public const byte CustomServerData_Message = 3;
         /// <summary>Server sends a PubSub initial state to the Client.</summary>
         public const byte CustomServerData_InitialState = 4;
+        /// <summary>Server sends a mapping of channel name to ushort ID to the Client.</summary>
+        public const byte CustomServerData_ProvideChannelId = 5;
 
         /// <summary>Storage management channel.</summary>
         public const byte StorageChannel = 32;
