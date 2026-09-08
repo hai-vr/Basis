@@ -21,8 +21,10 @@ namespace Basis.Shims
     /// </summary>
     public class BasisCustomServerDataSubscriberShim
     {
-        private readonly Dictionary<string, Guid> _subscriptions = new();
-        private readonly Dictionary<ushort, string> _idToChannel = new();
+        private readonly Dictionary<string, Guid> _channelPatternToRequestIdDict = new();
+        private readonly Dictionary<ushort, string> _idToChannelNameDict = new();
+        private readonly Dictionary<Guid, HashSet<string>> _requestIdToChannelNames = new();
+        private readonly Dictionary<string, int> _acceptedChannelNames = new();
         private bool _isHooked;
 
         public delegate void InitialStateReceivedDelegate(string channelName, byte[] data);
@@ -50,7 +52,27 @@ namespace Basis.Shims
                     var provideId = new SerializableBasis.CustomServerDataProvideChannelId();
                     if (provideId.Deserialize(reader))
                     {
-                        _idToChannel[provideId.ChannelId] = provideId.ChannelName;
+                        _idToChannelNameDict[provideId.ChannelId] = provideId.ChannelName;
+                        if (_requestIdToChannelNames.ContainsKey(provideId.RequestID))
+                        {
+                            if (_requestIdToChannelNames.TryGetValue(provideId.RequestID, out HashSet<string> channelNames))
+                            {
+                                channelNames.Add(provideId.ChannelName);
+                            }
+                            else
+                            {
+                                _requestIdToChannelNames.Add(provideId.RequestID, new HashSet<string> { provideId.ChannelName });
+                            }
+                            
+                            if (_acceptedChannelNames.TryGetValue(provideId.ChannelName, out int count))
+                            {
+                                _acceptedChannelNames[provideId.ChannelName] = count + 1;
+                            }
+                            else
+                            {
+                                _acceptedChannelNames.Add(provideId.ChannelName, 1);
+                            }
+                        }
                     }
                 }
                 else if (subType == BasisNetworkCommons.CustomServerData_Message)
@@ -58,7 +80,7 @@ namespace Basis.Shims
                     var msg = new SerializableBasis.CustomServerDataMessage();
                     if (msg.Deserialize(reader))
                     {
-                        if (_idToChannel.TryGetValue(msg.ChannelId, out string channelName) && _subscriptions.ContainsKey(channelName))
+                        if (_idToChannelNameDict.TryGetValue(msg.ChannelId, out string channelName) && _acceptedChannelNames.ContainsKey(channelName))
                         {
                             MessageReceived?.Invoke(channelName, msg.Data);
                         }
@@ -69,7 +91,7 @@ namespace Basis.Shims
                     var initialState = new SerializableBasis.CustomServerDataInitialState();
                     if (initialState.Deserialize(reader))
                     {
-                        if (_idToChannel.TryGetValue(initialState.ChannelId, out string channelName) && _subscriptions.ContainsKey(channelName))
+                        if (_idToChannelNameDict.TryGetValue(initialState.ChannelId, out string channelName) && _acceptedChannelNames.ContainsKey(channelName))
                         {
                             InitialStateReceived?.Invoke(channelName, initialState.Data);
                         }
@@ -84,19 +106,22 @@ namespace Basis.Shims
         }
 
         /// <summary>
-        /// Subscribes to a CustomServerData channel.<br/>
+        /// Subscribes to a CustomServerData channel or pattern.<br/>
         /// <br/>
         /// Channels can only be subscribed to once per instance of the shim.<br/>
         /// When subscribing, the InitialStateReceived will trigger if that channel provides an initial state.<br/>
         /// Multiple props can subscribe to the same channel:<br/>
         /// - Each prop may receive a different initial state, depending on when that prop subscribes.<br/>
-        /// - Non-initial state messages are sent from the server to the user once, and then dispatched to all the shims that require it.
+        /// - Non-initial state messages are sent from the server to the user once, and then dispatched to all the shims that require it.<br/>
+        /// <br/>
+        /// Patterns only work if the channel name starts with a forward slash (/), otherwise, it is not considered to be a pattern,
+        /// and the wildcards will be treated as normal characters.
         /// </summary>
-        /// <param name="channelName">Name of the CustomServerData channel</param>
-        public void Subscribe(string channelName)
+        /// <param name="channelPattern">Name of the CustomServerData channel</param>
+        public void Subscribe(string channelPattern)
         {
-            if (string.IsNullOrEmpty(channelName)) return;
-            if (_subscriptions.TryGetValue(channelName, out _)) return;
+            if (string.IsNullOrEmpty(channelPattern)) return;
+            if (_channelPatternToRequestIdDict.TryGetValue(channelPattern, out _)) return;
 
             if (!_isHooked)
             {
@@ -105,11 +130,12 @@ namespace Basis.Shims
             }
 
             Guid requestID = Guid.NewGuid();
-            _subscriptions[channelName] = requestID;
+            _channelPatternToRequestIdDict[channelPattern] = requestID;
+            _requestIdToChannelNames[requestID] = new HashSet<string> { channelPattern };
 
             var request = new SerializableBasis.CustomServerDataSubscribeRequest
             {
-                ChannelName = channelName,
+                ChannelPattern = channelPattern,
                 RequestID = requestID
             };
 
@@ -121,17 +147,19 @@ namespace Basis.Shims
         }
 
         /// <summary>
-        /// Unsubscribes from a CustomServerData channel.
+        /// Unsubscribes from the exact channel or pattern originally subscribed to.<br/>
+        /// <br/>
+        /// If you have originally subscribed using a pattern, you cannot unsubscribe from its individual channels.
         /// </summary>
-        /// <param name="channelName"></param>
-        public void Unsubscribe(string channelName)
+        /// <param name="channelPattern"></param>
+        public void Unsubscribe(string channelPattern)
         {
-            if (string.IsNullOrEmpty(channelName)) return;
-            if (!_subscriptions.TryGetValue(channelName, out Guid requestID)) return;
+            if (string.IsNullOrEmpty(channelPattern)) return;
+            if (!_channelPatternToRequestIdDict.TryGetValue(channelPattern, out Guid requestID)) return;
 
             var request = new SerializableBasis.CustomServerDataUnsubscribeRequest
             {
-                ChannelName = channelName,
+                ChannelPattern = channelPattern,
                 RequestID = requestID
             };
 
@@ -140,9 +168,27 @@ namespace Basis.Shims
             request.Serialize(writer);
 
             BasisNetworkConnection.LocalPlayerPeer?.Send(writer, BasisNetworkCommons.CustomServerDataChannel, DeliveryMethod.ReliableOrdered);
-            _subscriptions.Remove(channelName);
+            _channelPatternToRequestIdDict.Remove(channelPattern);
+            if (_requestIdToChannelNames.TryGetValue(requestID, out HashSet<string> channelNames))
+            {
+                foreach (var name in channelNames)
+                {
+                    if (_acceptedChannelNames.TryGetValue(name, out int count))
+                    {
+                        if (count <= 1)
+                        {
+                            _acceptedChannelNames.Remove(name);
+                        }
+                        else
+                        {
+                            _acceptedChannelNames[name] = count - 1;
+                        }
+                    }
+                }
+                _requestIdToChannelNames.Remove(requestID);
+            }
             
-            if (_subscriptions.Count == 0)
+            if (_channelPatternToRequestIdDict.Count == 0)
             {
                 BasisNetworkHandleCustomServerData.OnCustomServerDataMessageReceived -= OnCustomServerDataMessageReceived;
                 _isHooked = false;
@@ -154,7 +200,7 @@ namespace Basis.Shims
         /// </summary>
         public void UnsubscribeAll()
         {
-            List<string> channels = new List<string>(_subscriptions.Keys);
+            List<string> channels = new List<string>(_channelPatternToRequestIdDict.Keys);
             foreach (var channel in channels)
             {
                 Unsubscribe(channel);
