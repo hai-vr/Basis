@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace BasisNetworkServer.BasisNetworking
 {
-    public sealed class HelloWorldPubSub : IPubSubDataProvider
+    public sealed class HelloWorldPubSub : IBasisCustomServerDataPublisher
     {
         private const string ChannelName = "hello.world";
         private static HelloWorldPubSub _instance;
@@ -31,7 +31,7 @@ namespace BasisNetworkServer.BasisNetworking
         {
             _running = true;
             _counter = 0;
-            BasisNetworkHandlePubSub.RegisterChannel(ChannelName, this);
+            BasisNetworkHandleCustomServerData.RegisterChannel(ChannelName, this);
             _worker = new Thread(Run)
             {
                 Name = "HelloWorldPubSub",
@@ -44,7 +44,7 @@ namespace BasisNetworkServer.BasisNetworking
         {
             _running = false;
             _worker?.Join(100);
-            BasisNetworkHandlePubSub.UnregisterChannel(ChannelName);
+            BasisNetworkHandleCustomServerData.UnregisterChannel(ChannelName);
         }
 
         private void Run()
@@ -58,7 +58,7 @@ namespace BasisNetworkServer.BasisNetworking
                     {
                         Array.Reverse(data);
                     }
-                    BasisNetworkHandlePubSub.Publish(ChannelName, data);
+                    BasisNetworkHandleCustomServerData.Publish(ChannelName, data);
                     _counter++;
                 }
                 catch (Exception ex)
