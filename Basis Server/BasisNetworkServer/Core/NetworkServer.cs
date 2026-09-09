@@ -136,6 +136,7 @@ public static class NetworkServer
         BasisNetworkUdpDropMonitor.Start();
         BasisServerMemoryReclaim.Start();
         BasisNetworkServer.BasisNetworking.HelloWorldPubSub.Start();
+        BasisNetworkServer.Networking.HVREventLog.Rec_ServerStarted();
         BasisNetworkContentShare.StartExpiry();
 
         BNL.Log("Server Worker Threads Booted");

@@ -79,6 +79,18 @@ namespace BasisNetworkServer.Networking
             LogEvent(peer, "UserLeft");
         }
 
+        public static void Rec_ServerStarted()
+        {
+            WriteDataToFile(new LogEntry
+            {
+                Timestamp = DateTime.UtcNow.ToString("o"),
+                EventType = "ServerStarted",
+                FullName = null,
+                SimplifiedName = null,
+                DID = null
+            });
+        }
+
         private static void LogEvent(NetPeer peer, string eventType)
         {
             try
@@ -102,13 +114,18 @@ namespace BasisNetworkServer.Networking
                     DID = did
                 };
 
-                string jsonLine = JsonSerializer.Serialize(entry);
-                File.AppendAllLines(LogFilePath, new[] { jsonLine });
+                WriteDataToFile(entry);
             }
             catch (Exception ex)
             {
                 BNL.LogError($"Failed to write to event log: {ex.Message}");
             }
+        }
+
+        private static void WriteDataToFile(LogEntry entry)
+        {
+            string jsonLine = JsonSerializer.Serialize(entry);
+            File.AppendAllLines(LogFilePath, new[] { jsonLine });
         }
     }
 }
