@@ -129,7 +129,7 @@ namespace HVR.Basis.NDMF
             var allJiggleRig = root.GetComponentsInChildren<JiggleRig>(true);
             foreach (var jiggleRig in allJiggleRig)
             {
-                foreach (JiggleColliderSerializable colliderSer in jiggleRig.GetJiggleRigData().jiggleColliders)
+                foreach (var colliderSer in jiggleRig.GetJiggleRigData().jiggleColliders)
                 {
                     var collider = colliderSer.collider;
 
@@ -140,7 +140,6 @@ namespace HVR.Basis.NDMF
                         {
                             var portable = jiggleRig.gameObject.AddComponent<PortableDynamicBoneCollider>();
                             equalityCheckToPortableCollider[key] = portable;
-                        
                             portable.ColliderType = collider.type switch
                             {
                                 JiggleCollider.JiggleColliderType.Sphere => PortableDynamicColliderType.Sphere,
@@ -150,7 +149,20 @@ namespace HVR.Basis.NDMF
                             portable.Radius = collider.worldRadius;
                             portable.Height = collider.worldHeight;
                             portable.PositionOffset = collider.localOffset;
-                            portable.RotationOffset = Quaternion.identity;
+                            if (collider.type == JiggleCollider.JiggleColliderType.Capsule && collider.capsuleAxis != JiggleCollider.CapsuleAxis.Y)
+                            {
+                                portable.RotationOffset = collider.capsuleAxis switch
+                                {
+                                    JiggleCollider.CapsuleAxis.X => Quaternion.Euler(0f, 0f, 90f),
+                                    JiggleCollider.CapsuleAxis.Z => Quaternion.Euler(90f, 0f, 0f),
+                                    _ => Quaternion.identity
+                                };
+                            }
+                            else
+                            {
+                                portable.RotationOffset = Quaternion.identity;
+                            }
+
                             portable.InsideBounds = false;
                         }
                     }
