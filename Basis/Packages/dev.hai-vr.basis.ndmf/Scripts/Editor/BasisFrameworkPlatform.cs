@@ -133,23 +133,26 @@ namespace HVR.Basis.NDMF
                 {
                     var collider = colliderSer.collider;
 
-                    var key = ToEqualityCheck(collider);
-                    if (!equalityCheckToPortableCollider.ContainsKey(key))
+                    if (colliderSer.transform != null)
                     {
-                        var portable = jiggleRig.gameObject.AddComponent<PortableDynamicBoneCollider>();
-                        equalityCheckToPortableCollider[key] = portable;
-                        
-                        portable.ColliderType = collider.type switch
+                        var key = ToEqualityCheck(colliderSer.transform, collider);
+                        if (!equalityCheckToPortableCollider.ContainsKey(key))
                         {
-                            JiggleCollider.JiggleColliderType.Sphere => PortableDynamicColliderType.Sphere,
-                            JiggleCollider.JiggleColliderType.Capsule => PortableDynamicColliderType.Capsule,
-                            _ => PortableDynamicColliderType.Sphere
-                        };
-                        portable.Radius = collider.worldRadius;
-                        portable.Height = collider.worldHeight;
-                        portable.PositionOffset = collider.localOffset;
-                        portable.RotationOffset = Quaternion.identity;
-                        portable.InsideBounds = false;
+                            var portable = jiggleRig.gameObject.AddComponent<PortableDynamicBoneCollider>();
+                            equalityCheckToPortableCollider[key] = portable;
+                        
+                            portable.ColliderType = collider.type switch
+                            {
+                                JiggleCollider.JiggleColliderType.Sphere => PortableDynamicColliderType.Sphere,
+                                JiggleCollider.JiggleColliderType.Capsule => PortableDynamicColliderType.Capsule,
+                                _ => PortableDynamicColliderType.Sphere
+                            };
+                            portable.Radius = collider.worldRadius;
+                            portable.Height = collider.worldHeight;
+                            portable.PositionOffset = collider.localOffset;
+                            portable.RotationOffset = Quaternion.identity;
+                            portable.InsideBounds = false;
+                        }
                     }
                 }
             }
@@ -170,7 +173,11 @@ namespace HVR.Basis.NDMF
                 portable.IgnoreTransforms.WeakSet(jrData.excludedTransforms.Where(transform => transform != null).ToList());
                 
                 portable.Root = rootBone;
-                portable.Colliders.WeakSet(jrData.jiggleColliders.Select(c => equalityCheckToPortableCollider[ToEqualityCheck(c.collider)]).ToList());
+                portable.Colliders.WeakSet(jrData.jiggleColliders
+                    .Where(cSer => cSer.transform != null)
+                    .Select(cSer => equalityCheckToPortableCollider.GetValueOrDefault(ToEqualityCheck(cSer.transform, cSer.collider)))
+                    .Where(cCheck => cCheck != null)
+                    .ToList());
                 portable.IgnoreMultiChild.WeakSet(jrData.excludeRoot); // TODO: Is this the correct thing?
 
                 if (jrCollisionRadius.curveEnabled)
@@ -182,6 +189,8 @@ namespace HVR.Basis.NDMF
         
         private struct ColliderEqualityCheck : IEquatable<ColliderEqualityCheck>
         {
+            public Transform root;
+            
             public bool enabled;
             public JiggleCollider.JiggleColliderType type;
             public float radius;
@@ -193,7 +202,7 @@ namespace HVR.Basis.NDMF
 
             public bool Equals(ColliderEqualityCheck other)
             {
-                return enabled == other.enabled && type == other.type && radius.Equals(other.radius) && worldRadius.Equals(other.worldRadius) && height.Equals(other.height) && worldHeight.Equals(other.worldHeight) && capsuleAxis == other.capsuleAxis && localOffset.Equals(other.localOffset);
+                return Equals(root, other.root) && enabled == other.enabled && type == other.type && radius.Equals(other.radius) && worldRadius.Equals(other.worldRadius) && height.Equals(other.height) && worldHeight.Equals(other.worldHeight) && capsuleAxis == other.capsuleAxis && localOffset.Equals(other.localOffset);
             }
 
             public override bool Equals(object obj)
@@ -205,7 +214,8 @@ namespace HVR.Basis.NDMF
             {
                 unchecked
                 {
-                    var hashCode = enabled.GetHashCode();
+                    var hashCode = (root != null ? root.GetHashCode() : 0);
+                    hashCode = (hashCode * 397) ^ enabled.GetHashCode();
                     hashCode = (hashCode * 397) ^ (int)type;
                     hashCode = (hashCode * 397) ^ radius.GetHashCode();
                     hashCode = (hashCode * 397) ^ worldRadius.GetHashCode();
@@ -218,10 +228,11 @@ namespace HVR.Basis.NDMF
             }
         }
 
-        private static ColliderEqualityCheck ToEqualityCheck(JiggleCollider collider)
+        private static ColliderEqualityCheck ToEqualityCheck(Transform root, JiggleCollider collider)
         {
             return new ColliderEqualityCheck
             {
+                root = root,
                 enabled = collider.enabled,
                 type = collider.type,
                 radius = collider.radius,
