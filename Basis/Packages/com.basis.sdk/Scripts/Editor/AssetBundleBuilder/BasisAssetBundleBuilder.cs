@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -33,13 +34,16 @@ public static class AssetBundleBuilder
         };
 
         AssetBundleManifest manifest;
+        CultureInfo previousCulture = CultureInfo.CurrentCulture;
         BasisBundleShaderStripScope.Begin(contentKind, settings, buildTarget);
         try
         {
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
             manifest = BuildPipeline.BuildAssetBundles(BABP);
         }
         finally
         {
+            CultureInfo.CurrentCulture = previousCulture;
             BasisBundleShaderStripScope.End(assetBundleName);
         }
 

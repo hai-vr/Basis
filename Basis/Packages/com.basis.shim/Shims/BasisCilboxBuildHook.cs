@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk;
 using Cilbox;
@@ -79,7 +80,16 @@ public class BasisCilboxBuildHook
                 return;
             }
 
-            CilboxScenePostprocessor.OnPostprocessScene(temporaryScene);
+            CultureInfo previousCulture = CultureInfo.CurrentCulture;
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            try
+            {
+                CilboxScenePostprocessor.OnPostprocessScene(temporaryScene);
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = previousCulture;
+            }
             EnsureTemporarySceneHasAssemblyData(temporarySceneCilbox, cilboxAssemblySnapshot);
             RebindProxiesToTemporarySceneCilbox(prefabRoot, temporarySceneCilbox);
             RestoreExternalCilboxAssemblyData(cilboxAssemblySnapshot, temporaryScene);

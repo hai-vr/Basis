@@ -226,8 +226,15 @@ namespace Basis.Scripts.Device_Management
 
         #region Unity Lifecycle
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void UseInvariantCulture()
+        {
+            CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        }
+
         /// <summary>
-        /// Unity start hook. Ensures singleton, sets culture to invariant, and kicks off <see cref="Initialize"/>.
+        /// Unity start hook. Ensures singleton and kicks off <see cref="Initialize"/>.
         /// </summary>
         private async void Start()
         {
@@ -241,7 +248,6 @@ namespace Basis.Scripts.Device_Management
             BasisGpuDetection.Initialize();
 
             StaticCurrentMode = BasisConstants.None;
-            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
             try
             {
                 BasisSettingsSystem.Initialize();
