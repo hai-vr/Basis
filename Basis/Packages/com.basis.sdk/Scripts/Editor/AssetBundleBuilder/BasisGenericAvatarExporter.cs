@@ -34,6 +34,7 @@ public static class BasisGenericAvatarExporter
         {
             clone.name = sourceAvatar.gameObject.name;
             BasisAssetBundlePipeline.DestroyEditorOnlyInAvatar(clone);
+            BasisAssetBundlePipeline.OnBeforeBuildPrefab?.Invoke(clone, settings);
             BasisAssetBundlePipeline.PostProcessAvatar(clone);
             // Skeleton rebuild and mesh lookup on the importing client are name-based, and
             // glTF nodes have no other stable identity — names must be unique before capture.

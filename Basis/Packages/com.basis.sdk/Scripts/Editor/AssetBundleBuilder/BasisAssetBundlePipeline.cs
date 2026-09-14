@@ -33,9 +33,9 @@ public static class BasisAssetBundlePipeline
         return BasisBundleContentKind.Prop;
     }
      public static async Task<(bool, BasisBundleBuild.BasisBundleBuildResult)>
-    BuildAssetBundle(GameObject originalPrefab, BasisAssetBundleObject settings, string Password, BuildTarget Target, string buildId)
+    BuildAssetBundle(GameObject originalPrefab, BasisAssetBundleObject settings, string Password, BuildTarget Target, string buildId, bool bakeFarLod = false)
     {
-        return await BuildAssetBundle(false, originalPrefab, new Scene(), settings, Password, Target, buildId);
+        return await BuildAssetBundle(false, originalPrefab, new Scene(), settings, Password, Target, buildId, bakeFarLod);
     }
 
     public static async Task<(bool, BasisBundleBuild.BasisBundleBuildResult)>
@@ -51,7 +51,8 @@ public static class BasisAssetBundlePipeline
       BasisAssetBundleObject settings,
       string Password,
       BuildTarget Target,
-      string Folder)
+      string Folder,
+      bool bakeFarLod = false)
     {
         if (EditorUserBuildSettings.activeBuildTarget != Target)
         {
@@ -68,6 +69,8 @@ public static class BasisAssetBundlePipeline
         string uniqueID = null;
         GameObject prefab = null;
         BasisSceneBuildName sceneBuildName = null;
+        string farLodBase64 = null;
+        BasisBundleContentKind contentKind = ResolveContentKind(isScene, asset);
 
         try
         {
@@ -103,6 +106,10 @@ public static class BasisAssetBundlePipeline
                 OnBeforeBuildPrefab?.Invoke(prefab, settings);
                 PostProcessAvatar(prefab);
                 meta = BasisBundleBuild.GenerateMetaData(prefab);
+                if (bakeFarLod && contentKind == BasisBundleContentKind.Avatar)
+                {
+                    farLodBase64 = BasisBundleBuild.GenerateFarLod(prefab);
+                }
 
                 assetPath = TemporaryStorageHandler.SavePrefabToTemporaryStorage(prefab, settings, ref wasModified, out uniqueID);
 
@@ -129,7 +136,7 @@ public static class BasisAssetBundlePipeline
                     isScene ? BasisBundleConnector.SceneAssetMode : BasisBundleConnector.GameObjectAssetMode,
                     Password,
                     Target,
-                    ResolveContentKind(isScene, asset));
+                    contentKind);
 
             TemporaryStorageHandler.ClearTemporaryStorage(settings.TemporaryStorage);
             AssetDatabase.Refresh();
@@ -146,7 +153,7 @@ public static class BasisAssetBundlePipeline
                 PlayerSettings.SetScriptingBackend(namedBuildTarget, ScriptingImplementation.Mono2x);
             }
 
-            return new(true, new BasisBundleBuild.BasisBundleBuildResult(value.Item1, value.Item2, meta));
+            return new(true, new BasisBundleBuild.BasisBundleBuildResult(value.Item1, value.Item2, meta, farLodBase64));
         }
         catch (Exception ex)
         {
