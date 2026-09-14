@@ -86,6 +86,7 @@ namespace Basis.BasisUI
         private List<string> _stackIds;
         private List<string> _stackDisplayNames;
         private PanelTextField _usernameField;
+        private string _savedUsername;
         private ServerDirectoryEntry _pendingUsernameEntry;
         private bool _pendingUsernameHostMode;
         private PanelButton _addServerButton;
@@ -160,6 +161,8 @@ namespace Basis.BasisUI
 
         private void OnPanelClosed()
         {
+            if (_usernameField != null) PersistUsername(_usernameField._inputField.text);
+            _usernameField = null;
             _queryCts?.Cancel();
             _queryCts = null;
             _cards.Clear();
@@ -255,13 +258,15 @@ namespace Basis.BasisUI
         {
             _usernameField = PanelTextField.CreateNewEntry(container);
             _usernameField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.username"));
-            _usernameField.SetValueWithoutNotify(BasisDataStore.LoadString(BasisConnectionService.UsernameFileName, string.Empty));
+            _savedUsername = BasisDataStore.LoadString(BasisConnectionService.UsernameFileName, string.Empty);
+            _usernameField.SetValueWithoutNotify(_savedUsername);
             if (_usernameField._placeholderLabel != null)
                 _usernameField._placeholderLabel.text = BasisLocalization.Get("menu.servers.username.hint");
             // Graded on open: with no name you cannot connect to anything, so a blank one on first
             // run is already-broken state rather than a box the user has yet to get to.
             _usernameField.SetRequired(BasisLocalization.Get("ui.validation.requiredNamed",
                 BasisLocalization.Get("menu.servers.username")));
+            _usernameField.OnValueChanged = PersistUsername;
             _usernameField._inputField.onSubmit.AddListener(_ => OnUsernameSubmitted());
 
             RectTransform headerActions = PanelElementDescriptor.BuildActionRow(container, "ServerRowActions");
@@ -1649,6 +1654,7 @@ namespace Basis.BasisUI
                 return;
             }
             _pendingUsernameEntry = null;
+            PersistUsername(userName);
 
             // The last probe of this row said the server is crowded → offer the performance
             // preset before committing to the connection. Each prompt choice re-enters this
@@ -1772,6 +1778,15 @@ namespace Basis.BasisUI
             bool isHostMode = _pendingUsernameHostMode;
             _pendingUsernameEntry = null;
             _ = ConnectToAsync(entry, isHostMode);
+        }
+
+        private void PersistUsername(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            string trimmed = value.Trim();
+            if (string.Equals(trimmed, _savedUsername, StringComparison.Ordinal)) return;
+            _savedUsername = trimmed;
+            BasisDataStore.SaveString(trimmed, BasisConnectionService.UsernameFileName);
         }
 
 

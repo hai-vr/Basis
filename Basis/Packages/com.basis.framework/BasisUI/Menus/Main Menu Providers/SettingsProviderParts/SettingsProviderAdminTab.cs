@@ -1073,7 +1073,7 @@ namespace Basis.BasisUI
                 BundledContentHolder.Mode detected;
                 try
                 {
-                    detected = await LibraryProvider.TryDetectModeFromUrl(url, password);
+                    detected = (await LibraryProvider.TryDetectModeFromUrl(url, password)).Mode;
                 }
                 catch (Exception ex)
                 {

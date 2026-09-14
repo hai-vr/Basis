@@ -607,6 +607,20 @@ namespace Basis.Scripts.UI.NamePlate
             }
         }
 
+        public static void RebakeNamePlate(BasisRemotePlayer remotePlayer)
+        {
+            if (remotePlayer == null) return;
+            var arr = plates;
+            int n = count;
+            for (int i = 0; i < n; i++)
+            {
+                BasisRemoteNamePlate plate = arr[i];
+                if (plate == null || plate.BasisRemotePlayer != remotePlayer) continue;
+                QueueTextBake(remotePlayer, plate);
+                return;
+            }
+        }
+
         public static void GenerateTextFactory(BasisRemotePlayer remotePlayer, BasisRemoteNamePlate namePlate)
         {
             // Both halves are required: stripping alone leaves TMP parsing what the strip missed,

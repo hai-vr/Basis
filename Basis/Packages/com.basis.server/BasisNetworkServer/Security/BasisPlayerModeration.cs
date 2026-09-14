@@ -368,6 +368,11 @@ namespace BasisNetworkServer.Security
                         SendBackMessage(peer, BasisPlayerMuteManager.Apply(reader.GetString(), voice: false, reader.GetBool())));
                     break;
 
+                case AdminRequestMode.RenamePlayer:
+                    Require(peer, PermNodes.ModerationRename, () =>
+                        HandleRenamePlayer(peer, reader));
+                    break;
+
                 case AdminRequestMode.ForceAvatar:
                     Require(peer, PermNodes.ModerationForceAvatar, () =>
                         HandleForceAvatar(peer, reader));
@@ -987,6 +992,48 @@ namespace BasisNetworkServer.Security
             bool enable = reader.GetBool();
             BasisNetworkServer.BasisNetworkingReductionSystem.BasisServerReductionSystemEvents.SetBypassReduction(id, enable);
             SendBackMessage(peer, $"Full-quality broadcast {(enable ? "ENABLED" : "DISABLED")} for player {id}.");
+        }
+
+        private static void HandleRenamePlayer(NetPeer peer, NetPacketReader reader)
+        {
+            ushort targetId = reader.GetUShort();
+            string newName = BasisDisplayNameSanitizer.Sanitize(reader.GetString());
+
+            if (string.IsNullOrEmpty(newName))
+            {
+                SendBackMessage(peer, "Name invalid");
+                return;
+            }
+
+            if (!NetworkServer.AuthenticatedPeers.TryGetValue(targetId, out NetPeer targetPeer))
+            {
+                SendBackMessage(peer, "Player not found");
+                return;
+            }
+
+            bool hasUuid = NetworkServer.AuthIdentity.NetIDToUUID(targetPeer, out string targetUUID);
+            if (targetPeer.Id != peer.Id && hasUuid && IsProtected(targetUUID))
+            {
+                SendBackMessage(peer, "Target is protected");
+                return;
+            }
+
+            Basis.Network.Server.Generic.BasisSavedState.SetDisplayName(targetPeer.Id, newName);
+            if (hasUuid && PermissionIntegration.TryGetPlayerMeta(targetUUID, out var meta))
+            {
+                meta.playerDisplayName = newName;
+                PermissionIntegration.StorePlayerMeta(targetUUID, meta);
+            }
+
+            var writer = NetworkServer.RentWriter();
+            new AdminRequest().Serialize(writer, AdminRequestMode.RenamePlayer);
+            writer.Put(targetId);
+            writer.Put(newName);
+            writer.Put((ushort)peer.Id);
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.AdminChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+
+            SendBackMessage(peer, $"Player {targetId} renamed to '{newName}'.");
         }
 
         /// <summary>

@@ -455,6 +455,8 @@ namespace Basis.BasisUI
                 BasisNetworkPlayer.OnRemotePlayerJoined += OnRemotePlayersChanged;
                 BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayersChanged;
                 BasisNetworkPlayer.OnRemotePlayerLeft += OnRemotePlayersChanged;
+                BasisNetworkModeration.OnPlayerRenamed -= OnPlayerRenamed;
+                BasisNetworkModeration.OnPlayerRenamed += OnPlayerRenamed;
                 RebuildPlayerList();
                 Flush();
             }
@@ -465,18 +467,26 @@ namespace Basis.BasisUI
                 BasisNotificationCenter.EndForcedScope();
                 BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayersChanged;
                 BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayersChanged;
+                BasisNetworkModeration.OnPlayerRenamed -= OnPlayerRenamed;
             }
 
             private void OnDestroy()
             {
                 BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayersChanged;
                 BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayersChanged;
+                BasisNetworkModeration.OnPlayerRenamed -= OnPlayerRenamed;
                 ClearAllCards();
             }
 
             private void OnRemotePlayersChanged(BasisNetworkPlayer _p1, BasisRemotePlayer _p2)
             {
                 if (!BasisSettingsDefaults.AdminAutoRefreshPlayerList.RawValue) return;
+                RebuildPlayerList();
+            }
+
+            private void OnPlayerRenamed(ushort playerId, string newName)
+            {
+                _filterDirty = true;
                 RebuildPlayerList();
             }
 
@@ -1062,6 +1072,25 @@ namespace Basis.BasisUI
                 {
                     if (TryResolveTarget(out BasisNetworkPlayer target))
                         BasisNetworkModeration.SendMessage(target.playerId, Reason());
+                });
+
+                PanelTextField renameField = PanelTextField.CreateNewEntry(content);
+                renameField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.renameField"));
+                renameField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.renameField.tooltip"));
+                if (player != null && player.Player != null)
+                    renameField.SetValueWithoutNotify(player.Player.DisplayName);
+
+                RectTransform renameRow = PanelElementDescriptor.BuildActionRow(content, "RenameRow");
+                RowButton(renameRow, "settings.admin.rename", "settings.admin.confirm.rename", () =>
+                {
+                    string newName = renameField.Value;
+                    if (string.IsNullOrWhiteSpace(newName))
+                    {
+                        BasisDebug.LogError("Name is empty.");
+                        return;
+                    }
+                    if (TryResolveTarget(out BasisNetworkPlayer target))
+                        BasisNetworkModeration.RenamePlayer(target.playerId, newName);
                 });
 
                 RectTransform announceRow = PanelElementDescriptor.BuildActionRow(content, "AnnounceRow");

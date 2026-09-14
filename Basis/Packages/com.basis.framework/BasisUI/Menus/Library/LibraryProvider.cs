@@ -391,9 +391,9 @@ namespace Basis.BasisUI
         /// in-game add dialog, the BEE drop and the admin "default library" add UI so they share
         /// one detection path.
         /// </summary>
-        public static async Task<BundledContentHolder.Mode> TryDetectModeFromUrl(string url, string password)
+        public static async Task<(BundledContentHolder.Mode Mode, BasisMetaLoadResult Meta)> TryDetectModeFromUrl(string url, string password)
         {
-            if (string.IsNullOrWhiteSpace(url)) return BundledContentHolder.Mode.Legacy;
+            if (string.IsNullOrWhiteSpace(url)) return (BundledContentHolder.Mode.Legacy, default(BasisMetaLoadResult));
 
             BasisDataStoreItemKeys.ItemKey tempItem = new BasisDataStoreItemKeys.ItemKey
             {
@@ -406,21 +406,21 @@ namespace Basis.BasisUI
             BasisProgressReport report = new BasisProgressReport();
             using CancellationTokenSource cts = new CancellationTokenSource();
 
-            bool isValid;
+            BasisMetaLoadResult meta;
             try
             {
-                isValid = await BasisBeeManagement.HandleMetaOnlyLoad(tempWrapper.basisTrackedBundleWrapper, report, cts.Token);
+                meta = await BasisBeeManagement.HandleMetaOnlyLoad(tempWrapper.basisTrackedBundleWrapper, report, cts.Token);
             }
             catch (Exception e)
             {
                 BasisDebug.LogWarning($"TryDetectModeFromUrl: meta-only load threw for {url}: {e.Message}");
-                return BundledContentHolder.Mode.Legacy;
+                return (BundledContentHolder.Mode.Legacy, default(BasisMetaLoadResult));
             }
 
-            if (!isValid) return BundledContentHolder.Mode.Legacy;
+            if (!meta.Loaded) return (BundledContentHolder.Mode.Legacy, meta);
 
             BasisLoadableBundleWrapper loaded = await LoadWrapperFromDisc(tempItem, tempWrapper);
-            return ResolveModeFromConnector(loaded?.BasisLoadableBundle?.BasisBundleConnector);
+            return (ResolveModeFromConnector(loaded?.BasisLoadableBundle?.BasisBundleConnector), meta);
         }
 
         /// <summary>

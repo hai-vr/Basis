@@ -38,6 +38,28 @@ namespace Basis.BasisUI
             PasswordTextField._inputField.interactable = !activeDialog.IsBusy;
         }
 
+        private static string DescribeUnreachable(string url, string error)
+        {
+            string host = Uri.TryCreate(url, UriKind.Absolute, out Uri uri) ? uri.Host : url;
+            error ??= string.Empty;
+            if (error.IndexOf("Unable to complete SSL connection", StringComparison.OrdinalIgnoreCase) >= 0)
+                return Basis.BasisUI.BasisLocalization.Get("library.dialog.add.error.tlsHandshake", host);
+            string blocked = Between(error, "resolves to a blocked address (", ").");
+            if (blocked != null)
+                return Basis.BasisUI.BasisLocalization.Get("library.dialog.add.error.blockedAddress", Between(error, "host '", "'") ?? host, blocked);
+            string reason = Between(error, "could not be validated (", ").") ?? Between(error, "Network error: ", ". Accept-Ranges=") ?? error;
+            return Basis.BasisUI.BasisLocalization.Get("library.dialog.add.error.unreachable", host, reason);
+        }
+
+        private static string Between(string text, string open, string close)
+        {
+            int start = text.IndexOf(open, StringComparison.Ordinal);
+            if (start < 0) return null;
+            start += open.Length;
+            int end = text.IndexOf(close, start, StringComparison.Ordinal);
+            return end < 0 ? text.Substring(start) : text.Substring(start, end - start);
+        }
+
         /// <summary>
         /// Invoked on the add new content is pressed in the library provider menu, to prompt the user to enter new content with a dialog box
         /// </summary>
@@ -193,9 +215,19 @@ namespace Basis.BasisUI
                                 validationMessageField.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.validating"));
                                 validationMessageField.Descriptor.SetDescription(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.checkingMetadata"));
 
-                                BundledContentHolder.Mode itemType = await LibraryProvider.TryDetectModeFromUrl(
+                                (BundledContentHolder.Mode itemType, BasisMetaLoadResult meta) = await LibraryProvider.TryDetectModeFromUrl(
                                     validationResponse.ProcessedUrl,
                                     validationResponse.Password);
+
+                                if (meta.IsTransient)
+                                {
+                                    ChangeInputFieldStyle(URL._inputField.gameObject, true);
+                                    validationMessageField.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.error.unreachable.title"));
+                                    validationMessageField.Descriptor.SetDescription(DescribeUnreachable(validationResponse.ProcessedUrl, meta.Error));
+                                    newItemDialogBox.IsBusy = false;
+                                    UpdateInputFieldInteractability(URL, Password, newItemDialogBox);
+                                    return;
+                                }
 
                                 // if the provided content did not change the item type assume its legacy or old BEE file with no metadata
                                 if (itemType == BundledContentHolder.Mode.Legacy)

@@ -5959,6 +5959,22 @@
       "value": "Mute this player's text chat and typing for everyone. Enforced by the server and kept across rejoins until a moderator unmutes them."
     },
     {
+      "key": "menu.individualPlayer.rename",
+      "value": "Rename"
+    },
+    {
+      "key": "menu.individualPlayer.rename.description",
+      "value": "The new display name for this player. It lasts until they reconnect."
+    },
+    {
+      "key": "menu.individualPlayer.applyRename",
+      "value": "Apply Name"
+    },
+    {
+      "key": "menu.individualPlayer.applyRename.description",
+      "value": "Changes this player's name for everyone on the server."
+    },
+    {
       "key": "menu.individualPlayer.message",
       "value": "Message"
     },
@@ -6817,6 +6833,22 @@
     {
       "key": "library.dialog.add.error.unknown",
       "value": "Unknown validation error."
+    },
+    {
+      "key": "library.dialog.add.error.unreachable.title",
+      "value": "BEE File Unreachable"
+    },
+    {
+      "key": "library.dialog.add.error.unreachable",
+      "value": "Could not download the BEE file from {0}: {1}"
+    },
+    {
+      "key": "library.dialog.add.error.tlsHandshake",
+      "value": "Could not open a secure connection to {0}. The host must support TLS 1.2; hosts that only allow TLS 1.3 cannot be reached."
+    },
+    {
+      "key": "library.dialog.add.error.blockedAddress",
+      "value": "{0} resolves to a non-public address ({1}) on this network. Basis only downloads from public addresses; a local DNS entry for a self-hosted server can cause this."
     },
     {
       "key": "library.drop.notice.noPassword",
@@ -17037,6 +17069,22 @@
       "value": "Put the selected player onto the selected avatar. They can change back at any time."
     },
     {
+      "key": "settings.admin.renameField",
+      "value": "New Name"
+    },
+    {
+      "key": "settings.admin.renameField.tooltip",
+      "value": "The display name to give this player. It lasts until they reconnect."
+    },
+    {
+      "key": "settings.admin.rename",
+      "value": "Rename Player"
+    },
+    {
+      "key": "settings.admin.rename.tooltip",
+      "value": "Change this player's display name for everyone on the server."
+    },
+    {
       "key": "settings.admin.forceAvatar.applyAll",
       "value": "Force Avatar On Everyone"
     },
@@ -17315,6 +17363,18 @@
     {
       "key": "settings.admin.confirm.forceAvatar.title",
       "value": "Force avatar?"
+    },
+    {
+      "key": "settings.admin.confirm.rename.body",
+      "value": "Change this player's display name for everyone on the server? It lasts until they reconnect."
+    },
+    {
+      "key": "settings.admin.confirm.rename.confirm",
+      "value": "Rename"
+    },
+    {
+      "key": "settings.admin.confirm.rename.title",
+      "value": "Rename player?"
     },
     {
       "key": "settings.admin.confirm.forceAvatarAll.body",

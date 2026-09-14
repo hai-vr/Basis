@@ -1482,6 +1482,26 @@ namespace Basis.BasisUI
                 textMuteToggle.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.muteText.tooltip"));
                 textMuteToggle.OnValueChanged += muted => BasisNetworkModeration.SetTextMute(targetUUID, muted);
 
+                PanelTextField renameField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
+                renameField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.rename"));
+                renameField.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.rename.description"));
+                renameField.SetValueWithoutNotify(remotePlayer.DisplayName);
+
+                PanelButton renameBtn = PanelButton.CreateNew(adminGroup.ContentParent);
+                renameBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.applyRename"));
+                renameBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.applyRename.description"));
+                renameBtn.OnClicked += () =>
+                {
+                    string newName = renameField.Value;
+                    if (string.IsNullOrWhiteSpace(newName))
+                    {
+                        BasisDebug.LogError("Name is empty.");
+                        return;
+                    }
+                    if (BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer np))
+                        BasisNetworkModeration.RenamePlayer(np.playerId, newName);
+                };
+
                 PanelTextField msgField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
                 msgField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.message"));
                 msgField.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.message.description"));

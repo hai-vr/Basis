@@ -315,6 +315,7 @@ namespace Basis.BasisUI
 
                 BasisNetworkPlayer.OnRemotePlayerJoined += OnRemoteJoined;
                 BasisNetworkPlayer.OnRemotePlayerLeft += OnRemoteLeft;
+                BasisNetworkModeration.OnPlayerRenamed += OnPlayerRenamed;
                 PinnedPlayers.Changed += OnPinsChanged;
 
                 SearchField.OnValueChanged += OnSearchChanged;
@@ -341,6 +342,7 @@ namespace Basis.BasisUI
             {
                 BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemoteJoined;
                 BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemoteLeft;
+                BasisNetworkModeration.OnPlayerRenamed -= OnPlayerRenamed;
                 PinnedPlayers.Changed -= OnPinsChanged;
                 ClearAllEntries();
             }
@@ -390,6 +392,22 @@ namespace Basis.BasisUI
             private void OnRemoteJoined(BasisNetworkPlayer netPlayer, BasisRemotePlayer _) => _rosterDirty = true;
 
             private void OnRemoteLeft(BasisNetworkPlayer netPlayer, BasisRemotePlayer _) => _rosterDirty = true;
+
+            private void OnPlayerRenamed(ushort playerId, string newName)
+            {
+                if (!_entries.TryGetValue(playerId, out PlayerEntry entry) || entry.Button == null || entry.NetPlayer == null) return;
+                ApplyTitle(entry);
+                if (_sortMode == SortMode.Name) _orderDirty = true;
+                _filterDirty = true;
+            }
+
+            private static void ApplyTitle(PlayerEntry entry)
+            {
+                string name = entry.NetPlayer.SafeDisplayName;
+                if (string.IsNullOrEmpty(name)) name = BasisLocalization.Get("ui.unknown");
+                entry.Button.Descriptor.SetTitle(
+                    entry.IsLocal ? BasisLocalization.Get("menu.players.you", name) : name);
+            }
 
             private void OnPinsChanged()
             {
@@ -585,10 +603,7 @@ namespace Basis.BasisUI
                 entry.IsPinned = p != null && PinnedPlayers.IsPinned(p.UUID);
                 entry.LastDistanceTenths = int.MinValue;
 
-                string name = netPlayer.SafeDisplayName;
-                if (string.IsNullOrEmpty(name)) name = BasisLocalization.Get("ui.unknown");
-                entry.Button.Descriptor.SetTitle(
-                    entry.IsLocal ? BasisLocalization.Get("menu.players.you", name) : name);
+                ApplyTitle(entry);
 
                 ApplyPlatformIcon(entry, GetPlatformIconAddress(p != null ? p.PlayerPlatform : string.Empty));
 

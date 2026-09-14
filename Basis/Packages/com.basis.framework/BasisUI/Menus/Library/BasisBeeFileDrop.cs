@@ -188,7 +188,7 @@ namespace Basis.BasisUI
             BundledContentHolder.Mode itemType;
             try
             {
-                itemType = await LibraryProvider.TryDetectModeFromUrl(validation.ProcessedUrl, validation.Password);
+                itemType = (await LibraryProvider.TryDetectModeFromUrl(validation.ProcessedUrl, validation.Password)).Mode;
             }
             catch (Exception exception)
             {

@@ -308,6 +308,7 @@ namespace BasisNetworkCore.Serializable
             // SetGlobalLocomotionPolicy. Sent on join and on every admin change.
             GlobalGetLocomotionPolicy,
             GlobalToggleGifs,
+            RenamePlayer,
         }
 
         /// <summary>

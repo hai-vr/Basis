@@ -504,6 +504,10 @@ public static class BasisNetworkModeration
                 HandleMuteStateApply(reader);
                 break;
 
+            case AdminRequestMode.RenamePlayer:
+                HandlePlayerRenamed(reader);
+                break;
+
             case AdminRequestMode.LogBundleBegin:
                 BasisLogBundleReceiver.Begin(reader);
                 break;
@@ -782,6 +786,51 @@ public static class BasisNetworkModeration
                 ? "A moderator muted your text chat - your messages will not be delivered until you are unmuted."
                 : "A moderator unmuted your text chat - your messages are delivered again.");
         }
+    }
+
+    #endregion
+
+    #region Rename
+
+    public static event Action<ushort, string> OnPlayerRenamed;
+
+    public static void RenamePlayer(ushort playerId, string newName)
+    {
+        if (ValidateString(newName, nameof(newName)))
+        {
+            SendAdminRequest(AdminRequestMode.RenamePlayer,
+                w => w.Put(playerId),
+                w => w.Put(newName));
+        }
+    }
+
+    private static void HandlePlayerRenamed(NetDataReader reader)
+    {
+        ushort targetPlayerId = reader.GetUShort();
+        string newName = reader.GetString();
+        ushort initiatorPlayerId = reader.GetUShort();
+
+        bool isLocalPlayer = BasisNetworkPlayer.LocalPlayer != null && targetPlayerId == BasisNetworkPlayer.LocalPlayer.playerId;
+        if (isLocalPlayer)
+        {
+            if (BasisLocalPlayer.Instance != null)
+            {
+                BasisLocalPlayer.Instance.DisplayName = newName;
+                BasisLocalPlayer.Instance.SetSafeDisplayname();
+            }
+            if (initiatorPlayerId != targetPlayerId)
+            {
+                DisplayMessage($"{ResolveDisplayName(initiatorPlayerId)} renamed you to {BasisRemotePlayer.BuildSafeDisplayName(newName)}.");
+            }
+        }
+        else if (BasisNetworkPlayers.RemotePlayers.TryGetValue(targetPlayerId, out BasisRemotePlayer remote) && remote != null)
+        {
+            remote.DisplayName = newName;
+            remote.SetSafeDisplayname();
+            Basis.Scripts.UI.NamePlate.BasisRemoteNamePlateDriver.RebakeNamePlate(remote);
+        }
+
+        OnPlayerRenamed?.Invoke(targetPlayerId, newName);
     }
 
     #endregion

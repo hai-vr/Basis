@@ -171,6 +171,17 @@ namespace Basis.Network.Server.Generic
             return playerMetaDataMessages.TryGetValue(client.Id, out message);
         }
 
+        public static bool SetDisplayName(int peerId, string displayName)
+        {
+            while (playerMetaDataMessages.TryGetValue(peerId, out ClientMetaDataMessage current))
+            {
+                ClientMetaDataMessage renamed = current;
+                renamed.playerDisplayName = displayName;
+                if (playerMetaDataMessages.TryUpdate(peerId, renamed, current)) return true;
+            }
+            return false;
+        }
+
         /// <summary>
         /// Retrieves the cached resolved peer list for a player's voice receivers.
         /// This list is rebuilt each time the voice receivers message is updated, not per voice packet.

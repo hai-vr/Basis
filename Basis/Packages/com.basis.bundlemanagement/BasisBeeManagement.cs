@@ -35,7 +35,9 @@ public readonly struct BasisMetaLoadResult
         return error.IndexOf("Network error:", StringComparison.OrdinalIgnoreCase) >= 0
             || error.IndexOf("Cancelled", StringComparison.OrdinalIgnoreCase) >= 0
             || error.IndexOf("Timeout", StringComparison.OrdinalIgnoreCase) >= 0
-            || error.IndexOf("SSL", StringComparison.OrdinalIgnoreCase) >= 0;
+            || error.IndexOf("SSL", StringComparison.OrdinalIgnoreCase) >= 0
+            || error.IndexOf("could not be validated", StringComparison.OrdinalIgnoreCase) >= 0
+            || error.IndexOf("resolves to a blocked address", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }
 
