@@ -14,19 +14,24 @@ namespace Basis.Scripts.Device_Management
         public const int TickPriority = 200;
         public const float GrabRadius = 0.15f;
         private const float HandleSize = 0.045f;
-        private const float PhysicalSize = 0.02f;
+        private const float OriginalSize = 0.03f;
         private const float AxisLength = 0.08f;
+        private const float RingRadius = 0.06f;
+        private const int RingSegments = 32;
         private const float LineWidth = 0.004f;
         private const float ThinLineWidth = 0.002f;
         private const float LabelScale = 0.012f;
-        private static readonly Color IdleColor = new Color(0.55f, 0.8f, 1f, 1f);
+        private static readonly Color IdleColor = new Color(0.85f, 0.85f, 0.85f, 1f);
         private static readonly Color HoverColor = new Color(1f, 0.85f, 0.35f, 1f);
         private static readonly Color HeldColor = new Color(0.4f, 1f, 0.55f, 1f);
-        private static readonly Color PhysicalColor = new Color(1f, 1f, 1f, 0.35f);
-        private static readonly Color AxisXColor = new Color(1f, 0.35f, 0.35f, 1f);
-        private static readonly Color AxisYColor = new Color(0.45f, 1f, 0.45f, 1f);
-        private static readonly Color AxisZColor = new Color(0.45f, 0.6f, 1f, 1f);
+        private static readonly Color OriginalColor = new Color(0.2f, 0.45f, 1f, 1f);
+        private static readonly Color OriginalLineColor = new Color(0.2f, 0.45f, 1f, 0.6f);
+        private static readonly Color[] AxisColors = { new Color(1f, 0.35f, 0.35f, 1f), new Color(0.45f, 1f, 0.45f, 1f), new Color(0.45f, 0.6f, 1f, 1f) };
+        private static readonly Vector3[] AxisVectors = { Vector3.right, Vector3.up, Vector3.forward };
+        private static readonly BasisDeviceOffsetAxes[] PositionAxisFlags = { BasisDeviceOffsetAxes.PositionX, BasisDeviceOffsetAxes.PositionY, BasisDeviceOffsetAxes.PositionZ };
         private static readonly BasisGizmoSet gizmos = new BasisGizmoSet("DeviceOffsetHandles");
+        private static readonly BasisGizmoSet rings = new BasisGizmoSet("DeviceOffsetRings");
+        private static readonly Vector3[] ringPoints = new Vector3[RingSegments];
         private static readonly List<BasisInput> targets = new List<BasisInput>();
         private static readonly List<BasisInput> hands = new List<BasisInput>();
         private static readonly List<BasisInput> staleHands = new List<BasisInput>();
@@ -37,37 +42,49 @@ namespace Basis.Scripts.Device_Management
         private static int grabberCount;
         private static int anchorMode;
         private static BasisInput anchorLead;
+        private static Vector3 anchorFramePosition;
+        private static Quaternion anchorFrameRotation = Quaternion.identity;
         private static Vector3 anchorPosition;
         private static Quaternion anchorRotation = Quaternion.identity;
+        private static Vector3 basePosition;
+        private static Vector3 baseEuler;
+        private static Vector3 eulerReference;
         private static Vector3 frameUp = Vector3.up;
         private static bool registered;
         private static bool hooked;
 
         public static event Action OnStateChanged;
-        public static bool IsEditing { get; private set; }
+        public static BasisDeviceOffsetAxes EditAxes { get; private set; }
+        public static bool IsEditing => EditAxes != BasisDeviceOffsetAxes.None;
         public static string SelectedKey { get; private set; }
         public static string TargetKey { get; private set; }
         public static BasisInput Target { get; private set; }
         public static bool IsGrabbing => grabberCount > 0;
 
-        public static void Select(string key)
+        public static Color AxisColor(int axis)
         {
-            if (SelectedKey == key)
-            {
-                return;
-            }
-            SelectedKey = key;
-            OnStateChanged?.Invoke();
+            return AxisColors[Mathf.Clamp(axis, 0, AxisColors.Length - 1)];
         }
 
-        public static void SetEditing(bool editing)
+        public static bool IsAxisEnabled(BasisDeviceOffsetAxes axis)
         {
-            if (IsEditing == editing)
+            return (EditAxes & axis) != 0;
+        }
+
+        public static void SetAxisEnabled(BasisDeviceOffsetAxes axis, bool enabled)
+        {
+            SetEditAxes(enabled ? EditAxes | axis : EditAxes & ~axis);
+        }
+
+        public static void SetEditAxes(BasisDeviceOffsetAxes axes)
+        {
+            if (EditAxes == axes)
             {
                 return;
             }
-            IsEditing = editing;
-            if (editing)
+            bool wasEditing = IsEditing;
+            EditAxes = axes;
+            if (IsEditing && !wasEditing)
             {
                 if (!registered)
                 {
@@ -76,7 +93,7 @@ namespace Basis.Scripts.Device_Management
                 }
                 EnsureMasterHook();
             }
-            else
+            else if (!IsEditing)
             {
                 EndGrab();
                 if (registered)
@@ -85,9 +102,24 @@ namespace Basis.Scripts.Device_Management
                     registered = false;
                 }
                 gizmos.Clear();
+                rings.Clear();
                 gripLatch.Clear();
                 hoverByHand.Clear();
             }
+            else
+            {
+                anchorMode = 0;
+            }
+            OnStateChanged?.Invoke();
+        }
+
+        public static void Select(string key)
+        {
+            if (SelectedKey == key)
+            {
+                return;
+            }
+            SelectedKey = key;
             OnStateChanged?.Invoke();
         }
 
@@ -353,14 +385,19 @@ namespace Basis.Scripts.Device_Management
             Target.GetPhysicalUnscaledPose(out Vector3 physicalPosition, out Quaternion physicalRotation);
             if (mode != anchorMode || !ReferenceEquals(anchorLead, grabbers[0]))
             {
-                BasisDeviceOffsetMath.Compose(physicalPosition, physicalRotation, Target.DeviceOffsetPosition, Target.DeviceOffsetRotation, out Vector3 virtualPosition, out Quaternion virtualRotation);
-                BasisDeviceOffsetMath.Relative(framePosition, frameRotation, virtualPosition, virtualRotation, out anchorPosition, out anchorRotation);
+                BasisDeviceOffsetMath.Compose(physicalPosition, physicalRotation, Target.DeviceOffsetPosition, Target.DeviceOffsetRotation, out anchorPosition, out anchorRotation);
+                anchorFramePosition = framePosition;
+                anchorFrameRotation = frameRotation;
+                basePosition = Target.DeviceOffsetPosition;
+                baseEuler = BasisDeviceOffsetMath.ToEuler(Target.DeviceOffsetRotation);
+                eulerReference = baseEuler;
                 anchorMode = mode;
                 anchorLead = grabbers[0];
                 return;
             }
-            BasisDeviceOffsetMath.Compose(framePosition, frameRotation, anchorPosition, anchorRotation, out Vector3 heldPosition, out Quaternion heldRotation);
-            BasisDeviceOffsetMath.SolveOffset(physicalPosition, physicalRotation, heldPosition, heldRotation, out Vector3 offsetPosition, out Quaternion offsetRotation);
+            BasisDeviceOffsetMath.FollowFrame(anchorFramePosition, anchorFrameRotation, anchorPosition, anchorRotation, framePosition, frameRotation, out Vector3 heldPosition, out Quaternion heldRotation);
+            BasisDeviceOffsetMath.SolveOffset(physicalPosition, physicalRotation, heldPosition, heldRotation, out Vector3 freePosition, out Quaternion freeRotation);
+            BasisDeviceOffsetMath.ConstrainOffset(EditAxes, basePosition, baseEuler, freePosition, freeRotation, ref eulerReference, out Vector3 offsetPosition, out Quaternion offsetRotation);
             BasisDeviceOffsets.Set(TargetKey, offsetPosition, offsetRotation, false, null);
         }
 
@@ -390,26 +427,29 @@ namespace Basis.Scripts.Device_Management
             float deviceScale = Sanitize(BasisHeightDriver.DeviceScale);
             float nodeScale = Sanitize(BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
             float handleSize = HandleSize * nodeScale;
-            float axisLength = AxisLength * nodeScale;
             Vector3 viewer = BasisLocalCameraDriver.Position;
             gizmos.Begin();
+            rings.Begin();
             int count = targets.Count;
             for (int index = 0; index < count; index++)
             {
                 BasisInput target = targets[index];
                 target.GetPhysicalUnscaledPose(out Vector3 physicalPosition, out Quaternion physicalRotation);
                 BasisDeviceOffsetMath.Compose(physicalPosition, physicalRotation, target.DeviceOffsetPosition, target.DeviceOffsetRotation, out Vector3 virtualPosition, out Quaternion virtualRotation);
+                ToWorld(rootMatrix, rootRotation, deviceScale, physicalPosition, physicalRotation, out Vector3 original, out Quaternion originalRotation);
                 ToWorld(rootMatrix, rootRotation, deviceScale, virtualPosition, virtualRotation, out Vector3 handle, out Quaternion handleRotation);
-                Color color = ReferenceEquals(target, Target) ? HeldColor : IsHovered(target) ? HoverColor : IdleColor;
-                gizmos.Sphere(handle, handleSize, color);
-                gizmos.Line(handle, handle + (handleRotation * (Vector3.right * axisLength)), AxisXColor, LineWidth);
-                gizmos.Line(handle, handle + (handleRotation * (Vector3.up * axisLength)), AxisYColor, LineWidth);
-                gizmos.Line(handle, handle + (handleRotation * (Vector3.forward * axisLength)), AxisZColor, LineWidth);
+                bool held = ReferenceEquals(target, Target);
+                bool hovered = !held && IsHovered(target);
+                Color color = held ? HeldColor : hovered ? HoverColor : IdleColor;
+                gizmos.Sphere(original, OriginalSize * nodeScale, OriginalColor);
                 if (target.HasDeviceOffset)
                 {
-                    ToWorld(rootMatrix, rootRotation, deviceScale, physicalPosition, physicalRotation, out Vector3 physical, out _);
-                    gizmos.Line(physical, handle, PhysicalColor, ThinLineWidth);
-                    gizmos.Sphere(physical, PhysicalSize * nodeScale, PhysicalColor);
+                    gizmos.Line(original, handle, OriginalLineColor, ThinLineWidth);
+                }
+                gizmos.Sphere(handle, handleSize, color);
+                if (held || hovered)
+                {
+                    DrawConstraints(handle, originalRotation, handleRotation, target.DeviceOffsetRotation, nodeScale);
                 }
                 if (target.TryGetRole(out BasisBoneTrackedRole role))
                 {
@@ -417,6 +457,45 @@ namespace Basis.Scripts.Device_Management
                 }
             }
             gizmos.End();
+            rings.End();
+        }
+
+        private static void DrawConstraints(Vector3 handle, Quaternion originalRotation, Quaternion handleRotation, Quaternion offsetRotation, float nodeScale)
+        {
+            float axisLength = AxisLength * nodeScale;
+            for (int axis = 0; axis < 3; axis++)
+            {
+                if (IsAxisEnabled(PositionAxisFlags[axis]))
+                {
+                    Vector3 direction = originalRotation * (AxisVectors[axis] * axisLength);
+                    gizmos.Line(handle - direction, handle + direction, AxisColors[axis], LineWidth);
+                }
+            }
+            float radius = RingRadius * nodeScale;
+            if (IsAxisEnabled(BasisDeviceOffsetAxes.RotationX))
+            {
+                Quaternion yawFrame = originalRotation * BasisDeviceOffsetMath.FromEuler(new Vector3(0f, BasisDeviceOffsetMath.ToEuler(offsetRotation).y, 0f));
+                DrawRing(handle, yawFrame, Vector3.up, Vector3.forward, radius, AxisColors[0]);
+            }
+            if (IsAxisEnabled(BasisDeviceOffsetAxes.RotationY))
+            {
+                DrawRing(handle, originalRotation, Vector3.right, Vector3.forward, radius, AxisColors[1]);
+            }
+            if (IsAxisEnabled(BasisDeviceOffsetAxes.RotationZ))
+            {
+                DrawRing(handle, handleRotation, Vector3.right, Vector3.up, radius, AxisColors[2]);
+            }
+        }
+
+        private static void DrawRing(Vector3 center, Quaternion frame, Vector3 first, Vector3 second, float radius, Color color)
+        {
+            float step = Mathf.PI * 2f / RingSegments;
+            for (int index = 0; index < RingSegments; index++)
+            {
+                float angle = index * step;
+                ringPoints[index] = center + (frame * (((first * Mathf.Cos(angle)) + (second * Mathf.Sin(angle))) * radius));
+            }
+            rings.Poly(ringPoints, color, true, LineWidth);
         }
 
         private static void ToWorld(Matrix4x4 rootMatrix, Quaternion rootRotation, float deviceScale, Vector3 unscaledPosition, Quaternion unscaledRotation, out Vector3 position, out Quaternion rotation)
@@ -492,6 +571,7 @@ namespace Basis.Scripts.Device_Management
             if (!state)
             {
                 gizmos.Forget();
+                rings.Forget();
             }
         }
 
@@ -503,7 +583,7 @@ namespace Basis.Scripts.Device_Management
                 BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(TickPriority, Tick);
                 registered = false;
             }
-            IsEditing = false;
+            EditAxes = BasisDeviceOffsetAxes.None;
             SelectedKey = null;
             Target = null;
             TargetKey = null;
@@ -515,6 +595,7 @@ namespace Basis.Scripts.Device_Management
             gripLatch.Clear();
             hoverByHand.Clear();
             gizmos.Forget();
+            rings.Forget();
             OnStateChanged = null;
         }
     }

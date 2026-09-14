@@ -323,7 +323,7 @@ namespace Basis.BasisUI
         public const float FOG_BLUR_ITERATIONS_MIN = 0f;
         public const float FOG_BLUR_ITERATIONS_MAX = 4f;
 
-        public static BasisSettingsBinding<bool> VolumetricFogTemporal = new("volumetricfogtemporal", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> VolumetricFogTemporal = new("volumetricfogtemporal", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> VolumetricFogFroxels = new("volumetricfogfroxels", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> VolumetricFogAnalyticDepth = new("volumetricfoganalyticdepth", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> VolumetricFogScaleSteps = new("volumetricfogscalesteps", new BasisPlatformDefault<bool>(true));

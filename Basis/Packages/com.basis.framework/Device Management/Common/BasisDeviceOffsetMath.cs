@@ -3,13 +3,29 @@ using UnityEngine;
 
 namespace Basis.Scripts.Device_Management
 {
+    [System.Flags]
+    public enum BasisDeviceOffsetAxes
+    {
+        None = 0,
+        PositionX = 1,
+        PositionY = 2,
+        PositionZ = 4,
+        RotationX = 8,
+        RotationY = 16,
+        RotationZ = 32,
+        Position = PositionX | PositionY | PositionZ,
+        Rotation = RotationX | RotationY | RotationZ,
+    }
+
     public static class BasisDeviceOffsetMath
     {
         public const float PositionLimit = 0.5f;
+        public const float PitchLimit = 90f;
         public const float MinimumHandSpan = 0.01f;
         private const float MinimumUpSquared = 0.0025f;
         private const float IdentityPositionEpsilon = 1e-5f;
         private const float IdentityRotationEpsilon = 1e-7f;
+        private const float GimbalThreshold = 0.999999f;
 
         public static Quaternion Inverse(Quaternion rotation)
         {
@@ -51,6 +67,40 @@ namespace Basis.Scripts.Device_Management
             return degrees;
         }
 
+        public static Quaternion FromEuler(Vector3 degrees)
+        {
+            Vector3 half = degrees * (Mathf.Deg2Rad * 0.5f);
+            Quaternion yaw = new Quaternion(0f, Mathf.Sin(half.y), 0f, Mathf.Cos(half.y));
+            Quaternion pitch = new Quaternion(Mathf.Sin(half.x), 0f, 0f, Mathf.Cos(half.x));
+            Quaternion roll = new Quaternion(0f, 0f, Mathf.Sin(half.z), Mathf.Cos(half.z));
+            return yaw * pitch * roll;
+        }
+
+        public static Vector3 ToEuler(Quaternion rotation)
+        {
+            Quaternion q = Normalize(rotation);
+            float sinPitch = 2f * ((q.w * q.x) - (q.y * q.z));
+            if (sinPitch >= GimbalThreshold || sinPitch <= -GimbalThreshold)
+            {
+                float m00 = 1f - (2f * ((q.y * q.y) + (q.z * q.z)));
+                float m01 = 2f * ((q.x * q.y) - (q.w * q.z));
+                float yaw = sinPitch > 0f ? Mathf.Atan2(m01, m00) : Mathf.Atan2(-m01, m00);
+                return new Vector3(sinPitch > 0f ? PitchLimit : -PitchLimit, yaw * Mathf.Rad2Deg, 0f);
+            }
+            float x = Mathf.Asin(sinPitch) * Mathf.Rad2Deg;
+            float y = Mathf.Atan2(2f * ((q.x * q.z) + (q.w * q.y)), 1f - (2f * ((q.x * q.x) + (q.y * q.y)))) * Mathf.Rad2Deg;
+            float z = Mathf.Atan2(2f * ((q.x * q.y) + (q.w * q.z)), 1f - (2f * ((q.x * q.x) + (q.z * q.z)))) * Mathf.Rad2Deg;
+            return new Vector3(x, y, z);
+        }
+
+        public static Vector3 NearestEuler(Quaternion rotation, Vector3 reference)
+        {
+            Vector3 primary = ToEuler(rotation);
+            Vector3 first = Unwrap(primary, reference);
+            Vector3 second = Unwrap(new Vector3(180f - primary.x, primary.y + 180f, primary.z + 180f), reference);
+            return (first - reference).sqrMagnitude <= (second - reference).sqrMagnitude ? first : second;
+        }
+
         public static void Compose(Vector3 parentPosition, Quaternion parentRotation, Vector3 localPosition, Quaternion localRotation, out Vector3 position, out Quaternion rotation)
         {
             position = parentPosition + (parentRotation * localPosition);
@@ -77,11 +127,30 @@ namespace Basis.Scripts.Device_Management
             Compose(virtualPosition, virtualRotation, localPosition, localRotation, out position, out rotation);
         }
 
+        public static void FollowFrame(Vector3 anchorFramePosition, Quaternion anchorFrameRotation, Vector3 anchorPosition, Quaternion anchorRotation, Vector3 framePosition, Quaternion frameRotation, out Vector3 position, out Quaternion rotation)
+        {
+            position = anchorPosition + (framePosition - anchorFramePosition);
+            rotation = Normalize(frameRotation * Inverse(anchorFrameRotation) * anchorRotation);
+        }
+
         public static void SolveOffset(Vector3 physicalPosition, Quaternion physicalRotation, Vector3 heldPosition, Quaternion heldRotation, out Vector3 offsetPosition, out Quaternion offsetRotation)
         {
             Relative(physicalPosition, physicalRotation, heldPosition, heldRotation, out offsetPosition, out offsetRotation);
             offsetPosition = ClampPosition(offsetPosition);
             offsetRotation = Normalize(offsetRotation);
+        }
+
+        public static void ConstrainOffset(BasisDeviceOffsetAxes axes, Vector3 basePosition, Vector3 baseEuler, Vector3 targetPosition, Quaternion targetRotation, ref Vector3 eulerReference, out Vector3 position, out Quaternion rotation)
+        {
+            position = ClampPosition(new Vector3((axes & BasisDeviceOffsetAxes.PositionX) != 0 ? targetPosition.x : basePosition.x, (axes & BasisDeviceOffsetAxes.PositionY) != 0 ? targetPosition.y : basePosition.y, (axes & BasisDeviceOffsetAxes.PositionZ) != 0 ? targetPosition.z : basePosition.z));
+            Vector3 euler = NearestEuler(targetRotation, eulerReference);
+            eulerReference = euler;
+            if ((axes & BasisDeviceOffsetAxes.Rotation) == BasisDeviceOffsetAxes.Rotation)
+            {
+                rotation = Normalize(targetRotation);
+                return;
+            }
+            rotation = FromEuler(new Vector3((axes & BasisDeviceOffsetAxes.RotationX) != 0 ? Mathf.Clamp(euler.x, -PitchLimit, PitchLimit) : baseEuler.x, (axes & BasisDeviceOffsetAxes.RotationY) != 0 ? euler.y : baseEuler.y, (axes & BasisDeviceOffsetAxes.RotationZ) != 0 ? euler.z : baseEuler.z));
         }
 
         public static bool TryBuildTwoHandFrame(Vector3 firstPosition, Quaternion firstRotation, Vector3 secondPosition, Quaternion secondRotation, Vector3 upFallback, out Vector3 position, out Quaternion rotation)
@@ -166,6 +235,11 @@ namespace Basis.Scripts.Device_Management
             position = ClampPosition(new Vector3(values[0], values[1], values[2]));
             rotation = Normalize(new Quaternion(values[3], values[4], values[5], values[6]));
             return true;
+        }
+
+        private static Vector3 Unwrap(Vector3 degrees, Vector3 reference)
+        {
+            return new Vector3(reference.x + WrapDegrees(degrees.x - reference.x), reference.y + WrapDegrees(degrees.y - reference.y), reference.z + WrapDegrees(degrees.z - reference.z));
         }
 
         private static Vector3 Perpendicular(Vector3 axis, Vector3 direction)

@@ -289,5 +289,138 @@ namespace Basis.Tests.Devices
         {
             Assert.That(BasisDeviceOffsetMath.WrapDegrees(degrees), Is.EqualTo(expected).Within(1e-3f));
         }
+
+        private static void AssertAngle(float expected, float actual)
+        {
+            Assert.That(Mathf.Abs(BasisDeviceOffsetMath.WrapDegrees(actual - expected)), Is.LessThan(1e-2f), $"expected {expected} but was {actual}");
+        }
+
+        [Test]
+        public void FromEuler_FollowsUnityAxisConventions()
+        {
+            AssertPosition(Vector3.right, BasisDeviceOffsetMath.FromEuler(new Vector3(0f, 90f, 0f)) * Vector3.forward);
+            AssertPosition(Vector3.down, BasisDeviceOffsetMath.FromEuler(new Vector3(90f, 0f, 0f)) * Vector3.forward);
+            AssertPosition(Vector3.up, BasisDeviceOffsetMath.FromEuler(new Vector3(0f, 0f, 90f)) * Vector3.right);
+            AssertPosition(Vector3.back, BasisDeviceOffsetMath.FromEuler(new Vector3(90f, 90f, 0f)) * Vector3.right);
+        }
+
+        [TestCase(0f, 0f, 0f)]
+        [TestCase(30f, 45f, 60f)]
+        [TestCase(-45f, 170f, -120f)]
+        [TestCase(89f, -30f, 10f)]
+        [TestCase(-60f, -179f, 179f)]
+        public void ToEuler_UndoesFromEuler(float x, float y, float z)
+        {
+            Vector3 euler = BasisDeviceOffsetMath.ToEuler(BasisDeviceOffsetMath.FromEuler(new Vector3(x, y, z)));
+            AssertAngle(x, euler.x);
+            AssertAngle(y, euler.y);
+            AssertAngle(z, euler.z);
+        }
+
+        [Test]
+        public void ToEuler_AtGimbalLock_RebuildsTheSameRotation()
+        {
+            Quaternion rotation = BasisDeviceOffsetMath.FromEuler(new Vector3(90f, 30f, 20f));
+            Vector3 euler = BasisDeviceOffsetMath.ToEuler(rotation);
+            AssertAngle(90f, euler.x);
+            AssertRotation(rotation, BasisDeviceOffsetMath.FromEuler(euler));
+        }
+
+        [Test]
+        public void NearestEuler_StaysContinuousAcrossTheYawWrap()
+        {
+            Vector3 euler = BasisDeviceOffsetMath.NearestEuler(BasisDeviceOffsetMath.FromEuler(new Vector3(0f, -179f, 0f)), new Vector3(0f, 179f, 0f));
+            Assert.That(euler.y, Is.EqualTo(181f).Within(1e-2f));
+        }
+
+        [Test]
+        public void NearestEuler_KeepsPitchingPastNinetyInTheSameFamily()
+        {
+            Vector3 euler = BasisDeviceOffsetMath.NearestEuler(BasisDeviceOffsetMath.FromEuler(new Vector3(95f, 10f, 20f)), new Vector3(85f, 10f, 20f));
+            Assert.That(euler.x, Is.EqualTo(95f).Within(1e-2f));
+            Assert.That(euler.y, Is.EqualTo(10f).Within(1e-2f));
+            Assert.That(euler.z, Is.EqualTo(20f).Within(1e-2f));
+        }
+
+        [Test]
+        public void ConstrainOffset_MovesOnlyTheChosenPositionAxes()
+        {
+            Vector3 baseEuler = new Vector3(10f, 20f, 30f);
+            Vector3 reference = baseEuler;
+            BasisDeviceOffsetMath.ConstrainOffset(BasisDeviceOffsetAxes.PositionY, new Vector3(0.01f, 0.02f, 0.03f), baseEuler, new Vector3(0.1f, 0.2f, 0.3f), BasisDeviceOffsetMath.FromEuler(new Vector3(40f, 50f, 60f)), ref reference, out Vector3 position, out Quaternion rotation);
+            AssertPosition(new Vector3(0.01f, 0.2f, 0.03f), position);
+            AssertRotation(BasisDeviceOffsetMath.FromEuler(baseEuler), rotation);
+        }
+
+        [Test]
+        public void ConstrainOffset_TurnsOnlyTheChosenRotationAxes()
+        {
+            Vector3 baseEuler = new Vector3(10f, 20f, 30f);
+            Vector3 reference = baseEuler;
+            BasisDeviceOffsetMath.ConstrainOffset(BasisDeviceOffsetAxes.RotationY, new Vector3(0.01f, 0.02f, 0.03f), baseEuler, new Vector3(0.1f, 0.2f, 0.3f), BasisDeviceOffsetMath.FromEuler(new Vector3(15f, 60f, 40f)), ref reference, out Vector3 position, out Quaternion rotation);
+            AssertPosition(new Vector3(0.01f, 0.02f, 0.03f), position);
+            Vector3 euler = BasisDeviceOffsetMath.ToEuler(rotation);
+            AssertAngle(10f, euler.x);
+            AssertAngle(60f, euler.y);
+            AssertAngle(30f, euler.z);
+        }
+
+        [Test]
+        public void ConstrainOffset_StacksPositionAndRotationAxes()
+        {
+            Vector3 baseEuler = new Vector3(10f, 20f, 30f);
+            Vector3 reference = baseEuler;
+            BasisDeviceOffsetAxes axes = BasisDeviceOffsetAxes.PositionX | BasisDeviceOffsetAxes.PositionZ | BasisDeviceOffsetAxes.RotationX | BasisDeviceOffsetAxes.RotationZ;
+            BasisDeviceOffsetMath.ConstrainOffset(axes, new Vector3(0.01f, 0.02f, 0.03f), baseEuler, new Vector3(0.1f, 0.2f, 0.3f), BasisDeviceOffsetMath.FromEuler(new Vector3(15f, 60f, 40f)), ref reference, out Vector3 position, out Quaternion rotation);
+            AssertPosition(new Vector3(0.1f, 0.02f, 0.3f), position);
+            Vector3 euler = BasisDeviceOffsetMath.ToEuler(rotation);
+            AssertAngle(15f, euler.x);
+            AssertAngle(20f, euler.y);
+            AssertAngle(40f, euler.z);
+        }
+
+        [Test]
+        public void ConstrainOffset_AllRotationAxes_KeepTheGrabbedRotation()
+        {
+            Vector3 reference = Vector3.zero;
+            Quaternion grabbed = BasisDeviceOffsetMath.FromEuler(new Vector3(60f, 120f, -45f));
+            BasisDeviceOffsetMath.ConstrainOffset(BasisDeviceOffsetAxes.Rotation, Vector3.zero, Vector3.zero, Vector3.zero, grabbed, ref reference, out _, out Quaternion rotation);
+            AssertRotation(grabbed, rotation);
+        }
+
+        [Test]
+        public void ConstrainOffset_PitchStopsAtTheLimit()
+        {
+            Vector3 baseEuler = new Vector3(80f, 0f, 0f);
+            Vector3 reference = baseEuler;
+            BasisDeviceOffsetMath.ConstrainOffset(BasisDeviceOffsetAxes.RotationX, Vector3.zero, baseEuler, Vector3.zero, BasisDeviceOffsetMath.FromEuler(new Vector3(100f, 0f, 0f)), ref reference, out _, out Quaternion rotation);
+            AssertRotation(BasisDeviceOffsetMath.FromEuler(new Vector3(90f, 0f, 0f)), rotation);
+        }
+
+        [Test]
+        public void FollowFrame_TurningInPlace_DoesNotSwingTheDevice()
+        {
+            Vector3 framePosition = new Vector3(0.2f, 1.1f, 0.3f);
+            Quaternion frameRotation = AxisAngle(new Vector3(0.2f, 1f, 0f), 30f);
+            Vector3 anchorPosition = new Vector3(0.3f, 1f, 0.45f);
+            Quaternion anchorRotation = AxisAngle(Vector3.right, 15f);
+            Quaternion turn = AxisAngle(Vector3.up, 70f);
+            BasisDeviceOffsetMath.FollowFrame(framePosition, frameRotation, anchorPosition, anchorRotation, framePosition, turn * frameRotation, out Vector3 position, out Quaternion rotation);
+            AssertPosition(anchorPosition, position);
+            AssertRotation(turn * anchorRotation, rotation);
+        }
+
+        [Test]
+        public void FollowFrame_MovingTheHand_SlidesTheDeviceByTheSameAmount()
+        {
+            Vector3 framePosition = new Vector3(0.2f, 1.1f, 0.3f);
+            Quaternion frameRotation = AxisAngle(new Vector3(0.2f, 1f, 0f), 30f);
+            Vector3 anchorPosition = new Vector3(0.3f, 1f, 0.45f);
+            Quaternion anchorRotation = AxisAngle(Vector3.right, 15f);
+            Vector3 move = new Vector3(0.05f, -0.02f, 0.1f);
+            BasisDeviceOffsetMath.FollowFrame(framePosition, frameRotation, anchorPosition, anchorRotation, framePosition + move, frameRotation, out Vector3 position, out Quaternion rotation);
+            AssertPosition(anchorPosition + move, position);
+            AssertRotation(anchorRotation, rotation);
+        }
     }
 }

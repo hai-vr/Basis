@@ -18,7 +18,7 @@ public static class VolumetricFogQuality
 
 	public static VolumetricFogResolution Resolution = VolumetricFogResolution.Half;
 	public static VolumetricFogAPVMode APVMode = VolumetricFogAPVMode.Live;
-	public static bool TemporalReprojection = true;
+	public static bool TemporalReprojection = false;
 	public static bool FroxelVolume = true;
 	public static bool AnalyticOpticalDepth = true;
 	public static bool ScaleStepsWithResolution = true;

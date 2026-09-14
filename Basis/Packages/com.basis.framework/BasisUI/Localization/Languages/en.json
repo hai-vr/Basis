@@ -4768,19 +4768,27 @@
     },
     {
       "key": "trackerLinking.deviceOffsets.rotation.tooltip",
-      "value": "Turns the device around its own axes."
+      "value": "Turns the device around its own axes: X tilts it up and down, Y turns it left and right, Z rolls it."
     },
     {
-      "key": "trackerLinking.deviceOffsets.grab",
-      "value": "Edit By Grab"
+      "key": "trackerLinking.deviceOffsets.grabPosition",
+      "value": "Grab Position"
     },
     {
-      "key": "trackerLinking.deviceOffsets.grab.stop",
-      "value": "Stop Editing"
+      "key": "trackerLinking.deviceOffsets.grabPosition.description",
+      "value": "Pick the axes a grab can slide the device along, then squeeze grip with a free hand near its handle. The blue ball marks where the device really is. The offset saves when you let go."
     },
     {
-      "key": "trackerLinking.deviceOffsets.grab.tooltip",
-      "value": "Puts a handle on every tracker and controller. Reach a free hand to one and squeeze grip to move it, or hold it with both hands to turn it. The offset saves when you let go."
+      "key": "trackerLinking.deviceOffsets.grabRotation",
+      "value": "Grab Rotation"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.grabRotation.description",
+      "value": "Pick the axes a grab can turn the device around. Holding a handle with both hands gives finer control."
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.grabAxis.tooltip",
+      "value": "Lets a grab change this axis. Turn on more than one axis to edit them together, and turn them all off to stop editing."
     },
     {
       "key": "trackerLinking.deviceOffsets.grab.unavailable",
