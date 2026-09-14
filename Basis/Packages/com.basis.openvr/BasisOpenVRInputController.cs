@@ -34,6 +34,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         public EVRCompositorError result;
         public Vector3 LeftRaycastOffset = new Vector3(0, 0, 0.06f);
         public Vector3 RightRaycastOffset = new Vector3(0, 0, 0.06f);
+        public override bool AppliesDeviceOffsetAtSource => true;
         public void Initialize(OpenVRDevice device, string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, SteamVR_Input_Sources SteamVR_Input_Sources)
         {
             HandBiasSplay = -0.8f;
@@ -198,8 +199,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             BoneRotations = skeletonAction.boneRotations;
 
             // Raw device pose in *unscaled* world space
-            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, devicePose.mDeviceToAbsoluteTracking.GetPosition());
-            UnscaledDeviceCoord.rotation = devicePose.mDeviceToAbsoluteTracking.GetRotation();
+            ComputeUnscaledDeviceCoord(ref PhysicalDeviceCoord, devicePose.mDeviceToAbsoluteTracking.GetPosition());
+            PhysicalDeviceCoord.rotation = devicePose.mDeviceToAbsoluteTracking.GetRotation();
+            ResolveUnscaledFromPhysical(true);
 
             if (RenderModelAnchor != null)
             {

@@ -101,7 +101,7 @@ public static class BasisErrorReportSender
         if (string.IsNullOrEmpty(value)) return value;
         try
         {
-            value = Regex.Replace(value, @"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[ip]");
+            value = Regex.Replace(value, @"(?<![Vv]ersion=)\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[ip]");
             value = Regex.Replace(value, @"\b(?:[A-Fa-f0-9]{1,4}:){2,7}[A-Fa-f0-9]{1,4}\b", "[ip]");
             value = Regex.Replace(value, @"([Uu]sers[\\/])[^\\/\r\n]+", "$1[user]");
             value = Regex.Replace(value, @"(/home/)[^/\r\n]+", "$1[user]");
@@ -119,7 +119,7 @@ public static class BasisErrorReportSender
     {
         // Skip very short tokens to avoid mangling unrelated text.
         if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(token) || token.Length < 3) return value;
-        try { return Regex.Replace(value, Regex.Escape(token), replacement, RegexOptions.IgnoreCase); }
+        try { return Regex.Replace(value, "(?<![A-Za-z])" + Regex.Escape(token) + "(?![A-Za-z])", replacement, RegexOptions.IgnoreCase); }
         catch { return value; }
     }
 

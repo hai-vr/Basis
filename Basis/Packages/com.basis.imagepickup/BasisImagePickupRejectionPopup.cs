@@ -24,6 +24,8 @@ namespace Basis.ImagePickup
         private const string LimitNoneImportedKey =
             "imagePickup.popup.limit.noneImported";
         private const string AnimatedWarningKey = "imagePickup.popup.animated.warning";
+        private const string GifsLockedTitleKey = "imagePickup.popup.gifsLocked.title";
+        private const string GifsLockedDescriptionKey = "imagePickup.popup.gifsLocked.description";
 
         public static void Show(string path, string reason)
         {
@@ -33,6 +35,11 @@ namespace Basis.ImagePickup
         public static void ShowImageLimit(int currentCount, int requestedCount)
         {
             ShowDialogue(BasisLocalization.Get(LimitTitleKey), BuildBatchNotice(currentCount, requestedCount, 0, 0));
+        }
+
+        public static void ShowGifsLocked()
+        {
+            ShowDialogue(BasisLocalization.Get(GifsLockedTitleKey), BasisLocalization.Get(GifsLockedDescriptionKey));
         }
 
         public static void ShowBatchNotice(int currentCount, int requestedCount, int allowedCount, int animatedCount)

@@ -287,11 +287,18 @@ public class BasisOpenXRHandInput : BasisInputController
         UpdateRaycastOffset();
         float playerToAvatar = BasisHeightDriver.DeviceScale;
 
-        var originLocal = PointerPositionYScaled.position * playerToAvatar;
+        Vector3 pointerPosition = PointerPositionYScaled.position;
+        Quaternion pointerRotation = _pointerRotationControl != null ? _pointerRotationControl.ReadValue() : Quaternion.identity;
+        if (DeviceOffsetActive && _pointerPositionControl != null && _pointerRotationControl != null)
+        {
+            BasisDeviceOffsetMath.Retarget(PhysicalDeviceCoord.position, PhysicalDeviceCoord.rotation, DeviceOffsetPosition, DeviceOffsetRotation, ref pointerPosition, ref pointerRotation);
+        }
+
+        var originLocal = pointerPosition * playerToAvatar;
         var originWorld = OffsetCoords.position + (OffsetCoords.rotation * originLocal);
 
         Quaternion aimWorldRotation = _pointerRotationControl != null
-            ? OffsetCoords.rotation * _pointerRotationControl.ReadValue()
+            ? OffsetCoords.rotation * pointerRotation
             : HandFinal.rotation;
 
         ComputeRaycastDirection(
@@ -301,19 +308,29 @@ public class BasisOpenXRHandInput : BasisInputController
         );
         UpdateInputEvents();
     }
+    public override bool AppliesDeviceOffsetAtSource => true;
+    private bool DeviceOffsetActive => HasDeviceOffset && TrackingHardware != BasisTrackingHardware.Optical;
     private void PollPose()
     {
         ResolvePoseControls();
         if (_devicePositionControl != null)
         {
-            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, _devicePositionControl.ReadValue());
+            ComputeUnscaledDeviceCoord(ref PhysicalDeviceCoord, _devicePositionControl.ReadValue());
         }
         if (_deviceRotationControl != null)
         {
-            UnscaledDeviceCoord.rotation = _deviceRotationControl.ReadValue();
+            PhysicalDeviceCoord.rotation = _deviceRotationControl.ReadValue();
         }
+        ResolveUnscaledFromPhysical(DeviceOffsetActive);
         ConvertToScaledDeviceCoord();
         ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
+    }
+    private void RetargetPalmPose()
+    {
+        if (DeviceOffsetActive && _devicePositionControl != null && _deviceRotationControl != null)
+        {
+            BasisDeviceOffsetMath.Retarget(_devicePositionControl.ReadValue(), _deviceRotationControl.ReadValue(), DeviceOffsetPosition, DeviceOffsetRotation, ref HandRaw.position, ref HandRaw.rotation);
+        }
     }
     public BasisCalibratedCoords PointerPositionYScaled;
     /// <summary>
@@ -366,6 +383,7 @@ public class BasisOpenXRHandInput : BasisInputController
                 {
                     HandRaw.position = _palmPoseActionPosition.ReadValue<Vector3>();
                     HandRaw.rotation = _palmPoseActionRotation.ReadValue<Quaternion>();
+                    RetargetPalmPose();
 
                     var corrected = math.mul(HandRaw.rotation, Quaternion.Euler(LeftHandPalmCorrection));
                     HandFinal.rotation = ApplyOffsetToRot(corrected);
@@ -393,6 +411,7 @@ public class BasisOpenXRHandInput : BasisInputController
                 {
                     HandRaw.position = _palmPoseActionPosition.ReadValue<Vector3>();
                     HandRaw.rotation = _palmPoseActionRotation.ReadValue<Quaternion>();
+                    RetargetPalmPose();
 
                     var corrected = math.mul(HandRaw.rotation, Quaternion.Euler(RightHandPalmCorrection));
                     HandFinal.rotation = ApplyOffsetToRot(corrected);

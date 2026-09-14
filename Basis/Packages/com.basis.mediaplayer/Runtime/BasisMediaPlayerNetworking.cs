@@ -76,6 +76,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
     private const int SeekPayloadSize = 1 + 8;
     private const float ResyncAnswerTimeoutSeconds = 3f;
     private const float PendingApplyStaleSeconds = 60f;
+    private const float PauseSeekLandTimeoutSeconds = 10f;
 
     // Cached single-byte command payloads; SendCustomNetworkEvent does not retain references.
     private static readonly byte[] PlayBytes = { (byte)MessageId.Play };
@@ -113,13 +114,18 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
     // fed it the synced state, a deliberate owner always.
     private bool CanAnswerStateQueries => IsOwnedLocallyOnClient && (deliberateControl || !string.IsNullOrEmpty(currentSyncedUrl));
 
-    // Owner state stashed while a remote page URL resolves locally (async):
-    // applied on the resolved source's OnReady, so a late joiner lands at the
+    // Owner state stashed while a remote load comes up locally (async):
+    // applied on the new source's OnReady, so a late joiner lands at the
     // owner's position instead of always starting at zero.
     private bool pendingRemoteApply;
     private SyncedPlaybackState pendingRemoteState;
     private long pendingRemotePositionTicks;
     private float pendingRemoteStashedAt;
+    private BasisNativeVideoSource pendingRemoteOutgoingEngine;
+    private BasisNativeVideoSource pendingRemoteStartedEngine;
+    private bool pauseWhenSeekLands;
+    private long pauseSeekTargetTicks;
+    private float pauseSeekDeadline;
 
     // Resync this client started for itself: the stash above is then our own state, and
     // the answer to our state request reloads a url we already hold instead of no-opping.
@@ -196,6 +202,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         // block every later resync on the guard at the top of ResyncLocal.
         forcedResyncPending = false;
         resyncAnswerDeadline = -1f;
+        pauseWhenSeekLands = false;
     }
 
     // Owner position heartbeat: a small latest-wins ping (Sequenced, like the
@@ -206,10 +213,12 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
     {
         if (mediaPlayer == null) return;
         TickPendingResync();
+        TickPendingRemoteStart();
+        TickPauseWhenSeekLands();
         if (PositionHeartbeatSeconds <= 0f) return;
         if (!HasNetworkID || !IsDrivingOwner) return;
         // Mid-reload our playhead is about to be replaced; advertising it would drag the room to it.
-        if (pendingRemoteApply) return;
+        if (pendingRemoteApply || pauseWhenSeekLands) return;
         if (!mediaPlayer.IsPlaying || mediaPlayer.IsPaused) return;
         if (mediaPlayer.Duration <= TimeSpan.Zero) return;
         heartbeatTimer += Time.deltaTime;
@@ -555,6 +564,8 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
             pendingRemoteApply = true;
         }
 
+        pendingRemoteOutgoingEngine = mediaPlayer.NativeEngine;
+        pauseWhenSeekLands = false;
         selfResyncApply = true;
         // currentSyncedUrl stays the url peers have to resolve for themselves, so the reload's
         // OnReady must not adopt this client's resolved (per-client, expiring) stream url as it.
@@ -644,6 +655,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
     {
         if (!HasNetworkID)
         {
+            FinishPauseWhenSeekLands();
             return true;
         }
 
@@ -652,6 +664,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
             // A local control action promotes implicit ownership to deliberate: from
             // here our state is the authoritative one to announce.
             deliberateControl = true;
+            FinishPauseWhenSeekLands();
             return true;
         }
 
@@ -682,6 +695,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         if (result.Success)
         {
             deliberateControl = true;
+            FinishPauseWhenSeekLands();
         }
         else if (VerboseLogging)
         {
@@ -808,6 +822,17 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
                     return;
                 }
 
+                if (pendingRemoteApply)
+                {
+                    if (pendingRemoteState == SyncedPlaybackState.Playing)
+                    {
+                        pendingRemotePositionTicks = ReadLong(buffer, 1);
+                        pendingRemoteStashedAt = Time.realtimeSinceStartup;
+                    }
+
+                    return;
+                }
+
                 // Drift-only: state changes ride FullState and the transport
                 // commands; the heartbeat never starts or pauses playback.
                 if (!mediaPlayer.IsPlaying || mediaPlayer.IsPaused)
@@ -824,6 +849,13 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
 
     private void ApplyRemotePlay()
     {
+        pauseWhenSeekLands = false;
+        if (pendingRemoteApply)
+        {
+            RestampPendingRemoteState(SyncedPlaybackState.Playing);
+            return;
+        }
+
         applyingRemoteCommand = true;
         try
         {
@@ -844,6 +876,19 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
 
     private void ApplyRemotePause()
     {
+        if (pendingRemoteApply)
+        {
+            RestampPendingRemoteState(SyncedPlaybackState.Paused);
+            if (!mediaPlayer.IsPlaying)
+            {
+                return;
+            }
+        }
+        else if (pauseWhenSeekLands)
+        {
+            return;
+        }
+
         applyingRemoteCommand = true;
         try
         {
@@ -865,6 +910,12 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
 
     private void ApplyRemoteStop()
     {
+        pauseWhenSeekLands = false;
+        if (pendingRemoteApply)
+        {
+            RestampPendingRemoteState(SyncedPlaybackState.Stopped);
+        }
+
         applyingRemoteCommand = true;
         try
         {
@@ -886,10 +937,21 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
             return;
         }
 
+        if (pendingRemoteApply)
+        {
+            pendingRemotePositionTicks = ticks;
+            pendingRemoteStashedAt = Time.realtimeSinceStartup;
+            return;
+        }
+
         applyingRemoteCommand = true;
         try
         {
             mediaPlayer.Seek(TimeSpan.FromTicks(ticks));
+            if (pauseWhenSeekLands)
+            {
+                ArmPauseWhenSeekLands(ticks);
+            }
         }
         catch (NotSupportedException)
         {
@@ -925,9 +987,15 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
             return;
         }
 
+        if (!loadChanged && state == SyncedPlaybackState.Paused && pauseWhenSeekLands)
+        {
+            return;
+        }
+
         applyingRemoteCommand = true;
         pendingRemoteApply = false; /* superseded by whatever this state says */
         selfResyncApply = false;
+        pauseWhenSeekLands = false;
         try
         {
             if (loadChanged)
@@ -941,36 +1009,22 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
 
                 // A page URL (YouTube/Twitch/…) is resolved per-client: resolved CDN URLs
                 // are per-client and expiring, so they can't be shared. Route it through
-                // LoadUrl so this client resolves the page URL itself. Resolution is async,
-                // so the resolved source auto-plays via the player's default
-                // AutoPlayOnSourceAssigned; the owner's position/pause snapshot is stashed
-                // and applied on the resolved source's OnReady (aged by the resolve time),
-                // then the heartbeat refines it.
-                if (!BasisMediaUrlRouter.IsDirectlyPlayable(url))
+                // LoadUrl so this client resolves the page URL itself. Either load comes up
+                // async and auto-plays via the player's default AutoPlayOnSourceAssigned;
+                // the owner's position/pause snapshot is stashed and applied on the new
+                // source's OnReady (aged by the load time), then the heartbeat refines it.
+                pendingRemoteState = state;
+                pendingRemotePositionTicks = positionTicks;
+                pendingRemoteStashedAt = Time.realtimeSinceStartup;
+                pendingRemoteOutgoingEngine = mediaPlayer.NativeEngine;
+                pendingRemoteApply = state != SyncedPlaybackState.Stopped || mediaPlayer.AutoPlayOnSourceAssigned;
+                if (BasisMediaUrlRouter.IsDirectlyPlayable(url))
                 {
-                    pendingRemoteState = state;
-                    pendingRemotePositionTicks = positionTicks;
-                    pendingRemoteStashedAt = Time.realtimeSinceStartup;
-                    pendingRemoteApply = true;
+                    mediaPlayer.LoadSource(BasisMediaSource.FromUrl(url));
+                }
+                else
+                {
                     mediaPlayer.LoadApprovedUrl(url);
-                    return;
-                }
-
-                var media = BasisMediaSource.FromUrl(url);
-                media.StartPosition = positionTicks > 0 ? TimeSpan.FromTicks(positionTicks) : TimeSpan.Zero;
-
-                bool savedAutoPlay = mediaPlayer.AutoPlayOnSourceAssigned;
-                mediaPlayer.AutoPlayOnSourceAssigned = state == SyncedPlaybackState.Playing || state == SyncedPlaybackState.Paused;
-                mediaPlayer.LoadSource(media);
-                mediaPlayer.AutoPlayOnSourceAssigned = savedAutoPlay;
-
-                if (state == SyncedPlaybackState.Paused)
-                {
-                    mediaPlayer.Pause();
-                }
-                else if (state == SyncedPlaybackState.Stopped)
-                {
-                    mediaPlayer.Stop();
                 }
 
                 return;
@@ -1033,31 +1087,108 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
 
             // The owner's advertised state is authoritative here. Don't rely on the resolved
             // source having auto-started: AutoPlayOnSourceAssigned is the peer's own setting
-            // and may be off, which would strand it stopped while the owner plays. The
-            // direct-URL path forces the same thing around LoadSource. IsPlaying and IsPaused
-            // are independent, so a paused source needs resuming rather than starting.
-            if (pendingRemoteState == SyncedPlaybackState.Playing)
-            {
-                if (mediaPlayer.IsPlaying && mediaPlayer.IsPaused) mediaPlayer.Resume();
-                else if (!mediaPlayer.IsPlaying) mediaPlayer.Play();
-            }
-            else if (pendingRemoteState == SyncedPlaybackState.Paused)
-            {
-                if (!mediaPlayer.IsPlaying) mediaPlayer.Play();
-                if (!mediaPlayer.IsPaused) mediaPlayer.Pause();
-            }
+            // and may be off, which would strand it stopped while the owner plays. IsPlaying
+            // and IsPaused are independent, so a paused source needs resuming rather than starting.
+            if (mediaPlayer.IsPlaying && mediaPlayer.IsPaused) mediaPlayer.Resume();
+            else if (!mediaPlayer.IsPlaying) mediaPlayer.Play();
 
-            if (pendingRemotePositionTicks > 0)
+            bool seeked = false;
+            long ticks = pendingRemotePositionTicks;
+            if (ticks > 0)
             {
                 // The owner's snapshot aged while this client resolved; advance
                 // it by the elapsed time when the owner was playing. The
                 // heartbeat corrects the residual.
-                long ticks = pendingRemotePositionTicks;
                 if (pendingRemoteState == SyncedPlaybackState.Playing)
                     ticks += (long)((Time.realtimeSinceStartup - pendingRemoteStashedAt) * TimeSpan.TicksPerSecond);
-                try { mediaPlayer.Seek(TimeSpan.FromTicks(ticks)); }
+                try { mediaPlayer.Seek(TimeSpan.FromTicks(ticks)); seeked = true; }
                 catch (NotSupportedException) { /* resolved to a live/unindexed source */ }
             }
+
+            if (pendingRemoteState != SyncedPlaybackState.Paused)
+            {
+                return;
+            }
+
+            if (seeked) ArmPauseWhenSeekLands(ticks);
+            else mediaPlayer.Pause();
+        }
+        finally
+        {
+            applyingRemoteCommand = false;
+        }
+    }
+
+    private void RestampPendingRemoteState(SyncedPlaybackState state)
+    {
+        if (pendingRemoteState == SyncedPlaybackState.Playing && pendingRemotePositionTicks > 0)
+        {
+            pendingRemotePositionTicks += (long)((Time.realtimeSinceStartup - pendingRemoteStashedAt) * TimeSpan.TicksPerSecond);
+        }
+
+        pendingRemoteState = state;
+        pendingRemoteStashedAt = Time.realtimeSinceStartup;
+    }
+
+    private void TickPendingRemoteStart()
+    {
+        if (!pendingRemoteApply || pendingRemoteState == SyncedPlaybackState.Stopped || mediaPlayer.AutoPlayOnSourceAssigned)
+        {
+            return;
+        }
+
+        var engine = mediaPlayer.NativeEngine;
+        if (engine == null || engine.IsRunning || ReferenceEquals(engine, pendingRemoteOutgoingEngine) || ReferenceEquals(engine, pendingRemoteStartedEngine))
+        {
+            return;
+        }
+
+        pendingRemoteStartedEngine = engine;
+        applyingRemoteCommand = true;
+        try
+        {
+            mediaPlayer.Play();
+        }
+        finally
+        {
+            applyingRemoteCommand = false;
+        }
+    }
+
+    private void ArmPauseWhenSeekLands(long targetTicks)
+    {
+        pauseWhenSeekLands = true;
+        pauseSeekTargetTicks = targetTicks;
+        pauseSeekDeadline = Time.realtimeSinceStartup + PauseSeekLandTimeoutSeconds;
+    }
+
+    private void TickPauseWhenSeekLands()
+    {
+        if (pauseWhenSeekLands && mediaPlayer.IsPlaying && !mediaPlayer.IsPaused && mediaPlayer.Position.Ticks <= pauseSeekTargetTicks && Time.realtimeSinceStartup < pauseSeekDeadline)
+        {
+            return;
+        }
+
+        FinishPauseWhenSeekLands();
+    }
+
+    private void FinishPauseWhenSeekLands()
+    {
+        if (!pauseWhenSeekLands)
+        {
+            return;
+        }
+
+        pauseWhenSeekLands = false;
+        if (!mediaPlayer.IsPlaying || mediaPlayer.IsPaused)
+        {
+            return;
+        }
+
+        applyingRemoteCommand = true;
+        try
+        {
+            mediaPlayer.Pause();
         }
         finally
         {
@@ -1133,7 +1264,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
 
     private void HandleLocalReady()
     {
-        // A remote page URL finished resolving locally: apply the owner state that
+        // A remote load came up locally: apply the owner state that
         // arrived with it. Runs on every client that does not drive state, which
         // includes an implicit owner being fed by custodians — and on a driving owner
         // only for the resync it started itself, where the stash is its own state.
@@ -1141,9 +1272,15 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         // a client that took control while it was in flight owns the state now.
         if (pendingRemoteApply)
         {
+            if (pendingRemoteOutgoingEngine != null && ReferenceEquals(mediaPlayer.NativeEngine, pendingRemoteOutgoingEngine))
+            {
+                return;
+            }
+
             bool applyStash = selfResyncApply || !IsDrivingOwner;
             pendingRemoteApply = false;
             selfResyncApply = false;
+            pendingRemoteOutgoingEngine = null;
             if (applyStash)
             {
                 ApplyPendingRemoteState();
@@ -1278,12 +1415,12 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
 
     private SyncedPlaybackState GetLocalState()
     {
-        if (!mediaPlayer.IsPlaying)
+        if (pauseWhenSeekLands || (mediaPlayer.IsPaused && (mediaPlayer.IsPlaying || mediaPlayer.Status == BasisMediaPlayerStatus.Paused)))
         {
-            return SyncedPlaybackState.Stopped;
+            return SyncedPlaybackState.Paused;
         }
 
-        return mediaPlayer.IsPaused ? SyncedPlaybackState.Paused : SyncedPlaybackState.Playing;
+        return mediaPlayer.IsPlaying ? SyncedPlaybackState.Playing : SyncedPlaybackState.Stopped;
     }
 
     private string GetActiveUrl()

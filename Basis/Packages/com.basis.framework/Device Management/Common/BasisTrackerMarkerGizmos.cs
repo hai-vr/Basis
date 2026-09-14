@@ -107,8 +107,7 @@ namespace Basis.Scripts.Device_Management
                 // The device transform is written from ScaledDeviceCoord by ApplyFinalMovement
                 // during AfterSimulateOnRender — after this tick. Recompute the same world pose
                 // here so the ball rides this frame's pose instead of last frame's transform.
-                Vector3 localPosition = input.ScaledDeviceCoord.position;
-                Quaternion localRotation = input.ScaledDeviceCoord.rotation;
+                input.GetFinalScaledPose(out Vector3 localPosition, out Quaternion localRotation);
                 BasisLocalPlayspaceMover.ApplyFlipToLocalPose(ref localPosition, ref localRotation);
                 Transform parent = input.transform.parent;
                 Vector3 worldPosition = parent != null ? parent.TransformPoint(localPosition) : localPosition;

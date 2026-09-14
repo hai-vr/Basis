@@ -123,7 +123,7 @@ public static class BasisAvatarShadowLOD
             BasisRemotePlayer remote = kvp.Value;
             if (remote != null)
             {
-                Apply(remote, remote.CurrentLodLevel);
+                Apply(remote, remote.CurrentMeshLodLevel);
             }
         }
     }

@@ -304,6 +304,53 @@ public static class BasisSettingsSystem
         }
     }
 
+    public static bool DeleteSaveDataQuiet(string uniqueSettingsName)
+    {
+        if (!settingsData.settings.Remove(uniqueSettingsName))
+        {
+            return false;
+        }
+        QueueQuietSave();
+        return true;
+    }
+
+    public static int DeleteSaveDataWithPrefixQuiet(string prefix)
+    {
+        List<string> matches = new List<string>();
+        foreach (string key in settingsData.settings.Keys)
+        {
+            if (key.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                matches.Add(key);
+            }
+        }
+        for (int Index = 0; Index < matches.Count; Index++)
+        {
+            settingsData.settings.Remove(matches[Index]);
+        }
+        if (matches.Count > 0)
+        {
+            QueueQuietSave();
+        }
+        return matches.Count;
+    }
+
+    private static void QueueQuietSave()
+    {
+        if (!_settingsLoaded)
+        {
+            return;
+        }
+        if (_batchDepth > 0)
+        {
+            _batchSavePending = true;
+        }
+        else
+        {
+            SaveAllSettings();
+        }
+    }
+
     public static string LoadString(string uniqueSettingsName, string defaultValue)
     {
 

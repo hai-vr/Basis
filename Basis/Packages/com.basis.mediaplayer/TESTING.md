@@ -296,6 +296,10 @@ divergence is not). End-of-stream is per-client: a late joiner runs behind the o
 join latency and must play through to its own end of the content — the owner finishing first
 must not cut it off. Clients therefore finish at slightly different wall-clock times; a peer
 stopping short of the end is the failure, synchronised finishes are not expected.
+Pause the owner mid-video, then have another client leave and rejoin: it must land paused on
+the owner's frame and seek bar position, not playing and not on the opening frame. Run it with
+a direct `.mp4` and with a page URL, and once more with the owner pausing while the rejoining
+client is still loading.
 
 **Resync** — two buttons, two blast radii, and the checks are mostly about the one that must
 *not* travel. **Local Resync** (My Settings tab) is available to every client, including one

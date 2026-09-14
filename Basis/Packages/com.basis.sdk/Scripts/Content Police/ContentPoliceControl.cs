@@ -20,6 +20,7 @@ public static class ContentPoliceControl
     // Reused renderer buffer for the no-content-removal path when no harvest is
     // supplied. Main-thread only; consumed synchronously by prewarm/correction.
     private static readonly List<Renderer> NoRemovalRendererScratch = new List<Renderer>(64);
+    private static readonly List<Component> UnapprovedRemovalScratch = new List<Component>(16);
     private const string MediaPlayerStreamingAssemblyQualifiedTypeName = "BasisMediaPlayerStreaming, BasisMediaPlayer";
     private const string MediaPlayerStreamingTypeName = "BasisMediaPlayerStreaming";
     private const string MediaPlayerStreamingAutoStartFieldName = "ConfigureOnStart";
@@ -387,11 +388,12 @@ public static class ContentPoliceControl
                         if (!PoliceCheck.IsTypeApproved(componentType))
                         {
                             BasisDebug.LogErrorUnreported($"Component {componentType.FullName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!", BasisDebug.LogTag.System);
-                            GameObject.DestroyImmediate(component);
+                            UnapprovedRemovalScratch.Add(component);
                             kinds[Index] = BasisComponentKind.Removed;
                         }
                     }
                 }
+                DestroyUnapprovedComponents();
 
                 bool blockShaders = ShaderBlocklistEnabled && BasisShaderFallback.HasBlocklist;
                 // One line per load, never per component: a busy instance converts hundreds of these
@@ -442,6 +444,19 @@ public static class ContentPoliceControl
             contentBase.Harvest = state.Harvest;
         }
         return SearchAndDestroy;
+    }
+
+    private static void DestroyUnapprovedComponents()
+    {
+        for (int Index = UnapprovedRemovalScratch.Count - 1; Index >= 0; Index--)
+        {
+            Component component = UnapprovedRemovalScratch[Index];
+            if (component != null)
+            {
+                GameObject.DestroyImmediate(component);
+            }
+        }
+        UnapprovedRemovalScratch.Clear();
     }
 
     // Carries the parked clone plus the inputs the deferred strip/scrub pass needs, so the loader
@@ -568,10 +583,11 @@ public static class ContentPoliceControl
                     if (!policeCheck.ApprovedTypeNames.Contains(typeName))
                     {
                         BasisDebug.LogErrorUnreported($"Component {typeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!");
-                        GameObject.DestroyImmediate(component);
+                        UnapprovedRemovalScratch.Add(component);
                     }
                 }
             }
+            DestroyUnapprovedComponents();
 
             if (checks.ScrubPersistentUnityEvents)
             {

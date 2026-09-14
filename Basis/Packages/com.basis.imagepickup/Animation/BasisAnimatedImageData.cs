@@ -114,6 +114,8 @@ namespace Basis.ImagePickup
         public int FrameCount => _frames.IsCreated ? _frames.Length : 0;
 		public bool IsCreated => !_disposed && _frames.IsCreated && _pixels.IsCreated;
 
+        public bool HasPixels => !_disposed && _pixels.IsCreated;
+
         internal NativeArray<BasisAnimatedImageFrame> FramesNative => _frames;
         internal NativeArray<Color32> PixelsNative => _pixels;
 
@@ -195,7 +197,7 @@ namespace Basis.ImagePickup
 
             long frameScratchBytes = checked(
                 (long)BasisImagePickupSettings.MaxAnimationFrames
-                * (4096L * sizeof(ushort) + 4096L + 4097L + sizeof(int) + 256L)
+                * (4096L * sizeof(ushort) + 4096L + 4097L + sizeof(int) + 256L + 256L * 4L)
             );
             return checked(
                 sourceBytes
@@ -351,6 +353,18 @@ namespace Basis.ImagePickup
                 && residentBytes <= limitBytes
                 && reservedBytes <= limitBytes - residentBytes
                 && candidateBytes <= limitBytes - residentBytes - reservedBytes;
+        }
+
+        internal void ReleasePixels()
+        {
+            if (_disposed || !_pixels.IsCreated)
+                return;
+            long pixelBytes = (long)_pixels.Length * UnsafeUtility.SizeOf<Color32>();
+            _pixels.Dispose();
+            _pixels = default;
+            _nativeByteCount = Math.Max(0, _nativeByteCount - pixelBytes);
+            lock (MemoryBudgetLock)
+                _residentNativeBytes = Math.Max(0, _residentNativeBytes - pixelBytes);
         }
 
         public BasisAnimatedImageFrame GetFrame(int index)

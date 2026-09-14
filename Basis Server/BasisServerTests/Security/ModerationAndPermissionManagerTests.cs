@@ -1282,6 +1282,77 @@ public class BasisPlayerModerationTests
         }
     }
 
+    private static NetPacketReader LocomotionOverridePayload(ushort targetId) =>
+        BuildAdminPayload(AdminRequestMode.SetLocomotionOverride, w =>
+        {
+            w.Put(targetId);
+            w.Put((byte)2); // walk speed only
+            w.Put(1f);
+            w.Put(7.5f);
+            w.Put(4f);
+            w.Put(-9.81f);
+            w.Put((byte)0);
+        });
+
+    private static AdminRequestMode ReadAdminMode(FakeNetPeer peer, int index)
+    {
+        AdminRequest req = new AdminRequest();
+        req.Deserialize(new NetDataReader(peer.Sent[index].Data));
+        return req.GetAdminRequestMode();
+    }
+
+    [Fact]
+    public void OnAdminMessage_LocomotionOverride_ProtectedModerator_CanTargetThemselves()
+    {
+        BasisPlayerModeration.UseFileOnDisc = false;
+        var (adminUuid, adminPeer) = ConnectPlayer();
+        PermissionManager perms = PermissionManager.PermissionIntegration.Manager;
+        perms.AddUserNode(adminUuid, PermNodes.ModerationLocomotion);
+        perms.AddUserNode(adminUuid, PermNodes.protection);
+        try
+        {
+            BasisPlayerModeration.OnAdminMessage(adminPeer, LocomotionOverridePayload((ushort)adminPeer.Id));
+
+            Assert.Equal(2, adminPeer.Sent.Count);
+            Assert.Equal(AdminRequestMode.LocomotionOverrideApply, ReadAdminMode(adminPeer, 0));
+            Assert.Equal($"Locomotion override applied to player {adminPeer.Id}.", ReadAdminMessage(adminPeer, 1));
+        }
+        finally
+        {
+            perms.RemoveUserNode(adminUuid, PermNodes.protection);
+            perms.RemoveUserNode(adminUuid, PermNodes.ModerationLocomotion);
+            RemovePlayer(adminPeer);
+        }
+    }
+
+    [Fact]
+    public void OnAdminMessage_LocomotionOverride_ProtectedTarget_IsStillRefusedToAnotherModerator()
+    {
+        BasisPlayerModeration.UseFileOnDisc = false;
+        var (adminUuid, adminPeer) = ConnectPlayer();
+        var (targetUuid, targetPeer) = ConnectPlayer();
+        PermissionManager perms = PermissionManager.PermissionIntegration.Manager;
+        perms.AddUserNode(adminUuid, PermNodes.ModerationLocomotion);
+        perms.AddUserNode(adminUuid, PermNodes.protection);
+        perms.AddUserNode(targetUuid, PermNodes.protection);
+        try
+        {
+            BasisPlayerModeration.OnAdminMessage(adminPeer, LocomotionOverridePayload((ushort)targetPeer.Id));
+
+            Assert.Empty(targetPeer.Sent);
+            Assert.Single(adminPeer.Sent);
+            Assert.Equal("Target is protected", ReadAdminMessage(adminPeer));
+        }
+        finally
+        {
+            perms.RemoveUserNode(targetUuid, PermNodes.protection);
+            perms.RemoveUserNode(adminUuid, PermNodes.protection);
+            perms.RemoveUserNode(adminUuid, PermNodes.ModerationLocomotion);
+            RemovePlayer(adminPeer);
+            RemovePlayer(targetPeer);
+        }
+    }
+
     [Fact]
     public void OnAdminMessage_GetPermissions_RequiresView_ThenSerializesTheSnapshot()
     {

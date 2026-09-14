@@ -199,7 +199,7 @@ Shader "Basis/TMPro URP"
                         abs(scale) * (1 - _PerspectiveFilter),
                         scale,
                         abs(
-                            dot( TransformObjectToWorldNormal(v.normal.xyz), viewDir )
+                            dot( TransformObjectToWorldDir(v.normal.xyz), viewDir )
                         )
                     );
                 }

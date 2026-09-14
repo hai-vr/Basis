@@ -11,6 +11,7 @@ namespace Basis.ImagePickup
     {
         public int CanvasWidth;
         public byte Reset;
+        public byte Keyframe;
         public int StartFrame;
         public int TargetFrame;
         public byte Linear;
@@ -36,7 +37,7 @@ namespace Basis.ImagePickup
 
             for (int frameIndex = StartFrame + 1; frameIndex <= TargetFrame; frameIndex++)
             {
-                if (frameIndex > 0)
+                if (frameIndex > 0 && (Keyframe == 0 || frameIndex != StartFrame + 1))
                     DisposeFrame(Frames[frameIndex - 1]);
                 BasisAnimatedImageFrame frame = Frames[frameIndex];
                 if (frame.Disposal == BasisAnimationDisposal.Previous)
@@ -68,16 +69,22 @@ namespace Basis.ImagePickup
         private void Draw(BasisAnimatedImageFrame frame)
         {
             int source = frame.PixelOffset;
+            bool over = frame.Blend != BasisAnimationBlend.Source;
             for (int y = 0; y < frame.Height; y++)
             {
                 int destination = (frame.Y + y) * CanvasWidth + frame.X;
                 for (int x = 0; x < frame.Width; x++, source++, destination++)
                 {
                     Color32 pixel = FramePixels[source];
-                    Canvas[destination] =
-                        frame.Blend == BasisAnimationBlend.Source
-                            ? Premultiply(pixel)
-                            : Blend(pixel, Canvas[destination]);
+                    if (pixel.a == byte.MaxValue)
+                        Canvas[destination] = pixel;
+                    else if (pixel.a == 0)
+                    {
+                        if (!over)
+                            Canvas[destination] = default;
+                    }
+                    else
+                        Canvas[destination] = over ? Blend(pixel, Canvas[destination]) : Premultiply(pixel);
                 }
             }
         }

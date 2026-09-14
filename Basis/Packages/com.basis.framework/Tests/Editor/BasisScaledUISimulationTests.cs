@@ -1,5 +1,7 @@
 using Basis.BasisUI;
 using NUnit.Framework;
+using System.IO;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace Basis.Tests.IK
@@ -65,6 +67,29 @@ namespace Basis.Tests.IK
             // reintroduce the mismatch for any plausible tiny avatar.
             Assert.That(BasisMenuMover.MIN_TMP_RENDER_SCALE, Is.LessThanOrEqualTo(AvatarScale * 0.5f),
                 "the degenerate guard must sit well below playable avatar scales.");
+        }
+
+        [Test]
+        public void TmpSdfShaders_PerspectiveFilter_NeverUsesTheInverseObjectMatrix()
+        {
+            int filterStatements = 0;
+            foreach (string root in new[] { "Packages/com.basis.textmeshpro/Shaders", "Packages/com.basis.sdk/Shaders" })
+            {
+                foreach (string path in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+                {
+                    if (!path.EndsWith(".shader") && !path.EndsWith(".cginc") && !path.EndsWith(".hlsl")) continue;
+                    string source = Regex.Replace(File.ReadAllText(path), @"/\*.*?\*/|//[^\r\n]*", "", RegexOptions.Singleline);
+                    foreach (string chunk in source.Split(';'))
+                    {
+                        string statement = chunk.Substring(Mathf.Max(chunk.LastIndexOf('{'), chunk.LastIndexOf('}')) + 1);
+                        if (!statement.Contains("_PerspectiveFilter") || !statement.Contains("lerp")) continue;
+                        filterStatements++;
+                        Assert.That(statement, Does.Not.Contain("ObjectToWorldNormal"),
+                            $"{path}: the SDF perspective filter must take its normal from the object-to-world matrix. Unity zeroes the world-to-object matrix once its determinant squared drops below 1e-25, which the desktop menu reaches below about 0.086 m eye height at 75 degrees FOV, and the normalized zero normal turns every glyph into a solid block.");
+                    }
+                }
+            }
+            Assert.That(filterStatements, Is.GreaterThan(0), "found no SDF perspective-filter statements, so the scan paths or the statement pattern are stale.");
         }
 
         // ----------------------------------------------------------------- line renderer semantics

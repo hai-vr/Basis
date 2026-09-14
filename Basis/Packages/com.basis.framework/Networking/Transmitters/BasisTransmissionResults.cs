@@ -639,7 +639,6 @@ public partial class BasisTransmissionResults
         }
 
         bool microphoneChange = IndexChanged || AnyMicrophoneRangeChanged || ForceVoiceRecipientResend;
-        bool lodChange = IndexChanged || AnyLodRangeChanged;
 
         // Avatar range is always evaluated per-player in the loop below — the debounce
         // logic needs to run every tick so pending transitions can commit on the
@@ -676,7 +675,6 @@ public partial class BasisTransmissionResults
             float* pConeShelf = dampenEnabled ? (float*)coneShelfDb.GetUnsafeReadOnlyPtr() : null;
             float* pDirectivityShelf = dampenEnabled ? (float*)directivityShelfDb.GetUnsafeReadOnlyPtr() : null;
             bool* pAvatarRange = (bool*)AvatarRange.GetUnsafeReadOnlyPtr();
-            bool* pMeshLodRange = (bool*)MeshLodRange.GetUnsafeReadOnlyPtr();
             short* pMeshLodLevel = (short*)MeshLodLevel.GetUnsafeReadOnlyPtr();
             short* pPoseLodLevel = (short*)PoseLodLevel.GetUnsafeReadOnlyPtr();
             BasisJiggleColliderTier* pTargetColliderTier = (BasisJiggleColliderTier*)targetColliderTier.GetUnsafeReadOnlyPtr();
@@ -853,7 +851,7 @@ public partial class BasisTransmissionResults
                     }
                 }
 
-                if (lodChange && pMeshLodRange[i])
+                if (pMeshLodLevel[i] != remote.CurrentMeshLodLevel)
                 {
                     using (BasisNetworkMarkers.TransmitChangeMeshLOD.Auto())
                     {

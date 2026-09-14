@@ -68,12 +68,11 @@ namespace Basis.BasisUI
 
         private const float MIN_Z_SCALE = 0.01f;
         // Degenerate-value guard ONLY — deliberately far below any playable avatar scale. The old
-        // 0.055 floor (empirical TMP block-glyph limit before the atlas was mipmapped —
-        // BasisTMPAtlasMipmapBaker) rendered the menu 5.5x OVERSIZED and 5.5x TOO FAR at 0.01 avatar
-        // scale (anchor distance scales by the floored root too), while the hand/camera/raycast were
-        // true-scale: the ray hit the right targets but the pointer swept the panel at a 5.5x
-        // mismatched rate ("moving left and right but scaled by something"). The menu must stay
-        // proportional to the avatar; tiny-scale text legibility is the mipmapped atlas' job.
+        // 0.055 floor (empirical TMP block-glyph limit) rendered the menu 5.5x OVERSIZED and 5.5x
+        // TOO FAR at 0.01 avatar scale (anchor distance scales by the floored root too), while the
+        // hand/camera/raycast were true-scale: the ray hit the right targets but the pointer swept
+        // the panel at a 5.5x mismatched rate ("moving left and right but scaled by something").
+        // The menu must stay proportional to the avatar.
         public const float MIN_TMP_RENDER_SCALE = 0.005f;
 
         private bool _hasLastEyeWrite;

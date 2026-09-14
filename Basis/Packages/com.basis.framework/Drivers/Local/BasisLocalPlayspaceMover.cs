@@ -666,7 +666,7 @@ namespace Basis.Scripts.Drivers
                         present = true;
                         // Grip is also the pickup input — while this hand is holding an interactable,
                         // don't let it drive the mover until the object is released.
-                        if (IsHandHoldingObject(device))
+                        if (IsHandHoldingObject(device) || BasisDeviceOffsetEditor.IsCapturing(device))
                         {
                             mainHeld = false;
                             rotateHeld = false;
@@ -702,7 +702,7 @@ namespace Basis.Scripts.Drivers
             local = ApplyFlipToLocalPoint(local);
         }
 
-        private static bool IsHandHoldingObject(BasisInput device)
+        public static bool IsHandHoldingObject(BasisInput device)
         {
             // A jiggle grab holds no BasisInteractableObject on purpose, so it can't be seen through
             // InteractInputs below — ask the grab driver directly or grip would pull the chain and

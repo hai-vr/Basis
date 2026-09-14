@@ -214,6 +214,17 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 interactInput.wasTriggerDown = triggerDown;
                 bool desktopEye = IsDesktopCenterEye(interactInput.input);
 
+                if (BasisDeviceOffsetEditor.IsCapturing(interactInput.input))
+                {
+                    interactInput.HasvalidRay = false;
+                    if (interactInput.lastTarget != null && interactInput.lastTarget.IsHoveredBy(interactInput.input))
+                    {
+                        interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
+                    }
+                    InteractInputs[index] = interactInput;
+                    continue;
+                }
+
                 // After a grab-again drop, wait for grip release so the same press can't re-grab the pickup
                 if (interactInput.suppressGrabUntilRelease)
                 {

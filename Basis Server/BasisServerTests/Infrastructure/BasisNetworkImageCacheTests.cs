@@ -1,6 +1,8 @@
 using Basis.Network.Core;
 using Basis.Network.Server.Generic;
 using BasisNetworkCore;
+using BasisNetworkServer.Security;
+using BasisPermissions;
 using System.Net;
 using System.Text;
 using Xunit;
@@ -727,6 +729,147 @@ public class BasisNetworkImageCacheTests : IDisposable
         }
 
         Assert.True(owner.Sent.Count > afterFirstShare);
+    }
+
+    // ---- GIF lock ------------------------------------------------------------------------------
+
+    private static Guid ShareAnimatedImage(ushort owner, int chunks = 2, int animationChunks = 2)
+    {
+        Guid id = ShareImage(owner, chunks);
+        Observe(owner, EncodeAnimationSpawn(id, animationChunks));
+        for (int index = 0; index < animationChunks; index++)
+        {
+            Observe(owner, EncodeChunk(id, index, ChunkBytes, OpAnimationChunk));
+        }
+        return id;
+    }
+
+    private static int CountOpcode(ImageCacheRecordingPeer peer, byte opcode) =>
+        peer.Sent.Count(sent => PayloadOpcode(sent) == opcode);
+
+    [Fact]
+    public void IsAnimationPayload_MatchesOnlyTheAnimationOpcodes()
+    {
+        Assert.True(BasisNetworkImageCache.IsAnimationPayload(new byte[] { OpAnimationSpawn, 0 }, 2));
+        Assert.True(BasisNetworkImageCache.IsAnimationPayload(new byte[] { OpAnimationChunk }, 1));
+        Assert.False(BasisNetworkImageCache.IsAnimationPayload(new byte[] { OpSpawn }, 1));
+        Assert.False(BasisNetworkImageCache.IsAnimationPayload(new byte[] { OpChunk }, 1));
+        Assert.False(BasisNetworkImageCache.IsAnimationPayload(new byte[] { OpTransform }, 1));
+        Assert.False(BasisNetworkImageCache.IsAnimationPayload(new byte[] { OpAnimationChunk }, 0));
+        Assert.False(BasisNetworkImageCache.IsAnimationPayload(null, 0));
+    }
+
+    [Fact]
+    public void IsGifBlockedForUuid_BlocksOnlyLockedUsersWithoutTheGlobalLockNode()
+    {
+        PermissionManager manager = PermissionManager.PermissionIntegration.Manager;
+        string plainUuid = $"gif-plain-{Guid.NewGuid():N}";
+        string bypassUuid = $"gif-bypass-{Guid.NewGuid():N}";
+        bool wasLocked = BasisGlobalLockManager.GifsLocked;
+        if (wasLocked)
+        {
+            BasisGlobalLockManager.ToggleGifs();
+        }
+
+        try
+        {
+            manager.AddUserNode(bypassUuid, PermNodes.ModerationGlobalLock);
+
+            Assert.False(BasisNetworkImageCache.IsGifBlockedForUuid(plainUuid));
+            Assert.False(BasisNetworkImageCache.IsGifBlockedForUuid(bypassUuid));
+
+            Assert.True(BasisGlobalLockManager.ToggleGifs());
+            Assert.True(BasisNetworkImageCache.IsGifBlockedForUuid(plainUuid));
+            Assert.True(BasisNetworkImageCache.IsGifBlockedForUuid(null));
+            Assert.False(BasisNetworkImageCache.IsGifBlockedForUuid(bypassUuid));
+        }
+        finally
+        {
+            manager.RemoveUserNode(bypassUuid, PermNodes.ModerationGlobalLock);
+            if (BasisGlobalLockManager.GifsLocked != wasLocked)
+            {
+                BasisGlobalLockManager.ToggleGifs();
+            }
+        }
+    }
+
+    [Fact]
+    public void WhileGifsAreLocked_ARequesterGetsTheStillAndTheAnimationFollowsOnUnlock()
+    {
+        Guid id = ShareAnimatedImage(owner: 7);
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        bool wasLocked = BasisGlobalLockManager.GifsLocked;
+        if (!wasLocked)
+        {
+            BasisGlobalLockManager.ToggleGifs();
+        }
+
+        try
+        {
+            BasisNetworkImageCache.ServeRequestedImage(9, id);
+            Assert.Equal(1, CountOpcode(joiner, OpSpawn));
+            Assert.Equal(2, CountOpcode(joiner, OpChunk));
+            Assert.Equal(0, CountOpcode(joiner, OpAnimationSpawn));
+            Assert.Equal(0, CountOpcode(joiner, OpAnimationChunk));
+
+            BasisNetworkImageCache.ResumeAnimationsAfterUnlock();
+            Assert.Equal(0, CountOpcode(joiner, OpAnimationSpawn));
+        }
+        finally
+        {
+            if (BasisGlobalLockManager.GifsLocked)
+            {
+                BasisGlobalLockManager.ToggleGifs();
+            }
+        }
+
+        BasisNetworkImageCache.ResumeAnimationsAfterUnlock();
+        Assert.Equal(1, CountOpcode(joiner, OpAnimationSpawn));
+        Assert.Equal(2, CountOpcode(joiner, OpAnimationChunk));
+
+        joiner.Sent.Clear();
+        BasisNetworkImageCache.ResumeAnimationsAfterUnlock();
+        Assert.Empty(joiner.Sent);
+
+        if (wasLocked)
+        {
+            BasisGlobalLockManager.ToggleGifs();
+        }
+    }
+
+    [Fact]
+    public void ARequesterServedBeforeTheAnimationFinished_IsSentItWhenItCompletes()
+    {
+        Guid id = ShareImage(owner: 7, chunks: 2);
+        Observe(7, EncodeAnimationSpawn(id, 2));
+        Observe(7, EncodeChunk(id, 0, ChunkBytes, OpAnimationChunk));
+
+        ImageCacheRecordingPeer joiner = RegisterPeer(9);
+        BasisNetworkImageCache.ServeRequestedImage(9, id);
+        Assert.Equal(1, CountOpcode(joiner, OpSpawn));
+        Assert.Equal(0, CountOpcode(joiner, OpAnimationSpawn));
+
+        Observe(7, EncodeChunk(id, 1, ChunkBytes, OpAnimationChunk));
+
+        Assert.Equal(1, CountOpcode(joiner, OpAnimationSpawn));
+        Assert.Equal(2, CountOpcode(joiner, OpAnimationChunk));
+    }
+
+    [Fact]
+    public void ThePeersTheSharerSentTheAnimationTo_AreNotSentItAgainByTheCache()
+    {
+        ImageCacheRecordingPeer nearby = RegisterPeer(9);
+
+        Guid id = Guid.NewGuid();
+        ushort[] targeted = { 9 };
+        ObserveTargeted(7, EncodeSpawn(id, 7, "Sharer", totalChunks: 1), targeted);
+        ObserveTargeted(7, EncodeChunk(id, 0, ChunkBytes), targeted);
+        ObserveTargeted(7, EncodeAnimationSpawn(id, 1), targeted);
+        ObserveTargeted(7, EncodeChunk(id, 0, ChunkBytes, OpAnimationChunk), targeted);
+
+        Assert.Equal(0, CountOpcode(nearby, OpAnimationSpawn));
+        BasisNetworkImageCache.ResumeAnimationsAfterUnlock();
+        Assert.Equal(0, CountOpcode(nearby, OpAnimationSpawn));
     }
 
     // ---- where the picture actually is -------------------------------------------------------

@@ -334,6 +334,27 @@ public class CrowdScaleTests
     }
 
     [Fact]
+    public void JoinFill_SkipsAPlayerWhoLeftAfterTheSnapshotWasTaken()
+    {
+        using Crowd crowd = new Crowd(3, 512);
+        FakeNetPeer departed = crowd.Peers[1];
+        BasisSavedState.RemovePlayer(departed.Id);
+
+        BasisServerHandleEvents.SendClientListToNewClient(crowd.Joiner, new LocalAvatarSyncMessage());
+
+        HashSet<ushort> spawned = new HashSet<ushort>();
+        foreach ((byte[] data, byte _, DeliveryMethod _) in crowd.Joiner.Sent)
+        {
+            List<ushort> decoded = DecodeAsTheClientWould(data, out string error);
+            Assert.Equal(string.Empty, error);
+            spawned.UnionWith(decoded);
+        }
+        Assert.DoesNotContain((ushort)departed.Id, spawned);
+        Assert.Contains((ushort)crowd.Peers[0].Id, spawned);
+        Assert.Contains((ushort)crowd.Peers[2].Id, spawned);
+    }
+
+    [Fact]
     public void JoinFill_WithAnOversizedSingleRecord_StillDeliversEveryone()
     {
         // One player whose avatar record is larger than a whole batch ends up alone in a batch that

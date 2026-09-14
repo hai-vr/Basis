@@ -249,8 +249,9 @@ public static class BasisNetworkResourceManagement
 
         // Creator-or-moderator, same rule SetStatic applies. The unload permission node is in the
         // default group, so without this any player can delete every other player's props.
-        bool isModeratorUnload = PermissionIntegration.HasValidRequirement(peer, PermNodes.protection);
-        bool isCreatorUnload = NetworkServer.AuthIdentity.NetIDToUUID(peer, out string unloadRequesterUuid)
+        bool hasUnloadRequesterUuid = NetworkServer.AuthIdentity.NetIDToUUID(peer, out string unloadRequesterUuid);
+        bool isModeratorUnload = hasUnloadRequesterUuid && PermissionIntegration.HasValidRequirement(unloadRequesterUuid, PermNodes.protection);
+        bool isCreatorUnload = hasUnloadRequesterUuid
             && !string.IsNullOrEmpty(resource.UUIDOfCreator)
             && unloadRequesterUuid == resource.UUIDOfCreator;
         if (!isCreatorUnload && !isModeratorUnload)
@@ -303,8 +304,9 @@ public static class BasisNetworkResourceManagement
         // moderator — the item's creator can't set or clear an admin lock. Plain static toggles
         // (the non-admin tier) also allow the creator.
         bool involvesAdminTier = resource.StaticAdminLocked || targetAdminLocked;
-        bool isModerator = PermissionIntegration.HasValidRequirement(peer, PermNodes.protection);
-        bool isCreator = NetworkServer.AuthIdentity.NetIDToUUID(peer, out string requesterUuid)
+        bool hasRequesterUuid = NetworkServer.AuthIdentity.NetIDToUUID(peer, out string requesterUuid);
+        bool isModerator = hasRequesterUuid && PermissionIntegration.HasValidRequirement(requesterUuid, PermNodes.protection);
+        bool isCreator = hasRequesterUuid
             && !string.IsNullOrEmpty(resource.UUIDOfCreator)
             && requesterUuid == resource.UUIDOfCreator;
         bool allowed = involvesAdminTier ? isModerator : (isCreator || isModerator);

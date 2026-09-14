@@ -77,6 +77,10 @@ namespace HVR.Basis.Comms
             foreach (var target in actuator.Targets)
             {
                 var renderer = target.Renderer;
+                if (null == renderer)
+                {
+                    continue;
+                }
                 var lastWeights = target.LastWeights;
                 foreach (var blendshapeIndex in target.BlendshapeIndices)
                 {

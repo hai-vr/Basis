@@ -267,7 +267,7 @@ namespace Basis.Scripts.Vehicles.Main
                 return Vector3.zero;
             }
             Vector2 rawCharRot = BasisLocalPlayer.Instance.LocalCharacterDriver.Rotation;
-            if (DoesPilotSeatNeedMouseInput() && BasisVehiclePilotSeatInputActions.Instance.IsPilotSeatOnlyLockerOfLookRotation())
+            if (DoesPilotSeatNeedMouseInput() && Device_Management.Devices.Desktop.BasisDesktopEye.Instance != null && BasisVehiclePilotSeatInputActions.Instance.IsPilotSeatOnlyLockerOfLookRotation())
             {
                 rawCharRot += Device_Management.Devices.Desktop.BasisDesktopEye.Instance.LookRotationVector * 2.0f;
             }

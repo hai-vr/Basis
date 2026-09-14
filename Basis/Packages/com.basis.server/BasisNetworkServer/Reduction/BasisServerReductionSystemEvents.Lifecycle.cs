@@ -59,10 +59,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     removedIds[removedCount++] = id;
                     BNL.Log($"Player {id} removed and cleaned up.");
                 }
-                else
-                {
-                    BNL.LogError("Missing Player From Index, Normally Quick Disconnect after Connect " + id);
-                }
             }
 
             if (removedCount == 0)

@@ -97,7 +97,7 @@ public static class BasisAvatarSkinLOD
             BasisRemotePlayer remote = kvp.Value;
             if (remote != null)
             {
-                Apply(remote, remote.CurrentLodLevel);
+                Apply(remote, remote.CurrentMeshLodLevel);
             }
         }
     }

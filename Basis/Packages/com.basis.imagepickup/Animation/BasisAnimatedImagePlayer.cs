@@ -67,7 +67,7 @@ namespace Basis.ImagePickup
             return false;
         }
         internal bool IsFaceVisible => _faceVisible;
-        internal bool HasDecodedData => _data != null;
+        internal bool HasDecodedData => _data != null && _data.HasPixels;
         public long PlaybackEpochUtcTicks => _playbackEpochUtcTicks;
         public BasisAnimatedImageData Data => _data;
         internal long DecodedFramePixels => _decodedFramePixels;
@@ -249,6 +249,7 @@ namespace Basis.ImagePickup
                     {
                         if (!_gpuCanvas.TryPrepareFrameAtlas(ref pixelsRemaining))
                             return;
+                        ReleaseAtlasSourcePixels();
                     }
                     catch (Exception exception)
                     {
@@ -350,7 +351,14 @@ namespace Basis.ImagePickup
         private bool EnsureAnimationData()
         {
             if (_data != null)
-                return true;
+            {
+                if (_data.HasPixels || HasAllocatedCompositor)
+                    return true;
+                if (!CanReleaseDecodedData)
+                    return false;
+                _data.Dispose();
+                _data = null;
+            }
             if (_reloadFailed || _reloadPayload == null || !_reloadPayload.IsCreated)
             {
                 return false;
@@ -460,6 +468,26 @@ namespace Basis.ImagePickup
             BasisImagePickupManager.ReleaseReloadDecodeSlot(this, reservedBytes);
         }
 
+        private void ReleaseAtlasSourcePixels()
+        {
+            if (_data != null && _data.HasPixels && _reloadPayload != null && _reloadPayload.IsCreated)
+                _data.ReleasePixels();
+        }
+
+        internal void SuspendForAdminLock()
+        {
+            if (!_initialized)
+                return;
+            if (_reloadRequest != null)
+            {
+                if (!_reloadRequest.IsCompleted)
+                    return;
+                CompleteReload(false);
+            }
+            if (HasAllocatedCompositor || CanReleaseDecodedData || _displayTextureBound)
+                SuspendToPoster(true);
+        }
+
         internal float GetDistanceSquared(Vector3 position)
         {
             return (transform.position - position).sqrMagnitude;
@@ -539,6 +567,11 @@ namespace Basis.ImagePickup
 			if (_cpuCanvas != null)
                 return;
 
+            if (_data == null || !_data.HasPixels)
+            {
+                SuspendToPoster(true);
+                return;
+            }
             _preferCpuFallback = true;
             _gpuCanvas?.Dispose();
             _gpuCanvas = null;
@@ -639,7 +672,7 @@ namespace Basis.ImagePickup
             _pickup?.SetPosterDisplayTexture();
             _displayTextureBound = false;
             DisposeCanvases();
-			if (releaseDecodedData && CanReleaseDecodedData)
+            if ((releaseDecodedData || (_data != null && !_data.HasPixels)) && CanReleaseDecodedData)
             {
                 _data.Dispose();
                 _data = null;

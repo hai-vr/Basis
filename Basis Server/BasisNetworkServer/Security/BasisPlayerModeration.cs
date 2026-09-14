@@ -502,6 +502,18 @@ namespace BasisNetworkServer.Security
                         HandleGlobalProtectionToggle(peer, "Safe display names", BasisGlobalLockManager.ToggleSafeDisplayNames()));
                     break;
 
+                case AdminRequestMode.GlobalToggleGifs:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                    {
+                        bool nowLocked = BasisGlobalLockManager.ToggleGifs();
+                        HandleGlobalFeatureToggle(peer, "GIF animation", nowLocked);
+                        if (!nowLocked)
+                        {
+                            Basis.Network.Server.Generic.BasisNetworkImageCache.ResumeAnimationsAfterUnlock();
+                        }
+                    });
+                    break;
+
                 case AdminRequestMode.SetGlobalAvatarScaleLimits:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleAvatarScaleLimitsSet(peer, reader));
@@ -1044,7 +1056,10 @@ namespace BasisNetworkServer.Security
                 return;
             }
 
-            if (NetworkServer.AuthIdentity.NetIDToUUID(targetPeer, out string targetUUID) && IsProtected(targetUUID))
+            // Protection keeps other moderators off a player; it was never meant to lock a moderator
+            // out of their own movement, so a request aimed at the sender skips it.
+            if (targetPeer.Id != peer.Id &&
+                NetworkServer.AuthIdentity.NetIDToUUID(targetPeer, out string targetUUID) && IsProtected(targetUUID))
             {
                 SendBackMessage(peer, "Target is protected");
                 return;

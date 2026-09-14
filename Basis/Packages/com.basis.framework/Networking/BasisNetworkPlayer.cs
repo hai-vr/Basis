@@ -272,8 +272,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.RecordSentAvatarChannel(MessageIndex, buffer);
             BasisP2PManager.PartitionRecipients(Recipients, out List<ushort> directIds, out List<ushort> relayIds);
+            bool relayBroadcast = allowServerFallback && BasisP2PManager.RelayAsBroadcast(Recipients, directIds, relayIds, buffer != null ? buffer.Length : 0);
 
-            if (directIds != null && directIds.Count > 0)
+            if (!relayBroadcast && directIds != null && directIds.Count > 0)
             {
                 NetDataWriter p2pWriter = sAvatarSendWriter;
                 p2pWriter.Reset();
@@ -296,7 +297,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     PlayerIdMessage = new PlayerIdMessage() { playerID = playerId },
                     messageIndex = MessageIndex,
                     payload = buffer,
-                    recipients = relayIds.ToArray(),
+                    recipients = relayBroadcast ? null : relayIds.ToArray(),
                     AvatarLinkIndex = LastLinkedAvatarIndex,
                     recipientsSize = 0,
                 };

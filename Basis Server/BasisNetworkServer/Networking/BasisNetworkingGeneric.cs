@@ -123,6 +123,10 @@ namespace Basis.Network.Server.Generic
             // Observe only — the relay below is untouched, so a cache miss, a rejection or a
             // malformed payload can never interfere with the live send.
             bool isImageTraffic = BasisNetworkImageCache.IsImageTraffic(SceneDataMessage.messageIndex);
+            if (isImageTraffic && BasisNetworkImageCache.IsAnimationPayload(payload, payloadLength) && BasisNetworkImageCache.IsGifBlockedFor(sender))
+            {
+                return;
+            }
             if (isImageTraffic)
             {
                 BasisNetworkImageCache.Observe(

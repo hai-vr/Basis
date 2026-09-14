@@ -1222,6 +1222,10 @@ public static class BasisNetworkModeration
     /// </summary>
     public static bool GlobalSafeDisplayNamesForced { get; private set; }
 
+    public static bool GlobalGifsLocked { get; private set; }
+
+    public static event Action<bool> OnGlobalGifsLockedChanged;
+
     /// <summary>Fired when the text-chat lock flag changes.</summary>
     public static event Action<bool> OnGlobalTextChatLockedChanged;
 
@@ -1313,6 +1317,9 @@ public static class BasisNetworkModeration
     /// </summary>
     public static bool PropGrabbingBlockedLocally =>
         GlobalPropGrabbingLocked && !LocalPlayerHasGlobalLockBypass();
+
+    public static bool GifsBlockedLocally =>
+        GlobalGifsLocked && !LocalPlayerHasGlobalLockBypass();
 
     private static void HandleGlobalLockState(NetDataReader reader)
     {
@@ -1478,7 +1485,16 @@ public static class BasisNetworkModeration
                 OnGlobalSafeDisplayNamesForcedChanged?.Invoke(GlobalSafeDisplayNamesForced);
             }
         }
-        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}, PlayspaceMover: {GlobalPlayspaceMoverLocked}, DirectConnect: {GlobalDirectConnectLocked}, Cilbox: {GlobalCilboxLocked}, Images: {GlobalImagesLocked}, EndEffectorIKDisabled: {GlobalEndEffectorIKDisabled}, TextChat: {GlobalTextChatLocked}, VoiceChat: {GlobalVoiceChatLocked}, MediaPlayer: {GlobalMediaPlayerLocked}, CameraCapture: {GlobalCameraCaptureLocked}, PropGrabbing: {GlobalPropGrabbingLocked}, SafeDisplayNames: {GlobalSafeDisplayNamesForced}", BasisDebug.LogTag.Networking);
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextGifsLocked = reader.GetBool();
+            if (nextGifsLocked != GlobalGifsLocked)
+            {
+                GlobalGifsLocked = nextGifsLocked;
+                OnGlobalGifsLockedChanged?.Invoke(GlobalGifsLocked);
+            }
+        }
+        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}, PlayspaceMover: {GlobalPlayspaceMoverLocked}, DirectConnect: {GlobalDirectConnectLocked}, Cilbox: {GlobalCilboxLocked}, Images: {GlobalImagesLocked}, EndEffectorIKDisabled: {GlobalEndEffectorIKDisabled}, TextChat: {GlobalTextChatLocked}, VoiceChat: {GlobalVoiceChatLocked}, MediaPlayer: {GlobalMediaPlayerLocked}, CameraCapture: {GlobalCameraCaptureLocked}, PropGrabbing: {GlobalPropGrabbingLocked}, SafeDisplayNames: {GlobalSafeDisplayNamesForced}, Gifs: {GlobalGifsLocked}", BasisDebug.LogTag.Networking);
         OnGlobalLockStateChanged?.Invoke(GlobalAvatarsLocked, GlobalPropsLocked, GlobalWorldsLocked, GlobalServersLocked);
     }
 
@@ -1510,6 +1526,7 @@ public static class BasisNetworkModeration
         if (GlobalCameraCaptureLocked) { GlobalCameraCaptureLocked = false; OnGlobalCameraCaptureLockedChanged?.Invoke(false); }
         if (GlobalPropGrabbingLocked) { GlobalPropGrabbingLocked = false; OnGlobalPropGrabbingLockedChanged?.Invoke(false); }
         if (GlobalSafeDisplayNamesForced) { GlobalSafeDisplayNamesForced = false; OnGlobalSafeDisplayNamesForcedChanged?.Invoke(false); }
+        if (GlobalGifsLocked) { GlobalGifsLocked = false; OnGlobalGifsLockedChanged?.Invoke(false); }
 
         if (GlobalEndEffectorIKDisabled)
         {
@@ -1690,6 +1707,11 @@ public static class BasisNetworkModeration
     public static void GlobalToggleSafeDisplayNames()
     {
         SendAdminRequest(AdminRequestMode.GlobalToggleSafeDisplayNames);
+    }
+
+    public static void GlobalToggleGifs()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalToggleGifs);
     }
 
     /// <summary>

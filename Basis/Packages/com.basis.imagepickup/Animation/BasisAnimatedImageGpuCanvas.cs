@@ -57,18 +57,23 @@ namespace Basis.ImagePickup
             try
             {
                 long canvasPixels = checked((long)data.CanvasWidth * data.CanvasHeight);
-                _reservedCompositorBytes = checked(
-                    data.DecodedFramePixels * 12L
-					+ canvasPixels * 4L * (data.RequiresPreviousCanvas ? 2L : 1L)
+                long canvasBytes = checked(
+                    canvasPixels * 4L * (data.RequiresPreviousCanvas ? 2L : 1L)
                     + (long)data.FrameCount * 32L
                 );
-                if (!BasisAnimatedImageData.TryReserveCompositorBytes(_reservedCompositorBytes, out string budgetError))
-                {
-                    _reservedCompositorBytes = 0;
+                long minimumBytes = checked(data.DecodedFramePixels * 4L + canvasBytes);
+                if (!BasisAnimatedImageData.TryReserveCompositorBytes(minimumBytes, out string budgetError))
                     throw new BasisAnimationMemoryBudgetException(budgetError);
-                }
+                _reservedCompositorBytes = minimumBytes;
                 frameAtlas = new BasisAnimationFrameAtlas(data);
                 _frameAtlas = frameAtlas;
+                long exactBytes = checked(frameAtlas.PageBytes + frameAtlas.LargestPageBytes + canvasBytes);
+                if (exactBytes > _reservedCompositorBytes)
+                {
+                    if (!BasisAnimatedImageData.TryReserveCompositorBytes(exactBytes - _reservedCompositorBytes, out budgetError))
+                        throw new BasisAnimationMemoryBudgetException(budgetError);
+                    _reservedCompositorBytes = exactBytes;
+                }
                 if (!EnsureCreated())
                     throw new InvalidOperationException("Animated image GPU canvas could not be created.");
             }
@@ -222,13 +227,18 @@ namespace Basis.ImagePickup
                 !_stateValid
                 || targetPlayIndex != _currentPlayIndex
                 || targetFrameIndex < _currentFrameIndex;
-            int startFrame = reset ? -1 : _currentFrameIndex;
+            int firstFrame = BasisAnimatedImageWorkEstimator.FindFirstFrameToDraw(
+                _data,
+                reset ? -1 : _currentFrameIndex,
+                targetFrameIndex,
+                out bool keyframe
+            );
             long requiredPixels =
-                reset ? BasisAnimatedImageWorkEstimator.ResetPixelCost(_data) : 0;
+                reset && !keyframe ? BasisAnimatedImageWorkEstimator.ResetPixelCost(_data) : 0;
             if (requiredPixels > pixelBudget)
                 return 0;
 
-            int partialTargetFrame = startFrame;
+            int partialTargetFrame = firstFrame - 1;
             int transitions = 0;
             while (
                 partialTargetFrame < targetFrameIndex
@@ -238,7 +248,7 @@ namespace Basis.ImagePickup
                 int nextFrameIndex = partialTargetFrame + 1;
                 long transitionPixels = BasisAnimatedImageWorkEstimator.TransitionPixelCost(
                     _data,
-                    partialTargetFrame,
+                    keyframe && transitions == 0 ? -1 : partialTargetFrame,
                     nextFrameIndex
                 );
                 if (transitionPixels > pixelBudget - requiredPixels)
@@ -252,25 +262,25 @@ namespace Basis.ImagePickup
 
             if (reset)
             {
-                AppendReset(commands);
+                if (!keyframe)
+                    AppendReset(commands);
                 _currentPlayIndex = targetPlayIndex;
-                _currentFrameIndex = -1;
                 _stateValid = true;
             }
 
-            while (_currentFrameIndex < partialTargetFrame)
+            for (int frameIndex = firstFrame; frameIndex <= partialTargetFrame; frameIndex++)
             {
-                int nextFrameIndex = _currentFrameIndex + 1;
-                if (_currentFrameIndex >= 0)
-                    AppendDisposal(commands, _data.GetFrame(_currentFrameIndex));
+                bool keyframeDraw = keyframe && frameIndex == firstFrame;
+                if (!keyframeDraw && frameIndex > 0)
+                    AppendDisposal(commands, _data.GetFrame(frameIndex - 1));
 
-                BasisAnimatedImageFrame nextFrame = _data.GetFrame(nextFrameIndex);
-                if (nextFrame.Disposal == BasisAnimationDisposal.Previous)
-                    AppendSavePrevious(commands, nextFrame.Destination);
+                BasisAnimatedImageFrame frame = _data.GetFrame(frameIndex);
+                if (frame.Disposal == BasisAnimationDisposal.Previous)
+                    AppendSavePrevious(commands, frame.Destination);
 
-                AppendFrame(commands, nextFrameIndex, nextFrame);
-                _currentFrameIndex = nextFrameIndex;
+                AppendFrame(commands, frameIndex, frame, keyframeDraw);
             }
+            _currentFrameIndex = partialTargetFrame;
 
             pixelsUsed = requiredPixels;
             return transitions;
@@ -303,13 +313,21 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void AppendFrame(CommandBuffer commands, int frameIndex, BasisAnimatedImageFrame frame)
+        private void AppendFrame(CommandBuffer commands, int frameIndex, BasisAnimatedImageFrame frame, bool replacesCanvas)
         {
             int pass =
                 frame.Blend == BasisAnimationBlend.Source ? SourcePass : OverPass;
             BasisAnimationFrameAtlasLocation location = _frameAtlas.GetLocation(frameIndex);
             Texture2D source = _frameAtlas.GetPage(location.PageIndex);
-            AppendTexturedRect(commands, source, location.SourceRectangle, _canvas, frame.Destination, pass);
+            AppendTexturedRect(
+                commands,
+                source,
+                location.SourceRectangle,
+                _canvas,
+                frame.Destination,
+                pass,
+                replacesCanvas ? RenderBufferLoadAction.DontCare : RenderBufferLoadAction.Load
+            );
         }
 
         private void AppendSavePrevious(CommandBuffer commands, RectInt rectangle)
@@ -383,7 +401,8 @@ namespace Basis.ImagePickup
             RectInt sourceRectangle,
             RenderTexture destination,
             RectInt destinationRectangle,
-            int pass
+            int pass,
+            RenderBufferLoadAction loadAction = RenderBufferLoadAction.Load
         )
         {
             Rect viewport = ToRect(destinationRectangle);
@@ -394,7 +413,7 @@ namespace Basis.ImagePickup
                 sourceRectangle.height / (float)source.height
             );
 
-            commands.SetRenderTarget(destination, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store);
+            commands.SetRenderTarget(destination, loadAction, RenderBufferStoreAction.Store);
             commands.SetViewport(viewport);
             commands.EnableScissorRect(viewport);
             commands.SetGlobalTexture(SourceTextureId, source);

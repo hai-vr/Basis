@@ -437,6 +437,7 @@ public class Configuration
     /// TMP rich text disabled on the nameplate. Enforced client-side. Default off.
     /// </summary>
     public bool SafeDisplayNamesForced = false;
+    public bool GifsLocked = false;
 
     // ── REST API ──────────────────────────────────────────────────────────────
     /// <summary>Set to true to enable the REST management API.</summary>

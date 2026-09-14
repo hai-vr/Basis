@@ -307,6 +307,7 @@ namespace BasisNetworkCore.Serializable
             // server→client: the current instance-wide locomotion policy, same field order as
             // SetGlobalLocomotionPolicy. Sent on join and on every admin change.
             GlobalGetLocomotionPolicy,
+            GlobalToggleGifs,
         }
 
         /// <summary>

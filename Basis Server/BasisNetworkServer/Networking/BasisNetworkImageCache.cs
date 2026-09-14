@@ -1,8 +1,11 @@
 using Basis.Network.Core;
 using BasisNetworkCore;
+using BasisNetworkServer.Security;
+using BasisPermissions;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using static BasisPermissions.PermissionManager;
 using static SerializableBasis;
 
 namespace Basis.Network.Server.Generic
@@ -98,6 +101,7 @@ namespace Basis.Network.Server.Generic
             /// it, and because a repeated request must not buy a second copy.
             /// </summary>
             public readonly HashSet<ushort> Delivered = new HashSet<ushort>();
+            public readonly HashSet<ushort> AnimationDelivered = new HashSet<ushort>();
 
             public byte[] Spawn;
             public byte[][] Chunks;
@@ -241,6 +245,34 @@ namespace Basis.Network.Server.Generic
             }
 
             return false;
+        }
+
+        public static bool IsAnimationPayload(byte[] payload, int payloadLength)
+        {
+            return payload != null
+                && payloadLength > 0
+                && (payload[0] == OpAnimationSpawn || payload[0] == OpAnimationChunk);
+        }
+
+        public static bool IsGifBlockedFor(NetPeer peer)
+        {
+            if (!BasisGlobalLockManager.GifsLocked)
+            {
+                return false;
+            }
+
+            string uuid = null;
+            if (peer != null && NetworkServer.AuthIdentity != null)
+            {
+                NetworkServer.AuthIdentity.NetIDToUUID(peer, out uuid);
+            }
+            return IsGifBlockedForUuid(uuid);
+        }
+
+        public static bool IsGifBlockedForUuid(string uuid)
+        {
+            return BasisGlobalLockManager.GifsLocked
+                && (string.IsNullOrEmpty(uuid) || !PermissionIntegration.HasValidRequirement(uuid, PermNodes.ModerationGlobalLock));
         }
 
         /// <summary>
@@ -447,6 +479,7 @@ namespace Basis.Network.Server.Generic
             }
 
             bool becameServable = false;
+            bool animationCompleted = false;
             lock (Gate)
             {
                 if (!Images.TryGetValue(id, out CachedImage entry) || entry.OwnerId != senderId)
@@ -479,12 +512,17 @@ namespace Basis.Network.Server.Generic
                 System.Threading.Interlocked.Add(ref _totalBytes, cost);
 
                 becameServable = !animation && entry.StillComplete;
+                animationCompleted = animation && entry.AnimationComplete && entry.StillComplete;
             }
 
             if (becameServable)
             {
                 NotifyOwner(senderId, id, held: true);
                 OfferToRoom(id);
+            }
+            if (animationCompleted)
+            {
+                DeliverPendingAnimation(id);
             }
         }
 
@@ -698,6 +736,7 @@ namespace Basis.Network.Server.Generic
                 {
                     pair.Value.Offered.Remove(ownerId);
                     pair.Value.Delivered.Remove(ownerId);
+                    pair.Value.AnimationDelivered.Remove(ownerId);
                 }
             }
         }
@@ -885,6 +924,8 @@ namespace Basis.Network.Server.Generic
                 return;
             }
 
+            bool includeAnimation = !IsGifBlockedFor(peer);
+
             // Flatten in the order the room was built, so the pump can meter the stream without
             // knowing anything about images. Ordering matters on the wire: a chunk before its spawn
             // header is discarded by the receiver.
@@ -920,17 +961,104 @@ namespace Basis.Network.Server.Generic
                     queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.Chunks[chunk]));
                 }
 
-                if (entry.AnimationComplete)
+                if (includeAnimation && entry.AnimationComplete)
                 {
-                    queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.AnimationSpawn));
-                    for (int chunk = 0; chunk < entry.AnimationChunks.Length; chunk++)
+                    entry.AnimationDelivered.Add(requesterId);
+                    AppendAnimationLocked(entry, queued);
+                }
+            }
+
+            DeliverQueued(peer, requesterId, queued);
+        }
+
+        public static void ResumeAnimationsAfterUnlock()
+        {
+            if (!Enabled || BasisGlobalLockManager.GifsLocked)
+            {
+                return;
+            }
+
+            List<Guid> ids = new List<Guid>();
+            lock (Gate)
+            {
+                foreach (KeyValuePair<Guid, CachedImage> pair in Images)
+                {
+                    if (pair.Value.StillComplete && pair.Value.AnimationComplete)
                     {
-                        queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.AnimationChunks[chunk]));
+                        ids.Add(pair.Key);
                     }
                 }
             }
 
+            for (int index = 0; index < ids.Count; index++)
+            {
+                DeliverPendingAnimation(ids[index]);
+            }
+        }
+
+        private static void DeliverPendingAnimation(Guid id)
+        {
+            if (!Enabled)
+            {
+                return;
+            }
+
+            List<ushort> pending = new List<ushort>();
+            lock (Gate)
+            {
+                if (!Images.TryGetValue(id, out CachedImage entry) || !entry.StillComplete || !entry.AnimationComplete)
+                {
+                    return;
+                }
+                foreach (ushort recipient in entry.Delivered)
+                {
+                    if (recipient != entry.OwnerId && !entry.AnimationDelivered.Contains(recipient))
+                    {
+                        pending.Add(recipient);
+                    }
+                }
+            }
+
+            for (int index = 0; index < pending.Count; index++)
+            {
+                ushort recipient = pending[index];
+                if (!NetworkServer.AuthenticatedPeers.TryGetValue(recipient, out NetPeer peer) || peer == null || IsGifBlockedFor(peer))
+                {
+                    continue;
+                }
+
+                List<BasisImageBandwidthGovernor.PendingPayload> queued =
+                    new List<BasisImageBandwidthGovernor.PendingPayload>();
+                lock (Gate)
+                {
+                    if (!Images.TryGetValue(id, out CachedImage entry) || !entry.AnimationComplete || !entry.AnimationDelivered.Add(recipient))
+                    {
+                        continue;
+                    }
+                    AppendAnimationLocked(entry, queued);
+                }
+                DeliverQueued(peer, recipient, queued);
+            }
+        }
+
+        private static void AppendAnimationLocked(CachedImage entry, List<BasisImageBandwidthGovernor.PendingPayload> queued)
+        {
+            queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.AnimationSpawn));
+            for (int chunk = 0; chunk < entry.AnimationChunks.Length; chunk++)
+            {
+                queued.Add(new BasisImageBandwidthGovernor.PendingPayload(entry.OwnerId, entry.AnimationChunks[chunk]));
+            }
+        }
+
+        private static void DeliverQueued(NetPeer peer, ushort recipientId, List<BasisImageBandwidthGovernor.PendingPayload> queued)
+        {
             if (queued.Count == 0)
+            {
+                return;
+            }
+
+            int managerNetId = System.Threading.Volatile.Read(ref _managerNetId);
+            if (managerNetId < 0)
             {
                 return;
             }
@@ -942,7 +1070,7 @@ namespace Basis.Network.Server.Generic
             BasisImageBandwidthGovernor.SendPayload = ReplaySinglePayload;
             if (BasisImageBandwidthGovernor.EnqueueReplay(peer, queued))
             {
-                BNL.Log($"Image cache queued {queued.Count} payload(s) for requesting peer {requesterId} (paced).");
+                BNL.Log($"Image cache queued {queued.Count} payload(s) for requesting peer {recipientId} (paced).");
                 return;
             }
 
@@ -956,7 +1084,7 @@ namespace Basis.Network.Server.Generic
 
             if (sent > 0)
             {
-                BNL.Log($"Image cache served {sent} payload(s) to requesting peer {requesterId}.");
+                BNL.Log($"Image cache served {sent} payload(s) to requesting peer {recipientId}.");
             }
         }
 
@@ -1069,6 +1197,7 @@ namespace Basis.Network.Server.Generic
                 {
                     entry.Offered.Add(recipients[index]);
                     entry.Delivered.Add(recipients[index]);
+                    entry.AnimationDelivered.Add(recipients[index]);
                 }
                 return;
             }
@@ -1080,6 +1209,7 @@ namespace Basis.Network.Server.Generic
                 {
                     entry.Offered.Add((ushort)peerId);
                     entry.Delivered.Add((ushort)peerId);
+                    entry.AnimationDelivered.Add((ushort)peerId);
                 }
             }
         }

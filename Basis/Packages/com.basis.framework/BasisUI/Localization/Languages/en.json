@@ -14747,6 +14747,18 @@
       "value": "Stops non-admin players from sharing new image pickups, and from receiving images shared while this is on. Images already shared stay until removed. Admins are unaffected."
     },
     {
+      "key": "settings.admin.title.lockGifs",
+      "value": "Lock GIFs"
+    },
+    {
+      "key": "settings.admin.title.lockGifs.tooltip",
+      "value": "Stop GIFs animating for non-admin players. They see each GIF's first frame, and animation resumes when this is turned off. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockGifs.description",
+      "value": "Stops GIFs animating for non-admin players: every GIF shows its first frame, GIFs they share stay still until the lock is lifted, and the server stops relaying GIF animation data from them. Animation resumes when this is turned off. Admins are unaffected."
+    },
+    {
       "key": "settings.admin.title.lockTextChat",
       "value": "Lock Text Chat"
     },
@@ -19155,6 +19167,78 @@
     {
       "key": "settings.developer.spawnAnchors.anchorName.tooltip",
       "value": "Renames the selected anchor. The name shows on its handle and in the anchor dropdown."
+    },
+    {
+      "key": "settings.developer.group.deviceOffsets",
+      "value": "Tracker & Controller Offsets"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.device",
+      "value": "Device"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.device.tooltip",
+      "value": "The tracker or controller to adjust. Offsets are saved per device model and body part, and come back whenever that kind of device drives the same part again."
+    },
+    {
+      "key": "settings.developer.deviceOffsets.none",
+      "value": "No trackers or controllers connected"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.positionX",
+      "value": "Position X"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.positionY",
+      "value": "Position Y"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.positionZ",
+      "value": "Position Z"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.position.tooltip",
+      "value": "Slides the device along its own axes, in real-world meters."
+    },
+    {
+      "key": "settings.developer.deviceOffsets.rotationX",
+      "value": "Rotation X"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.rotationY",
+      "value": "Rotation Y"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.rotationZ",
+      "value": "Rotation Z"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.rotation.tooltip",
+      "value": "Turns the device around its own axes."
+    },
+    {
+      "key": "settings.developer.deviceOffsets.grab",
+      "value": "Edit By Grab"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.grab.stop",
+      "value": "Stop Editing"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.grab.tooltip",
+      "value": "Puts a handle on every tracker and controller. Reach a free hand to one and squeeze grip to move it, or hold it with both hands to turn it. The offset saves when you let go."
+    },
+    {
+      "key": "settings.developer.deviceOffsets.grab.unavailable",
+      "value": "Needs a tracked hand to grab with"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.reset",
+      "value": "Reset Offset"
+    },
+    {
+      "key": "settings.developer.deviceOffsets.reset.tooltip",
+      "value": "Clears the offset for the selected device."
     },
     {
       "key": "settings.graphics.renderer.title",

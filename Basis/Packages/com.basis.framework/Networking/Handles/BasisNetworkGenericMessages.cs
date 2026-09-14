@@ -390,8 +390,9 @@ public static class BasisNetworkGenericMessages
     public static void OnNetworkMessageSendDirect(ushort messageIndex, byte[] buffer = null, DeliveryMethod deliveryMethod = DeliveryMethod.Unreliable, ushort[] recipients = null, bool allowServerFallback = true)
     {
         BasisP2PManager.PartitionRecipients(recipients, out List<ushort> directIds, out List<ushort> relayIds);
+        bool relayBroadcast = allowServerFallback && BasisP2PManager.RelayAsBroadcast(recipients, directIds, relayIds, buffer != null ? buffer.Length : 0);
 
-        if (directIds != null && directIds.Count > 0)
+        if (!relayBroadcast && directIds != null && directIds.Count > 0)
         {
             NetDataWriter p2pWriter = threadLocalWriter.Value;
             p2pWriter.Reset();
@@ -414,7 +415,7 @@ public static class BasisNetworkGenericMessages
             {
                 messageIndex = messageIndex,
                 payload = buffer,
-                recipients = relayIds.ToArray()
+                recipients = relayBroadcast ? null : relayIds.ToArray()
             };
             sceneDataMessage.Serialize(netDataWriter);
             BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.DirectSceneServerChannel, deliveryMethod);

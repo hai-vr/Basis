@@ -288,7 +288,7 @@ public static class BasisServerMessageRegistry
                 BasisServerHandleEvents.LoadResource(reader, peer, LRuuid);
                 return;
             }
-            BNL.LogError($"User UUID not found for peer: {peer}");
+            BNL.LogError($"User UUID not found for peer: {peer.Id}");
             reader.Recycle();
         });
 
@@ -391,7 +391,7 @@ public static class BasisServerMessageRegistry
     {
         if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out uuid))
         {
-            BNL.LogError($"User UUID not found for peer: {peer}");
+            BNL.LogError($"User UUID not found for peer: {peer.Id}");
             reader.Recycle();
             return false;
         }

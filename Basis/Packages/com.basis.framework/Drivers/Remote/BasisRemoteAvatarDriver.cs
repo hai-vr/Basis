@@ -247,10 +247,11 @@ namespace Basis.Scripts.Drivers
                 // Seed the skin LOD for the distance this avatar loaded at — ChangeMeshLOD is only
                 // edge-triggered on LOD boundary crossings, so a reload at a stable distance never
                 // reaches these fresh renderers.
-                BasisAvatarSkinLOD.Apply(SkinnedMeshRenderer, SkinnedMeshRendererLength, RemotePlayer.CurrentLodLevel);
+                RemotePlayer.ForceMeshLod(RemotePlayer.CurrentMeshLodLevel);
+                BasisAvatarSkinLOD.Apply(SkinnedMeshRenderer, SkinnedMeshRendererLength, RemotePlayer.CurrentMeshLodLevel);
                 // Snapshot the authored shadow modes before anything reduces them, then seed the tier.
                 BasisAvatarShadowLOD.Capture(RemotePlayer);
-                BasisAvatarShadowLOD.Apply(RemotePlayer, RemotePlayer.CurrentLodLevel);
+                BasisAvatarShadowLOD.Apply(RemotePlayer, RemotePlayer.CurrentMeshLodLevel);
                 Basis.Scripts.Rendering.BasisAvatarVisibility.Register(RemotePlayer);
             }
 

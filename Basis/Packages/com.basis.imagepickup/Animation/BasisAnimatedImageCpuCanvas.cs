@@ -30,6 +30,35 @@ namespace Basis.ImagePickup
             return pixels;
         }
 
+        internal static bool IsKeyframe(BasisAnimatedImageData data, BasisAnimatedImageFrame frame)
+        {
+            return frame.Blend == BasisAnimationBlend.Source
+                && frame.Disposal != BasisAnimationDisposal.Previous
+                && frame.X == 0
+                && frame.Y == 0
+                && frame.Width == data.CanvasWidth
+                && frame.Height == data.CanvasHeight;
+        }
+
+        internal static int FindFirstFrameToDraw(
+            BasisAnimatedImageData data,
+            int currentFrameIndex,
+            int targetFrameIndex,
+            out bool keyframe
+        )
+        {
+            for (int frameIndex = targetFrameIndex; frameIndex > currentFrameIndex; frameIndex--)
+            {
+                if (IsKeyframe(data, data.GetFrame(frameIndex)))
+                {
+                    keyframe = true;
+                    return frameIndex;
+                }
+            }
+            keyframe = false;
+            return currentFrameIndex + 1;
+        }
+
         public static void Estimate(
             BasisAnimatedImageData data,
             bool stateValid,
@@ -41,24 +70,15 @@ namespace Basis.ImagePickup
             out long pixels
         )
         {
-            if (!stateValid || targetPlayIndex != currentPlayIndex || targetFrameIndex < currentFrameIndex)
+            bool reset = !stateValid || targetPlayIndex != currentPlayIndex || targetFrameIndex < currentFrameIndex;
+            int firstFrame = FindFirstFrameToDraw(data, reset ? -1 : currentFrameIndex, targetFrameIndex, out bool keyframe);
+            transitions = Math.Max(0, targetFrameIndex - firstFrame + 1);
+            pixels = reset && !keyframe ? ResetPixelCost(data) : 0;
+            int previous = keyframe ? -1 : firstFrame - 1;
+            for (int i = firstFrame; i <= targetFrameIndex; i++)
             {
-                transitions = targetFrameIndex + 1;
-                pixels = ResetPixelCost(data);
-                int previous = -1;
-                for (int i = 0; i <= targetFrameIndex; i++)
-                {
-                    pixels += TransitionPixelCost(data, previous, i);
-                    previous = i;
-                }
-                return;
-            }
-
-            transitions = Math.Max(0, targetFrameIndex - currentFrameIndex);
-            pixels = 0;
-            for (int i = currentFrameIndex + 1; i <= targetFrameIndex; i++)
-            {
-                pixels += TransitionPixelCost(data, i - 1, i);
+                pixels += TransitionPixelCost(data, previous, i);
+                previous = i;
             }
         }
 
@@ -222,15 +242,20 @@ namespace Basis.ImagePickup
                 !_stateValid
                 || targetPlayIndex != _currentPlayIndex
                 || targetFrameIndex < _currentFrameIndex;
-            int startFrame = reset ? -1 : _currentFrameIndex;
+            int firstFrame = BasisAnimatedImageWorkEstimator.FindFirstFrameToDraw(
+                _data,
+                reset ? -1 : _currentFrameIndex,
+                targetFrameIndex,
+                out bool keyframe
+            );
             long canvasPixels = BasisAnimatedImageWorkEstimator.ResetPixelCost(_data);
             long requiredPixels = canvasPixels;
-            if (reset)
+            if (reset && !keyframe)
                 requiredPixels += canvasPixels;
             if (requiredPixels > pixelBudget)
                 return 0;
 
-            int partialTargetFrame = startFrame;
+            int partialTargetFrame = firstFrame - 1;
             int transitions = 0;
             while (
                 partialTargetFrame < targetFrameIndex
@@ -240,7 +265,7 @@ namespace Basis.ImagePickup
                 int nextFrameIndex = partialTargetFrame + 1;
                 long transitionPixels = BasisAnimatedImageWorkEstimator.TransitionPixelCost(
                     _data,
-                    partialTargetFrame,
+                    keyframe && transitions == 0 ? -1 : partialTargetFrame,
                     nextFrameIndex
                 );
                 if (transitionPixels > pixelBudget - requiredPixels)
@@ -255,8 +280,9 @@ namespace Basis.ImagePickup
             _composeHandle = new BasisAnimatedImageCpuComposeJob
             {
                 CanvasWidth = _data.CanvasWidth,
-                Reset = reset ? (byte)1 : (byte)0,
-                StartFrame = startFrame,
+                Reset = reset && !keyframe ? (byte)1 : (byte)0,
+                Keyframe = keyframe ? (byte)1 : (byte)0,
+                StartFrame = firstFrame - 1,
                 TargetFrame = partialTargetFrame,
                 Linear =
                     QualitySettings.activeColorSpace == ColorSpace.Linear

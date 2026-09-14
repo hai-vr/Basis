@@ -100,7 +100,8 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
 
             if (hasRoleAssigned && Control.HasTracked != BasisHasTracked.HasNoTracker)
             {
-                Control.SetIncoming(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation);
+                GetFinalScaledPose(out Vector3 finalPosition, out Quaternion finalRotation);
+                Control.SetIncoming(finalPosition, finalRotation);
                 if (namedRole != Control.Role)
                 {
                     namedRole = Control.Role;

@@ -394,6 +394,15 @@ namespace Basis.Scripts.Networking
             }
         }
 
+        public static bool RelayAsBroadcast(ushort[] recipients, System.Collections.Generic.List<ushort> directIds, System.Collections.Generic.List<ushort> relayIds, int payloadBytes)
+        {
+            if (recipients != null || relayIds == null || relayIds.Count == 0)
+            {
+                return false;
+            }
+            return directIds == null || directIds.Count == 0 || payloadBytes + sizeof(ushort) * (2 + relayIds.Count) > BasisNetworkCommons.MaxUnfragmentedPayload;
+        }
+
         public static void BroadcastVoiceViaP2P(NetDataWriter clientFormatWriter)
         {
             if (clientFormatWriter == null || clientFormatWriter.Length == 0) return;
@@ -722,7 +731,7 @@ namespace Basis.Scripts.Networking
             {
                 return true;
             }
-            if (type == LiteNatAddressType.Internal && IsLanAddress(ip))
+            if (type == LiteNatAddressType.Internal && (IsLanAddress(ip) || IPAddress.IsLoopback(ip)))
             {
                 return true;
             }

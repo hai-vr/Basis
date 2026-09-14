@@ -5,6 +5,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 
 namespace Basis.ImagePickup
 {
@@ -28,7 +29,7 @@ namespace Basis.ImagePickup
         private int[] _pageWidths;
         private int[] _pageHeights;
         private NativeArray<BasisAnimationFrameAtlasLocation> _locations;
-        private NativeArray<Color32> _pendingPagePixels;
+        private static readonly GraphicsFormat PageFormat = GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.RGBA32, true);
         private JobHandle _pageHandle;
         private int _pendingPageIndex = -1;
         private int _nextPageIndex;
@@ -38,6 +39,8 @@ namespace Basis.ImagePickup
         public bool IsReady =>
             !_disposed && _pages != null && _nextPageIndex >= _pages.Length;
         public bool HasPendingPage => _pageBuildPending;
+        public long PageBytes { get; private set; }
+        public long LargestPageBytes { get; private set; }
 
         public Texture2D GetPage(int index)
         {
@@ -104,6 +107,9 @@ namespace Basis.ImagePickup
                 {
                     _pageWidths[page] = math.max(1, usedWidth[page]);
                     _pageHeights[page] = math.max(1, usedHeight[page]);
+                    long pageBytes = (long)_pageWidths[page] * _pageHeights[page] * 4L;
+                    PageBytes += pageBytes;
+                    LargestPageBytes = math.max(LargestPageBytes, pageBytes);
                 }
             }
             catch
@@ -158,12 +164,15 @@ namespace Basis.ImagePickup
             long pagePixelsLong = (long)width * height;
             if (pagePixelsLong > pixelBudget)
                 return false;
-            int pagePixelsCount = checked((int)pagePixelsLong);
-            _pendingPagePixels = new NativeArray<Color32>(
-                pagePixelsCount,
-                Allocator.TempJob,
-                NativeArrayOptions.ClearMemory
-            );
+            var texture = new Texture2D(width, height, PageFormat, TextureCreationFlags.DontInitializePixels)
+            {
+                name = $"Basis Animated Image Burst Atlas {page}",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+                anisoLevel = 0,
+                hideFlags = HideFlags.HideAndDontSave,
+            };
+            _pages[page] = texture;
             try
             {
                 var populateAtlasJob = new BasisAnimationAtlasPopulateJob
@@ -173,7 +182,7 @@ namespace Basis.ImagePickup
                     Frames = _data.FramesNative,
                     SourcePixels = _data.PixelsNative,
                     Locations = _locations,
-                    PagePixels = _pendingPagePixels,
+                    PagePixels = texture.GetPixelData<Color32>(0),
                 };
                 _pageHandle = populateAtlasJob.ScheduleParallelByRef(_data.FrameCount, 1, default);
                 _pendingPageIndex = page;
@@ -184,8 +193,7 @@ namespace Basis.ImagePickup
             }
             catch
             {
-                _pendingPagePixels.Dispose();
-                _pendingPagePixels = default;
+                DestroyPage(page);
                 throw;
             }
         }
@@ -203,44 +211,18 @@ namespace Basis.ImagePickup
 
             int page = _pendingPageIndex;
             _pendingPageIndex = -1;
+            if (_disposed || _pages == null || (uint)page >= (uint)_pages.Length || _pages[page] == null)
+                return;
             try
             {
-                if (_disposed || _pages == null || (uint)page >= (uint)_pages.Length)
-                    return;
-
-                var texture = new Texture2D(
-                    _pageWidths[page],
-                    _pageHeights[page],
-                    TextureFormat.RGBA32,
-                    false,
-                    false
-                )
-                {
-                    name = $"Basis Animated Image Burst Atlas {page}",
-                    wrapMode = TextureWrapMode.Clamp,
-                    filterMode = FilterMode.Bilinear,
-                    anisoLevel = 0,
-                    hideFlags = HideFlags.HideAndDontSave,
-                };
-                _pages[page] = texture;
-                try
-                {
-                    texture.SetPixelData(_pendingPagePixels, 0);
-                    texture.Apply(false, true);
-                }
-                catch
-                {
-                    DestroyPage(page);
-                    throw;
-                }
-                _nextPageIndex++;
+                _pages[page].Apply(false, true);
             }
-            finally
+            catch
             {
-                if (_pendingPagePixels.IsCreated)
-                    _pendingPagePixels.Dispose();
-                _pendingPagePixels = default;
+                DestroyPage(page);
+                throw;
             }
+            _nextPageIndex++;
         }
 
         private void DestroyPage(int page)
@@ -261,15 +243,12 @@ namespace Basis.ImagePickup
             if (_disposed)
                 return;
             _disposed = true;
-            // The populate job reads the source pixels and writes the page staging buffer;
+            // The populate job reads the source pixels and writes the page texture;
             // it must land before either is freed.
             _pageHandle.Complete();
             _pageHandle = default;
             _pageBuildPending = false;
             _pendingPageIndex = -1;
-            if (_pendingPagePixels.IsCreated)
-                _pendingPagePixels.Dispose();
-            _pendingPagePixels = default;
             if (_locations.IsCreated)
                 _locations.Dispose();
             _pageWidths = null;

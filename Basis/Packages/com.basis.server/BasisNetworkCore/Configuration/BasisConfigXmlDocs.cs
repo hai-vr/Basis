@@ -226,6 +226,7 @@ namespace Basis.Network.Core
             t.Fields.Add(new FieldDoc("CameraCaptureLocked", " Stop non-bypass clients from taking photos with the handheld camera. Enforced client-side (capture is entirely local). Separate from CameraMetadataDisallowMask, which only strips metadata. true|false; default false. "));
             t.Fields.Add(new FieldDoc("SafeDisplayNamesForced", " Render other players' display names with rich-text markup stripped and TMP rich text off. Enforced client-side. Stops name markup being used to draw over the screen. true|false; default false. "));
             t.Fields.Add(new FieldDoc("PropGrabbingLocked", " Stop non-bypass clients from picking up or grabbing props. Enforced client-side (grabbing is local interaction logic). Separate from PropsLocked, which blocks prop loading instead. true|false; default false. "));
+            t.Fields.Add(new FieldDoc("GifsLocked", " Stop GIFs animating for players without basis.moderation.globallock: they see each GIF's first frame, and the server stops relaying and replaying GIF animation data from and to them. Still images are unaffected, and animation resumes when the lock is lifted. true|false; default false. "));
             _docs[typeof(global::Configuration)] = t;
         }
 

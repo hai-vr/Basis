@@ -988,7 +988,6 @@ namespace BasisServerHandle
         {
             if (!BasisSavedState.IsInAnnounceMode(peer.Id))
             {
-                BNL.LogError($"Peer {peer.Id} sent announce voice but is not in announce mode. Ignoring.");
                 reader.Recycle();
                 return;
             }
@@ -1432,6 +1431,11 @@ namespace BasisServerHandle
         {
             try
             {
+                if (!BasisSavedState.GetLastPlayerMetaData(peer, out var metaData))
+                {
+                    ServerReadyMessage = new ServerReadyMessage();
+                    return false;
+                }
                 ClientAvatarChangeMessage changeState;
                 bool haveRecord = BasisSavedState.GetLastAvatarChangeState(peer, out changeState);
                 bool haveAvatar = haveRecord && changeState.byteArray != null;
@@ -1474,18 +1478,6 @@ namespace BasisServerHandle
                     // Optionally log fallback
                     // BNL.LogError("Unable to get Last Player Avatar Data! Using Error Fallback");
                 }
-                // Meta Data
-                if (!BasisSavedState.GetLastPlayerMetaData(peer, out var metaData))
-                {
-                    metaData = new ClientMetaDataMessage
-                    {
-                        playerDisplayName = "Error",
-                        playerUUID = string.Empty,
-                        playerPlatform = string.Empty
-                    };
-                    BNL.LogError("Unable to get Last Player Meta Data! Using Error Fallback");
-                }
-
                 // Construct ServerReadyMessage
                 ServerReadyMessage = new ServerReadyMessage
                 {
@@ -1527,11 +1519,11 @@ namespace BasisServerHandle
 
             if (NetworkServer.AuthIdentity.NetIDToUUID(Peer, out string uuid) == false)
             {
-                BNL.LogError($"User UUID not found for peer: {Peer}");
+                BNL.LogError($"User UUID not found for peer: {Peer.Id}");
                 return;
             }
             LocalLoadResource.Deserialize(Reader);
-            bool isPrivileged = PermissionIntegration.HasValidRequirement(Peer, PermNodes.protection);
+            bool isPrivileged = PermissionIntegration.HasValidRequirement(uuid, PermNodes.protection);
             LocalLoadResource.IsAdminLocked = isPrivileged;
             LocalLoadResource.UUIDOfCreator = UUID;
             if (!isPrivileged)

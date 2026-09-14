@@ -157,6 +157,12 @@ namespace Basis.BasisUI
             imagesLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalImagesLocked);
             imagesLock.OnValueChanged += _ => SendLockRequest(imagesLock, BasisNetworkModeration.GlobalToggleImages, () => BasisNetworkModeration.GlobalImagesLocked);
 
+            PanelToggle gifsLock = PanelToggle.CreateNewEntry(container);
+            gifsLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockGifs"));
+            gifsLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockGifs.tooltip"));
+            gifsLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalGifsLocked);
+            gifsLock.OnValueChanged += _ => SendLockRequest(gifsLock, BasisNetworkModeration.GlobalToggleGifs, () => BasisNetworkModeration.GlobalGifsLocked);
+
             PanelToggle textChatLock = PanelToggle.CreateNewEntry(container);
             textChatLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockTextChat"));
             textChatLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockTextChat.tooltip"));
@@ -213,6 +219,7 @@ namespace Basis.BasisUI
             controller.DirectConnectLockToggle = directConnectLock;
             controller.CilboxLockToggle = cilboxLock;
             controller.ImagesLockToggle = imagesLock;
+            controller.GifsLockToggle = gifsLock;
             controller.TextChatLockToggle = textChatLock;
             controller.VoiceChatLockToggle = voiceChatLock;
             controller.MediaPlayerLockToggle = mediaPlayerLock;
@@ -1171,6 +1178,7 @@ namespace Basis.BasisUI
             public PanelToggle DirectConnectLockToggle;
             public PanelToggle CilboxLockToggle;
             public PanelToggle ImagesLockToggle;
+            public PanelToggle GifsLockToggle;
             public PanelToggle TextChatLockToggle;
             public PanelToggle VoiceChatLockToggle;
             public PanelToggle MediaPlayerLockToggle;
@@ -1265,6 +1273,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalCilboxLockChanged += OnGlobalCilboxLockChanged;
                 BasisNetworkModeration.OnGlobalImagesLockedChanged -= OnGlobalImagesLockedChanged;
                 BasisNetworkModeration.OnGlobalImagesLockedChanged += OnGlobalImagesLockedChanged;
+                BasisNetworkModeration.OnGlobalGifsLockedChanged -= OnGlobalGifsLockedChanged;
+                BasisNetworkModeration.OnGlobalGifsLockedChanged += OnGlobalGifsLockedChanged;
                 BasisNetworkModeration.OnGlobalTextChatLockedChanged -= OnGlobalTextChatLockedChanged;
                 BasisNetworkModeration.OnGlobalTextChatLockedChanged += OnGlobalTextChatLockedChanged;
                 BasisNetworkModeration.OnGlobalVoiceChatLockedChanged -= OnGlobalVoiceChatLockedChanged;
@@ -1313,6 +1323,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
                 BasisNetworkModeration.OnGlobalCilboxLockChanged -= OnGlobalCilboxLockChanged;
                 BasisNetworkModeration.OnGlobalImagesLockedChanged -= OnGlobalImagesLockedChanged;
+                BasisNetworkModeration.OnGlobalGifsLockedChanged -= OnGlobalGifsLockedChanged;
                 BasisNetworkModeration.OnGlobalTextChatLockedChanged -= OnGlobalTextChatLockedChanged;
                 BasisNetworkModeration.OnGlobalVoiceChatLockedChanged -= OnGlobalVoiceChatLockedChanged;
                 BasisNetworkModeration.OnGlobalMediaPlayerLockedChanged -= OnGlobalMediaPlayerLockedChanged;
@@ -1346,6 +1357,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
                 BasisNetworkModeration.OnGlobalCilboxLockChanged -= OnGlobalCilboxLockChanged;
                 BasisNetworkModeration.OnGlobalImagesLockedChanged -= OnGlobalImagesLockedChanged;
+                BasisNetworkModeration.OnGlobalGifsLockedChanged -= OnGlobalGifsLockedChanged;
                 BasisNetworkModeration.OnGlobalTextChatLockedChanged -= OnGlobalTextChatLockedChanged;
                 BasisNetworkModeration.OnGlobalVoiceChatLockedChanged -= OnGlobalVoiceChatLockedChanged;
                 BasisNetworkModeration.OnGlobalMediaPlayerLockedChanged -= OnGlobalMediaPlayerLockedChanged;
@@ -1454,6 +1466,11 @@ namespace Basis.BasisUI
             private void OnGlobalImagesLockedChanged(bool locked)
             {
                 if (ImagesLockToggle != null) ImagesLockToggle.SetValueWithoutNotify(locked);
+            }
+
+            private void OnGlobalGifsLockedChanged(bool locked)
+            {
+                if (GifsLockToggle != null) GifsLockToggle.SetValueWithoutNotify(locked);
             }
 
             private void OnGlobalTextChatLockedChanged(bool locked)
