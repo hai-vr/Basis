@@ -793,9 +793,8 @@ namespace Basis.ImagePickup
                 poster = new Texture2D(
                     workerResult.Animation.CanvasWidth,
                     workerResult.Animation.CanvasHeight,
-                    TextureFormat.RGBA32,
-                    false,
-                    false
+                    GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.RGBA32, true),
+                    TextureCreationFlags.DontInitializePixels | TextureCreationFlags.DontUploadUponCreate
                 )
                 {
                     name = "Basis GIF Poster",

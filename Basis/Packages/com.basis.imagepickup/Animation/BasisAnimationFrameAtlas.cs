@@ -54,6 +54,14 @@ namespace Basis.ImagePickup
         public BasisAnimationFrameAtlasLocation GetLocation(int index) =>
             _locations[index];
 
+        public Vector4 GetScaleOffset(int index)
+        {
+            BasisAnimationFrameAtlasLocation location = _locations[index];
+            float width = _pageWidths[location.PageIndex];
+            float height = _pageHeights[location.PageIndex];
+            return new Vector4(location.Width / width, location.Height / height, location.X / width, location.Y / height);
+        }
+
         public BasisAnimationFrameAtlas(BasisAnimatedImageData data)
         {
 			if (data == null || !data.IsCreated)
@@ -164,7 +172,7 @@ namespace Basis.ImagePickup
             long pagePixelsLong = (long)width * height;
             if (pagePixelsLong > pixelBudget)
                 return false;
-            var texture = new Texture2D(width, height, PageFormat, TextureCreationFlags.DontInitializePixels)
+            var texture = new Texture2D(width, height, PageFormat, TextureCreationFlags.DontInitializePixels | TextureCreationFlags.DontUploadUponCreate)
             {
                 name = $"Basis Animated Image Burst Atlas {page}",
                 wrapMode = TextureWrapMode.Clamp,
@@ -404,7 +412,10 @@ namespace Basis.ImagePickup
                 int source = frame.PixelOffset + y * frame.Width;
                 int destination = (location.Y + y) * PageWidth + location.X;
                 for (int x = 0; x < frame.Width; x++)
-                    PagePixels[destination + x] = SourcePixels[source + x];
+                {
+                    Color32 pixel = SourcePixels[source + x];
+                    PagePixels[destination + x] = pixel.a == 0 ? default : pixel;
+                }
             }
 
             if (location.Padding == 0)

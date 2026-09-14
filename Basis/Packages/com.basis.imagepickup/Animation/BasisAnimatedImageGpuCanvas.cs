@@ -93,6 +93,7 @@ namespace Basis.ImagePickup
 
             bool recreated = false;
             bool recoverFrameAtlas = false;
+            bool canvasCreated = true;
             if (_canvas == null)
             {
                 _canvas = CreateCanvas("Basis Animated Image Canvas");
@@ -102,9 +103,11 @@ namespace Basis.ImagePickup
             {
                 recreated = _canvas.Create();
                 recoverFrameAtlas = recreated;
+                canvasCreated = recreated;
             }
 
-			if (_data.RequiresPreviousCanvas)
+            bool previousCanvasCreated = true;
+            if (_data.RequiresPreviousCanvas)
             {
                 if (_previousCanvas == null)
                 {
@@ -113,9 +116,9 @@ namespace Basis.ImagePickup
                 }
                 else if (!_previousCanvas.IsCreated())
                 {
-                    bool previousCanvasRecreated = _previousCanvas.Create();
-                    recreated |= previousCanvasRecreated;
-                    recoverFrameAtlas |= previousCanvasRecreated;
+                    previousCanvasCreated = _previousCanvas.Create();
+                    recreated |= previousCanvasCreated;
+                    recoverFrameAtlas |= previousCanvasCreated;
                 }
             }
 
@@ -125,10 +128,6 @@ namespace Basis.ImagePickup
                 return false;
             }
 
-            bool canvasCreated = _canvas != null && _canvas.IsCreated();
-            bool previousCanvasCreated =
-				!_data.RequiresPreviousCanvas
-                || (_previousCanvas != null && _previousCanvas.IsCreated());
             bool allRequiredCanvasesCreated = canvasCreated && previousCanvasCreated;
 
             if (recreated || !allRequiredCanvasesCreated)
@@ -155,6 +154,28 @@ namespace Basis.ImagePickup
         public void FlushPendingAtlasPage()
         {
             _frameAtlas?.FlushPendingPage();
+        }
+
+        public bool TryGetDirectFrame(int frameIndex, out Texture2D page, out Vector4 scaleOffset)
+        {
+            page = null;
+            scaleOffset = default;
+            if (_disposed || _frameAtlas == null || !_frameAtlas.IsReady || _data.HasPartialAlpha)
+                return false;
+            BasisAnimatedImageFrame frame = _data.GetFrame(frameIndex);
+            if (
+                frame.Blend != BasisAnimationBlend.Source
+                || frame.X != 0
+                || frame.Y != 0
+                || frame.Width != _data.CanvasWidth
+                || frame.Height != _data.CanvasHeight
+            )
+            {
+                return false;
+            }
+            page = _frameAtlas.GetPage(_frameAtlas.GetLocation(frameIndex).PageIndex);
+            scaleOffset = _frameAtlas.GetScaleOffset(frameIndex);
+            return page != null;
         }
 
         private bool TryRebuildFrameAtlas()

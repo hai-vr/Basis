@@ -100,7 +100,13 @@ namespace BasisNetworkConsole
         {
             if (!Interactive)
             {
-                BNL.ClearConsole();
+                try
+                {
+                    Console.Clear();
+                }
+                catch (IOException)
+                {
+                }
                 return;
             }
 

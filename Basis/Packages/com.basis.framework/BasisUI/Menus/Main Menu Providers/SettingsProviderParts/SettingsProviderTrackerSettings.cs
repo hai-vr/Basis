@@ -219,6 +219,8 @@ namespace Basis.BasisUI
                 state.Entries.Clear();
             };
 
+            SettingsProviderDeviceOffsets.Build(tabRoot);
+
             // Webcam / external tracking sections injected by feature packages
             // (e.g. MediaPipe). Built above the page reset so the reset stays last.
             SettingsProvider.TrackerSettingsExtraBuilder?.Invoke(tabRoot);
@@ -959,6 +961,7 @@ namespace Basis.BasisUI
             BasisTrackerRoleOverride.ClearAll();
             BasisTrackerPairing.ClearAll();
             BasisTrackerIdentifyGizmos.ClearAll();
+            BasisDeviceOffsets.ClearAll(null);
         }
 
         private static List<BasisInput> CollectEligibleTrackers()

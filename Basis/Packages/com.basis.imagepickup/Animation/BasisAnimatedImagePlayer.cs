@@ -45,6 +45,8 @@ namespace Basis.ImagePickup
         private bool _hasPartialAlpha;
         private bool _initialized;
         private bool _displayTextureBound;
+        private Texture2D _directPage;
+        private Vector4 _directScaleOffset;
         private bool _destroying;
 
         public bool IsInitialized => _initialized;
@@ -264,6 +266,12 @@ namespace Basis.ImagePickup
                     }
                 }
 			}
+
+            if (_gpuCanvas != null && _gpuCanvas.TryGetDirectFrame(targetFrameIndex, out Texture2D directPage, out Vector4 directScaleOffset))
+            {
+                BindDirectFrame(directPage, directScaleOffset);
+                return;
+            }
 
             int transitions;
             if (_gpuCanvas != null)
@@ -577,6 +585,7 @@ namespace Basis.ImagePickup
             _gpuCanvas = null;
             _pickup?.SetPosterDisplayTexture();
             _displayTextureBound = false;
+            _directPage = null;
             try
                 {
                     _cpuCanvas = new BasisAnimatedImageCpuCanvas(_data);
@@ -671,6 +680,7 @@ namespace Basis.ImagePickup
         {
             _pickup?.SetPosterDisplayTexture();
             _displayTextureBound = false;
+            _directPage = null;
             DisposeCanvases();
             if ((releaseDecodedData || (_data != null && !_data.HasPixels)) && CanReleaseDecodedData)
             {
@@ -681,10 +691,21 @@ namespace Basis.ImagePickup
 
         private void BindDisplayTexture()
         {
-            if (_displayTextureBound || _pickup == null || OutputTexture == null)
+            if ((_displayTextureBound && _directPage == null) || _pickup == null || OutputTexture == null)
                 return;
-            _pickup.SetAnimatedDisplayTexture(OutputTexture, _hasAnyAlpha, _hasPartialAlpha);
+            _pickup.SetAnimatedDisplayTexture(OutputTexture, BasisImagePickupObject.IdentityScaleOffset, _hasAnyAlpha, _hasPartialAlpha, !_displayTextureBound);
             _displayTextureBound = true;
+            _directPage = null;
+        }
+
+        private void BindDirectFrame(Texture2D page, Vector4 scaleOffset)
+        {
+            if ((_displayTextureBound && ReferenceEquals(_directPage, page) && _directScaleOffset.Equals(scaleOffset)) || _pickup == null)
+                return;
+            _pickup.SetAnimatedDisplayTexture(page, scaleOffset, _hasAnyAlpha, _hasPartialAlpha, !_displayTextureBound);
+            _displayTextureBound = true;
+            _directPage = page;
+            _directScaleOffset = scaleOffset;
         }
 
         /// <summary>Synchronously releases every native resource owned by this player.</summary>
@@ -699,6 +720,7 @@ namespace Basis.ImagePickup
             BasisImagePickupManager.UnregisterAnimatedPlayer(this);
             _pickup?.SetPosterDisplayTexture();
             _displayTextureBound = false;
+            _directPage = null;
             DisposeCanvases();
             _data?.Dispose();
             _data = null;

@@ -110,7 +110,8 @@ namespace BasisNetworkConsole
                     return false;
                 }
 
-                process.WaitForExit();
+                BasisSystemd.Status($"Tuning this machine ({mode}, {ExpectedDuration(mode)}). The server starts when it finishes.");
+                while (!process.WaitForExit(TimeSpan.FromSeconds(30))) BasisSystemd.ExtendStartup(TimeSpan.FromMinutes(2));
 
                 if (process.ExitCode != 0)
                     BNL.LogWarning($"[Tuning] The benchmark exited with code {process.ExitCode}.");

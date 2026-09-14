@@ -26,4 +26,11 @@
     <ProjectReference Include="..\Contrib\Crypto\Crypto.csproj" />
     <ProjectReference Include="..\LiteNetLib\LiteNetLib.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\BasisServerConsole\BasisControlProtocol.cs" Link="Console\BasisControlProtocol.cs" />
+    <Compile Include="..\BasisServerConsole\BasisControlServer.cs" Link="Console\BasisControlServer.cs" />
+    <Compile Include="..\BasisServerConsole\BasisSystemLog.cs" Link="Console\BasisSystemLog.cs" />
+    <Compile Include="..\BasisServerConsole\BasisSystemd.cs" Link="Console\BasisSystemd.cs" />
+  </ItemGroup>
 </Project>

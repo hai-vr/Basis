@@ -271,6 +271,15 @@ namespace BasisPermissions
             }
         }
 
+        public void FlushPendingSave()
+        {
+            lock (_saveGate)
+            {
+                _saveTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+            }
+            if (_dirty) SaveToXml();
+        }
+
         private void DebouncedSaveTick()
         {
             try

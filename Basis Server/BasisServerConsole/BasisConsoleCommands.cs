@@ -540,6 +540,41 @@ namespace BasisNetworkConsole
             bool has = PM.Has(uuid, node);
             BNL.Log($"Check: uuid={uuid} node={node} => {(has ? "ALLOW" : "DENY")}");
         }
+        public static readonly object ExecutionGate = new object();
+
+        public static int Execute(string input)
+        {
+            string[] parts = input.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return BasisControlProtocol.CommandRan;
+
+            // Try to match the longest possible command
+            for (int i = parts.Length; i > 0; i--)
+            {
+                string potentialCommand = string.Join(' ', parts.Take(i)).ToLower();
+
+                if (commands.TryGetValue(potentialCommand, out var command))
+                {
+                    string[] args = parts.Skip(i).ToArray();
+                    lock (ExecutionGate)
+                    {
+                        try
+                        {
+                            command.Handler(args);
+                            return BasisControlProtocol.CommandRan;
+                        }
+                        catch (Exception ex)
+                        {
+                            BNL.LogError($"Error executing command '{potentialCommand}': {ex.Message}");
+                            return BasisControlProtocol.CommandFailed;
+                        }
+                    }
+                }
+            }
+
+            BNL.Log("Unknown command. Type /help for available commands.");
+            return BasisControlProtocol.CommandUnknown;
+        }
+
         public static void StartConsoleListener()
         {
             BasisConsoleDriver.Initialize();
@@ -553,34 +588,7 @@ namespace BasisNetworkConsole
                     string input = line.Trim();
                     if (input.Length == 0) continue;
 
-                    string[] parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    bool matched = false;
-
-                    // Try to match the longest possible command
-                    for (int i = parts.Length; i > 0; i--)
-                    {
-                        string potentialCommand = string.Join(' ', parts.Take(i)).ToLower();
-
-                        if (commands.TryGetValue(potentialCommand, out var command))
-                        {
-                            string[] args = parts.Skip(i).ToArray();
-                            try
-                            {
-                                command.Handler(args);
-                            }
-                            catch (Exception ex)
-                            {
-                                BNL.Log($"Error executing command '{potentialCommand}': {ex.Message}");
-                            }
-                            matched = true;
-                            break;
-                        }
-                    }
-
-                    if (!matched)
-                    {
-                        BNL.Log("Unknown command. Type /help for available commands.");
-                    }
+                    Execute(input);
                 }
             });
 
@@ -601,16 +609,15 @@ namespace BasisNetworkConsole
         }
         public static void HandleStatus(string[] args)
         {
-            // Example of showing server status
-            BNL.Log("Server is running and healthy.");
-            // You can add more status details here as needed
+            Configuration config = NetworkServer.Configuration;
+            TimeSpan uptime = DateTime.UtcNow - Program.StartedUtc;
+            BNL.Log($"{config.ServerName}: {NetworkServer.AuthenticatedPeers.Count} of {config.PeerLimit} players, UDP port {config.SetPort}, protocol v{BasisNetworkVersion.ServerVersion}, up {(int)uptime.TotalDays}d {uptime:hh\\:mm\\:ss}");
         }
 
         public static void HandleShutdown(string[] args)
         {
             BNL.Log("Shutting down the server...");
-            Program.isRunning = false;  // Gracefully stop the server
-            Environment.Exit(0); // Exit the application
+            Program.RequestShutdown(BasisExitCode.Clean, "/shutdown");
         }
 
         /// <summary>Passed to the process /restart launches so it waits for its predecessor to release the port.</summary>
@@ -650,6 +657,13 @@ namespace BasisNetworkConsole
 
         public static void HandleRestart(string[] args)
         {
+            if (BasisSystemd.IsManaged)
+            {
+                BNL.Log("Restarting the server. systemd starts it again once this process exits.");
+                Program.RequestShutdown(BasisExitCode.Restart, "/restart");
+                return;
+            }
+
             string exePath = Environment.ProcessPath;
             if (string.IsNullOrEmpty(exePath))
             {
@@ -669,7 +683,12 @@ namespace BasisNetworkConsole
                     WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
                     UseShellExecute = true,
                 };
-                foreach (string argument in Environment.GetCommandLineArgs().Skip(1))
+                string[] commandLine = Environment.GetCommandLineArgs();
+                if (commandLine.Length > 0 && string.Equals(Path.GetFileNameWithoutExtension(exePath), "dotnet", StringComparison.OrdinalIgnoreCase))
+                {
+                    start.ArgumentList.Add(commandLine[0]);
+                }
+                foreach (string argument in commandLine.Skip(1))
                 {
                     if (argument.StartsWith(AwaitPidArgument, StringComparison.OrdinalIgnoreCase)) continue;
                     start.ArgumentList.Add(argument);
@@ -685,8 +704,7 @@ namespace BasisNetworkConsole
                 return;
             }
 
-            Program.isRunning = false;
-            Environment.Exit(0);
+            Program.RequestShutdown(BasisExitCode.Clean, "/restart");
         }
 
         public static void HandleHelp(string[] args)

@@ -79,7 +79,7 @@ public static class NetworkServer
     public static int HighQualityLength;
     #region Server Entry Point
 
-    public static void StartServer(Configuration configuration)
+    public static bool StartServer(Configuration configuration)
     {
         StopServer();
         Configuration = configuration;
@@ -99,7 +99,7 @@ public static class NetworkServer
         BasisNetworkServer.Security.BasisAvatarScaleLimitManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisLocomotionPolicyManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisResourceLimitManager.InitializeFromConfig(configuration);
-        SetupServer(configuration);
+        if (!SetupServer(configuration)) return false;
         SubscribeEvents(Configuration);
 
         if (configuration.EnableStatistics)
@@ -111,6 +111,7 @@ public static class NetworkServer
         BasisServerMemoryReclaim.Start();
 
         BNL.Log("Server Worker Threads Booted");
+        return true;
     }
 
     public static void StopServer()
@@ -277,16 +278,16 @@ public static class NetworkServer
 
     #region Server Setup
 
-    public static void SetupServer(Configuration configuration)
+    public static bool SetupServer(Configuration configuration)
     {
         Listener = new EventBasedNetListener();
         Server = BasisNetworkStackRegistry.Create(configuration.NetworkStackId, Listener, configuration);
 
         NetDebug.Logger = new BasisServerLogger();
-        StartListening(configuration);
+        return StartListening(configuration);
     }
 
-    public static void StartListening(Configuration configuration)
+    public static bool StartListening(Configuration configuration)
     {
         IPAddress ipv4, ipv6;
         if (configuration.OverrideAutoDiscoveryOfIpv)
@@ -319,9 +320,15 @@ public static class NetworkServer
         }
 
         Server.Start(ipv4, ipv6, configuration.SetPort);
+        if (Server is LNLNetManager started && started.manager != null && !started.manager.IsRunning)
+        {
+            BNL.LogError($"Not listening: UDP port {configuration.SetPort} could not be bound. Another process may already be using it.");
+            return false;
+        }
         BNL.Log($"Listening on UDP port {configuration.SetPort}");
         BNL.Log($"  IPv4 bind: {ipv4}");
         BNL.Log($"  IPv6 bind: [{ipv6}]");
+        return true;
     }
     #endregion
     public static void BroadcastMessageToClients(NetDataWriter writer, byte channel, NetPeer sender, ReadOnlySpan<NetPeer> clients, DeliveryMethod deliveryMethod = DeliveryMethod.Sequenced, int maxMessages = 70)

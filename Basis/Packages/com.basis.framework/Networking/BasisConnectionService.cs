@@ -26,6 +26,7 @@ namespace Basis.Scripts.Networking
         public const string LastConnectedServerIdFile = "LastConnectedServerId.BAS";
 
         public static bool AutoConnectAttempted;
+        public static bool HasBootstrapConnection { get; private set; }
         private static bool _connectInProgress;
         public static bool ConnectInProgress => _connectInProgress;
 
@@ -252,6 +253,7 @@ namespace Basis.Scripts.Networking
         private static void RegisterCommandLineAutoConnect()
         {
             if (!TryGetBootstrapConnection(out ServerDirectoryEntry target, out bool isHostMode)) return;
+            HasBootstrapConnection = true;
 
             void Trigger()
             {

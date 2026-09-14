@@ -4472,8 +4472,6 @@ namespace Basis.BasisUI
 
             SettingsProviderSpawnAnchors.Build(container, descriptor);
 
-            SettingsProviderDeviceOffsets.Build(container, descriptor);
-
             // ---- Package Tools (sections contributed by feature packages, e.g. Avatar Recorder) ----
             if (DeveloperSectionBuilders.Count > 0)
             {
@@ -4809,7 +4807,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.SpawnAnchorPositionSnapSize.ResetToDefault();
             BasisSettingsDefaults.SpawnAnchorRotationSnap.ResetToDefault();
             BasisSettingsDefaults.SpawnAnchorRotationSnapDegrees.ResetToDefault();
-            BasisDeviceOffsets.ClearAll(null);
 
             for (int i = 0; i < DeveloperResetActions.Count; i++)
             {

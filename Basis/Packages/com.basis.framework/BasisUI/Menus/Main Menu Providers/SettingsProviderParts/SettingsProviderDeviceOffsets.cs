@@ -11,39 +11,40 @@ namespace Basis.BasisUI
     public static class SettingsProviderDeviceOffsets
     {
         private const string NoneEntry = "none";
-        private const string PositionTooltip = "settings.developer.deviceOffsets.position.tooltip";
-        private const string RotationTooltip = "settings.developer.deviceOffsets.rotation.tooltip";
+        private const string PositionTooltip = "trackerLinking.deviceOffsets.position.tooltip";
+        private const string RotationTooltip = "trackerLinking.deviceOffsets.rotation.tooltip";
 
-        public static void Build(RectTransform container, PanelElementDescriptor descriptor)
+        public static void Build(RectTransform container)
         {
             PanelSectionToggle section = PanelSectionToggle.CreateNewEntry(container);
-            section.SetTitle(BasisLocalization.Get("settings.developer.group.deviceOffsets"));
+            section.SetTitle(BasisLocalization.Get("trackerLinking.deviceOffsets"));
+            section.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.deviceOffsets.tooltip"));
             int start = container.childCount;
 
             PanelDropdown deviceDropdown = PanelDropdown.CreateNewEntry(container);
-            deviceDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.deviceOffsets.device"));
-            deviceDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.deviceOffsets.device.tooltip"));
+            deviceDropdown.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.deviceOffsets.device"));
+            deviceDropdown.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.deviceOffsets.device.tooltip"));
 
             float limit = BasisDeviceOffsetMath.PositionLimit;
             PanelSlider[] position =
             {
-                CreateSlider(container, "settings.developer.deviceOffsets.positionX", PositionTooltip, -limit, limit, 3, ValueDisplayMode.Meters),
-                CreateSlider(container, "settings.developer.deviceOffsets.positionY", PositionTooltip, -limit, limit, 3, ValueDisplayMode.Meters),
-                CreateSlider(container, "settings.developer.deviceOffsets.positionZ", PositionTooltip, -limit, limit, 3, ValueDisplayMode.Meters),
+                CreateSlider(container, "trackerLinking.deviceOffsets.positionX", PositionTooltip, -limit, limit, 3, ValueDisplayMode.Meters),
+                CreateSlider(container, "trackerLinking.deviceOffsets.positionY", PositionTooltip, -limit, limit, 3, ValueDisplayMode.Meters),
+                CreateSlider(container, "trackerLinking.deviceOffsets.positionZ", PositionTooltip, -limit, limit, 3, ValueDisplayMode.Meters),
             };
             PanelSlider[] rotation =
             {
-                CreateSlider(container, "settings.developer.deviceOffsets.rotationX", RotationTooltip, -180f, 180f, 1, ValueDisplayMode.Degrees),
-                CreateSlider(container, "settings.developer.deviceOffsets.rotationY", RotationTooltip, -180f, 180f, 1, ValueDisplayMode.Degrees),
-                CreateSlider(container, "settings.developer.deviceOffsets.rotationZ", RotationTooltip, -180f, 180f, 1, ValueDisplayMode.Degrees),
+                CreateSlider(container, "trackerLinking.deviceOffsets.rotationX", RotationTooltip, -180f, 180f, 1, ValueDisplayMode.Degrees),
+                CreateSlider(container, "trackerLinking.deviceOffsets.rotationY", RotationTooltip, -180f, 180f, 1, ValueDisplayMode.Degrees),
+                CreateSlider(container, "trackerLinking.deviceOffsets.rotationZ", RotationTooltip, -180f, 180f, 1, ValueDisplayMode.Degrees),
             };
 
             PanelButton grabButton = PanelButton.CreateNew(container);
-            grabButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.deviceOffsets.grab.tooltip"));
+            grabButton.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.deviceOffsets.grab.tooltip"));
 
             PanelButton resetButton = PanelButton.CreateNew(container);
-            resetButton.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.deviceOffsets.reset"));
-            resetButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.deviceOffsets.reset.tooltip"));
+            resetButton.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.deviceOffsets.reset"));
+            resetButton.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.deviceOffsets.reset.tooltip"));
 
             object source = new object();
             List<string> keys = new List<string>();
@@ -53,6 +54,7 @@ namespace Basis.BasisUI
             bool refreshing = false;
             bool driven = false;
             bool subscribed = false;
+            PanelElementDescriptor box = null;
             var devices = BasisDeviceManagement.Instance != null ? BasisDeviceManagement.Instance.AllInputDevices : null;
 
             bool IsReleased()
@@ -101,13 +103,13 @@ namespace Basis.BasisUI
                     rotation[axis].SetInteractable(hasKey);
                 }
                 bool editing = BasisDeviceOffsetEditor.IsEditing;
-                grabButton.Descriptor.SetTitle(BasisLocalization.Get(editing ? "settings.developer.deviceOffsets.grab.stop" : "settings.developer.deviceOffsets.grab"));
+                grabButton.Descriptor.SetTitle(BasisLocalization.Get(editing ? "trackerLinking.deviceOffsets.grab.stop" : "trackerLinking.deviceOffsets.grab"));
                 if (grabButton.ButtonStyling != null)
                 {
                     grabButton.ButtonStyling.ShowIndicator(editing);
                 }
                 bool canGrab = editing || (keys.Count > 0 && BasisDeviceOffsetEditor.HasGrabbingHand());
-                grabButton.SetInteractable(canGrab, canGrab ? null : BasisLocalization.Get("settings.developer.deviceOffsets.grab.unavailable"));
+                grabButton.SetInteractable(canGrab, canGrab ? null : BasisLocalization.Get("trackerLinking.deviceOffsets.grab.unavailable"));
                 resetButton.SetInteractable(HasOffset(key));
             }
 
@@ -137,7 +139,7 @@ namespace Basis.BasisUI
                     assignedSignature = signature;
                     if (keys.Count == 0)
                     {
-                        deviceDropdown.AssignEntries(new List<string> { NoneEntry }, new List<string> { BasisLocalization.Get("settings.developer.deviceOffsets.none") });
+                        deviceDropdown.AssignEntries(new List<string> { NoneEntry }, new List<string> { BasisLocalization.Get("trackerLinking.deviceOffsets.none") });
                     }
                     else
                     {
@@ -246,13 +248,16 @@ namespace Basis.BasisUI
             subscribed = true;
             grabButton.OnInstanceReleased += Unsubscribe;
 
-            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(section, container, start, false, visible =>
+            box = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(section, container, start, false, visible =>
             {
                 if (visible)
                 {
                     Refresh();
                 }
-                descriptor.ForceRebuild();
+                if (box != null)
+                {
+                    PanelElementDescriptor.RebuildLayoutChain(box.rectTransform, container);
+                }
             });
         }
 

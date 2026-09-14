@@ -2249,14 +2249,14 @@ namespace Basis.ImagePickup.Tests
                 new BasisAnimatedImageFrameSource(
                     new RectInt(0, 0, 2, 1),
                     50000,
-                    BasisAnimationBlend.Source,
+                    BasisAnimationBlend.Over,
                     BasisAnimationDisposal.None,
                     new[] { Red, Green }
                 ),
                 new BasisAnimatedImageFrameSource(
                     new RectInt(0, 0, 2, 1),
                     50000,
-                    BasisAnimationBlend.Source,
+                    BasisAnimationBlend.Over,
                     BasisAnimationDisposal.None,
                     new[] { Blue, White }
                 )
@@ -2295,6 +2295,191 @@ namespace Basis.ImagePickup.Tests
                 player.ClearReloadPayload();
                 Object.DestroyImmediate(host);
                 payload?.Dispose();
+                if (!initialized)
+                    data.Dispose();
+                BasisImagePickupManager.Shutdown();
+            }
+        }
+
+        [Test]
+        public void SelfContainedFramesShowStraightFromTheAtlasAndMatchTheComposedCanvas()
+        {
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+                Assert.Ignore("The GPU compositor needs a graphics device.");
+            Shader shader = Shader.Find("Hidden/Basis/ImageAnimationComposite");
+            if (shader == null || !BasisImagePickupRuntimeUtility.CanUseAnimationCompositorShader(shader))
+                Assert.Ignore("The GPU compositor shader is unavailable on this device.");
+
+            Assert.That(
+                BasisAnimatedImageData.TryCreate(
+                    2,
+                    2,
+                    0,
+                    new Color32(0, 0, 0, 0),
+                    new[]
+                    {
+                        new BasisAnimatedImageFrameSource(
+                            new RectInt(0, 0, 2, 2),
+                            50000,
+                            BasisAnimationBlend.Source,
+                            BasisAnimationDisposal.None,
+                            new[] { Red, Green, new Color32(10, 20, 30, 0), White }
+                        ),
+                        new BasisAnimatedImageFrameSource(
+                            new RectInt(1, 1, 1, 1),
+                            50000,
+                            BasisAnimationBlend.Over,
+                            BasisAnimationDisposal.None,
+                            new[] { Blue }
+                        ),
+                    },
+                    out BasisAnimatedImageData data,
+                    out string error
+                ),
+                Is.True,
+                error
+            );
+            var material = new Material(shader);
+            var commands = new CommandBuffer();
+            RenderTexture direct = null;
+            RenderTexture directMagnified = null;
+            RenderTexture composedMagnified = null;
+            try
+            {
+                using var canvas = new BasisAnimatedImageGpuCanvas(data, material);
+                long budget = long.MaxValue;
+                while (!canvas.TryPrepareFrameAtlas(ref budget))
+                {
+                    canvas.FlushPendingAtlasPage();
+                    budget = long.MaxValue;
+                }
+
+                Assert.That(canvas.TryGetDirectFrame(0, out Texture2D page, out Vector4 scaleOffset), Is.True);
+                Assert.That(canvas.TryGetDirectFrame(1, out _, out _), Is.False);
+
+                canvas.AppendToState(commands, 0, 0, int.MaxValue, long.MaxValue, out _);
+                Graphics.ExecuteCommandBuffer(commands);
+                var composed = (RenderTexture)canvas.OutputTexture;
+                var scale = new Vector2(scaleOffset.x, scaleOffset.y);
+                var offset = new Vector2(scaleOffset.z, scaleOffset.w);
+
+                direct = CreateReadbackTarget(2, 2);
+                Graphics.Blit(page, direct, scale, offset);
+                AssertPixelsNear(ReadBack(direct), ReadBack(composed));
+
+                directMagnified = CreateReadbackTarget(7, 5);
+                composedMagnified = CreateReadbackTarget(7, 5);
+                Graphics.Blit(page, directMagnified, scale, offset);
+                Graphics.Blit(composed, composedMagnified);
+                AssertPixelsNear(ReadBack(directMagnified), ReadBack(composedMagnified));
+            }
+            finally
+            {
+                commands.Release();
+                ReleaseReadbackTarget(direct);
+                ReleaseReadbackTarget(directMagnified);
+                ReleaseReadbackTarget(composedMagnified);
+                data.Dispose();
+                Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
+        public void PartialAlphaFramesAreNeverShownStraightFromTheAtlas()
+        {
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+                Assert.Ignore("The GPU compositor needs a graphics device.");
+            Shader shader = Shader.Find("Hidden/Basis/ImageAnimationComposite");
+            if (shader == null || !BasisImagePickupRuntimeUtility.CanUseAnimationCompositorShader(shader))
+                Assert.Ignore("The GPU compositor shader is unavailable on this device.");
+
+            BasisAnimatedImageData data = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 2, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Red, new Color32(0, 255, 0, 128) }
+                )
+            );
+            var material = new Material(shader);
+            try
+            {
+                using var canvas = new BasisAnimatedImageGpuCanvas(data, material);
+                long budget = long.MaxValue;
+                while (!canvas.TryPrepareFrameAtlas(ref budget))
+                {
+                    canvas.FlushPendingAtlasPage();
+                    budget = long.MaxValue;
+                }
+                Assert.That(canvas.TryGetDirectFrame(0, out _, out _), Is.False);
+            }
+            finally
+            {
+                data.Dispose();
+                Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
+        public void PlayerShowsSelfContainedFramesFromTheAtlasAndComposesTheRest()
+        {
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+                Assert.Ignore("The GPU compositor needs a graphics device.");
+
+            var host = new GameObject("BasisAnimatedImageDirectFrameTest");
+            var pickup = host.AddComponent<BasisImagePickupObject>();
+            var player = host.AddComponent<BasisAnimatedImagePlayer>();
+            BasisAnimatedImageData data = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 2, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Red, Green }
+                ),
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 2, 1),
+                    50000,
+                    BasisAnimationBlend.Over,
+                    BasisAnimationDisposal.None,
+                    new[] { Blue, White }
+                )
+            );
+            System.Reflection.FieldInfo directPage = typeof(BasisAnimatedImagePlayer).GetField(
+                "_directPage",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+            );
+            var commands = new CommandBuffer();
+            bool initialized = false;
+            try
+            {
+                initialized = player.Initialize(data, pickup, 1, false, null);
+                Assert.That(initialized, Is.True);
+                if (!BasisImagePickupManager.HasGpuCompositor)
+                    Assert.Ignore("The GPU compositor shader is unavailable on this device.");
+
+                bool commandsAdded = false;
+                for (int attempt = 0; attempt < 8; attempt++)
+                {
+                    commands.Clear();
+                    int transitionsRemaining = 16;
+                    long pixelsRemaining = 1L << 20;
+                    player.Schedule(commands, 1, ref transitionsRemaining, ref pixelsRemaining, ref commandsAdded);
+                    player.FlushPendingJobs();
+                }
+                Assert.That(commandsAdded, Is.False);
+                Assert.That(directPage.GetValue(player), Is.Not.Null);
+
+                Color32[] second = ComposeOnGpu(player, commands, 500001);
+                Assert.That(directPage.GetValue(player), Is.Null);
+                AssertColorNear(second[0], Blue);
+                AssertColorNear(second[1], White);
+            }
+            finally
+            {
+                commands.Release();
+                Object.DestroyImmediate(host);
                 if (!initialized)
                     data.Dispose();
                 BasisImagePickupManager.Shutdown();
@@ -2347,7 +2532,11 @@ namespace Basis.ImagePickup.Tests
                 }
             }
 
-            var target = (RenderTexture)player.OutputTexture;
+            return ReadBack((RenderTexture)player.OutputTexture);
+        }
+
+        private static Color32[] ReadBack(RenderTexture target)
+        {
             RenderTexture previous = RenderTexture.active;
             var readback = new Texture2D(target.width, target.height, TextureFormat.RGBA32, false, false);
             try
@@ -2362,6 +2551,39 @@ namespace Basis.ImagePickup.Tests
                 RenderTexture.active = previous;
                 Object.DestroyImmediate(readback);
             }
+        }
+
+        private static RenderTexture CreateReadbackTarget(int width, int height)
+        {
+            var target = new RenderTexture(
+                new RenderTextureDescriptor(width, height, RenderTextureFormat.ARGB32, 0)
+                {
+                    msaaSamples = 1,
+                    useMipMap = false,
+                    sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear,
+                }
+            )
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            target.Create();
+            return target;
+        }
+
+        private static void ReleaseReadbackTarget(RenderTexture target)
+        {
+            if (target == null)
+                return;
+            target.Release();
+            Object.DestroyImmediate(target);
+        }
+
+        private static void AssertPixelsNear(Color32[] actual, Color32[] expected)
+        {
+            Assert.That(actual.Length, Is.EqualTo(expected.Length));
+            for (int i = 0; i < expected.Length; i++)
+                AssertColorNear(actual[i], expected[i]);
         }
 
         private static void AssertColorNear(Color32 actual, Color32 expected)

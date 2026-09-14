@@ -4719,6 +4719,82 @@
       "value": "Fused — driving {0}"
     },
     {
+      "key": "trackerLinking.deviceOffsets",
+      "value": "Tracker & Controller Offsets"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.tooltip",
+      "value": "Adjust where a tracker or controller sits compared to the real device, with sliders or by grabbing it in VR."
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.device",
+      "value": "Device"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.device.tooltip",
+      "value": "The tracker or controller to adjust. Offsets are saved per device model and body part, and come back whenever that kind of device drives the same part again."
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.none",
+      "value": "No trackers or controllers connected"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.positionX",
+      "value": "Position X"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.positionY",
+      "value": "Position Y"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.positionZ",
+      "value": "Position Z"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.position.tooltip",
+      "value": "Slides the device along its own axes, in real-world meters."
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.rotationX",
+      "value": "Rotation X"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.rotationY",
+      "value": "Rotation Y"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.rotationZ",
+      "value": "Rotation Z"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.rotation.tooltip",
+      "value": "Turns the device around its own axes."
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.grab",
+      "value": "Edit By Grab"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.grab.stop",
+      "value": "Stop Editing"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.grab.tooltip",
+      "value": "Puts a handle on every tracker and controller. Reach a free hand to one and squeeze grip to move it, or hold it with both hands to turn it. The offset saves when you let go."
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.grab.unavailable",
+      "value": "Needs a tracked hand to grab with"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.reset",
+      "value": "Reset Offset"
+    },
+    {
+      "key": "trackerLinking.deviceOffsets.reset.tooltip",
+      "value": "Clears the offset for the selected device."
+    },
+    {
       "key": "menu.exit.dialog.title",
       "value": "Basis VR"
     },
@@ -19167,78 +19243,6 @@
     {
       "key": "settings.developer.spawnAnchors.anchorName.tooltip",
       "value": "Renames the selected anchor. The name shows on its handle and in the anchor dropdown."
-    },
-    {
-      "key": "settings.developer.group.deviceOffsets",
-      "value": "Tracker & Controller Offsets"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.device",
-      "value": "Device"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.device.tooltip",
-      "value": "The tracker or controller to adjust. Offsets are saved per device model and body part, and come back whenever that kind of device drives the same part again."
-    },
-    {
-      "key": "settings.developer.deviceOffsets.none",
-      "value": "No trackers or controllers connected"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.positionX",
-      "value": "Position X"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.positionY",
-      "value": "Position Y"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.positionZ",
-      "value": "Position Z"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.position.tooltip",
-      "value": "Slides the device along its own axes, in real-world meters."
-    },
-    {
-      "key": "settings.developer.deviceOffsets.rotationX",
-      "value": "Rotation X"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.rotationY",
-      "value": "Rotation Y"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.rotationZ",
-      "value": "Rotation Z"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.rotation.tooltip",
-      "value": "Turns the device around its own axes."
-    },
-    {
-      "key": "settings.developer.deviceOffsets.grab",
-      "value": "Edit By Grab"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.grab.stop",
-      "value": "Stop Editing"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.grab.tooltip",
-      "value": "Puts a handle on every tracker and controller. Reach a free hand to one and squeeze grip to move it, or hold it with both hands to turn it. The offset saves when you let go."
-    },
-    {
-      "key": "settings.developer.deviceOffsets.grab.unavailable",
-      "value": "Needs a tracked hand to grab with"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.reset",
-      "value": "Reset Offset"
-    },
-    {
-      "key": "settings.developer.deviceOffsets.reset.tooltip",
-      "value": "Clears the offset for the selected device."
     },
     {
       "key": "settings.graphics.renderer.title",

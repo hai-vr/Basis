@@ -631,7 +631,12 @@ namespace Basis.ImagePickup
                 return result;
             }
 
-            Texture2D finalTexture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            Texture2D finalTexture = new Texture2D(
+                width,
+                height,
+                GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.RGBA32, true),
+                TextureCreationFlags.DontInitializePixels | TextureCreationFlags.DontUploadUponCreate
+            );
             finalTexture.SetPixels32(pixels);
             result.HasAlpha = hasAlpha;
             finalTexture.wrapMode = TextureWrapMode.Clamp;

@@ -397,6 +397,7 @@ namespace Basis.ImagePickup
         private static readonly List<Vector3> _visibilityCameraPositions = new(8);
         private static readonly List<Vector3> _visibilityCameraForwards = new(8);
         private static readonly List<bool> _visibilityCameraOrthographic = new(8);
+        private static readonly List<int> _visibilityCameraCullingMasks = new(8);
         private static readonly List<Camera> _registeredCameraScratch = new(8);
         private static readonly List<Plane[]> _visibilityFrustums = new(8);
         private static readonly RaycastHit[] _raycastHits = new RaycastHit[RaycastHitBufferSize];
@@ -4834,6 +4835,7 @@ namespace Basis.ImagePickup
             _visibilityCameraPositions.Clear();
             _visibilityCameraForwards.Clear();
             _visibilityCameraOrthographic.Clear();
+            _visibilityCameraCullingMasks.Clear();
             _registeredCameraScratch.Clear();
             _visibilityFrustums.Clear();
             _localVisibilityCameraIndex = -1;
@@ -5410,15 +5412,15 @@ namespace Basis.ImagePickup
                 return 0;
 
             Bounds bounds = pickup.FrontRendererBounds;
+            int rendererLayer = pickup.FrontRendererLayer;
             pickup.GetFrontFacePose(out Vector3 faceCenter, out Vector3 frontNormal);
             int cameraCount = Mathf.Min(_visibilityCameras.Count, MaximumCpuFacingCameraBits);
             ulong cameraMask = 0;
             for (int cameraIndex = 0; cameraIndex < cameraCount; cameraIndex++)
             {
-                Camera camera = _visibilityCameras[cameraIndex];
                 if (
                     !IsCpuFrontFacingCandidate(
-                        pickup.FrontRendererLayer,
+                        rendererLayer,
                         bounds,
                         _visibilityFrustums[cameraIndex],
                         frontNormal,
@@ -5426,7 +5428,7 @@ namespace Basis.ImagePickup
                         _visibilityCameraPositions[cameraIndex],
                         _visibilityCameraForwards[cameraIndex],
                         _visibilityCameraOrthographic[cameraIndex],
-                        camera.cullingMask
+                        _visibilityCameraCullingMasks[cameraIndex]
                     )
                 )
                 {
@@ -5629,7 +5631,7 @@ namespace Basis.ImagePickup
                 if (
                     !TryHasUnoccludedFaceSample(
                         pickup,
-                        camera,
+                        _visibilityCameraCullingMasks[i],
                         _visibilityCameraPositions[i],
                         _visibilityCameraForwards[i],
                         _visibilityCameraOrthographic[i],
@@ -5667,7 +5669,7 @@ namespace Basis.ImagePickup
 
         private static bool TryHasUnoccludedFaceSample(
             BasisImagePickupObject pickup,
-            Camera camera,
+            int cameraCullingMask,
             Vector3 cameraPosition,
             Vector3 cameraForward,
             bool cameraOrthographic,
@@ -5684,7 +5686,7 @@ namespace Basis.ImagePickup
                 raycastsRemaining--;
 
                 Vector3 sample = pickup.GetFrontFaceOcclusionSample(sampleIndex, frontNormal);
-                if (IsFaceSampleUnoccluded(pickup, camera, cameraPosition, cameraForward, cameraOrthographic, sample))
+                if (IsFaceSampleUnoccluded(pickup, cameraCullingMask, cameraPosition, cameraForward, cameraOrthographic, sample))
                 {
                     visible = true;
                     return true;
@@ -5695,7 +5697,7 @@ namespace Basis.ImagePickup
 
         private static bool IsFaceSampleUnoccluded(
             BasisImagePickupObject pickup,
-            Camera camera,
+            int cameraCullingMask,
             Vector3 cameraPosition,
             Vector3 cameraForward,
             bool cameraOrthographic,
@@ -5734,7 +5736,7 @@ namespace Basis.ImagePickup
                 return true;
 
             // Use the camera's own culling mask so geometry it cannot render does not occlude.
-            int layerMask = camera.cullingMask & Physics.DefaultRaycastLayers;
+            int layerMask = cameraCullingMask & Physics.DefaultRaycastLayers;
             int hitCount = Physics.RaycastNonAlloc(
                 origin,
                 direction,
@@ -5789,6 +5791,7 @@ namespace Basis.ImagePickup
             _visibilityCameraPositions.Clear();
             _visibilityCameraForwards.Clear();
             _visibilityCameraOrthographic.Clear();
+            _visibilityCameraCullingMasks.Clear();
             for (int i = 0; i < cameraCount; i++)
             {
                 Camera camera = _visibilityCameras[i];
@@ -5796,6 +5799,7 @@ namespace Basis.ImagePickup
                 _visibilityCameraPositions.Add(cameraPosition);
                 _visibilityCameraForwards.Add(cameraRotation * Vector3.forward);
                 _visibilityCameraOrthographic.Add(camera.orthographic);
+                _visibilityCameraCullingMasks.Add(camera.cullingMask);
                 GeometryUtility.CalculateFrustumPlanes(camera, _visibilityFrustums[i]);
             }
         }

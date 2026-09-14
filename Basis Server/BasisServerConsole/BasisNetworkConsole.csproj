@@ -56,6 +56,10 @@
 		                  ReferenceOutputAssembly="false"
 		                  Private="false"
 		                  SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\BasisCtl\BasisCtl.csproj"
+		                  ReferenceOutputAssembly="false"
+		                  Private="false"
+		                  SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\BasisNetworkClientConsole\BasisNetworkClientConsole\BasisNetworkClientConsole.csproj"
 		                  Condition="Exists('$(MSBuildThisFileDirectory)..\..\Basis\Packages\com.avionblock.opussharp\OpusSharp.Core')"
 		                  ReferenceOutputAssembly="false"
@@ -99,6 +103,21 @@
 		      DestinationFolder="$(OutDir)"
 		      SkipUnchangedFiles="true"
 		      Condition="'@(LoadClientFiles)' != ''" />
+	</Target>
+
+	<Target Name="CopyBasisCtl" AfterTargets="Build">
+		<PropertyGroup>
+			<BasisCtlBaseDir>$(MSBuildThisFileDirectory)..\BasisCtl\bin\$(Configuration)\$(TargetFramework)\</BasisCtlBaseDir>
+			<BasisCtlOutDir>$(BasisCtlBaseDir)</BasisCtlOutDir>
+			<BasisCtlOutDir Condition="'$(RuntimeIdentifier)' != '' And Exists('$(BasisCtlBaseDir)$(RuntimeIdentifier)')">$(BasisCtlBaseDir)$(RuntimeIdentifier)\</BasisCtlOutDir>
+		</PropertyGroup>
+		<ItemGroup>
+			<BasisCtlFiles Include="$(BasisCtlOutDir)basisctl*" Exclude="$(BasisCtlOutDir)*.pdb" />
+		</ItemGroup>
+		<Copy SourceFiles="@(BasisCtlFiles)"
+		      DestinationFolder="$(OutDir)"
+		      SkipUnchangedFiles="true"
+		      Condition="'@(BasisCtlFiles)' != ''" />
 	</Target>
 
 	<PropertyGroup>

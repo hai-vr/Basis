@@ -1,5 +1,6 @@
 using Basis.BasisUI;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Networking;
 using UnityEngine;
 
 public class BasisOpenMenuForcefully : MonoBehaviour
@@ -23,6 +24,7 @@ public class BasisOpenMenuForcefully : MonoBehaviour
     }
     public void OpenMenu()
     {
+        if (BasisConnectionService.HasBootstrapConnection) return;
         BasisMainMenu.Open();
         if (OpenServerMenu)
         {

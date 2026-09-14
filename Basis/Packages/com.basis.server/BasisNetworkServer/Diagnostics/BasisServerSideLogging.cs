@@ -75,7 +75,7 @@ namespace Basis.Network
                             {
                                 batch.Append(queued).Append(Environment.NewLine);
                             }
-                            await WriteToFileAsync(batch.ToString(), cancellationToken).ConfigureAwait(false);
+                            await WriteToFileAsync(batch.ToString(), CancellationToken.None).ConfigureAwait(false);
                         }
                     }
                 }
@@ -207,7 +207,7 @@ namespace Basis.Network
             message = Sanitize(message);
             MinuteStamp stamp = CurrentStamp();
 
-            WriteScreenLine(stamp.Bracketed, consoleLabel, levelColor, message);
+            if (WriteToScreen) WriteScreenLine(stamp.Bracketed, consoleLabel, levelColor, message);
 
             if (UseLogging)
             {
