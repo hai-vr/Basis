@@ -31,6 +31,7 @@
 #else
     DEPTH_TEXTURE_MS(_CameraDepthAttachment, MSAA_SAMPLES);
 #endif
+float4 _CameraDepthAttachment_TexelSize;
 
 #if UNITY_REVERSED_Z
     #define DEPTH_DEFAULT_VALUE 1.0
@@ -62,7 +63,10 @@ float frag(Varyings input) : SV_Target
 #endif
 {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-    return SampleDepth(input.positionCS.xy);
+    float2 pixelCoords = input.positionCS.xy;
+    if (_BlitScaleBias.y < 0.0)
+        pixelCoords.y = _CameraDepthAttachment_TexelSize.w - pixelCoords.y;
+    return SampleDepth(pixelCoords);
 }
 
 #endif

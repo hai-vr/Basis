@@ -9,9 +9,13 @@ public class BasisOpenXRHeadInput : BasisInput
     public BasisOpenXRInputEye BasisOpenXRInputEye;
     public InputActionProperty Position;
     public InputActionProperty Rotation;
+    public InputActionProperty TrackingState;
 
     private InputAction _positionAction;
     private InputAction _rotationAction;
+    private InputAction _trackingStateAction;
+    private const int TrackingStatePosition = 1;
+    private const int TrackingStateRotation = 2;
 
     public void Initialize(string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole)
     {
@@ -20,12 +24,15 @@ public class BasisOpenXRHeadInput : BasisInput
 
         Position = new InputActionProperty(new InputAction("<XRHMD>/centerEyePosition", InputActionType.Value, "<XRHMD>/centerEyePosition", expectedControlType: "Vector3"));
         Rotation = new InputActionProperty(new InputAction("<XRHMD>/centerEyeRotation", InputActionType.Value, "<XRHMD>/centerEyeRotation", expectedControlType: "Quaternion"));
+        TrackingState = new InputActionProperty(new InputAction("<XRHMD>/trackingState", InputActionType.Value, "<XRHMD>/trackingState", expectedControlType: "Integer"));
 
         Position.action.Enable();
         Rotation.action.Enable();
+        TrackingState.action.Enable();
 
         _positionAction = Position.action;
         _rotationAction = Rotation.action;
+        _trackingStateAction = TrackingState.action;
 
         BasisOpenXRInputEye = gameObject.AddComponent<BasisOpenXRInputEye>();
         BasisOpenXRInputEye.Initialize();
@@ -35,6 +42,7 @@ public class BasisOpenXRHeadInput : BasisInput
     {
         Position.action?.Disable();
         Rotation.action?.Disable();
+        TrackingState.action?.Disable();
     }
 
     public new void OnDestroy()
@@ -61,8 +69,24 @@ public class BasisOpenXRHeadInput : BasisInput
     }
     private void PollPose()
     {
-        ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, _positionAction.ReadValue<Vector3>());
-        UnscaledDeviceCoord.rotation = _rotationAction.ReadValue<Quaternion>();
+        int state = _trackingStateAction.ReadValue<int>();
+        if ((state & TrackingStateRotation) != 0)
+        {
+            Quaternion rotation = _rotationAction.ReadValue<Quaternion>();
+            float lengthSq = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z + rotation.w * rotation.w;
+            if (lengthSq > 0.5f && lengthSq < 2f)
+            {
+                UnscaledDeviceCoord.rotation = rotation;
+            }
+        }
+        if ((state & TrackingStatePosition) != 0)
+        {
+            Vector3 position = _positionAction.ReadValue<Vector3>();
+            if (float.IsFinite(position.x + position.y + position.z))
+            {
+                ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, position);
+            }
+        }
 
         ConvertToScaledDeviceCoord();
         ControlOnlyAsDevice();

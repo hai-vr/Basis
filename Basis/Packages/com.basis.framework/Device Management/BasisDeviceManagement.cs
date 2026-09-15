@@ -93,6 +93,11 @@ namespace Basis.Scripts.Device_Management
         /// Fired when the boot mode changes after a successful <see cref="SwitchSetMode(string)"/> or default mode selection.
         /// </summary>
         public static event Action<string> OnBootModeChanged;
+        public static event Action OnXRSessionResumed;
+        public static void RaiseXRSessionResumed()
+        {
+            OnXRSessionResumed?.Invoke();
+        }
 
         /// <summary>
         /// Delegate signature for <see cref="OnInitializationCompleted"/>.
@@ -429,6 +434,12 @@ namespace Basis.Scripts.Device_Management
             if (string.Equals(StaticCurrentMode, newMode, StringComparison.Ordinal))
             {
                 BasisDebug.LogError($"Mode '{newMode}' already active. Call {nameof(StopAllDevices)} first.", BasisDebug.LogTag.Device);
+                return;
+            }
+
+            if (BasisXRManagement.IsLoading)
+            {
+                BasisDebug.LogWarning($"XR load in progress, ignoring switch to '{newMode}'.", BasisDebug.LogTag.Device);
                 return;
             }
 
@@ -1028,6 +1039,7 @@ namespace Basis.Scripts.Device_Management
         /// Indicates whether the current runtime is a mobile platform (Android).
         /// </summary>
         public static bool IsMobileHardware() => Application.isMobilePlatform;
+        public static bool IsStandaloneDevice => Application.isMobilePlatform || BasisGpuDetection.IsMobileGpu;
 
         /// <summary>
         /// Returns <c>true</c> when the current static mode equals <see cref="BasisConstants.Desktop"/>.
@@ -1063,6 +1075,16 @@ namespace Basis.Scripts.Device_Management
         {
             blockedReason = null;
 
+            if (string.Equals(mode, BasisConstants.Desktop, StringComparison.Ordinal))
+            {
+                if (IsStandaloneDevice && IsCurrentModeVR())
+                {
+                    blockedReason = BasisLocalization.Get("settings.platform.standaloneNoDesktop");
+                    return false;
+                }
+                return true;
+            }
+
             if (!IsVRMode(mode)) return true;
 
             BasisDeviceManagement inst = Instance;
@@ -1094,6 +1116,12 @@ namespace Basis.Scripts.Device_Management
             if (IsUserInDesktop())
             {
                 BasisDebug.LogError("Already in Desktop — cannot soft-switch.", BasisDebug.LogTag.Device);
+                return;
+            }
+
+            if (BasisXRManagement.IsLoading)
+            {
+                BasisDebug.LogWarning("XR load in progress, cannot soft-switch to Desktop yet.", BasisDebug.LogTag.Device);
                 return;
             }
 
@@ -1196,8 +1224,12 @@ namespace Basis.Scripts.Device_Management
         /// listener attached and never raises another. Without this the session stays in VR with
         /// nothing to swap it back.
         /// </summary>
-        private void ReconcileAutoSwapWithPresence()
+        public void ReconcileAutoSwapWithPresence()
         {
+            if (!BasisHMDPresence.IsSettled)
+            {
+                return;
+            }
             OnHMDPresenceChanged(BasisHMDPresence.IsPresent);
         }
 
@@ -1225,11 +1257,21 @@ namespace Basis.Scripts.Device_Management
                 return;
             }
 
+            if (IsStandaloneDevice) return;
+
             if (!string.Equals(BasisSettingsDefaults.SwapMode.RawValue, BasisSettingsDefaults.SwapMode_AutoSwap, StringComparison.OrdinalIgnoreCase)) return;
 
             // Gated here rather than at the hub so the sensor keeps being read and reported while
             // this is off — the presence state stays diagnosable, it just stops changing modes.
             if (!BasisSettingsDefaults.UsePresenceSensor.RawValue) return;
+
+            if (!BasisHMDPresence.IsSettled) return;
+
+            if (BasisXRManagement.IsLoading)
+            {
+                BasisDebug.Log("AutoSwap: XR load in progress, presence will be reconciled once it finishes", BasisDebug.LogTag.Device);
+                return;
+            }
 
             bool shouldSwitchToDesktop = !isPresent && IsCurrentModeVR();
             bool shouldSwitchToVR = isPresent && IsSoftSwapped;

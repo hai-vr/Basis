@@ -4668,10 +4668,13 @@ namespace Basis.BasisUI
 
 #if BASIS_HAS_OPENVR || BASIS_HAS_OPENXR
             // ---- Platform Auto-Swap ----
-            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
-                BasisLocalization.Get("settings.platform.swapMode.title"),
-                () => SettingsProviderPlatform.BuildAutoSwapUI(container),
-                false, _ => descriptor.ForceRebuild());
+            if (!Basis.Scripts.Device_Management.BasisDeviceManagement.IsStandaloneDevice)
+            {
+                PanelSectionToggleHelpers.CreateLazyFlatSection(container,
+                    BasisLocalization.Get("settings.platform.swapMode.title"),
+                    () => SettingsProviderPlatform.BuildAutoSwapUI(container),
+                    false, _ => descriptor.ForceRebuild());
+            }
 #endif
 
             // Backup & Restore moved to the General tab — it is user data, not a developer tool.

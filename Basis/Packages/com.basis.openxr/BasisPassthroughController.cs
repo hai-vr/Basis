@@ -37,7 +37,13 @@ namespace Basis.OpenXR
             BasisSettingsDefaults.EnablePassthrough.OnChanged += OnSettingChanged;
             BasisLocalCameraDriver.RenderSettingsApplied += OnRenderSettingsApplied;
             BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+            BasisDeviceManagement.OnDeviceManagementLoop += Tick;
             Apply();
+        }
+
+        static void Tick()
+        {
+            BasisPassthroughFeature.MainThreadTick();
         }
 
         static void OnSettingChanged(bool value)

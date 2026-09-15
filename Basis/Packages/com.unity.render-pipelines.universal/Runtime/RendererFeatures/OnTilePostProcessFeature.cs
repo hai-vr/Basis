@@ -99,7 +99,11 @@ public partial class OnTilePostProcessFeature : ScriptableRendererFeature
 
         m_OnTilePostProcessPass.Setup(ref m_OnTilePostProcessMaterial);
         m_OnTilePostProcessPass.renderPassEvent = postProcessingEvent;
-        m_OnTilePostProcessPass.m_UseTextureReadFallback = !universalRenderer.useTileOnlyMode;
+        bool xrDepthCopy = false;
+#if ENABLE_VR && ENABLE_XR_MODULE
+        xrDepthCopy = renderingData.cameraData.xr.enabled && renderingData.cameraData.xr.copyDepth;
+#endif
+        m_OnTilePostProcessPass.m_UseTextureReadFallback = !universalRenderer.useTileOnlyMode || xrDepthCopy;
 
         renderer.EnqueuePass(m_ColorGradingLutPass);
         renderer.EnqueuePass(m_OnTilePostProcessPass);

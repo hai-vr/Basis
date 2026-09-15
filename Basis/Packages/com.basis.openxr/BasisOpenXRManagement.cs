@@ -80,6 +80,12 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
         /// </summary>
         public override void SoftStartDevices()
         {
+            if (!IsSuspended)
+            {
+                BasisLocalCameraDriver.AllowXRRenderering(true);
+                BasisDebug.LogWarning("OpenXR: SoftStartDevices called while devices are live, ignoring", BasisDebug.LogTag.Device);
+                return;
+            }
             IsSuspended = false;
             BasisLocalCameraDriver.AllowXRRenderering(true);
 
@@ -110,6 +116,7 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
             IsSuspended = false;
             BasisDebug.Log("Stopping SDK for BasisOpenXRManagement");
             BasisOpenXRRefreshRate.Unhook();
+            BasisDeviceManagement.OnXRSessionResumed -= OnXRSessionResumed;
 
             foreach (var device in controls)
             {
@@ -138,6 +145,7 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
             LeftHand = CreatePhysicalHandTracker("Left Hand OPENXR", "Left Hand OPENXR", BasisBoneTrackedRole.LeftHand);
             RightHand = CreatePhysicalHandTracker("Right Hand OPENXR", "Right Hand OPENXR", BasisBoneTrackedRole.RightHand);
             BasisOpenXRRefreshRate.Hook();
+            BasisDeviceManagement.OnXRSessionResumed += OnXRSessionResumed;
             SMModuleMotionVectorsURP.ApplyMotionVectors();
             bool spaceWarpExtensionPresent = OpenXRRuntime.IsExtensionEnabled("XR_FB_space_warp");
             BasisDebug.Log($"SpaceWarp extension {(spaceWarpExtensionPresent ? "present" : "absent")}; motion vectors always on", BasisDebug.LogTag.Device);
@@ -150,6 +158,12 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
                 m_Subsystem.updatedHands += OnHandUpdate;
             }
             BasisCursorManagement.UnlockCursorBypassChecks("Forceful Unlock OPENXR");
+        }
+
+        private void OnXRSessionResumed()
+        {
+            BasisDebug.Log("OpenXR: session resumed, re-applying refresh rate", BasisDebug.LogTag.Device);
+            BasisOpenXRRefreshRate.Refresh();
         }
 
         private BasisOpenXRHandInput CreatePhysicalHandTracker(string device, string uniqueID, BasisBoneTrackedRole role)

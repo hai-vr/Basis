@@ -46,7 +46,7 @@ public static class SettingsProviderPlatform
         // Offered next to the manual switch buttons because turning it off is what leaves those
         // buttons as the only way to change mode. Hidden where no SDK reports presence at all,
         // since the toggle would govern a signal that never arrives.
-        if (BasisHMDPresence.HasPresenceProvider)
+        if (BasisHMDPresence.HasPresenceProvider && !BasisDeviceManagement.IsStandaloneDevice)
         {
             PanelToggle togglePresenceSensor = PanelToggle.CreateNewEntry(infoGroup.ContentParent);
             togglePresenceSensor.Descriptor.SetTitle(BasisLocalization.Get("settings.platform.usePresenceSensor"));

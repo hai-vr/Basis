@@ -632,7 +632,11 @@ namespace UnityEngine.Rendering.Universal
 
             CreateRenderGraphCameraRenderTargets(renderGraph, isCameraTargetOffscreenDepth, s_RequiresIntermediateAttachments, depthTextureIsDepthFormat);
 
-            m_ValidationHandler.active = cameraData.cameraType == CameraType.Game;
+            bool xrDepthCopySamplesIntermediates = false;
+#if ENABLE_VR && ENABLE_XR_MODULE
+            xrDepthCopySamplesIntermediates = cameraData.xr.enabled && cameraData.xr.copyDepth && s_RequiresIntermediateAttachments;
+#endif
+            m_ValidationHandler.active = cameraData.cameraType == CameraType.Game && !xrDepthCopySamplesIntermediates;
             m_ValidationHandler.OnBeforeRendering(renderGraph, resourceData);
 
             if (DebugHandler != null)

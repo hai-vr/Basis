@@ -11319,6 +11319,10 @@
       "value": "{0} is already running. Restart Basis to use {1} instead."
     },
     {
+      "key": "settings.platform.standaloneNoDesktop",
+      "value": "This is a standalone headset, there is no desktop display to switch to."
+    },
+    {
       "key": "settings.remoteAudio.remotePlayers",
       "value": "Remote Players"
     },

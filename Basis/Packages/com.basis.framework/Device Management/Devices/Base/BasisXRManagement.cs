@@ -192,6 +192,10 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             await BasisDeviceManagement.Instance.StartDevices(result);
             afterStart?.Invoke();
+            if (BasisDeviceManagement.OnInitializationComplete)
+            {
+                BasisDeviceManagement.Instance.ReconcileAutoSwapWithPresence();
+            }
         }
 
         /// <summary>
@@ -211,6 +215,7 @@ namespace Basis.Scripts.Device_Management.Devices
         public List<XRLoader> AvaliableLoaders;
 
         private bool isLoading;
+        public bool IsLoading => isLoading;
 
         public void Initialize()
         {
