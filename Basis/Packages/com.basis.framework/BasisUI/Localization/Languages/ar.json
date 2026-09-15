@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "أظهر رسالة عندما يغادر أحدهم العالم." },
     { "key": "settings.chat.disable.tooltip", "value": "أوقف الدردشة النصية فلا ترسل ولا تستقبل رسائل." },
     { "key": "settings.chat.message.tooltip", "value": "اكتب رسالة هنا لإرسالها إلى الجميع في العالم." },
+    { "key": "settings.chat.message.mutedByModerator", "value": "قام مشرف بكتم الدردشة النصية الخاصة بك." },
+    { "key": "settings.chat.message.lockedByServer", "value": "الدردشة النصية مقفلة على هذا الخادم." },
     { "key": "settings.chat.textSize.tooltip", "value": "مدى كبر نص الدردشة الظاهر فوق اللاعبين." },
     { "key": "settings.chat.duration.tooltip", "value": "المدة بالثواني التي تبقى فيها رسالة الدردشة ظاهرة فوق رأس اللاعب قبل أن تختفي." },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "اختر من يُوسَم في الصور التي تلتقطها." },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "الأفاتار" },
 
     { "key": "notifications.category.developer", "value": "الأخطاء" },
+    { "key": "notifications.pending.count", "value": "قيد الانتظار ({0})" },
+    { "key": "notifications.pending.description", "value": "مطالبات لا تزال بانتظار إجابة. اختر واحدة لفتحها أو تجاهلها." },
+    { "key": "notifications.history.count", "value": "السجل ({0})" },
+    { "key": "notifications.history.description", "value": "مطالبات تمت الإجابة عليها أو تجاهلها. اختر واحدة لعرض التفاصيل." },
+    { "key": "notifications.clearHistory.tooltip", "value": "إزالة كل الإشعارات التي تمت الإجابة عليها. تبقى الإشعارات قيد الانتظار." },
+    { "key": "notifications.clearHistory.confirm", "value": "هل تريد إزالة كل الإشعارات التي تمت الإجابة عليها؟ تبقى الإشعارات قيد الانتظار." },
 
     { "key": "settings.tab.performancelimits", "value": "حدود الأداء" },
 

@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "Toon een bericht wanneer iemand de wereld verlaat." },
     { "key": "settings.chat.disable.tooltip", "value": "Schakel tekstchat uit zodat je geen berichten verzendt of ontvangt." },
     { "key": "settings.chat.message.tooltip", "value": "Typ hier een bericht om het naar iedereen in de wereld te sturen." },
+    { "key": "settings.chat.message.mutedByModerator", "value": "Een moderator heeft je tekstchat gedempt." },
+    { "key": "settings.chat.message.lockedByServer", "value": "Tekstchat is vergrendeld op deze server." },
     { "key": "settings.chat.textSize.tooltip", "value": "Hoe groot chattekst boven spelers verschijnt." },
     { "key": "settings.chat.duration.tooltip", "value": "Hoe lang een chatbericht zichtbaar blijft boven het hoofd van een speler, in seconden, voordat het verdwijnt." },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "Kies wie er wordt getagd in foto's die je maakt." },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "Avatar" },
 
     { "key": "notifications.category.developer", "value": "Fouten" },
+    { "key": "notifications.pending.count", "value": "In behandeling ({0})" },
+    { "key": "notifications.pending.description", "value": "Meldingen die nog op een antwoord wachten. Selecteer er een om hem te openen of te negeren." },
+    { "key": "notifications.history.count", "value": "Geschiedenis ({0})" },
+    { "key": "notifications.history.description", "value": "Beantwoorde en genegeerde meldingen. Selecteer er een voor details." },
+    { "key": "notifications.clearHistory.tooltip", "value": "Verwijdert elke beantwoorde melding. Meldingen in behandeling blijven staan." },
+    { "key": "notifications.clearHistory.confirm", "value": "Elke beantwoorde melding verwijderen? Meldingen in behandeling blijven staan." },
 
     { "key": "settings.tab.performancelimits", "value": "Prestatielimieten" },
 

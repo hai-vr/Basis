@@ -24,9 +24,9 @@ namespace Basis.Scripts.Networking
         private static bool hasPendingAnnounceExitMode;
 
         /// <summary>
-        /// True while an admin put us in shout, as opposed to us picking it ourselves. A held
-        /// shout can only be left through the server, which re-checks the permission — otherwise
-        /// the target cycles straight back out of a mode a moderator just put them in.
+        /// True while an admin put us in shout, as opposed to us picking it ourselves. It keeps the
+        /// mode on offer without the toggle or the permission; leaving it hands the grant back to
+        /// the server so every listener stops widening for us.
         /// </summary>
         private static bool adminShoutHeld;
 
@@ -92,12 +92,12 @@ namespace Basis.Scripts.Networking
 
         /// <summary>
         /// Server told us an admin granted or revoked shout for the local player. Enter or leave
-        /// the mode, and hold it so <see cref="SetMode"/> routes any attempt to leave back through
-        /// the server rather than applying locally. An announce in progress keeps precedence;
-        /// the held shout lands when it ends.
+        /// the mode. An announce in progress keeps precedence; the held shout lands when it ends.
+        /// A revoke only ends a shout the grant put us in, never one we chose ourselves.
         /// </summary>
         public static void OnAdminShoutChanged(bool enabled)
         {
+            bool wasHeld = adminShoutHeld;
             adminShoutHeld = enabled;
             if (enabled)
             {
@@ -108,12 +108,7 @@ namespace Basis.Scripts.Networking
                 return;
             }
 
-            // Always Normal, never a mode the target asked for while held. Announce carries a
-            // pending exit because its request is answered at once; a held shout's release can be
-            // refused and then sit unanswered until a moderator lifts it minutes later, and
-            // landing the player in whatever they last poked back then is a surprise, not a
-            // courtesy.
-            if (CurrentMode == BasisTalkMode.Shout)
+            if (wasHeld && CurrentMode == BasisTalkMode.Shout)
             {
                 ApplyMode(BasisTalkMode.Normal);
                 return;
@@ -234,18 +229,10 @@ namespace Basis.Scripts.Networking
                 return;
             }
 
-            // A held shout is the server's to release, exactly as announce is. Asking rather than
-            // applying means a non-admin target is refused by the same permission check that put
-            // them here, while an admin's own request comes straight back and lands. The local
-            // mode is left alone either way — dropping the hold because LocalPlayer happened to
-            // be null would hand the target a way out that never reached the server at all.
-            if (adminShoutHeld && CurrentMode == BasisTalkMode.Shout && mode != BasisTalkMode.Shout)
+            if (adminShoutHeld && mode != BasisTalkMode.Shout)
             {
-                if (BasisNetworkPlayer.LocalPlayer != null)
-                {
-                    BasisNetworkModeration.DisableShoutMode(BasisNetworkPlayer.LocalPlayer.playerId);
-                }
-                return;
+                adminShoutHeld = false;
+                if (BasisNetworkPlayer.LocalPlayer != null) BasisNetworkModeration.DisableShoutMode(BasisNetworkPlayer.LocalPlayer.playerId);
             }
 
             if (CurrentMode == BasisTalkMode.Announce && BasisNetworkPlayer.LocalPlayer != null)

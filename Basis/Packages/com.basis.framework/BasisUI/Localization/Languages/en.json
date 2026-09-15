@@ -2463,6 +2463,14 @@
       "value": "Type a message here to send it to everyone in the world."
     },
     {
+      "key": "settings.chat.message.mutedByModerator",
+      "value": "A moderator muted your text chat."
+    },
+    {
+      "key": "settings.chat.message.lockedByServer",
+      "value": "Text chat is locked on this server."
+    },
+    {
       "key": "settings.chat.textSize.tooltip",
       "value": "How large chat text appears above players."
     },
@@ -13605,6 +13613,30 @@
     {
       "key": "notifications.category.developer",
       "value": "Errors"
+    },
+    {
+      "key": "notifications.pending.count",
+      "value": "Pending ({0})"
+    },
+    {
+      "key": "notifications.pending.description",
+      "value": "Prompts still waiting on an answer. Select one to open or dismiss it."
+    },
+    {
+      "key": "notifications.history.count",
+      "value": "History ({0})"
+    },
+    {
+      "key": "notifications.history.description",
+      "value": "Answered and dismissed prompts. Select one for details."
+    },
+    {
+      "key": "notifications.clearHistory.tooltip",
+      "value": "Remove every answered notification. Pending ones are kept."
+    },
+    {
+      "key": "notifications.clearHistory.confirm",
+      "value": "Remove every answered notification? Pending ones are kept."
     },
     {
       "key": "settings.tab.performancelimits",

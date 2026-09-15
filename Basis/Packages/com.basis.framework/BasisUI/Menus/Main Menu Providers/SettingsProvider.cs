@@ -248,7 +248,7 @@ namespace Basis.BasisUI
             }
 
             HashSet<string> perms = BasisNetworkManagement.LocalPermissions;
-            SetTabVisible(tabGroup, ModeratorTabKey, perms != null && perms.Contains(PermNodes.PlayerModeration));
+            SetTabVisible(tabGroup, ModeratorTabKey, BasisNetworkModeration.LocalPlayerIsModerator());
             SetTabVisible(tabGroup, AdminTabKey, perms != null && perms.Contains(PermNodes.PermissionsView));
         }
 
@@ -3725,6 +3725,12 @@ namespace Basis.BasisUI
 
                 chatTextField = PanelTextField.CreateNewEntry(container);
                 _chatTextField = chatTextField;
+                BasisNetworkModeration.OnLocalTextMutedByModeratorChanged -= OnChatLockChanged;
+                BasisNetworkModeration.OnLocalTextMutedByModeratorChanged += OnChatLockChanged;
+                BasisNetworkModeration.OnGlobalTextChatLockedChanged -= OnChatLockChanged;
+                BasisNetworkModeration.OnGlobalTextChatLockedChanged += OnChatLockChanged;
+                BasisNetworkManagement.OnlocalPermissionsChanged -= ApplyChatComposerLock;
+                BasisNetworkManagement.OnlocalPermissionsChanged += ApplyChatComposerLock;
                 chatTextField.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.message"));
                 chatTextField.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.message.tooltip"));
                 chatTextField.SetValueWithoutNotify(string.Empty);
@@ -3748,17 +3754,14 @@ namespace Basis.BasisUI
                     BasisSettingsDefaults.ChatMessageDuration);
                 sliderChatDuration.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.duration.tooltip"));
 
-                // Composer hides when the local player turned chat off OR the server locked it.
-                // Re-evaluated each time the tab is built (the menu is rebuilt on every open), so
-                // a lock flipped mid-session lands on the next open — SendChatMessage refuses in
-                // the meantime, so nothing escapes either way.
-                bool chatEnabled = !BasisSettingsDefaults.ChatDisabled.RawValue && !BasisNetworkHandleChat.LockedByServer;
+                bool chatEnabled = !BasisSettingsDefaults.ChatDisabled.RawValue;
                 chatTextField.Descriptor.SetActive(chatEnabled);
                 sliderChatSize.Descriptor.SetActive(chatEnabled);
                 sliderChatDuration.Descriptor.SetActive(chatEnabled);
+                ApplyChatComposerLock();
                 toggleChatDisabled.OnValueChanged += (val) =>
                 {
-                    bool enabled = !val && !BasisNetworkHandleChat.LockedByServer;
+                    bool enabled = !val;
                     chatTextField.Descriptor.SetActive(enabled);
                     if (val)
                     {
@@ -3773,7 +3776,7 @@ namespace Basis.BasisUI
                 // Section expand re-shows every row; re-apply the chat-disabled gate.
                 if (visible && chatTextField != null)
                 {
-                    bool chatOn = !BasisSettingsDefaults.ChatDisabled.RawValue && !BasisNetworkHandleChat.LockedByServer;
+                    bool chatOn = !BasisSettingsDefaults.ChatDisabled.RawValue;
                     chatTextField.Descriptor.SetActive(chatOn);
                     sliderChatSize.Descriptor.SetActive(chatOn);
                     sliderChatDuration.Descriptor.SetActive(chatOn);
@@ -4020,8 +4023,37 @@ namespace Basis.BasisUI
             }
         }
 
+        private static void OnChatLockChanged(bool locked)
+        {
+            ApplyChatComposerLock();
+        }
+
+        private static void ApplyChatComposerLock()
+        {
+            if (_chatTextField == null || _chatTextField._inputField == null)
+            {
+                return;
+            }
+
+            if (BasisNetworkModeration.LocalPlayerTextMutedByModerator)
+            {
+                _chatTextField.SetInteractable(false, BasisLocalization.Get("settings.chat.message.mutedByModerator"));
+            }
+            else if (BasisNetworkHandleChat.LockedByServer)
+            {
+                _chatTextField.SetInteractable(false, BasisLocalization.Get("settings.chat.message.lockedByServer"));
+            }
+            else
+            {
+                _chatTextField.SetInteractable(true);
+            }
+        }
+
         private static void ClearChatComposerReference()
         {
+            BasisNetworkModeration.OnLocalTextMutedByModeratorChanged -= OnChatLockChanged;
+            BasisNetworkModeration.OnGlobalTextChatLockedChanged -= OnChatLockChanged;
+            BasisNetworkManagement.OnlocalPermissionsChanged -= ApplyChatComposerLock;
             BasisNetworkHandleChatTyping.SendTypingState(false);
             _chatComposerPlayNotificationSound = true;
             _chatTextField = null;

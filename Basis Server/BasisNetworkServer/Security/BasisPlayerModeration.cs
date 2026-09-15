@@ -342,15 +342,19 @@ namespace BasisNetworkServer.Security
                     break;
 
                 case AdminRequestMode.EnableAnnounceMode:
+                    Require(peer, PermNodes.ModerationAnnounce, () => HandleAnnounceMode(peer, reader.GetUShort(), true));
+                    break;
+
                 case AdminRequestMode.DisableAnnounceMode:
-                    Require(peer, PermNodes.ModerationAnnounce, () =>
-                        HandleAnnounceMode(peer, reader, mode == AdminRequestMode.EnableAnnounceMode));
+                    ReleaseMode(peer, reader.GetUShort(), id => HandleAnnounceMode(peer, id, false));
                     break;
 
                 case AdminRequestMode.EnableShoutMode:
+                    Require(peer, PermNodes.ModerationAnnounce, () => HandleShoutMode(peer, reader.GetUShort(), true));
+                    break;
+
                 case AdminRequestMode.DisableShoutMode:
-                    Require(peer, PermNodes.ModerationAnnounce, () =>
-                        HandleShoutMode(peer, reader, mode == AdminRequestMode.EnableShoutMode));
+                    ReleaseMode(peer, reader.GetUShort(), id => HandleShoutMode(peer, id, false));
                     break;
 
                 case AdminRequestMode.SetFullQualityBroadcast:
@@ -360,12 +364,25 @@ namespace BasisNetworkServer.Security
 
                 case AdminRequestMode.SetVoiceMute:
                     Require(peer, PermNodes.ModerationMute, () =>
-                        SendBackMessage(peer, BasisPlayerMuteManager.Apply(reader.GetString(), voice: true, reader.GetBool())));
+                    {
+                        string uuid = reader.GetString();
+                        SendBackMessage(peer, BasisPlayerMuteManager.Apply(uuid, voice: true, reader.GetBool()));
+                        BasisPlayerMuteManager.SendStateToModerator(peer, uuid);
+                    });
                     break;
 
                 case AdminRequestMode.SetTextMute:
                     Require(peer, PermNodes.ModerationMute, () =>
-                        SendBackMessage(peer, BasisPlayerMuteManager.Apply(reader.GetString(), voice: false, reader.GetBool())));
+                    {
+                        string uuid = reader.GetString();
+                        SendBackMessage(peer, BasisPlayerMuteManager.Apply(uuid, voice: false, reader.GetBool()));
+                        BasisPlayerMuteManager.SendStateToModerator(peer, uuid);
+                    });
+                    break;
+
+                case AdminRequestMode.GetMuteState:
+                    Require(peer, PermNodes.ModerationMute, () =>
+                        BasisPlayerMuteManager.SendStateToModerator(peer, reader.GetString()));
                     break;
 
                 case AdminRequestMode.RenamePlayer:
@@ -801,6 +818,12 @@ namespace BasisNetworkServer.Security
             action();
         }
 
+        private static void ReleaseMode(NetPeer peer, ushort target, Action<ushort> release)
+        {
+            if (target == peer.Id) release(target);
+            else Require(peer, PermNodes.ModerationAnnounce, () => release(target));
+        }
+
         private static void HandlePermissionEdit(AdminRequestMode mode, NetPeer peer, NetPacketReader reader)
         {
             // SetUserGroup/SetUserNode/SetGroupNode/SetGroupParent all carry a trailing `add` bool.
@@ -972,16 +995,14 @@ namespace BasisNetworkServer.Security
             NetworkServer.ReturnWriter(writer);
         }
 
-        private static void HandleAnnounceMode(NetPeer peer, NetPacketReader reader, bool enable)
+        private static void HandleAnnounceMode(NetPeer peer, ushort id, bool enable)
         {
-            ushort id = reader.GetUShort();
             Basis.Network.Server.Generic.BasisSavedState.SetAnnounceMode(id, enable);
             BasisServerHandle.BasisServerHandleEvents.BroadcastAnnounceModeState(id, enable, (ushort)peer.Id);
         }
 
-        private static void HandleShoutMode(NetPeer peer, NetPacketReader reader, bool enable)
+        private static void HandleShoutMode(NetPeer peer, ushort id, bool enable)
         {
-            ushort id = reader.GetUShort();
             Basis.Network.Server.Generic.BasisSavedState.SetShoutMode(id, enable);
             BasisServerHandle.BasisServerHandleEvents.BroadcastShoutModeState(id, enable, (ushort)peer.Id);
         }

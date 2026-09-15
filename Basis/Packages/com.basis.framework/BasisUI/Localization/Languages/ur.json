@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "جب کوئی دنیا چھوڑے تو ایک پیغام دکھائیں۔" },
     { "key": "settings.chat.disable.tooltip", "value": "ٹیکسٹ چیٹ بند کریں تاکہ آپ نہ پیغام بھیجیں نہ وصول کریں۔" },
     { "key": "settings.chat.message.tooltip", "value": "دنیا میں ہر کسی کو بھیجنے کے لیے یہاں ایک پیغام ٹائپ کریں۔" },
+    { "key": "settings.chat.message.mutedByModerator", "value": "ایک موڈریٹر نے آپ کی ٹیکسٹ چیٹ میوٹ کر دی ہے۔" },
+    { "key": "settings.chat.message.lockedByServer", "value": "اس سرور پر ٹیکسٹ چیٹ لاک ہے۔" },
     { "key": "settings.chat.textSize.tooltip", "value": "کھلاڑیوں کے اوپر چیٹ ٹیکسٹ کتنا بڑا دکھائی دیتا ہے۔" },
     { "key": "settings.chat.duration.tooltip", "value": "چیٹ پیغام غائب ہونے سے پہلے کھلاڑی کے سر کے اوپر کتنے سیکنڈ نظر آتا ہے۔" },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "منتخب کریں کہ آپ کی لی گئی تصاویر میں کس کو ٹیگ کیا جائے۔" },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "اواتار" },
 
     { "key": "notifications.category.developer", "value": "خرابیاں" },
+    { "key": "notifications.pending.count", "value": "زیر التواء ({0})" },
+    { "key": "notifications.pending.description", "value": "پرامپٹس جو ابھی بھی جواب کے منتظر ہیں۔ کھولنے یا مسترد کرنے کے لیے ایک منتخب کریں۔" },
+    { "key": "notifications.history.count", "value": "تاریخچہ ({0})" },
+    { "key": "notifications.history.description", "value": "جواب دیے گئے اور مسترد کیے گئے پرامپٹس۔ تفصیلات کے لیے ایک منتخب کریں۔" },
+    { "key": "notifications.clearHistory.tooltip", "value": "جواب دی گئی تمام اطلاعات ہٹائیں۔ زیر التواء اطلاعات برقرار رہیں گی۔" },
+    { "key": "notifications.clearHistory.confirm", "value": "جواب دی گئی تمام اطلاعات ہٹائیں؟ زیر التواء اطلاعات برقرار رہیں گی۔" },
 
     { "key": "settings.tab.performancelimits", "value": "کارکردگی کی حدیں" },
 

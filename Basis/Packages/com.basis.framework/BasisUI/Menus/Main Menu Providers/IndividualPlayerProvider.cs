@@ -1469,9 +1469,8 @@ namespace Basis.BasisUI
                         BasisNetworkModeration.EnableShoutMode(announcePlayerId);
                 };
 
-                // Server-enforced mutes. The admin client doesn't track the target's current
-                // state, so like the full-quality toggle these start off and send the explicit
-                // state on change — the server's reply popup reports the authoritative result.
+                // Server-enforced mutes, painted from the state the server reports: asked for on
+                // open and echoed back after every change, so a refused change snaps the toggle back.
                 PanelToggle voiceMuteToggle = PanelToggle.CreateNewEntry(adminGroup.ContentParent);
                 voiceMuteToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.muteVoice"));
                 voiceMuteToggle.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.muteVoice.tooltip"));
@@ -1481,6 +1480,21 @@ namespace Basis.BasisUI
                 textMuteToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.muteText"));
                 textMuteToggle.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.muteText.tooltip"));
                 textMuteToggle.OnValueChanged += muted => BasisNetworkModeration.SetTextMute(targetUUID, muted);
+
+                Action<BasisNetworkModeration.MuteStateResult> muteStateHandler = null;
+                muteStateHandler = result =>
+                {
+                    if (!string.Equals(result.Uuid, targetUUID, StringComparison.Ordinal)) return;
+                    if (panel == null || panel.Descriptor == null || voiceMuteToggle == null || textMuteToggle == null)
+                    {
+                        BasisNetworkModeration.OnMuteStateResult -= muteStateHandler;
+                        return;
+                    }
+                    voiceMuteToggle.SetValueWithoutNotify(result.VoiceMuted);
+                    textMuteToggle.SetValueWithoutNotify(result.TextMuted);
+                };
+                BasisNetworkModeration.OnMuteStateResult += muteStateHandler;
+                BasisNetworkModeration.QueryMuteState(targetUUID);
 
                 PanelTextField renameField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
                 renameField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.rename"));
@@ -1611,10 +1625,10 @@ namespace Basis.BasisUI
                 }
 
                 ApplyLocomotionSliderVisibility();
-                jumpToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); locomotionGroup.ForceRebuild(); };
-                walkToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); locomotionGroup.ForceRebuild(); };
-                runToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); locomotionGroup.ForceRebuild(); };
-                gravityToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); locomotionGroup.ForceRebuild(); };
+                jumpToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); RebuildSection(locomotionGroup, adminPage); };
+                walkToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); RebuildSection(locomotionGroup, adminPage); };
+                runToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); RebuildSection(locomotionGroup, adminPage); };
+                gravityToggle.OnValueChanged += _ => { ApplyLocomotionSliderVisibility(); RebuildSection(locomotionGroup, adminPage); };
 
                 PanelButton locomotionApplyBtn = PanelButton.CreateNew(locomotionGroup.ContentParent);
                 locomotionApplyBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.locomotion.apply"));
@@ -1652,7 +1666,7 @@ namespace Basis.BasisUI
                     visible =>
                     {
                         if (visible) ApplyLocomotionSliderVisibility();
-                        locomotionGroup.ForceRebuild();
+                        RebuildSection(locomotionGroup, adminPage);
                     });
 
                 // ---- Per-user permissions ----

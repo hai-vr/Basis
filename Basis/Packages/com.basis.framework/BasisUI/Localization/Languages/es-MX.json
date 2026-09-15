@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "Muestra un mensaje cuando alguien sale del mundo." },
     { "key": "settings.chat.disable.tooltip", "value": "Desactiva el chat de texto para no enviar ni recibir mensajes." },
     { "key": "settings.chat.message.tooltip", "value": "Escribe aquí un mensaje para enviarlo a todos en el mundo." },
+    { "key": "settings.chat.message.mutedByModerator", "value": "Un moderador silenció tu chat de texto." },
+    { "key": "settings.chat.message.lockedByServer", "value": "El chat de texto está bloqueado en este servidor." },
     { "key": "settings.chat.textSize.tooltip", "value": "Qué tan grande aparece el texto del chat sobre los jugadores." },
     { "key": "settings.chat.duration.tooltip", "value": "Cuánto tiempo permanece visible un mensaje de chat sobre la cabeza de un jugador, en segundos, antes de desaparecer." },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "Elige a quién se etiqueta en las fotos que tomas." },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "Avatar" },
 
     { "key": "notifications.category.developer", "value": "Errores" },
+    { "key": "notifications.pending.count", "value": "Pendientes ({0})" },
+    { "key": "notifications.pending.description", "value": "Avisos que aún esperan una respuesta. Selecciona uno para abrirlo o descartarlo." },
+    { "key": "notifications.history.count", "value": "Historial ({0})" },
+    { "key": "notifications.history.description", "value": "Avisos respondidos y descartados. Selecciona uno para ver los detalles." },
+    { "key": "notifications.clearHistory.tooltip", "value": "Elimina todas las notificaciones respondidas. Las pendientes se conservan." },
+    { "key": "notifications.clearHistory.confirm", "value": "¿Eliminar todas las notificaciones respondidas? Las pendientes se conservan." },
 
     { "key": "settings.tab.performancelimits", "value": "Límites de rendimiento" },
 

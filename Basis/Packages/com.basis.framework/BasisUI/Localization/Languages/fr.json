@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "Affiche un message quand quelqu'un quitte le monde." },
     { "key": "settings.chat.disable.tooltip", "value": "Désactive le chat texte : vous n'envoyez ni ne recevez de messages." },
     { "key": "settings.chat.message.tooltip", "value": "Tapez un message ici pour l'envoyer à tout le monde dans le monde." },
+    { "key": "settings.chat.message.mutedByModerator", "value": "Un modérateur a coupé votre chat texte." },
+    { "key": "settings.chat.message.lockedByServer", "value": "Le chat texte est verrouillé sur ce serveur." },
     { "key": "settings.chat.textSize.tooltip", "value": "La taille du texte de chat affiché au-dessus des joueurs." },
     { "key": "settings.chat.duration.tooltip", "value": "Combien de temps un message de chat reste visible au-dessus de la tête d'un joueur, en secondes, avant de disparaître." },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "Choisissez qui est identifié dans les photos que vous prenez." },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "Avatar" },
 
     { "key": "notifications.category.developer", "value": "Erreurs" },
+    { "key": "notifications.pending.count", "value": "En attente ({0})" },
+    { "key": "notifications.pending.description", "value": "Invites toujours en attente d'une réponse. Sélectionnez-en une pour l'ouvrir ou l'ignorer." },
+    { "key": "notifications.history.count", "value": "Historique ({0})" },
+    { "key": "notifications.history.description", "value": "Invites traitées ou ignorées. Sélectionnez-en une pour voir les détails." },
+    { "key": "notifications.clearHistory.tooltip", "value": "Supprime toutes les notifications traitées. Celles en attente sont conservées." },
+    { "key": "notifications.clearHistory.confirm", "value": "Supprimer toutes les notifications traitées ? Celles en attente sont conservées." },
 
     { "key": "settings.tab.performancelimits", "value": "Limites de performance" },
 

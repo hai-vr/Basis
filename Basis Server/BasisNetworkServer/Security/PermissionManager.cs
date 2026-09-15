@@ -107,6 +107,7 @@ namespace BasisPermissions
     {
         public Dictionary<string, PermissionUser> Users = new Dictionary<string, PermissionUser>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, PermissionGroup> Groups = new Dictionary<string, PermissionGroup>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, HashSet<string>> SeededDefaults = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
     }
     public sealed class EffectivePermissions
     {
@@ -682,6 +683,11 @@ namespace BasisPermissions
                     };
                 }
 
+                foreach (var s in _store.SeededDefaults)
+                {
+                    copy.SeededDefaults[s.Key] = new HashSet<string>(s.Value, StringComparer.OrdinalIgnoreCase);
+                }
+
                 return copy;
             }
             finally { _lock.ExitReadLock(); }
@@ -850,74 +856,42 @@ namespace BasisPermissions
         // -----------------------
         // Convenience: default setup
         // -----------------------
+        private static readonly string[] DefaultGroupNodes =
+        {
+            PermNodes.help,
+            PermNodes.ResourceLoadProp, PermNodes.ResourceUnloadProp,
+            PermNodes.ResourceLoadAvatar, PermNodes.ResourceUnloadAvatar,
+            PermNodes.ResourceLoadWorld, PermNodes.ResourceUnloadWorld,
+            PermNodes.OwnershipTransfer, PermNodes.OwnershipRemove, PermNodes.OwnershipGet,
+            PermNodes.ContentShareDelete, PermNodes.ContentShareCreate,
+        };
+
+        private static readonly string[] ModeratorGroupNodes =
+        {
+            PermNodes.PlayerModeration,
+            PermNodes.ModerationBan, PermNodes.ModerationKick, PermNodes.ModerationIpBan,
+            PermNodes.ModerationUnban, PermNodes.ModerationUnbanIp,
+            PermNodes.ModerationMessage, PermNodes.ModerationMessageAll,
+            PermNodes.ModerationTeleport, PermNodes.ModerationAnnounce,
+            PermNodes.ModerationGlobalLock, PermNodes.ModerationHeadlessAudio, PermNodes.ModerationOpusBitrate,
+            PermNodes.ModerationFullQualityBroadcast, PermNodes.ModerationForceAvatar, PermNodes.ModerationLocomotion,
+            PermNodes.ModerationMute, PermNodes.ModerationRename,
+            PermNodes.PermissionsView,
+            PermNodes.ResourceLockBypassAvatar, PermNodes.ResourceLockBypassProp,
+            PermNodes.ResourceLockBypassWorld, PermNodes.ResourceLockBypassServer,
+            PermNodes.ChatLockBypass, PermNodes.VoiceLockBypass,
+        };
+
+        private static readonly string[] AdminGroupNodes = { PermNodes.All };
+
         public void EnsureDefaults()
         {
             _lock.EnterWriteLock();
             try
             {
-                if (!_store.Groups.ContainsKey("default"))
-                {
-                    PermissionGroup def = new PermissionGroup { Name = "default" };
-                    // existing example
-                    def.Nodes.Add(PermNodes.help);
-                    // ✅ default users should have these
-                    def.Nodes.Add(PermNodes.ResourceLoadProp);
-                    def.Nodes.Add(PermNodes.ResourceUnloadProp);
-
-                    def.Nodes.Add(PermNodes.ResourceLoadAvatar);
-                    def.Nodes.Add(PermNodes.ResourceUnloadAvatar);
-
-                    def.Nodes.Add(PermNodes.ResourceLoadWorld);
-                    def.Nodes.Add(PermNodes.ResourceUnloadWorld);
-
-                    def.Nodes.Add(PermNodes.OwnershipTransfer);
-                    def.Nodes.Add(PermNodes.OwnershipRemove);
-                    def.Nodes.Add(PermNodes.OwnershipGet);
-
-                    def.Nodes.Add(PermNodes.ContentShareDelete);
-                    def.Nodes.Add(PermNodes.ContentShareCreate);
-
-                    _store.Groups["default"] = def;
-                }
-                if (!_store.Groups.ContainsKey("moderator"))
-                {
-                    var adm = new PermissionGroup { Name = "moderator" };
-                    adm.Parents.Add("default");
-                    adm.Nodes.Add(PermNodes.ModerationBan);
-                    adm.Nodes.Add(PermNodes.ModerationKick);
-                    adm.Nodes.Add(PermNodes.ModerationIpBan);
-                    adm.Nodes.Add(PermNodes.ModerationUnban);
-                    adm.Nodes.Add(PermNodes.ModerationUnbanIp);
-                    adm.Nodes.Add(PermNodes.ModerationMessage);
-                    adm.Nodes.Add(PermNodes.ModerationMessageAll);
-                    adm.Nodes.Add(PermNodes.ModerationTeleport);
-                    adm.Nodes.Add(PermNodes.ModerationAnnounce);
-                    adm.Nodes.Add(PermNodes.ModerationGlobalLock);
-                    adm.Nodes.Add(PermNodes.ModerationHeadlessAudio);
-                    adm.Nodes.Add(PermNodes.ModerationOpusBitrate);
-                    adm.Nodes.Add(PermNodes.ModerationFullQualityBroadcast);
-                    adm.Nodes.Add(PermNodes.ModerationForceAvatar);
-                    adm.Nodes.Add(PermNodes.ModerationLocomotion);
-                    adm.Nodes.Add(PermNodes.ModerationMute);
-                    adm.Nodes.Add(PermNodes.ModerationRename);
-                    adm.Nodes.Add(PermNodes.PermissionsView);
-
-                    adm.Nodes.Add(PermNodes.ResourceLockBypassAvatar);
-                    adm.Nodes.Add(PermNodes.ResourceLockBypassProp);
-                    adm.Nodes.Add(PermNodes.ResourceLockBypassWorld);
-                    adm.Nodes.Add(PermNodes.ResourceLockBypassServer);
-                    adm.Nodes.Add(PermNodes.ChatLockBypass);
-                    adm.Nodes.Add(PermNodes.VoiceLockBypass);
-
-                    _store.Groups["moderator"] = adm;
-                }
-                if (!_store.Groups.ContainsKey("admin"))
-                {
-                    var adm = new PermissionGroup { Name = "admin" };
-                    adm.Nodes.Add("*");
-                    adm.Parents.Add("moderator");
-                    _store.Groups["admin"] = adm;
-                }
+                SeedGroup_NoLock("default", null, DefaultGroupNodes);
+                SeedGroup_NoLock("moderator", "default", ModeratorGroupNodes);
+                SeedGroup_NoLock("admin", "moderator", AdminGroupNodes);
 
                 _version++;
                 _cache.Clear();
@@ -926,6 +900,30 @@ namespace BasisPermissions
             finally { _lock.ExitWriteLock(); }
 
             SaveToXmlDebounced();
+        }
+
+        private void SeedGroup_NoLock(string name, string parent, string[] nodes)
+        {
+            if (!_store.SeededDefaults.TryGetValue(name, out HashSet<string> seeded))
+            {
+                seeded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                _store.SeededDefaults[name] = seeded;
+            }
+
+            if (!_store.Groups.TryGetValue(name, out PermissionGroup group))
+            {
+                group = new PermissionGroup { Name = name };
+                if (parent != null)
+                    group.Parents.Add(parent);
+                _store.Groups[name] = group;
+                seeded.Clear();
+            }
+
+            foreach (string node in nodes)
+            {
+                if (seeded.Add(node) && !group.Nodes.Contains("-" + node))
+                    group.Nodes.Add(node);
+            }
         }
 
         // =========================================
@@ -985,10 +983,12 @@ namespace BasisPermissions
 
                 PermissionGroup currentGroupDef = null;
                 PermissionUser currentUser = null;
+                HashSet<string> currentSeeded = null;
 
                 // Context flags
                 bool inGroups = false;
                 bool inUsers = false;
+                bool inSeeded = false;
 
                 while (xr.Read())
                 {
@@ -997,11 +997,15 @@ namespace BasisPermissions
                         switch (xr.Name)
                         {
                             case "Groups":
-                                inGroups = true; inUsers = false;
+                                inGroups = true; inUsers = false; inSeeded = false;
                                 break;
 
                             case "Users":
-                                inUsers = true; inGroups = false;
+                                inUsers = true; inGroups = false; inSeeded = false;
+                                break;
+
+                            case "SeededDefaults":
+                                inSeeded = true; inGroups = false; inUsers = false;
                                 break;
 
                             case "Group":
@@ -1020,6 +1024,14 @@ namespace BasisPermissions
                                     {
                                         if (!string.IsNullOrWhiteSpace(name))
                                             currentUser.Groups.Add(name.Trim());
+                                    }
+                                    else if (inSeeded)
+                                    {
+                                        if (!store.SeededDefaults.TryGetValue(name, out currentSeeded))
+                                        {
+                                            currentSeeded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                            store.SeededDefaults[name] = currentSeeded;
+                                        }
                                     }
                                     break;
                                 }
@@ -1055,6 +1067,8 @@ namespace BasisPermissions
                                         currentGroupDef.Nodes.Add(node);
                                     else if (inUsers && currentUser != null)
                                         currentUser.Nodes.Add(node);
+                                    else if (inSeeded && currentSeeded != null)
+                                        currentSeeded.Add(node);
 
                                     break;
                                 }
@@ -1068,6 +1082,8 @@ namespace BasisPermissions
                                 // only clear group definition context (not user group membership)
                                 if (inGroups)
                                     currentGroupDef = null;
+                                else if (inSeeded)
+                                    currentSeeded = null;
                                 break;
 
                             case "User":
@@ -1082,6 +1098,11 @@ namespace BasisPermissions
                             case "Users":
                                 inUsers = false;
                                 currentUser = null;
+                                break;
+
+                            case "SeededDefaults":
+                                inSeeded = false;
+                                currentSeeded = null;
                                 break;
                         }
                     }
@@ -1158,6 +1179,23 @@ namespace BasisPermissions
                     xw.WriteEndElement(); // User
                 }
                 xw.WriteEndElement(); // Users
+
+                xw.WriteStartElement("SeededDefaults");
+                foreach (var s in store.SeededDefaults)
+                {
+                    xw.WriteStartElement("Group");
+                    xw.WriteAttributeString("name", s.Key);
+
+                    foreach (var n in s.Value)
+                    {
+                        xw.WriteStartElement("Node");
+                        xw.WriteAttributeString("value", n);
+                        xw.WriteEndElement();
+                    }
+
+                    xw.WriteEndElement(); // Group
+                }
+                xw.WriteEndElement(); // SeededDefaults
 
                 xw.WriteEndElement(); // Permissions
                 xw.WriteEndDocument();

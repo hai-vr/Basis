@@ -129,6 +129,26 @@ namespace BasisNetworkServer.Security
             }
         }
 
+        public static void SendStateToModerator(NetPeer moderator, string uuid)
+        {
+            if (moderator == null || string.IsNullOrWhiteSpace(uuid)) return;
+            bool voiceMuted = false;
+            bool textMuted = false;
+            if (MutedPlayers.TryGetValue(uuid, out MutedPlayer p))
+            {
+                voiceMuted = p.VoiceMuted;
+                textMuted = p.TextMuted;
+            }
+
+            NetDataWriter writer = NetworkServer.RentWriter();
+            new AdminRequest().Serialize(writer, AdminRequestMode.MuteStateResult);
+            writer.Put(uuid);
+            writer.Put(voiceMuted);
+            writer.Put(textMuted);
+            NetworkServer.TrySend(moderator, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+        }
+
         public static void SaveMutedPlayers()
         {
             if (!UseFileOnDisc) return;

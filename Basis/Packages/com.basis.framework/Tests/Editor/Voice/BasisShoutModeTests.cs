@@ -211,26 +211,56 @@ public class BasisShoutModeTests
     }
 
     /// <summary>
-    /// A held shout is the server's to release. Cycling must not walk out of it locally, or a
-    /// moderator's grant lasts exactly as long as it takes the target to press the mode button.
+    /// A grant is a starting point, not a lock: the target can always walk back to normal voice
+    /// from the mode button. Leaving hands the grant back, so without the toggle shout is no
+    /// longer on offer, and the server's revoke arriving afterwards changes nothing.
     /// </summary>
     [Test]
-    public void CycleCannotWalkOutOfAnAdminHeldShout()
+    public void CycleWalksOutOfAnAdminHeldShout()
+    {
+        SetPermission(false);
+        BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(false);
+        BasisSettingsDefaults.TalkToNoOne.SetValueWithoutNotify(false);
+        BasisTalkModeManager.OnAdminShoutChanged(true);
+        Assert.AreEqual(BasisTalkMode.Shout, BasisTalkModeManager.CurrentMode);
+
+        BasisTalkModeManager.CycleMode();
+
+        Assert.AreEqual(BasisTalkMode.Normal, BasisTalkModeManager.CurrentMode);
+        Assert.IsFalse(BasisTalkModeManager.LocalIsShouting);
+        Assert.IsFalse(BasisTalkModeManager.ShoutAvailable());
+
+        BasisTalkModeManager.OnAdminShoutChanged(false);
+        Assert.AreEqual(BasisTalkMode.Normal, BasisTalkModeManager.CurrentMode);
+    }
+
+    [Test]
+    public void LeavingAHeldShoutLandsInTheModeYouAskedFor()
     {
         SetPermission(false);
         BasisSettingsDefaults.ShoutMode.SetValueWithoutNotify(false);
         BasisSettingsDefaults.TalkToNoOne.SetValueWithoutNotify(true);
         BasisTalkModeManager.OnAdminShoutChanged(true);
 
-        for (int Step = 0; Step < 8; Step++)
-        {
-            BasisTalkModeManager.CycleMode();
-            Assert.AreEqual(BasisTalkMode.Shout, BasisTalkModeManager.CurrentMode,
-                "a held shout only ends when the server says so.");
-        }
+        BasisTalkModeManager.CycleMode();
+
+        Assert.AreEqual(BasisTalkMode.NoOne, BasisTalkModeManager.CurrentMode);
+        Assert.IsFalse(BasisTalkModeManager.ShoutAvailable());
+    }
+
+    [Test]
+    public void ARevokeArrivingAfterYouChoseShoutYourselfDoesNotEndIt()
+    {
+        EnableShout();
+        BasisTalkModeManager.OnAdminShoutChanged(true);
+        BasisTalkModeManager.SetMode(BasisTalkMode.Normal);
+        BasisTalkModeManager.SetMode(BasisTalkMode.Shout);
+        Assert.AreEqual(BasisTalkMode.Shout, BasisTalkModeManager.CurrentMode);
 
         BasisTalkModeManager.OnAdminShoutChanged(false);
-        Assert.AreEqual(BasisTalkMode.Normal, BasisTalkModeManager.CurrentMode);
+
+        Assert.AreEqual(BasisTalkMode.Shout, BasisTalkModeManager.CurrentMode);
+        Assert.IsTrue(BasisTalkModeManager.LocalIsShouting);
     }
 
     [Test]

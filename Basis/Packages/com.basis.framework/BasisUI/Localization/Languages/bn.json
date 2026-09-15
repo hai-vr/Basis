@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "কেউ বিশ্ব ছেড়ে গেলে একটি বার্তা দেখান।" },
     { "key": "settings.chat.disable.tooltip", "value": "টেক্সট চ্যাট বন্ধ করুন যাতে আপনি বার্তা পাঠানও না, গ্রহণও করেন না।" },
     { "key": "settings.chat.message.tooltip", "value": "বিশ্বের সবাইকে পাঠাতে এখানে একটি বার্তা টাইপ করুন।" },
+    { "key": "settings.chat.message.mutedByModerator", "value": "একজন মডারেটর আপনার টেক্সট চ্যাট মিউট করেছেন।" },
+    { "key": "settings.chat.message.lockedByServer", "value": "এই সার্ভারে টেক্সট চ্যাট লক করা আছে।" },
     { "key": "settings.chat.textSize.tooltip", "value": "খেলোয়াড়দের উপরে চ্যাট টেক্সট কতটা বড় দেখায়।" },
     { "key": "settings.chat.duration.tooltip", "value": "একটি চ্যাট বার্তা অদৃশ্য হওয়ার আগে খেলোয়াড়ের মাথার উপরে কত সেকেন্ড দৃশ্যমান থাকে।" },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "আপনার তোলা ছবিতে কাকে ট্যাগ করা হবে তা বেছে নিন।" },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "অবতার" },
 
     { "key": "notifications.category.developer", "value": "ত্রুটি" },
+    { "key": "notifications.pending.count", "value": "মুলতুবি ({0})" },
+    { "key": "notifications.pending.description", "value": "এখনও উত্তরের অপেক্ষায় থাকা প্রম্পট। খুলতে বা খারিজ করতে একটি বেছে নিন।" },
+    { "key": "notifications.history.count", "value": "ইতিহাস ({0})" },
+    { "key": "notifications.history.description", "value": "উত্তর দেওয়া ও খারিজ করা প্রম্পট। বিস্তারিত দেখতে একটি বেছে নিন।" },
+    { "key": "notifications.clearHistory.tooltip", "value": "উত্তর দেওয়া সব বিজ্ঞপ্তি সরান। মুলতুবিগুলি রাখা হবে।" },
+    { "key": "notifications.clearHistory.confirm", "value": "উত্তর দেওয়া সব বিজ্ঞপ্তি সরাবেন? মুলতুবিগুলি রাখা হবে।" },
 
     { "key": "settings.tab.performancelimits", "value": "কর্মক্ষমতা সীমা" },
 

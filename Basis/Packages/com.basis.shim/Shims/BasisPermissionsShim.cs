@@ -89,10 +89,10 @@ namespace Basis.Shims
 		public static bool LocalIsAdmin => LocalHasPermission( PermNodes.PermissionsView );
 
 		/// <summary>
-		/// Whether the local player is a moderator — the node behind the Settings Moderator tab.
-		/// Admins are not implicitly moderators; a server grants the two separately.
+		/// Whether the local player is a moderator — the same check behind the Settings Moderator
+		/// tab: the basis.moderation node, or any basis.moderation.* action node such as kick or ban.
 		/// </summary>
-		public static bool LocalIsModerator => LocalHasPermission( PermNodes.PlayerModeration );
+		public static bool LocalIsModerator => BasisNetworkModeration.LocalPlayerIsModerator();
 
 		/// <summary>
 		/// Every permission node the local player holds, as a fresh copy. Empty before the join

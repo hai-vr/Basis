@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using Basis.Network.Core;
 using Basis.Network.Server.Auth;
+using BasisSavedState = Basis.Network.Server.Generic.BasisSavedState;
 using BasisNetworkServer.Security;
 using BasisPermissions;
 using Xunit;
@@ -367,6 +368,7 @@ public class PermissionManagerTests
 
         string mod = NewUuid();
         m.AddUserToGroup(mod, "moderator");
+        Assert.True(m.Has(mod, PermNodes.PlayerModeration));
         Assert.True(m.Has(mod, PermNodes.ModerationKick));
         Assert.True(m.Has(mod, PermNodes.ModerationBan));
         Assert.True(m.Has(mod, PermNodes.PermissionsView));
@@ -389,7 +391,7 @@ public class PermissionManagerTests
         Assert.Contains("*", m.GetAllAllowedRules(admin));
 
         Assert.True(m.TryGetGroup("moderator", out var modGroup));
-        Assert.Equal(24, modGroup.Nodes.Count);
+        Assert.Equal(25, modGroup.Nodes.Count);
         Assert.Contains("default", modGroup.Parents);
 
         Assert.True(m.TryGetGroup("admin", out var adminGroup));
@@ -462,23 +464,110 @@ public class PermissionManagerTests
     }
 
     [Fact]
-    public void EnsureDefaults_IsIdempotent_AndNeverOverwritesExistingGroups()
+    public void EnsureDefaults_IsIdempotent_AndKeepsOperatorNodesOnExistingGroups()
     {
         PermissionManager m = CreateManager();
         m.EnsureDefaults();
         m.EnsureDefaults();
         Assert.Equal(3, m.Snapshot().Groups.Count);
 
-        // A pre-existing "default" group is left exactly as the operator configured it.
+        // A pre-existing "default" group keeps what the operator configured and gains the defaults it lacks.
         PermissionManager custom = CreateManager();
         custom.AddGroupNode("default", "custom.only.node");
         custom.EnsureDefaults();
 
         string uuid = NewUuid();
         Assert.True(custom.Has(uuid, "custom.only.node"));
-        Assert.False(custom.Has(uuid, PermNodes.help));
+        Assert.True(custom.Has(uuid, PermNodes.help));
         Assert.True(custom.TryGetGroup("default", out var def));
-        Assert.Single(def.Nodes);
+        Assert.Equal(13, def.Nodes.Count);
+    }
+
+    [Fact]
+    public void EnsureDefaults_SeedsNewDefaultsIntoAnExistingModeratorGroup_ButRespectsDenies()
+    {
+        PermissionManager m = CreateManager();
+        m.AddGroupNode("moderator", PermNodes.ModerationKick);
+        m.AddGroupNode("moderator", "-" + PermNodes.ModerationIpBan);
+        m.AddGroupParent("moderator", "default");
+        m.EnsureDefaults();
+
+        string mod = NewUuid();
+        m.AddUserToGroup(mod, "moderator");
+        Assert.True(m.Has(mod, PermNodes.ModerationKick));
+        Assert.True(m.Has(mod, PermNodes.ModerationMute));
+        Assert.True(m.Has(mod, PermNodes.ModerationRename));
+        Assert.True(m.Has(mod, PermNodes.help));
+        Assert.False(m.Has(mod, PermNodes.ModerationIpBan));
+        Assert.True(m.TryGetGroup("moderator", out var group));
+        Assert.DoesNotContain(PermNodes.ModerationIpBan, group.Nodes);
+        Assert.Contains("-" + PermNodes.ModerationIpBan, group.Nodes);
+    }
+
+    [Fact]
+    public void EnsureDefaults_DoesNotReAddADefaultTheOperatorRemoved_UntilTheGroupIsRecreated()
+    {
+        PermissionManager m = CreateManager();
+        m.EnsureDefaults();
+        m.RemoveGroupNode("moderator", PermNodes.ModerationMute);
+        m.EnsureDefaults();
+
+        string mod = NewUuid();
+        m.AddUserToGroup(mod, "moderator");
+        Assert.False(m.Has(mod, PermNodes.ModerationMute));
+        Assert.True(m.Has(mod, PermNodes.ModerationKick));
+
+        m.DeleteGroup("moderator");
+        m.EnsureDefaults();
+        m.AddUserToGroup(mod, "moderator");
+        Assert.True(m.Has(mod, PermNodes.ModerationMute));
+    }
+
+    [Fact]
+    public void SaveToXml_LoadFromXml_KeepsSeededDefaults_AndUpgradesAFileWrittenBeforeANodeExisted()
+    {
+        string path = UniqueXmlPath();
+        try
+        {
+            PermissionManager a = CreateManager();
+            a.EnsureDefaults();
+            a.RemoveGroupNode("moderator", PermNodes.ModerationMute);
+            a.SaveToXml(path);
+
+            PermissionManager b = CreateManager();
+            b.LoadFromXml(path);
+            b.EnsureDefaults();
+            string mod = NewUuid();
+            b.AddUserToGroup(mod, "moderator");
+            Assert.False(b.Has(mod, PermNodes.ModerationMute));
+            Assert.True(b.Has(mod, PermNodes.ModerationKick));
+
+            File.WriteAllText(path,
+                "<Permissions><Groups>" +
+                "<Group name=\"default\"><Node value=\"basis.command.help\" /></Group>" +
+                "<Group name=\"moderator\"><Parent name=\"default\" /><Node value=\"basis.moderation.kick\" /></Group>" +
+                "</Groups><Users /></Permissions>");
+
+            PermissionManager legacy = CreateManager();
+            legacy.LoadFromXml(path);
+            legacy.EnsureDefaults();
+            legacy.AddUserToGroup(mod, "moderator");
+            Assert.True(legacy.Has(mod, PermNodes.ModerationKick));
+            Assert.True(legacy.Has(mod, PermNodes.ModerationMute));
+            Assert.True(legacy.Has(mod, PermNodes.ResourceLoadAvatar));
+            Assert.False(legacy.Has(mod, PermNodes.All));
+            Assert.True(legacy.TryGetGroup("admin", out _));
+
+            legacy.SaveToXml(path);
+            PermissionStore stored = PermissionManager.PermissionXml.Load(path);
+            Assert.True(stored.SeededDefaults.TryGetValue("moderator", out var seeded));
+            Assert.Contains(PermNodes.ModerationMute, seeded);
+            Assert.Contains(PermNodes.ModerationKick, seeded);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     // ---- precedence as implemented (deny-wins decision table) ----
@@ -1279,6 +1368,71 @@ public class BasisPlayerModerationTests
             perms.RemoveUserNode(adminUuid, PermNodes.ModerationBan);
             RemovePlayer(adminPeer);
             RemovePlayer(targetPeer);
+        }
+    }
+
+    [Fact]
+    public void OnAdminMessage_APlayerReleasesTheirOwnAnnounceAndShoutWithoutThePermission()
+    {
+        BasisPlayerModeration.UseFileOnDisc = false;
+        var (_, peer) = ConnectPlayer();
+        var (_, listener) = ConnectPlayer();
+        NetworkServer.RebuildPeerSnapshot();
+        try
+        {
+            BasisSavedState.SetAnnounceMode(peer.Id, true);
+            BasisSavedState.SetShoutMode(peer.Id, true);
+
+            BasisPlayerModeration.OnAdminMessage(peer, BuildAdminPayload(AdminRequestMode.DisableAnnounceMode, w => w.Put((ushort)peer.Id)));
+            BasisPlayerModeration.OnAdminMessage(peer, BuildAdminPayload(AdminRequestMode.DisableShoutMode, w => w.Put((ushort)peer.Id)));
+
+            Assert.False(BasisSavedState.IsInAnnounceMode(peer.Id));
+            Assert.False(BasisSavedState.IsInShoutMode(peer.Id));
+            foreach (FakeNetPeer p in new[] { peer, listener })
+            {
+                Assert.Equal(2, p.Sent.Count);
+                Assert.Equal(AdminRequestMode.DisableAnnounceMode, ReadAdminMode(p, 0));
+                Assert.Equal(AdminRequestMode.DisableShoutMode, ReadAdminMode(p, 1));
+                Assert.All(p.Sent, s => Assert.Equal(BasisNetworkCommons.AdminChannel, s.Channel));
+            }
+        }
+        finally
+        {
+            RemovePlayer(peer);
+            RemovePlayer(listener);
+            NetworkServer.RebuildPeerSnapshot();
+        }
+    }
+
+    [Fact]
+    public void OnAdminMessage_ReleasingSomeoneElseOrEnteringAModeStillNeedsThePermission()
+    {
+        BasisPlayerModeration.UseFileOnDisc = false;
+        var (_, peer) = ConnectPlayer();
+        var (_, other) = ConnectPlayer();
+        try
+        {
+            BasisSavedState.SetAnnounceMode(other.Id, true);
+            BasisSavedState.SetShoutMode(other.Id, true);
+
+            BasisPlayerModeration.OnAdminMessage(peer, BuildAdminPayload(AdminRequestMode.DisableAnnounceMode, w => w.Put((ushort)other.Id)));
+            BasisPlayerModeration.OnAdminMessage(peer, BuildAdminPayload(AdminRequestMode.DisableShoutMode, w => w.Put((ushort)other.Id)));
+            BasisPlayerModeration.OnAdminMessage(peer, BuildAdminPayload(AdminRequestMode.EnableAnnounceMode, w => w.Put((ushort)peer.Id)));
+            BasisPlayerModeration.OnAdminMessage(peer, BuildAdminPayload(AdminRequestMode.EnableShoutMode, w => w.Put((ushort)peer.Id)));
+
+            Assert.Equal(4, peer.Sent.Count);
+            for (int i = 0; i < 4; i++) Assert.Equal($"No permission: {PermNodes.ModerationAnnounce}", ReadAdminMessage(peer, i));
+            Assert.True(BasisSavedState.IsInAnnounceMode(other.Id));
+            Assert.True(BasisSavedState.IsInShoutMode(other.Id));
+            Assert.False(BasisSavedState.IsInAnnounceMode(peer.Id));
+            Assert.False(BasisSavedState.IsInShoutMode(peer.Id));
+        }
+        finally
+        {
+            BasisSavedState.SetAnnounceMode(other.Id, false);
+            BasisSavedState.SetShoutMode(other.Id, false);
+            RemovePlayer(peer);
+            RemovePlayer(other);
         }
     }
 

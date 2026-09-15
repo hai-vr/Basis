@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "有人離開世界時顯示訊息。" },
     { "key": "settings.chat.disable.tooltip", "value": "關閉文字聊天，使你既不傳送也不接收訊息。" },
     { "key": "settings.chat.message.tooltip", "value": "在此輸入訊息以傳送給世界中的所有人。" },
+    { "key": "settings.chat.message.mutedByModerator", "value": "管理員已將你的文字聊天靜音。" },
+    { "key": "settings.chat.message.lockedByServer", "value": "此伺服器已鎖定文字聊天。" },
     { "key": "settings.chat.textSize.tooltip", "value": "玩家上方聊天文字的顯示大小。" },
     { "key": "settings.chat.duration.tooltip", "value": "聊天訊息在玩家頭上顯示的時間（秒），超過此時間後會消失。" },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "選擇有哪些人會被標註在你拍攝的照片中。" },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "虛擬形象" },
 
     { "key": "notifications.category.developer", "value": "錯誤" },
+    { "key": "notifications.pending.count", "value": "待處理（{0}）" },
+    { "key": "notifications.pending.description", "value": "仍在等待回答的提示。選擇一項以開啟或忽略它。" },
+    { "key": "notifications.history.count", "value": "歷史（{0}）" },
+    { "key": "notifications.history.description", "value": "已回答和已忽略的提示。選擇一項查看詳細資訊。" },
+    { "key": "notifications.clearHistory.tooltip", "value": "移除所有已回答的通知。待處理的通知會保留。" },
+    { "key": "notifications.clearHistory.confirm", "value": "移除所有已回答的通知？待處理的通知會保留。" },
 
     { "key": "settings.tab.performancelimits", "value": "性能限制" },
 

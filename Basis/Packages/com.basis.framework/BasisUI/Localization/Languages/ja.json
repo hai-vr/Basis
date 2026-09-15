@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "誰かがワールドから退出したときにメッセージを表示します。" },
     { "key": "settings.chat.disable.tooltip", "value": "テキストチャットをオフにし、メッセージの送受信を行わないようにします。" },
     { "key": "settings.chat.message.tooltip", "value": "ここにメッセージを入力すると、ワールド内の全員に送信されます。" },
+    { "key": "settings.chat.message.mutedByModerator", "value": "モデレーターがあなたのテキストチャットをミュートしました。" },
+    { "key": "settings.chat.message.lockedByServer", "value": "このサーバーではテキストチャットがロックされています。" },
     { "key": "settings.chat.textSize.tooltip", "value": "プレイヤーの上に表示されるチャット文字の大きさ。" },
     { "key": "settings.chat.duration.tooltip", "value": "チャットメッセージがプレイヤーの頭上に表示され続ける秒数です。この時間が経つと消えます。" },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "撮影した写真に誰をタグ付けするかを選択します。" },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "アバター" },
 
     { "key": "notifications.category.developer", "value": "エラー" },
+    { "key": "notifications.pending.count", "value": "保留中（{0} 件）" },
+    { "key": "notifications.pending.description", "value": "まだ回答待ちのプロンプトです。選択すると開くか却下できます。" },
+    { "key": "notifications.history.count", "value": "履歴（{0} 件）" },
+    { "key": "notifications.history.description", "value": "回答済みまたは却下済みのプロンプトです。選択すると詳細を表示します。" },
+    { "key": "notifications.clearHistory.tooltip", "value": "回答済みの通知をすべて削除します。保留中の通知は残ります。" },
+    { "key": "notifications.clearHistory.confirm", "value": "回答済みの通知をすべて削除しますか？保留中の通知は残ります。" },
 
     { "key": "settings.tab.performancelimits", "value": "パフォーマンス制限" },
 

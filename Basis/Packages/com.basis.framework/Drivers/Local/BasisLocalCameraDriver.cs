@@ -405,6 +405,9 @@ namespace Basis.Scripts.Drivers
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence += microphoneIconDriver.MicrophoneNotTransmitting;
                 BasisNetworkModeration.OnAnnounceModeChanged += OnAnnounceModeChangedForIcon;
                 Basis.Scripts.Networking.BasisTalkModeManager.OnLocalTalkModeChanged += microphoneIconDriver.OnTalkModeChanged;
+                BasisNetworkModeration.OnLocalVoiceMutedByModeratorChanged += OnServerVoiceMuteChangedForIcon;
+                BasisNetworkModeration.OnGlobalVoiceChatLockedChanged += OnServerVoiceMuteChangedForIcon;
+                Basis.Scripts.Networking.BasisNetworkManagement.OnlocalPermissionsChanged += microphoneIconDriver.OnServerMuteChanged;
                 BasisLocalMicrophoneDriver.OnInitializedAction += OnMicrophoneDriverInitialized;
 #endif
 
@@ -473,6 +476,9 @@ namespace Basis.Scripts.Drivers
             BasisLocalMicrophoneDriver.OnInitializedAction -= OnMicrophoneDriverInitialized;
             BasisNetworkModeration.OnAnnounceModeChanged -= OnAnnounceModeChangedForIcon;
             Basis.Scripts.Networking.BasisTalkModeManager.OnLocalTalkModeChanged -= microphoneIconDriver.OnTalkModeChanged;
+            BasisNetworkModeration.OnLocalVoiceMutedByModeratorChanged -= OnServerVoiceMuteChangedForIcon;
+            BasisNetworkModeration.OnGlobalVoiceChatLockedChanged -= OnServerVoiceMuteChangedForIcon;
+            Basis.Scripts.Networking.BasisNetworkManagement.OnlocalPermissionsChanged -= microphoneIconDriver.OnServerMuteChanged;
             microphoneIconDriver.Dispose();
 #endif
             HasEvents = false;
@@ -498,6 +504,9 @@ namespace Basis.Scripts.Drivers
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence -= microphoneIconDriver.MicrophoneNotTransmitting;
                 BasisNetworkModeration.OnAnnounceModeChanged -= OnAnnounceModeChangedForIcon;
                 Basis.Scripts.Networking.BasisTalkModeManager.OnLocalTalkModeChanged -= microphoneIconDriver.OnTalkModeChanged;
+                BasisNetworkModeration.OnLocalVoiceMutedByModeratorChanged -= OnServerVoiceMuteChangedForIcon;
+                BasisNetworkModeration.OnGlobalVoiceChatLockedChanged -= OnServerVoiceMuteChangedForIcon;
+                Basis.Scripts.Networking.BasisNetworkManagement.OnlocalPermissionsChanged -= microphoneIconDriver.OnServerMuteChanged;
 #endif
                 HasEvents = false;
             }
@@ -543,6 +552,11 @@ namespace Basis.Scripts.Drivers
             // which is only ever set for the local player, plus the local talk mode), so any announce-mode
             // signal just re-derives the local color. No need to look up the network player to filter.
             microphoneIconDriver.OnAnnounceModeChanged();
+        }
+
+        private void OnServerVoiceMuteChangedForIcon(bool blocked)
+        {
+            microphoneIconDriver.OnServerMuteChanged();
         }
 #endif
 

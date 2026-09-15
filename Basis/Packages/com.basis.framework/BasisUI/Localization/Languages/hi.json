@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "जब कोई दुनिया छोड़े तो एक संदेश दिखाएँ।" },
     { "key": "settings.chat.disable.tooltip", "value": "टेक्स्ट चैट बंद करें ताकि आप न संदेश भेजें न प्राप्त करें।" },
     { "key": "settings.chat.message.tooltip", "value": "इसे दुनिया में सभी को भेजने के लिए यहाँ एक संदेश टाइप करें।" },
+    { "key": "settings.chat.message.mutedByModerator", "value": "एक मॉडरेटर ने आपकी टेक्स्ट चैट म्यूट कर दी है।" },
+    { "key": "settings.chat.message.lockedByServer", "value": "इस सर्वर पर टेक्स्ट चैट लॉक है।" },
     { "key": "settings.chat.textSize.tooltip", "value": "खिलाड़ियों के ऊपर चैट टेक्स्ट कितना बड़ा दिखाई देता है।" },
     { "key": "settings.chat.duration.tooltip", "value": "कोई चैट संदेश खिलाड़ी के सिर के ऊपर गायब होने से पहले कितने सेकंड तक दिखता रहता है।" },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "चुनें कि आपके द्वारा ली गई तस्वीरों में किसे टैग किया जाए।" },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "अवतार" },
 
     { "key": "notifications.category.developer", "value": "त्रुटियाँ" },
+    { "key": "notifications.pending.count", "value": "लंबित ({0})" },
+    { "key": "notifications.pending.description", "value": "प्रॉम्प्ट जो अभी भी उत्तर की प्रतीक्षा में हैं। खोलने या खारिज करने के लिए एक चुनें।" },
+    { "key": "notifications.history.count", "value": "इतिहास ({0})" },
+    { "key": "notifications.history.description", "value": "उत्तर दिए गए और खारिज किए गए प्रॉम्प्ट। विवरण के लिए एक चुनें।" },
+    { "key": "notifications.clearHistory.tooltip", "value": "उत्तर दी गई सभी सूचनाएँ हटाएँ। लंबित सूचनाएँ रखी जाएँगी।" },
+    { "key": "notifications.clearHistory.confirm", "value": "उत्तर दी गई सभी सूचनाएँ हटाएँ? लंबित सूचनाएँ रखी जाएँगी।" },
 
     { "key": "settings.tab.performancelimits", "value": "प्रदर्शन सीमाएँ" },
 

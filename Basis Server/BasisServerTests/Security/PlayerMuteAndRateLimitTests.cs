@@ -425,6 +425,125 @@ public class BasisPlayerMuteManagerTests
         }
     }
 
+    // ---- the moderator's own view of the state ----
+
+    [Fact]
+    public void GetMuteState_RequiresTheModerationMuteNode_AndAnswersWithBothFlags()
+    {
+        BasisPlayerMuteManager.UseFileOnDisc = false;
+        BasisPlayerModeration.UseFileOnDisc = false;
+        var (adminUuid, adminPeer) = ConnectPlayer();
+        string targetUuid = $"mute-user-{Guid.NewGuid():N}";
+        PermissionManager perms = PermissionManager.PermissionIntegration.Manager;
+        try
+        {
+            BasisPlayerModeration.OnAdminMessage(adminPeer, MuteQuery(targetUuid));
+            Assert.Single(adminPeer.Sent);
+            Assert.Equal(AdminRequestMode.Message, ReadMode(adminPeer, 0));
+
+            perms.AddUserNode(adminUuid, PermNodes.ModerationMute);
+            BasisPlayerModeration.OnAdminMessage(adminPeer, MuteQuery(targetUuid));
+            Assert.Equal(2, adminPeer.Sent.Count);
+            Assert.Equal((targetUuid, false, false), ReadMuteStateResult(adminPeer, 1));
+            Assert.Equal(BasisNetworkCommons.AdminChannel, adminPeer.Sent[1].Channel);
+            Assert.Equal(DeliveryMethod.ReliableOrdered, adminPeer.Sent[1].Method);
+
+            BasisPlayerMuteManager.Apply(targetUuid, voice: false, muted: true);
+            BasisPlayerModeration.OnAdminMessage(adminPeer, MuteQuery(targetUuid));
+            Assert.Equal((targetUuid, false, true), ReadMuteStateResult(adminPeer, 2));
+        }
+        finally
+        {
+            perms.RemoveUserNode(adminUuid, PermNodes.ModerationMute);
+            ClearMute(targetUuid);
+            RemovePlayer(adminPeer);
+        }
+    }
+
+    [Fact]
+    public void SettingAMute_EchoesTheResultingStateBackToTheModerator()
+    {
+        BasisPlayerMuteManager.UseFileOnDisc = false;
+        BasisPlayerModeration.UseFileOnDisc = false;
+        var (adminUuid, adminPeer) = ConnectPlayer();
+        var (targetUuid, targetPeer) = ConnectPlayer();
+        PermissionManager perms = PermissionManager.PermissionIntegration.Manager;
+        perms.AddUserNode(adminUuid, PermNodes.ModerationMute);
+        try
+        {
+            BasisPlayerModeration.OnAdminMessage(adminPeer, MuteRequest(AdminRequestMode.SetVoiceMute, targetUuid, true));
+            Assert.Equal(2, adminPeer.Sent.Count);
+            Assert.Equal(AdminRequestMode.Message, ReadMode(adminPeer, 0));
+            Assert.Equal((targetUuid, true, false), ReadMuteStateResult(adminPeer, 1));
+
+            BasisPlayerModeration.OnAdminMessage(adminPeer, MuteRequest(AdminRequestMode.SetTextMute, targetUuid, true));
+            Assert.Equal(4, adminPeer.Sent.Count);
+            Assert.Equal((targetUuid, true, true), ReadMuteStateResult(adminPeer, 3));
+
+            BasisPlayerModeration.OnAdminMessage(adminPeer, MuteRequest(AdminRequestMode.SetVoiceMute, targetUuid, false));
+            Assert.Equal((targetUuid, false, true), ReadMuteStateResult(adminPeer, 5));
+            Assert.Equal(3, targetPeer.Sent.Count);
+        }
+        finally
+        {
+            perms.RemoveUserNode(adminUuid, PermNodes.ModerationMute);
+            ClearMute(targetUuid);
+            RemovePlayer(adminPeer);
+            RemovePlayer(targetPeer);
+        }
+    }
+
+    [Fact]
+    public void ARefusedMute_EchoesTheUnchangedState_SoTheModeratorsToggleSnapsBack()
+    {
+        BasisPlayerMuteManager.UseFileOnDisc = false;
+        BasisPlayerModeration.UseFileOnDisc = false;
+        var (adminUuid, adminPeer) = ConnectPlayer();
+        var (targetUuid, targetPeer) = ConnectPlayer();
+        PermissionManager perms = PermissionManager.PermissionIntegration.Manager;
+        perms.AddUserNode(adminUuid, PermNodes.ModerationMute);
+        perms.AddUserNode(targetUuid, PermNodes.protection);
+        try
+        {
+            BasisPlayerModeration.OnAdminMessage(adminPeer, MuteRequest(AdminRequestMode.SetVoiceMute, targetUuid, true));
+            Assert.Equal(2, adminPeer.Sent.Count);
+            Assert.Equal((targetUuid, false, false), ReadMuteStateResult(adminPeer, 1));
+            Assert.Empty(targetPeer.Sent);
+        }
+        finally
+        {
+            perms.RemoveUserNode(adminUuid, PermNodes.ModerationMute);
+            perms.RemoveUserNode(targetUuid, PermNodes.protection);
+            RemovePlayer(adminPeer);
+            RemovePlayer(targetPeer);
+        }
+    }
+
+    private static AdminRequestMode ReadMode(FakeNetPeer peer, int index)
+    {
+        AdminRequest req = new AdminRequest();
+        req.Deserialize(new NetDataReader(peer.Sent[index].Data));
+        return req.GetAdminRequestMode();
+    }
+
+    private static (string Uuid, bool Voice, bool Text) ReadMuteStateResult(FakeNetPeer peer, int index)
+    {
+        NetDataReader r = new NetDataReader(peer.Sent[index].Data);
+        AdminRequest req = new AdminRequest();
+        req.Deserialize(r);
+        Assert.Equal(AdminRequestMode.MuteStateResult, req.GetAdminRequestMode());
+        return (r.GetString(), r.GetBool(), r.GetBool());
+    }
+
+    private static NetPacketReader MuteQuery(string uuid)
+    {
+        NetDataWriter w = new NetDataWriter();
+        new AdminRequest().Serialize(w, AdminRequestMode.GetMuteState);
+        w.Put(uuid);
+        byte[] bytes = w.AsReadOnlySpan().ToArray();
+        return NetPacketReader.Create(bytes, 0, bytes.Length, () => { });
+    }
+
     private static NetPacketReader MuteRequest(AdminRequestMode mode, string uuid, bool muted)
     {
         NetDataWriter w = new NetDataWriter();

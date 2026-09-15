@@ -84,11 +84,14 @@ namespace Basis.Scripts.Drivers
         // --- State ---
         public bool LocalIsTransmitting;
         public bool IsCurrentlyMuted { get; private set; }
+        public bool IsServerMuted { get; private set; }
+        private bool ShowsMuted => IsCurrentlyMuted || IsServerMuted;
 
         // Colors
         public Color UnMutedMutedIconColorActive = Color.white;
         public Color UnMutedMutedIconColorInactive = Color.grey;
         public Color MutedColor = Color.grey;
+        public Color ServerMutedColor = Color.red;
         public Color AnnounceColorActive = new Color(1f, 0.5490196f, 0f, 1f);
         public Color AnnounceColorInactive = new Color(0.6f, 0.3294118f, 0f, 1f);
         public Color ShoutColorActive = new Color(1f, 0.8117647f, 0.1607843f, 1f);
@@ -160,6 +163,7 @@ namespace Basis.Scripts.Drivers
             UseLevelRing = BasisSettingsDefaults.MicrophoneIconLevelRing.RawValue;
             ApplyIconStyle();
 
+            IsServerMuted = BasisNetworkModeration.VoiceBlockedLocally;
             UpdateMicrophoneVisuals(BasisLocalMicrophoneDriver.isPaused, false);
 
             // Seed intents (no renderer writes here)
@@ -221,7 +225,7 @@ namespace Basis.Scripts.Drivers
                 {
                     SpriteRendererIcon.sharedMaterial = spriteIconMaterial;
                 }
-                SpriteRendererIcon.sprite = IsCurrentlyMuted ? SpriteMicrophoneOff : SpriteMicrophoneOn;
+                SpriteRendererIcon.sprite = ShowsMuted ? SpriteMicrophoneOff : SpriteMicrophoneOn;
             }
         }
 
@@ -377,7 +381,7 @@ namespace Basis.Scripts.Drivers
             // In ring mode the shader carries the mute state instead, applied in Simulate.
             if (SpriteRendererIcon != null && !UseLevelRing)
             {
-                SpriteRendererIcon.sprite = IsMuted ? SpriteMicrophoneOff : SpriteMicrophoneOn;
+                SpriteRendererIcon.sprite = ShowsMuted ? SpriteMicrophoneOff : SpriteMicrophoneOn;
             }
 
             // request bounce + recompute intents (no renderer writes)
@@ -439,7 +443,7 @@ namespace Basis.Scripts.Drivers
 
                 case MicrophoneDisplayMode.ActivityDetection:
                     // Show when muted OR transmitting.
-                    requestedVisible = IsCurrentlyMuted || LocalIsTransmitting;
+                    requestedVisible = ShowsMuted || LocalIsTransmitting;
                     break;
 
                 default:
@@ -458,6 +462,23 @@ namespace Basis.Scripts.Drivers
             RecomputeColorIntent();
         }
 
+        public void OnServerMuteChanged()
+        {
+            bool blocked = BasisNetworkModeration.VoiceBlockedLocally;
+            if (blocked == IsServerMuted)
+            {
+                return;
+            }
+            IsServerMuted = blocked;
+            if (SpriteRendererIcon != null && !UseLevelRing)
+            {
+                SpriteRendererIcon.sprite = ShowsMuted ? SpriteMicrophoneOff : SpriteMicrophoneOn;
+            }
+            bounceRequested = !UseLevelRing;
+            RecomputeVisibilityIntent();
+            RecomputeColorIntent();
+        }
+
         private void RecomputeColorIntent()
         {
             Color color = ComputeColorIntent();
@@ -472,6 +493,11 @@ namespace Basis.Scripts.Drivers
 
         private Color ComputeColorIntent()
         {
+            if (IsServerMuted)
+            {
+                return ServerMutedColor;
+            }
+
             if (IsCurrentlyMuted)
             {
                 return MutedColor;
@@ -544,10 +570,10 @@ namespace Basis.Scripts.Drivers
                 // parameter already read -- linear amplitude would leave speech in the bottom fifth.
                 // Follow only ever uses deltaSeconds/tau, so scaling the delta divides both time
                 // constants by the same factor: the ring speeds up without moving the shared ones.
-                float target = IsCurrentlyMuted ? 0f : BasisVoiceLevel.LocalVoiceRms;
+                float target = ShowsMuted ? 0f : BasisVoiceLevel.LocalVoiceRms;
                 levelRingRms = BasisVoiceLevel.Follow(levelRingRms, target, DeltaTime * LevelRingResponse);
                 levelRingMaterial.SetFloat(LevelRingLevelId, BasisVoiceLevel.RmsToUnit(levelRingRms));
-                levelRingMaterial.SetFloat(LevelRingMutedId, IsCurrentlyMuted ? 1f : 0f);
+                levelRingMaterial.SetFloat(LevelRingMutedId, ShowsMuted ? 1f : 0f);
             }
 
             // --- Start bounce if requested ---

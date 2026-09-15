@@ -309,6 +309,8 @@ namespace BasisNetworkCore.Serializable
             GlobalGetLocomotionPolicy,
             GlobalToggleGifs,
             RenamePlayer,
+            GetMuteState,    // moderator: one player's current moderation mute flags. Payload: [string uuid]
+            MuteStateResult, // server→moderator: answer to GetMuteState, also echoed after SetVoiceMute/SetTextMute. Payload: [string uuid][bool voiceMuted][bool textMuted]
         }
 
         /// <summary>

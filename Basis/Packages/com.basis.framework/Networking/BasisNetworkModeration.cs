@@ -504,6 +504,10 @@ public static class BasisNetworkModeration
                 HandleMuteStateApply(reader);
                 break;
 
+            case AdminRequestMode.MuteStateResult:
+                HandleMuteStateResult(reader);
+                break;
+
             case AdminRequestMode.RenamePlayer:
                 HandlePlayerRenamed(reader);
                 break;
@@ -759,6 +763,31 @@ public static class BasisNetworkModeration
         SendAdminRequest(AdminRequestMode.SetTextMute,
             w => w.Put(uuid),
             w => w.Put(muted));
+    }
+
+    public struct MuteStateResult
+    {
+        public string Uuid;
+        public bool VoiceMuted;
+        public bool TextMuted;
+    }
+
+    public static event Action<MuteStateResult> OnMuteStateResult;
+
+    public static void QueryMuteState(string uuid)
+    {
+        if (!ValidateString(uuid, nameof(uuid))) return;
+        SendAdminRequest(AdminRequestMode.GetMuteState, w => w.Put(uuid));
+    }
+
+    private static void HandleMuteStateResult(NetDataReader reader)
+    {
+        OnMuteStateResult?.Invoke(new MuteStateResult
+        {
+            Uuid = reader.GetString(),
+            VoiceMuted = reader.GetBool(),
+            TextMuted = reader.GetBool(),
+        });
     }
 
     private static void HandleMuteStateApply(NetDataReader reader)
@@ -1308,6 +1337,19 @@ public static class BasisNetworkModeration
         return perms != null &&
                (perms.Contains(BasisPermissions.PermNodes.All) ||
                 perms.Contains(BasisPermissions.PermNodes.ModerationGlobalLock));
+    }
+
+    public static bool LocalPlayerIsModerator()
+    {
+        var perms = BasisNetworkManagement.LocalPermissions;
+        if (perms == null) return false;
+        if (perms.Contains(BasisPermissions.PermNodes.All) || perms.Contains(BasisPermissions.PermNodes.PlayerModeration)) return true;
+        string prefix = BasisPermissions.PermNodes.PlayerModeration + ".";
+        foreach (string node in perms)
+        {
+            if (node != null && node.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
     /// <summary>

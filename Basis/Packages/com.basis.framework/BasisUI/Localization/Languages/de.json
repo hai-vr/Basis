@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "Zeigt eine Nachricht an, wenn jemand die Welt verlässt." },
     { "key": "settings.chat.disable.tooltip", "value": "Schaltet den Text-Chat aus, sodass du weder Nachrichten sendest noch empfängst." },
     { "key": "settings.chat.message.tooltip", "value": "Gib hier eine Nachricht ein, um sie an alle in der Welt zu senden." },
+    { "key": "settings.chat.message.mutedByModerator", "value": "Ein Moderator hat deinen Textchat stummgeschaltet." },
+    { "key": "settings.chat.message.lockedByServer", "value": "Der Textchat ist auf diesem Server gesperrt." },
     { "key": "settings.chat.textSize.tooltip", "value": "Wie groß der Chat-Text über den Spielern erscheint." },
     { "key": "settings.chat.duration.tooltip", "value": "Wie lange eine Chat-Nachricht über dem Kopf eines Spielers sichtbar bleibt, in Sekunden, bevor sie verschwindet." },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "Wähle, wer in den von dir aufgenommenen Fotos getaggt wird." },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "Avatar" },
 
     { "key": "notifications.category.developer", "value": "Fehler" },
+    { "key": "notifications.pending.count", "value": "Ausstehend ({0})" },
+    { "key": "notifications.pending.description", "value": "Eingabeaufforderungen, die noch auf eine Antwort warten. Wähle eine aus, um sie zu öffnen oder zu verwerfen." },
+    { "key": "notifications.history.count", "value": "Verlauf ({0})" },
+    { "key": "notifications.history.description", "value": "Beantwortete und verworfene Eingabeaufforderungen. Wähle eine aus, um Details zu sehen." },
+    { "key": "notifications.clearHistory.tooltip", "value": "Entfernt jede beantwortete Benachrichtigung. Ausstehende bleiben erhalten." },
+    { "key": "notifications.clearHistory.confirm", "value": "Jede beantwortete Benachrichtigung entfernen? Ausstehende bleiben erhalten." },
 
     { "key": "settings.tab.performancelimits", "value": "Performance-Limits" },
 

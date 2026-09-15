@@ -631,6 +631,8 @@
     { "key": "settings.chat.leaveNotifications.tooltip", "value": "Mostra un messaggio quando qualcuno lascia il mondo." },
     { "key": "settings.chat.disable.tooltip", "value": "Disattiva la chat di testo così da non inviare né ricevere messaggi." },
     { "key": "settings.chat.message.tooltip", "value": "Digita qui un messaggio per inviarlo a tutti nel mondo." },
+    { "key": "settings.chat.message.mutedByModerator", "value": "Un moderatore ha silenziato la tua chat testuale." },
+    { "key": "settings.chat.message.lockedByServer", "value": "La chat testuale è bloccata su questo server." },
     { "key": "settings.chat.textSize.tooltip", "value": "Quanto grande appare il testo della chat sopra i giocatori." },
     { "key": "settings.chat.duration.tooltip", "value": "Per quanti secondi un messaggio in chat resta visibile sopra la testa di un giocatore prima di scomparire." },
     { "key": "settings.chat.camera.photoMetadata.tooltip", "value": "Scegli chi viene taggato nelle foto che scatti." },
@@ -4328,6 +4330,12 @@
     { "key": "notifications.category.avatar", "value": "Avatar" },
 
     { "key": "notifications.category.developer", "value": "Errori" },
+    { "key": "notifications.pending.count", "value": "In sospeso ({0})" },
+    { "key": "notifications.pending.description", "value": "Avvisi ancora in attesa di una risposta. Selezionane uno per aprirlo o ignorarlo." },
+    { "key": "notifications.history.count", "value": "Cronologia ({0})" },
+    { "key": "notifications.history.description", "value": "Avvisi gestiti o ignorati. Selezionane uno per i dettagli." },
+    { "key": "notifications.clearHistory.tooltip", "value": "Rimuove tutte le notifiche già gestite. Quelle in sospeso vengono mantenute." },
+    { "key": "notifications.clearHistory.confirm", "value": "Rimuovere tutte le notifiche già gestite? Quelle in sospeso vengono mantenute." },
 
     { "key": "settings.tab.performancelimits", "value": "Limiti prestazioni" },
 
