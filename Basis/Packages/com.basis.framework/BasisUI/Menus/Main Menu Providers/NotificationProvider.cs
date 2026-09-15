@@ -819,13 +819,12 @@ namespace Basis.BasisUI
                 return exitButton;
             }
 
-            private static PanelButton RowButton(RectTransform row, string labelKey)
+            private static PanelButton ActionButton(PanelTabGroup row, string style, string labelKey)
             {
-                PanelButton button = PanelButton.CreateNew(row);
+                PanelButton button = PanelButton.CreateNew(style, row.TabButtonParent);
                 button.Descriptor.SetTitle(BasisLocalization.Get(labelKey));
-                button.Layout.minWidth = 0f;
-                button.Layout.preferredWidth = 0f;
-                button.Layout.flexibleWidth = 1f;
+                button.Descriptor.SetWidth(200);
+                button.Descriptor.SetHeight(60);
                 return button;
             }
 
@@ -867,25 +866,28 @@ namespace Basis.BasisUI
                     body.SetDescription(n.Description);
                 }
 
-                RectTransform actions = PanelElementDescriptor.BuildActionRow(content, "NotificationActions");
-                bool pending = n.Status == BasisNotificationStatus.Pending;
-                if (pending && n.Reopen != null)
+                PanelTabGroup actions = PanelTabGroup.CreateNew(content, LayoutDirection.HorizontalNoBackground);
+                actions.Descriptor.SetHeight(60);
+                if (n.Status == BasisNotificationStatus.Pending)
                 {
-                    RowButton(actions, "notifications.open").OnClicked += () =>
+                    if (n.Reopen != null)
                     {
-                        dialog.CloseWithResult(true);
-                        BasisNotificationCenter.Reopen(n);
-                    };
-                }
-                if (pending)
-                {
-                    RowButton(actions, "notifications.dismiss").OnClicked += () =>
+                        ActionButton(actions, PanelButton.ButtonStyles.AcceptButton, "notifications.open").OnClicked += () =>
+                        {
+                            dialog.CloseWithResult(true);
+                            BasisNotificationCenter.Reopen(n);
+                        };
+                    }
+                    ActionButton(actions, PanelButton.ButtonStyles.CancelButton, "notifications.dismiss").OnClicked += () =>
                     {
                         dialog.CloseWithResult(false);
                         BasisNotificationCenter.Dismiss(n);
                     };
                 }
-                RowButton(actions, "ui.ok").OnClicked += () => dialog.Cancel(false);
+                else
+                {
+                    ActionButton(actions, PanelButton.ButtonStyles.AcceptButton, "ui.ok").OnClicked += () => dialog.Cancel(false);
+                }
 
                 dialog.Descriptor.ForceRebuild();
 
