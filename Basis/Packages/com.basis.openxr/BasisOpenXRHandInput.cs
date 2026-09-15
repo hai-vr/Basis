@@ -68,7 +68,7 @@ public class BasisOpenXRHandInput : BasisInputController
     /// <summary>
     /// Raw unmodified hand coordinates before final calibration.
     /// </summary>
-    public BasisCalibratedCoords HandRaw = new BasisCalibratedCoords();
+    public BasisCalibratedCoords HandRaw = BasisCalibratedCoords.Identity;
     public void Initialize(string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole)
     {
         HandBiasSplay = 0;
@@ -325,12 +325,20 @@ public class BasisOpenXRHandInput : BasisInputController
         ConvertToScaledDeviceCoord();
         ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
     }
-    private void RetargetPalmPose()
+    private bool TryReadPalmPose(out Vector3 position, out Quaternion rotation)
     {
+        position = _palmPoseActionPosition.ReadValue<Vector3>();
+        rotation = _palmPoseActionRotation.ReadValue<Quaternion>();
         if (DeviceOffsetActive && _devicePositionControl != null && _deviceRotationControl != null)
         {
-            BasisDeviceOffsetMath.Retarget(_devicePositionControl.ReadValue(), _deviceRotationControl.ReadValue(), DeviceOffsetPosition, DeviceOffsetRotation, ref HandRaw.position, ref HandRaw.rotation);
+            BasisDeviceOffsetMath.Retarget(_devicePositionControl.ReadValue(), _deviceRotationControl.ReadValue(), DeviceOffsetPosition, DeviceOffsetRotation, ref position, ref rotation);
         }
+        return ValidPose(position, rotation);
+    }
+    private static bool ValidPose(Vector3 position, Quaternion rotation)
+    {
+        float lengthSq = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z + rotation.w * rotation.w;
+        return lengthSq > 0.5f && lengthSq < 2f && float.IsFinite(position.x + position.y + position.z);
     }
     public BasisCalibratedCoords PointerPositionYScaled;
     /// <summary>
@@ -373,7 +381,7 @@ public class BasisOpenXRHandInput : BasisInputController
             case BasisBoneTrackedRole.LeftHand:
                 if (subsystem.leftHand.isTracked)
                 {
-                    UpdateHandPose(subsystem.leftHand, BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, out HandRaw.position, out HandRaw.rotation);
+                    if (!UpdateHandPose(subsystem.leftHand, BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, out HandRaw.position, out HandRaw.rotation)) break;
 
                     // keep your existing "final rotation" logic, but (optionally) parent it to OffsetCoords.rotation
                     HandFinal.rotation = HandleHandFinalRotation(ApplyOffsetToRot(HandRaw.rotation));
@@ -381,15 +389,12 @@ public class BasisOpenXRHandInput : BasisInputController
                 }
                 else
                 {
-                    HandRaw.position = _palmPoseActionPosition.ReadValue<Vector3>();
-                    HandRaw.rotation = _palmPoseActionRotation.ReadValue<Quaternion>();
-                    RetargetPalmPose();
+                    FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand);
+                    if (!TryReadPalmPose(out HandRaw.position, out HandRaw.rotation)) break;
 
                     var corrected = math.mul(HandRaw.rotation, Quaternion.Euler(LeftHandPalmCorrection));
                     HandFinal.rotation = ApplyOffsetToRot(corrected);
                     HandFinal.position = ApplyOffsetToPos(HandRaw.position);
-
-                    FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand);
 
                     if (UseIKPositionOffset)
                     {
@@ -402,22 +407,19 @@ public class BasisOpenXRHandInput : BasisInputController
             case BasisBoneTrackedRole.RightHand:
                 if (subsystem.rightHand.isTracked)
                 {
-                    UpdateHandPose(subsystem.rightHand, BasisLocalPlayer.Instance.LocalHandDriver.RightHand, out HandRaw.position, out HandRaw.rotation);
+                    if (!UpdateHandPose(subsystem.rightHand, BasisLocalPlayer.Instance.LocalHandDriver.RightHand, out HandRaw.position, out HandRaw.rotation)) break;
 
                     HandFinal.rotation = HandleHandFinalRotation(ApplyOffsetToRot(HandRaw.rotation));
                     HandFinal.position = ApplyOffsetToPos(HandRaw.position);
                 }
                 else
                 {
-                    HandRaw.position = _palmPoseActionPosition.ReadValue<Vector3>();
-                    HandRaw.rotation = _palmPoseActionRotation.ReadValue<Quaternion>();
-                    RetargetPalmPose();
+                    FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.RightHand);
+                    if (!TryReadPalmPose(out HandRaw.position, out HandRaw.rotation)) break;
 
                     var corrected = math.mul(HandRaw.rotation, Quaternion.Euler(RightHandPalmCorrection));
                     HandFinal.rotation = ApplyOffsetToRot(corrected);
                     HandFinal.position = ApplyOffsetToPos(HandRaw.position);
-
-                    FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.RightHand);
 
                     if (UseIKPositionOffset)
                     {
@@ -434,18 +436,17 @@ public class BasisOpenXRHandInput : BasisInputController
         Hand.RingPercentage[0] = Remap01ToMinus1To1(CurrentInputState.SecondaryTrigger);
         Hand.LittlePercentage[0] = Remap01ToMinus1To1(CurrentInputState.SecondaryTrigger);
     }
-    private void UpdateHandPose(XRHand hand, BasisFingerPose fingerPose, out Vector3 position, out Quaternion rotation)
+    private bool UpdateHandPose(XRHand hand, BasisFingerPose fingerPose, out Vector3 position, out Quaternion rotation)
     {
         XRHandJoint joint = hand.GetJoint(XRHandJointID.Wrist);
-        if (joint.TryGetPose(out Pose pose))
+        bool valid = false;
+        position = Vector3.zero;
+        rotation = Quaternion.identity;
+        if (joint.TryGetPose(out Pose pose) && ValidPose(pose.position, pose.rotation))
         {
             position = pose.position;
             rotation = pose.rotation;
-        }
-        else
-        {
-            position = Vector3.zero;
-            rotation = Quaternion.identity;
+            valid = true;
         }
 
         fingerPose.ThumbPercentage[0] = RemapFingerValue(hand, XRHandFingerID.Thumb);
@@ -467,6 +468,7 @@ public class BasisOpenXRHandInput : BasisInputController
         fingerPose.MiddlePercentage[1] = MiddlePercentage;
         fingerPose.RingPercentage[1] = RingPercentage;
         fingerPose.LittlePercentage[1] = LittlePercentage;
+        return valid;
     }
     private float RemapFingerValue(XRHand hand, XRHandFingerID fingerID)
     {

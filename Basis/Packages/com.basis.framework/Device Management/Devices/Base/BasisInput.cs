@@ -91,7 +91,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <summary>
         /// Device pose before player scaling is applied.
         /// </summary>
-        public BasisCalibratedCoords UnscaledDeviceCoord = new BasisCalibratedCoords();
+        public BasisCalibratedCoords UnscaledDeviceCoord = BasisCalibratedCoords.Identity;
 
         /// <summary>
         /// Signed vertical offset (tracking space, metres) from this device's tracked origin to the
@@ -111,7 +111,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <summary>
         /// Device pose after scaling/elevation adjustments.
         /// </summary>
-        public BasisCalibratedCoords ScaledDeviceCoord = new BasisCalibratedCoords();
+        public BasisCalibratedCoords ScaledDeviceCoord = BasisCalibratedCoords.Identity;
 
         /// <summary>
         /// World-space position offset added to the bone Control only (not the camera/raycast/transform), so a

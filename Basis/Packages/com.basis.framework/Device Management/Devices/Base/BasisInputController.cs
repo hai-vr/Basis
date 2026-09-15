@@ -17,7 +17,7 @@ public abstract class BasisInputController : BasisInput
     /// <summary>
     /// Calibrated hand coordinates (final values after processing offsets/scales).
     /// </summary>
-    public BasisCalibratedCoords HandFinal = new BasisCalibratedCoords();
+    public BasisCalibratedCoords HandFinal = BasisCalibratedCoords.Identity;
 
     [Header("IK Offsets")]
     public Vector3 leftHandToIKRotationOffset = new Vector3(0,0,0);
