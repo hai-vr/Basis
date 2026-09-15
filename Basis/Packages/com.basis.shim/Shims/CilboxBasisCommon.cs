@@ -445,6 +445,15 @@ namespace Cilbox
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.displayName)).GetGetMethod().Name,
 				"get_playerId", nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.GetAllPlayers),
 				} },
+			{ typeof(Basis.SafeUtil), new HashSet<string>{
+				".ctor",
+				nameof(Basis.SafeUtil.AddEventTrigger),
+				nameof(Basis.SafeUtil.MakeNetworkable),
+				nameof(Basis.SafeUtil.MakeInteractable),
+				nameof(Basis.SafeUtil.GetExecutionBudgetUs),
+				nameof(Basis.SafeUtil.GetRemainingExecutionBudgetUs),
+				nameof(Basis.SafeUtil.GetLastFrameExecutionUs),
+				} },
 			{ typeof(BasisContent), new HashSet<string>{ "SpawnedByLocalPlayer" } },
 			// Read-only identity. AssignContentIdentifier and get_ContentInformation are held back:
 			// the first forges a spawn identity, the second hands over the whole struct.

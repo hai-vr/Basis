@@ -24,6 +24,23 @@ namespace Basis
 
 	public class SafeUtil
 	{
+		public static int GetExecutionBudgetUs( object self )
+		{
+			return (int)((CilboxProxy)self).box.timeoutLengthUs;
+		}
+
+		public static int GetRemainingExecutionBudgetUs( object self )
+		{
+			Cilbox.Cilbox box = ((CilboxProxy)self).box;
+			long remainingTicks = box.interpreterAccountingDropDead - System.Diagnostics.Stopwatch.GetTimestamp();
+			return remainingTicks > 0 ? (int)(remainingTicks / box.interpreterTicksInUs) : 0;
+		}
+
+		public static int GetLastFrameExecutionUs( object self )
+		{
+			return (int)((CilboxProxy)self).box.usSpentLastFrame;
+		}
+
 		public static void AddEventTrigger(Component target, EventTriggerType eventType, UnityAction<BaseEventData> callback)
 		{
 			if (target == null || callback == null)
