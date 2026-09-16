@@ -64,12 +64,50 @@
         <type fullname="System.ValueType" preserve="all"/>
         <type fullname="System.Void" preserve="all"/>
         <type fullname="&lt;PrivateImplementationDetails&gt;" preserve="all"/>
-        <type fullname="System.Action`1[T]" preserve="all"/>
+        <type fullname="System.Action`1" preserve="all"/>
+        <type fullname="System.Action`2" preserve="all"/>
+        <type fullname="System.Func`1" preserve="all"/>
+        <type fullname="System.Func`2" preserve="all"/>
+        <type fullname="System.Func`3" preserve="all"/>
+        <type fullname="System.Predicate`1" preserve="all"/>
+        <type fullname="System.Comparison`1" preserve="all"/>
+        <type fullname="System.IEquatable`1" preserve="all"/>
         <type fullname="System.Nullable" preserve="all"/>
+        <type fullname="System.Nullable`1" preserve="all"/>
         <type fullname="System.Tuple" preserve="all"/>
+        <type fullname="System.Tuple`2" preserve="all"/>
+        <type fullname="System.Tuple`3" preserve="all"/>
+        <type fullname="System.ValueTuple`2" preserve="all"/>
+        <type fullname="System.ValueTuple`3" preserve="all"/>
+        <type fullname="System.Collections.Generic.List`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.Dictionary`2" preserve="all"/>
+        <type fullname="System.Collections.Generic.Queue`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.Stack`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.KeyValuePair`2" preserve="all"/>
+        <type fullname="System.Collections.Generic.IEnumerable`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.IEnumerator`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.ICollection`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.IList`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.IDictionary`2" preserve="all"/>
+        <type fullname="System.Collections.Generic.IReadOnlyCollection`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.IReadOnlyList`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.IReadOnlyDictionary`2" preserve="all"/>
+        <type fullname="System.Collections.Generic.Comparer`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.EqualityComparer`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.IComparer`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.IEqualityComparer`1" preserve="all"/>
     </assembly>
-    <assembly fullname="netstandard">
+    <assembly fullname="System">
+        <type fullname="System.Collections.Generic.LinkedList`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.LinkedListNode`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.ISet`1" preserve="all"/>
+        <type fullname="System.Collections.Generic.SortedDictionary`2" preserve="all"/>
+        <type fullname="System.Collections.Generic.SortedList`2" preserve="all"/>
+        <type fullname="System.Collections.Generic.SortedSet`1" preserve="all"/>
         <type fullname="System.Diagnostics.Stopwatch" preserve="all"/>
+    </assembly>
+    <assembly fullname="System.Core">
+        <type fullname="System.Collections.Generic.HashSet`1" preserve="all"/>
     </assembly>
     <assembly fullname="UnityEngine">
         <type fullname="UnityEngine.Application" preserve="all"/>
@@ -411,8 +449,8 @@
     </assembly>
     <assembly fullname="BasisShims">
         <type fullname="Basis.BasisImageDownloader" preserve="all"/>
-        <type fullname="Basis.BasisInteractableShim" preserve="all"/>
-        <type fullname="Basis.BasisInteractableShim+ClickEvent" preserve="all"/>
+        <type fullname="Basis.Shims.BasisInteractableShim" preserve="all"/>
+        <type fullname="Basis.Shims.BasisInteractableShim+ClickEvent" preserve="all"/>
         <type fullname="Basis.BasisNetworkShim" preserve="all"/>
         <type fullname="Basis.BasisNetworkShim+NetworkMessageEvent" preserve="all"/>
         <type fullname="Basis.BasisNetworkShim+NetworkReadyEvent" preserve="all"/>

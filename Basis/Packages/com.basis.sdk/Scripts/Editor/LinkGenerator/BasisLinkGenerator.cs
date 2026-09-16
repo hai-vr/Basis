@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Xml;
 using Basis.Editor.Localization;
 using UnityEditor;
 using UnityEditor.Compilation;
@@ -96,9 +97,11 @@ namespace LinkerGenerator
             foreach (var externalRoot in externalPackageRoots)
                 AddAsmdefReferences(externalRoot, assemblies, guidAsmdefNameCache, progressBase: 0.80f, progressSpan: 0.10f);
 
-            // 5) If cilbox is in the project, include assemblies for all whitelisted types
+            // 5) Fold in the link.xml files shipped inside packages; Unity only collects Assets/**/link.xml
             if (Cancelable(BasisEditorLocalization.Get("sdk.linkGenerator.progress.title"), 0.90f, BasisEditorLocalization.Get("sdk.linkGenerator.progress.checkingCilbox"))) return;
-            AddCilboxWhitelistedTypeAssemblies(assemblies);
+            var packageLinkXmlFiles = FindPackageLinkXmlFiles(ScanPackagesRoot, externalPackageRoots);
+            var packageTypeEntries = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+            MergePackageLinkXmlFiles(packageLinkXmlFiles, assemblies, packageTypeEntries);
 
             // Final filtering pass (removes editor/test/invalid like GUID:...)
             if (Cancelable(BasisEditorLocalization.Get("sdk.linkGenerator.progress.title"), 0.92f, BasisEditorLocalization.Get("sdk.linkGenerator.progress.filteringAssemblies"))) return;
@@ -112,7 +115,13 @@ namespace LinkerGenerator
             sorted.Sort(StringComparer.Ordinal);
 
             if (Cancelable(BasisEditorLocalization.Get("sdk.linkGenerator.progress.title"), 0.95f, BasisEditorLocalization.Get("sdk.linkGenerator.progress.buildingXml"))) return;
-            string xml = BuildLinkerXml(sorted);
+            int packageTypeEntryCount = 0;
+            foreach (var pair in packageTypeEntries)
+            {
+                if (!assemblies.Contains(pair.Key))
+                    packageTypeEntryCount += pair.Value.Count;
+            }
+            string xml = BuildLinkerXml(sorted, packageTypeEntries);
 
             if (Cancelable(BasisEditorLocalization.Get("sdk.linkGenerator.progress.title"), 0.97f, BasisEditorLocalization.Get("sdk.linkGenerator.progress.ensuringFolder"))) return;
             EnsureParentFolderExists(OutputLinkXml);
@@ -125,7 +134,7 @@ namespace LinkerGenerator
                 AssetDatabase.ImportAsset(OutputLinkXml, ImportAssetOptions.ForceUpdate);
 
             sw.Stop();
-            BasisDebug.Log($"Generated link.xml with {sorted.Count} assemblies at: {OutputLinkXml} (changed={wrote}) in {sw.ElapsedMilliseconds} ms");
+            BasisDebug.Log($"Generated link.xml with {sorted.Count} assemblies and {packageTypeEntryCount} type entries from {packageLinkXmlFiles.Count} package link.xml files at: {OutputLinkXml} (changed={wrote}) in {sw.ElapsedMilliseconds} ms");
         }
 
         // -------------------- Discovery --------------------
@@ -329,127 +338,178 @@ namespace LinkerGenerator
             }
         }
 
-        private static void AddCilboxWhitelistedTypeAssemblies(HashSet<string> output)
+        private static List<string> FindPackageLinkXmlFiles(string packagesRoot, List<string> externalPackageRoots)
         {
-            var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
-
-            // Find the base Cilbox type to discover all subclasses
-            Type cilboxBaseType = null;
-            foreach (var asm in loadedAssemblies)
+            var files = new List<string>();
+            var roots = new List<string> { packagesRoot };
+            roots.AddRange(externalPackageRoots);
+            foreach (var root in roots)
             {
-                cilboxBaseType = asm.GetType("Cilbox.Cilbox");
-                if (cilboxBaseType != null)
-                    break;
-            }
-            if (cilboxBaseType == null)
-                return;
+                if (!Directory.Exists(root))
+                    continue;
 
-            // Collect whiteListType entries from ALL Cilbox subclasses
-            // (CilboxAvatar, CilboxScene, CilboxSceneBasis, CilboxPropBasis, etc.)
-            var allTypeNames = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var asm in loadedAssemblies)
-            {
-                Type[] types;
-                try { types = asm.GetTypes(); }
-                catch { continue; }
-
-                foreach (var type in types)
+                foreach (var path in Directory.EnumerateFiles(root, "link.xml", SearchOption.AllDirectories))
                 {
-                    if (!cilboxBaseType.IsAssignableFrom(type) || type == cilboxBaseType)
+                    if (!IsUnityIgnoredPath(path))
+                        files.Add(path);
+                }
+            }
+            return files;
+        }
+
+        private static bool IsUnityIgnoredPath(string path)
+        {
+            string[] parts = path.Replace('\\', '/').Split('/');
+            for (int i = 0; i < parts.Length - 1; i++)
+            {
+                var part = parts[i];
+                if (part.Length == 0) continue;
+                if (part.EndsWith("~", StringComparison.Ordinal) || part.StartsWith(".", StringComparison.Ordinal))
+                    return true;
+            }
+            return false;
+        }
+
+        public static void MergePackageLinkXmlFiles(IEnumerable<string> linkXmlFiles, HashSet<string> assemblies, SortedDictionary<string, SortedSet<string>> typeEntries)
+        {
+            foreach (var file in linkXmlFiles)
+            {
+                var doc = new XmlDocument();
+                try
+                {
+                    doc.Load(file);
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogWarning($"link.xml: skipping unreadable {file}: {ex.Message}");
+                    continue;
+                }
+
+                XmlElement linker = doc.DocumentElement;
+                if (linker == null || linker.Name != "linker")
+                    continue;
+
+                foreach (XmlNode assemblyNode in linker.ChildNodes)
+                {
+                    if (!(assemblyNode is XmlElement assemblyElement) || assemblyElement.Name != "assembly")
                         continue;
 
-                    var field = type.GetField("whiteListType",
-                        BindingFlags.NonPublic | BindingFlags.Static);
-                    if (field == null) continue;
+                    string assemblyName = assemblyElement.GetAttribute("fullname").Trim();
+                    if (assemblyName.Length == 0)
+                        continue;
 
-                    HashSet<string> whiteList;
-                    try { whiteList = field.GetValue(null) as HashSet<string>; }
-                    catch { continue; }
-                    if (whiteList == null) continue;
-
-                    foreach (var entry in whiteList)
+                    bool hasElements = false;
+                    foreach (XmlNode child in assemblyElement.ChildNodes)
                     {
-                        if (!string.IsNullOrWhiteSpace(entry))
-                            allTypeNames.Add(entry);
-                    }
-                }
-            }
-
-            if (allTypeNames.Count == 0)
-                return;
-
-            // Split into exact names and wildcard patterns (e.g. "UnityEngine.UI.*", "System.Int*")
-            var exactNames = new List<string>();
-            var wildcardPrefixes = new List<string>();
-            foreach (var name in allTypeNames)
-            {
-                if (name.StartsWith("<", StringComparison.Ordinal))
-                    continue; // Skip <PrivateImplementationDetails> etc.
-
-                if (name.Contains("*"))
-                    wildcardPrefixes.Add(name.Substring(0, name.IndexOf('*')));
-                else
-                    exactNames.Add(name);
-            }
-
-            int added = 0;
-
-            // Resolve exact type names
-            foreach (var typeName in exactNames)
-            {
-                Type resolved = null;
-                foreach (var asm in loadedAssemblies)
-                {
-                    resolved = asm.GetType(typeName);
-                    if (resolved != null) break;
-                }
-                if (resolved == null) continue;
-
-                string asmName = resolved.Assembly.GetName().Name;
-                if (!string.IsNullOrWhiteSpace(asmName) && IsValidPlayerAssemblyName(asmName))
-                {
-                    if (output.Add(asmName))
-                        added++;
-                }
-            }
-
-            // Resolve wildcard patterns by scanning exported types
-            if (wildcardPrefixes.Count > 0)
-            {
-                foreach (var asm in loadedAssemblies)
-                {
-                    string asmName = asm.GetName().Name;
-                    if (string.IsNullOrWhiteSpace(asmName) || !IsValidPlayerAssemblyName(asmName))
-                        continue;
-                    if (output.Contains(asmName))
-                        continue;
-
-                    bool matched = false;
-                    try
-                    {
-                        foreach (var t in asm.GetExportedTypes())
+                        if (child is XmlElement)
                         {
-                            if (t.FullName == null) continue;
-                            for (int i = 0; i < wildcardPrefixes.Count; i++)
-                            {
-                                if (t.FullName.StartsWith(wildcardPrefixes[i], StringComparison.Ordinal))
-                                {
-                                    matched = true;
-                                    break;
-                                }
-                            }
-                            if (matched) break;
+                            hasElements = true;
+                            break;
                         }
                     }
-                    catch { }
 
-                    if (matched && output.Add(asmName))
-                        added++;
+                    if (!hasElements)
+                    {
+                        if (assemblyElement.GetAttribute("preserve") == "all" && IsValidPlayerAssemblyName(assemblyName))
+                            assemblies.Add(assemblyName);
+                        continue;
+                    }
+
+                    foreach (XmlNode child in assemblyElement.ChildNodes)
+                    {
+                        if (!(child is XmlElement element))
+                            continue;
+
+                        if (element.Name != "type")
+                        {
+                            AddTypeEntry(typeEntries, assemblyName, element.OuterXml);
+                            continue;
+                        }
+
+                        string fullName = element.GetAttribute("fullname").Trim();
+                        List<Type> resolved = ResolveLinkXmlTypes(fullName, assemblyName);
+                        if (resolved.Count == 0)
+                        {
+                            if (fullName.IndexOf('*') < 0)
+                                BasisDebug.LogWarning($"link.xml: {file} preserves {assemblyName} type '{fullName}', which does not resolve in the editor; kept as written.");
+                            AddTypeEntry(typeEntries, assemblyName, element.OuterXml);
+                            continue;
+                        }
+
+                        for (int i = 0; i < resolved.Count; i++)
+                        {
+                            Type type = resolved[i];
+                            element.SetAttribute("fullname", type.FullName.Replace('+', '/'));
+                            AddTypeEntry(typeEntries, type.Assembly.GetName().Name, element.OuterXml);
+                        }
+                    }
                 }
             }
+        }
 
-            if (added > 0)
-                BasisDebug.Log($"Added {added} assembly(ies) from cilbox whitelisted types to link.xml.");
+        private static void AddTypeEntry(SortedDictionary<string, SortedSet<string>> typeEntries, string assemblyName, string entry)
+        {
+            if (!IsValidPlayerAssemblyName(assemblyName))
+                return;
+
+            if (!typeEntries.TryGetValue(assemblyName, out var entries))
+            {
+                entries = new SortedSet<string>(StringComparer.Ordinal);
+                typeEntries[assemblyName] = entries;
+            }
+            entries.Add(entry);
+        }
+
+        private static List<Type> ResolveLinkXmlTypes(string fullName, string declaredAssemblyName)
+        {
+            var result = new List<Type>();
+            if (string.IsNullOrEmpty(fullName))
+                return result;
+
+            var loaded = AppDomain.CurrentDomain.GetAssemblies();
+            int star = fullName.IndexOf('*');
+            if (star < 0)
+            {
+                string name = fullName.Replace('/', '+');
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    for (int i = 0; i < loaded.Length; i++)
+                    {
+                        bool declared = loaded[i].GetName().Name == declaredAssemblyName;
+                        if ((pass == 0) != declared)
+                            continue;
+
+                        Type type;
+                        try { type = loaded[i].GetType(name, false); }
+                        catch { continue; }
+                        if (type != null)
+                        {
+                            result.Add(type);
+                            return result;
+                        }
+                    }
+                }
+                return result;
+            }
+
+            string prefix = fullName.Substring(0, star).Replace('/', '+');
+            string suffix = fullName.Substring(star + 1).Replace('/', '+');
+            for (int i = 0; i < loaded.Length; i++)
+            {
+                if (!IsValidPlayerAssemblyName(loaded[i].GetName().Name))
+                    continue;
+
+                Type[] types;
+                try { types = loaded[i].GetExportedTypes(); }
+                catch { continue; }
+                for (int t = 0; t < types.Length; t++)
+                {
+                    string candidate = types[t].FullName;
+                    if (candidate != null && candidate.StartsWith(prefix, StringComparison.Ordinal) && candidate.EndsWith(suffix, StringComparison.Ordinal))
+                        result.Add(types[t]);
+                }
+            }
+            return result;
         }
 
         [Serializable]
@@ -609,7 +669,7 @@ namespace LinkerGenerator
 
         // -------------------- XML build/write --------------------
 
-        private static string BuildLinkerXml(List<string> assembliesSorted)
+        public static string BuildLinkerXml(List<string> assembliesSorted, SortedDictionary<string, SortedSet<string>> typeEntries)
         {
             int cap = 64 + assembliesSorted.Count * 64;
             var sb = new StringBuilder(cap);
@@ -622,6 +682,24 @@ namespace LinkerGenerator
                 sb.Append("    <assembly fullname=\"");
                 AppendEscapedXmlAttr(sb, assembliesSorted[i]);
                 sb.AppendLine("\" preserve=\"all\" />");
+            }
+
+            var wholesale = new HashSet<string>(assembliesSorted, StringComparer.Ordinal);
+            foreach (var pair in typeEntries)
+            {
+                if (wholesale.Contains(pair.Key) || pair.Value.Count == 0)
+                    continue;
+
+                sb.AppendLine();
+                sb.Append("    <assembly fullname=\"");
+                AppendEscapedXmlAttr(sb, pair.Key);
+                sb.AppendLine("\">");
+                foreach (var entry in pair.Value)
+                {
+                    sb.Append("        ");
+                    sb.AppendLine(entry);
+                }
+                sb.AppendLine("    </assembly>");
             }
 
             sb.AppendLine();
