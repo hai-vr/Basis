@@ -51,6 +51,8 @@ namespace Basis.Scripts.Drivers
         /// <summary>Per-eye calibration computed once at avatar setup; converts canonical yaw/pitch to rig-local rotation.</summary>
         public BasisEyeCalibration calLeft;
         public BasisEyeCalibration calRight;
+        public const float UncappedLookAngleRad = math.PI * 0.5f;
+        public float MaxLookAngleRad = UncappedLookAngleRad;
 
         /// <summary>
         /// Blendshape indices on <see cref="meshRenderer"/> used for blinking.
@@ -238,10 +240,17 @@ namespace Basis.Scripts.Drivers
             if (refs == null || refs.head == null) return;
             if (!refs.HasLeftEye || !refs.HasRightEye) return;
 
-            LeftEyeTransform = refs.LeftEye;
-            RightEyeTransform = refs.RightEye;
-            calLeft = BasisLocalEyeDriver.CalibrateOneEye(LeftEyeTransform, refs.head);
-            calRight = BasisLocalEyeDriver.CalibrateOneEye(RightEyeTransform, refs.head);
+            BasisLocalEyeDriver.FacingFrame(refs, out Vector3 facingForward, out Vector3 facingUp);
+            ConfigureEyes(refs.LeftEye, refs.RightEye, facingForward, facingUp, avatar.EyeMaxLookAngleEnabled, avatar.EyeMaxLookAngle);
+        }
+
+        internal void ConfigureEyes(Transform leftEye, Transform rightEye, Vector3 facingForward, Vector3 facingUp, bool maxLookAngleEnabled, float maxLookAngleDeg)
+        {
+            LeftEyeTransform = leftEye;
+            RightEyeTransform = rightEye;
+            calLeft = BasisLocalEyeDriver.CalibrateOneEye(LeftEyeTransform, facingForward, facingUp);
+            calRight = BasisLocalEyeDriver.CalibrateOneEye(RightEyeTransform, facingForward, facingUp);
+            MaxLookAngleRad = maxLookAngleEnabled ? math.radians(BasisAvatar.ClampEyeMaxLookAngle(maxLookAngleDeg)) : UncappedLookAngleRad;
             HasEyeBones = true;
         }
 
@@ -263,7 +272,7 @@ namespace Basis.Scripts.Drivers
             ApplyOneEye(RightEyeTransform, calRight, hR, vR);
         }
 
-        private static void ApplyOneEye(Transform eye, BasisEyeCalibration cal, float x, float y)
+        private void ApplyOneEye(Transform eye, BasisEyeCalibration cal, float x, float y)
         {
             x = SanitizeAndClamp(x);
             y = SanitizeAndClamp(y);
@@ -271,8 +280,8 @@ namespace Basis.Scripts.Drivers
             // Match EyeTrackingBoneActuation.SetEyeRotation: asin maps the [-1, 1]
             // input into a half-pi yaw/pitch range. Negate y so positive vertical
             // means look up.
-            float xRad = math.asin(x);
-            float yRad = math.asin(-y);
+            float xRad = math.clamp(math.asin(x), -MaxLookAngleRad, MaxLookAngleRad);
+            float yRad = math.clamp(math.asin(-y), -MaxLookAngleRad, MaxLookAngleRad);
             quaternion yaw = quaternion.AxisAngle(new float3(0, 1, 0), xRad);
             quaternion pitch = quaternion.AxisAngle(new float3(1, 0, 0), yRad);
             quaternion canonical = math.mul(yaw, pitch);

@@ -39,6 +39,8 @@ public class BasisSDKConstants
     public static readonly string avatarMouthPositionField = "AvatarMouthPositionField";
     public static readonly string EyeLivelinessField = "EyeLivelinessField";
     public static readonly string EyeAttentivenessField = "EyeAttentivenessField";
+    public static readonly string EyeMaxLookAngleEnabledField = "EyeMaxLookAngleEnabledField";
+    public static readonly string EyeMaxLookAngleField = "EyeMaxLookAngleField";
     public static readonly string AvatarBuildBundle = "AvatarBuildBundle";
 
     public static readonly string animatorField = "AnimatorField";

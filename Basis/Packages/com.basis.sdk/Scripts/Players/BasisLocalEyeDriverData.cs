@@ -9,6 +9,13 @@ namespace Basis.Scripts.BasisSdk.Players
     {
         public static float Liveliness = 0.5f;
         public static float Attentiveness = 0.5f;
+        public static bool MaxLookAngleEnabled;
+        public static float MaxLookAngleDeg = BasisAvatar.DefaultEyeMaxLookAngle;
         public static bool PersonalityDirty;
+        public static void SetMaxLookAngle(bool enabled, float degrees)
+        {
+            MaxLookAngleEnabled = enabled;
+            MaxLookAngleDeg = enabled ? BasisAvatar.ClampEyeMaxLookAngle(degrees) : BasisAvatar.DefaultEyeMaxLookAngle;
+        }
     }
 }

@@ -620,7 +620,7 @@ namespace Basis.Scripts.Drivers
             minHeadSpineHeight += Vector3.Distance(neck.position, head.position);
             BodyData.minHeadSpineHeight = minHeadSpineHeight * (BodyData.tposeTorsoFitScale > 0f ? BodyData.tposeTorsoFitScale : 1f);
 
-            BodyData.RescaleTposeScalars(Scale);
+            BodyData.RescaleTposeScalars(BasisEerieMovementSetup.AppliedAvatarScale());
         }
         public void Spine()
         {

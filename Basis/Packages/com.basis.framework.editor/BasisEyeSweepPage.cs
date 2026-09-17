@@ -30,7 +30,7 @@ namespace Basis.IK.Debugging
             BasisEditorUI.SectionTitle("Configuration");
             _cfg.Fps = EditorGUILayout.Slider("FPS", _cfg.Fps, 15f, 144f);
             _cfg.Seconds = EditorGUILayout.Slider("Seconds", _cfg.Seconds, 1f, 20f);
-            _cfg.MaxAngleDeg = EditorGUILayout.Slider("Max Angle (deg)", _cfg.MaxAngleDeg, 1f, 30f);
+            _cfg.MaxAngleDeg = EditorGUILayout.Slider("Max Angle (deg)", _cfg.MaxAngleDeg, 1f, 45f);
             _cfg.SaccadeMin = EditorGUILayout.Slider("Saccade Min (s)", _cfg.SaccadeMin, 0.01f, 0.3f);
             _cfg.SaccadeMax = EditorGUILayout.Slider("Saccade Max (s)", _cfg.SaccadeMax, _cfg.SaccadeMin, 0.5f);
             _cfg.PerEyeVarianceDeg = EditorGUILayout.Slider("Per-Eye Variance (deg)", _cfg.PerEyeVarianceDeg, 0f, 2f);

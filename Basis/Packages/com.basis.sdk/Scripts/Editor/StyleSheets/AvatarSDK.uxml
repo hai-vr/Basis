@@ -23,6 +23,8 @@
                 <engine:Vector2Field label="Mouth Position" name="AvatarMouthPositionField" style="-unity-font-style: normal;"/>
                 <engine:Slider label="Eye Liveliness" name="EyeLivelinessField" low-value="0" high-value="1" value="0.5" show-input-field="true" style="-unity-font-style: normal;"/>
                 <engine:Slider label="Eye Attentiveness" name="EyeAttentivenessField" low-value="0" high-value="1" value="0.5" show-input-field="true" style="-unity-font-style: normal;"/>
+                <engine:Toggle label="Limit Eye Look Angle" name="EyeMaxLookAngleEnabledField" style="-unity-font-style: normal;"/>
+                <engine:Slider label="Eye Max Look Angle" name="EyeMaxLookAngleField" low-value="1" high-value="45" value="25" show-input-field="true" style="-unity-font-style: normal;"/>
             </engine:VisualElement>
             <engine:Label text="Viseme Setup" name="VisemeSetupHeader" style="-unity-font-style: bold; -unity-text-align: middle-left; white-space: normal; margin-top: 10px; margin-bottom: 4px; padding-bottom: 2px; border-bottom-width: 1px; border-bottom-color: rgba(255, 255, 255, 0.25);"/>
             <engine:VisualElement name="visemesetup" style="flex-grow: 1; align-items: stretch; align-content: flex-end; visibility: visible; padding-left: 0; flex-direction: column; align-self: stretch; justify-content: space-around;">

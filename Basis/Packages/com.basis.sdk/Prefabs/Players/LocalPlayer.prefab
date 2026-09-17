@@ -705,7 +705,6 @@ MonoBehaviour:
     smoothedRotation: {x: 0, y: 0, z: 0, w: 0}
     PauseAnimator: 0
   LocalEyeDriver:
-    maxAngleDeg: 25
     saccadeTimeRange: {x: 0.05, y: 0.15}
     perEyeVarianceDeg: 0.4
   LocalHandDriver:

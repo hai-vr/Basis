@@ -111,9 +111,10 @@ namespace Basis.IK
 
             if (posWeight < 1f)
             {
-                poseStream.SetRotation(root, Quaternion.Slerp(origRootRot, poseStream.GetRotation(root), posWeight));
-                poseStream.SetRotation(mid, Quaternion.Slerp(origMidRot, poseStream.GetRotation(mid), posWeight));
-                poseStream.SetRotation(tip, Quaternion.Slerp(origTipRot, poseStream.GetRotation(tip), posWeight));
+                Quaternion solvedRootRot = poseStream.GetRotation(root), solvedMidRot = poseStream.GetRotation(mid), solvedTipRot = poseStream.GetRotation(tip);
+                poseStream.SetRotation(root, Quaternion.Slerp(origRootRot, solvedRootRot, posWeight));
+                poseStream.SetRotation(mid, Quaternion.Slerp(origMidRot, solvedMidRot, posWeight));
+                poseStream.SetRotation(tip, Quaternion.Slerp(origTipRot, solvedTipRot, posWeight));
             }
             if (preserveTip)
             {

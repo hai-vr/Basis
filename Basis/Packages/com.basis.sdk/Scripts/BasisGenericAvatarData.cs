@@ -23,6 +23,8 @@ public class BasisGenericAvatarData
     public Vector2 AvatarMouthPosition;
     public float EyeLiveliness = 0.5f;
     public float EyeAttentiveness = 0.5f;
+    public bool EyeMaxLookAngleEnabled;
+    public float EyeMaxLookAngle = BasisAvatar.DefaultEyeMaxLookAngle;
     public int[] FaceVisemeMovement;
     public BasisVisemeProfile[] FaceVisemeProfiles;
     public BasisVisemeDriveConfig FaceVisemeDrive;
@@ -176,6 +178,8 @@ public class BasisGenericAvatarData
             AvatarMouthPosition = avatar.AvatarMouthPosition,
             EyeLiveliness = avatar.EyeLiveliness,
             EyeAttentiveness = avatar.EyeAttentiveness,
+            EyeMaxLookAngleEnabled = avatar.EyeMaxLookAngleEnabled,
+            EyeMaxLookAngle = avatar.EyeMaxLookAngle,
             FaceVisemeMovement = avatar.FaceVisemeMovement != null ? (int[])avatar.FaceVisemeMovement.Clone() : null,
             FaceVisemeProfiles = avatar.FaceVisemeProfiles != null ? (BasisVisemeProfile[])avatar.FaceVisemeProfiles.Clone() : null,
             FaceVisemeDrive = avatar.FaceVisemeDrive,
@@ -357,6 +361,8 @@ public class BasisGenericAvatarData
         avatar.AvatarMouthPosition = AvatarMouthPosition;
         avatar.EyeLiveliness = EyeLiveliness;
         avatar.EyeAttentiveness = EyeAttentiveness;
+        avatar.EyeMaxLookAngleEnabled = EyeMaxLookAngleEnabled;
+        avatar.EyeMaxLookAngle = BasisAvatar.ClampEyeMaxLookAngle(EyeMaxLookAngle);
         if (FaceVisemeMovement != null && FaceVisemeMovement.Length > 0)
         {
             avatar.FaceVisemeMovement = (int[])FaceVisemeMovement.Clone();

@@ -245,6 +245,29 @@ public partial class BasisAvatarSDKInspector : Editor
             BasisLocalEyeDriverData.PersonalityDirty = true;
         }
     }
+    private void OnEyeMaxLookAngleEnabledChanged(ChangeEvent<bool> evt)
+    {
+        Undo.RecordObject(Avatar, "Toggle Eye Max Look Angle");
+        Avatar.EyeMaxLookAngleEnabled = evt.newValue;
+        EditorUtility.SetDirty(Avatar);
+        ValueChanged?.Invoke();
+        uiElementsRoot.Q<Slider>(BasisSDKConstants.EyeMaxLookAngleField)?.SetEnabled(evt.newValue);
+        if (Application.isPlaying)
+        {
+            BasisLocalEyeDriverData.SetMaxLookAngle(Avatar.EyeMaxLookAngleEnabled, Avatar.EyeMaxLookAngle);
+        }
+    }
+    private void OnEyeMaxLookAngleChanged(ChangeEvent<float> evt)
+    {
+        Undo.RecordObject(Avatar, "Change Eye Max Look Angle");
+        Avatar.EyeMaxLookAngle = evt.newValue;
+        EditorUtility.SetDirty(Avatar);
+        ValueChanged?.Invoke();
+        if (Application.isPlaying)
+        {
+            BasisLocalEyeDriverData.SetMaxLookAngle(Avatar.EyeMaxLookAngleEnabled, Avatar.EyeMaxLookAngle);
+        }
+    }
     public void EventCallbackAnimator(ChangeEvent<UnityEngine.Object> evt, ref Animator Renderer)
     {
         //  Debug.Log(nameof(EventCallbackAnimator));
@@ -308,6 +331,19 @@ public partial class BasisAvatarSDKInspector : Editor
         {
             attentivenessSlider.value = Avatar.EyeAttentiveness;
             attentivenessSlider.RegisterCallback<ChangeEvent<float>>(OnEyeAttentivenessChanged);
+        }
+        Toggle maxLookAngleEnabledToggle = uiElementsRoot.Q<Toggle>(BasisSDKConstants.EyeMaxLookAngleEnabledField);
+        if (maxLookAngleEnabledToggle != null)
+        {
+            maxLookAngleEnabledToggle.value = Avatar.EyeMaxLookAngleEnabled;
+            maxLookAngleEnabledToggle.RegisterCallback<ChangeEvent<bool>>(OnEyeMaxLookAngleEnabledChanged);
+        }
+        Slider maxLookAngleSlider = uiElementsRoot.Q<Slider>(BasisSDKConstants.EyeMaxLookAngleField);
+        if (maxLookAngleSlider != null)
+        {
+            maxLookAngleSlider.value = BasisAvatar.ClampEyeMaxLookAngle(Avatar.EyeMaxLookAngle);
+            maxLookAngleSlider.SetEnabled(Avatar.EyeMaxLookAngleEnabled);
+            maxLookAngleSlider.RegisterCallback<ChangeEvent<float>>(OnEyeMaxLookAngleChanged);
         }
 
         // Initialize ObjectFields and assign references

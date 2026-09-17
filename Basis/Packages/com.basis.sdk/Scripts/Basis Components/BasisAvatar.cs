@@ -49,6 +49,15 @@ namespace Basis.Scripts.BasisSdk
         /// </summary>
         public float EyeAttentiveness = 0.5f;
 
+        public const float MinEyeMaxLookAngle = 1f, MaxEyeMaxLookAngle = 45f, DefaultEyeMaxLookAngle = 25f;
+        public bool EyeMaxLookAngleEnabled;
+        public float EyeMaxLookAngle = DefaultEyeMaxLookAngle;
+        public static float ClampEyeMaxLookAngle(float degrees)
+        {
+            if (float.IsNaN(degrees) || float.IsInfinity(degrees) || degrees <= 0f) return DefaultEyeMaxLookAngle;
+            return Mathf.Clamp(degrees, MinEyeMaxLookAngle, MaxEyeMaxLookAngle);
+        }
+
         /// <summary>
         /// Blend shape indices for facial viseme movement; -1 entries indicate unused slots.
         /// </summary>

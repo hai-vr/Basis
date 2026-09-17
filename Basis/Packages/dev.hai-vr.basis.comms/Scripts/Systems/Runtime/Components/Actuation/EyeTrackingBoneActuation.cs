@@ -292,9 +292,14 @@ namespace HVR.Basis.Comms
 
             private float2 ClampAngles(float2 angles)
             {
-                return new float2(
-                    Mathf.Clamp(angles.x, -our.EffectiveMaxAngleXRad, our.EffectiveMaxAngleXRad),
-                    Mathf.Clamp(angles.y, -our.EffectiveMaxAngleYRad, our.EffectiveMaxAngleYRad));
+                float maxX = our.EffectiveMaxAngleXRad, maxY = our.EffectiveMaxAngleYRad;
+                if (BasisLocalEyeDriverData.MaxLookAngleEnabled)
+                {
+                    float avatarMaxRad = BasisLocalEyeDriverData.MaxLookAngleDeg * Mathf.Deg2Rad;
+                    maxX = Mathf.Min(maxX, avatarMaxRad);
+                    maxY = Mathf.Min(maxY, avatarMaxRad);
+                }
+                return new float2(Mathf.Clamp(angles.x, -maxX, maxX), Mathf.Clamp(angles.y, -maxY, maxY));
             }
 
             private void SubmitHmdGazeToStore(BasisEyeTrackingData data)

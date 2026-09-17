@@ -273,7 +273,7 @@ public sealed class BasisEyeDriverTab : BasisEditorTabPage
         }
         BasisEyeState state = BasisLocalEyeDriver.LastKnownState;
 
-        float maxDeg = driver.maxAngleDeg;
+        float maxDeg = BasisLocalEyeDriver.MaxAngleDeg;
         float size = 280f;
         float canvasMaxDeg = 52f;
 
@@ -363,7 +363,7 @@ public sealed class BasisEyeDriverTab : BasisEditorTabPage
 
     private void DrawConfigSection(BasisLocalEyeDriver driver)
     {
-        EditorGUILayout.LabelField("Max Angle", $"{driver.maxAngleDeg:F1} deg");
+        EditorGUILayout.LabelField("Max Look Angle (avatar)", $"{BasisLocalEyeDriver.MaxAngleDeg:F1} deg");
         EditorGUILayout.LabelField("Saccade Time Range", $"{driver.saccadeTimeRange.x:F2}s - {driver.saccadeTimeRange.y:F2}s");
         EditorGUILayout.LabelField("Per-Eye Variance", $"{driver.perEyeVarianceDeg:F2} deg");
 

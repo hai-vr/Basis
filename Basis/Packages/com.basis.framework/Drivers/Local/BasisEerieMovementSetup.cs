@@ -1,4 +1,5 @@
 using Basis.IK;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using Unity.Collections;
@@ -8,6 +9,12 @@ namespace Basis.Scripts.Drivers
     public static class BasisEerieMovementSetup
     {
         public const float ChestHeadBudgetMeters = 0.005f;
+        public static float AppliedAvatarScale()
+        {
+            BasisLocalAvatarDriver driver = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalAvatarDriver : null;
+            float scale = driver != null && driver.ScaleAvatarModification != null ? driver.ScaleAvatarModification.ApplyScale : 1f;
+            return float.IsNaN(scale) || float.IsInfinity(scale) || scale <= 0f ? 1f : scale;
+        }
         public static void SetDefaultValues(ref BasisEerieMovement job)
         {
             job.ikLockMode = BasisIKLockMode.LockHead;
@@ -332,7 +339,7 @@ namespace Basis.Scripts.Drivers
                 job.tposeLengthNeckToHips = headToHips;
             }
 
-            job.tposeBakeScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+            job.tposeBakeScale = AppliedAvatarScale();
         }
     }
 }
