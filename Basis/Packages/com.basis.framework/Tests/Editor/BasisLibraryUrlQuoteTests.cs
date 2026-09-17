@@ -55,6 +55,14 @@ namespace Basis.Tests.UI
         }
 
         [Test]
+        public void StripSurroundingQuotes_UnescapesHtmlAmpersands()
+        {
+            Assert.That(InputValidation.StripSurroundingQuotes("https://drive.google.com/uc?export=download&amp;id=abc123"),
+                Is.EqualTo("https://drive.google.com/uc?export=download&id=abc123"),
+                "a link copied out of rendered HTML arrives with its query separators escaped.");
+        }
+
+        [Test]
         public void StripSurroundingQuotes_LeavesCleanUrlUntouched()
         {
             const string url = "https://example.com/thing.bee";

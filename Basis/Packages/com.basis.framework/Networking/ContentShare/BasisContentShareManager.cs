@@ -326,20 +326,22 @@ public static class BasisContentShareManager
                 {
                     shareDetail = BasisContentSharePayloadRegistry.Describe(msg.ContentType, msg.ContentURL) ?? string.Empty;
                 }
+                bool canRemove = (BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId) && localId == serverMsg.playerIdMessage.playerID)
+                    || BasisNetworkModeration.LocalPlayerHasNode(BasisPermissions.PermNodes.protection);
                 BasisShareableRegistry.Register(new BasisShareableEntry
                 {
                     Id = sphereId,
                     Kind = ToShareableKind(msg.ContentType),
                     Title = shareDetail,
                     SharerName = serverMsg.SharerDisplayName,
-                    Actions = new List<BasisShareableAction>
+                    Actions = canRemove ? new List<BasisShareableAction>
                     {
                         new BasisShareableAction
                         {
                             Style = BasisShareableActionStyle.Destructive,
                             Invoke = () => RequestRemoveSphere(sphereId),
                         },
-                    },
+                    } : new List<BasisShareableAction>(),
                 });
             }
         }

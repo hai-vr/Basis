@@ -21,6 +21,6 @@ public static class BasisCameraShutter
     public static void Announce(Camera camera)
     {
         PlayShutter(camera);
-        if (BasisNetworkConnection.LocalPlayerPeer != null) BasisNetworkPIPCameraDriver.SendShutterSound();
+        if (BasisNetworkConnection.LocalPlayerIsConnected) BasisNetworkPIPCameraDriver.SendShutterSound();
     }
 }

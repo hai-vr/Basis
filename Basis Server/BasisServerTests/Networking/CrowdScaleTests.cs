@@ -754,6 +754,43 @@ public class CrowdScaleTests
     }
 
     [Fact]
+    public void PreAuthDrops_DoNotCountTowardTheProtocolErrorDisconnect()
+    {
+        // A client that starts streaming a beat before its handshake completes (a slow crowd
+        // join with the handheld camera up, at frame rate) has every packet dropped. Those drops
+        // must not pre-load the post-auth protocol-error budget, or the first real slip after
+        // admission is the one that gets the peer kicked.
+        BasisServerMessageRegistry.EnsureInitialized();
+        using Crowd crowd = new Crowd(4, 64);
+
+        FakeNetPeer joiner = crowd.Peers[0];
+        joiner.Tag = new object();
+        byte[] pooled = new byte[32];
+        try
+        {
+            for (int index = 0; index < 600; index++)
+            {
+                BasisNetworkMessageProcessor.ProcessMessage(
+                    joiner, NetPacketReader.Create(pooled, 0, 1, () => { }),
+                    BasisNetworkCommons.CameraPIPPositionChannel, DeliveryMethod.Sequenced);
+            }
+            Assert.Equal(0, joiner.DisconnectCalls);
+
+            joiner.Tag = NetworkServer.AuthenticatedPeerTag;
+            pooled[0] = BasisNetworkCommons.EventType_PlayerTempBlock;
+            BasisNetworkMessageProcessor.ProcessMessage(
+                joiner, NetPacketReader.Create(pooled, 0, 1, () => { }),
+                BasisNetworkCommons.EventsChannel, DeliveryMethod.ReliableOrdered);
+
+            Assert.Equal(0, joiner.DisconnectCalls);
+        }
+        finally
+        {
+            BasisNetworkMessageProcessor.ClearPeerErrors(joiner.Id);
+        }
+    }
+
+    [Fact]
     public void ProtocolErrorCounts_AtCrowdScale_AreIsolatedPerPeer()
     {
         // One broken client must not push anyone else toward the disconnect threshold.

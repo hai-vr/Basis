@@ -658,10 +658,40 @@ public class BasisDisconnectLifecycleTests
 
         int id = LifecycleSupport.NextPeerId();
         FakeNetPeer stranger = LifecycleSupport.Peer(id); // never inserted into AuthenticatedPeers
+        (_, FakeNetPeer witness) = Connected(LifecycleSupport.NextPeerId());
+        NetworkServer.RebuildPeerSnapshot();
+        BasisServerHandleEvents.JoinBroadcast.Stop();
 
         BasisServerHandleEvents.HandlePeerDisconnected(stranger, Info(DisconnectReason.ConnectionFailed));
+        BasisServerHandleEvents.JoinBroadcast.Flush();
 
         Assert.False(NetworkServer.AuthenticatedPeers.ContainsKey(id));
+        // Nobody was ever told this peer existed, so nobody is told it left either.
+        Assert.Empty(witness.Sent);
+    }
+
+    [Fact]
+    public void RejectingAnAdmittedPeer_StillAnnouncesTheDeparture()
+    {
+        using var scope = new ServerStaticsScope();
+        InstallServer();
+
+        int leavingId = LifecycleSupport.NextPeerId();
+        (_, FakeNetPeer leaving) = Connected(leavingId);
+        (_, FakeNetPeer witness) = Connected(LifecycleSupport.NextPeerId());
+        NetworkServer.RebuildPeerSnapshot();
+        BasisServerHandleEvents.JoinBroadcast.Stop();
+
+        // A post-admission eviction (the headless policy flip) removes the peer itself, so the
+        // transport disconnect that follows finds nothing to remove; the notice must not be lost.
+        BasisServerHandleEvents.RejectWithReason(leaving, "policy");
+        BasisServerHandleEvents.HandlePeerDisconnected(leaving, Info());
+        BasisServerHandleEvents.JoinBroadcast.Flush();
+
+        var notice = Assert.Single(witness.Sent);
+        Assert.Equal(BasisNetworkCommons.DisconnectionChannel, notice.Channel);
+        Assert.Equal((ushort)leavingId, new NetDataReader(notice.Data).GetUShort());
+        Assert.Equal(1, leaving.DisconnectCalls);
     }
 
     [Fact]

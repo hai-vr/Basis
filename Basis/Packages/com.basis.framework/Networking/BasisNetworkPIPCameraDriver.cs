@@ -335,8 +335,14 @@ public static class BasisNetworkPIPCameraDriver
     /// <summary>
     /// Send local PIP camera state to server.
     /// </summary>
+    private static bool CanSend()
+    {
+        return BasisNetworkConnection.LocalPlayerIsConnected && BasisNetworkConnection.LocalPlayerPeer != null;
+    }
+
     public static void SendPIPState(bool isActive, Vector3 position, Quaternion rotation)
     {
+        if (!CanSend()) return;
         ClientCameraPIPStateMessage msg = new ClientCameraPIPStateMessage
         {
             IsActive = isActive,
@@ -359,6 +365,7 @@ public static class BasisNetworkPIPCameraDriver
     /// </summary>
     public static void SendPIPPosition(Vector3 position, Quaternion rotation)
     {
+        if (!CanSend()) return;
         ClientCameraPIPPositionMessage msg = new ClientCameraPIPPositionMessage
         {
             PositionX = position.x,
@@ -394,6 +401,7 @@ public static class BasisNetworkPIPCameraDriver
     /// </summary>
     public static void SendShutterSound()
     {
+        if (!CanSend()) return;
         NetDataWriter writer = new NetDataWriter();
         writer.Put(BasisNetworkCommons.EventType_CameraShutterSound);
         BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.EventsChannel, DeliveryMethod.Sequenced);
@@ -404,6 +412,7 @@ public static class BasisNetworkPIPCameraDriver
     /// </summary>
     public static void SendCountdown(byte seconds)
     {
+        if (!CanSend()) return;
         ClientCameraCountdownMessage msg = new ClientCameraCountdownMessage
         {
             Seconds = seconds,

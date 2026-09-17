@@ -1471,30 +1471,33 @@ namespace Basis.BasisUI
 
                 // Server-enforced mutes, painted from the state the server reports: asked for on
                 // open and echoed back after every change, so a refused change snaps the toggle back.
-                PanelToggle voiceMuteToggle = PanelToggle.CreateNewEntry(adminGroup.ContentParent);
-                voiceMuteToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.muteVoice"));
-                voiceMuteToggle.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.muteVoice.tooltip"));
-                voiceMuteToggle.OnValueChanged += muted => BasisNetworkModeration.SetVoiceMute(targetUUID, muted);
-
-                PanelToggle textMuteToggle = PanelToggle.CreateNewEntry(adminGroup.ContentParent);
-                textMuteToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.muteText"));
-                textMuteToggle.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.muteText.tooltip"));
-                textMuteToggle.OnValueChanged += muted => BasisNetworkModeration.SetTextMute(targetUUID, muted);
-
-                Action<BasisNetworkModeration.MuteStateResult> muteStateHandler = null;
-                muteStateHandler = result =>
+                if (BasisNetworkModeration.LocalPlayerHasNode(PermNodes.ModerationMute))
                 {
-                    if (!string.Equals(result.Uuid, targetUUID, StringComparison.Ordinal)) return;
-                    if (panel == null || panel.Descriptor == null || voiceMuteToggle == null || textMuteToggle == null)
+                    PanelToggle voiceMuteToggle = PanelToggle.CreateNewEntry(adminGroup.ContentParent);
+                    voiceMuteToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.muteVoice"));
+                    voiceMuteToggle.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.muteVoice.tooltip"));
+                    voiceMuteToggle.OnValueChanged += muted => BasisNetworkModeration.SetVoiceMute(targetUUID, muted);
+
+                    PanelToggle textMuteToggle = PanelToggle.CreateNewEntry(adminGroup.ContentParent);
+                    textMuteToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.muteText"));
+                    textMuteToggle.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.muteText.tooltip"));
+                    textMuteToggle.OnValueChanged += muted => BasisNetworkModeration.SetTextMute(targetUUID, muted);
+
+                    Action<BasisNetworkModeration.MuteStateResult> muteStateHandler = null;
+                    muteStateHandler = result =>
                     {
-                        BasisNetworkModeration.OnMuteStateResult -= muteStateHandler;
-                        return;
-                    }
-                    voiceMuteToggle.SetValueWithoutNotify(result.VoiceMuted);
-                    textMuteToggle.SetValueWithoutNotify(result.TextMuted);
-                };
-                BasisNetworkModeration.OnMuteStateResult += muteStateHandler;
-                BasisNetworkModeration.QueryMuteState(targetUUID);
+                        if (!string.Equals(result.Uuid, targetUUID, StringComparison.Ordinal)) return;
+                        if (panel == null || panel.Descriptor == null || voiceMuteToggle == null || textMuteToggle == null)
+                        {
+                            BasisNetworkModeration.OnMuteStateResult -= muteStateHandler;
+                            return;
+                        }
+                        voiceMuteToggle.SetValueWithoutNotify(result.VoiceMuted);
+                        textMuteToggle.SetValueWithoutNotify(result.TextMuted);
+                    };
+                    BasisNetworkModeration.OnMuteStateResult += muteStateHandler;
+                    BasisNetworkModeration.QueryMuteState(targetUUID);
+                }
 
                 PanelTextField renameField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
                 renameField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.rename"));

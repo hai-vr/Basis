@@ -18,15 +18,20 @@ public static class BasisNetworkMessageProcessor
     /// <summary>Protocol errors tolerated from one peer before it is dropped.</summary>
     private const int MaxErrorsBeforeDisconnect = 500;
     private static readonly ConcurrentDictionary<int, int> _peerErrorCounts = new();
+    private static readonly ConcurrentDictionary<int, int> _preAuthDropCounts = new();
 
-    public static void ClearPeerErrors(int peerId) => _peerErrorCounts.TryRemove(peerId, out _);
+    public static void ClearPeerErrors(int peerId)
+    {
+        _peerErrorCounts.TryRemove(peerId, out _);
+        _preAuthDropCounts.TryRemove(peerId, out _);
+    }
     public static void ProcessMessage(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
     {
         BasisNetworkStatistics.RecordInbound(channel, reader.AvailableBytes);
         if (channel != BasisNetworkCommons.AuthIdentityChannel && !ReferenceEquals(peer.Tag, NetworkServer.AuthenticatedPeerTag))
         {
             reader.Recycle();
-            int preAuthErrors = _peerErrorCounts.AddOrUpdate(peer.Id, 1, (_, c) => c + 1);
+            int preAuthErrors = _preAuthDropCounts.AddOrUpdate(peer.Id, 1, (_, c) => c + 1);
             if (preAuthErrors <= 5 || preAuthErrors % 100 == 0)
             {
                 BNL.LogError($"Pre-auth message on channel {channel} from peer {peer.Id} before authentication (error #{preAuthErrors}).");

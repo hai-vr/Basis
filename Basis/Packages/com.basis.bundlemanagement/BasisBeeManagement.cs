@@ -241,6 +241,7 @@ public static class BasisBeeManagement
 
         if (output.Item1 == null || output.Item3 != string.Empty)
         {
+            if (cancellationToken.IsCancellationRequested) throw new OperationCanceledException(cancellationToken);
             throw new Exception($"Bundle load failed for {wrapper?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? "unknown"}: {output.Item3}");
         }
         // Generic (glTF) fallback section: no AssetBundle exists for this platform, the bytes

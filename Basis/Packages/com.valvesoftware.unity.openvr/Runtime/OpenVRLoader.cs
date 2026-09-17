@@ -252,6 +252,7 @@ namespace Unity.XR.OpenVR
         private void SetupFileSystemWatcher()
         {
             watcherThread = new System.Threading.Thread(new System.Threading.ThreadStart(ManualFileWatcherLoop));
+            watcherThread.IsBackground = true;
             watcherThread.Start();
         }
 
@@ -274,7 +275,10 @@ namespace Unity.XR.OpenVR
                 {
                     lastLength = -1;
                 }
-                System.Threading.Thread.Sleep(1000);
+                for (int slice = 0; slice < 10 && running; slice++)
+                {
+                    System.Threading.Thread.Sleep(100);
+                }
             }
         }
 
@@ -282,7 +286,8 @@ namespace Unity.XR.OpenVR
         {
             if (watcherThread != null)
             {
-                watcherThread.Abort();
+                running = false;
+                watcherThread.Join(500);
                 watcherThread = null;
             }
         }

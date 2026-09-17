@@ -157,6 +157,7 @@ namespace Basis.BasisUI
         {
             string value = (rawUrl ?? string.Empty).Trim();
             if (value.Length == 0) return value;
+            if (value.Contains("&amp;")) value = value.Replace("&amp;", "&");
 
             int start = 0;
             int end = value.Length;

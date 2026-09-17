@@ -1352,6 +1352,21 @@ public static class BasisNetworkModeration
         return false;
     }
 
+    public static bool LocalPlayerHasNode(string node)
+    {
+        var perms = BasisNetworkManagement.LocalPermissions;
+        if (perms == null || string.IsNullOrWhiteSpace(node)) return false;
+        node = node.Trim();
+        if (perms.Contains(node) || perms.Contains(BasisPermissions.PermNodes.All)) return true;
+        int idx = node.Length;
+        while (true)
+        {
+            idx = node.LastIndexOf('.', idx - 1);
+            if (idx <= 0) return false;
+            if (perms.Contains(node.Substring(0, idx) + ".*")) return true;
+        }
+    }
+
     /// <summary>
     /// True when the local player may still send text chat while <see cref="GlobalTextChatLocked"/>
     /// is on. Mirrors the server's own check exactly (basis.chat.lockbypass, or the '*' wildcard) —

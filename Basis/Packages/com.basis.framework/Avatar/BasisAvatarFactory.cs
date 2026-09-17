@@ -296,7 +296,8 @@ namespace Basis.Scripts.Avatar
                 switch (Mode)
                 {
                     case 2:
-                        Output = BasisLoadableBundle.LoadableGameobject.InSceneItem;
+                        Output = BasisLoadableBundle?.LoadableGameobject?.InSceneItem;
+                        if (Output == null) throw new InvalidOperationException("In-scene avatar load carries no InSceneItem.");
                         ResolveRemoteSpawnPose(Player, ref Position, ref Rotation);
                         Output.transform.SetPositionAndRotation(Position, Rotation);
                         // In-scene path skips ContentPolice; strip BasisHeadChop so the

@@ -469,8 +469,9 @@ namespace BasisServerHandle
                 lock (_joinLock)
                 {
                     bool slotHeldByAnother = NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer holder) && !Equals(holder, peer);
+                    bool removed = CleanupPeerSubsystems(peer, id);
 
-                    if (CleanupPeerSubsystems(peer, id))
+                    if (removed)
                     {
                         NetworkServer.RebuildPeerSnapshot();
                         BNL.Log($"Peer removed: {id}");
@@ -491,7 +492,7 @@ namespace BasisServerHandle
                         BasisNetworkContentShare.Reset();
                     }
 
-                    if (!slotHeldByAnother)
+                    if (removed)
                     {
                         JoinBroadcast.EnqueueLeave(id);
                     }
@@ -555,6 +556,7 @@ namespace BasisServerHandle
             if (((ICollection<KeyValuePair<int, NetPeer>>)NetworkServer.AuthenticatedPeers).Remove(kvp))
             {
                 NetworkServer.RebuildPeerSnapshot();
+                JoinBroadcast.EnqueueLeave(id);
             }
             request.Disconnect(reasonBytes);
             BNL.LogError($"Rejected after accept with reason: {reason}");

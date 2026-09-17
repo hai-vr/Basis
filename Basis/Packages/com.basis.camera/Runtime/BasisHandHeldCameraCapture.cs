@@ -37,7 +37,7 @@ public partial class BasisHandHeldCamera
 
         if (BasisCameraShutter.CaptureBlocked("Timer")) return;
 
-        if (BasisNetworkConnection.LocalPlayerPeer != null) BasisNetworkPIPCameraDriver.SendCountdown(5);
+        if (BasisNetworkConnection.LocalPlayerIsConnected) BasisNetworkPIPCameraDriver.SendCountdown(5);
         countdownRoutine = StartCoroutine(DelayedAction(5));
     }
     public void CancelTimer()

@@ -387,7 +387,8 @@ public static class BasisLoadHandler
         }
         catch (Exception ex)
         {
-            BasisDebug.LogError($"{ex.Message} {ex.StackTrace}");
+            if (ex is OperationCanceledException) BasisDebug.Log($"Bundle load cancelled for {Key}");
+            else BasisDebug.LogError($"{ex.Message} {ex.StackTrace}");
             wrapper.DeIncrement();
             loadableBundle.ReservedWrapperKey = null;
             wrapper.DidErrorOccur = true;
