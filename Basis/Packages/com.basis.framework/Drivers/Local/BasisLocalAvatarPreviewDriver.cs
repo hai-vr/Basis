@@ -2,6 +2,7 @@ using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.TransformBinders;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 namespace Basis.Scripts.Drivers
@@ -251,6 +252,8 @@ namespace Basis.Scripts.Drivers
             {
                 urpData.allowXRRendering = false;
             }
+            RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
+            RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
 
             parentOfUIGO = new GameObject("AvatarPreviewParentOfUI");
             parentOfUIGO.layer = LayerMask.NameToLayer("UI");
@@ -293,6 +296,7 @@ namespace Basis.Scripts.Drivers
 
         private void DestroyObjects()
         {
+            RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
             initialized = false;
             active = false;
 
@@ -324,10 +328,13 @@ namespace Basis.Scripts.Drivers
             PreviewCamera = null;
         }
 
+        public void OnBeginCameraRendering(ScriptableRenderContext context, Camera renderingCamera)
+        {
+            if (ReferenceEquals(renderingCamera, PreviewCamera)) BasisLocalAvatarDriver.ScaleHeadToNormal();
+        }
+
         /// <summary>
         /// Positions the preview camera in front of the local avatar.
-        /// The avatar head remains at normal scale during this camera's render
-        /// because head-scaling is only applied to the main camera via entity ID checks.
         /// </summary>
         public void Simulate()
         {

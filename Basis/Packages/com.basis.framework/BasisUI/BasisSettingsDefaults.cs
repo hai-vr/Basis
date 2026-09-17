@@ -1071,14 +1071,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UsePerfLimitCilboxBehaviours = new("useperflimitcilboxbehaviours", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> MaxPerfCilboxBehaviours = new("maxperfcilboxbehaviours", new BasisPlatformDefault<float> { windows = 5, android = 2, ios = 2, linux = 5, other = 5 });
 
-        public static BasisSettingsBinding<float> AvatarMeshLOD = new("avatarmeshlod", new BasisPlatformDefault<float>
-        {
-            windows = 0.05f,
-            android = 0.1f,
-            ios = 0.1f,
-            linux = 0.05f,
-            other = 0.05f
-        });
+        public static BasisSettingsBinding<float> AvatarMeshLOD = new("avatarmeshlod", new BasisPlatformDefault<float>(0.01f));
 
         // Skins remote avatars with fewer bone influences per vertex as they drop through the mesh
         // LOD levels (4 / 2 / 1 influences). Distant avatars are left on the full influence set

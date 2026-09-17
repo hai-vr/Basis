@@ -66,9 +66,9 @@ namespace Basis.BasisUI.HandHeldCamera
         ///
         /// <para>The picker sits loose above the readout because it is what the page is for, and
         /// everything below it is about the mode it names. The readout is collapsible like every
-        /// other section in this panel: it is fifty rows long, and being able to fold it away is the
-        /// difference between a reference you open when you want it and a wall the rest of the page
-        /// sits underneath.</para>
+        /// other section in this panel and starts folded: it is fifty rows long, so open it is a wall
+        /// the rest of the page sits underneath, and closed it is a reference you open when you want
+        /// it. With menu-state memory on, it then reopens the way the user last left it.</para>
         /// </summary>
         private void BuildModeTab(RectTransform parent)
         {
@@ -84,7 +84,7 @@ namespace Basis.BasisUI.HandHeldCamera
                 _readoutSection, parent, BasisLocalization.Get("camera.userMode.readout"), false);
             BuildSettingsReadout(_readoutGroup.ContentParent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(
-                _readoutSection, _readoutGroup, true, OnSectionExpanded);
+                _readoutSection, _readoutGroup, false, OnSectionExpanded);
         }
 
         /// <summary>
