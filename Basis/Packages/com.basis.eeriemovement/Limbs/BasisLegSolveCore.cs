@@ -3,7 +3,7 @@ namespace Basis.IK
 {
     public static class BasisLegSolveCore
     {
-        const float epsilon = 1e-5f, sqrEpsilon = 1e-8f, poleColinearSin = 0.5f;
+        const float epsilon = 1e-5f, sqrEpsilon = 1e-8f, poleColinearSin = 0.5f, restBendAgreeCos = 0.94f;
         public const float MinKneeInteriorDeg = 20f, MaxKneeInteriorDeg = 176f, KneeAnteriorSoftDeg = 85f;
         public const float KneeAnteriorHardDeg = 89.5f, KneeAnteriorTaperStartDeg = 160f, TrackerShinRollMaxDeg = 45f;
         public static float ClampKneeSwivelDeg(float swivelDeg, float softDeg, float hardDeg)
@@ -63,8 +63,15 @@ namespace Basis.IK
 
             float newAbcAngle = BasisIKMath.TriangleAngle(atCorrectedLen, abLen, bcLen);
             byte axisSource = 0;
-            Vector3 bendAxis = Vector3.Cross(ab, bc);
-            if (bendAxis.sqrMagnitude < sqrEpsilon)
+            Vector3 restAxis = Vector3.Cross(ab, bc), bendAxis = restAxis;
+            Vector3 abN = abLen > epsilon ? ab / abLen : Vector3.zero, anatAxis = i.BendNormal - abN * Vector3.Dot(i.BendNormal, abN);
+            bool restBend = restAxis.sqrMagnitude >= sqrEpsilon, anatomical = abLen > epsilon && anatAxis.sqrMagnitude > sqrEpsilon && (!restBend || Vector3.Dot(restAxis.normalized, anatAxis.normalized) < restBendAgreeCos);
+            if (anatomical)
+            {
+                bendAxis = anatAxis;
+                axisSource = 3;
+            }
+            else if (!restBend)
             {
                 if (hasHint)
                 {
@@ -95,6 +102,11 @@ namespace Basis.IK
 
             float half = 0.5f * (oldAbcAngle - newAbcAngle), sinHalf = Mathf.Sin(half), cosHalf = Mathf.Cos(half);
             Quaternion deltaR = new Quaternion(bendAxis.x * sinHalf, bendAxis.y * sinHalf, bendAxis.z * sinHalf, cosHalf);
+            if (anatomical)
+            {
+                deltaR = BasisIKMath.AngleAxisRad(Mathf.PI - newAbcAngle, bendAxis);
+                if (restBend) deltaR = deltaR * BasisIKMath.AngleAxisRad(oldAbcAngle - Mathf.PI, Vector3.Normalize(restAxis));
+            }
 
             midRot = deltaR * midRot;
             cPosition = bPosition + deltaR * (cPosition - bPosition);
