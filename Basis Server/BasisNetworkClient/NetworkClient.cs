@@ -14,7 +14,7 @@ public class NetworkClient
     /// <param name="IP"></param>
     /// <param name="port"></param>
     /// <param name="ReadyMessage"></param>
-    public NetPeer StartClient(string IP, int port, ReadyMessage ReadyMessage, byte[] AuthenticationMessage, Configuration Configuration, bool manualMode = false)
+    public NetPeer StartClient(string IP, int port, ReadyMessage ReadyMessage, byte[] AuthenticationMessage, string CompanyName, string ProductName, Configuration Configuration, bool manualMode = false)
     {
         if (IsInUse == false)
         {
@@ -27,6 +27,7 @@ public class NetworkClient
             NetDataWriter Writer = new NetDataWriter(true,12);
             //this is the only time we dont put key!
             Writer.Put(BasisNetworkVersion.ServerVersion);
+            BasisNetworkApplication.Write(Writer, CompanyName, ProductName);
             BytesMessage AuthBytes = new BytesMessage();
             AuthBytes.Serialize(Writer, AuthenticationMessage);
             ReadyMessage.Serialize(Writer);

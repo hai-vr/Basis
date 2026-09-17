@@ -33,7 +33,8 @@ public class Configuration
     // 12: BSRSendPhaseBudgetPercent added - the send pass's share of the reduction tick, which was
     //     a constant fitted on one machine. Bumped so existing files gain it with its doc comment.
     // 13: LogConnectionHandshake added - the per-connection auth chatter is now off by default.
-    public const int CurrentConfigVersion = 13;
+    // 14: CompanyName and ProductName added - the client company and product name a connection must report.
+    public const int CurrentConfigVersion = 14;
     /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
     public int ConfigVersion = 0;
 
@@ -43,6 +44,8 @@ public class Configuration
     public string ServerName = "Basis Server";
     /// <summary>Short MOTD returned alongside the server name in the info query response. Two short lines render cleanly in the list UI.</summary>
     public string ServerMotd = "";
+    public string CompanyName = BasisNetworkApplication.DefaultCompanyName;
+    public string ProductName = BasisNetworkApplication.DefaultProductName;
     public bool EnableStatistics = true;
     public bool HasFileSupport = true;
     public string HealthCheckHost = "localhost";

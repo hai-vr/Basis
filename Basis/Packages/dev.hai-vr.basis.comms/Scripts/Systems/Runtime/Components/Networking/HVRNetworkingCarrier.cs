@@ -41,6 +41,11 @@ namespace HVR.Basis.Comms
             _comms.WhenNetworkMessageServerReductionSystem(index, buffer);
         }
 
+        public override void OnNetworkTerminated(bool wasLocallyOwned)
+        {
+            _networkReady = false;
+        }
+
         public void OnHVRAvatarReady(bool isWearer)
         {
         }

@@ -52,6 +52,7 @@ namespace Basis.Scripts.Networking
 
             PlayerIdentity identity = BasisPlayerIdentityRegistry.ResolveActive();
             string uuid = identity?.Uuid ?? string.Empty;
+            string companyName = Application.companyName, productName = Application.productName;
 
             BasisTransportConfigStore.Get<LNLTransportConfig>(BasisNetworkStackRegistry.LiteNetLibId).UseNativeSockets = false;
 
@@ -71,6 +72,8 @@ namespace Basis.Scripts.Networking
                     NetworkStackId = networkStackId ?? string.Empty,
                     ServerName = string.IsNullOrWhiteSpace(BasisNetworkManagement.HostServerName) ? "Basis Server" : BasisNetworkManagement.HostServerName,
                     ServerMotd = BasisNetworkManagement.HostServerMotd ?? string.Empty,
+                    CompanyName = companyName,
+                    ProductName = productName,
                     PeerLimit = BasisNetworkManagement.HostPeerLimit <= 0 ? ushort.MaxValue : BasisNetworkManagement.HostPeerLimit,
                     EnableConsole = BasisNetworkManagement.HostEnableConsole,
                     AvatarsLocked = BasisNetworkManagement.HostAvatarsLocked,
@@ -143,7 +146,7 @@ namespace Basis.Scripts.Networking
                     // Pass the token into anything that supports cancellation
                     LocalPlayerPeer = NetworkClient.StartClient(
                         ipString, port, readyMessage,
-                        Encoding.UTF8.GetBytes(primitivePassword), serverConfig);
+                        Encoding.UTF8.GetBytes(primitivePassword), companyName, productName, serverConfig);
 
                     NetworkClient.listener.PeerConnectedEvent -= PeerConnectedEvent;
                     NetworkClient.listener.PeerConnectedEvent += PeerConnectedEvent;

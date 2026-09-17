@@ -75,6 +75,7 @@ public static class BasisNetworkLifeCycle
                 }
                 BasisNetworkPlayer.OnPlayerLeft?.Invoke(networkedPlayer);
             }
+            BasisNetworkManagement.Transmitter?.NotifyNetworkBehavioursTerminated();
             BasisNetworkManagement.Transmitter?.DeInitialize();
             if (BasisNetworkConnection.BasisNetworkServerRunner != null)
             {
@@ -127,6 +128,7 @@ public static class BasisNetworkLifeCycle
             BasisNetworkPlayer.OnPlayerLeft?.Invoke(networkedPlayer);
         }
         // Reset instance-scoped configuration to safe defaults
+        BasisNetworkManagement.Transmitter?.NotifyNetworkBehavioursTerminated();
         BasisNetworkManagement.Transmitter?.DeInitialize();
 
         if (BasisNetworkConnection.BasisNetworkServerRunner != null)

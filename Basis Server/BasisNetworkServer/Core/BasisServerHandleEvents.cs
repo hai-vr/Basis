@@ -608,6 +608,16 @@ namespace BasisServerHandle
                     RejectVersionMismatch(ConReq, BasisNetworkVersion.ServerVersion, ClientVersion);
                     return;
                 }
+                if (!BasisNetworkApplication.TryRead(ConReq.Data, out string companyName, out string productName))
+                {
+                    RejectWithReason(ConReq, "Invalid client data.");
+                    return;
+                }
+                if (!BasisNetworkApplication.Matches(NetworkServer.Configuration.CompanyName, NetworkServer.Configuration.ProductName, companyName, productName))
+                {
+                    RejectWithReason(ConReq, BasisNetworkApplication.UnsupportedReason(NetworkServer.Configuration.CompanyName, NetworkServer.Configuration.ProductName, companyName, productName));
+                    return;
+                }
                 if (NetworkServer.Configuration.UseAuth)
                 {
                     BytesMessage authMessage = new BytesMessage();

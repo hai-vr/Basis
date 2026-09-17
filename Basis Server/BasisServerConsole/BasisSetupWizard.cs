@@ -85,6 +85,8 @@ namespace BasisNetworkConsole
 
             string name = PromptString("Server name (shown in the server list)", config.ServerName);
             string motd = PromptString("Message of the day / MOTD", config.ServerMotd);
+            string companyName = PromptString("Accepted client company name (Unity Player Settings > Company Name)", config.CompanyName);
+            string productName = PromptString("Accepted client product name (Unity Player Settings > Product Name)", config.ProductName);
             ushort port = PromptUShort("Game port (UDP)", config.SetPort);
             string password = PromptPassword(config.Password);
             int peerLimit = PromptInt("Max players", config.PeerLimit, 1);
@@ -93,6 +95,8 @@ namespace BasisNetworkConsole
             BNL.Log("--- Review ---");
             BNL.Log($"  Server name : {name}");
             BNL.Log($"  MOTD        : {(motd.Length == 0 ? "<none>" : motd)}");
+            BNL.Log($"  Company     : {companyName}");
+            BNL.Log($"  Product     : {productName}");
             BNL.Log($"  Game port   : {port}");
             BNL.Log($"  Password    : {(password == DefaultPassword ? DefaultPassword : "(set)")}");
             BNL.Log($"  Max players : {peerLimit}");
@@ -106,6 +110,8 @@ namespace BasisNetworkConsole
 
             config.ServerName = name;
             config.ServerMotd = motd;
+            config.CompanyName = companyName;
+            config.ProductName = productName;
             config.SetPort = port;
             config.Password = password;
             config.PeerLimit = peerLimit;

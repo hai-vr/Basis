@@ -84,6 +84,15 @@ namespace HVR.Basis.Comms
             _nethack.AfterNetworkReady(isLocallyOwned);
         }
 
+        public override void OnNetworkTerminated(bool wasLocallyOwned)
+        {
+            if (_netObjects == null) return;
+            foreach (var netObject in _netObjects)
+            {
+                if (null != netObject) netObject.SetActive(false);
+            }
+        }
+
         private void OnReadyBothAvatarAndNetwork(bool isWearer)
         {
             _carriers.Clear();

@@ -182,7 +182,8 @@ public class ServerConfigurationDefaultsTests
         // 11: added the population-drop memory reclaim settings.
         // 12: added BSRSendPhaseBudgetPercent, the send pass's share of the reduction tick.
         // 13: added LogConnectionHandshake; the per-connection auth chatter is now off by default.
-        Assert.Equal(13, Configuration.CurrentConfigVersion);
+        // 14: added CompanyName and ProductName, the client identity a connection must report.
+        Assert.Equal(14, Configuration.CurrentConfigVersion);
         Assert.Equal(0, new Configuration().ConfigVersion);
         Assert.Equal("config", Configuration.ConfigFolderName);
         Assert.Equal("logs", Configuration.LogsFolderName);

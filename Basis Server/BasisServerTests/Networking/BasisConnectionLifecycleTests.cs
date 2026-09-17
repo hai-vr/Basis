@@ -143,11 +143,12 @@ internal static class LifecycleSupport
         };
     }
 
-    /// <summary>The exact wire order the real client writes: [version][BytesMessage auth][ReadyMessage].</summary>
-    public static byte[] ConnectPayload(ushort version, byte[]? auth, ReadyMessage? ready)
+    /// <summary>The exact wire order the real client writes: [version][company][product][BytesMessage auth][ReadyMessage].</summary>
+    public static byte[] ConnectPayload(ushort version, byte[]? auth, ReadyMessage? ready, string companyName = BasisNetworkApplication.DefaultCompanyName, string productName = BasisNetworkApplication.DefaultProductName)
     {
         NetDataWriter w = new NetDataWriter(true, 64);
         w.Put(version);
+        BasisNetworkApplication.Write(w, companyName, productName);
         if (auth != null)
         {
             new BytesMessage().Serialize(w, auth);
@@ -270,6 +271,108 @@ public class BasisConnectionRequestGateTests
     }
 
     [Fact]
+    public void MissingApplicationIdentity_IsRejectedAsInvalidClientData()
+    {
+        using var scope = new ServerStaticsScope();
+        InstallOpenServer(scope);
+
+        NetDataWriter w = new NetDataWriter(true, 8);
+        w.Put(BasisNetworkVersion.ServerVersion);
+        RecordingConnectionRequest req = LifecycleSupport.Request(w.CopyData());
+        BasisServerHandleEvents.HandleConnectionRequest(req);
+
+        Assert.True(req.WasRejected);
+        Assert.False(req.WasAccepted);
+        Assert.Equal("Invalid client data.", LifecycleSupport.RejectReason(req.RejectPayload));
+    }
+
+    [Theory]
+    [InlineData("Someone Else", BasisNetworkApplication.DefaultProductName)]
+    [InlineData(BasisNetworkApplication.DefaultCompanyName, "Someone Else")]
+    [InlineData("basis unity", "basis unity")]
+    [InlineData("", "")]
+    public void UnsupportedApplication_IsRejected_BeforeAuth(string companyName, string productName)
+    {
+        using var scope = new ServerStaticsScope();
+        InstallOpenServer(scope);
+        NetworkServer.Configuration.UseAuth = true;
+        ((FakeAuth)NetworkServer.Auth).Result = false;
+
+        ReadyMessage ready = LifecycleSupport.MakeReady(LifecycleSupport.NewUuid(), "Connie");
+        byte[] data = LifecycleSupport.ConnectPayload(BasisNetworkVersion.ServerVersion, new byte[] { 1 }, ready, companyName, productName);
+        RecordingConnectionRequest req = LifecycleSupport.Request(data, accepted: LifecycleSupport.Peer(LifecycleSupport.NextPeerId()));
+        BasisServerHandleEvents.HandleConnectionRequest(req);
+
+        Assert.True(req.WasRejected);
+        Assert.False(req.WasAccepted);
+        Assert.Equal(BasisNetworkApplication.UnsupportedReason(BasisNetworkApplication.DefaultCompanyName, BasisNetworkApplication.DefaultProductName, companyName, productName), LifecycleSupport.RejectReason(req.RejectPayload));
+    }
+
+    [Fact]
+    public void ConfiguredApplication_IsWhatTheServerAccepts()
+    {
+        using var scope = new ServerStaticsScope();
+        InstallOpenServer(scope);
+        NetworkServer.Configuration.CompanyName = "Fork Co";
+        NetworkServer.Configuration.ProductName = "Fork VR";
+
+        byte[] stockData = LifecycleSupport.ConnectPayload(BasisNetworkVersion.ServerVersion, new byte[] { 1 }, LifecycleSupport.MakeReady(LifecycleSupport.NewUuid(), "Connie"));
+        RecordingConnectionRequest stock = LifecycleSupport.Request(stockData, accepted: LifecycleSupport.Peer(LifecycleSupport.NextPeerId()));
+        BasisServerHandleEvents.HandleConnectionRequest(stock);
+
+        Assert.True(stock.WasRejected);
+        Assert.False(stock.WasAccepted);
+        Assert.Equal(BasisNetworkApplication.UnsupportedReason("Fork Co", "Fork VR", BasisNetworkApplication.DefaultCompanyName, BasisNetworkApplication.DefaultProductName), LifecycleSupport.RejectReason(stock.RejectPayload));
+
+        int id = LifecycleSupport.NextPeerId();
+        FakeNetPeer peer = LifecycleSupport.Peer(id);
+        byte[] forkData = LifecycleSupport.ConnectPayload(BasisNetworkVersion.ServerVersion, new byte[] { 1 }, LifecycleSupport.MakeReady(LifecycleSupport.NewUuid(), "Connie"), "Fork Co", "Fork VR");
+        RecordingConnectionRequest fork = LifecycleSupport.Request(forkData, accepted: peer);
+        BasisServerHandleEvents.HandleConnectionRequest(fork);
+
+        Assert.True(fork.WasAccepted);
+        Assert.False(fork.WasRejected);
+        Assert.True(NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer stored));
+        Assert.Same(peer, stored);
+    }
+
+    [Fact]
+    public void ApplicationIdentity_DefaultPairCostsOneByte_AndRoundTrips()
+    {
+        NetDataWriter w = new NetDataWriter(true, 16);
+        BasisNetworkApplication.Write(w, BasisNetworkApplication.DefaultCompanyName, BasisNetworkApplication.DefaultProductName);
+        Assert.Equal(1, w.Length);
+
+        Assert.True(BasisNetworkApplication.TryRead(new NetDataReader(w.CopyData()), out string company, out string product));
+        Assert.Equal(BasisNetworkApplication.DefaultCompanyName, company);
+        Assert.Equal(BasisNetworkApplication.DefaultProductName, product);
+        Assert.Equal(3, LifecycleSupport.ConnectPayload(BasisNetworkVersion.ServerVersion, null, null).Length);
+    }
+
+    [Fact]
+    public void ApplicationIdentity_OtherPairsRoundTripAsClampedStrings()
+    {
+        NetDataWriter w = new NetDataWriter(true, 16);
+        BasisNetworkApplication.Write(w, "Fork Co", new string('p', BasisNetworkApplication.MaxNameLength + 10));
+        Assert.True(w.Length > 1);
+
+        Assert.True(BasisNetworkApplication.TryRead(new NetDataReader(w.CopyData()), out string company, out string product));
+        Assert.Equal("Fork Co", company);
+        Assert.Equal(BasisNetworkApplication.MaxNameLength, product.Length);
+    }
+
+    [Fact]
+    public void ApplicationIdentity_RejectsUnknownTagsAndTruncatedStrings()
+    {
+        Assert.False(BasisNetworkApplication.TryRead(new NetDataReader(System.Array.Empty<byte>()), out _, out _));
+        Assert.False(BasisNetworkApplication.TryRead(new NetDataReader(new byte[] { 7 }), out _, out _));
+        Assert.False(BasisNetworkApplication.TryRead(new NetDataReader(new byte[] { 0, 2, 0 }), out _, out _));
+        Assert.True(BasisNetworkApplication.Matches(BasisNetworkApplication.DefaultCompanyName, BasisNetworkApplication.DefaultProductName, BasisNetworkApplication.DefaultCompanyName, BasisNetworkApplication.DefaultProductName));
+        Assert.False(BasisNetworkApplication.Matches(BasisNetworkApplication.DefaultCompanyName, BasisNetworkApplication.DefaultProductName, BasisNetworkApplication.DefaultCompanyName + " ", BasisNetworkApplication.DefaultProductName));
+        Assert.False(BasisNetworkApplication.Matches(BasisNetworkApplication.DefaultCompanyName, BasisNetworkApplication.DefaultProductName, null, BasisNetworkApplication.DefaultProductName));
+    }
+
+    [Fact]
     public void VersionMismatch_IsRejectedWithStructuredVersionMismatchKind()
     {
         using var scope = new ServerStaticsScope();
@@ -298,6 +401,7 @@ public class BasisConnectionRequestGateTests
         // Correct version, then a BytesMessage length that overruns the buffer → Deserialize fails.
         NetDataWriter w = new NetDataWriter(true, 8);
         w.Put(BasisNetworkVersion.ServerVersion);
+        BasisNetworkApplication.Write(w, BasisNetworkApplication.DefaultCompanyName, BasisNetworkApplication.DefaultProductName);
         w.Put((ushort)500); // claims 500 bytes, none follow
         RecordingConnectionRequest req = LifecycleSupport.Request(w.CopyData());
         BasisServerHandleEvents.HandleConnectionRequest(req);

@@ -166,7 +166,7 @@ namespace Basis.Network
                     }
                 };
                 var netClient = new NetworkClient();
-                var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, CreateConfig(), manualMode: true);
+                var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, ConfigManager.CompanyName, ConfigManager.ProductName, CreateConfig(), manualMode: true);
 
                 if (peer != null)
                 {
@@ -238,7 +238,7 @@ namespace Basis.Network
             };
 
             var netClient = new NetworkClient();
-            var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, CreateConfig(), manualMode: true);
+            var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, ConfigManager.CompanyName, ConfigManager.ProductName, CreateConfig(), manualMode: true);
 
             if (peer != null)
             {

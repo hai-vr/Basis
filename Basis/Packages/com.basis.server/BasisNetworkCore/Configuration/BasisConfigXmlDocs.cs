@@ -149,6 +149,8 @@ namespace Basis.Network.Core
             t.Fields.Add(new FieldDoc("SetPort", " UDP port the server binds and listens on; clients connect to this. ushort, range 1-65535. "));
             t.Fields.Add(new FieldDoc("ServerName", " Display name shown as the row title in client server-list UIs (server-info query). string. "));
             t.Fields.Add(new FieldDoc("ServerMotd", " Short message-of-the-day returned alongside the server name. string; empty = none. "));
+            t.Fields.Add(new FieldDoc("CompanyName", " Company name a connecting client must report (Unity Player Settings > Company Name). Exact match; any other value is rejected before authentication. string. Default Basis Unity. "));
+            t.Fields.Add(new FieldDoc("ProductName", " Product name a connecting client must report (Unity Player Settings > Product Name). Exact match; any other value is rejected before authentication. string. Default Basis Unity. "));
             t.Fields.Add(new FieldDoc("EnableStatistics", " Collect transport statistics (per-peer/packet counters) and run the stats worker; surfaced via the health endpoint. true|false. "));
             t.Fields.Add(new FieldDoc("HasFileSupport", " Master switch for writing data to disk: server logs, on-disc moderation lists, auth-identity persistence, chat file support. Set false for an in-memory/ephemeral server. true|false. "));
             t.Fields.Add(new FieldDoc("HealthCheckHost", " Host/interface the HTTP health endpoint binds. string (hostname or IP). ", " ===== Health-check HTTP endpoint ===== "));
