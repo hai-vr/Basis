@@ -313,6 +313,6 @@ MonoBehaviour:
     CanDisplayPhysicalTracker: 0
     HasRayCastVisual: 0
     HasRayCastRadical: 0
-    HasTrackedRole: 1
-    TrackedRole: 19
+    HasTrackedRole: 0
+    TrackedRole: 0
     HasInteractVisual: 1

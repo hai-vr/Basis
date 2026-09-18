@@ -3,6 +3,8 @@
     "rootNamespace": "Basis.MediaPipe.Tests",
     "references": [
         "BasisMediaPipe",
+        "Basis Framework",
+        "BasisSDK",
         "UnityEngine.TestRunner"
     ],
     "includePlatforms": [

@@ -481,6 +481,11 @@ namespace Basis.MediaPipe
             {
                 return;
             }
+            if (BasisDeviceManagement.StaticCurrentMode != BasisConstants.Desktop)
+            {
+                StopSDK();
+                return;
+            }
             if (_backend == null || !_backend.IsAvailable)
             {
                 return;
@@ -974,10 +979,18 @@ namespace Basis.MediaPipe
             return status;
         }
 
+        private void ReleaseHandIK(bool left)
+        {
+            if (left) _leftHandIK = 0f;
+            else _rightHandIK = 0f;
+            BasisLocalBoneControl control = left ? BasisLocalBoneDriver.LeftHandControl : BasisLocalBoneDriver.RightHandControl;
+            if (control != null) control.RigLayerWeight = 1f;
+        }
+
         private void RemoveTracker(BasisBoneTrackedRole role)
         {
-            if (role == BasisBoneTrackedRole.LeftHand) _leftHandIK = 0f;
-            else if (role == BasisBoneTrackedRole.RightHand) _rightHandIK = 0f;
+            if (role == BasisBoneTrackedRole.LeftHand) ReleaseHandIK(true);
+            else if (role == BasisBoneTrackedRole.RightHand) ReleaseHandIK(false);
 
             if (!_activeTrackers.Remove(role))
             {
@@ -1042,7 +1055,21 @@ namespace Basis.MediaPipe
                 return;
             }
 
-            dm.BasisDeviceNameMatcher.BasisDevice.Add(new DeviceSupportInformation
+            List<DeviceSupportInformation> devices = dm.BasisDeviceNameMatcher.BasisDevice;
+            for (int i = 0; i < devices.Count; i++)
+            {
+                DeviceSupportInformation existing = devices[i];
+                if (existing == null || (existing.DeviceID != SubSystem && (existing.matchableDeviceIds == null || Array.IndexOf(existing.matchableDeviceIds, SubSystem) < 0))) continue;
+                existing.HasTrackedRole = false;
+                existing.TrackedRole = BasisBoneTrackedRole.CenterEye;
+                existing.HasRayCastSupport = false;
+                existing.HasRayCastVisual = false;
+                existing.HasRayCastRadical = false;
+                _deviceMatchRegistered = true;
+                return;
+            }
+
+            devices.Add(new DeviceSupportInformation
             {
                 DeviceID = SubSystem,
                 matchableDeviceIds = new[] { SubSystem },
@@ -1064,6 +1091,8 @@ namespace Basis.MediaPipe
             }
             _trackers.Clear();
             _activeTrackers.Clear();
+            ReleaseHandIK(true);
+            ReleaseHandIK(false);
         }
     }
 }

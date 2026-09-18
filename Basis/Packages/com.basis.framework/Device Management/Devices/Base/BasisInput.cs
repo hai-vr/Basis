@@ -402,6 +402,10 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <param name="Role">The bone role to drive.</param>
         public void AssignRoleAndTracker(BasisBoneTrackedRole Role)
         {
+            if (hasRoleAssigned && HasControl && Control != null && trackedRole != Role)
+            {
+                SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer, UniqueDeviceIdentifier);
+            }
             int InputsCount = BasisDeviceManagement.Instance.AllInputDevices.Count;
             for (int Index = 0; Index < InputsCount; Index++)
             {
