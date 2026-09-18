@@ -31,6 +31,7 @@ namespace Basis.Scripts.Avatar
             if (_initialized) return;
             _initialized = true;
             BasisTrackerPairing.OnPairingsChanged += Reconcile;
+            BasisDeviceOverrides.OnChanged += Reconcile;
             BasisDeviceManagement.OnInitializationCompleted += BindDeviceListEvent;
 
             // BasisDeviceManagement may already be initialized when we attach
@@ -114,6 +115,7 @@ namespace Basis.Scripts.Avatar
                 BasisInput input = devices[i];
                 if (input == null) continue;
                 if (input is BasisVirtualMidpointInput) continue;
+                if (input.IgnoresPose) continue;
                 if (input.UniqueDeviceIdentifier == id) return input;
             }
             return null;

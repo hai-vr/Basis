@@ -98,7 +98,7 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
                 ScaledDeviceCoord.position *= BasisHeightDriver.AvatarToPlayerRatioScaled;
             }
 
-            if (hasRoleAssigned && Control.HasTracked != BasisHasTracked.HasNoTracker)
+            if (hasRoleAssigned && !IgnoresPose && Control.HasTracked != BasisHasTracked.HasNoTracker)
             {
                 GetFinalScaledPose(out Vector3 finalPosition, out Quaternion finalRotation);
                 Control.SetIncoming(finalPosition, finalRotation);

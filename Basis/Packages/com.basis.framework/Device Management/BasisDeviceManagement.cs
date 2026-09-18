@@ -646,7 +646,17 @@ namespace Basis.Scripts.Device_Management
 
             AllInputDevices.Add(input);
             BasisSettingsSystem.ReapplySettings();
+            TryRestoreCachedRole(input);
 
+            return true;
+        }
+
+        public void TryRestoreCachedRole(BasisInput input)
+        {
+            if (input == null || input.IgnoresDevice || PreviouslyConnectedDevices == null || PreviouslyConnectedDevices.Count == 0)
+            {
+                return;
+            }
             if (RestoreDevice(input.SubSystemIdentifier, input.UniqueDeviceIdentifier, out var prev))
             {
                 if (CheckBeforeOverride(prev))
@@ -659,8 +669,6 @@ namespace Basis.Scripts.Device_Management
                     BasisDebug.LogError("Existing Device Exist with this role!", BasisDebug.LogTag.Device);
                 }
             }
-
-            return true;
         }
 
         /// <summary>
@@ -675,8 +683,14 @@ namespace Basis.Scripts.Device_Management
 
             if (input != null)
             {
+                if (input.IgnoresDevice)
+                {
+                    BasisDebug.Log($"Device restore skipped, {input.UniqueDeviceIdentifier} is ignored", BasisDebug.LogTag.Device);
+                    yield break;
+                }
+                bool restoreRole = prev.hasRoleAssigned && !(BasisInput.RoleCanHaveMultiple(prev.trackedRole) && input.IsHandDevice);
                 BasisDebug.Log($"Device restored: {prev.trackedRole}", BasisDebug.LogTag.Device);
-                if (prev.hasRoleAssigned)
+                if (restoreRole)
                 {
                     if (CheckBeforeOverride(prev))
                     {
@@ -687,7 +701,7 @@ namespace Basis.Scripts.Device_Management
                         BasisDebug.Log($"Device unable to take role: {prev.trackedRole} already had existing role", BasisDebug.LogTag.Device);
                     }
                 }
-                if (prev.hasRoleAssigned)
+                if (restoreRole)
                 {
                     if (input.HasControl)
                     {
@@ -830,18 +844,23 @@ namespace Basis.Scripts.Device_Management
         /// <returns><c>true</c> when a device with the role exists; otherwise <c>false</c>.</returns>
         public bool FindDevice(out BasisInput found, BasisBoneTrackedRole FindRole)
         {
+            BasisInput fallback = null;
             for (int i = 0; i < AllInputDevices.Count; i++)
             {
                 var device = AllInputDevices[i];
                 if (device?.Control != null && device.TryGetRole(out var role) && role == FindRole)
                 {
-                    found = device;
-                    return true;
+                    if (!device.IgnoresPose)
+                    {
+                        found = device;
+                        return true;
+                    }
+                    fallback ??= device;
                 }
             }
 
-            found = null;
-            return false;
+            found = fallback;
+            return fallback != null;
         }
 
         /// <summary>

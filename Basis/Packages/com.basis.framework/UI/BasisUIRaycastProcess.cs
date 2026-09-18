@@ -80,6 +80,18 @@ namespace Basis.Scripts.UI
                     continue;
                 }
 
+                if (input.HasRaycaster && !input.PointerActive)
+                {
+                    var staleEventData = input.BasisUIRaycast.CurrentEventData;
+                    if (staleEventData != null && staleEventData.WasLastDown)
+                    {
+                        EffectiveMouseUp(staleEventData, input);
+                        staleEventData.WasLastDown = false;
+                    }
+                    input.BasisUIRaycast.ToolkitPointer.Release();
+                    continue;
+                }
+
                 if (input.HasRaycaster)
                 {
                     // Skip ray-based UI events when direct finger touch is active for this device.

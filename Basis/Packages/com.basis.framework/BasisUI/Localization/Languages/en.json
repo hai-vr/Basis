@@ -19435,6 +19435,126 @@
     {
       "key": "settings.controls.questControllerFix.tooltip",
       "value": "On, the avatar hand on Quest Touch controllers over SteamVR is anchored to a fixed wrist, so resting a thumb on the stick or face buttons no longer tilts the hand and laser. Finger poses still follow the touch sensors. Only affects Quest controllers in SteamVR mode."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides",
+      "value": "Controllers & Devices"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.tooltip",
+      "value": "Pick which connected device is your left and right hand, or stop a device, or part of one, from being used."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.none",
+      "value": "No controllers or trackers connected"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.hand",
+      "value": "Hand"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.hand.tooltip",
+      "value": "Which hand this device drives. Only offered on devices that already report themselves as a hand. Automatic uses the hand the runtime reports; a hand picked here wins over that, even when another device claims the same hand."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.hand.auto",
+      "value": "Automatic"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.hand.auto.tooltip",
+      "value": "Use the hand the runtime reports for this device."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.hand.left",
+      "value": "Left Hand"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.hand.left.tooltip",
+      "value": "Treat this device as the left hand, whatever the runtime says. Another device of the same kind that also claims the left hand steps aside."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.hand.right",
+      "value": "Right Hand"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.hand.right.tooltip",
+      "value": "Treat this device as the right hand, whatever the runtime says. Another device of the same kind that also claims the right hand steps aside."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.ignore",
+      "value": "Ignore Device"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.ignore.tooltip",
+      "value": "Stop using this device entirely: no body role, no buttons, no pointer. It stays listed here so it can be turned back on."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts",
+      "value": "Ignore Parts"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.description",
+      "value": "Keep the device but drop the highlighted parts of it."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.tooltip",
+      "value": "Red parts are ignored. Pose: position and rotation. Buttons: triggers, grips and face buttons. Sticks: thumbsticks and trackpads. Fingers: finger tracking. Pointer: the laser used for menus and grabbing."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.pose",
+      "value": "Pose"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.pose.tooltip",
+      "value": "Stop this device from moving its body part. Its buttons, sticks and pointer keep working, so another device can supply the position instead."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.buttons",
+      "value": "Buttons"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.buttons.tooltip",
+      "value": "Ignore the triggers, grips and face buttons on this device. Useful for a controller with a stuck or broken button."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.sticks",
+      "value": "Sticks"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.sticks.tooltip",
+      "value": "Ignore the thumbsticks and trackpads on this device. Useful for a controller with stick drift."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.fingers",
+      "value": "Fingers"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.fingers.tooltip",
+      "value": "Ignore finger tracking from this device, so another device can supply the finger poses."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.pointer",
+      "value": "Pointer"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.parts.pointer.tooltip",
+      "value": "Hide this device's laser and stop it from clicking menus or grabbing objects."
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.status.ignored",
+      "value": "Ignored"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.status.unassigned",
+      "value": "Not driving anything"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.status.poseIgnored",
+      "value": "{0}, pose ignored"
+    },
+    {
+      "key": "trackerLinking.deviceOverrides.status.override",
+      "value": "override"
     }
   ]
 }

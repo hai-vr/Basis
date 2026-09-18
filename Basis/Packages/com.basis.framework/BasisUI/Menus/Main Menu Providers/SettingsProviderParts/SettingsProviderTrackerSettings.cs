@@ -196,6 +196,7 @@ namespace Basis.BasisUI
             }
             BasisTrackerPairing.OnPairingsChanged += handleChange;
             BasisTrackerRoleOverride.OnOverridesChanged += handleChange;
+            BasisDeviceOverrides.OnChanged += handleChange;
             BasisTrackerIdentifyGizmos.OnIdentifyChanged += handleChange;
             BasisLocalAvatarDriver.CalibrationComplete += handleChange;
             BasisAvatarIKStageCalibration.OnFullBodyCalibrated += handleChange;
@@ -209,6 +210,7 @@ namespace Basis.BasisUI
                 }
                 BasisTrackerPairing.OnPairingsChanged -= handleChange;
                 BasisTrackerRoleOverride.OnOverridesChanged -= handleChange;
+                BasisDeviceOverrides.OnChanged -= handleChange;
                 BasisTrackerIdentifyGizmos.OnIdentifyChanged -= handleChange;
                 BasisLocalAvatarDriver.CalibrationComplete -= handleChange;
                 BasisAvatarIKStageCalibration.OnFullBodyCalibrated -= handleChange;
@@ -219,6 +221,7 @@ namespace Basis.BasisUI
                 state.Entries.Clear();
             };
 
+            SettingsProviderDeviceOverrides.Build(tabRoot);
             SettingsProviderDeviceOffsets.Build(tabRoot);
 
             // Webcam / external tracking sections injected by feature packages
@@ -613,7 +616,7 @@ namespace Basis.BasisUI
             return linkDropdown;
         }
 
-        private static void ApplyIdentifyVisual(PanelButton button, BasisInput input, bool named)
+        internal static void ApplyIdentifyVisual(PanelButton button, BasisInput input, bool named)
         {
             if (button == null || button.IsReleased || input == null) return;
             PanelElementDescriptor descriptor = button.Descriptor;
@@ -711,15 +714,15 @@ namespace Basis.BasisUI
             return false;
         }
 
-        private static readonly Color MutedFallback = new Color(0.65f, 0.67f, 0.69f);
+        internal static readonly Color MutedFallback = new Color(0.65f, 0.67f, 0.69f);
 
-        private static Color PaletteColor(Func<UiStylePalette, Color> pick, Color fallback)
+        internal static Color PaletteColor(Func<UiStylePalette, Color> pick, Color fallback)
         {
             UiStylePalette palette = UiStyleSettings.GetActivePalette();
             return palette != null ? pick(palette) : fallback;
         }
 
-        private static string Tint(Color color, string text)
+        internal static string Tint(Color color, string text)
             => $"<color=#{ColorUtility.ToHtmlStringRGB(color)}>{text}</color>";
 
         /// <summary>
@@ -734,7 +737,7 @@ namespace Basis.BasisUI
             => Tint(BasisTrackerIdentifyGizmos.ColorFor(input), NoParse(BuildTrackerLabel(input)));
 
         // Device names come off the hardware, so they are not ours to trust as markup.
-        private static string NoParse(string text) => $"<noparse>{text}</noparse>";
+        internal static string NoParse(string text) => $"<noparse>{text}</noparse>";
 
         private static string ResolveCurrentRoleOverride(TrackerRow row)
         {
@@ -773,7 +776,7 @@ namespace Basis.BasisUI
 
         private static string UnlinkedDisplayLabel() => BasisLocalization.Get("trackerLinking.linkUnlinked");
 
-        private static string FormatRole(BasisBoneTrackedRole role)
+        internal static string FormatRole(BasisBoneTrackedRole role)
         {
             string raw = role.ToString();
             StringBuilder sb = new StringBuilder(raw.Length + 4);
@@ -789,7 +792,7 @@ namespace Basis.BasisUI
             return sb.ToString();
         }
 
-        private static string BuildTrackerLabel(BasisInput input)
+        internal static string BuildTrackerLabel(BasisInput input)
         {
             if (input == null) return "Tracker";
 
@@ -961,6 +964,7 @@ namespace Basis.BasisUI
             BasisTrackerRoleOverride.ClearAll();
             BasisTrackerPairing.ClearAll();
             BasisTrackerIdentifyGizmos.ClearAll();
+            BasisDeviceOverrides.ClearAll();
             BasisDeviceOffsets.ClearAll(null);
         }
 
@@ -980,6 +984,8 @@ namespace Basis.BasisUI
                 // AllInputDevices alongside its physical halves; hide it so users
                 // don't try to link the virtual to anything.
                 if (input is BasisVirtualMidpointInput) continue;
+
+                if (input.IgnoresDevice || input.HasRoleOverride) continue;
 
                 // Pairing only makes sense for free FB-trackable devices. Skip the
                 // HMD and any device whose role was pinned by the matcher (named

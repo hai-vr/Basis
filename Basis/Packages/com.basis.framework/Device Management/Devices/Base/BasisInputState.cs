@@ -400,6 +400,30 @@ namespace Basis.Scripts.Device_Management.Devices
             target.Secondary2DAxisRaw = this.Secondary2DAxisRaw;
         }
 
+        public void ClearButtons()
+        {
+            GripButton = false;
+            SystemOrMenuButton = false;
+            PrimaryButtonGetState = false;
+            SecondaryButtonGetState = false;
+            PrimaryButtonTouch = false;
+            SecondaryButtonTouch = false;
+            TriggerTouch = false;
+            ThumbrestTouch = false;
+            Trigger = 0f;
+            SecondaryTrigger = 0f;
+        }
+
+        public void ClearSticks()
+        {
+            Primary2DAxisRaw = Vector2.zero;
+            Secondary2DAxisRaw = Vector2.zero;
+            Primary2DAxisClick = false;
+            Secondary2DAxisClick = false;
+            Primary2DAxisTouch = false;
+            Secondary2DAxisTouch = false;
+        }
+
         /// <summary>
         /// OR/max-merges another device's state into this one. Used to combine multiple devices
         /// that share a hand role into a single aggregated dispatch, so an edge action fires once

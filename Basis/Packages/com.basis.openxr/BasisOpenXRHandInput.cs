@@ -376,12 +376,13 @@ public class BasisOpenXRHandInput : BasisInputController
             return OffsetCoords.rotation * rawRot;
         }
 
+        bool writeFingers = !IgnoresFingers;
         switch (assignedRole)
         {
             case BasisBoneTrackedRole.LeftHand:
                 if (subsystem.leftHand.isTracked)
                 {
-                    if (!UpdateHandPose(subsystem.leftHand, BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, out HandRaw.position, out HandRaw.rotation)) break;
+                    if (!UpdateHandPose(subsystem.leftHand, BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, writeFingers, out HandRaw.position, out HandRaw.rotation)) break;
 
                     // keep your existing "final rotation" logic, but (optionally) parent it to OffsetCoords.rotation
                     HandFinal.rotation = HandleHandFinalRotation(ApplyOffsetToRot(HandRaw.rotation));
@@ -389,7 +390,7 @@ public class BasisOpenXRHandInput : BasisInputController
                 }
                 else
                 {
-                    FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand);
+                    if (writeFingers) FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand);
                     if (!TryReadPalmPose(out HandRaw.position, out HandRaw.rotation)) break;
 
                     var corrected = math.mul(HandRaw.rotation, Quaternion.Euler(LeftHandPalmCorrection));
@@ -407,14 +408,14 @@ public class BasisOpenXRHandInput : BasisInputController
             case BasisBoneTrackedRole.RightHand:
                 if (subsystem.rightHand.isTracked)
                 {
-                    if (!UpdateHandPose(subsystem.rightHand, BasisLocalPlayer.Instance.LocalHandDriver.RightHand, out HandRaw.position, out HandRaw.rotation)) break;
+                    if (!UpdateHandPose(subsystem.rightHand, BasisLocalPlayer.Instance.LocalHandDriver.RightHand, writeFingers, out HandRaw.position, out HandRaw.rotation)) break;
 
                     HandFinal.rotation = HandleHandFinalRotation(ApplyOffsetToRot(HandRaw.rotation));
                     HandFinal.position = ApplyOffsetToPos(HandRaw.position);
                 }
                 else
                 {
-                    FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.RightHand);
+                    if (writeFingers) FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.RightHand);
                     if (!TryReadPalmPose(out HandRaw.position, out HandRaw.rotation)) break;
 
                     var corrected = math.mul(HandRaw.rotation, Quaternion.Euler(RightHandPalmCorrection));
@@ -436,7 +437,7 @@ public class BasisOpenXRHandInput : BasisInputController
         Hand.RingPercentage[0] = Remap01ToMinus1To1(CurrentInputState.SecondaryTrigger);
         Hand.LittlePercentage[0] = Remap01ToMinus1To1(CurrentInputState.SecondaryTrigger);
     }
-    private bool UpdateHandPose(XRHand hand, BasisFingerPose fingerPose, out Vector3 position, out Quaternion rotation)
+    private bool UpdateHandPose(XRHand hand, BasisFingerPose fingerPose, bool writeFingers, out Vector3 position, out Quaternion rotation)
     {
         XRHandJoint joint = hand.GetJoint(XRHandJointID.Wrist);
         bool valid = false;
@@ -447,6 +448,10 @@ public class BasisOpenXRHandInput : BasisInputController
             position = pose.position;
             rotation = pose.rotation;
             valid = true;
+        }
+        if (!writeFingers)
+        {
+            return valid;
         }
 
         fingerPose.ThumbPercentage[0] = RemapFingerValue(hand, XRHandFingerID.Thumb);

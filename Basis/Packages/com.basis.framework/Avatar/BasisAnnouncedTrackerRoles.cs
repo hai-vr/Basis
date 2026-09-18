@@ -201,6 +201,11 @@ namespace Basis.Scripts.Avatar
 
         private static bool TryMapInput(BasisInput input, out BasisBoneTrackedRole role)
         {
+            if (input.IgnoresPose || input.HasRoleOverride)
+            {
+                role = BasisBoneTrackedRole.CenterEye;
+                return false;
+            }
             // Hand-tracking devices are excluded from full-body calibration everywhere, so they must
             // not announce a body part either — a stale SteamVR role on one would otherwise both bind
             // it and trigger the automatic calibration pass below.

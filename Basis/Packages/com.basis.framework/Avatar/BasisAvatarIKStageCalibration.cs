@@ -803,6 +803,8 @@ namespace Basis.Scripts.Avatar
                 // and never compete for a role on their own.
                 if (input.IsLinked) continue;
 
+                if (input.IgnoresPose || input.HasRoleOverride) continue;
+
                 // Devices the matcher pinned to a role (HMD, named hand controllers) keep
                 // their role no matter what.
                 if (input.DeviceMatchSettings != null && input.DeviceMatchSettings.HasTrackedRole) continue;

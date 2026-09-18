@@ -205,6 +205,18 @@ namespace Basis.Scripts.UI
             RaycastResult.module = BasisPointRaycaster;
         }
 
+        public void ClearFrame()
+        {
+            SortedGraphics.Clear();
+            SortedRays.Clear();
+            HadRaycastUITarget = false;
+            HadToolkitPanelTarget = false;
+            HadUISurface = false;
+            HitToolkitPanel = null;
+            ToolkitPointer.Release();
+            HandleNoHit();
+        }
+
         public void HandleUIRaycast()
         {
             SortedGraphics.Clear();

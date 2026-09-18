@@ -239,6 +239,22 @@ namespace Basis.Scripts.Device_Management.Devices
         /// this is used for example when we have multi touch support and need a way to get a bunch of different fingers coming from the same "head role"
         /// </summary>
         public bool HasRayCastOverrideSupport;
+        [System.NonSerialized] public string OverrideKey;
+        [System.NonSerialized] public BasisDeviceIgnore IgnoredParts;
+        [System.NonSerialized] public bool HasNaturalRole;
+        [System.NonSerialized] public BasisBoneTrackedRole NaturalRole;
+        private bool roleFromOverride, pointerWasActive;
+        public bool IgnoresDevice => (IgnoredParts & BasisDeviceIgnore.Device) != 0;
+        public bool IgnoresPose => (IgnoredParts & (BasisDeviceIgnore.Pose | BasisDeviceIgnore.Device)) != 0;
+        public bool IgnoresButtons => (IgnoredParts & (BasisDeviceIgnore.Buttons | BasisDeviceIgnore.Device)) != 0;
+        public bool IgnoresSticks => (IgnoredParts & (BasisDeviceIgnore.Sticks | BasisDeviceIgnore.Device)) != 0;
+        public bool IgnoresFingers => (IgnoredParts & (BasisDeviceIgnore.Fingers | BasisDeviceIgnore.Device)) != 0;
+        public bool IgnoresPointer => (IgnoredParts & (BasisDeviceIgnore.Pointer | BasisDeviceIgnore.Device)) != 0;
+        public bool IsHandDevice => (HasNaturalRole && BasisDeviceOverrides.IsHandRole(NaturalRole)) || (hasRoleAssigned && BasisDeviceOverrides.IsHandRole(trackedRole));
+        public bool HasRoleOverride => IsHandDevice && BasisDeviceOverrides.TryGetHand(OverrideKey, out _);
+        public bool HoldsForcedRole(BasisBoneTrackedRole role) => IsHandDevice && BasisDeviceOverrides.TryGetHand(OverrideKey, out BasisBoneTrackedRole forced) && forced == role;
+        public bool IsPoseDriving => HasControl && Control != null && Control.DevicesWithRoles.Contains(UniqueDeviceIdentifier);
+        public bool PointerActive => HasRaycaster && !IgnoresPointer && (hasRoleAssigned || HasRayCastOverrideSupport);
         /// <summary>
         /// Initialize the tracking lifecycle for this input device, register events, and (optionally) create raycast helpers.
         /// </summary>
@@ -263,14 +279,14 @@ namespace Basis.Scripts.Device_Management.Devices
             TrackingHardware = BasisTrackingHardwareClassifier.Refine(TrackingHardware, CommonDeviceIdentifier, DeviceSerial, IsCameraTracked);
             // Resolve capabilities/overrides (role, visuals, raycast support...)
             DeviceMatchSettings = BasisDeviceManagement.Instance.BasisDeviceNameMatcher.GetAssociatedDeviceMatchableNames(CommonDeviceIdentifier, basisBoneTrackedRole, ForceAssignTrackedRole);
-            if (DeviceMatchSettings.HasTrackedRole)
-            {
-                BasisDebug.Log("Overriding Tracker " + DeviceMatchSettings.DeviceID, BasisDebug.LogTag.Input);
-                AssignRoleAndTracker(DeviceMatchSettings.TrackedRole);
-            }
+            HasNaturalRole = DeviceMatchSettings.HasTrackedRole;
+            NaturalRole = DeviceMatchSettings.TrackedRole;
+            OverrideKey = BasisDeviceOverrides.KeyFor(this);
+            IgnoredParts = BasisDeviceOverrides.GetIgnore(OverrideKey);
+            ResolveRole();
 
             // Initialize raycasting helpers if supported
-            if (HasRaycastSupport())
+            if (WantsRaycaster())
             {
                 CreateRayCaster(this);
             }
@@ -395,6 +411,106 @@ namespace Basis.Scripts.Device_Management.Devices
             return false;
         }
 
+        public void ResolveRole()
+        {
+            BasisBoneTrackedRole hand = BasisBoneTrackedRole.CenterEye;
+            bool overridden = IsHandDevice && BasisDeviceOverrides.TryGetHand(OverrideKey, out hand);
+            if (IgnoresDevice)
+            {
+                if (hasRoleAssigned || Control != null)
+                {
+                    BasisDebug.Log($"Device {UniqueDeviceIdentifier} is ignored, releasing its role", BasisDebug.LogTag.Input);
+                    ReleaseRole();
+                }
+                return;
+            }
+            if (!overridden && !HasNaturalRole)
+            {
+                if (roleFromOverride)
+                {
+                    ReleaseRole();
+                    return;
+                }
+                SyncPoseDriving();
+                return;
+            }
+            BasisBoneTrackedRole role = overridden ? hand : NaturalRole;
+            if (hasRoleAssigned && trackedRole == role && HasControl && Control != null)
+            {
+                SyncPoseDriving();
+                roleFromOverride = overridden;
+                return;
+            }
+            BasisDebug.Log($"Resolving {UniqueDeviceIdentifier} to {role}" + (overridden ? " (override)" : string.Empty), BasisDebug.LogTag.Input);
+            AssignRoleAndTracker(role);
+            roleFromOverride = overridden;
+        }
+        private void SyncPoseDriving()
+        {
+            if (!hasRoleAssigned || Control == null)
+            {
+                return;
+            }
+            bool driving = IsPoseDriving;
+            if (driving && IgnoresPose)
+            {
+                ReleasePoseDriving();
+            }
+            else if (!driving && !IgnoresPose)
+            {
+                SetRealTrackers(BasisHasTracked.HasTracker, BasisHasRigLayer.HasRigLayer, UniqueDeviceIdentifier);
+            }
+        }
+        public void RefreshOverrides()
+        {
+            IgnoredParts = BasisDeviceOverrides.GetIgnore(OverrideKey);
+            ResolveRole();
+            if (!IgnoresDevice && !hasRoleAssigned && BasisDeviceManagement.Instance != null)
+            {
+                BasisDeviceManagement.Instance.TryRestoreCachedRole(this);
+            }
+            if (HasRaycaster == false && HasEvents && WantsRaycaster())
+            {
+                CreateRayCaster(this);
+            }
+        }
+        public bool WantsRaycaster()
+        {
+            if (HasRayCastOverrideSupport)
+            {
+                return true;
+            }
+            return (HasNaturalRole || HasRoleOverride) && DeviceMatchSettings != null && DeviceMatchSettings.HasRayCastSupport;
+        }
+        private void ReleaseRole()
+        {
+            UnAssignTracker();
+            ForgetRole();
+        }
+        private void ReleasePoseDriving()
+        {
+            if (Control == null)
+            {
+                return;
+            }
+            bool wasAssigned = hasRoleAssigned;
+            SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer, UniqueDeviceIdentifier);
+            if (Control.DevicesWithRoles.Count == 0)
+            {
+                Control.SetIncoming(Vector3.zero, Quaternion.identity);
+            }
+            hasRoleAssigned = wasAssigned;
+        }
+        private void ForgetRole()
+        {
+            hasRoleAssigned = false;
+            roleFromOverride = false;
+            trackedRole = BasisBoneTrackedRole.CenterEye;
+            ClearDeviceOffset();
+            Control = null;
+            HasControl = false;
+        }
+
         /// <summary>
         /// Assigns this device to drive a specific bone role and binds its <see cref="Control"/>.
         /// Also validates multiple-role constraints and sets tracker state on success.
@@ -402,10 +518,17 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <param name="Role">The bone role to drive.</param>
         public void AssignRoleAndTracker(BasisBoneTrackedRole Role)
         {
+            roleFromOverride = false;
+            if (IgnoresDevice)
+            {
+                BasisDebug.Log($"Device {UniqueDeviceIdentifier} is ignored, refusing role {Role}", BasisDebug.LogTag.Input);
+                return;
+            }
             if (hasRoleAssigned && HasControl && Control != null && trackedRole != Role)
             {
                 SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer, UniqueDeviceIdentifier);
             }
+            bool forced = HoldsForcedRole(Role);
             int InputsCount = BasisDeviceManagement.Instance.AllInputDevices.Count;
             for (int Index = 0; Index < InputsCount; Index++)
             {
@@ -428,6 +551,12 @@ namespace Basis.Scripts.Device_Management.Devices
                             // (e.g. hand-tracking coexisting with a controller) are intentionally kept.
                             if (Input.SubSystemIdentifier == SubSystemIdentifier)
                             {
+                                if (!forced && Input.HoldsForcedRole(found))
+                                {
+                                    BasisDebug.Log($"{Role} is forced onto {Input.UniqueDeviceIdentifier}, {UniqueDeviceIdentifier} stays unassigned", BasisDebug.LogTag.Input);
+                                    hasRoleAssigned = false;
+                                    return;
+                                }
                                 BasisDebug.Log($"Reclaiming {Role} from same-backend holder {Input.UniqueDeviceIdentifier}", BasisDebug.LogTag.Input);
                                 Input.UnAssignTracker();
                             }
@@ -445,6 +574,11 @@ namespace Basis.Scripts.Device_Management.Devices
             HasControl = BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out Control, trackedRole);
             if (HasControl)
             {
+                if (IgnoresPose)
+                {
+                    BasisDebug.Log($"Device {UniqueDeviceIdentifier} holds {Role} for input only, its pose is ignored", BasisDebug.LogTag.Input);
+                    return;
+                }
                 if (BasisBoneTrackedRoleCommonCheck.CheckItsFBTracker(trackedRole))//we dont want to offset these ones
                 {
                     CalculateOffset();
@@ -561,11 +695,7 @@ namespace Basis.Scripts.Device_Management.Devices
             }
             if (DeviceMatchSettings == null || DeviceMatchSettings.HasTrackedRole == false)
             {
-                hasRoleAssigned = false;
-                trackedRole = BasisBoneTrackedRole.CenterEye;
-                ClearDeviceOffset();
-                Control = null;
-                HasControl = false;
+                ForgetRole();
             }
         }
 
@@ -759,6 +889,29 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             LastUpdatePlayerControl();//stays here as late update is good for controller inputs not controller movement.
             LateDoPollData();
+            if (IgnoredParts != BasisDeviceIgnore.None)
+            {
+                ApplyIgnoreMask();
+            }
+        }
+        public void ApplyIgnoreMask()
+        {
+            if (IgnoresButtons)
+            {
+                CurrentInputState.ClearButtons();
+            }
+            if (IgnoresSticks)
+            {
+                CurrentInputState.ClearSticks();
+            }
+        }
+        private void HidePointer()
+        {
+            if (InteractionLineRenderer != null)
+            {
+                InteractionLineRenderer.enabled = false;
+            }
+            BasisUIRaycast?.ClearFrame();
         }
         /// <summary>
         /// Per-frame poll entry point: copies current state to last, then calls device-specific poll. On Render Pass
@@ -773,7 +926,11 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public void UpdateInputEvents(bool HasPlayerControlSupport = true,bool hasPlayerRaycastSupport = true)
         {
-            if (HasPlayerControlSupport)
+            if (IgnoredParts != BasisDeviceIgnore.None)
+            {
+                ApplyIgnoreMask();
+            }
+            if (HasPlayerControlSupport && (hasRoleAssigned || HasRayCastOverrideSupport))
             {
                 // Roles that may have multiple holders (the hands) dispatch once per frame on the
                 // combined state of all holders, so a duplicate or coexisting device can't double-fire
@@ -787,11 +944,17 @@ namespace Basis.Scripts.Device_Management.Devices
                     BasisActionDriver.UpdatePlayerControl(trackedRole, ref CurrentInputState, ref LastInputState);
                 }
             }
-            if (hasPlayerRaycastSupport && HasRaycaster)
+            bool pointerActive = hasPlayerRaycastSupport && PointerActive;
+            if (pointerActive)
             {
                 BasisPointRaycaster.UpdateRaycast();
                 BasisUIRaycast.HandleUIRaycast();
             }
+            else if (pointerWasActive)
+            {
+                HidePointer();
+            }
+            pointerWasActive = pointerActive;
         }
 
         /// <summary>
@@ -979,7 +1142,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public void ControlOnlyAsDevice()
         {
-            if (hasRoleAssigned && Control.HasTracked != BasisHasTracked.HasNoTracker)
+            if (hasRoleAssigned && !IgnoresPose && Control.HasTracked != BasisHasTracked.HasNoTracker)
             {
                 GetFinalScaledPose(out Vector3 position, out Quaternion rotation);
                 Control.SetIncoming(position + ScaledControlPositionOffset, rotation);

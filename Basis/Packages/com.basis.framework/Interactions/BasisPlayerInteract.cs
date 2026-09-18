@@ -214,7 +214,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 interactInput.wasTriggerDown = triggerDown;
                 bool desktopEye = IsDesktopCenterEye(interactInput.input);
 
-                if (BasisDeviceOffsetEditor.IsCapturing(interactInput.input))
+                if (BasisDeviceOffsetEditor.IsCapturing(interactInput.input) || !interactInput.input.PointerActive)
                 {
                     interactInput.HasvalidRay = false;
                     if (interactInput.lastTarget != null && interactInput.lastTarget.IsHoveredBy(interactInput.input))
