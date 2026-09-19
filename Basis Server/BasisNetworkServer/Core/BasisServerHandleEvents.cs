@@ -471,10 +471,11 @@ namespace BasisServerHandle
                 lock (_joinLock)
                 {
                     bool slotHeldByAnother = NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer holder) && !Equals(holder, peer);
+                    HVREventLog.PreLog("User left", peer);
+                    HVREventLog.Rec_UserLeft(peer);
+                    
                     bool removed = CleanupPeerSubsystems(peer, id);
 
-                    HVREventLog.PreLog("User left", peer);
-                HVREventLog.Rec_UserLeft(peer);
                     if (removed)
                     {
                         NetworkServer.RebuildPeerSnapshot();
