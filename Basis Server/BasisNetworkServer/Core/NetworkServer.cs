@@ -110,6 +110,7 @@ public static class NetworkServer
         BasisNetworkUdpDropMonitor.Start();
         BasisServerMemoryReclaim.Start();
         BasisNetworkServer.BasisNetworking.HelloWorldPubSub.Start();
+        EventLogPubSub.Start();
         BasisNetworkServer.Networking.HVREventLog.Rec_ServerStarted();
 
         BNL.Log("Server Worker Threads Booted");
@@ -130,6 +131,7 @@ public static class NetworkServer
         BasisNetworkUdpDropMonitor.Stop();
         BasisServerMemoryReclaim.Stop();
         BasisNetworkServer.BasisNetworking.HelloWorldPubSub.Stop();
+        EventLogPubSub.Stop();
         // StartServer builds a fresh AuthIdentity; without this the old one stays subscribed to
         // the static OnAuthReceived event — pinned forever, and handling every auth packet twice.
         // Left non-null so a straggling disconnect event can still resolve UUIDs while stopping.
