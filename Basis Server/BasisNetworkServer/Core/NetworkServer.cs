@@ -136,6 +136,7 @@ public static class NetworkServer
         BasisNetworkUdpDropMonitor.Start();
         BasisServerMemoryReclaim.Start();
         BasisNetworkServer.BasisNetworking.HelloWorldPubSub.Start();
+        EventLogPubSub.Start();
         BasisNetworkServer.Networking.HVREventLog.Rec_ServerStarted();
         BasisNetworkContentShare.StartExpiry();
 
@@ -159,6 +160,7 @@ public static class NetworkServer
         BasisNetworkUdpDropMonitor.Stop();
         BasisServerMemoryReclaim.Stop();
         BasisNetworkServer.BasisNetworking.HelloWorldPubSub.Stop();
+        EventLogPubSub.Stop();
         BasisNetworkContentShare.StopExpiry();
         BasisNetworkServer.Storage.BasisServerStorage.Stop();
         // StartServer builds a fresh AuthIdentity; without this the old one stays subscribed to
