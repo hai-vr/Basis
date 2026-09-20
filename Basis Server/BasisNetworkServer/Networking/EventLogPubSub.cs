@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -38,8 +39,10 @@ namespace BasisNetworkServer.BasisNetworking
         public List<byte[]> GetInitialState()
         {
             var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "event_log.jsonl");
-            var eventLog = File.ReadAllBytes(path);
-            return new List<byte[]>() { eventLog };
+            var eventLog = string.Join('\n', File.ReadLines(path)
+                .TakeLast(10)
+                .Select(line => line));
+            return new List<byte[]>() { Encoding.UTF8.GetBytes(eventLog) };
         }
     }
 }
