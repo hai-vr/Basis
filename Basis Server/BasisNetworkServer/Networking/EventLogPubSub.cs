@@ -40,7 +40,7 @@ namespace BasisNetworkServer.BasisNetworking
         {
             var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "event_log.jsonl");
             var eventLog = string.Join('\n', File.ReadLines(path)
-                .TakeLast(10)
+                .TakeLast(20)
                 .Select(line => line));
             return new List<byte[]>() { Encoding.UTF8.GetBytes(eventLog) };
         }
