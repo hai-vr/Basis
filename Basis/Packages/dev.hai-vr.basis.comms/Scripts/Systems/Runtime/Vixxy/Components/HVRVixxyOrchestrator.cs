@@ -387,6 +387,7 @@ namespace HVR.Vixxy
         internal void RegisterMeshVisibility(HVRMeshVisibility meshVisibility)
         {
             _meshVisibilityComponents.Add(meshVisibility);
+            meshVisibility.EnsureInitialized();
         }
 
         /// Inform the orchestrator that the object will need a material property block assigned to it.

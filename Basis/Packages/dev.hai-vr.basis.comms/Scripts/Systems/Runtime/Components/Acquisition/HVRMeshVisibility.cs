@@ -27,9 +27,20 @@ namespace HVR.Basis.Comms
         private readonly List<HVRMeshVisibilityPriorityRuntime> _runtimePriorities = new();
         private float _previousValue = float.MinValue;
         private HVRVixxyMeshVisibilityEffect _previousEffect = HVRVixxyMeshVisibilityEffect.DoNotOverride;
+        
+        private bool _initialized;
 
         private void Awake()
         {
+            EnsureInitialized();
+        }
+
+        // This component needs to work even if it is disabled.
+        internal void EnsureInitialized()
+        {
+            if (_initialized) return;
+            _initialized = true;
+            
             foreach (var priority in priorities)
             {
                 if (priority.subjects.Length > 0)
