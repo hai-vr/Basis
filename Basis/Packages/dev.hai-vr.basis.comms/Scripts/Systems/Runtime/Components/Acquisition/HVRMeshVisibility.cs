@@ -5,7 +5,7 @@ using UnityEngine;
 namespace HVR.Basis.Comms
 {
     [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization/mesh-visibility")]
-    [AddComponentMenu("HVR.Basis/HVR Mesh Visibility")]
+    [AddComponentMenu("HVR.Basis/HVR Mesh Visibility Condition")]
     public class HVRMeshVisibility : MonoBehaviour
     {
         public event MeshVisibilityChanged OnMeshVisibilityChanged;
