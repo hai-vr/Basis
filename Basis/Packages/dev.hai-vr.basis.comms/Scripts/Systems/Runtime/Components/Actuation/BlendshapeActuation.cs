@@ -158,6 +158,14 @@ namespace HVR.Basis.Comms
             for (var i = 0; i < allDefinitions.Length; i++)
             {
                 var definition = allDefinitions[i];
+                if (definition.ignoreIfAnyBlendshapeExists != null && definition.ignoreIfAnyBlendshapeExists.Length > 0)
+                {
+                    if (AnyBlendshapeExists(smrToBlendshapeIndices, definition.ignoreIfAnyBlendshapeExists))
+                    {
+                        continue;
+                    }
+                } 
+                
                 var actuatorTargets = ComputeTargets(smrToBlendshapeIndices, definition.blendshapes, definition.onlyFirstMatch, scratchTargets, scratchIndices);
                 if (actuatorTargets.Length == 0)
                 {
@@ -288,6 +296,22 @@ namespace HVR.Basis.Comms
             var addressesToListenTo = new int[_addessIdToBaseIndex.Count];
             _addessIdToBaseIndex.Keys.CopyTo(addressesToListenTo, 0);
             comms.VariableStore.RegisterAddresses(addressesToListenTo, OnAddressUpdated);
+        }
+
+        private static bool AnyBlendshapeExists(Dictionary<SkinnedMeshRenderer, Dictionary<string, int>> smrToBlendshapeIndices, string[] blendshapeNamesToCheck)
+        {
+            foreach (var blendshapeNameToIndexDict in smrToBlendshapeIndices.Values)
+            {
+                foreach (var blendshapeName in blendshapeNamesToCheck)
+                {
+                    if (blendshapeNameToIndexDict.ContainsKey(blendshapeName))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         private static readonly ConditionalWeakTable<Mesh, Dictionary<string, int>> MeshBlendshapeIndices = new();

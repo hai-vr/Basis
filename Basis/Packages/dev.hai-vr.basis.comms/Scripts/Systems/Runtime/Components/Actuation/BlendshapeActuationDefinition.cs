@@ -18,6 +18,9 @@ namespace HVR.Basis.Comms
         // If a blendshape actuator definition is searching for multiple blendshapes (due to different naming conventions),
         // and several exist, we don't want to actuate all of them. In this case, use onlyFirstMatch = true
         public bool onlyFirstMatch;
+        
+        // If those any of those other blendshapes exist, then this entry will be ignored.
+        public string[] ignoreIfAnyBlendshapeExists;
     }
 
     [Serializable]

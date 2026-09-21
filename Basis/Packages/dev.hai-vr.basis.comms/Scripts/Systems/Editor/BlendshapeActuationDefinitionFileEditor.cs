@@ -23,9 +23,9 @@ namespace HVR.Basis.Comms.Editor
             _addressPrefix = EditorGUILayout.TextField(_addressPrefix, GUILayout.Width(50)).Trim();
             _address = EditorGUILayout.TextField(_address).Trim();
             _inStart = EditorGUILayout.FloatField(_inStart, GUILayout.Width(30));
-            EditorGUILayout.LabelField("->", GUILayout.Width(30));
+            EditorGUILayout.LabelField("→", GUILayout.Width(30));
             _inEnd = EditorGUILayout.FloatField(_inEnd, GUILayout.Width(30));
-            EditorGUILayout.LabelField("=>", GUILayout.Width(30));
+            EditorGUILayout.LabelField("⇒", GUILayout.Width(30));
             _blendshape = EditorGUILayout.TextField(_blendshape).Trim();
             EditorGUILayout.EndHorizontal();
 
@@ -48,8 +48,14 @@ namespace HVR.Basis.Comms.Editor
                 EditorGUILayout.BeginHorizontal();
                 var isUnusual = definition.inStart != 0 || definition.inEnd != 1;
                 EditorGUILayout.LabelField($"{definition.address} [{definition.inStart}, {definition.inEnd}]", isUnusual ? EditorStyles.boldLabel : EditorStyles.label);;
-                EditorGUILayout.LabelField($"-> {string.Join(", ", definition.blendshapes)} [{definition.outStart}, {definition.outEnd}]");
+                EditorGUILayout.LabelField($"→ {string.Join(", ", definition.blendshapes)} [{definition.outStart}, {definition.outEnd}]");
                 EditorGUILayout.EndHorizontal();
+                if (definition.ignoreIfAnyBlendshapeExists != null && definition.ignoreIfAnyBlendshapeExists.Length > 0)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField("↑ Ignored if any of the following exist: " + string.Join(", ", definition.ignoreIfAnyBlendshapeExists));
+                    EditorGUILayout.EndHorizontal();
+                }
             }
         }
 
