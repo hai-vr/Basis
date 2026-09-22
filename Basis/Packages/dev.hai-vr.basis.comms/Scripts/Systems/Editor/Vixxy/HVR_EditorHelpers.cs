@@ -150,6 +150,23 @@ namespace HVR.Vixxy.Editor
                     }
                 }
             }
+            else if (variant == HVRVixxyPropertyVariant.Standard && propertyName.StartsWith(HVRVixxyControl.MaterialSwapPrefix))
+            {
+                if (component is Renderer renderer)
+                {
+                    var sharedMaterials = renderer.sharedMaterials;
+                    if (sharedMaterials.Length == 0) return false;
+                    
+                    var startIndex = HVRVixxyControl.MaterialSwapPrefix.Length;
+                    var numberish = propertyName.Substring(startIndex, propertyName.Length - startIndex - 1);
+                    if (int.TryParse(numberish, out var index))
+                    {
+                        if (index < 0 || index >= sharedMaterials.Length) return false;
+                        result = sharedMaterials[index];
+                        return true;
+                    }
+                }
+            }
             else
             {
                 if (componentType == typeof(Transform))

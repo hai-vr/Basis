@@ -99,6 +99,7 @@ namespace HVR.Vixxy
                 new List<string> { typeof(Transform).FullName },
                 new List<string> { "rotation", "localRotation", "position", "localPosition", "localScale" }
             )
+            // NOTE: m_Materials.Array.data[...] is a special case, handled separately.
         };
 
         static HVR_VixxyPermitted()

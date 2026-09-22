@@ -26,6 +26,7 @@ namespace HVR.Vixxy.Editor
         private List<Type> _types;
         private List<string> _blendshapes;
         private Dictionary<MaterialPropertyType, List<string>> _materialProperties;
+        private int _numberOfMaterialSlots;
 
         private string _search;
         private bool _focusNext;
@@ -152,10 +153,14 @@ namespace HVR.Vixxy.Editor
                         if (foundRenderer)
                         {
                             _materialProperties = HVR_EditorHelpers.ListMostMaterialProperties(renderer);
+                            
+                            var sharedMaterials = renderer.sharedMaterials;
+                            _numberOfMaterialSlots = sharedMaterials != null ? sharedMaterials.Length : 0;
                         }
                         else
                         {
                             _materialProperties = null;
+                            _numberOfMaterialSlots = 0;
                         }
                     }
 
@@ -636,6 +641,31 @@ namespace HVR.Vixxy.Editor
                     if (GUILayout.Button(HVRVixxyLocalizationPhrase.AddLabel, GUILayout.Width(60)))
                     {
                         AddBlendshape(blendshape);
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+            }
+
+            if (showMaterials && _numberOfMaterialSlots > 0)
+            {
+                EditorGUILayout.LabelField("Material Slots", EditorStyles.boldLabel);
+                for (var i = 0; i < _numberOfMaterialSlots; i++)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField($"Material #{i}");
+                    
+                    if (GUILayout.Button("Add", GUILayout.Width(55)))
+                    {
+                        var propertiesSp = selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
+
+                        var indexToPutData = propertiesSp.arraySize;
+                        propertiesSp.arraySize = indexToPutData + 1;
+                        propertiesSp.GetArrayElementAtIndex(indexToPutData).managedReferenceValue = new HVRVixxyPropertyMaterial()
+                        {
+                            fullClassName = targetedType.FullName,
+                            variant = HVRVixxyPropertyVariant.Standard,
+                            propertyName = $"m_Materials.Array.data[{i}]",
+                        };
                     }
                     EditorGUILayout.EndHorizontal();
                 }

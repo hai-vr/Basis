@@ -247,6 +247,7 @@ namespace HVR.Vixxy
         [NonSerialized] internal FieldInfo FieldIfMarkedAsFieldAccess; // null if HVRKindMarker is not FieldAccess
         [NonSerialized] internal PropertyInfo TPropertyIfMarkedAsTPropertyAccess; // null if HVRKindMarker is not PropertyAccess
         [NonSerialized] internal Dictionary<SkinnedMeshRenderer, int> SmrToBlendshapeIndex; // null if HVRKindMarker is not BlendShape
+        [NonSerialized] internal int MaterialIndex; // only relevant if HVRKindMarker is MaterialSwapAccess
 
         public virtual bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => true;
         public virtual void PruneArrays(int actualNumberOfChoices) {}

@@ -25,6 +25,9 @@ namespace HVR.Vixxy
     /// to the renderer once after all changes have been received for that frame.<br/>
     public partial class HVRVixxyControl : MonoBehaviour, IHVRVixxyActuator, IHVRInitializable
     {
+        // Note: We should really be allowing arbitrary array writes, but for now we just want material swaps to work.
+        internal const string MaterialSwapPrefix = "m_Materials.Array.data[";
+        
         // Licensing notes:
         // Portions of the code below originally comes from portions of a proprietary software that I (Haï~) am the author of,
         // and is notably used in "Vixen" (2023-2024).
@@ -471,6 +474,8 @@ namespace HVR.Vixxy
 
             var affectsMaterialPropertyBlock = property.variant == HVRVixxyPropertyVariant.MaterialProperty;
             var affectsBlendShape = property.variant == HVRVixxyPropertyVariant.BlendShape;
+            var affectsMaterialSwap = property.variant == HVRVixxyPropertyVariant.Standard
+                                      && property.propertyName.StartsWith(MaterialSwapPrefix) && property.propertyName.EndsWith("]");
 
             // UGC: Detect misconfiguration oddities
             if (affectsMaterialPropertyBlock && !typeof(Renderer).IsAssignableFrom(foundType))
@@ -480,6 +485,11 @@ namespace HVR.Vixxy
             if (affectsBlendShape && foundType != typeof(SkinnedMeshRenderer))
             {
                 return HVRVixxyPropertyBakeResult.BlendShapeCanOnlyBeUsedOnSkinnedMeshRenderers;
+            }
+
+            if (affectsMaterialSwap && !typeof(Renderer).IsAssignableFrom(foundType))
+            {
+                return HVRVixxyPropertyBakeResult.MaterialSwapCanOnlyBeUsedOnRenderers;
             }
 
             var useSkinnedMeshRendererLeniency = affectsMaterialPropertyBlock && (foundType == typeof(SkinnedMeshRenderer) || foundType == typeof(MeshRenderer));
@@ -543,6 +553,28 @@ namespace HVR.Vixxy
 
                 property.KindMarker = HVRKindMarker.BlendShape;
                 property.SmrToBlendshapeIndex = smrToIndex;
+            }
+            else if (affectsMaterialSwap)
+            {
+                if (property is not HVRVixxyPropertyMaterial)
+                {
+                    return HVRVixxyPropertyBakeResult.MaterialSwapCanOnlyBeUsedWithMaterialType;
+                }
+                var startIndex = MaterialSwapPrefix.Length;
+                var numberish = property.propertyName.Substring(startIndex, property.propertyName.Length - startIndex - 1);
+                if (int.TryParse(numberish, out var index))
+                {
+                    if (index < 0)
+                    {
+                        return HVRVixxyPropertyBakeResult.MaterialSwapIsOutOfBounds;
+                    }
+                    property.KindMarker = HVRKindMarker.MaterialSwapAccess;
+                    property.MaterialIndex = index;
+                }
+                else
+                {
+                    return HVRVixxyPropertyBakeResult.MaterialSwapIndexIsNotParseable;
+                }
             }
             else
             {
@@ -931,6 +963,16 @@ namespace HVR.Vixxy
                             propertyInfo.SetValue(component, resolvedValue);
                             break;
                         }
+                        case HVRKindMarker.MaterialSwapAccess:
+                        {
+                            var material = resolvedValue as Material;
+                            var renderer = component as Renderer;
+                            if (null != renderer)
+                            {
+                                ApplyMaterial(property, renderer, material);
+                            }
+                            break;
+                        }
                         case HVRKindMarker.Undefined:
                         default:
                             throw new ArgumentException("We tried to access an Undefined property, but Undefined properties are not supposed" +
@@ -942,6 +984,18 @@ namespace HVR.Vixxy
                 {
                     propertyNeedsCleanup = true;
                 }
+            }
+        }
+
+        private static void ApplyMaterial(HVRVixxyPropertyBase property, Renderer renderer, Material material)
+        {
+            _sharedMaterials ??= new List<Material>();
+            
+            renderer.GetSharedMaterials(_sharedMaterials);
+            if (_sharedMaterials.Count > property.MaterialIndex)
+            {
+                _sharedMaterials[property.MaterialIndex] = material;
+                renderer.SetSharedMaterials(_sharedMaterials);
             }
         }
 
@@ -970,6 +1024,7 @@ namespace HVR.Vixxy
 
         private static readonly Dictionary<(Type, string), FieldInfo> FieldInfoCache = new();
         private static readonly Dictionary<(Type, string), PropertyInfo> PropertyInfoCache = new();
+        private static List<Material> _sharedMaterials;
 
         public static FieldInfo GetFieldInfoOrNull(Type foundType, string propertyName)
         {
@@ -1021,7 +1076,8 @@ namespace HVR.Vixxy
         AffectsMaterialPropertyBlock,
         BlendShape,
         FieldAccess,
-        PropertyAccess
+        PropertyAccess,
+        MaterialSwapAccess,
     }
 
     /// When baking properties, the user may have misconfigured the property, or the property configuration may not apply to a
@@ -1043,6 +1099,10 @@ namespace HVR.Vixxy
         NoFieldNorPropertyMatches,
         FieldAccessIsNotPermitted,
         PropertyAccessIsNotPermitted,
+        MaterialSwapCanOnlyBeUsedOnRenderers,
+        MaterialSwapCanOnlyBeUsedWithMaterialType,
+        MaterialSwapIndexIsNotParseable,
+        MaterialSwapIsOutOfBounds,
     }
 
     internal enum HVRVixxySubjectsBakeResult
