@@ -653,6 +653,11 @@ namespace Basis.BasisUI
                 toggleHideRemoteCameras.AssignBinding(BasisSettingsDefaults.HideRemoteCameraPucks);
                 toggleHideRemoteCameras.Descriptor.SetTitle(BasisLocalization.Get("settings.general.hideRemoteCameras"));
                 toggleHideRemoteCameras.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.hideRemoteCameras.tooltip"));
+
+                PanelToggle toggleExternalLinkRequests = PanelToggle.CreateNewEntry(container);
+                toggleExternalLinkRequests.AssignBinding(BasisSettingsDefaults.ExternalLinkRequests);
+                toggleExternalLinkRequests.Descriptor.SetTitle(BasisLocalization.Get("settings.general.externalLinkRequests"));
+                toggleExternalLinkRequests.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.externalLinkRequests.tooltip"));
             }, false, visible =>
             {
                 if (visible && sliderMenuTeleportDistance != null)
@@ -1075,6 +1080,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.JiggleGrabInteractions.ResetToDefault();
             BasisSettingsDefaults.UIHaptics.ResetToDefault();
             BasisSettingsDefaults.HideRemoteCameraPucks.ResetToDefault();
+            BasisSettingsDefaults.ExternalLinkRequests.ResetToDefault();
+            BasisSettingsDefaults.AllowUntrustedScriptPermissions.ResetToDefault();
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
             BasisSettingsDefaults.EnablePassthrough.ResetToDefault();
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();

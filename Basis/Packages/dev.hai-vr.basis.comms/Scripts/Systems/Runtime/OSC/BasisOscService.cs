@@ -37,6 +37,7 @@ namespace HVR.Basis.Comms
             public EntityId[] OwnerIds { get; }
         }
 
+        [NoAutoStaticsCleanup]
         private sealed class DispatcherState
         {
             public static readonly DispatcherState Empty = new DispatcherState(

@@ -104,7 +104,7 @@ public partial class BasisContentSphere : BasisInteractableObject
         {
             Label.text = string.IsNullOrEmpty(detail)
                 ? GetContentTypeName()
-                : $"{GetContentTypeName()}\n{ClampName(detail)}";
+                : $"{GetContentTypeName()}\n{LabelName(detail)}";
         }
 
         if (Renderer != null)
@@ -173,7 +173,7 @@ public partial class BasisContentSphere : BasisInteractableObject
                 string bundleName = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription?.AssetBundleName;
                 if (!string.IsNullOrEmpty(bundleName) && Label != null)
                 {
-                    Label.text = $"{GetContentTypeName()}\n{ClampName(bundleName)}";
+                    Label.text = $"{GetContentTypeName()}\n{LabelName(bundleName)}";
                 }
             }
             else
@@ -194,7 +194,7 @@ public partial class BasisContentSphere : BasisInteractableObject
             string sharedName = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription?.AssetBundleName;
             if (!string.IsNullOrEmpty(sharedName))
             {
-                BasisShareableRegistry.SetDetail(SphereNetID, ClampName(sharedName));
+                BasisShareableRegistry.SetDetail(SphereNetID, LabelName(sharedName));
             }
         }
         catch (OperationCanceledException) { }
@@ -224,6 +224,12 @@ public partial class BasisContentSphere : BasisInteractableObject
         }
         return value.Substring(0, MaxTitleNameLength).TrimEnd() + "...";
     }
+
+    /// <summary>
+    /// A name another client supplied (a payload label, a bundle name, a server address), clamped
+    /// and escaped for a label that renders rich text.
+    /// </summary>
+    private static string LabelName(string value) => BasisContentShareText.Plain(ClampName(value));
     /// <summary>
     /// Constructs a BasisLoadableBundle from this sphere's metadata.
     /// </summary>
@@ -255,19 +261,23 @@ public partial class BasisContentSphere : BasisInteractableObject
         string sharerLine;
         bool hasName = !string.IsNullOrEmpty(CreatorDisplayName);
         bool hasUUID = !string.IsNullOrEmpty(CreatorUUID);
+        // The name and DID are whatever the sharer's client sent, so they are escaped before
+        // going into markup: otherwise a name could restyle the dialog or fake a "verified" line.
+        string safeName = BasisContentShareText.Plain(CreatorDisplayName);
+        string safeUUID = BasisContentShareText.Plain(CreatorUUID);
         // Render the UUID/DID at half size via TMP rich text — the full DID is
         // long enough to wrap and dominate the dialog when shown at body size.
         if (hasName && hasUUID)
         {
-            sharerLine = BasisLocalization.Get("library.shareable.sharedBy", $"{CreatorDisplayName} <size=50%>({CreatorUUID})</size>");
+            sharerLine = BasisLocalization.Get("library.shareable.sharedBy", $"{safeName} <size=50%>({safeUUID})</size>");
         }
         else if (hasName)
         {
-            sharerLine = BasisLocalization.Get("library.shareable.sharedBy", CreatorDisplayName);
+            sharerLine = BasisLocalization.Get("library.shareable.sharedBy", safeName);
         }
         else if (hasUUID)
         {
-            sharerLine = BasisLocalization.Get("library.shareable.sharedBy", $"<size=50%>{CreatorUUID}</size>");
+            sharerLine = BasisLocalization.Get("library.shareable.sharedBy", $"<size=50%>{safeUUID}</size>");
         }
         else
         {
@@ -279,6 +289,11 @@ public partial class BasisContentSphere : BasisInteractableObject
             BasisContentShareText.Present(this, title, sharerLine);
             return;
         }
+        if (ContentType == ContentShareType.Folder)
+        {
+            BasisContentShareFolder.Present(this, title, sharerLine);
+            return;
+        }
 
         string description;
         if (ContentType == ContentShareType.Server)
@@ -286,12 +301,12 @@ public partial class BasisContentSphere : BasisInteractableObject
             string addrLine = ContentURL ?? string.Empty;
             if (SavedServerStore.TryParseConnectionString(addrLine, out string a, out ushort p, out bool _, out string _))
                 addrLine = $"{a}:{p}";
-            description = $"{sharerLine}\n\n{BasisLocalization.Get("content.share.addServer", addrLine)}";
+            description = $"{sharerLine}\n\n{BasisLocalization.Get("content.share.addServer", BasisContentShareText.Plain(addrLine))}";
         }
         else if (ContentSharePayload.IsPayloadType(ContentType))
         {
             string detail = BasisContentSharePayloadRegistry.Describe(ContentType, ContentURL);
-            string named = string.IsNullOrEmpty(detail) ? typeName : $"\"{ClampName(detail)}\"";
+            string named = string.IsNullOrEmpty(detail) ? typeName : $"\"{LabelName(detail)}\"";
             string question = ContentType != ContentShareType.DollyTrack
                 ? BasisLocalization.Get("content.share.save.payload", named, typeName)
                 : string.IsNullOrEmpty(detail)
@@ -447,6 +462,7 @@ public partial class BasisContentSphere : BasisInteractableObject
         ContentShareType.DollyTrack => "library.shareable.dollyTrack",
         ContentShareType.Link => "library.shareable.link",
         ContentShareType.Text => "library.shareable.text",
+        ContentShareType.Folder => "library.shareable.folder",
         _ => "library.shareable.other",
     };
 

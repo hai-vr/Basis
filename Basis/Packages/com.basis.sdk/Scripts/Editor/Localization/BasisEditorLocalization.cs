@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,6 +20,7 @@ namespace Basis.Editor.Localization
     /// a new file in there is enough to make it appear — no Addressables
     /// bookkeeping, no menu item to run.</para>
     /// </summary>
+    [NoAutoStaticsCleanup]
     public static class BasisEditorLocalization
     {
         public const string DefaultLanguage = "en";

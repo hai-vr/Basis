@@ -333,7 +333,8 @@ public static partial class BasisContentShareManager
                 {
                     Id = sphereId,
                     Kind = ToShareableKind(msg.ContentType),
-                    Title = shareDetail,
+                    // From the sharer's client; the Library renders it as rich text.
+                    Title = BasisContentShareText.Plain(shareDetail),
                     SharerName = serverMsg.SharerDisplayName,
                     Protected = serverMsg.SharerProtected,
                     Actions = RemoveActions(sphereId, Sphere),

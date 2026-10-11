@@ -1,7 +1,9 @@
+using Unity.Scripting.LifecycleManagement;
 using UnityEditor;
 
 namespace Basis.Setup
 {
+    [NoAutoStaticsCleanup]
     internal sealed class BasisSetupPostprocessor : AssetPostprocessor
     {
         private static bool _running;

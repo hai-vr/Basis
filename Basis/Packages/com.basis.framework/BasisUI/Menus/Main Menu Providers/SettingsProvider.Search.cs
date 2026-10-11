@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -14,6 +15,7 @@ namespace Basis.BasisUI
     /// exist to be found — instantiates a page worth of prefabs each, so it runs one page per frame
     /// in the background and tells the popup to ask again as each one lands.</para>
     /// </summary>
+    [NoAutoStaticsCleanup]
     public partial class SettingsProvider
     {
         /// <summary>

@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Text.RegularExpressions;
 using Basis.BasisUI;
@@ -6,6 +7,7 @@ using Basis.Scripts.Drivers;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+[NoAutoStaticsCleanup]
 public class SMModuleAntialiasingURP : BasisSettingsBase
 {
     public Camera Camera;

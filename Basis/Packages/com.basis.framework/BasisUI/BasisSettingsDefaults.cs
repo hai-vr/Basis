@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using Basis.Scripts.Networking.Receivers;
 using System;
 using Basis.Scripts.Drivers;
@@ -7,6 +8,7 @@ using Basis.Streaming;
 
 namespace Basis.BasisUI
 {
+    [NoAutoStaticsCleanup]
     public static class BasisSettingsDefaults
     {
         public static BasisSettingsBinding<float> MainVolume = new("main volume", new BasisPlatformDefault<float>(75));
@@ -1270,6 +1272,8 @@ namespace Basis.BasisUI
         // Hide remote players' handheld camera pucks (and their owner tags) locally.
         public static BasisSettingsBinding<bool> HideRemoteCameraPucks = new("hideremotecamerapucks", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisablePropPickup = new("disableproppickup", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> ExternalLinkRequests = new("externallinkrequests", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AllowUntrustedScriptPermissions = new("allowuntrustedscriptpermissions", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisableVRAutoHold = new("disablevrautohold", new BasisPlatformDefault<bool>(false));
         // Master switch for jiggle grab-and-pull: off = never initiate, never be grabbed, never apply observed grabs.
         public static BasisSettingsBinding<bool> JiggleGrabInteractions = new("jigglegrabinteractions", new BasisPlatformDefault<bool>(true));
@@ -2755,6 +2759,10 @@ namespace Basis.BasisUI
             BasisNetworkPIPCameraDriver.SetHideRemoteCameraPucks(HideRemoteCameraPucks.RawValue);
             HideRemoteCameraPucks.OnChanged += BasisNetworkPIPCameraDriver.SetHideRemoteCameraPucks;
             DisablePropPickup.LoadBindingValue();
+            ExternalLinkRequests.LoadBindingValue();
+            AllowUntrustedScriptPermissions.LoadBindingValue();
+            AllowUntrustedScriptPermissions.OnChanged -= BasisCilboxPermissions.UntrustedChanged;
+            AllowUntrustedScriptPermissions.OnChanged += BasisCilboxPermissions.UntrustedChanged;
             DisableVRAutoHold.LoadBindingValue();
             JiggleGrabInteractions.LoadBindingValue();
             Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabPermissions.MasterEnabled = JiggleGrabInteractions.RawValue;

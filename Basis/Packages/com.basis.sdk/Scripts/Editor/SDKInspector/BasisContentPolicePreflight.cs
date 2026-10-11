@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -179,6 +180,7 @@ public static class BasisContentPolicePreflight
 /// The type names the load-time pass rewrites rather than removes. Kept as strings here so the
 /// editor check needs no reference to the Animation Rigging package to know what it is looking at.
 /// </summary>
+[NoAutoStaticsCleanup]
 public static class BasisConstraintConversionNames
 {
     static readonly HashSet<string> Converted = new HashSet<string>
@@ -216,6 +218,7 @@ public static class BasisConstraintConversionNames
 /// load-time pass and must not be reported against it. Resolved by name for the same reason the
 /// constraint list is: this assembly does not reference the cilbox package, which is optional.
 /// </summary>
+[NoAutoStaticsCleanup]
 public static class BasisCilboxTypeCheck
 {
     static readonly Dictionary<Type, bool> Cache = new Dictionary<Type, bool>();

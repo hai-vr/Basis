@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using UnityEditor;
@@ -12,6 +13,7 @@ using UnityEngine;
 /// rewritten in UI Toolkit — wrap the body in <see cref="BeginPage"/>/<see cref="EndPage"/>, put
 /// each block in a <see cref="Card"/> and use the row/pill/bar helpers instead of raw LabelFields.
 /// </summary>
+[NoAutoStaticsCleanup]
 public static class BasisEditorUI
 {
     /// <summary>

@@ -16,8 +16,13 @@ namespace Basis.BasisUI
         private const string SevereHex = "#FF5A4A";
         private const int MaxNameLength = 48;
 
-        public static void Show(string contentName, string contentKind, IReadOnlyList<string> items, Action<Answer> onAnswer, Action onDeferred)
+        public static void Show(string contentName, string contentKind, IReadOnlyList<string> items, Action<Answer> onAnswer, Action<BasisNotification> onDeferred)
         {
+            if (!BasisCilboxPermissions.UntrustedAllowed)
+            {
+                onAnswer?.Invoke(Answer.Deny);
+                return;
+            }
             string title = BasisLocalization.Get("settings.cilboxPermissions.prompt.title");
             string description = BasisLocalization.Get("settings.cilboxPermissions.prompt.body", CleanName(contentName), KindLabel(contentKind));
             if (BasisNotificationCenter.RouteToNotifications)
@@ -95,16 +100,21 @@ namespace Basis.BasisUI
             return clean.Length > MaxNameLength ? clean.Substring(0, MaxNameLength) : clean;
         }
 
-        private static void Defer(string title, string description, string contentName, string contentKind, IReadOnlyList<string> items, Action<Answer> onAnswer, Action onDeferred)
+        private static void Defer(string title, string description, string contentName, string contentKind, IReadOnlyList<string> items, Action<Answer> onAnswer, Action<BasisNotification> onDeferred)
         {
-            BasisNotificationCenter.AddPending(
+            if (!BasisCilboxPermissions.UntrustedAllowed)
+            {
+                onAnswer?.Invoke(Answer.Deny);
+                return;
+            }
+            BasisNotification notice = BasisNotificationCenter.AddPending(
                 title,
                 description,
                 AddressableAssets.Sprites.Unlocked,
                 reopen: () => Show(contentName, contentKind, items, onAnswer, onDeferred),
                 onDismiss: () => onAnswer?.Invoke(Answer.Deny),
                 category: BasisNotificationCategory.Content);
-            onDeferred?.Invoke();
+            onDeferred?.Invoke(notice);
         }
     }
 }

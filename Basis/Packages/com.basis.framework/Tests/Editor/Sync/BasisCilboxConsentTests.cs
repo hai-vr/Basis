@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Basis.BasisUI;
+using Basis.Scripts.Settings;
 using Cilbox;
 using NUnit.Framework;
 using UnityEngine;
@@ -13,10 +14,19 @@ namespace Basis.Tests.Sync
         const string WebRequest = "UnityEngine.Networking.UnityWebRequest";
         const BindingFlags Internal = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
         readonly List<GameObject> hosts = new List<GameObject>();
+        bool untrustedBefore;
+
+        [SetUp]
+        public void SetUp()
+        {
+            untrustedBefore = BasisSettingsDefaults.AllowUntrustedScriptPermissions.RawValue;
+            BasisSettingsDefaults.AllowUntrustedScriptPermissions.RawValue = true;
+        }
 
         [TearDown]
         public void TearDown()
         {
+            BasisSettingsDefaults.AllowUntrustedScriptPermissions.RawValue = untrustedBefore;
             foreach (GameObject host in hosts)
             {
                 if (host != null) UnityEngine.Object.DestroyImmediate(host);
@@ -112,6 +122,68 @@ namespace Basis.Tests.Sync
 
             CilboxPropBasis other = AddBox<CilboxPropBasis>();
             Assert.IsFalse(other.CheckTypeAllowed(WebRequest));
+        }
+
+        [Test]
+        public void AllowUntrustedPermissions_IsOffByDefault_OnEveryPlatform()
+        {
+            BasisPlatformDefault<bool> defaults = BasisSettingsDefaults.AllowUntrustedScriptPermissions.DefaultValue;
+            Assert.IsFalse(defaults.GetDefault());
+            Assert.IsFalse(defaults.windows);
+            Assert.IsFalse(defaults.android);
+            Assert.IsFalse(defaults.ios);
+            Assert.IsFalse(defaults.linux);
+            Assert.IsFalse(defaults.other);
+        }
+
+        [Test]
+        public void WhileUntrustedPermissionsAreOff_AGrantOpensNothing()
+        {
+            CilboxPropBasis prop = AddBox<CilboxPropBasis>();
+            Grant(prop, "Type:" + WebRequest, "Method:UnityEngine.GameObject.AddComponent");
+
+            BasisSettingsDefaults.AllowUntrustedScriptPermissions.RawValue = false;
+            Assert.IsFalse(prop.CheckTypeAllowed(WebRequest));
+            Assert.IsFalse(Allowed(prop, typeof(GameObject), nameof(GameObject.AddComponent)));
+            Assert.IsTrue(prop.CheckTypeAllowed("UnityEngine.Transform"));
+
+            BasisSettingsDefaults.AllowUntrustedScriptPermissions.RawValue = true;
+            Assert.IsTrue(prop.CheckTypeAllowed(WebRequest));
+        }
+
+        [Test]
+        public void TurningUntrustedPermissionsOff_StopsOnlyScriptsThatWereGranted()
+        {
+            int raised = 0;
+            Action onDisabled = () => raised++;
+            BasisCilboxPermissions.OnUntrustedDisabled += onDisabled;
+            try
+            {
+                BasisCilboxPermissions.UntrustedChanged(true);
+                Assert.AreEqual(0, raised);
+                BasisCilboxPermissions.UntrustedChanged(false);
+                Assert.AreEqual(1, raised);
+            }
+            finally
+            {
+                BasisCilboxPermissions.OnUntrustedDisabled -= onDisabled;
+            }
+
+            CilboxPropBasis granted = AddBox<CilboxPropBasis>();
+            Grant(granted, "Type:" + WebRequest);
+            CilboxPropBasis plain = AddBox<CilboxPropBasis>();
+            BasisSettingsDefaults.AllowUntrustedScriptPermissions.RawValue = false;
+            MethodInfo disallow = typeof(CilboxBasisCommon).Assembly.GetType("Cilbox.CilboxBasisConsent", true).GetMethod("Disallow", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.IsNotNull(disallow, "CilboxBasisConsent.Disallow moved; this test cannot switch untrusted permissions off.");
+            disallow.Invoke(null, null);
+
+            Assert.IsTrue(granted.disabled);
+            Assert.AreEqual("Denied", Field("consentState").GetValue(granted).ToString());
+            Assert.IsNull(Field("consentGranted").GetValue(granted));
+            Assert.IsFalse(plain.disabled);
+
+            BasisSettingsDefaults.AllowUntrustedScriptPermissions.RawValue = true;
+            Assert.IsFalse(granted.CheckTypeAllowed(WebRequest));
         }
 
         [Test]

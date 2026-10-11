@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,6 +15,7 @@ namespace Basis.Scripts.Networking.Voice.EditorTools
     /// rendered audio, and can export any single scenario's reference/output/baseline as
     /// WAVs for listening. Pure offline simulation — no play mode, no live server.
     /// </summary>
+    [NoAutoStaticsCleanup]
     public sealed class BasisVoicePipelineTab : BasisEditorTabPage
     {
         public override string Title => "Pipeline Matrix";

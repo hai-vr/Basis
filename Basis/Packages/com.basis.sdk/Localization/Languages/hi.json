@@ -877,6 +877,8 @@
     { "key": "sdk.cilbox.scan.issue.networkBehaviour", "value": "क्लास नेटवर्क behaviour से विरासत लेती है। इसकी जगह लेने वाली प्रॉक्सी वह नहीं है, इसलिए वे ओवरराइड कभी नहीं चलते — नेटवर्क shim लगाएँ।" },
     { "key": "sdk.cilbox.scan.issue.unforwarded", "value": "ऐसे Unity संदेश परिभाषित हैं जिन्हें प्रॉक्सी कभी आगे नहीं भेजती, इसलिए वे कभी नहीं चलेंगे: {0}" },
     { "key": "sdk.cilbox.scan.issue.coroutine", "value": "IEnumerator लौटाता है, पर सैंडबॉक्स में कोरूटीन नहीं हैं: {0}" },
-    { "key": "sdk.cilbox.scan.issue.onEnable", "value": "OnEnable परिभाषित है। पहला खो जाता है, इसलिए एक बार की तैयारी Start में रखें।" }
+    { "key": "sdk.cilbox.scan.issue.onEnable", "value": "OnEnable परिभाषित है। पहला खो जाता है, इसलिए एक बार की तैयारी Start में रखें।" },
+    { "key": "sdk.cilbox.api.externalLink.title", "value": "वेब पेज खोलना" },
+    { "key": "sdk.cilbox.api.externalLink.summary", "value": "खिलाड़ी से उसके ब्राउज़र में एक पेज खोलने के लिए कहता है। खिलाड़ी को हमेशा पता दिखता है और वही तय करता है; यह केवल तभी काम करता है जब उसने अभी-अभी इस वर्ल्ड या प्रॉप का उपयोग किया हो, अवतार से कभी नहीं, और कॉलबैक बताता है कि पेज खुला या नहीं। Application.OpenURL भी इसी सवाल से होकर जाता है।" }
   ]
 }

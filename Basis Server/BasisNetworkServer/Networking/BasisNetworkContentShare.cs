@@ -64,19 +64,9 @@ public static class BasisNetworkContentShare
         switch (msg.ContentType)
         {
             case ContentShareType.Avatar:
-                blocked = BasisNetworkServer.Security.BasisGlobalLockManager.AvatarsLocked &&
-                    !PermissionIntegration.HasValidRequirement(peer, PermNodes.ResourceLockBypassAvatar);
-                contentName = "Avatar";
-                break;
             case ContentShareType.Prop:
-                blocked = BasisNetworkServer.Security.BasisGlobalLockManager.PropsLocked &&
-                    !PermissionIntegration.HasValidRequirement(peer, PermNodes.ResourceLockBypassProp);
-                contentName = "Prop";
-                break;
             case ContentShareType.World:
-                blocked = BasisNetworkServer.Security.BasisGlobalLockManager.WorldsLocked &&
-                    !PermissionIntegration.HasValidRequirement(peer, PermNodes.ResourceLockBypassWorld);
-                contentName = "World";
+                blocked = IsItemTypeLocked(msg.ContentType, peer, out contentName);
                 break;
             case ContentShareType.Server:
                 // ContentURL carries the connection string (address[:port][#password]).
@@ -98,6 +88,9 @@ public static class BasisNetworkContentShare
             case ContentShareType.Text:
                 contentName = "Text";
                 break;
+            case ContentShareType.Folder:
+                contentName = "Folder";
+                break;
             default:
                 BNL.LogError($"Unknown content share type {(byte)msg.ContentType} from peer {peer.Id}");
                 return;
@@ -117,6 +110,22 @@ public static class BasisNetworkContentShare
         {
             BNL.LogError($"Text share from peer {peer.Id} is empty.");
             return;
+        }
+        if (msg.ContentType == ContentShareType.Folder)
+        {
+            if (!ContentShareFolder.TryRead(msg.ContentURL, out ContentShareFolder.Contents folder))
+            {
+                BNL.LogError($"Folder share from peer {peer.Id} could not be read.");
+                return;
+            }
+            for (int i = 0; i < folder.Items.Count && !blocked; i++)
+            {
+                if (IsItemTypeLocked(folder.Items[i].Type, peer, out string lockedName))
+                {
+                    blocked = true;
+                    contentName = lockedName;
+                }
+            }
         }
 
         if (blocked)
@@ -172,6 +181,25 @@ public static class BasisNetworkContentShare
         else
         {
             BNL.LogError($"Content sphere already exists: {msg.SphereNetID}");
+        }
+    }
+
+    private static bool IsItemTypeLocked(ContentShareType type, NetPeer peer, out string contentName)
+    {
+        switch (type)
+        {
+            case ContentShareType.Avatar:
+                contentName = "Avatar";
+                return BasisNetworkServer.Security.BasisGlobalLockManager.AvatarsLocked && !PermissionIntegration.HasValidRequirement(peer, PermNodes.ResourceLockBypassAvatar);
+            case ContentShareType.Prop:
+                contentName = "Prop";
+                return BasisNetworkServer.Security.BasisGlobalLockManager.PropsLocked && !PermissionIntegration.HasValidRequirement(peer, PermNodes.ResourceLockBypassProp);
+            case ContentShareType.World:
+                contentName = "World";
+                return BasisNetworkServer.Security.BasisGlobalLockManager.WorldsLocked && !PermissionIntegration.HasValidRequirement(peer, PermNodes.ResourceLockBypassWorld);
+            default:
+                contentName = string.Empty;
+                return false;
         }
     }
 

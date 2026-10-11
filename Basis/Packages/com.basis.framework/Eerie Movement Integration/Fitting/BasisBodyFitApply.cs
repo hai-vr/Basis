@@ -1,7 +1,9 @@
+using Unity.Scripting.LifecycleManagement;
 using Basis.Scripts.Common;
 using UnityEngine;
 namespace Basis.IK
 {
+    [NoAutoStaticsCleanup]
     public static class BasisBodyFitApply
     {
         public const int BoneCount = 17;

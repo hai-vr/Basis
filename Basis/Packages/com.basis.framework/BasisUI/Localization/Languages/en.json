@@ -6007,6 +6007,10 @@
       "value": "Avatars"
     },
     {
+      "key": "library.tab.folders",
+      "value": "Folders"
+    },
+    {
       "key": "library.tab.instantiated",
       "value": "Instantiated"
     },
@@ -6293,6 +6297,54 @@
     {
       "key": "library.addNewContent",
       "value": "Add New Content"
+    },
+    {
+      "key": "library.folder.new",
+      "value": "New Folder"
+    },
+    {
+      "key": "library.folder.addTo",
+      "value": "Add to Folder"
+    },
+    {
+      "key": "library.folder.inOne",
+      "value": "Folder: {0}"
+    },
+    {
+      "key": "library.folder.inMany",
+      "value": "Folders: {0}"
+    },
+    {
+      "key": "library.folder.rename",
+      "value": "Rename"
+    },
+    {
+      "key": "library.folder.renameTitle",
+      "value": "Rename Folder"
+    },
+    {
+      "key": "library.folder.editItems",
+      "value": "Edit Items"
+    },
+    {
+      "key": "library.folder.empty",
+      "value": "This folder is empty. Use Edit Items to add content from your library."
+    },
+    {
+      "key": "library.folder.items",
+      "value": "Items in this folder: {0}"
+    },
+    {
+      "key": "library.folder.sharedDefaultName",
+      "value": "Shared Folder"
+    },
+    {
+      "key": "library.folder.disabled.nothingToShare",
+      "value": "Nothing in this folder can be shared. Local files and built-in items only exist on this device."
+    },
+    {
+      "key": "library.folder.disabled.tooLarge",
+      "value": "This folder is too big to share in one go. Remove some items and try again. One share holds up to {0} items."
     },
     {
       "key": "library.pinned",
@@ -6789,6 +6841,46 @@
     {
       "key": "library.dialog.share.body",
       "value": "Are you sure you want to share this {0} with everyone on the server?"
+    },
+    {
+      "key": "library.dialog.folderName.body",
+      "value": "Give this folder a name."
+    },
+    {
+      "key": "library.dialog.folderName.field",
+      "value": "Folder Name"
+    },
+    {
+      "key": "library.dialog.folderName.placeholder",
+      "value": "Enter folder name"
+    },
+    {
+      "key": "library.dialog.removeFolder.body",
+      "value": "Delete this folder? The items in it stay in your library."
+    },
+    {
+      "key": "library.dialog.shareFolder.body",
+      "value": "Share this folder and everything in it ({0}) with everyone on the server? Anyone can save it to their library. You choose where to place it next."
+    },
+    {
+      "key": "library.dialog.shareFolder.skipped",
+      "value": "Left out: {0}. Local files and built-in items cannot be loaded by other players."
+    },
+    {
+      "key": "library.dialog.folderItems.title",
+      "value": "Edit Items: {0}"
+    },
+    {
+      "key": "library.dialog.folderItems.body",
+      "value": "Choose which items this folder holds. Press an item to add it or take it out."
+    },
+    {
+      "key": "library.dialog.folderItems.done",
+      "value": "Done ({0} selected)"
+    },
+    {
+      "key": "library.dialog.itemFolders.body",
+      "value": "Press a folder to put this item in it or take it out."
     },
     {
       "key": "library.dialog.legacy.title",
@@ -14348,7 +14440,15 @@
     },
     {
       "key": "settings.cilboxPermissions.description",
-      "value": "Some worlds, props and avatars run scripts that need things the normal script sandbox blocks. Basis asks you before those scripts run. Everything you allowed is listed here. Removing an entry blocks it again and stops that content's scripts straight away."
+      "value": "Some worlds, props and avatars run scripts that need things the normal script sandbox blocks. While Allow Untrusted Permissions is off, those are always blocked. Turn it on and Basis asks you before those scripts run. Everything you allowed is listed here. Removing an entry blocks it again and stops that content's scripts straight away."
+    },
+    {
+      "key": "settings.cilboxPermissions.allowUntrusted",
+      "value": "Allow Untrusted Permissions"
+    },
+    {
+      "key": "settings.cilboxPermissions.allowUntrusted.tooltip",
+      "value": "Lets scripts ask for things the normal script sandbox blocks, like your files, the internet or your microphone. Basis still asks you before any script gets them. Turning this off blocks them every time and stops scripts that are already using them."
     },
     {
       "key": "settings.cilboxPermissions.allowed",
@@ -21001,6 +21101,34 @@
       "value": "Save this shared {0} to your library?"
     },
     {
+      "key": "content.share.save.folder",
+      "value": "Save the folder {0} and everything in it ({1}) to your library?"
+    },
+    {
+      "key": "content.share.folder.unreadable",
+      "value": "This folder could not be read. It may have been shared from a newer version of Basis."
+    },
+    {
+      "key": "content.share.folder.saveToLibrary",
+      "value": "Save to Library"
+    },
+    {
+      "key": "content.share.folder.saved.title",
+      "value": "Folder Saved"
+    },
+    {
+      "key": "content.share.folder.saved",
+      "value": "Saved the folder {0} and everything in it ({1}) to your library."
+    },
+    {
+      "key": "content.share.folder.paste.title",
+      "value": "Pasted Folder"
+    },
+    {
+      "key": "content.share.folder.paste.body",
+      "value": "Share the folder {0} and everything in it ({1}) with everyone on the server? You choose where to place it next."
+    },
+    {
       "key": "content.share.type.avatar",
       "value": "Avatar"
     },
@@ -21225,6 +21353,10 @@
       "value": "Shared Text"
     },
     {
+      "key": "library.shareable.folder",
+      "value": "Shared Folder"
+    },
+    {
       "key": "content.share.type.link",
       "value": "Link"
     },
@@ -21233,12 +21365,12 @@
       "value": "Text"
     },
     {
-      "key": "content.share.link.open",
-      "value": "Open Link"
+      "key": "content.share.type.folder",
+      "value": "Folder"
     },
     {
       "key": "content.share.link.open.question",
-      "value": "Open this link in your browser?"
+      "value": "Do you want to open this link in your browser?"
     },
     {
       "key": "content.share.link.site",
@@ -21269,6 +21401,70 @@
       "value": "This text is {0} characters long. Shared text is limited to {1} characters."
     },
     {
+      "key": "content.share.paste.warning.secret.title",
+      "value": "Might be private"
+    },
+    {
+      "key": "content.share.paste.warning.secret",
+      "value": "This looks like it could contain a password, key or sign-in token. Everyone on the server will be able to read it."
+    },
+    {
+      "key": "content.share.paste.warning.local.title",
+      "value": "Local address"
+    },
+    {
+      "key": "content.share.paste.warning.local",
+      "value": "This link points to your own computer or local network, so other players probably can't open it."
+    },
+    {
+      "key": "content.share.link.warning.local.title",
+      "value": "Local network"
+    },
+    {
+      "key": "content.share.link.warning.local",
+      "value": "This link points to this computer or a device on your local network, such as your router. Links like this can change settings on those devices."
+    },
+    {
+      "key": "content.share.link.warning.program.title",
+      "value": "Downloads a program"
+    },
+    {
+      "key": "content.share.link.warning.program",
+      "value": "This link looks like it downloads a file that can install or run software on your computer."
+    },
+    {
+      "key": "content.share.link.warning.lookalike.title",
+      "value": "Look-alike name"
+    },
+    {
+      "key": "content.share.link.warning.lookalike",
+      "value": "This website name uses special characters that can imitate a different site. Make sure it is the site you expect."
+    },
+    {
+      "key": "content.share.link.warning.shortened.title",
+      "value": "Shortened link"
+    },
+    {
+      "key": "content.share.link.warning.shortened",
+      "value": "Short links hide where they really go until they open."
+    },
+    {
+      "key": "content.share.link.warning.ip.title",
+      "value": "Numeric address"
+    },
+    {
+      "key": "content.share.link.warning.ip",
+      "value": "This link uses a bare IP address instead of a website name, which is common for scam and malware sites."
+    },
+    {
+      "key": "content.share.link.warning.unencrypted.title",
+      "value": "Not encrypted"
+    },
+    {
+      "key": "content.share.link.warning.unencrypted",
+      "value": "This page is not encrypted (http), so don't enter passwords or personal details on it."
+    },
+    {
       "key": "settings.admin.title.lockContentRemoval",
       "value": "Lock Content Removal"
     },
@@ -21279,6 +21475,58 @@
     {
       "key": "library.disabled.removalLocked",
       "value": "An admin has locked removing other players' content."
+    },
+    {
+      "key": "externalLinks.prompt.title",
+      "value": "Open Web Page?"
+    },
+    {
+      "key": "externalLinks.prompt.body",
+      "value": "\"{0}\" ({1}) wants to open this page in your web browser. Only open it if you trust where it goes."
+    },
+    {
+      "key": "externalLinks.prompt.open",
+      "value": "Open Page"
+    },
+    {
+      "key": "externalLinks.prompt.site",
+      "value": "Website"
+    },
+    {
+      "key": "externalLinks.prompt.link",
+      "value": "Address"
+    },
+    {
+      "key": "externalLinks.prompt.wait",
+      "value": "Check the address first. This button turns on in a moment."
+    },
+    {
+      "key": "externalLinks.kind.world",
+      "value": "World"
+    },
+    {
+      "key": "externalLinks.kind.prop",
+      "value": "Prop"
+    },
+    {
+      "key": "externalLinks.unnamed",
+      "value": "Unnamed"
+    },
+    {
+      "key": "settings.general.externalLinkRequests",
+      "value": "Web Page Requests"
+    },
+    {
+      "key": "settings.general.externalLinkRequests.tooltip",
+      "value": "Let worlds and props ask to open web pages in your browser. You always see the address and decide whether to open it. Turn off to refuse every request."
+    },
+    {
+      "key": "settings.admin.title.lockExternalLinks",
+      "value": "Lock Web Page Requests"
+    },
+    {
+      "key": "settings.admin.title.lockExternalLinks.tooltip",
+      "value": "Worlds and props can't ask players to open web pages in their browser. Links players share as orbs are not affected. Admins are unaffected."
     }
   ]
 }

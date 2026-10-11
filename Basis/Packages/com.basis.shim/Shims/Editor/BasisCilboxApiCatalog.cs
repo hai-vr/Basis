@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 #if UNITY_EDITOR
 using System.Collections.Generic;
 
@@ -61,6 +62,7 @@ namespace Basis.Shims.Editor
     /// of that box at draw time through <see cref="CilboxApiEntry.AvailableIn"/>, so an entry cannot
     /// keep claiming a capability after the whitelist behind it is edited away.</para>
     /// </summary>
+    [NoAutoStaticsCleanup]
     internal static class BasisCilboxApiCatalog
     {
         public const string GroupLifecycle = "sdk.cilbox.group.lifecycle";
@@ -733,6 +735,24 @@ void OnDestroy()
 if (seat.IsAvailable) seat.TrySeatLocalPlayer();
 if (seat.IsLocalPlayerSeated) seat.SetOccupantYaw(90f);
 seat.EjectLocalPlayer();",
+            },
+            new CilboxApiEntry
+            {
+                GroupKey = GroupInteraction,
+                TitleKey = "sdk.cilbox.api.externalLink.title",
+                SummaryKey = "sdk.cilbox.api.externalLink.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisExternalLinkShim", "Open") },
+                Example =
+@"using Basis.Shims;
+
+// Call it from the player's own press, grab or click on this world or prop.
+void OnWebsiteButtonPressed()
+{
+    BasisExternalLinkShim.Open(this, ""https://example.com/community"", result =>
+    {
+        if (result != BasisExternalLinkResult.Opened) addressLabel.text = ""example.com/community"";
+    });
+}",
             },
             new CilboxApiEntry
             {

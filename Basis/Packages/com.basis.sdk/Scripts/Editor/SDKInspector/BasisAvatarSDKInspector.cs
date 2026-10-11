@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using Basis.Editor.Localization;
 using Basis.Scripts.BasisSdk;
@@ -12,6 +13,7 @@ using static BasisAvatarValidator;
 using Basis.Scripts.BasisSdk.Players;
 
 [CustomEditor(typeof(BasisAvatar))]
+[NoAutoStaticsCleanup]
 public partial class BasisAvatarSDKInspector : Editor
 {
     private const string PendingTestInEditorAvatarIdSessionKey = "BasisAvatarSDKInspector.PendingTestInEditorAvatarId";

@@ -170,7 +170,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.forceIntoRenderTexture = true;
         captureCamera.allowHDR = true;
         captureCamera.allowMSAA = true;
+#pragma warning disable 618
         captureCamera.useOcclusionCulling = true;
+#pragma warning restore 618
         captureCamera.usePhysicalProperties = true;
         captureCamera.targetTexture = renderTexture;
         captureCamera.targetDisplay = 1;

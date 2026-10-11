@@ -1,9 +1,11 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections.Generic;
 using Basis.Scripts.Drivers;
 using UnityEngine;
 
 namespace Basis.BasisUI
 {
+    [NoAutoStaticsCleanup]
     public static class SettingsProviderBottleneckHints
     {
         private struct Hint

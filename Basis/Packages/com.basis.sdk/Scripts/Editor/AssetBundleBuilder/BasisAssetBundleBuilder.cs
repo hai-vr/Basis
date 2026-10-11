@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -9,6 +10,7 @@ using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 using static BasisEncryptionWrapper;
+[NoAutoStaticsCleanup]
 public static class AssetBundleBuilder
 {
     public static async Task<(BasisBundleGenerated, InformationHash)> BuildAssetBundle(AssetBundleBuild[] BundledData, string targetDirectory, BasisAssetBundleObject settings, string assetBundleName, string mode, string password, BuildTarget buildTarget, bool isEncrypted = true)
@@ -36,6 +38,7 @@ public static class AssetBundleBuilder
         AssetBundleManifest manifest;
         CultureInfo previousCulture = CultureInfo.CurrentCulture;
         BasisBundleShaderStripScope.Begin(contentKind, settings, buildTarget);
+        BuildExceptionLog buildExceptions = new BuildExceptionLog();
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
@@ -43,10 +46,16 @@ public static class AssetBundleBuilder
         }
         finally
         {
+            buildExceptions.Dispose();
             CultureInfo.CurrentCulture = previousCulture;
             BasisBundleShaderStripScope.End(assetBundleName);
         }
 
+        if (buildExceptions.TryGetFirst(out string exceptionMessage, out string exceptionStack))
+        {
+            EditorUtility.ClearProgressBar();
+            throw new Exception($"A build step threw while Unity built the {buildTarget} bundle, so it was not packaged: {exceptionMessage}\n{exceptionStack}");
+        }
         if (manifest != null)
         {
             Hash = await ProcessAssetBundles(targetDirectory, settings, manifest, password, isEncrypted);
@@ -65,10 +74,38 @@ public static class AssetBundleBuilder
         }
         else
         {
-            BasisDebug.LogError("AssetBundle build failed.");
+            EditorUtility.ClearProgressBar();
+            throw new Exception($"Unity did not produce the {buildTarget} bundle, see the errors above.");
         }
         EditorUtility.ClearProgressBar();
         return new(BasisBundleGenerated, Hash);
+    }
+
+    private sealed class BuildExceptionLog : IDisposable
+    {
+        private readonly object gate = new object();
+        private string message, stack;
+        public BuildExceptionLog() { Application.logMessageReceivedThreaded += OnLog; }
+        private void OnLog(string condition, string stackTrace, LogType type)
+        {
+            if (type != LogType.Exception) return;
+            lock (gate)
+            {
+                if (message != null) return;
+                message = condition;
+                stack = stackTrace;
+            }
+        }
+        public bool TryGetFirst(out string firstMessage, out string firstStack)
+        {
+            lock (gate)
+            {
+                firstMessage = message;
+                firstStack = stack;
+            }
+            return firstMessage != null;
+        }
+        public void Dispose() { Application.logMessageReceivedThreaded -= OnLog; }
     }
 
     // Returns the graphics APIs PlayerSettings will compile shaders for on the given

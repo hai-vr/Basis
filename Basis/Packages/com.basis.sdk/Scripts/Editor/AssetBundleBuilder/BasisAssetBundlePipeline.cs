@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,6 +12,7 @@ using UnityEditor.Build.Reporting;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
+[NoAutoStaticsCleanup]
 public static class BasisAssetBundlePipeline
 {
     // Define static delegates
@@ -82,6 +84,7 @@ public static class BasisAssetBundlePipeline
             {
                 if (settings.RebakeOcclusionCulling)
                 {
+#pragma warning disable 618
                     if (settings.RebakeOcclusionCullingInThese.Contains(Target))
                     {
                         StaticOcclusionCulling.Compute();
@@ -90,6 +93,7 @@ public static class BasisAssetBundlePipeline
                     {
                         StaticOcclusionCulling.Clear();
                     }
+#pragma warning restore 618
                 }
 
                 OnBeforeBuildScene?.Invoke(scene, settings);

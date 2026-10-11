@@ -877,6 +877,8 @@
     { "key": "sdk.cilbox.scan.issue.networkBehaviour", "value": "该类继承了网络 behaviour。替换它的代理并不是，因此那些重写永远不会触发——请改用网络 shim。" },
     { "key": "sdk.cilbox.scan.issue.unforwarded", "value": "定义了代理从不转发的 Unity 消息，因此它们永远不会运行：{0}" },
     { "key": "sdk.cilbox.scan.issue.coroutine", "value": "返回了 IEnumerator，但沙箱中没有协程：{0}" },
-    { "key": "sdk.cilbox.scan.issue.onEnable", "value": "定义了 OnEnable。第一次会丢失，因此一次性初始化应放在 Start。" }
+    { "key": "sdk.cilbox.scan.issue.onEnable", "value": "定义了 OnEnable。第一次会丢失，因此一次性初始化应放在 Start。" },
+    { "key": "sdk.cilbox.api.externalLink.title", "value": "打开网页" },
+    { "key": "sdk.cilbox.api.externalLink.summary", "value": "请玩家在浏览器中打开一个页面。玩家总能看到地址并自行决定；只有在玩家刚使用过此世界或道具后才有效，头像中永远无法使用，回调会告知页面是否已打开。Application.OpenURL 也会经过同样的确认。" }
   ]
 }

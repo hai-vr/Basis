@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -47,6 +48,7 @@ namespace Basis.IK.Mocap
             if (SmoothTime >= 0f) i.SmoothTime = SmoothTime;
         }
     }
+    [NoAutoStaticsCleanup]
     public static class BasisMocapAccuracy
     {
         // A pole flip: the joint jumps hard while the end effector is essentially still. Real human motion is

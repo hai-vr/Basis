@@ -1,6 +1,8 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections.Generic;
 using UnityEngine;
 
+[NoAutoStaticsCleanup]
 public static class AvatarHelper
 {
     public static Dictionary<string, int> SearchForVisemeIndex = new Dictionary<string, int>

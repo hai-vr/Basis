@@ -1,8 +1,10 @@
+using Unity.Scripting.LifecycleManagement;
 using Basis.Scripts.Settings;
 
 namespace Basis.MediaPipe
 {
     /// <summary>Persistent settings for webcam tracking, surfaced in the Settings "Webcam Tracking" tab.</summary>
+    [NoAutoStaticsCleanup]
     public static class BasisMediaPipeSettings
     {
         // First touch can precede BasisSettingsSystem reading the settings file (static init via

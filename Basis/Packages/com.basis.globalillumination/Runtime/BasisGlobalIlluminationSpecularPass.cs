@@ -696,6 +696,7 @@ public sealed partial class BasisGlobalIlluminationPass
     /// Enqueued only when the screen space backend will run; the ray traced backend relights its hits from
     /// the light list and never reads a colour buffer.
     /// </summary>
+    [NoAutoStaticsCleanup]
     public sealed class SpecularColorCapturePass : ScriptableRenderPass
     {
         private static readonly ProfilingSampler samplerCapture = new ProfilingSampler("Basis GI Specular Prior Color");

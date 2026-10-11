@@ -1,9 +1,11 @@
-﻿using System;
+﻿using Unity.Scripting.LifecycleManagement;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace HVR.Vixxy
 {
+    [NoAutoStaticsCleanup]
     public static class HVR_ComponentDictionary
     {
         private static readonly Dictionary<string, Type> ComponentDictionary = new();

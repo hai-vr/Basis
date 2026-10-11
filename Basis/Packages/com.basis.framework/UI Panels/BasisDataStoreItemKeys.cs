@@ -139,6 +139,36 @@ namespace Basis.Scripts.UI.UI_Panels
             }
         }
 
+        public static async Task<int> AddNewKeys(IReadOnlyList<ItemKey> newKeys)
+        {
+            await EnsureLoaded();
+
+            await _lock.WaitAsync();
+            try
+            {
+                int added = 0;
+                for (int i = 0; i < newKeys.Count; i++)
+                {
+                    ItemKey newKey = newKeys[i];
+                    if (newKey == null || ContainsKey(newKey)) continue;
+                    int oldLen = keys.Data.Length;
+                    System.Array.Resize(ref keys.Data, oldLen + 1);
+                    keys.Data[oldLen] = newKey;
+                    added++;
+                }
+                if (added > 0)
+                {
+                    await SaveKeysToFile();
+                    BasisDebug.Log($"Item keys added: {added}");
+                }
+                return added;
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
         public static async Task RemoveKey(ItemKey keyToRemove)
         {
             await EnsureLoaded();

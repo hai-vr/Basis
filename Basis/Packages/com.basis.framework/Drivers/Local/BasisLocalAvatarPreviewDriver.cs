@@ -247,7 +247,9 @@ namespace Basis.Scripts.Drivers
             PreviewCamera.farClipPlane = 10f;
             PreviewCamera.allowHDR = false;
             PreviewCamera.allowMSAA = true;
+#pragma warning disable 618
             PreviewCamera.useOcclusionCulling = false;
+#pragma warning restore 618
 
             var urpData = cameraGO.GetComponent<UniversalAdditionalCameraData>();
             if (urpData != null)
