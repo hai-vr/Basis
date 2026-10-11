@@ -47,7 +47,7 @@ namespace Basis.IK
                 float crouchFade = 1f;
                 if (plan.crouchOffset)
                 {
-                    hipsTargetPos = ApplyCrouchBodyOffset(headTargetPos, hipsTargetPos, hipDesired, up, crouchFade);
+                    ApplyCrouchBodyOffset(headTargetPos, ref hipsTargetPos, ref hipDesired, up, crouchFade);
                 }
                 targetPositionHips = hipsTargetPos;
                 if (plan.hasHips)
@@ -181,7 +181,7 @@ namespace Basis.IK
                 SpineData.length *= scale;
             }
         }
-        Vector3 ApplyCrouchBodyOffset(Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir, float fade)
+        void ApplyCrouchBodyOffset(Vector3 headTargetPos, ref Vector3 hipsPos, ref Quaternion hipsRot, Vector3 playerUpDir, float fade)
         {
             BasisCrouchOffsetInput input;
             input.HeadTargetPos = headTargetPos;
@@ -195,7 +195,8 @@ namespace Basis.IK
             input.StandingHeadHeight = standingHeadHeight;
             input.Fade = fade;
             BasisCrouchOffsetCore.Solve(input, out BasisCrouchOffsetResult result);
-            return result.HipsPos;
+            hipsPos = result.HipsPos;
+            hipsRot = result.HipsRot;
         }
     }
 }

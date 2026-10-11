@@ -34,6 +34,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         public float X;
 
+        public float Y;
+
         public float Z;
 
         [Header("Reticle")]
@@ -46,12 +48,12 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             if (BasisLocalPlayer.Instance.LocalAvatarDriver != null)
             {
                 BasisDebug.Log($"Using Configured Height {BasisHeightDriver.SelectedScaledPlayerHeight}", BasisDebug.LogTag.Input);
-                ScaledDeviceCoord.position = new Vector3(X, BasisHeightDriver.SelectedScaledPlayerHeight, Z);
+                ScaledDeviceCoord.position = new Vector3(X, BasisHeightDriver.SelectedScaledPlayerHeight + Y, Z);
             }
             else
             {
                 BasisDebug.Log($"Using Fallback Height {BasisHeightDriver.FallbackHeightInMeters}", BasisDebug.LogTag.Input);
-                ScaledDeviceCoord.position = new Vector3(X, BasisHeightDriver.FallbackHeightInMeters, Z);
+                ScaledDeviceCoord.position = new Vector3(X, BasisHeightDriver.FallbackHeightInMeters + Y, Z);
             }
 
             ScaledDeviceCoord.rotation = Quaternion.identity;
@@ -259,6 +261,9 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             float deviceScale = BasisHeightDriver.AppliedUpScale;
             ScaledDeviceCoord.rotation = OffsetCoords.rotation * UnscaledDeviceCoord.rotation;
             ScaledDeviceCoord.position = OffsetCoords.position + (OffsetCoords.rotation * (UnscaledDeviceCoord.position * deviceScale));
+
+            // Apply vertical height offset
+            ScaledDeviceCoord.position += OffsetCoords.rotation * new Vector3(0f, Y * deviceScale, 0f);
 
             ControlOnlyAsDevice();
             if (IsComputingRaycast)
