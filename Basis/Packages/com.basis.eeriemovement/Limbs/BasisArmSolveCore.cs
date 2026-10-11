@@ -5,9 +5,9 @@ namespace Basis.IK
     [BurstCompile]
     public static class BasisArmSolveCore
     {
-        public const float MinElbowInteriorDeg = 35f;
+        public const float MinElbowInteriorDeg = 20f;
         public const float HeadFadeStartSin = 0.15f, HeadFadeFullSin = 0.45f, RestOutward = 0.35f, RestBack = 0.25f;
-        public const float MinReachFraction = 0.05f, ModelWeight = 0.85f, TeleportFraction = 0.6f;
+        public const float MinReachFraction = 0.05f, MinReachDirectionFraction = 0.1f,ModelWeight = 0.85f, TeleportFraction = 0.6f;
         public const float WristKeepFrac = 0.15f, WristKeepMaxDeg = 15f, ForearmRollMaxDeg = 120f, WrapFadeStartDeg = 155f, WrapFadeEndDeg = 178f;
         public const float HandTiltHintPush = 0.5f;
         const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;
@@ -64,17 +64,22 @@ namespace Basis.IK
             {
                 return;
             }
+
             Vector3 toTarget = i.TargetPosition - i.Shoulder;
             float reachDistance = toTarget.magnitude, minReach = MinReach(upper, lower);
             Vector3 axis;
-            if (reachDistance > minReach)
+            // Inside min reach the hand still follows the target's direction, just held out on the min reach sphere.
+            // Only when the target is nearly on the shoulder (direction is unreliable) fall back to the last axis.
+            if (reachDistance > minReach * MinReachDirectionFraction)
             {
                 axis = toTarget / reachDistance;
             }
             else
             {
-                axis = state.Seeded && state.LastAxis.sqrMagnitude > sqrEpsilon ? state.LastAxis : (reachDistance > epsilon ? toTarget / reachDistance : (i.RestHand - i.Shoulder).normalized);
+                bool useLast = state.Seeded && state.LastAxis.sqrMagnitude > sqrEpsilon;
+                axis = useLast ? state.LastAxis : reachDistance > epsilon ? toTarget / reachDistance : (i.RestHand - i.Shoulder).normalized;
             }
+
             // The tracked hand is a hard endpoint. Only move it off the controller
             // when the target is outside the arm's anatomical reach interval.
             float dEff = Mathf.Clamp(reachDistance, minReach, upper + lower);
@@ -98,12 +103,16 @@ namespace Basis.IK
                 // Start behind and below the hand.
                 worldHint = handPos - i.TorsoForward * (chain * 0.6f) - i.TorsoUp * (chain * 0.3f);
 
-                // Keep the elbow hint behind the shoulder/hand plane since realistically it should never swing out forwards
-                Vector3 planeFront = i.TorsoForward - axis * Vector3.Dot(i.TorsoForward, axis);
-                float planeFrontLen = planeFront.magnitude, behindFade = Smoothstep(0.1f, 0.3f, planeFrontLen);
-                if (behindFade > 0f)
+                // Keep the elbow hint behind the vertical shoulder/hand plane since realistically it should never swing out forwards.
+                // The plane normal is kept horizontal so the hint's up/down placement is never mirrored.
+                Vector3 planeFront = Vector3.Cross(axis, i.TorsoUp);
+                float planeFrontLen = planeFront.magnitude;
+                if (planeFrontLen > epsilon)
                 {
                     planeFront /= planeFrontLen;
+                    float facing = Vector3.Dot(planeFront, i.TorsoForward);
+                    if (facing < 0f) { planeFront = -planeFront; facing = -facing; }
+                    float behindFade = Smoothstep(0.1f, 0.3f, facing * planeFrontLen); // Fades out when the arm points forward or straight up
                     float front = Vector3.Dot(worldHint - i.Shoulder, planeFront);
                     if (front > 0f) worldHint -= planeFront * (2f * front * behindFade);
                 }
