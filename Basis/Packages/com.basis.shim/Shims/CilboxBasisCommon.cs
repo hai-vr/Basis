@@ -539,6 +539,7 @@ namespace Cilbox
 				} },
 			{ typeof(Basis.SafeUtil), new HashSet<string>{
 				".ctor",
+				nameof(Basis.SafeUtil.GetCurrentLanguage),
 				nameof(Basis.SafeUtil.AddEventTrigger),
 				nameof(Basis.SafeUtil.MakeNetworkable),
 				nameof(Basis.SafeUtil.MakeInteractable),
