@@ -49,7 +49,7 @@ namespace Basis.IK
             return Mathf.Max(Mathf.Max(d2 > 0f ? Mathf.Sqrt(d2) : 0f, Mathf.Abs(upper - lower) + epsilon), MinReachFraction * (upper + lower));
         }
         public static Vector3 Hinge(Vector3 elbowDir, Vector3 axis, float side) => Vector3.Cross(elbowDir, axis) * side;
-        static float Smoothstep(float a, float b, float v)
+        internal static float Smoothstep(float a, float b, float v)
         {
             float t = b > a ? Mathf.Clamp01((v - a) / (b - a)) : (v >= b ? 1f : 0f);
             return t * t * (3f - 2f * t);
@@ -105,13 +105,12 @@ namespace Basis.IK
                 }
 
                 // Stick the elbow outward if the hand is moved inward toward the torso so it doesn't clip inside.
-                //   How far the hand is in front of the chest (negative when behind)
-                float chestToHandForward = Vector3.Dot(handPos - i.Chest, i.TorsoForward) / chain;
+                float chestToHandForward = Vector3.Dot(handPos - i.Chest, i.TorsoForward) / chain; // How far the hand is in front of the chest (negative when behind)
                 float shoulderToHand = Vector3.Dot(handPos - i.Shoulder, i.TorsoOut) / chain;  // How far the hand is away from the shoulder
                 float chestToShoulder = Vector3.Dot(i.Shoulder - i.Chest, i.TorsoOut) / chain; // How far the shoulder is from the chest
                 float inward = Smoothstep(-chestToShoulder / 2.0f, chestToShoulder * 2f, -shoulderToHand); // How far the hand has moved inward past the shoulder
-                float outPush = inward * 4.0f; //   How far to push the elbow hint
-                float forwardPush = Smoothstep(0f, chestToShoulder, chestToHandForward) * inward * 2.0f; //   How far to push the elbow hint forward
+                float outPush = inward * 4.0f; // How far to push the elbow hint to the side
+                float forwardPush = Smoothstep(-chestToShoulder * 4.0f, 0, chestToHandForward) * inward * 4.0f; // How far to push the elbow hint forward
                 worldHint += i.TorsoOut * (outPush * chain) + i.TorsoForward * (forwardPush * chain);
             }
 
@@ -266,7 +265,7 @@ namespace Basis.IK
     [BurstCompile]
     public static class BasisShoulderSolveCore
     {
-        public const float ElevationStartDeg = 30f, ElevationSlope = 0.36f, ElevationIntercept = -10.8f, RetractionStartDeg = 70f, RetractionSlope = -0.22f, RetractionIntercept = 15.4f;
+        public const float ElevationStartDeg = 90f, ElevationEndDeg = 180f, ElevationMaxDeg = 54f, RetractionStartDeg = 70f, RetractionSlope = -0.22f, RetractionIntercept = 15.4f;
         public const float RetractionShare = 0.5f, ForwardReachStart = 0.6f, ForwardReachFullDeg = 15f, CrossBodyDeg = 20f, BehindStart = 0.3f, BehindFullDeg = 12f, ShrugStartDeg = 150f, ShrugFullDeg = 10f;
         const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;
         public static void Solve(in BasisShoulderSolveInput i, out BasisShoulderSolveResult r)
@@ -279,8 +278,8 @@ namespace Basis.IK
                 return;
             }
             Vector3 dir = toHand / reach;
-            float elevation = Vector3.Angle(-i.TorsoUp, dir), elev = elevation > ElevationStartDeg ? ElevationSlope * elevation + ElevationIntercept : 0f;
-            if (i.ShrugEnabled && elevation > ShrugStartDeg) elev += ShrugFullDeg * Mathf.Clamp01((elevation - ShrugStartDeg) / (180f - ShrugStartDeg));
+            float elevation = Vector3.Angle(-i.TorsoUp, dir), elev = ElevationMaxDeg * BasisArmSolveCore.Smoothstep(ElevationStartDeg, ElevationEndDeg, elevation);
+            //if (i.ShrugEnabled && elevation > ShrugStartDeg) elev += ShrugFullDeg * Mathf.Clamp01((elevation - ShrugStartDeg) / (180f - ShrugStartDeg));
             float forward = Vector3.Dot(toHand, i.TorsoForward) / armLen, medial = -Vector3.Dot(toHand, i.TorsoOut) / armLen;
             float prot = Mathf.Clamp01((forward - ForwardReachStart) / (1f - ForwardReachStart)) * ForwardReachFullDeg + Mathf.Clamp01(medial) * CrossBodyDeg;
             prot -= Mathf.Clamp01((-forward - BehindStart) / 0.5f) * BehindFullDeg;
