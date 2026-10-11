@@ -9,6 +9,7 @@ namespace Basis.IK
         public const float HeadFadeStartSin = 0.15f, HeadFadeFullSin = 0.45f, RestOutward = 0.35f, RestBack = 0.25f;
         public const float MinReachFraction = 0.05f, ModelWeight = 0.85f, TeleportFraction = 0.6f;
         public const float WristKeepFrac = 0.15f, WristKeepMaxDeg = 15f, ForearmRollMaxDeg = 120f, WrapFadeStartDeg = 155f, WrapFadeEndDeg = 178f;
+        public const float HandTiltHintPush = 0.5f;
         const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;
         public static void Frame(Vector3 axis, Vector3 torsoUp, Vector3 torsoForward, Vector3 torsoOut, out Vector3 ex, out Vector3 ey)
         {
@@ -86,13 +87,16 @@ namespace Basis.IK
 
             float chain = upper + lower;
             Vector3 handPos = i.Shoulder + axis * dEff;
+            Quaternion restHandInv = Quaternion.Inverse(i.RestHandRotation);
+            Vector3 palmLocal = restHandInv * Swing(i.TorsoOut, (i.RestElbow - i.Shoulder).normalized, -i.TorsoUp), fwdLocal = restHandInv * (i.RestHand - i.RestElbow).normalized;
+            Vector3 palm = i.TargetRotation * palmLocal, handFwd = i.TargetRotation * fwdLocal;
 
             // If we don't have an elbow hint (active elbow tracker) then we make our own and position it accordingly.
             Vector3 worldHint = i.HintPosition;
             if (!i.HasTrackerHint)
             {
                 // Start behind and below the hand.
-                worldHint = handPos - i.TorsoForward * (chain * 2f) - i.TorsoUp * (chain * 0.5f);
+                worldHint = handPos - i.TorsoForward * (chain * 0.6f) - i.TorsoUp * (chain * 0.3f);
 
                 // Keep the elbow hint behind the shoulder/hand plane since realistically it should never swing out forwards
                 Vector3 planeFront = i.TorsoForward - axis * Vector3.Dot(i.TorsoForward, axis);
@@ -106,12 +110,16 @@ namespace Basis.IK
 
                 // Stick the elbow outward if the hand is moved inward toward the torso so it doesn't clip inside.
                 float chestToHandForward = Vector3.Dot(handPos - i.Chest, i.TorsoForward) / chain; // How far the hand is in front of the chest (negative when behind)
-                float shoulderToHand = Vector3.Dot(handPos - i.Shoulder, i.TorsoOut) / chain;  // How far the hand is away from the shoulder
-                float chestToShoulder = Vector3.Dot(i.Shoulder - i.Chest, i.TorsoOut) / chain; // How far the shoulder is from the chest
+                float shoulderToHand = Vector3.Dot(handPos - i.Shoulder, i.TorsoOut) / chain;  // How far the hand is away from the shoulder sideways
+                float chestToShoulder = Vector3.Dot(i.Shoulder - i.Chest, i.TorsoOut) / chain; // How far the shoulder is from the chest sideways
                 float inward = Smoothstep(-chestToShoulder / 2.0f, chestToShoulder * 2f, -shoulderToHand); // How far the hand has moved inward past the shoulder
-                float outPush = inward * 4.0f; // How far to push the elbow hint to the side
-                float forwardPush = Smoothstep(-chestToShoulder * 4.0f, 0, chestToHandForward) * inward * 4.0f; // How far to push the elbow hint forward
-                worldHint += i.TorsoOut * (outPush * chain) + i.TorsoForward * (forwardPush * chain);
+                float outPush = inward * chain * 0.6f; // How far to push the elbow hint to the side
+                float forwardPush = Smoothstep(-chestToShoulder * 4.0f, 0, chestToHandForward) * inward * chain; // How far to push the elbow hint forward
+                worldHint += i.TorsoOut * outPush + i.TorsoForward * forwardPush;
+
+                // Nudge the elbow hint up/down with hand pitch. A flat hand is neutral, fingers tilted down raise the elbow, fingers tilted up lower it.
+                float handPitch = Vector3.Dot(handFwd, i.TorsoUp); // -1 fingers straight down, 0 flat, 1 fingers straight up
+                worldHint -= i.TorsoUp * (handPitch * HandTiltHintPush * chain);
             }
 
             // Project the hint onto the elbow circle to get the swivel angle.
@@ -138,9 +146,6 @@ namespace Basis.IK
             }
 
             float side = i.IsLeft ? 1f : -1f;
-            Quaternion restHandInv = Quaternion.Inverse(i.RestHandRotation);
-            Vector3 palmLocal = restHandInv * Swing(i.TorsoOut, (i.RestElbow - i.Shoulder).normalized, -i.TorsoUp), fwdLocal = restHandInv * (i.RestHand - i.RestElbow).normalized;
-            Vector3 palm = i.TargetRotation * palmLocal, handFwd = i.TargetRotation * fwdLocal;
             Vector3 finalDir = DegToDir(swivelDeg, ex, ey), finalElbow = center + finalDir * radius;
             Joints(i, finalElbow, finalDir, axis, side, palm, handFwd, out r.HumeralDeg, out r.PronationDeg, out r.WristFlexDeg, out r.WristDevDeg);
 
