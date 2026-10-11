@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections.Generic;
 using System.Reflection;
 using Basis.Scripts.BasisSdk.Interactions;
@@ -16,6 +17,7 @@ namespace Basis.Tests.Sync
     /// constraint was still driving it. The first grab never showed it: the spawner already owns the prop,
     /// so no steal is pending and ControlState is never called for it.
     /// </summary>
+    [NoAutoStaticsCleanup]
     public class BasisPickupStealKinematicTests
     {
         const BindingFlags NP = BindingFlags.NonPublic | BindingFlags.Instance;

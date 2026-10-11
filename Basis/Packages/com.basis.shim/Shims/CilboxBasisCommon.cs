@@ -715,6 +715,10 @@ namespace Cilbox
 			"System.Runtime.InteropServices.MemoryMarshal",
 			"System.Runtime.InteropServices.GCHandle",
 			"System.Runtime.InteropServices.NativeLibrary",
+			"BasisLinkSafety",
+			"BasisContentShareText",
+			"Basis.BasisUI.BasisExternalLinks",
+			"Basis.Scripts.BasisSdk.Interactions.BasisUserActivation",
 		};
 
 		public override bool CheckTypeAllowed(Type t)
@@ -782,6 +786,12 @@ namespace Cilbox
 			{
 				mi = Basis.Shims.BasisCilboxInstantiateShim.ResolveShim(
 					usage, name, parametersIn, genericArgumentsIn, fullSignature);
+				return mi != null;
+			}
+
+			if (declaringType == typeof(UnityEngine.Application) && name == nameof(UnityEngine.Application.OpenURL))
+			{
+				mi = typeof(Basis.Shims.BasisExternalLinkShim).GetMethod(nameof(Basis.Shims.BasisExternalLinkShim.OpenURL), BindingFlags.Static | BindingFlags.NonPublic, null, new[] { typeof(string) }, null);
 				return mi != null;
 			}
 

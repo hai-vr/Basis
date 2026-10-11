@@ -902,7 +902,6 @@ namespace Basis.Scripts.Drivers
                 LocalShadowClone.updateWhenOffscreen = false;
                 LocalShadowClone.forceMatrixRecalculationPerRender = false;
                 LocalShadowClone.quality = SkinQuality.Bone1;
-                LocalShadowClone.allowOcclusionWhenDynamic = true;
                 LocalShadowClone.skinnedMotionVectors = false;
                 LocalShadowClone.localBounds = source.localBounds;
                 LocalShadowClone.forceMeshLod = -1;

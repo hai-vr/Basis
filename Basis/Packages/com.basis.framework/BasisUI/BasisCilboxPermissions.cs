@@ -34,8 +34,16 @@ namespace Basis.BasisUI
 
         public static event Action OnChanged;
         public static event Action<string> OnRevoked;
+        public static event Action OnUntrustedDisabled;
 
         private static string FilePath => Path.Combine(Application.persistentDataPath, FileName);
+
+        public static bool UntrustedAllowed => BasisSettingsDefaults.AllowUntrustedScriptPermissions.RawValue;
+
+        public static void UntrustedChanged(bool allowed)
+        {
+            if (!allowed) OnUntrustedDisabled?.Invoke();
+        }
 
         private static void EnsureLoaded()
         {

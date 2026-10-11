@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections.Generic;
 using Basis.Editor.Localization;
 using UnityEditor;
@@ -5,6 +6,7 @@ using UnityEngine;
 
 [CreateAssetMenu(fileName = "NewBasisAssetBundleObject", menuName = "Basis/ScriptableObjects/BasisAssetBundleObject", order = 1)]
 [System.Serializable]
+[NoAutoStaticsCleanup]
 public class BasisAssetBundleObject : ScriptableObject
 {
     public static string AssetBundleObject = "Packages/com.basis.sdk/Settings/AssetBundleBuildSettings.asset";

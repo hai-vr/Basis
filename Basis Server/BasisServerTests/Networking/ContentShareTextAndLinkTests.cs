@@ -120,6 +120,10 @@ public class ContentShareTextAndLinkTests
     [InlineData(ContentShareType.Link, "https://example.com/watch?v=abc&list=x#t=10")]
     [InlineData(ContentShareType.Link, "http://localhost:8080/")]
     [InlineData(ContentShareType.Link, "https://bücher.example/straße")]
+    [InlineData(ContentShareType.Link, "http://192.168.1.1/admin")]
+    [InlineData(ContentShareType.Link, "https://[2001:db8::1]:8443/x")]
+    [InlineData(ContentShareType.Link, "https://example.com/a|b{c}")]
+    [InlineData(ContentShareType.Link, "https://exa_mple.com/")]
     [InlineData(ContentShareType.Text, "hello\nworld")]
     [InlineData(ContentShareType.Text, "<size=500>not markup on the server</size>")]
     [InlineData(ContentShareType.Text, "javascript:alert(1)")]
@@ -141,9 +145,43 @@ public class ContentShareTextAndLinkTests
     [InlineData("example.com")]
     [InlineData("/etc/passwd")]
     [InlineData("")]
+    [InlineData("https://trusted.example@evil.example/")]
+    [InlineData("https://user:pass@example.com/")]
+    [InlineData("https://evil.example\\@trusted.example/")]
+    [InlineData("https://example.com/\"onmouseover")]
+    [InlineData("https://example.com/<script>")]
+    [InlineData("http://0x/")]
+    [InlineData("http://1.2.3.4.5/")]
+    [InlineData("http://[fe80::1%25eth0]/")]
+    [InlineData("http://-example.com/")]
     public void LinkShares_ThatAreNotWebAddresses_AreRefused(string payload)
     {
         AssertRefused(ContentShareType.Link, payload);
+    }
+
+    [Fact]
+    public void LinkShares_HidingTagCharacters_AreRefused()
+    {
+        AssertRefused(ContentShareType.Link, "https://example.com/" + char.ConvertFromUtf32(0xE0041) + "x");
+    }
+
+    [Theory]
+    [InlineData("http://2130706433/")]
+    [InlineData("http://0x7f.1/")]
+    [InlineData("http://0177.0.0.1/")]
+    [InlineData("http://127.1/")]
+    public void TryParseLink_ReadsNumericHostsTheWayBrowsersDo(string value)
+    {
+        Assert.True(ContentSharePayload.TryParseLink(value, out Uri link));
+        Assert.Equal(UriHostNameType.IPv4, link.HostNameType);
+        Assert.Equal("127.0.0.1", link.Host);
+    }
+
+    [Fact]
+    public void TryParseLink_RefusesTheSiteHiddenBehindAnAtSign()
+    {
+        Assert.False(ContentSharePayload.TryParseLink("https://trusted.example@evil.example/", out Uri link));
+        Assert.Null(link);
     }
 
     [Theory]

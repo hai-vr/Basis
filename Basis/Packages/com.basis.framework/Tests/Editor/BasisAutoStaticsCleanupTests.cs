@@ -12,12 +12,13 @@ namespace Basis.Framework.Tests
     {
         const BindingFlags Statics = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
-        static bool Resettable(Type type, FieldInfo field)
+        static bool Resettable(Type type, FieldInfo field, bool classLevel)
         {
             if (field.IsInitOnly || field.IsLiteral || field.Name.StartsWith("__autoCleanup") || field.IsDefined(typeof(NoAutoStaticsCleanupAttribute), false)) return false;
             string name = field.Name.StartsWith("<") ? field.Name.Substring(1, field.Name.IndexOf('>') - 1) : field.Name;
             MemberInfo owner = (MemberInfo)type.GetProperty(name, Statics) ?? type.GetEvent(name, Statics);
-            return owner == null || !owner.IsDefined(typeof(NoAutoStaticsCleanupAttribute), false);
+            if (owner != null && owner.IsDefined(typeof(NoAutoStaticsCleanupAttribute), false)) return false;
+            return classLevel || field.IsDefined(typeof(AutoStaticsCleanupAttribute), false) || (owner != null && owner.IsDefined(typeof(AutoStaticsCleanupAttribute), false));
         }
 
         [Test]
@@ -33,9 +34,10 @@ namespace Basis.Framework.Tests
                 try { types = assembly.GetTypes(); } catch (ReflectionTypeLoadException e) { types = e.Types.Where(t => t != null).ToArray(); }
                 foreach (Type type in types)
                 {
-                    if (!type.IsDefined(typeof(AutoStaticsCleanupAttribute), false)) continue;
+                    bool classLevel = type.IsDefined(typeof(AutoStaticsCleanupAttribute), false);
+                    if (!classLevel && !type.GetMembers(Statics).Any(m => m.IsDefined(typeof(AutoStaticsCleanupAttribute), false))) continue;
                     annotatedTypes++;
-                    if (!type.GetFields(Statics).Any(f => Resettable(type, f))) continue;
+                    if (!type.GetFields(Statics).Any(f => Resettable(type, f, classLevel))) continue;
                     if (type.GetMethods(Statics).All(m => !m.Name.StartsWith("__AutoStaticsCleanup_"))) missing.Add(name + ": " + type.FullName);
                 }
             }

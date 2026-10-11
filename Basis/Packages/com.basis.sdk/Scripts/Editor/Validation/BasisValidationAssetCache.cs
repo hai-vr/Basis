@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,6 +19,7 @@ using UnityEngine.Rendering;
 /// including by the validators' own auto-fixes, which reimport — so a stale importer is never
 /// handed out. <see cref="Invalidated"/> lets open inspectors know they should look again.</para>
 /// </summary>
+[NoAutoStaticsCleanup]
 public static class BasisValidationAssetCache
 {
     private static readonly Dictionary<EntityId, string> AssetPaths = new Dictionary<EntityId, string>(128);

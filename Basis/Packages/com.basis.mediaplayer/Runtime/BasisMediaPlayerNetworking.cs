@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Text;
 using System.Threading.Tasks;
@@ -22,6 +23,7 @@ using UnityEngine;
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(BasisMediaPlayer))]
+[NoAutoStaticsCleanup]
 public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMediaTickConsumer
 {
     public enum SyncedPlaybackState : byte

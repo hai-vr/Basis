@@ -881,6 +881,7 @@ namespace Basis.Scripts.UI
         /// IComparer because this sort runs every frame the ray is over UI — a capturing
         /// lambda here cost a delegate plus Sort's comparer wrapper per call.
         /// </summary>
+        [NoAutoStaticsCleanup]
         private sealed class CanvasPriorityComparer : IComparer<Canvas>
         {
             public static readonly CanvasPriorityComparer Instance = new CanvasPriorityComparer();

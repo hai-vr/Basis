@@ -1,6 +1,8 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections.Generic;
 using UnityEditor;
 
+[NoAutoStaticsCleanup]
 public class BasisSDKConstants
 {
     // Common base paths

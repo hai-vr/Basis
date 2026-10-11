@@ -877,6 +877,8 @@
     { "key": "sdk.cilbox.scan.issue.networkBehaviour", "value": "該類別繼承了網路 behaviour。取代它的 proxy 並不是，因此那些覆寫永遠不會觸發——請改用網路 shim。" },
     { "key": "sdk.cilbox.scan.issue.unforwarded", "value": "定義了 proxy 從不轉送的 Unity 訊息，因此它們永遠不會執行：{0}" },
     { "key": "sdk.cilbox.scan.issue.coroutine", "value": "回傳了 IEnumerator，但沙箱中沒有協程：{0}" },
-    { "key": "sdk.cilbox.scan.issue.onEnable", "value": "定義了 OnEnable。第一次會遺失，因此一次性初始化應放在 Start。" }
+    { "key": "sdk.cilbox.scan.issue.onEnable", "value": "定義了 OnEnable。第一次會遺失，因此一次性初始化應放在 Start。" },
+    { "key": "sdk.cilbox.api.externalLink.title", "value": "開啟網頁" },
+    { "key": "sdk.cilbox.api.externalLink.summary", "value": "請玩家在瀏覽器中開啟一個頁面。玩家總能看到位址並自行決定；只有在玩家剛使用過此世界或道具後才有效，頭像中永遠無法使用，回呼會告知頁面是否已開啟。Application.OpenURL 也會經過同樣的確認。" }
   ]
 }

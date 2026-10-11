@@ -338,6 +338,7 @@ namespace Basis.Scripts.UI
                 EventSystem.current.SetSelectedGameObject(selectHandler, CurrentEventData);
             }
 
+            BasisUserActivation.Note(hit.graphic.gameObject);
             GameObject newPressed = ExecuteEvents.ExecuteHierarchy(hit.graphic.gameObject, CurrentEventData, ExecuteEvents.pointerDownHandler);
             if (newPressed == null)
             {
@@ -404,6 +405,7 @@ namespace Basis.Scripts.UI
                     BaseInput.PlayHaptic(0.1f, 0.1f, 0.5f);
                 }
                 // BaseInput.PlaySoundEffect("press", SMModuleAudio.ActiveMenusVolume / 80);
+                BasisUserActivation.Note(pressClickHandler);
                 ExecuteEvents.Execute(pressClickHandler, CurrentEventData, ExecuteEvents.pointerClickHandler);
             }
             else if (CurrentEventData.dragging && pointerDrag != null && releaseGameObject != null)

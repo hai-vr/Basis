@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -15,6 +16,7 @@ using UnityProfiler = UnityEngine.Profiling.Profiler;
 /// paste-friendly table (avg / last / peak / calls over the recorded window); Copy CSV produces the
 /// full per-frame history for offline diffing.
 /// </summary>
+[NoAutoStaticsCleanup]
 public sealed class BasisFrameMarkersTab : BasisEditorTabPage
 {
     const int k_History = 600;                    // ~10s at 60fps editor pumping

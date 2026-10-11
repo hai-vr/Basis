@@ -42,6 +42,7 @@ namespace Cilbox
 			public string Name;
 			public string Kind;
 			public string[] Items;
+			public BasisNotification Notice;
 			public readonly List<CilboxBasisCommon> Boxes = new List<CilboxBasisCommon>();
 			public readonly List<CilboxProxy> Held = new List<CilboxProxy>();
 		}
@@ -63,6 +64,8 @@ namespace Cilbox
 			Application.quitting += Unhook;
 			BasisCilboxPermissions.OnRevoked -= Revoke;
 			BasisCilboxPermissions.OnRevoked += Revoke;
+			BasisCilboxPermissions.OnUntrustedDisabled -= Disallow;
+			BasisCilboxPermissions.OnUntrustedDisabled += Disallow;
 		}
 
 		private static void Unhook()
@@ -128,6 +131,11 @@ namespace Cilbox
 		{
 			box.consentState = State.NotNeeded;
 			if (!Application.isPlaying || string.IsNullOrEmpty(box.assemblyData) || box.metadatas != null) return;
+			if (!BasisCilboxPermissions.UntrustedAllowed)
+			{
+				box.consentState = State.Denied;
+				return;
+			}
 			string hash = KeyOf(box);
 			box.consentHash = hash;
 			if (!scans.TryGetValue(hash, out Result result))
@@ -192,13 +200,13 @@ namespace Cilbox
 		internal static bool Permits(CilboxBasisCommon box, string item)
 		{
 			if (box.consentState == State.Unchecked) LateCheck(box);
-			return box.consentState == State.Allowed && box.consentGranted != null && box.consentGranted.Contains(item);
+			return box.consentState == State.Allowed && box.consentGranted != null && box.consentGranted.Contains(item) && BasisCilboxPermissions.UntrustedAllowed;
 		}
 
 		private static void LateCheck(CilboxBasisCommon box)
 		{
 			box.consentState = State.Denied;
-			if (!Application.isPlaying || string.IsNullOrEmpty(box.assemblyData)) return;
+			if (!Application.isPlaying || string.IsNullOrEmpty(box.assemblyData) || !BasisCilboxPermissions.UntrustedAllowed) return;
 			box.consentHash = KeyOf(box);
 			BasisCilboxPermissions.Approval approval = BasisCilboxPermissions.Find(box.consentHash);
 			if (approval != null)
@@ -229,13 +237,14 @@ namespace Cilbox
 					continue;
 				}
 				showing = hash;
-				BasisCilboxConsentPrompt.Show(request.Name, request.Kind, request.Items, answer => Answer(hash, answer), () => Deferred(hash));
+				BasisCilboxConsentPrompt.Show(request.Name, request.Kind, request.Items, answer => Answer(hash, answer), notice => Deferred(hash, notice));
 				return;
 			}
 		}
 
-		private static void Deferred(string hash)
+		private static void Deferred(string hash, BasisNotification notice)
 		{
+			if (requests.TryGetValue(hash, out Request request)) request.Notice = notice;
 			if (showing == hash) showing = null;
 			ShowNext();
 		}
@@ -246,40 +255,54 @@ namespace Cilbox
 			if (requests.TryGetValue(hash, out Request request))
 			{
 				requests.Remove(hash);
-				if (answer == BasisCilboxConsentPrompt.Answer.Deny)
-				{
-					BasisCilboxPermissions.Decline(hash);
-					foreach (CilboxBasisCommon box in request.Boxes)
-					{
-						if (box != null) box.consentState = State.Denied;
-					}
-				}
-				else
-				{
-					BasisCilboxPermissions.Allow(hash, request.Name, request.Kind, request.Items, answer == BasisCilboxConsentPrompt.Answer.AllowAndRemember);
-					foreach (CilboxBasisCommon box in request.Boxes)
-					{
-						if (box != null) Allow(box, request.Items);
-					}
-				}
-				foreach (CilboxProxy proxy in request.Held)
-				{
-					if (proxy != null) proxy.enabled = true;
-				}
+				bool allowed = answer != BasisCilboxConsentPrompt.Answer.Deny && BasisCilboxPermissions.UntrustedAllowed;
+				if (answer == BasisCilboxConsentPrompt.Answer.Deny) BasisCilboxPermissions.Decline(hash);
+				else if (allowed) BasisCilboxPermissions.Allow(hash, request.Name, request.Kind, request.Items, answer == BasisCilboxConsentPrompt.Answer.AllowAndRemember);
+				Release(request, allowed);
 			}
 			ShowNext();
 		}
 
-		private static void Revoke(string hash)
+		private static void Release(Request request, bool allowed)
+		{
+			foreach (CilboxBasisCommon box in request.Boxes)
+			{
+				if (box == null) continue;
+				if (allowed) Allow(box, request.Items);
+				else box.consentState = State.Denied;
+			}
+			foreach (CilboxProxy proxy in request.Held)
+			{
+				if (proxy != null) proxy.enabled = true;
+			}
+		}
+
+		private static void Disallow()
+		{
+			List<Request> pending = new List<Request>(requests.Values);
+			requests.Clear();
+			queue.Clear();
+			showing = null;
+			foreach (Request request in pending)
+			{
+				Release(request, false);
+				BasisNotificationCenter.Dismiss(request.Notice);
+			}
+			Stop(null, "Untrusted script permissions were turned off in Settings.");
+		}
+
+		private static void Revoke(string hash) => Stop(hash, "Its script permissions were removed in Settings.");
+
+		private static void Stop(string hash, string reason)
 		{
 			foreach (CilboxBasisCommon box in UnityEngine.Object.FindObjectsByType<CilboxBasisCommon>(FindObjectsInactive.Include))
 			{
-				if (box.consentState != State.Allowed || !string.Equals(box.consentHash, hash, StringComparison.Ordinal)) continue;
+				if (box.consentState != State.Allowed || (hash != null && !string.Equals(box.consentHash, hash, StringComparison.Ordinal))) continue;
 				box.consentState = State.Denied;
 				box.consentGranted = null;
-				box.disabledReason = "Its script permissions were removed in Settings.";
+				box.disabledReason = reason;
 				box.disabled = true;
-				Debug.LogWarning($"[Cilbox] Stopped the scripts in {NameOf(box)}: its script permissions were removed in Settings.");
+				Debug.LogWarning($"[Cilbox] Stopped the scripts in {NameOf(box)}. {reason}");
 			}
 		}
 

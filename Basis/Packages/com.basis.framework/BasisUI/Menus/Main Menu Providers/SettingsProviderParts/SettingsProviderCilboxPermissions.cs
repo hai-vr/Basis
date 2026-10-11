@@ -11,6 +11,11 @@ namespace Basis.BasisUI
             PanelElementDescriptor info = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             info.SetDescription(BasisLocalization.Get("settings.cilboxPermissions.description"));
 
+            PanelToggle allowUntrusted = PanelToggle.CreateNewEntry(container);
+            allowUntrusted.AssignBinding(BasisSettingsDefaults.AllowUntrustedScriptPermissions);
+            allowUntrusted.Descriptor.SetTitle(BasisLocalization.Get("settings.cilboxPermissions.allowUntrusted"));
+            allowUntrusted.Descriptor.SetTooltip(BasisLocalization.Get("settings.cilboxPermissions.allowUntrusted.tooltip"));
+
             PanelElementDescriptor list = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             list.SetTitle(BasisLocalization.Get("settings.cilboxPermissions.allowed"));
 

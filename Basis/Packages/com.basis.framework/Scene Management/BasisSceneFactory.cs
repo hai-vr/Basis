@@ -258,7 +258,9 @@ public static partial class BasisSceneFactory
         BNL.Log("Loading Camera Properties From Camera "+ Camera.gameObject.name);
         // Configure the local player's camera mostly based on the scene's placeholder camera.
         Camera RealCamera = BasisLocalCameraDriver.Instance.Camera;
+#pragma warning disable 618
         RealCamera.useOcclusionCulling = Camera.useOcclusionCulling;
+#pragma warning restore 618
         RealCamera.backgroundColor = Camera.backgroundColor;
         RealCamera.clearFlags = Camera.clearFlags;
         RealCamera.barrelClipping = Camera.barrelClipping;

@@ -1310,6 +1310,10 @@ public static partial class BasisNetworkModeration
 
     public static event Action<bool> OnGlobalContentRemovalLockedChanged;
 
+    public static bool GlobalExternalLinksLocked { get; private set; }
+
+    public static event Action<bool> OnGlobalExternalLinksLockedChanged;
+
     /// <summary>Fired when the text-chat lock flag changes.</summary>
     public static event Action<bool> OnGlobalTextChatLockedChanged;
 
@@ -1432,6 +1436,9 @@ public static partial class BasisNetworkModeration
 
     public static bool GifsBlockedLocally =>
         GlobalGifsLocked && !LocalPlayerHasGlobalLockBypass();
+
+    public static bool ExternalLinksBlockedLocally =>
+        GlobalExternalLinksLocked && !LocalPlayerHasGlobalLockBypass();
 
     private static void HandleGlobalLockState(NetDataReader reader)
     {
@@ -1615,7 +1622,16 @@ public static partial class BasisNetworkModeration
                 OnGlobalContentRemovalLockedChanged?.Invoke(GlobalContentRemovalLocked);
             }
         }
-        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}, PlayspaceMover: {GlobalPlayspaceMoverLocked}, DirectConnect: {GlobalDirectConnectLocked}, Cilbox: {GlobalCilboxLocked}, Images: {GlobalImagesLocked}, EndEffectorIKDisabled: {GlobalEndEffectorIKDisabled}, TextChat: {GlobalTextChatLocked}, VoiceChat: {GlobalVoiceChatLocked}, MediaPlayer: {GlobalMediaPlayerLocked}, CameraCapture: {GlobalCameraCaptureLocked}, PropGrabbing: {GlobalPropGrabbingLocked}, SafeDisplayNames: {GlobalSafeDisplayNamesForced}, Gifs: {GlobalGifsLocked}, ContentRemoval: {GlobalContentRemovalLocked}", BasisDebug.LogTag.Networking);
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextExternalLinksLocked = reader.GetBool();
+            if (nextExternalLinksLocked != GlobalExternalLinksLocked)
+            {
+                GlobalExternalLinksLocked = nextExternalLinksLocked;
+                OnGlobalExternalLinksLockedChanged?.Invoke(GlobalExternalLinksLocked);
+            }
+        }
+        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}, PlayspaceMover: {GlobalPlayspaceMoverLocked}, DirectConnect: {GlobalDirectConnectLocked}, Cilbox: {GlobalCilboxLocked}, Images: {GlobalImagesLocked}, EndEffectorIKDisabled: {GlobalEndEffectorIKDisabled}, TextChat: {GlobalTextChatLocked}, VoiceChat: {GlobalVoiceChatLocked}, MediaPlayer: {GlobalMediaPlayerLocked}, CameraCapture: {GlobalCameraCaptureLocked}, PropGrabbing: {GlobalPropGrabbingLocked}, SafeDisplayNames: {GlobalSafeDisplayNamesForced}, Gifs: {GlobalGifsLocked}, ContentRemoval: {GlobalContentRemovalLocked}, ExternalLinks: {GlobalExternalLinksLocked}", BasisDebug.LogTag.Networking);
         OnGlobalLockStateChanged?.Invoke(GlobalAvatarsLocked, GlobalPropsLocked, GlobalWorldsLocked, GlobalServersLocked);
     }
 
@@ -1649,6 +1665,7 @@ public static partial class BasisNetworkModeration
         if (GlobalSafeDisplayNamesForced) { GlobalSafeDisplayNamesForced = false; OnGlobalSafeDisplayNamesForcedChanged?.Invoke(false); }
         if (GlobalGifsLocked) { GlobalGifsLocked = false; OnGlobalGifsLockedChanged?.Invoke(false); }
         if (GlobalContentRemovalLocked) { GlobalContentRemovalLocked = false; OnGlobalContentRemovalLockedChanged?.Invoke(false); }
+        if (GlobalExternalLinksLocked) { GlobalExternalLinksLocked = false; OnGlobalExternalLinksLockedChanged?.Invoke(false); }
 
         if (GlobalEndEffectorIKDisabled)
         {
@@ -1839,6 +1856,11 @@ public static partial class BasisNetworkModeration
     public static void GlobalToggleContentRemoval()
     {
         SendAdminRequest(AdminRequestMode.GlobalToggleContentRemoval);
+    }
+
+    public static void GlobalToggleExternalLinks()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalToggleExternalLinks);
     }
 
     /// <summary>

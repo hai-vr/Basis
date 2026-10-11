@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using Basis.Scripts.BasisSdk.Interactions;
 using GatorDragonGames.JigglePhysics;
 using UnityEditor;
@@ -18,6 +19,7 @@ using UnityEngine.UIElements;
 /// silently doing nothing.
 /// </summary>
 [InitializeOnLoad]
+[NoAutoStaticsCleanup]
 public static class BasisJiggleGrabSceneDrag
 {
     private const string EnabledPref = "Basis.JiggleGrab.SceneDrag.Enabled";

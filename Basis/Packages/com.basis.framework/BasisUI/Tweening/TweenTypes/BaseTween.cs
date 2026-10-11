@@ -5,7 +5,6 @@ using UnityEngine;
 
 namespace Basis.BTween
 {
-    [AutoStaticsCleanup]
     [Serializable]
     public abstract partial class BaseTween<T> where T: BaseTween<T>, new()
     {
@@ -26,7 +25,7 @@ namespace Basis.BTween
             }
         }
         // Live count of active tweens of this type; lets ProcessGroup skip the pool when idle.
-        private static int ActiveCount;
+        [AutoStaticsCleanup] private static int ActiveCount;
 
         public Easing Ease = Easing.OutSine;
         public float StartTime;
@@ -34,7 +33,7 @@ namespace Basis.BTween
         public Action OnComplete;
 
         private const int MAX_TWEEN_COUNT = 64;
-        public static List<T> Tweens = new(MAX_TWEEN_COUNT);
+        [AutoStaticsCleanup] public static List<T> Tweens = new(MAX_TWEEN_COUNT);
 
 
         static BaseTween()

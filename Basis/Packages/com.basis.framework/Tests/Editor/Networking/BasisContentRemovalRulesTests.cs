@@ -1,6 +1,8 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Reflection;
 using NUnit.Framework;
 
+[NoAutoStaticsCleanup]
 public class BasisContentRemovalRulesTests
 {
     private static readonly PropertyInfo RemovalLocked = typeof(BasisNetworkModeration).GetProperty(nameof(BasisNetworkModeration.GlobalContentRemovalLocked));

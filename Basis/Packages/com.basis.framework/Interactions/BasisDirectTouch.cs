@@ -704,6 +704,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             if (sel != EventSystem.current.currentSelectedGameObject)
                 EventSystem.current.SetSelectedGameObject(sel, ed);
 
+            BasisUserActivation.Note(target);
             GameObject pressed = ExecuteEvents.ExecuteHierarchy(target, ed, ExecuteEvents.pointerDownHandler);
             if (pressed == null)
                 pressed = ExecuteEvents.GetEventHandler<IPointerClickHandler>(target);
@@ -775,6 +776,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 GameObject ch = ExecuteEvents.GetEventHandler<IPointerClickHandler>(st.Target);
                 if (ch == ed.pointerPress)
                 {
+                    BasisUserActivation.Note(ed.pointerPress);
                     ExecuteEvents.Execute(ed.pointerPress, ed, ExecuteEvents.pointerClickHandler);
                     PlayTouchHaptic(input, ClickHapticDuration, ClickHapticAmplitude, ClickHapticFrequency);
                 }

@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
@@ -23,6 +24,7 @@ using Object = UnityEngine.Object;
 /// sampled bilinearly with coverage weighting, dilated, mipped, and finally compressed to BC1
 /// (desktop) and ASTC 6x6 (mobile) payloads.
 /// </summary>
+[NoAutoStaticsCleanup]
 public static class BasisFarLodAtlasBaker
 {
     private const int DilatePasses = 16;
@@ -157,7 +159,9 @@ public static class BasisFarLodAtlasBaker
             // MSAA must stay allowed or URP downgrades the 4x capture targets to 1 sample,
             // re-enabling depth priming — see GetCaptureTarget.
             camera.allowMSAA = true;
+#pragma warning disable 618
             camera.useOcclusionCulling = false;
+#pragma warning restore 618
             // Every capture target is square; pinning the aspect keeps the projection math
             // identical whether the pipeline renders via targetTexture or a request destination.
             camera.aspect = 1f;

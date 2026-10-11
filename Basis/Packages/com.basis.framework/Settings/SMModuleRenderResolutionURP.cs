@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using Basis.BasisUI;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Rendering;
@@ -6,6 +7,7 @@ using UnityEngine;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.XR;
 
+[NoAutoStaticsCleanup]
 public class SMModuleRenderResolutionURP : BasisSettingsBase
 {
     public float RenderScale = 1;

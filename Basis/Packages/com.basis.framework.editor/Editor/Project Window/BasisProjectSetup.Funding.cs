@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
@@ -7,6 +8,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
 
+[NoAutoStaticsCleanup]
 public partial class BasisProjectSetup : EditorWindow
 {
     // ─────────────────────────── OpenCollective constants ───────────────────────────

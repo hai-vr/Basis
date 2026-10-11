@@ -658,6 +658,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     if (hitInteractable.CanInteract(interactInput.input) &&
                         (!interactInput.lastTarget.IsInteractingWith(interactInput.input) || shouldHold))
                     {
+                        BasisUserActivation.Note(hitInteractable);
                         hitInteractable.OnInteractStart(interactInput.input);
                         interactInput.lastTarget = hitInteractable;
                     }
@@ -718,6 +719,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 {
                     if (!hitInteractable.IsInteractingWith(interactInput.input) || shouldHold)
                     {
+                        BasisUserActivation.Note(hitInteractable);
                         hitInteractable.OnInteractStart(interactInput.input);
                         interactInput.lastTarget = hitInteractable;
                     }
@@ -917,6 +919,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // End hover with willInteract=true (keeps state at Hovering for OnInteractStart)
             target.OnHoverEnd(input, true);
             // Transition: Hovering → Interacting
+            BasisUserActivation.Note(target);
             target.OnInteractStart(input);
 
             interactInput.lastTarget = target;
@@ -1176,6 +1179,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     if (InteractInputs[i].IsInput(input))
                     {
                         BasisDebug.Log("Stole ownership, starting interact", BasisDebug.LogTag.Networking);
+                        BasisUserActivation.Note(interactableObject);
                         interactableObject.OnInteractStart(input);
                         InteractInputs[i].lastTarget = interactableObject;
                     }

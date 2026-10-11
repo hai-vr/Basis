@@ -56,6 +56,7 @@ namespace Basis.Scripts.Avatar
         /// avatar tripped at least one enabled limit; <see cref="Reason"/> is a
         /// human-readable summary of the first trip (for nameplate / log display).
         /// </summary>
+        [NoAutoStaticsCleanup]
         public readonly struct Result
         {
             public readonly bool Blocked;

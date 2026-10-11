@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,6 +10,7 @@ using NUnit.Framework;
 
 namespace Basis.Tests.Sync
 {
+    [NoAutoStaticsCleanup]
     public sealed class BasisCilboxLinkXmlTests
     {
         const string ShimLinkXml = "Packages/com.basis.shim/Shims/link.xml";

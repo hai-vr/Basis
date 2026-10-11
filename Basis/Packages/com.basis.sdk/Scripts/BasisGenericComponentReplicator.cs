@@ -652,6 +652,7 @@ public static partial class BasisGenericComponentReplicator
         return null;
     }
 
+    [NoAutoStaticsCleanup]
     private sealed class ReferenceEqualityComparer : IEqualityComparer<object>
     {
         public static readonly ReferenceEqualityComparer Instance = new ReferenceEqualityComparer();

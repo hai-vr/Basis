@@ -1093,6 +1093,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 bool lastEffective = _pickupUseLastEffectiveState;
                 if (effectiveState && !lastEffective)
                 {
+                    BasisUserActivation.Note(this);
                     OnPickupUse?.Invoke(BasisPickUpUseMode.OnPickUpUseDown);
                 }
                 else if (!effectiveState && lastEffective)

@@ -67,8 +67,7 @@ namespace Basis.Integration.MetaBodyTracking
             new BodyPart(BasisMetaBodyJoint.RightFootAnkle, BasisBoneTrackedRole.RightFoot, "RIGHT_FOOT", true),
         };
 
-        [NoAutoStaticsCleanup] private static readonly Dictionary<string, BasisBoneTrackedRole> RolesBySerialToken =
-            new Dictionary<string, BasisBoneTrackedRole>(System.StringComparer.OrdinalIgnoreCase);
+        [NoAutoStaticsCleanup] private static readonly Dictionary<string, BasisBoneTrackedRole> RolesBySerialToken = BuildRolesBySerialToken();
 
         private static readonly HashSet<BasisMetaBodyJoint> _created = new HashSet<BasisMetaBodyJoint>();
         private static readonly List<BasisMetaBodyJoint> _stale = new List<BasisMetaBodyJoint>();
@@ -80,12 +79,14 @@ namespace Basis.Integration.MetaBodyTracking
         public static bool IsSourcing => _created.Count > 0;
         public static int SourcedCount => _created.Count;
 
-        static BasisMetaBodyTrackerSource()
+        private static Dictionary<string, BasisBoneTrackedRole> BuildRolesBySerialToken()
         {
+            Dictionary<string, BasisBoneTrackedRole> roles = new Dictionary<string, BasisBoneTrackedRole>(System.StringComparer.OrdinalIgnoreCase);
             for (int Index = 0; Index < Parts.Length; Index++)
             {
-                RolesBySerialToken[Parts[Index].Token] = Parts[Index].Role;
+                roles[Parts[Index].Token] = Parts[Index].Role;
             }
+            return roles;
         }
 
         /// <summary>Maps one of our serial tokens to its Basis role, for the announced-role source.</summary>

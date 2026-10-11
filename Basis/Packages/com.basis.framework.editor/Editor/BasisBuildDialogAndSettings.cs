@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using LinkerGenerator;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
+[NoAutoStaticsCleanup]
 public class BasisBuildDialogAndSettings : IPreprocessBuildWithReport
 {
     public int callbackOrder => 0;

@@ -877,6 +877,8 @@
     { "key": "sdk.cilbox.scan.issue.networkBehaviour", "value": "La classe eredita da un behaviour di rete. Il proxy che la sostituisce non lo è, quindi quegli override non scattano mai: collega invece lo shim di rete." },
     { "key": "sdk.cilbox.scan.issue.unforwarded", "value": "Definisce messaggi Unity che il proxy non inoltra mai, quindi non verranno eseguiti: {0}" },
     { "key": "sdk.cilbox.scan.issue.coroutine", "value": "Restituisce IEnumerator, ma nella sandbox non ci sono coroutine: {0}" },
-    { "key": "sdk.cilbox.scan.issue.onEnable", "value": "Definisce OnEnable. Il primo viene perso, quindi l'inizializzazione una tantum va in Start." }
+    { "key": "sdk.cilbox.scan.issue.onEnable", "value": "Definisce OnEnable. Il primo viene perso, quindi l'inizializzazione una tantum va in Start." },
+    { "key": "sdk.cilbox.api.externalLink.title", "value": "Aprire una pagina web" },
+    { "key": "sdk.cilbox.api.externalLink.summary", "value": "Chiede al giocatore di aprire una pagina nel browser. Il giocatore vede sempre l'indirizzo e decide; funziona solo subito dopo che ha usato questo mondo o prop, mai da un avatar, e il callback indica se la pagina si è aperta. Application.OpenURL passa per la stessa domanda." }
   ]
 }

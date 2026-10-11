@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections.Generic;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Drivers;
@@ -12,6 +13,7 @@ namespace Basis.MediaPipe
     /// scene AcquisitionService and notify the avatar's activity relay. The avatar's
     /// AutomaticFaceTracking applies them to the mesh/eye bones and networks them to remotes.
     /// </summary>
+    [NoAutoStaticsCleanup]
     public sealed class MediaPipeFaceConverter
     {
         public float EyeGainX = 1f;

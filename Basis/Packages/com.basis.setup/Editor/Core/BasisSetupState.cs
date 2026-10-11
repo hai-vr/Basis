@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -5,6 +6,7 @@ using UnityEngine;
 
 namespace Basis.Setup
 {
+    [NoAutoStaticsCleanup]
     internal static class BasisSetupState
     {
         private const string StatePath = "ProjectSettings/BasisSetup.json";

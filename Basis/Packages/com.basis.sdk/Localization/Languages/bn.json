@@ -877,6 +877,8 @@
     { "key": "sdk.cilbox.scan.issue.networkBehaviour", "value": "ক্লাসটি নেটওয়ার্ক behaviour থেকে উত্তরাধিকার নেয়। এর জায়গা নেওয়া প্রক্সি সেটি নয়, তাই ওই ওভাররাইড কখনো চলে না — নেটওয়ার্ক shim যুক্ত করুন।" },
     { "key": "sdk.cilbox.scan.issue.unforwarded", "value": "এমন Unity বার্তা ঘোষণা করা আছে যা প্রক্সি কখনো এগিয়ে দেয় না, তাই সেগুলো চলবে না: {0}" },
     { "key": "sdk.cilbox.scan.issue.coroutine", "value": "IEnumerator ফেরত দেয়, কিন্তু স্যান্ডবক্সে কোরুটিন নেই: {0}" },
-    { "key": "sdk.cilbox.scan.issue.onEnable", "value": "OnEnable ঘোষণা করা আছে। প্রথমটি হারিয়ে যায়, তাই একবারের প্রস্তুতি Start-এ রাখুন।" }
+    { "key": "sdk.cilbox.scan.issue.onEnable", "value": "OnEnable ঘোষণা করা আছে। প্রথমটি হারিয়ে যায়, তাই একবারের প্রস্তুতি Start-এ রাখুন।" },
+    { "key": "sdk.cilbox.api.externalLink.title", "value": "ওয়েব পেজ খোলা" },
+    { "key": "sdk.cilbox.api.externalLink.summary", "value": "খেলোয়াড়কে তাঁর ব্রাউজারে একটি পেজ খুলতে বলে। খেলোয়াড় সবসময় ঠিকানাটি দেখেন এবং নিজেই সিদ্ধান্ত নেন; এটি শুধু তিনি এই জগৎ বা প্রপ ব্যবহার করার ঠিক পরেই কাজ করে, অ্যাভাটার থেকে কখনো নয়, এবং কলব্যাক জানায় পেজটি খুলেছে কি না। Application.OpenURL-ও একই প্রশ্নের মধ্য দিয়ে যায়।" }
   ]
 }

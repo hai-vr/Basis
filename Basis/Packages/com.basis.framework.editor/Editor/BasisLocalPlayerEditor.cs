@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -17,6 +18,7 @@ using UnityEngine.UIElements;
 /// most.</para>
 /// </summary>
 [CustomEditor(typeof(BasisLocalPlayer))]
+[NoAutoStaticsCleanup]
 public class BasisLocalPlayerEditor : BasisDocInspector_UI
 {
     private const BindingFlags MemberFlags = BindingFlags.Instance | BindingFlags.Public;

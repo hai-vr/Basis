@@ -1,9 +1,11 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace Basis.Setup
 {
+    [NoAutoStaticsCleanup]
     public static class BasisSetupRegistry
     {
         private static List<IBasisSetupModule> _modules;

@@ -35,6 +35,7 @@ namespace Basis.BasisUI
             // begin meta data caching here
             // load all the keys
             await BasisDataStoreItemKeys.LoadKeys();
+            await BasisDataStoreItemFolders.EnsureLoaded();
 
             // cache all items into the meta data
             // build data to be used
@@ -123,7 +124,8 @@ namespace Basis.BasisUI
             Prop = 0,
             World = 1,
             Avatar = 2,
-            Instantiated = 3
+            Folders = 3,
+            Instantiated = 4
         }
         private static Page _currentPage = Page.Avatar;
         private static Dictionary<Page, PanelTabPage> tabMap;
@@ -165,6 +167,7 @@ namespace Basis.BasisUI
             var propsTab = PropsTab(tabGroup);
             var worldsTab = WorldsTab(tabGroup);
             var avatarsTab = AvatarsTab(tabGroup);
+            var foldersTab = FoldersTab(tabGroup);
             var instantiatedTab = InstantiatedTab(tabGroup);
 
             // map of the pages to enums
@@ -173,6 +176,7 @@ namespace Basis.BasisUI
                 [Page.Avatar] = avatarsTab,
                 [Page.World] = worldsTab,
                 [Page.Prop] = propsTab,
+                [Page.Folders] = foldersTab,
                 [Page.Instantiated] = instantiatedTab
             };
 
@@ -180,6 +184,7 @@ namespace Basis.BasisUI
             tabGroup.AddTab(BasisLocalization.Get("library.tab.props"), AddressableAssets.Sprites.Items, async () => await RefreshTabAsync(Page.Prop, true), propsTab);
             tabGroup.AddTab(BasisLocalization.Get("library.tab.worlds"), AddressableAssets.Sprites.World, async () => await RefreshTabAsync(Page.World, true), worldsTab);
             tabGroup.AddTab(BasisLocalization.Get("library.tab.avatars"), AddressableAssets.Sprites.Avatars, async () => await RefreshTabAsync(Page.Avatar, true), avatarsTab);
+            tabGroup.AddTab(BasisLocalization.Get("library.tab.folders"), AddressableAssets.Sprites.FileTray, async () => await RefreshTabAsync(Page.Folders, true), foldersTab);
             tabGroup.AddTab(BasisLocalization.Get("library.tab.instantiated"), AddressableAssets.Sprites.List, async () => await RefreshTabAsync(Page.Instantiated, true), instantiatedTab);
 
             // create a search text field in the tab group extras area
@@ -256,6 +261,9 @@ namespace Basis.BasisUI
 
             // add our extra menu button items, this is the buttons below the panel content
             addNewContentButton = tabGroup.AddExtraAction(BasisLocalization.Get("library.addNewContent"), async () => await LibraryProviderDialogAdd.PromptUserForNewContent(panel), new Vector2(70, 80));
+            newFolderButton = tabGroup.AddExtraAction(BasisLocalization.Get("library.folder.new"), async () => await PromptCreateFolder(), new Vector2(70, 80));
+
+            if (!SyncFoldersTab() && _currentPage == Page.Folders) _currentPage = Page.Avatar;
 
             // set the current tab to the current page
             tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
@@ -635,7 +643,7 @@ namespace Basis.BasisUI
             return DateTime.MinValue;
         }
 
-        private static void ClearTabContent(RectTransform container)
+        internal static void ClearTabContent(RectTransform container)
         {
             if (container == null) return;
             // Destroy all child gameobjects under the content parent
@@ -677,6 +685,16 @@ namespace Basis.BasisUI
             await BasisDataStoreItemKeys.LoadKeys();
             if (!PanelAlive) return;
 
+            await BasisDataStoreItemFolders.EnsureLoaded();
+            if (!PanelAlive) return;
+            if (!SyncFoldersTab() && page == Page.Folders)
+            {
+                page = Page.Avatar;
+                tab = GetTabFromPage(page);
+                if (tab == null) return;
+                tabGroup.SetValue((int)page);
+            }
+
             if(clearSearch)
             {
                 _currentSearchQuery = "";
@@ -710,9 +728,16 @@ namespace Basis.BasisUI
             _currentPage = page;
             _currentTab = tab;
 
-            addNewContentButton.Descriptor.SetActive(_currentPage != Page.Instantiated); // if we are on the Instantiated hide the add new content button
+            addNewContentButton.Descriptor.SetActive(_currentPage != Page.Instantiated && _currentPage != Page.Folders); // if we are on the Instantiated hide the add new content button
+            newFolderButton.Descriptor.SetActive(_currentPage == Page.Folders);
             //networkSorting.Descriptor.SetActive(_currentPage == Page.Instantiated); // show network sorting on the Instantiated page.
             itemTypeSorting.Descriptor.SetActive(_currentPage == Page.Instantiated); // show item type sorting for the Instantiated page.
+
+            if (page == Page.Folders)
+            {
+                await RefreshFoldersTab(tab);
+                return;
+            }
 
             // try convert the mode and page we are on to match
             if (TryConvert(page, out BundledContentHolder.Mode mode))
@@ -911,7 +936,7 @@ namespace Basis.BasisUI
         /// The item card displayed all around the library menu. A stack with more than one entry
         /// renders as a single card (newest upload in front) that opens a version picker on click.
         /// </summary>
-        private static void CreateItemCard(List<BasisDataStoreItemKeys.ItemKey> stack, RectTransform container)
+        private static PanelButton CreateItemCard(List<BasisDataStoreItemKeys.ItemKey> stack, RectTransform container, Action onOverlayClosed = null)
         {
             BasisDataStoreItemKeys.ItemKey item = stack[0];
             PanelButton buttonPanel = PanelButton.CreateNew(ButtonStyles.Prop, container);
@@ -1042,7 +1067,7 @@ namespace Basis.BasisUI
 
                 try
                 {
-                    ShowItemOverlay(chosen);
+                    ShowItemOverlay(chosen, onOverlayClosed);
                 }
                 catch (Exception ex)
                 {
@@ -1050,6 +1075,7 @@ namespace Basis.BasisUI
                     _ = HandleBadItem(chosen);
                 }
             };
+            return buttonPanel;
         }
 
         /// <summary>
@@ -1208,7 +1234,7 @@ namespace Basis.BasisUI
             await RefreshCurrentTab();
         }
 
-        public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item)
+        public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item, Action onClosed = null)
         {
             #region ITEM OVERLAY SETUP
 
@@ -1271,6 +1297,7 @@ namespace Basis.BasisUI
                 $"{LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}{(spawnItemCount > 0 ? $" {BasisLocalization.Get("library.spawnedCount", spawnItemCount)}" : "" )}",
                 $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : BasisLocalization.Get("library.noDescription"))}",
                 ConvertItemKeyToAddressableSprite(item));
+            if (onClosed != null) NotifyWhenClosed(existingItemDialog, onClosed);
 
             // only items can be pinned as props
             // this has to be here to ensure correct placement
@@ -1688,10 +1715,11 @@ namespace Basis.BasisUI
 
             actionsPanel.Descriptor.SetHeight(60);
             //actionsPanel.Descriptor.SetWidth(900);
+            if (actionsPanel.TabButtonParent.TryGetComponent(out HorizontalLayoutGroup actionsLayout)) actionsLayout.spacing = 30;
 
             PanelButton deletePanelButton = PanelButton.CreateNew(ButtonStyles.CancelButton, actionsPanel.TabButtonParent); //ButtonStyles.Cancel
             deletePanelButton.Descriptor.SetTitle(BasisLocalization.Get("library.delete"));
-            deletePanelButton.Descriptor.SetWidth(200);
+            deletePanelButton.Descriptor.SetWidth(170);
             deletePanelButton.Descriptor.SetHeight(60);
 
             // Embedded items can never be deleted. Server-provided items CAN — the
@@ -1784,6 +1812,28 @@ namespace Basis.BasisUI
                 }
             };
 
+            PanelButton folderPanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, actionsPanel.TabButtonParent);
+            ApplyFolderMembership(folderPanelButton, item);
+            folderPanelButton.Descriptor.SetWidth(200);
+            folderPanelButton.Descriptor.SetHeight(60);
+            folderPanelButton.OnClicked += async () =>
+            {
+                if (existingItemDialog.IsBusy) return;
+                existingItemDialog.IsBusy = true;
+                try
+                {
+                    if (await LibraryProviderDialogItemFolders.PromptUserToFileItem(panel, item))
+                    {
+                        ApplyFolderMembership(folderPanelButton, item);
+                        await RefreshCurrentTab();
+                    }
+                }
+                finally
+                {
+                    existingItemDialog.IsBusy = false;
+                }
+            };
+
             // Share button - only enabled when connected to a server
             PanelButton sharePanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, actionsPanel.TabButtonParent);
             sharePanelButton.Descriptor.SetTitle(BasisLocalization.Get("library.share"));
@@ -1852,7 +1902,7 @@ namespace Basis.BasisUI
                     break;
             }
 
-            loadPanelButton.Descriptor.SetWidth(450);
+            loadPanelButton.Descriptor.SetWidth(340);
             loadPanelButton.Descriptor.SetHeight(60);
             // on load of a item we do these actions
             loadPanelButton.OnClicked += async () =>
@@ -2876,7 +2926,8 @@ namespace Basis.BasisUI
             itemTextInfo.Descriptor.SetTitle(ShareableDisplayName(entry));
             if (!string.IsNullOrEmpty(entry.SharerName))
             {
-                itemTextInfo.Descriptor.SetDescription(BasisLocalization.Get("library.shareable.sharedBy", LibraryProviderStrUtil.TitleToCase(entry.SharerName)));
+                // A player-chosen name; escaped so it cannot carry markup into the list.
+                itemTextInfo.Descriptor.SetDescription(BasisLocalization.Get("library.shareable.sharedBy", BasisContentShareText.Plain(LibraryProviderStrUtil.TitleToCase(entry.SharerName))));
             }
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
@@ -2995,6 +3046,7 @@ namespace Basis.BasisUI
                 case BasisShareableKind.DollyTrack: return AddressableAssets.Sprites.Camera;
                 case BasisShareableKind.Link: return AddressableAssets.Sprites.Link;
                 case BasisShareableKind.Text: return AddressableAssets.Sprites.List;
+                case BasisShareableKind.Folder: return AddressableAssets.Sprites.FileTray;
                 default: return AddressableAssets.Sprites.Items;
             }
         }
@@ -3011,6 +3063,7 @@ namespace Basis.BasisUI
                 case BasisShareableKind.DollyTrack: return BasisLocalization.Get("library.shareable.dollyTrack");
                 case BasisShareableKind.Link: return BasisLocalization.Get("library.shareable.link");
                 case BasisShareableKind.Text: return BasisLocalization.Get("library.shareable.text");
+                case BasisShareableKind.Folder: return BasisLocalization.Get("library.shareable.folder");
                 default: return BasisLocalization.Get("library.shareable.other");
             }
         }

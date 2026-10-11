@@ -490,11 +490,13 @@ public class BasisAvatarValidator : BasisValidationRunner
         foreach (var smr in smrs)
         {
             if (smr == null) continue;
+#pragma warning disable 618
             if (!smr.allowOcclusionWhenDynamic)
             {
                 smr.allowOcclusionWhenDynamic = true;
                 EditorUtility.SetDirty(smr);
             }
+#pragma warning restore 618
         }
     }
 
@@ -872,11 +874,13 @@ public class BasisAvatarValidator : BasisValidationRunner
             }
         }
 
+#pragma warning disable 618
         if (skinnedMeshRenderer.allowOcclusionWhenDynamic == false)
             bucket.Error(
                 BasisEditorLocalization.Get("sdk.avatarValidator.mesh.dynamicOcclusion", skinnedMeshRenderer.gameObject.name),
                 ValidationCategory.GameObject, FixEnableDynamicOcclusionAllSMR,
                 BasisEditorLocalization.Get("sdk.avatarValidator.mesh.dynamicOcclusion.fix"));
+#pragma warning restore 618
     }
 
     /// <summary>

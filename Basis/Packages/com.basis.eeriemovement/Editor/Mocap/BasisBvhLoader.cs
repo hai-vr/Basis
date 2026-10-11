@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -26,6 +27,7 @@ namespace Basis.IK.Mocap
         public BasisMocapPose Get(int frame, BasisMocapJoint j) => Poses[frame * (int)BasisMocapJoint.Count + (int)j];
         public bool Has(BasisMocapJoint j) => FrameCount > 0 && Get(0, j).Valid;
     }
+    [NoAutoStaticsCleanup]
     public static class BasisBvhLoader
     {
         // A CMU subject is a real person, so normalising every clip to one adult stature makes the centimetre

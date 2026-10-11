@@ -6,17 +6,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
-[AutoStaticsCleanup]
 public static partial class BasisPlayerSettingsManager
 {
     [NoAutoStaticsCleanup] private static readonly string Dir = Path.Combine(Application.persistentDataPath, "PlayerSettings");
     [NoAutoStaticsCleanup] private static readonly char[] InvalidChars = Path.GetInvalidFileNameChars();
 
     // One lock per file
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> locks = new ConcurrentDictionary<string, SemaphoreSlim>();
+    [AutoStaticsCleanup] private static readonly ConcurrentDictionary<string, SemaphoreSlim> locks = new ConcurrentDictionary<string, SemaphoreSlim>();
 
     // In-memory cache so repeated requests for the same UUID don't hit disk.
-    private static readonly ConcurrentDictionary<string, BasisPlayerSettingsData> cache = new ConcurrentDictionary<string, BasisPlayerSettingsData>();
+    [AutoStaticsCleanup] private static readonly ConcurrentDictionary<string, BasisPlayerSettingsData> cache = new ConcurrentDictionary<string, BasisPlayerSettingsData>();
 
     static BasisPlayerSettingsManager()
     {

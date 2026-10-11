@@ -155,7 +155,6 @@ namespace Basis.ImagePickup
             if (cutout && texture != null) ConfigureCutout(pickup._material);
 
             pickup._frontRenderer = card.AddComponent<MeshRenderer>();
-            pickup._frontRenderer.allowOcclusionWhenDynamic = true;
             pickup._frontRenderer.sharedMaterials = new[] { pickup._material, GetSharedBackMaterial() };
             pickup._frontRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             pickup._frontRenderer.receiveShadows = false;

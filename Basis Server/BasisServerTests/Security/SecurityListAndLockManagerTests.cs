@@ -506,6 +506,7 @@ public class BasisGlobalLockManagerTests
         SafeDisplayNamesForced = false,
         GifsLocked = false,
         ContentRemovalLocked = false,
+        ExternalLinksLocked = false,
     };
 
     private static Configuration AllLocked() => new()
@@ -530,6 +531,7 @@ public class BasisGlobalLockManagerTests
         SafeDisplayNamesForced = true,
         GifsLocked = true,
         ContentRemovalLocked = true,
+        ExternalLinksLocked = true,
     };
 
     private static void AssertAllFlags(bool expected)
@@ -553,6 +555,7 @@ public class BasisGlobalLockManagerTests
         Assert.Equal(expected, BasisGlobalLockManager.SafeDisplayNamesForced);
         Assert.Equal(expected, BasisGlobalLockManager.GifsLocked);
         Assert.Equal(expected, BasisGlobalLockManager.ContentRemovalLocked);
+        Assert.Equal(expected, BasisGlobalLockManager.ExternalLinksLocked);
     }
 
     /// <summary>
@@ -639,6 +642,7 @@ public class BasisGlobalLockManagerTests
             Assert.False(BasisGlobalLockManager.PropGrabbingLocked);
             Assert.False(BasisGlobalLockManager.GifsLocked);
             Assert.False(BasisGlobalLockManager.ContentRemovalLocked);
+            Assert.False(BasisGlobalLockManager.ExternalLinksLocked);
             Assert.Equal(0, BasisGlobalLockManager.CameraMetadataDisallowMask);
         }
         finally
@@ -672,6 +676,7 @@ public class BasisGlobalLockManagerTests
             (BasisGlobalLockManager.ToggleSafeDisplayNames, () => BasisGlobalLockManager.SafeDisplayNamesForced),
             (BasisGlobalLockManager.ToggleGifs, () => BasisGlobalLockManager.GifsLocked),
             (BasisGlobalLockManager.ToggleContentRemoval, () => BasisGlobalLockManager.ContentRemovalLocked),
+            (BasisGlobalLockManager.ToggleExternalLinks, () => BasisGlobalLockManager.ExternalLinksLocked),
         };
 
         foreach ((Func<bool> toggle, Func<bool> state) in toggles)
@@ -751,6 +756,7 @@ public class BasisGlobalLockManagerTests
                 SafeDisplayNamesForced = true,
                 GifsLocked = true,
                 ContentRemovalLocked = false,
+                ExternalLinksLocked = true,
             });
 
             var peer = new SecurityTestPeer(1);
@@ -774,6 +780,7 @@ public class BasisGlobalLockManagerTests
                 1,                                        // safe display names forced
                 1,
                 0,
+                1,
             }, payload);
 
             BasisGlobalLockManager.BroadcastLockState(); // zero connected peers: must be a safe no-op

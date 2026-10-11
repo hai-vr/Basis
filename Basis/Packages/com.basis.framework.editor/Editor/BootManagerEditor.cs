@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 namespace Basis.Scripts.Boot_Sequence
 {
 #if UNITY_EDITOR
@@ -5,6 +6,7 @@ namespace Basis.Scripts.Boot_Sequence
     using UnityEngine;
 
     [DefaultExecutionOrder(-51)]
+    [NoAutoStaticsCleanup]
     public class BootManagerEditor : EditorWindow
     {
         private static bool isBootSequenceEnabled;

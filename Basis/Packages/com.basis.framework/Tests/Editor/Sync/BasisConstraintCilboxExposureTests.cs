@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,6 +10,7 @@ using UnityEngine;
 
 namespace Basis.Tests.Sync
 {
+    [NoAutoStaticsCleanup]
     public sealed class BasisConstraintCilboxExposureTests
     {
         static readonly Type[] Components =

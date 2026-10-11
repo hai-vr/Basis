@@ -94,7 +94,9 @@ public sealed partial class BasisCameraDirectToScreenOutput : MonoBehaviour
         screenCamera.targetDisplay = 0;
         screenCamera.targetTexture = null;
         screenCamera.allowDynamicResolution = false;
+#pragma warning disable 618
         screenCamera.useOcclusionCulling = false;
+#pragma warning restore 618
         screenCamera.orthographic = true;
         screenCamera.orthographicSize = 1f;
         screenCamera.nearClipPlane = 0.01f;

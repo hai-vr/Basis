@@ -8,5 +8,6 @@ public enum BasisShareableKind
     DollyTrack,
     Link,
     Text,
+    Folder,
     Other
 }

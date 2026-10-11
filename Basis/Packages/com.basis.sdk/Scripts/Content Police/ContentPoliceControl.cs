@@ -1227,6 +1227,7 @@ public static partial class ContentPoliceControl
     // .NET Standard 2.0 has no ReferenceEqualityComparer; supply one so the
     // visited set uses identity, not UnityEngine.Object.Equals (which is
     // value-equal across destroyed objects).
+    [NoAutoStaticsCleanup]
     private sealed class ReferenceEqualityComparerLocal : IEqualityComparer<object>
     {
         public static readonly ReferenceEqualityComparerLocal Instance = new ReferenceEqualityComparerLocal();

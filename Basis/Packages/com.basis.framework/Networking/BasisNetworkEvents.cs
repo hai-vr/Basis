@@ -12,7 +12,6 @@ using K4os.Compression.LZ4;
 using System;
 using System.Buffers;
 using static SerializableBasis;
-[AutoStaticsCleanup]
 public static partial class BasisNetworkEvents
 {
     [NoAutoStaticsCleanup] private static bool _coreHandlersRegistered;
@@ -787,7 +786,7 @@ public static partial class BasisNetworkEvents
             }
         });
     }
-    public static Action<BasisNetworkStatistics.Snapshot> Snapshotdata;
+    [AutoStaticsCleanup] public static Action<BasisNetworkStatistics.Snapshot> Snapshotdata;
     public static void IncomingData(NetPacketReader Reader)
     {
         BasisNetworkStatistics.Snapshot Snapshot = BasisNetworkStatistics.Snapshot.Decode(Reader.GetRemainingBytesSegment(), true);
@@ -853,7 +852,7 @@ public static partial class BasisNetworkEvents
     // decodes on it) — keeps the per-join NetDataReader allocation out of GC.
     // Library messages arrive sequentially on that one thread, so a single
     // instance is enough.
-    private static NetDataReader _libraryPayloadReader;
+    [AutoStaticsCleanup] private static NetDataReader _libraryPayloadReader;
 
     private static bool TryDecodeServerLibrary(NetPacketReader reader, out ServerLibraryMessage libraryMessage)
     {

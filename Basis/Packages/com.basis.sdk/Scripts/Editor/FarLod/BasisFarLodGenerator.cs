@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using Basis.Scripts.BasisSdk;
@@ -17,6 +18,7 @@ using UnityEngine;
 /// (Animated TPose.controller), which is what keeps the networked per-bone deltas
 /// bit-compatible between the real avatar and the far avatar.
 /// </summary>
+[NoAutoStaticsCleanup]
 public static class BasisFarLodGenerator
 {
     public static int TargetTriangleCount = 8000;

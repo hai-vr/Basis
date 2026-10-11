@@ -79,7 +79,10 @@ namespace HVR.Vixxy
             "Basis.Scripts.BasisSdk.Constraints.BasisTwistChain",
         };
 
-        [NoAutoStaticsCleanup] private static readonly HashSet<string> RuntimePermittedTypeNames;
+        [NoAutoStaticsCleanup] private static readonly HashSet<string> RuntimePermittedTypeNames = PermittedTypes
+            .Select(type => type.FullName)
+            .Concat(PermittedTypeNames)
+            .ToHashSet();
 
         /// If true, all field accesses are allowed on the permitted types.<br/>
         /// Otherwise, access is dictated by the PermittedStandardAccess list further down below.
@@ -102,14 +105,6 @@ namespace HVR.Vixxy
                 new List<string> { "rotation", "localRotation", "position", "localPosition", "localScale" }
             )
         };
-
-        static HVR_VixxyPermitted()
-        {
-            RuntimePermittedTypeNames = PermittedTypes
-                .Select(type => type.FullName)
-                .Concat(PermittedTypeNames)
-                .ToHashSet();
-        }
 
         public static bool IsPermitted(string typeName) => RuntimePermittedTypeNames.Contains(typeName);
 
