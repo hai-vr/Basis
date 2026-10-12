@@ -828,7 +828,7 @@ public static partial class BasisNetworkEvents
             return;
         }
         BasisDebug.Log("Validated Size " + Reader.AvailableBytes);
-        if (BasisDIDAuthIdentityClient.IdentityMessage(peer, Reader, out NetDataWriter Writer))
+        if (BasisDIDAuthIdentityClient.IdentityMessage(BasisNetworkConnection.NetworkClient, Reader, out NetDataWriter Writer))
         {
             BasisDebug.Log("Sent Identity To Server!");
             BasisNetworkConnection.LocalPlayerPeer.Send(Writer, BasisNetworkCommons.AuthIdentityChannel, DeliveryMethod.ReliableOrdered);
@@ -1024,6 +1024,10 @@ public static partial class BasisNetworkEvents
                 {
                     case BasisNetworkCommons.RejectKind_VersionMismatch:
                     {
+                        if (BasisNetworkConnection.TryRetryWithLegacyLogin(aux0))
+                        {
+                            return;
+                        }
                         ushort localVersion = BasisNetworkVersion.ServerVersion;
                         if (aux0 > localVersion)
                         {
@@ -1041,6 +1045,22 @@ public static partial class BasisNetworkEvents
                         title = BasisLocalization.Get("menu.servers.reject.serverFull.title");
                         body = !string.IsNullOrEmpty(structuredMsg) ? structuredMsg : BasisLocalization.Get("menu.servers.reject.serverFull.body");
                         break;
+                    case BasisNetworkCommons.RejectKind_PasswordRejected:
+                    {
+#if UNITY_SERVER
+                        bool canPrompt = canShowMenu;
+#else
+                        bool canPrompt = true;
+#endif
+                        if (canPrompt && BasisConnectionService.TryRequestPassword())
+                        {
+                            BasisDebug.LogWarning("The server rejected the password; asking for it.", BasisDebug.LogTag.Networking);
+                            return;
+                        }
+                        title = BasisLocalization.Get("menu.servers.reject.title");
+                        body = !string.IsNullOrEmpty(structuredMsg) ? structuredMsg : BasisLocalization.Get("menu.servers.reject.body");
+                        break;
+                    }
                     default:
                         title = BasisLocalization.Get("menu.servers.reject.title");
                         body = !string.IsNullOrEmpty(structuredMsg) ? structuredMsg : BasisLocalization.Get("menu.servers.reject.body");

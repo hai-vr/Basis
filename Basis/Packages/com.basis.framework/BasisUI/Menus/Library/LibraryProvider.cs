@@ -1025,7 +1025,7 @@ namespace Basis.BasisUI
             if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
 
-                desc.SetTitle(LibraryProviderStrUtil.TitleToCase(EmbeddedItems.GetDisplayNameForEmbeddedItem(item)));
+                desc.SetTitle(EmbeddedItems.GetDisplayNameForEmbeddedItem(item));
                 desc.SetDescription(urlKey);
                 desc.ForceRebuild();
 
@@ -1305,7 +1305,7 @@ namespace Basis.BasisUI
 
             // Build overlay using DialogBox helper
             DialogBox<BasisDataStoreItemKeys.ItemKey> existingItemDialog = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, overlaySize,
-                $"{LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}{(spawnItemCount > 0 ? $" {BasisLocalization.Get("library.spawnedCount", spawnItemCount)}" : "" )}",
+                $"{description.AssetBundleName}{(spawnItemCount > 0 ? $" {BasisLocalization.Get("library.spawnedCount", spawnItemCount)}" : "" )}",
                 $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : BasisLocalization.Get("library.noDescription"))}",
                 ConvertItemKeyToAddressableSprite(item));
             if (onClosed != null) NotifyWhenClosed(existingItemDialog, onClosed);
@@ -1958,7 +1958,7 @@ namespace Basis.BasisUI
         private static async void ApplyMetaDataToButton(PanelButton buttonPanel, CachedMetaData.CachedContent cachedMeta, string urlKey)
         {
             var desc = buttonPanel.Descriptor;
-            desc.SetTitle(LibraryProviderStrUtil.TitleToCase(!string.IsNullOrEmpty(cachedMeta.Name) ? cachedMeta.Name : urlKey));
+            desc.SetTitle(!string.IsNullOrEmpty(cachedMeta.Name) ? cachedMeta.Name : urlKey);
             desc.SetDescription(urlKey);
             desc.ForceRebuild();
 
@@ -2284,7 +2284,7 @@ namespace Basis.BasisUI
         {
             bool hasMetaData = k.bundleConnector != null;
             return hasMetaData
-                ? LibraryProviderStrUtil.TitleToCase(k.bundleConnector.BasisBundleDescription.AssetBundleName)
+                ? k.bundleConnector.BasisBundleDescription.AssetBundleName
                 : EmbeddedItems.GetDisplayNameForUrl(k.Url);
         }
 
@@ -2551,7 +2551,7 @@ namespace Basis.BasisUI
         {
             if (CachedMetaData.TryGetMeta(pending.Url, out var meta) && !string.IsNullOrEmpty(meta.Name))
             {
-                return LibraryProviderStrUtil.TitleToCase(meta.Name);
+                return meta.Name;
             }
             return pending.Url;
         }
@@ -2748,7 +2748,7 @@ namespace Basis.BasisUI
         {
             if (CachedMetaData.TryGetMeta(failed.Url, out var meta) && !string.IsNullOrEmpty(meta.Name))
             {
-                return LibraryProviderStrUtil.TitleToCase(meta.Name);
+                return meta.Name;
             }
             return failed.Url;
         }
@@ -3093,7 +3093,7 @@ namespace Basis.BasisUI
         {
             bool hasMetaData = itemKey.bundleConnector != null;
             string title = hasMetaData
-                ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName)
+                ? itemKey.bundleConnector.BasisBundleDescription.AssetBundleName
                 : EmbeddedItems.GetDisplayNameForUrl(itemKey.Url);
             //string description = hasMetaData ? (itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription.Length > 0 ? itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription : "No description was provided.") : (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded ? "Embedded Item" : "N/A");
 

@@ -120,6 +120,7 @@ namespace Basis.Tests.Fitting
             BasisFitBodySpec.Human("PlayerLongLegs", 1.75f, 1f, 0.025f),
             BasisFitBodySpec.Human("PlayerShortLegs", 1.75f, 1f, -0.025f),
             BasisFitBodySpec.Child("PlayerChild", 1.25f),
+            BasisFitBodySpec.Human("PlayerLikeReport", 1.65f, 1.06f),
         };
         public static BasisFitBodySpec Realistic => BasisFitBodySpec.Human("AvatarRealistic", 1.75f);
         public static BasisFitBodySpec[] Avatars => new[]
@@ -138,6 +139,7 @@ namespace Basis.Tests.Fitting
             Realistic.With("AvatarNoUpperChest", s => { s.HasUpperChest = false; return s; }),
             Realistic.With("AvatarNoNeck", s => { s.HasNeck = false; return s; }),
             Realistic.With("AvatarShouldersOnChest", s => { s.ShouldersOnChest = true; return s; }),
+            BasisFitBodySpec.Human("AvatarLikeReport", 1.714f, 0.9f, 0.01f, 0.16f),
         };
     }
 }

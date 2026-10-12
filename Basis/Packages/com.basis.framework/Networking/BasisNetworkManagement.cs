@@ -55,6 +55,7 @@ namespace Basis.Scripts.Networking
         /// to <see cref="Basis.Network.Core.BasisNetworkStackRegistry.DefaultId"/>.
         /// </summary>
         public static string NetworkStackId = string.Empty;
+        public static bool LegacyLogin = false;
 
         public static string HostServerName = "Basis Server";
 
@@ -160,7 +161,7 @@ namespace Basis.Scripts.Networking
         /// <summary>
         /// Connects to the server using the configured <see cref="Ip"/>, <see cref="Port"/>, and <see cref="Password"/>.
         /// </summary>
-        public static void Connect() => BasisNetworkConnection.Connect(Port, Ip, Password, IsHostMode, NetworkStackId);
+        public static void Connect() => BasisNetworkConnection.Connect(Port, Ip, Password, IsHostMode, NetworkStackId, LegacyLogin);
 
         #endregion
 

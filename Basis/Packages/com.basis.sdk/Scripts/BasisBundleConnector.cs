@@ -129,6 +129,10 @@ public partial class BasisBundleConnector
     {
         return connector != null && string.Equals(connector.MetaData.ContentKind, contentKind, StringComparison.OrdinalIgnoreCase);
     }
+    public static bool HasAuthorship(BasisBundleAuthorship authorship)
+    {
+        return !string.IsNullOrWhiteSpace(authorship.Author) || !string.IsNullOrWhiteSpace(authorship.Contact) || !string.IsNullOrWhiteSpace(authorship.License) || !string.IsNullOrWhiteSpace(authorship.Credits);
+    }
 
     public bool GetPlatform(out BasisBundleGenerated platformBundle)
     {
@@ -256,6 +260,7 @@ public class BasisBundleDescription
     // Older bundles built before this field existed deserialize with null — clients treat
     // null/empty as "no group" and show the entry standalone.
     public string ContentGroupId;
+    public BasisBundleAuthorship Authorship;
     public BasisBundleDescription()
     {
 
@@ -266,6 +271,21 @@ public class BasisBundleDescription
         AssetBundleDescription = assetBundleDescription ?? throw new ArgumentNullException(nameof(assetBundleDescription));
         AssetBundleIcon = assetBundleIcon;
     }
+    public BasisBundleDescription WithAuthorFallback(string author)
+    {
+        if (!string.IsNullOrWhiteSpace(Authorship.Author) || string.IsNullOrWhiteSpace(author)) return this;
+        BasisBundleDescription copy = (BasisBundleDescription)MemberwiseClone();
+        copy.Authorship.Author = author;
+        return copy;
+    }
+}
+[System.Serializable]
+public struct BasisBundleAuthorship
+{
+    public string Author;
+    public string Contact;
+    public string License;
+    public string Credits;
 }
 [System.Serializable]
 public class BasisBundleGenerated

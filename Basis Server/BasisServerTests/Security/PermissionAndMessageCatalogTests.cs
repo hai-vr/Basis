@@ -1176,6 +1176,7 @@ public class NetworkChannelConstantTests
         Assert.Equal(0xBA515CE1u, BasisNetworkCommons.RejectMagic);
         Assert.Equal(1, BasisNetworkCommons.RejectKind_VersionMismatch);
         Assert.Equal(2, BasisNetworkCommons.RejectKind_ServerFull);
+        Assert.Equal(3, BasisNetworkCommons.RejectKind_PasswordRejected);
     }
 }
 

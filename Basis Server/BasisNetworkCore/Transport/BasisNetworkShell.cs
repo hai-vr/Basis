@@ -81,6 +81,8 @@ namespace Basis.Network.Core
         public NetPeer Accept();
         public NetDataReader Data { get; }
         public IPEndPoint RemoteEndPoint { get; }
+        public NetPeer AcceptAwaitingSeal() => null;
+        public string VerifiedIdentity => null;
     }
 
     public interface NetPeer
@@ -109,6 +111,23 @@ namespace Basis.Network.Core
         public string StackId => BasisNetworkStackRegistry.LiteNetLibId;
 
         public bool SupportsDirectConnect => true;
+
+        /// <summary>
+        /// Seals everything sent to this peer with <paramref name="key"/> from now on.
+        /// False when the transport cannot, in which case nothing changed.
+        /// </summary>
+        public bool SealOutbound(byte[] key) => false;
+
+        /// <summary>
+        /// Drops user data from this peer that is not sealed with <paramref name="key"/>, from now on,
+        /// and once a sealed message has arrived, anything unsealed at all.
+        /// False when the transport cannot, in which case nothing changed.
+        /// </summary>
+        public bool RequireSealedInbound(byte[] key) => false;
+
+        public void ExpectSealedOutbound()
+        {
+        }
 
         // public readonly NetStatistics Statistics;
     }

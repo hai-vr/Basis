@@ -28,6 +28,7 @@ public class BasisSDKConstants
     public static readonly string BuildOptionsFields = "BuildFields";
     public static readonly string ContentTagsSection = "contenttags";
     public static readonly string ContentTagsFields = "ContentTagFields";
+    public static readonly string DescriptionSection = "description";
 
     #region Avatar
     public static readonly string AvataruxmlPath = $"{BasePath}{AvatarFile}";

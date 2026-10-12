@@ -22,6 +22,17 @@ namespace Basis.Tests.Fitting
         ReachUp,
         LookDown,
         Crouch,
+        LookAtFeet,
+        LookUp,
+        HeadRoll,
+        HeadYaw,
+        Rise,
+        Bow,
+        StepUp,
+        LookPitch,
+        DesktopLookDown,
+        DesktopLookAtFeet,
+        DesktopPitch,
     }
     public enum BasisFitPipeline
     {
@@ -35,6 +46,7 @@ namespace Basis.Tests.Fitting
         public BasisSelectedHeightMode Mode;
         public BasisFitPipeline Pipeline;
         public float AvatarScale, FitDeviation;
+        public bool CalibrateLookingDown, Seated, FeetAirborne;
         public string Label => $"{Pipeline}|{Mode}|{TrackerLabel(Trackers)}|{Player.Name}|{Avatar.Name}|k{AvatarScale:0.##}";
         public static string TrackerLabel(BasisFitTrackers t)
         {
@@ -44,12 +56,12 @@ namespace Basis.Tests.Fitting
     }
     public struct BasisFitSetupResult
     {
-        public float UniformScale, EyeRatio, DeviceScale, Grounding, ArmScale, LegScale, TorsoScale, ArmResidual;
+        public float UniformScale, EyeRatio, DeviceScale, Grounding, ArmScale, LegScale, TorsoScale, ArmResidual, ShoulderMismatch;
         public BasisScaleFitStatus Status;
     }
     public struct BasisFitMetrics
     {
-        public float HeadError, EyeError, NeckStretch, VisibleNeckStretch, HandErrorL, HandErrorR, ElbowAngleDiff, FootGapL, FootGapR, FootErrorL, FootErrorR, HipsError, ShoulderHeightError;
+        public float HeadError, EyeError, NeckStretch, VisibleNeckStretch, HandErrorL, HandErrorR, ElbowAngleDiff, FootGapL, FootGapR, FootErrorL, FootErrorR, HipsError, ShoulderHeightError, HipsHeightError, PostureError, SlipAllowance, KneeBend;
         public float HandError => Mathf.Max(HandErrorL, HandErrorR);
         public float FootGap => Mathf.Abs(FootGapL) > Mathf.Abs(FootGapR) ? FootGapL : FootGapR;
         public float FootError => Mathf.Max(FootErrorL, FootErrorR);
@@ -66,8 +78,8 @@ namespace Basis.Tests.Fitting
         public BasisFitScenario Scenario;
         public BasisFitSetupResult Setup;
         Mount hips, chest, leftFoot, rightFoot, leftKnee, rightKnee, leftElbow, rightElbow;
-        Vector3 headFromEye, plantedLeft, plantedRight;
-        float avatarEye, neckRest, visibleNeckRest, shoulderRestY;
+        Vector3 headFromEye, plantedLeft, plantedRight, authoredHipsFromHead, playerRestLeftFoot, deskHead, deskHips, deskEyeFromNeck;
+        float avatarEye, neckRest, visibleNeckRest, shoulderRestY, authoredFootY, authoredHipsY, eyeNeckLever;
         public const float Dt = 1f / 90f;
         public const int SolveFrames = 8;
         public static BasisFitSimulation Create(in BasisFitScenario scenario)
@@ -84,6 +96,7 @@ namespace Basis.Tests.Fitting
         void Fit()
         {
             PosePlayer(Player, BasisFitPose.TPose);
+            playerRestLeftFoot = Player.LeftFoot.position;
             BasisFitTestRig a = Avatar;
             float playerEye = Player.Eye.position.y, playerSpan = Flat(Player.LeftHand.position, Player.RightHand.position);
             float playerHip = Has(BasisFitTrackers.Hips) ? Player.HipsTracker.position.y : 0f;
@@ -92,9 +105,11 @@ namespace Basis.Tests.Fitting
             float flatSpan = Flat(a.LeftHand.position, a.RightHand.position);
             float segmentSpan = shoulders + Vector3.Distance(a.LeftUpperArm.position, a.LeftLowerArm.position) + Vector3.Distance(a.LeftLowerArm.position, a.LeftHand.position) + Vector3.Distance(a.RightUpperArm.position, a.RightLowerArm.position) + Vector3.Distance(a.RightLowerArm.position, a.RightHand.position);
             float legSpan = a.LeftUpperLeg.position.y - a.LeftFoot.position.y, spineSpan = a.Head.position.y - a.Hips.position.y;
-            Transform torsoTop = BasisBodyFitApply.TorsoTop(a.Mapping);
-            float torsoSpan = torsoTop.position.y - a.Hips.position.y, hipJoint = (a.LeftUpperLeg.position.y + a.RightUpperLeg.position.y) * 0.5f;
             float k = Scenario.AvatarScale > 0f ? Scenario.AvatarScale : 1f, deviation = Scenario.FitDeviation;
+            authoredFootY = (a.LeftFoot.position.y + a.RightFoot.position.y) * 0.5f * k;
+            authoredHipsY = a.Hips.position.y * k;
+            authoredHipsFromHead = (a.Hips.position - a.Head.position) * k;
+            eyeNeckLever = Vector3.Distance(a.Eye.position, (a.Neck != null ? a.Neck : a.Head.parent).position) * k;
             Setup.EyeRatio = avatarEye / playerEye;
             BasisBodyFitResult fit;
             if (Scenario.Pipeline == BasisFitPipeline.Current)
@@ -119,15 +134,9 @@ namespace Basis.Tests.Fitting
                 {
                     PlayerEyeHeight = playerEye,
                     PlayerArmSpan = playerSpan,
-                    PlayerHipHeight = playerHip,
                     AvatarEyeHeight = avatarEye,
                     AvatarArmSpan = segmentSpan,
-                    AvatarHipHeight = a.Hips.position.y,
-                    AvatarLegSpan = legSpan,
-                    AvatarSpineSpan = spineSpan,
                     AvatarShoulderWidth = shoulders,
-                    AvatarHipJointHeight = hipJoint,
-                    AvatarTorsoSpan = torsoSpan,
                     UniformScale = state.UniformScale,
                 };
                 fit = BasisBodyFitCore.Solve(in measurements, deviation);
@@ -155,7 +164,8 @@ namespace Basis.Tests.Fitting
             Transform neckBase = a.Neck != null ? a.Neck : a.UpperChest != null ? a.UpperChest : a.Chest;
             BasisFitBodySpec spec = Scenario.Avatar;
             neckRest = (spec.HeadY - (spec.HasNeck ? spec.NeckY : spec.HasUpperChest ? spec.UpperChestY : spec.ChestY)) * k;
-            visibleNeckRest = (spec.HeadY - spec.ShoulderJointY) * k;
+            visibleNeckRest = (spec.HeadY - spec.ShoulderRootY) * k;
+            Setup.ShoulderMismatch = (spec.EyeY - spec.ShoulderJointY) * k - (Scenario.Player.EyeY - Scenario.Player.ShoulderJointY) * Setup.DeviceScale;
             shoulderRestY = a.LeftUpperArm.position.y;
             _ = neckBase;
         }
@@ -218,15 +228,30 @@ namespace Basis.Tests.Fitting
         void Calibrate()
         {
             PosePlayer(Player, BasisFitPose.TPose);
+            if (Scenario.CalibrateLookingDown)
+            {
+                BendLegs(Player, 15f);
+                Player.Spine.rotation = Quaternion.Euler(8f, 0f, 0f);
+                Player.Neck?.SetPositionAndRotation(Player.Neck.position, Quaternion.Euler(25f, 0f, 0f));
+                Player.Head.rotation = Quaternion.Euler(35f, 0f, 0f);
+                ArmsLevel(Player);
+            }
             Avatar.ResetToRestPose();
             headFromEye = Avatar.Head.position - Avatar.Eye.position;
+            deskEyeFromNeck = Avatar.Eye.position - (Avatar.Neck != null ? Avatar.Neck : Avatar.Head.parent).position;
             Vector3 headTarget = Map(Player.Eye.position) + Player.Eye.rotation * headFromEye;
             BasisCalibrationMath.ComputeTposeAnchor(headTarget, Player.Eye.rotation, Fitted(Avatar.Head), out Vector3 anchorPos, out Quaternion anchorRot);
             Vector3 Reference(Transform bone) => anchorPos + anchorRot * Fitted(bone);
+            deskHead = Reference(Avatar.Head);
+            deskHips = Reference(Avatar.Hips);
             Mount Capture(Transform tracker, Transform bone)
             {
-                Vector3 trackerPos = Map(tracker.position);
-                BasisCalibrationMath.ComputeInverseOffset(trackerPos, tracker.rotation, Reference(bone), bone.rotation, out Vector3 position, out Quaternion rotation);
+                Vector3 trackerPos = Map(tracker.position), reference = Reference(bone);
+                if (Scenario.Pipeline == BasisFitPipeline.Current && (bone == Avatar.LeftFoot || bone == Avatar.RightFoot))
+                {
+                    reference.y = authoredFootY;
+                }
+                BasisCalibrationMath.ComputeInverseOffset(trackerPos, tracker.rotation, reference, bone.rotation, out Vector3 position, out Quaternion rotation);
                 return new Mount { Position = position, Rotation = rotation, Valid = true };
             }
             hips = Capture(Has(BasisFitTrackers.Hips) ? Player.HipsTracker : Player.Hips, Avatar.Hips);
@@ -239,23 +264,36 @@ namespace Basis.Tests.Fitting
             rightElbow = Capture(Player.RightElbowTracker, Avatar.RightLowerArm);
             plantedLeft = Reference(Avatar.LeftFoot);
             plantedRight = Reference(Avatar.RightFoot);
-            plantedLeft.y = Fitted(Avatar.LeftFoot).y;
-            plantedRight.y = Fitted(Avatar.RightFoot).y;
+            float leg = Vector3.Distance(Fitted(Avatar.LeftUpperLeg), Fitted(Avatar.LeftLowerLeg)) + Vector3.Distance(Fitted(Avatar.LeftLowerLeg), Fitted(Avatar.LeftFoot));
+            BasisLocalFootDriver.DeriveFootHeights(authoredFootY - Fitted(Avatar.LeftToe).y, authoredFootY, Fitted(Avatar.LeftUpperLeg).y - Fitted(Avatar.LeftFoot).y, leg, 0.2f, out float planted, out float hang);
+            plantedLeft.y = plantedRight.y = Scenario.Pipeline == BasisFitPipeline.Current ? planted : hang;
         }
         Vector3 Apply(in Mount m, Transform tracker, out Quaternion rotation)
         {
             BasisCalibrationMath.ApplyInverseOffset(Map(tracker.position), tracker.rotation, m.Position, m.Rotation, out Vector3 position, out rotation);
             return position;
         }
-        public BasisFitMetrics Solve(BasisFitPose pose)
+        public static bool IsDesktop(BasisFitPose pose) => pose == BasisFitPose.DesktopLookDown || pose == BasisFitPose.DesktopLookAtFeet || pose == BasisFitPose.DesktopPitch;
+        public BasisFitMetrics Solve(BasisFitPose pose, float pitch = 0f)
         {
-            PosePlayer(Player, pose);
+            PosePlayer(Player, pose, pitch);
             BasisFitTestRig a = Avatar;
             ref BasisEerieMovement job = ref a.Job;
+            bool desktop = IsDesktop(pose);
             Vector3 hmd = Map(Player.Eye.position);
             Quaternion hmdRot = Player.Eye.rotation;
             Vector3 headTarget = hmd + hmdRot * headFromEye;
             Vector3 hipsTarget = Apply(in hips, Has(BasisFitTrackers.Hips) ? Player.HipsTracker : Player.Hips, out Quaternion hipsRot);
+            if (desktop)
+            {
+                float deskPitch = pose == BasisFitPose.DesktopLookDown ? 60f : pose == BasisFitPose.DesktopLookAtFeet ? 80f : pitch;
+                hmdRot = Quaternion.Euler(deskPitch, 0f, 0f);
+                BasisHeadPitchSwingCore.Solve(deskPitch, 0f, deskEyeFromNeck, 1f, 0.35f, out Vector3 swing, out _);
+                headTarget = deskHead + swing;
+                hmd = headTarget - hmdRot * headFromEye;
+                hipsTarget = deskHips;
+                hipsRot = Quaternion.identity;
+            }
             Vector3 chestTarget = Apply(in chest, Player.ChestTracker, out Quaternion chestRot);
             Vector3 leftHand = Map(Player.LeftHand.position), rightHand = Map(Player.RightHand.position);
             Vector3 leftFootTarget = plantedLeft, rightFootTarget = plantedRight;
@@ -265,6 +303,10 @@ namespace Basis.Tests.Fitting
                 leftFootTarget = Apply(in leftFoot, Player.LeftFootTracker, out leftFootRot);
                 rightFootTarget = Apply(in rightFoot, Player.RightFootTracker, out rightFootRot);
             }
+            else if (pose == BasisFitPose.StepUp)
+            {
+                leftFootTarget += Map(Player.LeftFoot.position) - Map(playerRestLeftFoot);
+            }
             Vector3 leftKneeHint = Apply(in leftKnee, Player.LeftKneeTracker, out _), rightKneeHint = Apply(in rightKnee, Player.RightKneeTracker, out _);
             Vector3 leftElbowHint = Apply(in leftElbow, Player.LeftElbowTracker, out _), rightElbowHint = Apply(in rightElbow, Player.RightElbowTracker, out _);
             var facts = new BasisEerieFrameFacts
@@ -273,6 +315,7 @@ namespace Basis.Tests.Fitting
                 footSimReady = true,
                 footIKSetting = true,
                 upright = true,
+                seated = Scenario.Seated,
                 hipsTracked = Has(BasisFitTrackers.Hips),
                 chestTracked = Has(BasisFitTrackers.Chest),
                 leftFootTracked = Has(BasisFitTrackers.Feet),
@@ -283,8 +326,8 @@ namespace Basis.Tests.Fitting
                 rightKneeTracked = Has(BasisFitTrackers.Knees),
                 leftElbowTracked = Has(BasisFitTrackers.Elbows),
                 rightElbowTracked = Has(BasisFitTrackers.Elbows),
-                leftHandWeight = 1f,
-                rightHandWeight = 1f,
+                leftHandWeight = desktop ? 0f : 1f,
+                rightHandWeight = desktop ? 0f : 1f,
                 leftFootSim = Has(BasisFitTrackers.Feet) ? 0f : 1f,
                 rightFootSim = Has(BasisFitTrackers.Feet) ? 0f : 1f,
             };
@@ -319,8 +362,10 @@ namespace Basis.Tests.Fitting
             job.kneeAnteriorRef = hipsRot * Vector3.right;
             job.leftDrivenTargetRot = Quaternion.identity;
             job.rightDrivenTargetRot = Quaternion.identity;
+            job.headSlipLever = eyeNeckLever;
+            job.simLeftPlanted = job.simRightPlanted = !Scenario.FeetAirborne;
             job.standingHeadHeight = standingHead;
-            job.crouchDepth = Mathf.Max(0f, standingHead - headTarget.y);
+            job.crouchDepth = Mathf.Max(0f, Mathf.Min(standingHead - headTarget.y, standingHead - headFromEye.y - hmd.y));
             for (int i = 0; i < job.armState.Length; i++) job.armState[i] = default;
             for (int i = 0; i < job.legState.Length; i++) job.legState[i] = default;
             for (int i = 0; i < job.chestSpring.Length; i++) job.chestSpring[i] = default;
@@ -338,7 +383,7 @@ namespace Basis.Tests.Fitting
             m.EyeError = Vector3.Distance(a.Eye.position, hmd);
             Transform neckBase = a.Neck != null ? a.Neck : a.UpperChest != null ? a.UpperChest : a.Chest;
             m.NeckStretch = neckRest > 1e-4f ? Vector3.Distance(a.Head.position, neckBase.position) / neckRest - 1f : 0f;
-            Vector3 shoulderMid = (a.LeftUpperArm.position + a.RightUpperArm.position) * 0.5f;
+            Vector3 shoulderMid = (a.LeftShoulder.position + a.RightShoulder.position) * 0.5f;
             m.VisibleNeckStretch = visibleNeckRest > 1e-4f ? Vector3.Distance(a.Head.position, shoulderMid) / visibleNeckRest - 1f : 0f;
             m.HandErrorL = Vector3.Distance(a.LeftHand.position, leftHand);
             m.HandErrorR = Vector3.Distance(a.RightHand.position, rightHand);
@@ -350,10 +395,14 @@ namespace Basis.Tests.Fitting
             m.FootErrorR = Vector3.Distance(a.RightFoot.position, rightFootTarget);
             m.HipsError = Has(BasisFitTrackers.Hips) ? Vector3.Distance(a.Hips.position, hipsTarget) : 0f;
             m.ShoulderHeightError = 0.5f * (a.LeftUpperArm.position.y + a.RightUpperArm.position.y) - shoulderRestY;
+            m.HipsHeightError = a.Hips.position.y - authoredHipsY;
+            m.PostureError = Vector3.Distance(a.Hips.position - a.Head.position, authoredHipsFromHead);
+            m.SlipAllowance = 2f * Mathf.Sin(0.5f * Quaternion.Angle(hipsRot, hmdRot) * Mathf.Deg2Rad) * eyeNeckLever;
+            m.KneeBend = Mathf.Max(ElbowAngle(a.LeftUpperLeg, a.LeftLowerLeg, a.LeftFoot), ElbowAngle(a.RightUpperLeg, a.RightLowerLeg, a.RightFoot));
             return m;
         }
         static float ElbowAngle(Transform upper, Transform lower, Transform hand) => Vector3.Angle(lower.position - upper.position, hand.position - lower.position);
-        public static void PosePlayer(BasisFitTestRig p, BasisFitPose pose)
+        public static void PosePlayer(BasisFitTestRig p, BasisFitPose pose, float pitch = 0f)
         {
             BasisFitBodySpec s = p.Spec;
             foreach (Transform t in p.Wrapper.GetComponentsInChildren<Transform>())
@@ -380,20 +429,69 @@ namespace Basis.Tests.Fitting
                     p.Neck?.SetPositionAndRotation(p.Neck.position, Quaternion.Euler(15f, 0f, 0f));
                     p.Head.rotation = Quaternion.Euler(40f, 0f, 0f);
                     break;
+                case BasisFitPose.LookAtFeet:
+                    Arms(p, new Vector3(-0.15f, -1f, 0.05f), new Vector3(-0.12f, -0.94f, 0.33f));
+                    p.Neck?.SetPositionAndRotation(p.Neck.position, Quaternion.Euler(30f, 0f, 0f));
+                    p.Head.rotation = Quaternion.Euler(70f, 0f, 0f);
+                    break;
                 case BasisFitPose.Crouch:
                     Arms(p, new Vector3(-0.15f, -0.6f, 0.6f), new Vector3(-0.1f, -0.2f, 1f));
-                    float angle = 50f * Mathf.Deg2Rad, thigh = s.HipJointY - s.KneeY, shin = s.KneeY - s.AnkleY;
-                    float drop = (thigh + shin) * (1f - Mathf.Cos(angle)), back = (thigh - shin) * Mathf.Sin(angle);
-                    p.Hips.position = new Vector3(0f, s.HipsY - drop, -back);
-                    Vector3 thighDir = new Vector3(0f, -Mathf.Cos(angle), Mathf.Sin(angle)), shinDir = new Vector3(0f, -Mathf.Cos(angle), -Mathf.Sin(angle));
-                    p.LeftUpperLeg.rotation = Quaternion.FromToRotation(Vector3.down, thighDir);
-                    p.RightUpperLeg.rotation = Quaternion.FromToRotation(Vector3.down, thighDir);
-                    p.LeftLowerLeg.rotation = Quaternion.FromToRotation(Vector3.down, shinDir);
-                    p.RightLowerLeg.rotation = Quaternion.FromToRotation(Vector3.down, shinDir);
+                    BendLegs(p, 50f);
+                    break;
+                case BasisFitPose.LookUp:
+                    Look(p, Quaternion.Euler(-15f, 0f, 0f), Quaternion.Euler(-40f, 0f, 0f));
+                    break;
+                case BasisFitPose.HeadRoll:
+                    Look(p, Quaternion.Euler(0f, 0f, 10f), Quaternion.Euler(0f, 0f, 30f));
+                    break;
+                case BasisFitPose.HeadYaw:
+                    Look(p, Quaternion.Euler(0f, 20f, 0f), Quaternion.Euler(0f, 70f, 0f));
+                    break;
+                case BasisFitPose.LookPitch:
+                    Look(p, Quaternion.Euler(pitch * 0.4f, 0f, 0f), Quaternion.Euler(pitch, 0f, 0f));
+                    break;
+                case BasisFitPose.Rise:
+                    Arms(p, new Vector3(-0.15f, -1f, 0.05f), new Vector3(-0.12f, -0.94f, 0.33f));
+                    p.Hips.position = new Vector3(0f, s.HipsY + 0.06f, 0f);
+                    break;
+                case BasisFitPose.Bow:
+                    p.Spine.rotation = Quaternion.Euler(35f, 0f, 0f);
+                    Arms(p, new Vector3(-0.1f, -1f, 0.3f), new Vector3(-0.1f, -1f, 0.45f));
+                    break;
+                case BasisFitPose.StepUp:
+                    Arms(p, new Vector3(-0.15f, -1f, 0.05f), new Vector3(-0.12f, -0.94f, 0.33f));
+                    p.LeftUpperLeg.rotation = Quaternion.Euler(-30f, 0f, 0f);
+                    p.LeftLowerLeg.rotation = Quaternion.Euler(30f, 0f, 0f);
                     p.LeftFoot.rotation = Quaternion.identity;
-                    p.RightFoot.rotation = Quaternion.identity;
                     break;
             }
+        }
+        static void Look(BasisFitTestRig p, Quaternion neck, Quaternion head)
+        {
+            Arms(p, new Vector3(-0.15f, -1f, 0.05f), new Vector3(-0.12f, -0.94f, 0.33f));
+            p.Neck?.SetPositionAndRotation(p.Neck.position, neck);
+            p.Head.rotation = head;
+        }
+        static void BendLegs(BasisFitTestRig p, float degrees)
+        {
+            BasisFitBodySpec s = p.Spec;
+            float angle = degrees * Mathf.Deg2Rad, thigh = s.HipJointY - s.KneeY, shin = s.KneeY - s.AnkleY;
+            float drop = (thigh + shin) * (1f - Mathf.Cos(angle)), back = (thigh - shin) * Mathf.Sin(angle);
+            p.Hips.position = new Vector3(0f, s.HipsY - drop, -back);
+            Vector3 thighDir = new Vector3(0f, -Mathf.Cos(angle), Mathf.Sin(angle)), shinDir = new Vector3(0f, -Mathf.Cos(angle), -Mathf.Sin(angle));
+            p.LeftUpperLeg.rotation = Quaternion.FromToRotation(Vector3.down, thighDir);
+            p.RightUpperLeg.rotation = Quaternion.FromToRotation(Vector3.down, thighDir);
+            p.LeftLowerLeg.rotation = Quaternion.FromToRotation(Vector3.down, shinDir);
+            p.RightLowerLeg.rotation = Quaternion.FromToRotation(Vector3.down, shinDir);
+            p.LeftFoot.rotation = Quaternion.identity;
+            p.RightFoot.rotation = Quaternion.identity;
+        }
+        static void ArmsLevel(BasisFitTestRig p)
+        {
+            p.LeftUpperArm.rotation = Quaternion.identity;
+            p.LeftLowerArm.rotation = Quaternion.identity;
+            p.RightUpperArm.rotation = Quaternion.identity;
+            p.RightLowerArm.rotation = Quaternion.identity;
         }
         static void Arms(BasisFitTestRig p, Vector3 upperLeft, Vector3 lowerLeft)
         {

@@ -4999,6 +4999,14 @@
       "value": "This avatar is loaded from a file on your computer and isn't hosted anywhere the other players can reach, so nobody else on this server can download it. You will see it normally; everyone else will see a placeholder. Upload it and load it from a URL for other players to see it. Built-in avatars are unaffected — every client already has those."
     },
     {
+      "key": "network.legacyServer.title",
+      "value": "Server Out Of Date"
+    },
+    {
+      "key": "network.legacyServer.body",
+      "value": "This server is running an older version of Basis (network protocol v{0}). You joined in compatibility mode, which uses its older, less secure login. Ask the server owner to update."
+    },
+    {
       "key": "menu.servers.list.default",
       "value": "Default Basis Server"
     },
@@ -6193,6 +6201,30 @@
     {
       "key": "library.dialog.details.faceThePlayer",
       "value": "Face The Player"
+    },
+    {
+      "key": "library.dialog.details.section.authorship",
+      "value": "Author & License"
+    },
+    {
+      "key": "library.dialog.details.section.authorship.description",
+      "value": "Provided by the creator and not verified."
+    },
+    {
+      "key": "library.dialog.details.author",
+      "value": "Author"
+    },
+    {
+      "key": "library.dialog.details.contact",
+      "value": "Contact"
+    },
+    {
+      "key": "library.dialog.details.license",
+      "value": "License"
+    },
+    {
+      "key": "library.dialog.details.credits",
+      "value": "Credits"
     },
     {
       "key": "library.dialog.details.none",

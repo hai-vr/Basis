@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BasisNetworkCore\BasisNetworkCore.csproj" />
+    <ProjectReference Include="..\BasisNetworkClient\BasisNetworkClient.csproj" />
     <ProjectReference Include="..\BasisNetworkServer\BasisNetworkServer.csproj" />
     <!-- Present so the runtime lookup under test has something to find; never referenced in code. -->
     <ProjectReference Include="..\BasisNetworkCompute\BasisNetworkCompute.csproj" />

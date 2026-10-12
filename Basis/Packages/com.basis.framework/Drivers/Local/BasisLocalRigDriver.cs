@@ -229,7 +229,7 @@ namespace Basis.Scripts.Drivers
             }
             var measurements = new BasisBodyFitMeasurements
             {
-                PlayerEyeHeight = BasisHeightDriver.PlayerEyeHeight, PlayerArmSpan = BasisHeightDriver.PlayerArmSpan, PlayerHipHeight = BasisHeightDriver.PlayerHipHeight, AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight, AvatarArmSpan = BasisHeightDriver.AvatarArmSpan, AvatarHipHeight = BasisHeightDriver.AvatarHipHeight, AvatarLegSpan = BasisHeightDriver.AvatarLegSpan, AvatarSpineSpan = BasisHeightDriver.AvatarSpineSpan, AvatarShoulderWidth = BasisHeightDriver.AvatarShoulderWidth, AvatarHipJointHeight = BasisHeightDriver.AvatarHipJointHeight, AvatarTorsoSpan = BasisHeightDriver.AvatarTorsoSpan,
+                PlayerEyeHeight = BasisHeightDriver.PlayerEyeHeight, PlayerArmSpan = BasisHeightDriver.PlayerArmSpan, AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight, AvatarArmSpan = BasisHeightDriver.AvatarArmSpan, AvatarShoulderWidth = BasisHeightDriver.AvatarShoulderWidth,
 
                 UniformScale = BasisHeightDriver.AppliedUniformScale,
             };
@@ -249,14 +249,6 @@ namespace Basis.Scripts.Drivers
             else
             {
                 BasisDebug.Log($"Body fit: arms not fitted - {BasisBodyFitCore.Describe(fit.ArmStatus)}", BasisDebug.LogTag.IK);
-            }
-            if (fit.HasBodyFit)
-            {
-                BasisDebug.Log($"Body fit: legs scaled {fit.LegScale:F4}, spine scaled {fit.TorsoScale:F4}", BasisDebug.LogTag.IK);
-            }
-            else
-            {
-                BasisDebug.Log($"Body fit: legs and spine not fitted - {BasisBodyFitCore.Describe(fit.BodyStatus)}", BasisDebug.LogTag.IK);
             }
         }
         public static BasisBodyFitResult AppliedBodyFit = BasisBodyFitResult.Identity;
@@ -1166,14 +1158,17 @@ namespace Basis.Scripts.Drivers
                 data.targetRotationHead = rOut[sHead];
                 float restHeadLocalY = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position.y;
                 data.standingHeadHeight = Mathf.Max(0f, restHeadLocalY * framePlayerUpScale);
+                data.headSlipLever = BasisLocalBoneDriver.EyeControl != null && BasisLocalBoneDriver.NeckControl != null ? Vector3.Distance(BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position, BasisLocalBoneDriver.NeckControl.TposeLocalScaled.position) * framePlayerUpScale : 0f;
                 if (framePlayerUpScale <= 1e-6f)
                 {
                     data.crouchDepth = 0f;
                 }
                 else
                 {
-                    float headLocalY = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4((Vector3)pOut[sHead]).y;
-                    data.crouchDepth = Mathf.Max(0f, (restHeadLocalY - headLocalY) * framePlayerUpScale);
+                    Matrix4x4 worldToPlayer = BasisLocalPlayer.localToWorldMatrix.inverse;
+                    float headDrop = restHeadLocalY - worldToPlayer.MultiplyPoint3x4((Vector3)pOut[sHead]).y;
+                    float eyeDrop = BasisLocalBoneDriver.EyeControl != null ? BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position.y - worldToPlayer.MultiplyPoint3x4(BasisLocalBoneDriver.EyeControl.OutgoingWorldData.position).y : headDrop;
+                    data.crouchDepth = Mathf.Max(0f, Mathf.Min(headDrop, eyeDrop) * framePlayerUpScale);
                 }
                 Vector3 chestPos = pOut[sChest];
                 Quaternion chestRot = rOut[sChest];
@@ -1188,6 +1183,8 @@ namespace Basis.Scripts.Drivers
             BasisLocalPlayerMarkers.IKDestBuildIKTargets.Begin();
             ref BasisEerieMovement data = ref IKJob;
             BasisLocalFootDriver footDriver = localPlayer.BasisLocalFootDriver;
+            data.simLeftPlanted = footDriver.LeftFootPlanted;
+            data.simRightPlanted = footDriver.RightFootPlanted;
             unsafe
             {
                 float3* pOut = (float3*)posOutputs.GetUnsafeReadOnlyPtr();

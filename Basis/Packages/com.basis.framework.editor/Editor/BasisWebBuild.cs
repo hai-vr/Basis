@@ -91,14 +91,21 @@ public static class BasisWebBuild
             }
             addressableSettings.BuildAddressablesWithPlayerBuild = AddressableAssetSettings.PlayerBuildOption.DoNotBuildWithPlayer;
         }
+        string spatializer = AudioSettings.GetSpatializerPluginName();
         try
         {
+            if (!string.IsNullOrEmpty(spatializer))
+            {
+                AudioSettings.SetSpatializerPluginName(null);
+                Debug.Log($"[BasisWebBuild] spatializer '{spatializer}' cleared for the web player, Unity's built-in 3D audio is used there");
+            }
             BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = EditorBuildSettings.scenes.Where(scene => scene.enabled).Select(scene => scene.path).ToArray(), locationPathName = buildPath, target = BuildTarget.WebGL, targetGroup = BuildTargetGroup.WebGL, options = BuildOptions.None });
             Debug.Log($"[BasisWebBuild] Build result={report.summary.result} output={report.summary.outputPath} errors={report.summary.totalErrors} warnings={report.summary.totalWarnings} size={report.summary.totalSize}");
             if (report.summary.result != BuildResult.Succeeded) throw new BuildFailedException($"Player build failed: {report.summary.result}");
         }
         finally
         {
+            if (!string.IsNullOrEmpty(spatializer)) AudioSettings.SetSpatializerPluginName(spatializer);
             if (addressableSettings != null) addressableSettings.BuildAddressablesWithPlayerBuild = originalOption;
         }
     }

@@ -112,6 +112,10 @@
       "value": "★ {0}"
     },
     {
+      "key": "menu.servers.list.sourceBadge",
+      "value": "{0} ({1})"
+    },
+    {
       "key": "menu.servers.list.share",
       "value": "Condividi"
     },
@@ -146,6 +150,14 @@
     {
       "key": "menu.servers.usernamePrompt.body",
       "value": "Scegli il nome che vedranno gli altri giocatori, poi premi «Connetti»."
+    },
+    {
+      "key": "menu.servers.passwordPrompt.title",
+      "value": "Unisciti a {0}"
+    },
+    {
+      "key": "menu.servers.passwordPrompt.body",
+      "value": "La password è stata rifiutata. Inserisci la password del server."
     },
     {
       "key": "menu.servers.search.byNameOrAddress",

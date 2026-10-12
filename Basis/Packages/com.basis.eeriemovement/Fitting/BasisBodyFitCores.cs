@@ -4,7 +4,7 @@ namespace Basis.IK
 {
     public static class BasisBodyFitCore
     {
-        public const float DefaultMaxDeviation = 0.15f, MaxDeviationCeiling = 0.5f, HipTrackerMountFraction = 0.07f, HipDeadBandFraction = 0.03f;
+        public const float DefaultMaxDeviation = 0.15f, MaxDeviationCeiling = 0.5f;
         const float minSegmentMeters = 0.05f, minRatio = 0.5f, maxRatio = 2f, minHipFraction = 0.35f;
         const float maxHipFraction = 0.75f;
         public static string Describe(BasisBodyFitStatus status) => status switch
@@ -31,15 +31,6 @@ namespace Basis.IK
             float armOnly = m.AvatarArmSpan - Mathf.Max(0f, m.AvatarShoulderWidth);
             return armOnly > 0f ? deviation * armOnly : 0f;
         }
-        public static float HipHeightSlack(in BasisBodyFitMeasurements m, float maxDeviation)
-        {
-            float deviation = Mathf.Clamp(maxDeviation, 0f, MaxDeviationCeiling);
-            float shorter = Mathf.Min(m.AvatarLegSpan, TorsoSpan(in m));
-            return shorter > 0f ? deviation * shorter : 0f;
-        }
-        public static float TorsoSpan(in BasisBodyFitMeasurements m) => Plausible(m.AvatarTorsoSpan) ? m.AvatarTorsoSpan : m.AvatarSpineSpan;
-        public static float HipJointHeight(in BasisBodyFitMeasurements m) => Plausible(m.AvatarHipJointHeight) ? m.AvatarHipJointHeight : m.AvatarHipHeight;
-        public static float PlayerHipJointHeight(float playerHipTracker, float playerEye) => playerHipTracker - HipTrackerMountFraction * playerEye;
         public static BasisBodyFitResult Solve(in BasisBodyFitMeasurements m, float maxDeviation)
         {
             BasisBodyFitResult result = BasisBodyFitResult.Identity;
@@ -52,21 +43,18 @@ namespace Basis.IK
             if (!Plausible(m.PlayerEyeHeight))
             {
                 result.ArmStatus = BasisBodyFitStatus.PlayerEyeHeightMissing;
-                result.BodyStatus = BasisBodyFitStatus.PlayerEyeHeightMissing;
                 return result;
             }
 
             if (!Plausible(m.AvatarEyeHeight))
             {
                 result.ArmStatus = BasisBodyFitStatus.AvatarEyeHeightMissing;
-                result.BodyStatus = BasisBodyFitStatus.AvatarEyeHeightMissing;
                 return result;
             }
 
             float toAvatarSpace = m.UniformScale > 0f && !float.IsNaN(m.UniformScale) && !float.IsInfinity(m.UniformScale) ? m.UniformScale : m.AvatarEyeHeight / m.PlayerEyeHeight;
 
             SolveArms(in m, toAvatarSpace, deviation, ref result);
-            SolveBody(in m, toAvatarSpace, deviation, ref result);
 
             return result;
         }
@@ -103,56 +91,6 @@ namespace Basis.IK
 
             result.ArmScale = Mathf.Clamp(ratio, 1f - deviation, 1f + deviation);
             result.ArmStatus = BasisBodyFitStatus.Fitted;
-        }
-        static void SolveBody(in BasisBodyFitMeasurements m, float toAvatarSpace, float deviation, ref BasisBodyFitResult result)
-        {
-            if (!Plausible(m.PlayerHipHeight))
-            {
-                result.BodyStatus = BasisBodyFitStatus.HipsTrackerMissing;
-                return;
-            }
-
-            float hipFraction = m.PlayerHipHeight / m.PlayerEyeHeight;
-            if (hipFraction < minHipFraction || hipFraction > maxHipFraction)
-            {
-                result.BodyStatus = BasisBodyFitStatus.HipHeightImplausible;
-                return;
-            }
-
-            float avatarJoint = HipJointHeight(in m);
-            if (!Plausible(avatarJoint))
-            {
-                result.BodyStatus = BasisBodyFitStatus.AvatarHipHeightMissing;
-                return;
-            }
-
-            if (!Plausible(m.AvatarLegSpan))
-            {
-                result.BodyStatus = BasisBodyFitStatus.AvatarLegSpanDegenerate;
-                return;
-            }
-
-            float torsoSpan = TorsoSpan(in m);
-            if (!Plausible(torsoSpan))
-            {
-                result.BodyStatus = BasisBodyFitStatus.AvatarSpineSpanDegenerate;
-                return;
-            }
-
-            float playerJoint = PlayerHipJointHeight(m.PlayerHipHeight, m.PlayerEyeHeight) * toAvatarSpace;
-            if (!InRatioBand(playerJoint / avatarJoint))
-            {
-                result.BodyStatus = BasisBodyFitStatus.HipRatioOutOfBand;
-                return;
-            }
-
-            float difference = playerJoint - avatarJoint, deadBand = HipDeadBandFraction * m.AvatarEyeHeight;
-            float wanted = difference > deadBand ? difference - deadBand : difference < -deadBand ? difference + deadBand : 0f;
-            float budget = deviation * Mathf.Min(m.AvatarLegSpan, torsoSpan), shift = Mathf.Clamp(wanted, -budget, budget);
-
-            result.LegScale = 1f + shift / m.AvatarLegSpan;
-            result.TorsoScale = 1f - shift / torsoSpan;
-            result.BodyStatus = BasisBodyFitStatus.Fitted;
         }
         static bool Plausible(float value) => value > minSegmentMeters && !float.IsNaN(value) && !float.IsInfinity(value);
         static bool InRatioBand(float ratio) => ratio >= minRatio && ratio <= maxRatio;
@@ -303,7 +241,7 @@ namespace Basis.IK
     }
     public static class BasisScaleFitCore
     {
-        public const float MinMeasureMeters = 0.05f, MinRatio = 0.5f, MaxRatio = 2f, DefaultMaxEyeDeviation = 0.05f;
+        public const float MinMeasureMeters = 0.05f, MinRatio = 0.1f, MaxRatio = 10f, DefaultMaxEyeDeviation = 0.05f;
         public const float EyeWeight = 1f, ArmSpanWeight = 0.7f, HipWeight = 0.4f;
         public static BasisScaleFitResult Solve(in BasisScaleFitInput input)
         {

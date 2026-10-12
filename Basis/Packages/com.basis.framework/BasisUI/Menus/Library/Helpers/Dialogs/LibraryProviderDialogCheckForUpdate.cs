@@ -46,7 +46,7 @@ namespace Basis.BasisUI
         /// </summary>
         public static async Task<bool> PromptUserForUpdateCheck(BasisMenuPanel panel, BasisDataStoreItemKeys.ItemKey item, BasisBundleDescription description)
         {
-            string title = LibraryProviderStrUtil.TitleToCase(description?.AssetBundleName ?? item.Url);
+            string title = description?.AssetBundleName ?? item.Url;
 
             DialogBox<bool> checkingDialog = DialogBox<bool>.Create(panel, new Vector2(830, 150),
                 BasisLocalization.Get("library.dialog.checkForUpdate.title", title),

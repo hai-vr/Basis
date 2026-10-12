@@ -77,6 +77,27 @@ public static class NetworkServer
     public static IAuth Auth;
     public static IAuthIdentity AuthIdentity;
     public static int HighQualityLength;
+    public static event Action<Configuration> ServerStarted;
+    public static event Action<Configuration> ConfigurationApplied;
+    public static event Action ServerStopping;
+    private static void Raise(Action<Configuration> handlers, Configuration configuration)
+    {
+        if (handlers == null) return;
+        foreach (Action<Configuration> handler in handlers.GetInvocationList())
+        {
+            try { handler(configuration); }
+            catch (Exception ex) { BNL.LogError($"NetworkServer handler {handler.Method.DeclaringType?.FullName}.{handler.Method.Name} failed: {ex.Message}"); }
+        }
+    }
+    private static void Raise(Action handlers)
+    {
+        if (handlers == null) return;
+        foreach (Action handler in handlers.GetInvocationList())
+        {
+            try { handler(); }
+            catch (Exception ex) { BNL.LogError($"NetworkServer handler {handler.Method.DeclaringType?.FullName}.{handler.Method.Name} failed: {ex.Message}"); }
+        }
+    }
     #region Server Entry Point
 
     public static bool StartServer(Configuration configuration)
@@ -116,12 +137,14 @@ public static class NetworkServer
         BasisNetworkContentShare.StartExpiry();
 
         BNL.Log("Server Worker Threads Booted");
+        Raise(ServerStarted, configuration);
         return true;
     }
 
     public static void StopServer()
     {
         if (Server == null) return;
+        Raise(ServerStopping);
         try
         {
             Server.Stop();
@@ -244,6 +267,7 @@ public static class NetworkServer
         BasisNetworkServer.Security.BasisAvatarScaleLimitManager.BroadcastState();
         BasisNetworkServer.Security.BasisLocomotionPolicyManager.BroadcastState();
         BasisNetworkServer.Security.BasisResourceLimitManager.BroadcastState();
+        Raise(ConfigurationApplied, Configuration);
     }
 
     private static void InitializeAuth()

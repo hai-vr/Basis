@@ -96,6 +96,12 @@ public static class BasisSDKCommonInspector
         return ResolveSectionContainer(uiElementsRoot, BasisSDKConstants.ContentTagsSection, BasisSDKConstants.ContentTagsFields);
     }
 
+    public static VisualElement ResolveDescriptionContainer(VisualElement uiElementsRoot)
+    {
+        if (uiElementsRoot == null) return null;
+        return uiElementsRoot.Q<VisualElement>(BasisSDKConstants.DescriptionSection) ?? uiElementsRoot;
+    }
+
     private static VisualElement ResolveSectionContainer(VisualElement uiElementsRoot, string sectionName, string fieldsName)
     {
         if (uiElementsRoot == null) return null;
@@ -495,6 +501,45 @@ public static class BasisSDKCommonInspector
         buttonRow.Add(generate);
         buttonRow.Add(copy);
         foldout.Add(buttonRow);
+    }
+
+    public static void CreateAuthorshipFoldout(VisualElement parent, SerializedObject serializedObject)
+    {
+        if (parent == null || serializedObject == null) return;
+        SerializedProperty authorship = serializedObject.FindProperty($"{nameof(BasisContentBase.BasisBundleDescription)}.{nameof(BasisBundleDescription.Authorship)}");
+        if (authorship == null) return;
+
+        Foldout foldout = new Foldout
+        {
+            text = BasisEditorLocalization.Get("sdk.commonInspector.authorship.foldout"),
+            value = false,
+            style = { unityFontStyleAndWeight = FontStyle.Bold },
+        };
+        parent.Add(foldout);
+
+        Label help = BodyLabel(BasisEditorLocalization.Get("sdk.commonInspector.authorship.help"));
+        help.style.marginBottom = 6;
+        help.style.opacity = 0.85f;
+        foldout.Add(help);
+
+        AddAuthorshipField(foldout, authorship.FindPropertyRelative(nameof(BasisBundleAuthorship.Author)), BasisEditorLocalization.Get("sdk.commonInspector.authorship.author"), BasisEditorLocalization.Get("sdk.commonInspector.authorship.author.tooltip"), false, BasisContentDefaults.LocalDidKey());
+        AddAuthorshipField(foldout, authorship.FindPropertyRelative(nameof(BasisBundleAuthorship.Contact)), BasisEditorLocalization.Get("sdk.commonInspector.authorship.contact"), BasisEditorLocalization.Get("sdk.commonInspector.authorship.contact.tooltip"), false);
+        AddAuthorshipField(foldout, authorship.FindPropertyRelative(nameof(BasisBundleAuthorship.License)), BasisEditorLocalization.Get("sdk.commonInspector.authorship.license"), BasisEditorLocalization.Get("sdk.commonInspector.authorship.license.tooltip"), false);
+        AddAuthorshipField(foldout, authorship.FindPropertyRelative(nameof(BasisBundleAuthorship.Credits)), BasisEditorLocalization.Get("sdk.commonInspector.authorship.credits"), BasisEditorLocalization.Get("sdk.commonInspector.authorship.credits.tooltip"), true);
+    }
+
+    private static void AddAuthorshipField(VisualElement parent, SerializedProperty property, string label, string tooltip, bool multiline, string placeholder = null)
+    {
+        if (property == null) return;
+        TextField field = new TextField(label)
+        {
+            tooltip = tooltip,
+            multiline = multiline,
+        };
+        if (multiline) field.style.whiteSpace = WhiteSpace.Normal;
+        if (!string.IsNullOrEmpty(placeholder)) field.textEdition.placeholder = placeholder;
+        field.BindProperty(property);
+        parent.Add(field);
     }
 
     private static VisualElement BuildTagChip(string label, Action onRemove)

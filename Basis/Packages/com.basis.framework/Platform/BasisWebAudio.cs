@@ -21,7 +21,7 @@ namespace Basis.Scripts.Platform
         [DllImport("__Internal")] public static extern void BasisWebAudio_DestroyVoice(int id);
         [DllImport("__Internal")] public static extern int BasisWebAudio_PushVoice(int id, float[] buffer, int count);
         [DllImport("__Internal")] public static extern int BasisWebAudio_VoiceQueued(int id);
-        [DllImport("__Internal")] public static extern void BasisWebAudio_SetVoice(int id, float x, float y, float z, float gain, int spatial);
+        [DllImport("__Internal")] public static extern void BasisWebAudio_SetVoice(int id, float x, float y, float z, float gain, float blend);
         [DllImport("__Internal")] public static extern int BasisWebAudio_VoiceStats(int id, float[] output);
         [DllImport("__Internal")] public static extern int BasisWebAudio_MicStart(int chunk, int echoCancellation, int noiseSuppression, int autoGainControl, int deviceIndex);
         [DllImport("__Internal")] public static extern int BasisWebAudio_MicDeviceVersion();
@@ -128,17 +128,17 @@ namespace Basis.Scripts.Platform
                     BasisWebAudio.BasisWebAudio_PushVoice(id, block, BlockSize);
                     queued += BlockSize;
                 }
-                bool spatial = source.spatialBlend >= 0.5f;
+                float blend = Mathf.Clamp01(source.spatialBlend);
                 float gain = master * source.volume;
                 if (source.outputAudioMixerGroup != null && voiceVolumeKnown) gain *= SMModuleAudio.ActiveVoiceVolume;
                 Vector3 position = driver.transform.position;
-                if (spatial)
+                if (blend > 0f)
                 {
                     Vector3 offset = position - listenerPosition;
-                    gain *= Rolloff(receiver, source, offset.magnitude);
+                    gain *= Mathf.Lerp(1f, Rolloff(receiver, source, offset.magnitude), blend);
                     position = listenerPosition + offset - 2f * Vector3.Dot(offset, listenerForward) * listenerForward;
                 }
-                BasisWebAudio.BasisWebAudio_SetVoice(id, position.x, position.y, position.z, gain, spatial ? 1 : 0);
+                BasisWebAudio.BasisWebAudio_SetVoice(id, position.x, position.y, position.z, gain, blend);
                 if (BasisWebAudio.BasisWebAudio_VoiceStats(id, stats) == 0) continue;
                 int underruns = (int)stats[1];
                 if (underruns > driver.WebUnderruns)

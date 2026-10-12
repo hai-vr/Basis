@@ -1,5 +1,6 @@
 using System.Net;
 using System.Threading;
+using LiteNetLib.Layers;
 using LiteNetLib.Utils;
 
 namespace LiteNetLib
@@ -80,6 +81,14 @@ namespace LiteNetLib
                 return null;
             Result = ConnectionRequestResult.Accept;
             return _listener.OnConnectionSolved(this, null, 0, 0);
+        }
+
+        public NetPeer Accept(PacketLayerBase inboundLayer)
+        {
+            if (!TryActivate())
+                return null;
+            Result = ConnectionRequestResult.Accept;
+            return _listener.OnConnectionSolved(this, null, 0, 0, inboundLayer);
         }
 
         public void Reject(byte[] rejectData, int start, int length, bool force)

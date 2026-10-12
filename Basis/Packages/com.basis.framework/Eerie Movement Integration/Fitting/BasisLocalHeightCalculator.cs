@@ -256,7 +256,7 @@ public static partial class BasisLocalHeightCalculator
             BasisDebug.LogError("Missing BasisLocalPlayer");
             return;
         }
-        BasisHeightDriver.AvatarEyeHeight = Local.LocalAvatarDriver.ActiveAvatarEyeHeight();
+        BasisHeightDriver.AvatarEyeHeight = Local.LocalAvatarDriver.ActiveAvatarEyeHeight() - BasisLocalAvatarDriver.TposeSoleHeight;
         BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight : BasisHeightDriver.FallbackHeightInMeters;
         if (BasisHeightDriver.AvatarEyeHeight <= 0f)
         {

@@ -101,7 +101,7 @@ public struct BasisFootSimulateJob : IJob
         }
         else
         {
-            groundUpComponent = hipsUpComponent - p.hipToFoot - p.ankleHeight + p.footHeightOffset;
+            groundUpComponent = hipsUpComponent - p.hipToFoot - p.ankleHeight + p.footHangOffset;
             airborne = true;
         }
 

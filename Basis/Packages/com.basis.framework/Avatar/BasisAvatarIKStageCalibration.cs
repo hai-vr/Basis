@@ -356,6 +356,16 @@ namespace Basis.Scripts.Avatar
                 && rig.TryGetFittedTposeLocalScaled(bone, out boneTpose);
         }
 
+        public static float AuthoredFloorHeight(BasisBoneTrackedRole role, float fallback)
+        {
+            if (!BasisLocalAvatarDriver.HasTposeBoneSnapshot || !BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(role, out var bind))
+            {
+                return fallback;
+            }
+            BasisLocalAvatarDriver driver = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalAvatarDriver : null;
+            float scale = driver != null && driver.ScaleAvatarModification != null ? driver.ScaleAvatarModification.ApplyScale : 1f;
+            return bind.position.y * (float.IsNaN(scale) || float.IsInfinity(scale) || scale <= 1e-6f ? 1f : scale);
+        }
         public static bool TryGetUnscaledHeadFromEye(out Vector3 headFromEye)
         {
             headFromEye = Vector3.zero;
@@ -421,11 +431,18 @@ namespace Basis.Scripts.Avatar
                 {
                     calibratedHead += input.CalibratedUnscaledHeadRotation * (headFromEyeNow - input.CalibratedUnscaledHeadFromEye);
                 }
+                bool floorAnchored = BasisCalibrationMath.IsFloorAnchoredRole(role);
+                float floorY = floorAnchored ? BasisCalibrationMath.FloorAnchorY(BasisLocalPlayspaceMover.VerticalOffset, BasisHeightDriver.DeviceScale, BasisInput.OffsetCoords.position, BasisInput.OffsetCoords.rotation) + AuthoredFloorHeight(role, boneTpose.y) : 0f;
+                Vector3 calibratedTracker = input.CalibratedUnscaledPosition;
+                if (floorAnchored)
+                {
+                    calibratedTracker.y += BasisInput.UnscaledVerticalLift() - input.CalibratedUnscaledLift;
+                }
                 BasisCalibrationMath.ReprojectInverseOffsetPosition(
-                    input.CalibratedUnscaledPosition, input.CalibratedUnscaledRotation,
+                    calibratedTracker, input.CalibratedUnscaledRotation,
                     calibratedHead, input.CalibratedUnscaledHeadRotation,
                     BasisHeightDriver.DeviceScale, BasisInput.OffsetCoords.position, BasisInput.OffsetCoords.rotation,
-                    roleHeadTpose, boneTpose,
+                    roleHeadTpose, boneTpose, floorAnchored, floorY,
                     out Vector3 inverseOffsetPosition);
                 input.Control.SetInverseOffset(inverseOffsetPosition, input.Control.InverseOffsetFromBone.rotation);
             }

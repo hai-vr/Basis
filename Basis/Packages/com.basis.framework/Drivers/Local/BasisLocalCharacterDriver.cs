@@ -637,6 +637,7 @@ namespace Basis.Scripts.BasisCharacterController
         public static float TerminalVelocity() => TerminalVelocityAtDefaultSize * Mathf.Sqrt(AvatarSizeRatio());
 
         public static float LocomotionSpeedScale() => Mathf.Sqrt(AvatarSizeRatio());
+        public static float ControllerCenterY(float halfHeight, float skinWidth) => halfHeight + skinWidth;
 
         public void Validate()
         {
@@ -751,18 +752,15 @@ namespace Basis.Scripts.BasisCharacterController
 
             float halfHeight = finalHeight * 0.5f;
 
-            // Offset the capsule down by skinWidth so the collider bottom
-            // (including its skin shell) sits flush with the floor instead
-            // of hovering skinWidth above it.
-            float skinCompensation = _appliedSkinWidth;
+            float centerY = ControllerCenterY(halfHeight, _appliedSkinWidth);
 
             if (hasEye)
             {
-                ApplyCenter(new Vector3(eyePos.x, halfHeight - skinCompensation, eyePos.z));
+                ApplyCenter(new Vector3(eyePos.x, centerY, eyePos.z));
             }
             else
             {
-                ApplyCenter(new Vector3(0f, halfHeight - skinCompensation, 0f));
+                ApplyCenter(new Vector3(0f, centerY, 0f));
             }
 
             // Clamp stepOffset to something sane relative to height

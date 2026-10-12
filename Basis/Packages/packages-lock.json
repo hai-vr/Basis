@@ -323,6 +323,13 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.basis.transport.steam": {
+      "version": "https://github.com/dooly123/Basis-Steam-Transport-Package.git",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "22a9835874cc0b45aa388f9b210f0f225268cb56"
+    },
     "com.basis.vehicles": {
       "version": "file:com.basis.vehicles",
       "depth": 0,

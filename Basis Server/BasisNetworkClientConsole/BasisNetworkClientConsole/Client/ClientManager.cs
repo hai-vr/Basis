@@ -21,6 +21,7 @@ namespace Basis.Network
         public NetPeer[] FinalPeers;
         public NetworkClient[] FinalClients;
         public static int Size;
+        public static bool UseLegacyLogin;
 
         // Cached once — config doesn't change at runtime
         private byte[] _cachedPasswordBytes;
@@ -166,7 +167,8 @@ namespace Basis.Network
                     }
                 };
                 var netClient = new NetworkClient();
-                var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, ConfigManager.CompanyName, ConfigManager.ProductName, CreateConfig(), manualMode: true);
+                identity.Client = netClient;
+                var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, ConfigManager.CompanyName, ConfigManager.ProductName, CreateConfig(), manualMode: true, legacyLogin: UseLegacyLogin);
 
                 if (peer != null)
                 {
@@ -174,6 +176,7 @@ namespace Basis.Network
                     int clientIndex = Index;
                     netClient.listener.NetworkReceiveEvent += (p, r, ch, m) => MessageHandler.OnReceive(identity, clientIndex, p, r, ch, m);
                     netClient.listener.PeerDisconnectedEvent += MessageHandler.OnDisconnect;
+                    netClient.listener.PeerDisconnectedEvent += (p, info) => RetryIfLegacyServer(clientIndex, netClient, info);
 
                     Volatile.Write(ref FinalClients[Index], netClient);
                     Volatile.Write(ref FinalPeers[Index], peer);
@@ -238,13 +241,15 @@ namespace Basis.Network
             };
 
             var netClient = new NetworkClient();
-            var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, ConfigManager.CompanyName, ConfigManager.ProductName, CreateConfig(), manualMode: true);
+            identity.Client = netClient;
+            var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, ConfigManager.CompanyName, ConfigManager.ProductName, CreateConfig(), manualMode: true, legacyLogin: UseLegacyLogin);
 
             if (peer != null)
             {
                 peer.Tag = identity;
                 netClient.listener.NetworkReceiveEvent += (p, r, ch, m) => MessageHandler.OnReceive(identity, index, p, r, ch, m);
                 netClient.listener.PeerDisconnectedEvent += MessageHandler.OnDisconnect;
+                netClient.listener.PeerDisconnectedEvent += (p, info) => RetryIfLegacyServer(index, netClient, info);
 
                 Interlocked.Exchange(ref FinalClients[index], netClient);
                 Interlocked.Exchange(ref FinalPeers[index], peer);
@@ -255,6 +260,31 @@ namespace Basis.Network
 
                 BNL.Log($"Reconnected: {name} ({identity.Did}) at index {index}");
             }
+        }
+        private void RetryIfLegacyServer(int index, NetworkClient client, DisconnectInfo info)
+        {
+            if (client.LegacyLogin || !IsLegacyServerReject(info))
+            {
+                return;
+            }
+            if (!UseLegacyLogin)
+            {
+                UseLegacyLogin = true;
+                BNL.LogWarning($"Server is out of date (network protocol v{BasisNetworkVersion.LegacyLoginVersion}); connecting with its older login.");
+            }
+            _ = Task.Run(() => ReconnectClientAsync(index));
+        }
+        private static bool IsLegacyServerReject(DisconnectInfo info)
+        {
+            NetDataReader data = info.AdditionalData;
+            if (info.Reason != DisconnectReason.ConnectionRejected || data == null || data.AvailableBytes < 9)
+            {
+                return false;
+            }
+            byte[] raw = data.RawData;
+            int p = data.Position;
+            uint magic = (uint)(raw[p] | (raw[p + 1] << 8) | (raw[p + 2] << 16) | (raw[p + 3] << 24));
+            return magic == BasisNetworkCommons.RejectMagic && raw[p + 4] == BasisNetworkCommons.RejectKind_VersionMismatch && (ushort)(raw[p + 5] | (raw[p + 6] << 8)) == BasisNetworkVersion.LegacyLoginVersion;
         }
         /// <summary>
         /// Leaves the server cleanly, then tears down.
@@ -303,6 +333,7 @@ namespace Basis.Network
             Configuration Configuration = new Configuration();
             SetTransportOption(BasisNetworkStackRegistry.LiteNetLibId, "UseNativeSockets", true);
             Configuration.UseAuthIdentity = true;
+            Configuration.NetworkStackId = ConfigManager.NetworkStackId;
 
             return Configuration;
         }
@@ -321,6 +352,9 @@ namespace Basis.Network
 
         public volatile bool Authenticated;
 
+        // The connection this identity logs in on; set before StartClient.
+        public NetworkClient? Client;
+
         public string Did { get; }
 
         public ConsoleClientIdentity()
@@ -332,26 +366,7 @@ namespace Basis.Network
 
         public bool TryRespondToChallenge(NetPacketReader reader, out NetDataWriter writer)
         {
-            writer = new NetDataWriter();
-
-            BytesMessage challenge = new BytesMessage();
-            if (!challenge.Deserialize(reader, out byte[] nonce))
-            {
-                BNL.LogError("Malformed auth challenge from server");
-                return false;
-            }
-
-            if (!Ed25519.Sign(_privateKey, new Payload(nonce), out Signature? signature) || signature == null)
-            {
-                BNL.LogError("Unable to sign auth challenge");
-                return false;
-            }
-
-            BytesMessage signatureBytes = new BytesMessage();
-            BytesMessage fragmentBytes = new BytesMessage();
-            signatureBytes.Serialize(writer, signature.V);
-            fragmentBytes.Serialize(writer, Encoding.UTF8.GetBytes("N/A"));
-            return true;
+            return BasisDIDAuthIdentityClient.RespondToChallenge(Client, _privateKey, Did, reader, out writer);
         }
     }
 }

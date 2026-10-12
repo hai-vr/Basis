@@ -143,6 +143,10 @@ namespace Basis.Scripts.Drivers
         public void Initialize(BasisLocalCameraDriver CameraDriver)
         {
             this.CameraDriver = CameraDriver;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (MuteSound != null) MuteSound.LoadAudioData();
+            if (UnMuteSound != null) UnMuteSound.LoadAudioData();
+#endif
 
             halfDuration = duration / 2f;
             iconHalfRU = GetIconHalfSizeRUInCameraSpace(CameraDriver.Camera, CameraDriver.ParentOfUI);

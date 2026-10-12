@@ -22,10 +22,23 @@ namespace Basis.BasisUI
     [AutoStaticsCleanup]
     public partial class ServersProvider : BasisMenuActionProvider<BasisMainMenu>
     {
+        private static ServersProvider _instance;
+        public static readonly List<Action<RectTransform>> HostSettingsBuilders = new();
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
         {
-            BasisMenuBase<BasisMainMenu>.AddProvider(new ServersProvider());
+            _instance = new ServersProvider();
+            BasisConnectionService.PasswordRequired -= OnPasswordRequired;
+            BasisConnectionService.PasswordRequired += OnPasswordRequired;
+            BasisMenuBase<BasisMainMenu>.AddProvider(_instance);
+        }
+
+        private static void OnPasswordRequired(ServerDirectoryEntry entry)
+        {
+            if (_instance == null || entry == null) return;
+            BasisMainMenu.Open();
+            if (_instance._panel == null) _instance.RunAction();
+            _instance.PromptForPassword(entry);
         }
 
         public const string TitleKey = "menu.provider.servers";
@@ -57,6 +70,7 @@ namespace Basis.BasisUI
         private readonly Dictionary<string, ServerCard> _cards = new();
         private readonly Dictionary<string, int> _sourceOrder = new();
         private readonly Dictionary<string, ServerProbeResult> _probeResults = new();
+        private readonly HashSet<string> _probedIds = new();
         private readonly List<ServerCard> _orderBuffer = new();
         private ServerDirectoryEntry _hostEntry;
         private string _editingId;
@@ -72,6 +86,14 @@ namespace Basis.BasisUI
 
         private static bool IsHostEntry(ServerDirectoryEntry entry) =>
             entry != null && string.Equals(entry.Id, HostEntryId, StringComparison.Ordinal);
+
+        private static string FormatTitle(ServerDirectoryEntry entry, string name)
+        {
+            if (IsDefault(entry)) return string.Format(BasisLocalization.Get("menu.servers.list.defaultBadge"), name);
+            if (entry == null || IsHostEntry(entry) || string.Equals(entry.SourceId, SavedServersDirectorySource.Id, StringComparison.OrdinalIgnoreCase)) return name;
+            string source = BasisServerDirectoryRegistry.Get(entry.SourceId)?.DisplayName;
+            return string.IsNullOrEmpty(source) ? name : string.Format(BasisLocalization.Get("menu.servers.list.sourceBadge"), name, source);
+        }
 
         // ── Static UI references rebuilt every RunAction() ────────────────────
         private BasisMenuPanel _panel;
@@ -99,6 +121,7 @@ namespace Basis.BasisUI
         private DialogBox<bool> _hostEditorDialog;
         private DialogBox<bool> _serverEditorDialog;
         private DialogBox<bool> _searchDialog;
+        private DialogBox<string> _passwordDialog;
         private PanelDropdown _hostStackDropdown;
         private PanelTextField _hostServerNameField;
         private PanelTextField _hostMotdField;
@@ -171,6 +194,7 @@ namespace Basis.BasisUI
             _sourceOrder.Clear();
             _entries.Clear();
             _probeResults.Clear();
+            _probedIds.Clear();
             _pendingUsernameEntry = null;
             _pendingDefaultHighlight = false;
             _lastQuery = string.Empty;
@@ -184,6 +208,7 @@ namespace Basis.BasisUI
             _headerGroup = null;
             _searchField = null;
             _searchDialog = null;
+            _passwordDialog = null;
             UnsubscribeSourceEvents();
             _panel = null;
         }
@@ -217,7 +242,7 @@ namespace Basis.BasisUI
 
         private void OnSourceChanged()
         {
-            _ = ReloadEntriesAsync(probeAfter: true, autoConnectAfter: false);
+            _ = ReloadEntriesAsync(probeAfter: false, autoConnectAfter: false);
         }
 
         private async Task ReloadEntriesAsync(bool probeAfter, bool autoConnectAfter)
@@ -243,9 +268,11 @@ namespace Basis.BasisUI
 
             if (_panel == null) return;
 
+            HashSet<string> shown = probeAfter ? null : new HashSet<string>(_cards.Keys);
             RebuildCards();
 
             if (probeAfter) _ = RefreshAllAsync();
+            else _ = RefreshNewAsync(shown);
 
             if (autoConnectAfter)
             {
@@ -439,6 +466,12 @@ namespace Basis.BasisUI
             _hostThirdPersonDisabledToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostThirdPersonDisabled"));
             _hostThirdPersonDisabledToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostThirdPersonDisabledFile, 0) != 0);
             _hostThirdPersonDisabledToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostThirdPersonDisabledFile);
+
+            for (int index = 0; index < HostSettingsBuilders.Count; index++)
+            {
+                try { HostSettingsBuilders[index]?.Invoke(container); }
+                catch (Exception ex) { BasisDebug.LogWarning($"Host settings builder failed: {ex.Message}"); }
+            }
         }
 
         private async Task ShowHostEditorAsync()
@@ -954,7 +987,7 @@ namespace Basis.BasisUI
                 group.TitleLabel.overflowMode = TextOverflowModes.Ellipsis;
             }
 
-            ServerCard card = new ServerCard { Entry = entry, Group = group, Visible = true };
+            ServerCard card = new ServerCard { Entry = entry, Group = group, Visible = true, Probed = _probedIds.Contains(entry.Id) };
             card.ChipLabel = AddInfoChip(group);
             card.ChipRoot = card.ChipLabel.transform.parent.gameObject;
             card.PingBarsRoot = AddPingBars(group, out card.PingBars);
@@ -1089,6 +1122,7 @@ namespace Basis.BasisUI
             {
                 card.Entry = _hostEntry;
                 _probeResults.Remove(HostEntryId);
+                _probedIds.Remove(HostEntryId);
                 card.Probed = false;
                 card.Querying = false;
                 UpdateCardStatus(card);
@@ -1120,9 +1154,7 @@ namespace Basis.BasisUI
 
             string name = online && !string.IsNullOrEmpty(probe.Name) ? probe.Name : entry.DisplayName;
             if (string.IsNullOrEmpty(name)) name = address;
-            card.Group.SetTitle(IsDefault(entry)
-                ? string.Format(BasisLocalization.Get("menu.servers.list.defaultBadge"), name)
-                : name);
+            card.Group.SetTitle(FormatTitle(entry, name));
 
             if (card.Group.IconImage != null)
             {
@@ -1581,6 +1613,25 @@ namespace Basis.BasisUI
             }
         }
 
+        private async Task RefreshNewAsync(HashSet<string> shown)
+        {
+            List<Task> tasks = null;
+            CancellationToken token = (_queryCts ??= new CancellationTokenSource()).Token;
+            foreach (KeyValuePair<string, ServerCard> kv in _cards)
+            {
+                if (shown.Contains(kv.Key)) continue;
+                (tasks ??= new List<Task>()).Add(QueryAndUpdateAsync(kv.Value.Entry, token));
+            }
+            if (tasks == null) return;
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
         private async Task RefreshOneAsync(string id)
         {
             ServerDirectoryEntry e = FindEntry(id);
@@ -1610,6 +1661,7 @@ namespace Basis.BasisUI
 
             if (result != null && result.Reachable) _probeResults[entry.Id] = result;
             else _probeResults.Remove(entry.Id);
+            _probedIds.Add(entry.Id);
 
             if (!_cards.TryGetValue(entry.Id, out ServerCard card) || card.Group == null) return;
             card.Querying = false;
@@ -1793,6 +1845,92 @@ namespace Basis.BasisUI
             _pendingUsernameEntry = null;
             if (!confirmed) return;
             _ = ConnectToAsync(entry, isHostMode);
+        }
+
+        private void PromptForPassword(ServerDirectoryEntry entry)
+        {
+            if (_panel == null || _passwordDialog != null) return;
+
+            string address = entry.Target?.Get(ConnectionTarget.Keys.Address) ?? string.Empty;
+            string name = string.IsNullOrEmpty(entry.DisplayName) ? address : entry.DisplayName;
+            DialogBox<string> dialog = DialogBox<string>.Create(_panel, new Vector2(650, 340),
+                BasisLocalization.Get("menu.servers.passwordPrompt.title", name),
+                BasisLocalization.Get("menu.servers.passwordPrompt.body"),
+                AddressableAssets.Sprites.Unlocked,
+                true,
+                () => OnPasswordRequired(entry),
+                BasisNotificationCategory.Network);
+            if (dialog.Descriptor == null) return;
+            _passwordDialog = dialog;
+
+            PanelPasswordField passwordField = PanelPasswordField.CreateNewEntry(dialog.Descriptor.ContentParent);
+            passwordField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.password"));
+
+            void TryConfirm()
+            {
+                if (dialog.IsBusy) return;
+                string typed = passwordField.Password;
+                if (string.IsNullOrEmpty(typed))
+                {
+                    passwordField._inputField.Select();
+                    passwordField._inputField.ActivateInputField();
+                    return;
+                }
+                dialog.IsBusy = true;
+                dialog.CloseWithResult(typed);
+            }
+
+            passwordField._inputField.onSubmit.AddListener(_ => TryConfirm());
+
+            PanelTabGroup actions = PanelTabGroup.CreateNew(dialog.Descriptor.ContentParent, LayoutDirection.HorizontalNoBackground);
+            actions.Descriptor.SetHeight(60);
+
+            PanelButton cancelButton = PanelButton.CreateNew(PanelButton.ButtonStyles.CancelButton, actions.TabButtonParent);
+            cancelButton.Descriptor.SetTitle(BasisLocalization.Get("ui.cancel"));
+            cancelButton.Descriptor.SetWidth(200);
+            cancelButton.Descriptor.SetHeight(60);
+            cancelButton.OnClicked += () =>
+            {
+                if (dialog.IsBusy) return;
+                dialog.IsBusy = true;
+                dialog.CloseWithResult(null);
+            };
+
+            PanelButton connectButton = PanelButton.CreateNew(PanelButton.ButtonStyles.AcceptButton, actions.TabButtonParent);
+            connectButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.connect"));
+            connectButton.Descriptor.SetWidth(200);
+            connectButton.Descriptor.SetHeight(60);
+            connectButton.OnClicked += TryConfirm;
+
+            passwordField._inputField.Select();
+            passwordField._inputField.ActivateInputField();
+
+            _ = AwaitPasswordPromptAsync(dialog, entry);
+        }
+
+        private async Task AwaitPasswordPromptAsync(DialogBox<string> dialog, ServerDirectoryEntry entry)
+        {
+            string password = await dialog.WaitAsync();
+            if (_passwordDialog == dialog) _passwordDialog = null;
+            if (string.IsNullOrEmpty(password)) return;
+
+            entry.Password = password;
+            entry.HasPassword = true;
+            entry.Target?.Set(ConnectionTarget.Keys.Password, password);
+            RememberPassword(entry, password);
+            _ = ConnectToAsync(entry);
+        }
+
+        private static void RememberPassword(ServerDirectoryEntry entry, string password)
+        {
+            if (!string.Equals(entry.SourceId, SavedServersDirectorySource.Id, StringComparison.OrdinalIgnoreCase)) return;
+            List<SavedServerEntry> saved = SavedServerStore.Load();
+            SavedServerEntry stored = saved.Find(s => s.Id == entry.Id);
+            if (stored == null) return;
+            stored.Password = password;
+            stored.HasPassword = true;
+            SavedServerStore.Save(saved);
+            SavedServersDirectorySource.Instance?.NotifyChanged();
         }
 
         private void OnUsernameSubmitted()

@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using LiteNetLib.Layers;
 using LiteNetLib.Utils;
 
 namespace LiteNetLib
@@ -294,6 +295,54 @@ namespace LiteNetLib
         public object Tag;
 
         /// <summary>
+        /// Per-connection layer applied to every datagram received from this peer, after the peer
+        /// is resolved and after the manager-wide layer. Bound to the peer rather than its endpoint,
+        /// so it keeps applying across an address change. A layer that sets the length to 0 drops
+        /// the datagram.
+        /// </summary>
+        public PacketLayerBase InboundPacketLayer => _inboundPacketLayer;
+
+        /// <summary>
+        /// Per-connection layer applied to every datagram sent to this peer, before the
+        /// manager-wide layer. Its extra size is taken off this peer's MTU.
+        /// </summary>
+        public PacketLayerBase OutboundPacketLayer => _outboundPacketLayer;
+
+        private volatile PacketLayerBase _inboundPacketLayer;
+        private volatile PacketLayerBase _outboundPacketLayer;
+
+        public void SetInboundPacketLayer(PacketLayerBase layer)
+        {
+            _inboundPacketLayer = layer;
+        }
+
+        public void SetOutboundPacketLayer(PacketLayerBase layer)
+        {
+            lock (_mtuMutex)
+            {
+                _outboundPacketLayer = layer;
+                if (NetManager.MtuOverride > 0)
+                    OverrideMtu(NetManager.MtuOverride);
+                else
+                    SetMtu(_mtuIdx);
+            }
+        }
+
+        private int MtuForIndex(int mtuIdx)
+        {
+            return NetConstants.PossibleMtu[mtuIdx]
+                - NetManager.ExtraPacketSizeForLayer
+                - (_outboundPacketLayer?.ExtraPacketSizeForLayer ?? 0);
+        }
+
+        private int ProbeSizeForIndex(int mtuIdx)
+        {
+            return NetConstants.PossibleMtu[mtuIdx]
+                - NetManager.ExtraSizeForLayer((byte)PacketProperty.MtuCheck)
+                - (_outboundPacketLayer?.ExtraSizeFor((byte)PacketProperty.MtuCheck) ?? 0);
+        }
+
+        /// <summary>
         /// Statistics of peer connection
         /// </summary>
         public readonly NetStatistics Statistics;
@@ -395,12 +444,12 @@ namespace LiteNetLib
         private void SetMtu(int mtuIdx)
         {
             _mtuIdx = mtuIdx;
-            _mtu = NetConstants.PossibleMtu[mtuIdx] - NetManager.ExtraPacketSizeForLayer;
+            _mtu = MtuForIndex(mtuIdx);
         }
 
         private void OverrideMtu(int mtuValue)
         {
-            _mtu = mtuValue;
+            _mtu = mtuValue - (_outboundPacketLayer?.ExtraPacketSizeForLayer ?? 0);
             _finishMtu = true;
         }
 
@@ -1351,7 +1400,7 @@ namespace LiteNetLib
             if (receivedMtu > _mtu && !_finishMtu)
             {
                 //invalid packet
-                if (receivedMtu == NetConstants.PossibleMtu[_mtuIdx + 1] - NetManager.ExtraPacketSizeForLayer)
+                if (receivedMtu == ProbeSizeForIndex(_mtuIdx + 1))
                 {
                     lock (_mtuMutex)
                     {
@@ -1389,7 +1438,7 @@ namespace LiteNetLib
                     return;
 
                 //Send increased packet
-                int newMtu = NetConstants.PossibleMtu[_mtuIdx + 1] - NetManager.ExtraPacketSizeForLayer;
+                int newMtu = ProbeSizeForIndex(_mtuIdx + 1);
                 var p = NetManager.PoolGetPacket(newMtu);
                 p.Property = PacketProperty.MtuCheck;
                 FastBitConverter.GetBytes(p.RawData, 1, newMtu);         //place into start

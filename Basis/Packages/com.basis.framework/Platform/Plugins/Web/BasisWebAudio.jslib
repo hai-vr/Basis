@@ -152,12 +152,17 @@ var BasisWebAudioLibrary = {
     voice.panner.panningModel = 'HRTF';
     voice.panner.distanceModel = 'linear';
     voice.panner.rolloffFactor = 0;
+    voice.dry = context.createGain();
+    voice.wet = context.createGain();
     voice.gain = context.createGain();
     voice.node.port.onmessage = function (e) {
       voice.report = e.data;
       voice.underruns = e.data[3];
       voice.rms = e.data[4];
     };
+    voice.dry.connect(voice.gain);
+    voice.wet.connect(voice.panner);
+    voice.panner.connect(voice.gain);
     voice.gain.connect(context.destination);
     var id = BasisWebAudio.next++;
     BasisWebAudio.voices[id] = voice;
@@ -171,6 +176,8 @@ var BasisWebAudioLibrary = {
     voice.node.port.postMessage(0);
     voice.node.port.onmessage = null;
     voice.node.disconnect();
+    voice.dry.disconnect();
+    voice.wet.disconnect();
     voice.panner.disconnect();
     voice.gain.disconnect();
     delete BasisWebAudio.voices[id];
@@ -195,20 +202,19 @@ var BasisWebAudioLibrary = {
   },
 
   BasisWebAudio_SetVoice__deps: ['$BasisWebAudio'],
-  BasisWebAudio_SetVoice: function (id, x, y, z, gain, spatial) {
+  BasisWebAudio_SetVoice: function (id, x, y, z, gain, blend) {
     var voice = BasisWebAudio.voices[id];
     if (!voice) return;
+    var spatial = blend > 0 ? 1 : 0;
     if (voice.spatial !== spatial) {
       voice.node.disconnect();
-      voice.panner.disconnect();
-      if (spatial) {
-        voice.node.connect(voice.panner);
-        voice.panner.connect(voice.gain);
-      } else {
-        voice.node.connect(voice.gain);
-      }
+      voice.node.connect(voice.dry);
+      if (spatial) voice.node.connect(voice.wet);
       voice.spatial = spatial;
     }
+    var dry = Math.fround(1 - blend);
+    if (voice.wet.gain.value !== blend) voice.wet.gain.value = blend;
+    if (voice.dry.gain.value !== dry) voice.dry.gain.value = dry;
     var p = voice.panner;
     if (spatial) {
       if (p.positionX) {

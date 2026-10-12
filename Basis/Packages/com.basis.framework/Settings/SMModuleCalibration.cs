@@ -290,7 +290,7 @@ public partial class SMModuleCalibration : BasisSettingsBase
 
             case var s when s == K_FBIK_BODY_FIT:
             case var s2 when s2 == K_FBIK_BODY_FIT_MAX_DEVIATION:
-                BasisLocalPlayer.Instance?.LocalRigDriver?.RefreshBodyFit();
+                BasisHeightDriver.ApplyScaleAndHeight();
                 break;
 
             // ---------- GLOBAL ONE EURO PARAMS ----------
