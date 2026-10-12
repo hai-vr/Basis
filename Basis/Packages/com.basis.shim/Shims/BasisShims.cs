@@ -25,6 +25,12 @@ namespace Basis
 
 	public class SafeUtil
 	{
+		/// <summary>Returns the active BasisVR UI language code, not the OS language.</summary>
+		public static string GetCurrentLanguage()
+		{
+			return BasisLocalization.CurrentLanguage;
+		}
+
 		public static int GetExecutionBudgetUs( object self )
 		{
 			return (int)((CilboxProxy)self).box.timeoutLengthUs;

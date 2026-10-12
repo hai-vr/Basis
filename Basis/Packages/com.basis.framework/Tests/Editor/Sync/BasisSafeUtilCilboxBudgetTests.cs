@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using Basis;
+using Basis.BasisUI;
 using Cilbox;
 using NUnit.Framework;
 using UnityEngine;
@@ -73,7 +74,13 @@ namespace Basis.Tests.Sync
         }
 
         [Test]
-        public void SafeUtilWhitelist_PreservesExistingSurfaceAndAddsOnlyBudgetHelpers()
+        public void GetCurrentLanguage_ReturnsSelectedBasisUILanguage()
+        {
+            Assert.AreEqual(BasisLocalization.CurrentLanguage, SafeUtil.GetCurrentLanguage());
+        }
+
+        [Test]
+        public void SafeUtilWhitelist_PreservesExistingSurfaceAndAddsLanguageGetter()
         {
             FieldInfo field = typeof(CilboxBasisCommon).GetField(
                 "commonMethodWhitelist",
@@ -86,6 +93,7 @@ namespace Basis.Tests.Sync
             CollectionAssert.AreEquivalent(new[]
             {
                 ".ctor",
+                nameof(SafeUtil.GetCurrentLanguage),
                 nameof(SafeUtil.AddEventTrigger),
                 nameof(SafeUtil.MakeNetworkable),
                 nameof(SafeUtil.MakeInteractable),
