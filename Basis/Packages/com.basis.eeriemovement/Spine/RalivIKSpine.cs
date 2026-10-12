@@ -61,8 +61,8 @@ public class RalivIKSpine
         headToHip = headToHip.normalized * hipHeadRestDistance;
         spineData.hipTargetPosition = Vector3.Lerp(spineData.hipTargetPosition, spineData.headTargetPosition + headToHip, 0.5f);
 
-        Quaternion hipRotationOffset = Quaternion.Inverse(spineData.restRotations[0]) * spineData.hipTargetRotation;
-        Quaternion headRotationOffset = Quaternion.Inverse(spineData.restRotations[^1]) * spineData.headTargetRotation;
+        Quaternion hipRotationOffset = spineData.hipTargetRotation * Quaternion.Inverse(spineData.restRotations[0]);
+        Quaternion headRotationOffset = spineData.headTargetRotation * Quaternion.Inverse(spineData.restRotations[^1]);
 
         for (int index = 0; index < spineData.headTargetAlignedSpinePositions.Length; index++)
         {

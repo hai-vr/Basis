@@ -483,8 +483,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             return true;
         }
 
+        static float WireScale(Transform animatorTransform)
+        {
+            BasisAvatarScaleModifier modifier = BasisLocalPlayer.Instance != null && BasisLocalPlayer.Instance.LocalAvatarDriver != null ? BasisLocalPlayer.Instance.LocalAvatarDriver.ScaleAvatarModification : null;
+            return modifier != null ? modifier.NetworkScale(animatorTransform) : animatorTransform.localScale.y;
+        }
         static void CompressAvatarData(BasisStoredAvatarData AvatarData, Transform ScaleTransform)
         {
+            float wireScale = WireScale(ScaleTransform);
             int needed = BasisAvatarBitPacking.ConvertToSize(WireQuality);
             AvatarData.LASM.DataQualityLevel = (byte)WireQuality;
             AvatarData.LASM.array ??= new byte[needed];
@@ -521,7 +527,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 }
 
                 // Scale
-                BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
+                BasisUnityBitPackerExtensionsUnsafe.CompressScale(wireScale, ref AvatarData.LASM, ref offset);
 
                 // Hips world rotation
                 BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(hipsWorldRot, ref AvatarData.LASM.array, ref offset);
@@ -549,11 +555,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 // End-effector anchoring block (High only). CaptureEndEffectors fills the scratch
                 // arrays + returns the anchored mask from the local rig; the receiver two-bone-IKs the
                 // anchored limbs to these targets. Mask 0 (nothing world-stable) makes it inert.
-                byte effectorMask = CaptureEndEffectors(hipsWorldPos, hipsWorldRot, ScaleTransform.localScale.y);
+                byte effectorMask = CaptureEndEffectors(hipsWorldPos, hipsWorldRot, wireScale);
                 BasisAvatarEndEffectors.Encode(AvatarData.LASM.array, offset, effectorMask, sEffectorPos, sEffectorRot);
                 offset += BasisAvatarEndEffectors.BlockBytes;
 
-                CaptureRawPose(hipsWorldPos, hipsWorldRot, hipsDelta, hipsRotDelta, ScaleTransform.localScale.y, effectorMask);
+                CaptureRawPose(hipsWorldPos, hipsWorldRot, hipsDelta, hipsRotDelta, wireScale, effectorMask);
             }
             else
             {

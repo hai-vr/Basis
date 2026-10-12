@@ -971,10 +971,10 @@ namespace Basis.Scripts.Networking.Receivers
             BasisNetworkReceiver = networkedPlayer;
             LogOutputRateOnce();
 
-#if UNITY_IOS && !UNITY_EDITOR
+#if (UNITY_IOS || UNITY_WEBGL) && !UNITY_EDITOR
             // iOS requires statically linked Opus library
             decoder = new OpusSharp.Core.Static.OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
-#elif !UNITY_WEBGL || UNITY_EDITOR
+#else
             decoder = new OpusSharp.Core.Dynamic.OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
 #endif
 #endif

@@ -250,6 +250,8 @@ namespace Basis.Scripts.Drivers
                 HeadToSpine[write++] = candidates[i];
             }
             int SpineToHeadLength = HeadToSpine.Length;
+            int torsoTopHeadFirst = System.Array.IndexOf(HeadToSpine, BasisBodyFitApply.TorsoTop(Mapping));
+            job.chainTorsoTopIdx = torsoTopHeadFirst >= 0 ? SpineToHeadLength - 1 - torsoTopHeadFirst : 0;
             job.chainHeadToSpine = new NativeArray<BasisBoneHandle>(SpineToHeadLength, Allocator.Persistent);
             BuildSpineAnatomy(ref job, HeadToSpine, Mapping);
 

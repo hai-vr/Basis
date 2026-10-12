@@ -29,6 +29,7 @@ public static partial class SerializableBasis
         Link = 5,
         Text = 6,
         Folder = 7,
+        Setting = 8,
     }
 
     /// <summary>
@@ -45,9 +46,9 @@ public static partial class SerializableBasis
         public const int MaxLength = 16384;
         public const int MaxTextLength = 4096;
 
-        public static bool IsPayloadType(ContentShareType type) => type == ContentShareType.DollyTrack || type == ContentShareType.Folder || IsTextType(type);
+        public static bool IsPayloadType(ContentShareType type) => type == ContentShareType.DollyTrack || type == ContentShareType.Folder || type == ContentShareType.Setting || IsTextType(type);
         public static bool IsTextType(ContentShareType type) => type == ContentShareType.Link || type == ContentShareType.Text;
-        public static int MaxLengthFor(ContentShareType type) => IsTextType(type) ? MaxTextLength : MaxLength;
+        public static int MaxLengthFor(ContentShareType type) => IsTextType(type) || type == ContentShareType.Setting ? MaxTextLength : MaxLength;
 
         /// <summary>
         /// Whether <paramref name="value"/> is one plain web address and nothing else. The server

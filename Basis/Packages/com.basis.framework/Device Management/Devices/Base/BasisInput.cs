@@ -608,6 +608,8 @@ namespace Basis.Scripts.Device_Management.Devices
         // matcher-pinned tracker) must not be rebuilt against the ritual-calibration head.
         public Vector3 CalibratedUnscaledHeadPosition;
         public Quaternion CalibratedUnscaledHeadRotation = Quaternion.identity;
+        public bool HasCalibratedHeadFromEye;
+        public Vector3 CalibratedUnscaledHeadFromEye;
 
         /// <summary>
         /// Computes and applies the inverse offset from the driven bone so that the tracker maintains
@@ -686,6 +688,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 BasisCalibrationMath.UnscaleDeviceCoord(tracker.position, tracker.rotation, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation, out CalibratedUnscaledPosition, out CalibratedUnscaledRotation);
                 BasisCalibratedCoords anchorHeadOut = anchorHeadControl.OutGoingData;
                 BasisCalibrationMath.UnscaleDeviceCoord(anchorHeadOut.position, anchorHeadOut.rotation, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation, out CalibratedUnscaledHeadPosition, out CalibratedUnscaledHeadRotation);
+                HasCalibratedHeadFromEye = BasisAvatarIKStageCalibration.TryGetUnscaledHeadFromEye(out CalibratedUnscaledHeadFromEye);
                 HasCalibratedOffsetSnapshot = true;
             }
             else

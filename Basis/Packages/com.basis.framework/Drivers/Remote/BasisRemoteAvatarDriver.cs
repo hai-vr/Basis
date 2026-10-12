@@ -590,7 +590,22 @@ namespace Basis.Scripts.Drivers
                 eyeAboveRoot: eyeAboveRoot,
                 boundsTopAboveRoot: boundsTopAboveRoot,
                 hasBounds: hasBounds,
-                rootScaleY: rootScaleY);
+                rootScaleY: rootScaleY) + TorsoFitLift(tposeHips.position.y) / rootScaleY;
+        }
+
+        private float TorsoFitLift(float tposeHipsY)
+        {
+            if (!AppliedBodyFit.HasBodyFit || Mathf.Approximately(AppliedBodyFit.TorsoScale, 1f) || References.TposeWorld == null)
+            {
+                return 0f;
+            }
+            Transform top = Basis.IK.BasisBodyFitApply.TorsoTop(References);
+            HumanBodyBones topBone = top != null && top == References.Upperchest ? HumanBodyBones.UpperChest : top != null && top == References.chest ? HumanBodyBones.Chest : HumanBodyBones.Spine;
+            if (!References.TposeWorld.TryGetValue(topBone, out var tposeTop))
+            {
+                return 0f;
+            }
+            return (AppliedBodyFit.TorsoScale - 1f) * Mathf.Max(0f, tposeTop.position.y - tposeHipsY);
         }
 
         private bool TryGetTposeRenderedTop(BasisRemotePlayer RemotePlayer, out float topAboveRoot)
@@ -884,6 +899,10 @@ namespace Basis.Scripts.Drivers
         {
             AppliedBodyFit = fit;
             ApplyRemoteBodyFit();
+            if (InBoneDriver && Player is BasisRemotePlayer remote && remote.BasisAvatar != null && remote.NetworkReceiver != null)
+            {
+                RegisterAvatarWithBoneJobSystem(remote, snapToNetworkPose: false);
+            }
         }
 
         private void SeedBodyFitFromAvatarRecord(BasisRemotePlayer RemotePlayer)

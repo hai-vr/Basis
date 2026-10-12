@@ -89,9 +89,7 @@ namespace Basis.Scripts.Networking.Transmitters
 #if !UNITY_SERVER
         private void InitializeEncoder()
         {
-#if !UNITY_WEBGL || UNITY_EDITOR
             encoder = CreateConfiguredEncoder(LocalOpusSettings.ServerBitrate);
-#endif
             LocalOpusSettings.OnPacketLossPercentChanged += ApplyPacketLossPerc;
             LocalOpusSettings.OnBitrateChanged += ApplyBitrate;
             SharedOpusSettings.OnDesiredDurationChanged += ApplyFrameDuration;
@@ -100,7 +98,7 @@ namespace Basis.Scripts.Networking.Transmitters
         private OpusSharp.Core.Interfaces.IOpusEncoder CreateConfiguredEncoder(int bitrate)
         {
             OpusSharp.Core.Interfaces.IOpusEncoder created;
-#if UNITY_IOS && !UNITY_EDITOR
+#if (UNITY_IOS || UNITY_WEBGL) && !UNITY_EDITOR
             created = new OpusSharp.Core.Static.OpusEncoder(
                 LocalOpusSettings.MicrophoneSampleRate,
                 LocalOpusSettings.Channels,

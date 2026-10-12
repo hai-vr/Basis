@@ -24,6 +24,8 @@ namespace Basis.Scripts.Drivers
 
         public static readonly Dictionary<BasisBoneTrackedRole, BasisCalibratedCoords> TposeBoneSnapshot = new Dictionary<BasisBoneTrackedRole, BasisCalibratedCoords>();
         public static bool HasTposeBoneSnapshot;
+        public static Vector3 TposeTorsoTop;
+        public static bool HasTposeTorsoTop;
 
         public static Vector3 HeadScale = Vector3.one;
 
@@ -88,8 +90,7 @@ namespace Basis.Scripts.Drivers
 
             player.LocalRigDriver.Initialize(player, Mapping);
 
-            BasisAvatarIKStageCalibration.BasisBendNormalStore.Clear();
-            BasisAvatarIKStageCalibration.BasisLimbRollStore.Clear();
+            BasisAvatarIKStageCalibration.BasisLimbRollStore.TrackerToBone.Clear();
 
             player.LocalRigDriver.CleanupBeforeContinue();
             GameObject AvatarAnimatorParent = player.BasisAvatar.Animator.gameObject;
@@ -115,6 +116,7 @@ namespace Basis.Scripts.Drivers
             // snapshot is captured further down, before SetBodySettings consumes it.
             TposeBoneSnapshot.Clear();
             HasTposeBoneSnapshot = false;
+            HasTposeTorsoTop = false;
 
             // Enter T-Pose for calibration
             PutAvatarIntoTPose();
@@ -226,6 +228,7 @@ namespace Basis.Scripts.Drivers
 
             IsNormalHead = true;
             RemoveJiggleRigColliders();
+            ColliderScaleReference = ScaleAvatarModification.DuringCalibrationScale;
             if (player.IsConsideredFallBackAvatar == false)
             {
                 AddJiggleRigColliders(Mapping);
@@ -446,6 +449,7 @@ namespace Basis.Scripts.Drivers
         {
             TposeBoneSnapshot.Clear();
             HasTposeBoneSnapshot = false;
+            HasTposeTorsoTop = false;
             if (Mapping.HasAnimatorRoot == false || Mapping.AnimatorRoot == null)
             {
                 BasisDebug.LogError("CaptureTposeBoneSnapshot: no animator root; snapshot unavailable.", BasisDebug.LogTag.Avatar);
@@ -474,6 +478,12 @@ namespace Basis.Scripts.Drivers
                     invRoot * boneRot);
             }
             HasTposeBoneSnapshot = TposeBoneSnapshot.Count > 0;
+            Transform torsoTop = Basis.IK.BasisBodyFitApply.TorsoTop(Mapping);
+            if (torsoTop != null)
+            {
+                TposeTorsoTop = (invRoot * (torsoTop.position - rootPos)) / scale;
+                HasTposeTorsoTop = true;
+            }
         }
 
         public void ResetAvatarAnimator()

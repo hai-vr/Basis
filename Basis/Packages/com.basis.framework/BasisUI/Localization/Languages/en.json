@@ -21369,6 +21369,90 @@
       "value": "Folder"
     },
     {
+      "key": "content.share.type.setting",
+      "value": "Setting"
+    },
+    {
+      "key": "library.shareable.setting",
+      "value": "Shared Setting"
+    },
+    {
+      "key": "content.share.setting.offer.title",
+      "value": "Share Setting"
+    },
+    {
+      "key": "content.share.setting.offer.body",
+      "value": "Share where to find {0}, or what you have it set to? You choose where to place it next."
+    },
+    {
+      "key": "content.share.setting.location",
+      "value": "Location"
+    },
+    {
+      "key": "content.share.setting.value",
+      "value": "My Value"
+    },
+    {
+      "key": "content.share.setting.where",
+      "value": "Where"
+    },
+    {
+      "key": "content.share.setting.yourValue",
+      "value": "Your value"
+    },
+    {
+      "key": "content.share.setting.theirValue",
+      "value": "Their value"
+    },
+    {
+      "key": "content.share.setting.sharedValue",
+      "value": "Shared value"
+    },
+    {
+      "key": "content.share.setting.show",
+      "value": "Show Setting"
+    },
+    {
+      "key": "content.share.setting.location.question",
+      "value": "Open your Settings at this setting?"
+    },
+    {
+      "key": "content.share.setting.value.question",
+      "value": "Open your Settings at this setting? You can choose to use their value there."
+    },
+    {
+      "key": "content.share.setting.unreadable",
+      "value": "This setting could not be read. It may have been shared from a newer version of Basis."
+    },
+    {
+      "key": "content.share.setting.missing.title",
+      "value": "Setting Not Found"
+    },
+    {
+      "key": "content.share.setting.missing",
+      "value": "{0} is not in your Settings. It may be on a tab you can't see, only on another device, or from a different version of Basis."
+    },
+    {
+      "key": "content.share.setting.apply.body",
+      "value": "Use the shared value for this setting?"
+    },
+    {
+      "key": "content.share.setting.apply",
+      "value": "Apply"
+    },
+    {
+      "key": "content.share.setting.value.same",
+      "value": "You already have this setting set to the shared value."
+    },
+    {
+      "key": "content.share.setting.value.unusable",
+      "value": "The shared value can't be used here. Your version of this setting may have different options."
+    },
+    {
+      "key": "content.share.setting.value.locked",
+      "value": "This setting can't be changed right now."
+    },
+    {
       "key": "content.share.link.open.question",
       "value": "Do you want to open this link in your browser?"
     },

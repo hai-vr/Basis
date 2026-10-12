@@ -120,9 +120,7 @@ public static partial class BasisMediaSessionGovernor
 
     sealed class Driver : MonoBehaviour
     {
-        BasisMediaDriverTick frameTick;
-
-        void Awake() => frameTick = new BasisMediaDriverTick(Tick);
+        readonly BasisMediaDriverTick frameTick = new BasisMediaDriverTick(Tick);
 
         void OnEnable() => frameTick.Arm();
 
@@ -292,7 +290,7 @@ public static partial class BasisMediaSessionGovernor
         entry.SettledAt = Time.unscaledTime;
         if (player == null || string.IsNullOrEmpty(entry.Url)) return;
 
-        player.LoadApprovedUrl(entry.Url);
+        player.LoadUrl(entry.Url);
         // Live sources rejoin at the edge; there is nothing to return to, and
         // nothing to pause.
         if (entry.Live) return;

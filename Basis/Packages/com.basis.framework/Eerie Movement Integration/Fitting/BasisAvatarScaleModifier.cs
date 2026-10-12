@@ -44,6 +44,12 @@ namespace Basis.Scripts.Drivers
             ApplyScale = 1f;
             FinalScale = DuringCalibrationScale * ApplyScale;
         }
+        public float NetworkScale(Transform animatorTransform)
+        {
+            float local = animatorTransform != null ? animatorTransform.localScale.y : 1f;
+            float scale = scaleTarget != null && scaleTarget != animatorTransform ? local * ApplyScale : local;
+            return IsFinite(scale) && scale > 0f ? scale : local;
+        }
         public void SetAvatarheightOverride(float scale)
         {
             if (!IsFinite(scale) || scale <= 0f) scale = 1f;

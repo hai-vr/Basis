@@ -347,7 +347,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 // not the player's: this is a world-space distance test, and SelectedScaledPlayerHeight is
                 // the real human's eye height, which does not move when the avatar is scaled — so on a
                 // 0.5x avatar the reach bonus was roughly its entire body height.
-                extraReach = BasisHeightDriver.SelectedScaledAvatarHeight / 2;
+                extraReach = BasisHeightDriver.ScaledAvatarEyeHeight / 2;
+            }
+            else
+            {
+                interactRange *= Mathf.Max(1f, BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
             }
             float limit = interactRange + extraReach;
             return limit >= 0f && (GetClosestPoint(source) - source).sqrMagnitude <= limit * limit;

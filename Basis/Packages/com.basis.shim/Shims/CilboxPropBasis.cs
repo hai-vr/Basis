@@ -378,9 +378,38 @@ namespace Cilbox
 					mi = null;
 					return false;
 				}
+				if (!IsPublicMethod(declaringType, name, parametersIn, genericArgumentsIn, fullSignature) &&
+					!Beyond(MethodItem(declaringType, name), true))
+				{
+					mi = null;
+					return false;
+				}
 			}
 
 			return base.CheckMethodAllowed(out mi, declaringType, name, parametersIn, genericArgumentsIn, fullSignature);
+		}
+
+		bool IsPublicMethod(Type declaringType, string name, SerializedTypeDescriptor[] parametersIn, SerializedTypeDescriptor[] genericArgumentsIn, string fullSignature)
+		{
+			const BindingFlags publicMembers = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
+			if (genericArgumentsIn != null && genericArgumentsIn.Length > 0) return false;
+			try
+			{
+				if (parametersIn == null)
+				{
+					foreach (MethodInfo method in declaringType.GetMethods(publicMembers))
+						if (method.Name == name && (fullSignature == null || method.ToString() == fullSignature)) return true;
+					return false;
+				}
+				Type[] parameters = usage.DescriptorsToArrayOfNativeTypes(parametersIn);
+				for (int i = 0; i < parameters.Length; i++)
+					if (parameters[i] == null) return false;
+				return declaringType.GetMethod(name, 0, publicMembers, null, CallingConventions.Any, parameters, null) != null;
+			}
+			catch (Exception)
+			{
+				return false;
+			}
 		}
 
 		[NoAutoStaticsCleanup] static readonly HashSet<string> mergedWhiteListType = MergeTypes(extraWhiteListType);

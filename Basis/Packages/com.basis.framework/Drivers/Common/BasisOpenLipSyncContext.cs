@@ -463,6 +463,9 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public static void ProcessAllPending()
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            ProcessPendingOnMainThread();
+#else
             lock (_pendingInference)
             {
                 if (_pendingInference.Count == 0 || _workerBusy) return;
@@ -477,6 +480,7 @@ namespace Basis.Scripts.Drivers
                 worker.Thread.Start(worker);
             }
             worker.Wake.Set();
+#endif
         }
 
         public static void StopWorker()

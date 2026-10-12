@@ -229,7 +229,7 @@ namespace Basis.Scripts.Drivers
             }
             var measurements = new BasisBodyFitMeasurements
             {
-                PlayerEyeHeight = BasisHeightDriver.PlayerEyeHeight, PlayerArmSpan = BasisHeightDriver.PlayerArmSpan, PlayerHipHeight = BasisHeightDriver.PlayerHipHeight, AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight, AvatarArmSpan = BasisHeightDriver.AvatarArmSpan, AvatarHipHeight = BasisHeightDriver.AvatarHipHeight, AvatarLegSpan = BasisHeightDriver.AvatarLegSpan, AvatarSpineSpan = BasisHeightDriver.AvatarSpineSpan, AvatarShoulderWidth = BasisHeightDriver.AvatarShoulderWidth,
+                PlayerEyeHeight = BasisHeightDriver.PlayerEyeHeight, PlayerArmSpan = BasisHeightDriver.PlayerArmSpan, PlayerHipHeight = BasisHeightDriver.PlayerHipHeight, AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight, AvatarArmSpan = BasisHeightDriver.AvatarArmSpan, AvatarHipHeight = BasisHeightDriver.AvatarHipHeight, AvatarLegSpan = BasisHeightDriver.AvatarLegSpan, AvatarSpineSpan = BasisHeightDriver.AvatarSpineSpan, AvatarShoulderWidth = BasisHeightDriver.AvatarShoulderWidth, AvatarHipJointHeight = BasisHeightDriver.AvatarHipJointHeight, AvatarTorsoSpan = BasisHeightDriver.AvatarTorsoSpan,
 
                 UniformScale = BasisHeightDriver.AppliedUniformScale,
             };
@@ -644,6 +644,11 @@ namespace Basis.Scripts.Drivers
             BodyData.minHeadSpineHeight = minHeadSpineHeight * (BodyData.tposeTorsoFitScale > 0f ? BodyData.tposeTorsoFitScale : 1f);
 
             BodyData.RescaleTposeScalars(BasisEerieMovementSetup.AppliedAvatarScale());
+            float chain = BodyData.RalivRestChainLength();
+            if (chain > 0f)
+            {
+                BodyData.minHeadSpineHeight = chain;
+            }
         }
         public void Spine()
         {

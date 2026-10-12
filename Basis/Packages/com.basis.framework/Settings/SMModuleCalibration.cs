@@ -649,7 +649,8 @@ public partial class SMModuleCalibration : BasisSettingsBase
             return;
         }
 
-        if (ApplyCustomScale || (!ApplyCustomScale && _lastApplyCustomScale == true))
+        bool modeChanged = _hasApplied && _lastHeightMode != HeightMode;
+        if ((ApplyCustomScale || _lastApplyCustomScale || modeChanged) && BasisLocalPlayer.Instance != null && BasisLocalPlayer.PlayerReady)
         {
             BasisHeightDriver.ApplyScaleAndHeight();
         }

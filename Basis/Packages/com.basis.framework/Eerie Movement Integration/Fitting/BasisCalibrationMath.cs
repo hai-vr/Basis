@@ -67,14 +67,14 @@ public static class BasisCalibrationMath
         float rendered = authoredMetric * runtimeScale;
         return !float.IsNaN(rendered) && !float.IsInfinity(rendered) && rendered > 0f ? rendered : authoredMetric;
     }
-    public static float ArmSpanFloorGroundingLift(float avatarUnscaledEye, float appliedUpScale, float deviceScale, float playerMeasuredEye)
+    public static float HeightModeGroundingOffset(float avatarUnscaledEye, float appliedUpScale, float deviceScale, float playerTrueEye)
     {
-        if (deviceScale <= 1e-5f)
+        if (!(deviceScale > 1e-5f) || float.IsInfinity(deviceScale) || !(playerTrueEye > 0f) || float.IsInfinity(playerTrueEye))
         {
             return 0f;
         }
-        float desiredUnscaledEye = (avatarUnscaledEye * appliedUpScale) / deviceScale;
-        return Mathf.Max(0f, desiredUnscaledEye - playerMeasuredEye);
+        float offset = (avatarUnscaledEye * appliedUpScale) / deviceScale - playerTrueEye;
+        return float.IsNaN(offset) || float.IsInfinity(offset) || Mathf.Abs(offset) < 1e-5f ? 0f : offset;
     }
     public const float ArmToHeightBlendMin = 0f;
     public const float ArmToHeightBlendMax = 1f;
@@ -83,7 +83,7 @@ public static class BasisCalibrationMath
         return Mathf.Lerp(eyeMetric, spanMetric, Mathf.Clamp(blend, ArmToHeightBlendMin, ArmToHeightBlendMax));
     }
     public const float EyeToHeightRatio = 0.93f;
-    public const float SpanToHeightRatio = 1.0f;
+    public const float SpanToHeightRatio = 0.86f;
     public const float AutoModeEyePreferenceBand = 1.08f;
     public static float ImpliedHeightFromEye(float playerEye) => playerEye / EyeToHeightRatio;
     public static float ImpliedHeightFromSpan(float playerSpan) => playerSpan / SpanToHeightRatio;

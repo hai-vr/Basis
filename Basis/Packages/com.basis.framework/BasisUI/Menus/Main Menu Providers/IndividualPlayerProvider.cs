@@ -354,6 +354,7 @@ namespace Basis.BasisUI
         private static async Task<MeterRefs> CreateVolumeMeterUIAsync(Transform parent)
         {
             var sprite = await GetMeterSpriteAsync();
+            if (parent == null) return default;
 
             // Root
             var root = CreateUIObject("VolumeMeter", parent);
@@ -473,6 +474,7 @@ namespace Basis.BasisUI
             // Per-player settings are read once up front because the Actions tab needs them
             // before any of the detail tabs that own the same toggles have been built.
             var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
+            if (panel == null || panel.IsReleased) return;
 
             // Every control the Actions tab duplicates registers its repaint here, so pressing
             // a row on either side leaves the other side showing the truth.
@@ -642,6 +644,7 @@ namespace Basis.BasisUI
 
             // ---- Create meter UI (Addressables sprite) ----
             MeterRefs meter = await CreateVolumeMeterUIAsync(audioGroup.ContentParent);
+            if (panel == null || panel.IsReleased || meter.Root == null) return;
 
             // ---- Add sampler and wire UI refs ----
             var sampler = meter.Root.AddComponent<BasisUIVolumeSampler>();

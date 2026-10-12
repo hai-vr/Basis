@@ -35,6 +35,8 @@ public static class AssetBundleBuilder
             options = settings.BuildAssetBundleOptions
         };
 
+        if (buildTarget == BuildTarget.WebGL) BasisWebGraphicsAPIs.Apply();
+
         AssetBundleManifest manifest;
         CultureInfo previousCulture = CultureInfo.CurrentCulture;
         BasisBundleShaderStripScope.Begin(contentKind, settings, buildTarget);

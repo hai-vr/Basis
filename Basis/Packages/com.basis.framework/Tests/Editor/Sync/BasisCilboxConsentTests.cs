@@ -75,6 +75,12 @@ namespace Basis.Tests.Sync
             return box.CheckMethodAllowed(out _, declaringType, name, Array.Empty<SerializedTypeDescriptor>(), Array.Empty<SerializedTypeDescriptor>(), signature ?? name);
         }
 
+        static bool AllowedWith(CilboxBasisCommon box, Type declaringType, string name, params Type[] parameters)
+        {
+            SerializedTypeDescriptor[] descriptors = Array.ConvertAll(parameters, SerializedTypeDescriptorBuilder.FromNativeType);
+            return box.CheckMethodAllowed(out _, declaringType, name, descriptors, Array.Empty<SerializedTypeDescriptor>(), name);
+        }
+
         [Test]
         public void WithoutConsent_TheDefaultWhitelistIsUnchanged()
         {
@@ -205,6 +211,45 @@ namespace Basis.Tests.Sync
             Assert.IsFalse(Allowed(scene, typeof(GameObject), nameof(GameObject.SetActive), "Void SetActive(Byte*)"));
             Assert.IsFalse(Allowed(scene, typeof(Unity.Collections.NativeArray<byte>), "get_Item"));
             Assert.IsTrue(Allowed(scene, typeof(Unity.Collections.NativeArray<byte>), "get_Length"));
+        }
+
+        [Test]
+        public void APropReachesOnlyTheMediaPlayersPublicMethods_EvenWithConsent()
+        {
+            Type player = Type.GetType("BasisMediaPlayer, BasisMediaPlayer", true);
+            CilboxPropBasis prop = AddBox<CilboxPropBasis>();
+            Grant(prop,
+                "Method:BasisMediaPlayer.LoadUrl",
+                "Method:BasisMediaPlayer.OpenPreparedUrl",
+                "Method:BasisMediaPlayer.OpenStreams",
+                "Method:BasisMediaPlayer.WhenApproved",
+                "Method:BasisMediaPlayer.EndSession");
+
+            Assert.IsTrue(AllowedWith(prop, player, "Play"));
+            Assert.IsTrue(AllowedWith(prop, player, "LoadUrl", typeof(string)));
+            Assert.IsTrue(AllowedWith(prop, player, "Open", typeof(string), typeof(string)));
+            Assert.IsTrue(AllowedWith(prop, player, "get_State"));
+            Assert.IsFalse(AllowedWith(prop, player, "LoadUrl", typeof(string), typeof(bool)));
+            Assert.IsFalse(AllowedWith(prop, player, "OpenPreparedUrl", typeof(string)));
+            Assert.IsFalse(AllowedWith(prop, player, "OpenStreams", typeof(string), typeof(string), typeof(bool), typeof(bool)));
+            Assert.IsFalse(AllowedWith(prop, player, "WhenApproved", typeof(string), typeof(Action<string>), typeof(Action<bool>), typeof(bool)));
+            Assert.IsFalse(AllowedWith(prop, player, "EndSession"));
+            Assert.IsFalse(AllowedWith(prop, player, "set_LoadPending", typeof(bool)));
+            Assert.IsTrue(prop.CheckMethodAllowed(out _, player, "LoadUrl", null, null, "Void LoadUrl(System.String)"));
+            Assert.IsFalse(prop.CheckMethodAllowed(out _, player, "LoadUrl", null, null, "Void LoadUrl(System.String, Boolean)"));
+            Assert.IsFalse(prop.CheckMethodAllowed(out _, player, "OpenPreparedUrl", null, null, "Void OpenPreparedUrl(System.String)"));
+
+            object scan = BeginScan(prop);
+            try
+            {
+                Assert.IsTrue(AllowedWith(prop, player, "OpenPreparedUrl", typeof(string)));
+            }
+            finally
+            {
+                Field("consentScan").SetValue(prop, null);
+            }
+
+            CollectionAssert.AreEquivalent(new[] { "Method:BasisMediaPlayer.OpenPreparedUrl" }, Set(scan, "Blocked"));
         }
 
         [Test]

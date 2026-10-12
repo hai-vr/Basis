@@ -228,7 +228,9 @@ public static partial class BasisLocalMicrophoneDriver
             _knownDevices = SMDMicrophone.MicrophoneDevices;
             _deviceScanTimer = 0f;
 
+#if !UNITY_WEBGL || UNITY_EDITOR
             StartProcessingThread();
+#endif
             IsInitialize = true;
             OnInitializedAction?.Invoke(true);
             return true;
@@ -374,6 +376,9 @@ public static partial class BasisLocalMicrophoneDriver
 
     public static bool ResetMicrophones(string newMicrophone)
     {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        return ResetWebMicrophone(newMicrophone);
+#else
         lock (processingLock)
         {
             processingEvent.Reset();
@@ -515,17 +520,22 @@ public static partial class BasisLocalMicrophoneDriver
             MicrophoneDevice = newMicrophone;
             return true;
         }
+#endif
     }
 
     private static void StopSelectedMicrophone_Internal()
     {
         if (string.IsNullOrEmpty(MicrophoneDevice)) return;
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        StopWebMicrophone();
+#else
         if (Microphone.IsRecording(MicrophoneDevice))
         {
             Microphone.End(MicrophoneDevice);
             BasisDebug.Log("Stopped Microphone " + MicrophoneDevice);
         }
+#endif
 
         MicrophoneDevice = null;
         MicrophoneIsStarted = false;
@@ -602,7 +612,11 @@ public static partial class BasisLocalMicrophoneDriver
         if (_deviceScanTimer < DeviceScanIntervalSeconds) return;
         _deviceScanTimer = 0f;
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        string[] devices = WebMicrophoneDevices;
+#else
         string[] devices = Microphone.devices;
+#endif
 
         if (!DeviceListsMatch(_knownDevices, devices))
         {
@@ -630,10 +644,14 @@ public static partial class BasisLocalMicrophoneDriver
             return;
         }
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        bool needsRestart = WebMicrophoneNeedsRestart(target);
+#else
         bool needsRestart =
             !MicrophoneIsStarted ||
             !string.Equals(MicrophoneDevice, target, StringComparison.Ordinal) ||
             !Microphone.IsRecording(target);
+#endif
 
         if (!needsRestart) return;
 
@@ -682,6 +700,9 @@ public static partial class BasisLocalMicrophoneDriver
             MainThreadOnHasSilence?.Invoke();
         }
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        PumpWebCapture();
+#else
         if (!MicrophoneIsStarted || string.IsNullOrEmpty(MicrophoneDevice) || clip == null) return;
 
         int currentPosition = Microphone.GetPosition(MicrophoneDevice);
@@ -746,6 +767,7 @@ public static partial class BasisLocalMicrophoneDriver
         {
             processingEvent.Set();
         }
+#endif
     }
 
     /// <summary>
@@ -848,6 +870,12 @@ public static partial class BasisLocalMicrophoneDriver
             {
                 DrainStagingIntoRing();
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+                if (!TryDequeueCapturedFrame())
+                {
+                    return Timeout.Infinite;
+                }
+#else
                 long now = System.Diagnostics.Stopwatch.GetTimestamp();
                 if (!_pacer.TryRelease(now, PendingFrameCount(), PaceFramePeriodTicks(), out long waitTicks))
                 {
@@ -859,6 +887,7 @@ public static partial class BasisLocalMicrophoneDriver
                     _pacer.Resync(now);
                     return Timeout.Infinite;
                 }
+#endif
 
                 ProcessCurrentFrame();
             }

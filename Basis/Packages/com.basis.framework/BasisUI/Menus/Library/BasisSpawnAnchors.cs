@@ -538,7 +538,7 @@ namespace Basis.BasisUI
         private static void Tick()
         {
             Vector3 camPos = BasisLocalCameraDriver.Position;
-            float scale = BasisHeightDriver.ScaledToMatchValue;
+            float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
             if (scale <= 0f)
             {
                 scale = 1f;

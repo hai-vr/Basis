@@ -133,7 +133,7 @@ public static partial class SerializableBasis
             return true;
         }
 
-        private static void AppendField(StringBuilder builder, string value)
+        internal static void AppendField(StringBuilder builder, string value)
         {
             if (string.IsNullOrEmpty(value)) return;
             for (int i = 0; i < value.Length; i++)
@@ -150,7 +150,7 @@ public static partial class SerializableBasis
             }
         }
 
-        private static string ReadField(string field)
+        internal static string ReadField(string field)
         {
             if (field.IndexOf('%') < 0) return field;
             StringBuilder builder = new StringBuilder(field.Length);

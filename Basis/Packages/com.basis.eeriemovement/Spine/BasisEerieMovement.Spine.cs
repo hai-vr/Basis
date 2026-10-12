@@ -181,6 +181,53 @@ namespace Basis.IK
                 SpineData.length *= scale;
             }
         }
+        void RescaleRalivSpineSegments(float scale, int topIndex)
+        {
+            int count = SpineData.restPositions.Length;
+            if (count < 2 || SpineData.positions.Length != count || SpineData.t.Length != count || topIndex < 1 || !(scale > 0f) || float.IsInfinity(scale))
+            {
+                return;
+            }
+            topIndex = Mathf.Min(topIndex, count - 1);
+            Vector3 previousRest = SpineData.restPositions[0], previousWorking = SpineData.positions[0];
+            for (int index = 1; index < count; index++)
+            {
+                Vector3 rest = SpineData.restPositions[index], working = SpineData.positions[index];
+                float segmentScale = index <= topIndex ? scale : 1f;
+                SpineData.restPositions[index] = SpineData.restPositions[index - 1] + (rest - previousRest) * segmentScale;
+                SpineData.positions[index] = SpineData.positions[index - 1] + (working - previousWorking) * segmentScale;
+                previousRest = rest;
+                previousWorking = working;
+            }
+            float hipless = 0f;
+            for (int index = 0; index < count; index++)
+            {
+                if (index > 1)
+                {
+                    hipless += (SpineData.restPositions[index] - SpineData.restPositions[index - 1]).magnitude;
+                }
+                SpineData.t[index] = hipless;
+            }
+            if (hipless <= epsilon)
+            {
+                return;
+            }
+            SpineData.length = hipless;
+            for (int index = 0; index < count; index++)
+            {
+                SpineData.t[index] = SpineData.t[index] / hipless * 0.8f;
+            }
+        }
+        public float RalivRestChainLength()
+        {
+            int count = SpineData.restPositions.Length;
+            float length = 0f;
+            for (int index = 1; index < count; index++)
+            {
+                length += (SpineData.restPositions[index] - SpineData.restPositions[index - 1]).magnitude;
+            }
+            return count >= 2 && !float.IsNaN(length) && !float.IsInfinity(length) ? length : 0f;
+        }
         Vector3 ApplyCrouchBodyOffset(Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir, float fade)
         {
             BasisCrouchOffsetInput input;

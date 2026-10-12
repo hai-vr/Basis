@@ -22,7 +22,7 @@ namespace Basis.IK
         public NativeArray<BasisBoneHandle> chainHeadToSpine;
         public NativeArray<BasisSpineRestFrame> chainSpineRestFrames;
         public RalivIKSpine.SpineData SpineData;
-        public int chainChestIdx;
+        public int chainChestIdx, chainTorsoTopIdx;
         public Vector3 targetPositionHead, targetPositionHips;
         public Quaternion targetRotationHead, targetRotationHips, targetRotationChest;
         public Vector3 targetPositionChest, targetPositionChestRaw, playerUp, targetPositionLeftHand;
@@ -228,10 +228,12 @@ namespace Basis.IK
             }
             if (Mathf.Abs(kt - 1f) >= 1e-6f)
             {
-                tposeHeadToNeckLocal *= kt;
-                tposeLengthNeckToHips *= kt;
-                minHeadSpineHeight *= kt;
-                RescaleRalivSpineIK(kt);
+                RescaleRalivSpineSegments(kt, chainTorsoTopIdx);
+                float chain = RalivRestChainLength();
+                if (chain > 0f)
+                {
+                    minHeadSpineHeight = chain;
+                }
             }
             tposeArmFitScale = armScale;
             tposeTorsoFitScale = torsoScale;

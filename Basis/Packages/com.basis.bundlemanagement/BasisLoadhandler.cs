@@ -140,7 +140,12 @@ public static partial class BasisLoadHandler
     /// <returns></returns>
     public static async Task RequestDeIncrementOfBundle(BasisLoadableBundle loadableBundle)
     {
-        string CombinedURL = loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+        if (loadableBundle == null)
+        {
+            BasisDebug.LogWarning("Asked to release a bundle with no load record; nothing to release.", BasisDebug.LogTag.Event);
+            return;
+        }
+        string CombinedURL = loadableBundle.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation;
         // Release against the wrapper the reservation was actually taken on, and consume the
         // ticket so the same reservation can never be paid twice. Recomputing the key here reads
         // a version tag that other systems write onto this record after the load reserved, and a
