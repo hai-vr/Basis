@@ -108,13 +108,15 @@ jobs:
           modules: ${{ matrix.unityModules }}
       - name: "Build Unity project"
         timeout-minutes: 100
-        uses: BasisVR/unity-builder@main
+        # Tested head of BasisVR/unity-builder PR #2; switch to upstream main after merge.
+        uses: Toys0125/unity-builder@8df337b5ce899c7099fe7f7f8b0c36c43ebb890f
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           customImage: ${{ steps.unity-image.outputs.image }}
+          dockerShmSize: 2g
           buildName: ${{ env.buildName }}
           projectPath: ${{ env.projectPath }}
           targetPlatform: ${{ matrix.targetPlatform }}
@@ -235,13 +237,14 @@ jobs:
           modules: android
       - name: "Build Unity project"
         timeout-minutes: 100
-        uses: BasisVR/unity-builder@main
+        uses: Toys0125/unity-builder@8df337b5ce899c7099fe7f7f8b0c36c43ebb890f
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           customImage: ${{ steps.unity-image.outputs.image }}
+          dockerShmSize: 2g
           buildName: ${{ env.buildName }}
           projectPath: ${{ env.projectPath }}
           targetPlatform: Android
