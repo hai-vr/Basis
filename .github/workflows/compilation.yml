@@ -115,6 +115,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           customImage: ${{ steps.unity-image.outputs.image }}
+          dockerShmSize: 2g
           buildName: ${{ env.buildName }}
           projectPath: ${{ env.projectPath }}
           targetPlatform: ${{ matrix.targetPlatform }}
@@ -242,6 +243,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           customImage: ${{ steps.unity-image.outputs.image }}
+          dockerShmSize: 2g
           buildName: ${{ env.buildName }}
           projectPath: ${{ env.projectPath }}
           targetPlatform: Android
