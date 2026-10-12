@@ -126,7 +126,7 @@ namespace Basis.IK
 
             bool isVR = BasisDeviceManagement.IsCurrentModeVR();
 
-            float torsoYawDeadzoneDeg = isVR ? (Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawPlayInVR.RawValue ? Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawDeadzoneVRDeg.RawValue : 0f) : Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.RawValue;
+            float torsoYawDeadzoneDeg = Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.RawValue;
 
             if (BasisLocalPlayer.Instance.LocalCharacterDriver.IsProne)
             {

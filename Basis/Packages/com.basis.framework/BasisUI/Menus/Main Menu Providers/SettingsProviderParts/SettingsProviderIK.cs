@@ -749,12 +749,6 @@ public static partial class SettingsProviderIK
                 vspineTorsoYawDeadzone.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawDeadzone.title.tooltip"));
             }
 
-            var vspineTorsoYawDeadzoneVR = PanelSlider.CreateAndBind(
-                vspineParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawDeadzoneVR.title"), 0f, 90f, false, 1, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.VSpineTorsoYawDeadzoneVRDeg);
-            vspineTorsoYawDeadzoneVR?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawDeadzoneVR.title.tooltip"));
-
             var vspineTorsoYawBlend = PanelSlider.CreateAndBind(
                 vspineParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawBlend.title"), 1f, 60f, false, 1, ValueDisplayMode.Raw),
@@ -763,11 +757,6 @@ public static partial class SettingsProviderIK
             {
                 vspineTorsoYawBlend.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawBlend.title.tooltip"));
             }
-
-            var vspineTorsoYawPlayInVR = PanelToggle.CreateNewEntry(vspineParent);
-            vspineTorsoYawPlayInVR.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawPlayInVR.title"));
-            vspineTorsoYawPlayInVR.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawPlayInVR.title.tooltip"));
-            vspineTorsoYawPlayInVR.AssignBinding(BasisSettingsDefaults.VSpineTorsoYawPlayInVR);
 
             var vspineNodPivotEstimate = PanelToggle.CreateNewEntry(vspineParent);
             vspineNodPivotEstimate.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.vspineNodPivotEstimate.title"));
@@ -1350,8 +1339,6 @@ public static partial class SettingsProviderIK
         BasisSettingsDefaults.VSpineHipsForwardBias.ResetToDefault();
         BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.ResetToDefault();
         BasisSettingsDefaults.VSpineTorsoYawBlendSpeed.ResetToDefault();
-        BasisSettingsDefaults.VSpineTorsoYawPlayInVR.ResetToDefault();
-        BasisSettingsDefaults.VSpineTorsoYawDeadzoneVRDeg.ResetToDefault();
         BasisSettingsDefaults.VSpinePostureModel.ResetToDefault();
         BasisSettingsDefaults.VSpineHipsCompressionStrength.ResetToDefault();
         BasisSettingsDefaults.VSpineHipsMaxDropMeters.ResetToDefault();

@@ -117,18 +117,20 @@ namespace Basis.IK
                     if (front > 0f) worldHint -= planeFront * (2f * front * behindFade);
                 }
 
-                // Stick the elbow outward if the hand is moved inward toward the torso so it doesn't clip inside.
+                // Stick the elbow outward a bit, and more so if the hand is moved inward toward the torso so it doesn't clip inside.
+                // Applied after the behind plane check so the outward push never gets mirrored inward.
                 float chestToHandForward = Vector3.Dot(handPos - i.Chest, i.TorsoForward) / chain; // How far the hand is in front of the chest (negative when behind)
                 float shoulderToHand = Vector3.Dot(handPos - i.Shoulder, i.TorsoOut) / chain;  // How far the hand is away from the shoulder sideways
                 float chestToShoulder = Vector3.Dot(i.Shoulder - i.Chest, i.TorsoOut) / chain; // How far the shoulder is from the chest sideways
                 float inward = Smoothstep(-chestToShoulder / 2.0f, chestToShoulder * 2f, -shoulderToHand); // How far the hand has moved inward past the shoulder
-                float outPush = inward * chain * 0.6f; // How far to push the elbow hint to the side
+                float outPush = (0.3f + inward * 0.6f) * chain; // How far to push the elbow hint to the side
                 float forwardPush = Smoothstep(-chestToShoulder * 4.0f, 0, chestToHandForward) * inward * chain; // How far to push the elbow hint forward
                 worldHint += i.TorsoOut * outPush + i.TorsoForward * forwardPush;
 
-                // Nudge the elbow hint up/down with hand pitch. A flat hand is neutral, fingers tilted down raise the elbow, fingers tilted up lower it.
-                float handPitch = Vector3.Dot(handFwd, i.TorsoUp); // -1 fingers straight down, 0 flat, 1 fingers straight up
-                worldHint -= i.TorsoUp * (handPitch * HandTiltHintPush * chain);
+                // Nudge the elbow hint up/down with hand roll. A flat palm is neutral, thumb tilted down raises the elbow, thumb tilted up lowers it.
+                Vector3 palmSide = Vector3.Cross(handFwd, palm) * (i.IsLeft ? 1f : -1f);
+                float handRoll = Vector3.Dot(palmSide, i.TorsoUp); // -1 thumb straight down, 0 palm flat, 1 thumb straight up
+                worldHint -= i.TorsoUp * (handRoll * HandTiltHintPush * chain);
             }
 
             // Project the hint onto the elbow circle to get the swivel angle.

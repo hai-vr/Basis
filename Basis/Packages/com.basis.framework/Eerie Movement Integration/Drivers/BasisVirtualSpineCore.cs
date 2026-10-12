@@ -16,7 +16,6 @@ namespace Basis.IK
         private const float CounterbalanceFollowFrac = 0.25f;
         private const float CounterbalanceLateralFollowFrac = 0.8f;
         private const float FootPendulumLeanFrac = 0.20f;
-        private const float TorsoYawRelockSpeedDeg = 6f;
         private const float ReachUseCeiling = 0.97f;
         public struct SpineSolveParams
         {
@@ -54,9 +53,7 @@ namespace Basis.IK
             public byte HeadBaselineInitialized;
             public float StandingHeadRefY;
             public byte TorsoYawInitialized;
-            public float TorsoYawAnchorDeg, PrevHeadYawDeg;
-            public byte TorsoYawBroken;
-            public float TorsoFollow;
+            public float TorsoYawDeg;
         }
         [BurstCompile]
         public struct BasisVirtualSpineSolveJob : IJob
@@ -284,38 +281,22 @@ namespace Basis.IK
 
             if (s.TorsoYawInitialized == 0)
             {
-                s.TorsoYawAnchorDeg = headYawDeg;
-                s.PrevHeadYawDeg = headYawDeg;
-                s.TorsoYawBroken = 0;
-                s.TorsoFollow = 0f;
+                s.TorsoYawDeg = headYawDeg;
                 s.TorsoYawInitialized = 1;
             }
 
-            float headSpeedDeg = math.abs(DeltaAngleDeg(s.PrevHeadYawDeg, headYawDeg)) / math.max(dt, 1e-5f);
-            s.PrevHeadYawDeg = headYawDeg;
-
+            // While locomoting, ease the torso back to face the head.
             if (moving)
             {
-                s.TorsoYawBroken = 1;
+                s.TorsoYawDeg += DeltaAngleDeg(s.TorsoYawDeg, headYawDeg) * BasisSmoothingProfiles.FramerateIndependentAlpha(blendSpeed, dt);
             }
 
-            if (s.TorsoYawBroken == 0 && math.abs(DeltaAngleDeg(s.TorsoYawAnchorDeg, headYawDeg)) > math.max(0f, deadzoneDeg))
-            {
-                s.TorsoYawBroken = 1;
-            }
+            // The head turns freely inside the deadzone. Past it, the head drags the torso along so it stays exactly deadzone behind.
+            float deadzone = math.max(0f, deadzoneDeg), delta = DeltaAngleDeg(s.TorsoYawDeg, headYawDeg);
+            if (delta > deadzone) s.TorsoYawDeg = headYawDeg - deadzone;
+            else if (delta < -deadzone) s.TorsoYawDeg = headYawDeg + deadzone;
 
-            float targetFollow = s.TorsoYawBroken != 0 ? 1f : 0f;
-
-            s.TorsoFollow = math.lerp(s.TorsoFollow, targetFollow, BasisSmoothingProfiles.FramerateIndependentAlpha(blendSpeed, dt));
-
-            if (s.TorsoYawBroken != 0 && s.TorsoFollow >= 0.999f && headSpeedDeg <= TorsoYawRelockSpeedDeg)
-            {
-                s.TorsoYawBroken = 0;
-                s.TorsoYawAnchorDeg = headYawDeg;
-            }
-
-            quaternion anchorYaw = quaternion.AxisAngle(new float3(0f, 1f, 0f), math.radians(s.TorsoYawAnchorDeg));
-            return math.slerp(anchorYaw, headYawOnly, s.TorsoFollow);
+            return quaternion.AxisAngle(new float3(0f, 1f, 0f), math.radians(s.TorsoYawDeg));
         }
         private static float3 ComputeRealisticHipsXZBurst(ref SpineSolveState s, float3 headPosWorld, float dt, float standingHeadY, float headDrop, in quaternion torsoYaw, float3 leftFootPos, float3 rightFootPos, bool leftFootTracked, bool rightFootTracked, out float3 supportXZ)
         {

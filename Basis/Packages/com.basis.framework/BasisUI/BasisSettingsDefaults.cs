@@ -2037,23 +2037,14 @@ namespace Basis.BasisUI
         // The two knobs above are consulted ONLY when this is off.
         public static BasisSettingsBinding<bool> VSpinePostureModel = new("vspineposturemodel", new BasisPlatformDefault<bool>(true));
 
-        // Torso yaw "play": degrees the head can turn before the synthesized chest/spine/hips begin
-        // following. The torso holds inside this cone, catches up once the head leaves it, then the
-        // cone re-centers when the head stops. 0 = follow immediately (legacy behavior).
+        // Torso yaw "play": degrees the head can turn freely before it starts dragging the synthesized
+        // chest/spine/hips along with it. Past this, the torso stays exactly this far behind the head.
+        // Applies to desktop and VR alike. 0 = torso follows the head immediately.
         public static BasisSettingsBinding<float> VSpineTorsoYawDeadzoneDeg = new("vspinetorsoyawdeadzonedeg", new BasisPlatformDefault<float>(45f));
 
-        // How quickly the torso eases into/out of following once it leaves the deadzone cone (slerp
-        // dt scaling, like the rotation speeds). Lower = softer blend, higher = snappier.
+        // How quickly the torso eases back to face the head while locomoting (slerp dt scaling, like
+        // the rotation speeds). Lower = softer, higher = snappier.
         public static BasisSettingsBinding<float> VSpineTorsoYawBlendSpeed = new("vspinetorsoyawblendspeed", new BasisPlatformDefault<float>(8f));
-
-        // Off forces the yaw deadzone to 0 in VR (torso follows immediately); on uses the configured
-        // VSpineTorsoYawDeadzoneDeg cone in VR too. Desktop always uses the configured value.
-        // ⚠ Left OFF: turning this on in VR was speculative and never headset-verified. With a deadzone the
-        // torso stops following the head, so every degree inside it is charged to the neck -- reported as the
-        // neck reading worse. The de-orbit fix it was premised on is real, but this is a FEEL change and needs
-        // its own A/B.
-        public static BasisSettingsBinding<bool> VSpineTorsoYawPlayInVR = new("vspinetorsoyawplayinvr", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> VSpineTorsoYawDeadzoneVRDeg = new("vspinetorsoyawdeadzonevrdeg", new BasisPlatformDefault<float>(30f));
 
 
         // ---------------- TRACKER PAIRING (virtual midpoint) ----------------
@@ -3006,8 +2997,6 @@ namespace Basis.BasisUI
             VSpinePostureModel.LoadBindingValue();
             VSpineTorsoYawDeadzoneDeg.LoadBindingValue();
             VSpineTorsoYawBlendSpeed.LoadBindingValue();
-            VSpineTorsoYawPlayInVR.LoadBindingValue();
-            VSpineTorsoYawDeadzoneVRDeg.LoadBindingValue();
 
             // Tracker pairing
             TrackerLinkingAdvancedVisible.LoadBindingValue();
