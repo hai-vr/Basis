@@ -95,6 +95,19 @@ namespace OpenLipSync.Inference
                     LastError = "No config JSON provided";
                 }
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+                if (_numVisemes != BasisWebLipSync.KernelVisemes)
+                {
+                    LastError = $"The web lip sync kernel produces {BasisWebLipSync.KernelVisemes} visemes, the model config declares {_numVisemes}";
+                    return Result.CannotCreateContext;
+                }
+                if (BasisWebLipSync.BasisWebLipSync_Initialize(modelBytes, modelBytes.Length) == BasisWebLipSync.Failed)
+                {
+                    LastError = "The web lip sync worker could not start, see the browser console";
+                    return Result.CannotCreateContext;
+                }
+                _isStreaming = true;
+#else
                 var sessionOptions = new SessionOptions();
                 sessionOptions.LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_WARNING;
                 sessionOptions.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
@@ -112,6 +125,7 @@ namespace OpenLipSync.Inference
                 Debug.Log(_isStreaming
                     ? "[OpenLipSync] streaming model detected (cached convolutions, ~1 frame of work per hop)"
                     : "[OpenLipSync] legacy windowed model detected - full window re-run per hop. Consider re-exporting as streaming.");
+#endif
 
                 _initialized = true;
                 return Result.Success;
@@ -155,6 +169,9 @@ namespace OpenLipSync.Inference
 
             try
             {
+#if UNITY_WEBGL && !UNITY_EDITOR
+                var audioContext = new AudioContext(_inputSampleRate, _audioConfig, _numVisemes, new WebStreamingSession(), _isMultiLabel);
+#else
                 // Each player needs its OWN convolution cache state. The InferenceSession is
                 // shared and thread-safe; only the caches and IoBindings are per-context.
                 StreamingSession streaming = _isStreaming
@@ -163,6 +180,7 @@ namespace OpenLipSync.Inference
 
                 var audioContext = new AudioContext(_inputSampleRate, _audioConfig, _numVisemes,
                                                     streaming, _isMultiLabel);
+#endif
                 uint id = (uint)Interlocked.Increment(ref _nextContextId);
                 context = id;
                 _contexts[context] = audioContext;
@@ -226,7 +244,11 @@ namespace OpenLipSync.Inference
 
         private Result ProcessFrameFloatInternal(uint context, ReadOnlySpan<float> audio, bool stereo, ref Frame frame)
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (!_initialized)
+#else
             if (!_initialized || _onnxSession == null)
+#endif
             {
                 LastError = "Backend not initialized or model not loaded";
                 return Result.Unknown;

@@ -91,7 +91,8 @@ jobs:
   headless-build:
     name: Build headless for ${{ matrix.targetPlatform }}${{ matrix.linuxArchitecture && format(' - {0}', matrix.linuxArchitecture) || '' }}
     timeout-minutes: 300
-    runs-on: ${{ matrix.buildPlatform }}
+    # Windows CoreCLR and Linux players all build in a Linux Unity editor image.
+    runs-on: ubuntu-latest
     permissions:
       actions: write # to allow us to manage cache
     env:
@@ -101,7 +102,6 @@ jobs:
       matrix:
         include:
           - targetPlatform: StandaloneLinux64
-            buildPlatform: ubuntu-latest
             buildName: HeadlessLinuxServer
             buildOutput: LinuxServerAmd64
             artifactName: LinuxHeadlessAmd64
@@ -112,7 +112,6 @@ jobs:
             unityModules: linux-server-coreclr
             buildTimeout: 70
           - targetPlatform: StandaloneLinux64
-            buildPlatform: ubuntu-latest
             buildName: HeadlessLinuxServer
             buildOutput: LinuxServerArm64
             artifactName: LinuxHeadlessArm64
@@ -123,7 +122,6 @@ jobs:
             unityModules: linux-server
             buildTimeout: 120
           - targetPlatform: StandaloneWindows64
-            buildPlatform: ubuntu-latest
             buildName: HeadlessWindowsServer
             buildOutput: WindowsServer
             artifactName: WindowsHeadless
@@ -137,7 +135,6 @@ jobs:
     steps:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
-        if: matrix.buildPlatform == 'ubuntu-latest'
         with:
           tool-cache: true
           android: true
@@ -212,6 +209,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           customImage: ${{ steps.unity-image.outputs.image }}
+          dockerShmSize: 2g
           buildName: ${{ matrix.buildName }}
           buildMethod: ${{ matrix.buildMethod }}
           customParameters: ${{ matrix.customParameters }}
@@ -230,6 +228,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           customImage: ${{ steps.unity-image.outputs.image }}
+          dockerShmSize: 2g
           buildName: ${{ matrix.buildName }}
           buildMethod: ${{ matrix.buildMethod }}
           customParameters: ${{ matrix.customParameters }}

@@ -9,13 +9,13 @@ using UnityEditor.Build;
 using UnityEditor.Build.Player;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 public static class BasisWebBuild
 {
     private const string ScriptCheckOutput = "Temp/BasisWebScriptCheck";
     private const int Wasm64MaximumMemoryMegabytes = 16384;
-    private static readonly string[] WebDefines = { "SETTINGS_MANAGER_UNIVERSAL", "USE_INPUT_SYSTEM_POSE_CONTROL", "USE_STICK_CONTROL_THUMBSTICKS", "AUDIOLINK", "AUDIOLINK_V1", "BASIS_FRAMEWORK_EXISTS", "LITENETLIB_SPANS", "Basis_VOLUMETRIC_SUPPORTED", "BASIS_DISABLE_MICROPHONE" };
+    private static readonly string[] WebDefines = { "SETTINGS_MANAGER_UNIVERSAL", "USE_INPUT_SYSTEM_POSE_CONTROL", "USE_STICK_CONTROL_THUMBSTICKS", "AUDIOLINK", "AUDIOLINK_V1", "BASIS_FRAMEWORK_EXISTS", "LITENETLIB_SPANS", "Basis_VOLUMETRIC_SUPPORTED" };
+    private static readonly string[] RemovedWebDefines = { "BASIS_DISABLE_MICROPHONE" };
 
     [MenuItem("Basis/Build/Web Player")]
     private static void BuildFromMenu()
@@ -63,10 +63,9 @@ public static class BasisWebBuild
         PlayerSettings.WebGL.maximumMemorySize = Wasm64MaximumMemoryMegabytes;
         PlayerSettings.WebGL.threadsSupport = false;
         PlayerSettings.WebGL.powerPreference = WebGLPowerPreference.HighPerformance;
-        PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.WebGL, false);
-        PlayerSettings.SetGraphicsAPIs(BuildTarget.WebGL, new[] { GraphicsDeviceType.WebGPU });
+        BasisWebGraphicsAPIs.Apply();
         PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.WebGL, out string[] defines);
-        string[] webDefines = defines.Union(WebDefines).ToArray();
+        string[] webDefines = defines.Except(RemovedWebDefines).Union(WebDefines).ToArray();
         if (!webDefines.SequenceEqual(defines)) PlayerSettings.SetScriptingDefineSymbols(NamedBuildTarget.WebGL, webDefines);
     }
 
@@ -92,14 +91,21 @@ public static class BasisWebBuild
             }
             addressableSettings.BuildAddressablesWithPlayerBuild = AddressableAssetSettings.PlayerBuildOption.DoNotBuildWithPlayer;
         }
+        string spatializer = AudioSettings.GetSpatializerPluginName();
         try
         {
+            if (!string.IsNullOrEmpty(spatializer))
+            {
+                AudioSettings.SetSpatializerPluginName(null);
+                Debug.Log($"[BasisWebBuild] spatializer '{spatializer}' cleared for the web player, Unity's built-in 3D audio is used there");
+            }
             BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = EditorBuildSettings.scenes.Where(scene => scene.enabled).Select(scene => scene.path).ToArray(), locationPathName = buildPath, target = BuildTarget.WebGL, targetGroup = BuildTargetGroup.WebGL, options = BuildOptions.None });
             Debug.Log($"[BasisWebBuild] Build result={report.summary.result} output={report.summary.outputPath} errors={report.summary.totalErrors} warnings={report.summary.totalWarnings} size={report.summary.totalSize}");
             if (report.summary.result != BuildResult.Succeeded) throw new BuildFailedException($"Player build failed: {report.summary.result}");
         }
         finally
         {
+            if (!string.IsNullOrEmpty(spatializer)) AudioSettings.SetSpatializerPluginName(spatializer);
             if (addressableSettings != null) addressableSettings.BuildAddressablesWithPlayerBuild = originalOption;
         }
     }

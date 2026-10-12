@@ -1335,6 +1335,8 @@ namespace Basis.Network.Core
         public const byte RejectKind_VersionMismatch = 1;
         /// <summary>RejectKind: the server has reached its player limit.</summary>
         public const byte RejectKind_ServerFull = 2;
+        public const byte RejectKind_PasswordRejected = 3;
+        public const string PasswordRejectedReason = "Authentication failed, Auth rejected";
 
         /// <summary>
         /// Channels whose unreliable traffic must not be queued behind, or shed alongside, bulk

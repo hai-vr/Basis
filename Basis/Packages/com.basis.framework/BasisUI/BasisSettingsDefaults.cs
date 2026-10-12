@@ -1934,13 +1934,13 @@ namespace Basis.BasisUI
         // in a Burst job overlapping Simulate, instead of evaluating the Animator on the main thread.
         // Only engages on avatars wearing the stock controller; custom animators keep the Animator path.
         public static BasisSettingsBinding<bool> FBIKJobLocomotion = new("fbikjoblocomotion", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<float> FBIKBodyFitMaxDeviation = new("fbikbodyfitmaxdeviation", new BasisPlatformDefault<float>(Basis.IK.BasisBodyFitCore.DefaultMaxDeviation));
+        public static BasisSettingsBinding<float> FBIKBodyFitMaxDeviation = new("fbikbodyfitmaxdeviation_v2", new BasisPlatformDefault<float>(Basis.IK.BasisBodyFitCore.DefaultMaxDeviation));
 
         // Arm vs height ratio (arm-distance IK mode): when enabled, the player's arm span is
         // derived from eye height * ratio instead of the T-pose measurement, so reach can be
-        // dialed in per avatar (fixes "stubby arms"). Ratio is arm span / eye height (~1.0).
+        // dialed in per avatar (fixes "stubby arms"). Ratio is wrist-to-wrist span / eye height (~0.92).
         public static BasisSettingsBinding<bool> FBIKArmHeightRatioEnabled = new("fbikarmheightratioenabled", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> FBIKArmHeightRatio = new("fbikarmheightratio", new BasisPlatformDefault<float>(1.05f));
+        public static BasisSettingsBinding<float> FBIKArmHeightRatio = new("fbikarmheightratio_v2", new BasisPlatformDefault<float>(BasisCalibrationMath.SpanToHeightRatio / BasisCalibrationMath.EyeToHeightRatio));
 
         // Desktop only. The head pitches about the base of the neck, so looking down carries the eye FORWARD --
         // the swing an HMD makes for free, which desktop used to pin away. Strength 1 = the avatar's own

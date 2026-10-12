@@ -54,7 +54,7 @@ public struct BasisFootSimParams
     public quaternion footAlignLeft, footAlignRight;
     public float stanceWidth, hipToFoot, leftLegLen, rightLegLen, leftThighLen, leftShinLen, rightThighLen;
     public float rightShinLen, footLength, ankleHeight, stepTriggerDist, strideScale, stepHeightCalc, stepDurSlow;
-    public float stepDurFast, raySphereRadius, footHeightOffset, fastSpeedRef, rayCastRange;
+    public float stepDurFast, raySphereRadius, footHeightOffset, footHangOffset, fastSpeedRef, rayCastRange;
 }
 public struct BasisFootSimOutput
 {

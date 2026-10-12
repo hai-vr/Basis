@@ -653,7 +653,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                             Vector3 lerpTarget = inPos;
                             if (inDesktop)
                             {
-                                lerpTarget = inPos + inRot * (useMagicNumberHandOffset * BasisHeightDriver.ScaledToMatchValue);
+                                lerpTarget = inPos + inRot * (useMagicNumberHandOffset * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
                             }
                             offsetPos = ComputeClosestBoundsOffset(lerpTarget, inRot, ActivePosition);
                             InputConstraint.GlobalWeight = 0f;
@@ -1000,7 +1000,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             if (inDesktop && LerpToHandOnPickup)
             {
                 inPos = useHandBoneControl.OutgoingWorldData.position
-                        + interactingInput.BoneControl.OutgoingWorldData.rotation * useMagicNumberItemDelta * BasisHeightDriver.ScaledToMatchValue;
+                        + interactingInput.BoneControl.OutgoingWorldData.rotation * useMagicNumberItemDelta * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
             }
             else
             {
@@ -1313,7 +1313,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 Vector3 newTargetOffset = targetOffset + sourceTransform.InverseTransformVector(movement);
 
                 // Enforce min/max distance along the source forward.
-                float maxDistance = DesktopZoopMaxDistance + BasisHeightDriver.SelectedScaledPlayerHeight / 2;
+                float maxDistance = DesktopZoopMaxDistance + BasisHeightDriver.ScaledAvatarEyeHeight / 2;
 
                 if (mouseScroll != 0 && newTargetOffset.z > DesktopZoopMinDistance && newTargetOffset.z < maxDistance)
                 {
@@ -1522,7 +1522,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             BasisLocalBoneControl eye = BasisLocalBoneDriver.EyeControl;
             BasisLocalBoneControl hand = useHandBoneControl;
 
-            Vector3 offset = useMagicNumberHandOffset * BasisHeightDriver.ScaledToMatchValue;
+            Vector3 offset = useMagicNumberHandOffset * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
 
             hand.SetIncoming(
                 eye.IncomingData.position + eye.IncomingData.rotation * offset,

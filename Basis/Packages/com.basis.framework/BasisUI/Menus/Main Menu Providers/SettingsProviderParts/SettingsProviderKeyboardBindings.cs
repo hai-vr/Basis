@@ -299,7 +299,10 @@ public static class SettingsProviderKeyboardBindings
             {
                 action.Enable();
                 string newKey = ReadableKey(action.bindings[bindingIndex].effectivePath);
-                button.Descriptor.SetTitle(FormatTitle(label, defaultKey, newKey));
+                if (button != null && button.Descriptor != null)
+                {
+                    button.Descriptor.SetTitle(FormatTitle(label, defaultKey, newKey));
+                }
                 SaveBindingOverrides(asset);
                 operation.Dispose();
             })
@@ -307,7 +310,10 @@ public static class SettingsProviderKeyboardBindings
             {
                 action.Enable();
                 string currentKey = ReadableKey(action.bindings[bindingIndex].effectivePath);
-                button.Descriptor.SetTitle(FormatTitle(label, defaultKey, currentKey));
+                if (button != null && button.Descriptor != null)
+                {
+                    button.Descriptor.SetTitle(FormatTitle(label, defaultKey, currentKey));
+                }
                 operation.Dispose();
             })
             .Start();

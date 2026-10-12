@@ -1,6 +1,7 @@
 using Unity.Scripting.LifecycleManagement;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Interactions;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Networking;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -29,6 +30,17 @@ public partial class BasisContentSphere : BasisInteractableObject
     public string CreatorDisplayName { get; private set; }
     public bool SharerProtected { get; private set; }
     public bool CanLocalPlayerRemove => BasisContentShareManager.CanLocalPlayerRemove(CreatorPlayerID, SharerProtected);
+    public string CreatorSafeDisplayName
+    {
+        get
+        {
+            if (BasisNetworkPlayers.GetPlayerById(CreatorPlayerID, out var player) && player?.Player != null && player.Player.UUID == CreatorUUID && !string.IsNullOrEmpty(player.SafeDisplayName))
+            {
+                return player.SafeDisplayName;
+            }
+            return BasisRemotePlayer.BuildSafeDisplayName(CreatorDisplayName);
+        }
+    }
 
     /// <summary>
     /// Fired when any content sphere is interacted with.
@@ -259,11 +271,11 @@ public partial class BasisContentSphere : BasisInteractableObject
         string title = BasisLocalization.Get(ShareableTitleKey());
 
         string sharerLine;
-        bool hasName = !string.IsNullOrEmpty(CreatorDisplayName);
+        string safeName = CreatorSafeDisplayName;
+        bool hasName = !string.IsNullOrEmpty(safeName);
         bool hasUUID = !string.IsNullOrEmpty(CreatorUUID);
-        // The name and DID are whatever the sharer's client sent, so they are escaped before
-        // going into markup: otherwise a name could restyle the dialog or fake a "verified" line.
-        string safeName = BasisContentShareText.Plain(CreatorDisplayName);
+        // The DID is whatever the sharer's client sent, so it is escaped before going into
+        // markup: otherwise it could restyle the dialog or fake a "verified" line.
         string safeUUID = BasisContentShareText.Plain(CreatorUUID);
         // Render the UUID/DID at half size via TMP rich text — the full DID is
         // long enough to wrap and dominate the dialog when shown at body size.
@@ -292,6 +304,11 @@ public partial class BasisContentSphere : BasisInteractableObject
         if (ContentType == ContentShareType.Folder)
         {
             BasisContentShareFolder.Present(this, title, sharerLine);
+            return;
+        }
+        if (ContentType == ContentShareType.Setting)
+        {
+            BasisContentShareSetting.Present(this, title, sharerLine);
             return;
         }
 
@@ -422,9 +439,10 @@ public partial class BasisContentSphere : BasisInteractableObject
             }
         }
 
+        string sharerName = CreatorSafeDisplayName;
         entries.Add(new SavedServerEntry
         {
-            DisplayName = string.IsNullOrEmpty(CreatorDisplayName) ? string.Empty : $"Shared by {CreatorDisplayName}",
+            DisplayName = string.IsNullOrEmpty(sharerName) ? string.Empty : $"Shared by {sharerName}",
             Address = address,
             Port = port,
             HasPassword = !string.IsNullOrEmpty(password),
@@ -463,6 +481,7 @@ public partial class BasisContentSphere : BasisInteractableObject
         ContentShareType.Link => "library.shareable.link",
         ContentShareType.Text => "library.shareable.text",
         ContentShareType.Folder => "library.shareable.folder",
+        ContentShareType.Setting => "library.shareable.setting",
         _ => "library.shareable.other",
     };
 

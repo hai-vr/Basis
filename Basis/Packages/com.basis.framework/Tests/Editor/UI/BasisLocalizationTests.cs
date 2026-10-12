@@ -335,7 +335,7 @@ namespace Basis.Tests.UI
                     string expected = BasisLocalization.Get(definition.DisplayNameKey);
                     Assert.That(meta.Name, Is.EqualTo(expected), $"the cached name stayed in the previous language under '{language}'");
                     Assert.That(meta.BasisBundleConnector.BasisBundleDescription.AssetBundleDescription, Is.EqualTo(BasisLocalization.Get("library.embeddedItem")));
-                    Assert.That(pinned.Title, Is.EqualTo(LibraryProviderStrUtil.TitleToCase(expected)), $"the pinned hotbar button stayed in the previous language under '{language}'");
+                    Assert.That(pinned.Title, Is.EqualTo(expected), $"the pinned hotbar button stayed in the previous language under '{language}'");
                 }
             }
             finally

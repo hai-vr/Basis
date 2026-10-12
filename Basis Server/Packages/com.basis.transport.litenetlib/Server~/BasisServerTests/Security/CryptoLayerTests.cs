@@ -329,16 +329,28 @@ public class CryptoLayerTests
     }
 
     [Fact]
-    public void Inbound_ReplayedDatagram_IsAcceptedAgain_NoReplayWindow()
+    public void Inbound_ReplayedDatagram_IsDropped()
     {
         var (client, server) = NewFixedKeyPair();
         byte[] packet = BuildPacket(HeaderChanneled, 64);
         byte[] wire = Seal(client, ServerAddress, packet);
 
-        // Pins current behavior: the layer carries the nonce in the datagram and
-        // keeps no inbound sequence state, so byte-identical replays decrypt again.
         Assert.Equal(packet, Open(server, ClientAddress, wire));
+        Assert.Null(Open(server, ClientAddress, wire));
+    }
+
+    [Fact]
+    public void Inbound_ReinstallingTheSameKeys_StillDropsReplays()
+    {
+        var (client, server) = NewFixedKeyPair();
+        byte[] packet = BuildPacket(HeaderChanneled, 64);
+        byte[] wire = Seal(client, ServerAddress, packet);
         Assert.Equal(packet, Open(server, ClientAddress, wire));
+
+        server.SetEndpointKeys(ClientAddress, SequentialKey(0x0B), SequentialKey(0xA0));
+        Assert.Null(Open(server, ClientAddress, wire));
+        byte[] next = BuildPacket(HeaderChanneled, 32);
+        Assert.Equal(next, Open(server, ClientAddress, Seal(client, ServerAddress, next)));
     }
 
     [Fact]

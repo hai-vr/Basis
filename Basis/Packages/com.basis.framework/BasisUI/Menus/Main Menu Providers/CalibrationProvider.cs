@@ -326,6 +326,7 @@ namespace Basis.BasisUI
         {
             BasisHeightDriver.HasGenuinePlayerEyeHeight = false;
             BasisHeightDriver.CapturePlayerHeight(recaptureEyeHeight: false);
+            SMModuleSitStand.RefreshSeatedLift();
             BasisHeightDriver.ApplyScaleAndHeight();
         }
 

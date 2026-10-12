@@ -45,17 +45,35 @@ namespace Basis.Scripts.Networking
         /// by re-hosting.
         /// </summary>
         public static bool HasReconnectTarget => _lastTarget != null && !string.IsNullOrWhiteSpace(_lastUserName);
+        public static event Action<ServerDirectoryEntry> PasswordRequired;
+        public static bool TryRequestPassword()
+        {
+            ServerDirectoryEntry entry = _lastTarget;
+            Action<ServerDirectoryEntry> handler = PasswordRequired;
+            if (entry == null || handler == null) return false;
+            CompleteConnectionProgress();
+            try
+            {
+                handler(entry);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"PasswordRequired handler threw: {ex.Message}", BasisDebug.LogTag.Networking);
+                return false;
+            }
+        }
 
         /// <summary>
         /// Re-issues the last connection, used by <see cref="BasisNetworkConnectionWatchdog"/>.
         /// </summary>
-        public static Task ReconnectAsync()
+        public static Task ReconnectAsync(bool legacyLogin = false)
         {
             if (!HasReconnectTarget)
             {
                 return Task.CompletedTask;
             }
-            return ConnectAsync(_lastTarget, _lastUserName);
+            return ConnectAsync(_lastTarget, _lastUserName, false, legacyLogin);
         }
 
         public static void ReportConnectionProgress(float progress, string message) =>
@@ -103,7 +121,7 @@ namespace Basis.Scripts.Networking
         /// before invoking this; both the Servers panel Connect button and the
         /// <c>--connection=</c> CLI bootstrap call this directly.
         /// </summary>
-        public static async Task ConnectAsync(ServerDirectoryEntry entry, string userName, bool isHostMode = false)
+        public static async Task ConnectAsync(ServerDirectoryEntry entry, string userName, bool isHostMode = false, bool legacyLogin = false)
         {
             if (_connectInProgress)
             {
@@ -139,7 +157,7 @@ namespace Basis.Scripts.Networking
                 BasisLocalPlayer.Instance.DisplayName = userName.Trim();
                 BasisLocalPlayer.Instance.SetSafeDisplayname();
                 BasisDataStore.SaveString(BasisLocalPlayer.Instance.DisplayName, UsernameFileName);
-                BasisDataStore.SaveString(entry.Id, LastConnectedServerIdFile);
+                if (entry.CanAutoConnect) BasisDataStore.SaveString(entry.Id, LastConnectedServerIdFile);
 
                 string address = entry.Target?.Get(ConnectionTarget.Keys.Address) ?? string.Empty;
                 string portString = entry.Target?.Get(ConnectionTarget.Keys.Port) ?? string.Empty;
@@ -152,6 +170,7 @@ namespace Basis.Scripts.Networking
                 BasisNetworkManagement.Password = entry.HasPassword ? entry.Password : string.Empty;
                 BasisNetworkManagement.IsHostMode = isHostMode;
                 BasisNetworkManagement.NetworkStackId = stackId;
+                BasisNetworkManagement.LegacyLogin = legacyLogin;
 
                 ReportConnectionProgress(60f, BasisLocalization.Get("menu.servers.status.loadingBundle"));
 

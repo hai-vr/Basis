@@ -250,6 +250,9 @@ namespace Basis.Scripts.Drivers
         }
         public void Simulate(float DeltaTime)
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (!EligibleForOpenLipSync && WasSuccessful && BasisOpenLipSyncDriver.IsInitialized) EligibleForOpenLipSync = true;
+#endif
             if (FaceVisible == false || !InVisemeRange)
             {
                 // Player left viseme range — release the OpenLipSync context

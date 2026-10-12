@@ -4999,6 +4999,14 @@
       "value": "This avatar is loaded from a file on your computer and isn't hosted anywhere the other players can reach, so nobody else on this server can download it. You will see it normally; everyone else will see a placeholder. Upload it and load it from a URL for other players to see it. Built-in avatars are unaffected — every client already has those."
     },
     {
+      "key": "network.legacyServer.title",
+      "value": "Server Out Of Date"
+    },
+    {
+      "key": "network.legacyServer.body",
+      "value": "This server is running an older version of Basis (network protocol v{0}). You joined in compatibility mode, which uses its older, less secure login. Ask the server owner to update."
+    },
+    {
       "key": "menu.servers.list.default",
       "value": "Default Basis Server"
     },
@@ -6193,6 +6201,30 @@
     {
       "key": "library.dialog.details.faceThePlayer",
       "value": "Face The Player"
+    },
+    {
+      "key": "library.dialog.details.section.authorship",
+      "value": "Author & License"
+    },
+    {
+      "key": "library.dialog.details.section.authorship.description",
+      "value": "Provided by the creator and not verified."
+    },
+    {
+      "key": "library.dialog.details.author",
+      "value": "Author"
+    },
+    {
+      "key": "library.dialog.details.contact",
+      "value": "Contact"
+    },
+    {
+      "key": "library.dialog.details.license",
+      "value": "License"
+    },
+    {
+      "key": "library.dialog.details.credits",
+      "value": "Credits"
     },
     {
       "key": "library.dialog.details.none",
@@ -21367,6 +21399,90 @@
     {
       "key": "content.share.type.folder",
       "value": "Folder"
+    },
+    {
+      "key": "content.share.type.setting",
+      "value": "Setting"
+    },
+    {
+      "key": "library.shareable.setting",
+      "value": "Shared Setting"
+    },
+    {
+      "key": "content.share.setting.offer.title",
+      "value": "Share Setting"
+    },
+    {
+      "key": "content.share.setting.offer.body",
+      "value": "Share where to find {0}, or what you have it set to? You choose where to place it next."
+    },
+    {
+      "key": "content.share.setting.location",
+      "value": "Location"
+    },
+    {
+      "key": "content.share.setting.value",
+      "value": "My Value"
+    },
+    {
+      "key": "content.share.setting.where",
+      "value": "Where"
+    },
+    {
+      "key": "content.share.setting.yourValue",
+      "value": "Your value"
+    },
+    {
+      "key": "content.share.setting.theirValue",
+      "value": "Their value"
+    },
+    {
+      "key": "content.share.setting.sharedValue",
+      "value": "Shared value"
+    },
+    {
+      "key": "content.share.setting.show",
+      "value": "Show Setting"
+    },
+    {
+      "key": "content.share.setting.location.question",
+      "value": "Open your Settings at this setting?"
+    },
+    {
+      "key": "content.share.setting.value.question",
+      "value": "Open your Settings at this setting? You can choose to use their value there."
+    },
+    {
+      "key": "content.share.setting.unreadable",
+      "value": "This setting could not be read. It may have been shared from a newer version of Basis."
+    },
+    {
+      "key": "content.share.setting.missing.title",
+      "value": "Setting Not Found"
+    },
+    {
+      "key": "content.share.setting.missing",
+      "value": "{0} is not in your Settings. It may be on a tab you can't see, only on another device, or from a different version of Basis."
+    },
+    {
+      "key": "content.share.setting.apply.body",
+      "value": "Use the shared value for this setting?"
+    },
+    {
+      "key": "content.share.setting.apply",
+      "value": "Apply"
+    },
+    {
+      "key": "content.share.setting.value.same",
+      "value": "You already have this setting set to the shared value."
+    },
+    {
+      "key": "content.share.setting.value.unusable",
+      "value": "The shared value can't be used here. Your version of this setting may have different options."
+    },
+    {
+      "key": "content.share.setting.value.locked",
+      "value": "This setting can't be changed right now."
     },
     {
       "key": "content.share.link.open.question",

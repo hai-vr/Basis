@@ -164,7 +164,7 @@ public partial class BasisMediaPlayer : MonoBehaviour, IBasisPcmSource
     bool _playRequestedWhileApprovalPending;
     string _pendingApprovalUrl = string.Empty;
     int _urlApprovalRequestId;
-    Action _pendingApprovalDeclined;
+    Action<bool> _pendingApprovalDeclined;
     string _approvedUrl;
     Texture _texture;
     Texture2D _artwork;
@@ -931,28 +931,21 @@ public partial class BasisMediaPlayer : MonoBehaviour, IBasisPcmSource
     /// user has not trusted (<see cref="BasisTrustedUrls"/>) is shown to
     /// them first and opens only if they accept.
     /// </summary>
-    public void LoadUrl(string sourceUrl)
+    public void LoadUrl(string sourceUrl) => LoadUrl(sourceUrl, false);
+
+    internal void LoadUrl(string sourceUrl, bool viewerAsked)
     {
         if (!PrepareUserUrl(ref sourceUrl))
             return;
         if (!IsApproved(sourceUrl))
         {
-            RequestUrlApproval(sourceUrl, OpenPreparedUrl);
+            RequestUrlApproval(sourceUrl, OpenPreparedUrl, viewerAsked: viewerAsked);
             return;
         }
         OpenPreparedUrl(sourceUrl);
     }
 
-    /// <summary>
-    /// <see cref="LoadUrl"/> without the consent prompt, for a URL the
-    /// user has already answered for: one they typed into the menu, or the
-    /// one the shared-playback owner chose for the room.
-    /// </summary>
-    internal void LoadApprovedUrl(string sourceUrl)
-    {
-        if (PrepareUserUrl(ref sourceUrl))
-            OpenPreparedUrl(sourceUrl);
-    }
+    internal bool NeedsApproval(string sourceUrl) => !IsApproved(BasisMediaUrlRouter.NormalizeUrl(sourceUrl));
 
     bool PrepareUserUrl(ref string sourceUrl)
     {
@@ -1032,14 +1025,15 @@ public partial class BasisMediaPlayer : MonoBehaviour, IBasisPcmSource
     /// approved it (at once when it is trusted or already approved on this
     /// player), or <paramref name="declined"/> when the URL is refused, the
     /// user says no, nobody can be asked, or another open supersedes the
-    /// question. Exactly one of the two runs. Shared playback uses this to ask
-    /// before it announces a URL to the room.
+    /// question; it is passed true only when the user said no. Exactly one of
+    /// the two runs. Shared playback uses this to ask before it announces a URL
+    /// to the room, and before it opens one the room announced.
     /// </summary>
-    internal void WhenApproved(string sourceUrl, Action<string> open, Action declined)
+    internal void WhenApproved(string sourceUrl, Action<string> open, Action<bool> declined, bool viewerAsked)
     {
         if (!PrepareUserUrl(ref sourceUrl))
         {
-            declined?.Invoke();
+            declined?.Invoke(false);
             return;
         }
         if (IsApproved(sourceUrl))
@@ -1047,16 +1041,16 @@ public partial class BasisMediaPlayer : MonoBehaviour, IBasisPcmSource
             open(sourceUrl);
             return;
         }
-        RequestUrlApproval(sourceUrl, open, declined);
+        RequestUrlApproval(sourceUrl, open, declined, viewerAsked);
     }
 
-    void RequestUrlApproval(string sourceUrl, Action<string> open, Action declined = null)
+    void RequestUrlApproval(string sourceUrl, Action<string> open, Action<bool> declined = null, bool viewerAsked = false)
     {
         ClearPendingUrlApproval();
         if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out Uri uri))
         {
             BasisDebug.LogWarning("[BasisMedia] refused invalid URL.", BasisDebug.LogTag.Video);
-            declined?.Invoke();
+            declined?.Invoke(false);
             return;
         }
 
@@ -1068,7 +1062,7 @@ public partial class BasisMediaPlayer : MonoBehaviour, IBasisPcmSource
         // late result would otherwise open and take the prompt down with it.
         LoadGeneration++;
 
-        if (!BasisNotificationCenter.RouteToNotifications)
+        if (viewerAsked ? !BasisMainMenu.Instance : !BasisNotificationCenter.RouteToNotifications)
             BasisMainMenu.Open();
 
         BasisMenuURLPromptPanel panel = BasisMenuURLPromptPanel.CreateNew(
@@ -1082,12 +1076,12 @@ public partial class BasisMediaPlayer : MonoBehaviour, IBasisPcmSource
                     return;
 
                 bool playAfterApproval = _playRequestedWhileApprovalPending;
-                Action onDeclined = _pendingApprovalDeclined;
+                Action<bool> onDeclined = _pendingApprovalDeclined;
                 _pendingApprovalDeclined = null;
                 ClearPendingUrlApproval();
                 if (!response.Accepted)
                 {
-                    onDeclined?.Invoke();
+                    onDeclined?.Invoke(true);
                     return;
                 }
 
@@ -1112,12 +1106,12 @@ public partial class BasisMediaPlayer : MonoBehaviour, IBasisPcmSource
                 if (playAfterApproval)
                     Play();
             },
-            divertible: true);
+            divertible: !viewerAsked);
 
         // Null is also what a prompt diverted to the notification list
         // returns; that one is still pending. With nothing to divert to and
         // no menu to show it in (a headless client), nobody can answer.
-        if (panel == null && !BasisNotificationCenter.RouteToNotifications
+        if (panel == null && (viewerAsked || !BasisNotificationCenter.RouteToNotifications)
             && _urlApprovalPending && _urlApprovalRequestId == requestId)
         {
             BasisDebug.LogWarning(
@@ -1131,13 +1125,13 @@ public partial class BasisMediaPlayer : MonoBehaviour, IBasisPcmSource
     {
         if (!_urlApprovalPending && !_playRequestedWhileApprovalPending)
             return;
-        Action declined = _pendingApprovalDeclined;
+        Action<bool> declined = _pendingApprovalDeclined;
         _pendingApprovalDeclined = null;
         _urlApprovalPending = false;
         _playRequestedWhileApprovalPending = false;
         _pendingApprovalUrl = string.Empty;
         _urlApprovalRequestId++;
-        declined?.Invoke();
+        declined?.Invoke(false);
     }
 
     /// <summary>

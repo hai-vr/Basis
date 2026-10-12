@@ -460,6 +460,41 @@ namespace Basis.BasisUI
             }
 
             ApplyCjkPriority(CjkLabelForLanguage(BasisLocalization.CurrentLanguage));
+            InvalidateLoadedTextMeshes();
+        }
+
+        /// <summary>
+        /// TextMeshPro keeps the fallback font chosen for an already-generated label in its
+        /// text info. Reordering the global CJK fallback list is therefore not enough when a
+        /// translation contains the same Unicode characters in both languages (for example
+        /// Japanese and Chinese labels containing 「切替」 or 「言語」). Mark every
+        /// loaded label dirty so its glyphs are resolved against the new fallback order.
+        /// </summary>
+        private static void InvalidateLoadedTextMeshes()
+        {
+            TMP_Text[] labels = UnityEngine.Object.FindObjectsByType<TMP_Text>(FindObjectsInactive.Include);
+            InvalidateTextMeshes(labels);
+        }
+
+        internal static int InvalidateTextMeshes(IEnumerable<TMP_Text> labels)
+        {
+            if (labels == null)
+            {
+                return 0;
+            }
+
+            int invalidated = 0;
+            foreach (TMP_Text label in labels)
+            {
+                if (label == null)
+                {
+                    continue;
+                }
+
+                label.havePropertiesChanged = true;
+                invalidated++;
+            }
+            return invalidated;
         }
 
         /// <summary>

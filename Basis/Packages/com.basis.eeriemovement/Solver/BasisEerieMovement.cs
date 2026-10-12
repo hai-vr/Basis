@@ -22,7 +22,7 @@ namespace Basis.IK
         public NativeArray<BasisBoneHandle> chainHeadToSpine;
         public NativeArray<BasisSpineRestFrame> chainSpineRestFrames;
         public RalivIKSpine.SpineData SpineData;
-        public int chainChestIdx;
+        public int chainChestIdx, chainTorsoTopIdx;
         public Vector3 targetPositionHead, targetPositionHips;
         public Quaternion targetRotationHead, targetRotationHips, targetRotationChest;
         public Vector3 targetPositionChest, targetPositionChestRaw, playerUp, targetPositionLeftHand;
@@ -35,7 +35,7 @@ namespace Basis.IK
         public Quaternion hintRotationRightLowerLeg;
         public Vector3 kneeBendPrefLeft, kneeBendPrefRight, kneeAnteriorRef;
         public Quaternion leftDrivenTargetRot, rightDrivenTargetRot;
-        public float leftToeBendDeg, rightToeBendDeg;
+        public float leftToeBendDeg, rightToeBendDeg, headSlipLever;
         public Vector3 leftToeBendAxis, rightToeBendAxis;
         public Quaternion offsetRotationHips, offsetRotationHead, offsetRotationChest, offsetRotationLeftFoot;
         public Quaternion offsetRotationRightFoot, offsetRotationLeftToe, offsetRotationRightToe;
@@ -60,9 +60,11 @@ namespace Basis.IK
         public bool spineAnatomicalRom;
         public bool shoulderSolveEnabled, shoulderShrugEnabled;
         public float shoulderElevationFactor, shoulderProtractionFactor, shoulderMaxDeg, shoulderTrackerBlendTime, lowerArmTwistFraction, upperArmTwistFraction;
-        public bool protectElbow, collideTrackedElbow;
-        public float armSwivelSmoothTime, armSwivelMaxRateDeg;
-        public bool legSwivelSmoothing, kneeFootPoleHold, kneeFootPoleConditioning;
+        public bool protectElbow, collideTrackedElbow, armJointLimits;
+        public float armReachSoftness, armSwivelSmoothTime, armSwivelMaxRateDeg, armSwivelSwitchDwell, armPriorWeight, armPreviousWeight;
+        public float forearmPronationMaxDeg, forearmSupinationMaxDeg, humeralInternalMaxDeg, humeralExternalMaxDeg, wristFlexionMaxDeg;
+        public float wristExtensionMaxDeg, wristRadialMaxDeg, wristUlnarMaxDeg;
+        public bool legSwivelSmoothing, kneeFootPoleHold, kneeFootPoleConditioning, simLeftPlanted, simRightPlanted;
         public float trackedKneeSwivelMinCutoffHz, trackedKneeSwivelBeta, trackedKneeSwivelDerivCutoffHz;
         public bool collisionsEnabled;
         public float chestRadius, collisionSkin, handRadius, handSkin;
@@ -226,10 +228,12 @@ namespace Basis.IK
             }
             if (Mathf.Abs(kt - 1f) >= 1e-6f)
             {
-                tposeHeadToNeckLocal *= kt;
-                tposeLengthNeckToHips *= kt;
-                minHeadSpineHeight *= kt;
-                RescaleRalivSpineIK(kt);
+                RescaleRalivSpineSegments(kt, chainTorsoTopIdx);
+                float chain = RalivRestChainLength();
+                if (chain > 0f)
+                {
+                    minHeadSpineHeight = chain;
+                }
             }
             tposeArmFitScale = armScale;
             tposeTorsoFitScale = torsoScale;

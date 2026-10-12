@@ -455,10 +455,12 @@ namespace Basis.BasisUI
         /// </summary>
         private static void SetContentActive(Component content, bool active)
         {
+            if (content == null)
+            {
+                return;
+            }
             switch (content)
             {
-                case null:
-                    return;
                 case PanelComponent panelComponent:
                     panelComponent.Descriptor.SetActive(active);
                     return;

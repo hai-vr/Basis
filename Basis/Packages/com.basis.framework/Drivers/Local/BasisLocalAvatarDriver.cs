@@ -24,6 +24,10 @@ namespace Basis.Scripts.Drivers
 
         public static readonly Dictionary<BasisBoneTrackedRole, BasisCalibratedCoords> TposeBoneSnapshot = new Dictionary<BasisBoneTrackedRole, BasisCalibratedCoords>();
         public static bool HasTposeBoneSnapshot;
+        public static Vector3 TposeTorsoTop;
+        public static bool HasTposeTorsoTop;
+        public static float TposeSoleHeight;
+        static BasisAvatar tposeSoleAvatar;
 
         public static Vector3 HeadScale = Vector3.one;
 
@@ -88,8 +92,7 @@ namespace Basis.Scripts.Drivers
 
             player.LocalRigDriver.Initialize(player, Mapping);
 
-            BasisAvatarIKStageCalibration.BasisBendNormalStore.Clear();
-            BasisAvatarIKStageCalibration.BasisLimbRollStore.Clear();
+            BasisAvatarIKStageCalibration.BasisLimbRollStore.TrackerToBone.Clear();
 
             player.LocalRigDriver.CleanupBeforeContinue();
             GameObject AvatarAnimatorParent = player.BasisAvatar.Animator.gameObject;
@@ -115,6 +118,7 @@ namespace Basis.Scripts.Drivers
             // snapshot is captured further down, before SetBodySettings consumes it.
             TposeBoneSnapshot.Clear();
             HasTposeBoneSnapshot = false;
+            HasTposeTorsoTop = false;
 
             // Enter T-Pose for calibration
             PutAvatarIntoTPose();
@@ -226,6 +230,7 @@ namespace Basis.Scripts.Drivers
 
             IsNormalHead = true;
             RemoveJiggleRigColliders();
+            ColliderScaleReference = ScaleAvatarModification.DuringCalibrationScale;
             if (player.IsConsideredFallBackAvatar == false)
             {
                 AddJiggleRigColliders(Mapping);
@@ -368,6 +373,12 @@ namespace Basis.Scripts.Drivers
             return true;
         }
 
+        float CurrentApplyScale()
+        {
+            float scale = ScaleAvatarModification != null ? ScaleAvatarModification.ApplyScale : 1f;
+            return float.IsNaN(scale) || float.IsInfinity(scale) || scale <= 1e-6f ? 1f : scale;
+        }
+        public float TposeSoleOffsetScaled() => TposeSoleHeight * CurrentApplyScale();
         public float ActiveAvatarEyeHeight()
         {
             var localPlayer = BasisLocalPlayer.Instance;
@@ -433,8 +444,15 @@ namespace Basis.Scripts.Drivers
             {
                 SavedruntimeAnimatorController = BasisLocalPlayer.Instance.BasisAvatar.Animator.runtimeAnimatorController;
             }
-            BasisLocalPlayer.Instance.BasisAvatar.Animator.runtimeAnimatorController = BasisPlayerFactory.TposeController;
-            ForceUpdateAnimator(BasisLocalPlayer.Instance.BasisAvatar.Animator);
+            Animator animator = BasisLocalPlayer.Instance.BasisAvatar.Animator;
+            animator.runtimeAnimatorController = BasisPlayerFactory.TposeController;
+            ForceUpdateAnimator(animator);
+            if (tposeSoleAvatar != BasisLocalPlayer.Instance.BasisAvatar)
+            {
+                tposeSoleAvatar = BasisLocalPlayer.Instance.BasisAvatar;
+                TposeSoleHeight = BasisAvatarSole.TryMeasure(BasisLocalPlayer.Instance.AvatarTransform, animator.GetBoneTransform(HumanBodyBones.LeftFoot), animator.GetBoneTransform(HumanBodyBones.RightFoot), CurrentApplyScale(), ActiveAvatarEyeHeight(), out float sole) ? sole : 0f;
+                BasisDebug.Log($"T-pose soles {TposeSoleHeight * 100f:F2} cm from the avatar root", BasisDebug.LogTag.Avatar);
+            }
             TposeStateChange?.Invoke();
 
             BasisLocalPlayer.Instance.LocalRigDriver.DisableAllTrackers();
@@ -446,6 +464,7 @@ namespace Basis.Scripts.Drivers
         {
             TposeBoneSnapshot.Clear();
             HasTposeBoneSnapshot = false;
+            HasTposeTorsoTop = false;
             if (Mapping.HasAnimatorRoot == false || Mapping.AnimatorRoot == null)
             {
                 BasisDebug.LogError("CaptureTposeBoneSnapshot: no animator root; snapshot unavailable.", BasisDebug.LogTag.Avatar);
@@ -470,10 +489,16 @@ namespace Basis.Scripts.Drivers
                 }
                 bone.GetPositionAndRotation(out Vector3 bonePos, out Quaternion boneRot);
                 TposeBoneSnapshot[pair.Key] = new BasisCalibratedCoords(
-                    (invRoot * (bonePos - rootPos)) / scale,
+                    (invRoot * (bonePos - rootPos)) / scale - new Vector3(0f, TposeSoleHeight, 0f),
                     invRoot * boneRot);
             }
             HasTposeBoneSnapshot = TposeBoneSnapshot.Count > 0;
+            Transform torsoTop = Basis.IK.BasisBodyFitApply.TorsoTop(Mapping);
+            if (torsoTop != null)
+            {
+                TposeTorsoTop = (invRoot * (torsoTop.position - rootPos)) / scale - new Vector3(0f, TposeSoleHeight, 0f);
+                HasTposeTorsoTop = true;
+            }
         }
 
         public void ResetAvatarAnimator()
@@ -612,6 +637,7 @@ namespace Basis.Scripts.Drivers
         public void SetInitialData(Transform Transform, BasisLocalBoneControl bone, BasisBoneTrackedRole Role, Vector3 WorldTpose, Quaternion WorldTposeRotation)
         {
             Vector3 outgoingPosition = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(Transform, WorldTpose);
+            outgoingPosition.y -= TposeSoleOffsetScaled();
             Quaternion outgoingRotation = Quaternion.Inverse(Transform.rotation) * WorldTposeRotation;
 
             if (IsApartOfSpineVertical(Role))

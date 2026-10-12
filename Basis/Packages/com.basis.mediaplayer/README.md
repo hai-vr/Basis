@@ -116,14 +116,21 @@ the host or the domain, in the same `BasisTrustedUrls` list the rest of the
 client keeps. If **Play** is pressed while the prompt is up, playback starts
 once the user accepts.
 
-Two routes skip the prompt. A URL typed into the Media Players panel opens
-straight away, since the user chose it, and followers in shared playback load
-whatever the owner chose without being asked. A page URL prompts once, for the
-page; the stream a resolver extracts from it does not prompt again.
+No route skips the prompt. A URL typed into the Media Players panel is asked
+about over the panel, even with do-not-disturb on. A follower in shared playback
+is asked about each untrusted URL the owner shares; while it waits, its screen
+is stopped and it keeps the owner's state, so accepting later lands it at the
+owner's position. A follower that declines is not asked again about that URL
+while the room stays on it, and pressing **Play** or **Local Resync** asks
+again. A page URL prompts once, for the page; the stream a resolver extracts
+from it does not prompt again. Re-opening a URL already accepted on the same
+player (a resync, a source that ended, a player woken under the session cap)
+does not prompt.
 
-Cilbox props can open URLs through the prompting routes only. `OpenResolved`
-and `SetSubtitleTracks` are not available to them, and avatar and prop content
-has **Play On Start** cleared on load.
+Cilbox props can open URLs through the prompting routes only, and can call only
+the player's public methods. `OpenResolved` and `SetSubtitleTracks` are not
+available to them, and avatar and prop content has **Play On Start** cleared on
+load.
 
 ## Video output
 

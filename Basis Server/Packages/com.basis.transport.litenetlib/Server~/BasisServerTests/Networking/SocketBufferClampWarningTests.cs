@@ -6,6 +6,9 @@ using Xunit;
 
 namespace BasisServerTests;
 
+[CollectionDefinition("LiteNetLib global logger", DisableParallelization = true)]
+public class LiteNetLibGlobalLoggerCollection { }
+
 /// <summary>
 /// Regression coverage for a gap found alongside the memory-reclaim bug on 2026-09-08: production
 /// logs show <c>RcvbufErrors</c> firing on four separate days and new sockets genuinely being
@@ -15,6 +18,8 @@ namespace BasisServerTests;
 /// process's lifetime, long before anyone was watching. See <see cref="MemoryReclaimTests"/> for
 /// the companion bug this same incident window uncovered.
 /// </summary>
+// Swaps the process-wide NetDebug.Logger, so no test that opens LiteNetLib sockets may run alongside it.
+[Collection("LiteNetLib global logger")]
 public class SocketBufferClampWarningTests
 {
     private sealed class CapturingLogger : INetLogger

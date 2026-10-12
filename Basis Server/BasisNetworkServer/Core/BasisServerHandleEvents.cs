@@ -628,7 +628,7 @@ namespace BasisServerHandle
                     }
                     if (NetworkServer.Auth.IsAuthenticated(AuthBytes) == false)
                     {
-                        RejectWithReason(ConReq, "Authentication failed, Auth rejected");
+                        RejectStructured(ConReq, BasisNetworkCommons.RejectKind_PasswordRejected, 0, 0, BasisNetworkCommons.PasswordRejectedReason);
                         return;
                     }
                 }
@@ -640,11 +640,29 @@ namespace BasisServerHandle
                 }
                 if (NetworkServer.Configuration.UseAuthIdentity)
                 {
-                    accepted = ConReq.Accept();//can do both way Communication from here on
-                    NetworkServer.AuthIdentity.ProcessConnection(NetworkServer.Configuration, ConReq, accepted);
+                    string verifiedIdentity = ConReq.VerifiedIdentity;
+                    if (!string.IsNullOrEmpty(verifiedIdentity))
+                    {
+                        accepted = ConReq.Accept();//can do both way Communication from here on
+                        NetworkServer.AuthIdentity.ProcessVerifiedConnection(NetworkServer.Configuration, ConReq, accepted, verifiedIdentity);
+                    }
+                    else
+                    {
+                        accepted = ConReq.AcceptAwaitingSeal();
+                        if (accepted == null)
+                        {
+                            RejectWithReason(ConReq, "Transport cannot protect the login.");
+                            return;
+                        }
+                        NetworkServer.AuthIdentity.ProcessConnection(NetworkServer.Configuration, ConReq, accepted);
+                    }
                 }
                 else
                 {
+                    // The connection key only matters to DID login; read past it.
+                    BytesMessage connectionKeyMessage = new BytesMessage();
+                    connectionKeyMessage.Deserialize(ConReq.Data, out byte[] UnusedKey);
+
                     ReadyMessage readyMessage = new ReadyMessage();
                     readyMessage.Deserialize(ConReq.Data);
 
@@ -660,7 +678,8 @@ namespace BasisServerHandle
                     }
 
                     accepted = ConReq.Accept();//can do both way Communication from here on
-                    OnNetworkAccepted(accepted, readyMessage, ResolveUnauthenticatedUuid(readyMessage.playerMetaDataMessage.playerUUID));
+                    string verifiedOrClaimed = ConReq.VerifiedIdentity;
+                    OnNetworkAccepted(accepted, readyMessage, string.IsNullOrEmpty(verifiedOrClaimed) ? ResolveUnauthenticatedUuid(readyMessage.playerMetaDataMessage.playerUUID) : verifiedOrClaimed);
                 }
             }
             catch (Exception e)

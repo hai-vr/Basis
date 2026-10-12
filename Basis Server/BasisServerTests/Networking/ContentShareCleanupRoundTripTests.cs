@@ -211,6 +211,29 @@ public class ContentShareCleanupRoundTripTests
     }
 
     [Fact]
+    public void UnprotectedSharersDrop_IsRecordedUnprotected_WithoutAPermissionError()
+    {
+        (FakeNetPeer a, string _) = NewAuthenticatedPeer();
+        string sphereId = $"sphere-{Guid.NewGuid():N}";
+        List<string> errors = new();
+        Action<string> previousErrorOutput = BNL.LogErrorOutput;
+        BNL.LogErrorOutput = message => errors.Add(message);
+        try
+        {
+            SendDrop(a, sphereId);
+            Assert.True(BasisNetworkContentShare.ActiveSpheres.ContainsKey(sphereId), "drop was not stored");
+            Assert.False(BasisNetworkContentShare.ActiveSpheres[sphereId].Message.SharerProtected, "an unprotected sharer was recorded as protected");
+            Assert.DoesNotContain(errors, e => e.Contains("Permission not found"));
+        }
+        finally
+        {
+            BNL.LogErrorOutput = previousErrorOutput;
+            BasisNetworkContentShare.ActiveSpheres.TryRemove(sphereId, out _);
+            Remove(a);
+        }
+    }
+
+    [Fact]
     public void RemovalLock_LeavesOnlyTheSharerAndModerators()
     {
         (FakeNetPeer a, string _) = NewAuthenticatedPeer();

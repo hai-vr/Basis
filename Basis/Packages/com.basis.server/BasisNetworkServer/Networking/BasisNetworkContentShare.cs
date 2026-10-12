@@ -91,6 +91,9 @@ public static class BasisNetworkContentShare
             case ContentShareType.Folder:
                 contentName = "Folder";
                 break;
+            case ContentShareType.Setting:
+                contentName = "Setting";
+                break;
             default:
                 BNL.LogError($"Unknown content share type {(byte)msg.ContentType} from peer {peer.Id}");
                 return;
@@ -109,6 +112,11 @@ public static class BasisNetworkContentShare
         if (msg.ContentType == ContentShareType.Text && string.IsNullOrWhiteSpace(msg.ContentURL))
         {
             BNL.LogError($"Text share from peer {peer.Id} is empty.");
+            return;
+        }
+        if (msg.ContentType == ContentShareType.Setting && !ContentShareSetting.TryRead(msg.ContentURL, out _))
+        {
+            BNL.LogError($"Setting share from peer {peer.Id} could not be read.");
             return;
         }
         if (msg.ContentType == ContentShareType.Folder)
@@ -148,6 +156,7 @@ public static class BasisNetworkContentShare
             sharerUUID = sharerMeta.playerUUID ?? string.Empty;
             sharerDisplayName = sharerMeta.playerDisplayName ?? string.Empty;
         }
+        bool sharerProtected = NetworkServer.AuthIdentity.NetIDToUUID(peer, out string sharerAuthUuid) && PermissionIntegration.HasValidRequirement(sharerAuthUuid, PermNodes.protection);
 
         ServerContentShareMessage serverMsg = new ServerContentShareMessage
         {
@@ -158,7 +167,7 @@ public static class BasisNetworkContentShare
             SharerUUID = sharerUUID,
             SharerDisplayName = sharerDisplayName,
             contentShareMessage = msg,
-            SharerProtected = PermissionIntegration.HasValidRequirement(peer, PermNodes.protection)
+            SharerProtected = sharerProtected
         };
 
         if (ActiveSpheres.TryAdd(msg.SphereNetID, new ActiveSphere(serverMsg, Stopwatch.GetTimestamp())))
@@ -216,7 +225,7 @@ public static class BasisNetworkContentShare
         ushort requesterId = (ushort)peer.Id;
         if (!ActiveSpheres.TryGetValue(msg.SphereNetID, out ActiveSphere existing))
         {
-            BNL.LogError($"Trying to remove content sphere that does not exist: {msg.SphereNetID}");
+            BNL.LogWarning($"Peer {peer.Id} tried to remove content sphere {msg.SphereNetID}, which no longer exists.");
             SendCleanup(peer, msg.SphereNetID, requesterId);
             return;
         }

@@ -31,6 +31,9 @@ namespace OpenLipSync.Inference
         // --- streaming path ---
         private readonly StreamingSession _streaming;   // null => legacy
         private readonly bool _multiLabel;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        private readonly WebStreamingSession _web;
+#endif
 
         // --- legacy windowed path ---
         private readonly int _maxMelFrames;
@@ -39,8 +42,27 @@ namespace OpenLipSync.Inference
         private int _melFrameCount;
 
         public int MelBands => _melBands;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        public bool IsStreaming => _streaming != null || _web != null;
+#else
         public bool IsStreaming => _streaming != null;
+#endif
         public int AccumulatedMelFrames => _melFrameCount;
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        public AudioContext(int inputSampleRate, AudioProcessingConfig audioConfig, int modelVisemeCount, WebStreamingSession web, bool multiLabel)
+        {
+            _ringBuffer = new AudioRingBuffer(audioConfig.SampleRate * 3);
+            _melProcessor = new MelSpectrogramProcessor(audioConfig);
+            _resampler = inputSampleRate != audioConfig.SampleRate ? new AudioResampler(inputSampleRate, audioConfig.SampleRate) : null;
+            int visemeCount = modelVisemeCount > 0 ? modelVisemeCount : Frame.VisemeCount;
+            _smoother = new VisemeSmoother(visemeCount, 0.3f);
+            _probabilityBuffer = new float[visemeCount];
+            _melBands = audioConfig.NMels;
+            _web = web;
+            _multiLabel = multiLabel;
+        }
+#endif
 
         public AudioContext(int inputSampleRate, AudioProcessingConfig audioConfig, int modelVisemeCount,
                             StreamingSession streaming, bool multiLabel)
@@ -89,9 +111,14 @@ namespace OpenLipSync.Inference
         /// </summary>
         public void StepStreaming(float[] melFrame)
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (_disposed || _web == null) return;
+            _web.Submit(melFrame);
+#else
             if (_disposed || _streaming == null) return;
             _streaming.Step(melFrame, _probabilityBuffer, _multiLabel);
             Smooth(_probabilityBuffer);
+#endif
         }
 
         /// <summary>
@@ -141,6 +168,9 @@ namespace OpenLipSync.Inference
         public void UpdateFrame(ref Frame frame)
         {
             if (_disposed) return;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            while (_web != null && _web.TryTake(_probabilityBuffer, _multiLabel)) Smooth(_probabilityBuffer);
+#endif
 
             frame.frameNumber = ++_frameNumber;
             frame.frameDelay = 0;
@@ -182,6 +212,9 @@ namespace OpenLipSync.Inference
             _frameNumber = 0;
 
             _streaming?.Reset();
+#if UNITY_WEBGL && !UNITY_EDITOR
+            _web?.Reset();
+#endif
 
             if (_melSequence != null)
             {
@@ -197,6 +230,9 @@ namespace OpenLipSync.Inference
             _ringBuffer.Dispose();
             _melProcessor.Dispose();
             _streaming?.Dispose();
+#if UNITY_WEBGL && !UNITY_EDITOR
+            _web?.Dispose();
+#endif
         }
     }
 }

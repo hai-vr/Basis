@@ -47,7 +47,7 @@ namespace Basis.IK
                 float crouchFade = 1f;
                 if (plan.crouchOffset)
                 {
-                    ApplyCrouchBodyOffset(headTargetPos, ref hipsTargetPos, ref hipDesired, up, crouchFade);
+                    hipsTargetPos = ApplyCrouchBodyOffset(headTargetPos, hipsTargetPos, hipDesired, up, crouchFade);
                 }
                 targetPositionHips = hipsTargetPos;
                 if (plan.hasHips)
@@ -90,7 +90,12 @@ namespace Basis.IK
             SpineData.chestTargetRotation = targetRotationChest * offsetRotationChest;
             SpineData.chestForward = Vector3.forward;
             SpineData.chestHintWeight = hasTrackedChest ? 1f : 0f;
+            Vector3 hipGoal = SpineData.hipTargetPosition;
             RalivIKSpine.SolveSpine(ref SpineData);
+            if (plan.plantFeet && plan.hasHips)
+            {
+                SettleHipsOnPlantedFeet(hipGoal, count);
+            }
             BasisBoneHandle rootHandle = chainHeadToSpine[count - 1];
             poseStream.SetPosition(rootHandle, SpineData.positions[0]);
             for (int index = 0; index < count; index++)
@@ -100,11 +105,68 @@ namespace Basis.IK
             }
 
             BasisBoneHandle headHandle = chainHeadToSpine[0];
-            Vector3 headCorrection = headTargetPosition - poseStream.GetPosition(headHandle);
+            Vector3 headCorrection = SpineData.positions[count - 1] - poseStream.GetPosition(headHandle);
             if (headCorrection.sqrMagnitude > sqrEpsilon)
             {
                 poseStream.SetPosition(rootHandle, poseStream.GetPosition(rootHandle) + headCorrection);
             }
+        }
+        const int PlantPasses = 3;
+        const float ReachFadeStart = 0.8f, ReachFadeEnd = 0.95f, LoweredHeadSlipBand = 0.1f;
+        void SettleHipsOnPlantedFeet(Vector3 hipGoal, int count)
+        {
+            Vector3 up = playerUp;
+            float goalUp = Vector3.Dot(hipGoal, up), startUp = Vector3.Dot(SpineData.positions[0], up), curlLift = startUp - goalUp;
+            float turn = Quaternion.Angle(SpineData.hipTargetRotation * Quaternion.Inverse(SpineData.restRotations[0]), SpineData.headTargetRotation * Quaternion.Inverse(SpineData.restRotations[count - 1])) * Mathf.Deg2Rad;
+            float allowance = 2f * Mathf.Sin(0.5f * turn) * headSlipLever, headSlip = float.NaN;
+            for (int pass = 0; pass < PlantPasses; pass++)
+            {
+                float hipsUp = Vector3.Dot(SpineData.positions[0], up), ceiling = PlantedFeetCeiling(up, startUp, out float reachable);
+                if (float.IsInfinity(ceiling))
+                {
+                    return;
+                }
+                float floor = plan.hipsTracked ? float.NegativeInfinity : Mathf.Min(goalUp, reachable);
+                float drop = hipsUp - Mathf.Clamp(hipsUp, floor, ceiling);
+                if (!(Mathf.Abs(drop) > epsilon))
+                {
+                    return;
+                }
+                if (drop > 0f && float.IsNaN(headSlip))
+                {
+                    bool trackedFoot = (plan.leftLeg.solve && plan.leftLeg.target == BasisEerieSource.Tracker) || (plan.rightLeg.solve && plan.rightLeg.target == BasisEerieSource.Tracker);
+                    headSlip = trackedFoot ? allowance : allowance * Mathf.Max(Mathf.Clamp01(curlLift / drop), Mathf.SmoothStep(0f, 1f, crouchDepth / Mathf.Max(LoweredHeadSlipBand * headSlipLever, epsilon)));
+                }
+                RalivIKSpine.LowerRoot(ref SpineData, up, drop, float.IsNaN(headSlip) ? 0f : headSlip);
+            }
+        }
+        float PlantedFeetCeiling(Vector3 up, float releaseUp, out float reachable)
+        {
+            Vector3 hips = SpineData.positions[0];
+            Quaternion solvedFromTarget = SpineData.rotations[0] * Quaternion.Inverse(poseStream.GetRotation(handleHips));
+            float left = LegHipsCeiling(in plan.leftLeg, simLeftPlanted, handleLeftUpperLeg, handleLeftLowerLeg, handleLeftFoot, targetPositionLeftLowerLeg, hips, solvedFromTarget, up, out float leftRelease);
+            float right = LegHipsCeiling(in plan.rightLeg, simRightPlanted, handleRightUpperLeg, handleRightLowerLeg, handleRightFoot, targetPositionRightLowerLeg, hips, solvedFromTarget, up, out float rightRelease);
+            reachable = Mathf.Min(left, right);
+            return Mathf.Min(left + Mathf.Max(0f, releaseUp - left) * leftRelease, right + Mathf.Max(0f, releaseUp - right) * rightRelease);
+        }
+        float LegHipsCeiling(in BasisEerieLegPlan leg, bool simPlanted, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 target, Vector3 hips, Quaternion solvedFromTarget, Vector3 up, out float release)
+        {
+            release = 1f;
+            if (!leg.solve || (leg.target == BasisEerieSource.Sim && !simPlanted))
+            {
+                return float.PositiveInfinity;
+            }
+            Vector3 hipJoint = poseStream.GetPosition(root), knee = poseStream.GetPosition(mid);
+            float reach = BasisLegSolveCore.MaxExtensionReach(Vector3.Distance(hipJoint, knee), Vector3.Distance(knee, poseStream.GetPosition(tip)));
+            Vector3 offset = solvedFromTarget * (hipJoint - poseStream.GetPosition(handleHips));
+            Vector3 toJoint = hips + offset - target;
+            float along = Vector3.Dot(toJoint, up), horizontal = (toJoint - up * along).magnitude, spread = horizontal / Mathf.Max(reach, epsilon);
+            if (!(spread < ReachFadeEnd))
+            {
+                return float.PositiveInfinity;
+            }
+            release = Mathf.SmoothStep(0f, 1f, (spread - ReachFadeStart) / (ReachFadeEnd - ReachFadeStart));
+            return Vector3.Dot(target, up) + Mathf.Sqrt(reach * reach - horizontal * horizontal) - Vector3.Dot(offset, up);
         }
         public void InitalizeRalivSpineIK()
         {
@@ -181,7 +243,54 @@ namespace Basis.IK
                 SpineData.length *= scale;
             }
         }
-        void ApplyCrouchBodyOffset(Vector3 headTargetPos, ref Vector3 hipsPos, ref Quaternion hipsRot, Vector3 playerUpDir, float fade)
+        void RescaleRalivSpineSegments(float scale, int topIndex)
+        {
+            int count = SpineData.restPositions.Length;
+            if (count < 2 || SpineData.positions.Length != count || SpineData.t.Length != count || topIndex < 1 || !(scale > 0f) || float.IsInfinity(scale))
+            {
+                return;
+            }
+            topIndex = Mathf.Min(topIndex, count - 1);
+            Vector3 previousRest = SpineData.restPositions[0], previousWorking = SpineData.positions[0];
+            for (int index = 1; index < count; index++)
+            {
+                Vector3 rest = SpineData.restPositions[index], working = SpineData.positions[index];
+                float segmentScale = index <= topIndex ? scale : 1f;
+                SpineData.restPositions[index] = SpineData.restPositions[index - 1] + (rest - previousRest) * segmentScale;
+                SpineData.positions[index] = SpineData.positions[index - 1] + (working - previousWorking) * segmentScale;
+                previousRest = rest;
+                previousWorking = working;
+            }
+            float hipless = 0f;
+            for (int index = 0; index < count; index++)
+            {
+                if (index > 1)
+                {
+                    hipless += (SpineData.restPositions[index] - SpineData.restPositions[index - 1]).magnitude;
+                }
+                SpineData.t[index] = hipless;
+            }
+            if (hipless <= epsilon)
+            {
+                return;
+            }
+            SpineData.length = hipless;
+            for (int index = 0; index < count; index++)
+            {
+                SpineData.t[index] = SpineData.t[index] / hipless * 0.8f;
+            }
+        }
+        public float RalivRestChainLength()
+        {
+            int count = SpineData.restPositions.Length;
+            float length = 0f;
+            for (int index = 1; index < count; index++)
+            {
+                length += (SpineData.restPositions[index] - SpineData.restPositions[index - 1]).magnitude;
+            }
+            return count >= 2 && !float.IsNaN(length) && !float.IsInfinity(length) ? length : 0f;
+        }
+        Vector3 ApplyCrouchBodyOffset(Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir, float fade)
         {
             BasisCrouchOffsetInput input;
             input.HeadTargetPos = headTargetPos;
@@ -195,8 +304,7 @@ namespace Basis.IK
             input.StandingHeadHeight = standingHeadHeight;
             input.Fade = fade;
             BasisCrouchOffsetCore.Solve(input, out BasisCrouchOffsetResult result);
-            hipsPos = result.HipsPos;
-            hipsRot = result.HipsRot;
+            return result.HipsPos;
         }
     }
 }

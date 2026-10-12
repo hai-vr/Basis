@@ -112,6 +112,10 @@
       "value": "★ {0}"
     },
     {
+      "key": "menu.servers.list.sourceBadge",
+      "value": "{0} ({1})"
+    },
+    {
       "key": "menu.servers.list.share",
       "value": "分享"
     },
@@ -146,6 +150,14 @@
     {
       "key": "menu.servers.usernamePrompt.body",
       "value": "選擇其他玩家會看到的名稱，然後按「連接」。"
+    },
+    {
+      "key": "menu.servers.passwordPrompt.title",
+      "value": "加入 {0}"
+    },
+    {
+      "key": "menu.servers.passwordPrompt.body",
+      "value": "密碼遭拒絕。請輸入伺服器密碼。"
     },
     {
       "key": "menu.servers.search.byNameOrAddress",

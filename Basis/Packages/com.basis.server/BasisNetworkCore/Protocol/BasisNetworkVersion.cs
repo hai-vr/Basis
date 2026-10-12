@@ -12,6 +12,11 @@ namespace Basis.Network.Core
         // protocol version; the server rejects any pair it does not support (wire-format change).
         // ServerUUID is an optional trailing ServerMetaDataMessage field: protocol-55 clients
         // ignore it, while newer clients treat its absence from a protocol-55 server as empty.
-        public static ushort ServerVersion = 55;
+        // 56: DID login is bound to the connection. The connection request carries the client's
+        // X25519 key before the ReadyMessage, the challenge adds the server's X25519 key and
+        // ServerUUID, the signature covers BasisDidLoginTranscript, and client-to-server user data
+        // is sealed with the derived key (wire-format change).
+        public static ushort ServerVersion = 56;
+        public static ushort LegacyLoginVersion = 55;
     }
 }

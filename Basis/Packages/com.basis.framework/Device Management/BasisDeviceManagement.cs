@@ -250,6 +250,10 @@ namespace Basis.Scripts.Device_Management
                 Instance = this;
             }
             await Basis.Scripts.Platform.BasisWebAddressables.WhenReady();
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (CameraShutterSound != null) CameraShutterSound.LoadAudioData();
+            _ = Basis.Scripts.Audio.BasisUISounds.Pack;
+#endif
 
             // Detect Wine/Proton once up front so any subsystem can branch on it.
             BasisProtonDetection.Initialize();
@@ -713,8 +717,11 @@ namespace Basis.Scripts.Device_Management
                         input.HasCalibratedOffsetSnapshot = prev.HasCalibratedOffsetSnapshot;
                         input.CalibratedUnscaledPosition = prev.CalibratedUnscaledPosition;
                         input.CalibratedUnscaledRotation = prev.CalibratedUnscaledRotation;
+                        input.CalibratedUnscaledLift = prev.CalibratedUnscaledLift;
                         input.CalibratedUnscaledHeadPosition = prev.CalibratedUnscaledHeadPosition;
                         input.CalibratedUnscaledHeadRotation = prev.CalibratedUnscaledHeadRotation;
+                        input.HasCalibratedHeadFromEye = prev.HasCalibratedHeadFromEye;
+                        input.CalibratedUnscaledHeadFromEye = prev.CalibratedUnscaledHeadFromEye;
                         BasisAvatarIKStageCalibration.ReprojectTrackerOffsetsForCurrentAvatar();
                     }
                     else
@@ -781,8 +788,11 @@ namespace Basis.Scripts.Device_Management
                     HasCalibratedOffsetSnapshot = device.HasCalibratedOffsetSnapshot,
                     CalibratedUnscaledPosition = device.CalibratedUnscaledPosition,
                     CalibratedUnscaledRotation = device.CalibratedUnscaledRotation,
+                    CalibratedUnscaledLift = device.CalibratedUnscaledLift,
                     CalibratedUnscaledHeadPosition = device.CalibratedUnscaledHeadPosition,
-                    CalibratedUnscaledHeadRotation = device.CalibratedUnscaledHeadRotation
+                    CalibratedUnscaledHeadRotation = device.CalibratedUnscaledHeadRotation,
+                    HasCalibratedHeadFromEye = device.HasCalibratedHeadFromEye,
+                    CalibratedUnscaledHeadFromEye = device.CalibratedUnscaledHeadFromEye
                 });
             }
         }

@@ -46,7 +46,7 @@ namespace Basis.Scripts.Drivers
 
         public Vector3 AvatarInitialScale = Vector3.one;
 
-        public float NamePlateHeightAboveHipsModel;
+        public float NamePlateHeightAboveHipsModel, NamePlateBaseModel;
 
         public Quaternion DerivedRootToCharacterBasis = Quaternion.identity;
         public Quaternion HipsToCharacterBasis = Quaternion.identity;
@@ -389,7 +389,7 @@ namespace Basis.Scripts.Drivers
             BasisFiniteWatchdog.CheckpointRemote("RemoteCalibration/Complete", RemotePlayer);
         }
 
-        public void RegisterAvatarWithBoneJobSystem(BasisRemotePlayer RemotePlayer, bool snapToNetworkPose)
+        public void RegisterAvatarWithBoneJobSystem(BasisRemotePlayer RemotePlayer, bool snapToNetworkPose, bool measureNamePlate = true)
         {
             var receiver = RemotePlayer.NetworkReceiver;
             if (receiver == null || RemotePlayer.BasisAvatar == null || References?.AnimatorRoot == null ||
@@ -453,7 +453,7 @@ namespace Basis.Scripts.Drivers
             // T-pose only. The calibration path is the one that arrives here with the rig posed and
             // References freshly recorded; a far-LOD wake-up or any other re-registration reuses
             // what that measured rather than re-reading a live pose.
-            if (!snapToNetworkPose || NamePlateHeightAboveHipsModel <= 0f)
+            if ((!snapToNetworkPose && measureNamePlate) || NamePlateHeightAboveHipsModel <= 0f)
             {
                 CaptureNamePlateAnchor(RemotePlayer);
             }
@@ -567,30 +567,53 @@ namespace Basis.Scripts.Drivers
 
         private void CaptureNamePlateAnchor(BasisRemotePlayer RemotePlayer)
         {
-            float rootScaleY = References.RootScale.y;
-            if (float.IsNaN(rootScaleY) || float.IsInfinity(rootScaleY) || rootScaleY <= 1e-6f)
-            {
-                rootScaleY = 1f;
-            }
-
+            float rootScaleY = NamePlateRootScaleY();
             if (References.TposeWorld == null ||
                 !References.TposeWorld.TryGetValue(HumanBodyBones.Hips, out var tposeHips) ||
                 !References.TposeWorld.TryGetValue(HumanBodyBones.Head, out var tposeHead))
             {
-                NamePlateHeightAboveHipsModel = BasisNamePlateAnchorMath.LegacyHeightAboveHips / rootScaleY;
+                NamePlateBaseModel = BasisNamePlateAnchorMath.LegacyHeightAboveHips / rootScaleY;
+                NamePlateHeightAboveHipsModel = NamePlateBaseModel;
                 return;
             }
 
             float eyeAboveRoot = RemotePlayer.BasisAvatar != null ? RemotePlayer.BasisAvatar.AvatarEyePosition.x : 0f;
             bool hasBounds = TryGetTposeRenderedTop(RemotePlayer, out float boundsTopAboveRoot);
 
-            NamePlateHeightAboveHipsModel = BasisNamePlateAnchorMath.MeasureHeightAboveHipsModelUnits(
+            NamePlateBaseModel = BasisNamePlateAnchorMath.MeasureHeightAboveHipsModelUnits(
                 hipsAboveRoot: tposeHips.position.y,
                 headAboveRoot: tposeHead.position.y,
                 eyeAboveRoot: eyeAboveRoot,
                 boundsTopAboveRoot: boundsTopAboveRoot,
                 hasBounds: hasBounds,
                 rootScaleY: rootScaleY);
+            ApplyNamePlateTorsoLift();
+        }
+
+        private float NamePlateRootScaleY()
+        {
+            float rootScaleY = References.RootScale.y;
+            return float.IsNaN(rootScaleY) || float.IsInfinity(rootScaleY) || rootScaleY <= 1e-6f ? 1f : rootScaleY;
+        }
+
+        private void ApplyNamePlateTorsoLift()
+        {
+            NamePlateHeightAboveHipsModel = NamePlateBaseModel + (References.TposeWorld != null && References.TposeWorld.TryGetValue(HumanBodyBones.Hips, out var tposeHips) ? TorsoFitLift(tposeHips.position.y) / NamePlateRootScaleY() : 0f);
+        }
+
+        private float TorsoFitLift(float tposeHipsY)
+        {
+            if (!AppliedBodyFit.HasBodyFit || Mathf.Approximately(AppliedBodyFit.TorsoScale, 1f) || References.TposeWorld == null)
+            {
+                return 0f;
+            }
+            Transform top = Basis.IK.BasisBodyFitApply.TorsoTop(References);
+            HumanBodyBones topBone = top != null && top == References.Upperchest ? HumanBodyBones.UpperChest : top != null && top == References.chest ? HumanBodyBones.Chest : HumanBodyBones.Spine;
+            if (!References.TposeWorld.TryGetValue(topBone, out var tposeTop))
+            {
+                return 0f;
+            }
+            return (AppliedBodyFit.TorsoScale - 1f) * Mathf.Max(0f, tposeTop.position.y - tposeHipsY);
         }
 
         private bool TryGetTposeRenderedTop(BasisRemotePlayer RemotePlayer, out float topAboveRoot)
@@ -884,6 +907,11 @@ namespace Basis.Scripts.Drivers
         {
             AppliedBodyFit = fit;
             ApplyRemoteBodyFit();
+            if (InBoneDriver && Player is BasisRemotePlayer remote && remote.BasisAvatar != null && remote.NetworkReceiver != null)
+            {
+                ApplyNamePlateTorsoLift();
+                RegisterAvatarWithBoneJobSystem(remote, snapToNetworkPose: false, measureNamePlate: NamePlateBaseModel <= 0f);
+            }
         }
 
         private void SeedBodyFitFromAvatarRecord(BasisRemotePlayer RemotePlayer)

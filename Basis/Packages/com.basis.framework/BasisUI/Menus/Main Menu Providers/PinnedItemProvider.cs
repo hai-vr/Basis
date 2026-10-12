@@ -20,7 +20,7 @@ namespace Basis.BasisUI
             _iconAddress = (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable) ? EmbeddedItems.GetAddressableSpriteForEmbeddedItem(item) : AddressableAssets.Sprites.Items;
         }
 
-        public override string Title => LibraryProviderStrUtil.TitleToCase(_meta.Name); // or a nicer name
+        public override string Title => _meta.Name;
         public override string IconAddress => _iconAddress;
         public override int Order => 50; // after static items
         public override bool Hidden => false;

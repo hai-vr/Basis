@@ -18,6 +18,7 @@ namespace Basis.Scripts.Networking
         public ConnectionTarget Target;
         public bool CanEdit;
         public bool CanRemove;
+        public bool CanAutoConnect = true;
     }
 
     public interface IServerDirectorySource

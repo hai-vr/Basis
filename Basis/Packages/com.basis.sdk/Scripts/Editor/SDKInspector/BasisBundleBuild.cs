@@ -614,7 +614,7 @@ public static class BasisBundleBuild
 
             BasisBundleConnector basisBundleConnector = new BasisBundleConnector(
                 generatedID,
-                basisContentBase.BasisBundleDescription,
+                basisContentBase.BasisBundleDescription.WithAuthorFallback(BasisContentDefaults.LocalDidKey()),
                 bundles.ToArray(),
                 Images,
                 BasisBounds,

@@ -9,5 +9,6 @@ public enum BasisShareableKind
     Link,
     Text,
     Folder,
+    Setting,
     Other
 }

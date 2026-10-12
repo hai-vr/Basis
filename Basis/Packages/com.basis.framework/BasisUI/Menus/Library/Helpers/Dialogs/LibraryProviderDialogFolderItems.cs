@@ -61,7 +61,7 @@ namespace Basis.BasisUI
             {
                 string name = LibraryProvider.FolderItemName(item) ?? string.Empty;
                 PanelButton card = PanelButton.CreateNew(ButtonStyles.Prop, grid.Descriptor.ContentParent);
-                card.Descriptor.SetTitle(LibraryProviderStrUtil.TitleToCase(name));
+                card.Descriptor.SetTitle(name);
                 LibraryProvider.ApplyItemFace(card, item);
                 LibraryProvider.AddCornerIcon(card, LibraryProvider.ModeSprite(item.Mode), true);
                 card.ButtonStyling.ShowIndicator(selected.Contains(item));

@@ -59,6 +59,7 @@ namespace Basis.Network.Core
             public PeerIntroducerFactory IntroducerFactory;
             public P2PSocketFactory P2PSocketFactory;
             public Func<string, bool> AddressMatcher;
+            public string IdentityProviderId;
         }
 
         private static readonly Dictionary<string, Slot> _slots
@@ -220,6 +221,29 @@ namespace Basis.Network.Core
                     return;
                 }
                 slot.AddressMatcher = matcher;
+            }
+        }
+
+        public static void RegisterIdentityProvider(string stackId, string providerId)
+        {
+            if (string.IsNullOrEmpty(stackId)) throw new ArgumentException("Stack id is required", nameof(stackId));
+            lock (_lock)
+            {
+                if (!_slots.TryGetValue(stackId, out Slot slot))
+                {
+                    BNL.LogWarning($"Cannot register an identity provider for unknown stack '{stackId}'");
+                    return;
+                }
+                slot.IdentityProviderId = providerId;
+            }
+        }
+
+        public static string IdentityProviderFor(string stackId)
+        {
+            if (string.IsNullOrEmpty(stackId)) return null;
+            lock (_lock)
+            {
+                return _slots.TryGetValue(stackId, out Slot slot) ? slot.IdentityProviderId : null;
             }
         }
 

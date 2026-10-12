@@ -746,6 +746,8 @@ namespace LiteNetLib
 
         public int ExtraPacketSizeForLayer => _extraPacketLayer?.ExtraPacketSizeForLayer ?? 0;
 
+        internal int ExtraSizeForLayer(byte property) => _extraPacketLayer?.ExtraSizeFor(property) ?? 0;
+
         /// <summary>
         /// NetManager constructor
         /// </summary>
@@ -1195,7 +1197,7 @@ namespace LiteNetLib
             ProcessNtpRequests(elapsedMilliseconds);
         }
 
-        internal NetPeer OnConnectionSolved(ConnectionRequest request, byte[] rejectData, int start, int length)
+        internal NetPeer OnConnectionSolved(ConnectionRequest request, byte[] rejectData, int start, int length, PacketLayerBase inboundLayer = null)
         {
             NetPeer netPeer = null;
 
@@ -1234,6 +1236,8 @@ namespace LiteNetLib
                 else //Accept
                 {
                     netPeer = new NetPeer(this, request, GetNextPeerId());
+                    if (inboundLayer != null)
+                        netPeer.SetInboundPacketLayer(inboundLayer);
                     AddPeer(netPeer);
                     CreateEvent(NetEvent.EType.Connect, netPeer);
                     //NetDebug.Write(NetLogLevel.Trace, $"[NM] Received peer connection Id: {netPeer.ConnectTime}, EP: {netPeer}");
@@ -1457,6 +1461,20 @@ namespace LiteNetLib
             //Check normal packets
             bool peerFound = remoteEndPoint is NetPeer netPeer || TryGetPeer(remoteEndPoint, out netPeer);
 
+            if (peerFound)
+            {
+                var peerLayer = netPeer.InboundPacketLayer;
+                if (peerLayer != null)
+                {
+                    peerLayer.ProcessInboundPacket(ref remoteEndPoint, ref packet.RawData, ref packet.Size);
+                    if (packet.Size == 0 || !packet.Verify())
+                    {
+                        PoolRecycle(packet);
+                        return;
+                    }
+                }
+            }
+
             if (peerFound && EnableStatistics)
             {
                 netPeer.Statistics.IncrementPacketsReceived();
@@ -1518,7 +1536,8 @@ namespace LiteNetLib
                                     peer.ConnectTime == remoteData.ConnectionTime &&
                                     peer.ConnectionNum == remoteData.ConnectionNumber)
                                 {
-                                    if (peer.ConnectionState == ConnectionState.Connected)
+                                    if (peer.ConnectionState == ConnectionState.Connected &&
+                                        (peer.InboundPacketLayer?.AllowsEndPointChange ?? true))
                                     {
                                         peer.InitiateEndPointChange();
                                         CreateEvent(NetEvent.EType.PeerAddressChanged, peer, remoteEndPoint);

@@ -290,7 +290,7 @@ public partial class SMModuleCalibration : BasisSettingsBase
 
             case var s when s == K_FBIK_BODY_FIT:
             case var s2 when s2 == K_FBIK_BODY_FIT_MAX_DEVIATION:
-                BasisLocalPlayer.Instance?.LocalRigDriver?.RefreshBodyFit();
+                BasisHeightDriver.ApplyScaleAndHeight();
                 break;
 
             // ---------- GLOBAL ONE EURO PARAMS ----------
@@ -649,7 +649,8 @@ public partial class SMModuleCalibration : BasisSettingsBase
             return;
         }
 
-        if (ApplyCustomScale || (!ApplyCustomScale && _lastApplyCustomScale == true))
+        bool modeChanged = _hasApplied && _lastHeightMode != HeightMode;
+        if ((ApplyCustomScale || _lastApplyCustomScale || modeChanged) && BasisLocalPlayer.Instance != null && BasisLocalPlayer.PlayerReady)
         {
             BasisHeightDriver.ApplyScaleAndHeight();
         }

@@ -161,6 +161,18 @@ public sealed class BasisBeeExplorerTab : BasisEditorTabPage
             DrawField("Description", connector.BasisBundleDescription.AssetBundleDescription);
             var tags = connector.BasisBundleDescription.Tags;
             DrawField("Tags", tags != null && tags.Length > 0 ? string.Join(", ", tags) : "(none)");
+            BasisBundleAuthorship authorship = connector.BasisBundleDescription.Authorship;
+            if (BasisBundleConnector.HasAuthorship(authorship))
+            {
+                DrawField("Author", authorship.Author);
+                DrawField("Contact", authorship.Contact);
+                DrawField("License", authorship.License);
+                DrawField("Credits", authorship.Credits);
+            }
+            else
+            {
+                DrawField("Authorship", "(none)");
+            }
         }
         EditorGUILayout.EndVertical();
 

@@ -961,6 +961,10 @@ namespace Basis.EventDriver
                 SteamAudioManager.Apply();
             }
 #endif
+#if UNITY_WEBGL && !UNITY_EDITOR
+            Basis.Scripts.Platform.BasisWebVoiceOutput.Tick(unscaledDeltaTime);
+            if (Basis.Scripts.Platform.BasisWebAddressables.IsReady) BasisOpenLipSyncDriver.WebTick(Basis.Scripts.Platform.BasisWebVoiceOutput.SampleRate, unscaledDeltaTime);
+#endif
 
             using (Prof.ContentSphereComplete.Auto())
             {

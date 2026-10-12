@@ -1163,6 +1163,7 @@ namespace LiteNetLib
                 ReferenceEquals(batcher.Owner, this) &&
                 _isRunning &&
                 _extraPacketLayer == null &&   // CRC/encryption layers rewrite the buffer in place
+                peer.OutboundPacketLayer == null &&
                 UseNativeSockets &&
                 peer.NativeAddress != null)
             {
@@ -1183,12 +1184,15 @@ namespace LiteNetLib
                 return 0;
 
             NetPacket expandedPacket = null;
-            if (_extraPacketLayer != null)
+            var peerLayer = (remoteEndPoint as NetPeer)?.OutboundPacketLayer;
+            if (_extraPacketLayer != null || peerLayer != null)
             {
-                expandedPacket = PoolGetPacket(length + _extraPacketLayer.ExtraPacketSizeForLayer);
+                int extra = (_extraPacketLayer?.ExtraPacketSizeForLayer ?? 0) + (peerLayer?.ExtraPacketSizeForLayer ?? 0);
+                expandedPacket = PoolGetPacket(length + extra);
                 Buffer.BlockCopy(message, start, expandedPacket.RawData, 0, length);
                 start = 0;
-                _extraPacketLayer.ProcessOutBoundPacket(ref remoteEndPoint, ref expandedPacket.RawData, ref start, ref length);
+                peerLayer?.ProcessOutBoundPacket(ref remoteEndPoint, ref expandedPacket.RawData, ref start, ref length);
+                _extraPacketLayer?.ProcessOutBoundPacket(ref remoteEndPoint, ref expandedPacket.RawData, ref start, ref length);
                 message = expandedPacket.RawData;
             }
 

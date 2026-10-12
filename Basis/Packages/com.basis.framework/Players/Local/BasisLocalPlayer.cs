@@ -632,7 +632,7 @@ namespace Basis.Scripts.BasisSdk.Players
             Quaternion desiredRotWS = Quaternion.LookRotation(flatFwd.normalized, Vector3.up);
 
             // Offset the avatar root by the head's T-pose offset so the head bone lands on headPosWS.
-            Vector3 headTposeLocal = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position;
+            Vector3 headTposeLocal = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position + Vector3.up * LocalAvatarDriver.TposeSoleOffsetScaled();
             Vector3 avatarWorldPos = headPosWS - desiredRotWS * headTposeLocal;
 
             AvatarTransform.SetPositionAndRotation(avatarWorldPos, desiredRotWS);

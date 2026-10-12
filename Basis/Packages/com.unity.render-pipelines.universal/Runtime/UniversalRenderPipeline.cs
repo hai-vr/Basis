@@ -1929,6 +1929,8 @@ namespace UnityEngine.Rendering.Universal
             using var profScope = new ProfilingScope(Profiling.Pipeline.initializeCameraData);
 
             var renderer = GetRenderer(camera, additionalCameraData);
+            if (frameData.Contains<UniversalCameraData>())
+                frameData.Dispose();
             UniversalCameraData cameraData = frameData.Create<UniversalCameraData>();
             cameraData.renderer = renderer;
 

@@ -153,6 +153,21 @@ Tests do not run entries: call the package's registration from the tests that ne
 A failing entry is logged and the rest still run. `/packages` in the server console (or
 `basisctl /packages`) lists the packages built into the server and the entries that ran.
 
+## Server lifecycle
+
+A package that is not a transport can follow the server's lifetime through these events on
+`NetworkServer`:
+
+| Event | Raised |
+|---|---|
+| `ServerStarted` | once the server is listening, with its `Configuration` |
+| `ConfigurationApplied` | after a live configuration change (the console `/config` command, the admin panel) |
+| `ServerStopping` | before the transports stop |
+
+They are raised for the standalone server and for a server hosted inside Unity. A handler that
+throws is logged and the others still run. `com.basis.landiscovery` uses them to announce a server
+on the local network for exactly as long as it runs.
+
 ## Transport packages
 
 A network transport is a `NetManager` (with its `NetPeer` and `ConnectionRequest`) whose code

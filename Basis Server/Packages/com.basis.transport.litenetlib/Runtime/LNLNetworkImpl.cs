@@ -131,6 +131,13 @@ namespace Basis.Network.Core
             return new LNLNetPeer(request.Accept());
         }
 
+        NetPeer ConnectionRequest.AcceptAwaitingSeal()
+        {
+            BasisPeerCipherLayer layer = new BasisPeerCipherLayer();
+            LiteNetLib.NetPeer accepted = request.Accept(layer);
+            return accepted != null && ReferenceEquals(accepted.InboundPacketLayer, layer) ? new LNLNetPeer(accepted) : null;
+        }
+
         void ConnectionRequest.Reject(NetDataWriter w)
         {
             request.Reject(w.Data, 0, w.Length, false);
@@ -164,6 +171,25 @@ namespace Basis.Network.Core
         {
             get => peer.Tag;
             set => peer.Tag = value;
+        }
+
+        bool NetPeer.SealOutbound(byte[] key)
+        {
+            if (peer.OutboundPacketLayer is BasisPeerCipherLayer reserved && !reserved.HasKey) reserved.SetKey(key);
+            else peer.SetOutboundPacketLayer(new BasisPeerCipherLayer(key));
+            return true;
+        }
+
+        bool NetPeer.RequireSealedInbound(byte[] key)
+        {
+            if (peer.InboundPacketLayer is BasisPeerCipherLayer pending && !pending.HasKey) pending.SetKey(key);
+            else peer.SetInboundPacketLayer(new BasisPeerCipherLayer(key));
+            return true;
+        }
+
+        void NetPeer.ExpectSealedOutbound()
+        {
+            if (peer.OutboundPacketLayer == null) peer.SetOutboundPacketLayer(new BasisPeerCipherLayer());
         }
 
         void NetPeer.Disconnect()

@@ -158,7 +158,11 @@ public partial class SMDMicrophone : BasisSettingsBase
     // Load active mode (sets Current and emits once)
     public static void LoadInMicrophoneData(string mode)
     {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        MicrophoneDevices = BasisLocalMicrophoneDriver.WebMicrophoneDevices;
+#else
         MicrophoneDevices = Microphone.devices;
+#endif
 
         if (string.IsNullOrEmpty(mode))
         {

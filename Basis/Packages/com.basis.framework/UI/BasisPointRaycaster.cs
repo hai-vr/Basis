@@ -156,7 +156,7 @@ namespace Basis.Scripts.UI
 
         private void RefreshEffectiveMaxDistance()
         {
-            EffectiveMaxDistance = MaxDistance + Mathf.Max(0f, BasisHeightDriver.SelectedScaledAvatarHeight - MaxDistanceScaleThresholdMeters);
+            EffectiveMaxDistance = MaxDistance + Mathf.Max(0f, BasisHeightDriver.ScaledAvatarEyeHeight - MaxDistanceScaleThresholdMeters);
         }
 
         public void UpdateRay()

@@ -412,6 +412,7 @@ public partial class BasisAvatarSDKInspector : Editor
             BasisEditorLocalization.Get("sdk.avatar.icon.generate"),
             BasisEditorLocalization.Get("sdk.avatar.icon.generate.tooltip"),
             () => BasisIconCapture.CaptureGameObject(Avatar.gameObject, BasisIconCapture.AvatarYaw, BasisIconCapture.AvatarPitch));
+        BasisSDKCommonInspector.CreateAuthorshipFoldout(BasisSDKCommonInspector.ResolveDescriptionContainer(uiElementsRoot), serializedObject);
         avatarBundleButton.clicked += () => EventCallbackAvatarBundle(assetBundleObject.selectedTargets, Avatar.BasisBundleDescription.AssetBundleIcon);
 
 

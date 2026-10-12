@@ -35,12 +35,17 @@ namespace Basis.Network.Core
 		private const byte PropMerged = 12;
 		private const byte PropCompactMerged = 18;
 
+		private const int MaxRememberedWindows = 256;
+
 		private sealed class Session
 		{
 			public BasisAeadCipher Send = null!;
 			public BasisAeadCipher Recv = null!;
+			public BasisReplayWindow Window = null!;
 			public long SendCounter;
 		}
+
+		private readonly ConcurrentDictionary<string, BasisReplayWindow> _windows = new ConcurrentDictionary<string, BasisReplayWindow>();
 
 		// Keyed by address+port only. NetPeer (seen outbound) and the plain IPEndPoint seen
 		// inbound / at install hash differently under non-native sockets; this comparer makes
@@ -82,10 +87,28 @@ namespace Basis.Network.Core
 			{
 				Send = new BasisAeadCipher(sendKey),
 				Recv = new BasisAeadCipher(recvKey),
+				Window = _windows.GetOrAdd(WindowKey(recvKey), _ => new BasisReplayWindow()),
 				SendCounter = initialSendCounter
 			};
 			if (_sessions.TryRemove(endpoint, out var old)) DisposeSession(old);
 			_sessions[endpoint] = session;
+			if (_windows.Count > MaxRememberedWindows) ForgetUnusedWindows();
+		}
+
+		private static string WindowKey(byte[] recvKey)
+		{
+			using var sha = System.Security.Cryptography.SHA256.Create();
+			return Convert.ToBase64String(sha.ComputeHash(recvKey));
+		}
+
+		private void ForgetUnusedWindows()
+		{
+			var live = new HashSet<BasisReplayWindow>();
+			foreach (var session in _sessions.Values) live.Add(session.Window);
+			foreach (var pair in _windows)
+			{
+				if (!live.Contains(pair.Value)) _windows.TryRemove(pair.Key, out _);
+			}
 		}
 
 		public bool HasEndpoint(IPEndPoint endpoint) => endpoint != null && _sessions.ContainsKey(endpoint);
@@ -108,14 +131,7 @@ namespace Basis.Network.Core
 			if (!IsEncryptable((byte)(header & PropertyMask))) return;
 			if (endPoint == null || !_sessions.TryGetValue(endPoint, out var session)) return;
 
-			long counter = Interlocked.Increment(ref session.SendCounter);
-			Span<byte> nonce = stackalloc byte[BasisAeadCipher.NonceSize];
-			WriteCounter(nonce, counter);
-
-			int tagOffset = offset + length;
-			session.Send.Seal(nonce, header, data, offset + 1, length - 1, data, tagOffset);
-			WriteCounterBytes(data, tagOffset + BasisAeadCipher.TagSize, counter);
-			length += Overhead;
+			Seal(session.Send, ref session.SendCounter, data, offset, ref length);
 		}
 
 		public override void ProcessInboundPacket(ref IPEndPoint endPoint, ref byte[] data, ref int length)
@@ -125,30 +141,69 @@ namespace Basis.Network.Core
 			if (!IsEncryptable((byte)(header & PropertyMask))) return;
 			if (endPoint == null || !_sessions.TryGetValue(endPoint, out var session)) return;
 
-			if (length < 1 + Overhead)
+			if (!TryOpen(session.Recv, session.Window, data, ref length))
 			{
 				length = 0;
-				return;
+			}
+		}
+
+		public override int ExtraSizeFor(byte property) => IsEncryptable((byte)(property & PropertyMask)) ? Overhead : 0;
+
+		internal static bool TryOpen(BasisAeadCipher cipher, BasisReplayWindow window, byte[] data, ref int length)
+		{
+			if (length < 1 + Overhead || !window.CouldAccept(ReadCounterBytes(data, length - CounterSize))) return false;
+			int opened = length;
+			if (!Open(cipher, data, ref opened, out long counter) || !window.Accept(counter)) return false;
+			length = opened;
+			return true;
+		}
+
+		/// Seals the user-data datagram at <paramref name="data"/>[<paramref name="offset"/>] in place
+		/// and appends the tag and counter; the buffer must have <see cref="Overhead"/> spare bytes.
+		internal static void Seal(BasisAeadCipher cipher, ref long sendCounter, byte[] data, int offset, ref int length)
+		{
+			byte header = data[offset];
+			long counter = Interlocked.Increment(ref sendCounter);
+			Span<byte> nonce = stackalloc byte[BasisAeadCipher.NonceSize];
+			WriteCounter(nonce, counter);
+
+			int tagOffset = offset + length;
+			cipher.Seal(nonce, header, data, offset + 1, length - 1, data, tagOffset);
+			WriteCounterBytes(data, tagOffset + BasisAeadCipher.TagSize, counter);
+			length += Overhead;
+		}
+
+		/// Opens a datagram sealed by <see cref="Seal"/> in place. False when it is too short or
+		/// fails authentication; otherwise <paramref name="counter"/> is its authenticated counter.
+		internal static bool Open(BasisAeadCipher cipher, byte[] data, ref int length, out long counter)
+		{
+			counter = 0;
+			if (length < 1 + Overhead)
+			{
+				return false;
 			}
 
+			byte header = data[0];
 			int tagOffset = length - Overhead;
 			int counterOffset = length - CounterSize;
-			long counter = ReadCounterBytes(data, counterOffset);
+			counter = ReadCounterBytes(data, counterOffset);
 			Span<byte> nonce = stackalloc byte[BasisAeadCipher.NonceSize];
 			WriteCounter(nonce, counter);
 
 			int payloadLength = tagOffset - 1;
-			if (!session.Recv.Open(nonce, header, data, 1, payloadLength, data, tagOffset))
+			if (!cipher.Open(nonce, header, data, 1, payloadLength, data, tagOffset))
 			{
-				length = 0;
-				return;
+				return false;
 			}
 			length -= Overhead;
+			return true;
 		}
 
-		private static bool IsEncryptable(byte property)
+		internal static bool IsEncryptable(byte property)
 			=> property == PropUnreliable || property == PropChanneled ||
 			   property == PropMerged || property == PropCompactMerged;
+
+		internal static bool IsEncryptableHeader(byte header) => IsEncryptable((byte)(header & PropertyMask));
 
 		private static void DisposeSession(Session session)
 		{

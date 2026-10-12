@@ -183,21 +183,25 @@ namespace Basis.IK.Mocap
 
             // flat floor for the stepper: robust low percentile of every foot/toe height
             var lows = new System.Collections.Generic.List<float>(clip.FrameCount * 4);
+            var ankles = new System.Collections.Generic.List<float>(clip.FrameCount * 2);
             for (int f = 0; f < clip.FrameCount; f++)
             {
                 lows.Add(clip.Get(f, BasisMocapJoint.LeftFoot).Position.y);
                 lows.Add(clip.Get(f, BasisMocapJoint.RightFoot).Position.y);
                 lows.Add(clip.Get(f, BasisMocapJoint.LeftToes).Position.y);
                 lows.Add(clip.Get(f, BasisMocapJoint.RightToes).Position.y);
+                ankles.Add(clip.Get(f, BasisMocapJoint.LeftFoot).Position.y);
+                ankles.Add(clip.Get(f, BasisMocapJoint.RightFoot).Position.y);
             }
             groundY = Percentile(lows, 3);
+            float footRestHeight = Mathf.Max(ankleHeight, Percentile(ankles, 3) - groundY);
 
-            return Derive(leftThigh, leftShin, rightThigh, rightShin, stanceWidth, hipToFoot, upperLegToFootVertical, ankleHeight, footLength);
+            return Derive(leftThigh, leftShin, rightThigh, rightShin, stanceWidth, hipToFoot, upperLegToFootVertical, ankleHeight, footRestHeight, footLength);
         }
         // The ONE place the clamp math lives on the harness side (both the mocap path and the synthetic
         // rotation probe route through it). MUST match BasisLocalFootDriver.DeriveStepParameters +
         // BasisFootIKSweep.BuildParams -- a tune only has to change one copy on this side.
-        static BasisFootSimParams Derive(float leftThigh, float leftShin, float rightThigh, float rightShin, float stanceWidth, float hipToFoot, float upperLegToFootVertical, float ankleHeight, float footLength)
+        static BasisFootSimParams Derive(float leftThigh, float leftShin, float rightThigh, float rightShin, float stanceWidth, float hipToFoot, float upperLegToFootVertical, float ankleHeight, float footRestHeight, float footLength)
         {
             float leftLeg = leftThigh + leftShin, rightLeg = rightThigh + rightShin;
             float avgLeg = 0.5f * (leftLeg + rightLeg), avgShin = 0.5f * (leftShin + rightShin);
@@ -211,7 +215,8 @@ namespace Basis.IK.Mocap
             float raySphereRadius = Mathf.Clamp(footLength * raySphereRadiusMul, avgLeg * (0.02f / refLeg), avgLeg * (0.12f / refLeg));
             float desiredOffset = ankleHeight * footHeightOffsetMul;
             float straightLegLimit = upperLegToFootVertical + ankleHeight - avgLeg;
-            float footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), avgLeg * (0.001f / refLeg), avgLeg * (0.05f / refLeg));
+            float footHangOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), avgLeg * (0.001f / refLeg), avgLeg * (0.05f / refLeg));
+            float footHeightOffset = Mathf.Max(footHangOffset, footRestHeight);
             float stepTriggerDist = Mathf.Clamp(avgLeg * stepTriggerMul, avgLeg * (0.04f / refLeg), avgLeg * (0.18f / refLeg));
             float strideScale = Mathf.Clamp(avgLeg * strideScaleMul, avgLeg * (0.02f / refLeg), avgLeg * (0.22f / refLeg));
             float stepHeightCalc = Mathf.Clamp(avgShin * stepHeightMul, avgLeg * (0.03f / refLeg), avgLeg * (0.20f / refLeg));
@@ -238,7 +243,7 @@ namespace Basis.IK.Mocap
                 footLength = footLength, ankleHeight = ankleHeight,
                 stepTriggerDist = stepTriggerDist, strideScale = strideScale, stepHeightCalc = stepHeightCalc,
                 stepDurSlow = stepDurSlow, stepDurFast = stepDurFast, raySphereRadius = raySphereRadius,
-                footHeightOffset = footHeightOffset, fastSpeedRef = fastSpeedRef,
+                footHeightOffset = footHeightOffset, footHangOffset = footHangOffset, fastSpeedRef = fastSpeedRef,
                 rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLeg, rightLeg)) + 1f,
             };
         }
@@ -247,7 +252,7 @@ namespace Basis.IK.Mocap
         public static BasisFootSimParams BuildReferenceParams(float scale)
         {
             float s = scale;
-            return Derive(0.45f * s, 0.42f * s, 0.45f * s, 0.42f * s, 0.18f * s, 0.92f * s, 0.87f * s, 0.08f * s, 0.13f * s);
+            return Derive(0.45f * s, 0.42f * s, 0.45f * s, 0.42f * s, 0.18f * s, 0.92f * s, 0.87f * s, 0.08f * s, 0.08f * s, 0.13f * s);
         }
         // ───────────────────────── drive the real job ─────────────────────────
         static void RunStepper(BasisMotionClip clip, BasisFootSimParams p, float groundY, float3[] outL, float3[] outR, bool[] plantedL, bool[] plantedR)
