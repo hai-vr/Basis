@@ -202,8 +202,7 @@ jobs:
         id: unity-build
         timeout-minutes: ${{ matrix.buildTimeout }}
         continue-on-error: true
-        # Tested head of BasisVR/unity-builder PR #2; switch to upstream main after merge.
-        uses: Toys0125/unity-builder@8df337b5ce899c7099fe7f7f8b0c36c43ebb890f
+        uses: BasisVR/unity-builder@main
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
@@ -222,7 +221,7 @@ jobs:
       - name: "Build Unity project (retry)"
         if: steps.unity-build.outcome == 'failure'
         timeout-minutes: ${{ matrix.buildTimeout }}
-        uses: Toys0125/unity-builder@8df337b5ce899c7099fe7f7f8b0c36c43ebb890f
+        uses: BasisVR/unity-builder@main
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
