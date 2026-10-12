@@ -1874,21 +1874,8 @@ namespace Basis.BasisUI
         // Clamp on the scapulohumeral girdle swing.
         public static BasisSettingsBinding<float> FBIKShoulderMaxDeg = new("fbikshouldermaxdeg_v2", new BasisPlatformDefault<float>(30f));
         public static BasisSettingsBinding<float> FBIKShoulderTrackerBlend = new("fbikshouldertrackerblend", new BasisPlatformDefault<float>(0.25f));
-        public static BasisSettingsBinding<bool> FBIKArmJointLimits = new("fbikarmjointlimits", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<float> FBIKArmReachSoftness = new("fbikarmreachsoftness", new BasisPlatformDefault<float>(0.02f));
         public static BasisSettingsBinding<float> FBIKArmSwivelSmoothTime = new("fbikarmswivelsmoothtime", new BasisPlatformDefault<float>(0.08f));
         public static BasisSettingsBinding<float> FBIKArmSwivelMaxRate = new("fbikarmswivelmaxrate", new BasisPlatformDefault<float>(720f));
-        public static BasisSettingsBinding<float> FBIKArmSwivelSwitchDwell = new("fbikarmswivelswitchdwell", new BasisPlatformDefault<float>(0.2f));
-        public static BasisSettingsBinding<float> FBIKArmPriorWeight = new("fbikarmpriorweight", new BasisPlatformDefault<float>(0.5f));
-        public static BasisSettingsBinding<float> FBIKArmPreviousWeight = new("fbikarmpreviousweight", new BasisPlatformDefault<float>(0.25f));
-        public static BasisSettingsBinding<float> FBIKForearmPronationMax = new("fbikforearmpronationmax", new BasisPlatformDefault<float>(90f));
-        public static BasisSettingsBinding<float> FBIKForearmSupinationMax = new("fbikforearmsupinationmax", new BasisPlatformDefault<float>(90f));
-        public static BasisSettingsBinding<float> FBIKHumeralInternalMax = new("fbikhumeralinternalmax", new BasisPlatformDefault<float>(70f));
-        public static BasisSettingsBinding<float> FBIKHumeralExternalMax = new("fbikhumeralexternalmax", new BasisPlatformDefault<float>(90f));
-        public static BasisSettingsBinding<float> FBIKWristFlexionMax = new("fbikwristflexionmax", new BasisPlatformDefault<float>(80f));
-        public static BasisSettingsBinding<float> FBIKWristExtensionMax = new("fbikwristextensionmax", new BasisPlatformDefault<float>(70f));
-        public static BasisSettingsBinding<float> FBIKWristRadialMax = new("fbikwristradialmax", new BasisPlatformDefault<float>(20f));
-        public static BasisSettingsBinding<float> FBIKWristUlnarMax = new("fbikwristulnarmax", new BasisPlatformDefault<float>(30f));
         // Butterfly knees: with foot trackers (no knee tracker), tilting the feet outward and pulling them in lets
         // the knees fall open -- both laying on your back and sitting upright (cross-legged). MaxOpenDeg clamps the
         // splay to the hip's natural abduction.
@@ -2950,21 +2937,8 @@ namespace Basis.BasisUI
             FBIKTrackedKneeSwivelDerivCutoffHz.LoadBindingValue();
             FBIKShoulderMaxDeg.LoadBindingValue();
             FBIKShoulderTrackerBlend.LoadBindingValue();
-            FBIKArmJointLimits.LoadBindingValue();
-            FBIKArmReachSoftness.LoadBindingValue();
             FBIKArmSwivelSmoothTime.LoadBindingValue();
             FBIKArmSwivelMaxRate.LoadBindingValue();
-            FBIKArmSwivelSwitchDwell.LoadBindingValue();
-            FBIKArmPriorWeight.LoadBindingValue();
-            FBIKArmPreviousWeight.LoadBindingValue();
-            FBIKForearmPronationMax.LoadBindingValue();
-            FBIKForearmSupinationMax.LoadBindingValue();
-            FBIKHumeralInternalMax.LoadBindingValue();
-            FBIKHumeralExternalMax.LoadBindingValue();
-            FBIKWristFlexionMax.LoadBindingValue();
-            FBIKWristExtensionMax.LoadBindingValue();
-            FBIKWristRadialMax.LoadBindingValue();
-            FBIKWristUlnarMax.LoadBindingValue();
             FBIKSpineAnatomicalRom.LoadBindingValue();
             FBIKBodyFit.LoadBindingValue();
             FBIKJobLocomotion.LoadBindingValue();
@@ -3134,9 +3108,6 @@ namespace Basis.BasisUI
             AdoptKnownDefault(FBIKShoulderElevation, 0.4f);
             AdoptKnownDefault(FBIKShoulderProtraction, 0.3f);
             AdoptKnownDefault(FBIKShoulderMaxDeg, 25f);
-            AdoptKnownDefault(FBIKArmReachSoftness, 0.06f, 0.04f);
-            AdoptKnownDefault(FBIKArmPriorWeight, 1f);
-            AdoptKnownDefault(FBIKForearmPronationMax, 95f);
             BasisSettingsSystem.SaveBool(ArmDefaultsAdoptedKey, true);
         }
         static void AdoptKnownDefault(BasisSettingsBinding<float> binding, params float[] superseded)

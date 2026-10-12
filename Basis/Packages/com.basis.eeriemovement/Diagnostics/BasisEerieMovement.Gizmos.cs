@@ -271,6 +271,8 @@ namespace Basis.IK
             gizmos.Bone(stage, shoulderPos, elbowPos, color);
             gizmos.Bone(stage, elbowPos, handPos, color);
             gizmos.Point(stage, handPos, color);
+            gizmos.BoneAxes(stage, ref poseStream, root, gizmos.AxisLength);
+            gizmos.BoneAxes(stage, ref poseStream, mid, gizmos.AxisLength);
             gizmos.BoneAxes(stage, ref poseStream, tip, gizmos.AxisLength);
             gizmos.Line(stage, handPos, target, gizmoResidual);
 

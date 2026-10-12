@@ -33,18 +33,13 @@ namespace Basis.IK.Mocap
     public struct BasisMocapArmKnobs
     {
         public bool Active;
-        public float PriorWeight, PreviousWeight, ReachSoftness, PronationMaxDeg, SupinationMaxDeg, SmoothTime;
+        public float SmoothTime;
         public void Apply(ref BasisArmSolveInput i)
         {
             if (!Active)
             {
                 return;
             }
-            if (PriorWeight >= 0f) i.PriorWeight = PriorWeight;
-            if (PreviousWeight >= 0f) i.PreviousWeight = PreviousWeight;
-            if (ReachSoftness > 0f) i.ReachSoftness = ReachSoftness;
-            if (PronationMaxDeg > 0f) i.Limits.PronationMaxDeg = PronationMaxDeg;
-            if (SupinationMaxDeg > 0f) i.Limits.SupinationMaxDeg = SupinationMaxDeg;
             if (SmoothTime >= 0f) i.SmoothTime = SmoothTime;
         }
     }

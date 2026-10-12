@@ -281,7 +281,7 @@ namespace Basis.IK
     [BurstCompile]
     public static class BasisShoulderSolveCore
     {
-        public const float ElevationStartDeg = 90f, ElevationEndDeg = 180f, ElevationMaxDeg = 54f, RetractionStartDeg = 70f, RetractionSlope = -0.22f, RetractionIntercept = 15.4f;
+        public const float ElevationStartDeg = 80f, ElevationEndDeg = 180f, ElevationMaxDeg = 75f, RetractionStartDeg = 70f, RetractionSlope = -0.22f, RetractionIntercept = 15.4f;
         public const float RetractionShare = 0.5f, ForwardReachStart = 0.6f, ForwardReachFullDeg = 15f, CrossBodyDeg = 20f, BehindStart = 0.3f, BehindFullDeg = 12f, ShrugStartDeg = 150f, ShrugFullDeg = 10f;
         const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;
         public static void Solve(in BasisShoulderSolveInput i, out BasisShoulderSolveResult r)
@@ -293,22 +293,27 @@ namespace Basis.IK
             {
                 return;
             }
+
+            // Rotate shoulder up when arm is raised
             Vector3 dir = toHand / reach;
             float elevation = Vector3.Angle(-i.TorsoUp, dir), elev = ElevationMaxDeg * BasisArmSolveCore.Smoothstep(ElevationStartDeg, ElevationEndDeg, elevation);
-            //if (i.ShrugEnabled && elevation > ShrugStartDeg) elev += ShrugFullDeg * Mathf.Clamp01((elevation - ShrugStartDeg) / (180f - ShrugStartDeg));
+
             float forward = Vector3.Dot(toHand, i.TorsoForward) / armLen, medial = -Vector3.Dot(toHand, i.TorsoOut) / armLen;
             float prot = Mathf.Clamp01((forward - ForwardReachStart) / (1f - ForwardReachStart)) * ForwardReachFullDeg + Mathf.Clamp01(medial) * CrossBodyDeg;
             prot -= Mathf.Clamp01((-forward - BehindStart) / 0.5f) * BehindFullDeg;
             if (elevation > RetractionStartDeg) prot += (RetractionSlope * elevation + RetractionIntercept) * RetractionShare;
             elev = Mathf.Clamp(elev * i.ElevationFactor, -i.MaxDeg, i.MaxDeg);
             prot = Mathf.Clamp(prot * i.ProtractionFactor, -i.MaxDeg, i.MaxDeg);
+
             Vector3 c0 = clavicle / clavLen, up = i.TorsoUp - c0 * Vector3.Dot(i.TorsoUp, c0), fwd = i.TorsoForward - c0 * Vector3.Dot(i.TorsoForward, c0);
             if (up.sqrMagnitude < sqrEpsilon || fwd.sqrMagnitude < sqrEpsilon)
             {
                 return;
             }
+
             up.Normalize();
             fwd.Normalize();
+
             float e = elev * Mathf.Deg2Rad, p = prot * Mathf.Deg2Rad;
             Vector3 c1 = (c0 * Mathf.Cos(e) + up * Mathf.Sin(e)).normalized, c2 = (c1 * Mathf.Cos(p) + fwd * Mathf.Sin(p)).normalized;
             r.Delta = BasisQuaternionExt.FromToRotation(c0, c2);

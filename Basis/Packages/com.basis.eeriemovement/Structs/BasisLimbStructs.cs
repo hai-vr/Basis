@@ -65,19 +65,13 @@ public struct BasisFootSimOutput
 }
 namespace Basis.IK
 {
-    public struct BasisArmLimits
-    {
-        public float PronationMaxDeg, SupinationMaxDeg, HumeralInternalMaxDeg, HumeralExternalMaxDeg, WristFlexionMaxDeg, WristExtensionMaxDeg, WristRadialMaxDeg, WristUlnarMaxDeg;
-        public static BasisArmLimits Default => new BasisArmLimits { PronationMaxDeg = 90f, SupinationMaxDeg = 90f, HumeralInternalMaxDeg = 70f, HumeralExternalMaxDeg = 90f, WristFlexionMaxDeg = 80f, WristExtensionMaxDeg = 70f, WristRadialMaxDeg = 20f, WristUlnarMaxDeg = 30f };
-    }
     public struct BasisArmSolveInput
     {
         public Vector3 Chest, Shoulder, RestElbow, RestHand, TargetPosition, HeadPosition, HintPosition, TorsoUp, TorsoForward, TorsoOut, TorsoA, TorsoB;
         public Quaternion TargetRotation, RestHandRotation, HintRotation;
-        public bool HasHead, HasTrackerHint, HasHintRotation, IsLeft, TorsoCapsule, JointLimits;
-        public float TorsoRadius, Dt, ReachSoftness, SmoothTime, MaxRateDeg, SwitchDwell, PriorWeight, PreviousWeight;
-        public BasisArmLimits Limits;
-        public static BasisArmSolveInput Defaults(bool isLeft) => new BasisArmSolveInput { TorsoUp = Vector3.up, TorsoForward = Vector3.forward, TorsoOut = isLeft ? Vector3.left : Vector3.right, IsLeft = isLeft, JointLimits = true, Dt = 1f / 90f, ReachSoftness = 0.02f, SmoothTime = 0.08f, MaxRateDeg = 720f, SwitchDwell = 0.2f, PriorWeight = 0.5f, PreviousWeight = 0.25f, Limits = BasisArmLimits.Default, TargetRotation = Quaternion.identity, RestHandRotation = Quaternion.identity, HintRotation = Quaternion.identity };
+        public bool HasHead, HasTrackerHint, HasHintRotation, IsLeft, TorsoCapsule;
+        public float TorsoRadius, Dt, SmoothTime, MaxRateDeg;
+        public static BasisArmSolveInput Defaults(bool isLeft) => new BasisArmSolveInput { TorsoUp = Vector3.up, TorsoForward = Vector3.forward, TorsoOut = isLeft ? Vector3.left : Vector3.right, IsLeft = isLeft, Dt = 1f / 90f, SmoothTime = 0.08f, MaxRateDeg = 720f, TargetRotation = Quaternion.identity, RestHandRotation = Quaternion.identity, HintRotation = Quaternion.identity };
     }
     public struct BasisArmSolveResult
     {

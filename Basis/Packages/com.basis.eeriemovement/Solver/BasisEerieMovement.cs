@@ -60,10 +60,8 @@ namespace Basis.IK
         public bool spineAnatomicalRom;
         public bool shoulderSolveEnabled, shoulderShrugEnabled;
         public float shoulderElevationFactor, shoulderProtractionFactor, shoulderMaxDeg, shoulderTrackerBlendTime, lowerArmTwistFraction, upperArmTwistFraction;
-        public bool protectElbow, collideTrackedElbow, armJointLimits;
-        public float armReachSoftness, armSwivelSmoothTime, armSwivelMaxRateDeg, armSwivelSwitchDwell, armPriorWeight, armPreviousWeight;
-        public float forearmPronationMaxDeg, forearmSupinationMaxDeg, humeralInternalMaxDeg, humeralExternalMaxDeg, wristFlexionMaxDeg;
-        public float wristExtensionMaxDeg, wristRadialMaxDeg, wristUlnarMaxDeg;
+        public bool protectElbow, collideTrackedElbow;
+        public float armSwivelSmoothTime, armSwivelMaxRateDeg;
         public bool legSwivelSmoothing, kneeFootPoleHold, kneeFootPoleConditioning;
         public float trackedKneeSwivelMinCutoffHz, trackedKneeSwivelBeta, trackedKneeSwivelDerivCutoffHz;
         public bool collisionsEnabled;

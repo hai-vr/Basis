@@ -138,15 +138,9 @@ namespace Basis.IK
                 input.TorsoB = poseStream.GetPosition(handleNeck);
                 input.TorsoRadius = chestRadius + collisionSkin;
             }
-            input.JointLimits = armJointLimits;
-            input.Limits = new BasisArmLimits { PronationMaxDeg = forearmPronationMaxDeg, SupinationMaxDeg = forearmSupinationMaxDeg, HumeralInternalMaxDeg = humeralInternalMaxDeg, HumeralExternalMaxDeg = humeralExternalMaxDeg, WristFlexionMaxDeg = wristFlexionMaxDeg, WristExtensionMaxDeg = wristExtensionMaxDeg, WristRadialMaxDeg = wristRadialMaxDeg, WristUlnarMaxDeg = wristUlnarMaxDeg };
             input.Dt = poseStream.deltaTime;
-            input.ReachSoftness = armReachSoftness;
             input.SmoothTime = armSwivelSmoothTime;
             input.MaxRateDeg = armSwivelMaxRateDeg;
-            input.SwitchDwell = armSwivelSwitchDwell;
-            input.PriorWeight = armPriorWeight;
-            input.PreviousWeight = armPreviousWeight;
             BasisArmState scratch = default;
             ref BasisArmState state = ref (plan.hasArmState ? ref Ref(armState, slot) : ref scratch);
             BasisArmSolveCore.Solve(input, ref state, out BasisArmSolveResult result);

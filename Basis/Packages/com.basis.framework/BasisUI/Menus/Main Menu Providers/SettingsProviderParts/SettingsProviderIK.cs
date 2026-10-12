@@ -460,24 +460,8 @@ public static partial class SettingsProviderIK
             BasisLocalization.Get("settings.bodyTracking.section.armSolver.title"),
             BasisLocalization.Get("settings.bodyTracking.section.armSolver.description"), false, armParent =>
         {
-            var jointLimitsToggle = PanelToggle.CreateNewEntry(armParent);
-            jointLimitsToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.armJointLimits.title"));
-            jointLimitsToggle.AssignBinding(BasisSettingsDefaults.FBIKArmJointLimits);
-            jointLimitsToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.armJointLimits.title.tooltip"));
-            ArmSlider(armParent, "settings.bodyTracking.armReachSoftness.title", 0.01f, 0.2f, 3, BasisSettingsDefaults.FBIKArmReachSoftness);
             ArmSlider(armParent, "settings.bodyTracking.armSwivelSmoothTime.title", 0f, 0.3f, 3, BasisSettingsDefaults.FBIKArmSwivelSmoothTime);
             ArmSlider(armParent, "settings.bodyTracking.armSwivelMaxRate.title", 0f, 3600f, 0, BasisSettingsDefaults.FBIKArmSwivelMaxRate);
-            ArmSlider(armParent, "settings.bodyTracking.armSwivelSwitchDwell.title", 0f, 1f, 2, BasisSettingsDefaults.FBIKArmSwivelSwitchDwell);
-            ArmSlider(armParent, "settings.bodyTracking.armPriorWeight.title", 0f, 3f, 2, BasisSettingsDefaults.FBIKArmPriorWeight);
-            ArmSlider(armParent, "settings.bodyTracking.armPreviousWeight.title", 0f, 1f, 2, BasisSettingsDefaults.FBIKArmPreviousWeight);
-            ArmSlider(armParent, "settings.bodyTracking.forearmPronationMax.title", 0f, 120f, 0, BasisSettingsDefaults.FBIKForearmPronationMax);
-            ArmSlider(armParent, "settings.bodyTracking.forearmSupinationMax.title", 0f, 120f, 0, BasisSettingsDefaults.FBIKForearmSupinationMax);
-            ArmSlider(armParent, "settings.bodyTracking.humeralInternalMax.title", 0f, 120f, 0, BasisSettingsDefaults.FBIKHumeralInternalMax);
-            ArmSlider(armParent, "settings.bodyTracking.humeralExternalMax.title", 0f, 120f, 0, BasisSettingsDefaults.FBIKHumeralExternalMax);
-            ArmSlider(armParent, "settings.bodyTracking.wristFlexionMax.title", 0f, 100f, 0, BasisSettingsDefaults.FBIKWristFlexionMax);
-            ArmSlider(armParent, "settings.bodyTracking.wristExtensionMax.title", 0f, 100f, 0, BasisSettingsDefaults.FBIKWristExtensionMax);
-            ArmSlider(armParent, "settings.bodyTracking.wristRadialMax.title", 0f, 60f, 0, BasisSettingsDefaults.FBIKWristRadialMax);
-            ArmSlider(armParent, "settings.bodyTracking.wristUlnarMax.title", 0f, 60f, 0, BasisSettingsDefaults.FBIKWristUlnarMax);
         });
 
         // ============== Body Fit ==============
@@ -1301,21 +1285,8 @@ public static partial class SettingsProviderIK
         BasisSettingsDefaults.FBIKShoulderProtraction.ResetToDefault();
         BasisSettingsDefaults.FBIKShoulderMaxDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKShoulderTrackerBlend.ResetToDefault();
-        BasisSettingsDefaults.FBIKArmJointLimits.ResetToDefault();
-        BasisSettingsDefaults.FBIKArmReachSoftness.ResetToDefault();
         BasisSettingsDefaults.FBIKArmSwivelSmoothTime.ResetToDefault();
         BasisSettingsDefaults.FBIKArmSwivelMaxRate.ResetToDefault();
-        BasisSettingsDefaults.FBIKArmSwivelSwitchDwell.ResetToDefault();
-        BasisSettingsDefaults.FBIKArmPriorWeight.ResetToDefault();
-        BasisSettingsDefaults.FBIKArmPreviousWeight.ResetToDefault();
-        BasisSettingsDefaults.FBIKForearmPronationMax.ResetToDefault();
-        BasisSettingsDefaults.FBIKForearmSupinationMax.ResetToDefault();
-        BasisSettingsDefaults.FBIKHumeralInternalMax.ResetToDefault();
-        BasisSettingsDefaults.FBIKHumeralExternalMax.ResetToDefault();
-        BasisSettingsDefaults.FBIKWristFlexionMax.ResetToDefault();
-        BasisSettingsDefaults.FBIKWristExtensionMax.ResetToDefault();
-        BasisSettingsDefaults.FBIKWristRadialMax.ResetToDefault();
-        BasisSettingsDefaults.FBIKWristUlnarMax.ResetToDefault();
         BasisSettingsDefaults.FBIKTrackedKneeSwivelMinCutoffHz.ResetToDefault();
         BasisSettingsDefaults.FBIKTrackedKneeSwivelBeta.ResetToDefault();
         BasisSettingsDefaults.FBIKTrackedKneeSwivelDerivCutoffHz.ResetToDefault();
