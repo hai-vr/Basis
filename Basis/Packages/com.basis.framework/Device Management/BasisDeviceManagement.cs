@@ -485,6 +485,7 @@ namespace Basis.Scripts.Device_Management
             {
                 BasisDebug.Log($"Shutting down mode: {StaticCurrentMode}", BasisDebug.LogTag.Device);
                 StopAllDevices();
+                BasisCursorManagement.OnReset();
             }
             else
             {
